@@ -1,0 +1,91 @@
+import { useEffect, useState } from 'react'
+import { Header } from '../../components/Header'
+import defaultNewsImage from '../../assets/default-news-real-estate.png'
+import { getNewsDetail } from './api'
+import { KeywordText } from './components/KeywordText'
+import { MarketAnalysis } from './components/MarketAnalysis'
+import type { NewsDetailPayload } from './types'
+import './newsDetail.css'
+
+function getNewsIdFromUrl() {
+  return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1'
+}
+
+export function NewsDetailPage() {
+  const newsId = getNewsIdFromUrl()
+  const [payload, setPayload] = useState<NewsDetailPayload>()
+  const goBack = () => {
+    window.location.href = '/'
+  }
+
+  useEffect(() => {
+    getNewsDetail(newsId).then(setPayload)
+  }, [newsId])
+
+  if (!payload) {
+    return (
+      <main className="news-page">
+        <Header />
+        <p className="loading">뉴스를 불러오는 중입니다.</p>
+      </main>
+    )
+  }
+
+  const { news, impacts, relatedIssues } = payload
+  const imageUrl = news.imageUrl ?? defaultNewsImage
+
+  return (
+    <main className="news-page">
+      <Header />
+
+      <article className="news-detail">
+        <button
+          className="back-button"
+          type="button"
+          onClick={goBack}
+          aria-label="전 페이지로 돌아가기"
+        >
+          <svg
+            aria-hidden="true"
+            className="back-icon"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <path d="M15 5 8 12l7 7M9 12h11" />
+          </svg>
+        </button>
+
+        <div className="meta">
+          <span className="category">{news.category}</span>
+          <time>{news.publishedAt}</time>
+        </div>
+
+        <h1>{news.title}</h1>
+
+        <img className="news-image" src={imageUrl} alt="" />
+
+        <section className="section">
+          <h2>핵심 요약</h2>
+          <p className="summary">{news.summary}</p>
+        </section>
+
+        <section className="section">
+          <h2>AI 본문</h2>
+          <div className="body-copy">
+            {news.body.map((paragraph) => (
+              <p key={paragraph}>
+                <KeywordText text={paragraph} issues={relatedIssues} />
+              </p>
+            ))}
+          </div>
+        </section>
+
+        <MarketAnalysis
+          summary={news.summary}
+          impacts={impacts}
+          issues={relatedIssues}
+        />
+      </article>
+    </main>
+  )
+}
