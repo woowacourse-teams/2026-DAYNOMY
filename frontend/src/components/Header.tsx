@@ -1,4 +1,4 @@
-import './Header.css'
+import "./Header.css";
 
 export function Header() {
   return (
@@ -10,9 +10,9 @@ export function Header() {
       <a className="search-link" href="/search">
         검색
       </a>
-      <button className="login-button" type="button">
-        로그인 / 회원가입
-      </button>
+      <a className="login-button" href="/login">
+        로그인
+      </a>
     </header>
-  )
+  );
 }

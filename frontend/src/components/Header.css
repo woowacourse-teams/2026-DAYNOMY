@@ -49,6 +49,10 @@
 }
 
 .daynomy-header .login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
   min-width: 124px;
   height: 40px;
   border: 0;
