@@ -2,10 +2,13 @@ import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
+import SearchPage from './features/search/SearchPage'
 import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
+
+  if (window.location.pathname === '/search') return <SearchPage />
 
   return (
     <>
@@ -28,6 +31,9 @@ function App() {
         >
           Count is {count}
         </button>
+        <a className="counter" href="/search">
+          검색 페이지 보기
+        </a>
       </section>
 
       <div className="ticks"></div>
