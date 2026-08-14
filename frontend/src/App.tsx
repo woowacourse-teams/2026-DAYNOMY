@@ -4,9 +4,13 @@ import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import SearchPage from './features/search/SearchPage'
 import './App.css'
+import { NewsDetailPage } from './feature/news/newsdetail/NewsDetailPage.tsx'
+import { Header } from './components/Header'
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  if (/^\/news\/\d+$/.test(window.location.pathname)) {
+    return <NewsDetailPage />
+  }
 
   if (window.location.pathname === '/search') return <SearchPage />
 
@@ -123,6 +127,5 @@ function App() {
       <section id="spacer"></section>
     </>
   )
+  return <Header />
 }
-
-export default App
