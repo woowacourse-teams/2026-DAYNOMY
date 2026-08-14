@@ -1,4 +1,4 @@
-import { NewsDetailPage } from './newsdetail/NewsDetailPage'
+import { NewsDetailPage } from './feature/news/NewsDetailPage'
 import { Header } from './components/Header'
 
 export default function App() {
