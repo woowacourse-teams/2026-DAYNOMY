@@ -1,12 +1,27 @@
-import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage'
+import { Header } from './components/Header'
+import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage'
 import { NewsListPage } from './features/news/newslist/NewsListPage'
+import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage'
+import SearchPage from './features/search/SearchPage'
 
-function App() {
-  if (window.location.pathname === '/news/real-estate-loan-rule') {
+export default function App() {
+  const { pathname } = window.location
+
+  if (/^\/news\/\d+$/.test(pathname)) {
+    return <NewsDetailPage />
+  }
+
+  if (pathname === '/news/real-estate-loan-rule') {
     return <RealEstateLoanRulePage />
   }
 
-  return <NewsListPage />
-}
+  if (pathname === '/search') {
+    return <SearchPage />
+  }
 
-export default App
+  if (pathname === '/') {
+    return <NewsListPage />
+  }
+
+  return <Header />
+}
