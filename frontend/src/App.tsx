@@ -1,5 +1,5 @@
 import { Header } from './components/Header'
-import { NewsDetailPage } from './feature/news/newsdetail/NewsDetailPage.tsx'
+import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage.tsx'
 import SearchPage from './features/search/SearchPage'
 
 export default function App() {
