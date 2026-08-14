@@ -1,3 +1,4 @@
+import { Header } from '../../../components/Header'
 import defaultNewsImage from '../../../assets/default-news-real-estate.png'
 import { getCategoryLabel, getDummyTodayNews } from './mock'
 import { formatDate } from './utils'
@@ -73,10 +74,7 @@ export function RealEstateLoanRulePage() {
 
   return (
     <main className="loan-detail">
-      <header className="loan-detail-header">
-        <strong>로그인 후 뉴스 상세</strong>
-        <span>시장 분석 공개</span>
-      </header>
+      <Header />
 
       <button type="button" className="loan-back-button" onClick={() => window.location.assign('/')}>
         ← 돌아가기

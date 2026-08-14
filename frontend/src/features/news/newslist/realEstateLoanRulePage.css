@@ -6,29 +6,9 @@
   color: #171821;
 }
 
-.loan-detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 -16px 18px;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e6e8ef;
-  font-size: 13px;
-}
-
-.loan-detail-header strong {
-  font-weight: 900;
-}
-
-.loan-detail-header span {
-  color: #575b68;
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .loan-back-button {
   min-height: 34px;
-  margin-bottom: 8px;
+  margin: 18px 0 8px;
   border: 0;
   background: transparent;
   color: #555b68;
