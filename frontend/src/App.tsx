@@ -1,8 +1,8 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import LoginPage from "./feature/pages/components/LoginPage";
-import MyPage from "./feature/pages/components/MyPage";
-import NotFoundPage from "./feature/pages/components/NotFoundPage";
-import SignupPage from "./feature/pages/components/SignupPage";
+import LoginPage from "./features/pages/components/LoginPage";
+import MyPage from "./features/pages/components/MyPage";
+import NotFoundPage from "./features/pages/components/NotFoundPage";
+import SignupPage from "./features/pages/components/SignupPage";
 import { NewsDetailPage } from "./features/news/newsdetail/NewsDetailPage";
 import { NewsListPage } from "./features/news/newslist/NewsListPage";
 import { RealEstateLoanRulePage } from "./features/news/newslist/RealEstateLoanRulePage";
