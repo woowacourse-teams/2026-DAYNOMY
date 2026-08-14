@@ -1,4 +1,4 @@
-import type { Impact, NewsDetail, RelatedIssue } from './types'
+import type { Impact, NewsDetail, RelatedIssue } from './types.ts'
 
 export const mockNews: NewsDetail = {
   title: '부동산 대출 규제 완화 검토, 은행·건설 업종 기대감 확대',

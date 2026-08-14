@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Header } from '../../components/Header'
-import defaultNewsImage from '../../assets/default-news-real-estate.png'
-import { getNewsDetail } from './api'
-import { KeywordText } from './components/KeywordText'
-import { MarketAnalysis } from './components/MarketAnalysis'
-import type { NewsDetailPayload } from './types'
+import { Header } from '../components/Header.tsx'
+import defaultNewsImage from '../assets/default-news-real-estate.png'
+import { getNewsDetail } from './api.ts'
+import { KeywordText } from './components/KeywordText.tsx'
+import { MarketAnalysis } from './components/MarketAnalysis.tsx'
+import type { NewsDetailPayload } from './types.ts'
 import './newsDetail.css'
 
 function getNewsIdFromUrl() {

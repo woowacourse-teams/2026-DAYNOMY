@@ -1,5 +1,5 @@
-import { mockImpacts, mockNews, mockRelatedIssues } from './mock'
-import type { Impact, NewsDetail, NewsDetailPayload, RelatedIssue } from './types'
+import { mockImpacts, mockNews, mockRelatedIssues } from './mock.ts'
+import type { Impact, NewsDetail, NewsDetailPayload, RelatedIssue } from './types.ts'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { RelatedIssue } from '../types'
+import type { RelatedIssue } from '../types.ts'
 
 function highlightKeywords(text: string, issues: RelatedIssue[]) {
   const keywords = issues

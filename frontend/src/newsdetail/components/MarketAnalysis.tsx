@@ -1,4 +1,4 @@
-import type { Direction, Impact, RelatedIssue } from '../types'
+import type { Direction, Impact, RelatedIssue } from '../types.ts'
 
 const directionLabel: Record<Direction, string> = {
   positive: '긍정',
