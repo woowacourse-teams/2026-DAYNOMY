@@ -1,0 +1,66 @@
+name: Build frontend production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: production
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build and upload Sentry source maps
+        env:
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          SENTRY_ENVIRONMENT: ${{ vars.SENTRY_ENVIRONMENT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_RELEASE: ${{ github.sha }}
+        run: |
+          : "${SENTRY_DSN:?SENTRY_DSN is required}"
+          : "${SENTRY_ENVIRONMENT:?SENTRY_ENVIRONMENT is required}"
+          : "${SENTRY_AUTH_TOKEN:?SENTRY_AUTH_TOKEN is required}"
+          : "${SENTRY_ORG:?SENTRY_ORG is required}"
+          : "${SENTRY_PROJECT:?SENTRY_PROJECT is required}"
+          : "${SENTRY_RELEASE:?SENTRY_RELEASE is required}"
+          npm run build
+
+      - name: Verify source maps were removed
+        run: |
+          if find dist -type f -name "*.map" -print -quit | grep -q .; then
+            echo "Source maps remain in dist"
+            exit 1
+          fi
+
+      - name: Upload production artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-production-${{ github.sha }}
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 7
