@@ -1,12 +1,12 @@
 export function formatDate(value?: string) {
   if (!value) {
-    return '방금 전'
+    return '방금 전';
   }
 
-  const date = new Date(value)
+  const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return value
+    return value;
   }
 
   return new Intl.DateTimeFormat('ko-KR', {
@@ -14,5 +14,5 @@ export function formatDate(value?: string) {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(date)
+  }).format(date);
 }

@@ -6,8 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class DaynomyApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(DaynomyApplication.class, args);
-    }
-
+  public static void main(String[] args) {
+    SpringApplication.run(DaynomyApplication.class, args);
+  }
 }

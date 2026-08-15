@@ -7,7 +7,7 @@ import { searchNews } from './api'
 import { getMockSearchNews } from './mock'
 import './SearchPage.css'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 10;
 
 function getPage<T>(items: T[], page: number) {
   return items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -19,7 +19,7 @@ function SearchIcon() {
       <circle cx="11" cy="11" r="6.5" />
       <path d="m16 16 4 4" />
     </svg>
-  )
+  );
 }
 
 function SearchPage() {
@@ -81,10 +81,10 @@ function SearchPage() {
     setPage(1)
   }
 
-  function changePage(nextPage: number) {
-    setPage(nextPage)
-    document.getElementById('news-results')?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const changePage = (nextPage: number) => {
+    setPage(nextPage);
+    document.getElementById('news-results')?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   function selectArticle(article: NewsArticle) {
     window.location.assign(`/news/${article.id}`)
@@ -106,8 +106,8 @@ function SearchPage() {
           <form
             className="search-form"
             onSubmit={(event) => {
-              event.preventDefault()
-              search()
+              event.preventDefault();
+              search();
             }}
           >
             <SearchIcon />
@@ -195,7 +195,7 @@ function SearchPage() {
         ) : null}
       </div>
     </main>
-  )
+  );
 }
 
-export default SearchPage
+export default SearchPage;

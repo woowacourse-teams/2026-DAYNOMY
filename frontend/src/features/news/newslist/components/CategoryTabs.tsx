@@ -1,16 +1,12 @@
-import type { NewsCategory, NewsCategoryOption } from '../types'
+import type { NewsCategory, NewsCategoryOption } from '../types';
 
 type CategoryTabsProps = {
-  categories: NewsCategoryOption[]
-  selectedCategory: NewsCategory
-  onChange: (category: NewsCategory) => void
-}
+  categories: NewsCategoryOption[];
+  selectedCategory: NewsCategory;
+  onChange: (category: NewsCategory) => void;
+};
 
-export function CategoryTabs({
-  categories,
-  selectedCategory,
-  onChange,
-}: CategoryTabsProps) {
+export function CategoryTabs({ categories, selectedCategory, onChange }: CategoryTabsProps) {
   return (
     <nav className="category-tabs" aria-label="뉴스 카테고리">
       {categories.map((category) => (
@@ -24,5 +20,5 @@ export function CategoryTabs({
         </button>
       ))}
     </nav>
-  )
+  );
 }

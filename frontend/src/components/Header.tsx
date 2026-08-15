@@ -1,4 +1,4 @@
-import './Header.css'
+import './Header.css';
 
 export function Header() {
   return (
@@ -14,5 +14,5 @@ export function Header() {
         로그인 / 회원가입
       </button>
     </header>
-  )
+  );
 }

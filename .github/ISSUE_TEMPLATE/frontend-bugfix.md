@@ -2,7 +2,7 @@
 name: 🐛 프론트엔드 버그 리포트
 about: 프론트엔드에서 발생한 버그를 제보합니다
 title: "[Fix-FE] "
-labels: bug, frontend
+labels: 🐞 bugfix, 🖥️ FE
 assignees: ''
 ---
 

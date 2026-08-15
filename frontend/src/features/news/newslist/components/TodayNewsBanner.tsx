@@ -1,12 +1,12 @@
-import defaultNewsImage from '../../../../assets/default-news-real-estate.png'
-import { getCategoryLabel } from '../mock'
-import type { NewsArticle } from '../types'
-import { formatDate } from '../utils'
+import defaultNewsImage from '../../../../assets/default-news-real-estate.png';
+import { getCategoryLabel } from '../mock';
+import type { NewsArticle } from '../types';
+import { formatDate } from '../utils';
 
 type TodayNewsBannerProps = {
-  article: NewsArticle
-  onSelect: (article: NewsArticle) => void
-}
+  article: NewsArticle;
+  onSelect: (article: NewsArticle) => void;
+};
 
 export function TodayNewsBanner({ article, onSelect }: TodayNewsBannerProps) {
   return (
@@ -24,5 +24,5 @@ export function TodayNewsBanner({ article, onSelect }: TodayNewsBannerProps) {
         <img src={article.thumbnailUrl ?? defaultNewsImage} alt="" />
       </div>
     </section>
-  )
+  );
 }
