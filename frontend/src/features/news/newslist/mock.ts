@@ -8,6 +8,7 @@ export const NEWS_CATEGORIES: NewsCategoryOption[] = [
   { label: '환율', value: 'EXCHANGE_RATE' },
   { label: '기업 발표', value: 'COMPANY' },
   { label: '가상자산', value: 'VIRTUAL_ASSET' },
+  { label: '금', value: 'GOLD' },
 ]
 
 const NEWS_CATEGORY_LABELS: Record<string, string> = {
