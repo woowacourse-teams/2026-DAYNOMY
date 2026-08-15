@@ -2,7 +2,7 @@
 name: ⚙️ 백엔드 기능 개발
 about: 백엔드 기능 개발 이슈를 작성합니다
 title: "[Feat-BE] "
-labels: enhancement, backend
+labels: ✨feature, ⚙️ BE
 assignees: ''
 ---
 
