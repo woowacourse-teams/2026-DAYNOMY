@@ -1,12 +1,12 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import LoginPage from "./features/pages/components/LoginPage";
-import MyPage from "./features/pages/components/MyPage";
-import NotFoundPage from "./features/pages/components/NotFoundPage";
-import SignupPage from "./features/pages/components/SignupPage";
-import { NewsDetailPage } from "./features/news/newsdetail/NewsDetailPage";
-import { NewsListPage } from "./features/news/newslist/NewsListPage";
-import { RealEstateLoanRulePage } from "./features/news/newslist/RealEstateLoanRulePage";
-import SearchPage from "./features/search/SearchPage";
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import LoginPage from './features/pages/components/LoginPage';
+import MyPage from './features/pages/components/MyPage';
+import NotFoundPage from './features/pages/components/NotFoundPage';
+import SignupPage from './features/pages/components/SignupPage';
+import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
+import { NewsListPage } from './features/news/newslist/NewsListPage';
+import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
+import SearchPage from './features/search/SearchPage';
 
 export default function App() {
   return (

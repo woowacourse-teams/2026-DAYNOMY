@@ -1,26 +1,26 @@
-import { useEffect, useState } from 'react'
-import { Header } from '../../../components/Header.tsx'
-import defaultNewsImage from '../../../assets/default-news-real-estate.png'
-import { getNewsDetail } from './api.ts'
-import { KeywordText } from './components/KeywordText.tsx'
-import { MarketAnalysis } from './components/MarketAnalysis.tsx'
-import type { NewsDetailPayload } from './types.ts'
-import './newsDetail.css'
+import { useEffect, useState } from 'react';
+import { Header } from '../../../components/Header.tsx';
+import defaultNewsImage from '../../../assets/default-news-real-estate.png';
+import { getNewsDetail } from './api.ts';
+import { KeywordText } from './components/KeywordText.tsx';
+import { MarketAnalysis } from './components/MarketAnalysis.tsx';
+import type { NewsDetailPayload } from './types.ts';
+import './newsDetail.css';
 
 function getNewsIdFromUrl() {
-  return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1'
+  return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
 }
 
 export function NewsDetailPage() {
-  const newsId = getNewsIdFromUrl()
-  const [payload, setPayload] = useState<NewsDetailPayload>()
+  const newsId = getNewsIdFromUrl();
+  const [payload, setPayload] = useState<NewsDetailPayload>();
   const goBack = () => {
-    window.location.href = '/'
-  }
+    window.location.href = '/';
+  };
 
   useEffect(() => {
-    getNewsDetail(newsId).then(setPayload)
-  }, [newsId])
+    getNewsDetail(newsId).then(setPayload);
+  }, [newsId]);
 
   if (!payload) {
     return (
@@ -28,11 +28,11 @@ export function NewsDetailPage() {
         <Header />
         <p className="loading">뉴스를 불러오는 중입니다.</p>
       </main>
-    )
+    );
   }
 
-  const { news, impacts, relatedIssues } = payload
-  const imageUrl = news.imageUrl ?? defaultNewsImage
+  const { news, impacts, relatedIssues } = payload;
+  const imageUrl = news.imageUrl ?? defaultNewsImage;
 
   return (
     <main className="news-page">
@@ -45,12 +45,7 @@ export function NewsDetailPage() {
           onClick={goBack}
           aria-label="전 페이지로 돌아가기"
         >
-          <svg
-            aria-hidden="true"
-            className="back-icon"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
+          <svg aria-hidden="true" className="back-icon" fill="none" viewBox="0 0 24 24">
             <path d="M15 5 8 12l7 7M9 12h11" />
           </svg>
         </button>
@@ -80,12 +75,8 @@ export function NewsDetailPage() {
           </div>
         </section>
 
-        <MarketAnalysis
-          summary={news.summary}
-          impacts={impacts}
-          issues={relatedIssues}
-        />
+        <MarketAnalysis summary={news.summary} impacts={impacts} issues={relatedIssues} />
       </article>
     </main>
-  )
+  );
 }

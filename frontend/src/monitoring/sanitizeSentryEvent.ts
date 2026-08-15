@@ -1,4 +1,4 @@
-import type { ErrorEvent } from "@sentry/react";
+import type { ErrorEvent } from '@sentry/react';
 
 const withoutQuery = (url: string) => url.split(/[?#]/, 1)[0];
 
@@ -17,7 +17,7 @@ export function sanitizeSentryEvent(event: ErrorEvent) {
   }
 
   for (const breadcrumb of event.breadcrumbs ?? []) {
-    if (typeof breadcrumb.data?.url === "string") {
+    if (typeof breadcrumb.data?.url === 'string') {
       breadcrumb.data.url = withoutQuery(breadcrumb.data.url);
     }
   }

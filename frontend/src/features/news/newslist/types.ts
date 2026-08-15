@@ -6,28 +6,28 @@ export type NewsCategory =
   | 'EXCHANGE_RATE'
   | 'COMPANY'
   | 'VIRTUAL_ASSET'
-  | 'GOLD'
+  | 'GOLD';
 
 export type NewsArticle = {
-  id: number | string
-  title: string
-  summary?: string
-  category: string
-  thumbnailUrl?: string
-  publishedAt?: string
-  source?: string
-  body?: string
-}
+  id: number | string;
+  title: string;
+  summary?: string;
+  category: string;
+  thumbnailUrl?: string;
+  publishedAt?: string;
+  source?: string;
+  body?: string;
+};
 
 export type NewsPage = {
-  content: NewsArticle[]
-  page: number
-  size: number
-  totalPages: number
-  totalElements: number
-}
+  content: NewsArticle[];
+  page: number;
+  size: number;
+  totalPages: number;
+  totalElements: number;
+};
 
 export type NewsCategoryOption = {
-  label: string
-  value: NewsCategory
-}
+  label: string;
+  value: NewsCategory;
+};
