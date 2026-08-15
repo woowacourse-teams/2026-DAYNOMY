@@ -2,7 +2,7 @@
 name: 🐛 백엔드 버그 리포트
 about: 백엔드에서 발생한 버그를 제보합니다
 title: "[Fix-BE] "
-labels: bug, backend
+labels: 🐞 bugfix, ⚙️ BE
 assignees: ''
 ---
 
