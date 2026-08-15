@@ -1,103 +1,97 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Header } from '../../../components/Header'
-import { getNews, getTodayNews } from './api'
-import { ArticleCard } from './components/ArticleCard'
-import { CategoryTabs } from './components/CategoryTabs'
-import { NewsListSkeleton } from './components/NewsListSkeleton'
-import { TodayNewsBanner } from './components/TodayNewsBanner'
-import { getDummyNews, getDummyTodayNews, NEWS_CATEGORIES } from './mock'
-import type { NewsArticle, NewsCategory } from './types'
-import './newsList.css'
+import { useEffect, useMemo, useState } from 'react';
+import { Header } from '../../../components/Header';
+import { getNews, getTodayNews } from './api';
+import { ArticleCard } from './components/ArticleCard';
+import { CategoryTabs } from './components/CategoryTabs';
+import { NewsListSkeleton } from './components/NewsListSkeleton';
+import { TodayNewsBanner } from './components/TodayNewsBanner';
+import { getDummyNews, getDummyTodayNews, NEWS_CATEGORIES } from './mock';
+import type { NewsArticle, NewsCategory } from './types';
+import './newsList.css';
 
 export function NewsListPage() {
-  const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL')
-  const [articles, setArticles] = useState<NewsArticle[]>([])
-  const [page, setPage] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
-  const [todayMainNews, setTodayMainNews] = useState<NewsArticle>(() =>
-    getDummyTodayNews(),
-  )
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [todayMainNews, setTodayMainNews] = useState<NewsArticle>(() => getDummyTodayNews());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const selectedCategoryLabel = useMemo(
-    () =>
-      NEWS_CATEGORIES.find((category) => category.value === selectedCategory)?.label ??
-      '전체',
+    () => NEWS_CATEGORIES.find((category) => category.value === selectedCategory)?.label ?? '전체',
     [selectedCategory],
-  )
+  );
 
   useEffect(() => {
-    let ignore = false
+    let ignore = false;
 
     async function loadNews() {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
 
       try {
-        const newsPage = await getNews(selectedCategory, page)
+        const newsPage = await getNews(selectedCategory, page);
 
         if (!ignore) {
-          setArticles(newsPage.content)
-          setTotalPages(newsPage.totalPages)
+          setArticles(newsPage.content);
+          setTotalPages(newsPage.totalPages);
         }
       } catch (caughtError) {
         if (!ignore) {
-          const fallbackNewsPage = getDummyNews(selectedCategory, page)
+          const fallbackNewsPage = getDummyNews(selectedCategory, page);
 
-          setArticles(fallbackNewsPage.content)
-          setTotalPages(fallbackNewsPage.totalPages)
+          setArticles(fallbackNewsPage.content);
+          setTotalPages(fallbackNewsPage.totalPages);
           setError(
-            caughtError instanceof Error
-              ? caughtError.message
-              : '뉴스 목록을 불러오지 못했습니다.',
-          )
+            caughtError instanceof Error ? caughtError.message : '뉴스 목록을 불러오지 못했습니다.',
+          );
         }
       } finally {
         if (!ignore) {
-          setLoading(false)
+          setLoading(false);
         }
       }
     }
 
-    loadNews()
+    loadNews();
 
     return () => {
-      ignore = true
-    }
-  }, [selectedCategory, page])
+      ignore = true;
+    };
+  }, [selectedCategory, page]);
 
   useEffect(() => {
-    let ignore = false
+    let ignore = false;
 
     async function loadTodayNews() {
       try {
-        const todayNews = await getTodayNews()
+        const todayNews = await getTodayNews();
 
         if (!ignore) {
-          setTodayMainNews(todayNews)
+          setTodayMainNews(todayNews);
         }
       } catch {
         if (!ignore) {
-          setTodayMainNews(getDummyTodayNews())
+          setTodayMainNews(getDummyTodayNews());
         }
       }
     }
 
-    loadTodayNews()
+    loadTodayNews();
 
     return () => {
-      ignore = true
-    }
-  }, [])
+      ignore = true;
+    };
+  }, []);
 
   function handleCategoryChange(category: NewsCategory) {
-    setSelectedCategory(category)
-    setPage(0)
+    setSelectedCategory(category);
+    setPage(0);
   }
 
   function handleArticleSelect(article: NewsArticle) {
-    window.location.assign(`/news/${article.id}`)
+    window.location.assign(`/news/${article.id}`);
   }
 
   return (
@@ -164,5 +158,5 @@ export function NewsListPage() {
         ))}
       </footer>
     </main>
-  )
+  );
 }

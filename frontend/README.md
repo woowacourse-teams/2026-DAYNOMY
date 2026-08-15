@@ -2,11 +2,11 @@
 
 ## 기술 스택
 
-| 항목 | 버전 |
-|------|------|
-| React | 19 |
-| TypeScript | 6.0 |
-| Vite | 8.2 |
+| 항목       | 버전 |
+| ---------- | ---- |
+| React      | 19   |
+| TypeScript | 6.0  |
+| Vite       | 8.2  |
 
 ---
 
@@ -74,10 +74,10 @@ npm run lint
 
 배포 환경에 다음 값을 설정합니다. 로컬 기본값은 `.env.example`을 참고합니다.
 
-| 변수 | 값 |
-|------|----|
-| `SENTRY_DSN` | Sentry 프로젝트의 Client Key(DSN) |
-| `SENTRY_ENVIRONMENT` | `staging` 또는 `production` |
+| 변수                 | 값                                |
+| -------------------- | --------------------------------- |
+| `SENTRY_DSN`         | Sentry 프로젝트의 Client Key(DSN) |
+| `SENTRY_ENVIRONMENT` | `staging` 또는 `production`       |
 
 Sentry는 프로덕션 빌드이면서 환경이 `staging` 또는 `production`일 때만 초기화됩니다. 개발 서버와 `local` 환경에서는 전송하지 않습니다.
 
@@ -85,12 +85,12 @@ Sentry는 프로덕션 빌드이면서 환경이 `staging` 또는 `production`�
 
 배포 빌드에 다음 값을 설정합니다.
 
-| 변수 | 용도 |
-|------|------|
+| 변수                | 용도                      |
+| ------------------- | ------------------------- |
 | `SENTRY_AUTH_TOKEN` | 소스맵 업로드용 CI Secret |
-| `SENTRY_ORG` | Sentry 조직 slug |
-| `SENTRY_PROJECT` | Sentry 프로젝트 slug |
-| `SENTRY_RELEASE` | 배포한 Git commit SHA |
+| `SENTRY_ORG`        | Sentry 조직 slug          |
+| `SENTRY_PROJECT`    | Sentry 프로젝트 slug      |
+| `SENTRY_RELEASE`    | 배포한 Git commit SHA     |
 
 네 값이 모두 있을 때만 숨김 소스맵을 생성해 Sentry에 업로드하고, 업로드가 끝나면 배포 결과물에서 소스맵을 삭제합니다. `SENTRY_AUTH_TOKEN`은 브라우저에 전달하지 않고 CI Secret으로만 관리합니다.
 
@@ -100,7 +100,7 @@ Sentry는 프로덕션 빌드이면서 환경이 `staging` 또는 `production`�
 
    ```js
    setTimeout(() => {
-     throw new Error("Sentry deployment verification");
+     throw new Error('Sentry deployment verification');
    }, 0);
    ```
 

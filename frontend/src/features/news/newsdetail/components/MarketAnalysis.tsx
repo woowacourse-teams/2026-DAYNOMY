@@ -1,25 +1,25 @@
-import type { Direction, Impact, RelatedIssue } from '../types.ts'
+import type { Direction, Impact, RelatedIssue } from '../types.ts';
 
 const directionLabel: Record<Direction, string> = {
   positive: '긍정',
   negative: '부정',
   neutral: '중립',
-}
+};
 
 const directionScore: Record<Direction, number> = {
   positive: 78,
   neutral: 52,
   negative: 34,
-}
+};
 
 export function MarketAnalysis({
   summary,
   impacts,
   issues,
 }: {
-  summary: string
-  impacts: Impact[]
-  issues: RelatedIssue[]
+  summary: string;
+  impacts: Impact[];
+  issues: RelatedIssue[];
 }) {
   return (
     <section className="section">
@@ -33,9 +33,9 @@ export function MarketAnalysis({
         <article className="analysis-card">
           <h3>2. 이슈가 중요한 이유</h3>
           <p>
-            이 뉴스는 부동산 거래량, 은행 대출 성장, 건설사 분양 심리, 채권
-            금리 기대에 동시에 연결됩니다. 단일 업종 이슈가 아니라 자산
-            포트폴리오 전반의 위험 선호도를 바꿀 수 있습니다.
+            이 뉴스는 부동산 거래량, 은행 대출 성장, 건설사 분양 심리, 채권 금리 기대에 동시에
+            연결됩니다. 단일 업종 이슈가 아니라 자산 포트폴리오 전반의 위험 선호도를 바꿀 수
+            있습니다.
           </p>
         </article>
 
@@ -49,9 +49,7 @@ export function MarketAnalysis({
                   style={{ width: `${directionScore[impact.direction]}%` }}
                 />
               </div>
-              <strong className={impact.direction}>
-                {directionLabel[impact.direction]}
-              </strong>
+              <strong className={impact.direction}>{directionLabel[impact.direction]}</strong>
             </div>
           ))}
         </div>
@@ -72,5 +70,5 @@ export function MarketAnalysis({
         </article>
       </div>
     </section>
-  )
+  );
 }

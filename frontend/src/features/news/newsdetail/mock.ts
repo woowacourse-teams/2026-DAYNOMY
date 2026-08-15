@@ -1,4 +1,4 @@
-import type { Impact, NewsDetail, RelatedIssue } from './types.ts'
+import type { Impact, NewsDetail, RelatedIssue } from './types.ts';
 
 export const mockNews: NewsDetail = {
   title: '부동산 대출 규제 완화 검토, 은행·건설 업종 기대감 확대',
@@ -13,26 +13,23 @@ export const mockNews: NewsDetail = {
     '다만 완화가 확정된 것은 아니며, 금융당국은 가계부채 증가 속도와 시장 과열 여부를 함께 점검할 가능성이 큽니다. 시장은 단기적으로 기대감을 반영하되, 실제 정책 발표 전까지는 변동성이 남아 있습니다.',
     '부동산 거래 회복은 건설 수주와 분양 심리에 긍정적으로 작용할 수 있고, 은행권에는 주택담보대출 수요 증가 기대를 만들 수 있습니다. 반면 금리와 환율, 물가 흐름이 정책 여력을 제한할 수 있다는 점은 부담 요인입니다.',
   ],
-}
+};
 
 export const mockImpacts: Impact[] = [
   {
     asset: '주식',
     direction: 'positive',
-    evidence:
-      '은행과 건설 업종은 대출 증가와 거래 회복 기대를 직접 반영할 수 있습니다.',
+    evidence: '은행과 건설 업종은 대출 증가와 거래 회복 기대를 직접 반영할 수 있습니다.',
   },
   {
     asset: '채권',
     direction: 'neutral',
-    evidence:
-      '가계부채 관리 기조가 유지되면 금리 기대가 크게 움직이기 어렵습니다.',
+    evidence: '가계부채 관리 기조가 유지되면 금리 기대가 크게 움직이기 어렵습니다.',
   },
   {
     asset: '부동산',
     direction: 'positive',
-    evidence:
-      '대출 문턱 완화는 매수 심리와 거래량 회복에 가장 직접적인 재료입니다.',
+    evidence: '대출 문턱 완화는 매수 심리와 거래량 회복에 가장 직접적인 재료입니다.',
   },
   {
     asset: '금',
@@ -42,10 +39,9 @@ export const mockImpacts: Impact[] = [
   {
     asset: '환율',
     direction: 'negative',
-    evidence:
-      '가계부채 확대 우려가 커지면 원화 투자 심리에 부담이 될 수 있습니다.',
+    evidence: '가계부채 확대 우려가 커지면 원화 투자 심리에 부담이 될 수 있습니다.',
   },
-]
+];
 
 export const mockRelatedIssues: RelatedIssue[] = [
   {
@@ -68,4 +64,4 @@ export const mockRelatedIssues: RelatedIssue[] = [
     description:
       '거래 회복 기대가 커질수록 수주, 분양 심리, 주가 기대에 긍정적으로 반영될 수 있습니다.',
   },
-]
+];

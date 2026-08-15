@@ -40,7 +40,7 @@
   height: 8px;
   border-top: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
-  content: "";
+  content: '';
   transform: translateY(-50%);
 }
 
@@ -63,9 +63,8 @@
   width: 34px;
   height: 7px;
   border-radius: 999px;
-  background:
-    linear-gradient(90deg, var(--accent) 0 56%, #d9dce6 56% 72%, #d9dce6 72% 100%);
-  content: "";
+  background: linear-gradient(90deg, var(--accent) 0 56%, #d9dce6 56% 72%, #d9dce6 72% 100%);
+  content: '';
   transform: translateX(-50%);
 }
 
@@ -75,7 +74,7 @@
   background:
     linear-gradient(90deg, rgba(16, 16, 24, 0.74), rgba(16, 16, 24, 0.26)),
     linear-gradient(180deg, rgba(16, 16, 24, 0.12), rgba(16, 16, 24, 0.58));
-  content: "";
+  content: '';
   pointer-events: none;
 }
 
