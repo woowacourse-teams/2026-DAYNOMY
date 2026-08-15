@@ -2,7 +2,7 @@
 name: 🎨 프론트엔드 기능 개발
 about: 프론트엔드 기능 개발 이슈를 작성합니다
 title: "[Feat-FE] "
-labels: enhancement, frontend
+labels: ✨feature, 🖥️ FE
 assignees: ''
 ---
 
