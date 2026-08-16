@@ -1,28 +1,52 @@
 package org.grit.daynomy.news.domain;
 
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
-
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import java.time.LocalDateTime;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
-@AllArgsConstructor
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Entity
 public class News {
 
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    private String title;
-    private String content;
-    private String description;
+  @Column(name = "title", nullable = false)
+  private String title;
 
-    private String imageUrl;
+  @Column(name = "content", columnDefinition = "TEXT", nullable = false)
+  private String content;
 
-    private Category category;
+  @Column(name = "description")
+  private String description;
 
-    // TODO(choiyoung69): Keyword 관계 설계 확정 후 추가
+  @Column(name = "image_url")
+  private String imageUrl;
 
-    private LocalDateTime publishedAt;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "category", nullable = false)
+  private Category category;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+  // TODO(choiyoung69): Keyword 관계 설계 확정 후 추가
+
+  @Column(name = "published_at")
+  private LocalDateTime publishedAt;
+
+  @CreationTimestamp
+  @Column(name = "created_at", updatable = false)
+  private LocalDateTime createdAt;
+
+  @UpdateTimestamp
+  @Column(name = "updated_at")
+  private LocalDateTime updatedAt;
 }
