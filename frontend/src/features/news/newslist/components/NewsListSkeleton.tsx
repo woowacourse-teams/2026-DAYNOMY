@@ -12,5 +12,5 @@ export function NewsListSkeleton() {
         </div>
       ))}
     </section>
-  )
+  );
 }

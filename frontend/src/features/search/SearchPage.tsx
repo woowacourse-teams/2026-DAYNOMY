@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import './SearchPage.css'
+import { useState } from 'react';
+import './SearchPage.css';
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 10;
 
 const suggestions = [
   { keyword: '금', category: '자산' },
@@ -10,7 +10,7 @@ const suggestions = [
   { keyword: '국제금리', category: '채권' },
   { keyword: '기준금리', category: '정책' },
   { keyword: '연금', category: '자산' },
-]
+];
 
 const news = [
   {
@@ -133,14 +133,14 @@ const news = [
     source: '경제전망',
     publishedAt: '16시간 전',
   },
-]
+];
 
 function getPage<T>(items: T[], page: number) {
-  return items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  return items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 }
 
 if (import.meta.env.DEV) {
-  console.assert(getPage(Array.from({ length: 11 }), 2).length === 1)
+  console.assert(getPage(Array.from({ length: 11 }), 2).length === 1);
 }
 
 function SearchIcon() {
@@ -149,35 +149,35 @@ function SearchIcon() {
       <circle cx="11" cy="11" r="6.5" />
       <path d="m16 16 4 4" />
     </svg>
-  )
+  );
 }
 
 function SearchPage() {
-  const [query, setQuery] = useState('금')
-  const [searchedKeyword, setSearchedKeyword] = useState('금')
-  const [page, setPage] = useState(1)
-  const keyword = query.trim()
+  const [query, setQuery] = useState('금');
+  const [searchedKeyword, setSearchedKeyword] = useState('금');
+  const [page, setPage] = useState(1);
+  const keyword = query.trim();
   // ponytail: local data until the search API is available; replace these filters with fetch.
   const related = suggestions.filter(
     ({ keyword: item }) => keyword !== '' && item.includes(keyword),
-  )
+  );
   const results = news.filter(({ title, summary, category }) =>
     `${title} ${summary} ${category}`.includes(searchedKeyword),
-  )
-  const totalPages = Math.ceil(results.length / PAGE_SIZE)
+  );
+  const totalPages = Math.ceil(results.length / PAGE_SIZE);
 
   const search = (value = query) => {
-    const nextKeyword = value.trim()
-    if (!nextKeyword) return
-    setQuery(nextKeyword)
-    setSearchedKeyword(nextKeyword)
-    setPage(1)
-  }
+    const nextKeyword = value.trim();
+    if (!nextKeyword) return;
+    setQuery(nextKeyword);
+    setSearchedKeyword(nextKeyword);
+    setPage(1);
+  };
 
   const changePage = (nextPage: number) => {
-    setPage(nextPage)
-    document.getElementById('news-results')?.scrollIntoView({ behavior: 'smooth' })
-  }
+    setPage(nextPage);
+    document.getElementById('news-results')?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
     <main className="search-page">
@@ -195,8 +195,8 @@ function SearchPage() {
           <form
             className="search-form"
             onSubmit={(event) => {
-              event.preventDefault()
-              search()
+              event.preventDefault();
+              search();
             }}
           >
             <SearchIcon />
@@ -253,7 +253,9 @@ function SearchPage() {
                     <article>
                       <div className="news-meta">
                         <span className="news-category">{item.category}</span>
-                        <span>{item.source} · {item.publishedAt}</span>
+                        <span>
+                          {item.source} · {item.publishedAt}
+                        </span>
                       </div>
                       <h3>{item.title}</h3>
                       <p>{item.summary}</p>
@@ -264,26 +266,20 @@ function SearchPage() {
 
               {totalPages > 1 && (
                 <nav className="pagination" aria-label="검색 결과 페이지">
-                  <button
-                    type="button"
-                    disabled={page === 1}
-                    onClick={() => changePage(page - 1)}
-                  >
+                  <button type="button" disabled={page === 1} onClick={() => changePage(page - 1)}>
                     이전
                   </button>
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-                    (pageNumber) => (
-                      <button
-                        type="button"
-                        className={page === pageNumber ? 'active' : ''}
-                        aria-current={page === pageNumber ? 'page' : undefined}
-                        onClick={() => changePage(pageNumber)}
-                        key={pageNumber}
-                      >
-                        {pageNumber}
-                      </button>
-                    ),
-                  )}
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+                    <button
+                      type="button"
+                      className={page === pageNumber ? 'active' : ''}
+                      aria-current={page === pageNumber ? 'page' : undefined}
+                      onClick={() => changePage(pageNumber)}
+                      key={pageNumber}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
                   <button
                     type="button"
                     disabled={page === totalPages}
@@ -300,7 +296,7 @@ function SearchPage() {
         </section>
       </div>
     </main>
-  )
+  );
 }
 
-export default SearchPage
+export default SearchPage;
