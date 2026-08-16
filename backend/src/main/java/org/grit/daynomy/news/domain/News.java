@@ -4,8 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -19,7 +17,7 @@ public class News {
 
     private String imageUrl;
 
-    private Set<Category> categories = new HashSet<>();
+    private Category category;
 
     // TODO(choiyoung69): Keyword 관계 설계 확정 후 추가
 
