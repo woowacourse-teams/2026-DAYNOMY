@@ -1,32 +1,19 @@
+import { CATEGORY_LABELS } from './types'
 import type { NewsArticle, NewsCategory, NewsCategoryOption, NewsPage } from './types'
 
 export const NEWS_CATEGORIES: NewsCategoryOption[] = [
   { label: '전체', value: 'ALL' },
-  { label: '방안·개편', value: 'POLICY' },
-  { label: '부동산', value: 'REAL_ESTATE' },
-  { label: '금리', value: 'INTEREST_RATE' },
-  { label: '환율', value: 'EXCHANGE_RATE' },
-  { label: '기업 발표', value: 'COMPANY' },
-  { label: '가상자산', value: 'VIRTUAL_ASSET' },
-  { label: '금', value: 'GOLD' },
+  ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
+    label,
+    value: value as keyof typeof CATEGORY_LABELS,
+  })),
 ];
-
-const NEWS_CATEGORY_LABELS: Record<string, string> = {
-  ALL: '전체',
-  POLICY: '방안·개편',
-  REAL_ESTATE: '부동산',
-  INTEREST_RATE: '금리',
-  EXCHANGE_RATE: '환율',
-  COMPANY: '기업 발표',
-  VIRTUAL_ASSET: '가상자산',
-  GOLD: '금',
-};
 
 const todayNews: NewsArticle = {
   id: 'real-estate-loan-rule',
   title: '부동산 대출 규제 완화 검토',
   summary: '은행주와 건설주에는 단기 호재, 채권은 중립으로 분석됩니다.',
-  category: 'POLICY',
+  category: 'REAL_ESTATE',
   thumbnailUrl:
     'https://images.unsplash.com/photo-1582407947304-fd86f028f716?auto=format&fit=crop&w=1600&q=80',
   publishedAt: '2026-08-13T09:20:00+09:00',
@@ -49,7 +36,7 @@ export const dummyNews: NewsArticle[] = [
     id: 'base-rate-hold',
     title: '기준금리 동결 가능성 확대, 채권형 상품 가격 변동 기대',
     summary: '금리 하락 기대가 커질수록 장기 채권과 배당주 점검이 필요합니다.',
-    category: 'INTEREST_RATE',
+    category: 'BOND',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=640&q=80',
     publishedAt: '2026-08-14T08:40:00+09:00',
@@ -59,7 +46,7 @@ export const dummyNews: NewsArticle[] = [
     id: 'usd-krw-rise',
     title: '원달러 환율 상승, 수출 대형주와 해외 ETF 영향 엇갈려',
     summary: '환율 방향성은 수출주 실적과 해외 자산 평가액을 함께 확인해야 합니다.',
-    category: 'EXCHANGE_RATE',
+    category: 'FOREIGN_EXCHANGE',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1580519542036-c47de6196ba5?auto=format&fit=crop&w=640&q=80',
     publishedAt: '2026-08-14T10:10:00+09:00',
@@ -69,7 +56,7 @@ export const dummyNews: NewsArticle[] = [
     id: 'samsung-earnings',
     title: '삼성전자 실적 발표 임박, 반도체 ETF 변동성 커질 가능성',
     summary: '실적 개선 기대는 있지만 재고와 가격 회복 속도가 핵심 변수입니다.',
-    category: 'COMPANY',
+    category: 'STOCK',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=640&q=80',
     publishedAt: '2026-08-13T18:30:00+09:00',
@@ -89,7 +76,7 @@ export const dummyNews: NewsArticle[] = [
     id: 'housing-finance-policy',
     title: '주택 금융 지원 방안 개편 논의, 실수요자 대출 조건 완화 검토',
     summary: '정책 금융 확대 여부에 따라 은행주와 건설주의 반응이 갈릴 수 있습니다.',
-    category: 'POLICY',
+    category: 'REAL_ESTATE',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=640&q=80',
     publishedAt: '2026-08-14T06:50:00+09:00',
@@ -106,10 +93,6 @@ export const dummyNews: NewsArticle[] = [
     source: '가상자산 브리핑',
   },
 ];
-
-export function getCategoryLabel(value: string) {
-  return NEWS_CATEGORY_LABELS[value] ?? value;
-}
 
 export function getDummyTodayNews() {
   return todayNews

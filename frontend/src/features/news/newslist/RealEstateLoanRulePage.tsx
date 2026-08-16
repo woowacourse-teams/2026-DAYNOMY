@@ -1,6 +1,7 @@
 import { Header } from '../../../components/Header';
 import defaultNewsImage from '../../../assets/default-news-real-estate.png';
-import { getCategoryLabel, getDummyTodayNews } from './mock';
+import { getDummyTodayNews } from './mock';
+import { getCategoryLabel } from './types';
 import { formatDate } from './utils';
 import './realEstateLoanRulePage.css';
 

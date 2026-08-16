@@ -1,5 +1,5 @@
 import defaultNewsImage from '../../../../assets/default-news-real-estate.png';
-import { getCategoryLabel } from '../mock';
+import { getCategoryLabel } from '../types';
 import type { NewsArticle } from '../types';
 import { formatDate } from '../utils';
 
