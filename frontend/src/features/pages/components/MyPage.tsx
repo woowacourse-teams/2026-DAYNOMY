@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Header } from "../../../components/Header";
-import "../MyPage.css";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Header } from '../../../components/Header';
+import '../MyPage.css';
 
 const mockUser = {
-  email: "daynomy@example.com",
-  nickname: "데이노미",
+  email: 'daynomy@example.com',
+  nickname: '데이노미',
 };
 
 function MyPage() {
@@ -39,13 +39,13 @@ function MyPage() {
 
   const handleLogout = () => {
     // TODO: 로그아웃 API 연결 후 인증 상태 초기화
-    navigate("/login");
+    navigate('/login');
   };
 
   const handleWithdrawal = () => {
     // TODO: 회원 탈퇴 API 연결
     setIsWithdrawalOpen(false);
-    navigate("/login");
+    navigate('/login');
   };
 
   return (
@@ -98,31 +98,19 @@ function MyPage() {
                 저장
               </button>
 
-              <button
-                className="edit-cancel-button"
-                type="button"
-                onClick={handleEditCancel}
-              >
+              <button className="edit-cancel-button" type="button" onClick={handleEditCancel}>
                 취소
               </button>
             </div>
           ) : (
-            <button
-              className="profile-edit-button"
-              type="button"
-              onClick={handleEditStart}
-            >
+            <button className="profile-edit-button" type="button" onClick={handleEditStart}>
               회원 정보 수정
             </button>
           )}
         </section>
 
         <section className="account-actions" aria-label="계정 관리">
-          <button
-            className="logout-button"
-            type="button"
-            onClick={handleLogout}
-          >
+          <button className="logout-button" type="button" onClick={handleLogout}>
             로그아웃
           </button>
 

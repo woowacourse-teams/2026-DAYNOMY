@@ -106,7 +106,7 @@
 }
 
 .google-icon::before {
-  content: "G";
+  content: 'G';
 }
 
 .login-message {

@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import "../LoginPage.css";
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import '../LoginPage.css';
 
 function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -12,13 +12,13 @@ function LoginPage() {
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
     if (!apiBaseUrl) {
-      setErrorMessage("Google 로그인 기능을 준비 중입니다.");
+      setErrorMessage('Google 로그인 기능을 준비 중입니다.');
       return;
     }
 
     setIsLoading(true);
 
-    const normalizedApiBaseUrl = apiBaseUrl.replace(/\/$/, "");
+    const normalizedApiBaseUrl = apiBaseUrl.replace(/\/$/, '');
 
     window.location.assign(`${normalizedApiBaseUrl}/api/auth/google`);
   };
@@ -44,7 +44,7 @@ function LoginPage() {
           aria-busy={isLoading}
         >
           <span className="google-icon" aria-hidden="true" />
-          {isLoading ? "로그인 중..." : "Google로 계속하기"}
+          {isLoading ? '로그인 중...' : 'Google로 계속하기'}
         </button>
 
         <div className="login-message" aria-live="polite">
