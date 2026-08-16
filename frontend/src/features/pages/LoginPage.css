@@ -71,19 +71,25 @@
     transform 150ms ease;
 }
 
-.google-login-button:hover {
+.google-login-button:hover:not(:disabled) {
   border-color: var(--accent);
   background: #f5f3ff;
   transform: translateY(-1px);
 }
 
-.google-login-button:active {
+.google-login-button:active:not(:disabled) {
   transform: translateY(0);
 }
 
 .google-login-button:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+
+.google-login-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+  transform: none;
 }
 
 .google-icon {
@@ -103,8 +109,20 @@
   content: "G";
 }
 
+.login-message {
+  min-height: 24px;
+  margin-top: 12px;
+}
+
+.login-error {
+  color: #c33b3b;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .login-policy {
-  margin-top: 24px;
+  margin-top: 12px;
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.6;
