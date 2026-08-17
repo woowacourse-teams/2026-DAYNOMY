@@ -4,6 +4,7 @@ public enum Category {
   REAL_ESTATE, // 부동산
   DEPOSIT_SAVINGS, // 예금·적금
   STOCK, // 주식
+  ECONOMY, // 경제지표
   ETF, // ETF
   BOND, // 채권
   PENSION, // 연금
