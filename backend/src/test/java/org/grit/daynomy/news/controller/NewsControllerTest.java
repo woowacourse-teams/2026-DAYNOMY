@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -85,6 +86,67 @@ class NewsControllerTest {
     assertThat(response.statusCode()).isEqualTo(200);
     assertThat(body.at("/data/items")).hasSize(1);
     assertThat(body.at("/data/items/0/category").asText()).isEqualTo("REAL_ESTATE");
+  }
+
+  @Test
+  @DisplayName("오늘의 뉴스 조회 API는 오늘 발행된 최신 뉴스를 반환한다")
+  void findTodayNewsReturnsLatestNewsPublishedToday() throws Exception {
+    LocalDate today = LocalDate.now();
+    newsRepository.save(
+        new News(
+            "yesterday news",
+            "content",
+            "description",
+            "image.png",
+            Category.STOCK,
+            today.minusDays(1).atTime(23, 0)));
+    newsRepository.save(
+        new News(
+            "morning news",
+            "content",
+            "description",
+            "image.png",
+            Category.STOCK,
+            today.atTime(9, 0)));
+    newsRepository.save(
+        new News(
+            "latest today news",
+            "content",
+            "description",
+            "image.png",
+            Category.REAL_ESTATE,
+            today.atTime(18, 0)));
+
+    HttpResponse<String> response = get("/api/news/today");
+    JsonNode body = objectMapper.readTree(response.body());
+
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
+    assertThat(body.at("/message").asText()).isEqualTo("오늘의 뉴스를 조회했습니다.");
+    assertThat(body.at("/data/title").asText()).isEqualTo("latest today news");
+    assertThat(body.at("/data/category").asText()).isEqualTo("REAL_ESTATE");
+  }
+
+  @Test
+  @DisplayName("오늘의 뉴스 조회 API는 오늘 발행된 뉴스가 없으면 null을 반환한다")
+  void findTodayNewsReturnsNullWhenMissing() throws Exception {
+    LocalDate today = LocalDate.now();
+    newsRepository.save(
+        new News(
+            "yesterday news",
+            "content",
+            "description",
+            "image.png",
+            Category.STOCK,
+            today.minusDays(1).atTime(23, 0)));
+
+    HttpResponse<String> response = get("/api/news/today");
+    JsonNode body = objectMapper.readTree(response.body());
+
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
+    assertThat(body.at("/message").asText()).isEqualTo("오늘의 뉴스를 조회했습니다.");
+    assertThat(body.at("/data").isNull()).isTrue();
   }
 
   @Test
