@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.external.dart.DartNewsPromptService;
+import org.grit.daynomy.external.kosis.KosisNewsPromptService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
 import org.grit.daynomy.news.ai.NewsPrompt;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class NewsGenerationService {
 
   private final DartNewsPromptService dartNewsPromptService;
+  private final KosisNewsPromptService kosisNewsPromptService;
   private final OpenAiNewsGenerator openAiNewsGenerator;
   private final OpenAiImageGenerator openAiImageGenerator;
   private final NewsRepository newsRepository;
@@ -41,9 +43,21 @@ public class NewsGenerationService {
         disclosureType,
         corporationClass);
 
+    return generateNews(prompts, "DART");
+  }
+
+  @Transactional
+  public int generateKosisNews() {
+    log.info("Starting KOSIS news generation");
+    List<NewsPrompt> prompts = kosisNewsPromptService.createPrompts();
+    log.info("Created {} KOSIS news prompts", prompts.size());
+
+    return generateNews(prompts, "KOSIS");
+  }
+
+  private int generateNews(List<NewsPrompt> prompts, String sourceName) {
     int savedCount = 0;
     int skippedCount = 0;
-
     for (NewsPrompt prompt : prompts) {
       if (newsRepository.existsBySourceAndExternalId(prompt.source(), prompt.externalId())) {
         skippedCount++;
@@ -87,12 +101,11 @@ public class NewsGenerationService {
     }
 
     log.info(
-        "Finished DART news generation: promptCount={}, savedCount={}, skippedCount={}, disclosureType={}, corporationClass={}",
+        "Finished {} news generation: promptCount={}, savedCount={}, skippedCount={}",
+        sourceName,
         prompts.size(),
         savedCount,
-        skippedCount,
-        disclosureType,
-        corporationClass);
+        skippedCount);
     return savedCount;
   }
 }
