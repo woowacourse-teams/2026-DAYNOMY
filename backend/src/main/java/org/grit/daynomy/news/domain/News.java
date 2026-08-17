@@ -9,10 +9,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 public class News {
@@ -49,4 +51,19 @@ public class News {
   @UpdateTimestamp
   @Column(name = "updated_at")
   private LocalDateTime updatedAt;
+
+  public News(
+      String title,
+      String content,
+      String description,
+      String imageUrl,
+      Category category,
+      LocalDateTime publishedAt) {
+    this.title = title;
+    this.content = content;
+    this.description = description;
+    this.imageUrl = imageUrl;
+    this.category = category;
+    this.publishedAt = publishedAt;
+  }
 }
