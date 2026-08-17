@@ -117,7 +117,9 @@ function SearchPage() {
               search();
             }}
           >
-            <SearchIcon />
+            <button type="submit" className="search-submit" aria-label="뉴스 검색">
+              <SearchIcon />
+            </button>
             <label className="sr-only" htmlFor="news-search">
               뉴스 키워드 검색
             </label>
@@ -128,9 +130,6 @@ function SearchPage() {
               placeholder="검색어를 입력하세요"
               autoComplete="off"
             />
-            <button type="submit" className="sr-only">
-              검색
-            </button>
           </form>
         </div>
 
