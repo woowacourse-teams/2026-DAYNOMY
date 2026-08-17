@@ -1,8 +1,12 @@
 package org.grit.daynomy.member.service;
 
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.auth.repository.RefreshTokenRepository;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.OAuthProvider;
+import org.grit.daynomy.member.exception.MemberNotFoundException;
+import org.grit.daynomy.member.exception.NicknameAlreadyExistsException;
+import org.grit.daynomy.member.exception.WithdrawnMemberException;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
   private final MemberRepository memberRepository;
+  private final RefreshTokenRepository refreshTokenRepository;
 
   @Transactional
   public Member findOrCreateGoogleMember(
@@ -26,9 +31,40 @@ public class MemberService {
                     Member.createGoogleMember(providerId, email, nickname, profileImageUrl)));
   }
 
+  public Member getMember(Long memberId) {
+    return findActiveMember(memberId);
+  }
+
+  @Transactional
+  public Member updateNickname(Long memberId, String nickname) {
+    Member member = findActiveMember(memberId);
+    String normalizedNickname = nickname.trim();
+
+    if (!member.getNickname().equals(normalizedNickname)
+        && memberRepository.existsByNickname(normalizedNickname)) {
+      throw new NicknameAlreadyExistsException();
+    }
+
+    member.updateNickname(normalizedNickname);
+    return member;
+  }
+
+  @Transactional
+  public void withdraw(Long memberId) {
+    Member member = findActiveMember(memberId);
+
+    refreshTokenRepository.deleteAllByMember_Id(memberId);
+    member.withdraw();
+  }
+
+  private Member findActiveMember(Long memberId) {
+    Member member = memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
+    return validateActiveMember(member);
+  }
+
   private Member validateActiveMember(Member member) {
     if (member.isWithdrawn()) {
-      throw new IllegalStateException("탈퇴한 회원입니다.");
+      throw new WithdrawnMemberException();
     }
 
     return member;

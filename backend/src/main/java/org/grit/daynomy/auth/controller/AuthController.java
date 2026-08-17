@@ -1,4 +1,4 @@
-package org.grit.daynomy.auth.presentation;
+package org.grit.daynomy.auth.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
