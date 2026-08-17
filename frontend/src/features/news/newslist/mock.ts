@@ -1,5 +1,5 @@
-import { CATEGORY_LABELS } from './types'
-import type { NewsArticle, NewsCategory, NewsCategoryOption, NewsPage } from './types'
+import { CATEGORY_LABELS } from './types';
+import type { NewsArticle, NewsCategory, NewsCategoryOption, NewsPage } from './types';
 
 export const NEWS_CATEGORIES: NewsCategoryOption[] = [
   { label: '전체', value: 'ALL' },
@@ -95,20 +95,14 @@ export const dummyNews: NewsArticle[] = [
 ];
 
 export function getDummyTodayNews() {
-  return todayNews
+  return todayNews;
 }
 
-export function getDummyNews(
-  category: NewsCategory = 'ALL',
-  page = 0,
-  size = 10,
-): NewsPage {
+export function getDummyNews(category: NewsCategory = 'ALL', page = 0, size = 10): NewsPage {
   const filteredNews =
-    category === 'ALL'
-      ? dummyNews
-      : dummyNews.filter((article) => article.category === category)
-  const start = page * size
-  const content = filteredNews.slice(start, start + size)
+    category === 'ALL' ? dummyNews : dummyNews.filter((article) => article.category === category);
+  const start = page * size;
+  const content = filteredNews.slice(start, start + size);
 
   return {
     content,

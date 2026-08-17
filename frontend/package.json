@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-   "test": "node --import tsx --test tests/**/*.test.ts",
+    "test": "node --import tsx --test tests/**/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
