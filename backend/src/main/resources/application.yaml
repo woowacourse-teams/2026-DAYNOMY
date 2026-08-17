@@ -24,6 +24,46 @@ external:
   dart:
     api-key: ${DART_API_KEY:}
     base-url: ${DART_BASE_URL:https://opendart.fss.or.kr/api}
+  kosis:
+    api-key: ${KOSIS_API_KEY:}
+    base-url: ${KOSIS_BASE_URL:https://kosis.kr/openapi}
+    indicators:
+      - key: housing-price-index
+        name: 주택가격지수
+        view-code: MT_ZTITLE
+        user-stats-id: ${KOSIS_HOUSING_PRICE_INDEX_USER_STATS_ID:}
+        period: M
+        category: REAL_ESTATE
+        source-organization: 한국부동산원
+        survey-name: 전국주택가격동향조사
+        table-name: 주택가격지수
+      - key: household-loan
+        name: 가계대출
+        view-code: MT_ZTITLE
+        user-stats-id: ${KOSIS_HOUSEHOLD_LOAN_USER_STATS_ID:}
+        period: M
+        category: DEPOSIT_SAVINGS
+        source-organization: 한국은행
+        survey-name: 예금취급기관 가계대출
+        table-name: 가계대출
+      - key: consumer-price-index
+        name: 소비자물가지수
+        view-code: MT_ZTITLE
+        user-stats-id: ${KOSIS_CONSUMER_PRICE_INDEX_USER_STATS_ID:}
+        period: M
+        category: ECONOMY
+        source-organization: 국가데이터처
+        survey-name: 소비자물가조사
+        table-name: 소비자물가지수
+      - key: employment-rate
+        name: 고용률 및 실업률
+        view-code: MT_ZTITLE
+        user-stats-id: ${KOSIS_EMPLOYMENT_RATE_USER_STATS_ID:}
+        period: M
+        category: ECONOMY
+        source-organization: 국가데이터처
+        survey-name: 경제활동인구조사
+        table-name: 고용률 및 실업률
   openai:
     api-key: ${OPENAI_API_KEY:}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
@@ -35,3 +75,6 @@ news:
     dart:
       enabled: ${DART_NEWS_GENERATION_ENABLED:false}
       cron: ${DART_NEWS_GENERATION_CRON:0 10 9,13,18 * * *}
+    kosis:
+      enabled: ${KOSIS_NEWS_GENERATION_ENABLED:false}
+      cron: ${KOSIS_NEWS_GENERATION_CRON:0 30 7 * * *}
