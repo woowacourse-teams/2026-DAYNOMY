@@ -11,6 +11,7 @@ import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSource;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ class NewsServiceTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             LocalDateTime.of(2026, 8, 17, 10, 0));
     given(newsRepository.findAllByOrderByPublishedAtDescIdDesc(pageable))
@@ -81,6 +85,9 @@ class NewsServiceTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             LocalDateTime.of(2026, 8, 17, 10, 0));
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));

@@ -7,6 +7,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,6 +19,12 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
+@Table(
+    name = "news",
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "uk_news_source_external_id",
+            columnNames = {"source", "external_id"}))
 public class News {
 
   @Id
@@ -34,6 +42,16 @@ public class News {
 
   @Column(name = "image_url")
   private String imageUrl;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "source", nullable = false)
+  private NewsSource source;
+
+  @Column(name = "external_id", nullable = false)
+  private String externalId;
+
+  @Column(name = "source_url", nullable = false)
+  private String sourceUrl;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "category", nullable = false)
@@ -57,12 +75,18 @@ public class News {
       String content,
       String description,
       String imageUrl,
+      NewsSource source,
+      String externalId,
+      String sourceUrl,
       Category category,
       LocalDateTime publishedAt) {
     this.title = title;
     this.content = content;
     this.description = description;
     this.imageUrl = imageUrl;
+    this.source = source;
+    this.externalId = externalId;
+    this.sourceUrl = sourceUrl;
     this.category = category;
     this.publishedAt = publishedAt;
   }

@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSource;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +46,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             LocalDateTime.of(2026, 8, 17, 10, 0)));
 
@@ -68,6 +72,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             LocalDateTime.of(2026, 8, 17, 10, 0)));
     newsRepository.save(
@@ -76,6 +83,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-2",
+            "https://example.com/2",
             Category.REAL_ESTATE,
             LocalDateTime.of(2026, 8, 17, 9, 0)));
 
@@ -97,6 +107,9 @@ class NewsControllerTest {
                 "content",
                 "description",
                 "image.png",
+                NewsSource.DART,
+                "external-1",
+                "https://example.com/1",
                 Category.STOCK,
                 LocalDateTime.of(2026, 8, 17, 10, 0)));
 
