@@ -6,17 +6,19 @@ import java.util.Map;
 import org.grit.daynomy.member.domain.Member;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
-public class CustomOAuth2User implements OAuth2User, MemberOAuth2Principal {
+public class CustomOidcUser implements OidcUser, MemberOAuth2Principal {
 
   private final Long memberId;
-  private final Map<String, Object> attributes;
+  private final OidcUser delegate;
   private final Collection<? extends GrantedAuthority> authorities;
 
-  public CustomOAuth2User(Member member, Map<String, Object> attributes) {
+  public CustomOidcUser(Member member, OidcUser delegate) {
     this.memberId = member.getId();
-    this.attributes = attributes;
+    this.delegate = delegate;
     this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + member.getRole().name()));
   }
 
@@ -26,8 +28,23 @@ public class CustomOAuth2User implements OAuth2User, MemberOAuth2Principal {
   }
 
   @Override
+  public Map<String, Object> getClaims() {
+    return delegate.getClaims();
+  }
+
+  @Override
+  public OidcUserInfo getUserInfo() {
+    return delegate.getUserInfo();
+  }
+
+  @Override
+  public OidcIdToken getIdToken() {
+    return delegate.getIdToken();
+  }
+
+  @Override
   public Map<String, Object> getAttributes() {
-    return attributes;
+    return delegate.getAttributes();
   }
 
   @Override

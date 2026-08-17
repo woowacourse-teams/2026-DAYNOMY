@@ -24,6 +24,15 @@ app:
     success-redirect-uri: ${FRONTEND_BASE_URL:http://localhost:5173}
     failure-redirect-uri: ${FRONTEND_BASE_URL:http://localhost:5173}/login?error=oauth
 
+jwt:
+  issuer: daynomy
+  secret: ${JWT_SECRET}
+  access-token-expiration: ${ACCESS_TOKEN_EXPIRATION:1800000}
+  refresh-token-expiration: ${REFRESH_TOKEN_EXPIRATION:1209600000}
+
+cookie:
+  secure: ${COOKIE_SECURE:false}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
