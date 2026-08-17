@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.external.dart.DartNewsPromptService;
+import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.News;
@@ -19,6 +20,7 @@ public class NewsGenerationService {
 
   private final DartNewsPromptService dartNewsPromptService;
   private final OpenAiNewsGenerator openAiNewsGenerator;
+  private final OpenAiImageGenerator openAiImageGenerator;
   private final NewsRepository newsRepository;
 
   @Transactional
@@ -41,6 +43,7 @@ public class NewsGenerationService {
 
     int savedCount = 0;
     int skippedCount = 0;
+
     for (NewsPrompt prompt : prompts) {
       if (newsRepository.existsBySourceAndExternalId(prompt.source(), prompt.externalId())) {
         skippedCount++;
@@ -59,18 +62,23 @@ public class NewsGenerationService {
           prompt.category(),
           prompt.publishedAt());
       var generatedNews = openAiNewsGenerator.generate(prompt);
+      String imageUrl =
+          openAiImageGenerator.generateNewsImage(
+              generatedNews.title(), generatedNews.description());
+
       newsRepository.save(
           new News(
               generatedNews.title(),
               generatedNews.content(),
               generatedNews.description(),
-              null,
+              imageUrl,
               prompt.source(),
               prompt.externalId(),
               prompt.sourceUrl(),
               prompt.category(),
               prompt.publishedAt()));
       savedCount++;
+
       log.info(
           "Saved generated news: source={}, externalId={}, title={}",
           prompt.source(),

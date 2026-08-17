@@ -30,7 +30,8 @@ class OpenAiNewsGeneratorTest {
   void generateParsesResponseOutputText() throws Exception {
     OpenAiNewsGenerator generator =
         new OpenAiNewsGenerator(
-            new OpenAiProperties("test-key", startServer(openAiResponse()), "test-model"));
+            new OpenAiProperties(
+                "test-key", startServer(openAiResponse()), "test-model", "image-model"));
     NewsPrompt prompt =
         new NewsPrompt(
             NewsSource.DART,

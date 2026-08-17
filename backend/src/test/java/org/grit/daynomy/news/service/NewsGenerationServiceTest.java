@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.grit.daynomy.external.dart.DartNewsPromptService;
+import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
@@ -29,6 +30,7 @@ class NewsGenerationServiceTest {
 
   @Mock private DartNewsPromptService dartNewsPromptService;
   @Mock private OpenAiNewsGenerator openAiNewsGenerator;
+  @Mock private OpenAiImageGenerator openAiImageGenerator;
   @Mock private NewsRepository newsRepository;
 
   @InjectMocks private NewsGenerationService newsGenerationService;
@@ -51,6 +53,8 @@ class NewsGenerationServiceTest {
     given(newsRepository.existsBySourceAndExternalId(NewsSource.DART, "20260817000001"))
         .willReturn(false);
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("제목", "요약", "본문"));
+    given(openAiImageGenerator.generateNewsImage("제목", "요약"))
+        .willReturn("data:image/webp;base64,image");
 
     int savedCount = newsGenerationService.generateDartNews(beginDate, endDate, "B", "K");
 
@@ -60,6 +64,7 @@ class NewsGenerationServiceTest {
     assertThat(newsCaptor.getValue().getTitle()).isEqualTo("제목");
     assertThat(newsCaptor.getValue().getExternalId()).isEqualTo("20260817000001");
     assertThat(newsCaptor.getValue().getSourceUrl()).isEqualTo("https://dart.example/1");
+    assertThat(newsCaptor.getValue().getImageUrl()).isEqualTo("data:image/webp;base64,image");
   }
 
   @Test
@@ -84,6 +89,8 @@ class NewsGenerationServiceTest {
 
     assertThat(savedCount).isZero();
     verify(openAiNewsGenerator, never()).generate(prompt);
+    verify(openAiImageGenerator, never())
+        .generateNewsImage(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     verify(newsRepository, never()).save(org.mockito.ArgumentMatchers.any());
   }
 }
