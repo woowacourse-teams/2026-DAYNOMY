@@ -7,7 +7,7 @@ import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
-import org.grit.daynomy.common.ApiException;
+import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -67,8 +67,8 @@ class NewsServiceTest {
   @DisplayName("잘못된 페이지 요청이면 예외를 던진다")
   void findNewsRejectsInvalidPage() {
     assertThatThrownBy(() -> newsService.getNewsPage(0, 15, null))
-        .isInstanceOf(ApiException.class)
-        .extracting(exception -> ((ApiException) exception).errorCode())
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(ErrorCode.INVALID_REQUEST);
   }
 
@@ -97,8 +97,8 @@ class NewsServiceTest {
     given(newsRepository.findById(1L)).willReturn(Optional.empty());
 
     assertThatThrownBy(() -> newsService.getNewsDetail(1L))
-        .isInstanceOf(ApiException.class)
-        .extracting(exception -> ((ApiException) exception).errorCode())
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(ErrorCode.NEWS_NOT_FOUND);
   }
 }

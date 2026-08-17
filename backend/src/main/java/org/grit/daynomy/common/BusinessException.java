@@ -1,10 +1,10 @@
 package org.grit.daynomy.common;
 
-public class ApiException extends RuntimeException {
+public class BusinessException extends RuntimeException {
 
   private final ErrorCode errorCode;
 
-  public ApiException(ErrorCode errorCode) {
+  public BusinessException(ErrorCode errorCode) {
     super(errorCode.message());
     this.errorCode = errorCode;
   }

@@ -1,7 +1,7 @@
 package org.grit.daynomy.news.service;
 
 import lombok.RequiredArgsConstructor;
-import org.grit.daynomy.common.ApiException;
+import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -24,7 +24,7 @@ public class NewsService {
 
   public NewsPageResponse getNewsPage(int page, int size, Category category) {
     if (page < 1 || size < 1) {
-      throw new ApiException(ErrorCode.INVALID_REQUEST);
+      throw new BusinessException(ErrorCode.INVALID_REQUEST);
     }
 
     Pageable pageable = PageRequest.of(page - 1, size);
@@ -40,6 +40,6 @@ public class NewsService {
     return newsRepository
         .findById(id)
         .map(NewsDetailResponse::from)
-        .orElseThrow(() -> new ApiException(ErrorCode.NEWS_NOT_FOUND));
+        .orElseThrow(() -> new BusinessException(ErrorCode.NEWS_NOT_FOUND));
   }
 }

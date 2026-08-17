@@ -9,8 +9,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-  @ExceptionHandler(ApiException.class)
-  public ResponseEntity<ApiResponse<Void>> handleApiException(ApiException exception) {
+  @ExceptionHandler(BusinessException.class)
+  public ResponseEntity<ApiResponse<Void>> handleApiException(BusinessException exception) {
     ErrorCode errorCode = exception.errorCode();
     return ResponseEntity.status(errorCode.status()).body(ApiResponse.error(errorCode.message()));
   }
