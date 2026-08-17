@@ -1,5 +1,7 @@
 package org.grit.daynomy.news.repository;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.springframework.data.domain.Page;
@@ -11,4 +13,8 @@ public interface NewsRepository extends JpaRepository<News, Long> {
   Page<News> findAllByOrderByPublishedAtDescIdDesc(Pageable pageable);
 
   Page<News> findByCategoryOrderByPublishedAtDescIdDesc(Category category, Pageable pageable);
+
+  Optional<News>
+      findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+          LocalDateTime startInclusive, LocalDateTime endExclusive);
 }
