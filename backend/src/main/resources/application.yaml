@@ -19,3 +19,8 @@ springdoc:
     path: /swagger-ui.html
   api-docs:
     path: /v3/api-docs
+
+external:
+  dart:
+    api-key: ${DART_API_KEY:}
+    base-url: ${DART_BASE_URL:https://opendart.fss.or.kr/api}
