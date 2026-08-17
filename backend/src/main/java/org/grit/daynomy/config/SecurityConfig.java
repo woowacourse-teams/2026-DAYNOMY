@@ -1,6 +1,8 @@
 package org.grit.daynomy.config;
 
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.auth.handler.RestAccessDeniedHandler;
+import org.grit.daynomy.auth.handler.RestAuthenticationEntryPoint;
 import org.grit.daynomy.auth.oauth.CustomOAuth2UserService;
 import org.grit.daynomy.auth.oauth.CustomOidcUserService;
 import org.grit.daynomy.auth.oauth.OAuth2LoginFailureHandler;
@@ -23,6 +25,8 @@ public class SecurityConfig {
   private final OAuth2LoginSuccessHandler successHandler;
   private final OAuth2LoginFailureHandler failureHandler;
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
+  private final RestAuthenticationEntryPoint authenticationEntryPoint;
+  private final RestAccessDeniedHandler accessDeniedHandler;
 
   @Bean
   public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -35,6 +39,11 @@ public class SecurityConfig {
             csrf ->
                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                     .csrfTokenRequestHandler(csrfHandler))
+        .exceptionHandling(
+            exception ->
+                exception
+                    .authenticationEntryPoint(authenticationEntryPoint)
+                    .accessDeniedHandler(accessDeniedHandler))
         .authorizeHttpRequests(
             authorization ->
                 authorization
