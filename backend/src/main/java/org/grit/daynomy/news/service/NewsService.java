@@ -47,7 +47,7 @@ public class NewsService {
         .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
             startInclusive, endExclusive)
         .map(NewsListItemResponse::from)
-        .orElseThrow(() -> new BusinessException(ErrorCode.NEWS_NOT_FOUND));
+        .orElse(null);
   }
 
   public NewsDetailResponse getNewsDetail(Long id) {
