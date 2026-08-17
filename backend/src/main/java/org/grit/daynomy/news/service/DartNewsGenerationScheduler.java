@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "news.generation.dart.enabled", havingValue = "true")
 @Component
-public class NewsGenerationScheduler {
+public class DartNewsGenerationScheduler {
 
   private static final String MAJOR_REPORT = "B";
   private static final String KOSPI = "Y";

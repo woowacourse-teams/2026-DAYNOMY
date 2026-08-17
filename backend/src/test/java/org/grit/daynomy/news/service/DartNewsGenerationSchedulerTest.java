@@ -13,16 +13,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class NewsGenerationSchedulerTest {
+class DartNewsGenerationSchedulerTest {
 
   @Mock private NewsGenerationService newsGenerationService;
 
-  @InjectMocks private NewsGenerationScheduler newsGenerationScheduler;
+  @InjectMocks private DartNewsGenerationScheduler dartNewsGenerationScheduler;
 
   @Test
   @DisplayName("DART 뉴스 생성을 유가증권과 코스닥 주요사항보고서 대상으로 실행한다")
   void generateDartNews() {
-    newsGenerationScheduler.generateDartNews();
+    dartNewsGenerationScheduler.generateDartNews();
 
     verify(newsGenerationService)
         .generateDartNews(any(LocalDate.class), any(LocalDate.class), eq("B"), eq("Y"));
