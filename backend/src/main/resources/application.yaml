@@ -6,6 +6,23 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+
+app:
+  oauth2:
+    success-redirect-uri: ${FRONTEND_BASE_URL:http://localhost:5173}
+    failure-redirect-uri: ${FRONTEND_BASE_URL:http://localhost:5173}/login?error=oauth
 
 springdoc:
   swagger-ui:
