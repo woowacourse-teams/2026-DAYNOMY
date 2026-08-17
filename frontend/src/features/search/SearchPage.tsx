@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react'
-import { ArticleCard } from '../news/newslist/components/ArticleCard'
-import { CategoryTabs } from '../news/newslist/components/CategoryTabs'
-import { NEWS_CATEGORIES } from '../news/newslist/mock'
-import type { NewsArticle, NewsCategory } from '../news/newslist/types'
-import { searchNews } from './api'
-import { getMockSearchNews } from './mock'
-import './SearchPage.css'
+import { useEffect, useState } from 'react';
+import { ArticleCard } from '../news/newslist/components/ArticleCard';
+import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
+import { CATEGORY_LABELS } from '../news/newslist/types';
+import type { NewsArticle, NewsCategory, NewsCategoryOption } from '../news/newslist/types';
+import { searchNews } from './api';
+import './SearchPage.css';
 
 const PAGE_SIZE = 10;
-
-function getPage<T>(items: T[], page: number) {
-  return items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-}
+const SEARCH_CATEGORIES: NewsCategoryOption[] = [
+  { label: '전체', value: 'ALL' },
+  ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
+    label,
+    value: value as keyof typeof CATEGORY_LABELS,
+  })),
+];
 
 function SearchIcon() {
   return (
@@ -23,62 +25,67 @@ function SearchIcon() {
 }
 
 function SearchPage() {
-  const [query, setQuery] = useState('')
-  const [searchedKeyword, setSearchedKeyword] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL')
-  const [results, setResults] = useState<NewsArticle[]>([])
-  const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const totalPages = Math.ceil(results.length / PAGE_SIZE)
+  const [query, setQuery] = useState('');
+  const [searchedKeyword, setSearchedKeyword] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
+  const [results, setResults] = useState<NewsArticle[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!searchedKeyword) return
+    if (!searchedKeyword) return;
 
-    let ignore = false
+    let ignore = false;
 
     async function loadSearchResults() {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
 
       try {
-        const articles = await searchNews(searchedKeyword, selectedCategory)
+        const newsPage = await searchNews(searchedKeyword, selectedCategory, page - 1, PAGE_SIZE);
 
-        if (!ignore) setResults(articles)
+        if (!ignore) {
+          setResults(newsPage.content);
+          setTotalResults(newsPage.totalElements);
+          setTotalPages(newsPage.totalPages);
+        }
       } catch (caughtError) {
         if (!ignore) {
-          setResults(getMockSearchNews(searchedKeyword, selectedCategory))
+          setResults([]);
+          setTotalResults(0);
+          setTotalPages(0);
           setError(
-            caughtError instanceof Error
-              ? caughtError.message
-              : '검색 결과를 불러오지 못했습니다.',
-          )
+            caughtError instanceof Error ? caughtError.message : '검색 결과를 불러오지 못했습니다.',
+          );
         }
       } finally {
-        if (!ignore) setLoading(false)
+        if (!ignore) setLoading(false);
       }
     }
 
-    loadSearchResults()
+    loadSearchResults();
 
     return () => {
-      ignore = true
-    }
-  }, [searchedKeyword, selectedCategory])
+      ignore = true;
+    };
+  }, [searchedKeyword, selectedCategory, page]);
 
   function search() {
-    const keyword = query.trim()
+    const keyword = query.trim();
 
-    if (!keyword) return
+    if (!keyword) return;
 
-    setQuery(keyword)
-    setSearchedKeyword(keyword)
-    setPage(1)
+    setQuery(keyword);
+    setSearchedKeyword(keyword);
+    setPage(1);
   }
 
   function changeCategory(category: NewsCategory) {
-    setSelectedCategory(category)
-    setPage(1)
+    setSelectedCategory(category);
+    setPage(1);
   }
 
   const changePage = (nextPage: number) => {
@@ -87,7 +94,7 @@ function SearchPage() {
   };
 
   function selectArticle(article: NewsArticle) {
-    window.location.assign(`/news/${article.id}`)
+    window.location.assign(`/news/${article.id}`);
   }
 
   return (
@@ -128,7 +135,7 @@ function SearchPage() {
         </div>
 
         <CategoryTabs
-          categories={NEWS_CATEGORIES}
+          categories={SEARCH_CATEGORIES}
           selectedCategory={selectedCategory}
           onChange={changeCategory}
         />
@@ -137,19 +144,21 @@ function SearchPage() {
           <section id="news-results" className="news-results" aria-labelledby="result-title">
             <div className="result-heading" aria-live="polite">
               <h1 id="result-title">‘{searchedKeyword}’ 뉴스</h1>
-              <span>{loading ? '검색 중' : `${results.length}건`}</span>
+              <span>{loading ? '검색 중' : `${totalResults}건`}</span>
             </div>
 
-            <span className="sr-only" role="status">
-              {error ? `API 응답을 받지 못해 임시 검색 결과가 표시됩니다. ${error}` : ''}
-            </span>
-
             {loading ? <p className="search-state">검색 중입니다.</p> : null}
+
+            {!loading && error ? (
+              <p className="search-state" role="alert">
+                {error}
+              </p>
+            ) : null}
 
             {!loading && results.length > 0 ? (
               <>
                 <section className="article-list" aria-label="검색된 뉴스 목록">
-                  {getPage(results, page).map((item) => (
+                  {results.map((item) => (
                     <ArticleCard article={item} key={item.id} onSelect={selectArticle} />
                   ))}
                 </section>
@@ -188,7 +197,7 @@ function SearchPage() {
               </>
             ) : null}
 
-            {!loading && results.length === 0 ? (
+            {!loading && !error && results.length === 0 ? (
               <p className="search-state">검색 결과가 없습니다.</p>
             ) : null}
           </section>
