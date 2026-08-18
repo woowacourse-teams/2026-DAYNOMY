@@ -4,10 +4,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.grit.daynomy.common.ApiResponse;
+import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.common.ErrorResponse;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsSearchResponse;
 import org.grit.daynomy.news.service.NewsSearchService;
@@ -32,16 +34,14 @@ public class NewsSearchController {
 
   @Operation(summary = "뉴스 검색", description = "제목·설명·본문에서 키워드를 검색하고 카테고리와 페이지 조건을 적용합니다.")
   @ApiResponses({
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+    @ApiResponse(
         responseCode = "200",
         description = "검색 성공 또는 검색 결과 없음",
         content = @Content(schema = @Schema(implementation = NewsSearchResponse.class))),
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+    @ApiResponse(
         responseCode = "400",
-        description = "검색어·카테고리·페이지 조건 오류"),
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-        responseCode = "500",
-        description = "서버 오류")
+        description = "검색어·카테고리·페이지 조건 오류",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   })
   @GetMapping
   public NewsSearchResponse search(
@@ -57,13 +57,19 @@ public class NewsSearchController {
     return newsSearchService.search(keyword, category, page, size);
   }
 
+  @ExceptionHandler(BusinessException.class)
+  public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException exception) {
+    ErrorCode errorCode = exception.errorCode();
+    return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
+  }
+
   @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-  public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+  public ResponseEntity<ErrorResponse> handleTypeMismatch(
       MethodArgumentTypeMismatchException exception) {
     ErrorCode errorCode =
         exception.getRequiredType() == Category.class
             ? ErrorCode.INVALID_CATEGORY
             : ErrorCode.INVALID_REQUEST;
-    return ResponseEntity.status(errorCode.status()).body(ApiResponse.error(errorCode.message()));
+    return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
   }
 }

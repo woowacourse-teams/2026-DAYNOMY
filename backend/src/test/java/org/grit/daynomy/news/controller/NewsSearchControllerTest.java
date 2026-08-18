@@ -76,6 +76,7 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news"))
         .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("SEARCH_KEYWORD_REQUIRED"))
         .andExpect(jsonPath("$.message").value("검색어를 입력해주세요."));
 
     verifyNoInteractions(newsRepository);
@@ -86,6 +87,7 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "!"))
         .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_SEARCH_KEYWORD"))
         .andExpect(jsonPath("$.message").value("올바른 검색어를 입력해주세요."));
 
     verifyNoInteractions(newsRepository);
@@ -96,6 +98,7 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("category", "POLICY"))
         .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_CATEGORY"))
         .andExpect(jsonPath("$.message").value("존재하지 않는 카테고리입니다."));
 
     verifyNoInteractions(newsRepository);
@@ -106,6 +109,7 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("page", "first"))
         .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
         .andExpect(jsonPath("$.message").value("잘못된 요청입니다."));
 
     verifyNoInteractions(newsRepository);
