@@ -62,15 +62,13 @@ class MarketAnalysisControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
-    assertThat(body.at("/message").asText()).isEqualTo("뉴스 시장 분석을 조회했습니다.");
-    assertThat(body.at("/data/cause").asText()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
-    assertThat(body.at("/data/assets")).hasSize(1);
-    assertThat(body.at("/data/assets/0/asset").asText()).isEqualTo("STOCK");
-    assertThat(body.at("/data/assets/0/direction").asText()).isEqualTo("POSITIVE");
-    assertThat(body.at("/data/scenarios")).hasSize(1);
-    assertThat(body.at("/data/scenarios/0/timeHorizon").asText()).isEqualTo("SHORT_TERM");
-    assertThat(body.at("/data/scenarios/0/probability").asInt()).isEqualTo(70);
+    assertThat(body.at("/cause").asText()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
+    assertThat(body.at("/assets")).hasSize(1);
+    assertThat(body.at("/assets/0/asset").asText()).isEqualTo("STOCK");
+    assertThat(body.at("/assets/0/direction").asText()).isEqualTo("POSITIVE");
+    assertThat(body.at("/scenarios")).hasSize(1);
+    assertThat(body.at("/scenarios/0/timeHorizon").asText()).isEqualTo("SHORT_TERM");
+    assertThat(body.at("/scenarios/0/probability").asInt()).isEqualTo(70);
   }
 
   @Test
@@ -80,9 +78,8 @@ class MarketAnalysisControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(404);
-    assertThat(body.at("/status").asText()).isEqualTo("ERROR");
+    assertThat(body.at("/code").asText()).isEqualTo("MARKET_ANALYSIS_NOT_FOUND");
     assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스의 시장 분석을 찾을 수 없습니다.");
-    assertThat(body.at("/data").isNull()).isTrue();
   }
 
   private NewsMarketAnalysisEntity createMarketAnalysisEntity(News news) {

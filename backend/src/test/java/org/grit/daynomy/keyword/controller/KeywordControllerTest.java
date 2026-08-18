@@ -56,11 +56,9 @@ class KeywordControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
-    assertThat(body.at("/message").asText()).isEqualTo("뉴스 키워드를 조회했습니다.");
-    assertThat(body.at("/data/keywords")).hasSize(2);
-    assertThat(body.at("/data/keywords/0/keyword").asText()).isEqualTo("금리 인하");
-    assertThat(body.at("/data/keywords/0/description").asText()).isEqualTo("대출 수요 회복과 연결됨");
+    assertThat(body.at("/keywords")).hasSize(2);
+    assertThat(body.at("/keywords/0/keyword").asText()).isEqualTo("금리 인하");
+    assertThat(body.at("/keywords/0/description").asText()).isEqualTo("대출 수요 회복과 연결됨");
   }
 
   @Test
@@ -70,9 +68,21 @@ class KeywordControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(404);
-    assertThat(body.at("/status").asText()).isEqualTo("ERROR");
+    assertThat(body.at("/code").asText()).isEqualTo("NEWS_NOT_FOUND");
     assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스를 찾을 수 없습니다.");
-    assertThat(body.at("/data").isNull()).isTrue();
+  }
+
+  @Test
+  @DisplayName("뉴스 키워드 조회 API는 키워드가 없으면 에러 응답을 반환한다")
+  void findNewsKeywordsReturnsNotFoundWhenKeywordsMissing() throws Exception {
+    News news = newsRepository.save(createNews());
+
+    HttpResponse<String> response = get("/api/news/" + news.getId() + "/keywords");
+    JsonNode body = objectMapper.readTree(response.body());
+
+    assertThat(response.statusCode()).isEqualTo(404);
+    assertThat(body.at("/code").asText()).isEqualTo("KEYWORD_NOT_FOUND");
+    assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스의 키워드를 찾을 수 없습니다.");
   }
 
   private News createNews() {
