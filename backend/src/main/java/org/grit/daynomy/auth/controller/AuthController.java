@@ -1,5 +1,8 @@
 package org.grit.daynomy.auth.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Auth", description = "Google OAuth 로그인 및 토큰 관리 API")
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
 @RestController
@@ -26,6 +30,7 @@ public class AuthController {
   private final TokenService tokenService;
   private final TokenCookieManager tokenCookieManager;
 
+  @Operation(summary = "Google 로그인", description = "Google OAuth 로그인 페이지로 이동합니다.")
   @GetMapping("/google")
   public ResponseEntity<Void> googleLogin() {
     return ResponseEntity.status(HttpStatus.FOUND)
@@ -33,13 +38,17 @@ public class AuthController {
         .build();
   }
 
+  @Operation(summary = "CSRF 토큰 조회", description = "인증이 필요한 변경 요청에 사용할 CSRF 토큰을 조회합니다.")
   @GetMapping("/csrf")
-  public CsrfToken csrf(CsrfToken csrfToken) {
+  public CsrfToken csrf(@Parameter(hidden = true) CsrfToken csrfToken) {
     return csrfToken;
   }
 
+  @Operation(summary = "Access Token 재발급", description = "Refresh Token을 검증하고 인증 토큰을 재발급합니다.")
   @PostMapping("/refresh")
-  public ResponseEntity<Void> refresh(HttpServletRequest request, HttpServletResponse response) {
+  public ResponseEntity<Void> refresh(
+      @Parameter(hidden = true) HttpServletRequest request,
+      @Parameter(hidden = true) HttpServletResponse response) {
 
     String refreshToken = tokenCookieManager.getRefreshToken(request);
 
@@ -58,8 +67,11 @@ public class AuthController {
     }
   }
 
+  @Operation(summary = "로그아웃", description = "Refresh Token을 무효화하고 인증 쿠키를 삭제합니다.")
   @PostMapping("/logout")
-  public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+  public ResponseEntity<Void> logout(
+      @Parameter(hidden = true) HttpServletRequest request,
+      @Parameter(hidden = true) HttpServletResponse response) {
 
     String refreshToken = tokenCookieManager.getRefreshToken(request);
 
