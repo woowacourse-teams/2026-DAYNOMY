@@ -17,6 +17,15 @@ class NewsSearchIntegrationTest {
   @Autowired private NewsSearchService newsSearchService;
 
   @Test
+  void returnsEmptyPageWhenNewsTableIsEmpty() {
+    NewsSearchResponse result = newsSearchService.search("금", null, 0, 20);
+
+    assertThat(result.content()).isEmpty();
+    assertThat(result.totalElements()).isZero();
+    assertThat(result.totalPages()).isZero();
+  }
+
+  @Test
   @Sql(
       statements = {
         "INSERT INTO news (title, content, description, category, published_at, created_at, updated_at) VALUES ('기준금리 동결', '채권 가격 변동이 예상됩니다.', '금리 뉴스', 'BOND', '2026-08-14 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
