@@ -7,11 +7,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.common.CommonErrorCode;
 import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.common.ErrorResponse;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsSearchResponse;
+import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.service.NewsSearchService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -57,19 +58,13 @@ public class NewsSearchController {
     return newsSearchService.search(keyword, category, page, size);
   }
 
-  @ExceptionHandler(BusinessException.class)
-  public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException exception) {
-    ErrorCode errorCode = exception.errorCode();
-    return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
-  }
-
   @ExceptionHandler(MethodArgumentTypeMismatchException.class)
   public ResponseEntity<ErrorResponse> handleTypeMismatch(
       MethodArgumentTypeMismatchException exception) {
     ErrorCode errorCode =
         exception.getRequiredType() == Category.class
-            ? ErrorCode.INVALID_CATEGORY
-            : ErrorCode.INVALID_REQUEST;
+            ? NewsErrorCode.INVALID_CATEGORY
+            : CommonErrorCode.INVALID_REQUEST;
     return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
   }
 }

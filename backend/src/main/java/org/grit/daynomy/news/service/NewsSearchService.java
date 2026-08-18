@@ -1,8 +1,8 @@
 package org.grit.daynomy.news.service;
 
-import static org.grit.daynomy.common.ErrorCode.INVALID_REQUEST;
-import static org.grit.daynomy.common.ErrorCode.INVALID_SEARCH_KEYWORD;
-import static org.grit.daynomy.common.ErrorCode.SEARCH_KEYWORD_REQUIRED;
+import static org.grit.daynomy.common.CommonErrorCode.INVALID_REQUEST;
+import static org.grit.daynomy.news.exception.NewsErrorCode.INVALID_SEARCH_KEYWORD;
+import static org.grit.daynomy.news.exception.NewsErrorCode.SEARCH_KEYWORD_REQUIRED;
 
 import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.news.domain.Category;
