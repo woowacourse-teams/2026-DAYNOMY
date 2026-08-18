@@ -2,14 +2,17 @@ package org.grit.daynomy.keyword.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.keyword.domain.Keyword;
 import org.grit.daynomy.keyword.entity.NewsKeywordEntity;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.Category;
@@ -30,6 +33,31 @@ class KeywordServiceTest {
   @Mock private NewsKeywordRepository newsKeywordRepository;
 
   @InjectMocks private KeywordService keywordService;
+
+  @Test
+  @DisplayName("뉴스와 키워드 목록을 받아 키워드를 저장한다")
+  void saveKeywordsStoresNewsKeywords() {
+    News news = createNews();
+    List<Keyword> keywords =
+        List.of(new Keyword("금리 인하", "대출 수요 회복과 연결됨"), new Keyword("부동산 규제", "거래량 회복 기대와 연결됨"));
+
+    keywordService.saveKeywords(news, keywords);
+
+    verify(newsKeywordRepository)
+        .saveAll(
+            argThat(
+                entities -> {
+                  List<NewsKeywordEntity> savedKeywords = new ArrayList<>();
+                  entities.forEach(savedKeywords::add);
+
+                  assertThat(savedKeywords).hasSize(2);
+                  assertThat(savedKeywords.get(0).getNews()).isSameAs(news);
+                  assertThat(savedKeywords.get(0).getKeyword()).isEqualTo("금리 인하");
+                  assertThat(savedKeywords.get(0).getDescription()).isEqualTo("대출 수요 회복과 연결됨");
+                  assertThat(savedKeywords.get(1).getKeyword()).isEqualTo("부동산 규제");
+                  return true;
+                }));
+  }
 
   @Test
   @DisplayName("뉴스 ID로 키워드 목록을 조회한다")
