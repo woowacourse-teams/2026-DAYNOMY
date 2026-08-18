@@ -1,11 +1,11 @@
 package org.grit.daynomy.market.repository;
 
 import java.util.Optional;
-import org.grit.daynomy.market.entity.NewsMarketAnalysisEntity;
+import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface NewsMarketAnalysisRepository
-    extends JpaRepository<NewsMarketAnalysisEntity, Long> {
+    extends JpaRepository<NewsMarketAnalysis, Long> {
 
-  Optional<NewsMarketAnalysisEntity> findByNewsId(Long newsId);
+  Optional<NewsMarketAnalysis> findByNewsId(Long newsId);
 }

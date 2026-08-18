@@ -1,4 +1,4 @@
-package org.grit.daynomy.market.entity;
+package org.grit.daynomy.market.domain.analysis;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -16,12 +16,14 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.grit.daynomy.market.domain.asset.AssetImpact;
+import org.grit.daynomy.market.domain.scenario.Scenario;
 import org.grit.daynomy.news.domain.News;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
-public class NewsMarketAnalysisEntity {
+public class NewsMarketAnalysis {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,17 +41,24 @@ public class NewsMarketAnalysisEntity {
       name = "news_market_analysis_assets",
       joinColumns = @JoinColumn(name = "news_market_analysis_id"))
   @OrderColumn(name = "sort_order")
-  private List<AssetImpactEntity> assets = new ArrayList<>();
+  private List<AssetImpact> assets = new ArrayList<>();
 
   @ElementCollection
   @CollectionTable(
       name = "news_market_analysis_scenarios",
       joinColumns = @JoinColumn(name = "news_market_analysis_id"))
   @OrderColumn(name = "sort_order")
-  private List<ScenarioEntity> scenarios = new ArrayList<>();
+  private List<Scenario> scenarios = new ArrayList<>();
 
-  public NewsMarketAnalysisEntity(
-      News news, String cause, List<AssetImpactEntity> assets, List<ScenarioEntity> scenarios) {
+  public NewsMarketAnalysis(
+      String cause, List<AssetImpact> assets, List<Scenario> scenarios) {
+    this.cause = cause;
+    this.assets = new ArrayList<>(assets);
+    this.scenarios = new ArrayList<>(scenarios);
+  }
+
+  public NewsMarketAnalysis(
+      News news, String cause, List<AssetImpact> assets, List<Scenario> scenarios) {
     this.news = news;
     this.cause = cause;
     this.assets = new ArrayList<>(assets);

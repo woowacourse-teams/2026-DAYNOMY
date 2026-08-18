@@ -15,9 +15,9 @@ import org.grit.daynomy.market.domain.asset.Asset;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.market.domain.scenario.TimeHorizon;
-import org.grit.daynomy.market.entity.AssetImpactEntity;
-import org.grit.daynomy.market.entity.NewsMarketAnalysisEntity;
-import org.grit.daynomy.market.entity.ScenarioEntity;
+import org.grit.daynomy.market.domain.asset.AssetImpact;
+import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.grit.daynomy.market.domain.scenario.Scenario;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -56,7 +56,7 @@ class MarketAnalysisControllerTest {
   @DisplayName("뉴스 시장 분석 조회 API는 뉴스에 연결된 시장 분석을 반환한다")
   void findNewsMarketAnalysisReturnsAnalysis() throws Exception {
     News news = newsRepository.save(createNews());
-    newsMarketAnalysisRepository.save(createMarketAnalysisEntity(news));
+    newsMarketAnalysisRepository.save(createMarketAnalysis(news));
 
     HttpResponse<String> response = get("/api/news/" + news.getId() + "/market-analysis");
     JsonNode body = objectMapper.readTree(response.body());
@@ -82,18 +82,18 @@ class MarketAnalysisControllerTest {
     assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스의 시장 분석을 찾을 수 없습니다.");
   }
 
-  private NewsMarketAnalysisEntity createMarketAnalysisEntity(News news) {
-    return new NewsMarketAnalysisEntity(
+  private NewsMarketAnalysis createMarketAnalysis(News news) {
+    return new NewsMarketAnalysis(
         news,
         "금리 인하 기대가 위험자산 선호를 높입니다.",
         List.of(
-            new AssetImpactEntity(
+            new AssetImpact(
                 Asset.STOCK,
                 ImpactDirection.POSITIVE,
                 ImpactLevel.HIGH,
                 "할인율 하락 기대가 주식 밸류에이션에 긍정적입니다.")),
         List.of(
-            new ScenarioEntity(
+            new Scenario(
                 TimeHorizon.SHORT_TERM,
                 "단기적으로 주식 선호가 개선될 수 있습니다.",
                 70,
