@@ -10,6 +10,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface NewsRepository extends JpaRepository<News, Long> {
 
+  Page<News> findAllByOrderByPublishedAtDescIdDesc(Pageable pageable);
+
+  Page<News> findByCategoryOrderByPublishedAtDescIdDesc(Category category, Pageable pageable);
   // 부분 문자열 검색은 MVP용이며 데이터가 늘면 PostgreSQL 전문 검색으로 교체한다.
   @Query(
       """

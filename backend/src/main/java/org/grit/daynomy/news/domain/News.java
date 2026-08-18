@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Entity
@@ -51,4 +52,19 @@ public class News {
   @UpdateTimestamp
   @Column(name = "updated_at")
   private LocalDateTime updatedAt;
+
+  public News(
+      String title,
+      String content,
+      String description,
+      String imageUrl,
+      Category category,
+      LocalDateTime publishedAt) {
+    this.title = title;
+    this.content = content;
+    this.description = description;
+    this.imageUrl = imageUrl;
+    this.category = category;
+    this.publishedAt = publishedAt;
+  }
 }
