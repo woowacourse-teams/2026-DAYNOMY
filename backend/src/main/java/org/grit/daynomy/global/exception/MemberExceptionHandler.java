@@ -1,6 +1,7 @@
 package org.grit.daynomy.global.exception;
 
 import org.grit.daynomy.global.response.ApiResponse;
+import org.grit.daynomy.member.controller.MemberController;
 import org.grit.daynomy.member.exception.MemberNotFoundException;
 import org.grit.daynomy.member.exception.NicknameAlreadyExistsException;
 import org.grit.daynomy.member.exception.WithdrawnMemberException;
@@ -10,8 +11,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice
-public class GlobalExceptionHandler {
+@RestControllerAdvice(assignableTypes = MemberController.class)
+public class MemberExceptionHandler {
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ApiResponse<Void>> handleInvalidInput(
