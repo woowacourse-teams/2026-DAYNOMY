@@ -1,8 +1,8 @@
 package org.grit.daynomy.market.ai;
 
-import org.grit.daynomy.market.domain.analysis.MarketAnalysis;
+import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 
 public interface MarketAnalysisAiClient {
 
-  MarketAnalysis analyze(String newsContent);
+  NewsMarketAnalysis analyze(String newsContent);
 }

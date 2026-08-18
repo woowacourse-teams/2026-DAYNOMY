@@ -41,16 +41,14 @@ class OpenAiMarketAnalysisClientTest {
     var analysis = client.analyze("뉴스 본문입니다.");
 
     assertThat(analysis.getCause()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
-    assertThat(analysis.getAssets().getValues()).hasSize(2);
-    assertThat(analysis.getAssets().getValues().get(0).getAsset()).isEqualTo(Asset.STOCK);
-    assertThat(analysis.getAssets().getValues().get(0).getDirection())
-        .isEqualTo(ImpactDirection.POSITIVE);
-    assertThat(analysis.getAssets().getValues().get(0).getImpactLevel())
-        .isEqualTo(ImpactLevel.HIGH);
-    assertThat(analysis.getScenarios().getValues()).hasSize(3);
-    assertThat(analysis.getScenarios().getValues().get(0).getTimeHorizon())
+    assertThat(analysis.getAssets()).hasSize(2);
+    assertThat(analysis.getAssets().get(0).getAsset()).isEqualTo(Asset.STOCK);
+    assertThat(analysis.getAssets().get(0).getDirection()).isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(analysis.getAssets().get(0).getImpactLevel()).isEqualTo(ImpactLevel.HIGH);
+    assertThat(analysis.getScenarios()).hasSize(3);
+    assertThat(analysis.getScenarios().get(0).getTimeHorizon())
         .isEqualTo(TimeHorizon.SHORT_TERM);
-    assertThat(analysis.getScenarios().getValues().get(0).getProbability()).isEqualTo(70);
+    assertThat(analysis.getScenarios().get(0).getProbability()).isEqualTo(70);
     server.verify();
   }
 

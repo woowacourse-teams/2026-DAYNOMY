@@ -6,15 +6,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.grit.daynomy.market.domain.analysis.MarketAnalysis;
 import org.grit.daynomy.market.domain.asset.Asset;
-import org.grit.daynomy.market.domain.asset.AssetImpact;
-import org.grit.daynomy.market.domain.asset.Assets;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.market.domain.scenario.Scenario;
-import org.grit.daynomy.market.domain.scenario.Scenarios;
 import org.grit.daynomy.market.domain.scenario.TimeHorizon;
+import org.grit.daynomy.market.domain.asset.AssetImpact;
+import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.grit.daynomy.market.domain.scenario.Scenario;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -49,7 +47,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
   }
 
   @Override
-  public MarketAnalysis analyze(String newsContent) {
+  public NewsMarketAnalysis analyze(String newsContent) {
     if (apiKey == null || apiKey.isBlank()) {
       throw new IllegalStateException("OPENAI_API_KEY is required to analyze news market impact.");
     }
@@ -147,11 +145,11 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     return List.of(values).stream().map(Enum::name).toList();
   }
 
-  private MarketAnalysis parseMarketAnalysis(String response) {
+  private NewsMarketAnalysis parseMarketAnalysis(String response) {
     String outputText = extractOutputText(response);
     try {
       JsonNode root = objectMapper.readTree(outputText);
-      return new MarketAnalysis(
+      return new NewsMarketAnalysis(
           root.path("cause").asText(),
           parseAssets(root.path("assets")),
           parseScenarios(root.path("scenarios")));
@@ -161,41 +159,39 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     }
   }
 
-  private Assets parseAssets(JsonNode assetsNode) {
+  private List<AssetImpact> parseAssets(JsonNode assetsNode) {
     if (!assetsNode.isArray()) {
       throw new IllegalStateException("OpenAI market analysis response must contain assets array.");
     }
 
-    return new Assets(
-        assetsNode
-            .valueStream()
-            .map(
-                node ->
-                    new AssetImpact(
-                        Asset.valueOf(node.path("asset").asText()),
-                        ImpactDirection.valueOf(node.path("direction").asText()),
-                        ImpactLevel.valueOf(node.path("impactLevel").asText()),
-                        node.path("reason").asText()))
-            .toList());
+    return assetsNode
+        .valueStream()
+        .map(
+            node ->
+                new AssetImpact(
+                    Asset.valueOf(node.path("asset").asText()),
+                    ImpactDirection.valueOf(node.path("direction").asText()),
+                    ImpactLevel.valueOf(node.path("impactLevel").asText()),
+                    node.path("reason").asText()))
+        .toList();
   }
 
-  private Scenarios parseScenarios(JsonNode scenariosNode) {
+  private List<Scenario> parseScenarios(JsonNode scenariosNode) {
     if (!scenariosNode.isArray()) {
       throw new IllegalStateException(
           "OpenAI market analysis response must contain scenarios array.");
     }
 
-    return new Scenarios(
-        scenariosNode
-            .valueStream()
-            .map(
-                node ->
-                    new Scenario(
-                        TimeHorizon.valueOf(node.path("timeHorizon").asText()),
-                        node.path("prediction").asText(),
-                        node.path("probability").asInt(),
-                        node.path("reason").asText()))
-            .toList());
+    return scenariosNode
+        .valueStream()
+        .map(
+            node ->
+                new Scenario(
+                    TimeHorizon.valueOf(node.path("timeHorizon").asText()),
+                    node.path("prediction").asText(),
+                    node.path("probability").asInt(),
+                    node.path("reason").asText()))
+        .toList();
   }
 
   private String extractOutputText(String response) {
