@@ -5,7 +5,7 @@ import { ArticleCard } from './components/ArticleCard';
 import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
 import { TodayNewsBanner } from './components/TodayNewsBanner';
-import { getDummyNews, getDummyTodayNews, NEWS_CATEGORIES } from './mock';
+import { getEmptyTodayNews, NEWS_CATEGORIES } from './mock';
 import type { NewsArticle, NewsCategory } from './types';
 import './newsList.css';
 
@@ -14,7 +14,7 @@ export function NewsListPage() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [todayMainNews, setTodayMainNews] = useState<NewsArticle>(() => getDummyTodayNews());
+  const [todayMainNews, setTodayMainNews] = useState<NewsArticle>(() => getEmptyTodayNews());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,10 +39,8 @@ export function NewsListPage() {
         }
       } catch (caughtError) {
         if (!ignore) {
-          const fallbackNewsPage = getDummyNews(selectedCategory, page);
-
-          setArticles(fallbackNewsPage.content);
-          setTotalPages(fallbackNewsPage.totalPages);
+          setArticles([]);
+          setTotalPages(1);
           setError(
             caughtError instanceof Error ? caughtError.message : '뉴스 목록을 불러오지 못했습니다.',
           );
@@ -73,7 +71,7 @@ export function NewsListPage() {
         }
       } catch {
         if (!ignore) {
-          setTodayMainNews(getDummyTodayNews());
+          setTodayMainNews(getEmptyTodayNews());
         }
       }
     }
@@ -91,6 +89,10 @@ export function NewsListPage() {
   }
 
   function handleArticleSelect(article: NewsArticle) {
+    if (!article.id) {
+      return;
+    }
+
     window.location.assign(`/news/${article.id}`);
   }
 
@@ -124,7 +126,7 @@ export function NewsListPage() {
       </section>
 
       <span className="sr-only" role="status">
-        {error ? `API 응답을 받지 못해 더미 뉴스가 표시됩니다. ${error}` : ''}
+        {error ? `뉴스 목록 API 응답을 받지 못했습니다. ${error}` : ''}
       </span>
 
       {loading ? <NewsListSkeleton /> : null}
@@ -144,19 +146,21 @@ export function NewsListPage() {
         </section>
       ) : null}
 
-      <footer className="pagination">
-        {Array.from({ length: Math.max(totalPages, 3) }).map((_, index) => (
-          <button
-            type="button"
-            key={index}
-            className={page === index ? 'active' : undefined}
-            onClick={() => setPage(index)}
-            disabled={loading}
-          >
-            {index + 1}
-          </button>
-        ))}
-      </footer>
+      {articles.length > 0 && totalPages > 1 ? (
+        <footer className="pagination">
+          {Array.from({ length: totalPages }).map((_, index) => (
+            <button
+              type="button"
+              key={index}
+              className={page === index ? 'active' : undefined}
+              onClick={() => setPage(index)}
+              disabled={loading}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </footer>
+      ) : null}
     </main>
   );
 }
