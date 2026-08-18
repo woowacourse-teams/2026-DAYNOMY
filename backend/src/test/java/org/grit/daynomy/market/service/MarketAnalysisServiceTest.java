@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.market.domain.analysis.MarketAnalysis;
 import org.grit.daynomy.market.domain.asset.Asset;
 import org.grit.daynomy.market.domain.asset.AssetImpact;
@@ -23,6 +22,7 @@ import org.grit.daynomy.market.domain.scenario.TimeHorizon;
 import org.grit.daynomy.market.entity.AssetImpactEntity;
 import org.grit.daynomy.market.entity.NewsMarketAnalysisEntity;
 import org.grit.daynomy.market.entity.ScenarioEntity;
+import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -88,7 +88,7 @@ class MarketAnalysisServiceTest {
     assertThatThrownBy(() -> marketAnalysisService.getMarketAnalysis(1L))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(ErrorCode.MARKET_ANALYSIS_NOT_FOUND);
+        .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND);
   }
 
   private NewsMarketAnalysisEntity createMarketAnalysisEntity() {

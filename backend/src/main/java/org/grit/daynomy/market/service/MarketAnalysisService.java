@@ -2,9 +2,9 @@ package org.grit.daynomy.market.service;
 
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.market.domain.analysis.MarketAnalysis;
 import org.grit.daynomy.market.dto.MarketAnalysisResponse;
+import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.grit.daynomy.market.parser.analysis.MarketAnalysisParser;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.News;
@@ -28,6 +28,6 @@ public class MarketAnalysisService {
         .findByNewsId(newsId)
         .map(MarketAnalysisParser::toDomain)
         .map(MarketAnalysisResponse::from)
-        .orElseThrow(() -> new BusinessException(ErrorCode.MARKET_ANALYSIS_NOT_FOUND));
+        .orElseThrow(() -> new BusinessException(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND));
   }
 }
