@@ -2,12 +2,13 @@ package org.grit.daynomy.news.service;
 
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.common.CommonErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.dto.NewsDetailResponse;
 import org.grit.daynomy.news.dto.NewsListItemResponse;
 import org.grit.daynomy.news.dto.NewsPageResponse;
+import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,7 +25,7 @@ public class NewsService {
 
   public NewsPageResponse getNewsPage(int page, int size, Category category) {
     if (page < 1 || size < 1) {
-      throw new BusinessException(ErrorCode.INVALID_REQUEST);
+      throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
     }
 
     Pageable pageable = PageRequest.of(page - 1, size);
@@ -40,6 +41,6 @@ public class NewsService {
     return newsRepository
         .findById(id)
         .map(NewsDetailResponse::from)
-        .orElseThrow(() -> new BusinessException(ErrorCode.NEWS_NOT_FOUND));
+        .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
   }
 }
