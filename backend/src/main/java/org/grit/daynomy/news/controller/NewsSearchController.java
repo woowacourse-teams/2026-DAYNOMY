@@ -4,8 +4,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.grit.daynomy.common.api.ApiResponse;
-import org.grit.daynomy.common.exception.ErrorCode;
+import org.grit.daynomy.common.ApiResponse;
+import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsSearchResponse;
 import org.grit.daynomy.news.service.NewsSearchService;
@@ -68,7 +68,7 @@ public class NewsSearchController {
     ErrorCode errorCode =
         exception.getRequiredType() == Category.class
             ? ErrorCode.INVALID_CATEGORY
-            : ErrorCode.BAD_REQUEST;
-    return ResponseEntity.status(errorCode.status()).body(ApiResponse.error(errorCode));
+            : ErrorCode.INVALID_REQUEST;
+    return ResponseEntity.status(errorCode.status()).body(ApiResponse.error(errorCode.message()));
   }
 }

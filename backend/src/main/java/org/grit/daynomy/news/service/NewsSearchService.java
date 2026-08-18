@@ -1,10 +1,10 @@
 package org.grit.daynomy.news.service;
 
-import static org.grit.daynomy.common.exception.ErrorCode.BAD_REQUEST;
-import static org.grit.daynomy.common.exception.ErrorCode.INVALID_SEARCH_KEYWORD;
-import static org.grit.daynomy.common.exception.ErrorCode.SEARCH_KEYWORD_REQUIRED;
+import static org.grit.daynomy.common.ErrorCode.INVALID_REQUEST;
+import static org.grit.daynomy.common.ErrorCode.INVALID_SEARCH_KEYWORD;
+import static org.grit.daynomy.common.ErrorCode.SEARCH_KEYWORD_REQUIRED;
 
-import org.grit.daynomy.common.exception.ApiException;
+import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsSearchResponse;
 import org.grit.daynomy.news.repository.NewsRepository;
@@ -31,7 +31,7 @@ public class NewsSearchService {
     String normalizedKeyword = validateKeyword(keyword);
 
     if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
-      throw new ApiException(BAD_REQUEST);
+      throw new BusinessException(INVALID_REQUEST);
     }
 
     PageRequest pageable =
@@ -41,14 +41,14 @@ public class NewsSearchService {
 
   private String validateKeyword(String keyword) {
     if (keyword == null || keyword.isBlank()) {
-      throw new ApiException(SEARCH_KEYWORD_REQUIRED);
+      throw new BusinessException(SEARCH_KEYWORD_REQUIRED);
     }
 
     String normalizedKeyword = keyword.strip();
     if (normalizedKeyword.length() < MIN_KEYWORD_LENGTH
         || normalizedKeyword.length() > MAX_KEYWORD_LENGTH
         || normalizedKeyword.codePoints().noneMatch(Character::isLetterOrDigit)) {
-      throw new ApiException(INVALID_SEARCH_KEYWORD);
+      throw new BusinessException(INVALID_SEARCH_KEYWORD);
     }
     return normalizedKeyword;
   }

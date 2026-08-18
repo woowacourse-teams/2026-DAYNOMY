@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDateTime;
 import java.util.List;
-import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.common.GlobalExceptionHandler;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.repository.NewsRepository;
@@ -54,10 +54,10 @@ class NewsSearchControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("SUCCESS"))
         .andExpect(jsonPath("$.message").value("카테고리 필터 검색 결과를 조회했습니다."))
-        .andExpect(jsonPath("$.body.category").doesNotExist())
-        .andExpect(jsonPath("$.body.content[0].category").value("BOND"))
-        .andExpect(jsonPath("$.body.page").value(0))
-        .andExpect(jsonPath("$.body.size").value(20));
+        .andExpect(jsonPath("$.data.category").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].category").value("BOND"))
+        .andExpect(jsonPath("$.data.page").value(0))
+        .andExpect(jsonPath("$.data.size").value(20));
   }
 
   @Test
@@ -69,9 +69,9 @@ class NewsSearchControllerTest {
         .perform(get("/api/search/news").param("q", "금리"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.message").value("검색 결과가 없습니다."))
-        .andExpect(jsonPath("$.body.content").isEmpty())
-        .andExpect(jsonPath("$.body.totalElements").value(0))
-        .andExpect(jsonPath("$.body.totalPages").value(0));
+        .andExpect(jsonPath("$.data.content").isEmpty())
+        .andExpect(jsonPath("$.data.totalElements").value(0))
+        .andExpect(jsonPath("$.data.totalPages").value(0));
   }
 
   @Test
@@ -79,7 +79,6 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("SEARCH_KEYWORD_REQUIRED"))
         .andExpect(jsonPath("$.message").value("검색어를 입력해주세요."));
 
     verifyNoInteractions(newsRepository);
@@ -90,7 +89,7 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "!"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_SEARCH_KEYWORD"));
+        .andExpect(jsonPath("$.message").value("올바른 검색어를 입력해주세요."));
 
     verifyNoInteractions(newsRepository);
   }
@@ -100,7 +99,7 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("category", "POLICY"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_CATEGORY"));
+        .andExpect(jsonPath("$.message").value("존재하지 않는 카테고리입니다."));
 
     verifyNoInteractions(newsRepository);
   }
@@ -110,7 +109,7 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("page", "first"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+        .andExpect(jsonPath("$.message").value("잘못된 요청입니다."));
 
     verifyNoInteractions(newsRepository);
   }
