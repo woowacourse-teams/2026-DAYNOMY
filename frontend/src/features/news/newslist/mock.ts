@@ -33,6 +33,15 @@ const todayNews: NewsArticle = {
   body: '정부가 부동산 대출 규제 완화 가능성을 검토하고 있다는 뉴스는 주택 시장의 유동성 기대를 자극하는 정책 이벤트로 해석됩니다. 최근 부동산 시장은 지역별로 거래량 회복 속도가 엇갈리고 있고, 고금리 부담과 대출 규제로 인해 실수요자의 매수 여력이 제한돼 있었습니다. 이런 상황에서 대출 문턱이 낮아질 수 있다는 신호가 나오면 시장은 먼저 거래 회복 가능성에 반응합니다. 은행주는 대출 성장 기대가 반영될 수 있고, 건설주는 분양 심리 개선 가능성이 부각될 수 있습니다. 다만 정책이 실제 시행될지, 적용 대상과 한도가 어떻게 정해질지는 아직 불확실합니다.',
 };
 
+const emptyTodayNews: NewsArticle = {
+  id: '',
+  title: '오늘의 뉴스가 없습니다',
+  summary: '오늘 발행된 뉴스가 있으면 이 영역에 표시됩니다.',
+  category: 'ALL',
+  publishedAt: '',
+  source: '',
+};
+
 export const dummyNews: NewsArticle[] = [
   {
     id: 'seoul-apartment-volume',
@@ -112,6 +121,10 @@ export function getCategoryLabel(value: string) {
 
 export function getDummyTodayNews() {
   return todayNews;
+}
+
+export function getEmptyTodayNews() {
+  return emptyTodayNews;
 }
 
 export function getDummyNews(category: NewsCategory = 'ALL', page = 0, size = 10): NewsPage {
