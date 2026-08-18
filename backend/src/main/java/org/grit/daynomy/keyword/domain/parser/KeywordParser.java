@@ -1,7 +1,7 @@
-package org.grit.daynomy.keyword.parser;
+package org.grit.daynomy.keyword.domain.parser;
 
 import org.grit.daynomy.keyword.domain.Keyword;
-import org.grit.daynomy.keyword.entity.NewsKeywordEntity;
+import org.grit.daynomy.keyword.domain.entity.NewsKeywordEntity;
 import org.grit.daynomy.news.domain.News;
 
 public final class KeywordParser {

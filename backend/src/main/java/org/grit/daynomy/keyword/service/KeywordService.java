@@ -6,7 +6,7 @@ import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.keyword.domain.Keyword;
 import org.grit.daynomy.keyword.dto.KeywordsResponse;
-import org.grit.daynomy.keyword.parser.KeywordParser;
+import org.grit.daynomy.keyword.domain.parser.KeywordParser;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.repository.NewsRepository;

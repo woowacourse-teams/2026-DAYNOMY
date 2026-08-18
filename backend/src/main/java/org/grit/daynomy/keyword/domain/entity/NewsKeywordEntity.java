@@ -1,4 +1,4 @@
-package org.grit.daynomy.keyword.entity;
+package org.grit.daynomy.keyword.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

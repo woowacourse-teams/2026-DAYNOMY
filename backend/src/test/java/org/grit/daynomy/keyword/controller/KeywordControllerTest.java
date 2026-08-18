@@ -9,7 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
-import org.grit.daynomy.keyword.entity.NewsKeywordEntity;
+import org.grit.daynomy.keyword.domain.entity.NewsKeywordEntity;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;

@@ -3,7 +3,7 @@ package org.grit.daynomy.keyword.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
-import org.grit.daynomy.keyword.entity.NewsKeywordEntity;
+import org.grit.daynomy.keyword.domain.entity.NewsKeywordEntity;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.repository.NewsRepository;
