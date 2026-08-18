@@ -52,7 +52,7 @@ public class AuthController {
 
     String refreshToken = tokenCookieManager.getRefreshToken(request);
 
-    if (refreshToken == null) {
+    if (refreshToken == null || refreshToken.isBlank()) {
       throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_REQUIRED);
     }
 
