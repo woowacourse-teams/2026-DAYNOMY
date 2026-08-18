@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseItem;
 import org.grit.daynomy.external.dart.dto.DartConvertibleBondItem;
 import org.grit.daynomy.external.dart.dto.DartDisclosureItem;
@@ -140,7 +140,7 @@ public class DartNewsPromptMapper {
     try {
       return LocalDate.parse(date, DART_DATE_FORMAT).atStartOfDay();
     } catch (RuntimeException exception) {
-      throw new BusinessException(ErrorCode.DART_NEWS_MAPPING_FAILED);
+      throw new BusinessException(ExternalErrorCode.DART_NEWS_MAPPING_FAILED);
     }
   }
 

@@ -5,7 +5,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.bok.dto.BokStatisticItem;
 import org.grit.daynomy.external.bok.dto.BokStatisticResponse;
 import org.springframework.stereotype.Component;
@@ -52,7 +52,7 @@ public class BokClient {
       }
       return response.search().rows();
     } catch (RestClientException exception) {
-      throw new BusinessException(ErrorCode.BOK_API_REQUEST_FAILED);
+      throw new BusinessException(ExternalErrorCode.BOK_API_REQUEST_FAILED);
     }
   }
 

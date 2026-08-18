@@ -3,7 +3,7 @@ package org.grit.daynomy.external.dart;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseResponse;
 import org.grit.daynomy.external.dart.dto.DartConvertibleBondResponse;
 import org.grit.daynomy.external.dart.dto.DartDisclosureResponse;
@@ -47,7 +47,7 @@ public class DartClient {
           .retrieve()
           .body(DartDisclosureResponse.class);
     } catch (RestClientException exception) {
-      throw new BusinessException(ErrorCode.DART_API_REQUEST_FAILED);
+      throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
     }
   }
 
@@ -94,7 +94,7 @@ public class DartClient {
           .retrieve()
           .body(responseType);
     } catch (RestClientException exception) {
-      throw new BusinessException(ErrorCode.DART_API_REQUEST_FAILED);
+      throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
     }
   }
 

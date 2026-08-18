@@ -3,7 +3,7 @@ package org.grit.daynomy.external.kosis;
 import java.util.Arrays;
 import java.util.List;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.kosis.dto.KosisDataItem;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -42,7 +42,7 @@ public class KosisClient {
 
       return response == null ? List.of() : Arrays.asList(response);
     } catch (RestClientException exception) {
-      throw new BusinessException(ErrorCode.KOSIS_API_REQUEST_FAILED);
+      throw new BusinessException(ExternalErrorCode.KOSIS_API_REQUEST_FAILED);
     }
   }
 }
