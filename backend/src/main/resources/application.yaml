@@ -18,7 +18,7 @@ spring:
               - profile
               - email
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"    
-   jpa:
+  jpa:
       hibernate:
         ddl-auto: validate
       open-in-view: false
