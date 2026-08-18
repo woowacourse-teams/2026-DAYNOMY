@@ -1,4 +1,4 @@
-package org.grit.daynomy.keyword.domain.entity;
+package org.grit.daynomy.keyword.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,7 +16,7 @@ import org.grit.daynomy.news.domain.News;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
-public class NewsKeywordEntity {
+public class NewsKeyword {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,7 +32,12 @@ public class NewsKeywordEntity {
   @Column(name = "description", columnDefinition = "TEXT")
   private String description;
 
-  public NewsKeywordEntity(News news, String keyword, String description) {
+  public NewsKeyword(String keyword, String description) {
+    this.keyword = keyword;
+    this.description = description;
+  }
+
+  public NewsKeyword(News news, String keyword, String description) {
     this.news = news;
     this.keyword = keyword;
     this.description = description;

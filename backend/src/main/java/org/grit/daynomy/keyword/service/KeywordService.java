@@ -3,8 +3,7 @@ package org.grit.daynomy.keyword.service;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.keyword.domain.Keyword;
-import org.grit.daynomy.keyword.domain.parser.KeywordParser;
+import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.dto.KeywordsResponse;
 import org.grit.daynomy.keyword.exception.KeywordErrorCode;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
@@ -23,9 +22,13 @@ public class KeywordService {
   private final NewsKeywordRepository newsKeywordRepository;
 
   @Transactional
-  public void saveKeywords(News news, List<Keyword> keywords) {
+  public void saveKeywords(News news, List<NewsKeyword> keywords) {
     newsKeywordRepository.saveAll(
-        keywords.stream().map(keyword -> KeywordParser.toEntity(news, keyword)).toList());
+        keywords.stream()
+            .map(
+                keyword ->
+                    new NewsKeyword(news, keyword.getKeyword(), keyword.getDescription()))
+            .toList());
   }
 
   public KeywordsResponse getKeywords(Long newsId) {
@@ -33,10 +36,7 @@ public class KeywordService {
       throw new BusinessException(NewsErrorCode.NEWS_NOT_FOUND);
     }
 
-    List<Keyword> keywords =
-        newsKeywordRepository.findByNewsIdOrderByIdAsc(newsId).stream()
-            .map(KeywordParser::toDomain)
-            .toList();
+    List<NewsKeyword> keywords = newsKeywordRepository.findByNewsIdOrderByIdAsc(newsId);
     if (keywords.isEmpty()) {
       throw new BusinessException(KeywordErrorCode.KEYWORD_NOT_FOUND);
     }

@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.grit.daynomy.keyword.domain.Keyword;
+import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -39,7 +39,7 @@ public class OpenAiKeywordClient implements KeywordAiClient {
   }
 
   @Override
-  public List<Keyword> extractKeywords(String newsContent) {
+  public List<NewsKeyword> extractKeywords(String newsContent) {
     if (apiKey == null || apiKey.isBlank()) {
       throw new IllegalStateException("OPENAI_API_KEY is required to extract news keywords.");
     }
@@ -107,7 +107,7 @@ public class OpenAiKeywordClient implements KeywordAiClient {
     return schema;
   }
 
-  private List<Keyword> parseKeywords(String response) {
+  private List<NewsKeyword> parseKeywords(String response) {
     String outputText = extractOutputText(response);
     try {
       JsonNode keywordsNode = objectMapper.readTree(outputText).path("keywords");
@@ -118,7 +118,9 @@ public class OpenAiKeywordClient implements KeywordAiClient {
       return keywordsNode
           .valueStream()
           .map(
-              node -> new Keyword(node.path("keyword").asText(), node.path("description").asText()))
+              node ->
+                  new NewsKeyword(
+                      node.path("keyword").asText(), node.path("description").asText()))
           .toList();
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException("Failed to parse OpenAI keyword response.", exception);
