@@ -10,9 +10,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class GlobalExceptionHandler {
 
   @ExceptionHandler(BusinessException.class)
-  public ResponseEntity<ApiResponse<Void>> handleApiException(BusinessException exception) {
+  public ResponseEntity<ErrorResponse> handleApiException(BusinessException exception) {
     ErrorCode errorCode = exception.errorCode();
-    return ResponseEntity.status(errorCode.status()).body(ApiResponse.error(errorCode.message()));
+    return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
   }
 
   @ExceptionHandler({
@@ -20,8 +20,8 @@ public class GlobalExceptionHandler {
     MethodArgumentTypeMismatchException.class,
     MethodArgumentNotValidException.class
   })
-  public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception exception) {
+  public ResponseEntity<ErrorResponse> handleBadRequest(Exception exception) {
     ErrorCode errorCode = ErrorCode.INVALID_REQUEST;
-    return ResponseEntity.status(errorCode.status()).body(ApiResponse.error(errorCode.message()));
+    return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
   }
 }

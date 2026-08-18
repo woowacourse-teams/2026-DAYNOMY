@@ -52,11 +52,9 @@ class NewsControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
-    assertThat(body.at("/message").asText()).isEqualTo("뉴스를 조회했습니다.");
-    assertThat(body.at("/data/items")).hasSize(1);
-    assertThat(body.at("/data/items/0/title").asText()).isEqualTo("stock news");
-    assertThat(body.at("/data/page").asInt()).isEqualTo(1);
+    assertThat(body.at("/items")).hasSize(1);
+    assertThat(body.at("/items/0/title").asText()).isEqualTo("stock news");
+    assertThat(body.at("/page").asInt()).isEqualTo(1);
   }
 
   @Test
@@ -83,8 +81,8 @@ class NewsControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/data/items")).hasSize(1);
-    assertThat(body.at("/data/items/0/category").asText()).isEqualTo("REAL_ESTATE");
+    assertThat(body.at("/items")).hasSize(1);
+    assertThat(body.at("/items/0/category").asText()).isEqualTo("REAL_ESTATE");
   }
 
   @Test
@@ -104,9 +102,8 @@ class NewsControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
-    assertThat(body.at("/data/title").asText()).isEqualTo("detail news");
-    assertThat(body.at("/data/content").asText()).isEqualTo("content");
+    assertThat(body.at("/title").asText()).isEqualTo("detail news");
+    assertThat(body.at("/content").asText()).isEqualTo("content");
   }
 
   @Test
@@ -116,9 +113,8 @@ class NewsControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(404);
-    assertThat(body.at("/status").asText()).isEqualTo("ERROR");
+    assertThat(body.at("/code").asText()).isEqualTo("NEWS_NOT_FOUND");
     assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스를 찾을 수 없습니다.");
-    assertThat(body.at("/data").isNull()).isTrue();
   }
 
   private HttpResponse<String> get(String path) throws Exception {
