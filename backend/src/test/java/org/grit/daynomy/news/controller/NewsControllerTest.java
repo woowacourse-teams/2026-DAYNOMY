@@ -119,14 +119,12 @@ class NewsControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
-    assertThat(body.at("/message").asText()).isEqualTo("오늘의 뉴스를 조회했습니다.");
-    assertThat(body.at("/data/title").asText()).isEqualTo("latest today news");
-    assertThat(body.at("/data/category").asText()).isEqualTo("REAL_ESTATE");
+    assertThat(body.at("/title").asText()).isEqualTo("latest today news");
+    assertThat(body.at("/category").asText()).isEqualTo("REAL_ESTATE");
   }
 
   @Test
-  @DisplayName("오늘의 뉴스 조회 API는 오늘 발행된 뉴스가 없으면 null을 반환한다")
+  @DisplayName("오늘의 뉴스 조회 API는 오늘 발행된 뉴스가 없으면 빈 응답을 반환한다")
   void findTodayNewsReturnsNullWhenMissing() throws Exception {
     LocalDate today = LocalDate.now();
     newsRepository.save(
@@ -139,12 +137,9 @@ class NewsControllerTest {
             today.minusDays(1).atTime(23, 0)));
 
     HttpResponse<String> response = get("/api/news/today");
-    JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
-    assertThat(body.at("/message").asText()).isEqualTo("오늘의 뉴스를 조회했습니다.");
-    assertThat(body.at("/data").isNull()).isTrue();
+    assertThat(response.body()).isBlank();
   }
 
   @Test

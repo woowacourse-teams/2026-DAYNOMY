@@ -37,8 +37,8 @@ public class NewsController {
 
   @Operation(summary = "오늘의 뉴스 조회", description = "오늘 발행된 뉴스 중 가장 최신 뉴스를 조회합니다.")
   @GetMapping("/today")
-  public ApiResponse<NewsListItemResponse> getTodayNews() {
-    return ApiResponse.success("오늘의 뉴스를 조회했습니다.", newsService.getTodayNews());
+  public ResponseEntity<NewsListItemResponse> getTodayNews() {
+    return ResponseEntity.ok(newsService.getTodayNews());
   }
 
   @Operation(summary = "뉴스 상세 조회", description = "뉴스 ID로 단일 뉴스를 조회합니다.")
