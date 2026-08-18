@@ -11,12 +11,13 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.keyword.domain.Keyword;
 import org.grit.daynomy.keyword.domain.entity.NewsKeywordEntity;
+import org.grit.daynomy.keyword.exception.KeywordErrorCode;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -86,8 +87,20 @@ class KeywordServiceTest {
     assertThatThrownBy(() -> keywordService.getKeywords(1L))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(ErrorCode.NEWS_NOT_FOUND);
+        .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
     verify(newsKeywordRepository, never()).findByNewsIdOrderByIdAsc(1L);
+  }
+
+  @Test
+  @DisplayName("키워드가 없으면 도메인 예외를 던진다")
+  void findKeywordsThrowsWhenKeywordsMissing() {
+    given(newsRepository.existsById(1L)).willReturn(true);
+    given(newsKeywordRepository.findByNewsIdOrderByIdAsc(1L)).willReturn(List.of());
+
+    assertThatThrownBy(() -> keywordService.getKeywords(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(KeywordErrorCode.KEYWORD_NOT_FOUND);
   }
 
   private News createNews() {
