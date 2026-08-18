@@ -2,11 +2,10 @@ package org.grit.daynomy.member.service;
 
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.repository.RefreshTokenRepository;
+import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.OAuthProvider;
-import org.grit.daynomy.member.exception.MemberNotFoundException;
-import org.grit.daynomy.member.exception.NicknameAlreadyExistsException;
-import org.grit.daynomy.member.exception.WithdrawnMemberException;
+import org.grit.daynomy.member.exception.MemberErrorCode;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +41,7 @@ public class MemberService {
 
     if (!member.getNickname().equals(normalizedNickname)
         && memberRepository.existsByNickname(normalizedNickname)) {
-      throw new NicknameAlreadyExistsException();
+      throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
     }
 
     member.updateNickname(normalizedNickname);
@@ -58,13 +57,16 @@ public class MemberService {
   }
 
   private Member findActiveMember(Long memberId) {
-    Member member = memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
+    Member member =
+        memberRepository
+            .findById(memberId)
+            .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
     return validateActiveMember(member);
   }
 
   private Member validateActiveMember(Member member) {
     if (member.isWithdrawn()) {
-      throw new WithdrawnMemberException();
+      throw new BusinessException(MemberErrorCode.WITHDRAWN_MEMBER);
     }
 
     return member;

@@ -4,10 +4,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.auth.exception.AuthErrorCode;
 import org.grit.daynomy.auth.service.TokenService;
 import org.grit.daynomy.auth.token.InvalidTokenException;
 import org.grit.daynomy.auth.token.TokenCookieManager;
 import org.grit.daynomy.auth.token.TokenPair;
+import org.grit.daynomy.common.BusinessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -42,7 +44,7 @@ public class AuthController {
     String refreshToken = tokenCookieManager.getRefreshToken(request);
 
     if (refreshToken == null) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+      throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_REQUIRED);
     }
 
     try {
@@ -52,8 +54,7 @@ public class AuthController {
       return ResponseEntity.noContent().build();
     } catch (InvalidTokenException exception) {
       tokenCookieManager.clearTokenCookies(response);
-
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+      throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
     }
   }
 

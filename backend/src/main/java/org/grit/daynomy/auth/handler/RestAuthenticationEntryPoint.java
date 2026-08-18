@@ -5,9 +5,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.auth.exception.AuthErrorCode;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
-import org.grit.daynomy.global.response.ApiResponse;
-import org.springframework.http.HttpStatus;
+import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.common.ErrorResponse;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -26,20 +27,20 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
       HttpServletResponse response,
       AuthenticationException authenticationException)
       throws IOException {
-    response.setStatus(HttpStatus.UNAUTHORIZED.value());
+    ErrorCode errorCode = getErrorCode(request);
+
+    response.setStatus(errorCode.status().value());
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
     response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-
-    ApiResponse<Void> body = createErrorResponse(request);
-    objectMapper.writeValue(response.getWriter(), body);
+    objectMapper.writeValue(response.getWriter(), ErrorResponse.from(errorCode));
   }
 
-  private ApiResponse<Void> createErrorResponse(HttpServletRequest request) {
+  private ErrorCode getErrorCode(HttpServletRequest request) {
     if (Boolean.TRUE.equals(
         request.getAttribute(JwtAuthenticationFilter.INVALID_TOKEN_ATTRIBUTE))) {
-      return ApiResponse.error("INVALID_TOKEN", "유효하지 않은 인증 정보입니다.");
+      return AuthErrorCode.INVALID_TOKEN;
     }
 
-    return ApiResponse.error("UNAUTHORIZED", "로그인이 필요합니다.");
+    return AuthErrorCode.UNAUTHORIZED;
   }
 }
