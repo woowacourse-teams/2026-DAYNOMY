@@ -1,7 +1,7 @@
+import axios from 'axios';
+import { toApiError } from '../../api/error';
 import { isCategory } from '../news/newslist/types';
 import type { NewsArticle, NewsCategory, NewsPage } from '../news/newslist/types';
-
-type SearchNewsResponse = { body?: unknown };
 
 function isNewsArticle(value: unknown): value is NewsArticle {
   if (!value || typeof value !== 'object') return false;
@@ -42,21 +42,15 @@ export function buildNewsSearchUrl(keyword: string, category: NewsCategory, page
 }
 
 export async function searchNews(keyword: string, category: NewsCategory, page = 0, size = 10) {
-  const response = await fetch(buildNewsSearchUrl(keyword, category, page, size));
+  try {
+    const { data } = await axios.get<unknown>(buildNewsSearchUrl(keyword, category, page, size));
 
-  if (!response.ok) throw new Error('검색 결과를 불러오지 못했습니다.');
+    if (!isNewsPage(data)) throw new Error('검색 API 응답 형식이 올바르지 않습니다.');
 
-  const contentType = response.headers.get('content-type') ?? '';
-
-  if (!contentType.includes('application/json')) {
-    throw new Error('검색 API 응답 형식이 올바르지 않습니다.');
+    return data;
+  } catch (error) {
+    const apiError = toApiError(error, '검색 결과를 불러오지 못했습니다.');
+    if (apiError) throw apiError;
+    throw error;
   }
-
-  const data = (await response.json()) as SearchNewsResponse;
-
-  if (!isNewsPage(data.body)) {
-    throw new Error('검색 API 응답 형식이 올바르지 않습니다.');
-  }
-
-  return data.body;
 }
