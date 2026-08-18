@@ -8,9 +8,10 @@ import static org.mockito.Mockito.verify;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.common.CommonErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -69,7 +70,7 @@ class NewsServiceTest {
     assertThatThrownBy(() -> newsService.getNewsPage(0, 15, null))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(ErrorCode.INVALID_REQUEST);
+        .isEqualTo(CommonErrorCode.INVALID_REQUEST);
   }
 
   @Test
@@ -99,6 +100,6 @@ class NewsServiceTest {
     assertThatThrownBy(() -> newsService.getNewsDetail(1L))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(ErrorCode.NEWS_NOT_FOUND);
+        .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
   }
 }

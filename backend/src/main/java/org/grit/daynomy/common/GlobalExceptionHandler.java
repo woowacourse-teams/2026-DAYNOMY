@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
     MethodArgumentNotValidException.class
   })
   public ResponseEntity<ErrorResponse> handleBadRequest(Exception exception) {
-    ErrorCode errorCode = ErrorCode.INVALID_REQUEST;
+    ErrorCode errorCode = CommonErrorCode.INVALID_REQUEST;
     return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
   }
 }
