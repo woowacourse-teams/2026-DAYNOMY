@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Keyword", description = "뉴스 키워드 조회 API")
+@Tag(name = "Keyword", description = "뉴스 키워드 API")
 @RequiredArgsConstructor
 @RequestMapping("/api/news/{newsId}/keywords")
 @RestController

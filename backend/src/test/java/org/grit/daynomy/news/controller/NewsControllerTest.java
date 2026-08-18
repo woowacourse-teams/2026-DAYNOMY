@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
+import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.repository.NewsRepository;
@@ -31,8 +32,11 @@ class NewsControllerTest {
 
   @Autowired private NewsRepository newsRepository;
 
+  @Autowired private NewsKeywordRepository newsKeywordRepository;
+
   @BeforeEach
   void setUp() {
+    newsKeywordRepository.deleteAll();
     newsRepository.deleteAll();
   }
 
