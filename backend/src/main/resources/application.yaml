@@ -64,6 +64,28 @@ external:
         source-organization: 국가데이터처
         survey-name: 경제활동인구조사
         table-name: 고용률 및 실업률
+  bok:
+    api-key: ${BOK_API_KEY:}
+    base-url: ${BOK_BASE_URL:https://ecos.bok.or.kr}
+    indicators:
+      - key: base-rate
+        name: 한국은행 기준금리
+        statistic-code: ${BOK_BASE_RATE_STATISTIC_CODE:}
+        cycle: M
+        category: ECONOMY
+        source-organization: 한국은행
+        statistic-name: 한국은행 기준금리 및 여수신금리
+        item-name: 한국은행 기준금리
+        item-codes: ${BOK_BASE_RATE_ITEM_CODES:}
+      - key: exchange-rate-usd
+        name: 원/달러 환율
+        statistic-code: ${BOK_EXCHANGE_RATE_USD_STATISTIC_CODE:}
+        cycle: D
+        category: FOREIGN_EXCHANGE
+        source-organization: 한국은행
+        statistic-name: 주요국 통화의 대원화환율
+        item-name: 원/달러
+        item-codes: ${BOK_EXCHANGE_RATE_USD_ITEM_CODES:}
   openai:
     api-key: ${OPENAI_API_KEY:}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
@@ -78,3 +100,6 @@ news:
     kosis:
       enabled: ${KOSIS_NEWS_GENERATION_ENABLED:false}
       cron: ${KOSIS_NEWS_GENERATION_CRON:0 30 7 * * *}
+    bok:
+      enabled: ${BOK_NEWS_GENERATION_ENABLED:false}
+      cron: ${BOK_NEWS_GENERATION_CRON:0 30 7 * * *}
