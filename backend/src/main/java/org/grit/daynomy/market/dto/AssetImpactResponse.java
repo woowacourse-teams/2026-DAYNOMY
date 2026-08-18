@@ -2,9 +2,9 @@ package org.grit.daynomy.market.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.grit.daynomy.market.domain.asset.Asset;
-import org.grit.daynomy.market.domain.asset.AssetImpact;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
+import org.grit.daynomy.market.domain.asset.AssetImpact;
 
 public record AssetImpactResponse(
     @Schema(description = "영향을 받는 자산", example = "STOCK") Asset asset,
