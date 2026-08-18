@@ -17,7 +17,14 @@ spring:
               - openid
               - profile
               - email
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"    
+   jpa:
+      hibernate:
+        ddl-auto: validate
+      open-in-view: false
+      properties:
+        hibernate:
+          format_sql: true
 
 app:
   oauth2:
@@ -32,6 +39,7 @@ jwt:
 
 cookie:
   secure: ${COOKIE_SECURE:false}
+  
 
 springdoc:
   swagger-ui:
