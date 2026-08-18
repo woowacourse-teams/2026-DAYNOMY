@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.grit.daynomy.external.bok.BokNewsPromptService;
 import org.grit.daynomy.external.dart.DartNewsPromptService;
 import org.grit.daynomy.external.kosis.KosisNewsPromptService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
@@ -31,6 +32,7 @@ class NewsGenerationServiceTest {
 
   @Mock private DartNewsPromptService dartNewsPromptService;
   @Mock private KosisNewsPromptService kosisNewsPromptService;
+  @Mock private BokNewsPromptService bokNewsPromptService;
   @Mock private OpenAiNewsGenerator openAiNewsGenerator;
   @Mock private OpenAiImageGenerator openAiImageGenerator;
   @Mock private NewsRepository newsRepository;
@@ -122,6 +124,33 @@ class NewsGenerationServiceTest {
     verify(newsRepository).save(newsCaptor.capture());
     assertThat(savedCount).isEqualTo(1);
     assertThat(newsCaptor.getValue().getSource()).isEqualTo(NewsSource.KOSIS);
+    assertThat(newsCaptor.getValue().getCategory()).isEqualTo(Category.ECONOMY);
+  }
+
+  @Test
+  @DisplayName("한국은행 ECOS 프롬프트로 뉴스를 생성하고 저장한다")
+  void generateBokNewsSavesGeneratedNews() {
+    NewsPrompt prompt =
+        new NewsPrompt(
+            NewsSource.BOK,
+            "base-rate:202607",
+            "https://ecos.bok.or.kr",
+            Category.ECONOMY,
+            LocalDateTime.of(2026, 8, 18, 0, 0),
+            "prompt");
+    given(bokNewsPromptService.createPrompts()).willReturn(List.of(prompt));
+    given(newsRepository.existsBySourceAndExternalId(NewsSource.BOK, "base-rate:202607"))
+        .willReturn(false);
+    given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("금리 뉴스", "요약", "본문"));
+    given(openAiImageGenerator.generateNewsImage("금리 뉴스", "요약"))
+        .willReturn("data:image/webp;base64,image");
+
+    int savedCount = newsGenerationService.generateBokNews();
+
+    ArgumentCaptor<News> newsCaptor = ArgumentCaptor.forClass(News.class);
+    verify(newsRepository).save(newsCaptor.capture());
+    assertThat(savedCount).isEqualTo(1);
+    assertThat(newsCaptor.getValue().getSource()).isEqualTo(NewsSource.BOK);
     assertThat(newsCaptor.getValue().getCategory()).isEqualTo(Category.ECONOMY);
   }
 }
