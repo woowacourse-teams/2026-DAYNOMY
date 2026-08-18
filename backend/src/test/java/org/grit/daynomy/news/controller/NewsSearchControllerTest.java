@@ -54,7 +54,7 @@ class NewsSearchControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("SUCCESS"))
         .andExpect(jsonPath("$.message").value("카테고리 필터 검색 결과를 조회했습니다."))
-        .andExpect(jsonPath("$.body.category").value("BOND"))
+        .andExpect(jsonPath("$.body.category").doesNotExist())
         .andExpect(jsonPath("$.body.content[0].category").value("BOND"))
         .andExpect(jsonPath("$.body.page").value(0))
         .andExpect(jsonPath("$.body.size").value(20));
@@ -101,6 +101,16 @@ class NewsSearchControllerTest {
         .perform(get("/api/search/news").param("q", "금리").param("category", "POLICY"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_CATEGORY"));
+
+    verifyNoInteractions(newsRepository);
+  }
+
+  @Test
+  void rejectsNonNumericPage() throws Exception {
+    mockMvc
+        .perform(get("/api/search/news").param("q", "금리").param("page", "first"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
 
     verifyNoInteractions(newsRepository);
   }

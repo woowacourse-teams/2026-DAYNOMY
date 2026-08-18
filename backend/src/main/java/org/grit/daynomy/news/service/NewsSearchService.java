@@ -1,11 +1,9 @@
 package org.grit.daynomy.news.service;
 
 import static org.grit.daynomy.common.exception.ErrorCode.BAD_REQUEST;
-import static org.grit.daynomy.common.exception.ErrorCode.INVALID_CATEGORY;
 import static org.grit.daynomy.common.exception.ErrorCode.INVALID_SEARCH_KEYWORD;
 import static org.grit.daynomy.common.exception.ErrorCode.SEARCH_KEYWORD_REQUIRED;
 
-import java.util.Locale;
 import org.grit.daynomy.common.exception.ApiException;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsSearchResponse;
@@ -29,9 +27,8 @@ public class NewsSearchService {
   }
 
   @Transactional(readOnly = true)
-  public NewsSearchResponse search(String keyword, String categoryValue, int page, int size) {
+  public NewsSearchResponse search(String keyword, Category category, int page, int size) {
     String normalizedKeyword = validateKeyword(keyword);
-    Category category = parseCategory(categoryValue);
 
     if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
       throw new ApiException(BAD_REQUEST);
@@ -39,8 +36,7 @@ public class NewsSearchService {
 
     PageRequest pageable =
         PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "publishedAt", "id"));
-    return NewsSearchResponse.from(
-        newsRepository.search(normalizedKeyword, category, pageable), category);
+    return NewsSearchResponse.from(newsRepository.search(normalizedKeyword, category, pageable));
   }
 
   private String validateKeyword(String keyword) {
@@ -55,17 +51,5 @@ public class NewsSearchService {
       throw new ApiException(INVALID_SEARCH_KEYWORD);
     }
     return normalizedKeyword;
-  }
-
-  private Category parseCategory(String categoryValue) {
-    if (categoryValue == null || categoryValue.isBlank()) {
-      return null;
-    }
-
-    try {
-      return Category.valueOf(categoryValue.toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException exception) {
-      throw new ApiException(INVALID_CATEGORY);
-    }
   }
 }

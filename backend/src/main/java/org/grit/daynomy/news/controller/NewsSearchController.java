@@ -5,12 +5,17 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.grit.daynomy.common.api.ApiResponse;
+import org.grit.daynomy.common.exception.ErrorCode;
+import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsSearchResponse;
 import org.grit.daynomy.news.service.NewsSearchService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Tag(name = "뉴스 검색", description = "키워드와 카테고리로 뉴스를 검색합니다.")
 @RestController
@@ -41,7 +46,7 @@ public class NewsSearchController {
           @RequestParam(name = "q", required = false)
           String keyword,
       @Parameter(description = "카테고리. 생략하면 전체 검색", example = "BOND") @RequestParam(required = false)
-          String category,
+          Category category,
       @Parameter(description = "페이지 번호(0부터 시작)", example = "0") @RequestParam(defaultValue = "0")
           int page,
       @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20")
@@ -51,9 +56,19 @@ public class NewsSearchController {
     if (result.content().isEmpty()) {
       return ApiResponse.success("검색 결과가 없습니다.", result);
     }
-    if (result.category() != null) {
+    if (category != null) {
       return ApiResponse.success("카테고리 필터 검색 결과를 조회했습니다.", result);
     }
     return ApiResponse.success("뉴스 검색 결과를 조회했습니다.", result);
+  }
+
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+      MethodArgumentTypeMismatchException exception) {
+    ErrorCode errorCode =
+        exception.getRequiredType() == Category.class
+            ? ErrorCode.INVALID_CATEGORY
+            : ErrorCode.BAD_REQUEST;
+    return ResponseEntity.status(errorCode.status()).body(ApiResponse.error(errorCode));
   }
 }

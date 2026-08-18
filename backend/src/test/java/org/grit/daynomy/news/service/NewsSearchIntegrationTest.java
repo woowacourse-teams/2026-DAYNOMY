@@ -23,9 +23,8 @@ class NewsSearchIntegrationTest {
         "INSERT INTO news (title, content, description, category, published_at, created_at, updated_at) VALUES ('증시 반등', '기준금리가 주식시장에 영향을 줬습니다.', '주식 뉴스', 'STOCK', '2026-08-15 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
       })
   void searchesExistingNewsTableByKeywordAndCategory() {
-    NewsSearchResponse result = newsSearchService.search("금", "BOND", 0, 20);
+    NewsSearchResponse result = newsSearchService.search("금", Category.BOND, 0, 20);
 
-    assertThat(result.category()).isEqualTo(Category.BOND);
     assertThat(result.totalElements()).isEqualTo(1);
     assertThat(result.content())
         .singleElement()
