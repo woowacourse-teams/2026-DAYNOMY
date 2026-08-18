@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import axios, { AxiosError, type AxiosAdapter } from 'axios';
+import { ApiError } from '../../src/api/error.ts';
 import { buildNewsSearchUrl, searchNews } from '../../src/features/search/api.ts';
 import {
   CATEGORY_LABELS,
@@ -38,39 +40,60 @@ test('검색어와 선택한 카테고리로 뉴스 검색 URL을 만든다', ()
   );
 });
 
-test('백엔드 공통 응답의 검색 결과를 읽는다', async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () =>
-    new Response(
-      JSON.stringify({
-        status: 'SUCCESS',
-        code: null,
-        message: '뉴스 검색 결과를 조회했습니다.',
-        body: {
-          content: [
-            {
-              id: 1,
-              title: '기준금리 동결 가능성 확대',
-              category: 'BOND',
-              publishedAt: '2026-08-14T10:00:00',
-            },
-          ],
-          page: 0,
-          size: 10,
-          totalElements: 1,
-          totalPages: 1,
+const originalAdapter = axios.defaults.adapter;
+
+test.afterEach(() => {
+  axios.defaults.adapter = originalAdapter;
+});
+
+test('래퍼 없는 검색 성공 응답을 읽는다', async () => {
+  axios.defaults.adapter = (async (config) => ({
+    data: {
+      content: [
+        {
+          id: 1,
+          title: '기준금리 동결 가능성 확대',
+          category: 'BOND',
+          publishedAt: '2026-08-14T10:00:00',
         },
-      }),
-      { headers: { 'content-type': 'application/json' } },
-    );
+      ],
+      page: 0,
+      size: 10,
+      totalElements: 1,
+      totalPages: 1,
+    },
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config,
+  })) satisfies AxiosAdapter;
 
-  try {
-    const results = await searchNews('금리', 'BOND');
+  const results = await searchNews('금리', 'BOND');
 
-    assert.equal(results.content.length, 1);
-    assert.equal(results.content[0]?.category, 'BOND');
-    assert.equal(results.totalElements, 1);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  assert.equal(results.content.length, 1);
+  assert.equal(results.content[0]?.category, 'BOND');
+  assert.equal(results.totalElements, 1);
+});
+
+test('검색 실패 응답의 code와 message를 전달한다', async () => {
+  axios.defaults.adapter = (async (config) => {
+    throw new AxiosError('Bad Request', 'ERR_BAD_REQUEST', config, undefined, {
+      data: {
+        code: 'INVALID_SEARCH_KEYWORD',
+        message: '올바른 검색어를 입력해주세요.',
+      },
+      status: 400,
+      statusText: 'Bad Request',
+      headers: {},
+      config,
+    });
+  }) satisfies AxiosAdapter;
+
+  await assert.rejects(
+    () => searchNews('!', 'ALL'),
+    (error: unknown) =>
+      error instanceof ApiError &&
+      error.code === 'INVALID_SEARCH_KEYWORD' &&
+      error.message === '올바른 검색어를 입력해주세요.',
+  );
 });
