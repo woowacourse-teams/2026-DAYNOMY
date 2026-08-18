@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.external.bok.BokNewsPromptService;
 import org.grit.daynomy.external.dart.DartNewsPromptService;
 import org.grit.daynomy.external.kosis.KosisNewsPromptService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
@@ -21,6 +22,7 @@ public class NewsGenerationService {
 
   private final DartNewsPromptService dartNewsPromptService;
   private final KosisNewsPromptService kosisNewsPromptService;
+  private final BokNewsPromptService bokNewsPromptService;
   private final OpenAiNewsGenerator openAiNewsGenerator;
   private final OpenAiImageGenerator openAiImageGenerator;
   private final NewsRepository newsRepository;
@@ -53,6 +55,15 @@ public class NewsGenerationService {
     log.info("Created {} KOSIS news prompts", prompts.size());
 
     return generateNews(prompts, "KOSIS");
+  }
+
+  @Transactional
+  public int generateBokNews() {
+    log.info("Starting BOK news generation");
+    List<NewsPrompt> prompts = bokNewsPromptService.createPrompts();
+    log.info("Created {} BOK news prompts", prompts.size());
+
+    return generateNews(prompts, "BOK");
   }
 
   private int generateNews(List<NewsPrompt> prompts, String sourceName) {
