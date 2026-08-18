@@ -52,12 +52,10 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("category", "BOND"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("SUCCESS"))
-        .andExpect(jsonPath("$.message").value("카테고리 필터 검색 결과를 조회했습니다."))
-        .andExpect(jsonPath("$.data.category").doesNotExist())
-        .andExpect(jsonPath("$.data.content[0].category").value("BOND"))
-        .andExpect(jsonPath("$.data.page").value(0))
-        .andExpect(jsonPath("$.data.size").value(20));
+        .andExpect(jsonPath("$.category").doesNotExist())
+        .andExpect(jsonPath("$.content[0].category").value("BOND"))
+        .andExpect(jsonPath("$.page").value(0))
+        .andExpect(jsonPath("$.size").value(20));
   }
 
   @Test
@@ -68,10 +66,9 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.message").value("검색 결과가 없습니다."))
-        .andExpect(jsonPath("$.data.content").isEmpty())
-        .andExpect(jsonPath("$.data.totalElements").value(0))
-        .andExpect(jsonPath("$.data.totalPages").value(0));
+        .andExpect(jsonPath("$.content").isEmpty())
+        .andExpect(jsonPath("$.totalElements").value(0))
+        .andExpect(jsonPath("$.totalPages").value(0));
   }
 
   @Test

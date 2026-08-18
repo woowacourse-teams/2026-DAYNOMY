@@ -2,6 +2,8 @@ package org.grit.daynomy.news.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.grit.daynomy.common.ApiResponse;
@@ -32,7 +34,8 @@ public class NewsSearchController {
   @ApiResponses({
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
         responseCode = "200",
-        description = "검색 성공 또는 검색 결과 없음"),
+        description = "검색 성공 또는 검색 결과 없음",
+        content = @Content(schema = @Schema(implementation = NewsSearchResponse.class))),
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
         responseCode = "400",
         description = "검색어·카테고리·페이지 조건 오류"),
@@ -41,7 +44,7 @@ public class NewsSearchController {
         description = "서버 오류")
   })
   @GetMapping
-  public ApiResponse<NewsSearchResponse> search(
+  public NewsSearchResponse search(
       @Parameter(description = "검색어(1~100자)", example = "금리", required = true)
           @RequestParam(name = "q", required = false)
           String keyword,
@@ -51,15 +54,7 @@ public class NewsSearchController {
           int page,
       @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20")
           int size) {
-    NewsSearchResponse result = newsSearchService.search(keyword, category, page, size);
-
-    if (result.content().isEmpty()) {
-      return ApiResponse.success("검색 결과가 없습니다.", result);
-    }
-    if (category != null) {
-      return ApiResponse.success("카테고리 필터 검색 결과를 조회했습니다.", result);
-    }
-    return ApiResponse.success("뉴스 검색 결과를 조회했습니다.", result);
+    return newsSearchService.search(keyword, category, page, size);
   }
 
   @ExceptionHandler(MethodArgumentTypeMismatchException.class)
