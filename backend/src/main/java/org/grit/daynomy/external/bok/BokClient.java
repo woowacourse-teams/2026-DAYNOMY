@@ -1,0 +1,105 @@
+package org.grit.daynomy.external.bok;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.external.bok.dto.BokStatisticItem;
+import org.grit.daynomy.external.bok.dto.BokStatisticResponse;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+@Component
+public class BokClient {
+
+  private static final String DAILY = "D";
+  private static final String MONTHLY = "M";
+  private static final String YEARLY = "Y";
+  private static final DateTimeFormatter DAILY_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
+  private static final DateTimeFormatter MONTHLY_FORMAT = DateTimeFormatter.ofPattern("yyyyMM");
+
+  private final BokProperties bokProperties;
+  private final RestClient restClient;
+
+  public BokClient(BokProperties bokProperties) {
+    this.bokProperties = bokProperties;
+    this.restClient = RestClient.create(bokProperties.baseUrl());
+  }
+
+  public List<BokStatisticItem> getRecentData(BokProperties.Indicator indicator) {
+    LocalDate today = LocalDate.now();
+    try {
+      BokStatisticResponse response =
+          restClient
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path(
+                              apiPath(
+                                  indicator,
+                                  startPeriod(indicator.cycle(), today),
+                                  endPeriod(indicator.cycle(), today)))
+                          .build())
+              .retrieve()
+              .body(BokStatisticResponse.class);
+
+      if (response == null || response.search() == null || response.search().rows() == null) {
+        return List.of();
+      }
+      return response.search().rows();
+    } catch (RestClientException exception) {
+      throw new BusinessException(ErrorCode.BOK_API_REQUEST_FAILED);
+    }
+  }
+
+  private String apiPath(BokProperties.Indicator indicator, String startPeriod, String endPeriod) {
+    List<String> paths = new ArrayList<>();
+    paths.add("");
+    paths.add("api");
+    paths.add("StatisticSearch");
+    paths.add(bokProperties.apiKey());
+    paths.add("json");
+    paths.add("kr");
+    paths.add("1");
+    paths.add("100");
+    paths.add(indicator.statisticCode());
+    paths.add(indicator.cycle());
+    paths.add(startPeriod);
+    paths.add(endPeriod);
+    paths.addAll(
+        indicator.itemCodes() == null
+            ? List.of()
+            : indicator.itemCodes().stream().filter(itemCode -> !itemCode.isBlank()).toList());
+    return String.join("/", paths);
+  }
+
+  private String startPeriod(String cycle, LocalDate today) {
+    if (DAILY.equals(cycle)) {
+      return today.minusDays(14).format(DAILY_FORMAT);
+    }
+    if (MONTHLY.equals(cycle)) {
+      return today.minusMonths(3).format(MONTHLY_FORMAT);
+    }
+    if (YEARLY.equals(cycle)) {
+      return String.valueOf(today.minusYears(2).getYear());
+    }
+    return today.minusMonths(3).format(MONTHLY_FORMAT);
+  }
+
+  private String endPeriod(String cycle, LocalDate today) {
+    if (DAILY.equals(cycle)) {
+      return today.format(DAILY_FORMAT);
+    }
+    if (MONTHLY.equals(cycle)) {
+      return today.format(MONTHLY_FORMAT);
+    }
+    if (YEARLY.equals(cycle)) {
+      return String.valueOf(today.getYear());
+    }
+    return today.format(MONTHLY_FORMAT);
+  }
+}
