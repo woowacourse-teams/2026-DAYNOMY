@@ -123,8 +123,7 @@ class DartClientTest {
   void getMajorReportThrowsWhenRequestLimitExceeded() throws Exception {
     DartClient dartClient =
         new DartClient(
-            new DartProperties(
-                "test-key", startServer("/piicDecsn.json", requestLimitResponse())));
+            new DartProperties("test-key", startServer("/piicDecsn.json", requestLimitResponse())));
 
     assertThatThrownBy(
             () ->

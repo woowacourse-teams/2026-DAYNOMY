@@ -74,7 +74,8 @@ class NewsPersistenceServiceTest {
         .willReturn(true);
 
     boolean saved =
-        newsPersistenceService.saveIfAbsent(prompt, new GeneratedNews("제목", "요약", "본문"), "image.png");
+        newsPersistenceService.saveIfAbsent(
+            prompt, new GeneratedNews("제목", "요약", "본문"), "image.png");
 
     assertThat(saved).isFalse();
     verify(newsRepository, never()).save(org.mockito.ArgumentMatchers.any());
