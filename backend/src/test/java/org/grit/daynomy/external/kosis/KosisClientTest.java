@@ -52,8 +52,13 @@ class KosisClientTest {
     server.createContext(
         "/statisticsData.do",
         exchange -> {
+          if (!exchange.getRequestURI().getRawQuery().contains("content=json")) {
+            exchange.sendResponseHeaders(400, -1);
+            exchange.close();
+            return;
+          }
           byte[] bytes = responseBody.getBytes(StandardCharsets.UTF_8);
-          exchange.getResponseHeaders().add("Content-Type", "application/json");
+          exchange.getResponseHeaders().add("Content-Type", "text/html;charset=UTF-8");
           exchange.sendResponseHeaders(200, bytes.length);
           exchange.getResponseBody().write(bytes);
           exchange.close();
@@ -67,6 +72,8 @@ class KosisClientTest {
         [
           {
             "TBL_NM": "소비자물가지수",
+            "C1_OBJ_NM": "지역별",
+            "C1_NM": "전국",
             "ITM_NM": "총지수",
             "UNIT_NM": "2020=100",
             "PRD_DE": "202606",
@@ -74,6 +81,8 @@ class KosisClientTest {
           },
           {
             "TBL_NM": "소비자물가지수",
+            "C1_OBJ_NM": "지역별",
+            "C1_NM": "전국",
             "ITM_NM": "총지수",
             "UNIT_NM": "2020=100",
             "PRD_DE": "202607",
