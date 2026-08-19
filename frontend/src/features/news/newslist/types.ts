@@ -28,12 +28,11 @@ export function getCategoryLabel(value: string) {
 export type NewsArticle = {
   id: number | string;
   title: string;
-  summary?: string;
+  description?: string | null;
   category: NewsCategory;
-  thumbnailUrl?: string;
+  imageUrl?: string | null;
   publishedAt?: string;
   source?: string;
-  body?: string;
 };
 
 export type NewsPage = {

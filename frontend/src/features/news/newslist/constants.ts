@@ -12,7 +12,7 @@ export const NEWS_CATEGORIES: NewsCategoryOption[] = [
 const emptyTodayNews: NewsArticle = {
   id: '',
   title: '오늘의 뉴스가 없습니다',
-  summary: '오늘 발행된 뉴스가 있으면 이 영역에 표시됩니다.',
+  description: '오늘 발행된 뉴스가 있으면 이 영역에 표시됩니다.',
   category: 'ALL',
   publishedAt: '',
   source: '',

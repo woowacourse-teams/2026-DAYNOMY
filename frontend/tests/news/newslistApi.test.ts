@@ -40,9 +40,9 @@ test('뉴스 목록 API에 1-based page를 요청하고 백엔드 응답을 매�
       {
         id: 1,
         title: 'stock news',
-        summary: 'summary',
+        description: 'summary',
         category: 'STOCK',
-        thumbnailUrl: 'https://example.com/news.png',
+        imageUrl: 'https://example.com/news.png',
         publishedAt: '2026-08-19T10:00:00',
       },
     ],

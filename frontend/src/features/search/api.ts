@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { toApiError } from '../../api/error';
 import { isCategory } from '../news/newslist/types';
-import type { NewsArticle, NewsCategory, NewsPage } from '../news/newslist/types';
+import type { NewsCategory, NewsPage } from '../news/newslist/types';
 
 type NewsSearchItemResponse = {
   id: number;
@@ -56,21 +56,9 @@ function isNewsSearchPage(value: unknown): value is NewsSearchPageResponse {
   );
 }
 
-function normalizeNewsArticle(article: NewsSearchItemResponse): NewsArticle {
-  return {
-    id: article.id,
-    title: article.title,
-    summary: article.description ?? undefined,
-    category: article.category,
-    thumbnailUrl: article.imageUrl ?? undefined,
-    publishedAt: article.publishedAt,
-    source: article.source,
-  };
-}
-
 function normalizeNewsPage(page: NewsSearchPageResponse): NewsPage {
   return {
-    content: page.content.map(normalizeNewsArticle),
+    content: page.content,
     page: page.page,
     size: page.size,
     totalElements: page.totalElements,

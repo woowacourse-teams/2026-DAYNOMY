@@ -79,10 +79,10 @@ test('검색 성공 응답을 뉴스 카드 데이터로 읽는다', async () =>
   assert.equal(results.content.length, 1);
   assert.equal(results.content[0]?.category, 'BOND');
   assert.equal(
-    results.content[0]?.summary,
+    results.content[0]?.description,
     '기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.',
   );
-  assert.equal(results.content[0]?.thumbnailUrl, 'https://example.com/base-rate.webp');
+  assert.equal(results.content[0]?.imageUrl, 'https://example.com/base-rate.webp');
   assert.equal(results.page, 1);
   assert.equal(results.totalElements, 1);
 });

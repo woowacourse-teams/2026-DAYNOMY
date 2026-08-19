@@ -6,7 +6,7 @@ import './realEstateLoanRulePage.css';
 
 const articleMeta = {
   category: 'REAL_ESTATE',
-  thumbnailUrl:
+  imageUrl:
     'https://images.unsplash.com/photo-1582407947304-fd86f028f716?auto=format&fit=crop&w=1600&q=80',
   publishedAt: '2026-08-13T09:20:00+09:00',
 };
@@ -97,11 +97,7 @@ export function RealEstateLoanRulePage() {
 
         <h1>부동산 대출 규제 완화 검토, 은행·건설 업종 기대감 확대</h1>
 
-        <img
-          src={articleMeta.thumbnailUrl ?? defaultNewsImage}
-          alt=""
-          className="loan-hero-image"
-        />
+        <img src={articleMeta.imageUrl ?? defaultNewsImage} alt="" className="loan-hero-image" />
 
         <section className="loan-section">
           <h2>핵심 요약</h2>

@@ -26,9 +26,9 @@ function normalizeNews(raw: Partial<NewsDetail> & Record<string, unknown>): News
         : typeof raw.sourceUrl === 'string'
           ? raw.sourceUrl
           : mockNews.originalUrl,
-    summary: String(raw.summary ?? raw.description ?? mockNews.summary),
-    body: Array.isArray(raw.body)
-      ? raw.body.map(String)
+    description: String(raw.description ?? mockNews.description),
+    content: Array.isArray(raw.content)
+      ? raw.content.map(String)
       : String(raw.content ?? raw.originalText ?? raw.description ?? '')
           .split('\n')
           .filter(Boolean),

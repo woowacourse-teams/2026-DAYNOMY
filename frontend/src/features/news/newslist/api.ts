@@ -24,9 +24,9 @@ function normalizeNewsArticle(item: NewsListItemResponse): NewsArticle {
   return {
     id: item.id,
     title: item.title,
-    summary: item.description,
+    description: item.description,
     category: item.category,
-    thumbnailUrl: item.imageUrl,
+    imageUrl: item.imageUrl,
     publishedAt: item.publishedAt,
   };
 }
