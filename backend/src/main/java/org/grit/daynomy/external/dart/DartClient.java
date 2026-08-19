@@ -30,24 +30,24 @@ public class DartClient {
     try {
       DartDisclosureResponse response =
           restClient
-          .get()
-          .uri(
-              uriBuilder ->
-                  uriBuilder
-                      .path("/list.json")
-                      .queryParam("crtfc_key", dartProperties.apiKey())
-                      .queryParam("bgn_de", formatDate(beginDate))
-                      .queryParam("end_de", formatDate(endDate))
-                      .queryParam("pblntf_ty", disclosureType)
-                      .queryParam("corp_cls", corporationClass)
-                      .queryParam("sort", "date")
-                      .queryParam("sort_mth", "desc")
-                      .queryParam("page_no", 1)
-                      .queryParam("page_count", 100)
-                      .build())
-          .retrieve()
-          .body(DartDisclosureResponse.class);
-      validateStatus(response.status());
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path("/list.json")
+                          .queryParam("crtfc_key", dartProperties.apiKey())
+                          .queryParam("bgn_de", formatDate(beginDate))
+                          .queryParam("end_de", formatDate(endDate))
+                          .queryParam("pblntf_ty", disclosureType)
+                          .queryParam("corp_cls", corporationClass)
+                          .queryParam("sort", "date")
+                          .queryParam("sort_mth", "desc")
+                          .queryParam("page_no", 1)
+                          .queryParam("page_count", 100)
+                          .build())
+              .retrieve()
+              .body(DartDisclosureResponse.class);
+      validateStatus(response == null ? null : response.status());
       return response;
     } catch (RestClientException exception) {
       throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
@@ -85,18 +85,18 @@ public class DartClient {
     try {
       T response =
           restClient
-          .get()
-          .uri(
-              uriBuilder ->
-                  uriBuilder
-                      .path(path)
-                      .queryParam("crtfc_key", dartProperties.apiKey())
-                      .queryParam("corp_code", corporationCode)
-                      .queryParam("bgn_de", formatDate(beginDate))
-                      .queryParam("end_de", formatDate(endDate))
-                      .build())
-          .retrieve()
-          .body(responseType);
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path(path)
+                          .queryParam("crtfc_key", dartProperties.apiKey())
+                          .queryParam("corp_code", corporationCode)
+                          .queryParam("bgn_de", formatDate(beginDate))
+                          .queryParam("end_de", formatDate(endDate))
+                          .build())
+              .retrieve()
+              .body(responseType);
       validateStatus(statusOf(response));
       return response;
     } catch (RestClientException exception) {
