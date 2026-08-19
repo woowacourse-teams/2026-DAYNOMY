@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -56,11 +57,9 @@ class NewsControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
-    assertThat(body.at("/message").asText()).isEqualTo("뉴스를 조회했습니다.");
-    assertThat(body.at("/data/items")).hasSize(1);
-    assertThat(body.at("/data/items/0/title").asText()).isEqualTo("stock news");
-    assertThat(body.at("/data/page").asInt()).isEqualTo(1);
+    assertThat(body.at("/items")).hasSize(1);
+    assertThat(body.at("/items/0/title").asText()).isEqualTo("stock news");
+    assertThat(body.at("/page").asInt()).isEqualTo(1);
   }
 
   @Test
@@ -93,8 +92,76 @@ class NewsControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/data/items")).hasSize(1);
-    assertThat(body.at("/data/items/0/category").asText()).isEqualTo("REAL_ESTATE");
+    assertThat(body.at("/items")).hasSize(1);
+    assertThat(body.at("/items/0/category").asText()).isEqualTo("REAL_ESTATE");
+  }
+
+  @Test
+  @DisplayName("오늘의 뉴스 조회 API는 오늘 발행된 최신 뉴스를 반환한다")
+  void findTodayNewsReturnsLatestNewsPublishedToday() throws Exception {
+    LocalDate today = LocalDate.now();
+    newsRepository.save(
+        new News(
+            "yesterday news",
+            "content",
+            "description",
+            "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
+            Category.STOCK,
+            today.minusDays(1).atTime(23, 0)));
+    newsRepository.save(
+        new News(
+            "morning news",
+            "content",
+            "description",
+            "image.png",
+            NewsSource.DART,
+            "external-2",
+            "https://example.com/2",
+            Category.STOCK,
+            today.atTime(9, 0)));
+    newsRepository.save(
+        new News(
+            "latest today news",
+            "content",
+            "description",
+            "image.png",
+            NewsSource.DART,
+            "external-3",
+            "https://example.com/3",
+            Category.REAL_ESTATE,
+            today.atTime(18, 0)));
+
+    HttpResponse<String> response = get("/api/news/today");
+    JsonNode body = objectMapper.readTree(response.body());
+
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(body.at("/title").asText()).isEqualTo("latest today news");
+    assertThat(body.at("/category").asText()).isEqualTo("REAL_ESTATE");
+  }
+
+  @Test
+  @DisplayName("오늘의 뉴스 조회 API는 오늘 발행된 뉴스가 없으면 빈 응답을 반환한다")
+  void findTodayNewsReturnsNullWhenMissing() throws Exception {
+    LocalDate today = LocalDate.now();
+    newsRepository.save(
+        new News(
+            "yesterday news",
+            "content",
+            "description",
+            "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
+            Category.STOCK,
+            today.minusDays(1).atTime(23, 0)));
+
+    HttpResponse<String> response = get("/api/news/today");
+
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.body()).isBlank();
   }
 
   @Test
@@ -117,9 +184,8 @@ class NewsControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/status").asText()).isEqualTo("SUCCESS");
-    assertThat(body.at("/data/title").asText()).isEqualTo("detail news");
-    assertThat(body.at("/data/content").asText()).isEqualTo("content");
+    assertThat(body.at("/title").asText()).isEqualTo("detail news");
+    assertThat(body.at("/content").asText()).isEqualTo("content");
   }
 
   @Test
@@ -129,9 +195,8 @@ class NewsControllerTest {
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(404);
-    assertThat(body.at("/status").asText()).isEqualTo("ERROR");
+    assertThat(body.at("/code").asText()).isEqualTo("NEWS_NOT_FOUND");
     assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스를 찾을 수 없습니다.");
-    assertThat(body.at("/data").isNull()).isTrue();
   }
 
   private HttpResponse<String> get(String path) throws Exception {

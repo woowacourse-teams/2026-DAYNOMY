@@ -6,13 +6,42 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
   jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
       hibernate:
-        format_sql: true
-    open-in-view: false
+        ddl-auto: validate
+      open-in-view: false
+      properties:
+        hibernate:
+          format_sql: true
+
+app:
+  cors:
+    allowed-origin: ${FRONTEND_BASE_URL:http://localhost:5173}
+  oauth2:
+    success-redirect-uri: ${FRONTEND_BASE_URL:http://localhost:5173}
+    failure-redirect-uri: ${FRONTEND_BASE_URL:http://localhost:5173}/login?error=oauth
+
+jwt:
+  issuer: daynomy
+  secret: ${JWT_SECRET}
+  access-token-expiration: ${ACCESS_TOKEN_EXPIRATION:1800000}
+  refresh-token-expiration: ${REFRESH_TOKEN_EXPIRATION:1209600000}
+
+cookie:
+  secure: ${COOKIE_SECURE:false}
+
 
 springdoc:
   swagger-ui:
@@ -37,15 +66,6 @@ external:
         source-organization: 한국부동산원
         survey-name: 전국주택가격동향조사
         table-name: 주택가격지수
-      - key: household-loan
-        name: 가계대출
-        view-code: MT_ZTITLE
-        user-stats-id: ${KOSIS_HOUSEHOLD_LOAN_USER_STATS_ID:}
-        period: M
-        category: DEPOSIT_SAVINGS
-        source-organization: 한국은행
-        survey-name: 예금취급기관 가계대출
-        table-name: 가계대출
       - key: consumer-price-index
         name: 소비자물가지수
         view-code: MT_ZTITLE
@@ -56,7 +76,7 @@ external:
         survey-name: 소비자물가조사
         table-name: 소비자물가지수
       - key: employment-rate
-        name: 고용률 및 실업률
+        name: 고용률
         view-code: MT_ZTITLE
         user-stats-id: ${KOSIS_EMPLOYMENT_RATE_USER_STATS_ID:}
         period: M

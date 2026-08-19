@@ -33,43 +33,27 @@ public class BokClient {
 
   public List<BokStatisticItem> getRecentData(BokProperties.Indicator indicator) {
     LocalDate today = LocalDate.now();
-    String startPeriod = startPeriod(indicator.cycle(), today);
-    String endPeriod = endPeriod(indicator.cycle(), today);
     try {
-      log.info(
-          "Requesting BOK recent data: key={}, name={}, statisticCode={}, cycle={}, startPeriod={}, endPeriod={}",
-          indicator.key(),
-          indicator.name(),
-          indicator.statisticCode(),
-          indicator.cycle(),
-          startPeriod,
-          endPeriod);
-
       BokStatisticResponse response =
           restClient
               .get()
               .uri(
-                  uriBuilder -> uriBuilder.path(apiPath(indicator, startPeriod, endPeriod)).build())
+                  uriBuilder ->
+                      uriBuilder
+                          .path(
+                              apiPath(
+                                  indicator,
+                                  startPeriod(indicator.cycle(), today),
+                                  endPeriod(indicator.cycle(), today)))
+                          .build())
               .retrieve()
               .body(BokStatisticResponse.class);
 
       if (response == null || response.search() == null || response.search().rows() == null) {
-        log.info("Received BOK recent data: key={}, responseCount=0", indicator.key());
         return List.of();
       }
-      log.info(
-          "Received BOK recent data: key={}, responseCount={}",
-          indicator.key(),
-          response.search().rows().size());
       return response.search().rows();
     } catch (RestClientException exception) {
-      log.warn(
-          "BOK recent data request failed: key={}, name={}, statisticCode={}, cycle={}, message={}",
-          indicator.key(),
-          indicator.name(),
-          indicator.statisticCode(),
-          indicator.cycle(),
-          exception.getMessage());
       throw new BusinessException(ErrorCode.BOK_API_REQUEST_FAILED);
     }
   }

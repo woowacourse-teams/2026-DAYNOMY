@@ -16,13 +16,11 @@ import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSource;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -36,6 +34,7 @@ class NewsGenerationServiceTest {
   @Mock private OpenAiNewsGenerator openAiNewsGenerator;
   @Mock private OpenAiImageGenerator openAiImageGenerator;
   @Mock private NewsRepository newsRepository;
+  @Mock private NewsPersistenceService newsPersistenceService;
 
   @InjectMocks private NewsGenerationService newsGenerationService;
 
@@ -59,16 +58,16 @@ class NewsGenerationServiceTest {
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("제목", "요약", "본문"));
     given(openAiImageGenerator.generateNewsImage("제목", "요약"))
         .willReturn("data:image/webp;base64,image");
+    given(
+            newsPersistenceService.saveIfAbsent(
+                prompt, new GeneratedNews("제목", "요약", "본문"), "data:image/webp;base64,image"))
+        .willReturn(true);
 
     int savedCount = newsGenerationService.generateDartNews(beginDate, endDate, "B", "K");
 
-    ArgumentCaptor<News> newsCaptor = ArgumentCaptor.forClass(News.class);
-    verify(newsRepository).save(newsCaptor.capture());
+    verify(newsPersistenceService)
+        .saveIfAbsent(prompt, new GeneratedNews("제목", "요약", "본문"), "data:image/webp;base64,image");
     assertThat(savedCount).isEqualTo(1);
-    assertThat(newsCaptor.getValue().getTitle()).isEqualTo("제목");
-    assertThat(newsCaptor.getValue().getExternalId()).isEqualTo("20260817000001");
-    assertThat(newsCaptor.getValue().getSourceUrl()).isEqualTo("https://dart.example/1");
-    assertThat(newsCaptor.getValue().getImageUrl()).isEqualTo("data:image/webp;base64,image");
   }
 
   @Test
@@ -95,7 +94,11 @@ class NewsGenerationServiceTest {
     verify(openAiNewsGenerator, never()).generate(prompt);
     verify(openAiImageGenerator, never())
         .generateNewsImage(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
-    verify(newsRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    verify(newsPersistenceService, never())
+        .saveIfAbsent(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -117,14 +120,17 @@ class NewsGenerationServiceTest {
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("물가 뉴스", "요약", "본문"));
     given(openAiImageGenerator.generateNewsImage("물가 뉴스", "요약"))
         .willReturn("data:image/webp;base64,image");
+    given(
+            newsPersistenceService.saveIfAbsent(
+                prompt, new GeneratedNews("물가 뉴스", "요약", "본문"), "data:image/webp;base64,image"))
+        .willReturn(true);
 
     int savedCount = newsGenerationService.generateKosisNews();
 
-    ArgumentCaptor<News> newsCaptor = ArgumentCaptor.forClass(News.class);
-    verify(newsRepository).save(newsCaptor.capture());
+    verify(newsPersistenceService)
+        .saveIfAbsent(
+            prompt, new GeneratedNews("물가 뉴스", "요약", "본문"), "data:image/webp;base64,image");
     assertThat(savedCount).isEqualTo(1);
-    assertThat(newsCaptor.getValue().getSource()).isEqualTo(NewsSource.KOSIS);
-    assertThat(newsCaptor.getValue().getCategory()).isEqualTo(Category.ECONOMY);
   }
 
   @Test
@@ -144,13 +150,16 @@ class NewsGenerationServiceTest {
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("금리 뉴스", "요약", "본문"));
     given(openAiImageGenerator.generateNewsImage("금리 뉴스", "요약"))
         .willReturn("data:image/webp;base64,image");
+    given(
+            newsPersistenceService.saveIfAbsent(
+                prompt, new GeneratedNews("금리 뉴스", "요약", "본문"), "data:image/webp;base64,image"))
+        .willReturn(true);
 
     int savedCount = newsGenerationService.generateBokNews();
 
-    ArgumentCaptor<News> newsCaptor = ArgumentCaptor.forClass(News.class);
-    verify(newsRepository).save(newsCaptor.capture());
+    verify(newsPersistenceService)
+        .saveIfAbsent(
+            prompt, new GeneratedNews("금리 뉴스", "요약", "본문"), "data:image/webp;base64,image");
     assertThat(savedCount).isEqualTo(1);
-    assertThat(newsCaptor.getValue().getSource()).isEqualTo(NewsSource.BOK);
-    assertThat(newsCaptor.getValue().getCategory()).isEqualTo(Category.ECONOMY);
   }
 }

@@ -1,12 +1,15 @@
 package org.grit.daynomy.external.dart;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -84,6 +87,51 @@ class DartClientTest {
 
     assertThat(response.status()).isEqualTo("000");
     assertThat(response.list().getFirst().counterpartyCompanyName()).isEqualTo("합병대상");
+  }
+
+  @Test
+  @DisplayName("DART 응답이 데이터 없음이면 빈 목록으로 처리한다")
+  void getDisclosuresReturnsEmptyListWhenNoData() throws Exception {
+    DartClient dartClient =
+        new DartClient(new DartProperties("test-key", startServer("/list.json", noDataResponse())));
+
+    var response =
+        dartClient.getDisclosures(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 17), "B", "K");
+
+    assertThat(response.status()).isEqualTo("013");
+    assertThat(response.list()).isEmpty();
+  }
+
+  @Test
+  @DisplayName("DART 응답이 잘못된 인증키이면 예외를 던진다")
+  void getDisclosuresThrowsWhenInvalidKey() throws Exception {
+    DartClient dartClient =
+        new DartClient(
+            new DartProperties("test-key", startServer("/list.json", invalidKeyResponse())));
+
+    assertThatThrownBy(
+            () ->
+                dartClient.getDisclosures(
+                    LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 17), "B", "K"))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.DART_API_REQUEST_FAILED);
+  }
+
+  @Test
+  @DisplayName("DART 응답이 요청 제한이면 예외를 던진다")
+  void getMajorReportThrowsWhenRequestLimitExceeded() throws Exception {
+    DartClient dartClient =
+        new DartClient(
+            new DartProperties("test-key", startServer("/piicDecsn.json", requestLimitResponse())));
+
+    assertThatThrownBy(
+            () ->
+                dartClient.getCapitalIncreases(
+                    "00126380", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 17)))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.DART_API_REQUEST_FAILED);
   }
 
   private String startServer(String path, String responseBody) throws IOException {
@@ -173,6 +221,33 @@ class DartClientTest {
               "mgptncmp_cmpnm": "합병대상"
             }
           ]
+        }
+        """;
+  }
+
+  private String noDataResponse() {
+    return """
+        {
+          "status": "013",
+          "message": "조회된 데이타가 없습니다."
+        }
+        """;
+  }
+
+  private String invalidKeyResponse() {
+    return """
+        {
+          "status": "010",
+          "message": "등록되지 않은 키입니다."
+        }
+        """;
+  }
+
+  private String requestLimitResponse() {
+    return """
+        {
+          "status": "020",
+          "message": "사용한도를 초과하였습니다."
         }
         """;
   }

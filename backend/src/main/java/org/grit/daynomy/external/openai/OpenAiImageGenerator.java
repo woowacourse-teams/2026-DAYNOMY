@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
@@ -54,13 +54,13 @@ public class OpenAiImageGenerator {
           exception.getStatusCode(),
           exception.getResponseBodyAsString(),
           title);
-      throw new BusinessException(ErrorCode.AI_IMAGE_GENERATION_FAILED);
+      throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (RestClientException exception) {
       log.warn(
           "OpenAI image generation request failed: message={}, title={}",
           exception.getMessage(),
           title);
-      throw new BusinessException(ErrorCode.AI_IMAGE_GENERATION_FAILED);
+      throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     }
   }
 
@@ -102,9 +102,9 @@ public class OpenAiImageGenerator {
         }
       }
     } catch (Exception exception) {
-      throw new BusinessException(ErrorCode.AI_IMAGE_GENERATION_FAILED);
+      throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     }
 
-    throw new BusinessException(ErrorCode.AI_IMAGE_GENERATION_FAILED);
+    throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
   }
 }

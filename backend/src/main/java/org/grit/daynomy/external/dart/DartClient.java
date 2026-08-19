@@ -3,7 +3,7 @@ package org.grit.daynomy.external.dart;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseResponse;
 import org.grit.daynomy.external.dart.dto.DartConvertibleBondResponse;
 import org.grit.daynomy.external.dart.dto.DartDisclosureResponse;
@@ -28,26 +28,29 @@ public class DartClient {
   public DartDisclosureResponse getDisclosures(
       LocalDate beginDate, LocalDate endDate, String disclosureType, String corporationClass) {
     try {
-      return restClient
-          .get()
-          .uri(
-              uriBuilder ->
-                  uriBuilder
-                      .path("/list.json")
-                      .queryParam("crtfc_key", dartProperties.apiKey())
-                      .queryParam("bgn_de", formatDate(beginDate))
-                      .queryParam("end_de", formatDate(endDate))
-                      .queryParam("pblntf_ty", disclosureType)
-                      .queryParam("corp_cls", corporationClass)
-                      .queryParam("sort", "date")
-                      .queryParam("sort_mth", "desc")
-                      .queryParam("page_no", 1)
-                      .queryParam("page_count", 100)
-                      .build())
-          .retrieve()
-          .body(DartDisclosureResponse.class);
+      DartDisclosureResponse response =
+          restClient
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path("/list.json")
+                          .queryParam("crtfc_key", dartProperties.apiKey())
+                          .queryParam("bgn_de", formatDate(beginDate))
+                          .queryParam("end_de", formatDate(endDate))
+                          .queryParam("pblntf_ty", disclosureType)
+                          .queryParam("corp_cls", corporationClass)
+                          .queryParam("sort", "date")
+                          .queryParam("sort_mth", "desc")
+                          .queryParam("page_no", 1)
+                          .queryParam("page_count", 100)
+                          .build())
+              .retrieve()
+              .body(DartDisclosureResponse.class);
+      validateStatus(response == null ? null : response.status());
+      return response;
     } catch (RestClientException exception) {
-      throw new BusinessException(ErrorCode.DART_API_REQUEST_FAILED);
+      throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
     }
   }
 
@@ -80,22 +83,44 @@ public class DartClient {
       LocalDate beginDate,
       LocalDate endDate) {
     try {
-      return restClient
-          .get()
-          .uri(
-              uriBuilder ->
-                  uriBuilder
-                      .path(path)
-                      .queryParam("crtfc_key", dartProperties.apiKey())
-                      .queryParam("corp_code", corporationCode)
-                      .queryParam("bgn_de", formatDate(beginDate))
-                      .queryParam("end_de", formatDate(endDate))
-                      .build())
-          .retrieve()
-          .body(responseType);
+      T response =
+          restClient
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path(path)
+                          .queryParam("crtfc_key", dartProperties.apiKey())
+                          .queryParam("corp_code", corporationCode)
+                          .queryParam("bgn_de", formatDate(beginDate))
+                          .queryParam("end_de", formatDate(endDate))
+                          .build())
+              .retrieve()
+              .body(responseType);
+      validateStatus(statusOf(response));
+      return response;
     } catch (RestClientException exception) {
-      throw new BusinessException(ErrorCode.DART_API_REQUEST_FAILED);
+      throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
     }
+  }
+
+  private void validateStatus(String status) {
+    if (!"000".equals(status) && !"013".equals(status)) {
+      throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
+    }
+  }
+
+  private String statusOf(Object response) {
+    if (response instanceof DartCapitalIncreaseResponse capitalIncreaseResponse) {
+      return capitalIncreaseResponse.status();
+    }
+    if (response instanceof DartConvertibleBondResponse convertibleBondResponse) {
+      return convertibleBondResponse.status();
+    }
+    if (response instanceof DartMergerDecisionResponse mergerDecisionResponse) {
+      return mergerDecisionResponse.status();
+    }
+    return null;
   }
 
   private String formatDate(LocalDate date) {

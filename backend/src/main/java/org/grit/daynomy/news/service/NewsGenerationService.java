@@ -10,10 +10,8 @@ import org.grit.daynomy.external.kosis.KosisNewsPromptService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
 import org.grit.daynomy.news.ai.NewsPrompt;
-import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -26,8 +24,8 @@ public class NewsGenerationService {
   private final OpenAiNewsGenerator openAiNewsGenerator;
   private final OpenAiImageGenerator openAiImageGenerator;
   private final NewsRepository newsRepository;
+  private final NewsPersistenceService newsPersistenceService;
 
-  @Transactional
   public int generateDartNews(
       LocalDate beginDate, LocalDate endDate, String disclosureType, String corporationClass) {
     log.info(
@@ -48,7 +46,6 @@ public class NewsGenerationService {
     return generateNews(prompts, "DART");
   }
 
-  @Transactional
   public int generateKosisNews() {
     log.info("Starting KOSIS news generation");
     List<NewsPrompt> prompts = kosisNewsPromptService.createPrompts();
@@ -57,7 +54,6 @@ public class NewsGenerationService {
     return generateNews(prompts, "KOSIS");
   }
 
-  @Transactional
   public int generateBokNews() {
     log.info("Starting BOK news generation");
     List<NewsPrompt> prompts = bokNewsPromptService.createPrompts();
@@ -91,19 +87,17 @@ public class NewsGenerationService {
           openAiImageGenerator.generateNewsImage(
               generatedNews.title(), generatedNews.description());
 
-      newsRepository.save(
-          new News(
-              generatedNews.title(),
-              generatedNews.content(),
-              generatedNews.description(),
-              imageUrl,
-              prompt.source(),
-              prompt.externalId(),
-              prompt.sourceUrl(),
-              prompt.category(),
-              prompt.publishedAt()));
-      savedCount++;
+      if (!newsPersistenceService.saveIfAbsent(prompt, generatedNews, imageUrl)) {
+        skippedCount++;
+        log.info(
+            "Skipping existing news after generation: source={}, externalId={}, sourceUrl={}",
+            prompt.source(),
+            prompt.externalId(),
+            prompt.sourceUrl());
+        continue;
+      }
 
+      savedCount++;
       log.info(
           "Saved generated news: source={}, externalId={}, title={}",
           prompt.source(),

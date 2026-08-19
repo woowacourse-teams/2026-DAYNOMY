@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.springframework.http.MediaType;
@@ -60,14 +60,14 @@ public class OpenAiNewsGenerator {
           exception.getResponseBodyAsString(),
           prompt.source(),
           prompt.externalId());
-      throw new BusinessException(ErrorCode.AI_NEWS_GENERATION_FAILED);
+      throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     } catch (RestClientException exception) {
       log.warn(
           "OpenAI news generation request failed: message={}, source={}, externalId={}",
           exception.getMessage(),
           prompt.source(),
           prompt.externalId());
-      throw new BusinessException(ErrorCode.AI_NEWS_GENERATION_FAILED);
+      throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     }
   }
 
@@ -112,7 +112,7 @@ public class OpenAiNewsGenerator {
       String outputText = extractOutputText(OBJECT_MAPPER.readTree(response));
       return OBJECT_MAPPER.readValue(outputText, GeneratedNews.class);
     } catch (Exception exception) {
-      throw new BusinessException(ErrorCode.AI_NEWS_GENERATION_FAILED);
+      throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     }
   }
 
@@ -129,6 +129,6 @@ public class OpenAiNewsGenerator {
       }
     }
 
-    throw new BusinessException(ErrorCode.AI_NEWS_GENERATION_FAILED);
+    throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
   }
 }
