@@ -11,7 +11,7 @@ const sentryBuildConfigured = [
 
 // https://vite.dev/config/
 export default defineConfig({
-  envPrefix: ['SENTRY_DSN', 'SENTRY_ENVIRONMENT'],
+  envPrefix: ['VITE_', 'SENTRY_DSN', 'SENTRY_ENVIRONMENT'],
   build: {
     sourcemap: sentryBuildConfigured ? 'hidden' : false,
   },
