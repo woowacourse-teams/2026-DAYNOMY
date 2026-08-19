@@ -106,6 +106,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             today.minusDays(1).atTime(23, 0)));
     newsRepository.save(
@@ -114,6 +117,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-2",
+            "https://example.com/2",
             Category.STOCK,
             today.atTime(9, 0)));
     newsRepository.save(
@@ -122,6 +128,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-3",
+            "https://example.com/3",
             Category.REAL_ESTATE,
             today.atTime(18, 0)));
 
@@ -143,6 +152,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             today.minusDays(1).atTime(23, 0)));
 

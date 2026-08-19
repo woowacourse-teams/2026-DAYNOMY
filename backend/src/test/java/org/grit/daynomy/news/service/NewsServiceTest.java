@@ -90,6 +90,9 @@ class NewsServiceTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             today.atTime(10, 0));
     given(
