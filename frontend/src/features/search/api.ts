@@ -3,6 +3,13 @@ import { toApiError } from '../../api/error';
 import { isCategory } from '../news/newslist/types';
 import type { NewsArticle, NewsCategory, NewsPage } from '../news/newslist/types';
 
+export const SEARCH_ERROR_CODES = {
+  SEARCH_KEYWORD_REQUIRED: 'SEARCH_KEYWORD_REQUIRED',
+  SEARCH_INVALID_KEYWORD: 'SEARCH_INVALID_KEYWORD',
+  SEARCH_INVALID_CATEGORY: 'SEARCH_INVALID_CATEGORY',
+  SEARCH_INVALID_PAGE_CONDITION: 'SEARCH_INVALID_PAGE_CONDITION',
+} as const;
+
 function isNewsArticle(value: unknown): value is NewsArticle {
   if (!value || typeof value !== 'object') return false;
 

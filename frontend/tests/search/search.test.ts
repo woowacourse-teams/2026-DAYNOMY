@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import axios, { AxiosError, type AxiosAdapter } from 'axios';
 import { ApiError } from '../../src/api/error.ts';
-import { buildNewsSearchUrl, searchNews } from '../../src/features/search/api.ts';
+import {
+  buildNewsSearchUrl,
+  SEARCH_ERROR_CODES,
+  searchNews,
+} from '../../src/features/search/api.ts';
 import {
   CATEGORY_LABELS,
   getCategoryLabel,
@@ -82,12 +86,12 @@ test('검색 성공 응답을 뉴스 카드 데이터로 읽는다', async () =>
   assert.equal(results.totalElements, 1);
 });
 
-test('검색 실패 응답의 code와 message를 전달한다', async () => {
+test('검색 페이지 조건 실패 응답의 도메인 code와 message를 전달한다', async () => {
   axios.defaults.adapter = (async (config) => {
     throw new AxiosError('Bad Request', 'ERR_BAD_REQUEST', config, undefined, {
       data: {
-        code: 'INVALID_SEARCH_KEYWORD',
-        message: '올바른 검색어를 입력해주세요.',
+        code: SEARCH_ERROR_CODES.SEARCH_INVALID_PAGE_CONDITION,
+        message: '검색 페이지 조건이 올바르지 않습니다.',
       },
       status: 400,
       statusText: 'Bad Request',
@@ -97,10 +101,10 @@ test('검색 실패 응답의 code와 message를 전달한다', async () => {
   }) satisfies AxiosAdapter;
 
   await assert.rejects(
-    () => searchNews('!', 'ALL'),
+    () => searchNews('금리', 'ALL', -1),
     (error: unknown) =>
       error instanceof ApiError &&
-      error.code === 'INVALID_SEARCH_KEYWORD' &&
-      error.message === '올바른 검색어를 입력해주세요.',
+      error.code === SEARCH_ERROR_CODES.SEARCH_INVALID_PAGE_CONDITION &&
+      error.message === '검색 페이지 조건이 올바르지 않습니다.',
   );
 });
