@@ -1,8 +1,8 @@
 package org.grit.daynomy.market.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import org.grit.daynomy.market.domain.scenario.TimeHorizon;
 import org.grit.daynomy.market.domain.scenario.Scenario;
+import org.grit.daynomy.market.domain.scenario.TimeHorizon;
 
 public record ScenarioResponse(
     @Schema(description = "시나리오 기간", example = "SHORT_TERM") TimeHorizon timeHorizon,

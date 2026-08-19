@@ -40,8 +40,7 @@ class KeywordServiceTest {
     News news = createNews();
     List<NewsKeyword> keywords =
         List.of(
-            new NewsKeyword("금리 인하", "대출 수요 회복과 연결됨"),
-            new NewsKeyword("부동산 규제", "거래량 회복 기대와 연결됨"));
+            new NewsKeyword("금리 인하", "대출 수요 회복과 연결됨"), new NewsKeyword("부동산 규제", "거래량 회복 기대와 연결됨"));
 
     keywordService.saveKeywords(news, keywords);
 

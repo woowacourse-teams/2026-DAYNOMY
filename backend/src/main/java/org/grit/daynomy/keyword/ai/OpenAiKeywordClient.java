@@ -119,8 +119,7 @@ public class OpenAiKeywordClient implements KeywordAiClient {
           .valueStream()
           .map(
               node ->
-                  new NewsKeyword(
-                      node.path("keyword").asText(), node.path("description").asText()))
+                  new NewsKeyword(node.path("keyword").asText(), node.path("description").asText()))
           .toList();
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException("Failed to parse OpenAI keyword response.", exception);

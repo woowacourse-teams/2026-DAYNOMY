@@ -50,8 +50,7 @@ public class NewsMarketAnalysis {
   @OrderColumn(name = "sort_order")
   private List<Scenario> scenarios = new ArrayList<>();
 
-  public NewsMarketAnalysis(
-      String cause, List<AssetImpact> assets, List<Scenario> scenarios) {
+  public NewsMarketAnalysis(String cause, List<AssetImpact> assets, List<Scenario> scenarios) {
     this.cause = cause;
     this.assets = new ArrayList<>(assets);
     this.scenarios = new ArrayList<>(scenarios);

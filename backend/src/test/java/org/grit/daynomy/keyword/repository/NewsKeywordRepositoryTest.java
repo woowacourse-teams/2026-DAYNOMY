@@ -33,10 +33,8 @@ class NewsKeywordRepositoryTest {
   void findByNewsIdReturnsKeywordsOrderByIdAsc() {
     News news = newsRepository.save(createNews("target news"));
     News otherNews = newsRepository.save(createNews("other news"));
-    NewsKeyword first =
-        newsKeywordRepository.save(new NewsKeyword(news, "금리 인하", "대출 수요 회복"));
-    NewsKeyword second =
-        newsKeywordRepository.save(new NewsKeyword(news, "부동산 규제", "거래량 회복"));
+    NewsKeyword first = newsKeywordRepository.save(new NewsKeyword(news, "금리 인하", "대출 수요 회복"));
+    NewsKeyword second = newsKeywordRepository.save(new NewsKeyword(news, "부동산 규제", "거래량 회복"));
     newsKeywordRepository.save(new NewsKeyword(otherNews, "환율", "다른 뉴스 키워드"));
 
     var keywords = newsKeywordRepository.findByNewsIdOrderByIdAsc(news.getId());
@@ -44,9 +42,7 @@ class NewsKeywordRepositoryTest {
     assertThat(keywords)
         .extracting(NewsKeyword::getId)
         .containsExactly(first.getId(), second.getId());
-    assertThat(keywords)
-        .extracting(NewsKeyword::getKeyword)
-        .containsExactly("금리 인하", "부동산 규제");
+    assertThat(keywords).extracting(NewsKeyword::getKeyword).containsExactly("금리 인하", "부동산 규제");
   }
 
   private News createNews(String title) {

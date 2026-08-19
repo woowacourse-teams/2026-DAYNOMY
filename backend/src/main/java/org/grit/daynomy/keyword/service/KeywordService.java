@@ -25,9 +25,7 @@ public class KeywordService {
   public void saveKeywords(News news, List<NewsKeyword> keywords) {
     newsKeywordRepository.saveAll(
         keywords.stream()
-            .map(
-                keyword ->
-                    new NewsKeyword(news, keyword.getKeyword(), keyword.getDescription()))
+            .map(keyword -> new NewsKeyword(news, keyword.getKeyword(), keyword.getDescription()))
             .toList());
   }
 

@@ -46,8 +46,7 @@ class OpenAiMarketAnalysisClientTest {
     assertThat(analysis.getAssets().get(0).getDirection()).isEqualTo(ImpactDirection.POSITIVE);
     assertThat(analysis.getAssets().get(0).getImpactLevel()).isEqualTo(ImpactLevel.HIGH);
     assertThat(analysis.getScenarios()).hasSize(3);
-    assertThat(analysis.getScenarios().get(0).getTimeHorizon())
-        .isEqualTo(TimeHorizon.SHORT_TERM);
+    assertThat(analysis.getScenarios().get(0).getTimeHorizon()).isEqualTo(TimeHorizon.SHORT_TERM);
     assertThat(analysis.getScenarios().get(0).getProbability()).isEqualTo(70);
     server.verify();
   }

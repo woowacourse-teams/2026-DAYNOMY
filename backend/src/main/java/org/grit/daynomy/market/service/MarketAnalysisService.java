@@ -2,8 +2,8 @@ package org.grit.daynomy.market.service;
 
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.market.dto.MarketAnalysisResponse;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.grit.daynomy.market.dto.MarketAnalysisResponse;
 import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.News;

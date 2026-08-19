@@ -26,8 +26,7 @@ public class Scenario {
   @Column(name = "reason", columnDefinition = "TEXT", nullable = false)
   private String reason;
 
-  public Scenario(
-      TimeHorizon timeHorizon, String prediction, int probability, String reason) {
+  public Scenario(TimeHorizon timeHorizon, String prediction, int probability, String reason) {
     this.timeHorizon = timeHorizon;
     this.prediction = prediction;
     this.probability = probability;
