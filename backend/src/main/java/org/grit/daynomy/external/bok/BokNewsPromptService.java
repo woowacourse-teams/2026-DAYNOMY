@@ -24,11 +24,18 @@ public class BokNewsPromptService {
   private final BokProperties bokProperties;
 
   public List<NewsPrompt> createPrompts() {
-    return Optional.ofNullable(bokProperties.indicators()).orElse(List.of()).stream()
-        .filter(this::hasRequiredValue)
-        .map(this::createPrompt)
-        .flatMap(Optional::stream)
-        .toList();
+    List<BokProperties.Indicator> indicators =
+        Optional.ofNullable(bokProperties.indicators()).orElse(List.of());
+    log.info("Starting BOK prompt creation: indicatorCount={}", indicators.size());
+
+    List<NewsPrompt> prompts =
+        indicators.stream()
+            .filter(this::hasRequiredValue)
+            .map(this::createPrompt)
+            .flatMap(Optional::stream)
+            .toList();
+    log.info("Finished BOK prompt creation: promptCount={}", prompts.size());
+    return prompts;
   }
 
   private boolean hasRequiredValue(BokProperties.Indicator indicator) {
@@ -43,12 +50,21 @@ public class BokNewsPromptService {
   }
 
   private Optional<NewsPrompt> createPrompt(BokProperties.Indicator indicator) {
+    log.info(
+        "Creating BOK prompt for indicator: key={}, name={}, category={}",
+        indicator.key(),
+        indicator.name(),
+        indicator.category());
     List<BokStatisticItem> items =
         bokClient.getRecentData(indicator).stream()
             .filter(item -> number(item.value()).isPresent())
             .sorted(Comparator.comparing(BokStatisticItem::period))
             .toList();
     if (items.size() < 2) {
+      log.info(
+          "Skipping BOK prompt due to insufficient numeric data: key={}, numericItemCount={}",
+          indicator.key(),
+          items.size());
       return Optional.empty();
     }
 
@@ -63,6 +79,15 @@ public class BokNewsPromptService {
             : change
                 .multiply(BigDecimal.valueOf(100))
                 .divide(previousValue, 2, RoundingMode.HALF_UP);
+    log.info(
+        "Created BOK prompt data: key={}, previousPeriod={}, previousValue={}, latestPeriod={}, latestValue={}, change={}, changeRate={}%",
+        indicator.key(),
+        previous.period(),
+        previous.value(),
+        latest.period(),
+        latest.value(),
+        change,
+        changeRate);
 
     return Optional.of(
         new NewsPrompt(
