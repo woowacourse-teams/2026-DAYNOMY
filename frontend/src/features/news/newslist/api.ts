@@ -10,11 +10,12 @@ type NewsListItemResponse = {
 };
 
 type NewsPageResponse = {
-  items?: NewsListItemResponse[];
-  page?: number;
-  size?: number;
-  totalPages?: number;
-  totalElements?: number;
+  items: NewsListItemResponse[];
+  page: number;
+  size: number;
+  totalPages: number;
+  totalElements: number;
+  hasNext: boolean;
 };
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -30,14 +31,14 @@ function normalizeNewsArticle(item: NewsListItemResponse): NewsArticle {
   };
 }
 
-function normalizeNewsPage(data: NewsPageResponse, page: number): NewsPage {
-  const content = (data.items ?? []).map(normalizeNewsArticle);
+function normalizeNewsPage(data: NewsPageResponse): NewsPage {
+  const content = data.items.map(normalizeNewsArticle);
   return {
     content,
-    page: data.page ?? page,
-    size: data.size ?? content.length,
-    totalPages: data.totalPages ?? 1,
-    totalElements: data.totalElements ?? content.length,
+    page: data.page,
+    size: data.size,
+    totalPages: data.totalPages,
+    totalElements: data.totalElements,
   };
 }
 
@@ -69,7 +70,7 @@ export async function getNews(
 
   const data = (await response.json()) as NewsPageResponse;
 
-  return normalizeNewsPage(data, page);
+  return normalizeNewsPage(data);
 }
 
 export async function getTodayNews(): Promise<NewsArticle> {
