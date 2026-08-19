@@ -1,26 +1,20 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import '../LoginPage.css';
+import { getApiUrl } from '../api';
 
 function LoginPage() {
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(() =>
+    searchParams.get('error') === 'oauth' ? 'Google 로그인에 실패했습니다.' : null,
+  );
 
   const handleGoogleLogin = () => {
     setErrorMessage(null);
 
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-
-    if (!apiBaseUrl) {
-      setErrorMessage('Google 로그인 기능을 준비 중입니다.');
-      return;
-    }
-
     setIsLoading(true);
-
-    const normalizedApiBaseUrl = apiBaseUrl.replace(/\/$/, '');
-
-    window.location.assign(`${normalizedApiBaseUrl}/api/auth/google`);
+    window.location.assign(getApiUrl('/api/auth/google'));
   };
 
   return (

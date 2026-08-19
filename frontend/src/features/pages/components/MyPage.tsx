@@ -1,51 +1,115 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../../../components/Header';
 import '../MyPage.css';
+import { ApiError, getMyProfile, logout, type Member, updateMyProfile, withdraw } from '../api';
 
-const mockUser = {
-  email: 'daynomy@example.com',
-  nickname: '데이노미',
-};
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof ApiError ? error.message : fallback;
+}
 
 function MyPage() {
   const navigate = useNavigate();
 
-  const [nickname, setNickname] = useState(mockUser.nickname);
-  const [draftNickname, setDraftNickname] = useState(mockUser.nickname);
+  const [member, setMember] = useState<Member | null>(null);
+  const [draftNickname, setDraftNickname] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getMyProfile(controller.signal)
+      .then((profile) => {
+        setMember(profile);
+        setDraftNickname(profile.nickname);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        setErrorMessage(getErrorMessage(error, '회원 정보를 불러오지 못했습니다.'));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [navigate]);
 
   const handleEditStart = () => {
-    setDraftNickname(nickname);
+    if (!member) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setDraftNickname(member.nickname);
     setIsEditing(true);
   };
 
   const handleEditCancel = () => {
-    setDraftNickname(nickname);
+    setDraftNickname(member?.nickname ?? '');
     setIsEditing(false);
   };
 
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     const nextNickname = draftNickname.trim();
 
-    if (!nextNickname) {
+    if (!nextNickname || !member) {
       return;
     }
 
-    setNickname(nextNickname);
-    setIsEditing(false);
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const updatedMember = await updateMyProfile(nextNickname);
+      setMember(updatedMember);
+      setDraftNickname(updatedMember.nickname);
+      setIsEditing(false);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, '회원 정보를 수정하지 못했습니다.'));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleLogout = () => {
-    // TODO: 로그아웃 API 연결 후 인증 상태 초기화
-    navigate('/login');
+  const handleLogout = async () => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      await logout();
+      window.location.replace('/');
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, '로그아웃하지 못했습니다.'));
+      setIsSubmitting(false);
+    }
   };
 
-  const handleWithdrawal = () => {
-    // TODO: 회원 탈퇴 API 연결
-    setIsWithdrawalOpen(false);
-    navigate('/login');
+  const handleWithdrawal = async () => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      await withdraw();
+      setIsWithdrawalOpen(false);
+      navigate('/login', { replace: true });
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, '회원 탈퇴를 처리하지 못했습니다.'));
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -58,70 +122,100 @@ function MyPage() {
           <p>회원 정보를 확인하고 관리할 수 있습니다.</p>
         </div>
 
-        <section className="profile-card">
-          <div className="profile-avatar" aria-hidden="true">
-            {nickname.slice(0, 1)}
-          </div>
-
-          <dl className="profile-info">
-            <div>
-              <dt>이메일</dt>
-              <dd>{mockUser.email}</dd>
-            </div>
-
-            <div>
-              <dt>닉네임</dt>
-              <dd>
-                {isEditing ? (
-                  <input
-                    className="nickname-input"
-                    value={draftNickname}
-                    onChange={(event) => setDraftNickname(event.target.value)}
-                    maxLength={20}
-                    aria-label="닉네임"
-                  />
-                ) : (
-                  nickname
-                )}
-              </dd>
-            </div>
-          </dl>
-
-          {isEditing ? (
-            <div className="profile-edit-actions">
-              <button
-                className="edit-save-button"
-                type="button"
-                onClick={handleEditSave}
-                disabled={!draftNickname.trim()}
-              >
-                저장
-              </button>
-
-              <button className="edit-cancel-button" type="button" onClick={handleEditCancel}>
-                취소
-              </button>
-            </div>
-          ) : (
-            <button className="profile-edit-button" type="button" onClick={handleEditStart}>
-              회원 정보 수정
-            </button>
+        <div className="mypage-message" aria-live="polite">
+          {isLoading && <p className="mypage-status">회원 정보를 불러오는 중입니다.</p>}
+          {errorMessage && (
+            <p className="mypage-error" role="alert">
+              {errorMessage}
+            </p>
           )}
-        </section>
+        </div>
 
-        <section className="account-actions" aria-label="계정 관리">
-          <button className="logout-button" type="button" onClick={handleLogout}>
-            로그아웃
-          </button>
+        {member && (
+          <>
+            <section className="profile-card">
+              <div className="profile-avatar" aria-hidden="true">
+                {member.nickname.slice(0, 1)}
+              </div>
 
-          <button
-            className="withdrawal-button"
-            type="button"
-            onClick={() => setIsWithdrawalOpen(true)}
-          >
-            회원 탈퇴
-          </button>
-        </section>
+              <dl className="profile-info">
+                <div>
+                  <dt>이메일</dt>
+                  <dd>{member.email}</dd>
+                </div>
+
+                <div>
+                  <dt>닉네임</dt>
+                  <dd>
+                    {isEditing ? (
+                      <input
+                        className="nickname-input"
+                        value={draftNickname}
+                        onChange={(event) => setDraftNickname(event.target.value)}
+                        maxLength={20}
+                        aria-label="닉네임"
+                        disabled={isSubmitting}
+                      />
+                    ) : (
+                      member.nickname
+                    )}
+                  </dd>
+                </div>
+              </dl>
+
+              {isEditing ? (
+                <div className="profile-edit-actions">
+                  <button
+                    className="edit-save-button"
+                    type="button"
+                    onClick={handleEditSave}
+                    disabled={!draftNickname.trim() || isSubmitting}
+                  >
+                    {isSubmitting ? '저장 중...' : '저장'}
+                  </button>
+
+                  <button
+                    className="edit-cancel-button"
+                    type="button"
+                    onClick={handleEditCancel}
+                    disabled={isSubmitting}
+                  >
+                    취소
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="profile-edit-button"
+                  type="button"
+                  onClick={handleEditStart}
+                  disabled={isSubmitting}
+                >
+                  회원 정보 수정
+                </button>
+              )}
+            </section>
+
+            <section className="account-actions" aria-label="계정 관리">
+              <button
+                className="logout-button"
+                type="button"
+                onClick={handleLogout}
+                disabled={isSubmitting}
+              >
+                로그아웃
+              </button>
+
+              <button
+                className="withdrawal-button"
+                type="button"
+                onClick={() => setIsWithdrawalOpen(true)}
+                disabled={isSubmitting}
+              >
+                회원 탈퇴
+              </button>
+            </section>
+          </>
+        )}
       </section>
 
       {isWithdrawalOpen && (
@@ -144,6 +238,7 @@ function MyPage() {
                 className="edit-cancel-button"
                 type="button"
                 onClick={() => setIsWithdrawalOpen(false)}
+                disabled={isSubmitting}
               >
                 취소
               </button>
@@ -152,8 +247,9 @@ function MyPage() {
                 className="withdrawal-confirm-button"
                 type="button"
                 onClick={handleWithdrawal}
+                disabled={isSubmitting}
               >
-                탈퇴
+                {isSubmitting ? '처리 중...' : '탈퇴'}
               </button>
             </div>
           </section>
