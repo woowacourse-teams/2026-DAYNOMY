@@ -68,7 +68,7 @@ public class KosisClient {
   }
 
   private List<KosisDataItem> parseResponse(KosisProperties.Indicator indicator, String response)
-          throws JsonProcessingException {
+      throws JsonProcessingException {
     if (response == null || response.isBlank()) {
       return List.of();
     }
@@ -76,9 +76,9 @@ public class KosisClient {
     String trimmedResponse = response.stripLeading();
     if (!trimmedResponse.startsWith("[")) {
       log.warn(
-              "KOSIS returned non-array response: key={}, responsePreview={}",
-              indicator.key(),
-              preview(trimmedResponse));
+          "KOSIS returned non-array response: key={}, responsePreview={}",
+          indicator.key(),
+          preview(trimmedResponse));
       throw new JsonProcessingException("KOSIS response is not a JSON array") {};
     }
 
