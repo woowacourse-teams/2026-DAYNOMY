@@ -2,6 +2,7 @@ package org.grit.daynomy.external.kosis;
 
 import java.util.Arrays;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.kosis.dto.KosisDataItem;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+@Slf4j
 @Component
 public class KosisClient {
 
@@ -22,6 +24,12 @@ public class KosisClient {
 
   public List<KosisDataItem> getRecentData(KosisProperties.Indicator indicator) {
     try {
+      log.info(
+          "Requesting KOSIS recent data: key={}, name={}, period={}, tableName={}",
+          indicator.key(),
+          indicator.name(),
+          indicator.period(),
+          indicator.tableName());
       KosisDataItem[] response =
           restClient
               .get()
@@ -40,8 +48,17 @@ public class KosisClient {
               .retrieve()
               .body(KosisDataItem[].class);
 
-      return response == null ? List.of() : Arrays.asList(response);
+      List<KosisDataItem> items = response == null ? List.of() : Arrays.asList(response);
+      log.info(
+          "Received KOSIS recent data: key={}, responseCount={}", indicator.key(), items.size());
+      return items;
     } catch (RestClientException exception) {
+      log.warn(
+          "KOSIS recent data request failed: key={}, name={}, period={}, message={}",
+          indicator.key(),
+          indicator.name(),
+          indicator.period(),
+          exception.getMessage());
       throw new BusinessException(ExternalErrorCode.KOSIS_API_REQUEST_FAILED);
     }
   }

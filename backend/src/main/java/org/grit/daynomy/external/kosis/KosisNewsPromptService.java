@@ -25,11 +25,18 @@ public class KosisNewsPromptService {
   private final KosisProperties kosisProperties;
 
   public List<NewsPrompt> createPrompts() {
-    return Optional.ofNullable(kosisProperties.indicators()).orElse(List.of()).stream()
-        .filter(this::isAllowed)
-        .map(this::createPrompt)
-        .flatMap(Optional::stream)
-        .toList();
+    List<KosisProperties.Indicator> indicators =
+        Optional.ofNullable(kosisProperties.indicators()).orElse(List.of());
+    log.info("Starting KOSIS prompt creation: indicatorCount={}", indicators.size());
+
+    List<NewsPrompt> prompts =
+        indicators.stream()
+            .filter(this::isAllowed)
+            .map(this::createPrompt)
+            .flatMap(Optional::stream)
+            .toList();
+    log.info("Finished KOSIS prompt creation: promptCount={}", prompts.size());
+    return prompts;
   }
 
   private boolean isAllowed(KosisProperties.Indicator indicator) {
@@ -49,12 +56,21 @@ public class KosisNewsPromptService {
   }
 
   private Optional<NewsPrompt> createPrompt(KosisProperties.Indicator indicator) {
+    log.info(
+        "Creating KOSIS prompt for indicator: key={}, name={}, category={}",
+        indicator.key(),
+        indicator.name(),
+        indicator.category());
     List<KosisDataItem> items =
         kosisClient.getRecentData(indicator).stream()
             .filter(item -> number(item.value()).isPresent())
             .sorted(Comparator.comparing(KosisDataItem::period))
             .toList();
     if (items.size() < 2) {
+      log.info(
+          "Skipping KOSIS prompt due to insufficient numeric data: key={}, numericItemCount={}",
+          indicator.key(),
+          items.size());
       return Optional.empty();
     }
 
@@ -69,6 +85,15 @@ public class KosisNewsPromptService {
             : change
                 .multiply(BigDecimal.valueOf(100))
                 .divide(previousValue, 2, RoundingMode.HALF_UP);
+    log.info(
+        "Created KOSIS prompt data: key={}, previousPeriod={}, previousValue={}, latestPeriod={}, latestValue={}, change={}, changeRate={}%",
+        indicator.key(),
+        previous.period(),
+        previous.value(),
+        latest.period(),
+        latest.value(),
+        change,
+        changeRate);
 
     return Optional.of(
         new NewsPrompt(
