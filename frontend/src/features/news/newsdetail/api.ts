@@ -3,10 +3,6 @@ import type { Impact, NewsDetail, NewsDetailPayload, RelatedIssue } from './type
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
-type ApiResponse<T> = {
-  data: T;
-};
-
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
 
@@ -15,12 +11,6 @@ async function getJson<T>(path: string): Promise<T> {
   }
 
   return response.json() as Promise<T>;
-}
-
-async function getApiData<T>(path: string): Promise<T> {
-  const response = await getJson<ApiResponse<T>>(path);
-
-  return response.data;
 }
 
 function normalizeNews(raw: Partial<NewsDetail> & Record<string, unknown>): NewsDetail {
@@ -58,7 +48,7 @@ function normalizeRelatedIssues(
 
 export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> {
   const [news, impacts, relatedIssues] = await Promise.allSettled([
-    getApiData<Partial<NewsDetail> & Record<string, unknown>>(`/api/news/${newsId}`),
+    getJson<Partial<NewsDetail> & Record<string, unknown>>(`/api/news/${newsId}`),
     getJson<Impact[]>(`/api/news/${newsId}/impacts`),
     getJson<Array<Partial<RelatedIssue> & Record<string, unknown>>>(`/api/news/${newsId}/related`),
   ]);
