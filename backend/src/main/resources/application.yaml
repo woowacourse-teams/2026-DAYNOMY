@@ -66,15 +66,6 @@ external:
         source-organization: 한국부동산원
         survey-name: 전국주택가격동향조사
         table-name: 주택가격지수
-      - key: household-loan
-        name: 가계대출
-        view-code: MT_ZTITLE
-        user-stats-id: ${KOSIS_HOUSEHOLD_LOAN_USER_STATS_ID:}
-        period: M
-        category: DEPOSIT_SAVINGS
-        source-organization: 한국은행
-        survey-name: 예금취급기관 가계대출
-        table-name: 가계대출
       - key: consumer-price-index
         name: 소비자물가지수
         view-code: MT_ZTITLE
@@ -85,7 +76,7 @@ external:
         survey-name: 소비자물가조사
         table-name: 소비자물가지수
       - key: employment-rate
-        name: 고용률 및 실업률
+        name: 고용률
         view-code: MT_ZTITLE
         user-stats-id: ${KOSIS_EMPLOYMENT_RATE_USER_STATS_ID:}
         period: M
