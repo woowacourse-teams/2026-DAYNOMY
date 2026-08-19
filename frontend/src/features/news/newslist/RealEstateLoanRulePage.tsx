@@ -1,8 +1,15 @@
 import { Header } from '../../../components/Header';
 import defaultNewsImage from '../../../assets/default-news-real-estate.png';
-import { getCategoryLabel, getDummyTodayNews } from './mock';
+import { getCategoryLabel } from './constants';
 import { formatDate } from './utils';
 import './realEstateLoanRulePage.css';
+
+const articleMeta = {
+  category: 'POLICY',
+  thumbnailUrl:
+    'https://images.unsplash.com/photo-1582407947304-fd86f028f716?auto=format&fit=crop&w=1600&q=80',
+  publishedAt: '2026-08-13T09:20:00+09:00',
+};
 
 const summaryItems = [
   '대출 규제 완화 기대는 부동산 거래 회복과 은행 대출 성장 기대를 동시에 자극합니다.',
@@ -70,8 +77,6 @@ const scenarios = [
 ];
 
 export function RealEstateLoanRulePage() {
-  const article = getDummyTodayNews();
-
   return (
     <main className="loan-detail">
       <Header />
@@ -86,13 +91,17 @@ export function RealEstateLoanRulePage() {
 
       <article>
         <div className="loan-meta">
-          <span>{getCategoryLabel(article.category)}</span>
-          <time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time>
+          <span>{getCategoryLabel(articleMeta.category)}</span>
+          <time dateTime={articleMeta.publishedAt}>{formatDate(articleMeta.publishedAt)}</time>
         </div>
 
         <h1>부동산 대출 규제 완화 검토, 은행·건설 업종 기대감 확대</h1>
 
-        <img src={article.thumbnailUrl ?? defaultNewsImage} alt="" className="loan-hero-image" />
+        <img
+          src={articleMeta.thumbnailUrl ?? defaultNewsImage}
+          alt=""
+          className="loan-hero-image"
+        />
 
         <section className="loan-section">
           <h2>핵심 요약</h2>

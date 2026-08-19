@@ -5,7 +5,7 @@ import { ArticleCard } from './components/ArticleCard';
 import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
 import { TodayNewsBanner } from './components/TodayNewsBanner';
-import { getEmptyTodayNews, NEWS_CATEGORIES } from './mock';
+import { getEmptyTodayNews, NEWS_CATEGORIES } from './constants';
 import type { NewsArticle, NewsCategory } from './types';
 import './newsList.css';
 
