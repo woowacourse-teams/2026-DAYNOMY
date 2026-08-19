@@ -66,24 +66,31 @@ class BokClientTest {
     return """
         {
           "StatisticSearch": {
+            "list_total_count": 2,
             "row": [
               {
                 "STAT_CODE": "722Y001",
                 "STAT_NAME": "한국은행 기준금리 및 여수신금리",
                 "ITEM_CODE1": "0101000",
                 "ITEM_NAME1": "한국은행 기준금리",
+                "ITEM_CODE2": "",
+                "ITEM_NAME2": "",
                 "UNIT_NAME": "연%",
                 "TIME": "202606",
-                "DATA_VALUE": "2.50"
+                "DATA_VALUE": "2.50",
+                "UNKNOWN_FIELD": "ignored"
               },
               {
                 "STAT_CODE": "722Y001",
                 "STAT_NAME": "한국은행 기준금리 및 여수신금리",
                 "ITEM_CODE1": "0101000",
                 "ITEM_NAME1": "한국은행 기준금리",
+                "ITEM_CODE2": "",
+                "ITEM_NAME2": "",
                 "UNIT_NAME": "연%",
                 "TIME": "202607",
-                "DATA_VALUE": "2.50"
+                "DATA_VALUE": "2.50",
+                "UNKNOWN_FIELD": "ignored"
               }
             ]
           }
