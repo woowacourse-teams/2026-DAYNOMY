@@ -5,6 +5,9 @@ on:
     branches:
       - dev
       - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
 
 permissions:
   contents: read
