@@ -1,4 +1,4 @@
-package org.grit.daynomy.news.controller;
+package org.grit.daynomy.search.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -11,9 +11,9 @@ import org.grit.daynomy.common.CommonErrorCode;
 import org.grit.daynomy.common.ErrorCode;
 import org.grit.daynomy.common.ErrorResponse;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.dto.NewsSearchResponse;
-import org.grit.daynomy.news.exception.NewsErrorCode;
-import org.grit.daynomy.news.service.NewsSearchService;
+import org.grit.daynomy.search.dto.NewsSearchResponse;
+import org.grit.daynomy.search.exception.SearchErrorCode;
+import org.grit.daynomy.search.service.NewsSearchService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -61,10 +61,14 @@ public class NewsSearchController {
   @ExceptionHandler(MethodArgumentTypeMismatchException.class)
   public ResponseEntity<ErrorResponse> handleTypeMismatch(
       MethodArgumentTypeMismatchException exception) {
-    ErrorCode errorCode =
-        exception.getRequiredType() == Category.class
-            ? NewsErrorCode.INVALID_CATEGORY
-            : CommonErrorCode.INVALID_REQUEST;
+    ErrorCode errorCode;
+    if (exception.getRequiredType() == Category.class) {
+      errorCode = SearchErrorCode.SEARCH_INVALID_CATEGORY;
+    } else if ("page".equals(exception.getName()) || "size".equals(exception.getName())) {
+      errorCode = SearchErrorCode.SEARCH_INVALID_PAGE_CONDITION;
+    } else {
+      errorCode = CommonErrorCode.INVALID_REQUEST;
+    }
     return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
   }
 }

@@ -1,4 +1,4 @@
-package org.grit.daynomy.news.controller;
+package org.grit.daynomy.search.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -14,8 +14,8 @@ import java.util.List;
 import org.grit.daynomy.common.GlobalExceptionHandler;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.repository.NewsRepository;
-import org.grit.daynomy.news.service.NewsSearchService;
+import org.grit.daynomy.search.repository.NewsSearchRepository;
+import org.grit.daynomy.search.service.NewsSearchService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
@@ -26,13 +26,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class NewsSearchControllerTest {
 
-  private NewsRepository newsRepository;
+  private NewsSearchRepository newsSearchRepository;
   private MockMvc mockMvc;
 
   @BeforeEach
   void setUp() {
-    newsRepository = mock(NewsRepository.class);
-    NewsSearchService service = new NewsSearchService(newsRepository);
+    newsSearchRepository = mock(NewsSearchRepository.class);
+    NewsSearchService service = new NewsSearchService(newsSearchRepository);
     mockMvc =
         MockMvcBuilders.standaloneSetup(new NewsSearchController(service))
             .setControllerAdvice(new GlobalExceptionHandler())
@@ -48,7 +48,7 @@ class NewsSearchControllerTest {
     when(news.getImageUrl()).thenReturn("https://example.com/base-rate.webp");
     when(news.getCategory()).thenReturn(Category.BOND);
     when(news.getPublishedAt()).thenReturn(LocalDateTime.of(2026, 8, 14, 10, 0));
-    when(newsRepository.search(eq("금리"), eq(Category.BOND), any(Pageable.class)))
+    when(newsSearchRepository.search(eq("금리"), eq(Category.BOND), any(Pageable.class)))
         .thenReturn(new PageImpl<>(List.of(news), PageRequest.of(0, 20), 1));
 
     mockMvc
@@ -64,7 +64,7 @@ class NewsSearchControllerTest {
 
   @Test
   void returnsSuccessWhenSearchResultIsEmpty() throws Exception {
-    when(newsRepository.search(eq("금리"), eq(null), any(Pageable.class)))
+    when(newsSearchRepository.search(eq("금리"), eq(null), any(Pageable.class)))
         .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
     mockMvc
@@ -83,7 +83,7 @@ class NewsSearchControllerTest {
         .andExpect(jsonPath("$.code").value("SEARCH_KEYWORD_REQUIRED"))
         .andExpect(jsonPath("$.message").value("검색어를 입력해주세요."));
 
-    verifyNoInteractions(newsRepository);
+    verifyNoInteractions(newsSearchRepository);
   }
 
   @Test
@@ -91,10 +91,10 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "!"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_SEARCH_KEYWORD"))
+        .andExpect(jsonPath("$.code").value("SEARCH_INVALID_KEYWORD"))
         .andExpect(jsonPath("$.message").value("올바른 검색어를 입력해주세요."));
 
-    verifyNoInteractions(newsRepository);
+    verifyNoInteractions(newsSearchRepository);
   }
 
   @Test
@@ -102,10 +102,10 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("category", "POLICY"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_CATEGORY"))
+        .andExpect(jsonPath("$.code").value("SEARCH_INVALID_CATEGORY"))
         .andExpect(jsonPath("$.message").value("존재하지 않는 카테고리입니다."));
 
-    verifyNoInteractions(newsRepository);
+    verifyNoInteractions(newsSearchRepository);
   }
 
   @Test
@@ -113,9 +113,20 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("page", "first"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
-        .andExpect(jsonPath("$.message").value("잘못된 요청입니다."));
+        .andExpect(jsonPath("$.code").value("SEARCH_INVALID_PAGE_CONDITION"))
+        .andExpect(jsonPath("$.message").value("검색 페이지 조건이 올바르지 않습니다."));
 
-    verifyNoInteractions(newsRepository);
+    verifyNoInteractions(newsSearchRepository);
+  }
+
+  @Test
+  void rejectsOutOfRangePage() throws Exception {
+    mockMvc
+        .perform(get("/api/search/news").param("q", "금리").param("page", "-1"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("SEARCH_INVALID_PAGE_CONDITION"))
+        .andExpect(jsonPath("$.message").value("검색 페이지 조건이 올바르지 않습니다."));
+
+    verifyNoInteractions(newsSearchRepository);
   }
 }

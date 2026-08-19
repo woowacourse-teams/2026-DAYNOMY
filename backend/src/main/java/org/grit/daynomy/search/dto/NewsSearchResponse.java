@@ -1,7 +1,8 @@
-package org.grit.daynomy.news.dto;
+package org.grit.daynomy.search.dto;
 
 import java.util.List;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.dto.NewsListItemResponse;
 import org.springframework.data.domain.Page;
 
 public record NewsSearchResponse(
