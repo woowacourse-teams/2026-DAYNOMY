@@ -12,7 +12,7 @@ import './newsList.css';
 export function NewsListPage() {
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
   const [articles, setArticles] = useState<NewsArticle[]>([]);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [todayMainNews, setTodayMainNews] = useState<NewsArticle>(() => getEmptyTodayNews());
   const [loading, setLoading] = useState(false);
@@ -85,7 +85,7 @@ export function NewsListPage() {
 
   function handleCategoryChange(category: NewsCategory) {
     setSelectedCategory(category);
-    setPage(0);
+    setPage(1);
   }
 
   function handleArticleSelect(article: NewsArticle) {
@@ -121,7 +121,7 @@ export function NewsListPage() {
           <strong>{loading ? '불러오는 중' : `${articles.length}건`}</strong>
         </div>
         <span>
-          {page + 1} / {totalPages}
+          {page} / {totalPages}
         </span>
       </section>
 
@@ -152,8 +152,8 @@ export function NewsListPage() {
             <button
               type="button"
               key={index}
-              className={page === index ? 'active' : undefined}
-              onClick={() => setPage(index)}
+              className={page === index + 1 ? 'active' : undefined}
+              onClick={() => setPage(index + 1)}
               disabled={loading}
             >
               {index + 1}

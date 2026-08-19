@@ -1,10 +1,12 @@
 export type NewsCategory =
   | 'ALL'
-  | 'POLICY'
   | 'REAL_ESTATE'
-  | 'INTEREST_RATE'
-  | 'EXCHANGE_RATE'
-  | 'COMPANY'
+  | 'DEPOSIT_SAVINGS'
+  | 'STOCK'
+  | 'ETF'
+  | 'BOND'
+  | 'PENSION'
+  | 'FOREIGN_EXCHANGE'
   | 'VIRTUAL_ASSET'
   | 'GOLD';
 

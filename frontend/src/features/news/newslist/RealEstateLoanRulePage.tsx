@@ -5,7 +5,7 @@ import { formatDate } from './utils';
 import './realEstateLoanRulePage.css';
 
 const articleMeta = {
-  category: 'POLICY',
+  category: 'REAL_ESTATE',
   thumbnailUrl:
     'https://images.unsplash.com/photo-1582407947304-fd86f028f716?auto=format&fit=crop&w=1600&q=80',
   publishedAt: '2026-08-13T09:20:00+09:00',
