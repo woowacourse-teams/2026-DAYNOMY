@@ -1,5 +1,7 @@
 package org.grit.daynomy.news.service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.BusinessException;
 import org.grit.daynomy.common.CommonErrorCode;
@@ -35,6 +37,18 @@ public class NewsService {
             : newsRepository.findByCategoryOrderByPublishedAtDescIdDesc(category, pageable);
 
     return NewsPageResponse.from(newsPage.map(NewsListItemResponse::from));
+  }
+
+  public NewsListItemResponse getTodayNews() {
+    LocalDate today = LocalDate.now();
+    LocalDateTime startInclusive = today.atStartOfDay();
+    LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+
+    return newsRepository
+        .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+            startInclusive, endExclusive)
+        .map(NewsListItemResponse::from)
+        .orElse(null);
   }
 
   public NewsDetailResponse getNewsDetail(Long id) {
