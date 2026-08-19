@@ -1,0 +1,73 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: frontend-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Detect frontend changes
+        id: changes
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          changed_files="$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '.[].filename')"
+
+          if grep -Eq '^(frontend/|\.github/workflows/frontend-ci\.yml$)' <<< "$changed_files"; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.changes.outputs.frontend == 'true'
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        if: steps.changes.outputs.frontend == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm ci
+
+      - name: Check formatting
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run format:check
+
+      - name: Lint
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run lint
+
+      - name: Test
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm test
+
+      - name: Build
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run build
