@@ -3,6 +3,7 @@ package org.grit.daynomy.news.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.dto.NewsListItemResponse;
 import org.grit.daynomy.news.dto.NewsSearchResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +38,7 @@ class NewsSearchIntegrationTest {
     assertThat(result.totalElements()).isEqualTo(1);
     assertThat(result.content())
         .singleElement()
-        .extracting(NewsSearchResponse.NewsItem::title)
+        .extracting(NewsListItemResponse::title)
         .isEqualTo("기준금리 동결");
   }
 }

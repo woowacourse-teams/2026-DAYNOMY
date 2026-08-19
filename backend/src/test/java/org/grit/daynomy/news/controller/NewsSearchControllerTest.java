@@ -44,6 +44,8 @@ class NewsSearchControllerTest {
     News news = mock(News.class);
     when(news.getId()).thenReturn(1L);
     when(news.getTitle()).thenReturn("기준금리 동결 가능성 확대");
+    when(news.getDescription()).thenReturn("기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.");
+    when(news.getImageUrl()).thenReturn("https://example.com/base-rate.webp");
     when(news.getCategory()).thenReturn(Category.BOND);
     when(news.getPublishedAt()).thenReturn(LocalDateTime.of(2026, 8, 14, 10, 0));
     when(newsRepository.search(eq("금리"), eq(Category.BOND), any(Pageable.class)))
@@ -54,6 +56,8 @@ class NewsSearchControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.category").doesNotExist())
         .andExpect(jsonPath("$.content[0].category").value("BOND"))
+        .andExpect(jsonPath("$.content[0].description").value("기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다."))
+        .andExpect(jsonPath("$.content[0].imageUrl").value("https://example.com/base-rate.webp"))
         .andExpect(jsonPath("$.page").value(0))
         .andExpect(jsonPath("$.size").value(20));
   }
