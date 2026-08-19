@@ -16,6 +16,7 @@ import org.grit.daynomy.keyword.exception.KeywordErrorCode;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSource;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -109,6 +110,9 @@ class KeywordServiceTest {
         "content",
         "description",
         "image.png",
+        NewsSource.DART,
+        "keyword-news",
+        "https://example.com/keyword-news",
         Category.STOCK,
         LocalDateTime.of(2026, 8, 17, 10, 0));
   }

@@ -14,6 +14,7 @@ import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSource;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -91,6 +92,9 @@ class KeywordControllerTest {
         "content",
         "description",
         "image.png",
+        NewsSource.DART,
+        "keyword-news",
+        "https://example.com/keyword-news",
         Category.STOCK,
         LocalDateTime.of(2026, 8, 17, 10, 0));
   }

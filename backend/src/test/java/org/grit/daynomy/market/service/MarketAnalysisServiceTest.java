@@ -21,6 +21,7 @@ import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -137,6 +138,9 @@ class MarketAnalysisServiceTest {
         "content",
         "description",
         "image.png",
+        NewsSource.DART,
+        "market-news",
+        "https://example.com/market-news",
         Category.STOCK,
         LocalDateTime.of(2026, 8, 17, 10, 0));
   }

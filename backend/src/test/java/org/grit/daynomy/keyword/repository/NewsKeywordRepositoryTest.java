@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSource;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +52,9 @@ class NewsKeywordRepositoryTest {
         "content",
         "description",
         "image.png",
+        NewsSource.DART,
+        title,
+        "https://example.com/" + title.replace(" ", "-"),
         Category.STOCK,
         LocalDateTime.of(2026, 8, 17, 10, 0));
   }
