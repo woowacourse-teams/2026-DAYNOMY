@@ -2,7 +2,7 @@ import type { Impact, NewsDetail, RelatedIssue } from './types.ts';
 
 export const mockNews: NewsDetail = {
   title: '부동산 대출 규제 완화 검토, 은행·건설 업종 기대감 확대',
-  category: '부동산',
+  category: 'REAL_ESTATE',
   source: '연합 뉴스',
   publishedAt: '2026.08.13 09:20',
   originalUrl: 'https://example.com/news/1',

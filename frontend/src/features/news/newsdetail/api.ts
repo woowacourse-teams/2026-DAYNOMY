@@ -1,4 +1,5 @@
 import { mockImpacts, mockNews, mockRelatedIssues } from './mock.ts';
+import { isCategory } from '../newslist/types.ts';
 import type { Impact, NewsDetail, NewsDetailPayload, RelatedIssue } from './types.ts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -16,7 +17,7 @@ async function getJson<T>(path: string): Promise<T> {
 function normalizeNews(raw: Partial<NewsDetail> & Record<string, unknown>): NewsDetail {
   return {
     title: String(raw.title ?? mockNews.title),
-    category: String(raw.category ?? mockNews.category),
+    category: isCategory(raw.category) ? raw.category : mockNews.category,
     source: String(raw.source ?? mockNews.source),
     publishedAt: String(raw.publishedAt ?? raw.date ?? mockNews.publishedAt),
     originalUrl:

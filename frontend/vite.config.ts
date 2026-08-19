@@ -12,6 +12,14 @@ const sentryBuildConfigured = [
 // https://vite.dev/config/
 export default defineConfig({
   envPrefix: ['VITE_', 'SENTRY_DSN', 'SENTRY_ENVIRONMENT'],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     sourcemap: sentryBuildConfigured ? 'hidden' : false,
   },

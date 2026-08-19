@@ -1,30 +1,13 @@
+import { CATEGORY_LABELS, getCategoryLabel } from './types';
 import type { NewsArticle, NewsCategoryOption } from './types';
 
 export const NEWS_CATEGORIES: NewsCategoryOption[] = [
   { label: '전체', value: 'ALL' },
-  { label: '부동산', value: 'REAL_ESTATE' },
-  { label: '예금·적금', value: 'DEPOSIT_SAVINGS' },
-  { label: '주식', value: 'STOCK' },
-  { label: 'ETF', value: 'ETF' },
-  { label: '채권', value: 'BOND' },
-  { label: '연금', value: 'PENSION' },
-  { label: '외화·환율', value: 'FOREIGN_EXCHANGE' },
-  { label: '가상자산', value: 'VIRTUAL_ASSET' },
-  { label: '금', value: 'GOLD' },
+  ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
+    label,
+    value: value as keyof typeof CATEGORY_LABELS,
+  })),
 ];
-
-const NEWS_CATEGORY_LABELS: Record<string, string> = {
-  ALL: '전체',
-  REAL_ESTATE: '부동산',
-  DEPOSIT_SAVINGS: '예금·적금',
-  STOCK: '주식',
-  ETF: 'ETF',
-  BOND: '채권',
-  PENSION: '연금',
-  FOREIGN_EXCHANGE: '외화·환율',
-  VIRTUAL_ASSET: '가상자산',
-  GOLD: '금',
-};
 
 const emptyTodayNews: NewsArticle = {
   id: '',
@@ -35,10 +18,8 @@ const emptyTodayNews: NewsArticle = {
   source: '',
 };
 
-export function getCategoryLabel(value: string) {
-  return NEWS_CATEGORY_LABELS[value] ?? value;
-}
-
 export function getEmptyTodayNews() {
   return emptyTodayNews;
 }
+
+export { getCategoryLabel };
