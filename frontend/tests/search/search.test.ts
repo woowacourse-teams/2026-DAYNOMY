@@ -46,13 +46,15 @@ test.afterEach(() => {
   axios.defaults.adapter = originalAdapter;
 });
 
-test('래퍼 없는 검색 성공 응답을 읽는다', async () => {
+test('검색 성공 응답을 뉴스 카드 데이터로 읽는다', async () => {
   axios.defaults.adapter = (async (config) => ({
     data: {
       content: [
         {
           id: 1,
           title: '기준금리 동결 가능성 확대',
+          description: '기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.',
+          imageUrl: 'https://example.com/base-rate.webp',
           category: 'BOND',
           publishedAt: '2026-08-14T10:00:00',
         },
@@ -72,6 +74,11 @@ test('래퍼 없는 검색 성공 응답을 읽는다', async () => {
 
   assert.equal(results.content.length, 1);
   assert.equal(results.content[0]?.category, 'BOND');
+  assert.equal(
+    results.content[0]?.description,
+    '기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.',
+  );
+  assert.equal(results.content[0]?.imageUrl, 'https://example.com/base-rate.webp');
   assert.equal(results.totalElements, 1);
 });
 

@@ -24,10 +24,10 @@ export function getCategoryLabel(value: NewsCategory) {
 export type NewsArticle = {
   id: number | string;
   title: string;
-  summary?: string;
+  description: string | null;
   category: Category;
-  thumbnailUrl?: string;
-  publishedAt?: string;
+  imageUrl: string | null;
+  publishedAt: string;
   source?: string;
   body?: string;
 };

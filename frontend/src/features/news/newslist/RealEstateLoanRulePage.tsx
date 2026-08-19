@@ -93,7 +93,7 @@ export function RealEstateLoanRulePage() {
 
         <h1>부동산 대출 규제 완화 검토, 은행·건설 업종 기대감 확대</h1>
 
-        <img src={article.thumbnailUrl ?? defaultNewsImage} alt="" className="loan-hero-image" />
+        <img src={article.imageUrl ?? defaultNewsImage} alt="" className="loan-hero-image" />
 
         <section className="loan-section">
           <h2>핵심 요약</h2>

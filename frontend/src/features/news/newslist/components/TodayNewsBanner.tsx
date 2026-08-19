@@ -17,11 +17,11 @@ export function TodayNewsBanner({ article, onSelect }: TodayNewsBannerProps) {
           <time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time>
         </div>
         <h2>{article.title}</h2>
-        <p>{article.summary}</p>
+        <p>{article.description}</p>
         <span className="article-source">{article.source}</span>
       </div>
       <div className="banner-visual" aria-hidden="true">
-        <img src={article.thumbnailUrl ?? defaultNewsImage} alt="" />
+        <img src={article.imageUrl ?? defaultNewsImage} alt="" />
       </div>
     </section>
   );

@@ -8,10 +8,12 @@ function isNewsArticle(value: unknown): value is NewsArticle {
 
   const article = value as Record<string, unknown>;
   return (
-    (typeof article.id === 'number' || typeof article.id === 'string') &&
+    typeof article.id === 'number' &&
     typeof article.title === 'string' &&
+    (article.description === null || typeof article.description === 'string') &&
+    (article.imageUrl === null || typeof article.imageUrl === 'string') &&
     isCategory(article.category) &&
-    (article.publishedAt === undefined || typeof article.publishedAt === 'string')
+    typeof article.publishedAt === 'string'
   );
 }
 
