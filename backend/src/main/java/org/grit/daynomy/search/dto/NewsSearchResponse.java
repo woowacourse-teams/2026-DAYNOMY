@@ -11,7 +11,7 @@ public record NewsSearchResponse(
   public static NewsSearchResponse from(Page<News> news) {
     return new NewsSearchResponse(
         news.getContent().stream().map(NewsListItemResponse::from).toList(),
-        news.getNumber(),
+        news.getNumber() + 1,
         news.getSize(),
         news.getTotalElements(),
         news.getTotalPages());

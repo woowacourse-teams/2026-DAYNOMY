@@ -58,7 +58,7 @@ class NewsSearchControllerTest {
         .andExpect(jsonPath("$.content[0].category").value("BOND"))
         .andExpect(jsonPath("$.content[0].description").value("기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다."))
         .andExpect(jsonPath("$.content[0].imageUrl").value("https://example.com/base-rate.webp"))
-        .andExpect(jsonPath("$.page").value(0))
+        .andExpect(jsonPath("$.page").value(1))
         .andExpect(jsonPath("$.size").value(20));
   }
 
@@ -122,7 +122,7 @@ class NewsSearchControllerTest {
   @Test
   void rejectsOutOfRangePage() throws Exception {
     mockMvc
-        .perform(get("/api/search/news").param("q", "금리").param("page", "-1"))
+        .perform(get("/api/search/news").param("q", "금리").param("page", "0"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("SEARCH_INVALID_PAGE_CONDITION"))
         .andExpect(jsonPath("$.message").value("검색 페이지 조건이 올바르지 않습니다."));

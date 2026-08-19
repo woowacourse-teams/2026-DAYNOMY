@@ -21,7 +21,7 @@ class NewsSearchIntegrationTest {
 
   @Test
   void returnsEmptyPageWhenNewsTableIsEmpty() {
-    NewsSearchResponse result = newsSearchService.search("금", null, 0, 20);
+    NewsSearchResponse result = newsSearchService.search("금", null, 1, 20);
 
     assertThat(result.content()).isEmpty();
     assertThat(result.totalElements()).isZero();
@@ -35,12 +35,33 @@ class NewsSearchIntegrationTest {
         "INSERT INTO news (title, content, description, category, published_at, created_at, updated_at) VALUES ('증시 반등', '기준금리가 주식시장에 영향을 줬습니다.', '주식 뉴스', 'STOCK', '2026-08-15 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
       })
   void searchesExistingNewsTableByKeywordAndCategory() {
-    NewsSearchResponse result = newsSearchService.search("금", Category.BOND, 0, 20);
+    NewsSearchResponse result = newsSearchService.search("금", Category.BOND, 1, 20);
 
     assertThat(result.totalElements()).isEqualTo(1);
     assertThat(result.content())
         .singleElement()
         .extracting(NewsListItemResponse::title)
         .isEqualTo("기준금리 동결");
+  }
+
+  @Test
+  @Sql(
+      statements = {
+        "INSERT INTO news (title, content, category, published_at, created_at, updated_at) VALUES ('금% 문자 뉴스', '퍼센트 문자 검색', 'GOLD', '2026-08-14 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO news (title, content, category, published_at, created_at, updated_at) VALUES ('금_ 문자 뉴스', '밑줄 문자 검색', 'GOLD', '2026-08-15 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO news (title, content, category, published_at, created_at, updated_at) VALUES ('금리 일반 뉴스', '일반 검색', 'BOND', '2026-08-16 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+      })
+  void treatsLikeWildcardsAsLiteralCharacters() {
+    NewsSearchResponse percentResult = newsSearchService.search("금%", null, 1, 20);
+    NewsSearchResponse underscoreResult = newsSearchService.search("금_", null, 1, 20);
+
+    assertThat(percentResult.content())
+        .singleElement()
+        .extracting(NewsListItemResponse::title)
+        .isEqualTo("금% 문자 뉴스");
+    assertThat(underscoreResult.content())
+        .singleElement()
+        .extracting(NewsListItemResponse::title)
+        .isEqualTo("금_ 문자 뉴스");
   }
 }

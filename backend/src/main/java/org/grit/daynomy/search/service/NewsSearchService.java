@@ -28,16 +28,15 @@ public class NewsSearchService {
 
   @Transactional(readOnly = true)
   public NewsSearchResponse search(String keyword, Category category, int page, int size) {
-    String normalizedKeyword = validateKeyword(keyword);
+    String escapedKeyword = escapeLikeKeyword(validateKeyword(keyword));
 
-    if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+    if (page < 1 || size < 1 || size > MAX_PAGE_SIZE) {
       throw new BusinessException(SEARCH_INVALID_PAGE_CONDITION);
     }
 
     PageRequest pageable =
-        PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "publishedAt", "id"));
-    return NewsSearchResponse.from(
-        newsSearchRepository.search(normalizedKeyword, category, pageable));
+        PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "publishedAt", "id"));
+    return NewsSearchResponse.from(newsSearchRepository.search(escapedKeyword, category, pageable));
   }
 
   private String validateKeyword(String keyword) {
@@ -52,5 +51,9 @@ public class NewsSearchService {
       throw new BusinessException(SEARCH_INVALID_KEYWORD);
     }
     return normalizedKeyword;
+  }
+
+  private String escapeLikeKeyword(String keyword) {
+    return keyword.replace("!", "!!").replace("%", "!%").replace("_", "!_");
   }
 }

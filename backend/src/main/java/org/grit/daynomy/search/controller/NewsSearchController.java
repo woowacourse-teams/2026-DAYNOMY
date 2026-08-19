@@ -51,7 +51,7 @@ public class NewsSearchController {
           String keyword,
       @Parameter(description = "카테고리. 생략하면 전체 검색", example = "BOND") @RequestParam(required = false)
           Category category,
-      @Parameter(description = "페이지 번호(0부터 시작)", example = "0") @RequestParam(defaultValue = "0")
+      @Parameter(description = "페이지 번호(1부터 시작)", example = "1") @RequestParam(defaultValue = "1")
           int page,
       @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20")
           int size) {
