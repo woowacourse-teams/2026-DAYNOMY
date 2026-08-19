@@ -91,7 +91,7 @@ function MyPage() {
 
     try {
       await logout();
-      navigate('/login', { replace: true });
+      window.location.replace('/');
     } catch (error) {
       setErrorMessage(getErrorMessage(error, '로그아웃하지 못했습니다.'));
       setIsSubmitting(false);
