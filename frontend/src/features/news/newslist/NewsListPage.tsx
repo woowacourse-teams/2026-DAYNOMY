@@ -131,7 +131,14 @@ export function NewsListPage() {
 
       {loading ? <NewsListSkeleton /> : null}
 
-      {!loading && articles.length === 0 ? (
+      {!loading && error ? (
+        <section className="state-panel" role="alert">
+          <strong>뉴스 목록을 불러오지 못했습니다.</strong>
+          <p>{error}</p>
+        </section>
+      ) : null}
+
+      {!loading && !error && articles.length === 0 ? (
         <section className="state-panel">
           <strong>표시할 뉴스가 없습니다.</strong>
           <p>다른 카테고리를 선택하거나 잠시 후 다시 확인해 주세요.</p>
