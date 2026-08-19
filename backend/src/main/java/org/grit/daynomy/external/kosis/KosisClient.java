@@ -1,5 +1,7 @@
 package org.grit.daynomy.external.kosis;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Arrays;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,7 @@ public class KosisClient {
 
   private final KosisProperties kosisProperties;
   private final RestClient restClient;
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   public KosisClient(KosisProperties kosisProperties) {
     this.kosisProperties = kosisProperties;
@@ -30,7 +33,7 @@ public class KosisClient {
           indicator.name(),
           indicator.period(),
           indicator.tableName());
-      KosisDataItem[] response =
+      String response =
           restClient
               .get()
               .uri(
@@ -40,19 +43,20 @@ public class KosisClient {
                           .queryParam("method", "getList")
                           .queryParam("apiKey", kosisProperties.apiKey())
                           .queryParam("format", "json")
+                          .queryParam("content", "json")
                           .queryParam("jsonVD", "Y")
                           .queryParam("userStatsId", indicator.userStatsId())
                           .queryParam("prdSe", indicator.period())
                           .queryParam("newEstPrdCnt", 2)
                           .build())
               .retrieve()
-              .body(KosisDataItem[].class);
+              .body(String.class);
 
-      List<KosisDataItem> items = response == null ? List.of() : Arrays.asList(response);
+      List<KosisDataItem> items = parseResponse(indicator, response);
       log.info(
           "Received KOSIS recent data: key={}, responseCount={}", indicator.key(), items.size());
       return items;
-    } catch (RestClientException exception) {
+    } catch (RestClientException | JsonProcessingException exception) {
       log.warn(
           "KOSIS recent data request failed: key={}, name={}, period={}, message={}",
           indicator.key(),
@@ -61,5 +65,27 @@ public class KosisClient {
           exception.getMessage());
       throw new BusinessException(ExternalErrorCode.KOSIS_API_REQUEST_FAILED);
     }
+  }
+
+  private List<KosisDataItem> parseResponse(KosisProperties.Indicator indicator, String response)
+          throws JsonProcessingException {
+    if (response == null || response.isBlank()) {
+      return List.of();
+    }
+
+    String trimmedResponse = response.stripLeading();
+    if (!trimmedResponse.startsWith("[")) {
+      log.warn(
+              "KOSIS returned non-array response: key={}, responsePreview={}",
+              indicator.key(),
+              preview(trimmedResponse));
+      throw new JsonProcessingException("KOSIS response is not a JSON array") {};
+    }
+
+    return Arrays.asList(objectMapper.readValue(trimmedResponse, KosisDataItem[].class));
+  }
+
+  private String preview(String response) {
+    return response.substring(0, Math.min(response.length(), 300)).replaceAll("\\s+", " ");
   }
 }
