@@ -37,7 +37,7 @@ public class News {
   @Column(name = "content", columnDefinition = "TEXT", nullable = false)
   private String content;
 
-  @Column(name = "description")
+  @Column(name = "description", columnDefinition = "TEXT")
   private String description;
 
   @Column(name = "image_url", columnDefinition = "TEXT")
