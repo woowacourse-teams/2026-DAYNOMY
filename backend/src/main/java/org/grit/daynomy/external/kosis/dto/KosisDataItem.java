@@ -1,7 +1,9 @@
 package org.grit.daynomy.external.kosis.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record KosisDataItem(
     @JsonProperty("TBL_NM") String tableName,
     @JsonProperty("ITM_NM") String itemName,
