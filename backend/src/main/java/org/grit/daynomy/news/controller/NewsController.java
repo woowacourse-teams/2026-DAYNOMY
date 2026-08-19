@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsDetailResponse;
+import org.grit.daynomy.news.dto.NewsListItemResponse;
 import org.grit.daynomy.news.dto.NewsPageResponse;
 import org.grit.daynomy.news.service.NewsService;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,12 @@ public class NewsController {
           int size,
       @Parameter(description = "뉴스 카테고리") @RequestParam(required = false) Category category) {
     return ResponseEntity.ok(newsService.getNewsPage(page, size, category));
+  }
+
+  @Operation(summary = "오늘의 뉴스 조회", description = "오늘 발행된 뉴스 중 가장 최신 뉴스를 조회합니다.")
+  @GetMapping("/today")
+  public ResponseEntity<NewsListItemResponse> getTodayNews() {
+    return ResponseEntity.ok(newsService.getTodayNews());
   }
 
   @Operation(summary = "뉴스 상세 조회", description = "뉴스 ID로 단일 뉴스를 조회합니다.")
