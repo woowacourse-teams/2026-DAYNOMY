@@ -28,6 +28,7 @@ export class ApiError extends Error {
 }
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+let refreshPromise: Promise<void> | null = null;
 
 export function getApiUrl(path: string) {
   return `${API_BASE_URL}${path}`;
@@ -44,11 +45,32 @@ async function parseError(response: Response): Promise<ApiError> {
   return new ApiError(response.status);
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function refreshAccessToken(): Promise<void> {
+  if (!refreshPromise) {
+    refreshPromise = requestWithCsrf<void>('/api/auth/refresh', { method: 'POST' }, false).finally(
+      () => {
+        refreshPromise = null;
+      },
+    );
+  }
+
+  return refreshPromise;
+}
+
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  retryOnUnauthorized = true,
+): Promise<T> {
   const response = await fetch(getApiUrl(path), {
     ...init,
     credentials: 'include',
   });
+
+  if (response.status === 401 && retryOnUnauthorized) {
+    await refreshAccessToken();
+    return request<T>(path, init, false);
+  }
 
   if (!response.ok) {
     throw await parseError(response);
@@ -61,12 +83,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function requestWithCsrf<T>(path: string, init: RequestInit): Promise<T> {
-  const csrfToken = await request<CsrfTokenResponse>('/api/auth/csrf');
+async function requestWithCsrf<T>(
+  path: string,
+  init: RequestInit,
+  retryOnUnauthorized = true,
+): Promise<T> {
+  const csrfToken = await request<CsrfTokenResponse>('/api/auth/csrf', {}, false);
   const headers = new Headers(init.headers);
   headers.set(csrfToken.headerName, csrfToken.token);
 
-  return request<T>(path, { ...init, headers });
+  return request<T>(path, { ...init, headers }, retryOnUnauthorized);
 }
 
 export function getMyProfile(signal?: AbortSignal) {
