@@ -28,7 +28,8 @@ public class DartClient {
   public DartDisclosureResponse getDisclosures(
       LocalDate beginDate, LocalDate endDate, String disclosureType, String corporationClass) {
     try {
-      return restClient
+      DartDisclosureResponse response =
+          restClient
           .get()
           .uri(
               uriBuilder ->
@@ -46,6 +47,8 @@ public class DartClient {
                       .build())
           .retrieve()
           .body(DartDisclosureResponse.class);
+      validateStatus(response.status());
+      return response;
     } catch (RestClientException exception) {
       throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
     }
@@ -80,7 +83,8 @@ public class DartClient {
       LocalDate beginDate,
       LocalDate endDate) {
     try {
-      return restClient
+      T response =
+          restClient
           .get()
           .uri(
               uriBuilder ->
@@ -93,9 +97,30 @@ public class DartClient {
                       .build())
           .retrieve()
           .body(responseType);
+      validateStatus(statusOf(response));
+      return response;
     } catch (RestClientException exception) {
       throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
     }
+  }
+
+  private void validateStatus(String status) {
+    if (!"000".equals(status) && !"013".equals(status)) {
+      throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
+    }
+  }
+
+  private String statusOf(Object response) {
+    if (response instanceof DartCapitalIncreaseResponse capitalIncreaseResponse) {
+      return capitalIncreaseResponse.status();
+    }
+    if (response instanceof DartConvertibleBondResponse convertibleBondResponse) {
+      return convertibleBondResponse.status();
+    }
+    if (response instanceof DartMergerDecisionResponse mergerDecisionResponse) {
+      return mergerDecisionResponse.status();
+    }
+    return null;
   }
 
   private String formatDate(LocalDate date) {
