@@ -38,7 +38,7 @@ function isNewsPage(value: unknown): value is NewsPage {
   );
 }
 
-export function buildNewsSearchUrl(keyword: string, category: NewsCategory, page = 0, size = 10) {
+export function buildNewsSearchUrl(keyword: string, category: NewsCategory, page = 1, size = 10) {
   const params = new URLSearchParams({
     q: keyword,
     page: String(page),
@@ -50,7 +50,7 @@ export function buildNewsSearchUrl(keyword: string, category: NewsCategory, page
   return `/api/search/news?${params.toString()}`;
 }
 
-export async function searchNews(keyword: string, category: NewsCategory, page = 0, size = 10) {
+export async function searchNews(keyword: string, category: NewsCategory, page = 1, size = 10) {
   try {
     const { data } = await axios.get<unknown>(buildNewsSearchUrl(keyword, category, page, size));
 

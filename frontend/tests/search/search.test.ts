@@ -36,7 +36,7 @@ test('백엔드 Category enum과 같은 카테고리를 사용한다', () => {
 test('검색어와 선택한 카테고리로 뉴스 검색 URL을 만든다', () => {
   assert.equal(
     buildNewsSearchUrl('기준 금리', 'ALL'),
-    '/api/search/news?q=%EA%B8%B0%EC%A4%80+%EA%B8%88%EB%A6%AC&page=0&size=10',
+    '/api/search/news?q=%EA%B8%B0%EC%A4%80+%EA%B8%88%EB%A6%AC&page=1&size=10',
   );
   assert.equal(
     buildNewsSearchUrl('금', 'GOLD', 2, 10),
@@ -63,7 +63,7 @@ test('검색 성공 응답을 뉴스 카드 데이터로 읽는다', async () =>
           publishedAt: '2026-08-14T10:00:00',
         },
       ],
-      page: 0,
+      page: 1,
       size: 10,
       totalElements: 1,
       totalPages: 1,
@@ -83,6 +83,7 @@ test('검색 성공 응답을 뉴스 카드 데이터로 읽는다', async () =>
     '기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.',
   );
   assert.equal(results.content[0]?.imageUrl, 'https://example.com/base-rate.webp');
+  assert.equal(results.page, 1);
   assert.equal(results.totalElements, 1);
 });
 
@@ -101,7 +102,7 @@ test('검색 페이지 조건 실패 응답의 도메인 code와 message를 전�
   }) satisfies AxiosAdapter;
 
   await assert.rejects(
-    () => searchNews('금리', 'ALL', -1),
+    () => searchNews('금리', 'ALL', 0),
     (error: unknown) =>
       error instanceof ApiError &&
       error.code === SEARCH_ERROR_CODES.SEARCH_INVALID_PAGE_CONDITION &&

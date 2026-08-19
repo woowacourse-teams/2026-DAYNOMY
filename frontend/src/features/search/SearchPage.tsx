@@ -45,7 +45,7 @@ function SearchPage() {
       setError(null);
 
       try {
-        const newsPage = await searchNews(searchedKeyword, selectedCategory, page - 1, PAGE_SIZE);
+        const newsPage = await searchNews(searchedKeyword, selectedCategory, page, PAGE_SIZE);
 
         if (!ignore) {
           setResults(newsPage.content);
