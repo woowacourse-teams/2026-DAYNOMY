@@ -9,7 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -57,7 +57,7 @@ public class Member extends BaseEntity {
   private MemberStatus status;
 
   @Column(name = "withdrawn_at")
-  private LocalDateTime withdrawnAt;
+  private Instant withdrawnAt;
 
   private Member(
       OAuthProvider provider,
@@ -85,7 +85,7 @@ public class Member extends BaseEntity {
 
   public void withdraw() {
     this.status = MemberStatus.WITHDRAWN;
-    this.withdrawnAt = LocalDateTime.now();
+    this.withdrawnAt = Instant.now();
   }
 
   public boolean isWithdrawn() {
