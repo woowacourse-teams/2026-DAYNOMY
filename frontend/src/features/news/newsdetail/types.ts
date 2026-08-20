@@ -10,6 +10,7 @@ export type NewsDetail = {
   description: string;
   content: string[];
   imageUrl?: string;
+  sourceUrl?: string;
 };
 
 export type Impact = {
@@ -38,5 +39,5 @@ export type MarketAnalysis = {
 export type NewsDetailPayload = {
   news: NewsDetail;
   keywords: NewsKeyword[];
-  marketAnalysis: MarketAnalysis;
+  marketAnalysis?: MarketAnalysis;
 };

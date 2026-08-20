@@ -16,14 +16,27 @@ function getNewsIdFromUrl() {
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
   const [payload, setPayload] = useState<NewsDetailPayload>();
+  const [error, setError] = useState('');
   const goBack = () => {
     window.location.href = '/';
   };
 
   useEffect(() => {
     trackEvent('view_news_detail', { news_id: newsId });
-    getNewsDetail(newsId).then(setPayload);
+    setError('');
+    getNewsDetail(newsId)
+      .then(setPayload)
+      .catch(() => setError('뉴스를 불러오지 못했습니다.'));
   }, [newsId]);
+
+  if (error) {
+    return (
+      <main className="news-page">
+        <Header />
+        <p className="loading">{error}</p>
+      </main>
+    );
+  }
 
   if (!payload) {
     return (
@@ -56,6 +69,11 @@ export function NewsDetailPage() {
         <div className="meta">
           <span className="category">{getCategoryLabel(news.category)}</span>
           <time>{news.publishedAt}</time>
+          {news.sourceUrl ? (
+            <a className="source-link" href={news.sourceUrl} target="_blank" rel="noreferrer">
+              원본 보기
+            </a>
+          ) : null}
         </div>
 
         <h1>{news.title}</h1>
@@ -78,7 +96,7 @@ export function NewsDetailPage() {
           </div>
         </section>
 
-        <MarketAnalysis marketAnalysis={marketAnalysis} />
+        {marketAnalysis ? <MarketAnalysis marketAnalysis={marketAnalysis} /> : null}
       </article>
     </main>
   );

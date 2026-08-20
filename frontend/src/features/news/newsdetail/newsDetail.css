@@ -80,6 +80,15 @@ body {
   color: #4f46e5;
 }
 
+.source-link {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.source-link:hover {
+  text-decoration: underline;
+}
+
 .news-detail h1 {
   margin: 12px 0 14px;
   color: #111827;

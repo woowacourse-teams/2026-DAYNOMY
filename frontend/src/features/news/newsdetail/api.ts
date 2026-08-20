@@ -1,6 +1,11 @@
-import { mockKeywords, mockMarketAnalysis, mockNews } from './mock.ts';
 import { isCategory } from '../newslist/types.ts';
-import type { Direction, MarketAnalysis, NewsDetail, NewsDetailPayload, NewsKeyword } from './types.ts';
+import type {
+  Direction,
+  MarketAnalysis,
+  NewsDetail,
+  NewsDetailPayload,
+  NewsKeyword,
+} from './types.ts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -10,6 +15,7 @@ type NewsDetailResponse = {
   content: string;
   description: string;
   imageUrl: string | null;
+  sourceUrl?: string | null;
   category: string;
   publishedAt: string;
 };
@@ -67,17 +73,18 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function normalizeNews(raw: Partial<NewsDetailResponse> & Record<string, unknown>): NewsDetail {
+function normalizeNews(raw: NewsDetailResponse): NewsDetail {
   return {
-    id: typeof raw.id === 'number' ? raw.id : mockNews.id,
-    title: String(raw.title ?? mockNews.title),
-    category: isCategory(raw.category) ? raw.category : mockNews.category,
-    publishedAt: String(raw.publishedAt ?? mockNews.publishedAt),
-    description: String(raw.description ?? mockNews.description),
-    content: String(raw.content ?? raw.description ?? '')
+    id: raw.id,
+    title: raw.title,
+    category: isCategory(raw.category) ? raw.category : 'STOCK',
+    publishedAt: raw.publishedAt,
+    description: raw.description,
+    content: raw.content
       .split('\n')
       .filter(Boolean),
-    imageUrl: typeof raw.imageUrl === 'string' ? raw.imageUrl : undefined,
+    imageUrl: raw.imageUrl ?? undefined,
+    sourceUrl: raw.sourceUrl ?? undefined,
   };
 }
 
@@ -102,19 +109,18 @@ function normalizeMarketAnalysis(raw: MarketAnalysisResponse): MarketAnalysis {
 }
 
 export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> {
-  const [news, marketAnalysis, keywords] = await Promise.allSettled([
-    getJson<NewsDetailResponse>(`/api/news/${newsId}`),
+  const news = await getJson<NewsDetailResponse>(`/api/news/${newsId}`);
+  const [marketAnalysis, keywords] = await Promise.allSettled([
     getJson<MarketAnalysisResponse>(`/api/news/${newsId}/market-analysis`),
     getJson<KeywordsResponse>(`/api/news/${newsId}/keywords`),
   ]);
-  const normalizedMarketAnalysis =
-    marketAnalysis.status === 'fulfilled'
-      ? normalizeMarketAnalysis(marketAnalysis.value)
-      : mockMarketAnalysis;
 
   return {
-    news: news.status === 'fulfilled' ? normalizeNews(news.value) : mockNews,
-    keywords: keywords.status === 'fulfilled' ? keywords.value.keywords : mockKeywords,
-    marketAnalysis: normalizedMarketAnalysis,
+    news: normalizeNews(news),
+    keywords: keywords.status === 'fulfilled' ? keywords.value.keywords : [],
+    marketAnalysis:
+      marketAnalysis.status === 'fulfilled'
+        ? normalizeMarketAnalysis(marketAnalysis.value)
+        : undefined,
   };
 }
