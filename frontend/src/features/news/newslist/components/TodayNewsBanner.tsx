@@ -1,11 +1,11 @@
 import defaultNewsImage from '../../../../assets/default-news-real-estate.png';
 import { getCategoryLabel } from '../constants';
-import type { NewsArticle } from '../types';
+import type { NewsListItemResponse } from '../types';
 import { formatDate } from '../utils';
 
 type TodayNewsBannerProps = {
-  article: NewsArticle;
-  onSelect: (article: NewsArticle) => void;
+  article: NewsListItemResponse;
+  onSelect: (article: NewsListItemResponse) => void;
 };
 
 export function TodayNewsBanner({ article, onSelect }: TodayNewsBannerProps) {

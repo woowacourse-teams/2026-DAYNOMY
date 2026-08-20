@@ -1,33 +1,51 @@
-import type { Direction, Impact, RelatedIssue } from '../types.ts';
+import { getCategoryLabel } from '../../newslist/types.ts';
+import type {
+  AssetImpactResponse,
+  ImpactDirection,
+  ImpactLevel,
+  MarketAnalysisResponse,
+  ScenarioResponse,
+  TimeHorizon,
+} from '../types.ts';
 
-const directionLabel: Record<Direction, string> = {
-  positive: '긍정',
-  negative: '부정',
-  neutral: '중립',
+const directionLabel: Record<ImpactDirection, string> = {
+  POSITIVE: '긍정',
+  NEGATIVE: '부정',
 };
 
-const directionScore: Record<Direction, number> = {
-  positive: 78,
-  neutral: 52,
-  negative: 34,
+const directionClassName: Record<ImpactDirection, string> = {
+  POSITIVE: 'positive',
+  NEGATIVE: 'negative',
 };
 
-export function MarketAnalysis({
-  description,
-  impacts,
-  issues,
-}: {
-  description: string;
-  impacts: Impact[];
-  issues: RelatedIssue[];
-}) {
+const impactLevelScore: Record<ImpactLevel, number> = {
+  HIGH: 78,
+  MEDIUM: 52,
+  LOW: 34,
+};
+
+const timeHorizonLabel: Record<TimeHorizon, string> = {
+  SHORT_TERM: '단기',
+  MID_TERM: '중기',
+  LONG_TERM: '장기',
+};
+
+function getAssetLabel(asset: AssetImpactResponse['asset']) {
+  return asset === 'MOCK' ? '기타' : getCategoryLabel(asset);
+}
+
+function getScenarioTitle(scenario: ScenarioResponse) {
+  return `${timeHorizonLabel[scenario.timeHorizon]} 시나리오`;
+}
+
+export function MarketAnalysis({ marketAnalysis }: { marketAnalysis: MarketAnalysisResponse }) {
   return (
     <section className="section">
       <h2>시장 분석</h2>
       <div className="market-analysis">
         <article className="analysis-card">
           <h3>1. 이슈의 핵심 내용</h3>
-          <p>{description}</p>
+          <p>{marketAnalysis.cause}</p>
         </article>
 
         <article className="analysis-card">
@@ -40,16 +58,18 @@ export function MarketAnalysis({
         </article>
 
         <div className="impact-chart">
-          {impacts.map((impact) => (
+          {marketAnalysis.assets.map((impact) => (
             <div className="impact-row" key={impact.asset}>
-              <span>{impact.asset}</span>
+              <span>{getAssetLabel(impact.asset)}</span>
               <div className="impact-track">
                 <i
-                  className={impact.direction}
-                  style={{ width: `${directionScore[impact.direction]}%` }}
+                  className={directionClassName[impact.direction]}
+                  style={{ width: `${impactLevelScore[impact.impactLevel]}%` }}
                 />
               </div>
-              <strong className={impact.direction}>{directionLabel[impact.direction]}</strong>
+              <strong className={directionClassName[impact.direction]}>
+                {directionLabel[impact.direction]}
+              </strong>
             </div>
           ))}
         </div>
@@ -57,13 +77,13 @@ export function MarketAnalysis({
         <article className="analysis-card">
           <h3>3. 단기·중기·장기 시나리오</h3>
           <div className="scenario-list">
-            {issues.map((issue) => (
-              <div className="scenario-card" key={issue.title}>
+            {marketAnalysis.scenarios.map((scenario) => (
+              <div className="scenario-card" key={scenario.timeHorizon}>
                 <div>
-                  <strong>{issue.title}</strong>
-                  {issue.probability && <span>가능성 {issue.probability}%</span>}
+                  <strong>{getScenarioTitle(scenario)}</strong>
+                  <span>가능성 {scenario.probability}%</span>
                 </div>
-                <p>{issue.description}</p>
+                <p>{scenario.prediction}</p>
               </div>
             ))}
           </div>
