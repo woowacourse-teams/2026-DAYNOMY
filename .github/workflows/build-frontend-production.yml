@@ -37,6 +37,7 @@ jobs:
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           SENTRY_ENVIRONMENT: ${{ vars.SENTRY_ENVIRONMENT }}
+          GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
@@ -44,6 +45,7 @@ jobs:
         run: |
           : "${SENTRY_DSN:?SENTRY_DSN is required}"
           : "${SENTRY_ENVIRONMENT:?SENTRY_ENVIRONMENT is required}"
+          : "${GA_MEASUREMENT_ID:?GA_MEASUREMENT_ID is required}"
           : "${SENTRY_AUTH_TOKEN:?SENTRY_AUTH_TOKEN is required}"
           : "${SENTRY_ORG:?SENTRY_ORG is required}"
           : "${SENTRY_PROJECT:?SENTRY_PROJECT is required}"

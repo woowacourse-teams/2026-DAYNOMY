@@ -7,6 +7,7 @@ import { KeywordText } from './components/KeywordText.tsx';
 import { MarketAnalysis } from './components/MarketAnalysis.tsx';
 import type { NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
+import { trackEvent } from '../../../analytics';
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -20,6 +21,7 @@ export function NewsDetailPage() {
   };
 
   useEffect(() => {
+    trackEvent('view_news_detail', { news_id: newsId });
     getNewsDetail(newsId).then(setPayload);
   }, [newsId]);
 

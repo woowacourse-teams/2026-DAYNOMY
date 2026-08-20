@@ -70,6 +70,20 @@ npm run lint
 
 ## Sentry 오류 모니터링
 
+## GA4 사용자 행동 모니터링
+
+배포 환경에 GA4 웹 데이터 스트림의 Measurement ID를 설정합니다.
+
+| 변수                | 용도                                |
+| ------------------- | ----------------------------------- |
+| `GA_MEASUREMENT_ID` | GA4 웹 데이터 스트림 Measurement ID |
+
+현재 다음 이벤트를 수집합니다.
+
+`page_view`, `view_news_list`, `view_news_detail`, `search_news`, `search_no_result`, `click_login`, `login_success`, `login_failure`
+
+이벤트에는 이메일, 전화번호, 이름, 인증 토큰 등 개인정보를 포함하지 않습니다. GA4 Realtime 또는 DebugView에서 이벤트 수집 여부를 확인합니다.
+
 ### 런타임 환경 변수
 
 배포 환경에 다음 값을 설정합니다. 로컬 기본값은 `.env.example`을 참고합니다.

@@ -5,6 +5,7 @@ import { CATEGORY_LABELS } from '../news/newslist/types';
 import type { NewsArticle, NewsCategory, NewsCategoryOption } from '../news/newslist/types';
 import { searchNews } from './api';
 import './SearchPage.css';
+import { trackEvent } from '../../analytics';
 
 const PAGE_SIZE = 10;
 const SEARCH_CATEGORIES: NewsCategoryOption[] = [
@@ -51,6 +52,9 @@ function SearchPage() {
           setResults(newsPage.content);
           setTotalResults(newsPage.totalElements);
           setTotalPages(newsPage.totalPages);
+          if (newsPage.content.length === 0) {
+            trackEvent('search_no_result', { search_term: searchedKeyword });
+          }
         }
       } catch (caughtError) {
         if (!ignore) {
@@ -81,6 +85,7 @@ function SearchPage() {
     setQuery(keyword);
     setSearchedKeyword(keyword);
     setPage(1);
+    trackEvent('search_news', { search_term: keyword });
   }
 
   function changeCategory(category: NewsCategory) {
