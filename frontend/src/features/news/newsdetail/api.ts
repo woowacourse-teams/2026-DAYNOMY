@@ -1,6 +1,12 @@
-import { mockImpacts, mockNews, mockRelatedIssues } from './mock.ts';
+import { mockKeywords, mockMarketAnalysis, mockNews } from './mock.ts';
 import { isCategory } from '../newslist/types.ts';
-import type { Impact, NewsDetail, NewsDetailPayload, RelatedIssue } from './types.ts';
+import type {
+  KeywordsResponse,
+  MarketAnalysisResponse,
+  NewsDetailPayload,
+  NewsDetailResponse,
+  NewsDetailView,
+} from './types.ts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -14,7 +20,7 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function normalizeNews(raw: Partial<NewsDetail> & Record<string, unknown>): NewsDetail {
+function normalizeNews(raw: Partial<NewsDetailResponse> & Record<string, unknown>): NewsDetailView {
   return {
     title: String(raw.title ?? mockNews.title),
     category: isCategory(raw.category) ? raw.category : mockNews.category,
@@ -36,30 +42,17 @@ function normalizeNews(raw: Partial<NewsDetail> & Record<string, unknown>): News
   };
 }
 
-function normalizeRelatedIssues(
-  raw: Array<Partial<RelatedIssue> & Record<string, unknown>>,
-): RelatedIssue[] {
-  return raw.map((issue) => ({
-    keyword: typeof issue.keyword === 'string' ? issue.keyword : String(issue.title ?? ''),
-    title: String(issue.title ?? issue.keyword ?? '키워드'),
-    probability: typeof issue.probability === 'number' ? issue.probability : undefined,
-    description: String(issue.description ?? issue.analysis ?? ''),
-  }));
-}
-
 export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> {
-  const [news, impacts, relatedIssues] = await Promise.allSettled([
-    getJson<Partial<NewsDetail> & Record<string, unknown>>(`/api/news/${newsId}`),
-    getJson<Impact[]>(`/api/news/${newsId}/impacts`),
-    getJson<Array<Partial<RelatedIssue> & Record<string, unknown>>>(`/api/news/${newsId}/related`),
+  const [news, marketAnalysis, keywords] = await Promise.allSettled([
+    getJson<Partial<NewsDetailResponse> & Record<string, unknown>>(`/api/news/${newsId}`),
+    getJson<MarketAnalysisResponse>(`/api/news/${newsId}/market-analysis`),
+    getJson<KeywordsResponse>(`/api/news/${newsId}/keywords`),
   ]);
 
   return {
     news: news.status === 'fulfilled' ? normalizeNews(news.value) : mockNews,
-    impacts: impacts.status === 'fulfilled' ? impacts.value : mockImpacts,
-    relatedIssues:
-      relatedIssues.status === 'fulfilled'
-        ? normalizeRelatedIssues(relatedIssues.value)
-        : mockRelatedIssues,
+    marketAnalysis:
+      marketAnalysis.status === 'fulfilled' ? marketAnalysis.value : mockMarketAnalysis,
+    keywords: keywords.status === 'fulfilled' ? keywords.value.keywords : mockKeywords,
   };
 }
