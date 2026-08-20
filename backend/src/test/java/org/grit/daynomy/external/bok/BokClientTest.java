@@ -47,6 +47,28 @@ class BokClientTest {
     assertThat(response.getLast().value()).isEqualTo("2.50");
   }
 
+  @Test
+  @DisplayName("한국은행 ECOS 데이터 없음 응답은 빈 목록으로 처리한다")
+  void getRecentDataWithNoDataResult() throws Exception {
+    BokClient client =
+        new BokClient(new BokProperties("test-key", startServer(bokNoDataResponse()), List.of()));
+    var indicator =
+        new BokProperties.Indicator(
+            "base-rate",
+            "한국은행 기준금리",
+            "722Y001",
+            "M",
+            Category.ECONOMY,
+            "한국은행",
+            "한국은행 기준금리 및 여수신금리",
+            "한국은행 기준금리",
+            List.of("0101000"));
+
+    var response = client.getRecentData(indicator);
+
+    assertThat(response).isEmpty();
+  }
+
   private String startServer(String responseBody) throws IOException {
     server = HttpServer.create(new InetSocketAddress(0), 0);
     server.createContext(
@@ -93,6 +115,17 @@ class BokClientTest {
                 "UNKNOWN_FIELD": "ignored"
               }
             ]
+          }
+        }
+        """;
+  }
+
+  private String bokNoDataResponse() {
+    return """
+        {
+          "RESULT": {
+            "CODE": "INFO-200",
+            "MESSAGE": "해당하는 데이터가 없습니다."
           }
         }
         """;

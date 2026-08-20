@@ -20,6 +20,7 @@ public class BokClient {
   private static final String DAILY = "D";
   private static final String MONTHLY = "M";
   private static final String YEARLY = "Y";
+  private static final String NO_DATA_CODE = "INFO-200";
   private static final DateTimeFormatter DAILY_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
   private static final DateTimeFormatter MONTHLY_FORMAT = DateTimeFormatter.ofPattern("yyyyMM");
 
@@ -49,13 +50,20 @@ public class BokClient {
               .retrieve()
               .body(BokStatisticResponse.class);
 
-      if (response == null || response.search() == null || response.search().rows() == null) {
+      if (response == null || isNoDataResult(response.result())) {
+        return List.of();
+      }
+      if (response.search() == null || response.search().rows() == null) {
         return List.of();
       }
       return response.search().rows();
     } catch (RestClientException exception) {
       throw new BusinessException(ExternalErrorCode.BOK_API_REQUEST_FAILED);
     }
+  }
+
+  private boolean isNoDataResult(BokStatisticResponse.Result result) {
+    return result != null && NO_DATA_CODE.equals(result.code());
   }
 
   private String apiPath(BokProperties.Indicator indicator, String startPeriod, String endPeriod) {
