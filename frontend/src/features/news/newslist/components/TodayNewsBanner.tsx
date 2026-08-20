@@ -1,5 +1,5 @@
 import defaultNewsImage from '../../../../assets/default-news-real-estate.png';
-import { getCategoryLabel } from '../types';
+import { getCategoryLabel } from '../constants';
 import type { NewsArticle } from '../types';
 import { formatDate } from '../utils';
 
@@ -18,7 +18,7 @@ export function TodayNewsBanner({ article, onSelect }: TodayNewsBannerProps) {
         </div>
         <h2>{article.title}</h2>
         <p>{article.description}</p>
-        <span className="article-source">{article.source}</span>
+        {article.source ? <span className="article-source">{article.source}</span> : null}
       </div>
       <div className="banner-visual" aria-hidden="true">
         <img src={article.imageUrl ?? defaultNewsImage} alt="" />
