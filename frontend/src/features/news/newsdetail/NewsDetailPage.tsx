@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Header } from '../../../components/Header.tsx';
 import defaultNewsImage from '../../../assets/default-news-real-estate.png';
+import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { MarketAnalysis } from './components/MarketAnalysis.tsx';
@@ -53,7 +54,7 @@ export function NewsDetailPage() {
         </button>
 
         <div className="meta">
-          <span className="category">{news.category}</span>
+          <span className="category">{getCategoryLabel(news.category)}</span>
           <time>{news.publishedAt}</time>
         </div>
 
@@ -63,13 +64,13 @@ export function NewsDetailPage() {
 
         <section className="section">
           <h2>핵심 요약</h2>
-          <p className="summary">{news.summary}</p>
+          <p className="summary">{news.description}</p>
         </section>
 
         <section className="section">
           <h2>AI 본문</h2>
           <div className="body-copy">
-            {news.body.map((paragraph) => (
+            {news.content.map((paragraph) => (
               <p key={paragraph}>
                 <KeywordText text={paragraph} issues={relatedIssues} />
               </p>
@@ -77,7 +78,7 @@ export function NewsDetailPage() {
           </div>
         </section>
 
-        <MarketAnalysis summary={news.summary} impacts={impacts} issues={relatedIssues} />
+        <MarketAnalysis description={news.description} impacts={impacts} issues={relatedIssues} />
       </article>
     </main>
   );
