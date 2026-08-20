@@ -34,7 +34,7 @@ export function NewsDetailPage() {
     );
   }
 
-  const { news, impacts, relatedIssues } = payload;
+  const { news, marketAnalysis, keywords } = payload;
   const imageUrl = news.imageUrl ?? defaultNewsImage;
 
   return (
@@ -72,13 +72,13 @@ export function NewsDetailPage() {
           <div className="body-copy">
             {news.content.map((paragraph) => (
               <p key={paragraph}>
-                <KeywordText text={paragraph} issues={relatedIssues} />
+                <KeywordText text={paragraph} keywords={keywords} />
               </p>
             ))}
           </div>
         </section>
 
-        <MarketAnalysis description={news.description} impacts={impacts} issues={relatedIssues} />
+        <MarketAnalysis marketAnalysis={marketAnalysis} />
       </article>
     </main>
   );

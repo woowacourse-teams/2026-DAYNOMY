@@ -25,7 +25,7 @@ export function getCategoryLabel(value: string) {
   return isCategory(value) ? CATEGORY_LABELS[value] : value;
 }
 
-export type NewsArticle = {
+export type NewsListItemResponse = {
   id: number | string;
   title: string;
   description?: string | null;
@@ -36,7 +36,7 @@ export type NewsArticle = {
 };
 
 export type NewsPage = {
-  content: NewsArticle[];
+  content: NewsListItemResponse[];
   page: number;
   size: number;
   totalPages: number;

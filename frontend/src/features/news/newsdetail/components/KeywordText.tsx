@@ -1,19 +1,18 @@
 import type { ReactNode } from 'react';
-import type { RelatedIssue } from '../types.ts';
+import type { KeywordResponse } from '../types.ts';
 
-function highlightKeywords(text: string, issues: RelatedIssue[]) {
-  const keywords = issues
-    .map((issue) => ({ ...issue, keyword: issue.keyword || issue.title }))
-    .filter((issue) => issue.keyword && text.includes(issue.keyword))
+function highlightKeywords(text: string, keywords: KeywordResponse[]) {
+  const matchedKeywords = keywords
+    .filter((keyword) => keyword.keyword && text.includes(keyword.keyword))
     .sort((a, b) => b.keyword.length - a.keyword.length);
 
-  if (!keywords.length) return text;
+  if (!matchedKeywords.length) return text;
 
   const parts: ReactNode[] = [];
   let index = 0;
 
   while (index < text.length) {
-    const match = keywords.find((issue) => text.startsWith(issue.keyword, index));
+    const match = matchedKeywords.find((keyword) => text.startsWith(keyword.keyword, index));
 
     if (!match) {
       parts.push(text[index]);
@@ -37,6 +36,6 @@ function highlightKeywords(text: string, issues: RelatedIssue[]) {
   return parts;
 }
 
-export function KeywordText({ text, issues }: { text: string; issues: RelatedIssue[] }) {
-  return <>{highlightKeywords(text, issues)}</>;
+export function KeywordText({ text, keywords }: { text: string; keywords: KeywordResponse[] }) {
+  return <>{highlightKeywords(text, keywords)}</>;
 }

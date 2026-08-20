@@ -1,13 +1,4 @@
-import type { NewsArticle, NewsCategory, NewsPage } from './types';
-
-type NewsListItemResponse = {
-  id: number;
-  title: string;
-  description?: string;
-  imageUrl?: string;
-  category: NewsCategory;
-  publishedAt?: string;
-};
+import type { NewsCategory, NewsListItemResponse, NewsPage } from './types';
 
 type NewsPageResponse = {
   items: NewsListItemResponse[];
@@ -20,7 +11,7 @@ type NewsPageResponse = {
 
 const DEFAULT_PAGE_SIZE = 10;
 
-function normalizeNewsArticle(item: NewsListItemResponse): NewsArticle {
+function normalizeNewsListItem(item: NewsListItemResponse): NewsListItemResponse {
   return {
     id: item.id,
     title: item.title,
@@ -32,7 +23,7 @@ function normalizeNewsArticle(item: NewsListItemResponse): NewsArticle {
 }
 
 function normalizeNewsPage(data: NewsPageResponse): NewsPage {
-  const content = data.items.map(normalizeNewsArticle);
+  const content = data.items.map(normalizeNewsListItem);
   return {
     content,
     page: data.page,
@@ -73,7 +64,7 @@ export async function getNews(
   return normalizeNewsPage(data);
 }
 
-export async function getTodayNews(): Promise<NewsArticle> {
+export async function getTodayNews(): Promise<NewsListItemResponse> {
   const response = await fetch('/api/news/today');
 
   if (!response.ok) {
@@ -86,5 +77,5 @@ export async function getTodayNews(): Promise<NewsArticle> {
     throw new Error('오늘의 뉴스를 불러오지 못했습니다.');
   }
 
-  return normalizeNewsArticle(data);
+  return normalizeNewsListItem(data);
 }
