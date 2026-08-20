@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import './SearchPage.css';
+import { trackEvent } from '../../analytics';
 
 const PAGE_SIZE = 10;
 
@@ -172,6 +173,10 @@ function SearchPage() {
     setQuery(nextKeyword);
     setSearchedKeyword(nextKeyword);
     setPage(1);
+    trackEvent('search_news', { search_term: nextKeyword });
+    if (!news.some(({ title, summary, category }) => `${title} ${summary} ${category}`.includes(nextKeyword))) {
+      trackEvent('search_no_result', { search_term: nextKeyword });
+    }
   };
 
   const changePage = (nextPage: number) => {

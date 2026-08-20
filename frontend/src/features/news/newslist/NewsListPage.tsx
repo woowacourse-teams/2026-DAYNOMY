@@ -8,6 +8,7 @@ import { TodayNewsBanner } from './components/TodayNewsBanner';
 import { getDummyNews, getDummyTodayNews, NEWS_CATEGORIES } from './mock';
 import type { NewsArticle, NewsCategory } from './types';
 import './newsList.css';
+import { trackEvent } from '../../../analytics';
 
 export function NewsListPage() {
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
@@ -22,6 +23,10 @@ export function NewsListPage() {
     () => NEWS_CATEGORIES.find((category) => category.value === selectedCategory)?.label ?? '전체',
     [selectedCategory],
   );
+
+  useEffect(() => {
+    trackEvent('view_news_list', { category: selectedCategory });
+  }, [selectedCategory]);
 
   useEffect(() => {
     let ignore = false;
