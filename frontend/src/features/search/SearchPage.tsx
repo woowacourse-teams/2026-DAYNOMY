@@ -57,7 +57,7 @@ function SearchPage() {
           setTotalResults(newsPage.totalElements);
           setTotalPages(newsPage.totalPages);
           if (newsPage.content.length === 0) {
-            trackEvent('search_no_result', { search_term: searchedKeyword });
+            trackEvent('search_no_result', { search_length: searchedKeyword.length });
           }
         }
       } catch (caughtError) {
@@ -89,7 +89,7 @@ function SearchPage() {
     setQuery(keyword);
     setSearchedKeyword(keyword);
     setPage(1);
-    trackEvent('search_news', { search_term: keyword });
+    trackEvent('search_news', { search_length: keyword.length });
   }
 
   function changeCategory(category: NewsCategory) {

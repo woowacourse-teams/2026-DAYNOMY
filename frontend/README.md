@@ -68,67 +68,118 @@ npm run lint
 
 ---
 
-## Sentry 오류 모니터링
+## 모니터링 구축
 
-## GA4 사용자 행동 모니터링
+### Sentry 오류 모니터링
 
-배포 환경에 GA4 웹 데이터 스트림의 Measurement ID를 설정합니다.
+Sentry는 프론트엔드 오류의 원인과 발생 환경을 확인하기 위해 사용합니다.
 
-| 변수                | 용도                                |
-| ------------------- | ----------------------------------- |
-| `GA_MEASUREMENT_ID` | GA4 웹 데이터 스트림 Measurement ID |
+| 환경         | 수집 여부     | 목적                  |
+| ------------ | ------------- | --------------------- |
+| `production` | 수집          | 실제 사용자 오류 대응 |
+| `staging`    | 수집          | 배포 전 오류 확인     |
+| `local`      | 수집하지 않음 | 개발 중 오류 제외     |
 
-현재 다음 이벤트를 수집합니다.
+현재 적용된 설정:
 
-`page_view`, `view_news_list`, `view_news_detail`, `search_news`, `search_no_result`, `click_login`, `login_success`, `login_failure`
+- `Sentry.ErrorBoundary`를 통한 렌더링 오류 수집
+- 운영·스테이징 환경에서만 Sentry 초기화
+- `sendDefaultPii: false` 적용
+- 사용자 정보 제거
+- 요청 헤더·쿠키·본문·쿼리 문자열 제거
+- URL 쿼리 문자열 제거
+- 숨김 소스맵 생성 및 Sentry 업로드
+- 배포 결과물에서 소스맵 삭제
+- Git commit SHA를 Sentry release로 기록
 
-이벤트에는 이메일, 전화번호, 이름, 인증 토큰 등 개인정보를 포함하지 않습니다. GA4 Realtime 또는 DebugView에서 이벤트 수집 여부를 확인합니다.
+### Sentry 환경 변수
 
-### 런타임 환경 변수
+| 변수                 | 용도                            |
+| -------------------- | ------------------------------- |
+| `SENTRY_DSN`         | Sentry 프로젝트 Client Key(DSN) |
+| `SENTRY_ENVIRONMENT` | `staging` 또는 `production`     |
+| `SENTRY_AUTH_TOKEN`  | 소스맵 업로드용 CI Secret       |
+| `SENTRY_ORG`         | Sentry 조직 slug                |
+| `SENTRY_PROJECT`     | Sentry 프로젝트 slug            |
+| `SENTRY_RELEASE`     | 배포한 Git commit SHA           |
 
-배포 환경에 다음 값을 설정합니다. 로컬 기본값은 `.env.example`을 참고합니다.
+`SENTRY_AUTH_TOKEN`은 브라우저에 전달하지 않고 GitHub Actions Secret으로만 관리합니다.
 
-| 변수                 | 값                                |
-| -------------------- | --------------------------------- |
-| `SENTRY_DSN`         | Sentry 프로젝트의 Client Key(DSN) |
-| `SENTRY_ENVIRONMENT` | `staging` 또는 `production`       |
+### Sentry 알림
 
-Sentry는 프로덕션 빌드이면서 환경이 `staging` 또는 `production`일 때만 초기화됩니다. 개발 서버와 `local` 환경에서는 전송하지 않습니다.
+Sentry Alerts에서 다음 조건을 설정합니다.
 
-### 소스맵과 릴리스
+- 새 오류 또는 회귀 발생
+- 치명적 오류 발생
+- 짧은 시간 동안 오류 급증
 
-배포 빌드에 다음 값을 설정합니다.
+반복 오류 임계값은 실제 운영 트래픽을 확인한 뒤 조정합니다.
 
-| 변수                | 용도                      |
-| ------------------- | ------------------------- |
-| `SENTRY_AUTH_TOKEN` | 소스맵 업로드용 CI Secret |
-| `SENTRY_ORG`        | Sentry 조직 slug          |
-| `SENTRY_PROJECT`    | Sentry 프로젝트 slug      |
-| `SENTRY_RELEASE`    | 배포한 Git commit SHA     |
+### Custom Integration, Session Replay, Performance Monitoring
 
-네 값이 모두 있을 때만 숨김 소스맵을 생성해 Sentry에 업로드하고, 업로드가 끝나면 배포 결과물에서 소스맵을 삭제합니다. `SENTRY_AUTH_TOKEN`은 브라우저에 전달하지 않고 CI Secret으로만 관리합니다.
+- Sentry 오류 발생 시 GitHub Issue를 자동 생성하는 Custom Integration은 추후 필요할 때 추가합니다.
+- Session Replay는 Sentry 이벤트만으로 재현하기 어려운 오류가 반복될 때 추가합니다.
+- Performance Monitoring은 검색·뉴스 API의 운영 트래픽이 충분히 쌓인 뒤 추가합니다.
 
-### 배포 검증
+### GA4 사용자 행동 모니터링
 
-1. 배포된 사이트의 브라우저 콘솔에서 아래 오류를 한 번 발생시킵니다.
+GA4는 방문자 수, 페이지 이동, 검색, 로그인 전환을 확인하기 위해 사용합니다.
 
-   ```js
-   setTimeout(() => {
-     throw new Error('Sentry deployment verification');
-   }, 0);
-   ```
+#### 기본 설정
 
-2. Sentry에서 이벤트 수집, 원본 TS/TSX 스택, `release`의 Git SHA, `environment` 값을 확인합니다.
-3. 이벤트의 사용자, 요청 헤더·쿠키·본문·쿼리 문자열이 제거됐는지 확인한 뒤 테스트 이슈를 처리 완료합니다.
+- GA4 계정 및 웹 데이터 스트림 생성
+- Measurement ID 발급
+- `GA_MEASUREMENT_ID` 환경 변수 설정
+- `gtag.js`를 통한 GA4 초기화
+- React Router 페이지 이동 시 `page_view` 수집
 
-오류 메시지 자체에는 토큰이나 개인정보를 넣지 않습니다.
+#### 현재 수집 이벤트
 
-### 알림 규칙
+| 이벤트             | 발생 시점        | 주요 파라미터          |
+| ------------------ | ---------------- | ---------------------- |
+| `page_view`        | 페이지 이동      | `page_path`            |
+| `view_news_list`   | 뉴스 목록 진입   | `category`             |
+| `view_news_detail` | 뉴스 상세 진입   | `news_id`              |
+| `search_news`      | 검색 실행        | `search_length`        |
+| `search_no_result` | 검색 결과 없음   | `search_length`        |
+| `click_login`      | 로그인 버튼 클릭 | 없음                   |
+| `login_success`    | 로그인 성공 확인 | `method`               |
+| `login_failure`    | 로그인 실패      | `method`, `error_code` |
 
-Sentry 프로젝트의 Alerts에서 아래 Issue Alert를 설정합니다.
+검색어 원문은 전송하지 않고 검색어 길이만 전송합니다. 이메일, 전화번호, 이름,
+인증 토큰 등 개인정보를 GA4 이벤트 파라미터에 포함하지 않습니다.
 
-- 새 이슈 또는 회귀 발생 시 즉시 알림
-- 같은 이슈가 5분 안에 10회 이상 발생하면 알림
-- 알림 대상은 프론트엔드 담당 채널 또는 이메일
+#### 분석 질문
 
-반복 오류 임계값은 첫 운영 주의 실제 트래픽과 오류량을 확인한 뒤 조정합니다.
+- 뉴스 목록에서 뉴스 상세 화면으로 이동하는 비율은 얼마인가?
+- 검색이 결과 없이 끝나는 비율은 얼마인가?
+- 로그인 버튼 클릭 후 로그인에 성공하는 비율은 얼마인가?
+- 로그인 실패가 발생하는 비율과 주요 실패 유형은 무엇인가?
+
+#### 확인 방법
+
+- GA4 `보고서 → 실시간`에서 이벤트 수집 확인
+- GA4 `관리 → 데이터 표시 → DebugView`에서 디버그 이벤트 확인
+- 로컬 및 운영 환경에서 `collect` 요청 확인
+
+### Looker Studio
+
+초기에는 Sentry와 GA4를 분리해서 확인합니다. 운영 데이터가 충분히 쌓인 뒤
+방문자 수, 검색 전환율, 로그인 전환율, Sentry 오류 현황을 통합해서 볼 필요가
+있을 때 Looker Studio 대시보드를 추가합니다.
+
+### MVP 적용 범위
+
+현재 MVP에서는 다음을 적용합니다.
+
+- 운영·스테이징 예외 자동 수집
+- React Error Boundary 적용
+- 로컬 환경 수집 비활성화
+- Sentry 소스맵 업로드
+- Git SHA 기준 release 기록
+- Sentry 개인정보 제거
+- GA4 페이지 조회 및 사용자 행동 이벤트 수집
+- 배포 후 Sentry Release·소스맵 확인
+- GA4 Realtime·DebugView 이벤트 확인
+
+오류 테스트 시에는 테스트 메시지에 토큰이나 개인정보를 포함하지 않습니다.
