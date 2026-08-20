@@ -13,8 +13,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.grit.daynomy.common.BaseEntity;
 
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
@@ -25,7 +24,7 @@ import org.hibernate.annotations.UpdateTimestamp;
         @UniqueConstraint(
             name = "uk_news_source_external_id",
             columnNames = {"source", "external_id"}))
-public class News {
+public class News extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -61,14 +60,6 @@ public class News {
 
   @Column(name = "published_at")
   private LocalDateTime publishedAt;
-
-  @CreationTimestamp
-  @Column(name = "created_at", updatable = false)
-  private LocalDateTime createdAt;
-
-  @UpdateTimestamp
-  @Column(name = "updated_at")
-  private LocalDateTime updatedAt;
 
   public News(
       String title,
