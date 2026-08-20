@@ -14,7 +14,9 @@ export function initAnalytics() {
   if (initialized || !measurementId || typeof document === 'undefined') return;
   initialized = true;
   window.dataLayer = window.dataLayer || [];
-  window.gtag = (...args: unknown[]) => window.dataLayer.push(args);
+  window.gtag = function gtag() {
+    window.dataLayer.push(arguments);
+  };
   window.gtag('js', new Date());
   window.gtag('config', measurementId, { send_page_view: false });
   const script = document.createElement('script');
