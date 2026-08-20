@@ -1,6 +1,5 @@
 package org.grit.daynomy.search.controller;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -11,45 +10,63 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDateTime;
 import java.util.List;
-import org.grit.daynomy.common.GlobalExceptionHandler;
+import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.search.repository.NewsSearchRepository;
+import org.grit.daynomy.news.dto.NewsListItemResponse;
+import org.grit.daynomy.search.dto.NewsSearchResponse;
 import org.grit.daynomy.search.service.NewsSearchService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
 
 class NewsSearchControllerTest {
 
-  private NewsSearchRepository newsSearchRepository;
+  private NewsSearchService newsSearchService;
   private MockMvc mockMvc;
 
   @BeforeEach
   void setUp() {
-    newsSearchRepository = mock(NewsSearchRepository.class);
-    NewsSearchService service = new NewsSearchService(newsSearchRepository);
+    newsSearchService = mock(NewsSearchService.class);
+
+    LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+    validator.afterPropertiesSet();
+
+    MethodValidationPostProcessor methodValidationPostProcessor =
+        new MethodValidationPostProcessor();
+    methodValidationPostProcessor.setValidator(validator);
+    methodValidationPostProcessor.afterPropertiesSet();
+
+    Object controller =
+        methodValidationPostProcessor.postProcessAfterInitialization(
+            new NewsSearchController(newsSearchService), "newsSearchController");
+
     mockMvc =
-        MockMvcBuilders.standaloneSetup(new NewsSearchController(service))
+        MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new GlobalExceptionHandler())
+            .setValidator(validator)
             .build();
   }
 
   @Test
   void searchesNewsWithCategory() throws Exception {
-    News news = mock(News.class);
-    when(news.getId()).thenReturn(1L);
-    when(news.getTitle()).thenReturn("기준금리 동결 가능성 확대");
-    when(news.getDescription()).thenReturn("기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.");
-    when(news.getImageUrl()).thenReturn("https://example.com/base-rate.webp");
-    when(news.getCategory()).thenReturn(Category.BOND);
-    when(news.getPublishedAt()).thenReturn(LocalDateTime.of(2026, 8, 14, 10, 0));
-    when(newsSearchRepository.search(eq("금리"), eq(Category.BOND), any(Pageable.class)))
-        .thenReturn(new PageImpl<>(List.of(news), PageRequest.of(0, 20), 1));
+    when(newsSearchService.search(eq("금리"), eq(Category.BOND), eq(1), eq(20)))
+        .thenReturn(
+            new NewsSearchResponse(
+                List.of(
+                    new NewsListItemResponse(
+                        1L,
+                        "기준금리 동결 가능성 확대",
+                        "기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.",
+                        "https://example.com/base-rate.webp",
+                        Category.BOND,
+                        LocalDateTime.of(2026, 8, 14, 10, 0))),
+                1,
+                20,
+                1,
+                1));
 
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("category", "BOND"))
@@ -64,8 +81,8 @@ class NewsSearchControllerTest {
 
   @Test
   void returnsSuccessWhenSearchResultIsEmpty() throws Exception {
-    when(newsSearchRepository.search(eq("금리"), eq(null), any(Pageable.class)))
-        .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+    when(newsSearchService.search(eq("금리"), eq(null), eq(1), eq(20)))
+        .thenReturn(new NewsSearchResponse(List.of(), 1, 20, 0, 0));
 
     mockMvc
         .perform(get("/api/search/news").param("q", "금리"))
@@ -80,10 +97,13 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("SEARCH_KEYWORD_REQUIRED"))
-        .andExpect(jsonPath("$.message").value("검색어를 입력해주세요."));
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("요청값이 올바르지 않습니다."))
+        .andExpect(jsonPath("$.errors[0].field").value("keyword"))
+        .andExpect(jsonPath("$.errors[0].reason").value("검색어를 입력해주세요."))
+        .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist());
 
-    verifyNoInteractions(newsSearchRepository);
+    verifyNoInteractions(newsSearchService);
   }
 
   @Test
@@ -91,10 +111,13 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "!"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("SEARCH_INVALID_KEYWORD"))
-        .andExpect(jsonPath("$.message").value("올바른 검색어를 입력해주세요."));
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("요청값이 올바르지 않습니다."))
+        .andExpect(jsonPath("$.errors[0].field").value("keyword"))
+        .andExpect(jsonPath("$.errors[0].reason").value("올바른 검색어를 입력해주세요."))
+        .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist());
 
-    verifyNoInteractions(newsSearchRepository);
+    verifyNoInteractions(newsSearchService);
   }
 
   @Test
@@ -102,10 +125,13 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("category", "POLICY"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("SEARCH_INVALID_CATEGORY"))
-        .andExpect(jsonPath("$.message").value("존재하지 않는 카테고리입니다."));
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("요청값이 올바르지 않습니다."))
+        .andExpect(jsonPath("$.errors[0].field").value("category"))
+        .andExpect(jsonPath("$.errors[0].reason").value("지원하지 않는 값입니다."))
+        .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist());
 
-    verifyNoInteractions(newsSearchRepository);
+    verifyNoInteractions(newsSearchService);
   }
 
   @Test
@@ -113,10 +139,13 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("page", "first"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("SEARCH_INVALID_PAGE_CONDITION"))
-        .andExpect(jsonPath("$.message").value("검색 페이지 조건이 올바르지 않습니다."));
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("요청값이 올바르지 않습니다."))
+        .andExpect(jsonPath("$.errors[0].field").value("page"))
+        .andExpect(jsonPath("$.errors[0].reason").value("타입이 올바르지 않습니다."))
+        .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist());
 
-    verifyNoInteractions(newsSearchRepository);
+    verifyNoInteractions(newsSearchService);
   }
 
   @Test
@@ -124,9 +153,12 @@ class NewsSearchControllerTest {
     mockMvc
         .perform(get("/api/search/news").param("q", "금리").param("page", "0"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("SEARCH_INVALID_PAGE_CONDITION"))
-        .andExpect(jsonPath("$.message").value("검색 페이지 조건이 올바르지 않습니다."));
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("요청값이 올바르지 않습니다."))
+        .andExpect(jsonPath("$.errors[0].field").value("page"))
+        .andExpect(jsonPath("$.errors[0].reason").value("페이지 번호는 1 이상이어야 합니다."))
+        .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist());
 
-    verifyNoInteractions(newsSearchRepository);
+    verifyNoInteractions(newsSearchService);
   }
 }
