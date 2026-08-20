@@ -1,11 +1,10 @@
 import type { Impact, NewsDetail, RelatedIssue } from './types.ts';
 
 export const mockNews: NewsDetail = {
+  id: 1,
   title: '부동산 대출 규제 완화 검토, 은행·건설 업종 기대감 확대',
   category: 'REAL_ESTATE',
-  source: '연합 뉴스',
   publishedAt: '2026.08.13 09:20',
-  originalUrl: 'https://example.com/news/1',
   description:
     '대출 규제 완화 기대는 부동산 거래 회복과 은행 대출 성장 기대를 동시에 자극합니다. 다만 가계부채 관리 기조가 유지되며 실제 완화 강도는 제한적일 수 있습니다.',
   content: [

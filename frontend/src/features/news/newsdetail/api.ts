@@ -4,6 +4,16 @@ import type { Impact, NewsDetail, NewsDetailPayload, RelatedIssue } from './type
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
+type NewsDetailResponse = {
+  id: number;
+  title: string;
+  content: string;
+  description: string;
+  imageUrl: string | null;
+  category: string;
+  publishedAt: string;
+};
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
 
@@ -14,24 +24,16 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function normalizeNews(raw: Partial<NewsDetail> & Record<string, unknown>): NewsDetail {
+function normalizeNews(raw: Partial<NewsDetailResponse> & Record<string, unknown>): NewsDetail {
   return {
+    id: typeof raw.id === 'number' ? raw.id : mockNews.id,
     title: String(raw.title ?? mockNews.title),
     category: isCategory(raw.category) ? raw.category : mockNews.category,
-    source: String(raw.source ?? mockNews.source),
-    publishedAt: String(raw.publishedAt ?? raw.date ?? mockNews.publishedAt),
-    originalUrl:
-      typeof raw.originalUrl === 'string'
-        ? raw.originalUrl
-        : typeof raw.sourceUrl === 'string'
-          ? raw.sourceUrl
-          : mockNews.originalUrl,
+    publishedAt: String(raw.publishedAt ?? mockNews.publishedAt),
     description: String(raw.description ?? mockNews.description),
-    content: Array.isArray(raw.content)
-      ? raw.content.map(String)
-      : String(raw.content ?? raw.originalText ?? raw.description ?? '')
-          .split('\n')
-          .filter(Boolean),
+    content: String(raw.content ?? raw.description ?? '')
+      .split('\n')
+      .filter(Boolean),
     imageUrl: typeof raw.imageUrl === 'string' ? raw.imageUrl : undefined,
   };
 }
@@ -49,7 +51,7 @@ function normalizeRelatedIssues(
 
 export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> {
   const [news, impacts, relatedIssues] = await Promise.allSettled([
-    getJson<Partial<NewsDetail> & Record<string, unknown>>(`/api/news/${newsId}`),
+    getJson<NewsDetailResponse>(`/api/news/${newsId}`),
     getJson<Impact[]>(`/api/news/${newsId}/impacts`),
     getJson<Array<Partial<RelatedIssue> & Record<string, unknown>>>(`/api/news/${newsId}/related`),
   ]);
