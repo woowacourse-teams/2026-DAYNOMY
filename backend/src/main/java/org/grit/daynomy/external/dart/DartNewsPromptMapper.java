@@ -131,10 +131,7 @@ public class DartNewsPromptMapper {
         + "\n- 접수일: "
         + formatDescriptionDate(disclosure.rceptDt())
         + "\n- 제출인: "
-        + disclosure.flrNm()
-        + "\n- 원문 링크: "
-        + DART_DISCLOSURE_URL
-        + disclosure.rceptNo();
+        + disclosure.flrNm();
   }
 
   private Instant parsePublishedAt(String date) {
