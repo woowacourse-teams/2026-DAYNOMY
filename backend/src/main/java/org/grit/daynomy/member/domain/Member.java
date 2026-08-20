@@ -13,8 +13,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.grit.daynomy.common.BaseEntity;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -27,7 +26,7 @@ import org.hibernate.annotations.UpdateTimestamp;
           columnNames = {"provider", "provider_id"}),
       @UniqueConstraint(name = "uk_members_nickname", columnNames = "nickname")
     })
-public class Member {
+public class Member extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -56,14 +55,6 @@ public class Member {
   @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 20)
   private MemberStatus status;
-
-  @CreationTimestamp
-  @Column(name = "created_at", nullable = false, updatable = false)
-  private LocalDateTime createdAt;
-
-  @UpdateTimestamp
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
 
   @Column(name = "withdrawn_at")
   private LocalDateTime withdrawnAt;
