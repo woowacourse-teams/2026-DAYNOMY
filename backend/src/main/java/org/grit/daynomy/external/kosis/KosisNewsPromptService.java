@@ -2,6 +2,7 @@ package org.grit.daynomy.external.kosis;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -101,7 +102,7 @@ public class KosisNewsPromptService {
             indicator.key() + ":" + latest.period(),
             KOSIS_URL,
             indicator.category(),
-            LocalDateTime.now(),
+            Instant.now(),
             prompt(indicator, previous, latest, change, changeRate)));
   }
 

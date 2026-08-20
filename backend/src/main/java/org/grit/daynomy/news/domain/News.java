@@ -9,7 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -59,7 +59,7 @@ public class News extends BaseEntity {
   // TODO(choiyoung69): Keyword 관계 설계 확정 후 추가
 
   @Column(name = "published_at")
-  private LocalDateTime publishedAt;
+  private Instant publishedAt;
 
   public News(
       String title,
@@ -70,7 +70,7 @@ public class News extends BaseEntity {
       String externalId,
       String sourceUrl,
       Category category,
-      LocalDateTime publishedAt) {
+      Instant publishedAt) {
     this.title = title;
     this.content = content;
     this.description = description;

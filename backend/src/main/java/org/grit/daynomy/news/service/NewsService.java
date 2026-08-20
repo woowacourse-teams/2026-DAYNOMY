@@ -1,7 +1,8 @@
 package org.grit.daynomy.news.service;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
@@ -35,9 +36,10 @@ public class NewsService {
   }
 
   public NewsListItemResponse getTodayNews() {
-    LocalDate today = LocalDate.now();
-    LocalDateTime startInclusive = today.atStartOfDay();
-    LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+    ZoneId zoneId = ZoneId.systemDefault();
+    LocalDate today = LocalDate.now(zoneId);
+    Instant startInclusive = today.atStartOfDay(zoneId).toInstant();
+    Instant endExclusive = today.plusDays(1).atStartOfDay(zoneId).toInstant();
 
     return newsRepository
         .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(

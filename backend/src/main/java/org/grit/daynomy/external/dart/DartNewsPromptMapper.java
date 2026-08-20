@@ -1,7 +1,8 @@
 package org.grit.daynomy.external.dart;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -136,16 +137,20 @@ public class DartNewsPromptMapper {
         + disclosure.rceptNo();
   }
 
-  private LocalDateTime parsePublishedAt(String date) {
+  private Instant parsePublishedAt(String date) {
+    return parseDate(date).atStartOfDay(ZoneId.systemDefault()).toInstant();
+  }
+
+  private LocalDate parseDate(String date) {
     try {
-      return LocalDate.parse(date, DART_DATE_FORMAT).atStartOfDay();
+      return LocalDate.parse(date, DART_DATE_FORMAT);
     } catch (RuntimeException exception) {
       throw new BusinessException(ExternalErrorCode.DART_NEWS_MAPPING_FAILED);
     }
   }
 
   private String formatDescriptionDate(String date) {
-    LocalDate parsedDate = parsePublishedAt(date).toLocalDate();
+    LocalDate parsedDate = parseDate(date);
     return parsedDate.getYear()
         + "년 "
         + parsedDate.getMonthValue()
