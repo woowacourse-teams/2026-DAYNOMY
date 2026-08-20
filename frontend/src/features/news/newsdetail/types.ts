@@ -8,8 +8,8 @@ export type NewsDetail = {
   source: string;
   publishedAt: string;
   originalUrl?: string;
-  summary: string;
-  body: string[];
+  description: string;
+  content: string[];
   imageUrl?: string;
 };
 

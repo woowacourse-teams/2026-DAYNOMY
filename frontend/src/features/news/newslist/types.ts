@@ -17,19 +17,22 @@ export function isCategory(value: unknown): value is Category {
   return typeof value === 'string' && Object.hasOwn(CATEGORY_LABELS, value);
 }
 
-export function getCategoryLabel(value: NewsCategory) {
-  return value === 'ALL' ? '전체' : CATEGORY_LABELS[value];
+export function getCategoryLabel(value: string) {
+  if (value === 'ALL') {
+    return '전체';
+  }
+
+  return isCategory(value) ? CATEGORY_LABELS[value] : value;
 }
 
 export type NewsArticle = {
   id: number | string;
   title: string;
-  description: string | null;
-  category: Category;
-  imageUrl: string | null;
-  publishedAt: string;
+  description?: string | null;
+  category: NewsCategory;
+  imageUrl?: string | null;
+  publishedAt?: string;
   source?: string;
-  body?: string;
 };
 
 export type NewsPage = {
