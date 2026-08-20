@@ -19,4 +19,17 @@ spring:
             client-secret: test-secret
 
 jwt:
+  issuer: daynomy-test
   secret: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  access-token-expiration: 1800000
+  refresh-token-expiration: 1209600000
+
+app:
+  cors:
+    allowed-origin: http://localhost:5173
+  oauth2:
+    success-redirect-uri: http://localhost:5173
+    failure-redirect-uri: http://localhost:5173/login?error=oauth
+
+cookie:
+  secure: false
