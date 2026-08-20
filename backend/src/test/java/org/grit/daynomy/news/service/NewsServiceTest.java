@@ -9,7 +9,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
-import org.grit.daynomy.common.exception.CommonErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSource;
@@ -67,15 +66,6 @@ class NewsServiceTest {
 
     verify(newsRepository)
         .findByCategoryOrderByPublishedAtDescIdDesc(Category.REAL_ESTATE, pageable);
-  }
-
-  @Test
-  @DisplayName("잘못된 페이지 요청이면 예외를 던진다")
-  void findNewsRejectsInvalidPage() {
-    assertThatThrownBy(() -> newsService.getNewsPage(0, 15, null))
-        .isInstanceOf(BusinessException.class)
-        .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(CommonErrorCode.INVALID_REQUEST);
   }
 
   @Test

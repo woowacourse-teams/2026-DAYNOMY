@@ -3,6 +3,8 @@ package org.grit.daynomy.news.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsDetailResponse;
@@ -10,6 +12,7 @@ import org.grit.daynomy.news.dto.NewsListItemResponse;
 import org.grit.daynomy.news.dto.NewsPageResponse;
 import org.grit.daynomy.news.service.NewsService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "News", description = "뉴스 조회 API")
+@Validated
 @RequiredArgsConstructor
 @RequestMapping("/api/news")
 @RestController
@@ -28,8 +32,11 @@ public class NewsController {
   @GetMapping
   public ResponseEntity<NewsPageResponse> getNewsPage(
       @Parameter(description = "1부터 시작하는 페이지 번호", example = "1") @RequestParam(defaultValue = "1")
+          @Min(value = 1, message = "페이지 번호는 1 이상이어야 합니다.")
           int page,
       @Parameter(description = "페이지 크기", example = "15") @RequestParam(defaultValue = "15")
+          @Min(value = 1, message = "페이지 크기는 1 이상이어야 합니다.")
+          @Max(value = 100, message = "페이지 크기는 100 이하여야 합니다.")
           int size,
       @Parameter(description = "뉴스 카테고리") @RequestParam(required = false) Category category) {
     return ResponseEntity.ok(newsService.getNewsPage(page, size, category));

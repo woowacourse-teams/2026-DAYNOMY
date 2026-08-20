@@ -105,6 +105,18 @@ class NewsControllerTest {
   }
 
   @Test
+  @DisplayName("뉴스 목록 조회 API는 잘못된 페이지 번호에 에러 응답을 반환한다")
+  void findNewsRejectsInvalidPage() throws Exception {
+    HttpResponse<String> response = get("/api/news?page=0");
+    JsonNode body = objectMapper.readTree(response.body());
+
+    assertThat(response.statusCode()).isEqualTo(400);
+    assertThat(body.at("/code").asText()).isEqualTo("INVALID_REQUEST");
+    assertThat(body.at("/errors/0/field").asText()).isEqualTo("page");
+    assertThat(body.at("/errors/0/reason").asText()).isEqualTo("페이지 번호는 1 이상이어야 합니다.");
+  }
+
+  @Test
   @DisplayName("오늘의 뉴스 조회 API는 오늘 발행된 최신 뉴스를 반환한다")
   void findTodayNewsReturnsLatestNewsPublishedToday() throws Exception {
     LocalDate today = LocalDate.now();

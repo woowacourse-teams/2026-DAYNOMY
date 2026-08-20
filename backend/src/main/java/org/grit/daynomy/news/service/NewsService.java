@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
-import org.grit.daynomy.common.exception.CommonErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.dto.NewsDetailResponse;
@@ -26,10 +25,6 @@ public class NewsService {
   private final NewsRepository newsRepository;
 
   public NewsPageResponse getNewsPage(int page, int size, Category category) {
-    if (page < 1 || size < 1) {
-      throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
-    }
-
     Pageable pageable = PageRequest.of(page - 1, size);
     Page<News> newsPage =
         category == null
