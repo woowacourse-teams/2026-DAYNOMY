@@ -1,6 +1,6 @@
-import { mockImpacts, mockKeywords, mockMarketCause, mockNews, mockRelatedIssues } from './mock.ts';
+import { mockKeywords, mockMarketAnalysis, mockNews } from './mock.ts';
 import { isCategory } from '../newslist/types.ts';
-import type { Direction, NewsDetail, NewsDetailPayload, NewsKeyword } from './types.ts';
+import type { Direction, MarketAnalysis, NewsDetail, NewsDetailPayload, NewsKeyword } from './types.ts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -85,16 +85,15 @@ function normalizeDirection(direction: AssetImpactResponse['direction']): Direct
   return direction === 'POSITIVE' ? 'positive' : 'negative';
 }
 
-function normalizeMarketAnalysis(raw: MarketAnalysisResponse) {
+function normalizeMarketAnalysis(raw: MarketAnalysisResponse): MarketAnalysis {
   return {
-    marketCause: raw.cause,
+    cause: raw.cause,
     impacts: raw.assets.map((impact) => ({
       asset: assetLabel[impact.asset] ?? impact.asset,
       direction: normalizeDirection(impact.direction),
       impactLevel: impact.impactLevel,
-      evidence: impact.reason,
     })),
-    relatedIssues: raw.scenarios.map((scenario) => ({
+    scenarios: raw.scenarios.map((scenario) => ({
       title: timeHorizonLabel[scenario.timeHorizon],
       probability: scenario.probability,
       description: `${scenario.prediction} ${scenario.reason}`,
@@ -111,15 +110,11 @@ export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> 
   const normalizedMarketAnalysis =
     marketAnalysis.status === 'fulfilled'
       ? normalizeMarketAnalysis(marketAnalysis.value)
-      : {
-          marketCause: mockMarketCause,
-          impacts: mockImpacts,
-          relatedIssues: mockRelatedIssues,
-        };
+      : mockMarketAnalysis;
 
   return {
     news: news.status === 'fulfilled' ? normalizeNews(news.value) : mockNews,
     keywords: keywords.status === 'fulfilled' ? keywords.value.keywords : mockKeywords,
-    ...normalizedMarketAnalysis,
+    marketAnalysis: normalizedMarketAnalysis,
   };
 }

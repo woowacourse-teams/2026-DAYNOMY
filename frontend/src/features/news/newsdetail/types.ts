@@ -1,6 +1,6 @@
 import type { Category } from '../newslist/types';
 
-export type Direction = 'positive' | 'negative' | 'neutral';
+export type Direction = 'positive' | 'negative';
 
 export type NewsDetail = {
   id: number;
@@ -16,11 +16,9 @@ export type Impact = {
   asset: string;
   direction: Direction;
   impactLevel: 'HIGH' | 'MEDIUM' | 'LOW';
-  evidence: string;
 };
 
-export type RelatedIssue = {
-  keyword?: string;
+export type Scenario = {
   title: string;
   probability?: number;
   description: string;
@@ -31,10 +29,14 @@ export type NewsKeyword = {
   description: string;
 };
 
+export type MarketAnalysis = {
+  cause: string;
+  impacts: Impact[];
+  scenarios: Scenario[];
+};
+
 export type NewsDetailPayload = {
   news: NewsDetail;
-  marketCause: string;
-  impacts: Impact[];
   keywords: NewsKeyword[];
-  relatedIssues: RelatedIssue[];
+  marketAnalysis: MarketAnalysis;
 };

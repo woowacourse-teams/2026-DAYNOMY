@@ -230,10 +230,6 @@ body {
   background: #22c55e;
 }
 
-.impact-track .neutral {
-  background: #f59e0b;
-}
-
 .impact-track .negative {
   background: #ef4444;
 }
@@ -248,10 +244,6 @@ body {
 
 .negative {
   color: #dc2626;
-}
-
-.neutral {
-  color: #a16207;
 }
 
 .scenario-list {

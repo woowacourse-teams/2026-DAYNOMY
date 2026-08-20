@@ -1,4 +1,4 @@
-import type { Impact, NewsDetail, NewsKeyword, RelatedIssue } from './types.ts';
+import type { MarketAnalysis, NewsDetail, NewsKeyword } from './types.ts';
 
 export const mockNews: NewsDetail = {
   id: 1,
@@ -14,40 +14,30 @@ export const mockNews: NewsDetail = {
   ],
 };
 
-export const mockImpacts: Impact[] = [
-  {
-    asset: '주식',
-    direction: 'positive',
-    impactLevel: 'HIGH',
-    evidence: '은행과 건설 업종은 대출 증가와 거래 회복 기대를 직접 반영할 수 있습니다.',
-  },
-  {
-    asset: '채권',
-    direction: 'neutral',
-    impactLevel: 'MEDIUM',
-    evidence: '가계부채 관리 기조가 유지되면 금리 기대가 크게 움직이기 어렵습니다.',
-  },
-  {
-    asset: '부동산',
-    direction: 'positive',
-    impactLevel: 'HIGH',
-    evidence: '대출 문턱 완화는 매수 심리와 거래량 회복에 가장 직접적인 재료입니다.',
-  },
-  {
-    asset: '금',
-    direction: 'neutral',
-    impactLevel: 'LOW',
-    evidence: '부동산 정책 이슈와 안전자산 수요의 연결성은 제한적입니다.',
-  },
-  {
-    asset: '환율',
-    direction: 'negative',
-    impactLevel: 'MEDIUM',
-    evidence: '가계부채 확대 우려가 커지면 원화 투자 심리에 부담이 될 수 있습니다.',
-  },
-];
-
-export const mockMarketCause = mockNews.description;
+export const mockMarketAnalysis: MarketAnalysis = {
+  cause: mockNews.description,
+  impacts: [
+    { asset: '주식', direction: 'positive', impactLevel: 'HIGH' },
+    { asset: '채권', direction: 'negative', impactLevel: 'MEDIUM' },
+    { asset: '부동산', direction: 'positive', impactLevel: 'HIGH' },
+    { asset: '금', direction: 'negative', impactLevel: 'LOW' },
+    { asset: '환율', direction: 'negative', impactLevel: 'MEDIUM' },
+  ],
+  scenarios: [
+    {
+      title: '단기 시나리오',
+      probability: 60,
+      description:
+        '가계부채 증가 속도와 시장 과열 여부를 함께 보며 완화 강도를 조절할 가능성이 큽니다.',
+    },
+    {
+      title: '중기 시나리오',
+      probability: 45,
+      description:
+        '거래 회복 기대가 커질수록 수주, 분양 심리, 주가 기대에 긍정적으로 반영될 수 있습니다.',
+    },
+  ],
+};
 
 export const mockKeywords: NewsKeyword[] = [
   {
@@ -62,29 +52,6 @@ export const mockKeywords: NewsKeyword[] = [
   },
   {
     keyword: '건설 업종',
-    description:
-      '거래 회복 기대가 커질수록 수주, 분양 심리, 주가 기대에 긍정적으로 반영될 수 있습니다.',
-  },
-];
-
-export const mockRelatedIssues: RelatedIssue[] = [
-  {
-    keyword: '대출 규제 완화',
-    title: '대출 규제 완화',
-    description:
-      '정책 방향은 대출 규제 완화 가능성이지만, 실제 시행 여부와 강도는 금융당국의 가계부채 판단에 달려 있습니다.',
-  },
-  {
-    keyword: '금융당국',
-    title: '금융당국',
-    probability: 60,
-    description:
-      '가계부채 증가 속도와 시장 과열 여부를 함께 보며 완화 강도를 조절할 가능성이 큽니다.',
-  },
-  {
-    keyword: '건설 업종',
-    title: '건설 업종',
-    probability: 45,
     description:
       '거래 회복 기대가 커질수록 수주, 분양 심리, 주가 기대에 긍정적으로 반영될 수 있습니다.',
   },

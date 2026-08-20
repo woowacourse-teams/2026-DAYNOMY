@@ -34,7 +34,7 @@ export function NewsDetailPage() {
     );
   }
 
-  const { news, marketCause, impacts, keywords, relatedIssues } = payload;
+  const { news, keywords, marketAnalysis } = payload;
   const imageUrl = news.imageUrl ?? defaultNewsImage;
 
   return (
@@ -78,7 +78,7 @@ export function NewsDetailPage() {
           </div>
         </section>
 
-        <MarketAnalysis cause={marketCause} impacts={impacts} issues={relatedIssues} />
+        <MarketAnalysis marketAnalysis={marketAnalysis} />
       </article>
     </main>
   );
