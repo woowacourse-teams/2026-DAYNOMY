@@ -80,9 +80,7 @@ function normalizeNews(raw: NewsDetailResponse): NewsDetail {
     category: isCategory(raw.category) ? raw.category : 'STOCK',
     publishedAt: raw.publishedAt,
     description: raw.description,
-    content: raw.content
-      .split('\n')
-      .filter(Boolean),
+    content: raw.content.split('\n').filter(Boolean),
     imageUrl: raw.imageUrl ?? undefined,
     sourceUrl: raw.sourceUrl ?? undefined,
   };
