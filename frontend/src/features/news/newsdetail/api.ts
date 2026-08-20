@@ -1,6 +1,6 @@
-import { mockImpacts, mockNews, mockRelatedIssues } from './mock.ts';
+import { mockImpacts, mockMarketCause, mockNews, mockRelatedIssues } from './mock.ts';
 import { isCategory } from '../newslist/types.ts';
-import type { Impact, NewsDetail, NewsDetailPayload, RelatedIssue } from './types.ts';
+import type { Direction, NewsDetail, NewsDetailPayload } from './types.ts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -12,6 +12,45 @@ type NewsDetailResponse = {
   imageUrl: string | null;
   category: string;
   publishedAt: string;
+};
+
+type MarketAnalysisResponse = {
+  cause: string;
+  assets: AssetImpactResponse[];
+  scenarios: ScenarioResponse[];
+};
+
+type AssetImpactResponse = {
+  asset: string;
+  direction: 'POSITIVE' | 'NEGATIVE';
+  impactLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  reason: string;
+};
+
+type ScenarioResponse = {
+  timeHorizon: 'SHORT_TERM' | 'MID_TERM' | 'LONG_TERM';
+  prediction: string;
+  probability: number;
+  reason: string;
+};
+
+const assetLabel: Record<string, string> = {
+  GOLD: '금',
+  STOCK: '주식',
+  BOND: '채권',
+  REAL_ESTATE: '부동산',
+  FOREIGN_EXCHANGE: '환율',
+  VIRTUAL_ASSET: '가상자산',
+  DEPOSIT_SAVINGS: '예적금',
+  ETF: 'ETF',
+  PENSION: '연금',
+  MOCK: '기타',
+};
+
+const timeHorizonLabel: Record<ScenarioResponse['timeHorizon'], string> = {
+  SHORT_TERM: '단기 시나리오',
+  MID_TERM: '중기 시나리오',
+  LONG_TERM: '장기 시나리오',
 };
 
 async function getJson<T>(path: string): Promise<T> {
@@ -38,30 +77,43 @@ function normalizeNews(raw: Partial<NewsDetailResponse> & Record<string, unknown
   };
 }
 
-function normalizeRelatedIssues(
-  raw: Array<Partial<RelatedIssue> & Record<string, unknown>>,
-): RelatedIssue[] {
-  return raw.map((issue) => ({
-    keyword: typeof issue.keyword === 'string' ? issue.keyword : String(issue.title ?? ''),
-    title: String(issue.title ?? issue.keyword ?? '키워드'),
-    probability: typeof issue.probability === 'number' ? issue.probability : undefined,
-    description: String(issue.description ?? issue.analysis ?? ''),
-  }));
+function normalizeDirection(direction: AssetImpactResponse['direction']): Direction {
+  return direction === 'POSITIVE' ? 'positive' : 'negative';
+}
+
+function normalizeMarketAnalysis(raw: MarketAnalysisResponse) {
+  return {
+    marketCause: raw.cause,
+    impacts: raw.assets.map((impact) => ({
+      asset: assetLabel[impact.asset] ?? impact.asset,
+      direction: normalizeDirection(impact.direction),
+      impactLevel: impact.impactLevel,
+      evidence: impact.reason,
+    })),
+    relatedIssues: raw.scenarios.map((scenario) => ({
+      title: timeHorizonLabel[scenario.timeHorizon],
+      probability: scenario.probability,
+      description: `${scenario.prediction} ${scenario.reason}`,
+    })),
+  };
 }
 
 export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> {
-  const [news, impacts, relatedIssues] = await Promise.allSettled([
+  const [news, marketAnalysis] = await Promise.allSettled([
     getJson<NewsDetailResponse>(`/api/news/${newsId}`),
-    getJson<Impact[]>(`/api/news/${newsId}/impacts`),
-    getJson<Array<Partial<RelatedIssue> & Record<string, unknown>>>(`/api/news/${newsId}/related`),
+    getJson<MarketAnalysisResponse>(`/api/news/${newsId}/market-analysis`),
   ]);
+  const normalizedMarketAnalysis =
+    marketAnalysis.status === 'fulfilled'
+      ? normalizeMarketAnalysis(marketAnalysis.value)
+      : {
+          marketCause: mockMarketCause,
+          impacts: mockImpacts,
+          relatedIssues: mockRelatedIssues,
+        };
 
   return {
     news: news.status === 'fulfilled' ? normalizeNews(news.value) : mockNews,
-    impacts: impacts.status === 'fulfilled' ? impacts.value : mockImpacts,
-    relatedIssues:
-      relatedIssues.status === 'fulfilled'
-        ? normalizeRelatedIssues(relatedIssues.value)
-        : mockRelatedIssues,
+    ...normalizedMarketAnalysis,
   };
 }

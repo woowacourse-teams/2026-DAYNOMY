@@ -18,29 +18,36 @@ export const mockImpacts: Impact[] = [
   {
     asset: '주식',
     direction: 'positive',
+    impactLevel: 'HIGH',
     evidence: '은행과 건설 업종은 대출 증가와 거래 회복 기대를 직접 반영할 수 있습니다.',
   },
   {
     asset: '채권',
     direction: 'neutral',
+    impactLevel: 'MEDIUM',
     evidence: '가계부채 관리 기조가 유지되면 금리 기대가 크게 움직이기 어렵습니다.',
   },
   {
     asset: '부동산',
     direction: 'positive',
+    impactLevel: 'HIGH',
     evidence: '대출 문턱 완화는 매수 심리와 거래량 회복에 가장 직접적인 재료입니다.',
   },
   {
     asset: '금',
     direction: 'neutral',
+    impactLevel: 'LOW',
     evidence: '부동산 정책 이슈와 안전자산 수요의 연결성은 제한적입니다.',
   },
   {
     asset: '환율',
     direction: 'negative',
+    impactLevel: 'MEDIUM',
     evidence: '가계부채 확대 우려가 커지면 원화 투자 심리에 부담이 될 수 있습니다.',
   },
 ];
+
+export const mockMarketCause = mockNews.description;
 
 export const mockRelatedIssues: RelatedIssue[] = [
   {

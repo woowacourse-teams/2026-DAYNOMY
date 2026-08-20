@@ -15,6 +15,7 @@ export type NewsDetail = {
 export type Impact = {
   asset: string;
   direction: Direction;
+  impactLevel: 'HIGH' | 'MEDIUM' | 'LOW';
   evidence: string;
 };
 
@@ -27,6 +28,7 @@ export type RelatedIssue = {
 
 export type NewsDetailPayload = {
   news: NewsDetail;
+  marketCause: string;
   impacts: Impact[];
   relatedIssues: RelatedIssue[];
 };

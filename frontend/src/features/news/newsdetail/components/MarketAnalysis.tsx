@@ -6,18 +6,18 @@ const directionLabel: Record<Direction, string> = {
   neutral: '중립',
 };
 
-const directionScore: Record<Direction, number> = {
-  positive: 78,
-  neutral: 52,
-  negative: 34,
+const impactLevelScore: Record<Impact['impactLevel'], number> = {
+  HIGH: 78,
+  MEDIUM: 52,
+  LOW: 34,
 };
 
 export function MarketAnalysis({
-  description,
+  cause,
   impacts,
   issues,
 }: {
-  description: string;
+  cause: string;
   impacts: Impact[];
   issues: RelatedIssue[];
 }) {
@@ -27,7 +27,7 @@ export function MarketAnalysis({
       <div className="market-analysis">
         <article className="analysis-card">
           <h3>1. 이슈의 핵심 내용</h3>
-          <p>{description}</p>
+          <p>{cause}</p>
         </article>
 
         <article className="analysis-card">
@@ -46,7 +46,7 @@ export function MarketAnalysis({
               <div className="impact-track">
                 <i
                   className={impact.direction}
-                  style={{ width: `${directionScore[impact.direction]}%` }}
+                  style={{ width: `${impactLevelScore[impact.impactLevel]}%` }}
                 />
               </div>
               <strong className={impact.direction}>{directionLabel[impact.direction]}</strong>
