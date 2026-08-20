@@ -26,9 +26,15 @@ export type RelatedIssue = {
   description: string;
 };
 
+export type NewsKeyword = {
+  keyword: string;
+  description: string;
+};
+
 export type NewsDetailPayload = {
   news: NewsDetail;
   marketCause: string;
   impacts: Impact[];
+  keywords: NewsKeyword[];
   relatedIssues: RelatedIssue[];
 };

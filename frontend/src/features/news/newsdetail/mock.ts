@@ -1,4 +1,4 @@
-import type { Impact, NewsDetail, RelatedIssue } from './types.ts';
+import type { Impact, NewsDetail, NewsKeyword, RelatedIssue } from './types.ts';
 
 export const mockNews: NewsDetail = {
   id: 1,
@@ -48,6 +48,24 @@ export const mockImpacts: Impact[] = [
 ];
 
 export const mockMarketCause = mockNews.description;
+
+export const mockKeywords: NewsKeyword[] = [
+  {
+    keyword: '대출 규제 완화',
+    description:
+      '정책 방향은 대출 규제 완화 가능성이지만, 실제 시행 여부와 강도는 금융당국의 가계부채 판단에 달려 있습니다.',
+  },
+  {
+    keyword: '금융당국',
+    description:
+      '가계부채 증가 속도와 시장 과열 여부를 함께 보며 완화 강도를 조절할 가능성이 큽니다.',
+  },
+  {
+    keyword: '건설 업종',
+    description:
+      '거래 회복 기대가 커질수록 수주, 분양 심리, 주가 기대에 긍정적으로 반영될 수 있습니다.',
+  },
+];
 
 export const mockRelatedIssues: RelatedIssue[] = [
   {

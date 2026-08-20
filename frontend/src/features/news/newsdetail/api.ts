@@ -1,6 +1,6 @@
-import { mockImpacts, mockMarketCause, mockNews, mockRelatedIssues } from './mock.ts';
+import { mockImpacts, mockKeywords, mockMarketCause, mockNews, mockRelatedIssues } from './mock.ts';
 import { isCategory } from '../newslist/types.ts';
-import type { Direction, NewsDetail, NewsDetailPayload } from './types.ts';
+import type { Direction, NewsDetail, NewsDetailPayload, NewsKeyword } from './types.ts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -32,6 +32,10 @@ type ScenarioResponse = {
   prediction: string;
   probability: number;
   reason: string;
+};
+
+type KeywordsResponse = {
+  keywords: NewsKeyword[];
 };
 
 const assetLabel: Record<string, string> = {
@@ -99,9 +103,10 @@ function normalizeMarketAnalysis(raw: MarketAnalysisResponse) {
 }
 
 export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> {
-  const [news, marketAnalysis] = await Promise.allSettled([
+  const [news, marketAnalysis, keywords] = await Promise.allSettled([
     getJson<NewsDetailResponse>(`/api/news/${newsId}`),
     getJson<MarketAnalysisResponse>(`/api/news/${newsId}/market-analysis`),
+    getJson<KeywordsResponse>(`/api/news/${newsId}/keywords`),
   ]);
   const normalizedMarketAnalysis =
     marketAnalysis.status === 'fulfilled'
@@ -114,6 +119,7 @@ export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> 
 
   return {
     news: news.status === 'fulfilled' ? normalizeNews(news.value) : mockNews,
+    keywords: keywords.status === 'fulfilled' ? keywords.value.keywords : mockKeywords,
     ...normalizedMarketAnalysis,
   };
 }
