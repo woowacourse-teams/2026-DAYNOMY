@@ -1,12 +1,15 @@
 package org.grit.daynomy.external.bok;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,6 +72,29 @@ class BokClientTest {
     assertThat(response).isEmpty();
   }
 
+  @Test
+  @DisplayName("한국은행 ECOS 오류 응답이면 예외를 던진다")
+  void getRecentDataThrowsWhenErrorResult() throws Exception {
+    BokClient client =
+        new BokClient(new BokProperties("test-key", startServer(bokErrorResponse()), List.of()));
+    var indicator =
+        new BokProperties.Indicator(
+            "base-rate",
+            "한국은행 기준금리",
+            "722Y001",
+            "M",
+            Category.ECONOMY,
+            "한국은행",
+            "한국은행 기준금리 및 여수신금리",
+            "한국은행 기준금리",
+            List.of("0101000"));
+
+    assertThatThrownBy(() -> client.getRecentData(indicator))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.BOK_API_REQUEST_FAILED);
+  }
+
   private String startServer(String responseBody) throws IOException {
     server = HttpServer.create(new InetSocketAddress(0), 0);
     server.createContext(
@@ -126,6 +152,17 @@ class BokClientTest {
           "RESULT": {
             "CODE": "INFO-200",
             "MESSAGE": "해당하는 데이터가 없습니다."
+          }
+        }
+        """;
+  }
+
+  private String bokErrorResponse() {
+    return """
+        {
+          "RESULT": {
+            "CODE": "ERROR-100",
+            "MESSAGE": "인증키가 유효하지 않습니다."
           }
         }
         """;

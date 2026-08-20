@@ -53,6 +53,13 @@ public class BokClient {
       if (response == null || isNoDataResult(response.result())) {
         return List.of();
       }
+      if (response.result() != null) {
+        log.warn(
+            "BOK API returned error result: code={}, message={}",
+            response.result().code(),
+            response.result().message());
+        throw new BusinessException(ExternalErrorCode.BOK_API_REQUEST_FAILED);
+      }
       if (response.search() == null || response.search().rows() == null) {
         return List.of();
       }
