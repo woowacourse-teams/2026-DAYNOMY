@@ -1,13 +1,15 @@
+import type { Category } from '../newslist/types';
+
 export type Direction = 'positive' | 'negative' | 'neutral';
 
 export type NewsDetail = {
   title: string;
-  category: string;
+  category: Category;
   source: string;
   publishedAt: string;
   originalUrl?: string;
-  summary: string;
-  body: string[];
+  description: string;
+  content: string[];
   imageUrl?: string;
 };
 

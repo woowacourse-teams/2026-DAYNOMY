@@ -1,17 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import '../LoginPage.css';
 import { getApiUrl } from '../api';
+import { trackEvent } from '../../../analytics';
 
 function LoginPage() {
   const [searchParams] = useSearchParams();
+  const oauthError = searchParams.get('error') === 'oauth';
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(() =>
-    searchParams.get('error') === 'oauth' ? 'Google 로그인에 실패했습니다.' : null,
+    oauthError ? 'Google 로그인에 실패했습니다.' : null,
   );
+
+  useEffect(() => {
+    if (oauthError) trackEvent('login_failure', { method: 'google', error_code: 'oauth' });
+  }, [oauthError]);
 
   const handleGoogleLogin = () => {
     setErrorMessage(null);
+    trackEvent('click_login');
 
     setIsLoading(true);
     window.location.assign(getApiUrl('/api/auth/google'));

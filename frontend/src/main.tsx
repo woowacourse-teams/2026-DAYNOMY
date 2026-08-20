@@ -4,8 +4,10 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
 import { initSentry } from './monitoring/sentry.ts';
+import { initAnalytics } from './analytics';
 
 initSentry();
+initAnalytics();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

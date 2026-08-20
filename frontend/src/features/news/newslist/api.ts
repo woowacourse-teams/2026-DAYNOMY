@@ -1,45 +1,50 @@
 import type { NewsArticle, NewsCategory, NewsPage } from './types';
 
-type RawNewsPage =
-  | NewsArticle[]
-  | {
-      content?: NewsArticle[];
-      data?: NewsArticle[];
-      news?: NewsArticle[];
-      page?: number;
-      number?: number;
-      size?: number;
-      totalPages?: number;
-      totalElements?: number;
-    };
+type NewsListItemResponse = {
+  id: number;
+  title: string;
+  description?: string;
+  imageUrl?: string;
+  category: NewsCategory;
+  publishedAt?: string;
+};
+
+type NewsPageResponse = {
+  items: NewsListItemResponse[];
+  page: number;
+  size: number;
+  totalPages: number;
+  totalElements: number;
+  hasNext: boolean;
+};
 
 const DEFAULT_PAGE_SIZE = 10;
 
-function normalizeNewsPage(data: RawNewsPage, page: number): NewsPage {
-  if (Array.isArray(data)) {
-    return {
-      content: data,
-      page,
-      size: data.length,
-      totalPages: 1,
-      totalElements: data.length,
-    };
-  }
+function normalizeNewsArticle(item: NewsListItemResponse): NewsArticle {
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    category: item.category,
+    imageUrl: item.imageUrl,
+    publishedAt: item.publishedAt,
+  };
+}
 
-  const content = data.content ?? data.data ?? data.news ?? [];
-
+function normalizeNewsPage(data: NewsPageResponse): NewsPage {
+  const content = data.items.map(normalizeNewsArticle);
   return {
     content,
-    page: data.page ?? data.number ?? page,
-    size: data.size ?? content.length,
-    totalPages: data.totalPages ?? 1,
-    totalElements: data.totalElements ?? content.length,
+    page: data.page,
+    size: data.size,
+    totalPages: data.totalPages,
+    totalElements: data.totalElements,
   };
 }
 
 export async function getNews(
   category: NewsCategory = 'ALL',
-  page = 0,
+  page = 1,
   size = DEFAULT_PAGE_SIZE,
 ): Promise<NewsPage> {
   const params = new URLSearchParams({
@@ -63,9 +68,9 @@ export async function getNews(
     throw new Error('뉴스 API 응답 형식이 올바르지 않습니다.');
   }
 
-  const data = (await response.json()) as RawNewsPage;
+  const data = (await response.json()) as NewsPageResponse;
 
-  return normalizeNewsPage(data, page);
+  return normalizeNewsPage(data);
 }
 
 export async function getTodayNews(): Promise<NewsArticle> {
@@ -75,5 +80,11 @@ export async function getTodayNews(): Promise<NewsArticle> {
     throw new Error('오늘의 뉴스를 불러오지 못했습니다.');
   }
 
-  return (await response.json()) as NewsArticle;
+  const data = (await response.json()) as NewsListItemResponse | null;
+
+  if (!data) {
+    throw new Error('오늘의 뉴스를 불러오지 못했습니다.');
+  }
+
+  return normalizeNewsArticle(data);
 }
