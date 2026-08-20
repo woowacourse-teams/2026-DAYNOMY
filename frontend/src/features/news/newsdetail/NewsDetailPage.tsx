@@ -62,13 +62,13 @@ export function NewsDetailPage() {
 
         <section className="section">
           <h2>핵심 요약</h2>
-          <p className="summary">{news.summary}</p>
+          <p className="summary">{news.description}</p>
         </section>
 
         <section className="section">
           <h2>AI 본문</h2>
           <div className="body-copy">
-            {news.body.map((paragraph) => (
+            {news.content.map((paragraph) => (
               <p key={paragraph}>
                 <KeywordText text={paragraph} issues={relatedIssues} />
               </p>
@@ -76,7 +76,7 @@ export function NewsDetailPage() {
           </div>
         </section>
 
-        <MarketAnalysis summary={news.summary} impacts={impacts} issues={relatedIssues} />
+        <MarketAnalysis description={news.description} impacts={impacts} issues={relatedIssues} />
       </article>
     </main>
   );

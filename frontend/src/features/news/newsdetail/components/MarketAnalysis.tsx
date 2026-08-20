@@ -13,11 +13,11 @@ const directionScore: Record<Direction, number> = {
 };
 
 export function MarketAnalysis({
-  summary,
+  description,
   impacts,
   issues,
 }: {
-  summary: string;
+  description: string;
   impacts: Impact[];
   issues: RelatedIssue[];
 }) {
@@ -27,7 +27,7 @@ export function MarketAnalysis({
       <div className="market-analysis">
         <article className="analysis-card">
           <h3>1. 이슈의 핵심 내용</h3>
-          <p>{summary}</p>
+          <p>{description}</p>
         </article>
 
         <article className="analysis-card">
