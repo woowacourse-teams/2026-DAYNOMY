@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
@@ -44,7 +46,7 @@ class NewsServiceTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 10, 0));
+            instant(LocalDateTime.of(2026, 8, 17, 10, 0)));
     given(newsRepository.findAllByOrderByPublishedAtDescIdDesc(pageable))
         .willReturn(new PageImpl<>(java.util.List.of(news), pageable, 1));
 
@@ -72,8 +74,8 @@ class NewsServiceTest {
   @DisplayName("오늘 발행된 뉴스 중 최신 뉴스를 조회한다")
   void findTodayNewsReturnsLatestNewsPublishedToday() {
     LocalDate today = LocalDate.now();
-    LocalDateTime startInclusive = today.atStartOfDay();
-    LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+    Instant startInclusive = instant(today.atStartOfDay());
+    Instant endExclusive = instant(today.plusDays(1).atStartOfDay());
     News news =
         new News(
             "today news",
@@ -84,7 +86,7 @@ class NewsServiceTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            today.atTime(10, 0));
+            instant(today.atTime(10, 0)));
     given(
             newsRepository
                 .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
@@ -103,8 +105,8 @@ class NewsServiceTest {
   @DisplayName("오늘의 뉴스가 없으면 null을 반환한다")
   void findTodayNewsReturnsNullWhenMissing() {
     LocalDate today = LocalDate.now();
-    LocalDateTime startInclusive = today.atStartOfDay();
-    LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+    Instant startInclusive = instant(today.atStartOfDay());
+    Instant endExclusive = instant(today.plusDays(1).atStartOfDay());
     given(
             newsRepository
                 .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
@@ -127,7 +129,7 @@ class NewsServiceTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 10, 0));
+            instant(LocalDateTime.of(2026, 8, 17, 10, 0)));
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
     var response = newsService.getNewsDetail(1L);
@@ -145,5 +147,9 @@ class NewsServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
+  }
+
+  private static Instant instant(LocalDateTime dateTime) {
+    return dateTime.atZone(ZoneId.systemDefault()).toInstant();
   }
 }
