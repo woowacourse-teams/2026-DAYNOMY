@@ -1,20 +1,10 @@
 import axios from 'axios';
 import { toApiError } from '../../api/error';
 import { isCategory } from '../news/newslist/types';
-import type { NewsCategory, NewsPage } from '../news/newslist/types';
+import type { NewsCategory, NewsListItemResponse, NewsPage } from '../news/newslist/types';
 
-type NewsSearchItemResponse = {
-  id: number;
-  title: string;
-  description: string | null;
-  imageUrl: string | null;
-  category: Exclude<NewsCategory, 'ALL'>;
-  publishedAt: string;
-  source?: string;
-};
-
-type NewsSearchPageResponse = {
-  content: NewsSearchItemResponse[];
+type NewsSearchResponse = {
+  content: NewsListItemResponse[];
   page: number;
   size: number;
   totalElements: number;
@@ -28,7 +18,7 @@ export const SEARCH_ERROR_CODES = {
   SEARCH_INVALID_PAGE_CONDITION: 'SEARCH_INVALID_PAGE_CONDITION',
 } as const;
 
-function isNewsSearchItem(value: unknown): value is NewsSearchItemResponse {
+function isNewsListItem(value: unknown): value is NewsListItemResponse {
   if (!value || typeof value !== 'object') return false;
 
   const article = value as Record<string, unknown>;
@@ -42,13 +32,13 @@ function isNewsSearchItem(value: unknown): value is NewsSearchItemResponse {
   );
 }
 
-function isNewsSearchPage(value: unknown): value is NewsSearchPageResponse {
+function isNewsSearchResponse(value: unknown): value is NewsSearchResponse {
   if (!value || typeof value !== 'object') return false;
 
   const page = value as Record<string, unknown>;
   return (
     Array.isArray(page.content) &&
-    page.content.every(isNewsSearchItem) &&
+    page.content.every(isNewsListItem) &&
     Number.isInteger(page.page) &&
     Number.isInteger(page.size) &&
     Number.isInteger(page.totalElements) &&
@@ -56,7 +46,7 @@ function isNewsSearchPage(value: unknown): value is NewsSearchPageResponse {
   );
 }
 
-function normalizeNewsPage(page: NewsSearchPageResponse): NewsPage {
+function normalizeNewsPage(page: NewsSearchResponse): NewsPage {
   return {
     content: page.content,
     page: page.page,
@@ -82,7 +72,7 @@ export async function searchNews(keyword: string, category: NewsCategory, page =
   try {
     const { data } = await axios.get<unknown>(buildNewsSearchUrl(keyword, category, page, size));
 
-    if (!isNewsSearchPage(data)) throw new Error('검색 API 응답 형식이 올바르지 않습니다.');
+    if (!isNewsSearchResponse(data)) throw new Error('검색 API 응답 형식이 올바르지 않습니다.');
 
     return normalizeNewsPage(data);
   } catch (error) {
