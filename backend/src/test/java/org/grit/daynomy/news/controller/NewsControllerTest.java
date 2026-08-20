@@ -14,6 +14,7 @@ import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSource;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +55,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             LocalDateTime.of(2026, 8, 17, 10, 0)));
 
@@ -75,6 +79,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             LocalDateTime.of(2026, 8, 17, 10, 0)));
     newsRepository.save(
@@ -83,6 +90,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-2",
+            "https://example.com/2",
             Category.REAL_ESTATE,
             LocalDateTime.of(2026, 8, 17, 9, 0)));
 
@@ -104,6 +114,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             today.minusDays(1).atTime(23, 0)));
     newsRepository.save(
@@ -112,6 +125,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-2",
+            "https://example.com/2",
             Category.STOCK,
             today.atTime(9, 0)));
     newsRepository.save(
@@ -120,6 +136,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-3",
+            "https://example.com/3",
             Category.REAL_ESTATE,
             today.atTime(18, 0)));
 
@@ -141,6 +160,9 @@ class NewsControllerTest {
             "content",
             "description",
             "image.png",
+            NewsSource.DART,
+            "external-1",
+            "https://example.com/1",
             Category.STOCK,
             today.minusDays(1).atTime(23, 0)));
 
@@ -160,6 +182,9 @@ class NewsControllerTest {
                 "content",
                 "description",
                 "image.png",
+                NewsSource.DART,
+                "external-1",
+                "https://example.com/1",
                 Category.STOCK,
                 LocalDateTime.of(2026, 8, 17, 10, 0)));
 

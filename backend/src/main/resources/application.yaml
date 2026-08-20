@@ -1,11 +1,13 @@
 spring:
   application:
     name: daynomy
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+
   security:
     oauth2:
       client:
@@ -17,14 +19,15 @@ spring:
               - openid
               - profile
               - email
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"    
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+
   jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
       hibernate:
-        ddl-auto: validate
-      open-in-view: false
-      properties:
-        hibernate:
-          format_sql: true
+        format_sql: true
 
 app:
   cors:
@@ -41,7 +44,6 @@ jwt:
 
 cookie:
   secure: ${COOKIE_SECURE:false}
-  
 
 springdoc:
   swagger-ui:
@@ -49,8 +51,89 @@ springdoc:
   api-docs:
     path: /v3/api-docs
 
+external:
+  dart:
+    api-key: ${DART_API_KEY:}
+    base-url: ${DART_BASE_URL:https://opendart.fss.or.kr/api}
+
+  kosis:
+    api-key: ${KOSIS_API_KEY:}
+    base-url: ${KOSIS_BASE_URL:https://kosis.kr/openapi}
+    indicators:
+      - key: housing-price-index
+        name: 주택가격지수
+        view-code: MT_ZTITLE
+        user-stats-id: ${KOSIS_HOUSING_PRICE_INDEX_USER_STATS_ID:}
+        period: M
+        category: REAL_ESTATE
+        source-organization: 한국부동산원
+        survey-name: 전국주택가격동향조사
+        table-name: 주택가격지수
+
+      - key: consumer-price-index
+        name: 소비자물가지수
+        view-code: MT_ZTITLE
+        user-stats-id: ${KOSIS_CONSUMER_PRICE_INDEX_USER_STATS_ID:}
+        period: M
+        category: ECONOMY
+        source-organization: 국가데이터처
+        survey-name: 소비자물가조사
+        table-name: 소비자물가지수
+
+      - key: employment-rate
+        name: 고용률
+        view-code: MT_ZTITLE
+        user-stats-id: ${KOSIS_EMPLOYMENT_RATE_USER_STATS_ID:}
+        period: M
+        category: ECONOMY
+        source-organization: 국가데이터처
+        survey-name: 경제활동인구조사
+        table-name: 고용률 및 실업률
+
+  bok:
+    api-key: ${BOK_API_KEY:}
+    base-url: ${BOK_BASE_URL:https://ecos.bok.or.kr}
+    indicators:
+      - key: base-rate
+        name: 한국은행 기준금리
+        statistic-code: ${BOK_BASE_RATE_STATISTIC_CODE:}
+        cycle: M
+        category: ECONOMY
+        source-organization: 한국은행
+        statistic-name: 한국은행 기준금리 및 여수신금리
+        item-name: 한국은행 기준금리
+        item-codes: ${BOK_BASE_RATE_ITEM_CODES:}
+
+      - key: exchange-rate-usd
+        name: 원/달러 환율
+        statistic-code: ${BOK_EXCHANGE_RATE_USD_STATISTIC_CODE:}
+        cycle: D
+        category: FOREIGN_EXCHANGE
+        source-organization: 한국은행
+        statistic-name: 주요국 통화의 대원화환율
+        item-name: 원/달러
+        item-codes: ${BOK_EXCHANGE_RATE_USD_ITEM_CODES:}
+
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    model: ${OPENAI_MODEL:gpt-5-nano}
+    image-model: ${OPENAI_IMAGE_MODEL:gpt-image-1-mini}
+
 ai:
   openai:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com}
     api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_MODEL:gpt-5-mini}
+
+news:
+  generation:
+    dart:
+      enabled: ${DART_NEWS_GENERATION_ENABLED:false}
+      cron: ${DART_NEWS_GENERATION_CRON:0 10 9,13,18 * * *}
+    kosis:
+      enabled: ${KOSIS_NEWS_GENERATION_ENABLED:false}
+      cron: ${KOSIS_NEWS_GENERATION_CRON:0 30 7 * * *}
+    bok:
+      enabled: ${BOK_NEWS_GENERATION_ENABLED:false}
+      cron: ${BOK_NEWS_GENERATION_CRON:0 30 7 * * *}
