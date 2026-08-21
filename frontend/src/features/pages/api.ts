@@ -1,4 +1,4 @@
-export interface Member {
+export interface MemberResponse {
   id: number;
   email: string;
   nickname: string;
@@ -95,12 +95,12 @@ async function requestWithCsrf<T>(
   return request<T>(path, { ...init, headers }, retryOnUnauthorized);
 }
 
-export function getMyProfile(signal?: AbortSignal) {
-  return request<Member>('/api/users/me', { signal });
+export function getMyProfile(signal?: AbortSignal): Promise<MemberResponse> {
+  return request<MemberResponse>('/api/users/me', { signal });
 }
 
-export function updateMyProfile(nickname: string) {
-  return requestWithCsrf<Member>('/api/users/me', {
+export function updateMyProfile(nickname: string): Promise<MemberResponse> {
+  return requestWithCsrf<MemberResponse>('/api/users/me', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nickname }),

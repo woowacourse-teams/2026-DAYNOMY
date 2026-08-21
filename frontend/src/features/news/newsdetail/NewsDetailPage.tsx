@@ -14,6 +14,10 @@ function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
 }
 
+function getContentParagraphs(content: string | string[]) {
+  return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
+}
+
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
   const [payload, setPayload] = useState<NewsDetailPayload>();
@@ -50,6 +54,7 @@ export function NewsDetailPage() {
 
   const { news, keywords, marketAnalysis } = payload;
   const imageUrl = news.imageUrl ?? defaultNewsImage;
+  const sourceUrl = news.sourceUrl ?? news.originalUrl;
 
   return (
     <main className="news-page">
@@ -71,8 +76,8 @@ export function NewsDetailPage() {
           <span className="category">{getCategoryLabel(news.category)}</span>
           <time dateTime={news.publishedAt}>{formatDate(news.publishedAt)}</time>
           {news.source ? <span>{news.source}</span> : null}
-          {news.sourceUrl ? (
-            <a className="source-link" href={news.sourceUrl} target="_blank" rel="noreferrer">
+          {sourceUrl ? (
+            <a className="source-link" href={sourceUrl} target="_blank" rel="noreferrer">
               원본 보기
             </a>
           ) : null}
@@ -90,7 +95,7 @@ export function NewsDetailPage() {
         <section className="section">
           <h2>AI 본문</h2>
           <div className="body-copy">
-            {news.content.map((paragraph) => (
+            {getContentParagraphs(news.content).map((paragraph) => (
               <p key={paragraph}>
                 <KeywordText text={paragraph} keywords={keywords} />
               </p>

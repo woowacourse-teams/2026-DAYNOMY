@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../../../components/Header';
 import '../MyPage.css';
-import { ApiError, getMyProfile, logout, type Member, updateMyProfile, withdraw } from '../api';
+import {
+  ApiError,
+  getMyProfile,
+  logout,
+  type MemberResponse,
+  updateMyProfile,
+  withdraw,
+} from '../api';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
@@ -11,7 +18,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 function MyPage() {
   const navigate = useNavigate();
 
-  const [member, setMember] = useState<Member | null>(null);
+  const [member, setMember] = useState<MemberResponse | null>(null);
   const [draftNickname, setDraftNickname] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);

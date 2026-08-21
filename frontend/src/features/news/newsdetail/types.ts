@@ -1,44 +1,64 @@
 import type { Category } from '../newslist/types';
 
-export type Direction = 'positive' | 'negative';
+export type ImpactDirection = 'POSITIVE' | 'NEGATIVE';
+export type ImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+export type Asset =
+  | 'GOLD'
+  | 'STOCK'
+  | 'BOND'
+  | 'REAL_ESTATE'
+  | 'FOREIGN_EXCHANGE'
+  | 'VIRTUAL_ASSET'
+  | 'DEPOSIT_SAVINGS'
+  | 'ETF'
+  | 'PENSION'
+  | 'MOCK';
+export type TimeHorizon = 'SHORT_TERM' | 'MID_TERM' | 'LONG_TERM';
 
-export type NewsDetail = {
+export type NewsDetailResponse = {
   id: number;
   title: string;
   category: Category;
   publishedAt: string;
   description: string;
-  content: string[];
-  imageUrl?: string;
-  source?: string;
-  sourceUrl?: string;
+  content: string | string[];
+  imageUrl?: string | null;
+  source?: string | null;
+  originalUrl?: string | null;
+  sourceUrl?: string | null;
 };
 
-export type Impact = {
-  asset: string;
-  direction: Direction;
-  impactLevel: 'HIGH' | 'MEDIUM' | 'LOW';
-};
-
-export type Scenario = {
-  title: string;
-  probability?: number;
-  description: string;
-};
-
-export type NewsKeyword = {
+export type KeywordResponse = {
   keyword: string;
   description: string;
 };
 
-export type MarketAnalysis = {
+export type KeywordsResponse = {
+  keywords: KeywordResponse[];
+};
+
+export type AssetImpactResponse = {
+  asset: Asset;
+  direction: ImpactDirection;
+  impactLevel: ImpactLevel;
+  reason: string;
+};
+
+export type ScenarioResponse = {
+  timeHorizon: TimeHorizon;
+  prediction: string;
+  probability: number;
+  reason: string;
+};
+
+export type MarketAnalysisResponse = {
   cause: string;
-  impacts: Impact[];
-  scenarios: Scenario[];
+  assets: AssetImpactResponse[];
+  scenarios: ScenarioResponse[];
 };
 
 export type NewsDetailPayload = {
-  news: NewsDetail;
-  keywords: NewsKeyword[];
-  marketAnalysis?: MarketAnalysis;
+  news: NewsDetailResponse;
+  keywords: KeywordResponse[];
+  marketAnalysis?: MarketAnalysisResponse;
 };

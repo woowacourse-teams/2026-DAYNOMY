@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import type { NewsKeyword } from '../types.ts';
+import type { KeywordResponse } from '../types.ts';
 
-function highlightKeywords(text: string, keywords: NewsKeyword[]) {
+function highlightKeywords(text: string, keywords: KeywordResponse[]) {
   const matches = keywords
     .filter((keyword) => keyword.keyword && text.includes(keyword.keyword))
     .sort((a, b) => b.keyword.length - a.keyword.length);
@@ -36,6 +36,6 @@ function highlightKeywords(text: string, keywords: NewsKeyword[]) {
   return parts;
 }
 
-export function KeywordText({ text, keywords }: { text: string; keywords: NewsKeyword[] }) {
+export function KeywordText({ text, keywords }: { text: string; keywords: KeywordResponse[] }) {
   return <>{highlightKeywords(text, keywords)}</>;
 }
