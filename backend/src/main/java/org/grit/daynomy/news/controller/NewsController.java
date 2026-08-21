@@ -31,10 +31,12 @@ public class NewsController {
   @Operation(summary = "뉴스 목록 조회", description = "뉴스 목록을 페이지 단위로 조회합니다.")
   @GetMapping
   public ResponseEntity<NewsPageResponse> getNewsPage(
-      @Parameter(description = "1부터 시작하는 페이지 번호", example = "1") @RequestParam(defaultValue = "1")
+      @Parameter(description = "1부터 시작하는 페이지 번호", example = "1")
+          @RequestParam(defaultValue = "1")
           @Min(value = 1, message = "페이지 번호는 1 이상이어야 합니다.")
           int page,
-      @Parameter(description = "페이지 크기", example = "15") @RequestParam(defaultValue = "15")
+      @Parameter(description = "페이지 크기", example = "15")
+          @RequestParam(defaultValue = "15")
           @Min(value = 1, message = "페이지 크기는 1 이상이어야 합니다.")
           @Max(value = 100, message = "페이지 크기는 100 이하여야 합니다.")
           int size,
