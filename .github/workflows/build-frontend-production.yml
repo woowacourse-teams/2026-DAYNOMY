@@ -1,15 +1,25 @@
-name: Build frontend production
+name: Publish frontend production image
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - frontend/**
+      - .github/workflows/build-frontend-production.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  build-and-publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      packages: write
 
     defaults:
       run:
@@ -23,6 +33,8 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -59,10 +71,42 @@ jobs:
             exit 1
           fi
 
-      - name: Upload production artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: frontend-production-${{ github.sha }}
-          path: frontend/dist
-          if-no-files-found: error
-          retention-days: 7
+      - name: Set image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-frontend" >> "$GITHUB_OUTPUT"
+
+      - name: Build container image
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+        run: |
+          docker build \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --tag "$IMAGE_NAME:$GITHUB_SHA" \
+            --tag "$IMAGE_NAME:main" \
+            .
+
+      - name: Smoke test container
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+        run: |
+          docker run --detach --name frontend-smoke \
+            --publish 127.0.0.1:3000:80 \
+            "$IMAGE_NAME:$GITHUB_SHA"
+          trap 'docker rm --force frontend-smoke >/dev/null 2>&1 || true' EXIT
+          curl --fail --silent --show-error \
+            --retry 10 --retry-connrefused --retry-delay 1 \
+            http://127.0.0.1:3000/ >/dev/null
+          curl --fail --silent http://127.0.0.1:3000/news/1 | grep -q '<div id="root"></div>'
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish container image
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+        run: |
+          docker push "$IMAGE_NAME:$GITHUB_SHA"
+          docker push "$IMAGE_NAME:main"
