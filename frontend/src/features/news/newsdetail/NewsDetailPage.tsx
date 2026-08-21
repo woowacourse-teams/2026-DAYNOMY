@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Header } from '../../../components/Header.tsx';
 import defaultNewsImage from '../../../assets/default-news-real-estate.png';
 import { getCategoryLabel } from '../newslist/types.ts';
+import { formatDate } from '../newslist/utils.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { MarketAnalysis } from './components/MarketAnalysis.tsx';
@@ -13,17 +14,34 @@ function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
 }
 
+function getContentParagraphs(content: string | string[]) {
+  return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
+}
+
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
   const [payload, setPayload] = useState<NewsDetailPayload>();
+  const [error, setError] = useState('');
   const goBack = () => {
     window.location.href = '/';
   };
 
   useEffect(() => {
     trackEvent('view_news_detail', { news_id: newsId });
-    getNewsDetail(newsId).then(setPayload);
+    setError('');
+    getNewsDetail(newsId)
+      .then(setPayload)
+      .catch(() => setError('뉴스를 불러오지 못했습니다.'));
   }, [newsId]);
+
+  if (error) {
+    return (
+      <main className="news-page">
+        <Header />
+        <p className="loading">{error}</p>
+      </main>
+    );
+  }
 
   if (!payload) {
     return (
@@ -34,8 +52,9 @@ export function NewsDetailPage() {
     );
   }
 
-  const { news, impacts, relatedIssues } = payload;
+  const { news, keywords, marketAnalysis } = payload;
   const imageUrl = news.imageUrl ?? defaultNewsImage;
+  const sourceUrl = news.sourceUrl ?? news.originalUrl;
 
   return (
     <main className="news-page">
@@ -55,7 +74,13 @@ export function NewsDetailPage() {
 
         <div className="meta">
           <span className="category">{getCategoryLabel(news.category)}</span>
-          <time>{news.publishedAt}</time>
+          <time dateTime={news.publishedAt}>{formatDate(news.publishedAt)}</time>
+          {news.source ? <span>{news.source}</span> : null}
+          {sourceUrl ? (
+            <a className="source-link" href={sourceUrl} target="_blank" rel="noreferrer">
+              원본 보기
+            </a>
+          ) : null}
         </div>
 
         <h1>{news.title}</h1>
@@ -70,15 +95,15 @@ export function NewsDetailPage() {
         <section className="section">
           <h2>AI 본문</h2>
           <div className="body-copy">
-            {news.content.map((paragraph) => (
+            {getContentParagraphs(news.content).map((paragraph) => (
               <p key={paragraph}>
-                <KeywordText text={paragraph} issues={relatedIssues} />
+                <KeywordText text={paragraph} keywords={keywords} />
               </p>
             ))}
           </div>
         </section>
 
-        <MarketAnalysis description={news.description} impacts={impacts} issues={relatedIssues} />
+        {marketAnalysis ? <MarketAnalysis marketAnalysis={marketAnalysis} /> : null}
       </article>
     </main>
   );

@@ -1,0 +1,7 @@
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE is required}
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"

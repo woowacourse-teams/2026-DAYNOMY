@@ -6,7 +6,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.NewsSource;
@@ -38,7 +38,7 @@ class OpenAiNewsGeneratorTest {
             "external-1",
             "https://dart.example/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 0, 0),
+            Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
 
     var generatedNews = generator.generate(prompt);

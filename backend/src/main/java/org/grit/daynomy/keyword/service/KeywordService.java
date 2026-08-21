@@ -2,7 +2,7 @@ package org.grit.daynomy.keyword.service;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.dto.KeywordsResponse;
 import org.grit.daynomy.keyword.exception.KeywordErrorCode;

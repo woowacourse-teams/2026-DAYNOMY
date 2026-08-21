@@ -1,6 +1,6 @@
 package org.grit.daynomy.news.ai;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.NewsSource;
 
@@ -9,5 +9,5 @@ public record NewsPrompt(
     String externalId,
     String sourceUrl,
     Category category,
-    LocalDateTime publishedAt,
+    Instant publishedAt,
     String prompt) {}

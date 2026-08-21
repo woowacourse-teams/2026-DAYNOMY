@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.exception.AuthErrorCode;
-import org.grit.daynomy.common.ErrorResponse;
+import org.grit.daynomy.common.response.ErrorResponse;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.access.AccessDeniedHandler;

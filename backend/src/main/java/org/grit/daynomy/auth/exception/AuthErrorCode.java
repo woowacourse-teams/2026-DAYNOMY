@@ -1,6 +1,6 @@
 package org.grit.daynomy.auth.exception;
 
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.common.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 public enum AuthErrorCode implements ErrorCode {

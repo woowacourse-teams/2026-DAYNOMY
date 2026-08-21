@@ -80,6 +80,15 @@ body {
   color: #4f46e5;
 }
 
+.source-link {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.source-link:hover {
+  text-decoration: underline;
+}
+
 .news-detail h1 {
   margin: 12px 0 14px;
   color: #111827;
@@ -230,10 +239,6 @@ body {
   background: #22c55e;
 }
 
-.impact-track .neutral {
-  background: #f59e0b;
-}
-
 .impact-track .negative {
   background: #ef4444;
 }
@@ -248,10 +253,6 @@ body {
 
 .negative {
   color: #dc2626;
-}
-
-.neutral {
-  color: #a16207;
 }
 
 .scenario-list {
