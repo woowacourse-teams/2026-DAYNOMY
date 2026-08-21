@@ -3,7 +3,7 @@ package org.grit.daynomy.external.kosis;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -145,7 +145,7 @@ public class KosisNewsPromptService {
             indicator.sourceOrganization(),
             indicator.surveyName(),
             indicator.tableName(),
-            LocalDateTime.now().toLocalDate());
+            LocalDate.now());
   }
 
   private Optional<BigDecimal> number(String value) {
