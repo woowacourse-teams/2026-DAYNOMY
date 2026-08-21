@@ -10,7 +10,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
@@ -61,7 +60,7 @@ class NewsControllerTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            instant(LocalDateTime.of(2026, 8, 17, 10, 0))));
+            Instant.parse("2026-08-17T10:00:00Z")));
 
     HttpResponse<String> response = get("/api/news?page=1&size=15");
     JsonNode body = objectMapper.readTree(response.body());
@@ -85,7 +84,7 @@ class NewsControllerTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            instant(LocalDateTime.of(2026, 8, 17, 10, 0))));
+            Instant.parse("2026-08-17T10:00:00Z")));
     newsRepository.save(
         new News(
             "estate news",
@@ -96,7 +95,7 @@ class NewsControllerTest {
             "external-2",
             "https://example.com/2",
             Category.REAL_ESTATE,
-            instant(LocalDateTime.of(2026, 8, 17, 9, 0))));
+            Instant.parse("2026-08-17T09:00:00Z")));
 
     HttpResponse<String> response = get("/api/news?category=REAL_ESTATE");
     JsonNode body = objectMapper.readTree(response.body());
@@ -132,7 +131,7 @@ class NewsControllerTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            instant(today.minusDays(1).atTime(23, 0))));
+            atHour(today.minusDays(1), 23)));
     newsRepository.save(
         new News(
             "morning news",
@@ -143,7 +142,7 @@ class NewsControllerTest {
             "external-2",
             "https://example.com/2",
             Category.STOCK,
-            instant(today.atTime(9, 0))));
+            atHour(today, 9)));
     newsRepository.save(
         new News(
             "latest today news",
@@ -154,7 +153,7 @@ class NewsControllerTest {
             "external-3",
             "https://example.com/3",
             Category.REAL_ESTATE,
-            instant(today.atTime(18, 0))));
+            atHour(today, 18)));
 
     HttpResponse<String> response = get("/api/news/today");
     JsonNode body = objectMapper.readTree(response.body());
@@ -178,7 +177,7 @@ class NewsControllerTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            instant(today.minusDays(1).atTime(23, 0))));
+            atHour(today.minusDays(1), 23)));
 
     HttpResponse<String> response = get("/api/news/today");
 
@@ -200,7 +199,7 @@ class NewsControllerTest {
                 "external-1",
                 "https://example.com/1",
                 Category.STOCK,
-                instant(LocalDateTime.of(2026, 8, 17, 10, 0))));
+                Instant.parse("2026-08-17T10:00:00Z")));
 
     HttpResponse<String> response = get("/api/news/" + news.getId());
     JsonNode body = objectMapper.readTree(response.body());
@@ -227,7 +226,7 @@ class NewsControllerTest {
     return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
-  private static Instant instant(LocalDateTime dateTime) {
-    return dateTime.atZone(ZoneId.systemDefault()).toInstant();
+  private static Instant atHour(LocalDate date, int hour) {
+    return date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant();
   }
 }

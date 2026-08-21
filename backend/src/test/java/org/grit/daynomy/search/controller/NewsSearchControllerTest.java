@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.news.domain.Category;
@@ -62,7 +62,7 @@ class NewsSearchControllerTest {
                         "기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.",
                         "https://example.com/base-rate.webp",
                         Category.BOND,
-                        LocalDateTime.of(2026, 8, 14, 10, 0))),
+                        Instant.parse("2026-08-14T10:00:00Z"))),
                 1,
                 20,
                 1,

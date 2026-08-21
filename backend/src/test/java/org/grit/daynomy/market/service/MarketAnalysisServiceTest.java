@@ -6,7 +6,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -142,6 +142,6 @@ class MarketAnalysisServiceTest {
         "market-news",
         "https://example.com/market-news",
         Category.STOCK,
-        LocalDateTime.of(2026, 8, 17, 10, 0));
+        Instant.parse("2026-08-17T10:00:00Z"));
   }
 }

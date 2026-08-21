@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -46,7 +45,7 @@ class NewsServiceTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            instant(LocalDateTime.of(2026, 8, 17, 10, 0)));
+            Instant.parse("2026-08-17T10:00:00Z"));
     given(newsRepository.findAllByOrderByPublishedAtDescIdDesc(pageable))
         .willReturn(new PageImpl<>(java.util.List.of(news), pageable, 1));
 
@@ -74,8 +73,8 @@ class NewsServiceTest {
   @DisplayName("오늘 발행된 뉴스 중 최신 뉴스를 조회한다")
   void findTodayNewsReturnsLatestNewsPublishedToday() {
     LocalDate today = LocalDate.now();
-    Instant startInclusive = instant(today.atStartOfDay());
-    Instant endExclusive = instant(today.plusDays(1).atStartOfDay());
+    Instant startInclusive = startOfDay(today);
+    Instant endExclusive = startOfDay(today.plusDays(1));
     News news =
         new News(
             "today news",
@@ -86,7 +85,7 @@ class NewsServiceTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            instant(today.atTime(10, 0)));
+            atHour(today, 10));
     given(
             newsRepository
                 .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
@@ -105,8 +104,8 @@ class NewsServiceTest {
   @DisplayName("오늘의 뉴스가 없으면 null을 반환한다")
   void findTodayNewsReturnsNullWhenMissing() {
     LocalDate today = LocalDate.now();
-    Instant startInclusive = instant(today.atStartOfDay());
-    Instant endExclusive = instant(today.plusDays(1).atStartOfDay());
+    Instant startInclusive = startOfDay(today);
+    Instant endExclusive = startOfDay(today.plusDays(1));
     given(
             newsRepository
                 .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
@@ -129,7 +128,7 @@ class NewsServiceTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            instant(LocalDateTime.of(2026, 8, 17, 10, 0)));
+            Instant.parse("2026-08-17T10:00:00Z"));
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
     var response = newsService.getNewsDetail(1L);
@@ -149,7 +148,11 @@ class NewsServiceTest {
         .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
   }
 
-  private static Instant instant(LocalDateTime dateTime) {
-    return dateTime.atZone(ZoneId.systemDefault()).toInstant();
+  private static Instant startOfDay(LocalDate date) {
+    return date.atStartOfDay(ZoneId.systemDefault()).toInstant();
+  }
+
+  private static Instant atHour(LocalDate date, int hour) {
+    return date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant();
   }
 }

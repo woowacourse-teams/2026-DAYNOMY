@@ -8,7 +8,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
@@ -96,7 +96,7 @@ class KeywordControllerTest {
         "keyword-news",
         "https://example.com/keyword-news",
         Category.STOCK,
-        LocalDateTime.of(2026, 8, 17, 10, 0));
+        Instant.parse("2026-08-17T10:00:00Z"));
   }
 
   private HttpResponse<String> get(String path) throws Exception {

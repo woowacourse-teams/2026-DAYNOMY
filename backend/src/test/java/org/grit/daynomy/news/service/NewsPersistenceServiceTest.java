@@ -5,7 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
@@ -37,7 +37,7 @@ class NewsPersistenceServiceTest {
             "20260817000001",
             "https://dart.example/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 0, 0),
+            Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
     GeneratedNews generatedNews = new GeneratedNews("제목", "요약", "본문");
     given(newsRepository.existsBySourceAndExternalId(NewsSource.DART, "20260817000001"))
@@ -68,7 +68,7 @@ class NewsPersistenceServiceTest {
             "20260817000001",
             "https://dart.example/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 0, 0),
+            Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
     given(newsRepository.existsBySourceAndExternalId(NewsSource.DART, "20260817000001"))
         .willReturn(true);
