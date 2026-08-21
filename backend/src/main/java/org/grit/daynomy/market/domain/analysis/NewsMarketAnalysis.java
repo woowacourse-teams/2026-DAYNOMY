@@ -16,6 +16,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.grit.daynomy.common.BaseEntity;
 import org.grit.daynomy.market.domain.asset.AssetImpact;
 import org.grit.daynomy.market.domain.scenario.Scenario;
 import org.grit.daynomy.news.domain.News;
@@ -23,7 +24,7 @@ import org.grit.daynomy.news.domain.News;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
-public class NewsMarketAnalysis {
+public class NewsMarketAnalysis extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)

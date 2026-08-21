@@ -1,4 +1,4 @@
-package org.grit.daynomy.common;
+package org.grit.daynomy.common.exception;
 
 import org.springframework.http.HttpStatus;
 

@@ -9,12 +9,11 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.grit.daynomy.common.BaseEntity;
 
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
@@ -25,7 +24,7 @@ import org.hibernate.annotations.UpdateTimestamp;
         @UniqueConstraint(
             name = "uk_news_source_external_id",
             columnNames = {"source", "external_id"}))
-public class News {
+public class News extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -60,15 +59,7 @@ public class News {
   // TODO(choiyoung69): Keyword 관계 설계 확정 후 추가
 
   @Column(name = "published_at")
-  private LocalDateTime publishedAt;
-
-  @CreationTimestamp
-  @Column(name = "created_at", updatable = false)
-  private LocalDateTime createdAt;
-
-  @UpdateTimestamp
-  @Column(name = "updated_at")
-  private LocalDateTime updatedAt;
+  private Instant publishedAt;
 
   public News(
       String title,
@@ -79,7 +70,7 @@ public class News {
       String externalId,
       String sourceUrl,
       Category category,
-      LocalDateTime publishedAt) {
+      Instant publishedAt) {
     this.title = title;
     this.content = content;
     this.description = description;

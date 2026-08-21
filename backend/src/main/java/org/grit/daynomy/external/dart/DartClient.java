@@ -2,7 +2,7 @@ package org.grit.daynomy.external.dart;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseResponse;
 import org.grit.daynomy.external.dart.dto.DartConvertibleBondResponse;

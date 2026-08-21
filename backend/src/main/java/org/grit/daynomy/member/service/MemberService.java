@@ -2,7 +2,7 @@ package org.grit.daynomy.member.service;
 
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.repository.RefreshTokenRepository;
-import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.OAuthProvider;
 import org.grit.daynomy.member.exception.MemberErrorCode;

@@ -1,6 +1,6 @@
 package org.grit.daynomy.external;
 
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.common.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 public enum ExternalErrorCode implements ErrorCode {

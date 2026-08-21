@@ -1,10 +1,10 @@
 package org.grit.daynomy.news.service;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
-import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.CommonErrorCode;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.dto.NewsDetailResponse;
@@ -26,10 +26,6 @@ public class NewsService {
   private final NewsRepository newsRepository;
 
   public NewsPageResponse getNewsPage(int page, int size, Category category) {
-    if (page < 1 || size < 1) {
-      throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
-    }
-
     Pageable pageable = PageRequest.of(page - 1, size);
     Page<News> newsPage =
         category == null
@@ -40,9 +36,10 @@ public class NewsService {
   }
 
   public NewsListItemResponse getTodayNews() {
-    LocalDate today = LocalDate.now();
-    LocalDateTime startInclusive = today.atStartOfDay();
-    LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+    ZoneId zoneId = ZoneId.systemDefault();
+    LocalDate today = LocalDate.now(zoneId);
+    Instant startInclusive = today.atStartOfDay(zoneId).toInstant();
+    Instant endExclusive = today.plusDays(1).atStartOfDay(zoneId).toInstant();
 
     return newsRepository
         .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
