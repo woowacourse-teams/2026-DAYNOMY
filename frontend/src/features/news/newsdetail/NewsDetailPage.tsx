@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Header } from '../../../components/Header.tsx';
 import defaultNewsImage from '../../../assets/default-news-real-estate.png';
 import { getCategoryLabel } from '../newslist/types.ts';
+import { formatDate } from '../newslist/utils.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { MarketAnalysis } from './components/MarketAnalysis.tsx';
@@ -68,7 +69,8 @@ export function NewsDetailPage() {
 
         <div className="meta">
           <span className="category">{getCategoryLabel(news.category)}</span>
-          <time>{news.publishedAt}</time>
+          <time dateTime={news.publishedAt}>{formatDate(news.publishedAt)}</time>
+          {news.source ? <span>{news.source}</span> : null}
           {news.sourceUrl ? (
             <a className="source-link" href={news.sourceUrl} target="_blank" rel="noreferrer">
               원본 보기

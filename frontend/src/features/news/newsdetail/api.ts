@@ -15,6 +15,7 @@ type NewsDetailResponse = {
   content: string;
   description: string;
   imageUrl: string | null;
+  source?: string | null;
   sourceUrl?: string | null;
   category: string;
   publishedAt: string;
@@ -82,6 +83,7 @@ function normalizeNews(raw: NewsDetailResponse): NewsDetail {
     description: raw.description,
     content: raw.content.split('\n').filter(Boolean),
     imageUrl: raw.imageUrl ?? undefined,
+    source: raw.source ?? undefined,
     sourceUrl: raw.sourceUrl ?? undefined,
   };
 }

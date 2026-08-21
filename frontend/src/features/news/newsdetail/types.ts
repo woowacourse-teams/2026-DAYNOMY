@@ -10,6 +10,7 @@ export type NewsDetail = {
   description: string;
   content: string[];
   imageUrl?: string;
+  source?: string;
   sourceUrl?: string;
 };
 
