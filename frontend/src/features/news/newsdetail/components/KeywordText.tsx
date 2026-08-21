@@ -2,17 +2,17 @@ import type { ReactNode } from 'react';
 import type { KeywordResponse } from '../types.ts';
 
 function highlightKeywords(text: string, keywords: KeywordResponse[]) {
-  const matchedKeywords = keywords
+  const matches = keywords
     .filter((keyword) => keyword.keyword && text.includes(keyword.keyword))
     .sort((a, b) => b.keyword.length - a.keyword.length);
 
-  if (!matchedKeywords.length) return text;
+  if (!matches.length) return text;
 
   const parts: ReactNode[] = [];
   let index = 0;
 
   while (index < text.length) {
-    const match = matchedKeywords.find((keyword) => text.startsWith(keyword.keyword, index));
+    const match = matches.find((keyword) => text.startsWith(keyword.keyword, index));
 
     if (!match) {
       parts.push(text[index]);

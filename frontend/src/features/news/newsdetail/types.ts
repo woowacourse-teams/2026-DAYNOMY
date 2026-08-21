@@ -16,25 +16,16 @@ export type Asset =
 export type TimeHorizon = 'SHORT_TERM' | 'MID_TERM' | 'LONG_TERM';
 
 export type NewsDetailResponse = {
-  id?: number;
+  id: number;
   title: string;
   category: Category;
   publishedAt: string;
   description: string;
   content: string | string[];
   imageUrl?: string | null;
-  source?: string;
-  originalUrl?: string;
-  sourceUrl?: string;
-  originalText?: string;
-  date?: string;
-};
-
-export type NewsDetailView = Omit<NewsDetailResponse, 'content'> & {
-  source: string;
-  originalUrl?: string;
-  content: string[];
-  imageUrl?: string;
+  source?: string | null;
+  originalUrl?: string | null;
+  sourceUrl?: string | null;
 };
 
 export type KeywordResponse = {
@@ -67,7 +58,7 @@ export type MarketAnalysisResponse = {
 };
 
 export type NewsDetailPayload = {
-  news: NewsDetailView;
-  marketAnalysis: MarketAnalysisResponse;
+  news: NewsDetailResponse;
   keywords: KeywordResponse[];
+  marketAnalysis?: MarketAnalysisResponse;
 };
