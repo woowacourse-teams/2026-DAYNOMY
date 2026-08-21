@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
