@@ -16,7 +16,7 @@ permissions:
 jobs:
   build-and-publish:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     environment: production
     permissions:
       contents: read
@@ -115,7 +115,7 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: build-and-publish
-    runs-on: [self-hosted, linux, x64, frontend-prod]
+    runs-on: [self-hosted, linux, ARM64, frontend-prod]
     permissions:
       packages: read
 
