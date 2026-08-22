@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - frontend/**
-      - deploy/frontend/**
       - .github/workflows/build-frontend-production.yml
   workflow_dispatch:
 
