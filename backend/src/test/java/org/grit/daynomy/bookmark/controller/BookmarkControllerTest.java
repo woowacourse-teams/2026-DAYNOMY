@@ -6,10 +6,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.bookmark.dto.BookmarkResponse;
 import org.grit.daynomy.bookmark.service.BookmarkService;
@@ -100,6 +102,26 @@ class BookmarkControllerTest {
         .andExpect(jsonPath("$.errors[0].field").value("targetId"));
 
     verifyNoInteractions(bookmarkService);
+  }
+
+  @Test
+  void returnsBookmarksForAuthenticatedMember() throws Exception {
+    when(bookmarkService.getBookmarks(3L))
+        .thenReturn(List.of(new BookmarkResponse(1L, 10L), new BookmarkResponse(2L, 20L)));
+
+    mockMvc
+        .perform(
+            get("/api/users/me/bookmarks")
+                .principal(
+                    new UsernamePasswordAuthenticationToken(
+                        new AuthenticatedMember(3L, MemberRole.USER), null)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(1))
+        .andExpect(jsonPath("$[0].targetId").value(10))
+        .andExpect(jsonPath("$[1].id").value(2))
+        .andExpect(jsonPath("$[1].targetId").value(20));
+
+    verify(bookmarkService).getBookmarks(3L);
   }
 
   @Test

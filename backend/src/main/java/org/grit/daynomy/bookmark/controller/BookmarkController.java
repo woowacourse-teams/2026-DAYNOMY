@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.bookmark.dto.BookmarkRequest;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,5 +51,12 @@ public class BookmarkController {
           Long targetId) {
     bookmarkService.deleteBookmark(authenticatedMember.memberId(), targetId);
     return ResponseEntity.noContent().build();
+  }
+
+  @Operation(summary = "내 관심 자산 조회", description = "로그인한 회원이 북마크한 자산 목록을 조회합니다.")
+  @GetMapping("/users/me/bookmarks")
+  public ResponseEntity<List<BookmarkResponse>> getMyBookmarks(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember authenticatedMember) {
+    return ResponseEntity.ok(bookmarkService.getBookmarks(authenticatedMember.memberId()));
   }
 }

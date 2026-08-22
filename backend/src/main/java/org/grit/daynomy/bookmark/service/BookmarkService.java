@@ -1,5 +1,6 @@
 package org.grit.daynomy.bookmark.service;
 
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.bookmark.domain.Bookmark;
 import org.grit.daynomy.bookmark.dto.BookmarkResponse;
@@ -40,4 +41,12 @@ public class BookmarkService {
             .orElseThrow(() -> new BusinessException(BookmarkErrorCode.BOOKMARK_NOT_FOUND));
     bookmarkRepository.delete(bookmark);
   }
+
+  public List<BookmarkResponse> getBookmarks(Long memberId) {
+    memberService.getMember(memberId);
+    return bookmarkRepository.findAllByMemberIdOrderByIdAsc(memberId).stream()
+        .map(BookmarkResponse::from)
+        .toList();
+  }
 }
+import java.util.List;
