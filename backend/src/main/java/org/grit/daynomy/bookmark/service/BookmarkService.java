@@ -2,6 +2,7 @@ package org.grit.daynomy.bookmark.service;
 
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.bookmark.domain.Bookmark;
+import org.grit.daynomy.bookmark.dto.BookmarkResponse;
 import org.grit.daynomy.bookmark.exception.BookmarkErrorCode;
 import org.grit.daynomy.bookmark.repository.BookmarkRepository;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -19,13 +20,24 @@ public class BookmarkService {
   private final MemberService memberService;
 
   @Transactional
-  public Bookmark addBookmark(Long memberId, Long targetId) {
+  public BookmarkResponse addBookmark(Long memberId, Long targetId) {
     Member member = memberService.getMember(memberId);
 
     if (bookmarkRepository.existsByMemberIdAndTargetId(memberId, targetId)) {
       throw new BusinessException(BookmarkErrorCode.BOOKMARK_ALREADY_EXISTS);
     }
 
-    return bookmarkRepository.save(Bookmark.create(member, targetId));
+    return BookmarkResponse.from(bookmarkRepository.save(Bookmark.create(member, targetId)));
+  }
+
+  @Transactional
+  public void deleteBookmark(Long memberId, Long targetId) {
+    memberService.getMember(memberId);
+
+    Bookmark bookmark =
+        bookmarkRepository
+            .findByMemberIdAndTargetId(memberId, targetId)
+            .orElseThrow(() -> new BusinessException(BookmarkErrorCode.BOOKMARK_NOT_FOUND));
+    bookmarkRepository.delete(bookmark);
   }
 }
