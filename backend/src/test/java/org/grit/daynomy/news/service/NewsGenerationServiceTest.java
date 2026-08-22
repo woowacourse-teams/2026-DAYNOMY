@@ -134,6 +134,38 @@ class NewsGenerationServiceTest {
   }
 
   @Test
+  @DisplayName("생성 중 이미 저장된 뉴스가 되면 저장 건수에서 제외한다")
+  void generateKosisNewsExcludesNewsSavedByAnotherFlow() {
+    NewsPrompt prompt =
+        new NewsPrompt(
+            NewsSource.KOSIS,
+            "consumer-price-index:202607",
+            "https://kosis.kr",
+            Category.ECONOMY,
+            Instant.parse("2026-08-18T00:00:00Z"),
+            "prompt");
+    GeneratedNews generatedNews = new GeneratedNews("물가 뉴스", "요약", "본문");
+    given(kosisNewsPromptService.createPrompts()).willReturn(List.of(prompt));
+    given(
+            newsRepository.existsBySourceAndExternalId(
+                NewsSource.KOSIS, "consumer-price-index:202607"))
+        .willReturn(false);
+    given(openAiNewsGenerator.generate(prompt)).willReturn(generatedNews);
+    given(openAiImageGenerator.generateNewsImage("물가 뉴스", "요약"))
+        .willReturn("data:image/webp;base64,image");
+    given(
+            newsPersistenceService.saveIfAbsent(
+                prompt, generatedNews, "data:image/webp;base64,image"))
+        .willReturn(false);
+
+    int savedCount = newsGenerationService.generateKosisNews();
+
+    assertThat(savedCount).isZero();
+    verify(newsPersistenceService)
+        .saveIfAbsent(prompt, generatedNews, "data:image/webp;base64,image");
+  }
+
+  @Test
   @DisplayName("한국은행 ECOS 프롬프트로 뉴스를 생성하고 저장한다")
   void generateBokNewsSavesGeneratedNews() {
     NewsPrompt prompt =
