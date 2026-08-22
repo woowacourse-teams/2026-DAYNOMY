@@ -4,4 +4,4 @@ services:
     container_name: frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - '80:80'
