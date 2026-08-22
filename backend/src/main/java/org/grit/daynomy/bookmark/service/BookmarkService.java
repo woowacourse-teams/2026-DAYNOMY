@@ -49,4 +49,3 @@ public class BookmarkService {
         .toList();
   }
 }
-import java.util.List;
