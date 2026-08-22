@@ -24,59 +24,60 @@ import org.grit.daynomy.news.domain.News;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(
-        name = "portfolio_asset_impact",
-        uniqueConstraints =
+    name = "portfolio_asset_impact",
+    uniqueConstraints =
         @UniqueConstraint(
-                name = "uk_portfolio_asset_impact_news_bookmark",
-                columnNames = {"news_id", "bookmark_id"}))
+            name = "uk_portfolio_asset_impact_news_bookmark",
+            columnNames = {"news_id", "bookmark_id"}))
 public class PortfolioAssetImpact extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "news_id", nullable = false)
-    private News news;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "news_id", nullable = false)
+  private News news;
 
-    @Column(name = "asset_id", nullable = false)
-    private Long assetId;
+  @Column(name = "asset_id", nullable = false)
+  private Long assetId;
 
-    @Column(name = "bookmark_id", nullable = false)
-    private Long bookmarkId;
+  @Column(name = "bookmark_id", nullable = false)
+  private Long bookmarkId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "direction", nullable = false)
-    private ImpactDirection direction;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "direction", nullable = false)
+  private ImpactDirection direction;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "impact_level", nullable = false)
-    private ImpactLevel impactLevel;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "impact_level", nullable = false)
+  private ImpactLevel impactLevel;
 
-    @Column(name = "expected_reaction", columnDefinition = "TEXT", nullable = false)
-    private String expectedReaction;
+  @Column(name = "expected_reaction", columnDefinition = "TEXT", nullable = false)
+  private String expectedReaction;
 
-    @Column(name = "reason", columnDefinition = "TEXT", nullable = false)
-    private String reason;
+  @Column(name = "reason", columnDefinition = "TEXT", nullable = false)
+  private String reason;
 
-    @Column(name = "sort_order", nullable = false)
-    private int sortOrder;
+  @Column(name = "sort_order", nullable = false)
+  private int sortOrder;
 
-    public PortfolioAssetImpact(News news,
-                                Long assetId,
-                                Long bookmarkId,
-                                ImpactDirection direction,
-                                ImpactLevel impactLevel,
-                                String expectedReaction,
-                                String reason,
-                                int sortOrder) {
-        this.news = news;
-        this.assetId = assetId;
-        this.bookmarkId = bookmarkId;
-        this.direction = direction;
-        this.impactLevel = impactLevel;
-        this.expectedReaction = expectedReaction;
-        this.reason = reason;
-        this.sortOrder = sortOrder;
-    }
+  public PortfolioAssetImpact(
+      News news,
+      Long assetId,
+      Long bookmarkId,
+      ImpactDirection direction,
+      ImpactLevel impactLevel,
+      String expectedReaction,
+      String reason,
+      int sortOrder) {
+    this.news = news;
+    this.assetId = assetId;
+    this.bookmarkId = bookmarkId;
+    this.direction = direction;
+    this.impactLevel = impactLevel;
+    this.expectedReaction = expectedReaction;
+    this.reason = reason;
+    this.sortOrder = sortOrder;
+  }
 }
