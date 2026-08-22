@@ -87,6 +87,11 @@ jobs:
             --tag "$IMAGE_NAME:main" \
             .
 
+      - name: Validate Nginx configuration
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+        run: docker run --rm "$IMAGE_NAME:$GITHUB_SHA" nginx -t
+
       - name: Smoke test container
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
@@ -95,10 +100,25 @@ jobs:
             --publish 127.0.0.1:3000:80 \
             "$IMAGE_NAME:$GITHUB_SHA"
           trap 'docker rm --force frontend-smoke >/dev/null 2>&1 || true' EXIT
-          curl --fail --silent --show-error \
-            --retry 10 --retry-connrefused --retry-delay 1 \
-            http://127.0.0.1:3000/ >/dev/null
-          curl --fail --silent http://127.0.0.1:3000/news/1 | grep -q '<div id="root"></div>'
+
+          dump_container_logs() {
+            docker ps --all --filter name=frontend-smoke || true
+            docker inspect frontend-smoke --format '{{json .State}}' || true
+            docker logs frontend-smoke || true
+          }
+
+          if ! curl --fail --silent --show-error \
+            --retry 10 --retry-all-errors --retry-delay 1 \
+            http://127.0.0.1:3000/ >/dev/null; then
+            dump_container_logs
+            exit 1
+          fi
+
+          if ! curl --fail --silent http://127.0.0.1:3000/news/1 \
+            | grep -q '<div id="root"></div>'; then
+            dump_container_logs
+            exit 1
+          fi
 
       - name: Log in to GHCR
         env:
