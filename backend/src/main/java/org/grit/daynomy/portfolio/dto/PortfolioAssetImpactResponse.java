@@ -20,14 +20,14 @@ public record PortfolioAssetImpactResponse(
     @Schema(description = "판단 근거", example = "반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.") String reason,
     @Schema(description = "영향도 정렬 순서", example = "1") int sortOrder) {
 
-  public static PortfolioAssetImpactResponse of(
-      PortfolioAssetImpact impact, String name, String category, String assetCode) {
+  public static PortfolioAssetImpactResponse from(PortfolioAssetImpact impact) {
+    Asset asset = impact.getAsset();
     return new PortfolioAssetImpactResponse(
-        impact.getBookmarkId(),
-        impact.getAssetId(),
-        name,
-        category,
-        assetCode,
+        impact.getBookmark().getId(),
+        asset.getId(),
+        asset.getName(),
+        asset.getCategory().name(),
+        asset.getAssetCode(),
         impact.getDirection(),
         impact.getImpactLevel(),
         impact.getExpectedReaction(),

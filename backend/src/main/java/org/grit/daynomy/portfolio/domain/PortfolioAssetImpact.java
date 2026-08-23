@@ -15,6 +15,8 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.bookmark.domain.Bookmark;
 import org.grit.daynomy.common.BaseEntity;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -35,15 +37,17 @@ public class PortfolioAssetImpact extends BaseEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "news_id", nullable = false)
   private News news;
 
-  @Column(name = "asset_id", nullable = false)
-  private Long assetId;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "asset_id", nullable = false)
+  private Asset asset;
 
-  @Column(name = "bookmark_id", nullable = false)
-  private Long bookmarkId;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "bookmark_id", nullable = false)
+  private Bookmark bookmark;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "direction", nullable = false)
@@ -64,16 +68,16 @@ public class PortfolioAssetImpact extends BaseEntity {
 
   public PortfolioAssetImpact(
       News news,
-      Long assetId,
-      Long bookmarkId,
+      Asset asset,
+      Bookmark bookmark,
       ImpactDirection direction,
       ImpactLevel impactLevel,
       String expectedReaction,
       String reason,
       int sortOrder) {
     this.news = news;
-    this.assetId = assetId;
-    this.bookmarkId = bookmarkId;
+    this.asset = asset;
+    this.bookmark = bookmark;
     this.direction = direction;
     this.impactLevel = impactLevel;
     this.expectedReaction = expectedReaction;
