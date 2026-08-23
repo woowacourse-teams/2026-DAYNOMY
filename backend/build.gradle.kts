@@ -28,6 +28,7 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok")
     runtimeOnly("org.postgresql:postgresql")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-webmvc-test")
     testImplementation("io.rest-assured:rest-assured:6.0.1")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
