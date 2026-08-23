@@ -4,8 +4,11 @@ import { Header } from '../../../components/Header';
 import '../MyPage.css';
 import {
   ApiError,
+  deleteBookmark,
+  getMyBookmarks,
   getMyProfile,
   logout,
+  type BookmarkResponse,
   type MemberResponse,
   updateMyProfile,
   withdraw,
@@ -19,20 +22,23 @@ function MyPage() {
   const navigate = useNavigate();
 
   const [member, setMember] = useState<MemberResponse | null>(null);
+  const [bookmarks, setBookmarks] = useState<BookmarkResponse[]>([]);
   const [draftNickname, setDraftNickname] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [removingBookmarkId, setRemovingBookmarkId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    getMyProfile(controller.signal)
-      .then((profile) => {
+    Promise.all([getMyProfile(controller.signal), getMyBookmarks(controller.signal)])
+      .then(([profile, myBookmarks]) => {
         setMember(profile);
         setDraftNickname(profile.nickname);
+        setBookmarks(myBookmarks);
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) {
@@ -102,6 +108,27 @@ function MyPage() {
     } catch (error) {
       setErrorMessage(getErrorMessage(error, '로그아웃하지 못했습니다.'));
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRemoveBookmark = async (targetId: number) => {
+    setErrorMessage(null);
+    setRemovingBookmarkId(targetId);
+
+    try {
+      await deleteBookmark(targetId);
+      setBookmarks((currentBookmarks) =>
+        currentBookmarks.filter((bookmark) => bookmark.targetId !== targetId),
+      );
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      setErrorMessage(getErrorMessage(error, '관심자산을 삭제하지 못했습니다.'));
+    } finally {
+      setRemovingBookmarkId(null);
     }
   };
 
@@ -199,6 +226,48 @@ function MyPage() {
                 >
                   회원 정보 수정
                 </button>
+              )}
+            </section>
+
+            <section className="bookmarked-assets" aria-labelledby="bookmarked-assets-title">
+              <div className="bookmarked-assets-heading">
+                <div>
+                  <p className="section-eyebrow">MY ASSETS</p>
+                  <h2 id="bookmarked-assets-title">관심자산</h2>
+                </div>
+                <span className="bookmark-count">{bookmarks.length}개</span>
+              </div>
+
+              {bookmarks.length > 0 ? (
+                <div className="bookmark-grid">
+                  {bookmarks.map((bookmark, index) => (
+                    <article className="bookmark-card" key={bookmark.id}>
+                      <div className="bookmark-card-topline">
+                        <span className="bookmark-card-number">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <button
+                          className="bookmark-remove-button"
+                          type="button"
+                          onClick={() => handleRemoveBookmark(bookmark.targetId)}
+                          disabled={removingBookmarkId === bookmark.targetId}
+                          aria-label={`자산 ${bookmark.targetId} 관심자산에서 삭제`}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M6 4.5h12v15l-6-3.7-6 3.7z" />
+                          </svg>
+                        </button>
+                      </div>
+                      <h3>자산 #{bookmark.targetId}</h3>
+                      <p>관심자산으로 저장됨</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="bookmark-empty">
+                  <span aria-hidden="true">☆</span>
+                  <p>아직 저장한 관심자산이 없습니다.</p>
+                </div>
               )}
             </section>
 
