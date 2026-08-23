@@ -49,7 +49,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   public OpenAiPortfolioAnalysisClient(
       RestClient.Builder restClientBuilder,
-      @Value("${ai.openai.base-url:https://api.openai.com}") String baseUrl,
+      @Value("${ai.openai.base-url}") String baseUrl,
       @Value("${ai.openai.api-key:}") String apiKey,
       @Value("${ai.openai.model:gpt-5-mini}") String model) {
     this.objectMapper = new ObjectMapper();
