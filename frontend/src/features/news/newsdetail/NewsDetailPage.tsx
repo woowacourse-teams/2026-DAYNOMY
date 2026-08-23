@@ -9,6 +9,7 @@ import { MarketAnalysis } from './components/MarketAnalysis.tsx';
 import type { NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
+import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -104,6 +105,8 @@ export function NewsDetailPage() {
         </section>
 
         {marketAnalysis ? <MarketAnalysis marketAnalysis={marketAnalysis} /> : null}
+
+        <PortfolioAnalysis newsId={newsId} />
       </article>
     </main>
   );
