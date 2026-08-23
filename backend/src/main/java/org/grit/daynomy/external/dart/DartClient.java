@@ -43,7 +43,7 @@ public class DartClient {
                           .queryParam("sort", "date")
                           .queryParam("sort_mth", "desc")
                           .queryParam("page_no", 1)
-                          .queryParam("page_count", 100)
+                          .queryParam("page_count", 20)
                           .build())
               .retrieve()
               .body(DartDisclosureResponse.class);
