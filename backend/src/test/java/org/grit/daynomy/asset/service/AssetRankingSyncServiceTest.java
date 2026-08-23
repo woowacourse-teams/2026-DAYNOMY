@@ -35,6 +35,8 @@ class AssetRankingSyncServiceTest {
 
   @Autowired private AssetRankingHistoryRepository assetRankingHistoryRepository;
 
+  @Autowired private AssetRankingPersistenceService assetRankingPersistenceService;
+
   private PublicDataStockPriceClient publicDataStockPriceClient;
   private AssetRankingSyncService assetRankingSyncService;
 
@@ -44,8 +46,7 @@ class AssetRankingSyncServiceTest {
     assetRepository.deleteAll();
     publicDataStockPriceClient = mock(PublicDataStockPriceClient.class);
     assetRankingSyncService =
-        new AssetRankingSyncService(
-            publicDataStockPriceClient, assetRepository, assetRankingHistoryRepository);
+        new AssetRankingSyncService(publicDataStockPriceClient, assetRankingPersistenceService);
   }
 
   @Test
