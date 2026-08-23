@@ -62,8 +62,8 @@ public class BookmarkService {
     Throwable cause = exception;
     while (cause != null) {
       if (cause instanceof ConstraintViolationException constraintViolationException) {
-        return "uk_bookmarks_member_target".equals(
-            constraintViolationException.getConstraintName());
+        return "uk_bookmarks_member_target"
+            .equals(constraintViolationException.getConstraintName());
       }
       cause = cause.getCause();
     }
