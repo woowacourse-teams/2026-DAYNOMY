@@ -111,6 +111,27 @@ class AssetRankingSyncServiceTest {
         .hasSize(1);
   }
 
+  @Test
+  @DisplayName("응답 데이터가 있어도 저장 가능한 랭킹이 없으면 이전 날짜를 계속 조회한다")
+  void syncKosdaqTopRankingsLooksBackWhenRankingItemsAreEmpty() {
+    LocalDate today = LocalDate.of(2026, 8, 23);
+    LocalDate previousDate = LocalDate.of(2026, 8, 22);
+    when(publicDataStockPriceClient.getKosdaqStockPrices(today))
+        .thenReturn(
+            response(
+                item("20260823", "000001", "코스피종목", "KOSPI", "300"),
+                item("20260823", "000002", "시총없는종목", "KOSDAQ", "0")));
+    when(publicDataStockPriceClient.getKosdaqStockPrices(previousDate))
+        .thenReturn(response(item("20260822", "000003", "코스닥종목", "KOSDAQ", "300")));
+
+    int count = assetRankingSyncService.syncKosdaqTopRankings(today);
+
+    assertThat(count).isEqualTo(1);
+    assertThat(assetRankingHistoryRepository.findAllByRankedDateOrderByRankingAsc(today)).isEmpty();
+    assertThat(assetRankingHistoryRepository.findAllByRankedDateOrderByRankingAsc(previousDate))
+        .hasSize(1);
+  }
+
   private PublicDataStockPriceResponse response(PublicDataStockPriceItem... items) {
     return new PublicDataStockPriceResponse(
         new PublicDataStockPriceResponse.Header("00", "NORMAL SERVICE."),
