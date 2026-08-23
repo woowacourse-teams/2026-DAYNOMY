@@ -55,10 +55,10 @@ class PortfolioAnalysisServiceTest {
   @DisplayName("현재 북마크 자산을 AI로 분석하고 응답 DTO로 변환한다")
   void getPortfolioAnalysisReturnsCurrentPortfolioAnalysis() {
     News news = createNews();
-    Bookmark firstBookmark = createBookmark(101L, 10L);
-    Bookmark secondBookmark = createBookmark(102L, 20L);
     Asset firstAsset = createAsset(10L, "삼성전자", "005930");
     Asset secondAsset = createAsset(20L, "SK하이닉스", "000660");
+    Bookmark firstBookmark = createBookmark(101L, firstAsset);
+    Bookmark secondBookmark = createBookmark(102L, secondAsset);
     List<PortfolioAnalysisTarget> targets =
         List.of(
             new PortfolioAnalysisTarget(10L, 101L, "삼성전자", "STOCK", "005930"),
@@ -111,8 +111,8 @@ class PortfolioAnalysisServiceTest {
   @DisplayName("동일한 뉴스와 포트폴리오를 다시 조회해도 매번 AI로 분석한다")
   void getPortfolioAnalysisAnalyzesEveryRequest() {
     News news = createNews();
-    Bookmark bookmark = createBookmark(101L, 10L);
     Asset asset = createAsset(10L, "삼성전자", "005930");
+    Bookmark bookmark = createBookmark(101L, asset);
     List<PortfolioAnalysisTarget> targets =
         List.of(new PortfolioAnalysisTarget(10L, 101L, "삼성전자", "STOCK", "005930"));
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
@@ -142,8 +142,10 @@ class PortfolioAnalysisServiceTest {
   @Test
   @DisplayName("북마크한 자산이 없으면 AI를 호출하지 않고 예외를 던진다")
   void getPortfolioAnalysisThrowsWhenBookmarkedAssetIsMissing() {
+    Asset missingAsset = mock(Asset.class);
+    given(missingAsset.getId()).willReturn(10L);
     Bookmark bookmark = mock(Bookmark.class);
-    given(bookmark.getTargetId()).willReturn(10L);
+    given(bookmark.getAsset()).willReturn(missingAsset);
     given(newsRepository.findById(1L)).willReturn(Optional.of(createNews()));
     given(bookmarkRepository.findAllByMemberIdOrderByIdAsc(3L)).willReturn(List.of(bookmark));
     given(assetRepository.findAllById(List.of(10L))).willReturn(List.of());
@@ -168,10 +170,10 @@ class PortfolioAnalysisServiceTest {
         Instant.parse("2026-08-23T10:00:00Z"));
   }
 
-  private Bookmark createBookmark(Long id, Long targetId) {
+  private Bookmark createBookmark(Long id, Asset asset) {
     Bookmark bookmark = mock(Bookmark.class);
     given(bookmark.getId()).willReturn(id);
-    given(bookmark.getTargetId()).willReturn(targetId);
+    given(bookmark.getAsset()).willReturn(asset);
     return bookmark;
   }
 

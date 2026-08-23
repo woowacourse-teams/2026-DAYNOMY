@@ -55,7 +55,7 @@ public class PortfolioAnalysisService {
   }
 
   private Map<Long, Asset> findAssetsById(List<Bookmark> bookmarks) {
-    List<Long> assetIds = bookmarks.stream().map(Bookmark::getTargetId).toList();
+    List<Long> assetIds = bookmarks.stream().map(bookmark -> bookmark.getAsset().getId()).toList();
     return assetRepository.findAllById(assetIds).stream()
         .collect(Collectors.toMap(Asset::getId, Function.identity()));
   }
@@ -65,7 +65,7 @@ public class PortfolioAnalysisService {
     return bookmarks.stream()
         .map(
             bookmark -> {
-              Asset asset = getAsset(assetById, bookmark.getTargetId());
+              Asset asset = getAsset(assetById, bookmark.getAsset().getId());
               return new PortfolioAnalysisTarget(
                   asset.getId(),
                   bookmark.getId(),
