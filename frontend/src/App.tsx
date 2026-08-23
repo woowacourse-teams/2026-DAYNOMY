@@ -9,6 +9,7 @@ import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanR
 import SearchPage from './features/search/SearchPage';
 import { StockListPage } from './features/stocks/StockListPage';
 import { trackPageView } from './analytics';
+import { AuthProvider } from './auth/AuthProvider';
 
 function AnalyticsTracker() {
   const location = useLocation();
@@ -21,18 +22,20 @@ function AnalyticsTracker() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AnalyticsTracker />
-      <Routes>
-        <Route path="/" element={<NewsListPage />} />
-        <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
-        <Route path="/news/:newsId" element={<NewsDetailPage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/stocks" element={<StockListPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<Navigate to="/login" replace />} />
-        <Route path="/mypage" element={<MyPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+      <AuthProvider>
+        <AnalyticsTracker />
+        <Routes>
+          <Route path="/" element={<NewsListPage />} />
+          <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
+          <Route path="/news/:newsId" element={<NewsDetailPage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/stocks" element={<StockListPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<Navigate to="/login" replace />} />
+          <Route path="/mypage" element={<MyPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

@@ -1,37 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
-import { getMyProfile } from '../features/pages/api';
+import { useContext } from 'react';
+import { AuthContext } from '../auth/AuthContext';
 
-type UseLoginStatusOptions = {
-  onLoggedIn?: () => void;
-};
+export function useAuth() {
+  const context = useContext(AuthContext);
 
-export function useLoginStatus(options: UseLoginStatusOptions = {}) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const { onLoggedIn } = options;
-  const onLoggedInRef = useRef(onLoggedIn);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider.');
+  }
 
-  useEffect(() => {
-    onLoggedInRef.current = onLoggedIn;
-  }, [onLoggedIn]);
+  return context;
+}
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    getMyProfile(controller.signal)
-      .then(() => {
-        if (!controller.signal.aborted) {
-          setIsLoggedIn(true);
-          onLoggedInRef.current?.();
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setIsLoggedIn(false);
-        }
-      });
-
-    return () => controller.abort();
-  }, []);
-
-  return isLoggedIn;
+export function useLoginStatus() {
+  return useAuth().isLoggedIn;
 }

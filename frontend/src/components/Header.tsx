@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { trackEvent } from '../analytics';
 import { useLoginStatus } from '../hooks/useLoginStatus';
 import './Header.css';
@@ -12,14 +13,16 @@ function SearchIcon() {
 }
 
 export function Header() {
-  const isLoggedIn = useLoginStatus({
-    onLoggedIn: () => {
+  const isLoggedIn = useLoginStatus();
+
+  useEffect(() => {
+    if (isLoggedIn) {
       if (!sessionStorage.getItem('daynomy:login-tracked')) {
         trackEvent('login_success', { method: 'google' });
         sessionStorage.setItem('daynomy:login-tracked', 'true');
       }
-    },
-  });
+    }
+  }, [isLoggedIn]);
 
   return (
     <header className="daynomy-header">
