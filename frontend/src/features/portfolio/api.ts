@@ -7,7 +7,14 @@ import type {
 } from './types';
 
 const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
-const portfolioAnalysisRequests = new Map<string, Promise<PortfolioAnalysisResponse>>();
+const PORTFOLIO_ANALYSIS_CACHE_TIME = 5 * 60 * 1000;
+
+type PortfolioAnalysisCacheEntry = {
+  request: Promise<PortfolioAnalysisResponse>;
+  expiresAt?: number;
+};
+
+const portfolioAnalysisRequests = new Map<string, PortfolioAnalysisCacheEntry>();
 
 const PORTFOLIO_ASSET_CATEGORIES = new Set<PortfolioAssetCategory>([
   'GOLD',
@@ -96,14 +103,29 @@ async function requestPortfolioAnalysis(newsId: string): Promise<PortfolioAnalys
 }
 
 export function getPortfolioAnalysis(newsId: string): Promise<PortfolioAnalysisResponse> {
-  const cachedRequest = portfolioAnalysisRequests.get(newsId);
-  if (cachedRequest) return cachedRequest;
+  const cachedEntry = portfolioAnalysisRequests.get(newsId);
+  const isFresh = cachedEntry && (!cachedEntry.expiresAt || Date.now() < cachedEntry.expiresAt);
 
-  const request = requestPortfolioAnalysis(newsId).catch((error: unknown) => {
-    portfolioAnalysisRequests.delete(newsId);
-    throw error;
-  });
-  portfolioAnalysisRequests.set(newsId, request);
+  if (isFresh) return cachedEntry.request;
+
+  if (cachedEntry) portfolioAnalysisRequests.delete(newsId);
+
+  const request = requestPortfolioAnalysis(newsId);
+  portfolioAnalysisRequests.set(newsId, { request });
+
+  void request.then(
+    () => {
+      const currentEntry = portfolioAnalysisRequests.get(newsId);
+      if (currentEntry?.request === request) {
+        currentEntry.expiresAt = Date.now() + PORTFOLIO_ANALYSIS_CACHE_TIME;
+      }
+    },
+    () => {
+      if (portfolioAnalysisRequests.get(newsId)?.request === request) {
+        portfolioAnalysisRequests.delete(newsId);
+      }
+    },
+  );
 
   return request;
 }
