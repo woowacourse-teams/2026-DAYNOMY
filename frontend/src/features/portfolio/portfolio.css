@@ -43,18 +43,31 @@
   text-align: center;
 }
 
-.portfolio-spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #d9dcf7;
-  border-top-color: #5141c9;
-  border-radius: 50%;
-  animation: portfolio-spin 0.8s linear infinite;
-}
-
 .portfolio-error,
 .portfolio-empty {
   flex-direction: column;
+}
+
+.portfolio-state-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-strong);
+  color: var(--text-muted);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.portfolio-state strong {
+  color: var(--text-h);
+  font-size: 15px;
+}
+
+.portfolio-error .portfolio-state-icon {
+  background: #fff1f0;
+  color: #c33b3b;
 }
 
 .portfolio-error button {
@@ -77,6 +90,80 @@
 .portfolio-impact-list {
   display: grid;
   gap: 18px;
+}
+
+.portfolio-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.portfolio-skeleton-list {
+  display: grid;
+  gap: 18px;
+}
+
+.portfolio-skeleton-card {
+  padding: clamp(20px, 3vw, 26px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.portfolio-skeleton-card i {
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-strong) 25%,
+    #f8f8fb 50%,
+    var(--surface-strong) 75%
+  );
+  background-size: 200% 100%;
+  animation: portfolio-shimmer 1.4s ease-in-out infinite;
+}
+
+.portfolio-skeleton-heading {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.portfolio-skeleton-heading i:first-child {
+  width: 44px;
+  height: 14px;
+}
+
+.portfolio-skeleton-heading i:last-child {
+  width: 64px;
+  height: 14px;
+}
+
+.portfolio-skeleton-title {
+  width: min(180px, 55%);
+  height: 24px;
+}
+
+.portfolio-skeleton-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 16px;
+  border-radius: 13px;
+  background: #f8f8fb;
+}
+
+.portfolio-skeleton-body i {
+  width: 100%;
+  height: 14px;
+}
+
+.portfolio-skeleton-body i:last-child {
+  width: 72%;
 }
 
 .portfolio-impact-card {
@@ -238,9 +325,13 @@
   line-height: 1.65;
 }
 
-@keyframes portfolio-spin {
+@keyframes portfolio-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
   to {
-    transform: rotate(360deg);
+    background-position: -200% 0;
   }
 }
 
@@ -262,7 +353,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .portfolio-spinner {
+  .portfolio-skeleton-card i {
     animation: none;
   }
 }

@@ -35,6 +35,54 @@ type AnalysisState =
   | { status: 'success'; analysis: PortfolioAnalysisResponse }
   | { status: 'error'; message: string };
 
+function PortfolioAnalysisLoading() {
+  return (
+    <div className="portfolio-skeleton-list" role="status" aria-live="polite">
+      <span className="portfolio-sr-only">포트폴리오 영향을 분석하고 있습니다.</span>
+      {[1, 2].map((item) => (
+        <div className="portfolio-skeleton-card" aria-hidden="true" key={item}>
+          <div className="portfolio-skeleton-heading">
+            <i />
+            <i />
+          </div>
+          <i className="portfolio-skeleton-title" />
+          <div className="portfolio-skeleton-body">
+            <i />
+            <i />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PortfolioAnalysisEmpty() {
+  return (
+    <div className="portfolio-state portfolio-empty">
+      <span className="portfolio-state-icon" aria-hidden="true">
+        −
+      </span>
+      <strong>분석할 자산 영향이 없습니다</strong>
+      <p>북마크한 자산이 없거나 이 뉴스와 관련된 자산이 없습니다.</p>
+    </div>
+  );
+}
+
+function PortfolioAnalysisError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="portfolio-state portfolio-error" role="alert">
+      <span className="portfolio-state-icon" aria-hidden="true">
+        !
+      </span>
+      <strong>분석 결과를 불러오지 못했습니다</strong>
+      <p>{message}</p>
+      <button type="button" onClick={onRetry}>
+        다시 시도
+      </button>
+    </div>
+  );
+}
+
 export function PortfolioAnalysis({ newsId }: { newsId: string }) {
   const [state, setState] = useState<AnalysisState>({ status: 'loading' });
   const [retryCount, setRetryCount] = useState(0);
@@ -74,26 +122,17 @@ export function PortfolioAnalysis({ newsId }: { newsId: string }) {
         </div>
       </div>
 
-      {state.status === 'loading' ? (
-        <div className="portfolio-state" role="status" aria-live="polite">
-          <span className="portfolio-spinner" aria-hidden="true" />
-          <p>포트폴리오 영향을 분석하고 있습니다.</p>
-        </div>
-      ) : null}
+      {state.status === 'loading' ? <PortfolioAnalysisLoading /> : null}
 
       {state.status === 'error' ? (
-        <div className="portfolio-state portfolio-error" role="alert">
-          <p>{state.message}</p>
-          <button type="button" onClick={() => setRetryCount((count) => count + 1)}>
-            다시 시도
-          </button>
-        </div>
+        <PortfolioAnalysisError
+          message={state.message}
+          onRetry={() => setRetryCount((count) => count + 1)}
+        />
       ) : null}
 
       {state.status === 'success' && state.analysis.impacts.length === 0 ? (
-        <div className="portfolio-state portfolio-empty">
-          <p>북마크한 자산이 없거나 이 뉴스와 관련된 자산 영향이 없습니다.</p>
-        </div>
+        <PortfolioAnalysisEmpty />
       ) : null}
 
       {state.status === 'success' && state.analysis.impacts.length > 0 ? (
