@@ -1,5 +1,5 @@
 .stock-page {
-  width: min(1040px, calc(100% - 48px));
+  width: min(1440px, calc(100% - 80px));
   margin: 0 auto;
   padding: 0 0 72px;
 }
@@ -286,7 +286,7 @@
 
 @media (max-width: 520px) {
   .stock-page {
-    width: min(100% - 32px, 1040px);
+    width: min(100% - 28px, 1440px);
   }
 
   .stock-heading {

@@ -135,9 +135,9 @@
   }
 
   .daynomy-header .header-tabs {
-    position: static;
-    margin-left: 14px;
-    transform: none;
+    position: absolute;
+    margin-left: 0;
+    transform: translateX(-50%);
   }
 
   .daynomy-header .header-tab {
@@ -169,7 +169,6 @@
   }
 
   .daynomy-header .header-tabs {
-    margin-left: 8px;
     padding: 3px;
   }
 
@@ -181,7 +180,7 @@
   }
 
   .daynomy-header .search-link {
-    padding: 0;
+    display: none;
   }
 
   .daynomy-header .login-button {
