@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
-
-import { getMyProfile } from '../features/pages/api';
 import { trackEvent } from '../analytics';
+import { useLoginStatus } from '../hooks/useLoginStatus';
 import './Header.css';
 
 function SearchIcon() {
@@ -14,27 +12,14 @@ function SearchIcon() {
 }
 
 export function Header() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    getMyProfile(controller.signal)
-      .then(() => {
-        if (!controller.signal.aborted) {
-          setIsLoggedIn(true);
-          if (!sessionStorage.getItem('daynomy:login-tracked')) {
-            trackEvent('login_success', { method: 'google' });
-            sessionStorage.setItem('daynomy:login-tracked', 'true');
-          }
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setIsLoggedIn(false);
-      });
-
-    return () => controller.abort();
-  }, []);
+  const isLoggedIn = useLoginStatus({
+    onLoggedIn: () => {
+      if (!sessionStorage.getItem('daynomy:login-tracked')) {
+        trackEvent('login_success', { method: 'google' });
+        sessionStorage.setItem('daynomy:login-tracked', 'true');
+      }
+    },
+  });
 
   return (
     <header className="daynomy-header">

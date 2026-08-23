@@ -1,8 +1,18 @@
-import { useEffect, useState } from 'react';
-import { getMyProfile } from '../../pages/api';
+import { useEffect, useRef, useState } from 'react';
+import { getMyProfile } from '../features/pages/api';
 
-export function useLoginStatus() {
+type UseLoginStatusOptions = {
+  onLoggedIn?: () => void;
+};
+
+export function useLoginStatus(options: UseLoginStatusOptions = {}) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { onLoggedIn } = options;
+  const onLoggedInRef = useRef(onLoggedIn);
+
+  useEffect(() => {
+    onLoggedInRef.current = onLoggedIn;
+  }, [onLoggedIn]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -11,6 +21,7 @@ export function useLoginStatus() {
       .then(() => {
         if (!controller.signal.aborted) {
           setIsLoggedIn(true);
+          onLoggedInRef.current?.();
         }
       })
       .catch(() => {

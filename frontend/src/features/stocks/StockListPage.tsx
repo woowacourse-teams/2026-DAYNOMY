@@ -5,7 +5,7 @@ import { StockList } from './components/StockList';
 import { StockState } from './components/StockState';
 import { StockSummary } from './components/StockSummary';
 import { STOCKS_PER_PAGE } from './constants';
-import { useLoginStatus } from './hooks/useLoginStatus';
+import { useLoginStatus } from '../../hooks/useLoginStatus';
 import { useStockBookmarks } from './hooks/useStockBookmarks';
 import { useStockCandidates } from './hooks/useStockCandidates';
 import './stockList.css';
