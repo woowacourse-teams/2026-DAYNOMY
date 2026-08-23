@@ -35,6 +35,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - 제공된 자산만 분석하세요.
             - 뉴스와 관련성이 있는 자산만 결과에 포함하세요.
             - 영향이 큰 자산부터 정렬하세요.
+            - assetId는 제공된 값을 그대로 사용하세요.
             - direction은 POSITIVE 또는 NEGATIVE로 판단하세요.
             - impactLevel은 HIGH, MEDIUM, LOW 중 하나로 판단하세요.
             - expectedReaction에는 예상되는 자산 반응을 작성하세요.
@@ -122,6 +123,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
                 .map(
                     target ->
                         Map.of(
+                            "assetId", target.assetId(),
                             "name", target.name(),
                             "category", target.category(),
                             "assetCode", target.assetCode()))
@@ -164,12 +166,12 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   private Map<String, Object> createImpactsSchema(List<PortfolioAnalysisTarget> targets) {
     Map<String, Object> impactProperties = new LinkedHashMap<>();
     impactProperties.put(
-        "assetCode",
+        "assetId",
         Map.of(
             "type",
-            "string",
+            "integer",
             "enum",
-            targets.stream().map(PortfolioAnalysisTarget::assetCode).toList()));
+            targets.stream().map(PortfolioAnalysisTarget::assetId).toList()));
     impactProperties.put(
         "direction", Map.of("type", "string", "enum", enumNames(ImpactDirection.values())));
     impactProperties.put(
@@ -181,7 +183,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     impactItem.put("type", "object");
     impactItem.put("additionalProperties", false);
     impactItem.put(
-        "required", List.of("assetCode", "direction", "impactLevel", "expectedReaction", "reason"));
+        "required", List.of("assetId", "direction", "impactLevel", "expectedReaction", "reason"));
     impactItem.put("properties", impactProperties);
 
     return Map.of("type", "array", "maxItems", targets.size(), "items", impactItem);
@@ -212,19 +214,25 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       throw analysisFailed();
     }
 
-    Map<String, PortfolioAnalysisTarget> targetByCode = new HashMap<>();
+    Map<Long, PortfolioAnalysisTarget> targetByAssetId = new HashMap<>();
     for (PortfolioAnalysisTarget target : targets) {
-      targetByCode.put(target.assetCode(), target);
+      if (targetByAssetId.put(target.assetId(), target) != null) {
+        throw analysisFailed();
+      }
     }
 
-    Set<String> analyzedCodes = new HashSet<>();
+    Set<Long> analyzedAssetIds = new HashSet<>();
     List<ParsedAssetImpact> parsedImpacts = new ArrayList<>();
 
     for (JsonNode impactNode : impactsNode) {
-      String assetCode = impactNode.path("assetCode").asText();
-      PortfolioAnalysisTarget target = targetByCode.get(assetCode);
+      JsonNode assetIdNode = impactNode.path("assetId");
+      if (!assetIdNode.isIntegralNumber()) {
+        throw analysisFailed();
+      }
+      long assetId = assetIdNode.longValue();
+      PortfolioAnalysisTarget target = targetByAssetId.get(assetId);
 
-      if (target == null || !analyzedCodes.add(assetCode)) {
+      if (target == null || !analyzedAssetIds.add(assetId)) {
         throw analysisFailed();
       }
 
