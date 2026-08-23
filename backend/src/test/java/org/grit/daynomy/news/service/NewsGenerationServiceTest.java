@@ -5,8 +5,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import org.grit.daynomy.external.bok.BokNewsPromptService;
 import org.grit.daynomy.external.dart.DartNewsPromptService;
@@ -49,7 +49,7 @@ class NewsGenerationServiceTest {
             "20260817000001",
             "https://dart.example/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 0, 0),
+            Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
     given(dartNewsPromptService.createPrompts(beginDate, endDate, "B", "K"))
         .willReturn(List.of(prompt));
@@ -81,7 +81,7 @@ class NewsGenerationServiceTest {
             "20260817000001",
             "https://dart.example/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 0, 0),
+            Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
     given(dartNewsPromptService.createPrompts(beginDate, endDate, "B", "K"))
         .willReturn(List.of(prompt));
@@ -110,7 +110,7 @@ class NewsGenerationServiceTest {
             "consumer-price-index:202607",
             "https://kosis.kr",
             Category.ECONOMY,
-            LocalDateTime.of(2026, 8, 18, 0, 0),
+            Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
     given(kosisNewsPromptService.createPrompts()).willReturn(List.of(prompt));
     given(
@@ -142,7 +142,7 @@ class NewsGenerationServiceTest {
             "base-rate:202607",
             "https://ecos.bok.or.kr",
             Category.ECONOMY,
-            LocalDateTime.of(2026, 8, 18, 0, 0),
+            Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
     given(bokNewsPromptService.createPrompts()).willReturn(List.of(prompt));
     given(newsRepository.existsBySourceAndExternalId(NewsSource.BOK, "base-rate:202607"))

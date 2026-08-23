@@ -2,7 +2,7 @@ package org.grit.daynomy.keyword.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -56,6 +56,6 @@ class NewsKeywordRepositoryTest {
         title,
         "https://example.com/" + title.replace(" ", "-"),
         Category.STOCK,
-        LocalDateTime.of(2026, 8, 17, 10, 0));
+        Instant.parse("2026-08-17T10:00:00Z"));
   }
 }

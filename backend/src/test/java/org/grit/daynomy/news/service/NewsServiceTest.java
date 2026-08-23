@@ -5,11 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
-import org.grit.daynomy.common.BusinessException;
-import org.grit.daynomy.common.CommonErrorCode;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSource;
@@ -45,7 +45,7 @@ class NewsServiceTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 10, 0));
+            Instant.parse("2026-08-17T10:00:00Z"));
     given(newsRepository.findAllByOrderByPublishedAtDescIdDesc(pageable))
         .willReturn(new PageImpl<>(java.util.List.of(news), pageable, 1));
 
@@ -70,20 +70,11 @@ class NewsServiceTest {
   }
 
   @Test
-  @DisplayName("잘못된 페이지 요청이면 예외를 던진다")
-  void findNewsRejectsInvalidPage() {
-    assertThatThrownBy(() -> newsService.getNewsPage(0, 15, null))
-        .isInstanceOf(BusinessException.class)
-        .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(CommonErrorCode.INVALID_REQUEST);
-  }
-
-  @Test
   @DisplayName("오늘 발행된 뉴스 중 최신 뉴스를 조회한다")
   void findTodayNewsReturnsLatestNewsPublishedToday() {
     LocalDate today = LocalDate.now();
-    LocalDateTime startInclusive = today.atStartOfDay();
-    LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+    Instant startInclusive = startOfDay(today);
+    Instant endExclusive = startOfDay(today.plusDays(1));
     News news =
         new News(
             "today news",
@@ -94,7 +85,7 @@ class NewsServiceTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            today.atTime(10, 0));
+            atHour(today, 10));
     given(
             newsRepository
                 .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
@@ -113,8 +104,8 @@ class NewsServiceTest {
   @DisplayName("오늘의 뉴스가 없으면 null을 반환한다")
   void findTodayNewsReturnsNullWhenMissing() {
     LocalDate today = LocalDate.now();
-    LocalDateTime startInclusive = today.atStartOfDay();
-    LocalDateTime endExclusive = today.plusDays(1).atStartOfDay();
+    Instant startInclusive = startOfDay(today);
+    Instant endExclusive = startOfDay(today.plusDays(1));
     given(
             newsRepository
                 .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
@@ -137,7 +128,7 @@ class NewsServiceTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 10, 0));
+            Instant.parse("2026-08-17T10:00:00Z"));
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
     var response = newsService.getNewsDetail(1L);
@@ -155,5 +146,13 @@ class NewsServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
+  }
+
+  private static Instant startOfDay(LocalDate date) {
+    return date.atStartOfDay(ZoneId.systemDefault()).toInstant();
+  }
+
+  private static Instant atHour(LocalDate date, int hour) {
+    return date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant();
   }
 }

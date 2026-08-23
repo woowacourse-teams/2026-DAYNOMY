@@ -2,7 +2,8 @@ package org.grit.daynomy.external.bok;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -95,7 +96,7 @@ public class BokNewsPromptService {
             indicator.key() + ":" + latest.period(),
             BOK_URL,
             indicator.category(),
-            LocalDateTime.now(),
+            Instant.now(),
             prompt(indicator, previous, latest, change, changeRate)));
   }
 
@@ -137,7 +138,7 @@ public class BokNewsPromptService {
             changeRate,
             indicator.sourceOrganization(),
             value(latest.statisticName(), indicator.statisticName()),
-            LocalDateTime.now().toLocalDate());
+            LocalDate.now());
   }
 
   private Optional<BigDecimal> number(String value) {

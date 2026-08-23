@@ -1,6 +1,6 @@
 package org.grit.daynomy.news.repository;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -17,7 +17,7 @@ public interface NewsRepository extends JpaRepository<News, Long> {
 
   Optional<News>
       findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-          LocalDateTime startInclusive, LocalDateTime endExclusive);
+          Instant startInclusive, Instant endExclusive);
 
   boolean existsBySourceAndExternalId(NewsSource source, String externalId);
 }

@@ -8,8 +8,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.ZoneId;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.Category;
@@ -59,7 +60,7 @@ class NewsControllerTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 10, 0)));
+            Instant.parse("2026-08-17T10:00:00Z")));
 
     HttpResponse<String> response = get("/api/news?page=1&size=15");
     JsonNode body = objectMapper.readTree(response.body());
@@ -83,7 +84,7 @@ class NewsControllerTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            LocalDateTime.of(2026, 8, 17, 10, 0)));
+            Instant.parse("2026-08-17T10:00:00Z")));
     newsRepository.save(
         new News(
             "estate news",
@@ -94,7 +95,7 @@ class NewsControllerTest {
             "external-2",
             "https://example.com/2",
             Category.REAL_ESTATE,
-            LocalDateTime.of(2026, 8, 17, 9, 0)));
+            Instant.parse("2026-08-17T09:00:00Z")));
 
     HttpResponse<String> response = get("/api/news?category=REAL_ESTATE");
     JsonNode body = objectMapper.readTree(response.body());
@@ -102,6 +103,18 @@ class NewsControllerTest {
     assertThat(response.statusCode()).isEqualTo(200);
     assertThat(body.at("/items")).hasSize(1);
     assertThat(body.at("/items/0/category").asText()).isEqualTo("REAL_ESTATE");
+  }
+
+  @Test
+  @DisplayName("뉴스 목록 조회 API는 잘못된 페이지 번호에 에러 응답을 반환한다")
+  void findNewsRejectsInvalidPage() throws Exception {
+    HttpResponse<String> response = get("/api/news?page=0");
+    JsonNode body = objectMapper.readTree(response.body());
+
+    assertThat(response.statusCode()).isEqualTo(400);
+    assertThat(body.at("/code").asText()).isEqualTo("INVALID_REQUEST");
+    assertThat(body.at("/errors/0/field").asText()).isEqualTo("page");
+    assertThat(body.at("/errors/0/reason").asText()).isEqualTo("페이지 번호는 1 이상이어야 합니다.");
   }
 
   @Test
@@ -118,7 +131,7 @@ class NewsControllerTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            today.minusDays(1).atTime(23, 0)));
+            atHour(today.minusDays(1), 23)));
     newsRepository.save(
         new News(
             "morning news",
@@ -129,7 +142,7 @@ class NewsControllerTest {
             "external-2",
             "https://example.com/2",
             Category.STOCK,
-            today.atTime(9, 0)));
+            atHour(today, 9)));
     newsRepository.save(
         new News(
             "latest today news",
@@ -140,7 +153,7 @@ class NewsControllerTest {
             "external-3",
             "https://example.com/3",
             Category.REAL_ESTATE,
-            today.atTime(18, 0)));
+            atHour(today, 18)));
 
     HttpResponse<String> response = get("/api/news/today");
     JsonNode body = objectMapper.readTree(response.body());
@@ -164,7 +177,7 @@ class NewsControllerTest {
             "external-1",
             "https://example.com/1",
             Category.STOCK,
-            today.minusDays(1).atTime(23, 0)));
+            atHour(today.minusDays(1), 23)));
 
     HttpResponse<String> response = get("/api/news/today");
 
@@ -186,7 +199,7 @@ class NewsControllerTest {
                 "external-1",
                 "https://example.com/1",
                 Category.STOCK,
-                LocalDateTime.of(2026, 8, 17, 10, 0)));
+                Instant.parse("2026-08-17T10:00:00Z")));
 
     HttpResponse<String> response = get("/api/news/" + news.getId());
     JsonNode body = objectMapper.readTree(response.body());
@@ -211,5 +224,9 @@ class NewsControllerTest {
     HttpRequest request =
         HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build();
     return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+  }
+
+  private static Instant atHour(LocalDate date, int hour) {
+    return date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant();
   }
 }

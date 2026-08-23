@@ -12,7 +12,7 @@ import org.grit.daynomy.auth.service.TokenService;
 import org.grit.daynomy.auth.token.InvalidTokenException;
 import org.grit.daynomy.auth.token.TokenCookieManager;
 import org.grit.daynomy.auth.token.TokenPair;
-import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.web.csrf.CsrfToken;

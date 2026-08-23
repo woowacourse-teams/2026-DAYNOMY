@@ -1,6 +1,6 @@
 package org.grit.daynomy.keyword.exception;
 
-import org.grit.daynomy.common.ErrorCode;
+import org.grit.daynomy.common.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 public enum KeywordErrorCode implements ErrorCode {

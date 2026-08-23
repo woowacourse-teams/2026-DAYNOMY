@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import org.grit.daynomy.common.BusinessException;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.junit.jupiter.api.AfterEach;
