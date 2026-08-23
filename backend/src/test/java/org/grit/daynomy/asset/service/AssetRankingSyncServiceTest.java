@@ -74,7 +74,7 @@ class AssetRankingSyncServiceTest {
   }
 
   @Test
-  @DisplayName("기존 자산이 있으면 새로 만들지 않고 이름을 갱신해 랭킹에 연결한다")
+  @DisplayName("기존 자산이 있으면 새로 만들지 않고 그대로 랭킹에 연결한다")
   void syncKosdaqTopRankingsReusesExistingAsset() {
     LocalDate today = LocalDate.of(2026, 8, 21);
     Asset asset = assetRepository.save(new Asset("이전이름", AssetCategory.STOCK, "000001"));
@@ -88,7 +88,7 @@ class AssetRankingSyncServiceTest {
         assetRankingHistoryRepository.findAllByRankedDateOrderByRankingAsc(today);
 
     assertThat(count).isEqualTo(1);
-    assertThat(savedAsset.getName()).isEqualTo("변경이름");
+    assertThat(savedAsset.getName()).isEqualTo("이전이름");
     assertThat(histories).hasSize(1);
     assertThat(histories.get(0).getAsset().getId()).isEqualTo(asset.getId());
   }

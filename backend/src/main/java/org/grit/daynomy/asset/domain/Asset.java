@@ -44,8 +44,4 @@ public class Asset extends BaseEntity {
     this.category = category;
     this.assetCode = assetCode;
   }
-
-  public void updateName(String name) {
-    this.name = name;
-  }
 }

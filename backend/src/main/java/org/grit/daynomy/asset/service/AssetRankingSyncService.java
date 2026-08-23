@@ -96,11 +96,6 @@ public class AssetRankingSyncService {
   private Asset findOrCreateStockAsset(PublicDataStockPriceItem item) {
     return assetRepository
         .findByCategoryAndAssetCode(AssetCategory.STOCK, item.srtnCd())
-        .map(
-            asset -> {
-              asset.updateName(item.itmsNm());
-              return asset;
-            })
         .orElseGet(
             () ->
                 assetRepository.save(new Asset(item.itmsNm(), AssetCategory.STOCK, item.srtnCd())));
