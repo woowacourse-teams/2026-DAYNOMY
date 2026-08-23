@@ -238,7 +238,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               impactNode.path("reason").asText()));
     }
 
-    parsedImpacts.sort(Comparator.comparingInt(impact -> impactLevelPriority(impact.impactLevel())));
+    parsedImpacts.sort(
+        Comparator.comparingInt(impact -> impactLevelPriority(impact.impactLevel())));
 
     List<PortfolioAnalysisResult.AssetImpactResult> results = new ArrayList<>();
     for (int index = 0; index < parsedImpacts.size(); index++) {
