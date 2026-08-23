@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -217,8 +218,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     }
 
     Set<String> analyzedCodes = new HashSet<>();
-    List<PortfolioAnalysisResult.AssetImpactResult> results = new ArrayList<>();
-    int sortOrder = 1;
+    List<ParsedAssetImpact> parsedImpacts = new ArrayList<>();
 
     for (JsonNode impactNode : impactsNode) {
       String assetCode = impactNode.path("assetCode").asText();
@@ -228,18 +228,32 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         throw analysisFailed();
       }
 
-      results.add(
-          new PortfolioAnalysisResult.AssetImpactResult(
+      parsedImpacts.add(
+          new ParsedAssetImpact(
               target.assetId(),
               target.bookmarkId(),
               ImpactDirection.valueOf(impactNode.path("direction").asText()),
               ImpactLevel.valueOf(impactNode.path("impactLevel").asText()),
               impactNode.path("expectedReaction").asText(),
-              impactNode.path("reason").asText(),
-              sortOrder++));
+              impactNode.path("reason").asText()));
+    }
+
+    parsedImpacts.sort(Comparator.comparingInt(impact -> impactLevelPriority(impact.impactLevel())));
+
+    List<PortfolioAnalysisResult.AssetImpactResult> results = new ArrayList<>();
+    for (int index = 0; index < parsedImpacts.size(); index++) {
+      results.add(parsedImpacts.get(index).toResult(index + 1));
     }
 
     return List.copyOf(results);
+  }
+
+  private int impactLevelPriority(ImpactLevel impactLevel) {
+    return switch (impactLevel) {
+      case HIGH -> 1;
+      case MEDIUM -> 2;
+      case LOW -> 3;
+    };
   }
 
   private String extractOutputText(String response) {
@@ -279,5 +293,19 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   private BusinessException analysisFailed() {
     return new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+  }
+
+  private record ParsedAssetImpact(
+      Long assetId,
+      Long bookmarkId,
+      ImpactDirection direction,
+      ImpactLevel impactLevel,
+      String expectedReaction,
+      String reason) {
+
+    private PortfolioAnalysisResult.AssetImpactResult toResult(int sortOrder) {
+      return new PortfolioAnalysisResult.AssetImpactResult(
+          assetId, bookmarkId, direction, impactLevel, expectedReaction, reason, sortOrder);
+    }
   }
 }
