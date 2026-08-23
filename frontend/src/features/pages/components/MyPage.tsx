@@ -34,23 +34,38 @@ function MyPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    Promise.all([getMyProfile(controller.signal), getMyBookmarks(controller.signal)])
-      .then(([profile, myBookmarks]) => {
-        setMember(profile);
-        setDraftNickname(profile.nickname);
-        setBookmarks(myBookmarks);
-      })
-      .catch((error: unknown) => {
+    Promise.allSettled([getMyProfile(controller.signal), getMyBookmarks(controller.signal)])
+      .then(([profileResult, bookmarksResult]) => {
         if (controller.signal.aborted) {
           return;
         }
 
-        if (error instanceof ApiError && error.status === 401) {
+        if (profileResult.status === 'rejected') {
+          if (profileResult.reason instanceof ApiError && profileResult.reason.status === 401) {
+            navigate('/login', { replace: true });
+            return;
+          }
+
+          setErrorMessage(
+            getErrorMessage(profileResult.reason, '회원 정보를 불러오지 못했습니다.'),
+          );
+          return;
+        }
+
+        setMember(profileResult.value);
+        setDraftNickname(profileResult.value.nickname);
+
+        if (bookmarksResult.status === 'fulfilled') {
+          setBookmarks(bookmarksResult.value);
+          return;
+        }
+
+        if (bookmarksResult.reason instanceof ApiError && bookmarksResult.reason.status === 401) {
           navigate('/login', { replace: true });
           return;
         }
 
-        setErrorMessage(getErrorMessage(error, '회원 정보를 불러오지 못했습니다.'));
+        setErrorMessage(getErrorMessage(bookmarksResult.reason, '관심자산을 불러오지 못했습니다.'));
       })
       .finally(() => {
         if (!controller.signal.aborted) {
