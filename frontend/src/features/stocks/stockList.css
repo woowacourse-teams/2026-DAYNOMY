@@ -13,9 +13,7 @@
   padding: 30px;
   border: 1px solid #eceef5;
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(81, 68, 216, 0.1), rgba(255, 255, 255, 0) 48%),
-    #ffffff;
+  background: linear-gradient(135deg, rgba(81, 68, 216, 0.1), rgba(255, 255, 255, 0) 48%), #ffffff;
   box-shadow: 0 18px 50px rgba(17, 19, 32, 0.08);
 }
 
@@ -120,7 +118,7 @@
   background: var(--surface);
   transition:
     background 0.16s ease,
-  box-shadow 0.16s ease;
+    box-shadow 0.16s ease;
 }
 
 .stock-row.guest {
