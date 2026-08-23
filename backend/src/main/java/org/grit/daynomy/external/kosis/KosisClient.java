@@ -47,7 +47,7 @@ public class KosisClient {
                           .queryParam("jsonVD", "Y")
                           .queryParam("userStatsId", indicator.userStatsId())
                           .queryParam("prdSe", indicator.period())
-                          .queryParam("newEstPrdCnt", 2)
+                          .queryParam("newEstPrdCnt", 5)
                           .build())
               .retrieve()
               .body(String.class);
