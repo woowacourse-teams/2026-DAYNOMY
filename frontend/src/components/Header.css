@@ -1,4 +1,5 @@
 .daynomy-header {
+  position: relative;
   display: flex;
   align-items: center;
   height: 72px;
@@ -21,6 +22,56 @@
   color: #5141c9;
 }
 
+.daynomy-header .header-tabs {
+  position: absolute;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #eceef5;
+  border-radius: 999px;
+  background: #f8f9fc;
+  transform: translateX(-50%);
+}
+
+.daynomy-header .header-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 88px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  color: #575b68;
+  font-size: 14px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.daynomy-header .header-tab.active {
+  background: #111318;
+  color: #ffffff;
+}
+
+.daynomy-header .header-tab:hover {
+  color: #111318;
+  background: #ffffff;
+}
+
+.daynomy-header .header-tab.active:hover {
+  color: #ffffff;
+  background: #111318;
+}
+
+.daynomy-header .header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .daynomy-header .search-link {
   display: inline-flex;
   align-items: center;
@@ -28,8 +79,6 @@
   box-sizing: border-box;
   width: 40px;
   height: 40px;
-  margin-left: auto;
-  margin-right: 8px;
   padding: 0;
   border: 1px solid #d9d6f5;
   border-radius: 999px;
@@ -53,7 +102,8 @@
   background: #f5f3ff;
 }
 
-.daynomy-header .search-link:focus-visible {
+.daynomy-header .search-link:focus-visible,
+.daynomy-header .header-tab:focus-visible {
   outline: 2px solid #5141c9;
   outline-offset: 2px;
 }
@@ -84,6 +134,19 @@
     font-size: 26px;
   }
 
+  .daynomy-header .header-tabs {
+    position: absolute;
+    margin-left: 0;
+    transform: translateX(-50%);
+  }
+
+  .daynomy-header .header-tab {
+    width: 64px;
+    height: 30px;
+    padding: 0;
+    font-size: 13px;
+  }
+
   .daynomy-header .search-link,
   .daynomy-header .login-button {
     height: 36px;
@@ -105,8 +168,19 @@
     font-size: 22px;
   }
 
-  .daynomy-header .search-link {
+  .daynomy-header .header-tabs {
+    padding: 3px;
+  }
+
+  .daynomy-header .header-tab {
+    width: 52px;
+    height: 28px;
     padding: 0;
+    font-size: 12px;
+  }
+
+  .daynomy-header .search-link {
+    display: none;
   }
 
   .daynomy-header .login-button {

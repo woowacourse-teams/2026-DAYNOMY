@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-
-import { getMyProfile } from '../features/pages/api';
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { trackEvent } from '../analytics';
+import { useLoginStatus } from '../hooks/useLoginStatus';
 import './Header.css';
 
 function SearchIcon() {
@@ -14,27 +14,18 @@ function SearchIcon() {
 }
 
 export function Header() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const isLoggedIn = useLoginStatus();
+  const location = useLocation();
+  const isStockPage = location.pathname.startsWith('/stocks');
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    getMyProfile(controller.signal)
-      .then(() => {
-        if (!controller.signal.aborted) {
-          setIsLoggedIn(true);
-          if (!sessionStorage.getItem('daynomy:login-tracked')) {
-            trackEvent('login_success', { method: 'google' });
-            sessionStorage.setItem('daynomy:login-tracked', 'true');
-          }
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setIsLoggedIn(false);
-      });
-
-    return () => controller.abort();
-  }, []);
+    if (isLoggedIn) {
+      if (!sessionStorage.getItem('daynomy:login-tracked')) {
+        trackEvent('login_success', { method: 'google' });
+        sessionStorage.setItem('daynomy:login-tracked', 'true');
+      }
+    }
+  }, [isLoggedIn]);
 
   return (
     <header className="daynomy-header">
@@ -42,18 +33,28 @@ export function Header() {
         <span>DAY</span>
         <span>NOMY</span>
       </a>
-      <a className="search-link" href="/search" aria-label="뉴스 검색">
-        <SearchIcon />
-      </a>
-      <a
-        className="login-button"
-        href={isLoggedIn ? '/mypage' : '/login'}
-        onClick={() => {
-          if (!isLoggedIn) trackEvent('click_login');
-        }}
-      >
-        {isLoggedIn ? '마이페이지' : '로그인'}
-      </a>
+      <nav className="header-tabs" aria-label="주요 메뉴">
+        <a className={isStockPage ? 'header-tab' : 'header-tab active'} href="/">
+          뉴스
+        </a>
+        <a className={isStockPage ? 'header-tab active' : 'header-tab'} href="/stocks">
+          종목
+        </a>
+      </nav>
+      <div className="header-actions">
+        <a className="search-link" href="/search" aria-label="뉴스 검색">
+          <SearchIcon />
+        </a>
+        <a
+          className="login-button"
+          href={isLoggedIn ? '/mypage' : '/login'}
+          onClick={() => {
+            if (!isLoggedIn) trackEvent('click_login');
+          }}
+        >
+          {isLoggedIn ? '마이페이지' : '로그인'}
+        </a>
+      </div>
     </header>
   );
 }

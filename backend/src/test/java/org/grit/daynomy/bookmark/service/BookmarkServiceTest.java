@@ -10,6 +10,8 @@ import static org.mockito.Mockito.verify;
 
 import java.util.List;
 import java.util.Optional;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.bookmark.domain.Bookmark;
 import org.grit.daynomy.bookmark.dto.BookmarkResponse;
 import org.grit.daynomy.bookmark.exception.BookmarkErrorCode;
@@ -31,6 +33,8 @@ class BookmarkServiceTest {
 
   @Mock private BookmarkRepository bookmarkRepository;
 
+  @Mock private AssetRepository assetRepository;
+
   @Mock private MemberService memberService;
 
   @InjectMocks private BookmarkService bookmarkService;
@@ -39,24 +43,28 @@ class BookmarkServiceTest {
   @DisplayName("활성 회원의 자산을 북마크하고 응답 DTO를 반환한다")
   void addBookmarkReturnsResponse() {
     Member member = mock(Member.class);
+    Asset asset = createAsset(10L, "에코프로비엠");
     Bookmark savedBookmark = mock(Bookmark.class);
     given(memberService.getMember(3L)).willReturn(member);
-    given(bookmarkRepository.existsByMemberIdAndTargetId(3L, 10L)).willReturn(false);
+    given(assetRepository.getReferenceById(10L)).willReturn(asset);
+    given(bookmarkRepository.existsByMemberIdAndAssetId(3L, 10L)).willReturn(false);
     given(bookmarkRepository.save(any(Bookmark.class))).willReturn(savedBookmark);
     given(savedBookmark.getId()).willReturn(1L);
-    given(savedBookmark.getTargetId()).willReturn(10L);
+    given(savedBookmark.getAsset()).willReturn(asset);
 
     BookmarkResponse response = bookmarkService.addBookmark(3L, 10L);
 
-    assertThat(response).isEqualTo(new BookmarkResponse(1L, 10L));
+    assertThat(response).isEqualTo(new BookmarkResponse(1L, 10L, "에코프로비엠"));
     verify(bookmarkRepository).save(any(Bookmark.class));
   }
 
   @Test
   @DisplayName("이미 북마크한 자산이면 추가하지 않고 예외를 던진다")
   void addBookmarkThrowsWhenAlreadyExists() {
+    Asset asset = mock(Asset.class);
     given(memberService.getMember(3L)).willReturn(mock(Member.class));
-    given(bookmarkRepository.existsByMemberIdAndTargetId(3L, 10L)).willReturn(true);
+    given(assetRepository.getReferenceById(10L)).willReturn(asset);
+    given(bookmarkRepository.existsByMemberIdAndAssetId(3L, 10L)).willReturn(true);
 
     assertThatThrownBy(() -> bookmarkService.addBookmark(3L, 10L))
         .isInstanceOf(BusinessException.class)
@@ -68,14 +76,16 @@ class BookmarkServiceTest {
   @Test
   @DisplayName("북마크 유니크 제약조건 위반을 중복 북마크 예외로 변환한다")
   void addBookmarkTranslatesBookmarkUniqueConstraintViolation() {
+    Asset asset = mock(Asset.class);
     given(memberService.getMember(3L)).willReturn(mock(Member.class));
-    given(bookmarkRepository.existsByMemberIdAndTargetId(3L, 10L)).willReturn(false);
+    given(assetRepository.getReferenceById(10L)).willReturn(asset);
+    given(bookmarkRepository.existsByMemberIdAndAssetId(3L, 10L)).willReturn(false);
     given(bookmarkRepository.save(any(Bookmark.class)))
         .willThrow(
             new DataIntegrityViolationException(
                 "duplicate bookmark",
                 new ConstraintViolationException(
-                    "duplicate bookmark", null, "uk_bookmarks_member_target")));
+                    "duplicate bookmark", null, "uk_bookmarks_member_asset")));
 
     assertThatThrownBy(() -> bookmarkService.addBookmark(3L, 10L))
         .isInstanceOf(BusinessException.class)
@@ -86,8 +96,10 @@ class BookmarkServiceTest {
   @Test
   @DisplayName("다른 무결성 예외는 그대로 전달한다")
   void addBookmarkRethrowsOtherIntegrityViolations() {
+    Asset asset = mock(Asset.class);
     given(memberService.getMember(3L)).willReturn(mock(Member.class));
-    given(bookmarkRepository.existsByMemberIdAndTargetId(3L, 10L)).willReturn(false);
+    given(assetRepository.getReferenceById(10L)).willReturn(asset);
+    given(bookmarkRepository.existsByMemberIdAndAssetId(3L, 10L)).willReturn(false);
     DataIntegrityViolationException exception =
         new DataIntegrityViolationException("other integrity violation");
     given(bookmarkRepository.save(any(Bookmark.class))).willThrow(exception);
@@ -100,7 +112,7 @@ class BookmarkServiceTest {
   void deleteBookmarkDeletesBookmark() {
     given(memberService.getMember(3L)).willReturn(mock(Member.class));
     Bookmark bookmark = mock(Bookmark.class);
-    given(bookmarkRepository.findByMemberIdAndTargetId(3L, 10L)).willReturn(Optional.of(bookmark));
+    given(bookmarkRepository.findByMemberIdAndAssetId(3L, 10L)).willReturn(Optional.of(bookmark));
 
     bookmarkService.deleteBookmark(3L, 10L);
 
@@ -111,7 +123,7 @@ class BookmarkServiceTest {
   @DisplayName("삭제할 북마크가 없으면 예외를 던진다")
   void deleteBookmarkThrowsWhenMissing() {
     given(memberService.getMember(3L)).willReturn(mock(Member.class));
-    given(bookmarkRepository.findByMemberIdAndTargetId(3L, 10L)).willReturn(Optional.empty());
+    given(bookmarkRepository.findByMemberIdAndAssetId(3L, 10L)).willReturn(Optional.empty());
 
     assertThatThrownBy(() -> bookmarkService.deleteBookmark(3L, 10L))
         .isInstanceOf(BusinessException.class)
@@ -124,20 +136,29 @@ class BookmarkServiceTest {
   @DisplayName("회원의 북마크 목록을 응답 DTO 목록으로 변환한다")
   void getBookmarksReturnsResponses() {
     given(memberService.getMember(3L)).willReturn(mock(Member.class));
-    Bookmark first = createBookmark(1L, 10L);
-    Bookmark second = createBookmark(2L, 20L);
+    Bookmark first = createBookmark(1L, 10L, "에코프로비엠");
+    Bookmark second = createBookmark(2L, 20L, "삼성전자");
     given(bookmarkRepository.findAllByMemberIdOrderByIdAsc(3L)).willReturn(List.of(first, second));
 
     List<BookmarkResponse> responses = bookmarkService.getBookmarks(3L);
 
     assertThat(responses)
-        .containsExactly(new BookmarkResponse(1L, 10L), new BookmarkResponse(2L, 20L));
+        .containsExactly(
+            new BookmarkResponse(1L, 10L, "에코프로비엠"), new BookmarkResponse(2L, 20L, "삼성전자"));
   }
 
-  private Bookmark createBookmark(Long id, Long targetId) {
+  private Bookmark createBookmark(Long id, Long assetId, String assetName) {
     Bookmark bookmark = mock(Bookmark.class);
+    Asset asset = createAsset(assetId, assetName);
     given(bookmark.getId()).willReturn(id);
-    given(bookmark.getTargetId()).willReturn(targetId);
+    given(bookmark.getAsset()).willReturn(asset);
     return bookmark;
+  }
+
+  private Asset createAsset(Long id, String name) {
+    Asset asset = mock(Asset.class);
+    given(asset.getId()).willReturn(id);
+    given(asset.getName()).willReturn(name);
+    return asset;
   }
 }
