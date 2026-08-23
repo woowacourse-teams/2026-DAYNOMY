@@ -35,7 +35,7 @@
 
 .stock-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(82px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
   gap: 10px;
   min-width: min(380px, 100%);
   margin: 0;
@@ -86,6 +86,10 @@
   font-weight: 900;
 }
 
+.stock-list-head.guest {
+  grid-template-columns: 58px minmax(0, 1fr);
+}
+
 .stock-list-head span:last-child {
   text-align: center;
 }
@@ -116,7 +120,11 @@
   background: var(--surface);
   transition:
     background 0.16s ease,
-    box-shadow 0.16s ease;
+  box-shadow 0.16s ease;
+}
+
+.stock-row.guest {
+  grid-template-columns: 58px minmax(0, 1fr);
 }
 
 .stock-row:last-child {
@@ -294,11 +302,19 @@
     padding: 0 12px;
   }
 
+  .stock-list-head.guest {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
   .stock-row {
     grid-template-columns: 42px minmax(0, 1fr) 40px;
     min-height: 60px;
     gap: 10px;
     padding: 10px 12px;
+  }
+
+  .stock-row.guest {
+    grid-template-columns: 42px minmax(0, 1fr);
   }
 
   .stock-rank {

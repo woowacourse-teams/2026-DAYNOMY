@@ -40,6 +40,22 @@
   text-decoration: none;
 }
 
+.daynomy-header .stock-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  margin-right: 8px;
+  padding: 0 16px;
+  border: 1px solid #d9dce6;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #171821;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .daynomy-header .search-link svg {
   width: 20px;
   height: 20px;
@@ -49,11 +65,13 @@
   stroke-width: 1.8;
 }
 
-.daynomy-header .search-link:hover {
+.daynomy-header .search-link:hover,
+.daynomy-header .stock-link:hover {
   background: #f5f3ff;
 }
 
-.daynomy-header .search-link:focus-visible {
+.daynomy-header .search-link:focus-visible,
+.daynomy-header .stock-link:focus-visible {
   outline: 2px solid #5141c9;
   outline-offset: 2px;
 }
@@ -85,9 +103,14 @@
   }
 
   .daynomy-header .search-link,
+  .daynomy-header .stock-link,
   .daynomy-header .login-button {
     height: 36px;
     font-size: 13px;
+  }
+
+  .daynomy-header .stock-link {
+    padding: 0 12px;
   }
 
   .daynomy-header .search-link {
@@ -111,6 +134,11 @@
 
   .daynomy-header .login-button {
     min-width: 96px;
+    font-size: 12px;
+  }
+
+  .daynomy-header .stock-link {
+    padding: 0 10px;
     font-size: 12px;
   }
 }

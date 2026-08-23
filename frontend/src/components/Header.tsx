@@ -45,6 +45,9 @@ export function Header() {
       <a className="search-link" href="/search" aria-label="뉴스 검색">
         <SearchIcon />
       </a>
+      <a className="stock-link" href="/stocks">
+        종목
+      </a>
       <a
         className="login-button"
         href={isLoggedIn ? '/mypage' : '/login'}

@@ -162,10 +162,12 @@ export function StockListPage() {
             <dt>목록</dt>
             <dd>{stocks.length}개</dd>
           </div>
-          <div>
-            <dt>관심</dt>
-            <dd>{visibleBookmarkCount}</dd>
-          </div>
+          {isLoggedIn ? (
+            <div>
+              <dt>관심</dt>
+              <dd>{visibleBookmarkCount}</dd>
+            </div>
+          ) : null}
         </dl>
       </section>
 
@@ -195,10 +197,10 @@ export function StockListPage() {
 
       {!loading && stocks.length > 0 ? (
         <section className="stock-list-panel" aria-label="코스닥 대표 종목 순위">
-          <div className="stock-list-head" aria-hidden="true">
+          <div className={isLoggedIn ? 'stock-list-head' : 'stock-list-head guest'} aria-hidden="true">
             <span>순위</span>
             <span>종목명</span>
-            <span>관심</span>
+            {isLoggedIn ? <span>관심</span> : null}
           </div>
           <div className="stock-list">
             {visibleStocks.map((stock) => {
@@ -206,31 +208,31 @@ export function StockListPage() {
 
               return (
                 <article
-                  className={isBookmarked ? 'stock-row bookmarked' : 'stock-row'}
+                  className={[
+                    'stock-row',
+                    isLoggedIn ? '' : 'guest',
+                    isBookmarked ? 'bookmarked' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   key={stock.code}
                 >
                   <div className="stock-rank" aria-label={`${stock.rank}위`}>
                     {stock.rank}
                   </div>
                   <strong>{stock.name}</strong>
-                  <button
-                    type="button"
-                    className="stock-bookmark-button"
-                    aria-pressed={isBookmarked}
-                    aria-label={
-                      isLoggedIn
-                        ? `${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`
-                        : '로그인 후 북마크 가능'
-                    }
-                    title={
-                      isLoggedIn
-                        ? `${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`
-                        : '로그인 후 북마크 가능'
-                    }
-                    onClick={() => toggleBookmark(stock)}
-                  >
-                    <BookmarkIcon selected={isBookmarked} />
-                  </button>
+                  {isLoggedIn ? (
+                    <button
+                      type="button"
+                      className="stock-bookmark-button"
+                      aria-pressed={isBookmarked}
+                      aria-label={`${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`}
+                      title={`${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`}
+                      onClick={() => toggleBookmark(stock)}
+                    >
+                      <BookmarkIcon selected={isBookmarked} />
+                    </button>
+                  ) : null}
                 </article>
               );
             })}
