@@ -7,7 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
-import org.grit.daynomy.market.domain.asset.Asset;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.market.domain.asset.AssetImpact;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -108,7 +108,8 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
 
   private Map<String, Object> createAssetsSchema() {
     Map<String, Object> assetProperties = new LinkedHashMap<>();
-    assetProperties.put("asset", Map.of("type", "string", "enum", enumNames(Asset.values())));
+    assetProperties.put(
+        "category", Map.of("type", "string", "enum", enumNames(AssetCategory.values())));
     assetProperties.put(
         "direction", Map.of("type", "string", "enum", enumNames(ImpactDirection.values())));
     assetProperties.put(
@@ -118,7 +119,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     Map<String, Object> assetItem = new LinkedHashMap<>();
     assetItem.put("type", "object");
     assetItem.put("additionalProperties", false);
-    assetItem.put("required", List.of("asset", "direction", "impactLevel", "reason"));
+    assetItem.put("required", List.of("category", "direction", "impactLevel", "reason"));
     assetItem.put("properties", assetProperties);
 
     return Map.of("type", "array", "minItems", 1, "maxItems", 2, "items", assetItem);
@@ -169,7 +170,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
         .map(
             node ->
                 new AssetImpact(
-                    Asset.valueOf(node.path("asset").asText()),
+                    AssetCategory.valueOf(node.path("category").asText()),
                     ImpactDirection.valueOf(node.path("direction").asText()),
                     ImpactLevel.valueOf(node.path("impactLevel").asText()),
                     node.path("reason").asText()))
