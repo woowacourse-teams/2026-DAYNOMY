@@ -13,10 +13,21 @@ const DIRECTION_LABELS: Record<PortfolioImpactDirection, string> = {
   NEGATIVE: '부정',
 };
 
+const DIRECTION_ICONS: Record<PortfolioImpactDirection, string> = {
+  POSITIVE: '↑',
+  NEGATIVE: '↓',
+};
+
 const IMPACT_LEVEL_LABELS: Record<PortfolioImpactLevel, string> = {
   HIGH: '높음',
   MEDIUM: '보통',
   LOW: '낮음',
+};
+
+const IMPACT_LEVEL_STRENGTH: Record<PortfolioImpactLevel, number> = {
+  HIGH: 3,
+  MEDIUM: 2,
+  LOW: 1,
 };
 
 type AnalysisState =
@@ -88,18 +99,36 @@ export function PortfolioAnalysis({ newsId }: { newsId: string }) {
       {state.status === 'success' && state.analysis.impacts.length > 0 ? (
         <div className="portfolio-impact-list">
           {state.analysis.impacts.map((impact) => (
-            <article className="portfolio-impact-card" key={impact.bookmarkId}>
+            <article
+              className={`portfolio-impact-card ${impact.direction.toLowerCase()} ${impact.impactLevel.toLowerCase()}`}
+              key={impact.bookmarkId}
+            >
               <div className="portfolio-asset-heading">
-                <div>
-                  <span className="portfolio-category">{getCategoryLabel(impact.category)}</span>
+                <div className="portfolio-asset-info">
+                  <div className="portfolio-asset-meta">
+                    <span className="portfolio-category">{getCategoryLabel(impact.category)}</span>
+                    {impact.assetCode ? (
+                      <span className="portfolio-asset-code">{impact.assetCode}</span>
+                    ) : null}
+                  </div>
                   <h3>{impact.name}</h3>
-                  {impact.assetCode ? <small>{impact.assetCode}</small> : null}
                 </div>
                 <div className="portfolio-badges" aria-label="영향 분석 요약">
                   <span className={`portfolio-direction ${impact.direction.toLowerCase()}`}>
+                    <b aria-hidden="true">{DIRECTION_ICONS[impact.direction]}</b>
                     {DIRECTION_LABELS[impact.direction]}
                   </span>
                   <span className={`portfolio-level ${impact.impactLevel.toLowerCase()}`}>
+                    <i className="portfolio-level-meter" aria-hidden="true">
+                      {[1, 2, 3].map((step) => (
+                        <b
+                          className={
+                            step <= IMPACT_LEVEL_STRENGTH[impact.impactLevel] ? 'active' : ''
+                          }
+                          key={step}
+                        />
+                      ))}
+                    </i>
                     영향 {IMPACT_LEVEL_LABELS[impact.impactLevel]}
                   </span>
                 </div>
