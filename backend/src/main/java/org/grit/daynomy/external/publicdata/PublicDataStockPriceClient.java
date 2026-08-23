@@ -2,7 +2,6 @@ package org.grit.daynomy.external.publicdata;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
@@ -10,7 +9,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-@Slf4j
 @Component
 public class PublicDataStockPriceClient {
 
@@ -45,10 +43,6 @@ public class PublicDataStockPriceClient {
       validateResponse(response);
       return response;
     } catch (RestClientException exception) {
-      log.warn(
-          "Public data stock price request failed: baseDate={}, message={}",
-          baseDate,
-          exception.getMessage());
       throw new BusinessException(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED);
     }
   }
@@ -58,10 +52,6 @@ public class PublicDataStockPriceClient {
       throw new BusinessException(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED);
     }
     if (!"00".equals(response.header().resultCode())) {
-      log.warn(
-          "Public data stock price response failed: code={}, message={}",
-          response.header().resultCode(),
-          response.header().resultMsg());
       throw new BusinessException(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED);
     }
   }
