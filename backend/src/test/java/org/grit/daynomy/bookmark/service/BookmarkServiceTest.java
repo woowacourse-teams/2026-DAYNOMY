@@ -17,12 +17,14 @@ import org.grit.daynomy.bookmark.repository.BookmarkRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.service.MemberService;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class BookmarkServiceTest {
@@ -61,6 +63,36 @@ class BookmarkServiceTest {
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(BookmarkErrorCode.BOOKMARK_ALREADY_EXISTS);
     verify(bookmarkRepository, never()).save(any(Bookmark.class));
+  }
+
+  @Test
+  @DisplayName("북마크 유니크 제약조건 위반을 중복 북마크 예외로 변환한다")
+  void addBookmarkTranslatesBookmarkUniqueConstraintViolation() {
+    given(memberService.getMember(3L)).willReturn(mock(Member.class));
+    given(bookmarkRepository.existsByMemberIdAndTargetId(3L, 10L)).willReturn(false);
+    given(bookmarkRepository.save(any(Bookmark.class)))
+        .willThrow(
+            new DataIntegrityViolationException(
+                "duplicate bookmark",
+                new ConstraintViolationException(
+                    "duplicate bookmark", null, "uk_bookmarks_member_target")));
+
+    assertThatThrownBy(() -> bookmarkService.addBookmark(3L, 10L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(BookmarkErrorCode.BOOKMARK_ALREADY_EXISTS);
+  }
+
+  @Test
+  @DisplayName("다른 무결성 예외는 그대로 전달한다")
+  void addBookmarkRethrowsOtherIntegrityViolations() {
+    given(memberService.getMember(3L)).willReturn(mock(Member.class));
+    given(bookmarkRepository.existsByMemberIdAndTargetId(3L, 10L)).willReturn(false);
+    DataIntegrityViolationException exception =
+        new DataIntegrityViolationException("other integrity violation");
+    given(bookmarkRepository.save(any(Bookmark.class))).willThrow(exception);
+
+    assertThatThrownBy(() -> bookmarkService.addBookmark(3L, 10L)).isSameAs(exception);
   }
 
   @Test
