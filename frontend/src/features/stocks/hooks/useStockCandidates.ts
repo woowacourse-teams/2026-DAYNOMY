@@ -8,6 +8,7 @@ type StockCandidatesState = {
   baseDate: string | null;
   loading: boolean;
   error: string | null;
+  isFallback: boolean;
 };
 
 export function useStockCandidates(): StockCandidatesState {
@@ -15,6 +16,7 @@ export function useStockCandidates(): StockCandidatesState {
   const [baseDate, setBaseDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFallback, setIsFallback] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -22,6 +24,7 @@ export function useStockCandidates(): StockCandidatesState {
     async function loadStocks() {
       setLoading(true);
       setError(null);
+      setIsFallback(false);
 
       try {
         const response = await getKosdaqTopStocks();
@@ -29,12 +32,18 @@ export function useStockCandidates(): StockCandidatesState {
         if (!ignore) {
           setStocks(response.rankings);
           setBaseDate(response.baseDate);
+          setIsFallback(false);
         }
-      } catch {
+      } catch (caughtError) {
+        console.error('Failed to load KOSDAQ top stocks.', caughtError);
+
         if (!ignore) {
           setStocks(mockStockCandidates.rankings);
           setBaseDate(mockStockCandidates.baseDate);
-          setError(null);
+          setError(
+            caughtError instanceof Error ? caughtError.message : '종목 목록을 불러오지 못했습니다.',
+          );
+          setIsFallback(true);
         }
       } finally {
         if (!ignore) {
@@ -50,5 +59,5 @@ export function useStockCandidates(): StockCandidatesState {
     };
   }, []);
 
-  return { stocks, baseDate, loading, error };
+  return { stocks, baseDate, loading, error, isFallback };
 }

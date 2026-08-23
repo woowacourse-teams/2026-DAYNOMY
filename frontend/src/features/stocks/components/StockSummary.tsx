@@ -5,6 +5,7 @@ type StockSummaryProps = {
   stockCount: number;
   bookmarkCount: number;
   isLoggedIn: boolean;
+  isFallback: boolean;
 };
 
 export function StockSummary({
@@ -12,6 +13,7 @@ export function StockSummary({
   stockCount,
   bookmarkCount,
   isLoggedIn,
+  isFallback,
 }: StockSummaryProps) {
   return (
     <dl className="stock-summary" aria-label="종목 목록 요약">
@@ -21,7 +23,9 @@ export function StockSummary({
       </div>
       <div>
         <dt>목록</dt>
-        <dd>{stockCount}개</dd>
+        <dd>
+          {stockCount}개{isFallback ? <span className="stock-fallback-badge">mock</span> : null}
+        </dd>
       </div>
       {isLoggedIn ? (
         <div>

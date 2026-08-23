@@ -13,7 +13,7 @@ import './stockList.css';
 export function StockListPage() {
   const [page, setPage] = useState(1);
   const isLoggedIn = useLoginStatus();
-  const { stocks, baseDate, loading, error } = useStockCandidates();
+  const { stocks, baseDate, loading, error, isFallback } = useStockCandidates();
   const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks(isLoggedIn);
   const visibleBookmarkCount = stocks.filter((stock) => bookmarkedCodeSet.has(stock.code)).length;
   const totalPages = Math.max(1, Math.ceil(stocks.length / STOCKS_PER_PAGE));
@@ -44,6 +44,7 @@ export function StockListPage() {
           stockCount={stocks.length}
           bookmarkCount={visibleBookmarkCount}
           isLoggedIn={isLoggedIn}
+          isFallback={isFallback}
         />
       </section>
 
@@ -53,11 +54,18 @@ export function StockListPage() {
 
       {loading ? <StockState title="종목 목록을 불러오는 중입니다." busy /> : null}
 
-      {!loading && error ? (
+      {!loading && error && !isFallback ? (
         <StockState title="종목 목록을 불러오지 못했습니다." description={error} role="alert" />
       ) : null}
 
-      {!loading && !error && stocks.length === 0 ? (
+      {!loading && isFallback ? (
+        <StockState
+          title="임시 종목 데이터가 표시되고 있습니다."
+          description="종목 목록 API 응답을 받지 못해 화면 확인용 데이터를 보여줍니다."
+        />
+      ) : null}
+
+      {!loading && !error && !isFallback && stocks.length === 0 ? (
         <StockState
           title="표시할 종목이 없습니다."
           description="랭킹 데이터가 생성된 뒤 다시 확인해 주세요."
