@@ -7,6 +7,7 @@ import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
 import { NewsListPage } from './features/news/newslist/NewsListPage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
 import SearchPage from './features/search/SearchPage';
+import { StockListPage } from './features/stocks/StockListPage';
 import { trackPageView } from './analytics';
 
 function AnalyticsTracker() {
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
         <Route path="/news/:newsId" element={<NewsDetailPage />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/stocks" element={<StockListPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<Navigate to="/login" replace />} />
         <Route path="/mypage" element={<MyPage />} />
