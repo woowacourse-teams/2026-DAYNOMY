@@ -8,6 +8,7 @@ export interface MemberResponse {
 export interface BookmarkResponse {
   id: number;
   targetId: number;
+  assetName: string;
 }
 
 interface ErrorResponse {

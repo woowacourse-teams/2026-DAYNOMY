@@ -251,14 +251,14 @@ function MyPage() {
                           type="button"
                           onClick={() => handleRemoveBookmark(bookmark.targetId)}
                           disabled={removingBookmarkId === bookmark.targetId}
-                          aria-label={`자산 ${bookmark.targetId} 관심자산에서 삭제`}
+                          aria-label={`${bookmark.assetName} 관심자산에서 삭제`}
                         >
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M6 4.5h12v15l-6-3.7-6 3.7z" />
                           </svg>
                         </button>
                       </div>
-                      <h3>자산 #{bookmark.targetId}</h3>
+                      <h3>{bookmark.assetName}</h3>
                       <p>관심자산으로 저장됨</p>
                     </article>
                   ))}
