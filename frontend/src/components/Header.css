@@ -39,9 +39,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 72px;
+  box-sizing: border-box;
+  width: 88px;
   height: 34px;
-  padding: 0 18px;
+  padding: 0;
   border-radius: 999px;
   color: #575b68;
   font-size: 14px;
@@ -140,9 +141,9 @@
   }
 
   .daynomy-header .header-tab {
-    min-width: 54px;
+    width: 64px;
     height: 30px;
-    padding: 0 12px;
+    padding: 0;
     font-size: 13px;
   }
 
@@ -173,9 +174,9 @@
   }
 
   .daynomy-header .header-tab {
-    min-width: 42px;
+    width: 52px;
     height: 28px;
-    padding: 0 8px;
+    padding: 0;
     font-size: 12px;
   }
 
