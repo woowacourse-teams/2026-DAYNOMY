@@ -1,8 +1,10 @@
 package org.grit.daynomy.portfolio.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
+import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.domain.PortfolioAssetImpact;
 
 public record PortfolioAssetImpactResponse(
@@ -31,5 +33,20 @@ public record PortfolioAssetImpactResponse(
         impact.getExpectedReaction(),
         impact.getReason(),
         impact.getSortOrder());
+  }
+
+  public static PortfolioAssetImpactResponse of(
+      PortfolioAnalysisResult.AssetImpactResult impact, Asset asset) {
+    return new PortfolioAssetImpactResponse(
+        impact.bookmarkId(),
+        impact.assetId(),
+        asset.getName(),
+        asset.getCategory().name(),
+        asset.getAssetCode(),
+        impact.direction(),
+        impact.impactLevel(),
+        impact.expectedReaction(),
+        impact.reason(),
+        impact.sortOrder());
   }
 }
