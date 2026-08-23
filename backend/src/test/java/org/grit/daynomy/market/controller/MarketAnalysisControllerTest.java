@@ -10,9 +10,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.List;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
-import org.grit.daynomy.market.domain.asset.Asset;
 import org.grit.daynomy.market.domain.asset.AssetImpact;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -65,7 +65,7 @@ class MarketAnalysisControllerTest {
     assertThat(response.statusCode()).isEqualTo(200);
     assertThat(body.at("/cause").asText()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
     assertThat(body.at("/assets")).hasSize(1);
-    assertThat(body.at("/assets/0/asset").asText()).isEqualTo("STOCK");
+    assertThat(body.at("/assets/0/category").asText()).isEqualTo("STOCK");
     assertThat(body.at("/assets/0/direction").asText()).isEqualTo("POSITIVE");
     assertThat(body.at("/scenarios")).hasSize(1);
     assertThat(body.at("/scenarios/0/timeHorizon").asText()).isEqualTo("SHORT_TERM");
@@ -89,7 +89,7 @@ class MarketAnalysisControllerTest {
         "금리 인하 기대가 위험자산 선호를 높입니다.",
         List.of(
             new AssetImpact(
-                Asset.STOCK,
+                AssetCategory.STOCK,
                 ImpactDirection.POSITIVE,
                 ImpactLevel.HIGH,
                 "할인율 하락 기대가 주식 밸류에이션에 긍정적입니다.")),
