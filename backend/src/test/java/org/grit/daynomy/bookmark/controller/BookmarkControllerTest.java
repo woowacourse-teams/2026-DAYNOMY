@@ -66,7 +66,8 @@ class BookmarkControllerTest {
   @Test
   @DisplayName("인증 회원의 자산을 북마크한다")
   void addsBookmarkForAuthenticatedMember() throws Exception {
-    when(bookmarkService.addBookmark(eq(3L), eq(10L))).thenReturn(new BookmarkResponse(1L, 10L));
+    when(bookmarkService.addBookmark(eq(3L), eq(10L)))
+        .thenReturn(new BookmarkResponse(1L, 10L, "에코프로비엠"));
 
     mockMvc
         .perform(
@@ -75,7 +76,8 @@ class BookmarkControllerTest {
                 .content("{\"targetId\":10}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").value(1))
-        .andExpect(jsonPath("$.targetId").value(10));
+        .andExpect(jsonPath("$.targetId").value(10))
+        .andExpect(jsonPath("$.assetName").value("에코프로비엠"));
 
     verify(bookmarkService).addBookmark(3L, 10L);
   }
@@ -106,15 +108,19 @@ class BookmarkControllerTest {
   @DisplayName("인증 회원의 북마크 목록을 반환한다")
   void returnsBookmarksForAuthenticatedMember() throws Exception {
     when(bookmarkService.getBookmarks(3L))
-        .thenReturn(List.of(new BookmarkResponse(1L, 10L), new BookmarkResponse(2L, 20L)));
+        .thenReturn(
+            List.of(
+                new BookmarkResponse(1L, 10L, "에코프로비엠"), new BookmarkResponse(2L, 20L, "삼성전자")));
 
     mockMvc
         .perform(get("/api/users/me/bookmarks"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].id").value(1))
         .andExpect(jsonPath("$[0].targetId").value(10))
+        .andExpect(jsonPath("$[0].assetName").value("에코프로비엠"))
         .andExpect(jsonPath("$[1].id").value(2))
-        .andExpect(jsonPath("$[1].targetId").value(20));
+        .andExpect(jsonPath("$[1].targetId").value(20))
+        .andExpect(jsonPath("$[1].assetName").value("삼성전자"));
 
     verify(bookmarkService).getBookmarks(3L);
   }
