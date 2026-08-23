@@ -48,23 +48,31 @@ class AssetCandidateServiceTest {
     assetRankingHistoryRepository.save(new AssetRankingHistory(secondAsset, 2, latestDate));
     assetRankingHistoryRepository.save(new AssetRankingHistory(firstAsset, 1, latestDate));
 
-    AssetCandidatesResponse response = assetCandidateService.getKosdaqTopRankings();
+    AssetCandidatesResponse response = assetCandidateService.getKosdaqTopRankings(1, 1);
 
     assertThat(response.baseDate()).isEqualTo("2026-08-21");
-    assertThat(response.rankings()).hasSize(2);
+    assertThat(response.rankings()).hasSize(1);
     assertThat(response.rankings().get(0).rank()).isEqualTo(1);
     assertThat(response.rankings().get(0).code()).isEqualTo("000002");
     assertThat(response.rankings().get(0).name()).isEqualTo("일위종목");
-    assertThat(response.rankings().get(1).rank()).isEqualTo(2);
-    assertThat(response.rankings().get(1).code()).isEqualTo("000003");
+    assertThat(response.page()).isEqualTo(1);
+    assertThat(response.size()).isEqualTo(1);
+    assertThat(response.totalPages()).isEqualTo(2);
+    assertThat(response.totalElements()).isEqualTo(2);
+    assertThat(response.hasNext()).isTrue();
   }
 
   @Test
   @DisplayName("저장된 랭킹이 없으면 빈 순위 목록을 반환한다")
   void getKosdaqTopRankingsReturnsEmptyRankingsWhenMissing() {
-    AssetCandidatesResponse response = assetCandidateService.getKosdaqTopRankings();
+    AssetCandidatesResponse response = assetCandidateService.getKosdaqTopRankings(1, 20);
 
     assertThat(response.baseDate()).isNull();
     assertThat(response.rankings()).isEmpty();
+    assertThat(response.page()).isEqualTo(1);
+    assertThat(response.size()).isEqualTo(20);
+    assertThat(response.totalPages()).isZero();
+    assertThat(response.totalElements()).isZero();
+    assertThat(response.hasNext()).isFalse();
   }
 }
