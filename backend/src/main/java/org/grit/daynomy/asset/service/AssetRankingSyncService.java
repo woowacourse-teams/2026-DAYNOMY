@@ -14,6 +14,7 @@ import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.external.publicdata.PublicDataStockPriceClient;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,12 @@ public class AssetRankingSyncService {
   @Transactional
   public int syncKosdaqTopRankings() {
     return syncKosdaqTopRankings(LocalDate.now());
+  }
+
+  @Scheduled(cron = "0 0 18 * * MON-FRI", zone = "Asia/Seoul")
+  @Transactional
+  public void syncKosdaqTopRankingsDaily() {
+    syncKosdaqTopRankings();
   }
 
   @Transactional
