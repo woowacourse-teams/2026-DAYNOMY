@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PortfolioAssetImpactRepository extends JpaRepository<PortfolioAssetImpact, Long> {
 
   List<PortfolioAssetImpact> findAllByNewsIdAndBookmarkIdInOrderBySortOrderAsc(
-      Long portfolioId, Collection<Long> bookmarkIds);
+      Long newsId, Collection<Long> bookmarkIds);
 }
