@@ -1,0 +1,156 @@
+name: Deploy backend production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-cd.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-backend
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Test and build backend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Run formatting check
+        run: ./gradlew spotlessCheck
+
+      - name: Run tests and build
+        run: ./gradlew clean build --no-daemon
+
+      - name: Prepare deployment JAR
+        run: |
+          JAR_PATH="$(find build/libs \
+            -maxdepth 1 \
+            -type f \
+            -name '*.jar' \
+            ! -name '*-plain.jar' \
+            -print \
+            -quit)"
+
+          if [ -z "$JAR_PATH" ]; then
+            echo "Executable JAR was not found."
+            exit 1
+          fi
+
+          cp "$JAR_PATH" "build/libs/daynomy-${GITHUB_SHA}.jar"
+
+      - name: Upload deployment JAR
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-${{ github.sha }}
+          path: backend/build/libs/daynomy-${{ github.sha }}.jar
+          retention-days: 7
+
+  deploy:
+    name: Deploy backend
+    needs: build
+    runs-on: [self-hosted, linux, ARM64, frontend-prod]
+    environment: production
+
+    steps:
+      - name: Download deployment JAR
+        uses: actions/download-artifact@v8
+        with:
+          name: backend-${{ github.sha }}
+          path: ${{ runner.temp }}/daynomy-backend
+
+      - name: Deploy and verify
+        env:
+          APP_VERSION: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+
+          APP_DIR="/home/ubuntu/backend"
+          ARTIFACT="${RUNNER_TEMP}/daynomy-backend/daynomy-${APP_VERSION}.jar"
+          RELEASE="${APP_DIR}/releases/daynomy-${APP_VERSION}.jar"
+          PREVIOUS="$(readlink -f "${APP_DIR}/current.jar" || true)"
+
+          rollback() {
+            echo "Rolling back backend."
+
+            if [ -n "$PREVIOUS" ] && [ -f "$PREVIOUS" ]; then
+              ln -sfn "$PREVIOUS" "${APP_DIR}/current.jar"
+              sudo -n systemctl restart daynomy
+            else
+              echo "Previous release was not found."
+            fi
+          }
+
+          if [ ! -f "$ARTIFACT" ]; then
+            echo "Downloaded JAR was not found: $ARTIFACT"
+            exit 1
+          fi
+
+          install -m 0644 "$ARTIFACT" "$RELEASE"
+          ln -sfn "$RELEASE" "${APP_DIR}/current.jar"
+
+          if ! sudo -n systemctl restart daynomy; then
+            rollback
+            exit 1
+          fi
+
+          HEALTHY=false
+
+          for attempt in $(seq 1 45); do
+            if curl \
+              --fail \
+              --silent \
+              --max-time 5 \
+              http://127.0.0.1:8080/api/news \
+              >/dev/null; then
+              HEALTHY=true
+              break
+            fi
+
+            sleep 2
+          done
+
+          if [ "$HEALTHY" != "true" ]; then
+            echo "Backend health check failed."
+            rollback
+            exit 1
+          fi
+
+          echo "Backend deployment completed: ${APP_VERSION}"
+
+      - name: Verify Nginx proxy
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 5 \
+            --retry-delay 3 \
+            --max-time 15 \
+            https://daynomy.com/api/news \
+            >/dev/null
