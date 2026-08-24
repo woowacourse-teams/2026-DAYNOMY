@@ -1,6 +1,6 @@
-package org.grit.daynomy.market.domain.asset;
+package org.grit.daynomy.asset.domain;
 
-public enum Asset {
+public enum AssetCategory {
   GOLD,
   STOCK,
   BOND,

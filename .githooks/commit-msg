@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+set -eu
+
+message=$(sed -n '1p' "$1")
+
+if ! printf '%s\n' "$message" | grep -Eq '^(feat|fix|docs|refactor|test|chore): .*[가-힣].*$'; then
+  echo "커밋 메시지는 '타입: 한국어 설명' 형식이어야 합니다." >&2
+  echo "예시: feat: 관심 자산 조회 기능 구현" >&2
+  exit 1
+fi

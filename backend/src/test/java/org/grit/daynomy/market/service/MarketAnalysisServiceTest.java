@@ -9,9 +9,9 @@ import static org.mockito.Mockito.verify;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
-import org.grit.daynomy.market.domain.asset.Asset;
 import org.grit.daynomy.market.domain.asset.AssetImpact;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -51,7 +51,8 @@ class MarketAnalysisServiceTest {
                   assertThat(entity.getNews()).isSameAs(news);
                   assertThat(entity.getCause()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
                   assertThat(entity.getAssets()).hasSize(1);
-                  assertThat(entity.getAssets().get(0).getAsset()).isEqualTo(Asset.STOCK);
+                  assertThat(entity.getAssets().get(0).getCategory())
+                      .isEqualTo(AssetCategory.STOCK);
                   assertThat(entity.getScenarios()).hasSize(3);
                   assertThat(entity.getScenarios().get(0).getTimeHorizon())
                       .isEqualTo(TimeHorizon.SHORT_TERM);
@@ -69,7 +70,7 @@ class MarketAnalysisServiceTest {
 
     assertThat(response.cause()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
     assertThat(response.assets()).hasSize(1);
-    assertThat(response.assets().get(0).asset()).isEqualTo(Asset.STOCK);
+    assertThat(response.assets().get(0).category()).isEqualTo(AssetCategory.STOCK);
     assertThat(response.assets().get(0).direction()).isEqualTo(ImpactDirection.POSITIVE);
     assertThat(response.assets().get(0).impactLevel()).isEqualTo(ImpactLevel.HIGH);
     assertThat(response.scenarios()).hasSize(1);
@@ -93,7 +94,7 @@ class MarketAnalysisServiceTest {
         "금리 인하 기대가 위험자산 선호를 높입니다.",
         List.of(
             new AssetImpact(
-                Asset.STOCK,
+                AssetCategory.STOCK,
                 ImpactDirection.POSITIVE,
                 ImpactLevel.HIGH,
                 "할인율 하락 기대가 주식 밸류에이션에 긍정적입니다.")),
@@ -110,7 +111,7 @@ class MarketAnalysisServiceTest {
         "금리 인하 기대가 위험자산 선호를 높입니다.",
         List.of(
             new AssetImpact(
-                Asset.STOCK,
+                AssetCategory.STOCK,
                 ImpactDirection.POSITIVE,
                 ImpactLevel.HIGH,
                 "할인율 하락 기대가 주식 밸류에이션에 긍정적입니다.")),

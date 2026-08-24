@@ -59,6 +59,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/api/users/**")
                     .authenticated()
+                    .requestMatchers("/api/assets/bookmarks/**")
+                    .authenticated()
                     .anyRequest()
                     .permitAll())
         .oauth2Login(

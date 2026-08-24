@@ -5,6 +5,12 @@ export interface MemberResponse {
   role: 'USER' | 'ADMIN';
 }
 
+export interface BookmarkResponse {
+  id: number;
+  targetId: number;
+  assetName: string;
+}
+
 interface ErrorResponse {
   code?: string;
   message?: string;
@@ -97,6 +103,16 @@ async function requestWithCsrf<T>(
 
 export function getMyProfile(signal?: AbortSignal): Promise<MemberResponse> {
   return request<MemberResponse>('/api/users/me', { signal });
+}
+
+export function getMyBookmarks(signal?: AbortSignal): Promise<BookmarkResponse[]> {
+  return request<BookmarkResponse[]>('/api/users/me/bookmarks', { signal });
+}
+
+export function deleteBookmark(targetId: number): Promise<void> {
+  return requestWithCsrf<void>(`/api/assets/bookmarks?targetId=${targetId}`, {
+    method: 'DELETE',
+  });
 }
 
 export function updateMyProfile(nickname: string): Promise<MemberResponse> {

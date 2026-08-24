@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.grit.daynomy.asset.domain.AssetCategory;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -14,8 +15,8 @@ import lombok.NoArgsConstructor;
 public class AssetImpact {
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "asset", nullable = false)
-  private Asset asset;
+  @Column(name = "category", nullable = false)
+  private AssetCategory category;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "direction", nullable = false)
@@ -29,8 +30,8 @@ public class AssetImpact {
   private String reason;
 
   public AssetImpact(
-      Asset asset, ImpactDirection direction, ImpactLevel impactLevel, String reason) {
-    this.asset = asset;
+      AssetCategory category, ImpactDirection direction, ImpactLevel impactLevel, String reason) {
+    this.category = category;
     this.direction = direction;
     this.impactLevel = impactLevel;
     this.reason = reason;
