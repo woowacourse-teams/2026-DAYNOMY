@@ -155,7 +155,7 @@ export function NewsListPage() {
       {!loading && articles.length > 0 ? (
         <section className="article-list" aria-label="뉴스 목록">
           {articles.map((article) => (
-            <ArticleCard article={article} key={article.id} onSelect={handleArticleSelect} />
+            <ArticleCard article={article} key={article.id} />
           ))}
         </section>
       ) : null}

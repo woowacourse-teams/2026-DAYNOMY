@@ -11,13 +11,6 @@ type NewsSearchResponse = {
   totalPages: number;
 };
 
-export const SEARCH_ERROR_CODES = {
-  SEARCH_KEYWORD_REQUIRED: 'SEARCH_KEYWORD_REQUIRED',
-  SEARCH_INVALID_KEYWORD: 'SEARCH_INVALID_KEYWORD',
-  SEARCH_INVALID_CATEGORY: 'SEARCH_INVALID_CATEGORY',
-  SEARCH_INVALID_PAGE_CONDITION: 'SEARCH_INVALID_PAGE_CONDITION',
-} as const;
-
 function isNewsListItem(value: unknown): value is NewsListItemResponse {
   if (!value || typeof value !== 'object') return false;
 

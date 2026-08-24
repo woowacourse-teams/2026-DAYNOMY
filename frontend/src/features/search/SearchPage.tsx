@@ -1,24 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ArticleCard } from '../news/newslist/components/ArticleCard';
 import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
-import { CATEGORY_LABELS } from '../news/newslist/types';
-import type {
-  NewsCategory,
-  NewsCategoryOption,
-  NewsListItemResponse,
-} from '../news/newslist/types';
+import { NEWS_CATEGORIES } from '../news/newslist/constants';
+import type { NewsCategory, NewsListItemResponse } from '../news/newslist/types';
 import { searchNews } from './api';
 import './SearchPage.css';
 import { trackEvent } from '../../analytics';
 
 const PAGE_SIZE = 10;
-const SEARCH_CATEGORIES: NewsCategoryOption[] = [
-  { label: '전체', value: 'ALL' },
-  ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
-    label,
-    value: value as keyof typeof CATEGORY_LABELS,
-  })),
-];
 
 function SearchIcon() {
   return (
@@ -39,6 +28,7 @@ function SearchPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchAttempt, setSearchAttempt] = useState(0);
 
   useEffect(() => {
     if (!searchedKeyword) return;
@@ -79,7 +69,7 @@ function SearchPage() {
     return () => {
       ignore = true;
     };
-  }, [searchedKeyword, selectedCategory, page]);
+  }, [searchedKeyword, selectedCategory, page, searchAttempt]);
 
   function search() {
     const keyword = query.trim();
@@ -89,6 +79,7 @@ function SearchPage() {
     setQuery(keyword);
     setSearchedKeyword(keyword);
     setPage(1);
+    setSearchAttempt((attempt) => attempt + 1);
     trackEvent('search_news', { search_length: keyword.length });
   }
 
@@ -101,10 +92,6 @@ function SearchPage() {
     setPage(nextPage);
     document.getElementById('news-results')?.scrollIntoView({ behavior: 'smooth' });
   };
-
-  function selectArticle(article: NewsListItemResponse) {
-    window.location.assign(`/news/${article.id}`);
-  }
 
   return (
     <main className="search-page">
@@ -138,12 +125,16 @@ function SearchPage() {
               onChange={(event) => setQuery(event.target.value)}
               placeholder="검색어를 입력하세요"
               autoComplete="off"
+              required
+              maxLength={100}
+              pattern=".*[\p{L}\p{N}].*"
+              title="문자 또는 숫자를 포함한 100자 이하의 검색어를 입력해주세요."
             />
           </form>
         </div>
 
         <CategoryTabs
-          categories={SEARCH_CATEGORIES}
+          categories={NEWS_CATEGORIES}
           selectedCategory={selectedCategory}
           onChange={changeCategory}
         />
@@ -167,7 +158,7 @@ function SearchPage() {
               <>
                 <section className="article-list" aria-label="검색된 뉴스 목록">
                   {results.map((item) => (
-                    <ArticleCard article={item} key={item.id} onSelect={selectArticle} />
+                    <ArticleCard article={item} key={item.id} />
                   ))}
                 </section>
 
