@@ -1,0 +1,54 @@
+#!/usr/bin/env sh
+set -eu
+
+fail() {
+  echo "[DAYNOMY hook] $1" >&2
+  exit 1
+}
+
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+case "$branch" in
+  main|dev) fail "$branch 브랜치에는 직접 커밋할 수 없습니다." ;;
+esac
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged_files" ] && exit 0
+
+if printf '%s\n' "$staged_files" | grep -Eq '(^|/)(\.env|\.env\..*|.*\.(pem|key|p12|jks))$'; then
+  fail "환경변수 또는 키 파일은 커밋할 수 없습니다."
+fi
+
+if git diff --cached --check; then
+  :
+else
+  fail "공백 오류가 포함되어 있습니다."
+fi
+
+if git diff --cached --unified=0 --no-color | grep -E '^\+[^+]' | grep -Eq '(AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9_]+|sk-[A-Za-z0-9]{20,})'; then
+  fail "커밋할 변경에서 민감정보 형식이 발견되었습니다."
+fi
+
+if git diff --cached --unified=0 --no-color | grep -E '^\+[^+]' | grep -Eq '^\+<<<<<<<|^\+=======|^\+>>>>>>>'; then
+  fail "충돌 마커를 제거한 뒤 커밋하세요."
+fi
+
+git diff --cached --name-only --diff-filter=ACMR -z | xargs -0 -n1 sh -c '
+  path="$1"
+  size=$(git cat-file -s ":$path" 2>/dev/null || echo 0)
+  if [ "$size" -gt 10485760 ]; then
+    echo "[DAYNOMY hook] 10MB 초과 파일: $path" >&2
+    exit 1
+  fi
+' sh || exit 1
+
+case "$(printf '%s\n' "$staged_files")" in
+  *backend/*)
+    (cd backend && ./gradlew spotlessCheck test) || fail "백엔드 Spotless 또는 테스트가 실패했습니다."
+    ;;
+esac
+
+case "$(printf '%s\n' "$staged_files")" in
+  *frontend/*)
+    (cd frontend && npm run format:check && npm run lint && npm run typecheck) || fail "프론트엔드 포맷, 린트 또는 타입 검사가 실패했습니다."
+    ;;
+esac
