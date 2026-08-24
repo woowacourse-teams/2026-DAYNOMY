@@ -1,12 +1,20 @@
 name: Deploy backend production
 
 on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - ".github/workflows/backend-cd.yml"
+
   push:
     branches:
       - main
     paths:
       - "backend/**"
       - ".github/workflows/backend-cd.yml"
+
   workflow_dispatch:
 
 permissions:
@@ -72,6 +80,7 @@ jobs:
           retention-days: 7
 
   deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     name: Deploy backend
     needs: build
     runs-on: [self-hosted, linux, ARM64, frontend-prod]
