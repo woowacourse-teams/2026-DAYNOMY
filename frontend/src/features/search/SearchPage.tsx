@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArticleCard } from '../news/newslist/components/ArticleCard';
 import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
 import { NEWS_CATEGORIES } from '../news/newslist/constants';
-import type { NewsCategory, NewsListItemResponse } from '../news/newslist/types';
+import type { NewsCategory, NewsListItem } from '../news/newslist/types';
 import { searchNews } from './api';
 import './SearchPage.css';
 import { trackEvent } from '../../analytics';
@@ -22,7 +22,7 @@ function SearchPage() {
   const [query, setQuery] = useState('');
   const [searchedKeyword, setSearchedKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
-  const [results, setResults] = useState<NewsListItemResponse[]>([]);
+  const [results, setResults] = useState<NewsListItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
   const [totalPages, setTotalPages] = useState(0);

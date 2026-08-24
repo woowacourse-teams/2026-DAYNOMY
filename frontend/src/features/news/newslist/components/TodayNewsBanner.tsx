@@ -1,11 +1,11 @@
 import defaultNewsImage from '../../../../assets/default-news-real-estate.png';
 import { getCategoryLabel } from '../constants';
-import type { NewsListItemResponse } from '../types';
+import type { NewsListItem } from '../types';
 import { formatDate } from '../utils';
 
 type TodayNewsBannerProps = {
-  article: NewsListItemResponse;
-  onSelect: (article: NewsListItemResponse) => void;
+  article: NewsListItem;
+  onSelect: (article: NewsListItem) => void;
 };
 
 export function TodayNewsBanner({ article, onSelect }: TodayNewsBannerProps) {
@@ -14,11 +14,10 @@ export function TodayNewsBanner({ article, onSelect }: TodayNewsBannerProps) {
       <div className="banner-content">
         <div className="article-meta">
           <span>{getCategoryLabel(article.category)}</span>
-          <time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time>
+          <time dateTime={article.publishedAt ?? undefined}>{formatDate(article.publishedAt)}</time>
         </div>
         <h2>{article.title}</h2>
         <p>{article.description}</p>
-        {article.source ? <span className="article-source">{article.source}</span> : null}
       </div>
       <div className="banner-visual" aria-hidden="true">
         <img src={article.imageUrl ?? defaultNewsImage} alt="" />

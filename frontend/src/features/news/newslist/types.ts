@@ -27,17 +27,25 @@ export function getCategoryLabel(value: string) {
 }
 
 export type NewsListItemResponse = {
-  id: number | string;
+  id: number;
   title: string;
-  description?: string | null;
+  description: string | null;
+  category: Category;
+  imageUrl: string | null;
+  publishedAt: string | null;
+};
+
+export type NewsListItem = {
+  id: number;
+  title: string;
+  description: string | null;
   category: NewsCategory;
-  imageUrl?: string | null;
-  publishedAt?: string;
-  source?: string;
+  imageUrl: string | null;
+  publishedAt: string | null;
 };
 
 export type NewsPage = {
-  content: NewsListItemResponse[];
+  content: NewsListItem[];
   page: number;
   size: number;
   totalPages: number;
@@ -48,3 +56,14 @@ export type NewsCategoryOption = {
   label: string;
   value: NewsCategory;
 };
+
+export function toNewsListItem(response: NewsListItemResponse): NewsListItem {
+  return {
+    id: response.id,
+    title: response.title,
+    description: response.description,
+    category: response.category,
+    imageUrl: response.imageUrl,
+    publishedAt: response.publishedAt,
+  };
+}

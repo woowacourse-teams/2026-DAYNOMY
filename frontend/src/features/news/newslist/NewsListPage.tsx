@@ -6,18 +6,16 @@ import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
 import { TodayNewsBanner } from './components/TodayNewsBanner';
 import { getEmptyTodayNews, NEWS_CATEGORIES } from './constants';
-import type { NewsCategory, NewsListItemResponse } from './types';
+import type { NewsCategory, NewsListItem } from './types';
 import './newsList.css';
 import { trackEvent } from '../../../analytics';
 
 export function NewsListPage() {
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
-  const [articles, setArticles] = useState<NewsListItemResponse[]>([]);
+  const [articles, setArticles] = useState<NewsListItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [todayMainNews, setTodayMainNews] = useState<NewsListItemResponse>(() =>
-    getEmptyTodayNews(),
-  );
+  const [todayMainNews, setTodayMainNews] = useState<NewsListItem>(() => getEmptyTodayNews());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,7 +93,7 @@ export function NewsListPage() {
     setPage(1);
   }
 
-  function handleArticleSelect(article: NewsListItemResponse) {
+  function handleArticleSelect(article: NewsListItem) {
     if (!article.id) {
       return;
     }

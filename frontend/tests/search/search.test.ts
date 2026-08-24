@@ -57,7 +57,7 @@ test('검색 성공 응답을 뉴스 카드 데이터로 읽는다', async () =>
           description: '기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.',
           imageUrl: 'https://example.com/base-rate.webp',
           category: 'ECONOMY',
-          publishedAt: '2026-08-14T10:00:00',
+          publishedAt: null,
         },
       ],
       page: 1,
@@ -80,6 +80,7 @@ test('검색 성공 응답을 뉴스 카드 데이터로 읽는다', async () =>
     '기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.',
   );
   assert.equal(results.content[0]?.imageUrl, 'https://example.com/base-rate.webp');
+  assert.equal(results.content[0]?.publishedAt, null);
   assert.equal(results.page, 1);
   assert.equal(results.totalElements, 1);
 });

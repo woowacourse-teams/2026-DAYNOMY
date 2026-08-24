@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { toApiError } from '../../api/error';
-import { isCategory } from '../news/newslist/types';
+import { isCategory, toNewsListItem } from '../news/newslist/types';
 import type { NewsCategory, NewsListItemResponse, NewsPage } from '../news/newslist/types';
 
 type NewsSearchResponse = {
@@ -11,7 +11,7 @@ type NewsSearchResponse = {
   totalPages: number;
 };
 
-function isNewsListItem(value: unknown): value is NewsListItemResponse {
+function isNewsListItemResponse(value: unknown): value is NewsListItemResponse {
   if (!value || typeof value !== 'object') return false;
 
   const article = value as Record<string, unknown>;
@@ -21,7 +21,7 @@ function isNewsListItem(value: unknown): value is NewsListItemResponse {
     (article.description === null || typeof article.description === 'string') &&
     (article.imageUrl === null || typeof article.imageUrl === 'string') &&
     isCategory(article.category) &&
-    typeof article.publishedAt === 'string'
+    (article.publishedAt === null || typeof article.publishedAt === 'string')
   );
 }
 
@@ -31,7 +31,7 @@ function isNewsSearchResponse(value: unknown): value is NewsSearchResponse {
   const page = value as Record<string, unknown>;
   return (
     Array.isArray(page.content) &&
-    page.content.every(isNewsListItem) &&
+    page.content.every(isNewsListItemResponse) &&
     Number.isInteger(page.page) &&
     Number.isInteger(page.size) &&
     Number.isInteger(page.totalElements) &&
@@ -41,7 +41,7 @@ function isNewsSearchResponse(value: unknown): value is NewsSearchResponse {
 
 function normalizeNewsPage(page: NewsSearchResponse): NewsPage {
   return {
-    content: page.content,
+    content: page.content.map(toNewsListItem),
     page: page.page,
     size: page.size,
     totalElements: page.totalElements,
