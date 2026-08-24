@@ -44,7 +44,8 @@
 }
 
 .portfolio-error,
-.portfolio-empty {
+.portfolio-empty,
+.portfolio-login-prompt {
   flex-direction: column;
 }
 
@@ -80,6 +81,30 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.portfolio-login-prompt a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--text-h);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.portfolio-login-prompt a:hover {
+  background: var(--accent);
+}
+
+.portfolio-login-prompt a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .portfolio-error button:hover {
