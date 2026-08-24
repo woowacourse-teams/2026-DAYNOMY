@@ -212,7 +212,9 @@
   border: 1px solid var(--border);
   border-radius: 20px;
   background: var(--surface);
+  color: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition:
     border-color 0.16s ease,
@@ -222,6 +224,11 @@
 .article-card:hover {
   border-color: #b8c5bc;
   transform: translateY(-1px);
+}
+
+.article-card:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .article-thumbnail {
