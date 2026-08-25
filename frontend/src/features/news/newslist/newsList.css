@@ -113,10 +113,6 @@
   line-height: 1.5;
 }
 
-.today-banner .article-source {
-  display: none;
-}
-
 .banner-content {
   position: relative;
   z-index: 1;
@@ -212,7 +208,9 @@
   border: 1px solid var(--border);
   border-radius: 20px;
   background: var(--surface);
+  color: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition:
     border-color 0.16s ease,
@@ -222,6 +220,11 @@
 .article-card:hover {
   border-color: #b8c5bc;
   transform: translateY(-1px);
+}
+
+.article-card:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .article-thumbnail {
@@ -273,10 +276,6 @@
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
-}
-
-.article-source {
-  display: none;
 }
 
 .sr-only {
@@ -421,8 +420,7 @@
     font-size: 17px;
   }
 
-  .article-card p,
-  .article-source {
+  .article-card p {
     display: none;
   }
 }
