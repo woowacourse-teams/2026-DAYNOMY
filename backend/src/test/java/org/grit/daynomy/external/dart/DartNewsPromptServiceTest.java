@@ -59,6 +59,7 @@ class DartNewsPromptServiceTest {
     String prompt = service.createPrompts(beginDate, endDate, "B", "K").getFirst().prompt();
 
     assertThat(prompt)
+        .contains("경제 전문 기자", "JSON 형식으로만", "불릿, 번호 목록, 표", "정정 전후 변경 사항")
         .contains("[유상증자 상세]", "주주배정증자", "[전환사채권 발행결정 상세]", "50000")
         .doesNotContain("무시", "[회사합병 결정 상세]");
     verify(dartClient, never()).getMergerDecisions("00126380", beginDate, endDate);
