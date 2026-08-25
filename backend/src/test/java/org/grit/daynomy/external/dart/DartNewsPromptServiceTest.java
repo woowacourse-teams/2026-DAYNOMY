@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.List;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseItem;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseResponse;
 import org.grit.daynomy.external.dart.dto.DartConvertibleBondItem;
@@ -60,6 +62,37 @@ class DartNewsPromptServiceTest {
         .contains("[유상증자 상세]", "주주배정증자", "[전환사채권 발행결정 상세]", "50000")
         .doesNotContain("무시", "[회사합병 결정 상세]");
     verify(dartClient, never()).getMergerDecisions("00126380", beginDate, endDate);
+  }
+
+  @Test
+  @DisplayName("원문 조회에 실패해도 공시 기본 정보로 프롬프트를 만든다")
+  void createPromptsWithoutOriginalDocument() {
+    DartClient dartClient = Mockito.mock(DartClient.class);
+    DartNewsPromptService service =
+        new DartNewsPromptService(dartClient, new DartNewsPromptMapper());
+    LocalDate date = LocalDate.of(2026, 8, 24);
+    DartDisclosureItem disclosure =
+        new DartDisclosureItem(
+            "Y",
+            "SJG세종",
+            "00134510",
+            "033530",
+            "[첨부정정]주요사항보고서(회사합병결정)",
+            "20260824000096",
+            "SJG세종",
+            "20260824",
+            "");
+
+    when(dartClient.getDisclosures(date, date, "B", "Y"))
+        .thenReturn(new DartDisclosureResponse("000", "정상", List.of(disclosure)));
+    when(dartClient.getOriginalDocument("20260824000096"))
+        .thenThrow(new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED));
+
+    String prompt = service.createPrompts(date, date, "B", "Y").getFirst().prompt();
+
+    assertThat(prompt)
+        .contains("[DART 공시 정보]", "SJG세종", "20260824000096")
+        .doesNotContain("[DART 원문 및 첨부문서]");
   }
 
   private DartCapitalIncreaseItem capitalIncrease(String receiptNo, String increaseMethod) {

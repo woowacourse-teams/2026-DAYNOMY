@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseItem;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseResponse;
 import org.grit.daynomy.external.dart.dto.DartConvertibleBondItem;
@@ -16,6 +18,7 @@ import org.grit.daynomy.external.dart.dto.DartMergerDecisionResponse;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class DartNewsPromptService {
@@ -38,9 +41,10 @@ public class DartNewsPromptService {
 
   private NewsPrompt createPrompt(
       DartDisclosureItem disclosure, LocalDate beginDate, LocalDate endDate) {
+    String originalDocument = getOriginalDocumentOrBlank(disclosure);
     List<DartMajorReportType> types = DartMajorReportType.fromAll(disclosure.reportNm());
     if (types.isEmpty()) {
-      return dartNewsPromptMapper.toPrompt(disclosure);
+      return dartNewsPromptMapper.toPrompt(disclosure, List.of(), originalDocument);
     }
 
     List<String> detailBlocks =
@@ -49,7 +53,19 @@ public class DartNewsPromptService {
             .flatMap(Optional::stream)
             .toList();
 
-    return dartNewsPromptMapper.toPrompt(disclosure, detailBlocks);
+    return dartNewsPromptMapper.toPrompt(disclosure, detailBlocks, originalDocument);
+  }
+
+  private String getOriginalDocumentOrBlank(DartDisclosureItem disclosure) {
+    try {
+      return dartClient.getOriginalDocument(disclosure.rceptNo());
+    } catch (BusinessException exception) {
+      log.warn(
+          "Skipping DART original document: receiptNo={}, reportName={}",
+          disclosure.rceptNo(),
+          disclosure.reportNm());
+      return "";
+    }
   }
 
   private Optional<String> findDetailBlock(

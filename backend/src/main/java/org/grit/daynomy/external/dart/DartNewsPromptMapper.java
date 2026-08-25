@@ -22,13 +22,14 @@ public class DartNewsPromptMapper {
   private static final DateTimeFormatter DART_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
   private static final String DART_DISCLOSURE_URL = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=";
 
-  public NewsPrompt toPrompt(DartDisclosureItem disclosure) {
-    return createPrompt(disclosure, disclosureBlock(disclosure));
-  }
-
-  public NewsPrompt toPrompt(DartDisclosureItem disclosure, List<String> detailBlocks) {
+  public NewsPrompt toPrompt(
+      DartDisclosureItem disclosure, List<String> detailBlocks, String originalDocument) {
     String details = detailBlocks.isEmpty() ? "" : "\n" + String.join("\n", detailBlocks);
-    return createPrompt(disclosure, disclosureBlock(disclosure) + details);
+    String original =
+        originalDocument == null || originalDocument.isBlank()
+            ? ""
+            : "\n\n[DART 원문 및 첨부문서]\n" + originalDocument;
+    return createPrompt(disclosure, disclosureBlock(disclosure) + details + original);
   }
 
   String toDetailBlock(DartCapitalIncreaseItem detail) {
