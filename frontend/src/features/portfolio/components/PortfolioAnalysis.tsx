@@ -1,0 +1,192 @@
+import { useEffect, useState } from 'react';
+import { getCategoryLabel } from '../../news/newslist/types';
+import { getPortfolioAnalysis, retryPortfolioAnalysis } from '../api';
+import type {
+  PortfolioAnalysisResponse,
+  PortfolioImpactDirection,
+  PortfolioImpactLevel,
+} from '../types';
+import '../portfolio.css';
+
+const DIRECTION_LABELS: Record<PortfolioImpactDirection, string> = {
+  POSITIVE: '긍정',
+  NEGATIVE: '부정',
+};
+
+const DIRECTION_ICONS: Record<PortfolioImpactDirection, string> = {
+  POSITIVE: '↑',
+  NEGATIVE: '↓',
+};
+
+const IMPACT_LEVEL_LABELS: Record<PortfolioImpactLevel, string> = {
+  HIGH: '높음',
+  MEDIUM: '보통',
+  LOW: '낮음',
+};
+
+const IMPACT_LEVEL_STRENGTH: Record<PortfolioImpactLevel, number> = {
+  HIGH: 3,
+  MEDIUM: 2,
+  LOW: 1,
+};
+
+type AnalysisState =
+  | { status: 'loading' }
+  | { status: 'success'; analysis: PortfolioAnalysisResponse }
+  | { status: 'error'; message: string };
+
+function PortfolioAnalysisLoading() {
+  return (
+    <div className="portfolio-skeleton-list" role="status" aria-live="polite">
+      <span className="portfolio-sr-only">포트폴리오 영향을 분석하고 있습니다.</span>
+      {[1, 2].map((item) => (
+        <div className="portfolio-skeleton-card" aria-hidden="true" key={item}>
+          <div className="portfolio-skeleton-heading">
+            <i />
+            <i />
+          </div>
+          <i className="portfolio-skeleton-title" />
+          <div className="portfolio-skeleton-body">
+            <i />
+            <i />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PortfolioAnalysisEmpty() {
+  return (
+    <div className="portfolio-state portfolio-empty">
+      <span className="portfolio-state-icon" aria-hidden="true">
+        −
+      </span>
+      <strong>분석할 자산 영향이 없습니다</strong>
+      <p>북마크한 자산이 없거나 이 뉴스와 관련된 자산이 없습니다.</p>
+    </div>
+  );
+}
+
+function PortfolioAnalysisError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="portfolio-state portfolio-error" role="alert">
+      <span className="portfolio-state-icon" aria-hidden="true">
+        !
+      </span>
+      <strong>분석 결과를 불러오지 못했습니다</strong>
+      <p>{message}</p>
+      <button type="button" onClick={onRetry}>
+        다시 시도
+      </button>
+    </div>
+  );
+}
+
+export function PortfolioAnalysis({ newsId }: { newsId: string }) {
+  const [state, setState] = useState<AnalysisState>({ status: 'loading' });
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    let ignore = false;
+    setState({ status: 'loading' });
+
+    const request =
+      retryCount === 0 ? getPortfolioAnalysis(newsId) : retryPortfolioAnalysis(newsId);
+
+    request
+      .then((analysis) => {
+        if (!ignore) setState({ status: 'success', analysis });
+      })
+      .catch((error: unknown) => {
+        if (ignore) return;
+
+        setState({
+          status: 'error',
+          message:
+            error instanceof Error ? error.message : '포트폴리오 분석을 불러오지 못했습니다.',
+        });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [newsId, retryCount]);
+
+  return (
+    <section className="section portfolio-section" aria-labelledby="portfolio-analysis-title">
+      <div className="portfolio-heading">
+        <div>
+          <h2 id="portfolio-analysis-title">내 포트폴리오 영향</h2>
+          <p>북마크한 자산을 기준으로 분석한 결과입니다.</p>
+        </div>
+      </div>
+
+      {state.status === 'loading' ? <PortfolioAnalysisLoading /> : null}
+
+      {state.status === 'error' ? (
+        <PortfolioAnalysisError
+          message={state.message}
+          onRetry={() => setRetryCount((count) => count + 1)}
+        />
+      ) : null}
+
+      {state.status === 'success' && state.analysis.impacts.length === 0 ? (
+        <PortfolioAnalysisEmpty />
+      ) : null}
+
+      {state.status === 'success' && state.analysis.impacts.length > 0 ? (
+        <div className="portfolio-impact-list">
+          {state.analysis.impacts.map((impact) => (
+            <article
+              className={`portfolio-impact-card ${impact.direction.toLowerCase()} ${impact.impactLevel.toLowerCase()}`}
+              key={impact.bookmarkId}
+            >
+              <div className="portfolio-asset-heading">
+                <div className="portfolio-asset-info">
+                  <div className="portfolio-asset-meta">
+                    <span className="portfolio-category">{getCategoryLabel(impact.category)}</span>
+                    {impact.assetCode ? (
+                      <span className="portfolio-asset-code">{impact.assetCode}</span>
+                    ) : null}
+                  </div>
+                  <h3>{impact.name}</h3>
+                </div>
+                <div className="portfolio-badges" aria-label="영향 분석 요약">
+                  <span className={`portfolio-direction ${impact.direction.toLowerCase()}`}>
+                    <b aria-hidden="true">{DIRECTION_ICONS[impact.direction]}</b>
+                    {DIRECTION_LABELS[impact.direction]}
+                  </span>
+                  <span className={`portfolio-level ${impact.impactLevel.toLowerCase()}`}>
+                    <i className="portfolio-level-meter" aria-hidden="true">
+                      {[1, 2, 3].map((step) => (
+                        <b
+                          className={
+                            step <= IMPACT_LEVEL_STRENGTH[impact.impactLevel] ? 'active' : ''
+                          }
+                          key={step}
+                        />
+                      ))}
+                    </i>
+                    영향 {IMPACT_LEVEL_LABELS[impact.impactLevel]}
+                  </span>
+                </div>
+              </div>
+
+              <dl className="portfolio-explanation">
+                <div>
+                  <dt>예상 반응</dt>
+                  <dd>{impact.expectedReaction}</dd>
+                </div>
+                <div>
+                  <dt>판단 근거</dt>
+                  <dd>{impact.reason}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}

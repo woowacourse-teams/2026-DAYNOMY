@@ -9,6 +9,9 @@ import { MarketAnalysis } from './components/MarketAnalysis.tsx';
 import type { NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
+import { useAuth } from '../../../hooks/useLoginStatus.ts';
+import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
+import { PortfolioLoginPrompt } from '../../portfolio/components/PortfolioLoginPrompt.tsx';
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -20,6 +23,7 @@ function getContentParagraphs(content: string | string[]) {
 
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
+  const { isLoggedIn, loading: isAuthLoading } = useAuth();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
   const goBack = () => {
@@ -104,6 +108,9 @@ export function NewsDetailPage() {
         </section>
 
         {marketAnalysis ? <MarketAnalysis marketAnalysis={marketAnalysis} /> : null}
+
+        {!isAuthLoading && isLoggedIn ? <PortfolioAnalysis newsId={newsId} /> : null}
+        {!isAuthLoading && !isLoggedIn ? <PortfolioLoginPrompt /> : null}
       </article>
     </main>
   );
