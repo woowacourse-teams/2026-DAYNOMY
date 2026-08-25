@@ -135,11 +135,11 @@ ai:
 news:
   generation:
     dart:
-      enabled: ${DART_NEWS_GENERATION_ENABLED:false}
+      enabled: ${DART_NEWS_GENERATION_ENABLED:true}
       cron: ${DART_NEWS_GENERATION_CRON:0 10 9,13,18 * * *}
     kosis:
-      enabled: ${KOSIS_NEWS_GENERATION_ENABLED:false}
+      enabled: ${KOSIS_NEWS_GENERATION_ENABLED:true}
       cron: ${KOSIS_NEWS_GENERATION_CRON:0 30 7 * * *}
     bok:
-      enabled: ${BOK_NEWS_GENERATION_ENABLED:false}
+      enabled: ${BOK_NEWS_GENERATION_ENABLED:true}
       cron: ${BOK_NEWS_GENERATION_CRON:0 30 7 * * *}
