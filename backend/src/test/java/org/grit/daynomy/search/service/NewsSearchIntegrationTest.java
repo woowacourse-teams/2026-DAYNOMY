@@ -47,6 +47,21 @@ class NewsSearchIntegrationTest {
   @Test
   @Sql(
       statements = {
+        "INSERT INTO news (title, content, description, source, external_id, source_url, category, published_at, created_at, updated_at) VALUES ('검색어가 있는 제목', '일반 본문', '일반 설명', 'BOK', 'search-title', 'https://example.com/search-title', 'BOND', '2026-08-14 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO news (title, content, description, source, external_id, source_url, category, published_at, created_at, updated_at) VALUES ('설명 검색 뉴스', '일반 본문', '검색어가 있는 설명', 'DART', 'search-description', 'https://example.com/search-description', 'STOCK', '2026-08-15 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO news (title, content, description, source, external_id, source_url, category, published_at, created_at, updated_at) VALUES ('본문 검색 뉴스', '검색어가 있는 본문', '일반 설명', 'KOSIS', 'search-content', 'https://example.com/search-content', 'ECONOMY', '2026-08-16 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+      })
+  void searchesTitleDescriptionAndContentInLatestOrder() {
+    NewsSearchResponse result = newsSearchService.search("검색어", null, 1, 20);
+
+    assertThat(result.content())
+        .extracting(NewsListItemResponse::title)
+        .containsExactly("본문 검색 뉴스", "설명 검색 뉴스", "검색어가 있는 제목");
+  }
+
+  @Test
+  @Sql(
+      statements = {
         "INSERT INTO news (title, content, source, external_id, source_url, category, published_at, created_at, updated_at) VALUES ('금% 문자 뉴스', '퍼센트 문자 검색', 'KOSIS', 'search-gold-percent', 'https://example.com/search-gold-percent', 'GOLD', '2026-08-14 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
         "INSERT INTO news (title, content, source, external_id, source_url, category, published_at, created_at, updated_at) VALUES ('금_ 문자 뉴스', '밑줄 문자 검색', 'KOSIS', 'search-gold-underscore', 'https://example.com/search-gold-underscore', 'GOLD', '2026-08-15 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
         "INSERT INTO news (title, content, source, external_id, source_url, category, published_at, created_at, updated_at) VALUES ('금리 일반 뉴스', '일반 검색', 'BOK', 'search-bond-normal', 'https://example.com/search-bond-normal', 'BOND', '2026-08-16 10:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
