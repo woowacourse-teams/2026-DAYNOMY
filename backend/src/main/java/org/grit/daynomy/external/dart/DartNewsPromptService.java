@@ -36,15 +36,20 @@ public class DartNewsPromptService {
 
     return response.list().stream()
         .map(disclosure -> createPrompt(disclosure, beginDate, endDate))
+        .flatMap(Optional::stream)
         .toList();
   }
 
-  private NewsPrompt createPrompt(
+  private Optional<NewsPrompt> createPrompt(
       DartDisclosureItem disclosure, LocalDate beginDate, LocalDate endDate) {
     String originalDocument = getOriginalDocumentOrBlank(disclosure);
     List<DartMajorReportType> types = DartMajorReportType.fromAll(disclosure.reportNm());
     if (types.isEmpty()) {
-      return dartNewsPromptMapper.toPrompt(disclosure, List.of(), originalDocument);
+      log.info(
+          "Skipping DART prompt due to unsupported report type: receiptNo={}, reportName={}",
+          disclosure.rceptNo(),
+          disclosure.reportNm());
+      return Optional.empty();
     }
 
     List<String> detailBlocks =
@@ -52,8 +57,15 @@ public class DartNewsPromptService {
             .map(type -> findDetailBlock(type, disclosure, beginDate, endDate))
             .flatMap(Optional::stream)
             .toList();
+    if (detailBlocks.isEmpty()) {
+      log.info(
+          "Skipping DART prompt due to insufficient report details: receiptNo={}, reportName={}",
+          disclosure.rceptNo(),
+          disclosure.reportNm());
+      return Optional.empty();
+    }
 
-    return dartNewsPromptMapper.toPrompt(disclosure, detailBlocks, originalDocument);
+    return Optional.of(dartNewsPromptMapper.toPrompt(disclosure, detailBlocks, originalDocument));
   }
 
   private String getOriginalDocumentOrBlank(DartDisclosureItem disclosure) {

@@ -66,8 +66,8 @@ class DartNewsPromptServiceTest {
   }
 
   @Test
-  @DisplayName("원문 조회에 실패해도 공시 기본 정보로 프롬프트를 만든다")
-  void createPromptsWithoutOriginalDocument() {
+  @DisplayName("주요보고서 상세 정보가 없으면 프롬프트 생성을 건너뛴다")
+  void createPromptsSkipsInsufficientReportDetails() {
     DartClient dartClient = Mockito.mock(DartClient.class);
     DartNewsPromptService service =
         new DartNewsPromptService(dartClient, new DartNewsPromptMapper());
@@ -89,11 +89,9 @@ class DartNewsPromptServiceTest {
     when(dartClient.getOriginalDocument("20260824000096"))
         .thenThrow(new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED));
 
-    String prompt = service.createPrompts(date, date, "B", "Y").getFirst().prompt();
+    List<?> prompts = service.createPrompts(date, date, "B", "Y");
 
-    assertThat(prompt)
-        .contains("[DART 공시 정보]", "SJG세종", "20260824000096")
-        .doesNotContain("[DART 원문 및 첨부문서]");
+    assertThat(prompts).isEmpty();
   }
 
   private DartCapitalIncreaseItem capitalIncrease(String receiptNo, String increaseMethod) {
