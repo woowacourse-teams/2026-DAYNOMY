@@ -1,13 +1,36 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ArticleCard } from '../news/newslist/components/ArticleCard';
 import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
 import { NEWS_CATEGORIES } from '../news/newslist/constants';
+import { isCategory } from '../news/newslist/types';
 import type { NewsCategory, NewsListItem } from '../news/newslist/types';
 import { searchNews } from './api';
 import './SearchPage.css';
 import { trackEvent } from '../../analytics';
 
 const PAGE_SIZE = 10;
+const MAX_VISIBLE_PAGES = 5;
+
+function getCategory(searchParams: URLSearchParams): NewsCategory {
+  const category = searchParams.get('category');
+  return category === 'ALL' || isCategory(category) ? category : 'ALL';
+}
+
+function getPage(searchParams: URLSearchParams) {
+  const page = Number(searchParams.get('page'));
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+function getVisiblePages(currentPage: number, totalPages: number) {
+  const pageCount = Math.min(MAX_VISIBLE_PAGES, totalPages);
+  const startPage = Math.min(
+    Math.max(currentPage - Math.floor(pageCount / 2), 1),
+    totalPages - pageCount + 1,
+  );
+
+  return Array.from({ length: pageCount }, (_, index) => startPage + index);
+}
 
 function SearchIcon() {
   return (
@@ -19,16 +42,21 @@ function SearchIcon() {
 }
 
 function SearchPage() {
-  const [query, setQuery] = useState('');
-  const [searchedKeyword, setSearchedKeyword] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchedKeyword = searchParams.get('q')?.trim() ?? '';
+  const selectedCategory = getCategory(searchParams);
+  const page = getPage(searchParams);
+  const [query, setQuery] = useState(searchedKeyword);
   const [results, setResults] = useState<NewsListItem[]>([]);
-  const [page, setPage] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchAttempt, setSearchAttempt] = useState(0);
+
+  useEffect(() => {
+    setQuery(searchedKeyword);
+  }, [searchedKeyword]);
 
   useEffect(() => {
     if (!searchedKeyword) return;
@@ -77,21 +105,25 @@ function SearchPage() {
     if (!keyword) return;
 
     setQuery(keyword);
-    setSearchedKeyword(keyword);
-    setPage(1);
+    setSearchParams({ q: keyword, category: selectedCategory, page: '1' });
     setSearchAttempt((attempt) => attempt + 1);
     trackEvent('search_news', { search_length: keyword.length });
   }
 
   function changeCategory(category: NewsCategory) {
-    setSelectedCategory(category);
-    setPage(1);
+    setSearchParams({ q: searchedKeyword, category, page: '1' });
   }
 
   const changePage = (nextPage: number) => {
-    setPage(nextPage);
+    setSearchParams({
+      q: searchedKeyword,
+      category: selectedCategory,
+      page: String(nextPage),
+    });
     document.getElementById('news-results')?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  const visiblePages = getVisiblePages(page, totalPages);
 
   return (
     <main className="search-page">
@@ -171,19 +203,17 @@ function SearchPage() {
                     >
                       이전
                     </button>
-                    {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-                      (pageNumber) => (
-                        <button
-                          type="button"
-                          className={page === pageNumber ? 'active' : ''}
-                          aria-current={page === pageNumber ? 'page' : undefined}
-                          onClick={() => changePage(pageNumber)}
-                          key={pageNumber}
-                        >
-                          {pageNumber}
-                        </button>
-                      ),
-                    )}
+                    {visiblePages.map((pageNumber) => (
+                      <button
+                        type="button"
+                        className={page === pageNumber ? 'active' : ''}
+                        aria-current={page === pageNumber ? 'page' : undefined}
+                        onClick={() => changePage(pageNumber)}
+                        key={pageNumber}
+                      >
+                        {pageNumber}
+                      </button>
+                    ))}
                     <button
                       type="button"
                       disabled={page === totalPages}
