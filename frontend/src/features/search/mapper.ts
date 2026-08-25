@@ -1,6 +1,6 @@
 import { toNewsListItem } from '../news/newslist/types';
 import type { NewsPage } from '../news/newslist/types';
-import type { NewsSearchResponse } from './types/response';
+import type { NewsSearchResponse } from './response';
 
 export function toNewsPage(response: NewsSearchResponse): NewsPage {
   return {

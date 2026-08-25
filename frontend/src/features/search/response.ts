@@ -1,5 +1,5 @@
-import { isCategory } from '../../news/newslist/types';
-import type { NewsListItemResponse } from '../../news/newslist/types';
+import { isCategory } from '../news/newslist/types';
+import type { NewsListItemResponse } from '../news/newslist/types';
 
 export type NewsSearchResponse = {
   content: NewsListItemResponse[];

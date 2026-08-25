@@ -2,7 +2,7 @@ import axios from 'axios';
 import { toApiError } from '../../api/error';
 import type { NewsCategory } from '../news/newslist/types';
 import { toNewsPage } from './mapper';
-import { isNewsSearchResponse } from './types/response';
+import { isNewsSearchResponse } from './response';
 
 export function buildNewsSearchUrl(keyword: string, category: NewsCategory, page = 1, size = 10) {
   const params = new URLSearchParams({
