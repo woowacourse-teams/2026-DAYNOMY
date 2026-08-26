@@ -1,232 +1,215 @@
 package org.grit.daynomy.news.controller;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
-import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
+import java.util.List;
+import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSource;
-import org.grit.daynomy.news.repository.NewsRepository;
-import org.junit.jupiter.api.BeforeEach;
+import org.grit.daynomy.news.dto.NewsDetailResponse;
+import org.grit.daynomy.news.dto.NewsListItemResponse;
+import org.grit.daynomy.news.dto.NewsPageResponse;
+import org.grit.daynomy.news.exception.NewsErrorCode;
+import org.grit.daynomy.news.service.NewsService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan.Filter;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.MockMvc;
 
-@ActiveProfiles("test")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ExtendWith(SpringExtension.class)
+@AutoConfigureMockMvc(addFilters = false)
+@WebMvcTest(
+    controllers = NewsController.class,
+    excludeFilters =
+        @Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthenticationFilter.class))
 class NewsControllerTest {
 
-  private final HttpClient httpClient = HttpClient.newHttpClient();
-  private final ObjectMapper objectMapper = new ObjectMapper();
+  @Autowired private MockMvc mockMvc;
 
-  @LocalServerPort private int port;
-
-  @Autowired private NewsRepository newsRepository;
-
-  @Autowired private NewsKeywordRepository newsKeywordRepository;
-
-  @Autowired private NewsMarketAnalysisRepository newsMarketAnalysisRepository;
-
-  @BeforeEach
-  void setUp() {
-    newsMarketAnalysisRepository.deleteAll();
-    newsKeywordRepository.deleteAll();
-    newsRepository.deleteAll();
-  }
+  @MockitoBean private NewsService newsService;
 
   @Test
-  @DisplayName("뉴스 목록 조회 API는 페이지 응답을 반환한다")
+  @DisplayName("뉴스 목록 조회 API는 페이지 요청 값을 서비스에 전달하고 응답을 반환한다")
   void findNewsReturnsPagedNews() throws Exception {
-    newsRepository.save(
-        new News(
-            "stock news",
-            "content",
-            "description",
-            "image.png",
-            NewsSource.DART,
-            "external-1",
-            "https://example.com/1",
-            Category.STOCK,
-            Instant.parse("2026-08-17T10:00:00Z")));
+    given(newsService.getNewsPage(eq(1), eq(15), eq(null)))
+        .willReturn(
+            new NewsPageResponse(
+                List.of(
+                    new NewsListItemResponse(
+                        1L,
+                        "stock news",
+                        "description",
+                        "image.png",
+                        Category.STOCK,
+                        Instant.parse("2026-08-17T10:00:00Z"))),
+                1,
+                15,
+                1,
+                1,
+                false));
 
-    HttpResponse<String> response = get("/api/news?page=1&size=15");
-    JsonNode body = objectMapper.readTree(response.body());
+    mockMvc
+        .perform(get("/api/news").param("page", "1").param("size", "15"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items").isArray())
+        .andExpect(jsonPath("$.items[0].title").value("stock news"))
+        .andExpect(jsonPath("$.items[0].category").value("STOCK"))
+        .andExpect(jsonPath("$.page").value(1))
+        .andExpect(jsonPath("$.size").value(15))
+        .andExpect(jsonPath("$.totalElements").value(1));
 
-    assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/items")).hasSize(1);
-    assertThat(body.at("/items/0/title").asText()).isEqualTo("stock news");
-    assertThat(body.at("/page").asInt()).isEqualTo(1);
+    then(newsService).should().getNewsPage(1, 15, null);
   }
 
   @Test
-  @DisplayName("뉴스 목록 조회 API는 카테고리로 필터링한다")
+  @DisplayName("뉴스 목록 조회 API는 카테고리 요청 값을 서비스에 전달한다")
   void findNewsFiltersByCategory() throws Exception {
-    newsRepository.save(
-        new News(
-            "stock news",
-            "content",
-            "description",
-            "image.png",
-            NewsSource.DART,
-            "external-1",
-            "https://example.com/1",
-            Category.STOCK,
-            Instant.parse("2026-08-17T10:00:00Z")));
-    newsRepository.save(
-        new News(
-            "estate news",
-            "content",
-            "description",
-            "image.png",
-            NewsSource.DART,
-            "external-2",
-            "https://example.com/2",
-            Category.REAL_ESTATE,
-            Instant.parse("2026-08-17T09:00:00Z")));
+    given(newsService.getNewsPage(eq(2), eq(10), eq(Category.REAL_ESTATE)))
+        .willReturn(new NewsPageResponse(List.of(), 2, 10, 0, 0, false));
 
-    HttpResponse<String> response = get("/api/news?category=REAL_ESTATE");
-    JsonNode body = objectMapper.readTree(response.body());
+    mockMvc
+        .perform(
+            get("/api/news")
+                .param("page", "2")
+                .param("size", "10")
+                .param("category", "REAL_ESTATE"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items").isEmpty())
+        .andExpect(jsonPath("$.page").value(2))
+        .andExpect(jsonPath("$.size").value(10));
 
-    assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/items")).hasSize(1);
-    assertThat(body.at("/items/0/category").asText()).isEqualTo("REAL_ESTATE");
+    then(newsService).should().getNewsPage(2, 10, Category.REAL_ESTATE);
   }
 
   @Test
   @DisplayName("뉴스 목록 조회 API는 잘못된 페이지 번호에 에러 응답을 반환한다")
   void findNewsRejectsInvalidPage() throws Exception {
-    HttpResponse<String> response = get("/api/news?page=0");
-    JsonNode body = objectMapper.readTree(response.body());
+    mockMvc
+        .perform(get("/api/news").param("page", "0"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("요청값이 올바르지 않습니다."))
+        .andExpect(jsonPath("$.errors[0].field").value("page"))
+        .andExpect(jsonPath("$.errors[0].reason").value("페이지 번호는 1 이상이어야 합니다."));
 
-    assertThat(response.statusCode()).isEqualTo(400);
-    assertThat(body.at("/code").asText()).isEqualTo("INVALID_REQUEST");
-    assertThat(body.at("/errors/0/field").asText()).isEqualTo("page");
-    assertThat(body.at("/errors/0/reason").asText()).isEqualTo("페이지 번호는 1 이상이어야 합니다.");
+    verifyNoInteractions(newsService);
   }
 
   @Test
-  @DisplayName("오늘의 뉴스 조회 API는 오늘 발행된 최신 뉴스를 반환한다")
-  void findTodayNewsReturnsLatestNewsPublishedToday() throws Exception {
-    LocalDate today = LocalDate.now();
-    newsRepository.save(
-        new News(
-            "yesterday news",
-            "content",
-            "description",
-            "image.png",
-            NewsSource.DART,
-            "external-1",
-            "https://example.com/1",
-            Category.STOCK,
-            atHour(today.minusDays(1), 23)));
-    newsRepository.save(
-        new News(
-            "morning news",
-            "content",
-            "description",
-            "image.png",
-            NewsSource.DART,
-            "external-2",
-            "https://example.com/2",
-            Category.STOCK,
-            atHour(today, 9)));
-    newsRepository.save(
-        new News(
-            "latest today news",
-            "content",
-            "description",
-            "image.png",
-            NewsSource.DART,
-            "external-3",
-            "https://example.com/3",
-            Category.REAL_ESTATE,
-            atHour(today, 18)));
+  @DisplayName("뉴스 목록 조회 API는 잘못된 페이지 크기에 에러 응답을 반환한다")
+  void findNewsRejectsInvalidSize() throws Exception {
+    mockMvc
+        .perform(get("/api/news").param("size", "101"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("요청값이 올바르지 않습니다."))
+        .andExpect(jsonPath("$.errors[0].field").value("size"))
+        .andExpect(jsonPath("$.errors[0].reason").value("페이지 크기는 100 이하여야 합니다."));
 
-    HttpResponse<String> response = get("/api/news/today");
-    JsonNode body = objectMapper.readTree(response.body());
-
-    assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/title").asText()).isEqualTo("latest today news");
-    assertThat(body.at("/category").asText()).isEqualTo("REAL_ESTATE");
+    verifyNoInteractions(newsService);
   }
 
   @Test
-  @DisplayName("오늘의 뉴스 조회 API는 오늘 발행된 뉴스가 없으면 빈 응답을 반환한다")
-  void findTodayNewsReturnsNullWhenMissing() throws Exception {
-    LocalDate today = LocalDate.now();
-    newsRepository.save(
-        new News(
-            "yesterday news",
-            "content",
-            "description",
-            "image.png",
-            NewsSource.DART,
-            "external-1",
-            "https://example.com/1",
-            Category.STOCK,
-            atHour(today.minusDays(1), 23)));
+  @DisplayName("뉴스 목록 조회 API는 지원하지 않는 카테고리에 에러 응답을 반환한다")
+  void findNewsRejectsUnknownCategory() throws Exception {
+    mockMvc
+        .perform(get("/api/news").param("category", "POLICY"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("요청값이 올바르지 않습니다."))
+        .andExpect(jsonPath("$.errors[0].field").value("category"))
+        .andExpect(jsonPath("$.errors[0].reason").value("지원하지 않는 값입니다."));
 
-    HttpResponse<String> response = get("/api/news/today");
-
-    assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(response.body()).isBlank();
+    verifyNoInteractions(newsService);
   }
 
   @Test
-  @DisplayName("뉴스 상세 조회 API는 뉴스 본문을 반환한다")
+  @DisplayName("오늘의 뉴스 조회 API는 오늘 뉴스를 반환한다")
+  void findTodayNewsReturnsNews() throws Exception {
+    given(newsService.getTodayNews())
+        .willReturn(
+            new NewsListItemResponse(
+                1L,
+                "today news",
+                "description",
+                "image.png",
+                Category.REAL_ESTATE,
+                Instant.parse("2026-08-21T09:00:00Z")));
+
+    mockMvc
+        .perform(get("/api/news/today"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title").value("today news"))
+        .andExpect(jsonPath("$.category").value("REAL_ESTATE"));
+
+    then(newsService).should().getTodayNews();
+  }
+
+  @Test
+  @DisplayName("오늘의 뉴스 조회 API는 오늘 뉴스가 없으면 빈 응답을 반환한다")
+  void findTodayNewsReturnsEmptyBodyWhenMissing() throws Exception {
+    given(newsService.getTodayNews()).willReturn(null);
+
+    mockMvc
+        .perform(get("/api/news/today"))
+        .andExpect(status().isOk())
+        .andExpect(content().string(""));
+
+    then(newsService).should().getTodayNews();
+  }
+
+  @Test
+  @DisplayName("뉴스 상세 조회 API는 경로 변수를 서비스에 전달하고 응답을 반환한다")
   void findNewsDetailReturnsNews() throws Exception {
-    News news =
-        newsRepository.save(
-            new News(
+    given(newsService.getNewsDetail(1L))
+        .willReturn(
+            new NewsDetailResponse(
+                1L,
                 "detail news",
                 "content",
                 "description",
                 "image.png",
                 NewsSource.DART,
-                "external-1",
                 "https://example.com/1",
                 Category.STOCK,
                 Instant.parse("2026-08-17T10:00:00Z")));
 
-    HttpResponse<String> response = get("/api/news/" + news.getId());
-    JsonNode body = objectMapper.readTree(response.body());
+    mockMvc
+        .perform(get("/api/news/{id}", 1L))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title").value("detail news"))
+        .andExpect(jsonPath("$.content").value("content"))
+        .andExpect(jsonPath("$.source").value("DART"));
 
-    assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/title").asText()).isEqualTo("detail news");
-    assertThat(body.at("/content").asText()).isEqualTo("content");
+    then(newsService).should().getNewsDetail(1L);
   }
 
   @Test
-  @DisplayName("뉴스 상세 조회 API는 없는 뉴스에 에러 응답을 반환한다")
+  @DisplayName("뉴스 상세 조회 API는 서비스 예외를 에러 응답으로 변환한다")
   void findNewsDetailReturnsNotFound() throws Exception {
-    HttpResponse<String> response = get("/api/news/999");
-    JsonNode body = objectMapper.readTree(response.body());
+    given(newsService.getNewsDetail(999L))
+        .willThrow(new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
 
-    assertThat(response.statusCode()).isEqualTo(404);
-    assertThat(body.at("/code").asText()).isEqualTo("NEWS_NOT_FOUND");
-    assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스를 찾을 수 없습니다.");
-  }
-
-  private HttpResponse<String> get(String path) throws Exception {
-    HttpRequest request =
-        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build();
-    return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-  }
-
-  private static Instant atHour(LocalDate date, int hour) {
-    return date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant();
+    mockMvc
+        .perform(get("/api/news/{id}", 999L))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("NEWS_NOT_FOUND"))
+        .andExpect(jsonPath("$.message").value("해당 뉴스를 찾을 수 없습니다."));
   }
 }

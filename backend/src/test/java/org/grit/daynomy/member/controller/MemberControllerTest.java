@@ -1,96 +1,152 @@
 package org.grit.daynomy.member.controller;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import org.grit.daynomy.auth.repository.RefreshTokenRepository;
-import org.grit.daynomy.auth.service.TokenService;
-import org.grit.daynomy.auth.token.TokenPair;
+import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
+import org.grit.daynomy.auth.token.AuthenticatedMember;
+import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.auth.token.TokenCookieManager;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.member.domain.Member;
-import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.member.domain.MemberRole;
+import org.grit.daynomy.member.exception.MemberErrorCode;
+import org.grit.daynomy.member.service.MemberService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
-@ActiveProfiles("test")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@WebMvcTest(
+    controllers = MemberController.class,
+    excludeFilters =
+        @ComponentScan.Filter(
+            type = FilterType.ASSIGNABLE_TYPE,
+            classes = JwtAuthenticationFilter.class))
+@AutoConfigureMockMvc(addFilters = false)
+@Import(GlobalExceptionHandler.class)
+@EnableWebSecurity
 class MemberControllerTest {
 
-  private final HttpClient httpClient = HttpClient.newHttpClient();
-  private final ObjectMapper objectMapper = new ObjectMapper();
+  @Autowired private MockMvc mockMvc;
 
-  @LocalServerPort private int port;
+  @MockitoBean private MemberService memberService;
 
-  @Autowired private MemberRepository memberRepository;
-  @Autowired private RefreshTokenRepository refreshTokenRepository;
-  @Autowired private TokenService tokenService;
+  @MockitoBean private TokenCookieManager tokenCookieManager;
 
   @BeforeEach
-  void setUp() {
-    refreshTokenRepository.deleteAll();
-    memberRepository.deleteAll();
+  void setUpSecurityContext() {
+    AuthenticatedMember member = new AuthenticatedMember(3L, MemberRole.USER);
+    Authentication authentication =
+        new UsernamePasswordAuthenticationToken(member, null, List.of());
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  @AfterEach
+  void clearSecurityContext() {
+    SecurityContextHolder.clearContext();
   }
 
   @Test
-  @DisplayName("회원 조회 API는 성공 시 회원 DTO를 직접 반환한다")
-  void getMeReturnsMemberResponse() throws Exception {
-    Member member =
-        memberRepository.save(
-            Member.createGoogleMember("google-id", "member@example.com", "daynomy", null));
-    TokenPair tokenPair = tokenService.issue(member.getId());
+  @DisplayName("인증 회원의 정보를 응답 DTO로 반환한다")
+  void getMeReturnsAuthenticatedMember() throws Exception {
+    Member member = createMember(3L, "member@example.com", "daynomy");
+    when(memberService.getMember(3L)).thenReturn(member);
 
-    HttpResponse<String> response = getMe(tokenPair.accessToken());
-    JsonNode body = objectMapper.readTree(response.body());
+    mockMvc
+        .perform(get("/api/users/me"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(3))
+        .andExpect(jsonPath("$.email").value("member@example.com"))
+        .andExpect(jsonPath("$.nickname").value("daynomy"))
+        .andExpect(jsonPath("$.role").value("USER"));
 
-    assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/id").asLong()).isEqualTo(member.getId());
-    assertThat(body.at("/email").asText()).isEqualTo("member@example.com");
-    assertThat(body.at("/nickname").asText()).isEqualTo("daynomy");
-    assertThat(body.has("status")).isFalse();
-    assertThat(body.has("body")).isFalse();
+    verify(memberService).getMember(3L);
   }
 
   @Test
-  @DisplayName("회원 조회 API는 인증 정보가 없으면 공통 에러 응답을 반환한다")
-  void getMeWithoutAuthenticationReturnsUnauthorized() throws Exception {
-    HttpResponse<String> response = getMe(null);
-    JsonNode body = objectMapper.readTree(response.body());
+  @DisplayName("닉네임 수정 요청을 인증 회원 ID와 함께 전달한다")
+  void updateMeUpdatesAuthenticatedMemberNickname() throws Exception {
+    Member member = createMember(3L, "member@example.com", "새닉네임");
+    when(memberService.updateNickname(3L, "새닉네임")).thenReturn(member);
 
-    assertThat(response.statusCode()).isEqualTo(401);
-    assertThat(body.at("/code").asText()).isEqualTo("UNAUTHORIZED");
-    assertThat(body.at("/message").asText()).isEqualTo("로그인이 필요합니다.");
-    assertThat(body.size()).isEqualTo(2);
+    mockMvc
+        .perform(
+            patch("/api/users/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nickname\":\"새닉네임\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(3))
+        .andExpect(jsonPath("$.nickname").value("새닉네임"));
+
+    verify(memberService).updateNickname(3L, "새닉네임");
   }
 
   @Test
-  @DisplayName("회원 조회 API는 잘못된 JWT에 공통 에러 응답을 반환한다")
-  void getMeWithInvalidTokenReturnsInvalidToken() throws Exception {
-    HttpResponse<String> response = getMe("invalid-token");
-    JsonNode body = objectMapper.readTree(response.body());
+  @DisplayName("닉네임이 비어 있으면 수정 요청을 거부한다")
+  void updateMeRejectsBlankNickname() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/users/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nickname\":\" \"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("nickname"));
 
-    assertThat(response.statusCode()).isEqualTo(401);
-    assertThat(body.at("/code").asText()).isEqualTo("INVALID_TOKEN");
-    assertThat(body.at("/message").asText()).isEqualTo("유효하지 않은 인증 정보입니다.");
-    assertThat(body.size()).isEqualTo(2);
+    verifyNoInteractions(memberService);
   }
 
-  private HttpResponse<String> getMe(String accessToken) throws Exception {
-    HttpRequest.Builder request =
-        HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/users/me")).GET();
+  @Test
+  @DisplayName("회원 조회 중 회원을 찾지 못하면 에러 응답을 반환한다")
+  void getMeReturnsNotFoundWhenMemberIsMissing() throws Exception {
+    when(memberService.getMember(3L))
+        .thenThrow(new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-    if (accessToken != null) {
-      request.header("Cookie", "access_token=" + accessToken);
-    }
+    mockMvc
+        .perform(get("/api/users/me"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"))
+        .andExpect(jsonPath("$.message").value("회원을 찾을 수 없습니다."));
+  }
 
-    return httpClient.send(request.build(), HttpResponse.BodyHandlers.ofString());
+  @Test
+  @DisplayName("회원 탈퇴 후 인증 쿠키를 제거한다")
+  void withdrawClearsAuthenticationCookies() throws Exception {
+    mockMvc.perform(delete("/api/users/me")).andExpect(status().isNoContent());
+
+    verify(memberService).withdraw(3L);
+    verify(tokenCookieManager).clearTokenCookies(any(HttpServletResponse.class));
+  }
+
+  private Member createMember(Long memberId, String email, String nickname) {
+    Member member = org.mockito.Mockito.mock(Member.class);
+    when(member.getId()).thenReturn(memberId);
+    when(member.getEmail()).thenReturn(email);
+    when(member.getNickname()).thenReturn(nickname);
+    when(member.getRole()).thenReturn(MemberRole.USER);
+    return member;
   }
 }
