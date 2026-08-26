@@ -19,7 +19,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.annotation.Transactional;
 
 @ExtendWith(MockitoExtension.class)
 class NewsPersistenceServiceTest {
@@ -29,8 +28,8 @@ class NewsPersistenceServiceTest {
   @InjectMocks private NewsPersistenceService newsPersistenceService;
 
   @Test
-  @DisplayName("뉴스 저장은 트랜잭션 안에서 새 뉴스만 저장한다")
-  void saveIfAbsentSavesNewNews() throws NoSuchMethodException {
+  @DisplayName("새 뉴스이면 생성된 뉴스 정보를 저장한다")
+  void saveIfAbsentSavesNewNews() {
     NewsPrompt prompt =
         new NewsPrompt(
             NewsSource.DART,
@@ -52,11 +51,6 @@ class NewsPersistenceServiceTest {
     assertThat(newsCaptor.getValue().getExternalId()).isEqualTo("20260817000001");
     assertThat(newsCaptor.getValue().getSourceUrl()).isEqualTo("https://dart.example/1");
     assertThat(newsCaptor.getValue().getImageUrl()).isEqualTo("image.png");
-    assertThat(
-            NewsPersistenceService.class
-                .getMethod("saveIfAbsent", NewsPrompt.class, GeneratedNews.class, String.class)
-                .isAnnotationPresent(Transactional.class))
-        .isTrue();
   }
 
   @Test

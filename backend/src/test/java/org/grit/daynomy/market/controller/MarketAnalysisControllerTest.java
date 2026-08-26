@@ -1,122 +1,109 @@
 package org.grit.daynomy.market.controller;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Instant;
 import java.util.List;
 import org.grit.daynomy.asset.domain.AssetCategory;
-import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
-import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
-import org.grit.daynomy.market.domain.asset.AssetImpact;
+import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.market.domain.scenario.Scenario;
 import org.grit.daynomy.market.domain.scenario.TimeHorizon;
-import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
-import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
-import org.grit.daynomy.news.repository.NewsRepository;
-import org.junit.jupiter.api.BeforeEach;
+import org.grit.daynomy.market.dto.AssetImpactResponse;
+import org.grit.daynomy.market.dto.MarketAnalysisResponse;
+import org.grit.daynomy.market.dto.ScenarioResponse;
+import org.grit.daynomy.market.exception.MarketErrorCode;
+import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
-@ActiveProfiles("test")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@WebMvcTest(
+    controllers = MarketAnalysisController.class,
+    excludeFilters =
+        @ComponentScan.Filter(
+            type = FilterType.ASSIGNABLE_TYPE,
+            classes = JwtAuthenticationFilter.class))
+@AutoConfigureMockMvc(addFilters = false)
+@Import(GlobalExceptionHandler.class)
 class MarketAnalysisControllerTest {
 
-  private final HttpClient httpClient = HttpClient.newHttpClient();
-  private final ObjectMapper objectMapper = new ObjectMapper();
+  @Autowired private MockMvc mockMvc;
 
-  @LocalServerPort private int port;
+  @MockitoBean private MarketAnalysisService marketAnalysisService;
 
-  @Autowired private NewsRepository newsRepository;
+  @Test
+  @DisplayName("뉴스 ID에 해당하는 시장 분석 결과를 반환한다")
+  void getMarketAnalysisReturnsAnalysis() throws Exception {
+    when(marketAnalysisService.getMarketAnalysis(1L)).thenReturn(createResponse());
 
-  @Autowired private NewsKeywordRepository newsKeywordRepository;
+    mockMvc
+        .perform(get("/api/news/1/market-analysis"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.cause").value("금리 인하 기대가 위험자산 선호를 높입니다."))
+        .andExpect(jsonPath("$.assets[0].category").value("STOCK"))
+        .andExpect(jsonPath("$.assets[0].direction").value("POSITIVE"))
+        .andExpect(jsonPath("$.assets[0].impactLevel").value("HIGH"))
+        .andExpect(jsonPath("$.scenarios[0].timeHorizon").value("SHORT_TERM"))
+        .andExpect(jsonPath("$.scenarios[0].probability").value(70));
 
-  @Autowired private NewsMarketAnalysisRepository newsMarketAnalysisRepository;
-
-  @BeforeEach
-  void setUp() {
-    newsMarketAnalysisRepository.deleteAll();
-    newsKeywordRepository.deleteAll();
-    newsRepository.deleteAll();
+    verify(marketAnalysisService).getMarketAnalysis(1L);
   }
 
   @Test
-  @DisplayName("뉴스 시장 분석 조회 API는 뉴스에 연결된 시장 분석을 반환한다")
-  void findNewsMarketAnalysisReturnsAnalysis() throws Exception {
-    News news = newsRepository.save(createNews());
-    newsMarketAnalysisRepository.save(createMarketAnalysis(news));
+  @DisplayName("시장 분석이 없으면 에러 응답을 반환한다")
+  void getMarketAnalysisReturnsNotFoundWhenAnalysisIsMissing() throws Exception {
+    when(marketAnalysisService.getMarketAnalysis(999L))
+        .thenThrow(new BusinessException(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND));
 
-    HttpResponse<String> response = get("/api/news/" + news.getId() + "/market-analysis");
-    JsonNode body = objectMapper.readTree(response.body());
+    mockMvc
+        .perform(get("/api/news/999/market-analysis"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("MARKET_ANALYSIS_NOT_FOUND"))
+        .andExpect(jsonPath("$.message").value("해당 뉴스의 시장 분석을 찾을 수 없습니다."));
 
-    assertThat(response.statusCode()).isEqualTo(200);
-    assertThat(body.at("/cause").asText()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
-    assertThat(body.at("/assets")).hasSize(1);
-    assertThat(body.at("/assets/0/category").asText()).isEqualTo("STOCK");
-    assertThat(body.at("/assets/0/direction").asText()).isEqualTo("POSITIVE");
-    assertThat(body.at("/scenarios")).hasSize(1);
-    assertThat(body.at("/scenarios/0/timeHorizon").asText()).isEqualTo("SHORT_TERM");
-    assertThat(body.at("/scenarios/0/probability").asInt()).isEqualTo(70);
+    verify(marketAnalysisService).getMarketAnalysis(999L);
   }
 
   @Test
-  @DisplayName("뉴스 시장 분석 조회 API는 시장 분석이 없으면 에러 응답을 반환한다")
-  void findNewsMarketAnalysisReturnsNotFound() throws Exception {
-    HttpResponse<String> response = get("/api/news/999/market-analysis");
-    JsonNode body = objectMapper.readTree(response.body());
+  @DisplayName("뉴스 ID가 숫자가 아니면 요청을 거부한다")
+  void getMarketAnalysisRejectsInvalidNewsIdType() throws Exception {
+    mockMvc
+        .perform(get("/api/news/not-a-number/market-analysis"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("newsId"));
 
-    assertThat(response.statusCode()).isEqualTo(404);
-    assertThat(body.at("/code").asText()).isEqualTo("MARKET_ANALYSIS_NOT_FOUND");
-    assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스의 시장 분석을 찾을 수 없습니다.");
+    verifyNoInteractions(marketAnalysisService);
   }
 
-  private NewsMarketAnalysis createMarketAnalysis(News news) {
-    return new NewsMarketAnalysis(
-        news,
+  private MarketAnalysisResponse createResponse() {
+    return new MarketAnalysisResponse(
         "금리 인하 기대가 위험자산 선호를 높입니다.",
         List.of(
-            new AssetImpact(
+            new AssetImpactResponse(
                 AssetCategory.STOCK,
                 ImpactDirection.POSITIVE,
                 ImpactLevel.HIGH,
                 "할인율 하락 기대가 주식 밸류에이션에 긍정적입니다.")),
         List.of(
-            new Scenario(
+            new ScenarioResponse(
                 TimeHorizon.SHORT_TERM,
                 "단기적으로 주식 선호가 개선될 수 있습니다.",
                 70,
                 "금리 인하 기대가 투자 심리를 자극하기 때문입니다.")));
-  }
-
-  private News createNews() {
-    return new News(
-        "market news",
-        "content",
-        "description",
-        "image.png",
-        NewsSource.DART,
-        "market-news",
-        "https://example.com/market-news",
-        Category.STOCK,
-        Instant.parse("2026-08-17T10:00:00Z"));
-  }
-
-  private HttpResponse<String> get(String path) throws Exception {
-    HttpRequest request =
-        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build();
-    return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
   }
 }

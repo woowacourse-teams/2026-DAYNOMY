@@ -6,6 +6,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -18,6 +19,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 
 class OpenAiMarketAnalysisClientTest {
@@ -63,6 +65,39 @@ class OpenAiMarketAnalysisClientTest {
         .hasMessage("OPENAI_API_KEY is required to analyze news market impact.");
   }
 
+  @Test
+  @DisplayName("OpenAI API가 서버 오류를 반환하면 HTTP 예외를 전달한다")
+  void analyzePropagatesOpenAiServerError() {
+    RestClient.Builder restClientBuilder = RestClient.builder();
+    MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
+    OpenAiMarketAnalysisClient client =
+        new OpenAiMarketAnalysisClient(
+            restClientBuilder, "https://api.openai.test", "test-api-key", "gpt-test");
+    server.expect(requestTo("https://api.openai.test/v1/responses")).andRespond(withServerError());
+
+    assertThatThrownBy(() -> client.analyze("뉴스 본문입니다."))
+        .isInstanceOf(HttpServerErrorException.class);
+    server.verify();
+  }
+
+  @Test
+  @DisplayName("OpenAI output_text가 올바른 JSON이 아니면 파싱 예외를 던진다")
+  void analyzeThrowsWhenOutputTextIsMalformed() {
+    RestClient.Builder restClientBuilder = RestClient.builder();
+    MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
+    OpenAiMarketAnalysisClient client =
+        new OpenAiMarketAnalysisClient(
+            restClientBuilder, "https://api.openai.test", "test-api-key", "gpt-test");
+    server
+        .expect(requestTo("https://api.openai.test/v1/responses"))
+        .andRespond(withSuccess(createMalformedResponse(), MediaType.APPLICATION_JSON));
+
+    assertThatThrownBy(() -> client.analyze("뉴스 본문입니다."))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Failed to parse OpenAI market analysis response.");
+    server.verify();
+  }
+
   private String createResponse() {
     return """
         {
@@ -73,6 +108,23 @@ class OpenAiMarketAnalysisClientTest {
                 {
                   "type": "output_text",
                   "text": "{\\"cause\\":\\"금리 인하 기대가 위험자산 선호를 높입니다.\\",\\"assets\\":[{\\"category\\":\\"STOCK\\",\\"direction\\":\\"POSITIVE\\",\\"impactLevel\\":\\"HIGH\\",\\"reason\\":\\"할인율 하락 기대가 주식 밸류에이션에 긍정적입니다.\\"},{\\"category\\":\\"GOLD\\",\\"direction\\":\\"POSITIVE\\",\\"impactLevel\\":\\"MEDIUM\\",\\"reason\\":\\"실질금리 하락 기대가 금 가격에 우호적입니다.\\"}],\\"scenarios\\":[{\\"timeHorizon\\":\\"SHORT_TERM\\",\\"prediction\\":\\"단기적으로 주식 선호가 개선될 수 있습니다.\\",\\"probability\\":70,\\"reason\\":\\"금리 인하 기대가 투자 심리를 자극하기 때문입니다.\\"},{\\"timeHorizon\\":\\"MID_TERM\\",\\"prediction\\":\\"중기적으로 정책 강도에 따라 자산별 차별화가 나타날 수 있습니다.\\",\\"probability\\":55,\\"reason\\":\\"실제 정책 집행 속도에 불확실성이 있기 때문입니다.\\"},{\\"timeHorizon\\":\\"LONG_TERM\\",\\"prediction\\":\\"장기적으로 경기 흐름이 자산 가격을 좌우할 수 있습니다.\\",\\"probability\\":45,\\"reason\\":\\"뉴스 본문만으로 장기 경로를 단정하기 어렵기 때문입니다.\\"}]}"
+                }
+              ]
+            }
+          ]
+        }
+        """;
+  }
+
+  private String createMalformedResponse() {
+    return """
+        {
+          "output": [
+            {
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "not-json"
                 }
               ]
             }

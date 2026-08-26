@@ -95,14 +95,65 @@ class BokClientTest {
         .isEqualTo(ExternalErrorCode.BOK_API_REQUEST_FAILED);
   }
 
+  @Test
+  @DisplayName("한국은행 ECOS HTTP 오류 응답이면 예외를 던진다")
+  void getRecentDataThrowsWhenHttpError() throws Exception {
+    BokClient client =
+        new BokClient(
+            new BokProperties("test-key", startServer(500, bokErrorResponse()), List.of()));
+    var indicator =
+        new BokProperties.Indicator(
+            "base-rate",
+            "한국은행 기준금리",
+            "722Y001",
+            "M",
+            Category.ECONOMY,
+            "한국은행",
+            "한국은행 기준금리 및 여수신금리",
+            "한국은행 기준금리",
+            List.of("0101000"));
+
+    assertThatThrownBy(() -> client.getRecentData(indicator))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.BOK_API_REQUEST_FAILED);
+  }
+
+  @Test
+  @DisplayName("한국은행 ECOS 응답 본문을 파싱할 수 없으면 예외를 던진다")
+  void getRecentDataThrowsWhenMalformedResponseBody() throws Exception {
+    BokClient client =
+        new BokClient(new BokProperties("test-key", startServer("{ invalid json"), List.of()));
+    var indicator =
+        new BokProperties.Indicator(
+            "base-rate",
+            "한국은행 기준금리",
+            "722Y001",
+            "M",
+            Category.ECONOMY,
+            "한국은행",
+            "한국은행 기준금리 및 여수신금리",
+            "한국은행 기준금리",
+            List.of("0101000"));
+
+    assertThatThrownBy(() -> client.getRecentData(indicator))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.BOK_API_REQUEST_FAILED);
+  }
+
   private String startServer(String responseBody) throws IOException {
+    return startServer(200, responseBody);
+  }
+
+  private String startServer(int statusCode, String responseBody) throws IOException {
     server = HttpServer.create(new InetSocketAddress(0), 0);
     server.createContext(
         "/api/StatisticSearch/test-key/json/kr/1/100/722Y001/M",
         exchange -> {
           byte[] bytes = responseBody.getBytes(StandardCharsets.UTF_8);
           exchange.getResponseHeaders().add("Content-Type", "application/json");
-          exchange.sendResponseHeaders(200, bytes.length);
+          exchange.sendResponseHeaders(statusCode, bytes.length);
           exchange.getResponseBody().write(bytes);
           exchange.close();
         });
