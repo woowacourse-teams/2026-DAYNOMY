@@ -38,11 +38,13 @@ class OpenAiMarketAnalysisClientTest {
         .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-api-key"))
         .andExpect(jsonPath("$.model").value("gpt-test"))
         .andExpect(jsonPath("$.input[1].content").value("뉴스 본문입니다."))
+        .andExpect(jsonPath("$.text.format.schema.properties.importance.type").value("string"))
         .andRespond(withSuccess(createResponse(), MediaType.APPLICATION_JSON));
 
     var analysis = client.analyze("뉴스 본문입니다.");
 
     assertThat(analysis.getCause()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
+    assertThat(analysis.getImportance()).isEqualTo("통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
     assertThat(analysis.getAssets()).hasSize(2);
     assertThat(analysis.getAssets().get(0).getCategory()).isEqualTo(AssetCategory.STOCK);
     assertThat(analysis.getAssets().get(0).getDirection()).isEqualTo(ImpactDirection.POSITIVE);
@@ -107,7 +109,7 @@ class OpenAiMarketAnalysisClientTest {
               "content": [
                 {
                   "type": "output_text",
-                  "text": "{\\"cause\\":\\"금리 인하 기대가 위험자산 선호를 높입니다.\\",\\"assets\\":[{\\"category\\":\\"STOCK\\",\\"direction\\":\\"POSITIVE\\",\\"impactLevel\\":\\"HIGH\\",\\"reason\\":\\"할인율 하락 기대가 주식 밸류에이션에 긍정적입니다.\\"},{\\"category\\":\\"GOLD\\",\\"direction\\":\\"POSITIVE\\",\\"impactLevel\\":\\"MEDIUM\\",\\"reason\\":\\"실질금리 하락 기대가 금 가격에 우호적입니다.\\"}],\\"scenarios\\":[{\\"timeHorizon\\":\\"SHORT_TERM\\",\\"prediction\\":\\"단기적으로 주식 선호가 개선될 수 있습니다.\\",\\"probability\\":70,\\"reason\\":\\"금리 인하 기대가 투자 심리를 자극하기 때문입니다.\\"},{\\"timeHorizon\\":\\"MID_TERM\\",\\"prediction\\":\\"중기적으로 정책 강도에 따라 자산별 차별화가 나타날 수 있습니다.\\",\\"probability\\":55,\\"reason\\":\\"실제 정책 집행 속도에 불확실성이 있기 때문입니다.\\"},{\\"timeHorizon\\":\\"LONG_TERM\\",\\"prediction\\":\\"장기적으로 경기 흐름이 자산 가격을 좌우할 수 있습니다.\\",\\"probability\\":45,\\"reason\\":\\"뉴스 본문만으로 장기 경로를 단정하기 어렵기 때문입니다.\\"}]}"
+                  "text": "{\\"cause\\":\\"금리 인하 기대가 위험자산 선호를 높입니다.\\",\\"importance\\":\\"통화정책 변화는 여러 자산의 가격에 영향을 줍니다.\\",\\"assets\\":[{\\"category\\":\\"STOCK\\",\\"direction\\":\\"POSITIVE\\",\\"impactLevel\\":\\"HIGH\\",\\"reason\\":\\"할인율 하락 기대가 주식 밸류에이션에 긍정적입니다.\\"},{\\"category\\":\\"GOLD\\",\\"direction\\":\\"POSITIVE\\",\\"impactLevel\\":\\"MEDIUM\\",\\"reason\\":\\"실질금리 하락 기대가 금 가격에 우호적입니다.\\"}],\\"scenarios\\":[{\\"timeHorizon\\":\\"SHORT_TERM\\",\\"prediction\\":\\"단기적으로 주식 선호가 개선될 수 있습니다.\\",\\"probability\\":70,\\"reason\\":\\"금리 인하 기대가 투자 심리를 자극하기 때문입니다.\\"},{\\"timeHorizon\\":\\"MID_TERM\\",\\"prediction\\":\\"중기적으로 정책 강도에 따라 자산별 차별화가 나타날 수 있습니다.\\",\\"probability\\":55,\\"reason\\":\\"실제 정책 집행 속도에 불확실성이 있기 때문입니다.\\"},{\\"timeHorizon\\":\\"LONG_TERM\\",\\"prediction\\":\\"장기적으로 경기 흐름이 자산 가격을 좌우할 수 있습니다.\\",\\"probability\\":45,\\"reason\\":\\"뉴스 본문만으로 장기 경로를 단정하기 어렵기 때문입니다.\\"}]}"
                 }
               ]
             }
