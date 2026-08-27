@@ -19,7 +19,9 @@ public class OpenAiKeywordClient implements KeywordAiClient {
   private static final String KEYWORD_EXTRACTION_PROMPT =
       """
       뉴스 본문에서 투자자가 이해해야 할 핵심 키워드를 3개에서 5개 추출하세요.
-      각 키워드는 한국어 명사구로 작성하고, 설명은 뉴스 본문 맥락에서 1문장으로 작성하세요.
+      각 키워드는 한국어 명사구로 작성하세요.
+      각 키워드를 이해하는 데 필요한 서로 다른 분석 포인트를 정확히 3개 작성하세요.
+      각 포인트는 뉴스 본문 맥락에서 1문장으로 작성하세요.
       각 키워드는 다음 기준에 따라 하나의 카테고리로 분류하세요.
       %s
       본문에 없는 내용을 추론해 만들지 마세요.
@@ -100,12 +102,14 @@ public class OpenAiKeywordClient implements KeywordAiClient {
             "enum",
             enumNames(KeywordCategory.values())));
     keywordProperties.put("keyword", Map.of("type", "string"));
-    keywordProperties.put("description", Map.of("type", "string"));
+    keywordProperties.put(
+        "points",
+        Map.of("type", "array", "minItems", 3, "maxItems", 3, "items", Map.of("type", "string")));
 
     Map<String, Object> keywordItem = new LinkedHashMap<>();
     keywordItem.put("type", "object");
     keywordItem.put("additionalProperties", false);
-    keywordItem.put("required", List.of("category", "keyword", "description"));
+    keywordItem.put("required", List.of("category", "keyword", "points"));
     keywordItem.put("properties", keywordProperties);
 
     Map<String, Object> properties = new LinkedHashMap<>();
@@ -132,18 +136,24 @@ public class OpenAiKeywordClient implements KeywordAiClient {
         throw new IllegalStateException("OpenAI keyword response must contain keywords array.");
       }
 
-      return keywordsNode
-          .valueStream()
-          .map(
-              node ->
-                  new NewsKeyword(
-                      KeywordCategory.valueOf(node.path("category").asText()),
-                      node.path("keyword").asText(),
-                      node.path("description").asText()))
-          .toList();
+      return keywordsNode.valueStream().map(this::parseKeyword).toList();
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException("Failed to parse OpenAI keyword response.", exception);
     }
+  }
+
+  private NewsKeyword parseKeyword(JsonNode keywordNode) {
+    JsonNode pointsNode = keywordNode.path("points");
+    if (!pointsNode.isArray() || pointsNode.size() != 3) {
+      throw new IllegalStateException("OpenAI keyword response must contain exactly 3 points.");
+    }
+
+    return new NewsKeyword(
+        KeywordCategory.valueOf(keywordNode.path("category").asText()),
+        keywordNode.path("keyword").asText(),
+        pointsNode.get(0).asText(),
+        pointsNode.get(1).asText(),
+        pointsNode.get(2).asText());
   }
 
   private String extractOutputText(String response) {

@@ -31,7 +31,9 @@ public class KeywordService {
                         news,
                         keyword.getCategory(),
                         keyword.getKeyword(),
-                        keyword.getDescription()))
+                        keyword.getPoint1(),
+                        keyword.getPoint2(),
+                        keyword.getPoint3()))
             .toList());
   }
 

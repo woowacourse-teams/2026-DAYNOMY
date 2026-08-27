@@ -36,12 +36,10 @@ class NewsKeywordRepositoryTest {
     News news = newsRepository.save(createNews("target news"));
     News otherNews = newsRepository.save(createNews("other news"));
     NewsKeyword first =
-        newsKeywordRepository.save(
-            new NewsKeyword(news, KeywordCategory.POLICY, "금리 인하", "대출 수요 회복"));
+        newsKeywordRepository.save(createKeyword(news, KeywordCategory.POLICY, "금리 인하"));
     NewsKeyword second =
-        newsKeywordRepository.save(
-            new NewsKeyword(news, KeywordCategory.POLICY, "부동산 규제", "거래량 회복"));
-    newsKeywordRepository.save(new NewsKeyword(otherNews, KeywordCategory.TERM, "환율", "다른 뉴스 키워드"));
+        newsKeywordRepository.save(createKeyword(news, KeywordCategory.POLICY, "부동산 규제"));
+    newsKeywordRepository.save(createKeyword(otherNews, KeywordCategory.TERM, "환율"));
 
     var keywords = newsKeywordRepository.findByNewsIdOrderByIdAsc(news.getId());
 
@@ -52,6 +50,11 @@ class NewsKeywordRepositoryTest {
     assertThat(keywords)
         .extracting(NewsKeyword::getCategory)
         .containsExactly(KeywordCategory.POLICY, KeywordCategory.POLICY);
+    assertThat(keywords.get(0).getPoint1()).isEqualTo("첫 번째 분석 포인트");
+  }
+
+  private NewsKeyword createKeyword(News news, KeywordCategory category, String keyword) {
+    return new NewsKeyword(news, category, keyword, "첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
   }
 
   private News createNews(String title) {

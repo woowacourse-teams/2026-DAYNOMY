@@ -40,10 +40,7 @@ class KeywordServiceTest {
   @DisplayName("뉴스와 키워드 목록을 받아 키워드를 저장한다")
   void saveKeywordsStoresNewsKeywords() {
     News news = createNews();
-    List<NewsKeyword> keywords =
-        List.of(
-            new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "대출 수요 회복과 연결됨"),
-            new NewsKeyword(KeywordCategory.POLICY, "부동산 규제", "거래량 회복 기대와 연결됨"));
+    List<NewsKeyword> keywords = List.of(createKeyword("금리 인하"), createKeyword("부동산 규제"));
 
     keywordService.saveKeywords(news, keywords);
 
@@ -58,7 +55,9 @@ class KeywordServiceTest {
                   assertThat(savedKeywords.get(0).getNews()).isSameAs(news);
                   assertThat(savedKeywords.get(0).getCategory()).isEqualTo(KeywordCategory.POLICY);
                   assertThat(savedKeywords.get(0).getKeyword()).isEqualTo("금리 인하");
-                  assertThat(savedKeywords.get(0).getDescription()).isEqualTo("대출 수요 회복과 연결됨");
+                  assertThat(savedKeywords.get(0).getPoint1()).isEqualTo("첫 번째 분석 포인트");
+                  assertThat(savedKeywords.get(0).getPoint2()).isEqualTo("두 번째 분석 포인트");
+                  assertThat(savedKeywords.get(0).getPoint3()).isEqualTo("세 번째 분석 포인트");
                   assertThat(savedKeywords.get(1).getKeyword()).isEqualTo("부동산 규제");
                   return true;
                 }));
@@ -70,17 +69,15 @@ class KeywordServiceTest {
     News news = createNews();
     given(newsRepository.existsById(1L)).willReturn(true);
     given(newsKeywordRepository.findByNewsIdOrderByIdAsc(1L))
-        .willReturn(
-            List.of(
-                new NewsKeyword(news, KeywordCategory.POLICY, "금리 인하", "대출 수요 회복과 연결됨"),
-                new NewsKeyword(news, KeywordCategory.POLICY, "부동산 규제", "거래량 회복 기대와 연결됨")));
+        .willReturn(List.of(createSavedKeyword(news, "금리 인하"), createSavedKeyword(news, "부동산 규제")));
 
     var response = keywordService.getKeywords(1L);
 
     assertThat(response.keywords()).hasSize(2);
     assertThat(response.keywords().get(0).category()).isEqualTo(KeywordCategory.POLICY);
     assertThat(response.keywords().get(0).keyword()).isEqualTo("금리 인하");
-    assertThat(response.keywords().get(0).description()).isEqualTo("대출 수요 회복과 연결됨");
+    assertThat(response.keywords().get(0).points())
+        .containsExactly("첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
     verify(newsKeywordRepository).findByNewsIdOrderByIdAsc(1L);
   }
 
@@ -106,6 +103,16 @@ class KeywordServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(KeywordErrorCode.KEYWORD_NOT_FOUND);
+  }
+
+  private NewsKeyword createKeyword(String keyword) {
+    return new NewsKeyword(
+        KeywordCategory.POLICY, keyword, "첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
+  }
+
+  private NewsKeyword createSavedKeyword(News news, String keyword) {
+    return new NewsKeyword(
+        news, KeywordCategory.POLICY, keyword, "첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
   }
 
   private News createNews() {
