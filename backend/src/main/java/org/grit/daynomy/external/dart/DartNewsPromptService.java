@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseItem;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseResponse;
 import org.grit.daynomy.external.dart.dto.DartConvertibleBondItem;
@@ -16,6 +18,7 @@ import org.grit.daynomy.external.dart.dto.DartMergerDecisionResponse;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class DartNewsPromptService {
@@ -33,14 +36,20 @@ public class DartNewsPromptService {
 
     return response.list().stream()
         .map(disclosure -> createPrompt(disclosure, beginDate, endDate))
+        .flatMap(Optional::stream)
         .toList();
   }
 
-  private NewsPrompt createPrompt(
+  private Optional<NewsPrompt> createPrompt(
       DartDisclosureItem disclosure, LocalDate beginDate, LocalDate endDate) {
+    String originalDocument = getOriginalDocumentOrBlank(disclosure);
     List<DartMajorReportType> types = DartMajorReportType.fromAll(disclosure.reportNm());
     if (types.isEmpty()) {
-      return dartNewsPromptMapper.toPrompt(disclosure);
+      log.info(
+          "Skipping DART prompt due to unsupported report type: receiptNo={}, reportName={}",
+          disclosure.rceptNo(),
+          disclosure.reportNm());
+      return Optional.empty();
     }
 
     List<String> detailBlocks =
@@ -48,8 +57,27 @@ public class DartNewsPromptService {
             .map(type -> findDetailBlock(type, disclosure, beginDate, endDate))
             .flatMap(Optional::stream)
             .toList();
+    if (detailBlocks.isEmpty()) {
+      log.info(
+          "Skipping DART prompt due to insufficient report details: receiptNo={}, reportName={}",
+          disclosure.rceptNo(),
+          disclosure.reportNm());
+      return Optional.empty();
+    }
 
-    return dartNewsPromptMapper.toPrompt(disclosure, detailBlocks);
+    return Optional.of(dartNewsPromptMapper.toPrompt(disclosure, detailBlocks, originalDocument));
+  }
+
+  private String getOriginalDocumentOrBlank(DartDisclosureItem disclosure) {
+    try {
+      return dartClient.getOriginalDocument(disclosure.rceptNo());
+    } catch (BusinessException exception) {
+      log.warn(
+          "Skipping DART original document: receiptNo={}, reportName={}",
+          disclosure.rceptNo(),
+          disclosure.reportNm());
+      return "";
+    }
   }
 
   private Optional<String> findDetailBlock(

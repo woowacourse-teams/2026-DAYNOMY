@@ -40,7 +40,8 @@ class KosisNewsPromptServiceTest {
     assertThat(prompts.getFirst().source()).isEqualTo(NewsSource.KOSIS);
     assertThat(prompts.getFirst().category()).isEqualTo(Category.ECONOMY);
     assertThat(prompts.getFirst().externalId()).isEqualTo("consumer-price-index:202607");
-    assertThat(prompts.getFirst().prompt()).contains("증감", "출처: KOSIS");
+    assertThat(prompts.getFirst().prompt())
+        .contains("경제 전문 기자", "JSON 형식으로만", "불릿, 번호 목록, 표", "KOSIS에 따르면", "증감");
   }
 
   @Test

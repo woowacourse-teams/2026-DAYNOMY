@@ -1,7 +1,11 @@
 package org.grit.daynomy.external.dart;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.zip.ZipInputStream;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseResponse;
@@ -74,6 +78,46 @@ public class DartClient {
       String corporationCode, LocalDate beginDate, LocalDate endDate) {
     return getMajorReport(
         "/cmpMgDecsn.json", DartMergerDecisionResponse.class, corporationCode, beginDate, endDate);
+  }
+
+  public String getOriginalDocument(String receiptNo) {
+    try {
+      byte[] document =
+          restClient
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path("/document.xml")
+                          .queryParam("crtfc_key", dartProperties.apiKey())
+                          .queryParam("rcept_no", receiptNo)
+                          .build())
+              .retrieve()
+              .body(byte[].class);
+      if (document == null || document.length == 0) {
+        throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
+      }
+      try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(document))) {
+        StringBuilder content = new StringBuilder();
+        var entry = zip.getNextEntry();
+        while (entry != null) {
+          if (!entry.isDirectory()) {
+            if (content.length() > 0) {
+              content.append("\n\n");
+            }
+            content.append("[DART 원문 파일: ").append(entry.getName()).append("]\n");
+            content.append(new String(zip.readAllBytes(), StandardCharsets.UTF_8));
+          }
+          entry = zip.getNextEntry();
+        }
+        if (content.isEmpty()) {
+          throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
+        }
+        return content.toString();
+      }
+    } catch (RestClientException | IOException exception) {
+      throw new BusinessException(ExternalErrorCode.DART_API_REQUEST_FAILED);
+    }
   }
 
   private <T> T getMajorReport(
