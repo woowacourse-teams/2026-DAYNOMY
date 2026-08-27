@@ -1,4 +1,3 @@
-import { Header } from '../../../components/Header';
 import defaultNewsImage from '../../../assets/default-news-real-estate.png';
 import { getCategoryLabel } from './constants';
 import { formatDate } from './utils';
@@ -79,8 +78,6 @@ const scenarios = [
 export function RealEstateLoanRulePage() {
   return (
     <main className="loan-detail">
-      <Header />
-
       <button
         type="button"
         className="loan-back-button"

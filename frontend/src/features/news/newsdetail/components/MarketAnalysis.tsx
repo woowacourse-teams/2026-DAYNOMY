@@ -10,11 +10,13 @@ import type {
 const directionLabel: Record<ImpactDirection, string> = {
   POSITIVE: '긍정',
   NEGATIVE: '부정',
+  NEUTRAL: '중립',
 };
 
 const directionClassName: Record<ImpactDirection, string> = {
   POSITIVE: 'positive',
   NEGATIVE: 'negative',
+  NEUTRAL: 'neutral',
 };
 
 const impactLevelScore: Record<ImpactLevel, number> = {

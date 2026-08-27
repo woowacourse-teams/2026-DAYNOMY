@@ -2,11 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import axios, { AxiosError, type AxiosAdapter } from 'axios';
 import { ApiError } from '../../src/api/error.ts';
-import {
-  buildNewsSearchUrl,
-  SEARCH_ERROR_CODES,
-  searchNews,
-} from '../../src/features/search/api.ts';
+import { buildNewsSearchUrl, searchNews } from '../../src/features/search/api.ts';
 import {
   CATEGORY_LABELS,
   getCategoryLabel,
@@ -21,6 +17,7 @@ test('백엔드 Category enum과 같은 카테고리를 사용한다', () => {
       'REAL_ESTATE',
       'DEPOSIT_SAVINGS',
       'STOCK',
+      'ECONOMY',
       'ETF',
       'BOND',
       'PENSION',
@@ -59,8 +56,8 @@ test('검색 성공 응답을 뉴스 카드 데이터로 읽는다', async () =>
           title: '기준금리 동결 가능성 확대',
           description: '기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.',
           imageUrl: 'https://example.com/base-rate.webp',
-          category: 'BOND',
-          publishedAt: '2026-08-14T10:00:00',
+          category: 'ECONOMY',
+          publishedAt: null,
         },
       ],
       page: 1,
@@ -74,15 +71,16 @@ test('검색 성공 응답을 뉴스 카드 데이터로 읽는다', async () =>
     config,
   })) satisfies AxiosAdapter;
 
-  const results = await searchNews('금리', 'BOND');
+  const results = await searchNews('금리', 'ECONOMY');
 
   assert.equal(results.content.length, 1);
-  assert.equal(results.content[0]?.category, 'BOND');
+  assert.equal(results.content[0]?.category, 'ECONOMY');
   assert.equal(
     results.content[0]?.description,
     '기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.',
   );
   assert.equal(results.content[0]?.imageUrl, 'https://example.com/base-rate.webp');
+  assert.equal(results.content[0]?.publishedAt, null);
   assert.equal(results.page, 1);
   assert.equal(results.totalElements, 1);
 });
@@ -91,7 +89,7 @@ test('검색 페이지 조건 실패 응답의 도메인 code와 message를 전�
   axios.defaults.adapter = (async (config) => {
     throw new AxiosError('Bad Request', 'ERR_BAD_REQUEST', config, undefined, {
       data: {
-        code: SEARCH_ERROR_CODES.SEARCH_INVALID_PAGE_CONDITION,
+        code: 'INVALID_REQUEST',
         message: '검색 페이지 조건이 올바르지 않습니다.',
       },
       status: 400,
@@ -105,7 +103,7 @@ test('검색 페이지 조건 실패 응답의 도메인 code와 message를 전�
     () => searchNews('금리', 'ALL', 0),
     (error: unknown) =>
       error instanceof ApiError &&
-      error.code === SEARCH_ERROR_CODES.SEARCH_INVALID_PAGE_CONDITION &&
+      error.code === 'INVALID_REQUEST' &&
       error.message === '검색 페이지 조건이 올바르지 않습니다.',
   );
 });
