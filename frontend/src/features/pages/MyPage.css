@@ -1,31 +1,38 @@
 .my-page {
   min-height: 100svh;
-  color: var(--text);
-  background: var(--bg);
+  color: #111827;
+  background: #ffffff;
 }
 
 .mypage-content {
-  width: min(calc(100% - 48px), 880px);
+  width: min(100% - 128px, 1312px);
   margin: 0 auto;
-  padding: 48px 0 80px;
+  padding: 62px 0 120px;
 }
 
 .mypage-heading h1 {
-  color: var(--text-h);
-  font-size: 28px;
+  color: #111827;
+  font-size: 40px;
   font-weight: 900;
-  line-height: 1.3;
+  line-height: 56px;
+  letter-spacing: 0;
 }
 
 .mypage-heading p {
-  margin-top: 8px;
-  color: var(--text-muted);
-  font-size: 15px;
+  margin-top: 13px;
+  color: #6b7280;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 26px;
 }
 
 .mypage-message {
   min-height: 24px;
   margin-top: 16px;
+}
+
+.mypage-message:empty {
+  display: none;
 }
 
 .mypage-status,
@@ -45,56 +52,47 @@
 
 .profile-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 28px;
-  margin-top: 32px;
-  padding: 32px;
-  border: 1px solid var(--border);
+  gap: 10px;
+  height: 80px;
+  margin-top: 35px;
+  padding: 0 32px;
+  border: 1px solid #e5e7eb;
   border-radius: 24px;
-  background: var(--surface);
+  background: #ffffff;
 }
 
 .profile-avatar {
   display: grid;
-  width: 72px;
-  height: 72px;
+  width: 50px;
+  height: 50px;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
   color: #ffffff;
-  background: var(--accent);
-  font-size: 26px;
-  font-weight: 900;
+  background: transparent;
+}
+
+.profile-avatar svg {
+  width: 50px;
+  height: 50px;
 }
 
 .profile-info {
   display: grid;
   min-width: 0;
-  gap: 16px;
-  margin: 0;
+  gap: 1px;
 }
 
-.profile-info > div {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-}
-
-.profile-info dt {
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.profile-info dd {
+.profile-info strong {
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  color: var(--text-h);
-  font-size: 15px;
-  font-weight: 800;
+  color: #111827;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 34px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -103,31 +101,34 @@
 .logout-button,
 .withdrawal-button {
   display: inline-flex;
-  min-height: 40px;
   align-items: center;
   justify-content: center;
-  padding: 0 18px;
-  border-radius: 999px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   font: inherit;
   font-size: 14px;
   font-weight: 800;
+  line-height: 20px;
   cursor: pointer;
-  transition:
-    border-color 150ms ease,
-    color 150ms ease,
-    background-color 150ms ease,
-    transform 150ms ease;
+  transition: color 150ms ease;
 }
 
 .profile-edit-button {
-  border: 1px solid #d9d6f5;
-  color: var(--accent);
-  background: var(--surface);
+  width: fit-content;
+  gap: 21px;
+  color: #6b7280;
+}
+
+.profile-edit-button svg {
+  width: 5px;
+  height: 9px;
+  flex: 0 0 auto;
 }
 
 .profile-edit-button:hover {
-  border-color: var(--accent);
-  background: #f5f3ff;
+  color: #111827;
 }
 
 .account-actions {
@@ -140,13 +141,17 @@
 }
 
 .logout-button {
-  border: 0;
-  color: #ffffff;
-  background: var(--text-h);
+  gap: 10px;
+  color: #111827;
+}
+
+.logout-button svg {
+  width: 18px;
+  height: 18px;
 }
 
 .logout-button:hover {
-  background: #2a2d38;
+  color: #4339c0;
 }
 
 .withdrawal-button {
@@ -163,7 +168,7 @@
 .profile-edit-button:hover,
 .logout-button:hover,
 .withdrawal-button:hover {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .profile-edit-button:active,
@@ -191,92 +196,104 @@
 }
 
 .bookmarked-assets {
-  margin-top: 48px;
+  margin-top: 40px;
 }
 
 .bookmarked-assets-heading {
+  position: relative;
   display: flex;
-  align-items: end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
 
 .section-eyebrow {
-  color: var(--accent);
-  font-size: 11px;
+  color: #7338f2;
+  font-size: 16px;
   font-weight: 900;
-  letter-spacing: 0.14em;
+  line-height: 23px;
+  letter-spacing: 0;
 }
 
 .bookmarked-assets-heading h2 {
-  margin-top: 4px;
-  color: var(--text-h);
-  font-size: 24px;
+  margin-top: -2px;
+  color: #111827;
+  font-size: 32px;
   font-weight: 900;
+  line-height: 45px;
 }
 
 .bookmark-count {
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 800;
+  margin-top: 56px;
+  color: #6b7280;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 23px;
 }
 
 .bookmark-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 18px;
+  grid-template-columns: repeat(3, minmax(0, 409px));
+  column-gap: 38px;
+  row-gap: 44px;
+  margin-top: 23px;
 }
 
 .bookmark-card {
-  min-height: 172px;
-  padding: 20px;
-  border: 1.5px solid #24262d;
-  border-radius: 24px 20px 22px 18px;
-  background: var(--surface);
-  box-shadow: 3px 4px 0 rgba(36, 38, 45, 0.06);
+  position: relative;
+  width: 100%;
+  height: 148px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: none;
 }
 
-.bookmark-card-topline {
-  display: flex;
+.bookmark-card-category {
+  position: absolute;
+  top: 27px;
+  left: 38px;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 23px;
+  letter-spacing: 0;
+  white-space: nowrap;
 }
 
-.bookmark-card-number {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+.bookmark-card-category span {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
 }
 
 .bookmark-remove-button {
+  position: absolute;
+  top: 21px;
+  right: 30px;
   display: inline-grid;
-  width: 34px;
-  height: 34px;
+  width: 18px;
+  height: 26px;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  color: var(--accent);
-  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
   cursor: pointer;
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease,
-    transform 150ms ease;
+  transition: opacity 150ms ease;
 }
 
 .bookmark-remove-button svg {
   width: 18px;
-  height: 18px;
-  fill: currentColor;
+  height: 26px;
 }
 
 .bookmark-remove-button:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: #f5f3ff;
-  transform: translateY(-1px);
+  opacity: 0.72;
 }
 
 .bookmark-remove-button:focus-visible {
@@ -285,41 +302,97 @@
 }
 
 .bookmark-card h3 {
-  margin-top: 24px;
-  color: var(--text-h);
+  position: absolute;
+  top: 65px;
+  left: 38px;
+  right: 38px;
+  margin: 0;
+  overflow: hidden;
+  color: #111827;
   font-size: 20px;
   font-weight: 900;
+  line-height: 29px;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bookmark-card p {
-  margin-top: 6px;
-  color: var(--text-muted);
-  font-size: 13px;
+  position: absolute;
+  top: 106px;
+  left: 38px;
+  right: 38px;
+  margin: 0;
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 16px;
   font-weight: 700;
+  line-height: 23px;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookmark-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 46px;
+  margin-top: 108px;
+}
+
+.bookmark-pagination button {
+  min-width: 16px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  color: #8b93a1;
+  background: transparent;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 24px;
+  cursor: pointer;
+}
+
+.bookmark-pagination button.active {
+  color: #111827;
+}
+
+.bookmark-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .bookmark-empty {
   display: grid;
-  min-height: 172px;
+  min-height: 260px;
   place-items: center;
-  margin-top: 18px;
-  padding: 24px;
-  border: 1px dashed var(--border);
-  border-radius: 20px;
-  color: var(--text-muted);
+  align-content: center;
+  gap: 43px;
+  margin-top: 19px;
+  padding: 0;
+  border: 1.2px dashed #e1e6ef;
+  border-radius: 24px;
+  color: #6b7280;
   text-align: center;
 }
 
 .bookmark-empty span {
-  color: var(--accent);
-  font-size: 34px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookmark-empty svg {
+  width: 24px;
+  height: 32px;
 }
 
 .bookmark-empty p {
-  margin-top: 8px;
-  font-size: 14px;
-  font-weight: 700;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 28px;
 }
 
 @media (max-width: 640px) {
@@ -384,38 +457,14 @@
   }
 }
 
-.nickname-input {
-  width: 100%;
-  min-width: 0;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  color: var(--text-h);
-  background: var(--surface);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.nickname-input:focus {
-  border-color: var(--accent);
-  outline: 3px solid var(--focus);
-}
-
-.profile-edit-actions {
-  display: flex;
-  gap: 8px;
-}
-
 .edit-save-button,
 .edit-cancel-button,
 .withdrawal-confirm-button {
   display: inline-flex;
-  min-height: 40px;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
-  padding: 0 18px;
+  padding: 0 26px;
   border-radius: 999px;
   font: inherit;
   font-size: 14px;
@@ -426,7 +475,7 @@
 .edit-save-button {
   border: 0;
   color: #ffffff;
-  background: var(--accent);
+  background: #4339c0;
 }
 
 .edit-save-button:disabled {
@@ -435,9 +484,9 @@
 }
 
 .edit-cancel-button {
-  border: 1px solid var(--border);
-  color: var(--text);
-  background: var(--surface);
+  border: 1px solid #e5e7eb;
+  color: #737b8c;
+  background: #ffffff;
 }
 
 .edit-save-button:focus-visible,
@@ -445,6 +494,161 @@
 .withdrawal-confirm-button:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+
+.profile-edit-overlay {
+  position: fixed;
+  z-index: 90;
+  inset: 64px 0 0;
+  background: rgb(255 255 255 / 72%);
+}
+
+.profile-edit-dialog {
+  position: absolute;
+  top: 222px;
+  left: 50%;
+  width: 720px;
+  height: 470px;
+  padding: 35px 39px 40px;
+  border: 1px solid #e5e7eb;
+  border-radius: 30px;
+  background: #ffffff;
+  box-shadow: none;
+  transform: translateX(-50%);
+}
+
+.profile-edit-dialog-header {
+  position: relative;
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+}
+
+.profile-edit-avatar,
+.profile-edit-avatar svg {
+  width: 68px;
+  height: 68px;
+}
+
+.profile-edit-dialog-title h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 34px;
+  letter-spacing: 0;
+}
+
+.profile-edit-dialog-title p {
+  margin: 6px 0 0;
+  color: #8b93a1;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 20px;
+}
+
+.profile-withdrawal-pill {
+  display: inline-flex;
+  width: 82px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1.2px solid #fecaca;
+  border-radius: 999px;
+  color: #dc4446;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 17px;
+  cursor: pointer;
+}
+
+.profile-edit-fields {
+  width: 560px;
+  margin: 84px auto 0;
+}
+
+.profile-edit-field {
+  display: block;
+}
+
+.profile-edit-field + .profile-edit-field {
+  margin-top: 25px;
+}
+
+.profile-edit-field > span {
+  display: block;
+  margin: 0 0 10px 2px;
+  color: #737b8c;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 23px;
+}
+
+.profile-edit-field input {
+  width: 100%;
+  height: 56px;
+  padding: 0 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  color: #111827;
+  background: #f9fafb;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 23px;
+}
+
+.profile-edit-field input:disabled {
+  color: #8b93a1;
+  opacity: 1;
+  -webkit-text-fill-color: #8b93a1;
+}
+
+.nickname-field {
+  position: relative;
+}
+
+.nickname-field input {
+  padding-right: 88px;
+  border-color: #ddd6fe;
+  border-width: 1.4px;
+  background: #ffffff;
+}
+
+.nickname-field input:focus {
+  border-color: #4339c0;
+  outline: 3px solid rgb(67 57 192 / 16%);
+}
+
+.nickname-field small {
+  position: absolute;
+  top: 18px;
+  right: 25px;
+  color: #8b93a1;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.profile-edit-dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.profile-edit-dialog-actions .edit-cancel-button {
+  width: 109px;
+  padding: 0;
+}
+
+.profile-edit-dialog-actions .edit-save-button {
+  width: 110px;
+  padding: 0;
 }
 
 .withdrawal-overlay {
@@ -498,12 +702,15 @@
   background: #a92f2f;
 }
 
-@media (max-width: 640px) {
-  .profile-edit-actions {
-    width: 100%;
+@media (max-width: 820px) {
+  .profile-edit-dialog {
+    top: 120px;
+    width: min(calc(100% - 32px), 720px);
+    height: auto;
+    min-height: 470px;
   }
 
-  .profile-edit-actions button {
-    flex: 1;
+  .profile-edit-fields {
+    width: 100%;
   }
 }

@@ -1,69 +1,65 @@
 .stock-page {
-  width: min(1440px, calc(100% - 80px));
+  width: min(100% - 128px, 1320px);
   margin: 0 auto;
-  padding: 0 0 72px;
+  padding: 0 0 86px;
+  background: #ffffff;
 }
 
 .stock-heading {
-  display: flex;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 28px;
-  margin: 34px 0 18px;
-  padding: 30px;
-  border: 1px solid #eceef5;
+  display: block;
+  height: 178px;
+  margin: 70px 0 36px;
+  padding: 42px;
+  border: 0;
   border-radius: 8px;
-  background: linear-gradient(135deg, rgba(81, 68, 216, 0.1), rgba(255, 255, 255, 0) 48%), #ffffff;
-  box-shadow: 0 18px 50px rgba(17, 19, 32, 0.08);
+  background: linear-gradient(270deg, #f2ecff 0%, #f8f6ff 48%, #ffffff 100%);
+  box-shadow: none;
 }
 
 .stock-heading p {
-  margin-bottom: 8px;
-  color: var(--accent);
-  font-size: 13px;
+  margin: 0 0 17px;
+  color: #7338f2;
+  font-size: 16px;
   font-weight: 900;
+  line-height: 23px;
 }
 
 .stock-heading h1 {
-  color: var(--text-h);
-  font-size: 30px;
-  line-height: 1.2;
+  margin: 0;
+  color: #111827;
+  font-size: 32px;
+  line-height: 45px;
   font-weight: 900;
+  letter-spacing: 0;
 }
 
 .stock-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
-  gap: 10px;
-  min-width: min(380px, 100%);
-  margin: 0;
+  display: block;
+  margin: 13px 0 0;
 }
 
 .stock-summary div {
-  display: grid;
-  align-content: center;
-  min-height: 78px;
-  padding: 14px;
-  border: 1px solid #eceef5;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .stock-summary dt {
-  margin-bottom: 6px;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 800;
+  display: none;
 }
 
 .stock-summary dd {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   margin: 0;
-  color: var(--text-h);
-  font-size: 18px;
-  font-weight: 900;
+  color: #6b7280;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 23px;
+}
+
+.stock-summary div:not(:first-child) {
+  display: none;
 }
 
 .stock-fallback-badge {
@@ -79,31 +75,33 @@
 }
 
 .stock-list-panel {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .stock-list-head {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 54px;
+  grid-template-columns: 74px minmax(0, 1fr) 100px 64px;
   align-items: center;
-  gap: 14px;
-  min-height: 42px;
-  padding: 0 18px;
-  border-bottom: 1px solid #eceef5;
-  background: #f8f9fc;
-  color: var(--text-muted);
-  font-size: 12px;
+  gap: 0;
+  height: 57px;
+  padding: 0 33px;
+  border-bottom: 0;
+  border-radius: 6px;
+  background: #f7f8fa;
+  color: #6b7280;
+  font-size: 15px;
   font-weight: 900;
+  line-height: 22px;
 }
 
 .stock-list-head.guest {
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: 74px minmax(0, 1fr) 100px 64px;
 }
 
-.stock-list-head span:last-child {
+.stock-list-head span:nth-child(2) {
   text-align: center;
 }
 
@@ -123,21 +121,21 @@
 
 .stock-row {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 44px;
+  grid-template-columns: 74px minmax(0, 1fr) 100px 64px;
   align-items: center;
-  min-height: 66px;
-  gap: 14px;
-  padding: 10px 18px;
+  min-height: 104px;
+  gap: 0;
+  padding: 0 33px;
   border: 0;
-  border-bottom: 1px solid #eceef5;
-  background: var(--surface);
+  border-bottom: 0;
+  background: transparent;
   transition:
     background 0.16s ease,
     box-shadow 0.16s ease;
 }
 
 .stock-row.guest {
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: 74px minmax(0, 1fr) 100px 64px;
 }
 
 .stock-row:last-child {
@@ -145,40 +143,86 @@
 }
 
 .stock-row:hover {
-  background: #fbfbff;
+  background: transparent;
 }
 
 .stock-row.bookmarked {
-  background: #fffdf5;
+  background: transparent;
 }
 
 .stock-rank {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 37px;
+  height: 37px;
   border-radius: 8px;
-  background: #f1f3f7;
-  color: #2b2f39;
-  font-size: 15px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 16px;
   font-weight: 900;
+  line-height: 23px;
 }
 
 .stock-row:nth-child(-n + 3) .stock-rank {
-  background: #111318;
+  background: #111827;
   color: #ffffff;
 }
 
-.stock-row strong {
+.stock-info {
+  min-width: 0;
+}
+
+.stock-info strong {
+  display: block;
   min-width: 0;
   overflow: hidden;
-  color: var(--text-h);
-  font-size: 17px;
-  line-height: 1.35;
+  color: #111827;
+  font-size: 18px;
+  line-height: 26px;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.stock-info span {
+  display: block;
+  margin-top: 7px;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 20px;
+}
+
+.stock-rank-change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 24px;
+  justify-self: center;
+  gap: 6px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 22px;
+}
+
+.stock-rank-change.empty {
+  min-width: 0;
+}
+
+.stock-rank-change.up {
+  color: #138a53;
+}
+
+.stock-rank-change.down {
+  color: #dc2626;
+}
+
+.stock-rank-change span {
+  font-size: 13px;
+  line-height: 1;
 }
 
 .stock-bookmark-button {
@@ -187,22 +231,20 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  border: 1px solid #d9dce6;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #6f7481;
+  justify-self: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #d8dadd;
   cursor: pointer;
 }
 
 .stock-bookmark-button[aria-pressed='true'] {
-  border-color: #ffca4a;
-  color: #d79400;
-  background: #fff9e8;
+  background: transparent;
 }
 
 .stock-bookmark-button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  opacity: 0.82;
 }
 
 .stock-bookmark-button:focus-visible {
@@ -211,44 +253,67 @@
 }
 
 .stock-bookmark-button svg {
-  width: 21px;
-  height: 21px;
-  stroke: currentColor;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
+  width: 17px;
+  height: 26px;
+}
+
+.stock-bookmark-placeholder {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  color: #d8dadd;
+}
+
+.stock-bookmark-placeholder svg {
+  width: 17px;
+  height: 26px;
 }
 
 .stock-pagination {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 18px;
-  border-top: 1px solid #eceef5;
-  background: #ffffff;
+  gap: 16px;
+  margin-top: 34px;
+  padding: 0;
+  border-top: 0;
+  background: transparent;
 }
 
 .stock-pagination button {
-  min-width: 66px;
-  height: 36px;
-  border: 1px solid #d9dce6;
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--text-h);
+  display: flex;
+  min-width: auto;
+  width: 32px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #8a93a3;
   font: inherit;
-  font-size: 13px;
-  font-weight: 900;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
   cursor: pointer;
 }
 
 .stock-pagination button:disabled {
-  color: #b5bac6;
-  cursor: not-allowed;
+  color: #8a93a3;
+  cursor: default;
+  opacity: 1;
 }
 
 .stock-pagination button:not(:disabled):hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  color: #111827;
+}
+
+.stock-pagination button.active {
+  color: #111827;
 }
 
 .stock-pagination button:focus-visible {
@@ -256,12 +321,9 @@
   outline-offset: 2px;
 }
 
-.stock-pagination span {
-  min-width: 52px;
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 900;
-  text-align: center;
+.stock-pagination-arrow {
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .stock-state {
@@ -310,24 +372,24 @@
   }
 
   .stock-list-head {
-    grid-template-columns: 42px minmax(0, 1fr) 40px;
+    grid-template-columns: 42px minmax(0, 1fr) 46px 36px;
     gap: 10px;
     padding: 0 12px;
   }
 
   .stock-list-head.guest {
-    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-columns: 42px minmax(0, 1fr) 46px 36px;
   }
 
   .stock-row {
-    grid-template-columns: 42px minmax(0, 1fr) 40px;
+    grid-template-columns: 42px minmax(0, 1fr) 46px 36px;
     min-height: 60px;
     gap: 10px;
     padding: 10px 12px;
   }
 
   .stock-row.guest {
-    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-columns: 42px minmax(0, 1fr) 46px 36px;
   }
 
   .stock-rank {

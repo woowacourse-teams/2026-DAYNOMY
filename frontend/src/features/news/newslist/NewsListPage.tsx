@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '../../../components/Header';
 import { getNews, getTodayNews } from './api';
 import { ArticleCard } from './components/ArticleCard';
@@ -6,11 +7,13 @@ import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
 import { TodayNewsBanner } from './components/TodayNewsBanner';
 import { getEmptyTodayNews, NEWS_CATEGORIES } from './constants';
+import { getMockNewsPage, getMockTodayNews } from './mock';
 import type { NewsCategory, NewsListItem } from './types';
 import './newsList.css';
 import { trackEvent } from '../../../analytics';
 
 export function NewsListPage() {
+  const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
   const [articles, setArticles] = useState<NewsListItem[]>([]);
   const [page, setPage] = useState(1);
@@ -23,6 +26,17 @@ export function NewsListPage() {
     () => NEWS_CATEGORIES.find((category) => category.value === selectedCategory)?.label ?? '전체',
     [selectedCategory],
   );
+  const bannerArticles = useMemo(() => (todayMainNews.id ? [todayMainNews] : []), [todayMainNews]);
+  const paginationPages = useMemo(() => {
+    const maxVisiblePages = 5;
+    const visiblePageCount = Math.min(totalPages, maxVisiblePages);
+    const firstPage = Math.min(
+      Math.max(page - Math.floor(visiblePageCount / 2), 1),
+      Math.max(totalPages - visiblePageCount + 1, 1),
+    );
+
+    return Array.from({ length: visiblePageCount }, (_, index) => firstPage + index);
+  }, [page, totalPages]);
 
   useEffect(() => {
     trackEvent('view_news_list', { category: selectedCategory });
@@ -37,15 +51,20 @@ export function NewsListPage() {
 
       try {
         const newsPage = await getNews(selectedCategory, page);
+        const mockNewsPage = getMockNewsPage(selectedCategory, page);
+        const content = newsPage.content.length > 0 ? newsPage.content : mockNewsPage.content;
 
         if (!ignore) {
-          setArticles(newsPage.content);
-          setTotalPages(newsPage.totalPages);
+          setArticles(content);
+          setTotalPages(
+            newsPage.content.length > 0 ? newsPage.totalPages : mockNewsPage.totalPages,
+          );
         }
       } catch (caughtError) {
         if (!ignore) {
-          setArticles([]);
-          setTotalPages(1);
+          const mockNewsPage = getMockNewsPage(selectedCategory, page);
+          setArticles(mockNewsPage.content);
+          setTotalPages(mockNewsPage.totalPages);
           setError(
             caughtError instanceof Error ? caughtError.message : '뉴스 목록을 불러오지 못했습니다.',
           );
@@ -72,11 +91,11 @@ export function NewsListPage() {
         const todayNews = await getTodayNews();
 
         if (!ignore) {
-          setTodayMainNews(todayNews);
+          setTodayMainNews(todayNews.id ? todayNews : getMockTodayNews('ALL'));
         }
       } catch {
         if (!ignore) {
-          setTodayMainNews(getEmptyTodayNews());
+          setTodayMainNews(getMockTodayNews('ALL'));
         }
       }
     }
@@ -91,6 +110,12 @@ export function NewsListPage() {
   function handleCategoryChange(category: NewsCategory) {
     setSelectedCategory(category);
     setPage(1);
+    window.scrollTo({ top: 0 });
+  }
+
+  function handlePageChange(nextPage: number) {
+    setPage(nextPage);
+    window.scrollTo({ top: 0 });
   }
 
   function handleArticleSelect(article: NewsListItem) {
@@ -98,7 +123,7 @@ export function NewsListPage() {
       return;
     }
 
-    window.location.assign(`/news/${article.id}`);
+    navigate(`/news/${article.id}`);
   }
 
   return (
@@ -107,12 +132,9 @@ export function NewsListPage() {
 
       <div className="news-title-row">
         <h1>오늘의 뉴스</h1>
-        <button type="button" className="sort-button">
-          최신순
-        </button>
       </div>
 
-      <TodayNewsBanner article={todayMainNews} onSelect={handleArticleSelect} />
+      <TodayNewsBanner articles={bannerArticles} onSelect={handleArticleSelect} />
 
       <CategoryTabs
         categories={NEWS_CATEGORIES}
@@ -125,23 +147,16 @@ export function NewsListPage() {
           <p>{selectedCategoryLabel === '전체' ? '최신' : selectedCategoryLabel} 뉴스</p>
           <strong>{loading ? '불러오는 중' : `${articles.length}건`}</strong>
         </div>
-        <span>
-          {page} / {totalPages}
-        </span>
+        <button type="button" className="sort-button">
+          최신순
+        </button>
       </section>
 
       <span className="sr-only" role="status">
         {error ? `뉴스 목록 API 응답을 받지 못했습니다. ${error}` : ''}
       </span>
 
-      {loading ? <NewsListSkeleton /> : null}
-
-      {!loading && error ? (
-        <section className="state-panel" role="alert">
-          <strong>뉴스 목록을 불러오지 못했습니다.</strong>
-          <p>{error}</p>
-        </section>
-      ) : null}
+      {loading && articles.length === 0 ? <NewsListSkeleton /> : null}
 
       {!loading && !error && articles.length === 0 ? (
         <section className="state-panel">
@@ -150,7 +165,7 @@ export function NewsListPage() {
         </section>
       ) : null}
 
-      {!loading && articles.length > 0 ? (
+      {articles.length > 0 ? (
         <section className="article-list" aria-label="뉴스 목록">
           {articles.map((article) => (
             <ArticleCard article={article} key={article.id} />
@@ -159,18 +174,37 @@ export function NewsListPage() {
       ) : null}
 
       {articles.length > 0 && totalPages > 1 ? (
-        <footer className="pagination">
-          {Array.from({ length: totalPages }).map((_, index) => (
+        <footer className="pagination" aria-label="뉴스 페이지네이션">
+          <button
+            type="button"
+            className="pagination-arrow"
+            aria-label="이전 페이지"
+            onClick={() => handlePageChange(Math.max(page - 1, 1))}
+            disabled={loading || page === 1}
+          >
+            &lt;
+          </button>
+          {paginationPages.map((pageNumber) => (
             <button
               type="button"
-              key={index}
-              className={page === index + 1 ? 'active' : undefined}
-              onClick={() => setPage(index + 1)}
+              key={pageNumber}
+              className={page === pageNumber ? 'active' : undefined}
+              aria-current={page === pageNumber ? 'page' : undefined}
+              onClick={() => handlePageChange(pageNumber)}
               disabled={loading}
             >
-              {index + 1}
+              {pageNumber}
             </button>
           ))}
+          <button
+            type="button"
+            className="pagination-arrow"
+            aria-label="다음 페이지"
+            onClick={() => handlePageChange(Math.min(page + 1, totalPages))}
+            disabled={loading || page === totalPages}
+          >
+            &gt;
+          </button>
         </footer>
       ) : null}
     </main>

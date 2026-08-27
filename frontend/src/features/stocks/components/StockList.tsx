@@ -12,6 +12,25 @@ type StockListProps = {
   onPageChange: (page: number) => void;
 };
 
+function RankChange({ value }: { value?: number | null }) {
+  if (value == null || value === 0) {
+    return <span className="stock-rank-change empty" aria-hidden="true" />;
+  }
+
+  const isUp = value > 0;
+  const directionLabel = isUp ? '상승' : '하락';
+
+  return (
+    <span
+      className={`stock-rank-change ${isUp ? 'up' : 'down'}`}
+      aria-label={`순위 ${directionLabel} ${Math.abs(value)}`}
+    >
+      <span aria-hidden="true">{isUp ? '▲' : '▼'}</span>
+      {Math.abs(value)}
+    </span>
+  );
+}
+
 export function StockList({
   stocks,
   page,
@@ -26,7 +45,8 @@ export function StockList({
       <div className={isLoggedIn ? 'stock-list-head' : 'stock-list-head guest'} aria-hidden="true">
         <span>순위</span>
         <span>종목명</span>
-        {isLoggedIn ? <span>관심</span> : null}
+        <span />
+        <span />
       </div>
       <div className="stock-list">
         {stocks.map((stock) => {
@@ -42,7 +62,11 @@ export function StockList({
               <div className="stock-rank" aria-label={`${stock.rank}위`}>
                 {stock.rank}
               </div>
-              <strong>{stock.name}</strong>
+              <div className="stock-info">
+                <strong>{stock.name}</strong>
+                <span>{stock.code}</span>
+              </div>
+              <RankChange value={stock.rankChange} />
               {isLoggedIn ? (
                 <button
                   type="button"
@@ -54,7 +78,11 @@ export function StockList({
                 >
                   <BookmarkIcon selected={isBookmarked} />
                 </button>
-              ) : null}
+              ) : (
+                <span className="stock-bookmark-placeholder" aria-hidden="true">
+                  <BookmarkIcon selected={false} />
+                </span>
+              )}
             </article>
           );
         })}
