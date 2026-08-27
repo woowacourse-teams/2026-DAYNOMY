@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.bok.BokNewsPromptService;
 import org.grit.daynomy.external.dart.DartNewsPromptService;
 import org.grit.daynomy.external.kosis.KosisNewsPromptService;
@@ -86,6 +88,57 @@ class NewsGenerationServiceTest {
             List.of(),
             marketAnalysis);
     assertThat(savedCount).isEqualTo(1);
+  }
+
+  @Test
+  @DisplayName("AI 생성에 실패한 공시는 건너뛰고 다음 공시를 계속 처리한다")
+  void generateDartNewsSkipsAiFailureAndContinues() {
+    LocalDate date = LocalDate.of(2026, 8, 17);
+    NewsPrompt failedPrompt =
+        new NewsPrompt(
+            NewsSource.DART,
+            "failed",
+            "https://dart.example/failed",
+            Category.STOCK,
+            Instant.parse("2026-08-17T00:00:00Z"),
+            "failed prompt");
+    NewsPrompt successfulPrompt =
+        new NewsPrompt(
+            NewsSource.DART,
+            "successful",
+            "https://dart.example/successful",
+            Category.STOCK,
+            Instant.parse("2026-08-17T00:00:00Z"),
+            "successful prompt");
+    GeneratedNews generatedNews = new GeneratedNews("제목", "요약", "본문");
+    given(dartNewsPromptService.createPrompts(date, date, "B", "K"))
+        .willReturn(List.of(failedPrompt, successfulPrompt));
+    given(openAiNewsGenerator.generate(failedPrompt))
+        .willThrow(new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED));
+    given(openAiNewsGenerator.generate(successfulPrompt)).willReturn(generatedNews);
+    given(openAiImageGenerator.generateNewsImage("제목", "요약"))
+        .willReturn("data:image/webp;base64,image");
+    NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
+    given(
+            newsPersistenceService.saveIfAbsent(
+                successfulPrompt,
+                generatedNews,
+                "data:image/webp;base64,image",
+                List.of(),
+                marketAnalysis))
+        .willReturn(true);
+
+    int savedCount = newsGenerationService.generateDartNews(date, date, "B", "K");
+
+    assertThat(savedCount).isEqualTo(1);
+    verify(newsPersistenceService)
+        .saveIfAbsent(
+            successfulPrompt,
+            generatedNews,
+            "data:image/webp;base64,image",
+            List.of(),
+            marketAnalysis);
+    verify(openAiImageGenerator).generateNewsImage("제목", "요약");
   }
 
   @Test

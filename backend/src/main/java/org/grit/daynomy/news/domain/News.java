@@ -49,14 +49,12 @@ public class News extends BaseEntity {
   @Column(name = "external_id", nullable = false)
   private String externalId;
 
-  @Column(name = "source_url", nullable = false)
+  @Column(name = "source_url", columnDefinition = "TEXT", nullable = false)
   private String sourceUrl;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "category", nullable = false)
   private Category category;
-
-  // TODO(choiyoung69): Keyword 관계 설계 확정 후 추가
 
   @Column(name = "published_at")
   private Instant publishedAt;

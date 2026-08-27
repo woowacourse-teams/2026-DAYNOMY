@@ -1,4 +1,8 @@
 spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.security.oauth2.client.autoconfigure.servlet.OAuth2ClientWebSecurityAutoConfiguration
+
   datasource:
     url: jdbc:h2:mem:daynomy;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
     username: sa
@@ -7,7 +11,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create
     open-in-view: false
 
   security:
@@ -33,3 +37,7 @@ app:
 
 cookie:
   secure: false
+
+external:
+  public-data:
+    service-key: test-service-key
