@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { trackEvent } from '../../analytics';
-import { Header } from '../../components/Header';
 import { StockList } from './components/StockList';
 import { StockState } from './components/StockState';
 import { StockSummary } from './components/StockSummary';
@@ -32,8 +31,6 @@ export function StockListPage() {
 
   return (
     <main className="stock-page">
-      <Header />
-
       <section className="stock-heading">
         <div>
           <p>코스닥 2026년 6월 정기변경 기준</p>
@@ -52,7 +49,9 @@ export function StockListPage() {
         {error ? `종목 목록 API 응답을 받지 못했습니다. ${error}` : ''}
       </span>
 
-      {loading ? <StockState title="종목 목록을 불러오는 중입니다." busy /> : null}
+      {loading && stocks.length === 0 ? (
+        <StockState title="종목 목록을 불러오는 중입니다." busy />
+      ) : null}
 
       {!loading && error && !isFallback ? (
         <StockState title="종목 목록을 불러오지 못했습니다." description={error} role="alert" />
@@ -65,7 +64,7 @@ export function StockListPage() {
         />
       ) : null}
 
-      {!loading && stocks.length > 0 ? (
+      {stocks.length > 0 ? (
         <StockList
           stocks={visibleStocks}
           page={page}

@@ -1,11 +1,11 @@
 .daynomy-header {
   position: relative;
   box-sizing: border-box;
-  width: 100vw;
+  width: min(100%, 1440px);
   height: 64px;
   min-height: 64px;
   max-height: 64px;
-  margin-left: calc(50% - 50vw);
+  margin: 0 auto;
   padding: 0 64px;
   overflow: hidden;
   border-bottom: 0;
@@ -169,9 +169,6 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: 76px;
-  height: 34px;
-  border-radius: 10px;
   font-family:
     'Noto Sans KR',
     system-ui,
@@ -187,6 +184,9 @@
 }
 
 .daynomy-header .login-button {
+  width: 76px;
+  height: 34px;
+  border-radius: 10px;
   border: 0;
   color: #ffffff;
   background: #4339c0;
@@ -199,6 +199,9 @@
 }
 
 .daynomy-header .mypage-link {
+  width: auto;
+  height: 18px;
+  border-radius: 0;
   color: #131417;
   background: transparent;
   font-weight: 500;

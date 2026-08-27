@@ -16,6 +16,7 @@ function SearchIcon() {
 export function Header() {
   const isLoggedIn = useLoginStatus();
   const location = useLocation();
+  const isNewsPage = location.pathname === '/' || location.pathname.startsWith('/news');
   const isStockPage = location.pathname.startsWith('/stocks');
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export function Header() {
         <img className="brand-logo" src={daynomyLogo} alt="" />
       </Link>
       <nav className="header-tabs" aria-label="주요 메뉴">
-        <Link className={isStockPage ? 'header-tab' : 'header-tab active'} to="/">
+        <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/">
           뉴스
         </Link>
         <Link className={isStockPage ? 'header-tab active' : 'header-tab'} to="/stocks">

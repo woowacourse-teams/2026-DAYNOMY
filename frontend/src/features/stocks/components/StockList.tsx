@@ -46,7 +46,7 @@ export function StockList({
         <span>순위</span>
         <span>종목명</span>
         <span />
-        <span />
+        {isLoggedIn ? <span /> : null}
       </div>
       <div className="stock-list">
         {stocks.map((stock) => {
@@ -78,11 +78,7 @@ export function StockList({
                 >
                   <BookmarkIcon selected={isBookmarked} />
                 </button>
-              ) : (
-                <span className="stock-bookmark-placeholder" aria-hidden="true">
-                  <BookmarkIcon selected={false} />
-                </span>
-              )}
+              ) : null}
             </article>
           );
         })}

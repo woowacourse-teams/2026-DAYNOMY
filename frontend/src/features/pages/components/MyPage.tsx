@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '../../../components/Header';
 import { BookmarkIcon } from '../../stocks/components/BookmarkIcon';
 import '../MyPage.css';
 import {
@@ -243,8 +242,6 @@ function MyPage() {
 
   return (
     <main className="my-page">
-      <Header />
-
       <section className="mypage-content">
         <div className="mypage-heading">
           <h1>마이페이지</h1>
