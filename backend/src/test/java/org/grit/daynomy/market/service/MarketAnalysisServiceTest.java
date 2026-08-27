@@ -50,6 +50,7 @@ class MarketAnalysisServiceTest {
                 entity -> {
                   assertThat(entity.getNews()).isSameAs(news);
                   assertThat(entity.getCause()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
+                  assertThat(entity.getImportance()).isEqualTo("통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
                   assertThat(entity.getAssets()).hasSize(1);
                   assertThat(entity.getAssets().get(0).getCategory())
                       .isEqualTo(AssetCategory.STOCK);
@@ -69,6 +70,7 @@ class MarketAnalysisServiceTest {
     var response = marketAnalysisService.getMarketAnalysis(1L);
 
     assertThat(response.cause()).isEqualTo("금리 인하 기대가 위험자산 선호를 높입니다.");
+    assertThat(response.importance()).isEqualTo("통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
     assertThat(response.assets()).hasSize(1);
     assertThat(response.assets().get(0).category()).isEqualTo(AssetCategory.STOCK);
     assertThat(response.assets().get(0).direction()).isEqualTo(ImpactDirection.POSITIVE);
@@ -92,6 +94,7 @@ class MarketAnalysisServiceTest {
     return new NewsMarketAnalysis(
         createNews(),
         "금리 인하 기대가 위험자산 선호를 높입니다.",
+        "통화정책 변화는 여러 자산의 가격에 영향을 줍니다.",
         List.of(
             new AssetImpact(
                 AssetCategory.STOCK,
@@ -109,6 +112,7 @@ class MarketAnalysisServiceTest {
   private NewsMarketAnalysis createMarketAnalysis() {
     return new NewsMarketAnalysis(
         "금리 인하 기대가 위험자산 선호를 높입니다.",
+        "통화정책 변화는 여러 자산의 가격에 영향을 줍니다.",
         List.of(
             new AssetImpact(
                 AssetCategory.STOCK,
