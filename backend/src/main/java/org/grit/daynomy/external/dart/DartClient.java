@@ -12,6 +12,7 @@ import org.grit.daynomy.external.dart.dto.DartCapitalIncreaseResponse;
 import org.grit.daynomy.external.dart.dto.DartConvertibleBondResponse;
 import org.grit.daynomy.external.dart.dto.DartDisclosureResponse;
 import org.grit.daynomy.external.dart.dto.DartMergerDecisionResponse;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -26,7 +27,14 @@ public class DartClient {
 
   public DartClient(DartProperties dartProperties) {
     this.dartProperties = dartProperties;
-    this.restClient = RestClient.create(dartProperties.baseUrl());
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(toMillis(dartProperties.connectTimeout()));
+    requestFactory.setReadTimeout(toMillis(dartProperties.readTimeout()));
+    this.restClient =
+        RestClient.builder()
+            .baseUrl(dartProperties.baseUrl())
+            .requestFactory(requestFactory)
+            .build();
   }
 
   public DartDisclosureResponse getDisclosures(
@@ -169,5 +177,9 @@ public class DartClient {
 
   private String formatDate(LocalDate date) {
     return date.format(DART_DATE_FORMAT);
+  }
+
+  private int toMillis(java.time.Duration timeout) {
+    return Math.toIntExact(timeout.toMillis());
   }
 }

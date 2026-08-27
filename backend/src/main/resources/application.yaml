@@ -57,6 +57,8 @@ external:
   dart:
     api-key: ${DART_API_KEY:}
     base-url: ${DART_BASE_URL:https://opendart.fss.or.kr/api}
+    connect-timeout: ${DART_CONNECT_TIMEOUT:3s}
+    read-timeout: ${DART_READ_TIMEOUT:30s}
 
   kosis:
     api-key: ${KOSIS_API_KEY:}
