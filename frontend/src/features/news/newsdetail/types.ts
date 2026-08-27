@@ -28,9 +28,12 @@ export type NewsDetailResponse = {
   sourceUrl?: string | null;
 };
 
+export type KeywordCategory = 'PERSON' | 'POLICY' | 'EVENT' | 'TERM' | 'TREND';
+
 export type KeywordResponse = {
   keyword: string;
-  description: string;
+  category: KeywordCategory;
+  points: string[];
 };
 
 export type KeywordsResponse = {

@@ -101,6 +101,17 @@ describe('뉴스 탐색 화면', () => {
             sourceUrl: 'https://example.com/news/7',
           });
         }
+        if (url === '/api/news/7/keywords') {
+          return jsonResponse({
+            keywords: [
+              {
+                category: 'POLICY',
+                keyword: '금리 동결',
+                points: ['기준금리 동결은 정책 방향을 보여줍니다.', '시장 변화를 확인해야 합니다.'],
+              },
+            ],
+          });
+        }
 
         return jsonResponse({}, 500);
       }),
@@ -112,7 +123,8 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByText('기준금리가 유지되고 있습니다.')).toBeTruthy();
     expect(view.getByText('채권 시장의 관망세가 이어지고 있습니다.')).toBeTruthy();
     expect(view.getByText('추가 지표를 확인해야 합니다.')).toBeTruthy();
-    expect(view.getByText('금리 동결이 금융시장에 미치는 영향입니다.')).toBeTruthy();
+    expect(view.container.querySelector('mark.keyword')?.textContent).toContain('금리 동결');
+    expect(view.getByText('기준금리 동결은 정책 방향을 보여줍니다.')).toBeTruthy();
     expect(view.getByRole('link', { name: 'Google로 시작하기' }).getAttribute('href')).toBe(
       '/api/auth/google',
     );
