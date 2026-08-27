@@ -2,9 +2,12 @@
 
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { Header } from '../../src/components/Header';
+
+const originalShowModal = HTMLDialogElement.prototype.showModal;
+const originalClose = HTMLDialogElement.prototype.close;
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function showModal() {
@@ -14,6 +17,11 @@ beforeAll(() => {
     this.removeAttribute('open');
     this.dispatchEvent(new Event('close'));
   };
+});
+
+afterAll(() => {
+  HTMLDialogElement.prototype.showModal = originalShowModal;
+  HTMLDialogElement.prototype.close = originalClose;
 });
 
 afterEach(() => {
@@ -78,7 +86,8 @@ describe('검색 오버레이', () => {
 
   it('검색어를 입력하면 전체 검색 결과 주소로 이동한다', async () => {
     const view = renderHeader();
-    fireEvent.click(view.getByRole('button', { name: '검색 열기' }));
+    const trigger = view.getByRole('button', { name: '검색 열기' });
+    fireEvent.click(trigger);
 
     const input = view.getByRole('textbox', { name: '뉴스 또는 종목 검색' });
     fireEvent.change(input, { target: { value: ' 기준금리 ' } });
@@ -88,6 +97,7 @@ describe('검색 오버레이', () => {
     expect(view.router.state.location.search).toBe(
       '?q=%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC&category=ALL&page=1',
     );
+    expect(document.activeElement).not.toBe(trigger);
   });
 
   it('최근 검색어를 중복 없이 최신순으로 3개까지 표시한다', () => {
