@@ -125,6 +125,9 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByText('추가 지표를 확인해야 합니다.')).toBeTruthy();
     expect(view.container.querySelector('mark.keyword')?.textContent).toContain('금리 동결');
     expect(view.getByText('기준금리 동결은 정책 방향을 보여줍니다.')).toBeTruthy();
+    expect(view.getByRole('link', { name: '한국은행' }).getAttribute('href')).toBe(
+      'https://example.com/news/7',
+    );
     expect(view.getByRole('link', { name: 'Google로 시작하기' }).getAttribute('href')).toBe(
       '/api/auth/google',
     );

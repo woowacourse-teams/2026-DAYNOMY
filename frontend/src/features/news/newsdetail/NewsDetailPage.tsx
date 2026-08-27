@@ -34,6 +34,16 @@ function getSummaryItems(description: string | null) {
     .slice(0, 3);
 }
 
+const NEWS_SOURCE_LABELS: Record<string, string> = {
+  DART: 'DART',
+  KOSIS: '국가통계포털',
+  BOK: '한국은행',
+};
+
+function getNewsSourceLabel(source: string) {
+  return NEWS_SOURCE_LABELS[source] ?? source;
+}
+
 function formatDetailDate(value?: string) {
   if (!value) {
     return '';
@@ -319,7 +329,26 @@ export function NewsDetailPage() {
           ×
         </button>
 
-        <span className="detail-category">{getCategoryLabel(news.category)}</span>
+        <div className="detail-meta">
+          <span className="detail-category">{getCategoryLabel(news.category)}</span>
+          {news.source && (
+            <span className="detail-source">
+              출처:{' '}
+              {news.sourceUrl ? (
+                <a
+                  className={`source-link${news.source === 'DART' ? ' source-link--dart' : ''}`}
+                  href={news.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {getNewsSourceLabel(news.source)}
+                </a>
+              ) : (
+                getNewsSourceLabel(news.source)
+              )}
+            </span>
+          )}
+        </div>
 
         <h1>{news.title}</h1>
 

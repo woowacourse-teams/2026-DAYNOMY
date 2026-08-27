@@ -60,11 +60,34 @@ body {
 }
 
 .detail-category {
-  display: block;
   color: #4339c0;
   font-size: 14px;
   font-weight: 800;
   line-height: 20px;
+}
+
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-source {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.source-link {
+  color: #7338f2;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.source-link--dart {
+  color: #6b7280;
 }
 
 .news-detail h1 {
