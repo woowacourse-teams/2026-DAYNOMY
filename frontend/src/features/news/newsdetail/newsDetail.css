@@ -553,7 +553,7 @@ body {
   text-align: center;
 }
 
-.analysis-lock-overlay button {
+.analysis-lock-overlay > a {
   display: inline-flex;
   width: 371px;
   height: 47px;
@@ -567,6 +567,7 @@ body {
   font: inherit;
   font-size: 15px;
   font-weight: 900;
+  text-decoration: none;
   cursor: pointer;
 }
 
