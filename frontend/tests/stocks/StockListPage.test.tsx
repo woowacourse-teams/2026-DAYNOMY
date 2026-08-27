@@ -56,7 +56,7 @@ describe('관심 종목 화면', () => {
     await waitFor(() => expect(localStorage.getItem('daynomy:stock-bookmarks')).toBe('[]'));
   });
 
-  it('종목 API 실패 시 대체 데이터임을 안내한다', async () => {
+  it('종목 API 실패 시 오류 상태와 대체 데이터를 안내한다', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.stubGlobal(
       'fetch',
@@ -65,7 +65,10 @@ describe('관심 종목 화면', () => {
 
     const view = renderStocks();
 
-    expect(await view.findByText('임시 종목 데이터가 표시되고 있습니다.')).toBeTruthy();
+    expect((await view.findByRole('status')).textContent).toContain(
+      '종목 목록을 불러오지 못했습니다.',
+    );
+    expect(view.getByText('mock')).toBeTruthy();
     expect(view.getByText('에코프로비엠')).toBeTruthy();
   });
 });

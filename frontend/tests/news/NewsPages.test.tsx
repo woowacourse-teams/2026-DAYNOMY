@@ -41,6 +41,7 @@ afterEach(() => {
 describe('뉴스 탐색 화면', () => {
   it('뉴스 목록을 표시하고 카테고리 변경을 API 요청에 반영한다', async () => {
     const calls: string[] = [];
+    vi.stubGlobal('scrollTo', vi.fn());
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -80,7 +81,7 @@ describe('뉴스 탐색 화면', () => {
 
     const view = renderPage(<NewsListPage />);
 
-    expect((await view.findByRole('alert')).textContent).toContain(
+    expect((await view.findByRole('status')).textContent).toContain(
       '뉴스 목록을 불러오지 못했습니다.',
     );
   });
@@ -108,6 +109,8 @@ describe('뉴스 탐색 화면', () => {
 
     expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
     expect(view.getByText('금리 동결이 금융시장에 미치는 영향입니다.')).toBeTruthy();
-    expect(view.getByRole('link', { name: '로그인하기' }).getAttribute('href')).toBe('/login');
+    expect(view.getByRole('link', { name: 'Google로 시작하기' }).getAttribute('href')).toBe(
+      '/api/auth/google',
+    );
   });
 });

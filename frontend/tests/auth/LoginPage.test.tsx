@@ -18,7 +18,7 @@ afterEach(cleanup);
 describe('로그인 화면', () => {
   it('Google 로그인 링크를 OAuth 엔드포인트에 연결한다', () => {
     const view = renderLogin();
-    const link = view.getByRole('link', { name: 'Google로 계속하기' });
+    const link = view.getByRole('link', { name: 'Google로 시작하기' });
 
     expect(link.getAttribute('href')).toBe('/api/auth/google');
   });
