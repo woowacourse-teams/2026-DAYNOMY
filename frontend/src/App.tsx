@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
 import MyPage from './features/pages/components/MyPage';
@@ -10,6 +10,8 @@ import SearchPage from './features/search/SearchPage';
 import { StockListPage } from './features/stocks/StockListPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
+import { Header } from './components/Header';
+import { useAuth } from './hooks/useLoginStatus';
 
 function AnalyticsTracker() {
   const location = useLocation();
@@ -19,11 +21,37 @@ function AnalyticsTracker() {
   return null;
 }
 
+function AppHeader() {
+  const location = useLocation();
+  const showHeader =
+    location.pathname === '/' ||
+    location.pathname.startsWith('/news') ||
+    location.pathname.startsWith('/stocks') ||
+    location.pathname.startsWith('/mypage');
+
+  return showHeader ? <Header /> : null;
+}
+
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { isLoggedIn, loading } = useAuth();
+
+  if (loading) {
+    return null;
+  }
+
+  if (!isLoggedIn) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <AnalyticsTracker />
+        <AppHeader />
         <Routes>
           <Route path="/" element={<NewsListPage />} />
           <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
@@ -32,7 +60,14 @@ export default function App() {
           <Route path="/stocks" element={<StockListPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<Navigate to="/login" replace />} />
-          <Route path="/mypage" element={<MyPage />} />
+          <Route
+            path="/mypage"
+            element={
+              <RequireAuth>
+                <MyPage />
+              </RequireAuth>
+            }
+          />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AuthProvider>

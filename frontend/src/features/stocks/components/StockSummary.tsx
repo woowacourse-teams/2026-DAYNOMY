@@ -19,7 +19,7 @@ export function StockSummary({
     <dl className="stock-summary" aria-label="종목 목록 요약">
       <div>
         <dt>기준일</dt>
-        <dd>{formatBaseDate(baseDate)}</dd>
+        <dd>기준일 {formatBaseDate(baseDate)}</dd>
       </div>
       <div>
         <dt>목록</dt>
