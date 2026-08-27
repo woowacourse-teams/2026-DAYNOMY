@@ -1,6 +1,6 @@
 import type { Category } from '../newslist/types';
 
-export type ImpactDirection = 'POSITIVE' | 'NEGATIVE';
+export type ImpactDirection = 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
 export type ImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type Asset =
   | 'GOLD'
