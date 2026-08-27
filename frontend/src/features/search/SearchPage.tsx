@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArticleCard } from '../news/newslist/components/ArticleCard';
 import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
 import { CATEGORY_LABELS } from '../news/newslist/types';
@@ -30,6 +31,7 @@ function SearchIcon() {
 }
 
 function SearchPage() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [searchedKeyword, setSearchedKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
@@ -103,7 +105,7 @@ function SearchPage() {
   };
 
   function selectArticle(article: NewsListItemResponse) {
-    window.location.assign(`/news/${article.id}`);
+    navigate(`/news/${article.id}`);
   }
 
   return (
