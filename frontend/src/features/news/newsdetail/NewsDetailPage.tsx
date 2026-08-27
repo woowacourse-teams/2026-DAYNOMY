@@ -239,10 +239,6 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAna
 }
 
 function AnalysisLockOverlay() {
-  function handleLogin() {
-    window.location.assign(getApiUrl('/api/auth/google'));
-  }
-
   return (
     <div className="analysis-lock-overlay" role="dialog" aria-modal="false">
       <h2>
@@ -258,10 +254,10 @@ function AnalysisLockOverlay() {
           <span aria-hidden="true">💜</span>내 관심종목에 생길 변화를 이어서 확인해요
         </li>
       </ul>
-      <button type="button" onClick={handleLogin}>
+      <a href={getApiUrl('/api/auth/google')}>
         <GoogleIcon />
         Google로 시작하기
-      </button>
+      </a>
     </div>
   );
 }
