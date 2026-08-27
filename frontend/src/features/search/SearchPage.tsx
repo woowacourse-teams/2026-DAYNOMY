@@ -156,7 +156,7 @@ function SearchPage() {
 
   return (
     <main className="search-page">
-      <div className="search-panel">
+      <div className={stocks.length > 0 ? 'search-panel has-stocks' : 'search-panel'}>
         {searchedKeyword ? (
           <>
             <span className="sr-only" role="status">

@@ -16,7 +16,10 @@ function SearchIcon() {
 export function Header() {
   const isLoggedIn = useLoginStatus();
   const location = useLocation();
-  const isNewsPage = location.pathname === '/' || location.pathname.startsWith('/news');
+  const isNewsPage =
+    location.pathname === '/' ||
+    location.pathname.startsWith('/news') ||
+    location.pathname.startsWith('/search');
   const isStockPage = location.pathname.startsWith('/stocks');
 
   useEffect(() => {
