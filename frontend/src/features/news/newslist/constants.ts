@@ -3,10 +3,16 @@ import type { NewsCategoryOption, NewsListItem } from './types';
 
 export const NEWS_CATEGORIES: NewsCategoryOption[] = [
   { label: '전체', value: 'ALL' },
-  ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
-    label,
-    value: value as keyof typeof CATEGORY_LABELS,
-  })),
+  { label: CATEGORY_LABELS.STOCK, value: 'STOCK' },
+  { label: CATEGORY_LABELS.REAL_ESTATE, value: 'REAL_ESTATE' },
+  { label: CATEGORY_LABELS.GOLD, value: 'GOLD' },
+  { label: CATEGORY_LABELS.BOND, value: 'BOND' },
+  { label: CATEGORY_LABELS.ECONOMY, value: 'ECONOMY' },
+  { label: CATEGORY_LABELS.DEPOSIT_SAVINGS, value: 'DEPOSIT_SAVINGS' },
+  { label: CATEGORY_LABELS.ETF, value: 'ETF' },
+  { label: CATEGORY_LABELS.PENSION, value: 'PENSION' },
+  { label: CATEGORY_LABELS.FOREIGN_EXCHANGE, value: 'FOREIGN_EXCHANGE' },
+  { label: CATEGORY_LABELS.VIRTUAL_ASSET, value: 'VIRTUAL_ASSET' },
 ];
 
 const emptyTodayNews: NewsListItem = {
