@@ -12,7 +12,7 @@
     "format:check": "prettier . --check",
     "test": "npm run test:unit && npm run test:ui",
     "test:unit": "node --import tsx --test \"tests/**/*.test.ts\"",
-    "test:ui": "vitest run tests/search/SearchPage.test.tsx",
+    "test:ui": "vitest run --exclude 'tests/**/*.test.ts'",
     "preview": "vite preview"
   },
   "dependencies": {
