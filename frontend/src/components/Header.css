@@ -13,27 +13,22 @@
   flex: 0 0 64px;
 }
 
-.stock-page > .daynomy-header {
-  width: calc(100% + 128px);
-  margin-left: -64px;
-}
-
 .daynomy-header .brand {
   position: absolute;
   left: 64px;
-  top: 24px;
+  top: 19.5px;
   display: inline-flex;
   align-items: center;
-  width: 119px;
-  height: 16px;
+  width: 122px;
+  height: 25px;
   color: #08162e;
   text-decoration: none;
 }
 
 .daynomy-header .brand-logo {
   display: block;
-  width: 119px;
-  height: 16px;
+  width: 122px;
+  height: 25px;
   object-fit: contain;
 }
 
