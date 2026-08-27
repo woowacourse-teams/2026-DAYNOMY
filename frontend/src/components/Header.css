@@ -77,16 +77,19 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: 40px;
+  width: 260px;
   height: 40px;
-  padding: 0;
+  gap: 8px;
+  padding: 0 14px;
   border: 1px solid #d9d6f5;
   border-radius: 999px;
   color: #5141c9;
   background: #fff;
   font-size: 14px;
   font-weight: 800;
+  font-family: inherit;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .daynomy-header .search-link svg {
@@ -100,6 +103,27 @@
 
 .daynomy-header .search-link:hover {
   background: #f5f3ff;
+}
+
+.daynomy-header .search-link kbd {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 7px;
+  color: #5141c9;
+  background: #eeecff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  place-items: center;
+}
+
+.daynomy-header .search-link span {
+  color: #777b87;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .daynomy-header .search-link:focus-visible,
@@ -122,6 +146,18 @@
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .daynomy-header .search-link {
+    width: 40px;
+    padding: 0;
+  }
+
+  .daynomy-header .search-link kbd,
+  .daynomy-header .search-link span {
+    display: none;
+  }
 }
 
 @media (max-width: 520px) {
@@ -177,10 +213,6 @@
     height: 28px;
     padding: 0;
     font-size: 12px;
-  }
-
-  .daynomy-header .search-link {
-    display: none;
   }
 
   .daynomy-header .login-button {

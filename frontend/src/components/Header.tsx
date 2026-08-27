@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { trackEvent } from '../analytics';
+import { SearchOverlay } from '../features/search/components/SearchOverlay';
 import { useLoginStatus } from '../hooks/useLoginStatus';
 import './Header.css';
 
@@ -17,6 +18,8 @@ export function Header() {
   const isLoggedIn = useLoginStatus();
   const location = useLocation();
   const isStockPage = location.pathname.startsWith('/stocks');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -26,6 +29,28 @@ export function Header() {
       }
     }
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    function openSearch(event: KeyboardEvent) {
+      const target = event.target;
+      const isEditing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || isEditing) return;
+
+      event.preventDefault();
+      setSearchOpen(true);
+    }
+
+    document.addEventListener('keydown', openSearch);
+    return () => document.removeEventListener('keydown', openSearch);
+  }, []);
+
+  function closeSearch() {
+    setSearchOpen(false);
+    searchButtonRef.current?.focus();
+  }
 
   return (
     <header className="daynomy-header">
@@ -42,9 +67,19 @@ export function Header() {
         </a>
       </nav>
       <div className="header-actions">
-        <a className="search-link" href="/search" aria-label="뉴스 검색">
+        <button
+          ref={searchButtonRef}
+          type="button"
+          className="search-link"
+          aria-label="검색 열기"
+          aria-haspopup="dialog"
+          aria-expanded={searchOpen}
+          onClick={() => setSearchOpen(true)}
+        >
           <SearchIcon />
-        </a>
+          <kbd>/</kbd>
+          <span>를 눌러 검색하세요</span>
+        </button>
         <a
           className="login-button"
           href={isLoggedIn ? '/mypage' : '/login'}
@@ -55,6 +90,7 @@ export function Header() {
           {isLoggedIn ? '마이페이지' : '로그인'}
         </a>
       </div>
+      <SearchOverlay open={searchOpen} onClose={closeSearch} />
     </header>
   );
 }

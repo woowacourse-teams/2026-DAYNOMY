@@ -1,0 +1,152 @@
+.search-overlay {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow-y: auto;
+  background: transparent;
+}
+
+.search-overlay::backdrop {
+  background: rgb(17 19 24 / 52%);
+}
+
+.search-overlay-content {
+  width: min(720px, calc(100% - 40px));
+  margin: 180px auto 48px;
+  color: #202026;
+  font-family:
+    Pretendard,
+    'Noto Sans KR',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+.search-overlay-close {
+  position: fixed;
+  top: 88px;
+  right: 64px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  color: #fff;
+  background: transparent;
+  font:
+    300 44px/1 system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+
+.search-overlay-form {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 72px;
+  padding: 0 28px;
+  border: 2px solid #5141c9;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.search-overlay-form:focus-within {
+  box-shadow: 0 0 0 4px rgb(81 65 201 / 18%);
+}
+
+.search-overlay-form svg {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: #9299aa;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
+.search-overlay-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.search-overlay-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #202026;
+  background: transparent;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.search-overlay-form input::placeholder {
+  color: #9299aa;
+}
+
+.recent-searches {
+  min-height: 260px;
+  margin-top: 34px;
+  padding: 38px 30px;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.recent-searches h2 {
+  margin: 0;
+  color: #6f7788;
+  font-size: 15px;
+}
+
+.recent-searches p {
+  margin: 72px 0 0;
+  color: #9299aa;
+  font-size: 15px;
+  text-align: center;
+}
+
+.search-overlay-close:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .search-overlay-content {
+    width: calc(100% - 28px);
+    margin-top: 112px;
+  }
+
+  .search-overlay-close {
+    top: 28px;
+    right: 18px;
+  }
+
+  .search-overlay-form {
+    height: 58px;
+    padding: 0 20px;
+  }
+
+  .search-overlay-form input {
+    font-size: 16px;
+  }
+
+  .recent-searches {
+    min-height: 220px;
+    margin-top: 20px;
+    padding: 28px 22px;
+  }
+}
