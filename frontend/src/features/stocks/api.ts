@@ -4,6 +4,7 @@ type StockCandidateApiResponse = {
   rank: number;
   code: string;
   name: string;
+  rankChange?: number | null;
 };
 
 type StockCandidatesApiResponse = {
@@ -16,6 +17,7 @@ function normalizeStockCandidate(item: StockCandidateApiResponse): StockCandidat
     rank: item.rank,
     code: item.code,
     name: item.name,
+    rankChange: item.rankChange ?? null,
   };
 }
 
