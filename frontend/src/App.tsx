@@ -10,6 +10,7 @@ import SearchPage from './features/search/SearchPage';
 import { StockListPage } from './features/stocks/StockListPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
+import { Header } from './components/Header';
 import { useAuth } from './hooks/useLoginStatus';
 
 function AnalyticsTracker() {
@@ -18,6 +19,17 @@ function AnalyticsTracker() {
     trackPageView(`${location.pathname}${location.search}`);
   }, [location.pathname, location.search]);
   return null;
+}
+
+function AppHeader() {
+  const location = useLocation();
+  const showHeader =
+    location.pathname === '/' ||
+    location.pathname.startsWith('/news') ||
+    location.pathname.startsWith('/stocks') ||
+    location.pathname.startsWith('/mypage');
+
+  return showHeader ? <Header /> : null;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -39,6 +51,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <AnalyticsTracker />
+        <AppHeader />
         <Routes>
           <Route path="/" element={<NewsListPage />} />
           <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />

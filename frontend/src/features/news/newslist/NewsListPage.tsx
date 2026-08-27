@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '../../../components/Header';
 import { getNews, getTodayNews } from './api';
 import { ArticleCard } from './components/ArticleCard';
 import { CategoryTabs } from './components/CategoryTabs';
@@ -128,8 +127,6 @@ export function NewsListPage() {
 
   return (
     <main className="news-home">
-      <Header />
-
       <div className="news-title-row">
         <h1>오늘의 뉴스</h1>
       </div>

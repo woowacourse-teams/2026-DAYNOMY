@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '../../../components/Header.tsx';
 import defaultNewsImage from '../../../assets/default-news-real-estate.png';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
@@ -288,7 +287,6 @@ export function NewsDetailPage() {
   if (error) {
     return (
       <main className="news-page">
-        <Header />
         <p className="loading">{error}</p>
       </main>
     );
@@ -297,7 +295,6 @@ export function NewsDetailPage() {
   if (!payload) {
     return (
       <main className="news-page">
-        <Header />
         <p className="loading">뉴스를 불러오는 중입니다.</p>
       </main>
     );
@@ -308,8 +305,6 @@ export function NewsDetailPage() {
 
   return (
     <main className="news-page">
-      <Header />
-
       <article className="news-detail">
         <button
           className="detail-close-button"
