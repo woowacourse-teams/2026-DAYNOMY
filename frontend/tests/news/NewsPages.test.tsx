@@ -108,6 +108,7 @@ describe('뉴스 탐색 화면', () => {
     const view = renderPage(<NewsDetailPage />);
 
     expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
+    expect(view.getByText(article.description)).toBeTruthy();
     expect(view.getByText('금리 동결이 금융시장에 미치는 영향입니다.')).toBeTruthy();
     expect(view.getByRole('link', { name: 'Google로 시작하기' }).getAttribute('href')).toBe(
       '/api/auth/google',

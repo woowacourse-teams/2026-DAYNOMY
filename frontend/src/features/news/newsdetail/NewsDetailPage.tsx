@@ -327,9 +327,7 @@ export function NewsDetailPage() {
           </h2>
           <div className="summary">
             <ul>
-              <li>원·달러 환율이 최근 다시 오름세를 보이고 있어요</li>
-              <li>환율 상승으로 에너지와 원자재 수입 가격 부담이 커지고 있어요</li>
-              <li>수입 비용이 늘면서 관련 업종의 비용 부담도 함께 주목되고 있어요</li>
+              {news.description ? <li>{news.description}</li> : null}
             </ul>
           </div>
         </section>
