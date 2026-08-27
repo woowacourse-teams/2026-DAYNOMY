@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.exception.KeywordErrorCode;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
@@ -41,7 +42,8 @@ class KeywordServiceTest {
     News news = createNews();
     List<NewsKeyword> keywords =
         List.of(
-            new NewsKeyword("금리 인하", "대출 수요 회복과 연결됨"), new NewsKeyword("부동산 규제", "거래량 회복 기대와 연결됨"));
+            new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "대출 수요 회복과 연결됨"),
+            new NewsKeyword(KeywordCategory.POLICY, "부동산 규제", "거래량 회복 기대와 연결됨"));
 
     keywordService.saveKeywords(news, keywords);
 
@@ -54,6 +56,7 @@ class KeywordServiceTest {
 
                   assertThat(savedKeywords).hasSize(2);
                   assertThat(savedKeywords.get(0).getNews()).isSameAs(news);
+                  assertThat(savedKeywords.get(0).getCategory()).isEqualTo(KeywordCategory.POLICY);
                   assertThat(savedKeywords.get(0).getKeyword()).isEqualTo("금리 인하");
                   assertThat(savedKeywords.get(0).getDescription()).isEqualTo("대출 수요 회복과 연결됨");
                   assertThat(savedKeywords.get(1).getKeyword()).isEqualTo("부동산 규제");
@@ -69,12 +72,13 @@ class KeywordServiceTest {
     given(newsKeywordRepository.findByNewsIdOrderByIdAsc(1L))
         .willReturn(
             List.of(
-                new NewsKeyword(news, "금리 인하", "대출 수요 회복과 연결됨"),
-                new NewsKeyword(news, "부동산 규제", "거래량 회복 기대와 연결됨")));
+                new NewsKeyword(news, KeywordCategory.POLICY, "금리 인하", "대출 수요 회복과 연결됨"),
+                new NewsKeyword(news, KeywordCategory.POLICY, "부동산 규제", "거래량 회복 기대와 연결됨")));
 
     var response = keywordService.getKeywords(1L);
 
     assertThat(response.keywords()).hasSize(2);
+    assertThat(response.keywords().get(0).category()).isEqualTo(KeywordCategory.POLICY);
     assertThat(response.keywords().get(0).keyword()).isEqualTo("금리 인하");
     assertThat(response.keywords().get(0).description()).isEqualTo("대출 수요 회복과 연결됨");
     verify(newsKeywordRepository).findByNewsIdOrderByIdAsc(1L);

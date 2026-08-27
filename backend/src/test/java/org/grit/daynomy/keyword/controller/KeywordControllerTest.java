@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
@@ -50,14 +51,17 @@ class KeywordControllerTest {
   @DisplayName("뉴스 키워드 조회 API는 뉴스에 연결된 키워드 목록을 반환한다")
   void findNewsKeywordsReturnsKeywords() throws Exception {
     News news = newsRepository.save(createNews());
-    newsKeywordRepository.save(new NewsKeyword(news, "금리 인하", "대출 수요 회복과 연결됨"));
-    newsKeywordRepository.save(new NewsKeyword(news, "부동산 규제", "거래량 회복 기대와 연결됨"));
+    newsKeywordRepository.save(
+        new NewsKeyword(news, KeywordCategory.POLICY, "금리 인하", "대출 수요 회복과 연결됨"));
+    newsKeywordRepository.save(
+        new NewsKeyword(news, KeywordCategory.POLICY, "부동산 규제", "거래량 회복 기대와 연결됨"));
 
     HttpResponse<String> response = get("/api/news/" + news.getId() + "/keywords");
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
     assertThat(body.at("/keywords")).hasSize(2);
+    assertThat(body.at("/keywords/0/category").asText()).isEqualTo("POLICY");
     assertThat(body.at("/keywords/0/keyword").asText()).isEqualTo("금리 인하");
     assertThat(body.at("/keywords/0/description").asText()).isEqualTo("대출 수요 회복과 연결됨");
   }

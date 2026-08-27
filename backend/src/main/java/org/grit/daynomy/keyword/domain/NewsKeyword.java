@@ -2,6 +2,8 @@ package org.grit.daynomy.keyword.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -27,19 +29,25 @@ public class NewsKeyword extends BaseEntity {
   @JoinColumn(name = "news_id", nullable = false)
   private News news;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "category", nullable = false)
+  private KeywordCategory category;
+
   @Column(name = "keyword", nullable = false)
   private String keyword;
 
   @Column(name = "description", columnDefinition = "TEXT")
   private String description;
 
-  public NewsKeyword(String keyword, String description) {
+  public NewsKeyword(KeywordCategory category, String keyword, String description) {
+    this.category = category;
     this.keyword = keyword;
     this.description = description;
   }
 
-  public NewsKeyword(News news, String keyword, String description) {
+  public NewsKeyword(News news, KeywordCategory category, String keyword, String description) {
     this.news = news;
+    this.category = category;
     this.keyword = keyword;
     this.description = description;
   }

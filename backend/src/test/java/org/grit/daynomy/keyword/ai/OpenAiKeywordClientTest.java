@@ -2,12 +2,14 @@ package org.grit.daynomy.keyword.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -31,12 +33,24 @@ class OpenAiKeywordClientTest {
         .andExpect(method(HttpMethod.POST))
         .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-api-key"))
         .andExpect(jsonPath("$.model").value("gpt-test"))
+        .andExpect(jsonPath("$.input[0].content").value(containsString(KeywordCategory.DEFINITION)))
         .andExpect(jsonPath("$.input[1].content").value("뉴스 본문입니다."))
+        .andExpect(
+            jsonPath("$.text.format.schema.properties.keywords.items.properties.category.type")
+                .value("string"))
+        .andExpect(
+            jsonPath("$.text.format.schema.properties.keywords.items.properties.category.enum[0]")
+                .value("PERSON"))
+        .andExpect(
+            jsonPath(
+                    "$.text.format.schema.properties.keywords.items.properties.category.description")
+                .value(KeywordCategory.DEFINITION))
         .andRespond(withSuccess(createResponse(), MediaType.APPLICATION_JSON));
 
     var keywords = client.extractKeywords("뉴스 본문입니다.");
 
     assertThat(keywords).hasSize(2);
+    assertThat(keywords.get(0).getCategory()).isEqualTo(KeywordCategory.POLICY);
     assertThat(keywords.get(0).getKeyword()).isEqualTo("금리 인하");
     assertThat(keywords.get(0).getDescription()).isEqualTo("대출 수요 회복과 연결됨");
     assertThat(keywords.get(1).getKeyword()).isEqualTo("부동산 규제");
@@ -63,7 +77,7 @@ class OpenAiKeywordClientTest {
               "content": [
                 {
                   "type": "output_text",
-                  "text": "{\\"keywords\\":[{\\"keyword\\":\\"금리 인하\\",\\"description\\":\\"대출 수요 회복과 연결됨\\"},{\\"keyword\\":\\"부동산 규제\\",\\"description\\":\\"거래량 회복 기대와 연결됨\\"}]}"
+                  "text": "{\\"keywords\\":[{\\"category\\":\\"POLICY\\",\\"keyword\\":\\"금리 인하\\",\\"description\\":\\"대출 수요 회복과 연결됨\\"},{\\"category\\":\\"POLICY\\",\\"keyword\\":\\"부동산 규제\\",\\"description\\":\\"거래량 회복 기대와 연결됨\\"}]}"
                 }
               ]
             }
