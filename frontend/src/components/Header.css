@@ -75,7 +75,7 @@
 .daynomy-header .search-link {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   box-sizing: border-box;
   width: 260px;
   height: 40px;
@@ -99,10 +99,6 @@
   stroke: currentColor;
   stroke-linecap: round;
   stroke-width: 1.8;
-}
-
-.daynomy-header .search-link:hover {
-  background: #f5f3ff;
 }
 
 .daynomy-header .search-link kbd {
@@ -150,6 +146,7 @@
 
 @media (max-width: 900px) {
   .daynomy-header .search-link {
+    justify-content: center;
     width: 40px;
     padding: 0;
   }
