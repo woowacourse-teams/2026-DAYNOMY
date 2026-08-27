@@ -19,6 +19,7 @@ function normalizeNewsListItem(item: NewsListItemResponse): NewsListItemResponse
     category: item.category,
     imageUrl: item.imageUrl,
     publishedAt: item.publishedAt,
+    source: item.source,
   };
 }
 
