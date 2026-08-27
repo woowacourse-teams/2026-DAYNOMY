@@ -18,20 +18,28 @@ public class AssetCandidateService {
   private final AssetRankingHistoryRepository assetRankingHistoryRepository;
 
   @Transactional(readOnly = true)
-  public AssetCandidatesResponse getKosdaqTopRankings(int page, int size) {
+  public AssetCandidatesResponse getKosdaqTopRankings(String keyword, int page, int size) {
     return assetRankingHistoryRepository
         .findFirstByOrderByRankedDateDesc()
         .map(AssetRankingHistory::getRankedDate)
-        .map(rankedDate -> getRankingsByDate(rankedDate, page, size))
+        .map(rankedDate -> getRankingsByDate(rankedDate, keyword, page, size))
         .orElseGet(() -> AssetCandidatesResponse.empty(page, size));
   }
 
-  private AssetCandidatesResponse getRankingsByDate(LocalDate rankedDate, int page, int size) {
+  private AssetCandidatesResponse getRankingsByDate(
+      LocalDate rankedDate, String keyword, int page, int size) {
     PageRequest pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.ASC, "ranking"));
+    var rankings =
+        keyword == null
+            ? assetRankingHistoryRepository.findAllByRankedDate(rankedDate, pageable)
+            : assetRankingHistoryRepository.searchByRankedDateAndKeyword(
+                rankedDate, escapeLikeKeyword(keyword.strip()), pageable);
+
     return AssetCandidatesResponse.from(
-        rankedDate.toString(),
-        assetRankingHistoryRepository
-            .findAllByRankedDate(rankedDate, pageable)
-            .map(AssetCandidateResponse::from));
+        rankedDate.toString(), rankings.map(AssetCandidateResponse::from));
+  }
+
+  private String escapeLikeKeyword(String keyword) {
+    return keyword.replace("!", "!!").replace("%", "!%").replace("_", "!_");
   }
 }

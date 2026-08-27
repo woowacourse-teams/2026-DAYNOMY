@@ -40,7 +40,7 @@ class AssetCandidateServiceTest {
     given(assetRankingHistoryRepository.findAllByRankedDate(latestDate, pageable))
         .willReturn(new PageImpl<>(List.of(firstRanking), pageable, 2));
 
-    AssetCandidatesResponse response = assetCandidateService.getKosdaqTopRankings(1, 1);
+    AssetCandidatesResponse response = assetCandidateService.getKosdaqTopRankings(null, 1, 1);
 
     assertThat(response.baseDate()).isEqualTo("2026-08-21");
     assertThat(response.rankings()).hasSize(1);
@@ -60,7 +60,7 @@ class AssetCandidateServiceTest {
     given(assetRankingHistoryRepository.findFirstByOrderByRankedDateDesc())
         .willReturn(Optional.empty());
 
-    AssetCandidatesResponse response = assetCandidateService.getKosdaqTopRankings(1, 20);
+    AssetCandidatesResponse response = assetCandidateService.getKosdaqTopRankings(null, 1, 20);
 
     assertThat(response.baseDate()).isNull();
     assertThat(response.rankings()).isEmpty();

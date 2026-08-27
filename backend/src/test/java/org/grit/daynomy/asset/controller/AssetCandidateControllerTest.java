@@ -43,7 +43,7 @@ class AssetCandidateControllerTest {
   @Test
   @DisplayName("코스닥 대표 종목 순위 조회는 기본 페이지 조건으로 서비스에 위임한다")
   void getKosdaqTopRankingsUsesDefaultPageCondition() throws Exception {
-    when(assetCandidateService.getKosdaqTopRankings(1, 20))
+    when(assetCandidateService.getKosdaqTopRankings(null, 1, 20))
         .thenReturn(
             new AssetCandidatesResponse(
                 "2026-08-21",
@@ -67,13 +67,13 @@ class AssetCandidateControllerTest {
         .andExpect(jsonPath("$.totalElements").value(150))
         .andExpect(jsonPath("$.hasNext").value(true));
 
-    verify(assetCandidateService).getKosdaqTopRankings(1, 20);
+    verify(assetCandidateService).getKosdaqTopRankings(null, 1, 20);
   }
 
   @Test
   @DisplayName("코스닥 대표 종목 순위 조회는 요청한 페이지 조건을 서비스에 전달한다")
   void getKosdaqTopRankingsUsesRequestedPageCondition() throws Exception {
-    when(assetCandidateService.getKosdaqTopRankings(2, 10))
+    when(assetCandidateService.getKosdaqTopRankings(null, 2, 10))
         .thenReturn(new AssetCandidatesResponse("2026-08-21", List.of(), 2, 10, 15, 150, true));
 
     mockMvc
@@ -82,7 +82,7 @@ class AssetCandidateControllerTest {
         .andExpect(jsonPath("$.page").value(2))
         .andExpect(jsonPath("$.size").value(10));
 
-    verify(assetCandidateService).getKosdaqTopRankings(2, 10);
+    verify(assetCandidateService).getKosdaqTopRankings(null, 2, 10);
   }
 
   @Test
