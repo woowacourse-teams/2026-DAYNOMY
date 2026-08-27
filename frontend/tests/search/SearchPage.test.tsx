@@ -17,6 +17,11 @@ const article = {
   category: 'ECONOMY',
   publishedAt: '2026-08-14T10:00:00',
 };
+const stock = {
+  rank: 1,
+  code: '005930',
+  name: '삼성전자',
+};
 
 type ResponseOptions = {
   content: (typeof article)[];
@@ -49,19 +54,28 @@ function response(
   };
 }
 
-function renderSearch(initialEntries = ['/search']) {
+type RenderSearchOptions = {
+  stocks?: (typeof stock)[];
+  stockStatus?: number;
+  isLoggedIn?: boolean;
+};
+
+function renderSearch(
+  initialEntries = ['/search'],
+  { stocks = [], stockStatus = 200, isLoggedIn = false }: RenderSearchOptions = {},
+) {
   globalThis.fetch = async () =>
     new Response(
       JSON.stringify({
         baseDate: '2026-08-21',
-        rankings: [],
+        rankings: stocks,
         page: 1,
         size: 100,
-        totalPages: 0,
-        totalElements: 0,
+        totalPages: stocks.length ? 1 : 0,
+        totalElements: stocks.length,
         hasNext: false,
       }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
+      { status: stockStatus, headers: { 'content-type': 'application/json' } },
     );
 
   const router = createMemoryRouter([{ path: '/search', element: <SearchPage /> }], {
@@ -71,15 +85,15 @@ function renderSearch(initialEntries = ['/search']) {
   return {
     router,
     ...render(
-      <AuthContext.Provider value={{ isLoggedIn: false, loading: false }}>
+      <AuthContext.Provider value={{ isLoggedIn, loading: false }}>
         <RouterProvider router={router} />
       </AuthContext.Provider>,
     ),
   };
 }
 
-function submitSearch(keyword: string) {
-  return renderSearch([`/search?q=${encodeURIComponent(keyword)}&category=ALL&page=1`]);
+function submitSearch(keyword: string, options?: RenderSearchOptions) {
+  return renderSearch([`/search?q=${encodeURIComponent(keyword)}&category=ALL&page=1`], options);
 }
 
 function getCurrentSearchParams(router: ReturnType<typeof createMemoryRouter>) {
@@ -92,6 +106,7 @@ afterEach(() => {
   cleanup();
   axios.defaults.adapter = originalAdapter;
   globalThis.fetch = originalFetch;
+  localStorage.clear();
 });
 
 describe('뉴스 검색 화면', () => {
@@ -105,15 +120,66 @@ describe('뉴스 검색 화면', () => {
     })) as HTMLAnchorElement;
 
     expect(link.getAttribute('href')).toBe('/news/1');
+    expect(view.queryByRole('region', { name: '검색된 종목 목록' })).toBeNull();
   });
 
-  it('검색 결과가 없으면 빈 결과를 표시한다', async () => {
+  it('뉴스와 종목 결과가 모두 없으면 빈 결과를 표시한다', async () => {
     axios.defaults.adapter = (async (config) =>
       response(config, { content: [] })) satisfies AxiosAdapter;
 
     const view = submitSearch('없는 뉴스');
 
     expect(await view.findByText('검색된 결과가 없습니다.')).toBeTruthy();
+  });
+
+  it('검색어와 일치하는 종목과 북마크를 표시한다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [] })) satisfies AxiosAdapter;
+
+    const view = submitSearch('삼성', { stocks: [stock], isLoggedIn: true });
+
+    expect(await view.findByRole('heading', { name: '삼성 검색 결과' })).toBeTruthy();
+    expect(view.getByText('삼성전자')).toBeTruthy();
+    expect(view.getByText('005930')).toBeTruthy();
+    expect(view.queryByText('검색된 결과가 없습니다.')).toBeNull();
+
+    const bookmark = view.getByRole('button', { name: '삼성전자 북마크 추가' });
+    fireEvent.click(bookmark);
+
+    await waitFor(() => expect(bookmark.getAttribute('aria-pressed')).toBe('true'));
+    expect(JSON.parse(localStorage.getItem('daynomy:stock-bookmarks') ?? '[]')).toEqual(['005930']);
+  });
+
+  it('여러 종목을 키보드로 탐색할 수 있는 가로 스크롤 영역에 표시한다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [] })) satisfies AxiosAdapter;
+    const stocks = Array.from({ length: 4 }, (_, index) => ({
+      rank: index + 1,
+      code: `00593${index}`,
+      name: `삼성종목${index + 1}`,
+    }));
+
+    const view = submitSearch('삼성', { stocks });
+    const region = await view.findByRole('region', { name: '검색된 종목 목록' });
+
+    expect(region.getAttribute('tabindex')).toBe('0');
+    expect(region.classList.contains('stock-search-scroll')).toBe(true);
+    expect(within(region).getAllByRole('listitem')).toHaveLength(4);
+  });
+
+  it('종목 검색이 실패해도 뉴스 결과를 표시한다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [article] })) satisfies AxiosAdapter;
+
+    const view = submitSearch('금리', { stockStatus: 500 });
+
+    expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();
+    await waitFor(() =>
+      expect(view.getByRole('status').textContent).toContain(
+        '종목 검색 결과를 불러오지 못했습니다.',
+      ),
+    );
+    expect(view.queryByRole('alert')).toBeNull();
   });
 
   it('오류 후 같은 검색 조건으로 다시 시도한다', async () => {
