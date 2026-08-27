@@ -1,5 +1,5 @@
 import { CATEGORY_LABELS, getCategoryLabel } from './types';
-import type { NewsCategoryOption, NewsListItemResponse } from './types';
+import type { NewsCategoryOption, NewsListItem } from './types';
 
 export const NEWS_CATEGORIES: NewsCategoryOption[] = [
   { label: '전체', value: 'ALL' },
@@ -9,13 +9,13 @@ export const NEWS_CATEGORIES: NewsCategoryOption[] = [
   })),
 ];
 
-const emptyTodayNews: NewsListItemResponse = {
-  id: '',
+const emptyTodayNews: NewsListItem = {
+  id: 0,
   title: '오늘의 뉴스가 없습니다',
   description: '오늘 발행된 뉴스가 있으면 이 영역에 표시됩니다.',
   category: 'ALL',
-  publishedAt: '',
-  source: '',
+  imageUrl: null,
+  publishedAt: null,
 };
 
 export function getEmptyTodayNews() {
