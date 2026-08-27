@@ -14,6 +14,7 @@ import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.NewsSource;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
@@ -41,7 +42,14 @@ public class OpenAiNewsGenerator {
 
   public OpenAiNewsGenerator(OpenAiProperties openAiProperties) {
     this.openAiProperties = openAiProperties;
-    this.restClient = RestClient.create(openAiProperties.baseUrl());
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(toMillis(openAiProperties.connectTimeout()));
+    requestFactory.setReadTimeout(toMillis(openAiProperties.readTimeout()));
+    this.restClient =
+        RestClient.builder()
+            .baseUrl(openAiProperties.baseUrl())
+            .requestFactory(requestFactory)
+            .build();
   }
 
   public GeneratedNews generate(NewsPrompt prompt) {
@@ -261,5 +269,9 @@ public class OpenAiNewsGenerator {
     }
 
     throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
+  }
+
+  private int toMillis(java.time.Duration timeout) {
+    return Math.toIntExact(timeout.toMillis());
   }
 }
