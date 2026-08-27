@@ -31,7 +31,7 @@ class OpenAiMarketAnalysisClientTest {
     MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
     OpenAiMarketAnalysisClient client =
         new OpenAiMarketAnalysisClient(
-            restClientBuilder, "https://api.openai.test", "test-api-key", "gpt-test");
+            restClientBuilder, "https://api.openai.test/v1", "test-api-key", "gpt-test");
     server
         .expect(requestTo("https://api.openai.test/v1/responses"))
         .andExpect(method(HttpMethod.POST))
@@ -74,7 +74,7 @@ class OpenAiMarketAnalysisClientTest {
     MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
     OpenAiMarketAnalysisClient client =
         new OpenAiMarketAnalysisClient(
-            restClientBuilder, "https://api.openai.test", "test-api-key", "gpt-test");
+            restClientBuilder, "https://api.openai.test/v1", "test-api-key", "gpt-test");
     server.expect(requestTo("https://api.openai.test/v1/responses")).andRespond(withServerError());
 
     assertThatThrownBy(() -> client.analyze("뉴스 본문입니다."))
@@ -89,7 +89,7 @@ class OpenAiMarketAnalysisClientTest {
     MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
     OpenAiMarketAnalysisClient client =
         new OpenAiMarketAnalysisClient(
-            restClientBuilder, "https://api.openai.test", "test-api-key", "gpt-test");
+            restClientBuilder, "https://api.openai.test/v1", "test-api-key", "gpt-test");
     server
         .expect(requestTo("https://api.openai.test/v1/responses"))
         .andRespond(withSuccess(createMalformedResponse(), MediaType.APPLICATION_JSON));

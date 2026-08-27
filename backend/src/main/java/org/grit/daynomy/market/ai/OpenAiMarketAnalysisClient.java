@@ -56,7 +56,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     String response =
         restClient
             .post()
-            .uri("/v1/responses")
+            .uri("/responses")
             .contentType(MediaType.APPLICATION_JSON)
             .headers(headers -> headers.setBearerAuth(apiKey))
             .body(createRequest(newsContent))

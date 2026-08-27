@@ -27,7 +27,7 @@ class OpenAiKeywordClientTest {
     MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
     OpenAiKeywordClient client =
         new OpenAiKeywordClient(
-            restClientBuilder, "https://api.openai.test", "test-api-key", "gpt-test");
+            restClientBuilder, "https://api.openai.test/v1", "test-api-key", "gpt-test");
     server
         .expect(requestTo("https://api.openai.test/v1/responses"))
         .andExpect(method(HttpMethod.POST))
