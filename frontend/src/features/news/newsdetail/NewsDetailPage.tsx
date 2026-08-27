@@ -26,6 +26,14 @@ function getContentParagraphs(content: string | string[]) {
   return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
 }
 
+function getSummaryItems(description: string | null) {
+  return (description ?? '')
+    .split(/\r?\n|(?<=[.!?。！？])\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
 function formatDetailDate(value?: string) {
   if (!value) {
     return '';
@@ -327,7 +335,9 @@ export function NewsDetailPage() {
           </h2>
           <div className="summary">
             <ul>
-              {news.description ? <li>{news.description}</li> : null}
+              {getSummaryItems(news.description).map((item, index) => (
+                <li key={`${item}-${index}`}>{item}</li>
+              ))}
             </ul>
           </div>
         </section>

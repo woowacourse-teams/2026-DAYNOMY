@@ -11,7 +11,8 @@ import { NewsListPage } from '../../src/features/news/newslist/NewsListPage';
 const article = {
   id: 7,
   title: '기준금리 동결 가능성 확대',
-  description: '기준금리가 유지되고 있습니다.',
+  description:
+    '기준금리가 유지되고 있습니다. 채권 시장의 관망세가 이어지고 있습니다. 추가 지표를 확인해야 합니다.',
   category: 'ECONOMY',
   imageUrl: null,
   publishedAt: '2026-08-27T10:00:00Z',
@@ -108,7 +109,9 @@ describe('뉴스 탐색 화면', () => {
     const view = renderPage(<NewsDetailPage />);
 
     expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
-    expect(view.getByText(article.description)).toBeTruthy();
+    expect(view.getByText('기준금리가 유지되고 있습니다.')).toBeTruthy();
+    expect(view.getByText('채권 시장의 관망세가 이어지고 있습니다.')).toBeTruthy();
+    expect(view.getByText('추가 지표를 확인해야 합니다.')).toBeTruthy();
     expect(view.getByText('금리 동결이 금융시장에 미치는 영향입니다.')).toBeTruthy();
     expect(view.getByRole('link', { name: 'Google로 시작하기' }).getAttribute('href')).toBe(
       '/api/auth/google',

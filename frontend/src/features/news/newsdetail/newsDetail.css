@@ -111,29 +111,29 @@ body {
 }
 
 .summary-section {
-  margin-top: 21px;
+  margin-top: 36px;
 }
 
 .summary-section h2 {
-  margin-bottom: 36px;
+  margin-bottom: 21px;
 }
 
 .summary {
-  min-height: 142px;
-  padding: 25px 28px;
+  min-height: auto;
+  padding: 36px 44px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 16px;
   background: #f7f5ff;
   color: #374151;
   font-size: 15px;
   font-weight: 800;
-  line-height: 29px;
+  line-height: 32px;
 }
 
 .summary ul {
   margin: 0;
-  padding-left: 0;
-  list-style-position: inside;
+  padding-left: 17px;
+  list-style-position: outside;
 }
 
 .body-section {
@@ -913,6 +913,8 @@ body {
   .summary {
     min-height: auto;
     padding: 22px;
+    font-size: 15px;
+    line-height: 32px;
   }
 
   .locked-market {
