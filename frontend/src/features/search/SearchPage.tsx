@@ -1,25 +1,36 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { ArticleCard } from '../news/newslist/components/ArticleCard';
 import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
-import { CATEGORY_LABELS } from '../news/newslist/types';
-import type {
-  NewsCategory,
-  NewsCategoryOption,
-  NewsListItemResponse,
-} from '../news/newslist/types';
+import { NEWS_CATEGORIES } from '../news/newslist/constants';
+import { isCategory } from '../news/newslist/types';
+import type { NewsCategory, NewsListItem } from '../news/newslist/types';
 import { searchNews } from './api';
 import './SearchPage.css';
 import { trackEvent } from '../../analytics';
 
 const PAGE_SIZE = 10;
-const SEARCH_CATEGORIES: NewsCategoryOption[] = [
-  { label: '전체', value: 'ALL' },
-  ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
-    label,
-    value: value as keyof typeof CATEGORY_LABELS,
-  })),
-];
+const MAX_VISIBLE_PAGES = 5;
+
+function getCategory(searchParams: URLSearchParams): NewsCategory {
+  const category = searchParams.get('category');
+  return category === 'ALL' || isCategory(category) ? category : 'ALL';
+}
+
+function getPage(searchParams: URLSearchParams) {
+  const page = Number(searchParams.get('page'));
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+function getVisiblePages(currentPage: number, totalPages: number) {
+  const pageCount = Math.min(MAX_VISIBLE_PAGES, totalPages);
+  const startPage = Math.min(
+    Math.max(currentPage - Math.floor(pageCount / 2), 1),
+    totalPages - pageCount + 1,
+  );
+
+  return Array.from({ length: pageCount }, (_, index) => startPage + index);
+}
 
 function SearchIcon() {
   return (
@@ -31,16 +42,21 @@ function SearchIcon() {
 }
 
 function SearchPage() {
-  const navigate = useNavigate();
-  const [query, setQuery] = useState('');
-  const [searchedKeyword, setSearchedKeyword] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
-  const [results, setResults] = useState<NewsListItemResponse[]>([]);
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchedKeyword = searchParams.get('q')?.trim() ?? '';
+  const selectedCategory = getCategory(searchParams);
+  const page = getPage(searchParams);
+  const [query, setQuery] = useState(searchedKeyword);
+  const [results, setResults] = useState<NewsListItem[]>([]);
   const [totalResults, setTotalResults] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchAttempt, setSearchAttempt] = useState(0);
+
+  useEffect(() => {
+    setQuery(searchedKeyword);
+  }, [searchedKeyword]);
 
   useEffect(() => {
     if (!searchedKeyword) return;
@@ -55,6 +71,18 @@ function SearchPage() {
         const newsPage = await searchNews(searchedKeyword, selectedCategory, page, PAGE_SIZE);
 
         if (!ignore) {
+          if (newsPage.totalPages > 0 && page > newsPage.totalPages) {
+            setSearchParams(
+              {
+                q: searchedKeyword,
+                category: selectedCategory,
+                page: String(newsPage.totalPages),
+              },
+              { replace: true },
+            );
+            return;
+          }
+
           setResults(newsPage.content);
           setTotalResults(newsPage.totalElements);
           setTotalPages(newsPage.totalPages);
@@ -81,7 +109,7 @@ function SearchPage() {
     return () => {
       ignore = true;
     };
-  }, [searchedKeyword, selectedCategory, page]);
+  }, [searchedKeyword, selectedCategory, page, searchAttempt, setSearchParams]);
 
   function search() {
     const keyword = query.trim();
@@ -89,24 +117,25 @@ function SearchPage() {
     if (!keyword) return;
 
     setQuery(keyword);
-    setSearchedKeyword(keyword);
-    setPage(1);
+    setSearchParams({ q: keyword, category: selectedCategory, page: '1' });
+    setSearchAttempt((attempt) => attempt + 1);
     trackEvent('search_news', { search_length: keyword.length });
   }
 
   function changeCategory(category: NewsCategory) {
-    setSelectedCategory(category);
-    setPage(1);
+    setSearchParams({ q: searchedKeyword, category, page: '1' });
   }
 
   const changePage = (nextPage: number) => {
-    setPage(nextPage);
+    setSearchParams({
+      q: searchedKeyword,
+      category: selectedCategory,
+      page: String(nextPage),
+    });
     document.getElementById('news-results')?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  function selectArticle(article: NewsListItemResponse) {
-    navigate(`/news/${article.id}`);
-  }
+  const visiblePages = getVisiblePages(page, totalPages);
 
   return (
     <main className="search-page">
@@ -140,12 +169,16 @@ function SearchPage() {
               onChange={(event) => setQuery(event.target.value)}
               placeholder="검색어를 입력하세요"
               autoComplete="off"
+              required
+              maxLength={100}
+              pattern=".*[\p{L}\p{N}].*"
+              title="문자 또는 숫자를 포함한 100자 이하의 검색어를 입력해주세요."
             />
           </form>
         </div>
 
         <CategoryTabs
-          categories={SEARCH_CATEGORIES}
+          categories={NEWS_CATEGORIES}
           selectedCategory={selectedCategory}
           onChange={changeCategory}
         />
@@ -169,7 +202,7 @@ function SearchPage() {
               <>
                 <section className="article-list" aria-label="검색된 뉴스 목록">
                   {results.map((item) => (
-                    <ArticleCard article={item} key={item.id} onSelect={selectArticle} />
+                    <ArticleCard article={item} key={item.id} />
                   ))}
                 </section>
 
@@ -182,19 +215,17 @@ function SearchPage() {
                     >
                       이전
                     </button>
-                    {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-                      (pageNumber) => (
-                        <button
-                          type="button"
-                          className={page === pageNumber ? 'active' : ''}
-                          aria-current={page === pageNumber ? 'page' : undefined}
-                          onClick={() => changePage(pageNumber)}
-                          key={pageNumber}
-                        >
-                          {pageNumber}
-                        </button>
-                      ),
-                    )}
+                    {visiblePages.map((pageNumber) => (
+                      <button
+                        type="button"
+                        className={page === pageNumber ? 'active' : ''}
+                        aria-current={page === pageNumber ? 'page' : undefined}
+                        onClick={() => changePage(pageNumber)}
+                        key={pageNumber}
+                      >
+                        {pageNumber}
+                      </button>
+                    ))}
                     <button
                       type="button"
                       disabled={page === totalPages}

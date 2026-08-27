@@ -1,4 +1,4 @@
-export function formatDate(value?: string) {
+export function formatDate(value?: string | null) {
   if (!value) {
     return '방금 전';
   }

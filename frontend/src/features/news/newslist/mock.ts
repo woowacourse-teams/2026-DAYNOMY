@@ -4,7 +4,7 @@ import newsHomeCardImage2 from '../../../assets/news-home-card-2.jpg';
 import newsHomeCardImage3 from '../../../assets/news-home-card-3.jpg';
 import newsHomeCardImage4 from '../../../assets/news-home-card-4.jpg';
 import newsHomeCardImage5 from '../../../assets/news-home-card-5.jpg';
-import type { NewsCategory, NewsListItemResponse, NewsPage } from './types';
+import type { NewsCategory, NewsListItem, NewsPage } from './types';
 
 const cardImages = [
   newsHomeCardImage1,
@@ -16,7 +16,7 @@ const cardImages = [
 
 const PAGE_SIZE = 9;
 
-const firstPageArticles: NewsListItemResponse[] = [
+const firstPageArticles: NewsListItem[] = [
   {
     id: 'mock-foreign-exchange-1',
     title: '원·달러 환율 상승세, 수입 물가 부담 확대',
@@ -94,7 +94,7 @@ const firstPageArticles: NewsListItemResponse[] = [
   },
 ];
 
-const secondPageArticles: NewsListItemResponse[] = [
+const secondPageArticles: NewsListItem[] = [
   {
     id: 'mock-second-page-1',
     title: '미국 물가 지표 둔화, 금리 인하 기대 재점화',
@@ -139,7 +139,7 @@ const secondPageArticles: NewsListItemResponse[] = [
 
 const mockArticles = [...firstPageArticles, ...secondPageArticles];
 
-const depositSavingsArticles: NewsListItemResponse[] = [
+const depositSavingsArticles: NewsListItem[] = [
   {
     id: 'mock-deposit-savings-detail-1',
     title: '예금 금리 하락세, 단기 상품 관심 증가',
@@ -197,7 +197,7 @@ export function getMockNewsPage(category: NewsCategory, page = 1): NewsPage {
   };
 }
 
-export function getMockTodayNews(category: NewsCategory): NewsListItemResponse {
+export function getMockTodayNews(category: NewsCategory): NewsListItem {
   if (category === 'DEPOSIT_SAVINGS') {
     return {
       ...depositSavingsArticles[0],

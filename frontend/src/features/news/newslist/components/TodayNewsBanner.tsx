@@ -2,17 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent } from 'react';
 import defaultNewsImage from '../../../../assets/default-news-real-estate.png';
 import { getCategoryLabel } from '../constants';
-import type { NewsListItemResponse } from '../types';
+import type { NewsListItem } from '../types';
 import { formatDate } from '../utils';
 
 type TodayNewsBannerProps = {
-  articles: NewsListItemResponse[];
-  onSelect: (article: NewsListItemResponse) => void;
+  articles: NewsListItem[];
+  onSelect: (article: NewsListItem) => void;
 };
 
 const SWIPE_THRESHOLD = 48;
 
-function formatBannerDate(value?: string) {
+function formatBannerDate(value?: string | null) {
   if (!value) {
     return '';
   }
@@ -127,14 +127,15 @@ export function TodayNewsBanner({ articles, onSelect }: TodayNewsBannerProps) {
               <div className="banner-content">
                 <div className="article-meta">
                   <span>{getCategoryLabel(article.category)}</span>
-                  <time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time>
+                  <time dateTime={article.publishedAt ?? undefined}>
+                    {formatDate(article.publishedAt)}
+                  </time>
                 </div>
                 <h2>{article.title}</h2>
                 <p>{article.description}</p>
-                <time className="banner-date" dateTime={article.publishedAt}>
+                <time className="banner-date" dateTime={article.publishedAt ?? undefined}>
                   {formatBannerDate(article.publishedAt)}
                 </time>
-                {article.source ? <span className="article-source">{article.source}</span> : null}
               </div>
               <div className="banner-visual" aria-hidden="true">
                 <img src={article.imageUrl ?? defaultNewsImage} alt="" draggable={false} />

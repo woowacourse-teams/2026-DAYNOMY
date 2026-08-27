@@ -263,11 +263,17 @@
   border: 0;
   background: transparent;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
 .article-card:hover h2 {
   color: #4339c0;
+}
+
+.article-card:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .article-thumbnail {
@@ -334,10 +340,6 @@
   font-size: 14px;
   font-weight: 700;
   line-height: 20px;
-}
-
-.article-source {
-  display: none;
 }
 
 .sr-only {

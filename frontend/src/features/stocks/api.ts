@@ -13,12 +13,17 @@ type StockCandidatesApiResponse = {
 };
 
 function normalizeStockCandidate(item: StockCandidateApiResponse): StockCandidate {
-  return {
+  const stockCandidate: StockCandidate = {
     rank: item.rank,
     code: item.code,
     name: item.name,
-    rankChange: item.rankChange ?? null,
   };
+
+  if (item.rankChange != null) {
+    stockCandidate.rankChange = item.rankChange;
+  }
+
+  return stockCandidate;
 }
 
 function assertStockCandidatesResponse(data: StockCandidatesApiResponse) {
