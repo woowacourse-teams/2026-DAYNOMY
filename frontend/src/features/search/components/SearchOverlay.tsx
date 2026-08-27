@@ -7,6 +7,19 @@ type SearchOverlayProps = {
   onClose: () => void;
 };
 
+const RECENT_SEARCHES_KEY = 'daynomy:recent-searches';
+
+function loadRecentSearches() {
+  try {
+    const searches: unknown = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) ?? '[]');
+    return Array.isArray(searches)
+      ? searches.filter((search): search is string => typeof search === 'string').slice(0, 3)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function SearchIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -20,10 +33,28 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const navigate = useNavigate();
 
   function closeDialog() {
     dialogRef.current?.close();
+  }
+
+  function search(keyword: string) {
+    const nextRecentSearches = [
+      keyword,
+      ...recentSearches.filter((recentSearch) => recentSearch !== keyword),
+    ].slice(0, 3);
+
+    setRecentSearches(nextRecentSearches);
+    try {
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(nextRecentSearches));
+    } catch {
+      // 검색 이동은 브라우저 저장소 사용 가능 여부와 무관하게 동작한다.
+    }
+
+    navigate(`/search?${new URLSearchParams({ q: keyword, category: 'ALL', page: '1' })}`);
+    closeDialog();
   }
 
   useEffect(() => {
@@ -32,6 +63,7 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
 
     if (open && !dialog.open) {
       setQuery('');
+      setRecentSearches(loadRecentSearches());
       dialog.showModal();
       inputRef.current?.focus();
     } else if (!open && dialog.open) {
@@ -70,8 +102,7 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
             const keyword = query.trim();
             if (!keyword || keyword.length > 100 || !/[\p{L}\p{N}]/u.test(keyword)) return;
 
-            navigate(`/search?${new URLSearchParams({ q: keyword, category: 'ALL', page: '1' })}`);
-            closeDialog();
+            search(keyword);
           }}
         >
           <SearchIcon />
@@ -94,7 +125,21 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
 
         <section className="recent-searches" aria-labelledby="recent-searches-title">
           <h2 id="recent-searches-title">최근 검색</h2>
-          <p>최근 검색어가 없습니다.</p>
+          {recentSearches.length === 0 ? (
+            <p>최근 검색어가 없습니다.</p>
+          ) : (
+            <ul>
+              {recentSearches.map((recentSearch) => (
+                <li key={recentSearch}>
+                  <button type="button" onClick={() => search(recentSearch)}>
+                    <SearchIcon />
+                    <span>{recentSearch}</span>
+                    <span aria-hidden="true">›</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
     </dialog>

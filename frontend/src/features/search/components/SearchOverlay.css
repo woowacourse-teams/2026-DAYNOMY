@@ -118,6 +118,56 @@
   text-align: center;
 }
 
+.recent-searches ul {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-searches button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+  color: #202026;
+  background: transparent;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-searches button svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: #b6bfd0;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
+.recent-searches button span:last-child {
+  margin-left: auto;
+  color: #b6bfd0;
+  font-size: 28px;
+  font-weight: 300;
+}
+
+.recent-searches button:hover {
+  color: #5141c9;
+}
+
+.recent-searches button:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid #5141c9;
+  outline-offset: 2px;
+}
+
 .search-overlay-close:focus-visible {
   border-radius: 8px;
   outline: 2px solid #fff;
