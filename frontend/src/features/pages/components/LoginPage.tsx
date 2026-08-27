@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import '../LoginPage.css';
 import { getApiUrl } from '../api';
@@ -7,22 +7,11 @@ import { trackEvent } from '../../../analytics';
 function LoginPage() {
   const [searchParams] = useSearchParams();
   const oauthError = searchParams.get('error') === 'oauth';
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(() =>
-    oauthError ? 'Google 로그인에 실패했습니다.' : null,
-  );
+  const errorMessage = oauthError ? 'Google 로그인에 실패했습니다.' : null;
 
   useEffect(() => {
     if (oauthError) trackEvent('login_failure', { method: 'google', error_code: 'oauth' });
   }, [oauthError]);
-
-  const handleGoogleLogin = () => {
-    setErrorMessage(null);
-    trackEvent('click_login');
-
-    setIsLoading(true);
-    window.location.assign(getApiUrl('/api/auth/google'));
-  };
 
   return (
     <main className="login-page">
@@ -37,16 +26,14 @@ function LoginPage() {
           <p>Google 계정으로 간편하게 시작하세요.</p>
         </div>
 
-        <button
+        <a
           className="google-login-button"
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={isLoading}
-          aria-busy={isLoading}
+          href={getApiUrl('/api/auth/google')}
+          onClick={() => trackEvent('click_login')}
         >
           <span className="google-icon" aria-hidden="true" />
-          {isLoading ? '로그인 중...' : 'Google로 계속하기'}
-        </button>
+          Google로 계속하기
+        </a>
 
         <div className="login-message" aria-live="polite">
           {errorMessage && (

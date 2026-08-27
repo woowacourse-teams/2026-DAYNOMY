@@ -64,6 +64,7 @@
   background: var(--surface);
   font: inherit;
   font-weight: 800;
+  text-decoration: none;
   cursor: pointer;
   transition:
     border-color 150ms ease,
@@ -71,25 +72,19 @@
     transform 150ms ease;
 }
 
-.google-login-button:hover:not(:disabled) {
+.google-login-button:hover {
   border-color: var(--accent);
   background: #f5f3ff;
   transform: translateY(-1px);
 }
 
-.google-login-button:active:not(:disabled) {
+.google-login-button:active {
   transform: translateY(0);
 }
 
 .google-login-button:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
-}
-
-.google-login-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-  transform: none;
 }
 
 .google-icon {
