@@ -88,6 +88,7 @@
   font-size: 16px;
   font-weight: 800;
   line-height: 24px;
+  text-decoration: none;
   cursor: pointer;
   transition:
     border-color 150ms ease,
@@ -95,25 +96,19 @@
     transform 150ms ease;
 }
 
-.google-login-button:hover:not(:disabled) {
+.google-login-button:hover {
   border-color: #c8cfdb;
   background: #fafbfc;
   transform: translateY(-1px);
 }
 
-.google-login-button:active:not(:disabled) {
+.google-login-button:active {
   transform: translateY(0);
 }
 
 .google-login-button:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
-}
-
-.google-login-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-  transform: none;
 }
 
 .google-icon {
