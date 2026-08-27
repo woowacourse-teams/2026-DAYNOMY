@@ -71,6 +71,18 @@ function SearchPage() {
         const newsPage = await searchNews(searchedKeyword, selectedCategory, page, PAGE_SIZE);
 
         if (!ignore) {
+          if (newsPage.totalPages > 0 && page > newsPage.totalPages) {
+            setSearchParams(
+              {
+                q: searchedKeyword,
+                category: selectedCategory,
+                page: String(newsPage.totalPages),
+              },
+              { replace: true },
+            );
+            return;
+          }
+
           setResults(newsPage.content);
           setTotalResults(newsPage.totalElements);
           setTotalPages(newsPage.totalPages);
@@ -97,7 +109,7 @@ function SearchPage() {
     return () => {
       ignore = true;
     };
-  }, [searchedKeyword, selectedCategory, page, searchAttempt]);
+  }, [searchedKeyword, selectedCategory, page, searchAttempt, setSearchParams]);
 
   function search() {
     const keyword = query.trim();

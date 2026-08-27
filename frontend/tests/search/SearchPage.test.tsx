@@ -228,6 +228,29 @@ describe('뉴스 검색 화면', () => {
     expect(requestParams.get('page')).toBe('1');
   });
 
+  it('전체 페이지를 초과한 URL 페이지를 마지막 페이지로 보정한다', async () => {
+    const requestedPages: number[] = [];
+    axios.defaults.adapter = (async (config) => {
+      const requestedPage = Number(
+        new URL(config.url ?? '', 'http://localhost').searchParams.get('page'),
+      );
+      requestedPages.push(requestedPage);
+
+      return response(config, {
+        content: requestedPage === 3 ? [article] : [],
+        page: requestedPage,
+        totalElements: 21,
+        totalPages: 3,
+      });
+    }) satisfies AxiosAdapter;
+
+    const view = renderSearch(['/search?q=금리&category=ALL&page=999']);
+
+    await waitFor(() => expect(getCurrentSearchParams(view.router).get('page')).toBe('3'));
+    expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();
+    expect(requestedPages).toEqual([999, 3]);
+  });
+
   it('현재 페이지 주변의 페이지 번호만 표시한다', async () => {
     axios.defaults.adapter = (async (config) => {
       const requestedPage = Number(
