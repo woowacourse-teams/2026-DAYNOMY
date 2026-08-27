@@ -9,6 +9,8 @@ import org.grit.daynomy.external.dart.DartNewsPromptService;
 import org.grit.daynomy.external.kosis.KosisNewsPromptService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
+import org.grit.daynomy.keyword.ai.KeywordAiClient;
+import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,8 @@ public class NewsGenerationService {
   private final BokNewsPromptService bokNewsPromptService;
   private final OpenAiNewsGenerator openAiNewsGenerator;
   private final OpenAiImageGenerator openAiImageGenerator;
+  private final KeywordAiClient keywordAiClient;
+  private final MarketAnalysisAiClient marketAnalysisAiClient;
   private final NewsRepository newsRepository;
   private final NewsPersistenceService newsPersistenceService;
 
@@ -86,8 +90,11 @@ public class NewsGenerationService {
       String imageUrl =
           openAiImageGenerator.generateNewsImage(
               generatedNews.title(), generatedNews.description());
+      var keywords = keywordAiClient.extractKeywords(generatedNews.content());
+      var marketAnalysis = marketAnalysisAiClient.analyze(generatedNews.content());
 
-      if (!newsPersistenceService.saveIfAbsent(prompt, generatedNews, imageUrl)) {
+      if (!newsPersistenceService.saveIfAbsent(
+          prompt, generatedNews, imageUrl, keywords, marketAnalysis)) {
         skippedCount++;
         log.info(
             "Skipping existing news after generation: source={}, externalId={}, sourceUrl={}",

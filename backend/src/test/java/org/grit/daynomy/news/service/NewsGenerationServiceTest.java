@@ -2,6 +2,7 @@ package org.grit.daynomy.news.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -13,6 +14,9 @@ import org.grit.daynomy.external.dart.DartNewsPromptService;
 import org.grit.daynomy.external.kosis.KosisNewsPromptService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
+import org.grit.daynomy.keyword.ai.KeywordAiClient;
+import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
+import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
@@ -33,6 +37,8 @@ class NewsGenerationServiceTest {
   @Mock private BokNewsPromptService bokNewsPromptService;
   @Mock private OpenAiNewsGenerator openAiNewsGenerator;
   @Mock private OpenAiImageGenerator openAiImageGenerator;
+  @Mock private KeywordAiClient keywordAiClient;
+  @Mock private MarketAnalysisAiClient marketAnalysisAiClient;
   @Mock private NewsRepository newsRepository;
   @Mock private NewsPersistenceService newsPersistenceService;
 
@@ -58,15 +64,27 @@ class NewsGenerationServiceTest {
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("제목", "요약", "본문"));
     given(openAiImageGenerator.generateNewsImage("제목", "요약"))
         .willReturn("data:image/webp;base64,image");
+    NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
     given(
             newsPersistenceService.saveIfAbsent(
-                prompt, new GeneratedNews("제목", "요약", "본문"), "data:image/webp;base64,image"))
+                prompt,
+                new GeneratedNews("제목", "요약", "본문"),
+                "data:image/webp;base64,image",
+                List.of(),
+                marketAnalysis))
         .willReturn(true);
 
     int savedCount = newsGenerationService.generateDartNews(beginDate, endDate, "B", "K");
 
+    verify(keywordAiClient).extractKeywords("본문");
+    verify(marketAnalysisAiClient).analyze("본문");
     verify(newsPersistenceService)
-        .saveIfAbsent(prompt, new GeneratedNews("제목", "요약", "본문"), "data:image/webp;base64,image");
+        .saveIfAbsent(
+            prompt,
+            new GeneratedNews("제목", "요약", "본문"),
+            "data:image/webp;base64,image",
+            List.of(),
+            marketAnalysis);
     assertThat(savedCount).isEqualTo(1);
   }
 
@@ -98,6 +116,8 @@ class NewsGenerationServiceTest {
         .saveIfAbsent(
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyList(),
             org.mockito.ArgumentMatchers.any());
   }
 
@@ -120,16 +140,25 @@ class NewsGenerationServiceTest {
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("물가 뉴스", "요약", "본문"));
     given(openAiImageGenerator.generateNewsImage("물가 뉴스", "요약"))
         .willReturn("data:image/webp;base64,image");
+    NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
     given(
             newsPersistenceService.saveIfAbsent(
-                prompt, new GeneratedNews("물가 뉴스", "요약", "본문"), "data:image/webp;base64,image"))
+                prompt,
+                new GeneratedNews("물가 뉴스", "요약", "본문"),
+                "data:image/webp;base64,image",
+                List.of(),
+                marketAnalysis))
         .willReturn(true);
 
     int savedCount = newsGenerationService.generateKosisNews();
 
     verify(newsPersistenceService)
         .saveIfAbsent(
-            prompt, new GeneratedNews("물가 뉴스", "요약", "본문"), "data:image/webp;base64,image");
+            prompt,
+            new GeneratedNews("물가 뉴스", "요약", "본문"),
+            "data:image/webp;base64,image",
+            List.of(),
+            marketAnalysis);
     assertThat(savedCount).isEqualTo(1);
   }
 
@@ -153,16 +182,18 @@ class NewsGenerationServiceTest {
     given(openAiNewsGenerator.generate(prompt)).willReturn(generatedNews);
     given(openAiImageGenerator.generateNewsImage("물가 뉴스", "요약"))
         .willReturn("data:image/webp;base64,image");
+    NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
     given(
             newsPersistenceService.saveIfAbsent(
-                prompt, generatedNews, "data:image/webp;base64,image"))
+                prompt, generatedNews, "data:image/webp;base64,image", List.of(), marketAnalysis))
         .willReturn(false);
 
     int savedCount = newsGenerationService.generateKosisNews();
 
     assertThat(savedCount).isZero();
     verify(newsPersistenceService)
-        .saveIfAbsent(prompt, generatedNews, "data:image/webp;base64,image");
+        .saveIfAbsent(
+            prompt, generatedNews, "data:image/webp;base64,image", List.of(), marketAnalysis);
   }
 
   @Test
@@ -182,16 +213,32 @@ class NewsGenerationServiceTest {
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("금리 뉴스", "요약", "본문"));
     given(openAiImageGenerator.generateNewsImage("금리 뉴스", "요약"))
         .willReturn("data:image/webp;base64,image");
+    NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
     given(
             newsPersistenceService.saveIfAbsent(
-                prompt, new GeneratedNews("금리 뉴스", "요약", "본문"), "data:image/webp;base64,image"))
+                prompt,
+                new GeneratedNews("금리 뉴스", "요약", "본문"),
+                "data:image/webp;base64,image",
+                List.of(),
+                marketAnalysis))
         .willReturn(true);
 
     int savedCount = newsGenerationService.generateBokNews();
 
     verify(newsPersistenceService)
         .saveIfAbsent(
-            prompt, new GeneratedNews("금리 뉴스", "요약", "본문"), "data:image/webp;base64,image");
+            prompt,
+            new GeneratedNews("금리 뉴스", "요약", "본문"),
+            "data:image/webp;base64,image",
+            List.of(),
+            marketAnalysis);
     assertThat(savedCount).isEqualTo(1);
+  }
+
+  private NewsMarketAnalysis stubAnalyses(String newsContent) {
+    given(keywordAiClient.extractKeywords(newsContent)).willReturn(List.of());
+    NewsMarketAnalysis marketAnalysis = mock(NewsMarketAnalysis.class);
+    given(marketAnalysisAiClient.analyze(newsContent)).willReturn(marketAnalysis);
+    return marketAnalysis;
   }
 }
