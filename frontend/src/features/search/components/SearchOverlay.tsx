@@ -4,7 +4,7 @@ import './SearchOverlay.css';
 
 type SearchOverlayProps = {
   open: boolean;
-  onClose: () => void;
+  onClose: (restoreFocus: boolean) => void;
 };
 
 const RECENT_SEARCHES_KEY = 'daynomy:recent-searches';
@@ -32,11 +32,13 @@ function SearchIcon() {
 export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const restoreFocusRef = useRef(true);
   const [query, setQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const navigate = useNavigate();
 
-  function closeDialog() {
+  function closeDialog(restoreFocus = true) {
+    restoreFocusRef.current = restoreFocus;
     dialogRef.current?.close();
   }
 
@@ -54,7 +56,7 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
     }
 
     navigate(`/search?${new URLSearchParams({ q: keyword, category: 'ALL', page: '1' })}`);
-    closeDialog();
+    closeDialog(false);
   }
 
   useEffect(() => {
@@ -80,7 +82,10 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
         event.preventDefault();
         closeDialog();
       }}
-      onClose={onClose}
+      onClose={() => {
+        onClose(restoreFocusRef.current);
+        restoreFocusRef.current = true;
+      }}
       onClick={(event) => {
         if (event.target === event.currentTarget) closeDialog();
       }}
@@ -89,7 +94,7 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
         type="button"
         className="search-overlay-close"
         aria-label="검색 닫기"
-        onClick={closeDialog}
+        onClick={() => closeDialog()}
       >
         ×
       </button>

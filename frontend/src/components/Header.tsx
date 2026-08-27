@@ -48,9 +48,9 @@ export function Header() {
     return () => document.removeEventListener('keydown', openSearch);
   }, []);
 
-  function closeSearch() {
+  function closeSearch(restoreFocus: boolean) {
     setSearchOpen(false);
-    searchButtonRef.current?.focus();
+    if (restoreFocus) searchButtonRef.current?.focus();
   }
 
   return (
