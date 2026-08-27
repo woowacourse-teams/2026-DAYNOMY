@@ -11,13 +11,21 @@ import type { NewsCategory, NewsListItem } from './types';
 import './newsList.css';
 import { trackEvent } from '../../../analytics';
 
+const initialNewsPage = getMockNewsPage('ALL', 1);
+let todayNewsCache: NewsListItem | null = getMockTodayNews('ALL');
+const newsPageCache = new Map<string, ReturnType<typeof getMockNewsPage>>([
+  ['ALL:1', initialNewsPage],
+]);
+
 export function NewsListPage() {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
-  const [articles, setArticles] = useState<NewsListItem[]>([]);
+  const [articles, setArticles] = useState<NewsListItem[]>(() => initialNewsPage.content);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [todayMainNews, setTodayMainNews] = useState<NewsListItem>(() => getEmptyTodayNews());
+  const [totalPages, setTotalPages] = useState(() => initialNewsPage.totalPages);
+  const [todayMainNews, setTodayMainNews] = useState<NewsListItem>(
+    () => todayNewsCache ?? getEmptyTodayNews(),
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +53,15 @@ export function NewsListPage() {
     let ignore = false;
 
     async function loadNews() {
-      setLoading(true);
+      const cacheKey = `${selectedCategory}:${page}`;
+      const cachedPage = newsPageCache.get(cacheKey);
+
+      if (cachedPage) {
+        setArticles(cachedPage.content);
+        setTotalPages(cachedPage.totalPages);
+      }
+
+      setLoading(!cachedPage && newsPageCache.size === 0);
       setError(null);
 
       try {
@@ -54,6 +70,10 @@ export function NewsListPage() {
         const content = newsPage.content.length > 0 ? newsPage.content : mockNewsPage.content;
 
         if (!ignore) {
+          newsPageCache.set(cacheKey, {
+            ...(newsPage.content.length > 0 ? newsPage : mockNewsPage),
+            content,
+          });
           setArticles(content);
           setTotalPages(
             newsPage.content.length > 0 ? newsPage.totalPages : mockNewsPage.totalPages,
@@ -62,6 +82,7 @@ export function NewsListPage() {
       } catch (caughtError) {
         if (!ignore) {
           const mockNewsPage = getMockNewsPage(selectedCategory, page);
+          newsPageCache.set(cacheKey, mockNewsPage);
           setArticles(mockNewsPage.content);
           setTotalPages(mockNewsPage.totalPages);
           setError(
@@ -90,11 +111,13 @@ export function NewsListPage() {
         const todayNews = await getTodayNews();
 
         if (!ignore) {
-          setTodayMainNews(todayNews.id ? todayNews : getMockTodayNews('ALL'));
+          todayNewsCache = todayNews.id ? todayNews : getMockTodayNews('ALL');
+          setTodayMainNews(todayNewsCache);
         }
       } catch {
         if (!ignore) {
-          setTodayMainNews(getMockTodayNews('ALL'));
+          todayNewsCache = getMockTodayNews('ALL');
+          setTodayMainNews(todayNewsCache);
         }
       }
     }
