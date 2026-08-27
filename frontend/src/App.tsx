@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
 import MyPage from './features/pages/components/MyPage';
@@ -10,6 +10,7 @@ import SearchPage from './features/search/SearchPage';
 import { StockListPage } from './features/stocks/StockListPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
+import { useAuth } from './hooks/useLoginStatus';
 
 function AnalyticsTracker() {
   const location = useLocation();
@@ -17,6 +18,20 @@ function AnalyticsTracker() {
     trackPageView(`${location.pathname}${location.search}`);
   }, [location.pathname, location.search]);
   return null;
+}
+
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { isLoggedIn, loading } = useAuth();
+
+  if (loading) {
+    return null;
+  }
+
+  if (!isLoggedIn) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
 }
 
 export default function App() {
@@ -32,7 +47,14 @@ export default function App() {
           <Route path="/stocks" element={<StockListPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<Navigate to="/login" replace />} />
-          <Route path="/mypage" element={<MyPage />} />
+          <Route
+            path="/mypage"
+            element={
+              <RequireAuth>
+                <MyPage />
+              </RequireAuth>
+            }
+          />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AuthProvider>
