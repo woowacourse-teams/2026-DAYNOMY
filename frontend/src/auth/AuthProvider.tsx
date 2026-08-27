@@ -7,6 +7,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const useAuthPreview = import.meta.env.DEV && searchParams.get('authPreview') === '1';
+
+    if (useAuthPreview) {
+      setIsLoggedIn(true);
+      setLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
 
     getMyProfile(controller.signal)

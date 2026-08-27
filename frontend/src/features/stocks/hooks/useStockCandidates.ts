@@ -11,25 +11,35 @@ type StockCandidatesState = {
   isFallback: boolean;
 };
 
+type StockCandidatesCache = Pick<StockCandidatesState, 'stocks' | 'baseDate' | 'isFallback'>;
+
+let stockCandidatesCache: StockCandidatesCache | null = null;
+
 export function useStockCandidates(): StockCandidatesState {
-  const [stocks, setStocks] = useState<StockCandidate[]>([]);
-  const [baseDate, setBaseDate] = useState<string | null>(null);
+  const [stocks, setStocks] = useState<StockCandidate[]>(() => stockCandidatesCache?.stocks ?? []);
+  const [baseDate, setBaseDate] = useState<string | null>(
+    () => stockCandidatesCache?.baseDate ?? null,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isFallback, setIsFallback] = useState(false);
+  const [isFallback, setIsFallback] = useState(() => stockCandidatesCache?.isFallback ?? false);
 
   useEffect(() => {
     let ignore = false;
 
     async function loadStocks() {
-      setLoading(true);
+      setLoading(stockCandidatesCache === null);
       setError(null);
-      setIsFallback(false);
 
       try {
         const response = await getKosdaqTopStocks();
 
         if (!ignore) {
+          stockCandidatesCache = {
+            stocks: response.rankings,
+            baseDate: response.baseDate,
+            isFallback: false,
+          };
           setStocks(response.rankings);
           setBaseDate(response.baseDate);
           setIsFallback(false);
@@ -38,6 +48,11 @@ export function useStockCandidates(): StockCandidatesState {
         console.error('Failed to load KOSDAQ top stocks.', caughtError);
 
         if (!ignore) {
+          stockCandidatesCache = {
+            stocks: mockStockCandidates.rankings,
+            baseDate: mockStockCandidates.baseDate,
+            isFallback: true,
+          };
           setStocks(mockStockCandidates.rankings);
           setBaseDate(mockStockCandidates.baseDate);
           setError(
