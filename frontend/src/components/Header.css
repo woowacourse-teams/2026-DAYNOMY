@@ -1,15 +1,16 @@
 .daynomy-header {
   position: relative;
   box-sizing: border-box;
-  display: grid;
-  align-items: center;
+  width: 100vw;
   height: 64px;
   min-height: 64px;
   max-height: 64px;
+  margin-left: calc(50% - 50vw);
   padding: 0 64px;
   overflow: hidden;
   border-bottom: 0;
-  background: #fff;
+  background: #ffffff;
+  flex: 0 0 64px;
 }
 
 .daynomy-header .brand {
@@ -17,21 +18,18 @@
   left: 64px;
   top: 19.5px;
   display: inline-flex;
-  width: 115px;
+  align-items: center;
+  width: 122px;
   height: 25px;
-  align-items: flex-start;
-  color: #0e0f12;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 21px;
-  font-weight: 900;
-  line-height: 25px;
-  letter-spacing: 0;
+  color: #08162e;
   text-decoration: none;
 }
 
-.daynomy-header .brand span:last-child {
-  margin-left: 1px;
-  color: #4339c0;
+.daynomy-header .brand-logo {
+  display: block;
+  width: 122px;
+  height: 25px;
+  object-fit: contain;
 }
 
 .daynomy-header .header-tabs {
@@ -49,9 +47,17 @@
 .daynomy-header .header-tab {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: 20px;
   color: #737885;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Noto Sans KR',
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
@@ -60,15 +66,24 @@
   white-space: nowrap;
 }
 
+.daynomy-header .header-tab:first-child {
+  width: 28px;
+}
+
+.daynomy-header .header-tab:last-child {
+  width: 56px;
+}
+
 .daynomy-header .header-tab:hover,
 .daynomy-header .header-tab.active {
   color: #131417;
+  font-weight: 700;
 }
 
 .daynomy-header .header-actions {
   position: absolute;
   top: 15px;
-  right: 64px;
+  right: 57px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -112,7 +127,13 @@
   border-radius: 7px;
   color: #78808f;
   background: #e6ebf2;
-  font-family: 'Noto Sans KR', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Noto Sans KR',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-size: 13px;
   font-weight: 500;
   line-height: 18px;
@@ -121,7 +142,13 @@
 .daynomy-header .search-placeholder {
   margin-left: 8px;
   color: #78808f;
-  font-family: 'Noto Sans KR', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Noto Sans KR',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-size: 13px;
   font-weight: 400;
   line-height: 18px;
@@ -145,7 +172,13 @@
   width: 76px;
   height: 34px;
   border-radius: 10px;
-  font-family: 'Noto Sans KR', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Noto Sans KR',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-size: 13px;
   line-height: 18px;
   letter-spacing: 0;
@@ -155,7 +188,7 @@
 
 .daynomy-header .login-button {
   border: 0;
-  color: #fff;
+  color: #ffffff;
   background: #4339c0;
   font-weight: 700;
   cursor: pointer;

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { trackEvent } from '../analytics';
+import daynomyLogo from '../assets/daynomy-logo.png';
 import { useLoginStatus } from '../hooks/useLoginStatus';
 import './Header.css';
 
@@ -28,33 +29,32 @@ export function Header() {
 
   return (
     <header className="daynomy-header">
-      <a className="brand" href="/" aria-label="DAYNOMY 홈">
-        <span>DAY</span>
-        <span>NOMY</span>
-      </a>
+      <Link className="brand" to="/" aria-label="DAYNOMY 홈">
+        <img className="brand-logo" src={daynomyLogo} alt="" />
+      </Link>
       <nav className="header-tabs" aria-label="주요 메뉴">
-        <a className={isStockPage ? 'header-tab' : 'header-tab active'} href="/">
+        <Link className={isStockPage ? 'header-tab' : 'header-tab active'} to="/">
           뉴스
-        </a>
-        <a className={isStockPage ? 'header-tab active' : 'header-tab'} href="/stocks">
+        </Link>
+        <Link className={isStockPage ? 'header-tab active' : 'header-tab'} to="/stocks">
           관심종목
-        </a>
+        </Link>
       </nav>
       <div className="header-actions">
-        <a className="search-link" href="/search" aria-label="뉴스와 종목 검색">
+        <Link className="search-link" to="/search" aria-label="뉴스와 종목 검색">
           <SearchIcon />
           <span className="search-key">/</span>
           <span className="search-placeholder">를 눌러 검색하세요</span>
-        </a>
-        <a
+        </Link>
+        <Link
           className={isLoggedIn ? 'mypage-link' : 'login-button'}
-          href={isLoggedIn ? '/mypage' : '/login'}
+          to={isLoggedIn ? '/mypage' : '/login'}
           onClick={() => {
             if (!isLoggedIn) trackEvent('click_login');
           }}
         >
           {isLoggedIn ? '마이페이지' : '로그인'}
-        </a>
+        </Link>
       </div>
     </header>
   );
