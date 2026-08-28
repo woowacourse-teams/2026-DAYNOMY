@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsDetailResponse;
-import org.grit.daynomy.news.dto.NewsListItemResponse;
 import org.grit.daynomy.news.dto.NewsPageResponse;
 import org.grit.daynomy.news.service.NewsService;
 import org.springframework.http.ResponseEntity;
@@ -44,9 +43,9 @@ public class NewsController {
     return ResponseEntity.ok(newsService.getNewsPage(page, size, category));
   }
 
-  @Operation(summary = "오늘의 뉴스 조회", description = "오늘 발행된 뉴스 중 가장 최신 뉴스를 조회합니다.")
+  @Operation(summary = "오늘의 뉴스 조회", description = "오늘 발행된 뉴스 중 최신 뉴스 9건을 조회합니다.")
   @GetMapping("/today")
-  public ResponseEntity<NewsListItemResponse> getTodayNews() {
+  public ResponseEntity<NewsPageResponse> getTodayNews() {
     return ResponseEntity.ok(newsService.getTodayNews());
   }
 

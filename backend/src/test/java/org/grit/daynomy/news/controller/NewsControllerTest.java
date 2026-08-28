@@ -5,7 +5,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -28,10 +27,12 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.ComponentScan.Filter;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 
+@ActiveProfiles("test")
 @ExtendWith(SpringExtension.class)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(
@@ -140,36 +141,46 @@ class NewsControllerTest {
   }
 
   @Test
-  @DisplayName("오늘의 뉴스 조회 API는 오늘 뉴스를 반환한다")
+  @DisplayName("오늘의 뉴스 조회 API는 오늘 뉴스 목록을 반환한다")
   void findTodayNewsReturnsNews() throws Exception {
     given(newsService.getTodayNews())
         .willReturn(
-            new NewsListItemResponse(
-                1L,
-                "today news",
-                "description",
-                "image.png",
-                Category.REAL_ESTATE,
-                Instant.parse("2026-08-21T09:00:00Z")));
+            new NewsPageResponse(
+                List.of(
+                    new NewsListItemResponse(
+                        1L,
+                        "today news",
+                        "description",
+                        "image.png",
+                        Category.REAL_ESTATE,
+                        Instant.parse("2026-08-21T09:00:00Z"))),
+                1,
+                9,
+                1,
+                1,
+                false));
 
     mockMvc
         .perform(get("/api/news/today"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.title").value("today news"))
-        .andExpect(jsonPath("$.category").value("REAL_ESTATE"));
+        .andExpect(jsonPath("$.items").isArray())
+        .andExpect(jsonPath("$.items[0].title").value("today news"))
+        .andExpect(jsonPath("$.items[0].category").value("REAL_ESTATE"))
+        .andExpect(jsonPath("$.size").value(9));
 
     then(newsService).should().getTodayNews();
   }
 
   @Test
-  @DisplayName("오늘의 뉴스 조회 API는 오늘 뉴스가 없으면 빈 응답을 반환한다")
+  @DisplayName("오늘의 뉴스 조회 API는 오늘 뉴스가 없으면 빈 목록을 반환한다")
   void findTodayNewsReturnsEmptyBodyWhenMissing() throws Exception {
-    given(newsService.getTodayNews()).willReturn(null);
+    given(newsService.getTodayNews())
+        .willReturn(new NewsPageResponse(List.of(), 1, 9, 0, 0, false));
 
     mockMvc
         .perform(get("/api/news/today"))
         .andExpect(status().isOk())
-        .andExpect(content().string(""));
+        .andExpect(jsonPath("$.items").isEmpty());
 
     then(newsService).should().getTodayNews();
   }

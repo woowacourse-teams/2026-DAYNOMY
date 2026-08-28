@@ -5,8 +5,8 @@ export function PortfolioLoginPrompt() {
     <section className="section portfolio-section" aria-labelledby="portfolio-login-title">
       <div className="portfolio-heading">
         <div>
-          <h2 id="portfolio-login-title">내 포트폴리오 영향</h2>
-          <p>북마크한 자산을 기준으로 분석한 결과입니다.</p>
+          <h2 id="portfolio-login-title">포트폴리오 분석</h2>
+          <p>내 관심 자산에 미칠 영향을 핵심만 정리해 드려요.</p>
         </div>
       </div>
 

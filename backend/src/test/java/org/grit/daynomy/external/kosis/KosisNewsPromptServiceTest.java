@@ -40,7 +40,13 @@ class KosisNewsPromptServiceTest {
     assertThat(prompts.getFirst().source()).isEqualTo(NewsSource.KOSIS);
     assertThat(prompts.getFirst().category()).isEqualTo(Category.ECONOMY);
     assertThat(prompts.getFirst().externalId()).isEqualTo("consumer-price-index:202607");
-    assertThat(prompts.getFirst().prompt()).contains("증감", "출처: KOSIS");
+    assertThat(prompts.getFirst().instruction())
+        .contains(
+            "경제 전문 기자", "JSON 형식으로만", "불릿, 번호 목록, 표", "정확히 2~4개 문단", "빈 줄 하나(\\n\\n)", "KOSIS에 따르면")
+        .doesNotContain("113.42", "[KOSIS 참고 데이터]");
+    assertThat(prompts.getFirst().sourceData())
+        .contains("[KOSIS 참고 데이터]", "113.42", "증감률", "조회일자")
+        .doesNotContain("경제 전문 기자");
   }
 
   @Test

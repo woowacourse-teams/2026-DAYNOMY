@@ -28,9 +28,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+@ActiveProfiles("test")
 @WebMvcTest(
     controllers = MarketAnalysisController.class,
     excludeFilters =
@@ -54,6 +56,7 @@ class MarketAnalysisControllerTest {
         .perform(get("/api/news/1/market-analysis"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.cause").value("금리 인하 기대가 위험자산 선호를 높입니다."))
+        .andExpect(jsonPath("$.importance").value("통화정책 변화는 여러 자산의 가격에 영향을 줍니다."))
         .andExpect(jsonPath("$.assets[0].category").value("STOCK"))
         .andExpect(jsonPath("$.assets[0].direction").value("POSITIVE"))
         .andExpect(jsonPath("$.assets[0].impactLevel").value("HIGH"))
@@ -93,6 +96,7 @@ class MarketAnalysisControllerTest {
   private MarketAnalysisResponse createResponse() {
     return new MarketAnalysisResponse(
         "금리 인하 기대가 위험자산 선호를 높입니다.",
+        "통화정책 변화는 여러 자산의 가격에 영향을 줍니다.",
         List.of(
             new AssetImpactResponse(
                 AssetCategory.STOCK,

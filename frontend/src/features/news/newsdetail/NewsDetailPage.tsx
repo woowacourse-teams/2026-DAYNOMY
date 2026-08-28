@@ -4,6 +4,7 @@ import defaultNewsImage from '../../../assets/default-news-real-estate.png';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
+import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 import { getMockNewsDetail } from './mock.ts';
 import type {
   Asset,
@@ -12,6 +13,7 @@ import type {
   ImpactLevel,
   MarketAnalysisResponse,
   NewsDetailPayload,
+  TimeHorizon,
 } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
@@ -24,6 +26,24 @@ function getNewsIdFromUrl() {
 
 function getContentParagraphs(content: string | string[]) {
   return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
+}
+
+function getSummaryItems(description: string | null) {
+  return (description ?? '')
+    .split(/\r?\n|(?<=[.!?。！？])\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+const NEWS_SOURCE_LABELS: Record<string, string> = {
+  DART: 'DART',
+  KOSIS: '국가통계포털',
+  BOK: '한국은행',
+};
+
+function getNewsSourceLabel(source: string) {
+  return NEWS_SOURCE_LABELS[source] ?? source;
 }
 
 function formatDetailDate(value?: string) {
@@ -88,30 +108,6 @@ const fallbackAssetImpacts: AssetImpactResponse[] = [
   },
 ];
 
-const portfolioSummaries = [
-  {
-    rank: 'TOP 1',
-    title: '삼성전자',
-    direction: 'POSITIVE',
-    impactLevel: 'HIGH',
-    body: '환율 상승 구간에서 수출주로 꼽히지만 원재료 가격 부담도 함께 확인해야 해요.',
-  },
-  {
-    rank: 'TOP 2',
-    title: '미국 달러',
-    direction: 'POSITIVE',
-    impactLevel: 'MEDIUM',
-    body: '원화 약세가 이어지면 보유 외화 가치가 방어적으로 움직일 수 있어요.',
-  },
-  {
-    rank: 'TOP 3',
-    title: '국내 채권형 ETF',
-    direction: 'NEGATIVE',
-    impactLevel: 'MEDIUM',
-    body: '금리 인하 기대가 늦춰지면 단기 가격 흐름이 제한될 수 있어요.',
-  },
-] as const;
-
 const directionLabel: Record<ImpactDirection, string> = {
   POSITIVE: '긍정',
   NEGATIVE: '부정',
@@ -122,6 +118,12 @@ const levelLabel: Record<ImpactLevel, string> = {
   HIGH: '영향 높음',
   MEDIUM: '영향 중간',
   LOW: '영향 낮음',
+};
+
+const timeHorizonLabel: Record<TimeHorizon, string> = {
+  SHORT_TERM: '단기',
+  MID_TERM: '중기',
+  LONG_TERM: '장기',
 };
 
 function getImpactTone(direction: ImpactDirection, impactLevel: ImpactLevel) {
@@ -154,24 +156,27 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAna
 
         <section className="market-step">
           <h3>1. 발생 원인</h3>
-          <ul>
-            <li>글로벌 달러 강세가 이어지면서 원화 가치가 상대적으로 약해지고 있어요.</li>
-            <li>
-              에너지·원자재를 달러로 결제하는 수입 품목은 환율 상승의 영향을 먼저 받을 수 있어요.
-            </li>
-            <li>
-              수입 원가 부담이 커지면 기업 비용과 소비자물가에 시차를 두고 반영될 가능성이 있어요.
-            </li>
-            <li>물가 부담이 다시 커지면 한국은행의 기준금리 인하 기대도 늦춰질 수 있어요.</li>
-          </ul>
+          {marketAnalysis?.cause ? (
+            <p>{marketAnalysis.cause}</p>
+          ) : (
+            <ul>
+              <li>글로벌 달러 강세가 이어지면서 원화 가치가 상대적으로 약해지고 있어요.</li>
+              <li>
+                에너지·원자재를 달러로 결제하는 수입 품목은 환율 상승의 영향을 먼저 받을 수 있어요.
+              </li>
+              <li>
+                수입 원가 부담이 커지면 기업 비용과 소비자물가에 시차를 두고 반영될 가능성이 있어요.
+              </li>
+              <li>물가 부담이 다시 커지면 한국은행의 기준금리 인하 기대도 늦춰질 수 있어요.</li>
+            </ul>
+          )}
         </section>
 
         <section className="market-step">
           <h3>2. 이슈가 중요한 이유</h3>
           <p>
-            환율은 단순히 외환시장 숫자에 그치지 않아요. 수입 물가, 기업 마진, 기준금리 기대, 외국인
-            자금 흐름이 한 번에 연결되는 지표예요. 특히 수입 비중이 높은 업종은 비용 부담이 빠르게
-            커질 수 있고, 반대로 수출 비중이 높은 기업은 환율 효과를 일부 기대할 수 있어요.
+            {marketAnalysis?.importance ??
+              '환율은 단순히 외환시장 숫자에 그치지 않아요. 수입 물가, 기업 마진, 기준금리 기대, 외국인 자금 흐름이 한 번에 연결되는 지표예요. 특히 수입 비중이 높은 업종은 비용 부담이 빠르게 커질 수 있고, 반대로 수출 비중이 높은 기업은 환율 효과를 일부 기대할 수 있어요.'}
           </p>
         </section>
 
@@ -198,16 +203,10 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAna
         <section className="market-step">
           <h3>4. 단기·중기·장기 시나리오</h3>
           <div className="scenario-stack">
-            {(marketAnalysis?.scenarios ?? []).slice(0, 3).map((scenario, index) => (
+            {(marketAnalysis?.scenarios ?? []).slice(0, 3).map((scenario) => (
               <article className="scenario-strip" key={scenario.timeHorizon}>
                 <div>
-                  <h4>
-                    {index === 0
-                      ? '단기 · 환율 변동성 확대'
-                      : index === 1
-                        ? '중기 · 금리 인하 기대 조절'
-                        : '장기 · 업종별 실적 차별화'}
-                  </h4>
+                  <h4>{timeHorizonLabel[scenario.timeHorizon]} 시나리오</h4>
                   <p>{`${scenario.prediction} ${scenario.reason}`}</p>
                 </div>
                 <strong>가능성 {scenario.probability}%</strong>
@@ -216,33 +215,11 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAna
           </div>
         </section>
       </section>
-
-      <section className="detail-portfolio" aria-labelledby="detail-portfolio-title">
-        <h2 id="detail-portfolio-title">포트폴리오 분석</h2>
-        <div className="portfolio-detail-list">
-          {portfolioSummaries.map((asset) => (
-            <article className="portfolio-detail-row" key={asset.rank}>
-              <div>
-                <strong>{asset.rank}</strong>
-                <h3>{asset.title}</h3>
-                <p>{asset.body}</p>
-              </div>
-              <span className={`impact-pill ${getImpactTone(asset.direction, asset.impactLevel)}`}>
-                {getImpactLabel(asset.direction, asset.impactLevel)}
-              </span>
-            </article>
-          ))}
-        </div>
-      </section>
     </>
   );
 }
 
 function AnalysisLockOverlay() {
-  function handleLogin() {
-    window.location.assign(getApiUrl('/api/auth/google'));
-  }
-
   return (
     <div className="analysis-lock-overlay" role="dialog" aria-modal="false">
       <h2>
@@ -258,10 +235,10 @@ function AnalysisLockOverlay() {
           <span aria-hidden="true">💜</span>내 관심종목에 생길 변화를 이어서 확인해요
         </li>
       </ul>
-      <button type="button" onClick={handleLogin}>
+      <a href={getApiUrl('/api/auth/google')}>
         <GoogleIcon />
         Google로 시작하기
-      </button>
+      </a>
     </div>
   );
 }
@@ -315,7 +292,26 @@ export function NewsDetailPage() {
           ×
         </button>
 
-        <span className="detail-category">{getCategoryLabel(news.category)}</span>
+        <div className="detail-meta">
+          <span className="detail-category">{getCategoryLabel(news.category)}</span>
+          {news.source && (
+            <span className="detail-source">
+              출처:{' '}
+              {news.sourceUrl ? (
+                <a
+                  className="source-link"
+                  href={news.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {getNewsSourceLabel(news.source)}
+                </a>
+              ) : (
+                getNewsSourceLabel(news.source)
+              )}
+            </span>
+          )}
+        </div>
 
         <h1>{news.title}</h1>
 
@@ -331,9 +327,9 @@ export function NewsDetailPage() {
           </h2>
           <div className="summary">
             <ul>
-              <li>원·달러 환율이 최근 다시 오름세를 보이고 있어요</li>
-              <li>환율 상승으로 에너지와 원자재 수입 가격 부담이 커지고 있어요</li>
-              <li>수입 비용이 늘면서 관련 업종의 비용 부담도 함께 주목되고 있어요</li>
+              {getSummaryItems(news.description).map((item, index) => (
+                <li key={`${item}-${index}`}>{item}</li>
+              ))}
             </ul>
           </div>
         </section>
@@ -352,6 +348,7 @@ export function NewsDetailPage() {
           <div className={isLoggedIn ? 'analysis-area' : 'analysis-area is-locked'}>
             <div className="analysis-content">
               <DetailAnalysisSections marketAnalysis={marketAnalysis} />
+              {isLoggedIn ? <PortfolioAnalysis newsId={newsId} /> : null}
             </div>
             {!isLoggedIn ? <AnalysisLockOverlay /> : null}
           </div>

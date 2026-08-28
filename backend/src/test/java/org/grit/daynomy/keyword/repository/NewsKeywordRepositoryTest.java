@@ -3,6 +3,7 @@ package org.grit.daynomy.keyword.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -34,9 +35,11 @@ class NewsKeywordRepositoryTest {
   void findByNewsIdReturnsKeywordsOrderByIdAsc() {
     News news = newsRepository.save(createNews("target news"));
     News otherNews = newsRepository.save(createNews("other news"));
-    NewsKeyword first = newsKeywordRepository.save(new NewsKeyword(news, "금리 인하", "대출 수요 회복"));
-    NewsKeyword second = newsKeywordRepository.save(new NewsKeyword(news, "부동산 규제", "거래량 회복"));
-    newsKeywordRepository.save(new NewsKeyword(otherNews, "환율", "다른 뉴스 키워드"));
+    NewsKeyword first =
+        newsKeywordRepository.save(createKeyword(news, KeywordCategory.POLICY, "금리 인하"));
+    NewsKeyword second =
+        newsKeywordRepository.save(createKeyword(news, KeywordCategory.POLICY, "부동산 규제"));
+    newsKeywordRepository.save(createKeyword(otherNews, KeywordCategory.TERM, "환율"));
 
     var keywords = newsKeywordRepository.findByNewsIdOrderByIdAsc(news.getId());
 
@@ -44,6 +47,14 @@ class NewsKeywordRepositoryTest {
         .extracting(NewsKeyword::getId)
         .containsExactly(first.getId(), second.getId());
     assertThat(keywords).extracting(NewsKeyword::getKeyword).containsExactly("금리 인하", "부동산 규제");
+    assertThat(keywords)
+        .extracting(NewsKeyword::getCategory)
+        .containsExactly(KeywordCategory.POLICY, KeywordCategory.POLICY);
+    assertThat(keywords.get(0).getPoint1()).isEqualTo("첫 번째 분석 포인트");
+  }
+
+  private NewsKeyword createKeyword(News news, KeywordCategory category, String keyword) {
+    return new NewsKeyword(news, category, keyword, "첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
   }
 
   private News createNews(String title) {

@@ -1,13 +1,14 @@
 .search-page {
-  width: 100%;
-  min-height: 100svh;
-  padding: 48px 40px 72px;
-  box-sizing: border-box;
-  color: #202026;
+  width: min(100%, 1440px);
+  min-height: calc(100svh - 64px);
+  margin: 0 auto;
+  padding: 68px 64px 78px;
+  color: #171821;
   background: #fff;
   font-family:
-    Pretendard,
     'Noto Sans KR',
+    Inter,
+    system-ui,
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
@@ -21,206 +22,262 @@
   box-sizing: border-box;
 }
 
-.search-page button,
-.search-page input {
+.search-page button {
   font-family: inherit;
 }
 
 .search-page .search-panel {
-  width: min(100%, 1440px);
-  margin: 0 auto;
+  width: 100%;
 }
 
-.search-page .search-row {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  width: min(100%, 760px);
-  margin: 0 auto;
+.search-page .stock-search-results h1 {
+  margin: 0;
+  color: #171821;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 28px;
+  letter-spacing: -0.02em;
 }
 
-.search-page .back-button {
-  width: 24px;
-  height: 24px;
-  padding: 0 0 2px;
-  border: 1px solid #ececf2;
-  border-radius: 50%;
-  color: #24242b;
+.search-page .stock-search-scroll {
+  width: 100%;
+  margin-top: 36px;
+  padding-bottom: 12px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  scrollbar-color: #aeb2ba transparent;
+  scrollbar-width: thin;
+}
+
+.search-page .stock-search-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.search-page .stock-search-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.search-page .stock-search-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #aeb2ba;
+}
+
+.search-page .stock-search-list {
+  display: flex;
+  width: 100%;
+  gap: 40px;
+  margin: 0;
+  padding: 0 0 8px;
+  list-style: none;
+}
+
+.search-page .stock-search-card {
+  position: relative;
+  display: flex;
+  height: 150px;
+  flex: 0 0 calc((100% - 80px) / 3);
+  flex-direction: column;
+  justify-content: center;
+  padding: 27px 43px;
+  border: 1px solid #dfe3ea;
+  border-radius: 14px;
   background: #fff;
-  box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
-  font:
-    500 24px/1 system-ui,
-    sans-serif;
-  cursor: pointer;
+  scroll-snap-align: start;
 }
 
-.search-page .search-form {
+.search-page .stock-search-category {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 44px;
-  padding: 0 16px;
-  border: 1.5px solid #5849f5;
-  border-radius: 999px;
-  background: #fff;
-  box-sizing: border-box;
+  gap: 8px;
+  margin-bottom: 26px;
+  color: #4339c0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 20px;
 }
 
-.search-page .search-form:focus-within {
-  box-shadow: 0 0 0 3px rgb(88 73 245 / 10%);
+.search-page .stock-search-category span {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #5144d8;
 }
 
-.search-page .search-form svg {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: #5b4cf4;
-  stroke-linecap: round;
-  stroke-width: 1.8;
+.search-page .stock-search-card strong {
+  overflow: hidden;
+  color: #171821;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 27px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.search-page .search-submit {
+.search-page .stock-search-card > span {
+  margin-top: 2px;
+  color: #7c8492;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.search-page .stock-search-bookmark {
+  position: absolute;
+  top: 29px;
+  right: 30px;
   display: grid;
-  width: 24px;
-  height: 24px;
-  padding: 0;
+  width: 28px;
+  height: 32px;
+  padding: 2px 5px;
   border: 0;
   place-items: center;
-  flex: 0 0 auto;
   background: transparent;
   cursor: pointer;
 }
 
-.search-page .search-submit:focus-visible {
-  border-radius: 50%;
-  outline: 2px solid #5849f5;
-  outline-offset: 2px;
-}
-
-.search-page .search-form input {
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  color: #202026;
-  background: transparent;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.search-page .search-form input::placeholder {
-  color: #a4a4ad;
-  font-weight: 400;
+.search-page .stock-search-bookmark svg {
+  display: block;
+  width: 18px;
+  height: 26px;
 }
 
 .search-page .category-tabs {
   display: flex;
-  gap: 10px;
-  padding: 32px 0 20px;
+  align-items: center;
+  gap: 0;
+  margin: 32px 0 0;
+  padding: 0;
   overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.search-page .search-panel:not(.has-stocks) .category-tabs {
+  margin-top: 70px;
+}
+
+.search-page .category-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .search-page .category-tabs button {
-  min-height: 38px;
-  padding: 0 16px;
-  border: 1px solid #e1e1e9;
-  border-radius: 999px;
-  color: #5f5f69;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 650;
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #8a93a3;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
   white-space: nowrap;
   cursor: pointer;
 }
 
+.search-page .category-tabs button:not(:first-child)::before {
+  margin: 0 17px;
+  color: #cbd0da;
+  content: '·';
+}
+
 .search-page .category-tabs button.active {
-  border-color: #5849f5;
-  color: #fff;
-  background: #5849f5;
+  color: #4339c0;
+  background: transparent;
+  font-weight: 800;
 }
 
 .search-page .news-results {
-  padding-top: 28px;
-  border-top: 1px solid #ececf2;
+  padding-top: 13px;
+  border: 0;
   scroll-margin-top: 20px;
 }
 
 .search-page .result-heading {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.search-page .result-heading h1 {
-  margin: 0;
-  color: #18181c;
-  font-size: 28px;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
+  min-height: 20px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .search-page .result-heading span {
-  color: #777782;
-  font-size: 13px;
+  color: #6f7481;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
 }
 
 .search-page .article-list {
-  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 402px;
+  column-gap: 68px;
+  row-gap: 92px;
+  margin: 40px 0 0;
 }
 
 .search-page .pagination {
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-top: 28px;
+  gap: 10px;
+  margin-top: 104px;
 }
 
 .search-page .pagination button {
-  min-width: 36px;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid #e1e1e9;
-  border-radius: 8px;
-  color: #5f5f69;
-  background: #fff;
-  font-size: 13px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  color: #7c8492;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .search-page .pagination button:hover:not(:disabled),
 .search-page .pagination button.active {
-  border-color: #5849f5;
-  color: #fff;
-  background: #5849f5;
+  color: #171821;
+  background: transparent;
+  font-weight: 800;
 }
 
 .search-page .pagination button:disabled {
-  color: #b8b8c0;
-  background: #f7f7f9;
+  color: #cbd0da;
+  background: transparent;
   cursor: not-allowed;
 }
 
 .search-page .search-state {
-  margin: 12px 0 0;
-  padding: 48px 16px;
-  border: 1px solid #ececf2;
-  border-radius: 12px;
-  color: #888893;
+  margin: 40px 0 0;
+  padding: 64px 16px;
+  border: 1px solid #e4e7ef;
+  border-radius: 14px;
+  color: #7c8492;
   font-size: 14px;
   text-align: center;
 }
 
-.search-page .back-button:focus-visible,
+.search-page .search-state button {
+  margin-top: 18px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: #4339c0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.search-page .stock-search-scroll:focus-visible,
+.search-page .stock-search-bookmark:focus-visible,
 .search-page .category-tabs button:focus-visible,
-.search-page .pagination button:focus-visible {
-  outline: 2px solid #5849f5;
-  outline-offset: 2px;
+.search-page .pagination button:focus-visible,
+.search-page .search-state button:focus-visible {
+  outline: 3px solid rgba(67, 57, 192, 0.22);
+  outline-offset: 3px;
 }
 
 .search-page .sr-only {
@@ -234,16 +291,69 @@
   border: 0;
 }
 
+@media (max-width: 1000px) {
+  .search-page {
+    padding: 52px 24px 64px;
+  }
+
+  .search-page .stock-search-list {
+    gap: 24px;
+  }
+
+  .search-page .stock-search-card {
+    flex-basis: calc((100% - 24px) / 2);
+  }
+
+  .search-page .article-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 32px;
+    row-gap: 64px;
+  }
+}
+
 @media (max-width: 720px) {
   .search-page {
-    padding: 24px 14px 48px;
+    padding: 36px 16px 48px;
   }
 
-  .search-page .category-tabs {
-    padding: 24px 0 16px;
+  .search-page .stock-search-results h1 {
+    font-size: 18px;
   }
 
-  .search-page .result-heading h1 {
-    font-size: 22px;
+  .search-page .stock-search-scroll {
+    margin-top: 24px;
+  }
+
+  .search-page .stock-search-card {
+    height: 138px;
+    flex-basis: 88%;
+    padding: 24px;
+  }
+
+  .search-page .stock-search-category {
+    margin-bottom: 20px;
+  }
+
+  .search-page .search-panel:not(.has-stocks) .category-tabs {
+    margin-top: 44px;
+  }
+
+  .search-page .category-tabs button {
+    font-size: 14px;
+  }
+
+  .search-page .category-tabs button:not(:first-child)::before {
+    margin: 0 12px;
+  }
+
+  .search-page .article-list {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    row-gap: 48px;
+    margin-top: 28px;
+  }
+
+  .search-page .pagination {
+    margin-top: 64px;
   }
 }

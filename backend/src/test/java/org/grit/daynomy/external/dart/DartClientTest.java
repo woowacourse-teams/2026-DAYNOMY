@@ -7,7 +7,10 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.junit.jupiter.api.AfterEach;
@@ -90,6 +93,18 @@ class DartClientTest {
   }
 
   @Test
+  @DisplayName("DART 공시서류 원본파일 API에서 ZIP 바이너리를 받는다")
+  void getOriginalDocument() throws Exception {
+    DartClient dartClient =
+        new DartClient(
+            new DartProperties("test-key", startBinaryServer("/document.xml", documentZip())));
+
+    String document = dartClient.getOriginalDocument("20260817000001");
+
+    assertThat(document).contains("[DART 원문 파일: document.xml]", "<document/>");
+  }
+
+  @Test
   @DisplayName("DART 응답이 데이터 없음이면 빈 목록으로 처리한다")
   void getDisclosuresReturnsEmptyListWhenNoData() throws Exception {
     DartClient dartClient =
@@ -113,6 +128,40 @@ class DartClientTest {
             () ->
                 dartClient.getDisclosures(
                     LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 17), "B", "K"))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.DART_API_REQUEST_FAILED);
+  }
+
+  @Test
+  @DisplayName("DART API 응답 timeout이면 요청 실패 예외를 던진다")
+  void getDisclosuresThrowsWhenReadTimeout() throws Exception {
+    server = HttpServer.create(new InetSocketAddress(0), 0);
+    server.createContext(
+        "/list.json",
+        exchange -> {
+          try {
+            Thread.sleep(500);
+          } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+          } finally {
+            exchange.close();
+          }
+        });
+    server.start();
+
+    DartClient dartClient =
+        new DartClient(
+            new DartProperties(
+                "test-key",
+                "http://localhost:" + server.getAddress().getPort(),
+                Duration.ofSeconds(1),
+                Duration.ofMillis(50)));
+
+    assertThatThrownBy(
+            () ->
+                dartClient.getDisclosures(
+                    LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "B", "K"))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(ExternalErrorCode.DART_API_REQUEST_FAILED);
@@ -147,6 +196,30 @@ class DartClientTest {
         });
     server.start();
     return "http://localhost:" + server.getAddress().getPort();
+  }
+
+  private String startBinaryServer(String path, byte[] responseBody) throws IOException {
+    server = HttpServer.create(new InetSocketAddress(0), 0);
+    server.createContext(
+        path,
+        exchange -> {
+          exchange.getResponseHeaders().add("Content-Type", "application/zip");
+          exchange.sendResponseHeaders(200, responseBody.length);
+          exchange.getResponseBody().write(responseBody);
+          exchange.close();
+        });
+    server.start();
+    return "http://localhost:" + server.getAddress().getPort();
+  }
+
+  private byte[] documentZip() throws IOException {
+    java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+    try (ZipOutputStream zip = new ZipOutputStream(output)) {
+      zip.putNextEntry(new ZipEntry("document.xml"));
+      zip.write("<document/>".getBytes(StandardCharsets.UTF_8));
+      zip.closeEntry();
+    }
+    return output.toByteArray();
   }
 
   private String disclosureResponse() {

@@ -1,7 +1,6 @@
 package org.grit.daynomy.news.repository;
 
 import java.time.Instant;
-import java.util.Optional;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSource;
@@ -15,9 +14,8 @@ public interface NewsRepository extends JpaRepository<News, Long> {
 
   Page<News> findByCategoryOrderByPublishedAtDescIdDesc(Category category, Pageable pageable);
 
-  Optional<News>
-      findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-          Instant startInclusive, Instant endExclusive);
+  Page<News> findByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+      Instant startInclusive, Instant endExclusive, Pageable pageable);
 
   boolean existsBySourceAndExternalId(NewsSource source, String externalId);
 }

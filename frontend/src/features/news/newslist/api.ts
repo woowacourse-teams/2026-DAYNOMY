@@ -1,5 +1,5 @@
 import { toNewsListItem } from './types';
-import type { NewsCategory, NewsListItem, NewsListItemResponse, NewsPage } from './types';
+import type { NewsCategory, NewsListItemResponse, NewsPage } from './types';
 
 type NewsPageResponse = {
   items: NewsListItemResponse[];
@@ -54,18 +54,18 @@ export async function getNews(
   return normalizeNewsPage(data);
 }
 
-export async function getTodayNews(): Promise<NewsListItem> {
+export async function getTodayNews(): Promise<NewsPage> {
   const response = await fetch('/api/news/today');
 
   if (!response.ok) {
     throw new Error('오늘의 뉴스를 불러오지 못했습니다.');
   }
 
-  const data = (await response.json()) as NewsListItemResponse | null;
+  const data = (await response.json()) as NewsPageResponse;
 
-  if (!data) {
+  if (!data || !Array.isArray(data.items)) {
     throw new Error('오늘의 뉴스를 불러오지 못했습니다.');
   }
 
-  return toNewsListItem(data);
+  return normalizeNewsPage(data);
 }
