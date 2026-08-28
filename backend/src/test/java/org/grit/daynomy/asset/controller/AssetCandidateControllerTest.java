@@ -43,7 +43,7 @@ class AssetCandidateControllerTest {
   @Test
   @DisplayName("코스닥 대표 종목 순위 조회는 기본 페이지 조건으로 서비스에 위임한다")
   void getKosdaqTopRankingsUsesDefaultPageCondition() throws Exception {
-    when(assetCandidateService.getKosdaqTopRankings(1, 20))
+    when(assetCandidateService.getKosdaqTopRankings(null, 1, 20))
         .thenReturn(
             new AssetCandidatesResponse(
                 "2026-08-21",
@@ -67,13 +67,13 @@ class AssetCandidateControllerTest {
         .andExpect(jsonPath("$.totalElements").value(150))
         .andExpect(jsonPath("$.hasNext").value(true));
 
-    verify(assetCandidateService).getKosdaqTopRankings(1, 20);
+    verify(assetCandidateService).getKosdaqTopRankings(null, 1, 20);
   }
 
   @Test
   @DisplayName("코스닥 대표 종목 순위 조회는 요청한 페이지 조건을 서비스에 전달한다")
   void getKosdaqTopRankingsUsesRequestedPageCondition() throws Exception {
-    when(assetCandidateService.getKosdaqTopRankings(2, 10))
+    when(assetCandidateService.getKosdaqTopRankings(null, 2, 10))
         .thenReturn(new AssetCandidatesResponse("2026-08-21", List.of(), 2, 10, 15, 150, true));
 
     mockMvc
@@ -82,7 +82,56 @@ class AssetCandidateControllerTest {
         .andExpect(jsonPath("$.page").value(2))
         .andExpect(jsonPath("$.size").value(10));
 
-    verify(assetCandidateService).getKosdaqTopRankings(2, 10);
+    verify(assetCandidateService).getKosdaqTopRankings(null, 2, 10);
+  }
+
+  @Test
+  @DisplayName("코스닥 대표 종목 검색은 검색어와 페이지 조건을 서비스에 전달한다")
+  void getKosdaqTopRankingsUsesKeyword() throws Exception {
+    when(assetCandidateService.getKosdaqTopRankings(" 에코프로 ", 1, 20))
+        .thenReturn(new AssetCandidatesResponse("2026-08-21", List.of(), 1, 20, 0, 0, false));
+
+    mockMvc.perform(get("/api/assets/kosdaq/top").param("q", " 에코프로 ")).andExpect(status().isOk());
+
+    verify(assetCandidateService).getKosdaqTopRankings(" 에코프로 ", 1, 20);
+  }
+
+  @Test
+  @DisplayName("빈 검색어는 요청을 거부한다")
+  void getKosdaqTopRankingsRejectsEmptyKeyword() throws Exception {
+    mockMvc
+        .perform(get("/api/assets/kosdaq/top").param("q", ""))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("keyword"));
+
+    verifyNoInteractions(assetCandidateService);
+  }
+
+  @Test
+  @DisplayName("문자나 숫자가 없는 검색어는 요청을 거부한다")
+  void getKosdaqTopRankingsRejectsInvalidKeyword() throws Exception {
+    mockMvc
+        .perform(get("/api/assets/kosdaq/top").param("q", "!%_"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("keyword"))
+        .andExpect(jsonPath("$.errors[0].reason").value("올바른 검색어를 입력해주세요."));
+
+    verifyNoInteractions(assetCandidateService);
+  }
+
+  @Test
+  @DisplayName("100자를 초과한 검색어는 요청을 거부한다")
+  void getKosdaqTopRankingsRejectsTooLongKeyword() throws Exception {
+    mockMvc
+        .perform(get("/api/assets/kosdaq/top").param("q", "가".repeat(101)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("keyword"))
+        .andExpect(jsonPath("$.errors[0].reason").value("검색어는 100자 이하여야 합니다."));
+
+    verifyNoInteractions(assetCandidateService);
   }
 
   @Test
