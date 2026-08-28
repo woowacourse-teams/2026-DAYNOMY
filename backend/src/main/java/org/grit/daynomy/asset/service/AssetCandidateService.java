@@ -6,6 +6,7 @@ import org.grit.daynomy.asset.domain.AssetRankingHistory;
 import org.grit.daynomy.asset.dto.AssetCandidateResponse;
 import org.grit.daynomy.asset.dto.AssetCandidatesResponse;
 import org.grit.daynomy.asset.repository.AssetRankingHistoryRepository;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -29,7 +30,7 @@ public class AssetCandidateService {
   private AssetCandidatesResponse getRankingsByDate(
       LocalDate rankedDate, String keyword, int page, int size) {
     PageRequest pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.ASC, "ranking"));
-    var rankings =
+    Page<AssetRankingHistory> rankings =
         keyword == null
             ? assetRankingHistoryRepository.findAllByRankedDate(rankedDate, pageable)
             : assetRankingHistoryRepository.searchByRankedDateAndKeyword(
