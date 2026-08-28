@@ -99,6 +99,8 @@ external:
   bok:
     api-key: ${BOK_API_KEY:}
     base-url: ${BOK_BASE_URL:https://ecos.bok.or.kr}
+    connect-timeout: ${BOK_CONNECT_TIMEOUT:3s}
+    read-timeout: ${BOK_READ_TIMEOUT:30s}
     indicators:
       - key: base-rate
         name: 한국은행 기준금리

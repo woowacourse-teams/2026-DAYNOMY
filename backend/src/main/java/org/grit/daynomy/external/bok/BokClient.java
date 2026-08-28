@@ -9,6 +9,7 @@ import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.bok.dto.BokStatisticItem;
 import org.grit.daynomy.external.bok.dto.BokStatisticResponse;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -29,7 +30,14 @@ public class BokClient {
 
   public BokClient(BokProperties bokProperties) {
     this.bokProperties = bokProperties;
-    this.restClient = RestClient.create(bokProperties.baseUrl());
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(toMillis(bokProperties.connectTimeout()));
+    requestFactory.setReadTimeout(toMillis(bokProperties.readTimeout()));
+    this.restClient =
+        RestClient.builder()
+            .baseUrl(bokProperties.baseUrl())
+            .requestFactory(requestFactory)
+            .build();
   }
 
   public List<BokStatisticItem> getRecentData(BokProperties.Indicator indicator) {
@@ -118,5 +126,9 @@ public class BokClient {
       return String.valueOf(today.getYear());
     }
     return today.format(MONTHLY_FORMAT);
+  }
+
+  private int toMillis(java.time.Duration timeout) {
+    return Math.toIntExact(timeout.toMillis());
   }
 }
