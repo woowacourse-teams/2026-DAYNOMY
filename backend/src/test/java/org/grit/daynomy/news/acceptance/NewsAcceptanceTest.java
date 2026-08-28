@@ -120,8 +120,9 @@ class NewsAcceptanceTest {
         .get("/api/news/today")
         .then()
         .statusCode(200)
-        .body("title", equalTo("latest today news"))
-        .body("category", equalTo("REAL_ESTATE"));
+        .body("items", hasSize(2))
+        .body("items[0].title", equalTo("latest today news"))
+        .body("items[0].category", equalTo("REAL_ESTATE"));
   }
 
   private News createNews(String title, String externalId, Category category, Instant publishedAt) {
