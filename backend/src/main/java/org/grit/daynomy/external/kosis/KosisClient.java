@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.kosis.dto.KosisDataItem;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -22,7 +23,14 @@ public class KosisClient {
 
   public KosisClient(KosisProperties kosisProperties) {
     this.kosisProperties = kosisProperties;
-    this.restClient = RestClient.create(kosisProperties.baseUrl());
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(toMillis(kosisProperties.connectTimeout()));
+    requestFactory.setReadTimeout(toMillis(kosisProperties.readTimeout()));
+    this.restClient =
+        RestClient.builder()
+            .baseUrl(kosisProperties.baseUrl())
+            .requestFactory(requestFactory)
+            .build();
   }
 
   public List<KosisDataItem> getRecentData(KosisProperties.Indicator indicator) {
@@ -87,5 +95,9 @@ public class KosisClient {
 
   private String preview(String response) {
     return response.substring(0, Math.min(response.length(), 300)).replaceAll("\\s+", " ");
+  }
+
+  private int toMillis(java.time.Duration timeout) {
+    return Math.toIntExact(timeout.toMillis());
   }
 }

@@ -63,6 +63,8 @@ external:
   kosis:
     api-key: ${KOSIS_API_KEY:}
     base-url: ${KOSIS_BASE_URL:https://kosis.kr/openapi}
+    connect-timeout: ${KOSIS_CONNECT_TIMEOUT:3s}
+    read-timeout: ${KOSIS_READ_TIMEOUT:30s}
     indicators:
       - key: housing-price-index
         name: 주택가격지수
