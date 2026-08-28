@@ -299,7 +299,7 @@ export function NewsDetailPage() {
               출처:{' '}
               {news.sourceUrl ? (
                 <a
-                  className={`source-link${news.source === 'DART' ? ' source-link--dart' : ''}`}
+                  className="source-link"
                   href={news.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
