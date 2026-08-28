@@ -1,13 +1,14 @@
 .portfolio-section {
-  margin-top: clamp(32px, 5vw, 48px);
+  margin-top: 56px;
 }
 
 .portfolio-section h2 {
-  margin: 0 0 4px;
-  color: #111827;
-  font-size: 18px;
-  line-height: 1.3;
-  font-weight: 800;
+  margin: 0 0 5px;
+  color: #151a2a;
+  font-size: 20px;
+  line-height: 1.35;
+  font-weight: 900;
+  letter-spacing: -0.02em;
 }
 
 .portfolio-heading {
@@ -15,18 +16,18 @@
   align-items: end;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .portfolio-heading h2 {
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 
 .portfolio-heading p,
 .portfolio-state p {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 14px;
+  color: #667085;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -37,13 +38,12 @@
   justify-content: center;
   gap: 10px;
   padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: var(--surface);
+  border: 1px solid #e3e7ef;
+  border-radius: 14px;
+  background: #fff;
   text-align: center;
 }
 
-.portfolio-error,
 .portfolio-empty,
 .portfolio-login-prompt {
   flex-direction: column;
@@ -55,32 +55,15 @@
   height: 36px;
   place-items: center;
   border-radius: 50%;
-  background: var(--surface-strong);
-  color: var(--text-muted);
+  background: #f1f3f7;
+  color: #667085;
   font-size: 18px;
   font-weight: 900;
 }
 
 .portfolio-state strong {
-  color: var(--text-h);
+  color: #151a2a;
   font-size: 15px;
-}
-
-.portfolio-error .portfolio-state-icon {
-  background: #fff1f0;
-  color: #c33b3b;
-}
-
-.portfolio-error button {
-  padding: 8px 13px;
-  border: 1px solid #d0d5dd;
-  border-radius: 8px;
-  background: #fff;
-  color: #344054;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .portfolio-login-prompt a {
@@ -91,7 +74,7 @@
   margin-top: 4px;
   padding: 0 18px;
   border-radius: 999px;
-  background: var(--text-h);
+  background: #151a2a;
   color: #fff;
   font-size: 14px;
   font-weight: 800;
@@ -99,286 +82,152 @@
 }
 
 .portfolio-login-prompt a:hover {
-  background: var(--accent);
+  background: #5144d8;
 }
 
 .portfolio-login-prompt a:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid #5144d8;
   outline-offset: 2px;
-}
-
-.portfolio-error button:hover {
-  border-color: #5141c9;
-  color: #5141c9;
 }
 
 .portfolio-impact-list {
   display: grid;
-  gap: 18px;
-}
-
-.portfolio-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-}
-
-.portfolio-skeleton-list {
-  display: grid;
-  gap: 18px;
-}
-
-.portfolio-skeleton-card {
-  padding: clamp(20px, 3vw, 26px);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: var(--surface);
-}
-
-.portfolio-skeleton-card i {
-  display: block;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    var(--surface-strong) 25%,
-    #f8f8fb 50%,
-    var(--surface-strong) 75%
-  );
-  background-size: 200% 100%;
-  animation: portfolio-shimmer 1.4s ease-in-out infinite;
-}
-
-.portfolio-skeleton-heading {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.portfolio-skeleton-heading i:first-child {
-  width: 44px;
-  height: 14px;
-}
-
-.portfolio-skeleton-heading i:last-child {
-  width: 64px;
-  height: 14px;
-}
-
-.portfolio-skeleton-title {
-  width: min(180px, 55%);
-  height: 24px;
-}
-
-.portfolio-skeleton-body {
-  display: grid;
-  gap: 12px;
-  margin-top: 22px;
-  padding: 16px;
-  border-radius: 13px;
-  background: #f8f8fb;
-}
-
-.portfolio-skeleton-body i {
-  width: 100%;
-  height: 14px;
-}
-
-.portfolio-skeleton-body i:last-child {
-  width: 72%;
+  gap: 14px;
 }
 
 .portfolio-impact-card {
-  padding: clamp(20px, 3vw, 26px);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: var(--surface);
+  padding: 22px 28px 20px;
+  border: 1px solid #e1e6ef;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.portfolio-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
 }
 
 .portfolio-asset-heading {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.portfolio-asset-info {
   min-width: 0;
-}
-
-.portfolio-asset-meta {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 18px;
 }
 
-.portfolio-category,
-.portfolio-asset-code {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.portfolio-category {
-  color: var(--accent);
-}
-
-.portfolio-asset-code {
-  padding-left: 10px;
-  border-left: 1px solid var(--border);
+.portfolio-rank {
+  flex: 0 0 auto;
+  color: #6d3df5;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
 }
 
 .portfolio-asset-heading h3 {
+  min-width: 0;
   margin: 0;
-  color: var(--text-h);
-  font-size: clamp(19px, 2.5vw, 22px);
-  line-height: 1.32;
+  overflow: hidden;
+  color: #182033;
+  font-size: 16px;
+  line-height: 1.4;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.portfolio-badges {
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.portfolio-badges span {
+.portfolio-impact-badge {
   display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 30px;
   align-items: center;
   gap: 4px;
-  min-height: 30px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.portfolio-direction b {
+.portfolio-impact-badge b {
   font-size: 15px;
   line-height: 1;
 }
 
-.portfolio-direction.positive {
-  background: #edf8f1;
-  color: #18794e;
+.portfolio-impact-badge.positive {
+  background: #e6f8ec;
+  color: #13804b;
 }
 
-.portfolio-direction.negative {
-  background: #fff1f0;
-  color: #c33b3b;
+.portfolio-impact-badge.negative {
+  background: #fff0df;
+  color: #c85c12;
 }
 
-.portfolio-level.high {
-  background: var(--accent);
-  color: #fff;
+.portfolio-impact-badge.neutral {
+  background: #eef1f5;
+  color: #667085;
 }
 
-.portfolio-level.medium {
-  background: #eeecff;
-  color: var(--accent);
-}
-
-.portfolio-level.low {
-  background: var(--surface-strong);
-  color: var(--text-muted);
-}
-
-.portfolio-level-meter {
-  display: inline-flex;
-  align-items: end;
-  gap: 2px;
-  height: 12px;
-  font-style: normal;
-}
-
-.portfolio-level-meter b {
-  width: 3px;
-  border-radius: 1px;
-  background: currentColor;
-  opacity: 0.2;
-}
-
-.portfolio-level-meter b:nth-child(1) {
-  height: 5px;
-}
-
-.portfolio-level-meter b:nth-child(2) {
-  height: 8px;
-}
-
-.portfolio-level-meter b:nth-child(3) {
-  height: 11px;
-}
-
-.portfolio-level-meter b.active {
-  opacity: 1;
-}
-
-.portfolio-explanation {
+.portfolio-impact-copy {
   display: grid;
-  gap: 1px;
-  margin: 22px 0 0;
-  overflow: hidden;
-  border-radius: 13px;
-  background: var(--border);
+  gap: 5px;
+  margin: 19px 0 0;
 }
 
-.portfolio-explanation div {
-  display: grid;
-  grid-template-columns: 80px minmax(0, 1fr);
-  gap: 16px;
-  padding: 15px 16px;
-  background: #f8f8fb;
-}
-
-.portfolio-explanation dt {
-  color: var(--text-muted);
+.portfolio-impact-copy p {
+  margin: 0;
+  color: #667085;
   font-size: 13px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.portfolio-impact-copy p:first-child {
+  color: #263148;
+  font-weight: 700;
+}
+
+.portfolio-impact-copy strong {
+  color: #192238;
+  font-weight: 900;
+}
+
+.portfolio-impact-copy span {
+  color: #667085;
   font-weight: 800;
 }
 
-.portfolio-explanation dd {
-  margin: 0;
-  color: var(--text);
-  font-size: 14px;
-  line-height: 1.65;
-}
-
-@keyframes portfolio-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-
-  to {
-    background-position: -200% 0;
-  }
-}
-
 @media (max-width: 520px) {
+  .portfolio-section {
+    margin-top: 42px;
+  }
+
+  .portfolio-impact-card {
+    padding: 20px;
+  }
+
+  .portfolio-card-header {
+    align-items: flex-start;
+    gap: 14px;
+  }
+
   .portfolio-asset-heading {
-    display: grid;
-    gap: 16px;
+    align-items: flex-start;
+    gap: 12px;
   }
 
-  .portfolio-badges {
-    justify-content: flex-start;
+  .portfolio-rank {
+    font-size: 14px;
   }
 
-  .portfolio-explanation div {
-    grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 14px;
+  .portfolio-asset-heading h3 {
+    white-space: normal;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .portfolio-skeleton-card i {
-    animation: none;
+  .portfolio-impact-badge {
+    padding: 6px 9px;
+    font-size: 11px;
   }
 }
