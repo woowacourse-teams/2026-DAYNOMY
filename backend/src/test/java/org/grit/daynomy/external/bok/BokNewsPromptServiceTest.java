@@ -47,8 +47,12 @@ class BokNewsPromptServiceTest {
     assertThat(prompts.getFirst().source()).isEqualTo(NewsSource.BOK);
     assertThat(prompts.getFirst().category()).isEqualTo(Category.ECONOMY);
     assertThat(prompts.getFirst().externalId()).isEqualTo("base-rate:202607");
-    assertThat(prompts.getFirst().prompt())
-        .contains("경제 전문 기자", "JSON 형식으로만", "불릿, 번호 목록, 표", "한국은행 ECOS에 따르면", "증감");
+    assertThat(prompts.getFirst().instruction())
+        .contains("경제 전문 기자", "JSON 형식으로만", "불릿, 번호 목록, 표", "한국은행 ECOS에 따르면")
+        .doesNotContain("2.75", "[한국은행 ECOS 참고 데이터]");
+    assertThat(prompts.getFirst().sourceData())
+        .contains("[한국은행 ECOS 참고 데이터]", "2.75", "증감률", "조회일자")
+        .doesNotContain("경제 전문 기자");
   }
 
   @Test
