@@ -31,7 +31,9 @@ public class AssetCandidateController {
       description = "KOSDAQ 시장 종목 중 시가총액 상위 150개를 검색어와 페이지 조건으로 조회합니다.")
   @GetMapping("/kosdaq/top")
   public ResponseEntity<AssetCandidatesResponse> getKosdaqTopRankings(
-      @Parameter(description = "종목명 또는 종목코드 검색어(최대 100자)", example = "에코프로")
+      @Parameter(
+              description = "종목명 또는 종목코드 검색어. 생략하면 전체 조회하며, 입력 시 문자·숫자를 포함해야 합니다(최대 100자).",
+              example = "에코프로")
           @RequestParam(name = "q", required = false)
           @Size(max = 100, message = "검색어는 100자 이하여야 합니다.")
           @Pattern(regexp = ".*[\\p{L}\\p{N}].*", message = "올바른 검색어를 입력해주세요.")
