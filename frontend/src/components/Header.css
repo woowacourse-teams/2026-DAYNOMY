@@ -92,6 +92,7 @@
 .daynomy-header .search-link {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   box-sizing: border-box;
   width: 260px;
   height: 34px;
@@ -100,8 +101,10 @@
   border-radius: 10px;
   color: #78808f;
   background: #f3f6f9;
+  font-family: inherit;
   font-size: 14px;
-  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
 }
 
 .daynomy-header .search-link svg {
@@ -112,11 +115,6 @@
   fill: currentColor;
 }
 
-.daynomy-header .search-link:hover {
-  border-color: #d6dde7;
-  background: #eef2f7;
-}
-
 .daynomy-header .search-key {
   display: inline-flex;
   align-items: center;
@@ -124,6 +122,7 @@
   width: 24px;
   height: 22px;
   margin-left: 8px;
+  border: 0;
   border-radius: 7px;
   color: #78808f;
   background: #e6ebf2;
