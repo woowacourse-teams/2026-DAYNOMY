@@ -97,6 +97,18 @@ class AssetCandidateControllerTest {
   }
 
   @Test
+  @DisplayName("빈 검색어는 요청을 거부한다")
+  void getKosdaqTopRankingsRejectsEmptyKeyword() throws Exception {
+    mockMvc
+        .perform(get("/api/assets/kosdaq/top").param("q", ""))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("keyword"));
+
+    verifyNoInteractions(assetCandidateService);
+  }
+
+  @Test
   @DisplayName("문자나 숫자가 없는 검색어는 요청을 거부한다")
   void getKosdaqTopRankingsRejectsInvalidKeyword() throws Exception {
     mockMvc
