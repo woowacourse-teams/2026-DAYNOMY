@@ -19,7 +19,8 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.getByRole('heading', { name: 'KODEX 200' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '삼성전자' })).toBeTruthy();
     expect(view.getByText('분산 투자 수요가 늘면 ETF로 자금이 유입될 수 있습니다.')).toBeTruthy();
-    expect(view.getByText('영향 높음')).toBeTruthy();
+    const highImpactBadge = view.getAllByLabelText('영향 분석 요약')[0];
+    expect(highImpactBadge.textContent).toContain('긍정 · 영향 높음');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
