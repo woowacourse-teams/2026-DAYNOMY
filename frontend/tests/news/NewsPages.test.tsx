@@ -49,7 +49,16 @@ describe('뉴스 탐색 화면', () => {
         const url = String(input);
         calls.push(url);
 
-        if (url === '/api/news/today') return jsonResponse(article);
+        if (url === '/api/news/today') {
+          return jsonResponse({
+            items: [article, { ...article, id: 8, title: '오늘의 두 번째 뉴스' }],
+            page: 1,
+            size: 9,
+            totalPages: 1,
+            totalElements: 2,
+            hasNext: false,
+          });
+        }
 
         return jsonResponse({
           items: [article],
@@ -68,6 +77,7 @@ describe('뉴스 탐색 화면', () => {
     })) as HTMLAnchorElement;
 
     expect(link.getAttribute('href')).toBe('/news/7');
+    expect(view.getAllByRole('button', { name: /번째 배너 보기/ })).toHaveLength(2);
     fireEvent.click(view.getByRole('button', { name: '주식' }));
     await waitFor(() => expect(calls.some((url) => url.includes('category=STOCK'))).toBe(true));
   });
@@ -76,7 +86,16 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) =>
-        String(input) === '/api/news/today' ? jsonResponse(article) : jsonResponse({}, 500),
+        String(input) === '/api/news/today'
+          ? jsonResponse({
+              items: [],
+              page: 1,
+              size: 9,
+              totalPages: 0,
+              totalElements: 0,
+              hasNext: false,
+            })
+          : jsonResponse({}, 500),
       ),
     );
 
