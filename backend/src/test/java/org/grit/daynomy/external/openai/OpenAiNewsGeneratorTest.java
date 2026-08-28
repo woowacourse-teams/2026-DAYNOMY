@@ -90,6 +90,72 @@ class OpenAiNewsGeneratorTest {
     assertThat(requestBodies.get(1)).contains("[재작성 지침]");
   }
 
+  @Test
+  @DisplayName("구조화된 KOSIS 프롬프트를 역할별로 전송하고 검증 실패 시 재생성한다")
+  void generateSendsStructuredKosisInputAndRetriesInvalidNews() throws Exception {
+    OpenAiNewsGenerator generator =
+        new OpenAiNewsGenerator(
+            new OpenAiProperties(
+                "test-key",
+                startServer(
+                    openAiResponse("물가 제목", "물가 요약", "첫 문단만 작성됨"),
+                    openAiResponse(
+                        "물가 제목",
+                        "소비자물가지수 최신 수치를 설명한 요약입니다.",
+                        "소비자물가지수는 최신 시점에 상승했다.\n\nKOSIS에 따르면 이전 시점보다 값이 높아졌다.")),
+                "test-model",
+                "image-model"));
+    NewsPrompt prompt =
+        new NewsPrompt(
+            NewsSource.KOSIS,
+            "consumer-price-index:202607",
+            "https://kosis.example/consumer-price-index",
+            Category.ECONOMY,
+            Instant.parse("2026-08-17T00:00:00Z"),
+            "KOSIS 기사 작성 지침",
+            "[KOSIS 참고 데이터]\n최신 값: 113.42");
+
+    GeneratedNews generatedNews = generator.generate(prompt);
+
+    assertThat(generatedNews.title()).isEqualTo("물가 제목");
+    assertThat(requestBodies).hasSize(2);
+    assertThat(requestBodies.getFirst())
+        .contains("\"role\":\"developer\"", "\"role\":\"user\"", "KOSIS 참고 데이터");
+    assertThat(requestBodies.get(1)).contains("[재작성 지침]", "KOSIS 출처 표현");
+  }
+
+  @Test
+  @DisplayName("구조화된 한국은행 프롬프트를 전송하고 한국은행 출처 표현을 검증한다")
+  void generateValidatesStructuredBokInput() throws Exception {
+    OpenAiNewsGenerator generator =
+        new OpenAiNewsGenerator(
+            new OpenAiProperties(
+                "test-key",
+                startServer(
+                    openAiResponse(
+                        "금리 제목",
+                        "기준금리 최신 수치를 설명한 요약입니다.",
+                        "한국은행 기준금리는 최신 시점에 유지됐다.\n\n한국은행 ECOS에 따르면 이전 시점과 같은 수준이다.")),
+                "test-model",
+                "image-model"));
+    NewsPrompt prompt =
+        new NewsPrompt(
+            NewsSource.BOK,
+            "base-rate:202607",
+            "https://ecos.bok.or.kr",
+            Category.ECONOMY,
+            Instant.parse("2026-08-17T00:00:00Z"),
+            "한국은행 기사 작성 지침",
+            "[한국은행 ECOS 참고 데이터]\n최신 값: 2.75");
+
+    GeneratedNews generatedNews = generator.generate(prompt);
+
+    assertThat(generatedNews.title()).isEqualTo("금리 제목");
+    assertThat(requestBodies).hasSize(1);
+    assertThat(requestBodies.getFirst())
+        .contains("\"role\":\"developer\"", "\"role\":\"user\"", "한국은행 ECOS 참고 데이터");
+  }
+
   private String startServer(String... responseBodies) throws IOException {
     this.responseBodies = new ArrayDeque<>(List.of(responseBodies));
     server = HttpServer.create(new InetSocketAddress(0), 0);
