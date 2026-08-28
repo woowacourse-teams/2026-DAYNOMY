@@ -182,6 +182,20 @@ describe('뉴스 검색 화면', () => {
     expect(view.queryByRole('alert')).toBeNull();
   });
 
+  it('검색어가 변경되면 이전 검색어의 종목을 표시하지 않는다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [] })) satisfies AxiosAdapter;
+    const view = submitSearch('삼성', { stocks: [stock] });
+    await view.findByText('삼성전자');
+    globalThis.fetch = () => new Promise<Response>(() => undefined);
+
+    await act(async () => {
+      await view.router.navigate('/search?q=에코프로&category=ALL&page=1');
+    });
+
+    expect(view.queryByText('삼성전자')).toBeNull();
+  });
+
   it('오류 후 같은 검색 조건으로 다시 시도한다', async () => {
     let requestCount = 0;
     axios.defaults.adapter = (async (config) => {

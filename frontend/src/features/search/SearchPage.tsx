@@ -47,7 +47,10 @@ function SearchPage() {
   const [loading, setLoading] = useState(Boolean(searchedKeyword));
   const [error, setError] = useState<string | null>(null);
   const [searchAttempt, setSearchAttempt] = useState(0);
-  const [stocks, setStocks] = useState<StockCandidate[]>([]);
+  const [stockResult, setStockResult] = useState<{
+    keyword: string;
+    rankings: StockCandidate[];
+  }>({ keyword: '', rankings: [] });
   const [stocksLoading, setStocksLoading] = useState(Boolean(searchedKeyword));
   const [stocksError, setStocksError] = useState<string | null>(null);
   const isLoggedIn = useLoginStatus();
@@ -110,11 +113,13 @@ function SearchPage() {
 
     searchKosdaqTopStocks(searchedKeyword)
       .then((response) => {
-        if (!ignore) setStocks(response.rankings);
+        if (!ignore) {
+          setStockResult({ keyword: searchedKeyword, rankings: response.rankings });
+        }
       })
       .catch((caughtError: unknown) => {
         if (!ignore) {
-          setStocks([]);
+          setStockResult({ keyword: searchedKeyword, rankings: [] });
           setStocksError(
             caughtError instanceof Error
               ? caughtError.message
@@ -151,8 +156,13 @@ function SearchPage() {
   };
 
   const visiblePages = getVisiblePages(page, totalPages);
+  const stocks = stockResult.keyword === searchedKeyword ? stockResult.rankings : [];
   const showEmpty =
-    !loading && !stocksLoading && !error && results.length === 0 && stocks.length === 0;
+    !loading &&
+    !stocksLoading &&
+    !error &&
+    results.length === 0 &&
+    stocks.length === 0;
 
   return (
     <main className="search-page">
