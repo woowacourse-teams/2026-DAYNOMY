@@ -25,9 +25,9 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function renderPage(element: ReactNode) {
+function renderPage(element: ReactNode, isLoggedIn = false) {
   return render(
-    <AuthContext.Provider value={{ isLoggedIn: false, loading: false }}>
+    <AuthContext.Provider value={{ isLoggedIn, loading: false }}>
       <MemoryRouter>{element}</MemoryRouter>
     </AuthContext.Provider>,
   );
@@ -157,5 +157,53 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByRole('link', { name: 'Google로 시작하기' }).getAttribute('href')).toBe(
       '/api/auth/google',
     );
+  });
+
+  it('로그인 사용자의 포트폴리오 분석 API 결과를 표시한다', async () => {
+    window.history.replaceState(null, '', '/news/7');
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        calls.push(url);
+
+        if (url === '/api/news/7') {
+          return jsonResponse({
+            ...article,
+            content: '뉴스 본문입니다.',
+            source: 'BOK',
+          });
+        }
+        if (url === '/api/news/7/portfolio-analysis') {
+          return jsonResponse({
+            impacts: [
+              {
+                bookmarkId: 1,
+                assetId: 2,
+                name: '삼성전자',
+                category: 'STOCK',
+                assetCode: '005930',
+                direction: 'POSITIVE',
+                impactLevel: 'HIGH',
+                expectedReaction: '주가가 상승할 수 있습니다.',
+                reason: '반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.',
+                sortOrder: 1,
+              },
+            ],
+          });
+        }
+
+        return jsonResponse({}, 500);
+      }),
+    );
+
+    const view = renderPage(<NewsDetailPage />, true);
+
+    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+    expect(view.getByText('주가가 상승할 수 있습니다.')).toBeTruthy();
+    expect(view.getByText('반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.')).toBeTruthy();
+    expect(calls).toContain('/api/news/7/portfolio-analysis');
+    expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
   });
 });

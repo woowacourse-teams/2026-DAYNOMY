@@ -4,6 +4,7 @@ import defaultNewsImage from '../../../assets/default-news-real-estate.png';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
+import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 import { getMockNewsDetail } from './mock.ts';
 import type {
   Asset,
@@ -106,30 +107,6 @@ const fallbackAssetImpacts: AssetImpactResponse[] = [
     reason: '수입 원가 부담이 큰 업종은 마진 압박을 받을 수 있어요.',
   },
 ];
-
-const portfolioSummaries = [
-  {
-    rank: 'TOP 1',
-    title: '삼성전자',
-    direction: 'POSITIVE',
-    impactLevel: 'HIGH',
-    body: '환율 상승 구간에서 수출주로 꼽히지만 원재료 가격 부담도 함께 확인해야 해요.',
-  },
-  {
-    rank: 'TOP 2',
-    title: '미국 달러',
-    direction: 'POSITIVE',
-    impactLevel: 'MEDIUM',
-    body: '원화 약세가 이어지면 보유 외화 가치가 방어적으로 움직일 수 있어요.',
-  },
-  {
-    rank: 'TOP 3',
-    title: '국내 채권형 ETF',
-    direction: 'NEGATIVE',
-    impactLevel: 'MEDIUM',
-    body: '금리 인하 기대가 늦춰지면 단기 가격 흐름이 제한될 수 있어요.',
-  },
-] as const;
 
 const directionLabel: Record<ImpactDirection, string> = {
   POSITIVE: '긍정',
@@ -237,24 +214,6 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAna
             ))}
           </div>
         </section>
-      </section>
-
-      <section className="detail-portfolio" aria-labelledby="detail-portfolio-title">
-        <h2 id="detail-portfolio-title">포트폴리오 분석</h2>
-        <div className="portfolio-detail-list">
-          {portfolioSummaries.map((asset) => (
-            <article className="portfolio-detail-row" key={asset.rank}>
-              <div>
-                <strong>{asset.rank}</strong>
-                <h3>{asset.title}</h3>
-                <p>{asset.body}</p>
-              </div>
-              <span className={`impact-pill ${getImpactTone(asset.direction, asset.impactLevel)}`}>
-                {getImpactLabel(asset.direction, asset.impactLevel)}
-              </span>
-            </article>
-          ))}
-        </div>
       </section>
     </>
   );
@@ -389,6 +348,7 @@ export function NewsDetailPage() {
           <div className={isLoggedIn ? 'analysis-area' : 'analysis-area is-locked'}>
             <div className="analysis-content">
               <DetailAnalysisSections marketAnalysis={marketAnalysis} />
+              {isLoggedIn ? <PortfolioAnalysis newsId={newsId} /> : null}
             </div>
             {!isLoggedIn ? <AnalysisLockOverlay /> : null}
           </div>
