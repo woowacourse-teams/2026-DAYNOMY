@@ -150,4 +150,4 @@ news:
       cron: ${KOSIS_NEWS_GENERATION_CRON:0 30 7 * * *}
     bok:
       enabled: ${BOK_NEWS_GENERATION_ENABLED:true}
-      cron: ${BOK_NEWS_GENERATION_CRON:0 30 7 * * *}
+      cron: ${BOK_NEWS_GENERATION_CRON:0 30 8 * * *}
