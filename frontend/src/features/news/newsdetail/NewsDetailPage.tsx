@@ -12,6 +12,7 @@ import type {
   ImpactLevel,
   MarketAnalysisResponse,
   NewsDetailPayload,
+  TimeHorizon,
 } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
@@ -142,6 +143,12 @@ const levelLabel: Record<ImpactLevel, string> = {
   LOW: '영향 낮음',
 };
 
+const timeHorizonLabel: Record<TimeHorizon, string> = {
+  SHORT_TERM: '단기',
+  MID_TERM: '중기',
+  LONG_TERM: '장기',
+};
+
 function getImpactTone(direction: ImpactDirection, impactLevel: ImpactLevel) {
   if (direction === 'NEUTRAL') {
     return 'impact-tone-neutral';
@@ -172,24 +179,27 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAna
 
         <section className="market-step">
           <h3>1. 발생 원인</h3>
-          <ul>
-            <li>글로벌 달러 강세가 이어지면서 원화 가치가 상대적으로 약해지고 있어요.</li>
-            <li>
-              에너지·원자재를 달러로 결제하는 수입 품목은 환율 상승의 영향을 먼저 받을 수 있어요.
-            </li>
-            <li>
-              수입 원가 부담이 커지면 기업 비용과 소비자물가에 시차를 두고 반영될 가능성이 있어요.
-            </li>
-            <li>물가 부담이 다시 커지면 한국은행의 기준금리 인하 기대도 늦춰질 수 있어요.</li>
-          </ul>
+          {marketAnalysis?.cause ? (
+            <p>{marketAnalysis.cause}</p>
+          ) : (
+            <ul>
+              <li>글로벌 달러 강세가 이어지면서 원화 가치가 상대적으로 약해지고 있어요.</li>
+              <li>
+                에너지·원자재를 달러로 결제하는 수입 품목은 환율 상승의 영향을 먼저 받을 수 있어요.
+              </li>
+              <li>
+                수입 원가 부담이 커지면 기업 비용과 소비자물가에 시차를 두고 반영될 가능성이 있어요.
+              </li>
+              <li>물가 부담이 다시 커지면 한국은행의 기준금리 인하 기대도 늦춰질 수 있어요.</li>
+            </ul>
+          )}
         </section>
 
         <section className="market-step">
           <h3>2. 이슈가 중요한 이유</h3>
           <p>
-            환율은 단순히 외환시장 숫자에 그치지 않아요. 수입 물가, 기업 마진, 기준금리 기대, 외국인
-            자금 흐름이 한 번에 연결되는 지표예요. 특히 수입 비중이 높은 업종은 비용 부담이 빠르게
-            커질 수 있고, 반대로 수출 비중이 높은 기업은 환율 효과를 일부 기대할 수 있어요.
+            {marketAnalysis?.importance ??
+              '환율은 단순히 외환시장 숫자에 그치지 않아요. 수입 물가, 기업 마진, 기준금리 기대, 외국인 자금 흐름이 한 번에 연결되는 지표예요. 특히 수입 비중이 높은 업종은 비용 부담이 빠르게 커질 수 있고, 반대로 수출 비중이 높은 기업은 환율 효과를 일부 기대할 수 있어요.'}
           </p>
         </section>
 
@@ -216,16 +226,10 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAna
         <section className="market-step">
           <h3>4. 단기·중기·장기 시나리오</h3>
           <div className="scenario-stack">
-            {(marketAnalysis?.scenarios ?? []).slice(0, 3).map((scenario, index) => (
+            {(marketAnalysis?.scenarios ?? []).slice(0, 3).map((scenario) => (
               <article className="scenario-strip" key={scenario.timeHorizon}>
                 <div>
-                  <h4>
-                    {index === 0
-                      ? '단기 · 환율 변동성 확대'
-                      : index === 1
-                        ? '중기 · 금리 인하 기대 조절'
-                        : '장기 · 업종별 실적 차별화'}
-                  </h4>
+                  <h4>{timeHorizonLabel[scenario.timeHorizon]} 시나리오</h4>
                   <p>{`${scenario.prediction} ${scenario.reason}`}</p>
                 </div>
                 <strong>가능성 {scenario.probability}%</strong>

@@ -112,6 +112,28 @@ describe('뉴스 탐색 화면', () => {
             ],
           });
         }
+        if (url === '/api/news/7/market-analysis') {
+          return jsonResponse({
+            cause: '금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.',
+            importance: '기준금리 변화는 대출과 채권 수익률에 연결됩니다.',
+            assets: [
+              {
+                category: 'BOND',
+                direction: 'NEGATIVE',
+                impactLevel: 'MEDIUM',
+                reason: '금리 불확실성이 채권 투자 심리를 제한할 수 있습니다.',
+              },
+            ],
+            scenarios: [
+              {
+                timeHorizon: 'LONG_TERM',
+                prediction: '장기적으로 정책 방향에 따라 시장 흐름이 달라질 수 있습니다.',
+                probability: 45,
+                reason: '추가 경제 지표 확인이 필요합니다.',
+              },
+            ],
+          });
+        }
 
         return jsonResponse({}, 500);
       }),
@@ -125,6 +147,10 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByText('추가 지표를 확인해야 합니다.')).toBeTruthy();
     expect(view.container.querySelector('mark.keyword')?.textContent).toContain('금리 동결');
     expect(view.getByText('기준금리 동결은 정책 방향을 보여줍니다.')).toBeTruthy();
+    expect(view.getByText('금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.')).toBeTruthy();
+    expect(view.getByText('기준금리 변화는 대출과 채권 수익률에 연결됩니다.')).toBeTruthy();
+    expect(view.getByRole('heading', { name: '채권' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '장기 시나리오' })).toBeTruthy();
     expect(view.getByRole('link', { name: '한국은행' }).getAttribute('href')).toBe(
       'https://example.com/news/7',
     );

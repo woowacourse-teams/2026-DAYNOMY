@@ -56,6 +56,7 @@ export type ScenarioResponse = {
 
 export type MarketAnalysisResponse = {
   cause: string;
+  importance?: string;
   assets: AssetImpactResponse[];
   scenarios: ScenarioResponse[];
 };
