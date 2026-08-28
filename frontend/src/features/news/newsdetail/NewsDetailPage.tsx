@@ -26,6 +26,24 @@ function getContentParagraphs(content: string | string[]) {
   return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
 }
 
+function getSummaryItems(description: string | null) {
+  return (description ?? '')
+    .split(/\r?\n|(?<=[.!?。！？])\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+const NEWS_SOURCE_LABELS: Record<string, string> = {
+  DART: 'DART',
+  KOSIS: '국가통계포털',
+  BOK: '한국은행',
+};
+
+function getNewsSourceLabel(source: string) {
+  return NEWS_SOURCE_LABELS[source] ?? source;
+}
+
 function formatDetailDate(value?: string) {
   if (!value) {
     return '';
@@ -311,7 +329,26 @@ export function NewsDetailPage() {
           ×
         </button>
 
-        <span className="detail-category">{getCategoryLabel(news.category)}</span>
+        <div className="detail-meta">
+          <span className="detail-category">{getCategoryLabel(news.category)}</span>
+          {news.source && (
+            <span className="detail-source">
+              출처:{' '}
+              {news.sourceUrl ? (
+                <a
+                  className={`source-link${news.source === 'DART' ? ' source-link--dart' : ''}`}
+                  href={news.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {getNewsSourceLabel(news.source)}
+                </a>
+              ) : (
+                getNewsSourceLabel(news.source)
+              )}
+            </span>
+          )}
+        </div>
 
         <h1>{news.title}</h1>
 
@@ -327,9 +364,9 @@ export function NewsDetailPage() {
           </h2>
           <div className="summary">
             <ul>
-              <li>원·달러 환율이 최근 다시 오름세를 보이고 있어요</li>
-              <li>환율 상승으로 에너지와 원자재 수입 가격 부담이 커지고 있어요</li>
-              <li>수입 비용이 늘면서 관련 업종의 비용 부담도 함께 주목되고 있어요</li>
+              {getSummaryItems(news.description).map((item, index) => (
+                <li key={`${item}-${index}`}>{item}</li>
+              ))}
             </ul>
           </div>
         </section>

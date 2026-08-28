@@ -246,6 +246,9 @@ describe('뉴스 검색 화면', () => {
 
     expect(view.getByRole('button', { name: '경제지표' }).className).toBe('active');
     expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(view.getByRole('heading', { name: '‘금리’ 뉴스' })),
+    );
 
     const requestParams = new URL(requestedUrl, 'http://localhost').searchParams;
     expect(requestParams.get('q')).toBe('금리');

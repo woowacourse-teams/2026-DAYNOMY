@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { trackEvent } from '../../analytics';
 import { useLoginStatus } from '../../hooks/useLoginStatus';
@@ -55,6 +55,11 @@ function SearchPage() {
   const [stocksError, setStocksError] = useState<string | null>(null);
   const isLoggedIn = useLoginStatus();
   const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks(isLoggedIn);
+  const resultTitleRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (searchedKeyword) resultTitleRef.current?.focus();
+  }, [searchedKeyword]);
 
   useEffect(() => {
     if (!searchedKeyword) return;
@@ -180,6 +185,9 @@ function SearchPage() {
       <div className={stocks.length > 0 ? 'search-panel has-stocks' : 'search-panel'}>
         {searchedKeyword ? (
           <>
+            <h1 ref={resultTitleRef} id="result-title" className="sr-only" tabIndex={-1}>
+              ‘{searchedKeyword}’ 뉴스
+            </h1>
             <span className="sr-only" role="status">
               {currentStocksLoading
                 ? '종목 검색 중입니다.'
