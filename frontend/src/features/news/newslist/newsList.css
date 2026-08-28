@@ -536,3 +536,9 @@
     gap: 18px;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .banner-track {
+    transition: none;
+  }
+}

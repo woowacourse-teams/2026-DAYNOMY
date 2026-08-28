@@ -5,14 +5,14 @@ import { ArticleCard } from './components/ArticleCard';
 import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
 import { TodayNewsBanner } from './components/TodayNewsBanner';
-import { getEmptyTodayNews, NEWS_CATEGORIES } from './constants';
+import { NEWS_CATEGORIES } from './constants';
 import { getMockNewsPage, getMockTodayNews } from './mock';
 import type { NewsCategory, NewsListItem } from './types';
 import './newsList.css';
 import { trackEvent } from '../../../analytics';
 
 const initialNewsPage = getMockNewsPage('ALL', 1);
-let todayNewsCache: NewsListItem | null = getMockTodayNews('ALL');
+let todayNewsCache: NewsListItem[] = [getMockTodayNews('ALL')];
 const newsPageCache = new Map<string, ReturnType<typeof getMockNewsPage>>([
   ['ALL:1', initialNewsPage],
 ]);
@@ -23,9 +23,7 @@ export function NewsListPage() {
   const [articles, setArticles] = useState<NewsListItem[]>(() => initialNewsPage.content);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(() => initialNewsPage.totalPages);
-  const [todayMainNews, setTodayMainNews] = useState<NewsListItem>(
-    () => todayNewsCache ?? getEmptyTodayNews(),
-  );
+  const [todayNews, setTodayNews] = useState<NewsListItem[]>(() => todayNewsCache);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +31,6 @@ export function NewsListPage() {
     () => NEWS_CATEGORIES.find((category) => category.value === selectedCategory)?.label ?? '전체',
     [selectedCategory],
   );
-  const bannerArticles = useMemo(() => (todayMainNews.id ? [todayMainNews] : []), [todayMainNews]);
   const paginationPages = useMemo(() => {
     const maxVisiblePages = 5;
     const visiblePageCount = Math.min(totalPages, maxVisiblePages);
@@ -108,16 +105,18 @@ export function NewsListPage() {
 
     async function loadTodayNews() {
       try {
-        const todayNews = await getTodayNews();
+        const todayNewsPage = await getTodayNews();
+        const content =
+          todayNewsPage.content.length > 0 ? todayNewsPage.content : [getMockTodayNews('ALL')];
 
         if (!ignore) {
-          todayNewsCache = todayNews.id ? todayNews : getMockTodayNews('ALL');
-          setTodayMainNews(todayNewsCache);
+          todayNewsCache = content;
+          setTodayNews(content);
         }
       } catch {
         if (!ignore) {
-          todayNewsCache = getMockTodayNews('ALL');
-          setTodayMainNews(todayNewsCache);
+          todayNewsCache = [getMockTodayNews('ALL')];
+          setTodayNews(todayNewsCache);
         }
       }
     }
@@ -154,7 +153,7 @@ export function NewsListPage() {
         <h1>오늘의 뉴스</h1>
       </div>
 
-      <TodayNewsBanner articles={bannerArticles} onSelect={handleArticleSelect} />
+      <TodayNewsBanner articles={todayNews} onSelect={handleArticleSelect} />
 
       <CategoryTabs
         categories={NEWS_CATEGORIES}

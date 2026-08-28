@@ -80,14 +80,10 @@ body {
 }
 
 .source-link {
-  color: #7338f2;
+  color: #6b7280;
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-.source-link--dart {
-  color: #6b7280;
 }
 
 .news-detail h1 {

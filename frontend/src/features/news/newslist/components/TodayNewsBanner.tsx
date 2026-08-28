@@ -11,6 +11,7 @@ type TodayNewsBannerProps = {
 };
 
 const SWIPE_THRESHOLD = 48;
+const AUTO_ADVANCE_MS = 3000;
 
 function formatBannerDate(value?: string | null) {
   if (!value) {
@@ -32,6 +33,8 @@ function formatBannerDate(value?: string | null) {
 
 export function TodayNewsBanner({ articles, onSelect }: TodayNewsBannerProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const pointerStartX = useRef<number | null>(null);
 
   useEffect(() => {
@@ -39,6 +42,34 @@ export function TodayNewsBanner({ articles, onSelect }: TodayNewsBannerProps) {
       setActiveIndex(0);
     }
   }, [activeIndex, articles.length]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handlePreferenceChange = () => setPrefersReducedMotion(mediaQuery.matches);
+
+    handlePreferenceChange();
+    mediaQuery.addEventListener?.('change', handlePreferenceChange);
+
+    return () => {
+      mediaQuery.removeEventListener?.('change', handlePreferenceChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (articles.length <= 1 || isPaused || prefersReducedMotion) {
+      return;
+    }
+
+    const timerId = window.setInterval(() => {
+      setActiveIndex((currentIndex) => (currentIndex + 1) % articles.length);
+    }, AUTO_ADVANCE_MS);
+
+    return () => window.clearInterval(timerId);
+  }, [articles.length, isPaused, prefersReducedMotion]);
 
   function moveSlide(direction: 1 | -1) {
     setActiveIndex((currentIndex) => {
@@ -114,6 +145,10 @@ export function TodayNewsBanner({ articles, onSelect }: TodayNewsBannerProps) {
         aria-label="오늘의 뉴스"
         role="button"
         tabIndex={0}
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        onFocus={() => setIsPaused(true)}
+        onBlur={() => setIsPaused(false)}
         onKeyDown={handleKeyDown}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}

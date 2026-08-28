@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class NewsService {
 
+  private static final int TODAY_NEWS_SIZE = 9;
+
   private final NewsRepository newsRepository;
 
   public NewsPageResponse getNewsPage(int page, int size, Category category) {
@@ -35,17 +37,18 @@ public class NewsService {
     return NewsPageResponse.from(newsPage.map(NewsListItemResponse::from));
   }
 
-  public NewsListItemResponse getTodayNews() {
+  public NewsPageResponse getTodayNews() {
     ZoneId zoneId = ZoneId.systemDefault();
     LocalDate today = LocalDate.now(zoneId);
     Instant startInclusive = today.atStartOfDay(zoneId).toInstant();
     Instant endExclusive = today.plusDays(1).atStartOfDay(zoneId).toInstant();
 
-    return newsRepository
-        .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-            startInclusive, endExclusive)
-        .map(NewsListItemResponse::from)
-        .orElse(null);
+    Page<News> todayNews =
+        newsRepository
+            .findByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+                startInclusive, endExclusive, PageRequest.of(0, TODAY_NEWS_SIZE));
+
+    return NewsPageResponse.from(todayNews.map(NewsListItemResponse::from));
   }
 
   public NewsDetailResponse getNewsDetail(Long id) {

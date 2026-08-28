@@ -70,7 +70,7 @@ class NewsServiceTest {
   }
 
   @Test
-  @DisplayName("오늘 발행된 뉴스 중 최신 뉴스를 조회한다")
+  @DisplayName("오늘 발행된 뉴스 중 최신 9건을 조회한다")
   void findTodayNewsReturnsLatestNewsPublishedToday() {
     LocalDate today = LocalDate.now();
     Instant startInclusive = startOfDay(today);
@@ -86,33 +86,36 @@ class NewsServiceTest {
             "https://example.com/1",
             Category.STOCK,
             atHour(today, 10));
+    PageRequest pageable = PageRequest.of(0, 9);
     given(
             newsRepository
-                .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-                    startInclusive, endExclusive))
-        .willReturn(Optional.of(news));
+                .findByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+                    startInclusive, endExclusive, pageable))
+        .willReturn(new PageImpl<>(java.util.List.of(news), pageable, 1));
 
     var response = newsService.getTodayNews();
 
-    assertThat(response.title()).isEqualTo("today news");
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().getFirst().title()).isEqualTo("today news");
     verify(newsRepository)
-        .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-            startInclusive, endExclusive);
+        .findByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+            startInclusive, endExclusive, pageable);
   }
 
   @Test
-  @DisplayName("오늘의 뉴스가 없으면 null을 반환한다")
+  @DisplayName("오늘의 뉴스가 없으면 빈 목록을 반환한다")
   void findTodayNewsReturnsNullWhenMissing() {
     LocalDate today = LocalDate.now();
     Instant startInclusive = startOfDay(today);
     Instant endExclusive = startOfDay(today.plusDays(1));
+    PageRequest pageable = PageRequest.of(0, 9);
     given(
             newsRepository
-                .findFirstByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-                    startInclusive, endExclusive))
-        .willReturn(Optional.empty());
+                .findByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+                    startInclusive, endExclusive, pageable))
+        .willReturn(new PageImpl<>(java.util.List.of(), pageable, 0));
 
-    assertThat(newsService.getTodayNews()).isNull();
+    assertThat(newsService.getTodayNews().items()).isEmpty();
   }
 
   @Test
