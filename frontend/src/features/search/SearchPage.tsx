@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { trackEvent } from '../../analytics';
+import { useLoginStatus } from '../../hooks/useLoginStatus';
 import { ArticleCard } from '../news/newslist/components/ArticleCard';
 import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
 import { NEWS_CATEGORIES } from '../news/newslist/constants';
 import { isCategory } from '../news/newslist/types';
 import type { NewsCategory, NewsListItem } from '../news/newslist/types';
+import { searchKosdaqTopStocks } from '../stocks/api';
+import { useStockBookmarks } from '../stocks/hooks/useStockBookmarks';
+import type { StockCandidate } from '../stocks/types';
 import { searchNews } from './api';
+import { StockSearchResults } from './components/StockSearchResults';
 import './SearchPage.css';
-import { trackEvent } from '../../analytics';
 
 const PAGE_SIZE = 10;
 const MAX_VISIBLE_PAGES = 5;
@@ -32,30 +37,28 @@ function getVisiblePages(currentPage: number, totalPages: number) {
   return Array.from({ length: pageCount }, (_, index) => startPage + index);
 }
 
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m16 16 4 4" />
-    </svg>
-  );
-}
-
 function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchedKeyword = searchParams.get('q')?.trim() ?? '';
   const selectedCategory = getCategory(searchParams);
   const page = getPage(searchParams);
-  const [query, setQuery] = useState(searchedKeyword);
   const [results, setResults] = useState<NewsListItem[]>([]);
-  const [totalResults, setTotalResults] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(searchedKeyword));
   const [error, setError] = useState<string | null>(null);
   const [searchAttempt, setSearchAttempt] = useState(0);
+  const [stockResult, setStockResult] = useState<{
+    keyword: string;
+    rankings: StockCandidate[];
+  }>({ keyword: '', rankings: [] });
+  const [stocksLoading, setStocksLoading] = useState(Boolean(searchedKeyword));
+  const [stocksError, setStocksError] = useState<string | null>(null);
+  const isLoggedIn = useLoginStatus();
+  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks(isLoggedIn);
+  const resultTitleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    setQuery(searchedKeyword);
+    if (searchedKeyword) resultTitleRef.current?.focus();
   }, [searchedKeyword]);
 
   useEffect(() => {
@@ -84,16 +87,11 @@ function SearchPage() {
           }
 
           setResults(newsPage.content);
-          setTotalResults(newsPage.totalElements);
           setTotalPages(newsPage.totalPages);
-          if (newsPage.content.length === 0) {
-            trackEvent('search_no_result', { search_length: searchedKeyword.length });
-          }
         }
       } catch (caughtError) {
         if (!ignore) {
           setResults([]);
-          setTotalResults(0);
           setTotalPages(0);
           setError(
             caughtError instanceof Error ? caughtError.message : '검색 결과를 불러오지 못했습니다.',
@@ -111,16 +109,43 @@ function SearchPage() {
     };
   }, [searchedKeyword, selectedCategory, page, searchAttempt, setSearchParams]);
 
-  function search() {
-    const keyword = query.trim();
+  useEffect(() => {
+    if (!searchedKeyword) return;
 
-    if (!keyword) return;
+    let ignore = false;
+    setStocksLoading(true);
+    setStocksError(null);
 
-    setQuery(keyword);
-    setSearchParams({ q: keyword, category: selectedCategory, page: '1' });
-    setSearchAttempt((attempt) => attempt + 1);
-    trackEvent('search_news', { search_length: keyword.length });
-  }
+    searchKosdaqTopStocks(searchedKeyword)
+      .then((response) => {
+        if (!ignore) {
+          setStockResult({ keyword: searchedKeyword, rankings: response.rankings });
+        }
+      })
+      .catch((caughtError: unknown) => {
+        if (!ignore) {
+          setStockResult({ keyword: searchedKeyword, rankings: [] });
+          setStocksError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : '종목 검색 결과를 불러오지 못했습니다.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!ignore) setStocksLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [searchedKeyword]);
+
+  useEffect(() => {
+    if (searchedKeyword) {
+      trackEvent('search_news', { search_length: searchedKeyword.length });
+    }
+  }, [searchedKeyword]);
 
   function changeCategory(category: NewsCategory) {
     setSearchParams({ q: searchedKeyword, category, page: '1' });
@@ -136,112 +161,122 @@ function SearchPage() {
   };
 
   const visiblePages = getVisiblePages(page, totalPages);
+  const hasCurrentStockResult = stockResult.keyword === searchedKeyword;
+  const stocks = hasCurrentStockResult ? stockResult.rankings : [];
+  const currentStocksLoading =
+    Boolean(searchedKeyword) && (!hasCurrentStockResult || stocksLoading);
+  const currentStocksError = hasCurrentStockResult ? stocksError : null;
+  const showStockError =
+    !loading &&
+    !currentStocksLoading &&
+    !error &&
+    results.length === 0 &&
+    currentStocksError !== null;
+  const showEmpty =
+    !loading &&
+    !currentStocksLoading &&
+    !error &&
+    !currentStocksError &&
+    results.length === 0 &&
+    stocks.length === 0;
 
   return (
     <main className="search-page">
-      <div className="search-panel">
-        <div className="search-row">
-          <button
-            type="button"
-            className="back-button"
-            aria-label="이전 화면으로 이동"
-            onClick={() => window.history.back()}
-          >
-            ‹
-          </button>
-
-          <form
-            className="search-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              search();
-            }}
-          >
-            <button type="submit" className="search-submit" aria-label="뉴스 검색">
-              <SearchIcon />
-            </button>
-            <label className="sr-only" htmlFor="news-search">
-              뉴스 키워드 검색
-            </label>
-            <input
-              id="news-search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="검색어를 입력하세요"
-              autoComplete="off"
-              required
-              maxLength={100}
-              pattern=".*[\p{L}\p{N}].*"
-              title="문자 또는 숫자를 포함한 100자 이하의 검색어를 입력해주세요."
-            />
-          </form>
-        </div>
-
-        <CategoryTabs
-          categories={NEWS_CATEGORIES}
-          selectedCategory={selectedCategory}
-          onChange={changeCategory}
-        />
-
+      <div className={stocks.length > 0 ? 'search-panel has-stocks' : 'search-panel'}>
         {searchedKeyword ? (
-          <section id="news-results" className="news-results" aria-labelledby="result-title">
-            <div className="result-heading" aria-live="polite">
-              <h1 id="result-title">‘{searchedKeyword}’ 뉴스</h1>
-              <span>{loading ? '검색 중' : `${totalResults}건`}</span>
-            </div>
+          <>
+            <h1 ref={resultTitleRef} id="result-title" className="sr-only" tabIndex={-1}>
+              ‘{searchedKeyword}’ 뉴스
+            </h1>
+            <span className="sr-only" role="status">
+              {currentStocksLoading
+                ? '종목 검색 중입니다.'
+                : currentStocksError && !showStockError
+                  ? `종목 검색 결과를 불러오지 못했습니다. ${currentStocksError}`
+                  : ''}
+            </span>
 
-            {loading ? <p className="search-state">검색 중입니다.</p> : null}
-
-            {!loading && error ? (
-              <p className="search-state" role="alert">
-                {error}
-              </p>
+            {stocks.length > 0 ? (
+              <StockSearchResults
+                keyword={searchedKeyword}
+                stocks={stocks}
+                isLoggedIn={isLoggedIn}
+                bookmarkedCodeSet={bookmarkedCodeSet}
+                onBookmarkToggle={toggleBookmark}
+              />
             ) : null}
 
-            {!loading && results.length > 0 ? (
-              <>
-                <section className="article-list" aria-label="검색된 뉴스 목록">
-                  {results.map((item) => (
-                    <ArticleCard article={item} key={item.id} />
-                  ))}
-                </section>
+            <CategoryTabs
+              categories={NEWS_CATEGORIES}
+              selectedCategory={selectedCategory}
+              onChange={changeCategory}
+            />
 
-                {totalPages > 1 ? (
-                  <nav className="pagination" aria-label="검색 결과 페이지">
-                    <button
-                      type="button"
-                      disabled={page === 1}
-                      onClick={() => changePage(page - 1)}
-                    >
-                      이전
-                    </button>
-                    {visiblePages.map((pageNumber) => (
+            <section id="news-results" className="news-results" aria-label="검색된 뉴스 목록">
+              <div className="result-heading">
+                <span>{loading ? '검색 중' : '최신순'}</span>
+              </div>
+
+              {loading ? <p className="search-state">검색 중입니다.</p> : null}
+
+              {!loading && error ? (
+                <div className="search-state" role="alert">
+                  <p>{error}</p>
+                  <button type="button" onClick={() => setSearchAttempt((attempt) => attempt + 1)}>
+                    다시 시도
+                  </button>
+                </div>
+              ) : null}
+
+              {showStockError ? (
+                <p className="search-state" role="alert">
+                  {currentStocksError}
+                </p>
+              ) : null}
+
+              {!loading && results.length > 0 ? (
+                <>
+                  <div className="article-list">
+                    {results.map((item) => (
+                      <ArticleCard article={item} key={item.id} />
+                    ))}
+                  </div>
+
+                  {totalPages > 1 ? (
+                    <nav className="pagination" aria-label="검색 결과 페이지">
                       <button
                         type="button"
-                        className={page === pageNumber ? 'active' : ''}
-                        aria-current={page === pageNumber ? 'page' : undefined}
-                        onClick={() => changePage(pageNumber)}
-                        key={pageNumber}
+                        disabled={page === 1}
+                        onClick={() => changePage(page - 1)}
                       >
-                        {pageNumber}
+                        이전
                       </button>
-                    ))}
-                    <button
-                      type="button"
-                      disabled={page === totalPages}
-                      onClick={() => changePage(page + 1)}
-                    >
-                      다음
-                    </button>
-                  </nav>
-                ) : null}
-              </>
-            ) : null}
+                      {visiblePages.map((pageNumber) => (
+                        <button
+                          type="button"
+                          className={page === pageNumber ? 'active' : ''}
+                          aria-current={page === pageNumber ? 'page' : undefined}
+                          onClick={() => changePage(pageNumber)}
+                          key={pageNumber}
+                        >
+                          {pageNumber}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={page === totalPages}
+                        onClick={() => changePage(page + 1)}
+                      >
+                        다음
+                      </button>
+                    </nav>
+                  ) : null}
+                </>
+              ) : null}
 
-            {!loading && !error && results.length === 0 ? (
-              <p className="search-state">검색 결과가 없습니다.</p>
-            ) : null}
-          </section>
+              {showEmpty ? <p className="search-state">검색된 결과가 없습니다.</p> : null}
+            </section>
+          </>
         ) : null}
       </div>
     </main>

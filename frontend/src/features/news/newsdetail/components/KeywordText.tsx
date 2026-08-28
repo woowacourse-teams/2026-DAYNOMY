@@ -1,5 +1,13 @@
 import type { ReactNode } from 'react';
-import type { KeywordResponse } from '../types.ts';
+import type { KeywordCategory, KeywordResponse } from '../types.ts';
+
+const keywordCategoryLabels: Record<KeywordCategory, string> = {
+  PERSON: '인물',
+  POLICY: '정책',
+  EVENT: '사건',
+  TERM: '용어',
+  TREND: '흐름',
+};
 
 function highlightKeywords(text: string, keywords: KeywordResponse[]) {
   const matches = keywords
@@ -24,21 +32,14 @@ function highlightKeywords(text: string, keywords: KeywordResponse[]) {
       <mark className="keyword" key={`${match.keyword}-${index}`} tabIndex={0}>
         {match.keyword}
         <span className="keyword-tooltip" role="tooltip">
-          <span className="keyword-tooltip-badge">정책</span>
+          <span className="keyword-tooltip-badge">{keywordCategoryLabels[match.category]}</span>
           <strong>{match.keyword}</strong>
-          <span>{match.description}</span>
-          <span>
-            <b>POINT 1. 왜 중요해요?</b>
-            금리와 물가 흐름을 이해하는 기준이 될 수 있어요.
-          </span>
-          <span>
-            <b>POINT 2. 어떤 기대?</b>
-            시장이 앞으로 움직일 가능성을 예상하는 단서예요.
-          </span>
-          <span>
-            <b>POINT 3. 왜 주목해요?</b>
-            자산 가격과 투자 판단에 영향을 줄 수 있어요.
-          </span>
+          {match.points.map((point, index) => (
+            <span key={point}>
+              <b>{`POINT ${index + 1}`}</b>
+              {point}
+            </span>
+          ))}
         </span>
       </mark>,
     );

@@ -26,6 +26,7 @@ function AppHeader() {
   const showHeader =
     location.pathname === '/' ||
     location.pathname.startsWith('/news') ||
+    location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/stocks') ||
     location.pathname.startsWith('/mypage');
 

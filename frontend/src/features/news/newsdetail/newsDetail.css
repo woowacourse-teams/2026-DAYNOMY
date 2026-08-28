@@ -60,11 +60,34 @@ body {
 }
 
 .detail-category {
-  display: block;
   color: #4339c0;
   font-size: 14px;
   font-weight: 800;
   line-height: 20px;
+}
+
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-source {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.source-link {
+  color: #7338f2;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.source-link--dart {
+  color: #6b7280;
 }
 
 .news-detail h1 {
@@ -82,7 +105,7 @@ body {
   margin-top: 15px;
   color: #8a93a3;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 20px;
 }
 
@@ -111,29 +134,29 @@ body {
 }
 
 .summary-section {
-  margin-top: 21px;
+  margin-top: 36px;
 }
 
 .summary-section h2 {
-  margin-bottom: 36px;
+  margin-bottom: 21px;
 }
 
 .summary {
-  min-height: 142px;
-  padding: 25px 28px;
+  min-height: auto;
+  padding: 36px 44px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 16px;
   background: #f7f5ff;
   color: #374151;
   font-size: 15px;
-  font-weight: 800;
-  line-height: 29px;
+  font-weight: 400;
+  line-height: 32px;
 }
 
 .summary ul {
   margin: 0;
-  padding-left: 0;
-  list-style-position: inside;
+  padding-left: 17px;
+  list-style-position: outside;
 }
 
 .body-section {
@@ -145,7 +168,7 @@ body {
   gap: 33px;
   color: #374151;
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 32px;
 }
 
@@ -192,7 +215,7 @@ body {
   box-shadow: 0 18px 40px rgba(17, 24, 39, 0.16);
   color: #111827;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 20px;
   white-space: normal;
 }
@@ -246,7 +269,7 @@ body {
 
 .analysis-area {
   position: relative;
-  margin-top: 203px;
+  margin-top: 72px;
 }
 
 .analysis-area.is-locked .analysis-content {
@@ -323,7 +346,7 @@ body {
   padding: 0;
   color: #374151;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 24px;
   list-style: none;
 }
@@ -337,7 +360,7 @@ body {
   margin: 0;
   color: #374151;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 26px;
 }
 
@@ -429,37 +452,46 @@ body {
 
 .scenario-stack {
   display: grid;
-  gap: 19px;
+  gap: 16px;
 }
 
 .scenario-strip {
   display: flex;
-  min-height: 96px;
+  min-height: 164px;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  padding: 22px 26px;
-  border-radius: 8px;
+  padding: 26px 32px;
+  border-radius: 16px;
   background: #f8fafc;
 }
 
 .scenario-strip p {
-  margin-top: 11px;
+  margin-top: 12px;
+  color: #374151;
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.scenario-strip h4 {
+  font-size: 15px;
+  line-height: 22px;
 }
 
 .scenario-strip > strong {
   flex: 0 0 auto;
-  padding: 7px 17px;
+  padding: 8px 20px;
+  border: 1px solid #d8b4fe;
   border-radius: 999px;
   background: #f7e8ff;
   color: #7338f2;
   font-size: 13px;
   font-weight: 900;
-  line-height: 18px;
+  line-height: 20px;
 }
 
 .detail-portfolio {
-  margin-top: 136px;
+  margin-top: 72px;
 }
 
 .portfolio-detail-list {
@@ -483,7 +515,7 @@ body {
   margin: 15px 0 0;
   color: #374151;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 22px;
 }
 
@@ -522,7 +554,7 @@ body {
   margin: 13px 0 0;
   color: #4b5563;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 22px;
 }
 
@@ -595,7 +627,7 @@ body {
   margin: 0;
   color: #4b5563;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.7;
 }
 
@@ -718,7 +750,7 @@ body {
   margin: 4px 0 24px;
   color: #6b7280;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 20px;
 }
 
@@ -750,7 +782,7 @@ body {
   margin: 10px 0 0;
   color: #4b5563;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 24px;
 }
 
@@ -815,7 +847,7 @@ body {
   margin: 13px 0 0;
   color: #4b5563;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 22px;
 }
 
@@ -885,7 +917,7 @@ body {
   margin: 0;
   color: #8a93a3;
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 28px;
 }
 
@@ -913,6 +945,8 @@ body {
   .summary {
     min-height: auto;
     padding: 22px;
+    font-size: 15px;
+    line-height: 32px;
   }
 
   .locked-market {
@@ -946,5 +980,14 @@ body {
 
   .scenario-list {
     grid-template-columns: 1fr;
+  }
+
+  .scenario-strip {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .scenario-strip > strong {
+    align-self: flex-start;
   }
 }
