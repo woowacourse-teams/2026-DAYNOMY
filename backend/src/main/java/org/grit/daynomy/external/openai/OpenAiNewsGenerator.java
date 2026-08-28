@@ -14,6 +14,7 @@ import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.NewsSource;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
@@ -28,9 +29,15 @@ public class OpenAiNewsGenerator {
       Pattern.compile("(?m)^\\s*(?:[-*•·]|\\d+[.)])\\s+");
   private static final Pattern IDENTIFIER_PATTERN =
       Pattern.compile(
-          "(?i)(접수번호|DART\\s*회사\\s*코드|회사\\s*코드|법인구분|종목\\s*코드|corp[_ ]?code|rcept[_ ]?no|stock[_ ]?code)");
+          "(?i)(접수번호|DART\\s*회사\\s*코드|회사\\s*코드|법인구분|종목\\s*코드|통계표\\s*코드|항목\\s*코드|userStatsId|stat[_ ]?code|item[_ ]?code|corp[_ ]?code|rcept[_ ]?no|stock[_ ]?code)");
   private static final Pattern SOURCE_ATTRIBUTION_PATTERN =
       Pattern.compile("(DART\\s*공시|전자공시시스템|공시에 따르면|공시된 내용에 따르면|공시에는)");
+  private static final Pattern KOSIS_SOURCE_ATTRIBUTION_PATTERN =
+      Pattern.compile(
+          "(?i)(KOSIS(?:\\s+(?:통계|자료))?에 따르면|KOSIS에서 (?:발표|제공)한|국가통계포털(?:\\s+자료)?에 따르면)");
+  private static final Pattern BOK_SOURCE_ATTRIBUTION_PATTERN =
+      Pattern.compile(
+          "(?i)(한국은행(?:\\s*ECOS)?(?:\\s+(?:통계|자료))?에 따르면|ECOS(?:\\s+(?:통계|자료))?에 따르면|한국은행이 발표한)");
   private static final Pattern AWKWARD_ATTRIBUTION_PATTERN =
       Pattern.compile("(?s)(?:에 따르면|따르면)[^.!?。！？\\n]{0,40}(?:밝혔다|전했다)");
   private static final List<String> FORBIDDEN_PHRASES =
@@ -41,7 +48,14 @@ public class OpenAiNewsGenerator {
 
   public OpenAiNewsGenerator(OpenAiProperties openAiProperties) {
     this.openAiProperties = openAiProperties;
-    this.restClient = RestClient.create(openAiProperties.baseUrl());
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(toMillis(openAiProperties.connectTimeout()));
+    requestFactory.setReadTimeout(toMillis(openAiProperties.readTimeout()));
+    this.restClient =
+        RestClient.builder()
+            .baseUrl(openAiProperties.baseUrl())
+            .requestFactory(requestFactory)
+            .build();
   }
 
   public GeneratedNews generate(NewsPrompt prompt) {
@@ -53,18 +67,18 @@ public class OpenAiNewsGenerator {
           prompt.externalId());
       GeneratedNews generatedNews = requestNews(prompt, "");
       if (shouldValidate(prompt)) {
-        ValidationResult validation = validateDartNews(generatedNews);
+        ValidationResult validation = validateNews(prompt.source(), generatedNews);
         if (!validation.valid()) {
           log.warn(
-              "Generated DART news failed content validation: source={}, externalId={}, violations={}",
+              "Generated news failed content validation: source={}, externalId={}, violations={}",
               prompt.source(),
               prompt.externalId(),
               validation.violations());
           generatedNews = requestNews(prompt, validation.correctionInstruction());
-          ValidationResult retryValidation = validateDartNews(generatedNews);
+          ValidationResult retryValidation = validateNews(prompt.source(), generatedNews);
           if (!retryValidation.valid()) {
             log.warn(
-                "Regenerated DART news failed content validation: source={}, externalId={}, violations={}",
+                "Regenerated news failed content validation: source={}, externalId={}, violations={}",
                 prompt.source(),
                 prompt.externalId(),
                 retryValidation.violations());
@@ -130,10 +144,10 @@ public class OpenAiNewsGenerator {
   }
 
   private boolean shouldValidate(NewsPrompt prompt) {
-    return prompt.source() == NewsSource.DART && prompt.hasStructuredInput();
+    return prompt.hasStructuredInput();
   }
 
-  private ValidationResult validateDartNews(GeneratedNews generatedNews) {
+  private ValidationResult validateNews(NewsSource source, GeneratedNews generatedNews) {
     List<String> violations = new ArrayList<>();
     String title = value(generatedNews.title());
     String description = value(generatedNews.description());
@@ -156,9 +170,9 @@ public class OpenAiNewsGenerator {
       if (BULLET_LINE_PATTERN.matcher(content).find()) {
         violations.add("content에 불릿 또는 목록 형식이 없어야 함");
       }
-      int sourceAttributionCount = countMatches(SOURCE_ATTRIBUTION_PATTERN, content);
+      int sourceAttributionCount = countMatches(sourceAttributionPattern(source), content);
       if (sourceAttributionCount != 1) {
-        violations.add("content에 DART 출처 표현이 한 번만 있어야 함");
+        violations.add("content에 " + sourceName(source) + " 출처 표현이 한 번만 있어야 함");
       }
       if (AWKWARD_ATTRIBUTION_PATTERN.matcher(content).find()) {
         violations.add("출처 표현과 전달 동사를 중복해서 쓰지 않아야 함");
@@ -171,7 +185,23 @@ public class OpenAiNewsGenerator {
         .filter(allText::contains)
         .forEach(phrase -> violations.add("금지 표현이 없어야 함: " + phrase));
 
-    return new ValidationResult(List.copyOf(violations));
+    return new ValidationResult(List.copyOf(violations), source);
+  }
+
+  private Pattern sourceAttributionPattern(NewsSource source) {
+    return switch (source) {
+      case DART -> SOURCE_ATTRIBUTION_PATTERN;
+      case KOSIS -> KOSIS_SOURCE_ATTRIBUTION_PATTERN;
+      case BOK -> BOK_SOURCE_ATTRIBUTION_PATTERN;
+    };
+  }
+
+  private static String sourceName(NewsSource source) {
+    return switch (source) {
+      case DART -> "DART";
+      case KOSIS -> "KOSIS";
+      case BOK -> "한국은행 ECOS";
+    };
   }
 
   private int paragraphCount(String content) {
@@ -195,7 +225,7 @@ public class OpenAiNewsGenerator {
     return text == null ? "" : text.strip();
   }
 
-  private record ValidationResult(List<String> violations) {
+  private record ValidationResult(List<String> violations, NewsSource source) {
 
     private boolean valid() {
       return violations.isEmpty();
@@ -207,7 +237,8 @@ public class OpenAiNewsGenerator {
           + String.join(", ", violations)
           + ". 위반 사항을 모두 수정한 기사만 출력하세요. "
           + "content는 반드시 2~5개 문단으로 작성하고 문단 사이에는 \\n\\n을 사용하세요. "
-          + "출처 표현은 본문에 한 번만 넣고 '따르면 밝혔다'처럼 중복하지 마세요. "
+          + sourceName(source)
+          + " 출처 표현은 본문에 한 번만 넣고 '따르면 밝혔다'처럼 중복하지 마세요. "
           + "정보가 부족해도 사실을 반복하거나 추측하지 마세요. 참고 데이터에 없는 사실은 추가하지 마세요.";
     }
   }
@@ -261,5 +292,9 @@ public class OpenAiNewsGenerator {
     }
 
     throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
+  }
+
+  private int toMillis(java.time.Duration timeout) {
+    return Math.toIntExact(timeout.toMillis());
   }
 }

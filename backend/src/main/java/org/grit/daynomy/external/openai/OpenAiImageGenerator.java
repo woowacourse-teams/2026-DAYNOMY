@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
@@ -26,7 +27,14 @@ public class OpenAiImageGenerator {
 
   public OpenAiImageGenerator(OpenAiProperties openAiProperties) {
     this.openAiProperties = openAiProperties;
-    this.restClient = RestClient.create(openAiProperties.baseUrl());
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(toMillis(openAiProperties.connectTimeout()));
+    requestFactory.setReadTimeout(toMillis(openAiProperties.readTimeout()));
+    this.restClient =
+        RestClient.builder()
+            .baseUrl(openAiProperties.baseUrl())
+            .requestFactory(requestFactory)
+            .build();
   }
 
   public String generateNewsImage(String title, String description) {
@@ -106,5 +114,9 @@ public class OpenAiImageGenerator {
     }
 
     throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
+  }
+
+  private int toMillis(java.time.Duration timeout) {
+    return Math.toIntExact(timeout.toMillis());
   }
 }

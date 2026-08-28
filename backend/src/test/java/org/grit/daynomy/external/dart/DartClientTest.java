@@ -7,6 +7,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -127,6 +128,40 @@ class DartClientTest {
             () ->
                 dartClient.getDisclosures(
                     LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 17), "B", "K"))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.DART_API_REQUEST_FAILED);
+  }
+
+  @Test
+  @DisplayName("DART API 응답 timeout이면 요청 실패 예외를 던진다")
+  void getDisclosuresThrowsWhenReadTimeout() throws Exception {
+    server = HttpServer.create(new InetSocketAddress(0), 0);
+    server.createContext(
+        "/list.json",
+        exchange -> {
+          try {
+            Thread.sleep(500);
+          } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+          } finally {
+            exchange.close();
+          }
+        });
+    server.start();
+
+    DartClient dartClient =
+        new DartClient(
+            new DartProperties(
+                "test-key",
+                "http://localhost:" + server.getAddress().getPort(),
+                Duration.ofSeconds(1),
+                Duration.ofMillis(50)));
+
+    assertThatThrownBy(
+            () ->
+                dartClient.getDisclosures(
+                    LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "B", "K"))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(ExternalErrorCode.DART_API_REQUEST_FAILED);
