@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
@@ -50,16 +51,18 @@ class KeywordControllerTest {
   @DisplayName("뉴스 키워드 조회 API는 뉴스에 연결된 키워드 목록을 반환한다")
   void findNewsKeywordsReturnsKeywords() throws Exception {
     News news = newsRepository.save(createNews());
-    newsKeywordRepository.save(new NewsKeyword(news, "금리 인하", "대출 수요 회복과 연결됨"));
-    newsKeywordRepository.save(new NewsKeyword(news, "부동산 규제", "거래량 회복 기대와 연결됨"));
+    newsKeywordRepository.save(createKeyword(news, "금리 인하"));
+    newsKeywordRepository.save(createKeyword(news, "부동산 규제"));
 
     HttpResponse<String> response = get("/api/news/" + news.getId() + "/keywords");
     JsonNode body = objectMapper.readTree(response.body());
 
     assertThat(response.statusCode()).isEqualTo(200);
     assertThat(body.at("/keywords")).hasSize(2);
+    assertThat(body.at("/keywords/0/category").asText()).isEqualTo("POLICY");
     assertThat(body.at("/keywords/0/keyword").asText()).isEqualTo("금리 인하");
-    assertThat(body.at("/keywords/0/description").asText()).isEqualTo("대출 수요 회복과 연결됨");
+    assertThat(body.at("/keywords/0/points")).hasSize(3);
+    assertThat(body.at("/keywords/0/points/0").asText()).isEqualTo("첫 번째 분석 포인트");
   }
 
   @Test
@@ -84,6 +87,11 @@ class KeywordControllerTest {
     assertThat(response.statusCode()).isEqualTo(404);
     assertThat(body.at("/code").asText()).isEqualTo("KEYWORD_NOT_FOUND");
     assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스의 키워드를 찾을 수 없습니다.");
+  }
+
+  private NewsKeyword createKeyword(News news, String keyword) {
+    return new NewsKeyword(
+        news, KeywordCategory.POLICY, keyword, "첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
   }
 
   private News createNews() {

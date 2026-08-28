@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ArticleCard } from '../news/newslist/components/ArticleCard';
 import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
@@ -53,9 +53,11 @@ function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchAttempt, setSearchAttempt] = useState(0);
+  const resultTitleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     setQuery(searchedKeyword);
+    if (searchedKeyword) resultTitleRef.current?.focus();
   }, [searchedKeyword]);
 
   useEffect(() => {
@@ -186,7 +188,9 @@ function SearchPage() {
         {searchedKeyword ? (
           <section id="news-results" className="news-results" aria-labelledby="result-title">
             <div className="result-heading" aria-live="polite">
-              <h1 id="result-title">‘{searchedKeyword}’ 뉴스</h1>
+              <h1 ref={resultTitleRef} id="result-title" tabIndex={-1}>
+                ‘{searchedKeyword}’ 뉴스
+              </h1>
               <span>{loading ? '검색 중' : `${totalResults}건`}</span>
             </div>
 
