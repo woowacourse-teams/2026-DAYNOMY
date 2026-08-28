@@ -156,11 +156,22 @@ function SearchPage() {
   };
 
   const visiblePages = getVisiblePages(page, totalPages);
-  const stocks = stockResult.keyword === searchedKeyword ? stockResult.rankings : [];
+  const hasCurrentStockResult = stockResult.keyword === searchedKeyword;
+  const stocks = hasCurrentStockResult ? stockResult.rankings : [];
+  const currentStocksLoading =
+    Boolean(searchedKeyword) && (!hasCurrentStockResult || stocksLoading);
+  const currentStocksError = hasCurrentStockResult ? stocksError : null;
+  const showStockError =
+    !loading &&
+    !currentStocksLoading &&
+    !error &&
+    results.length === 0 &&
+    currentStocksError !== null;
   const showEmpty =
     !loading &&
-    !stocksLoading &&
+    !currentStocksLoading &&
     !error &&
+    !currentStocksError &&
     results.length === 0 &&
     stocks.length === 0;
 
@@ -170,10 +181,10 @@ function SearchPage() {
         {searchedKeyword ? (
           <>
             <span className="sr-only" role="status">
-              {stocksLoading
+              {currentStocksLoading
                 ? '종목 검색 중입니다.'
-                : stocksError
-                  ? `종목 검색 결과를 불러오지 못했습니다. ${stocksError}`
+                : currentStocksError && !showStockError
+                  ? `종목 검색 결과를 불러오지 못했습니다. ${currentStocksError}`
                   : ''}
             </span>
 
@@ -207,6 +218,12 @@ function SearchPage() {
                     다시 시도
                   </button>
                 </div>
+              ) : null}
+
+              {showStockError ? (
+                <p className="search-state" role="alert">
+                  {currentStocksError}
+                </p>
               ) : null}
 
               {!loading && results.length > 0 ? (

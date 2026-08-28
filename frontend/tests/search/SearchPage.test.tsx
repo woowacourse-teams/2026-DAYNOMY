@@ -196,6 +196,17 @@ describe('뉴스 검색 화면', () => {
     expect(view.queryByText('삼성전자')).toBeNull();
   });
 
+  it('뉴스 결과가 없고 종목 검색이 실패하면 빈 결과 대신 오류를 표시한다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [] })) satisfies AxiosAdapter;
+    const view = submitSearch('에코프로', { stockStatus: 500 });
+
+    expect((await view.findByRole('alert')).textContent).toContain(
+      '종목 목록을 불러오지 못했습니다.',
+    );
+    expect(view.queryByText('검색된 결과가 없습니다.')).toBeNull();
+  });
+
   it('오류 후 같은 검색 조건으로 다시 시도한다', async () => {
     let requestCount = 0;
     axios.defaults.adapter = (async (config) => {
