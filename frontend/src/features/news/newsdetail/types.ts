@@ -20,7 +20,7 @@ export type NewsDetailResponse = {
   title: string;
   category: Category;
   publishedAt: string;
-  description: string;
+  description: string | null;
   content: string | string[];
   imageUrl?: string | null;
   source?: string | null;
@@ -28,9 +28,12 @@ export type NewsDetailResponse = {
   sourceUrl?: string | null;
 };
 
+export type KeywordCategory = 'PERSON' | 'POLICY' | 'EVENT' | 'TERM' | 'TREND';
+
 export type KeywordResponse = {
   keyword: string;
-  description: string;
+  category: KeywordCategory;
+  points: string[];
 };
 
 export type KeywordsResponse = {

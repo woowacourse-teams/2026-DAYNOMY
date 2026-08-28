@@ -23,6 +23,7 @@ public class MarketAnalysisService {
         new NewsMarketAnalysis(
             news,
             marketAnalysis.getCause(),
+            marketAnalysis.getImportance(),
             marketAnalysis.getAssets(),
             marketAnalysis.getScenarios()));
   }

@@ -27,16 +27,31 @@ export function getMockNewsDetail(newsId: string): NewsDetailPayload {
     },
     keywords: [
       {
+        category: 'TERM',
         keyword: '원·달러 환율',
-        description: '원화와 미국 달러의 교환 비율입니다.',
+        points: [
+          '원화와 미국 달러의 교환 비율입니다.',
+          '수입 물가와 기업 비용에 영향을 줄 수 있습니다.',
+          '금리와 자산 시장 흐름을 함께 확인해야 합니다.',
+        ],
       },
       {
+        category: 'TERM',
         keyword: '수입 물가',
-        description: '해외에서 들여오는 상품과 원자재 가격 수준입니다.',
+        points: [
+          '해외에서 들여오는 상품과 원자재 가격 수준입니다.',
+          '환율이 오르면 수입 비용이 커질 수 있습니다.',
+          '소비자 물가에도 영향을 줄 수 있습니다.',
+        ],
       },
       {
+        category: 'TREND',
         keyword: '달러 강세',
-        description: '주요 통화 대비 달러 가치가 높아지는 흐름입니다.',
+        points: [
+          '주요 통화 대비 달러 가치가 높아지는 흐름입니다.',
+          '원화 약세와 수입 비용 증가로 이어질 수 있습니다.',
+          '글로벌 금리와 위험 선호를 함께 살펴야 합니다.',
+        ],
       },
     ],
     marketAnalysis: {

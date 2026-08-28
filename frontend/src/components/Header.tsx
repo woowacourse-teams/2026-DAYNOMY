@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { trackEvent } from '../analytics';
 import daynomyLogo from '../assets/daynomy-logo.png';
+import { SearchOverlay } from '../features/search/components/SearchOverlay';
 import { useLoginStatus } from '../hooks/useLoginStatus';
 import './Header.css';
 
@@ -18,6 +19,8 @@ export function Header() {
   const location = useLocation();
   const isNewsPage = location.pathname === '/' || location.pathname.startsWith('/news');
   const isStockPage = location.pathname.startsWith('/stocks');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -27,6 +30,28 @@ export function Header() {
       }
     }
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    function openSearch(event: KeyboardEvent) {
+      const target = event.target;
+      const isEditing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || isEditing) return;
+
+      event.preventDefault();
+      setSearchOpen(true);
+    }
+
+    document.addEventListener('keydown', openSearch);
+    return () => document.removeEventListener('keydown', openSearch);
+  }, []);
+
+  function closeSearch(restoreFocus: boolean) {
+    setSearchOpen(false);
+    if (restoreFocus) searchButtonRef.current?.focus();
+  }
 
   return (
     <header className="daynomy-header">
@@ -42,11 +67,19 @@ export function Header() {
         </Link>
       </nav>
       <div className="header-actions">
-        <Link className="search-link" to="/search" aria-label="뉴스와 종목 검색">
+        <button
+          ref={searchButtonRef}
+          type="button"
+          className="search-link"
+          aria-label="검색 열기"
+          aria-haspopup="dialog"
+          aria-expanded={searchOpen}
+          onClick={() => setSearchOpen(true)}
+        >
           <SearchIcon />
-          <span className="search-key">/</span>
+          <kbd className="search-key">/</kbd>
           <span className="search-placeholder">를 눌러 검색하세요</span>
-        </Link>
+        </button>
         <Link
           className={isLoggedIn ? 'mypage-link' : 'login-button'}
           to={isLoggedIn ? '/mypage' : '/login'}
@@ -57,6 +90,7 @@ export function Header() {
           {isLoggedIn ? '마이페이지' : '로그인'}
         </Link>
       </div>
+      <SearchOverlay open={searchOpen} onClose={closeSearch} />
     </header>
   );
 }

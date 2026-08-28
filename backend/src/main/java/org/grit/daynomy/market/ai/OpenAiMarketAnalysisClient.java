@@ -25,8 +25,9 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       """
       뉴스 본문을 바탕으로 시장 분석을 작성하세요.
       1. 발생 원인을 뉴스 본문 맥락에서 1~2문장으로 분석하세요.
-      2. 가장 영향을 받을 수 있는 자산을 1~2개만 고르고 긍정/부정 방향, 영향도, 판단 근거를 작성하세요.
-      3. 단기, 중기, 장기 시나리오를 각각 작성하고 가능성은 0부터 100 사이 정수로 작성하세요.
+      2. 이 이슈가 시장에서 중요한 이유를 1~2문장으로 설명하세요.
+      3. 가장 영향을 받을 수 있는 자산을 1~2개만 고르고 긍정/부정 방향, 영향도, 판단 근거를 작성하세요.
+      4. 단기, 중기, 장기 시나리오를 각각 작성하고 가능성은 0부터 100 사이 정수로 작성하세요.
       본문에 없는 사실을 단정하지 말고, 불확실하면 근거에 불확실성을 명시하세요.
       """;
 
@@ -55,7 +56,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     String response =
         restClient
             .post()
-            .uri("/v1/responses")
+            .uri("/responses")
             .contentType(MediaType.APPLICATION_JSON)
             .headers(headers -> headers.setBearerAuth(apiKey))
             .body(createRequest(newsContent))
@@ -95,13 +96,14 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
   private Map<String, Object> createMarketAnalysisSchema() {
     Map<String, Object> properties = new LinkedHashMap<>();
     properties.put("cause", Map.of("type", "string"));
+    properties.put("importance", Map.of("type", "string"));
     properties.put("assets", createAssetsSchema());
     properties.put("scenarios", createScenariosSchema());
 
     Map<String, Object> schema = new LinkedHashMap<>();
     schema.put("type", "object");
     schema.put("additionalProperties", false);
-    schema.put("required", List.of("cause", "assets", "scenarios"));
+    schema.put("required", List.of("cause", "importance", "assets", "scenarios"));
     schema.put("properties", properties);
     return schema;
   }
@@ -152,6 +154,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       JsonNode root = objectMapper.readTree(outputText);
       return new NewsMarketAnalysis(
           root.path("cause").asText(),
+          root.path("importance").asText(),
           parseAssets(root.path("assets")),
           parseScenarios(root.path("scenarios")));
     } catch (JsonProcessingException exception) {

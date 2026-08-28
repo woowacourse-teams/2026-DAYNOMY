@@ -2,10 +2,17 @@ package org.grit.daynomy.news.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.Instant;
+import java.util.List;
+import org.grit.daynomy.keyword.domain.NewsKeyword;
+import org.grit.daynomy.keyword.service.KeywordService;
+import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
@@ -24,6 +31,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class NewsPersistenceServiceTest {
 
   @Mock private NewsRepository newsRepository;
+  @Mock private KeywordService keywordService;
+  @Mock private MarketAnalysisService marketAnalysisService;
 
   @InjectMocks private NewsPersistenceService newsPersistenceService;
 
@@ -39,10 +48,14 @@ class NewsPersistenceServiceTest {
             Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
     GeneratedNews generatedNews = new GeneratedNews("제목", "요약", "본문");
+    List<NewsKeyword> keywords = List.of(mock(NewsKeyword.class));
+    NewsMarketAnalysis marketAnalysis = mock(NewsMarketAnalysis.class);
     given(newsRepository.existsBySourceAndExternalId(NewsSource.DART, "20260817000001"))
         .willReturn(false);
 
-    boolean saved = newsPersistenceService.saveIfAbsent(prompt, generatedNews, "image.png");
+    boolean saved =
+        newsPersistenceService.saveIfAbsent(
+            prompt, generatedNews, "image.png", keywords, marketAnalysis);
 
     ArgumentCaptor<News> newsCaptor = ArgumentCaptor.forClass(News.class);
     verify(newsRepository).save(newsCaptor.capture());
@@ -51,6 +64,8 @@ class NewsPersistenceServiceTest {
     assertThat(newsCaptor.getValue().getExternalId()).isEqualTo("20260817000001");
     assertThat(newsCaptor.getValue().getSourceUrl()).isEqualTo("https://dart.example/1");
     assertThat(newsCaptor.getValue().getImageUrl()).isEqualTo("image.png");
+    verify(keywordService).saveKeywords(newsCaptor.getValue(), keywords);
+    verify(marketAnalysisService).saveMarketAnalysis(newsCaptor.getValue(), marketAnalysis);
   }
 
   @Test
@@ -69,9 +84,14 @@ class NewsPersistenceServiceTest {
 
     boolean saved =
         newsPersistenceService.saveIfAbsent(
-            prompt, new GeneratedNews("제목", "요약", "본문"), "image.png");
+            prompt,
+            new GeneratedNews("제목", "요약", "본문"),
+            "image.png",
+            List.of(),
+            mock(NewsMarketAnalysis.class));
 
     assertThat(saved).isFalse();
     verify(newsRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    verifyNoInteractions(keywordService, marketAnalysisService);
   }
 }
