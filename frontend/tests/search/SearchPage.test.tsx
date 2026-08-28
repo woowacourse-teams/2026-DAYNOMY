@@ -4,9 +4,11 @@ import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-libra
 import axios, { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
+import { AuthContext } from '../../src/auth/AuthContext';
 import SearchPage from '../../src/features/search/SearchPage';
 
 const originalAdapter = axios.defaults.adapter;
+const originalFetch = globalThis.fetch;
 const article = {
   id: 1,
   title: '기준금리 동결 가능성 확대',
@@ -14,6 +16,11 @@ const article = {
   imageUrl: null,
   category: 'ECONOMY',
   publishedAt: '2026-08-14T10:00:00',
+};
+const stock = {
+  rank: 1,
+  code: '005930',
+  name: '삼성전자',
 };
 
 type ResponseOptions = {
@@ -47,22 +54,46 @@ function response(
   };
 }
 
-function renderSearch(initialEntries = ['/search']) {
+type RenderSearchOptions = {
+  stocks?: (typeof stock)[];
+  stockStatus?: number;
+  isLoggedIn?: boolean;
+};
+
+function renderSearch(
+  initialEntries = ['/search'],
+  { stocks = [], stockStatus = 200, isLoggedIn = false }: RenderSearchOptions = {},
+) {
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        baseDate: '2026-08-21',
+        rankings: stocks,
+        page: 1,
+        size: 100,
+        totalPages: stocks.length ? 1 : 0,
+        totalElements: stocks.length,
+        hasNext: false,
+      }),
+      { status: stockStatus, headers: { 'content-type': 'application/json' } },
+    );
+
   const router = createMemoryRouter([{ path: '/search', element: <SearchPage /> }], {
     initialEntries,
   });
 
-  return { router, ...render(<RouterProvider router={router} />) };
+  return {
+    router,
+    ...render(
+      <AuthContext.Provider value={{ isLoggedIn, loading: false }}>
+        <RouterProvider router={router} />
+      </AuthContext.Provider>,
+    ),
+  };
 }
 
-function submitSearch(keyword: string) {
-  const view = renderSearch();
-  const input = view.getByLabelText('뉴스 키워드 검색');
-
-  fireEvent.change(input, { target: { value: keyword } });
-  fireEvent.click(view.getByRole('button', { name: '뉴스 검색' }));
-
-  return view;
+function submitSearch(keyword: string, options?: RenderSearchOptions) {
+  return renderSearch([`/search?q=${encodeURIComponent(keyword)}&category=ALL&page=1`], options);
 }
 
 function getCurrentSearchParams(router: ReturnType<typeof createMemoryRouter>) {
@@ -74,24 +105,11 @@ Element.prototype.scrollIntoView = () => undefined;
 afterEach(() => {
   cleanup();
   axios.defaults.adapter = originalAdapter;
+  globalThis.fetch = originalFetch;
+  localStorage.clear();
 });
 
 describe('뉴스 검색 화면', () => {
-  it('백엔드와 같은 검색어 조건을 적용한다', () => {
-    const view = renderSearch();
-    const input = view.getByLabelText('뉴스 키워드 검색') as HTMLInputElement;
-
-    expect(input.required).toBe(true);
-    expect(input.maxLength).toBe(100);
-    expect(input.pattern).toBe('.*[\\p{L}\\p{N}].*');
-
-    fireEvent.change(input, { target: { value: '   ' } });
-    expect(input.checkValidity()).toBe(false);
-
-    fireEvent.change(input, { target: { value: '!!!' } });
-    expect(input.checkValidity()).toBe(false);
-  });
-
   it('검색 결과를 뉴스 링크로 표시한다', async () => {
     axios.defaults.adapter = (async (config) =>
       response(config, { content: [article] })) satisfies AxiosAdapter;
@@ -102,17 +120,91 @@ describe('뉴스 검색 화면', () => {
     })) as HTMLAnchorElement;
 
     expect(link.getAttribute('href')).toBe('/news/1');
-    expect(view.getByText('1건')).toBeTruthy();
+    expect(view.queryByRole('region', { name: '검색된 종목 목록' })).toBeNull();
   });
 
-  it('검색 결과가 없으면 빈 결과를 표시한다', async () => {
+  it('뉴스와 종목 결과가 모두 없으면 빈 결과를 표시한다', async () => {
     axios.defaults.adapter = (async (config) =>
       response(config, { content: [] })) satisfies AxiosAdapter;
 
     const view = submitSearch('없는 뉴스');
 
-    expect(await view.findByText('검색 결과가 없습니다.')).toBeTruthy();
-    expect(view.getByText('0건')).toBeTruthy();
+    expect(await view.findByText('검색된 결과가 없습니다.')).toBeTruthy();
+  });
+
+  it('검색어와 일치하는 종목과 북마크를 표시한다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [] })) satisfies AxiosAdapter;
+
+    const view = submitSearch('삼성', { stocks: [stock], isLoggedIn: true });
+
+    expect(await view.findByRole('heading', { name: '삼성 검색 결과' })).toBeTruthy();
+    expect(view.getByText('삼성전자')).toBeTruthy();
+    expect(view.getByText('005930')).toBeTruthy();
+    expect(view.queryByText('검색된 결과가 없습니다.')).toBeNull();
+
+    const bookmark = view.getByRole('button', { name: '삼성전자 북마크 추가' });
+    fireEvent.click(bookmark);
+
+    await waitFor(() => expect(bookmark.getAttribute('aria-pressed')).toBe('true'));
+    expect(JSON.parse(localStorage.getItem('daynomy:stock-bookmarks') ?? '[]')).toEqual(['005930']);
+  });
+
+  it('여러 종목을 키보드로 탐색할 수 있는 가로 스크롤 영역에 표시한다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [] })) satisfies AxiosAdapter;
+    const stocks = Array.from({ length: 4 }, (_, index) => ({
+      rank: index + 1,
+      code: `00593${index}`,
+      name: `삼성종목${index + 1}`,
+    }));
+
+    const view = submitSearch('삼성', { stocks });
+    const region = await view.findByRole('region', { name: '검색된 종목 목록' });
+
+    expect(region.getAttribute('tabindex')).toBe('0');
+    expect(region.classList.contains('stock-search-scroll')).toBe(true);
+    expect(within(region).getAllByRole('listitem')).toHaveLength(4);
+  });
+
+  it('종목 검색이 실패해도 뉴스 결과를 표시한다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [article] })) satisfies AxiosAdapter;
+
+    const view = submitSearch('금리', { stockStatus: 500 });
+
+    expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();
+    await waitFor(() =>
+      expect(view.getByRole('status').textContent).toContain(
+        '종목 검색 결과를 불러오지 못했습니다.',
+      ),
+    );
+    expect(view.queryByRole('alert')).toBeNull();
+  });
+
+  it('검색어가 변경되면 이전 검색어의 종목을 표시하지 않는다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [] })) satisfies AxiosAdapter;
+    const view = submitSearch('삼성', { stocks: [stock] });
+    await view.findByText('삼성전자');
+    globalThis.fetch = () => new Promise<Response>(() => undefined);
+
+    await act(async () => {
+      await view.router.navigate('/search?q=에코프로&category=ALL&page=1');
+    });
+
+    expect(view.queryByText('삼성전자')).toBeNull();
+  });
+
+  it('뉴스 결과가 없고 종목 검색이 실패하면 빈 결과 대신 오류를 표시한다', async () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [] })) satisfies AxiosAdapter;
+    const view = submitSearch('에코프로', { stockStatus: 500 });
+
+    expect((await view.findByRole('alert')).textContent).toContain(
+      '종목 목록을 불러오지 못했습니다.',
+    );
+    expect(view.queryByText('검색된 결과가 없습니다.')).toBeNull();
   });
 
   it('오류 후 같은 검색 조건으로 다시 시도한다', async () => {
@@ -137,7 +229,7 @@ describe('뉴스 검색 화면', () => {
     expect((await view.findByRole('alert')).textContent).toContain(
       '검색 요청을 처리하지 못했습니다.',
     );
-    fireEvent.click(view.getByRole('button', { name: '뉴스 검색' }));
+    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
 
     await waitFor(() => expect(requestCount).toBe(2));
     expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();
@@ -152,7 +244,6 @@ describe('뉴스 검색 화면', () => {
 
     const view = renderSearch(['/search?q=금리&category=ECONOMY&page=2']);
 
-    expect((view.getByLabelText('뉴스 키워드 검색') as HTMLInputElement).value).toBe('금리');
     expect(view.getByRole('button', { name: '경제지표' }).className).toBe('active');
     expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();
     await waitFor(() =>
