@@ -34,6 +34,21 @@
   user-select: none;
 }
 
+.today-news-empty {
+  display: grid;
+  place-items: center;
+  border: 1px solid #dfe5ed;
+  background: #f7f8fa;
+  color: #111827;
+  cursor: default;
+  text-align: center;
+}
+
+.today-news-empty strong {
+  font-size: 24px;
+  font-weight: 800;
+}
+
 .banner-slide::after {
   position: absolute;
   inset: 0;

@@ -23,6 +23,7 @@ export function NewsListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [todayNewsError, setTodayNewsError] = useState<string | null>(null);
+  const [todayNewsLoading, setTodayNewsLoading] = useState(true);
 
   const selectedCategoryLabel = useMemo(
     () => NEWS_CATEGORIES.find((category) => category.value === selectedCategory)?.label ?? '전체',
@@ -90,6 +91,7 @@ export function NewsListPage() {
 
   useEffect(() => {
     let ignore = false;
+    setTodayNewsLoading(true);
     setTodayNewsError(null);
 
     async function loadTodayNews() {
@@ -106,6 +108,10 @@ export function NewsListPage() {
           todayNewsCache = [];
           setTodayNews([]);
           setTodayNewsError('오늘의 뉴스를 불러오지 못했습니다.');
+        }
+      } finally {
+        if (!ignore) {
+          setTodayNewsLoading(false);
         }
       }
     }
@@ -143,6 +149,12 @@ export function NewsListPage() {
       </div>
 
       <TodayNewsBanner articles={todayNews} onSelect={handleArticleSelect} />
+
+      {!todayNewsLoading && !todayNewsError && todayNews.length === 0 ? (
+        <section className="today-banner today-news-empty" aria-label="오늘의 뉴스">
+          <strong>오늘의 뉴스는 없습니다!</strong>
+        </section>
+      ) : null}
 
       {!todayNews.length && todayNewsError ? (
         <section className="state-panel" role="alert">

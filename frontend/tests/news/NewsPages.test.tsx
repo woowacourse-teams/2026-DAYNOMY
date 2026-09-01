@@ -106,6 +106,40 @@ describe('뉴스 탐색 화면', () => {
     );
   });
 
+  it('오늘의 뉴스가 없으면 배너 디자인을 유지한 빈 상태를 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input) === '/api/news/today'
+          ? jsonResponse({
+              items: [],
+              page: 1,
+              size: 9,
+              totalPages: 0,
+              totalElements: 0,
+              hasNext: false,
+            })
+          : jsonResponse({
+              items: [article],
+              page: 1,
+              size: 10,
+              totalPages: 1,
+              totalElements: 1,
+              hasNext: false,
+            }),
+      ),
+    );
+
+    const view = renderPage(<NewsListPage />);
+    const emptyBanner = await view.findByRole('region', { name: '오늘의 뉴스' });
+
+    expect(emptyBanner.classList.contains('today-news-empty')).toBe(true);
+    expect(emptyBanner.textContent).toContain('오늘의 뉴스는 없습니다!');
+    expect(emptyBanner.compareDocumentPosition(view.getByRole('button', { name: '전체' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   it('오늘의 뉴스와 뉴스 목록 오류를 화면 순서대로 표시한다', async () => {
     vi.stubGlobal(
       'fetch',
