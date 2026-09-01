@@ -106,6 +106,18 @@ describe('뉴스 탐색 화면', () => {
     );
   });
 
+  it('오늘의 뉴스와 뉴스 목록 오류를 화면 순서대로 표시한다', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({}, 500)));
+
+    const view = renderPage(<NewsListPage />);
+
+    await waitFor(() => expect(view.container.querySelectorAll('.state-panel')).toHaveLength(2));
+
+    const panels = [...view.container.querySelectorAll('.state-panel')];
+    expect(panels[0].textContent).toContain('오늘의 뉴스를 불러오지 못했습니다.');
+    expect(panels[1].textContent).toContain('뉴스 목록을 불러오지 못했습니다.');
+  });
+
   it('뉴스 상세 내용과 비로그인 포트폴리오 안내를 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     vi.stubGlobal(

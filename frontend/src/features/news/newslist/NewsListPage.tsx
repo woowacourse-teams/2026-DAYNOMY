@@ -6,26 +6,23 @@ import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
 import { TodayNewsBanner } from './components/TodayNewsBanner';
 import { NEWS_CATEGORIES } from './constants';
-import { getMockNewsPage, getMockTodayNews } from './mock';
-import type { NewsCategory, NewsListItem } from './types';
+import type { NewsCategory, NewsListItem, NewsPage } from './types';
 import './newsList.css';
 import { trackEvent } from '../../../analytics';
 
-const initialNewsPage = getMockNewsPage('ALL', 1);
-let todayNewsCache: NewsListItem[] = [getMockTodayNews('ALL')];
-const newsPageCache = new Map<string, ReturnType<typeof getMockNewsPage>>([
-  ['ALL:1', initialNewsPage],
-]);
+let todayNewsCache: NewsListItem[] = [];
+const newsPageCache = new Map<string, NewsPage>();
 
 export function NewsListPage() {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
-  const [articles, setArticles] = useState<NewsListItem[]>(() => initialNewsPage.content);
+  const [articles, setArticles] = useState<NewsListItem[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(() => initialNewsPage.totalPages);
+  const [totalPages, setTotalPages] = useState(1);
   const [todayNews, setTodayNews] = useState<NewsListItem[]>(() => todayNewsCache);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [todayNewsError, setTodayNewsError] = useState<string | null>(null);
 
   const selectedCategoryLabel = useMemo(
     () => NEWS_CATEGORIES.find((category) => category.value === selectedCategory)?.label ?? '전체',
@@ -58,30 +55,21 @@ export function NewsListPage() {
         setTotalPages(cachedPage.totalPages);
       }
 
-      setLoading(!cachedPage && newsPageCache.size === 0);
+      setLoading(!cachedPage);
       setError(null);
 
       try {
         const newsPage = await getNews(selectedCategory, page);
-        const mockNewsPage = getMockNewsPage(selectedCategory, page);
-        const content = newsPage.content.length > 0 ? newsPage.content : mockNewsPage.content;
 
         if (!ignore) {
-          newsPageCache.set(cacheKey, {
-            ...(newsPage.content.length > 0 ? newsPage : mockNewsPage),
-            content,
-          });
-          setArticles(content);
-          setTotalPages(
-            newsPage.content.length > 0 ? newsPage.totalPages : mockNewsPage.totalPages,
-          );
+          newsPageCache.set(cacheKey, newsPage);
+          setArticles(newsPage.content);
+          setTotalPages(newsPage.totalPages);
         }
       } catch (caughtError) {
         if (!ignore) {
-          const mockNewsPage = getMockNewsPage(selectedCategory, page);
-          newsPageCache.set(cacheKey, mockNewsPage);
-          setArticles(mockNewsPage.content);
-          setTotalPages(mockNewsPage.totalPages);
+          setArticles([]);
+          setTotalPages(1);
           setError(
             caughtError instanceof Error ? caughtError.message : '뉴스 목록을 불러오지 못했습니다.',
           );
@@ -102,12 +90,12 @@ export function NewsListPage() {
 
   useEffect(() => {
     let ignore = false;
+    setTodayNewsError(null);
 
     async function loadTodayNews() {
       try {
         const todayNewsPage = await getTodayNews();
-        const content =
-          todayNewsPage.content.length > 0 ? todayNewsPage.content : [getMockTodayNews('ALL')];
+        const content = todayNewsPage.content;
 
         if (!ignore) {
           todayNewsCache = content;
@@ -115,8 +103,9 @@ export function NewsListPage() {
         }
       } catch {
         if (!ignore) {
-          todayNewsCache = [getMockTodayNews('ALL')];
-          setTodayNews(todayNewsCache);
+          todayNewsCache = [];
+          setTodayNews([]);
+          setTodayNewsError('오늘의 뉴스를 불러오지 못했습니다.');
         }
       }
     }
@@ -155,6 +144,13 @@ export function NewsListPage() {
 
       <TodayNewsBanner articles={todayNews} onSelect={handleArticleSelect} />
 
+      {!todayNews.length && todayNewsError ? (
+        <section className="state-panel" role="alert">
+          <strong>오늘의 뉴스를 불러오지 못했습니다.</strong>
+          <p>잠시 후 다시 확인해 주세요.</p>
+        </section>
+      ) : null}
+
       <CategoryTabs
         categories={NEWS_CATEGORIES}
         selectedCategory={selectedCategory}
@@ -173,6 +169,7 @@ export function NewsListPage() {
 
       <span className="sr-only" role="status">
         {error ? `뉴스 목록 API 응답을 받지 못했습니다. ${error}` : ''}
+        {todayNewsError ? ` ${todayNewsError}` : ''}
       </span>
 
       {loading && articles.length === 0 ? <NewsListSkeleton /> : null}
@@ -181,6 +178,13 @@ export function NewsListPage() {
         <section className="state-panel">
           <strong>표시할 뉴스가 없습니다.</strong>
           <p>다른 카테고리를 선택하거나 잠시 후 다시 확인해 주세요.</p>
+        </section>
+      ) : null}
+
+      {!loading && error ? (
+        <section className="state-panel" role="alert">
+          <strong>뉴스 목록을 불러오지 못했습니다.</strong>
+          <p>잠시 후 다시 확인해 주세요.</p>
         </section>
       ) : null}
 
