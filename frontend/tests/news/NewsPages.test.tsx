@@ -178,7 +178,7 @@ describe('뉴스 탐색 화면', () => {
     );
   });
 
-  it('로그인 사용자의 포트폴리오 영향 목업을 표시한다', async () => {
+  it('로그인 사용자의 포트폴리오 영향 분석을 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     const calls: string[] = [];
     vi.stubGlobal(
@@ -219,14 +219,12 @@ describe('뉴스 탐색 화면', () => {
 
     const view = renderPage(<NewsDetailPage />, true);
 
-    expect(await view.findByRole('heading', { name: 'KODEX 200' })).toBeTruthy();
-    expect(view.getByText('분산 투자 수요가 늘면 ETF로 자금이 유입될 수 있습니다.')).toBeTruthy();
+    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+    expect(view.getByText('주가가 상승할 수 있습니다.')).toBeTruthy();
     expect(
-      view.getByText(
-        '시장 변동성이 커질수록 개별 종목보다 대표 지수를 추종하는 ETF에 관심이 모일 수 있습니다.',
-      ),
+      view.getByText('반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.'),
     ).toBeTruthy();
-    expect(calls).not.toContain('/api/news/7/portfolio-analysis');
+    expect(calls).toContain('/api/news/7/portfolio-analysis');
     expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
   });
 });
