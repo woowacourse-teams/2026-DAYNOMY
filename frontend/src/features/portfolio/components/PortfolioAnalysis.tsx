@@ -1,5 +1,10 @@
-import { getMockPortfolioAnalysis } from '../mock';
-import type { PortfolioImpactDirection, PortfolioImpactLevel } from '../types';
+import { useEffect, useState } from 'react';
+import { getPortfolioAnalysis } from '../api';
+import type {
+  PortfolioAnalysisResponse,
+  PortfolioImpactDirection,
+  PortfolioImpactLevel,
+} from '../types';
 import '../portfolio.css';
 
 const DIRECTION_LABELS: Record<PortfolioImpactDirection, string> = {
@@ -30,8 +35,60 @@ function PortfolioAnalysisEmpty() {
   );
 }
 
+function PortfolioAnalysisLoading() {
+  return (
+    <div className="portfolio-state portfolio-empty" aria-busy="true">
+      <strong>포트폴리오 분석을 불러오는 중입니다.</strong>
+    </div>
+  );
+}
+
+function PortfolioAnalysisError() {
+  return (
+    <div className="portfolio-state portfolio-empty" role="alert">
+      <strong>포트폴리오 분석을 불러오지 못했습니다.</strong>
+      <p>잠시 후 다시 확인해 주세요.</p>
+    </div>
+  );
+}
+
 export function PortfolioAnalysis({ newsId }: { newsId: string }) {
-  const analysis = getMockPortfolioAnalysis(newsId);
+  const [analysis, setAnalysis] = useState<PortfolioAnalysisResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    setAnalysis(null);
+    setLoading(true);
+    setError(null);
+
+    getPortfolioAnalysis(newsId)
+      .then((response) => {
+        if (!ignore) {
+          setAnalysis(response);
+        }
+      })
+      .catch((caughtError) => {
+        if (!ignore) {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : '포트폴리오 분석을 불러오지 못했습니다.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [newsId]);
 
   return (
     <section className="section portfolio-section" aria-labelledby="portfolio-analysis-title">
@@ -42,9 +99,13 @@ export function PortfolioAnalysis({ newsId }: { newsId: string }) {
         </div>
       </div>
 
-      {analysis.impacts.length === 0 ? <PortfolioAnalysisEmpty /> : null}
+      {loading ? <PortfolioAnalysisLoading /> : null}
 
-      {analysis.impacts.length > 0 ? (
+      {!loading && error ? <PortfolioAnalysisError /> : null}
+
+      {!loading && !error && analysis?.impacts.length === 0 ? <PortfolioAnalysisEmpty /> : null}
+
+      {!loading && !error && analysis && analysis.impacts.length > 0 ? (
         <div className="portfolio-impact-list">
           {analysis.impacts.map((impact, index) => (
             <article

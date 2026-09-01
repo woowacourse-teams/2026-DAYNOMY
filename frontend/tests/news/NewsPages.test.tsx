@@ -106,6 +106,55 @@ describe('뉴스 탐색 화면', () => {
     );
   });
 
+  it('오늘의 뉴스가 없으면 배너 디자인을 유지한 빈 상태를 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input) === '/api/news/today'
+          ? jsonResponse({
+              items: [],
+              page: 1,
+              size: 9,
+              totalPages: 0,
+              totalElements: 0,
+              hasNext: false,
+            })
+          : jsonResponse({
+              items: [article],
+              page: 1,
+              size: 10,
+              totalPages: 1,
+              totalElements: 1,
+              hasNext: false,
+            }),
+      ),
+    );
+
+    const view = renderPage(<NewsListPage />);
+    const emptyBanner = await view.findByRole('region', { name: '오늘의 뉴스' });
+
+    expect(emptyBanner.classList.contains('today-news-empty')).toBe(true);
+    expect(emptyBanner.textContent).toContain('오늘의 뉴스는 없습니다!');
+    expect(emptyBanner.compareDocumentPosition(view.getByRole('button', { name: '전체' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it('오늘의 뉴스와 뉴스 목록 오류를 화면 순서대로 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}, 500)),
+    );
+
+    const view = renderPage(<NewsListPage />);
+
+    await waitFor(() => expect(view.container.querySelectorAll('.state-panel')).toHaveLength(2));
+
+    const panels = [...view.container.querySelectorAll('.state-panel')];
+    expect(panels[0].textContent).toContain('오늘의 뉴스를 불러오지 못했습니다.');
+    expect(panels[1].textContent).toContain('뉴스 목록을 불러오지 못했습니다.');
+  });
+
   it('뉴스 상세 내용과 비로그인 포트폴리오 안내를 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     vi.stubGlobal(
@@ -178,7 +227,7 @@ describe('뉴스 탐색 화면', () => {
     );
   });
 
-  it('로그인 사용자의 포트폴리오 영향 목업을 표시한다', async () => {
+  it('로그인 사용자의 포트폴리오 영향 분석을 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     const calls: string[] = [];
     vi.stubGlobal(
@@ -219,14 +268,10 @@ describe('뉴스 탐색 화면', () => {
 
     const view = renderPage(<NewsDetailPage />, true);
 
-    expect(await view.findByRole('heading', { name: 'KODEX 200' })).toBeTruthy();
-    expect(view.getByText('분산 투자 수요가 늘면 ETF로 자금이 유입될 수 있습니다.')).toBeTruthy();
-    expect(
-      view.getByText(
-        '시장 변동성이 커질수록 개별 종목보다 대표 지수를 추종하는 ETF에 관심이 모일 수 있습니다.',
-      ),
-    ).toBeTruthy();
-    expect(calls).not.toContain('/api/news/7/portfolio-analysis');
+    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+    expect(view.getByText('주가가 상승할 수 있습니다.')).toBeTruthy();
+    expect(view.getByText('반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.')).toBeTruthy();
+    expect(calls).toContain('/api/news/7/portfolio-analysis');
     expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
   });
 });
