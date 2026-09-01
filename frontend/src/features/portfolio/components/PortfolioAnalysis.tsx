@@ -43,11 +43,11 @@ function PortfolioAnalysisLoading() {
   );
 }
 
-function PortfolioAnalysisError({ message }: { message: string }) {
+function PortfolioAnalysisError() {
   return (
     <div className="portfolio-state portfolio-empty" role="alert">
       <strong>포트폴리오 분석을 불러오지 못했습니다.</strong>
-      <p>{message}</p>
+      <p>잠시 후 다시 확인해 주세요.</p>
     </div>
   );
 }
@@ -101,7 +101,7 @@ export function PortfolioAnalysis({ newsId }: { newsId: string }) {
 
       {loading ? <PortfolioAnalysisLoading /> : null}
 
-      {!loading && error ? <PortfolioAnalysisError message={error} /> : null}
+      {!loading && error ? <PortfolioAnalysisError /> : null}
 
       {!loading && !error && analysis?.impacts.length === 0 ? <PortfolioAnalysisEmpty /> : null}
 

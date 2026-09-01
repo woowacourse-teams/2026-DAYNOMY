@@ -107,7 +107,10 @@ describe('뉴스 탐색 화면', () => {
   });
 
   it('오늘의 뉴스와 뉴스 목록 오류를 화면 순서대로 표시한다', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({}, 500)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}, 500)),
+    );
 
     const view = renderPage(<NewsListPage />);
 
@@ -233,9 +236,7 @@ describe('뉴스 탐색 화면', () => {
 
     expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
     expect(view.getByText('주가가 상승할 수 있습니다.')).toBeTruthy();
-    expect(
-      view.getByText('반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.'),
-    ).toBeTruthy();
+    expect(view.getByText('반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.')).toBeTruthy();
     expect(calls).toContain('/api/news/7/portfolio-analysis');
     expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
   });

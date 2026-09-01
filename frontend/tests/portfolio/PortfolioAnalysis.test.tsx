@@ -49,7 +49,10 @@ describe('포트폴리오 분석 화면', () => {
   });
 
   it('영향 분석이 비어 있으면 빈 상태를 표시한다', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ impacts: [] })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ impacts: [] })),
+    );
 
     const view = render(<PortfolioAnalysis newsId="retry" />);
 
@@ -57,11 +60,14 @@ describe('포트폴리오 분석 화면', () => {
   });
 
   it('분석 API가 실패하면 오류 상태를 표시한다', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({}, 500)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}, 500)),
+    );
 
     const view = render(<PortfolioAnalysis newsId="failure" />);
 
     expect(await view.findByRole('alert')).toBeTruthy();
-    expect(view.getByText('포트폴리오 분석을 불러오지 못했습니다.')).toBeTruthy();
+    expect(view.getByRole('alert').textContent).toContain('포트폴리오 분석을 불러오지 못했습니다.');
   });
 });
