@@ -1,0 +1,5 @@
+ALTER TABLE news
+    ALTER COLUMN source DROP NOT NULL;
+
+ALTER TABLE news
+    ALTER COLUMN external_id DROP NOT NULL;

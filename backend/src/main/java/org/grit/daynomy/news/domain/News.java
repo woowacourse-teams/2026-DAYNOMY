@@ -43,10 +43,10 @@ public class News extends BaseEntity {
   private String imageUrl;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "source", nullable = false)
+  @Column(name = "source")
   private NewsSource source;
 
-  @Column(name = "external_id", nullable = false)
+  @Column(name = "external_id")
   private String externalId;
 
   @Column(name = "source_url", columnDefinition = "TEXT", nullable = false)
@@ -148,6 +148,26 @@ public class News extends BaseEntity {
         imageUrl,
         source,
         externalId,
+        sourceUrl,
+        category,
+        null,
+        NewsStatus.DRAFT);
+  }
+
+  public static News createAdminDraft(
+      String title,
+      String content,
+      String description,
+      String imageUrl,
+      String sourceUrl,
+      Category category) {
+    return new News(
+        title,
+        content,
+        description,
+        imageUrl,
+        null,
+        null,
         sourceUrl,
         category,
         null,
