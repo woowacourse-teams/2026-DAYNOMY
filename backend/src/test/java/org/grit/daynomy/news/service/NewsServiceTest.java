@@ -13,6 +13,7 @@ import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -36,7 +37,7 @@ class NewsServiceTest {
   void findNewsReturnsPagedNews() {
     PageRequest pageable = PageRequest.of(0, 15);
     News news =
-        new News(
+        News.createPublished(
             "title",
             "content",
             "description",
@@ -46,7 +47,7 @@ class NewsServiceTest {
             "https://example.com/1",
             Category.STOCK,
             Instant.parse("2026-08-17T10:00:00Z"));
-    given(newsRepository.findAllByOrderByPublishedAtDescIdDesc(pageable))
+    given(newsRepository.findByStatusOrderByPublishedAtDescIdDesc(NewsStatus.PUBLISHED, pageable))
         .willReturn(new PageImpl<>(java.util.List.of(news), pageable, 1));
 
     var response = newsService.getNewsPage(1, 15, null);
@@ -60,13 +61,16 @@ class NewsServiceTest {
   @DisplayName("카테고리로 뉴스 목록을 필터링한다")
   void findNewsFiltersByCategory() {
     PageRequest pageable = PageRequest.of(1, 15);
-    given(newsRepository.findByCategoryOrderByPublishedAtDescIdDesc(Category.REAL_ESTATE, pageable))
+    given(
+            newsRepository.findByStatusAndCategoryOrderByPublishedAtDescIdDesc(
+                NewsStatus.PUBLISHED, Category.REAL_ESTATE, pageable))
         .willReturn(new PageImpl<>(java.util.List.of(), pageable, 0));
 
     newsService.getNewsPage(2, 15, Category.REAL_ESTATE);
 
     verify(newsRepository)
-        .findByCategoryOrderByPublishedAtDescIdDesc(Category.REAL_ESTATE, pageable);
+        .findByStatusAndCategoryOrderByPublishedAtDescIdDesc(
+            NewsStatus.PUBLISHED, Category.REAL_ESTATE, pageable);
   }
 
   @Test
@@ -76,7 +80,7 @@ class NewsServiceTest {
     Instant startInclusive = startOfDay(today);
     Instant endExclusive = startOfDay(today.plusDays(1));
     News news =
-        new News(
+        News.createPublished(
             "today news",
             "content",
             "description",
@@ -89,8 +93,8 @@ class NewsServiceTest {
     PageRequest pageable = PageRequest.of(0, 9);
     given(
             newsRepository
-                .findByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-                    startInclusive, endExclusive, pageable))
+                .findByStatusAndPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+                    NewsStatus.PUBLISHED, startInclusive, endExclusive, pageable))
         .willReturn(new PageImpl<>(java.util.List.of(news), pageable, 1));
 
     var response = newsService.getTodayNews();
@@ -98,8 +102,8 @@ class NewsServiceTest {
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().getFirst().title()).isEqualTo("today news");
     verify(newsRepository)
-        .findByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-            startInclusive, endExclusive, pageable);
+        .findByStatusAndPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+            NewsStatus.PUBLISHED, startInclusive, endExclusive, pageable);
   }
 
   @Test
@@ -111,8 +115,8 @@ class NewsServiceTest {
     PageRequest pageable = PageRequest.of(0, 9);
     given(
             newsRepository
-                .findByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-                    startInclusive, endExclusive, pageable))
+                .findByStatusAndPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+                    NewsStatus.PUBLISHED, startInclusive, endExclusive, pageable))
         .willReturn(new PageImpl<>(java.util.List.of(), pageable, 0));
 
     assertThat(newsService.getTodayNews().items()).isEmpty();
@@ -122,7 +126,7 @@ class NewsServiceTest {
   @DisplayName("뉴스 상세를 조회한다")
   void findNewsDetailReturnsNews() {
     News news =
-        new News(
+        News.createPublished(
             "title",
             "content",
             "description",
@@ -132,7 +136,7 @@ class NewsServiceTest {
             "https://example.com/1",
             Category.STOCK,
             Instant.parse("2026-08-17T10:00:00Z"));
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
 
     var response = newsService.getNewsDetail(1L);
 
@@ -143,7 +147,7 @@ class NewsServiceTest {
   @Test
   @DisplayName("뉴스 상세가 없으면 예외를 던진다")
   void findNewsDetailThrowsWhenMissing() {
-    given(newsRepository.findById(1L)).willReturn(Optional.empty());
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.empty());
 
     assertThatThrownBy(() -> newsService.getNewsDetail(1L))
         .isInstanceOf(BusinessException.class)
