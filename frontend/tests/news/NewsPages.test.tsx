@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { NewsDetailPage } from '../../src/features/news/newsdetail/NewsDetailPage';
 import { NewsListPage } from '../../src/features/news/newslist/NewsListPage';
+import { ArticleCard } from '../../src/features/news/newslist/components/ArticleCard';
+import type { NewsListItem } from '../../src/features/news/newslist/types';
 
 const article = {
   id: 7,
@@ -16,7 +18,7 @@ const article = {
   category: 'ECONOMY',
   imageUrl: null,
   publishedAt: '2026-08-27T10:00:00Z',
-};
+} satisfies NewsListItem;
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -40,6 +42,24 @@ afterEach(() => {
 });
 
 describe('뉴스 탐색 화면', () => {
+  it('뉴스 카드 이미지를 지연 로딩하고 로드 실패 시 기본 이미지로 교체한다', () => {
+    const view = render(
+      <ArticleCard article={{ ...article, imageUrl: 'https://example.com/news.webp' }} />,
+    );
+    const image = view.container.querySelector('img')!;
+
+    expect(image.getAttribute('src')).toBe('https://example.com/news.webp');
+    expect(image.getAttribute('loading')).toBe('lazy');
+    expect(image.getAttribute('decoding')).toBe('async');
+
+    fireEvent.error(image);
+
+    expect(image.getAttribute('src')).toMatch(/default-news-real-estate\.webp$/);
+
+    view.rerender(<ArticleCard article={article} />);
+    expect(image.getAttribute('src')).toMatch(/default-news-real-estate\.webp$/);
+  });
+
   it('뉴스 목록을 표시하고 카테고리 변경을 API 요청에 반영한다', async () => {
     const calls: string[] = [];
     vi.stubGlobal('scrollTo', vi.fn());
@@ -78,6 +98,7 @@ describe('뉴스 탐색 화면', () => {
 
     expect(link.getAttribute('href')).toBe('/news/7');
     expect(view.getAllByRole('button', { name: /번째 배너 보기/ })).toHaveLength(2);
+    expect(view.container.querySelector('.banner-visual img')?.hasAttribute('loading')).toBe(false);
     fireEvent.click(view.getByRole('button', { name: '주식' }));
     await waitFor(() => expect(calls.some((url) => url.includes('category=STOCK'))).toBe(true));
   });
@@ -225,6 +246,7 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByRole('link', { name: 'Google로 시작하기' }).getAttribute('href')).toBe(
       '/api/auth/google',
     );
+    expect(view.container.querySelector('.news-image')?.hasAttribute('loading')).toBe(false);
   });
 
   it('로그인 사용자의 포트폴리오 영향 분석을 표시한다', async () => {
