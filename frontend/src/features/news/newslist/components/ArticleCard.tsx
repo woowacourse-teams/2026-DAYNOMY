@@ -1,4 +1,4 @@
-import defaultNewsImage from '../../../../assets/default-news-real-estate.png';
+import defaultNewsImage from '../../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../constants';
 import type { NewsListItem } from '../types';
 import { formatDate } from '../utils';
