@@ -11,8 +11,11 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: validate
     open-in-view: false
+
+  flyway:
+    enabled: true
 
   security:
     oauth2:
