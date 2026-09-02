@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import java.util.List;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
@@ -17,6 +18,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class AdminNewsServiceTest {
@@ -24,6 +27,24 @@ class AdminNewsServiceTest {
   @Mock private NewsRepository newsRepository;
 
   @InjectMocks private AdminNewsService adminNewsService;
+
+  @Test
+  @DisplayName("관리자 뉴스 목록을 상태와 함께 페이지로 조회한다")
+  void getNewsPageReturnsNewsWithStatus() {
+    News news =
+        News.createAdminDraft(
+            "초안 뉴스", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
+    PageRequest pageable = PageRequest.of(0, 15);
+    given(newsRepository.findAdminNews(null, null, pageable))
+        .willReturn(new PageImpl<>(List.of(news), pageable, 1));
+
+    var response = adminNewsService.getNewsPage(1, 15, null, null);
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().getFirst().title()).isEqualTo("초안 뉴스");
+    assertThat(response.items().getFirst().status()).isEqualTo(NewsStatus.DRAFT);
+    verify(newsRepository).findAdminNews(null, null, pageable);
+  }
 
   @Test
   @DisplayName("관리자 뉴스 등록은 수동 출처의 초안으로 저장한다")

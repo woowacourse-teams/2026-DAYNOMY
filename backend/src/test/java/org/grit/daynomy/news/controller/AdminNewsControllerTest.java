@@ -1,9 +1,11 @@
 package org.grit.daynomy.news.controller;
 
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +16,8 @@ import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
+import org.grit.daynomy.news.dto.AdminNewsListItemResponse;
+import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +44,42 @@ class AdminNewsControllerTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private AdminNewsService adminNewsService;
+
+  @Test
+  @DisplayName("관리자 뉴스 목록 조회 API는 페이지와 상태를 서비스에 전달한다")
+  void getNewsPageReturnsAdminNews() throws Exception {
+    given(adminNewsService.getNewsPage(1, 15, NewsStatus.DRAFT, null))
+        .willReturn(
+            new AdminNewsPageResponse(
+                java.util.List.of(
+                    new AdminNewsListItemResponse(
+                        1L,
+                        "초안 뉴스",
+                        "뉴스 요약",
+                        null,
+                        null,
+                        "https://example.com/news/1",
+                        Category.STOCK,
+                        null,
+                        NewsStatus.DRAFT,
+                        null)),
+                1,
+                15,
+                1,
+                1,
+                false));
+
+    mockMvc
+        .perform(
+            get("/api/admin/news").param("page", "1").param("size", "15").param("status", "DRAFT"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].title").value("초안 뉴스"))
+        .andExpect(jsonPath("$.items[0].status").value("DRAFT"))
+        .andExpect(jsonPath("$.page").value(1))
+        .andExpect(jsonPath("$.totalElements").value(1));
+
+    then(adminNewsService).should().getNewsPage(1, 15, NewsStatus.DRAFT, null);
+  }
 
   @Test
   @DisplayName("관리자 뉴스 등록 API는 초안 뉴스를 생성하고 201을 반환한다")
