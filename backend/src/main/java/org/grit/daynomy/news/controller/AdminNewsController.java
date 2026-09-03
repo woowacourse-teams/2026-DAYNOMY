@@ -18,6 +18,7 @@ import org.grit.daynomy.news.service.AdminNewsService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -70,5 +71,14 @@ public class AdminNewsController {
     News news = adminNewsService.update(id, request);
 
     return ResponseEntity.ok(AdminNewsResponse.from(news));
+  }
+
+  @Operation(summary = "뉴스 삭제", description = "관리자용 뉴스를 삭제 상태로 변경합니다.")
+  @DeleteMapping("/{id}")
+  public ResponseEntity<Void> deleteNews(
+      @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
+    adminNewsService.delete(id);
+
+    return ResponseEntity.noContent().build();
   }
 }

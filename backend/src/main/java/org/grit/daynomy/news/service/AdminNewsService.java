@@ -48,6 +48,15 @@ public class AdminNewsService {
   }
 
   @Transactional
+  public void delete(Long id) {
+    News news =
+        newsRepository
+            .findById(id)
+            .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+    news.delete();
+  }
+
+  @Transactional
   public News createDraft(AdminNewsCreateRequest request) {
     News news =
         News.createAdminDraft(
