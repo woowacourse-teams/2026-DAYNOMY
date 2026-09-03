@@ -73,6 +73,25 @@ class S3ImageStorageTest {
   }
 
   @Test
+  void deleteIfManagedDeletesImageFromConfiguredBaseUrl() {
+    storage.deleteIfManaged(
+        "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/news-image.webp");
+
+    ArgumentCaptor<DeleteObjectRequest> requestCaptor =
+        ArgumentCaptor.forClass(DeleteObjectRequest.class);
+    verify(s3Client).deleteObject(requestCaptor.capture());
+
+    assertThat(requestCaptor.getValue().key()).isEqualTo("daynomy/news-image.webp");
+  }
+
+  @Test
+  void deleteIfManagedIgnoresExternalImageUrl() {
+    storage.deleteIfManaged("https://example.com/news-image.webp");
+
+    org.mockito.Mockito.verifyNoInteractions(s3Client);
+  }
+
+  @Test
   void publicUrlUsesConfiguredBaseUrl() {
     storage =
         new S3ImageStorage(

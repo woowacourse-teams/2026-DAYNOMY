@@ -51,6 +51,25 @@ public class S3ImageStorage {
     }
   }
 
+  public void deleteIfManaged(String publicUrl) {
+    if (publicUrl == null || publicUrl.isBlank()) {
+      return;
+    }
+
+    String baseUrl = s3Properties.publicBaseUrl();
+    if (baseUrl == null || baseUrl.isBlank()) {
+      return;
+    }
+
+    String normalizedBaseUrl = removeTrailingSlash(baseUrl);
+    String prefix = "%s/".formatted(normalizedBaseUrl);
+    if (!publicUrl.startsWith(prefix)) {
+      return;
+    }
+
+    delete(publicUrl.substring(prefix.length()));
+  }
+
   public String publicUrl(String relativeKey) {
     String baseUrl = s3Properties.publicBaseUrl();
     if (baseUrl == null || baseUrl.isBlank()) {
