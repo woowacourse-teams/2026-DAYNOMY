@@ -24,7 +24,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -77,11 +76,12 @@ public class AdminNewsController {
   }
 
   @Operation(summary = "뉴스 수정", description = "관리자용 뉴스 내용을 수정합니다.")
-  @PutMapping("/{id}")
+  @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ResponseEntity<AdminNewsResponse> updateNews(
       @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id,
-      @Valid @RequestBody AdminNewsUpdateRequest request) {
-    News news = adminNewsService.update(id, request);
+      @Valid @RequestPart("request") AdminNewsUpdateRequest request,
+      @RequestPart(value = "image", required = false) MultipartFile image) {
+    News news = adminNewsService.update(id, request, image);
 
     return ResponseEntity.ok(AdminNewsResponse.from(news));
   }

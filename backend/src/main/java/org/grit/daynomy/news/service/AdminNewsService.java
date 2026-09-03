@@ -68,19 +68,29 @@ public class AdminNewsService {
   }
 
   @Transactional
-  public News update(Long id, AdminNewsUpdateRequest request) {
+  public News update(Long id, AdminNewsUpdateRequest request, MultipartFile image) {
     News news =
         newsRepository
             .findById(id)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
-    news.update(
-        request.title(),
-        request.content(),
-        request.description(),
-        request.imageUrl(),
-        request.sourceUrl(),
-        request.category());
-    return news;
+    String previousImageUrl = news.getImageUrl();
+    UploadedImage uploadedImage = uploadImage(image);
+    try {
+      news.update(
+          request.title(),
+          request.content(),
+          request.description(),
+          uploadedImage == null ? previousImageUrl : uploadedImage.url(),
+          request.sourceUrl(),
+          request.category());
+      if (uploadedImage != null) {
+        s3ImageStorage.deleteIfManaged(previousImageUrl);
+      }
+      return news;
+    } catch (RuntimeException exception) {
+      deleteUploadedImage(uploadedImage);
+      throw exception;
+    }
   }
 
   @Transactional
@@ -90,6 +100,7 @@ public class AdminNewsService {
             .findById(id)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
     news.delete();
+    s3ImageStorage.deleteIfManaged(news.getImageUrl());
   }
 
   private UploadedImage uploadImage(MultipartFile image) {

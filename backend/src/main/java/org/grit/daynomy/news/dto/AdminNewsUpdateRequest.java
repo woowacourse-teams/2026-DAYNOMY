@@ -12,7 +12,6 @@ public record AdminNewsUpdateRequest(
         @NotBlank(message = "본문은 필수입니다.")
         String content,
     @Schema(description = "뉴스 요약 설명", example = "금리 결정에 대한 시장의 관심이 커지고 있습니다.") String description,
-    @Schema(description = "뉴스 이미지 URL", example = "https://example.com/news.png") String imageUrl,
     @Schema(description = "원문 URL", example = "https://example.com/news/1")
         @NotBlank(message = "원문 URL은 필수입니다.")
         String sourceUrl,
