@@ -24,6 +24,7 @@ import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
@@ -74,7 +75,8 @@ class PortfolioAnalysisServiceTest {
                     "주가가 상승할 수 있습니다.",
                     "반도체 수요 증가가 예상됩니다.",
                     1)));
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED))
+        .willReturn(Optional.of(news));
     given(bookmarkRepository.findAllByMemberIdOrderByIdAsc(3L))
         .willReturn(List.of(firstBookmark, secondBookmark));
     given(assetRepository.findAllById(List.of(10L, 20L)))
@@ -98,7 +100,8 @@ class PortfolioAnalysisServiceTest {
   @Test
   @DisplayName("북마크가 없으면 AI를 호출하지 않고 빈 분석 결과를 반환한다")
   void getPortfolioAnalysisReturnsEmptyResponseWhenBookmarksAreMissing() {
-    given(newsRepository.findById(1L)).willReturn(Optional.of(createNews()));
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED))
+        .willReturn(Optional.of(createNews()));
     given(bookmarkRepository.findAllByMemberIdOrderByIdAsc(3L)).willReturn(List.of());
 
     PortfolioAnalysisResponse response = portfolioAnalysisService.getPortfolioAnalysis(3L, 1L);
@@ -115,7 +118,8 @@ class PortfolioAnalysisServiceTest {
     Bookmark bookmark = createBookmark(101L, asset);
     List<PortfolioAnalysisTarget> targets =
         List.of(new PortfolioAnalysisTarget(10L, 101L, "삼성전자", "STOCK", "005930"));
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED))
+        .willReturn(Optional.of(news));
     given(bookmarkRepository.findAllByMemberIdOrderByIdAsc(3L)).willReturn(List.of(bookmark));
     given(assetRepository.findAllById(List.of(10L))).willReturn(List.of(asset));
     given(portfolioAnalysisAiClient.analyze("뉴스 본문", targets))
@@ -130,7 +134,8 @@ class PortfolioAnalysisServiceTest {
   @Test
   @DisplayName("뉴스가 없으면 포트폴리오 분석 전에 예외를 던진다")
   void getPortfolioAnalysisThrowsWhenNewsIsMissing() {
-    given(newsRepository.findById(1L)).willReturn(Optional.empty());
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED))
+        .willReturn(Optional.empty());
 
     assertThatThrownBy(() -> portfolioAnalysisService.getPortfolioAnalysis(3L, 1L))
         .isInstanceOf(BusinessException.class)
@@ -146,7 +151,8 @@ class PortfolioAnalysisServiceTest {
     given(missingAsset.getId()).willReturn(10L);
     Bookmark bookmark = mock(Bookmark.class);
     given(bookmark.getAsset()).willReturn(missingAsset);
-    given(newsRepository.findById(1L)).willReturn(Optional.of(createNews()));
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED))
+        .willReturn(Optional.of(createNews()));
     given(bookmarkRepository.findAllByMemberIdOrderByIdAsc(3L)).willReturn(List.of(bookmark));
     given(assetRepository.findAllById(List.of(10L))).willReturn(List.of());
 
@@ -158,7 +164,7 @@ class PortfolioAnalysisServiceTest {
   }
 
   private News createNews() {
-    return new News(
+    return News.createPublished(
         "뉴스 제목",
         "뉴스 본문",
         "뉴스 설명",
