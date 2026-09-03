@@ -138,7 +138,7 @@ class MarketAnalysisServiceTest {
   }
 
   private News createNews() {
-    return new News(
+    return News.createPublished(
         "market news",
         "content",
         "description",

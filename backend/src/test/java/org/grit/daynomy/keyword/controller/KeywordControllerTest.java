@@ -95,7 +95,7 @@ class KeywordControllerTest {
   }
 
   private News createNews() {
-    return new News(
+    return News.createPublished(
         "keyword news",
         "content",
         "description",
