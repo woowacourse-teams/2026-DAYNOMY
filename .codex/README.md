@@ -3,7 +3,6 @@
 | 구성 | 저장 위치 | 역할 |
 | --- | --- | --- |
 | Rule | `AGENTS.md`, `.codex/rules/` | 항상 지켜야 하는 개발 원칙 |
-| Agent | `.codex/agents/` | 영역별 전문 에이전트 |
 | Hook | `.githooks/` | 로컬에서 자동으로 차단·검증할 수 있는 항목 |
 | Skill | `.agents/skills/` | 반복 작업의 진행 절차 |
 | Template | `.github/`, `.codex/` | 이슈·PR·커밋 형식 통일 |
