@@ -19,6 +19,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
@@ -83,7 +85,8 @@ public class AdminNewsService {
           request.sourceUrl(),
           request.category());
       if (uploadedImage != null) {
-        s3ImageStorage.deleteIfManaged(previousImageUrl);
+        newsRepository.flush();
+        registerImageCleanup(previousImageUrl, uploadedImage);
       }
       return news;
     } catch (RuntimeException exception) {
@@ -143,6 +146,32 @@ public class AdminNewsService {
       s3ImageStorage.delete(uploadedImage);
     } catch (BusinessException exception) {
       log.warn("Failed to clean up uploaded news image: key={}", uploadedImage.relativeKey());
+    }
+  }
+
+  private void registerImageCleanup(
+      String previousImageUrl, S3ImageStorage.StoredImage uploadedImage) {
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            deletePreviousImage(previousImageUrl);
+          }
+
+          @Override
+          public void afterCompletion(int status) {
+            if (status == STATUS_ROLLED_BACK) {
+              deleteUploadedImage(uploadedImage);
+            }
+          }
+        });
+  }
+
+  private void deletePreviousImage(String previousImageUrl) {
+    try {
+      s3ImageStorage.deleteIfManaged(previousImageUrl);
+    } catch (BusinessException exception) {
+      log.warn("Failed to delete previous news image after transaction commit");
     }
   }
 }

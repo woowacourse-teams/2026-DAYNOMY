@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -30,6 +31,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class AdminNewsServiceTest {
@@ -141,17 +144,62 @@ class AdminNewsServiceTest {
         .willReturn(
             new S3ImageStorage.StoredImage("new-image.png", "https://example.com/new-image.png"));
 
-    News updatedNews = adminNewsService.update(1L, request, image);
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      News updatedNews = adminNewsService.update(1L, request, image);
 
-    assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
-    assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
-    assertThat(updatedNews.getDescription()).isEqualTo("수정 요약");
-    assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
-    assertThat(updatedNews.getSourceUrl()).isEqualTo("https://example.com/new");
-    assertThat(updatedNews.getCategory()).isEqualTo(Category.BOND);
-    assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
-    verify(s3ImageStorage)
-        .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
+      assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
+      assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
+      assertThat(updatedNews.getDescription()).isEqualTo("수정 요약");
+      assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
+      assertThat(updatedNews.getSourceUrl()).isEqualTo("https://example.com/new");
+      assertThat(updatedNews.getCategory()).isEqualTo(Category.BOND);
+      assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
+      verify(s3ImageStorage, never())
+          .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
+
+      for (TransactionSynchronization synchronization :
+          TransactionSynchronizationManager.getSynchronizations()) {
+        synchronization.afterCommit();
+      }
+
+      verify(s3ImageStorage)
+          .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @Test
+  @DisplayName("뉴스 DB 반영에 실패하면 새 이미지를 정리한다")
+  void updateNewsDeletesUploadedImageWhenDatabaseUpdateFails() {
+    News news =
+        News.createAdminDraft(
+            "기존 제목",
+            "기존 본문",
+            "기존 요약",
+            "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png",
+            "https://example.com/old",
+            Category.STOCK);
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.BOND);
+    MockMultipartFile image =
+        new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
+    S3ImageStorage.StoredImage uploadedImage =
+        new S3ImageStorage.StoredImage("new-image.png", "https://example.com/new-image.png");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(s3ImageStorage.upload(any(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE)))
+        .willReturn(uploadedImage);
+    org.mockito.BDDMockito.willThrow(new RuntimeException("database update failed"))
+        .given(newsRepository)
+        .flush();
+
+    assertThatThrownBy(() -> adminNewsService.update(1L, request, image))
+        .isInstanceOf(RuntimeException.class);
+
+    verify(s3ImageStorage).delete(uploadedImage);
+    verify(s3ImageStorage, never()).deleteIfManaged(news.getImageUrl());
   }
 
   @Test
