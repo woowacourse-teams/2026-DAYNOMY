@@ -11,10 +11,12 @@ import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
+import org.grit.daynomy.news.dto.AdminNewsGenerationResponse;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.service.AdminNewsService;
+import org.grit.daynomy.news.service.NewsGenerationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +40,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AdminNewsController {
 
   private final AdminNewsService adminNewsService;
+  private final NewsGenerationService newsGenerationService;
 
   @Operation(summary = "뉴스 등록", description = "관리자용 뉴스를 초안 상태로 등록합니다.")
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -47,6 +50,30 @@ public class AdminNewsController {
     News news = adminNewsService.createDraft(request, image);
 
     return ResponseEntity.status(HttpStatus.CREATED).body(AdminNewsResponse.from(news));
+  }
+
+  @Operation(summary = "DART 뉴스 생성 실행", description = "관리자용 DART 뉴스 생성을 즉시 실행합니다.")
+  @PostMapping("/generate/dart")
+  public ResponseEntity<AdminNewsGenerationResponse> generateDartNews() {
+    int savedCount = newsGenerationService.generateScheduledDartNews();
+
+    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
+  }
+
+  @Operation(summary = "KOSIS 뉴스 생성 실행", description = "관리자용 KOSIS 뉴스 생성을 즉시 실행합니다.")
+  @PostMapping("/generate/kosis")
+  public ResponseEntity<AdminNewsGenerationResponse> generateKosisNews() {
+    int savedCount = newsGenerationService.generateKosisNews();
+
+    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
+  }
+
+  @Operation(summary = "한국은행 뉴스 생성 실행", description = "관리자용 한국은행 뉴스 생성을 즉시 실행합니다.")
+  @PostMapping("/generate/bok")
+  public ResponseEntity<AdminNewsGenerationResponse> generateBokNews() {
+    int savedCount = newsGenerationService.generateBokNews();
+
+    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
   }
 
   @Operation(summary = "관리자 뉴스 목록 조회", description = "관리자용 뉴스 목록을 상태·카테고리별로 조회합니다.")

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -23,6 +24,7 @@ import org.grit.daynomy.news.dto.AdminNewsListItemResponse;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.service.AdminNewsService;
+import org.grit.daynomy.news.service.NewsGenerationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +51,8 @@ class AdminNewsControllerTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private AdminNewsService adminNewsService;
+
+  @MockitoBean private NewsGenerationService newsGenerationService;
 
   @Test
   @DisplayName("관리자 뉴스 등록 API는 초안 뉴스를 생성하고 201을 반환한다")
@@ -121,6 +125,45 @@ class AdminNewsControllerTest {
         .andExpect(jsonPath("$.errors").isArray());
 
     verifyNoInteractions(adminNewsService);
+  }
+
+  @Test
+  @DisplayName("관리자 DART 뉴스 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
+  void generateDartNewsReturnsSavedCount() throws Exception {
+    given(newsGenerationService.generateScheduledDartNews()).willReturn(2);
+
+    mockMvc
+        .perform(post("/api/admin/news/generate/dart"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.savedCount").value(2));
+
+    then(newsGenerationService).should().generateScheduledDartNews();
+  }
+
+  @Test
+  @DisplayName("관리자 KOSIS 뉴스 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
+  void generateKosisNewsReturnsSavedCount() throws Exception {
+    given(newsGenerationService.generateKosisNews()).willReturn(1);
+
+    mockMvc
+        .perform(post("/api/admin/news/generate/kosis"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.savedCount").value(1));
+
+    then(newsGenerationService).should().generateKosisNews();
+  }
+
+  @Test
+  @DisplayName("관리자 한국은행 뉴스 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
+  void generateBokNewsReturnsSavedCount() throws Exception {
+    given(newsGenerationService.generateBokNews()).willReturn(3);
+
+    mockMvc
+        .perform(post("/api/admin/news/generate/bok"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.savedCount").value(3));
+
+    then(newsGenerationService).should().generateBokNews();
   }
 
   @Test
