@@ -6,17 +6,19 @@ import { readStringArrayStorage } from '../utils';
 
 export function useStockBookmarks(isLoggedIn: boolean) {
   const [bookmarkedCodes, setBookmarkedCodes] = useState<string[]>([]);
+  const [initializedForLogin, setInitializedForLogin] = useState<boolean | null>(null);
   const bookmarkedCodeSet = useMemo(() => new Set(bookmarkedCodes), [bookmarkedCodes]);
 
   useEffect(() => {
     setBookmarkedCodes(isLoggedIn ? readStringArrayStorage(STOCK_BOOKMARK_STORAGE_KEY) : []);
+    setInitializedForLogin(isLoggedIn);
   }, [isLoggedIn]);
 
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn && initializedForLogin === isLoggedIn) {
       localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(bookmarkedCodes));
     }
-  }, [bookmarkedCodes, isLoggedIn]);
+  }, [bookmarkedCodes, initializedForLogin, isLoggedIn]);
 
   function toggleBookmark(stock: StockCandidate) {
     if (!isLoggedIn) {
