@@ -8,7 +8,6 @@ import { NEWS_CATEGORIES } from '../news/newslist/constants';
 import { isCategory } from '../news/newslist/types';
 import type { NewsCategory, NewsListItem } from '../news/newslist/types';
 import { searchKosdaqTopStocks } from '../stocks/api';
-import { useStockBookmarks } from '../stocks/hooks/useStockBookmarks';
 import type { StockCandidate } from '../stocks/types';
 import { searchNews } from './api';
 import { StockSearchResults } from './components/StockSearchResults';
@@ -54,7 +53,6 @@ function SearchPage() {
   const [stocksLoading, setStocksLoading] = useState(Boolean(searchedKeyword));
   const [stocksError, setStocksError] = useState<string | null>(null);
   const isLoggedIn = useLoginStatus();
-  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks(isLoggedIn);
   const resultTitleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -201,8 +199,6 @@ function SearchPage() {
                 keyword={searchedKeyword}
                 stocks={stocks}
                 isLoggedIn={isLoggedIn}
-                bookmarkedCodeSet={bookmarkedCodeSet}
-                onBookmarkToggle={toggleBookmark}
               />
             ) : null}
 
