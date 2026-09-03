@@ -31,6 +31,7 @@ public class MarketAnalysisService {
   public MarketAnalysisResponse getMarketAnalysis(Long newsId) {
     return newsMarketAnalysisRepository
         .findByNewsId(newsId)
+        .filter(marketAnalysis -> marketAnalysis.getNews().isPublished())
         .map(MarketAnalysisResponse::from)
         .orElseThrow(() -> new BusinessException(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND));
   }

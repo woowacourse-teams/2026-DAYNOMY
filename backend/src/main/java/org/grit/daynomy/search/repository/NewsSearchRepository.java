@@ -2,6 +2,7 @@ package org.grit.daynomy.search.repository;
 
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
@@ -15,7 +16,8 @@ public interface NewsSearchRepository extends Repository<News, Long> {
       """
       SELECT n
       FROM News n
-      WHERE (:category IS NULL OR n.category = :category)
+      WHERE n.status = :status
+        AND (:category IS NULL OR n.category = :category)
         AND (
           LOWER(n.title) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
           OR LOWER(n.description) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
@@ -23,5 +25,8 @@ public interface NewsSearchRepository extends Repository<News, Long> {
         )
       """)
   Page<News> search(
-      @Param("keyword") String keyword, @Param("category") Category category, Pageable pageable);
+      @Param("keyword") String keyword,
+      @Param("category") Category category,
+      @Param("status") NewsStatus status,
+      Pageable pageable);
 }

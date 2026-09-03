@@ -1,0 +1,124 @@
+package org.grit.daynomy.news.controller;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsStatus;
+import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
+import org.grit.daynomy.news.dto.AdminNewsGenerationResponse;
+import org.grit.daynomy.news.dto.AdminNewsPageResponse;
+import org.grit.daynomy.news.dto.AdminNewsResponse;
+import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
+import org.grit.daynomy.news.service.AdminNewsService;
+import org.grit.daynomy.news.service.NewsGenerationService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+@Tag(name = "Admin News", description = "관리자 뉴스 관리 API")
+@Validated
+@RequiredArgsConstructor
+@RequestMapping("/api/admin/news")
+@RestController
+public class AdminNewsController {
+
+  private final AdminNewsService adminNewsService;
+  private final NewsGenerationService newsGenerationService;
+
+  @Operation(summary = "뉴스 등록", description = "관리자용 뉴스를 초안 상태로 등록합니다.")
+  @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public ResponseEntity<AdminNewsResponse> createNews(
+      @Valid @RequestPart("request") AdminNewsCreateRequest request,
+      @RequestPart(value = "image", required = false) MultipartFile image) {
+    News news = adminNewsService.createDraft(request, image);
+
+    return ResponseEntity.status(HttpStatus.CREATED).body(AdminNewsResponse.from(news));
+  }
+
+  @Operation(summary = "DART 뉴스 생성 실행", description = "관리자용 DART 뉴스 생성을 즉시 실행합니다.")
+  @PostMapping("/generate/dart")
+  public ResponseEntity<AdminNewsGenerationResponse> generateDartNews() {
+    int savedCount = newsGenerationService.generateScheduledDartNews();
+
+    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
+  }
+
+  @Operation(summary = "KOSIS 뉴스 생성 실행", description = "관리자용 KOSIS 뉴스 생성을 즉시 실행합니다.")
+  @PostMapping("/generate/kosis")
+  public ResponseEntity<AdminNewsGenerationResponse> generateKosisNews() {
+    int savedCount = newsGenerationService.generateKosisNews();
+
+    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
+  }
+
+  @Operation(summary = "한국은행 뉴스 생성 실행", description = "관리자용 한국은행 뉴스 생성을 즉시 실행합니다.")
+  @PostMapping("/generate/bok")
+  public ResponseEntity<AdminNewsGenerationResponse> generateBokNews() {
+    int savedCount = newsGenerationService.generateBokNews();
+
+    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
+  }
+
+  @Operation(summary = "관리자 뉴스 목록 조회", description = "관리자용 뉴스 목록을 상태·카테고리별로 조회합니다.")
+  @GetMapping
+  public ResponseEntity<AdminNewsPageResponse> getNewsPage(
+      @Parameter(description = "1부터 시작하는 페이지 번호", example = "1")
+          @RequestParam(defaultValue = "1")
+          @Min(value = 1, message = "페이지 번호는 1 이상이어야 합니다.")
+          int page,
+      @Parameter(description = "페이지 크기", example = "15")
+          @RequestParam(defaultValue = "15")
+          @Min(value = 1, message = "페이지 크기는 1 이상이어야 합니다.")
+          @Max(value = 100, message = "페이지 크기는 100 이하여야 합니다.")
+          int size,
+      @Parameter(description = "뉴스 상태") @RequestParam(required = false) NewsStatus status,
+      @Parameter(description = "뉴스 카테고리") @RequestParam(required = false) Category category) {
+    return ResponseEntity.ok(adminNewsService.getNewsPage(page, size, status, category));
+  }
+
+  @Operation(summary = "관리자 뉴스 상세 조회", description = "관리자용으로 뉴스 상세 정보를 조회합니다.")
+  @GetMapping("/{id}")
+  public ResponseEntity<AdminNewsResponse> getNewsDetail(
+      @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
+    News news = adminNewsService.getNewsDetail(id);
+
+    return ResponseEntity.ok(AdminNewsResponse.from(news));
+  }
+
+  @Operation(summary = "뉴스 수정", description = "관리자용 뉴스 내용을 수정합니다.")
+  @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public ResponseEntity<AdminNewsResponse> updateNews(
+      @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id,
+      @Valid @RequestPart("request") AdminNewsUpdateRequest request,
+      @RequestPart(value = "image", required = false) MultipartFile image) {
+    News news = adminNewsService.update(id, request, image);
+
+    return ResponseEntity.ok(AdminNewsResponse.from(news));
+  }
+
+  @Operation(summary = "뉴스 삭제", description = "관리자용 뉴스를 삭제 상태로 변경합니다.")
+  @DeleteMapping("/{id}")
+  public ResponseEntity<Void> deleteNews(
+      @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
+    adminNewsService.delete(id);
+
+    return ResponseEntity.noContent().build();
+  }
+}

@@ -90,9 +90,35 @@ class MarketAnalysisServiceTest {
         .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND);
   }
 
+  @Test
+  @DisplayName("비발행 뉴스의 시장 분석은 조회하지 않는다")
+  void findMarketAnalysisThrowsWhenNewsIsNotPublished() {
+    News draft =
+        News.createDraft(
+            "draft news",
+            "content",
+            "description",
+            "image.png",
+            NewsSource.DART,
+            "draft-news",
+            "https://example.com/draft-news",
+            Category.STOCK);
+    given(newsMarketAnalysisRepository.findByNewsId(1L))
+        .willReturn(Optional.of(createSavedMarketAnalysis(draft)));
+
+    assertThatThrownBy(() -> marketAnalysisService.getMarketAnalysis(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND);
+  }
+
   private NewsMarketAnalysis createSavedMarketAnalysis() {
+    return createSavedMarketAnalysis(createNews());
+  }
+
+  private NewsMarketAnalysis createSavedMarketAnalysis(News news) {
     return new NewsMarketAnalysis(
-        createNews(),
+        news,
         "금리 인하 기대가 위험자산 선호를 높입니다.",
         "통화정책 변화는 여러 자산의 가격에 영향을 줍니다.",
         List.of(
@@ -138,7 +164,7 @@ class MarketAnalysisServiceTest {
   }
 
   private News createNews() {
-    return new News(
+    return News.createPublished(
         "market news",
         "content",
         "description",

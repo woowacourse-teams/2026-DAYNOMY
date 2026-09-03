@@ -58,7 +58,7 @@ class NewsKeywordRepositoryTest {
   }
 
   private News createNews(String title) {
-    return new News(
+    return News.createPublished(
         title,
         "content",
         "description",
