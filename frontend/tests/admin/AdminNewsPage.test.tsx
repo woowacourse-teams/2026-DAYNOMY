@@ -66,6 +66,93 @@ describe('관리자 뉴스 화면', () => {
     await waitFor(() => expect(calls.some((url) => url.includes('status=PUBLISHED'))).toBe(true));
   });
 
+  it('마지막 뉴스 삭제 후 줄어든 마지막 페이지로 이동한다', async () => {
+    const calls: string[] = [];
+    let listRequestCount = 0;
+    const firstPageItem = { ...listItem, title: '첫 번째 페이지 뉴스' };
+    const lastPageItem = { ...listItem, id: 3, title: '마지막 페이지 뉴스' };
+    const replacementItem = { ...listItem, id: 2, title: '보정된 마지막 페이지 뉴스' };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push(url);
+
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+
+        if (url.endsWith('/api/admin/news/3') && init?.method === 'DELETE') {
+          return new Response(null, { status: 204 });
+        }
+
+        if (url.includes('/api/admin/news?')) {
+          listRequestCount += 1;
+
+          if (listRequestCount === 1) {
+            return jsonResponse({
+              items: [firstPageItem],
+              page: 1,
+              size: 15,
+              totalPages: 3,
+              totalElements: 31,
+              hasNext: true,
+            });
+          }
+
+          if (listRequestCount === 2) {
+            return jsonResponse({
+              items: [lastPageItem],
+              page: 3,
+              size: 15,
+              totalPages: 3,
+              totalElements: 31,
+              hasNext: false,
+            });
+          }
+
+          if (listRequestCount === 3) {
+            return jsonResponse({
+              items: [],
+              page: 3,
+              size: 15,
+              totalPages: 2,
+              totalElements: 30,
+              hasNext: false,
+            });
+          }
+
+          return jsonResponse({
+            items: [replacementItem],
+            page: 2,
+            size: 15,
+            totalPages: 2,
+            totalElements: 30,
+            hasNext: false,
+          });
+        }
+
+        return jsonResponse({}, 404);
+      }),
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const view = renderAdmin(<AdminNewsPage />);
+    expect(await view.findByRole('link', { name: firstPageItem.title })).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: '3' }));
+    expect(await view.findByRole('link', { name: lastPageItem.title })).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: '삭제' }));
+
+    await waitFor(() => {
+      expect(calls.some((url) => url.includes('/api/admin/news?page=2&size=15'))).toBe(true);
+      expect(view.getByRole('link', { name: replacementItem.title })).toBeTruthy();
+    });
+    expect(view.getByRole('button', { name: '2' }).getAttribute('aria-current')).toBe('page');
+  });
+
   it('뉴스 등록 폼은 필수값과 URL 형식을 검증한다', async () => {
     vi.stubGlobal(
       'fetch',

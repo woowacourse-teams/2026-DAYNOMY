@@ -76,8 +76,15 @@ export function AdminNewsPage() {
     getAdminNews(page, status, category, controller.signal)
       .then((response) => {
         if (controller.signal.aborted) return;
+        const nextTotalPages = Math.max(1, response.totalPages);
+
+        if (page > nextTotalPages) {
+          setPage(nextTotalPages);
+          return;
+        }
+
         setItems(response.items);
-        setTotalPages(Math.max(1, response.totalPages));
+        setTotalPages(nextTotalPages);
         setTotalElements(response.totalElements);
       })
       .catch((error) => {
