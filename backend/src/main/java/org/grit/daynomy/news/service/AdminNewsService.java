@@ -31,6 +31,12 @@ public class AdminNewsService {
     return AdminNewsPageResponse.from(newsPage.map(AdminNewsListItemResponse::from));
   }
 
+  public News getNewsDetail(Long id) {
+    return newsRepository
+        .findById(id)
+        .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+  }
+
   @Transactional
   public News update(Long id, AdminNewsUpdateRequest request) {
     News news =

@@ -54,6 +54,15 @@ public class AdminNewsController {
     return ResponseEntity.ok(adminNewsService.getNewsPage(page, size, status, category));
   }
 
+  @Operation(summary = "관리자 뉴스 상세 조회", description = "관리자용으로 뉴스 상세 정보를 조회합니다.")
+  @GetMapping("/{id}")
+  public ResponseEntity<AdminNewsResponse> getNewsDetail(
+      @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
+    News news = adminNewsService.getNewsDetail(id);
+
+    return ResponseEntity.ok(AdminNewsResponse.from(news));
+  }
+
   @Operation(summary = "뉴스 등록", description = "관리자용 뉴스를 초안 상태로 등록합니다.")
   @PostMapping
   public ResponseEntity<AdminNewsResponse> createNews(
