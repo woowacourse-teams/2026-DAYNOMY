@@ -1,0 +1,94 @@
+/** @vitest-environment jsdom */
+
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AuthContext } from '../../src/auth/AuthContext';
+import { AdminNewsFormPage } from '../../src/features/admin/AdminNewsFormPage';
+import { AdminNewsPage } from '../../src/features/admin/AdminNewsPage';
+
+const listItem = {
+  id: 1,
+  title: '금리 인상 전망에 시장 주목',
+  description: '금리 결정에 대한 시장의 관심이 커지고 있습니다.',
+  imageUrl: null,
+  source: null,
+  sourceUrl: 'https://example.com/news/1',
+  category: 'STOCK',
+  publishedAt: null,
+  status: 'DRAFT',
+  createdAt: '2026-08-17T09:00:00Z',
+};
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function renderAdmin(element: ReactNode) {
+  return render(
+    <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
+      <MemoryRouter>{element}</MemoryRouter>
+    </AuthContext.Provider>,
+  );
+}
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+describe('관리자 뉴스 화면', () => {
+  it('뉴스 목록을 표시하고 상태 필터를 API 요청에 반영한다', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        calls.push(String(input));
+        return jsonResponse({
+          items: [listItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    expect(await view.findByRole('link', { name: listItem.title })).toBeTruthy();
+
+    fireEvent.change(view.getByLabelText('상태'), { target: { value: 'PUBLISHED' } });
+    await waitFor(() => expect(calls.some((url) => url.includes('status=PUBLISHED'))).toBe(true));
+  });
+
+  it('뉴스 등록 폼은 필수값과 URL 형식을 검증한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}, 500)),
+    );
+    const view = renderAdmin(<AdminNewsFormPage />);
+
+    fireEvent.click(view.getByRole('button', { name: '초안으로 등록' }));
+
+    expect(await view.findByText('제목을 입력해 주세요.')).toBeTruthy();
+    expect(view.getByText('본문을 입력해 주세요.')).toBeTruthy();
+    expect(view.getByText('원문 URL을 입력해 주세요.')).toBeTruthy();
+    expect(view.getByText('카테고리를 선택해 주세요.')).toBeTruthy();
+  });
+
+  it('뉴스 목록 API 실패 시 오류와 재시도 버튼을 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}, 500)),
+    );
+    const view = renderAdmin(<AdminNewsPage />);
+
+    expect(await view.findByRole('alert')).toBeTruthy();
+    expect(view.getByRole('button', { name: '다시 시도' })).toBeTruthy();
+  });
+});

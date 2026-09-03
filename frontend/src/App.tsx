@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
 import MyPage from './features/pages/components/MyPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
@@ -12,6 +12,10 @@ import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { Header } from './components/Header';
 import { useAuth } from './hooks/useLoginStatus';
+import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
+import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
+import { AdminShell } from './features/admin/components/AdminShell';
+import './features/admin/admin.css';
 
 function AnalyticsTracker() {
   const location = useLocation();
@@ -47,11 +51,52 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return children;
 }
 
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { isLoggedIn, loading, role } = useAuth();
+
+  if (loading) {
+    return <main className="admin-state-page" aria-busy="true" />;
+  }
+
+  if (!isLoggedIn) {
+    return <LoginPage />;
+  }
+
+  if (role !== 'ADMIN') {
+    return (
+      <AdminShell>
+        <AdminAccessDeniedPage />
+      </AdminShell>
+    );
+  }
+
+  return <AdminShell>{children}</AdminShell>;
+}
+
+function PostLoginRedirect() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isLoggedIn, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading || !isLoggedIn) return;
+
+    const targetPath = sessionStorage.getItem('daynomy:post-login-path');
+    if (!targetPath || location.pathname === targetPath) return;
+
+    sessionStorage.removeItem('daynomy:post-login-path');
+    navigate(targetPath, { replace: true });
+  }, [isLoggedIn, loading, location.pathname, navigate]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <AnalyticsTracker />
+        <PostLoginRedirect />
         <AppHeader />
         <Routes>
           <Route path="/" element={<NewsListPage />} />
@@ -60,6 +105,38 @@ export default function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/stocks" element={<StockListPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <Navigate to="/admin/news" replace />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/news"
+            element={
+              <AdminRoute>
+                <AdminNewsPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/news/new"
+            element={
+              <AdminRoute>
+                <AdminNewsFormPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/news/:newsId/edit"
+            element={
+              <AdminRoute>
+                <AdminNewsFormPage />
+              </AdminRoute>
+            }
+          />
           <Route path="/signup" element={<Navigate to="/login" replace />} />
           <Route
             path="/mypage"
