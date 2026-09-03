@@ -123,21 +123,31 @@ class AdminNewsServiceTest {
   void updateNewsChangesContentWithoutChangingStatus() {
     News news =
         News.createAdminDraft(
-            "기존 제목", "기존 본문", "기존 요약", null, "https://example.com/old", Category.STOCK);
+            "기존 제목",
+            "기존 본문",
+            "기존 요약",
+            "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png",
+            "https://example.com/old",
+            Category.STOCK);
     AdminNewsUpdateRequest request =
         new AdminNewsUpdateRequest(
-            "수정 제목", "수정 본문", "수정 요약", "new-image.png", "https://example.com/new", Category.BOND);
+            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.BOND);
+    MockMultipartFile image =
+        new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(s3ImageStorage.publicUrl(any())).willReturn("https://example.com/new-image.png");
 
-    News updatedNews = adminNewsService.update(1L, request);
+    News updatedNews = adminNewsService.update(1L, request, image);
 
     assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
     assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
     assertThat(updatedNews.getDescription()).isEqualTo("수정 요약");
-    assertThat(updatedNews.getImageUrl()).isEqualTo("new-image.png");
+    assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
     assertThat(updatedNews.getSourceUrl()).isEqualTo("https://example.com/new");
     assertThat(updatedNews.getCategory()).isEqualTo(Category.BOND);
     assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
+    verify(s3ImageStorage)
+        .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
   }
 
   @Test
@@ -150,7 +160,8 @@ class AdminNewsServiceTest {
                 adminNewsService.update(
                     1L,
                     new AdminNewsUpdateRequest(
-                        "수정 제목", "수정 본문", null, null, "https://example.com/new", Category.BOND)))
+                        "수정 제목", "수정 본문", null, "https://example.com/new", Category.BOND),
+                    null))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
@@ -161,12 +172,18 @@ class AdminNewsServiceTest {
   void deleteNewsChangesStatusToDeleted() {
     News news =
         News.createAdminDraft(
-            "뉴스 제목", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
+            "뉴스 제목",
+            "뉴스 본문",
+            "뉴스 요약",
+            "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/news.png",
+            "https://example.com/news/1",
+            Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
     adminNewsService.delete(1L);
 
     assertThat(news.getStatus()).isEqualTo(NewsStatus.DELETED);
     assertThat(news.getPublishedAt()).isNull();
+    verify(s3ImageStorage).deleteIfManaged(news.getImageUrl());
   }
 }

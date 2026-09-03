@@ -202,32 +202,43 @@ class AdminNewsControllerTest {
     willReturn(NewsStatus.DRAFT).given(news).getStatus();
     AdminNewsUpdateRequest request =
         new AdminNewsUpdateRequest(
-            "수정 제목", "수정 본문", "수정 요약", "new-image.png", "https://example.com/new", Category.BOND);
-    willReturn(news).given(adminNewsService).update(1L, request);
+            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.BOND);
+    MockMultipartFile requestPart =
+        new MockMultipartFile(
+            "request",
+            "",
+            MediaType.APPLICATION_JSON_VALUE,
+            """
+            {
+              "title": "수정 제목",
+              "content": "수정 본문",
+              "description": "수정 요약",
+              "sourceUrl": "https://example.com/new",
+              "category": "BOND"
+            }
+            """
+                .getBytes());
+    MockMultipartFile image =
+        new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1, 2, 3});
+    willReturn(news).given(adminNewsService).update(eq(1L), eq(request), eq(image));
 
     mockMvc
         .perform(
-            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
-                    "/api/admin/news/1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {
-                      "title": "수정 제목",
-                      "content": "수정 본문",
-                      "description": "수정 요약",
-                      "imageUrl": "new-image.png",
-                      "sourceUrl": "https://example.com/new",
-                      "category": "BOND"
-                    }
-                    """))
+            multipart("/api/admin/news/1")
+                .file(requestPart)
+                .file(image)
+                .with(
+                    servletRequest -> {
+                      servletRequest.setMethod("PUT");
+                      return servletRequest;
+                    }))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.title").value("수정 제목"))
         .andExpect(jsonPath("$.category").value("BOND"))
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
-    then(adminNewsService).should().update(eq(1L), eq(request));
+    then(adminNewsService).should().update(eq(1L), eq(request), eq(image));
   }
 
   @Test
