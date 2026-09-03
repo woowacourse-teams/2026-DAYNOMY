@@ -85,7 +85,9 @@ function renderSearch(
   return {
     router,
     ...render(
-      <AuthContext.Provider value={{ isLoggedIn, loading: false }}>
+      <AuthContext.Provider
+        value={{ isLoggedIn, loading: false, role: isLoggedIn ? 'USER' : null }}
+      >
         <RouterProvider router={router} />
       </AuthContext.Provider>,
     ),

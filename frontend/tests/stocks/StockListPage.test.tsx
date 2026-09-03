@@ -15,7 +15,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 function renderStocks() {
   return render(
-    <AuthContext.Provider value={{ isLoggedIn: true, loading: false }}>
+    <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'USER' }}>
       <MemoryRouter>
         <StockListPage />
       </MemoryRouter>

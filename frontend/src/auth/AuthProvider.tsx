@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getMyProfile } from '../features/pages/api';
-import { AuthContext } from './AuthContext';
+import { AuthContext, type MemberRole } from './AuthContext';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<MemberRole | null>(null);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -12,6 +13,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (useAuthPreview) {
       setIsLoggedIn(true);
+      setRole('USER');
       setLoading(false);
       return;
     }
@@ -19,14 +21,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController();
 
     getMyProfile(controller.signal)
-      .then(() => {
+      .then(({ role: profileRole }) => {
         if (!controller.signal.aborted) {
           setIsLoggedIn(true);
+          setRole(profileRole);
         }
       })
       .catch(() => {
         if (!controller.signal.aborted) {
           setIsLoggedIn(false);
+          setRole(null);
         }
       })
       .finally(() => {
@@ -38,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, []);
 
-  const value = useMemo(() => ({ isLoggedIn, loading }), [isLoggedIn, loading]);
+  const value = useMemo(() => ({ isLoggedIn, loading, role }), [isLoggedIn, loading, role]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
