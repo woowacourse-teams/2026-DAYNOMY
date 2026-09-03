@@ -77,6 +77,29 @@ class KeywordControllerTest {
   }
 
   @Test
+  @DisplayName("뉴스 키워드 조회 API는 비발행 뉴스의 키워드를 반환하지 않는다")
+  void findNewsKeywordsReturnsNotFoundWhenNewsIsNotPublished() throws Exception {
+    News draft =
+        newsRepository.save(
+            News.createDraft(
+                "draft news",
+                "content",
+                "description",
+                "image.png",
+                NewsSource.DART,
+                "draft-news",
+                "https://example.com/draft-news",
+                Category.STOCK));
+    newsKeywordRepository.save(createKeyword(draft, "금리 인하"));
+
+    HttpResponse<String> response = get("/api/news/" + draft.getId() + "/keywords");
+    JsonNode body = objectMapper.readTree(response.body());
+
+    assertThat(response.statusCode()).isEqualTo(404);
+    assertThat(body.at("/code").asText()).isEqualTo("NEWS_NOT_FOUND");
+  }
+
+  @Test
   @DisplayName("뉴스 키워드 조회 API는 키워드가 없으면 에러 응답을 반환한다")
   void findNewsKeywordsReturnsNotFoundWhenKeywordsMissing() throws Exception {
     News news = newsRepository.save(createNews());

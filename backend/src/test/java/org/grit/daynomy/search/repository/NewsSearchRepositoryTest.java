@@ -6,6 +6,7 @@ import java.time.Instant;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,12 +75,25 @@ class NewsSearchRepositoryTest {
             "content-match",
             Category.STOCK,
             Instant.parse("2026-08-14T11:00:00Z")));
+    entityManager.persist(
+        News.createDraft(
+            "금리 초안 뉴스",
+            "금리 본문",
+            "금리 설명",
+            "image.png",
+            NewsSource.DART,
+            "draft-match",
+            "https://example.com/draft-match",
+            Category.BOND));
     entityManager.flush();
 
     Sort latestFirst = Sort.by(Sort.Direction.DESC, "publishedAt", "id");
-    var allResults = newsSearchRepository.search("금리", null, PageRequest.of(0, 10, latestFirst));
+    var allResults =
+        newsSearchRepository.search(
+            "금리", null, NewsStatus.PUBLISHED, PageRequest.of(0, 10, latestFirst));
     var bondPage =
-        newsSearchRepository.search("금리", Category.BOND, PageRequest.of(0, 1, latestFirst));
+        newsSearchRepository.search(
+            "금리", Category.BOND, NewsStatus.PUBLISHED, PageRequest.of(0, 1, latestFirst));
 
     assertThat(allResults.getContent())
         .extracting(News::getTitle)
@@ -122,8 +136,9 @@ class NewsSearchRepositoryTest {
     entityManager.flush();
 
     PageRequest pageable = PageRequest.of(0, 20);
-    var percentResults = newsSearchRepository.search("금!%", null, pageable);
-    var underscoreResults = newsSearchRepository.search("금!_", null, pageable);
+    var percentResults = newsSearchRepository.search("금!%", null, NewsStatus.PUBLISHED, pageable);
+    var underscoreResults =
+        newsSearchRepository.search("금!_", null, NewsStatus.PUBLISHED, pageable);
 
     assertThat(percentResults.getContent())
         .singleElement()
@@ -142,7 +157,7 @@ class NewsSearchRepositoryTest {
       String externalId,
       Category category,
       Instant publishedAt) {
-    return new News(
+    return News.createPublished(
         title,
         content,
         description,
