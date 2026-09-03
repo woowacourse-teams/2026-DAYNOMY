@@ -2,7 +2,6 @@ package org.grit.daynomy.news.service;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -35,14 +34,14 @@ public class AdminNewsService {
 
   @Transactional
   public News createDraft(AdminNewsCreateRequest request, MultipartFile image) {
-    UploadedImage uploadedImage = uploadImage(image);
+    S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
     try {
       News news =
           News.createAdminDraft(
               request.title(),
               request.content(),
               request.description(),
-              uploadedImage == null ? null : uploadedImage.url(),
+              uploadedImage == null ? null : uploadedImage.publicUrl(),
               request.sourceUrl(),
               request.category());
 
@@ -74,13 +73,13 @@ public class AdminNewsService {
             .findById(id)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
     String previousImageUrl = news.getImageUrl();
-    UploadedImage uploadedImage = uploadImage(image);
+    S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
     try {
       news.update(
           request.title(),
           request.content(),
           request.description(),
-          uploadedImage == null ? previousImageUrl : uploadedImage.url(),
+          uploadedImage == null ? previousImageUrl : uploadedImage.publicUrl(),
           request.sourceUrl(),
           request.category());
       if (uploadedImage != null) {
@@ -103,7 +102,7 @@ public class AdminNewsService {
     s3ImageStorage.deleteIfManaged(news.getImageUrl());
   }
 
-  private UploadedImage uploadImage(MultipartFile image) {
+  private S3ImageStorage.StoredImage uploadImage(MultipartFile image) {
     if (image == null || image.isEmpty()) {
       return null;
     }
@@ -114,16 +113,9 @@ public class AdminNewsService {
 
     String contentType = image.getContentType();
     String extension = extensionOf(contentType);
-    String fileName = "%s.%s".formatted(UUID.randomUUID(), extension);
     try {
       byte[] content = image.getBytes();
-      s3ImageStorage.put(fileName, content, contentType);
-      try {
-        return new UploadedImage(fileName, s3ImageStorage.publicUrl(fileName));
-      } catch (RuntimeException exception) {
-        deleteUploadedImage(new UploadedImage(fileName, null));
-        throw exception;
-      }
+      return s3ImageStorage.upload(content, extension, contentType);
     } catch (IOException exception) {
       throw new BusinessException(NewsErrorCode.INVALID_IMAGE_FILE);
     }
@@ -142,7 +134,7 @@ public class AdminNewsService {
     };
   }
 
-  private void deleteUploadedImage(UploadedImage uploadedImage) {
+  private void deleteUploadedImage(S3ImageStorage.StoredImage uploadedImage) {
     if (uploadedImage == null) {
       return;
     }
@@ -153,6 +145,4 @@ public class AdminNewsService {
       log.warn("Failed to clean up uploaded news image: key={}", uploadedImage.relativeKey());
     }
   }
-
-  private record UploadedImage(String relativeKey, String url) {}
 }

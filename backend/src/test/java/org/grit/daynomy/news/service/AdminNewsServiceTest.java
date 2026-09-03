@@ -48,7 +48,9 @@ class AdminNewsServiceTest {
             "뉴스 제목", "뉴스 본문", "뉴스 요약", "https://example.com/news/1", Category.STOCK);
     MockMultipartFile image =
         new MockMultipartFile("image", "news.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1, 2, 3});
-    given(s3ImageStorage.publicUrl(any())).willReturn("https://example.com/news-image.png");
+    given(s3ImageStorage.upload(any(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE)))
+        .willReturn(
+            new S3ImageStorage.StoredImage("news-image.png", "https://example.com/news-image.png"));
     given(newsRepository.save(any(News.class))).willAnswer(invocation -> invocation.getArgument(0));
 
     News savedNews = adminNewsService.createDraft(request, image);
@@ -65,7 +67,7 @@ class AdminNewsServiceTest {
     assertThat(capturedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
     assertThat(capturedNews.getPublishedAt()).isNull();
     ArgumentCaptor<byte[]> imageCaptor = ArgumentCaptor.forClass(byte[].class);
-    verify(s3ImageStorage).put(any(), imageCaptor.capture(), eq(MediaType.IMAGE_PNG_VALUE));
+    verify(s3ImageStorage).upload(imageCaptor.capture(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE));
     assertThat(imageCaptor.getValue()).containsExactly(1, 2, 3);
   }
 
@@ -135,7 +137,9 @@ class AdminNewsServiceTest {
     MockMultipartFile image =
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
-    given(s3ImageStorage.publicUrl(any())).willReturn("https://example.com/new-image.png");
+    given(s3ImageStorage.upload(any(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE)))
+        .willReturn(
+            new S3ImageStorage.StoredImage("new-image.png", "https://example.com/new-image.png"));
 
     News updatedNews = adminNewsService.update(1L, request, image);
 

@@ -1,5 +1,6 @@
 package org.grit.daynomy.external.s3;
 
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -24,7 +25,18 @@ public class S3ImageStorage {
   private final S3Client s3Client;
   private final S3Properties s3Properties;
 
-  public void put(String relativeKey, byte[] content, String contentType) {
+  public StoredImage upload(byte[] content, String extension, String contentType) {
+    if (content == null || content.length == 0 || extension == null || extension.isBlank()) {
+      throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
+    }
+
+    String relativeKey = "%s.%s".formatted(UUID.randomUUID(), extension);
+    String publicUrl = publicUrl(relativeKey);
+    put(relativeKey, content, contentType);
+    return new StoredImage(relativeKey, publicUrl);
+  }
+
+  private void put(String relativeKey, byte[] content, String contentType) {
     try {
       s3Client.putObject(
           PutObjectRequest.builder()
@@ -70,7 +82,7 @@ public class S3ImageStorage {
     delete(publicUrl.substring(prefix.length()));
   }
 
-  public String publicUrl(String relativeKey) {
+  private String publicUrl(String relativeKey) {
     String baseUrl = s3Properties.publicBaseUrl();
     if (baseUrl == null || baseUrl.isBlank()) {
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
@@ -113,4 +125,6 @@ public class S3ImageStorage {
     }
     return value.startsWith("/") ? value.substring(1) : value;
   }
+
+  public record StoredImage(String relativeKey, String publicUrl) {}
 }

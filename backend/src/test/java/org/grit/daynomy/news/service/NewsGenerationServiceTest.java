@@ -1,6 +1,7 @@
 package org.grit.daynomy.news.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -72,7 +73,7 @@ class NewsGenerationServiceTest {
         .willReturn(false);
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("제목", "요약", "본문"));
     given(openAiImageGenerator.generateNewsImage("제목", "요약")).willReturn(IMAGE_BYTES);
-    given(s3ImageStorage.publicUrl(anyString())).willReturn(IMAGE_URL);
+    stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
     given(
             newsPersistenceService.saveIfAbsent(
@@ -83,7 +84,7 @@ class NewsGenerationServiceTest {
 
     verify(keywordAiClient).extractKeywords("본문");
     verify(marketAnalysisAiClient).analyze("본문");
-    verify(s3ImageStorage).put(anyString(), eq(IMAGE_BYTES), eq("image/webp"));
+    verify(s3ImageStorage).upload(eq(IMAGE_BYTES), eq("webp"), eq("image/webp"));
     verify(newsPersistenceService)
         .saveIfAbsent(
             prompt, new GeneratedNews("제목", "요약", "본문"), IMAGE_URL, List.of(), marketAnalysis);
@@ -117,7 +118,7 @@ class NewsGenerationServiceTest {
         .willThrow(new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED));
     given(openAiNewsGenerator.generate(successfulPrompt)).willReturn(generatedNews);
     given(openAiImageGenerator.generateNewsImage("제목", "요약")).willReturn(IMAGE_BYTES);
-    given(s3ImageStorage.publicUrl(anyString())).willReturn(IMAGE_URL);
+    stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
     given(
             newsPersistenceService.saveIfAbsent(
@@ -183,7 +184,7 @@ class NewsGenerationServiceTest {
         .willReturn(false);
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("물가 뉴스", "요약", "본문"));
     given(openAiImageGenerator.generateNewsImage("물가 뉴스", "요약")).willReturn(IMAGE_BYTES);
-    given(s3ImageStorage.publicUrl(anyString())).willReturn(IMAGE_URL);
+    stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
     given(
             newsPersistenceService.saveIfAbsent(
@@ -221,7 +222,7 @@ class NewsGenerationServiceTest {
         .willReturn(false);
     given(openAiNewsGenerator.generate(prompt)).willReturn(generatedNews);
     given(openAiImageGenerator.generateNewsImage("물가 뉴스", "요약")).willReturn(IMAGE_BYTES);
-    given(s3ImageStorage.publicUrl(anyString())).willReturn(IMAGE_URL);
+    stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
     given(
             newsPersistenceService.saveIfAbsent(
@@ -252,7 +253,7 @@ class NewsGenerationServiceTest {
         .willReturn(false);
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("금리 뉴스", "요약", "본문"));
     given(openAiImageGenerator.generateNewsImage("금리 뉴스", "요약")).willReturn(IMAGE_BYTES);
-    given(s3ImageStorage.publicUrl(anyString())).willReturn(IMAGE_URL);
+    stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
     given(
             newsPersistenceService.saveIfAbsent(
@@ -276,5 +277,10 @@ class NewsGenerationServiceTest {
     NewsMarketAnalysis marketAnalysis = mock(NewsMarketAnalysis.class);
     given(marketAnalysisAiClient.analyze(newsContent)).willReturn(marketAnalysis);
     return marketAnalysis;
+  }
+
+  private void stubImageUpload() {
+    given(s3ImageStorage.upload(any(), eq("webp"), eq("image/webp")))
+        .willReturn(new S3ImageStorage.StoredImage("news-image.webp", IMAGE_URL));
   }
 }

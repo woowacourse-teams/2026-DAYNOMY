@@ -2,7 +2,6 @@ package org.grit.daynomy.news.service;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -113,13 +112,12 @@ public class NewsGenerationService {
       }
       var keywords = keywordAiClient.extractKeywords(generatedNews.content());
       var marketAnalysis = marketAnalysisAiClient.analyze(generatedNews.content());
-      String imageFileName = "%s.webp".formatted(UUID.randomUUID());
-      String imageUrl = s3ImageStorage.publicUrl(imageFileName);
-      s3ImageStorage.put(imageFileName, image, "image/webp");
+      S3ImageStorage.StoredImage uploadedImage = s3ImageStorage.upload(image, "webp", "image/webp");
+      String imageUrl = uploadedImage.publicUrl();
 
       if (!newsPersistenceService.saveIfAbsent(
           prompt, generatedNews, imageUrl, keywords, marketAnalysis)) {
-        s3ImageStorage.delete(imageFileName);
+        s3ImageStorage.delete(uploadedImage.relativeKey());
         skippedCount++;
         log.info(
             "Skipping existing news after generation: source={}, externalId={}, sourceUrl={}",
