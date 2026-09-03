@@ -1,4 +1,4 @@
-import defaultNewsImage from '../../../../assets/default-news-real-estate.png';
+import defaultNewsImage from '../../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../constants';
 import type { NewsListItem } from '../types';
 import { formatDate } from '../utils';
@@ -15,7 +15,18 @@ export function ArticleCard({ article }: ArticleCardProps) {
       <div className="article-meta">
         <span>{getCategoryLabel(article.category)}</span>
       </div>
-      <img src={article.imageUrl ?? defaultNewsImage} alt="" className="article-thumbnail" />
+      <img
+        src={article.imageUrl ?? defaultNewsImage}
+        alt=""
+        className="article-thumbnail"
+        loading="lazy"
+        decoding="async"
+        onError={(event) => {
+          if (event.currentTarget.getAttribute('src') !== defaultNewsImage) {
+            event.currentTarget.src = defaultNewsImage;
+          }
+        }}
+      />
       <div className="article-body">
         <h2>{article.title}</h2>
         {article.description ? <p>{article.description}</p> : null}
