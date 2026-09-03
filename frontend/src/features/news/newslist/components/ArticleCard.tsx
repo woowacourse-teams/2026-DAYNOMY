@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import defaultNewsImage from '../../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../constants';
 import type { NewsListItem } from '../types';
@@ -7,7 +8,7 @@ type ArticleCardProps = {
   article: NewsListItem;
 };
 
-export function ArticleCard({ article }: ArticleCardProps) {
+export const ArticleCard = memo(function ArticleCard({ article }: ArticleCardProps) {
   const publishedAt = formatDate(article.publishedAt);
 
   return (
@@ -36,4 +37,4 @@ export function ArticleCard({ article }: ArticleCardProps) {
       </div>
     </a>
   );
-}
+});
