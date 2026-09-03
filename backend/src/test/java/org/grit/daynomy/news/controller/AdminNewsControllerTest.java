@@ -140,6 +140,33 @@ class AdminNewsControllerTest {
   }
 
   @Test
+  @DisplayName("관리자 뉴스 상세 조회 API는 초안 뉴스의 상세 정보를 반환한다")
+  void getNewsDetailReturnsDraftNews() throws Exception {
+    News news = mock(News.class);
+    willReturn(1L).given(news).getId();
+    willReturn("초안 뉴스").given(news).getTitle();
+    willReturn("뉴스 본문").given(news).getContent();
+    willReturn("뉴스 요약").given(news).getDescription();
+    willReturn(null).given(news).getImageUrl();
+    willReturn(null).given(news).getSource();
+    willReturn("https://example.com/news/1").given(news).getSourceUrl();
+    willReturn(Category.STOCK).given(news).getCategory();
+    willReturn(null).given(news).getPublishedAt();
+    willReturn(NewsStatus.DRAFT).given(news).getStatus();
+    willReturn(news).given(adminNewsService).getNewsDetail(1L);
+
+    mockMvc
+        .perform(get("/api/admin/news/1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.title").value("초안 뉴스"))
+        .andExpect(jsonPath("$.content").value("뉴스 본문"))
+        .andExpect(jsonPath("$.status").value("DRAFT"));
+
+    then(adminNewsService).should().getNewsDetail(1L);
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 등록 API는 초안 뉴스를 생성하고 201을 반환한다")
   void createNewsReturnsCreatedDraft() throws Exception {
     News news = mock(News.class);

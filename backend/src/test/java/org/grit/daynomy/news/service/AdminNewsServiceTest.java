@@ -104,6 +104,20 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("관리자 뉴스 상세는 발행되지 않은 뉴스도 조회한다")
+  void getNewsDetailReturnsDraftNews() {
+    News news =
+        News.createAdminDraft(
+            "초안 뉴스", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    News foundNews = adminNewsService.getNewsDetail(1L);
+
+    assertThat(foundNews).isSameAs(news);
+    assertThat(foundNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 등록은 수동 출처의 초안으로 저장한다")
   void createNewsSavesManualDraft() {
     AdminNewsCreateRequest request =
