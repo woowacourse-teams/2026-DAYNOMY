@@ -59,6 +59,16 @@ class NewsSearchAcceptanceTest {
         createNews("기준금리 동결", "search-bond", Category.BOND, Instant.parse("2026-08-17T10:00:00Z")));
     newsRepository.save(
         createNews("증시 반등", "search-stock", Category.STOCK, Instant.parse("2026-08-17T09:00:00Z")));
+    newsRepository.save(
+        News.createDraft(
+            "기준금리 초안",
+            "content",
+            "description",
+            "image.png",
+            NewsSource.DART,
+            "search-draft",
+            "https://example.com/search-draft",
+            Category.BOND));
 
     given()
         .port(port)
@@ -79,7 +89,7 @@ class NewsSearchAcceptanceTest {
   }
 
   private News createNews(String title, String externalId, Category category, Instant publishedAt) {
-    return new News(
+    return News.createPublished(
         title,
         "content",
         "description",

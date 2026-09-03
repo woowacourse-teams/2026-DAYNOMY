@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
@@ -18,6 +19,7 @@ import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -67,7 +69,7 @@ class KeywordServiceTest {
   @DisplayName("뉴스 ID로 키워드 목록을 조회한다")
   void findKeywordsReturnsKeywords() {
     News news = createNews();
-    given(newsRepository.existsById(1L)).willReturn(true);
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
     given(newsKeywordRepository.findByNewsIdOrderByIdAsc(1L))
         .willReturn(List.of(createSavedKeyword(news, "금리 인하"), createSavedKeyword(news, "부동산 규제")));
 
@@ -82,9 +84,9 @@ class KeywordServiceTest {
   }
 
   @Test
-  @DisplayName("뉴스가 없으면 키워드 조회 전에 예외를 던진다")
+  @DisplayName("발행 뉴스가 없으면 키워드 조회 전에 예외를 던진다")
   void findKeywordsThrowsWhenNewsMissing() {
-    given(newsRepository.existsById(1L)).willReturn(false);
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.empty());
 
     assertThatThrownBy(() -> keywordService.getKeywords(1L))
         .isInstanceOf(BusinessException.class)
@@ -96,7 +98,8 @@ class KeywordServiceTest {
   @Test
   @DisplayName("키워드가 없으면 도메인 예외를 던진다")
   void findKeywordsThrowsWhenKeywordsMissing() {
-    given(newsRepository.existsById(1L)).willReturn(true);
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED))
+        .willReturn(Optional.of(createNews()));
     given(newsKeywordRepository.findByNewsIdOrderByIdAsc(1L)).willReturn(List.of());
 
     assertThatThrownBy(() -> keywordService.getKeywords(1L))
