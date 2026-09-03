@@ -83,7 +83,7 @@ public class S3ImageStorage {
   private void deleteByRelativeKey(String relativeKey) {
     try {
       s3Client.deleteObject(
-              DeleteObjectRequest.builder().bucket(bucket()).key(fullObjectKey(relativeKey)).build());
+          DeleteObjectRequest.builder().bucket(bucket()).key(fullObjectKey(relativeKey)).build());
     } catch (S3Exception | SdkClientException exception) {
       log.warn("S3 image deletion failed: relativeKey={}", relativeKey, exception);
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
