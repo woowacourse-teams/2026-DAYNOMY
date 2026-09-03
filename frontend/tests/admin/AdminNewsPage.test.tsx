@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { AdminNewsFormPage } from '../../src/features/admin/AdminNewsFormPage';
@@ -32,6 +32,18 @@ function renderAdmin(element: ReactNode) {
   return render(
     <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
       <MemoryRouter>{element}</MemoryRouter>
+    </AuthContext.Provider>,
+  );
+}
+
+function renderAdminEdit(element: ReactNode) {
+  return render(
+    <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
+      <MemoryRouter initialEntries={['/admin/news/7/edit']}>
+        <Routes>
+          <Route path="/admin/news/:newsId/edit" element={element} />
+        </Routes>
+      </MemoryRouter>
     </AuthContext.Provider>,
   );
 }
@@ -166,6 +178,27 @@ describe('관리자 뉴스 화면', () => {
     expect(view.getByText('본문을 입력해 주세요.')).toBeTruthy();
     expect(view.getByText('원문 URL을 입력해 주세요.')).toBeTruthy();
     expect(view.getByText('카테고리를 선택해 주세요.')).toBeTruthy();
+  });
+
+  it('수정 대상 뉴스 상세 조회에 실패하면 폼 대신 오류 화면을 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('/api/admin/news/7')) {
+          return jsonResponse({ message: '뉴스 정보를 불러오지 못했습니다.' }, 404);
+        }
+
+        return jsonResponse({}, 404);
+      }),
+    );
+
+    const view = renderAdminEdit(<AdminNewsFormPage />);
+
+    expect((await view.findByRole('alert')).textContent).toContain(
+      '뉴스 정보를 불러오지 못했습니다.',
+    );
+    expect(view.getByRole('link', { name: '뉴스 관리로 돌아가기' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '수정 저장' })).toBeNull();
   });
 
   it('뉴스 목록 API 실패 시 오류와 재시도 버튼을 표시한다', async () => {

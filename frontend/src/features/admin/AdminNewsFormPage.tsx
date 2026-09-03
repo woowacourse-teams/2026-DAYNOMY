@@ -54,12 +54,14 @@ export function AdminNewsFormPage() {
   const [loading, setLoading] = useState(isEditing);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [detailLoadError, setDetailLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isEditing || editingId === null) return;
 
     const controller = new AbortController();
     setLoading(true);
+    setDetailLoadError(null);
     getAdminNewsDetail(editingId, controller.signal)
       .then((news) => {
         if (controller.signal.aborted) return;
@@ -74,7 +76,7 @@ export function AdminNewsFormPage() {
       })
       .catch((error) => {
         if (!controller.signal.aborted) {
-          setErrorMessage(getErrorMessage(error, '뉴스 정보를 불러오지 못했습니다.'));
+          setDetailLoadError(getErrorMessage(error, '뉴스 정보를 불러오지 못했습니다.'));
         }
       })
       .finally(() => {
@@ -113,6 +115,8 @@ export function AdminNewsFormPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isEditing && detailLoadError) return;
+
     const nextErrors = validateForm(values, image);
     setErrors(nextErrors);
     setErrorMessage(null);
@@ -147,6 +151,21 @@ export function AdminNewsFormPage() {
     return (
       <main className="admin-content">
         <div className="admin-table-loading">뉴스 정보를 불러오는 중입니다.</div>
+      </main>
+    );
+  }
+
+  if (isEditing && detailLoadError) {
+    return (
+      <main className="admin-content admin-form-content">
+        <section className="admin-state-panel" role="alert">
+          <p className="admin-kicker">콘텐츠 운영</p>
+          <h1>뉴스 정보를 불러오지 못했습니다.</h1>
+          <p>{detailLoadError}</p>
+          <Link className="admin-secondary-button" to="/admin/news">
+            뉴스 관리로 돌아가기
+          </Link>
+        </section>
       </main>
     );
   }
