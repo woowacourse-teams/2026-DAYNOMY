@@ -1,7 +1,7 @@
 # DAYNOMY 팀 개발 규칙
 
 이 문서는 저장소에서 작업하는 사람과 AI 에이전트가 공통으로 따르는 규칙의 진입점이다.
-세부 규칙은 `docs/team-harness/rules/`에, 반복 작업 절차는 `docs/team-harness/skills/`에 둔다.
+세부 규칙은 `.codex/rules/`에, 반복 작업 절차는 `.agents/skills/`에 둔다.
 
 ## 작업 원칙
 
@@ -14,9 +14,14 @@
 
 ## 영역별 규칙
 
-- 공통: `docs/team-harness/rules/common.md`
-- 백엔드: `docs/team-harness/rules/backend.md`
-- 프론트엔드: `docs/team-harness/rules/frontend.md`
+- 공통: `.codex/rules/common.md`
+- 백엔드: `.codex/rules/backend.md`
+- 프론트엔드: `.codex/rules/frontend.md`
+
+## 작업 절차
+
+- 모든 에이전트는 작업 전에 이 문서와 `.codex/rules/common.md`를 읽고, 담당 영역의 Rule과 Skill을 함께 확인한다.
+- 백엔드 구현은 `backend-feature`, 프론트엔드 구현은 `frontend-feature`, 코드 리뷰는 `code-review`, CI 실패 분석은 `ci-failure-analysis` 절차를 따른다.
 
 ## 검증 명령
 

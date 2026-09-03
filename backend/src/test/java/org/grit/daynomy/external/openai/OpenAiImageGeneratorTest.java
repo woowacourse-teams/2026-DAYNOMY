@@ -22,16 +22,16 @@ class OpenAiImageGeneratorTest {
   }
 
   @Test
-  @DisplayName("OpenAI Images API 응답에서 이미지 data URL을 만든다")
-  void generateNewsImageReturnsDataUrl() throws Exception {
+  @DisplayName("OpenAI Images API 응답의 Base64 이미지를 byte 배열로 변환한다")
+  void generateNewsImageReturnsBytes() throws Exception {
     OpenAiImageGenerator generator =
         new OpenAiImageGenerator(
             new OpenAiProperties(
                 "test-key", startServer(openAiImageResponse()), "text-model", "image-model"));
 
-    String imageUrl = generator.generateNewsImage("제목", "요약");
+    byte[] image = generator.generateNewsImage("제목", "요약");
 
-    assertThat(imageUrl).isEqualTo("data:image/webp;base64,test-image");
+    assertThat(image).isEqualTo("image".getBytes(StandardCharsets.UTF_8));
   }
 
   private String startServer(String responseBody) throws IOException {
@@ -54,7 +54,7 @@ class OpenAiImageGeneratorTest {
         {
           "data": [
             {
-              "b64_json": "test-image"
+              "b64_json": "aW1hZ2U="
             }
           ]
         }

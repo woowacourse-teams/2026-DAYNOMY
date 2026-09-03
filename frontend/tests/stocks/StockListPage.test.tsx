@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { StockListPage } from '../../src/features/stocks/StockListPage';
+import { STOCK_BOOKMARK_STORAGE_KEY } from '../../src/features/stocks/constants';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -15,7 +16,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 function renderStocks() {
   return render(
-    <AuthContext.Provider value={{ isLoggedIn: true, loading: false }}>
+    <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'USER' }}>
       <MemoryRouter>
         <StockListPage />
       </MemoryRouter>
@@ -32,6 +33,29 @@ afterEach(() => {
 });
 
 describe('관심 종목 화면', () => {
+  it('기존 북마크를 초기화 전 빈 배열로 덮어쓰지 않는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          baseDate: '2026-08-27',
+          rankings: [{ rank: 1, code: '005930', name: '삼성전자' }],
+        }),
+      ),
+    );
+    localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(['005930']));
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+
+    const view = renderStocks();
+    const bookmarkButton = await view.findByRole('button', {
+      name: '삼성전자 북마크 해제',
+    });
+
+    expect(setItem).not.toHaveBeenCalledWith(STOCK_BOOKMARK_STORAGE_KEY, '[]');
+    expect(localStorage.getItem(STOCK_BOOKMARK_STORAGE_KEY)).toBe('["005930"]');
+    expect(bookmarkButton).toBeTruthy();
+  });
+
   it('북마크를 추가하고 해제한 상태를 저장한다', async () => {
     vi.stubGlobal(
       'fetch',

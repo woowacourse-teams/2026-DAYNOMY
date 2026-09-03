@@ -1,21 +1,16 @@
 import { BookmarkIcon } from '../../stocks/components/BookmarkIcon';
+import { useStockBookmarks } from '../../stocks/hooks/useStockBookmarks';
 import type { StockCandidate } from '../../stocks/types';
 
 type StockSearchResultsProps = {
   keyword: string;
   stocks: StockCandidate[];
   isLoggedIn: boolean;
-  bookmarkedCodeSet: Set<string>;
-  onBookmarkToggle: (stock: StockCandidate) => void;
 };
 
-export function StockSearchResults({
-  keyword,
-  stocks,
-  isLoggedIn,
-  bookmarkedCodeSet,
-  onBookmarkToggle,
-}: StockSearchResultsProps) {
+export function StockSearchResults({ keyword, stocks, isLoggedIn }: StockSearchResultsProps) {
+  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks(isLoggedIn);
+
   return (
     <section className="stock-search-results" aria-labelledby="stock-result-title">
       <h1 id="stock-result-title">{keyword} 검색 결과</h1>
@@ -38,7 +33,7 @@ export function StockSearchResults({
                     className="stock-search-bookmark"
                     aria-pressed={isBookmarked}
                     aria-label={`${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`}
-                    onClick={() => onBookmarkToggle(stock)}
+                    onClick={() => toggleBookmark(stock)}
                   >
                     <BookmarkIcon selected={isBookmarked} />
                   </button>
