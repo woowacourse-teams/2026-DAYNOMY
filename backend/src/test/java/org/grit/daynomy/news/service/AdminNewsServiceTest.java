@@ -3,12 +3,15 @@ package org.grit.daynomy.news.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
@@ -25,11 +28,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 
 @ExtendWith(MockitoExtension.class)
 class AdminNewsServiceTest {
 
   @Mock private NewsRepository newsRepository;
+
+  @Mock private S3ImageStorage s3ImageStorage;
 
   @InjectMocks private AdminNewsService adminNewsService;
 
@@ -38,15 +45,13 @@ class AdminNewsServiceTest {
   void createNewsSavesManualDraft() {
     AdminNewsCreateRequest request =
         new AdminNewsCreateRequest(
-            "뉴스 제목",
-            "뉴스 본문",
-            "뉴스 요약",
-            "https://example.com/image.png",
-            "https://example.com/news/1",
-            Category.STOCK);
+            "뉴스 제목", "뉴스 본문", "뉴스 요약", "https://example.com/news/1", Category.STOCK);
+    MockMultipartFile image =
+        new MockMultipartFile("image", "news.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1, 2, 3});
+    given(s3ImageStorage.publicUrl(any())).willReturn("https://example.com/news-image.png");
     given(newsRepository.save(any(News.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-    News savedNews = adminNewsService.createDraft(request);
+    News savedNews = adminNewsService.createDraft(request, image);
 
     ArgumentCaptor<News> newsCaptor = ArgumentCaptor.forClass(News.class);
     verify(newsRepository).save(newsCaptor.capture());
@@ -54,10 +59,31 @@ class AdminNewsServiceTest {
     assertThat(savedNews).isSameAs(capturedNews);
     assertThat(capturedNews.getTitle()).isEqualTo("뉴스 제목");
     assertThat(capturedNews.getContent()).isEqualTo("뉴스 본문");
+    assertThat(capturedNews.getImageUrl()).isEqualTo("https://example.com/news-image.png");
     assertThat(capturedNews.getSource()).isNull();
     assertThat(capturedNews.getExternalId()).isNull();
     assertThat(capturedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
     assertThat(capturedNews.getPublishedAt()).isNull();
+    ArgumentCaptor<byte[]> imageCaptor = ArgumentCaptor.forClass(byte[].class);
+    verify(s3ImageStorage).put(any(), imageCaptor.capture(), eq(MediaType.IMAGE_PNG_VALUE));
+    assertThat(imageCaptor.getValue()).containsExactly(1, 2, 3);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 등록은 지원하지 않는 이미지 형식을 거부한다")
+  void createNewsRejectsUnsupportedImage() {
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목", "뉴스 본문", "뉴스 요약", "https://example.com/news/1", Category.STOCK);
+    MockMultipartFile image =
+        new MockMultipartFile("image", "news.gif", MediaType.IMAGE_GIF_VALUE, new byte[] {1, 2, 3});
+
+    assertThatThrownBy(() -> adminNewsService.createDraft(request, image))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.INVALID_IMAGE_FILE);
+
+    verifyNoInteractions(s3ImageStorage, newsRepository);
   }
 
   @Test

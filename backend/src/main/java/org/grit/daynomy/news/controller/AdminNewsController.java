@@ -16,6 +16,7 @@ import org.grit.daynomy.news.dto.AdminNewsResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,7 +27,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Admin News", description = "관리자 뉴스 관리 API")
 @Validated
@@ -38,10 +41,11 @@ public class AdminNewsController {
   private final AdminNewsService adminNewsService;
 
   @Operation(summary = "뉴스 등록", description = "관리자용 뉴스를 초안 상태로 등록합니다.")
-  @PostMapping
+  @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ResponseEntity<AdminNewsResponse> createNews(
-      @Valid @RequestBody AdminNewsCreateRequest request) {
-    News news = adminNewsService.createDraft(request);
+      @Valid @RequestPart("request") AdminNewsCreateRequest request,
+      @RequestPart(value = "image", required = false) MultipartFile image) {
+    News news = adminNewsService.createDraft(request, image);
 
     return ResponseEntity.status(HttpStatus.CREATED).body(AdminNewsResponse.from(news));
   }

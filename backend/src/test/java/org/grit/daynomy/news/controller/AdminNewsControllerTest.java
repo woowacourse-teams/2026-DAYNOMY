@@ -9,7 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,6 +32,7 @@ import org.springframework.context.annotation.ComponentScan.Filter;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -63,65 +64,58 @@ class AdminNewsControllerTest {
     willReturn(Category.STOCK).given(news).getCategory();
     willReturn(null).given(news).getPublishedAt();
     willReturn(NewsStatus.DRAFT).given(news).getStatus();
-    willReturn(news)
-        .given(adminNewsService)
-        .createDraft(
-            new AdminNewsCreateRequest(
-                "뉴스 제목",
-                "뉴스 본문",
-                "뉴스 요약",
-                "https://example.com/image.png",
-                "https://example.com/news/1",
-                Category.STOCK));
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목", "뉴스 본문", "뉴스 요약", "https://example.com/news/1", Category.STOCK);
+    MockMultipartFile requestPart =
+        new MockMultipartFile(
+            "request",
+            "",
+            MediaType.APPLICATION_JSON_VALUE,
+            """
+            {
+              "title": "뉴스 제목",
+              "content": "뉴스 본문",
+              "description": "뉴스 요약",
+              "sourceUrl": "https://example.com/news/1",
+              "category": "STOCK"
+            }
+            """
+                .getBytes());
+    MockMultipartFile image =
+        new MockMultipartFile("image", "news.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1, 2, 3});
+    willReturn(news).given(adminNewsService).createDraft(eq(request), eq(image));
 
     mockMvc
-        .perform(
-            post("/api/admin/news")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {
-                      "title": "뉴스 제목",
-                      "content": "뉴스 본문",
-                      "description": "뉴스 요약",
-                      "imageUrl": "https://example.com/image.png",
-                      "sourceUrl": "https://example.com/news/1",
-                      "category": "STOCK"
-                    }
-                    """))
+        .perform(multipart("/api/admin/news").file(requestPart).file(image))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.title").value("뉴스 제목"))
         .andExpect(jsonPath("$.source").doesNotExist())
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
-    then(adminNewsService)
-        .should()
-        .createDraft(
-            new AdminNewsCreateRequest(
-                "뉴스 제목",
-                "뉴스 본문",
-                "뉴스 요약",
-                "https://example.com/image.png",
-                "https://example.com/news/1",
-                Category.STOCK));
+    then(adminNewsService).should().createDraft(eq(request), eq(image));
   }
 
   @Test
   @DisplayName("관리자 뉴스 등록 API는 필수 입력값이 없으면 요청을 거부한다")
   void createNewsRejectsInvalidRequest() throws Exception {
+    MockMultipartFile requestPart =
+        new MockMultipartFile(
+            "request",
+            "",
+            MediaType.APPLICATION_JSON_VALUE,
+            """
+            {
+              "title": "",
+              "content": "뉴스 본문",
+              "sourceUrl": "https://example.com/news/1"
+            }
+            """
+                .getBytes());
+
     mockMvc
-        .perform(
-            post("/api/admin/news")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {
-                      "title": "",
-                      "content": "뉴스 본문",
-                      "sourceUrl": "https://example.com/news/1"
-                    }
-                    """))
+        .perform(multipart("/api/admin/news").file(requestPart))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
         .andExpect(jsonPath("$.errors").isArray());
