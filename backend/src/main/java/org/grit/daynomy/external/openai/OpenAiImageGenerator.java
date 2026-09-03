@@ -2,6 +2,7 @@ package org.grit.daynomy.external.openai;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Base64;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -37,7 +38,7 @@ public class OpenAiImageGenerator {
             .build();
   }
 
-  public String generateNewsImage(String title, String description) {
+  public byte[] generateNewsImage(String title, String description) {
     try {
       log.info(
           "Requesting OpenAI image generation: model={}, title={}",
@@ -53,9 +54,9 @@ public class OpenAiImageGenerator {
               .retrieve()
               .body(String.class);
 
-      String imageUrl = "data:image/" + IMAGE_FORMAT + ";base64," + extractImage(response);
+      byte[] image = Base64.getDecoder().decode(extractImage(response));
       log.info("Received OpenAI generated image: title={}", title);
-      return imageUrl;
+      return image;
     } catch (HttpStatusCodeException exception) {
       log.warn(
           "OpenAI image generation request failed: status={}, body={}, title={}",
@@ -68,6 +69,9 @@ public class OpenAiImageGenerator {
           "OpenAI image generation request failed: message={}, title={}",
           exception.getMessage(),
           title);
+      throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
+    } catch (IllegalArgumentException exception) {
+      log.warn("OpenAI image response contained invalid Base64 data: title={}", title);
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     }
   }
