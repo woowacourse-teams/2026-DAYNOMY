@@ -2,7 +2,6 @@ package org.grit.daynomy.news.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -234,7 +233,7 @@ class NewsGenerationServiceTest {
     assertThat(savedCount).isZero();
     verify(newsPersistenceService)
         .saveIfAbsent(prompt, generatedNews, IMAGE_URL, List.of(), marketAnalysis);
-    verify(s3ImageStorage).delete(anyString());
+    verify(s3ImageStorage).delete(new S3ImageStorage.StoredImage("news-image.webp", IMAGE_URL));
   }
 
   @Test

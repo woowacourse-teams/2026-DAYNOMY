@@ -140,7 +140,7 @@ public class AdminNewsService {
     }
 
     try {
-      s3ImageStorage.delete(uploadedImage.relativeKey());
+      s3ImageStorage.delete(uploadedImage);
     } catch (BusinessException exception) {
       log.warn("Failed to clean up uploaded news image: key={}", uploadedImage.relativeKey());
     }

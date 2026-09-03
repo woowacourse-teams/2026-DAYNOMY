@@ -64,7 +64,9 @@ class S3ImageStorageTest {
 
   @Test
   void deleteSendsObjectKeyToS3() {
-    storage.delete("news-image.webp");
+    storage.delete(
+        new S3ImageStorage.StoredImage(
+            "news-image.webp", "https://cdn.example.com/news-image.webp"));
 
     ArgumentCaptor<DeleteObjectRequest> requestCaptor =
         ArgumentCaptor.forClass(DeleteObjectRequest.class);

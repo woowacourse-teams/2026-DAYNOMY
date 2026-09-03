@@ -117,7 +117,7 @@ public class NewsGenerationService {
 
       if (!newsPersistenceService.saveIfAbsent(
           prompt, generatedNews, imageUrl, keywords, marketAnalysis)) {
-        s3ImageStorage.delete(uploadedImage.relativeKey());
+        s3ImageStorage.delete(uploadedImage);
         skippedCount++;
         log.info(
             "Skipping existing news after generation: source={}, externalId={}, sourceUrl={}",

@@ -53,14 +53,12 @@ public class S3ImageStorage {
     }
   }
 
-  public void delete(String relativeKey) {
-    try {
-      s3Client.deleteObject(
-          DeleteObjectRequest.builder().bucket(bucket()).key(fullObjectKey(relativeKey)).build());
-    } catch (S3Exception | SdkClientException exception) {
-      log.warn("S3 image deletion failed: relativeKey={}", relativeKey, exception);
-      throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
+  public void delete(StoredImage storedImage) {
+    if (storedImage == null) {
+      return;
     }
+
+    deleteByRelativeKey(storedImage.relativeKey());
   }
 
   public void deleteIfManaged(String publicUrl) {
@@ -79,7 +77,17 @@ public class S3ImageStorage {
       return;
     }
 
-    delete(publicUrl.substring(prefix.length()));
+    deleteByRelativeKey(publicUrl.substring(prefix.length()));
+  }
+
+  private void deleteByRelativeKey(String relativeKey) {
+    try {
+      s3Client.deleteObject(
+              DeleteObjectRequest.builder().bucket(bucket()).key(fullObjectKey(relativeKey)).build());
+    } catch (S3Exception | SdkClientException exception) {
+      log.warn("S3 image deletion failed: relativeKey={}", relativeKey, exception);
+      throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
+    }
   }
 
   private String publicUrl(String relativeKey) {
