@@ -37,6 +37,15 @@ public class AdminNewsController {
 
   private final AdminNewsService adminNewsService;
 
+  @Operation(summary = "뉴스 등록", description = "관리자용 뉴스를 초안 상태로 등록합니다.")
+  @PostMapping
+  public ResponseEntity<AdminNewsResponse> createNews(
+      @Valid @RequestBody AdminNewsCreateRequest request) {
+    News news = adminNewsService.createDraft(request);
+
+    return ResponseEntity.status(HttpStatus.CREATED).body(AdminNewsResponse.from(news));
+  }
+
   @Operation(summary = "관리자 뉴스 목록 조회", description = "관리자용 뉴스 목록을 상태·카테고리별로 조회합니다.")
   @GetMapping
   public ResponseEntity<AdminNewsPageResponse> getNewsPage(
@@ -61,15 +70,6 @@ public class AdminNewsController {
     News news = adminNewsService.getNewsDetail(id);
 
     return ResponseEntity.ok(AdminNewsResponse.from(news));
-  }
-
-  @Operation(summary = "뉴스 등록", description = "관리자용 뉴스를 초안 상태로 등록합니다.")
-  @PostMapping
-  public ResponseEntity<AdminNewsResponse> createNews(
-      @Valid @RequestBody AdminNewsCreateRequest request) {
-    News news = adminNewsService.createDraft(request);
-
-    return ResponseEntity.status(HttpStatus.CREATED).body(AdminNewsResponse.from(news));
   }
 
   @Operation(summary = "뉴스 수정", description = "관리자용 뉴스 내용을 수정합니다.")

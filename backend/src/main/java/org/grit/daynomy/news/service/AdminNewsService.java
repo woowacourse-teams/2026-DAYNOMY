@@ -23,6 +23,20 @@ public class AdminNewsService {
 
   private final NewsRepository newsRepository;
 
+  @Transactional
+  public News createDraft(AdminNewsCreateRequest request) {
+    News news =
+        News.createAdminDraft(
+            request.title(),
+            request.content(),
+            request.description(),
+            request.imageUrl(),
+            request.sourceUrl(),
+            request.category());
+
+    return newsRepository.save(news);
+  }
+
   public AdminNewsPageResponse getNewsPage(
       int page, int size, NewsStatus status, Category category) {
     Page<News> newsPage =
@@ -60,19 +74,5 @@ public class AdminNewsService {
             .findById(id)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
     news.delete();
-  }
-
-  @Transactional
-  public News createDraft(AdminNewsCreateRequest request) {
-    News news =
-        News.createAdminDraft(
-            request.title(),
-            request.content(),
-            request.description(),
-            request.imageUrl(),
-            request.sourceUrl(),
-            request.category());
-
-    return newsRepository.save(news);
   }
 }
