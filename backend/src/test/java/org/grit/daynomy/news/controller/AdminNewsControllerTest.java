@@ -1,5 +1,6 @@
 package org.grit.daynomy.news.controller;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willReturn;
@@ -18,6 +19,7 @@ import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsListItemResponse;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
+import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,50 @@ class AdminNewsControllerTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private AdminNewsService adminNewsService;
+
+  @Test
+  @DisplayName("관리자 뉴스 수정 API는 수정 요청을 서비스에 전달하고 응답을 반환한다")
+  void updateNewsReturnsUpdatedNews() throws Exception {
+    News news = mock(News.class);
+    willReturn(1L).given(news).getId();
+    willReturn("수정 제목").given(news).getTitle();
+    willReturn("수정 본문").given(news).getContent();
+    willReturn("수정 요약").given(news).getDescription();
+    willReturn("new-image.png").given(news).getImageUrl();
+    willReturn(null).given(news).getSource();
+    willReturn("https://example.com/new").given(news).getSourceUrl();
+    willReturn(Category.BOND).given(news).getCategory();
+    willReturn(null).given(news).getPublishedAt();
+    willReturn(NewsStatus.DRAFT).given(news).getStatus();
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목", "수정 본문", "수정 요약", "new-image.png", "https://example.com/new", Category.BOND);
+    willReturn(news).given(adminNewsService).update(1L, request);
+
+    mockMvc
+        .perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                    "/api/admin/news/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "title": "수정 제목",
+                      "content": "수정 본문",
+                      "description": "수정 요약",
+                      "imageUrl": "new-image.png",
+                      "sourceUrl": "https://example.com/new",
+                      "category": "BOND"
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.title").value("수정 제목"))
+        .andExpect(jsonPath("$.category").value("BOND"))
+        .andExpect(jsonPath("$.status").value("DRAFT"));
+
+    then(adminNewsService).should().update(eq(1L), eq(request));
+  }
 
   @Test
   @DisplayName("관리자 뉴스 목록 조회 API는 페이지와 상태를 서비스에 전달한다")

@@ -1,15 +1,20 @@
 package org.grit.daynomy.news.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
+import java.util.Optional;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
+import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
+import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +32,44 @@ class AdminNewsServiceTest {
   @Mock private NewsRepository newsRepository;
 
   @InjectMocks private AdminNewsService adminNewsService;
+
+  @Test
+  @DisplayName("관리자 뉴스 내용을 수정하고 기존 상태는 유지한다")
+  void updateNewsChangesContentWithoutChangingStatus() {
+    News news =
+        News.createAdminDraft(
+            "기존 제목", "기존 본문", "기존 요약", null, "https://example.com/old", Category.STOCK);
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목", "수정 본문", "수정 요약", "new-image.png", "https://example.com/new", Category.BOND);
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    News updatedNews = adminNewsService.update(1L, request);
+
+    assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
+    assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
+    assertThat(updatedNews.getDescription()).isEqualTo("수정 요약");
+    assertThat(updatedNews.getImageUrl()).isEqualTo("new-image.png");
+    assertThat(updatedNews.getSourceUrl()).isEqualTo("https://example.com/new");
+    assertThat(updatedNews.getCategory()).isEqualTo(Category.BOND);
+    assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
+  }
+
+  @Test
+  @DisplayName("존재하지 않는 뉴스 수정 요청은 예외를 던진다")
+  void updateNewsThrowsWhenNewsIsMissing() {
+    given(newsRepository.findById(1L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                adminNewsService.update(
+                    1L,
+                    new AdminNewsUpdateRequest(
+                        "수정 제목", "수정 본문", null, null, "https://example.com/new", Category.BOND)))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
+  }
 
   @Test
   @DisplayName("관리자 뉴스 목록을 상태와 함께 페이지로 조회한다")
