@@ -8,6 +8,7 @@ import org.grit.daynomy.keyword.dto.KeywordsResponse;
 import org.grit.daynomy.keyword.exception.KeywordErrorCode;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.springframework.stereotype.Service;
@@ -38,7 +39,7 @@ public class KeywordService {
   }
 
   public KeywordsResponse getKeywords(Long newsId) {
-    if (!newsRepository.existsById(newsId)) {
+    if (newsRepository.findByIdAndStatus(newsId, NewsStatus.PUBLISHED).isEmpty()) {
       throw new BusinessException(NewsErrorCode.NEWS_NOT_FOUND);
     }
 
