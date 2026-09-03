@@ -46,7 +46,7 @@ function renderHeader() {
   );
 
   const view = render(
-    <AuthContext.Provider value={{ isLoggedIn: false, loading: false }}>
+    <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
       <RouterProvider router={router} />
     </AuthContext.Provider>,
   );

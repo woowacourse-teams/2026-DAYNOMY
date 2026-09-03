@@ -27,7 +27,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 function renderPage(element: ReactNode, isLoggedIn = false) {
   return render(
-    <AuthContext.Provider value={{ isLoggedIn, loading: false }}>
+    <AuthContext.Provider value={{ isLoggedIn, loading: false, role: isLoggedIn ? 'USER' : null }}>
       <MemoryRouter>{element}</MemoryRouter>
     </AuthContext.Provider>,
   );
