@@ -174,6 +174,21 @@ public class News extends BaseEntity {
         NewsStatus.DRAFT);
   }
 
+  public void update(
+      String title,
+      String content,
+      String description,
+      String imageUrl,
+      String sourceUrl,
+      Category category) {
+    this.title = title;
+    this.content = content;
+    this.description = description;
+    this.imageUrl = imageUrl;
+    this.sourceUrl = sourceUrl;
+    this.category = category;
+  }
+
   public void publish() {
     this.status = NewsStatus.PUBLISHED;
     this.publishedAt = Instant.now();

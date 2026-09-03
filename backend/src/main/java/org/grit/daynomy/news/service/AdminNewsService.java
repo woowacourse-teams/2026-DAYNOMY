@@ -1,12 +1,15 @@
 package org.grit.daynomy.news.service;
 
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsListItemResponse;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
+import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
+import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,6 +29,22 @@ public class AdminNewsService {
         newsRepository.findAdminNews(status, category, PageRequest.of(page - 1, size));
 
     return AdminNewsPageResponse.from(newsPage.map(AdminNewsListItemResponse::from));
+  }
+
+  @Transactional
+  public News update(Long id, AdminNewsUpdateRequest request) {
+    News news =
+        newsRepository
+            .findById(id)
+            .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+    news.update(
+        request.title(),
+        request.content(),
+        request.description(),
+        request.imageUrl(),
+        request.sourceUrl(),
+        request.category());
+    return news;
   }
 
   @Transactional

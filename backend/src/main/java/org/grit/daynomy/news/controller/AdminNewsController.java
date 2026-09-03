@@ -13,12 +13,15 @@ import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsResponse;
+import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -57,5 +60,15 @@ public class AdminNewsController {
     News news = adminNewsService.createDraft(request);
 
     return ResponseEntity.status(HttpStatus.CREATED).body(AdminNewsResponse.from(news));
+  }
+
+  @Operation(summary = "뉴스 수정", description = "관리자용 뉴스 내용을 수정합니다.")
+  @PutMapping("/{id}")
+  public ResponseEntity<AdminNewsResponse> updateNews(
+      @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id,
+      @Valid @RequestBody AdminNewsUpdateRequest request) {
+    News news = adminNewsService.update(id, request);
+
+    return ResponseEntity.ok(AdminNewsResponse.from(news));
   }
 }
