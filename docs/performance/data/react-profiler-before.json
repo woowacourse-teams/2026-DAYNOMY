@@ -1,0 +1,213 @@
+{
+  "label": "before-react",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "mode": "Vite development + React StrictMode",
+    "viewport": "1440x1000",
+    "cpuThrottle": 4,
+    "warmups": 5,
+    "measuredIterations": 30,
+    "fixtureNewsCount": 100
+  },
+  "articleCardRenderCount": 6000,
+  "articleCardRendersPerInteraction": 200,
+  "profilerCommitCount": 30,
+  "actualDuration": {
+    "count": 30,
+    "min": 21.99999999254942,
+    "p50": 23.100000008940697,
+    "p95": 61.399999998509884,
+    "max": 62.5,
+    "mean": 35.216666666169964
+  },
+  "baseDuration": {
+    "count": 30,
+    "min": 21.400000013411045,
+    "p50": 23.00000000745058,
+    "p95": 61.29999998956919,
+    "max": 61.399999998509884,
+    "mean": 34.81666666666667
+  },
+  "profiles": [
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 57.1000000089407,
+      "baseDuration": 56.80000000447035
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 58,
+      "baseDuration": 57.70000000298023
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 29.399999998509884,
+      "baseDuration": 28.299999997019768
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 21.99999999254942,
+      "baseDuration": 21.799999989569187
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 23.299999997019768,
+      "baseDuration": 22.799999997019768
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.099999994039536,
+      "baseDuration": 21.400000013411045
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.69999999552965,
+      "baseDuration": 21.799999997019768
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.799999997019768,
+      "baseDuration": 22.799999997019768
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.399999991059303,
+      "baseDuration": 22.299999989569187
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 23.100000001490116,
+      "baseDuration": 23
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 25,
+      "baseDuration": 23.299999997019768
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 27.399999998509884,
+      "baseDuration": 27.19999999552965
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 62.5,
+      "baseDuration": 61.29999998956919
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 60.599999994039536,
+      "baseDuration": 60.3999999910593
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 59.400000005960464,
+      "baseDuration": 59.100000001490116
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 61.399999998509884,
+      "baseDuration": 61.399999998509884
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 55.69999999552965,
+      "baseDuration": 55.599999994039536
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 29,
+      "baseDuration": 29
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 23,
+      "baseDuration": 22.700000002980232
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.399999998509884,
+      "baseDuration": 22.00000000745058
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.80000000447035,
+      "baseDuration": 22.80000000447035
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.19999999552965,
+      "baseDuration": 21.799999997019768
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.400000005960464,
+      "baseDuration": 22.30000001192093
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.600000001490116,
+      "baseDuration": 21.80000000447035
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 22.200000002980232,
+      "baseDuration": 22.200000002980232
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 23.100000008940697,
+      "baseDuration": 23.00000000745058
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 23.100000001490116,
+      "baseDuration": 23.100000001490116
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 55.099999994039536,
+      "baseDuration": 54.20000001043081
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 57.6000000089407,
+      "baseDuration": 56.5
+    },
+    {
+      "id": "ArticleList",
+      "phase": "update",
+      "actualDuration": 56.099999994039536,
+      "baseDuration": 56.099999994039536
+    }
+  ]
+}

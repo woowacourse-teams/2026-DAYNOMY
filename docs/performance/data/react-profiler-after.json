@@ -1,0 +1,32 @@
+{
+  "label": "candidate-react",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "mode": "Vite development + React StrictMode",
+    "viewport": "1440x1000",
+    "cpuThrottle": 4,
+    "warmups": 5,
+    "measuredIterations": 30,
+    "fixtureNewsCount": 100
+  },
+  "articleCardRenderCount": 0,
+  "articleCardRendersPerInteraction": 0,
+  "profilerCommitCount": 0,
+  "actualDuration": {
+    "count": 0,
+    "min": 0,
+    "p50": 0,
+    "p95": 0,
+    "max": 0,
+    "mean": 0
+  },
+  "baseDuration": {
+    "count": 0,
+    "min": 0,
+    "p50": 0,
+    "p95": 0,
+    "max": 0,
+    "mean": 0
+  },
+  "profiles": []
+}
