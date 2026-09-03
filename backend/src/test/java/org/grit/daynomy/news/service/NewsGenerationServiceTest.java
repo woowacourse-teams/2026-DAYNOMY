@@ -54,6 +54,27 @@ class NewsGenerationServiceTest {
   @InjectMocks private NewsGenerationService newsGenerationService;
 
   @Test
+  @DisplayName("예약 DART 뉴스 생성은 유가증권과 코스닥 주요사항보고서를 실행한다")
+  void generateScheduledDartNewsRunsForKospiAndKosdaq() {
+    given(
+            dartNewsPromptService.createPrompts(
+                any(LocalDate.class), any(LocalDate.class), eq("B"), eq("Y")))
+        .willReturn(List.of());
+    given(
+            dartNewsPromptService.createPrompts(
+                any(LocalDate.class), any(LocalDate.class), eq("B"), eq("K")))
+        .willReturn(List.of());
+
+    int savedCount = newsGenerationService.generateScheduledDartNews();
+
+    assertThat(savedCount).isZero();
+    verify(dartNewsPromptService)
+        .createPrompts(any(LocalDate.class), any(LocalDate.class), eq("B"), eq("Y"));
+    verify(dartNewsPromptService)
+        .createPrompts(any(LocalDate.class), any(LocalDate.class), eq("B"), eq("K"));
+  }
+
+  @Test
   @DisplayName("DART 프롬프트로 뉴스를 생성하고 저장한다")
   void generateDartNewsSavesGeneratedNews() {
     LocalDate beginDate = LocalDate.of(2026, 8, 1);

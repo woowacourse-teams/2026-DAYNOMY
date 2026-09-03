@@ -24,6 +24,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class NewsGenerationService {
 
+  private static final String MAJOR_REPORT = "B";
+  private static final String KOSPI = "Y";
+  private static final String KOSDAQ = "K";
+
   private final DartNewsPromptService dartNewsPromptService;
   private final KosisNewsPromptService kosisNewsPromptService;
   private final BokNewsPromptService bokNewsPromptService;
@@ -34,6 +38,17 @@ public class NewsGenerationService {
   private final MarketAnalysisAiClient marketAnalysisAiClient;
   private final NewsRepository newsRepository;
   private final NewsPersistenceService newsPersistenceService;
+
+  public int generateScheduledDartNews() {
+    LocalDate today = LocalDate.now();
+    log.info("Starting scheduled DART news generation for {}", today);
+    int savedCount =
+        generateDartNews(today, today, MAJOR_REPORT, KOSPI)
+            + generateDartNews(today, today, MAJOR_REPORT, KOSDAQ);
+
+    log.info("Finished scheduled DART news generation: savedCount={}, date={}", savedCount, today);
+    return savedCount;
+  }
 
   public int generateDartNews(
       LocalDate beginDate, LocalDate endDate, String disclosureType, String corporationClass) {
