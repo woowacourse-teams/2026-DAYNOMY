@@ -2,6 +2,7 @@ package org.grit.daynomy.news.service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -11,6 +12,7 @@ import org.grit.daynomy.external.dart.DartNewsPromptService;
 import org.grit.daynomy.external.kosis.KosisNewsPromptService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
+import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
 import org.grit.daynomy.news.ai.GeneratedNews;
@@ -28,6 +30,7 @@ public class NewsGenerationService {
   private final BokNewsPromptService bokNewsPromptService;
   private final OpenAiNewsGenerator openAiNewsGenerator;
   private final OpenAiImageGenerator openAiImageGenerator;
+  private final S3ImageStorage s3ImageStorage;
   private final KeywordAiClient keywordAiClient;
   private final MarketAnalysisAiClient marketAnalysisAiClient;
   private final NewsRepository newsRepository;
@@ -90,10 +93,10 @@ public class NewsGenerationService {
           prompt.category(),
           prompt.publishedAt());
       GeneratedNews generatedNews;
-      String imageUrl;
+      byte[] image;
       try {
         generatedNews = openAiNewsGenerator.generate(prompt);
-        imageUrl =
+        image =
             openAiImageGenerator.generateNewsImage(
                 generatedNews.title(), generatedNews.description());
       } catch (BusinessException exception) {
@@ -110,9 +113,13 @@ public class NewsGenerationService {
       }
       var keywords = keywordAiClient.extractKeywords(generatedNews.content());
       var marketAnalysis = marketAnalysisAiClient.analyze(generatedNews.content());
+      String imageFileName = "%s.webp".formatted(UUID.randomUUID());
+      String imageUrl = s3ImageStorage.publicUrl(imageFileName);
+      s3ImageStorage.put(imageFileName, image, "image/webp");
 
       if (!newsPersistenceService.saveIfAbsent(
           prompt, generatedNews, imageUrl, keywords, marketAnalysis)) {
+        s3ImageStorage.delete(imageFileName);
         skippedCount++;
         log.info(
             "Skipping existing news after generation: source={}, externalId={}, sourceUrl={}",
