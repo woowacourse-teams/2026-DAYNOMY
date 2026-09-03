@@ -63,29 +63,6 @@ public class News extends BaseEntity {
   @Column(name = "status", nullable = false, length = 20)
   private NewsStatus status;
 
-  public News(
-      String title,
-      String content,
-      String description,
-      String imageUrl,
-      NewsSource source,
-      String externalId,
-      String sourceUrl,
-      Category category,
-      Instant publishedAt) {
-    this(
-        title,
-        content,
-        description,
-        imageUrl,
-        source,
-        externalId,
-        sourceUrl,
-        category,
-        publishedAt,
-        NewsStatus.PUBLISHED);
-  }
-
   private News(
       String title,
       String content,
