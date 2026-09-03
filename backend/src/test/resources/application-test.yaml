@@ -35,6 +35,11 @@ app:
   oauth2:
     success-redirect-uri: http://localhost:5173
     failure-redirect-uri: http://localhost:5173/login?error=oauth
+  storage:
+    s3:
+      region: ap-northeast-2
+      bucket: test-bucket
+      public-base-url: https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy
 
 cookie:
   secure: false
