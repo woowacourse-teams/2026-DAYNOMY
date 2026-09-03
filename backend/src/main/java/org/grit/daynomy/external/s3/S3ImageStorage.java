@@ -1,5 +1,6 @@
 package org.grit.daynomy.external.s3;
 
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -24,7 +25,18 @@ public class S3ImageStorage {
   private final S3Client s3Client;
   private final S3Properties s3Properties;
 
-  public void put(String relativeKey, byte[] content, String contentType) {
+  public StoredImage upload(byte[] content, String extension, String contentType) {
+    if (content == null || content.length == 0 || extension == null || extension.isBlank()) {
+      throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
+    }
+
+    String relativeKey = "%s.%s".formatted(UUID.randomUUID(), extension);
+    String publicUrl = publicUrl(relativeKey);
+    put(relativeKey, content, contentType);
+    return new StoredImage(relativeKey, publicUrl);
+  }
+
+  private void put(String relativeKey, byte[] content, String contentType) {
     try {
       s3Client.putObject(
           PutObjectRequest.builder()
@@ -41,7 +53,34 @@ public class S3ImageStorage {
     }
   }
 
-  public void delete(String relativeKey) {
+  public void delete(StoredImage storedImage) {
+    if (storedImage == null) {
+      return;
+    }
+
+    deleteByRelativeKey(storedImage.relativeKey());
+  }
+
+  public void deleteIfManaged(String publicUrl) {
+    if (publicUrl == null || publicUrl.isBlank()) {
+      return;
+    }
+
+    String baseUrl = s3Properties.publicBaseUrl();
+    if (baseUrl == null || baseUrl.isBlank()) {
+      return;
+    }
+
+    String normalizedBaseUrl = removeTrailingSlash(baseUrl);
+    String prefix = "%s/".formatted(normalizedBaseUrl);
+    if (!publicUrl.startsWith(prefix)) {
+      return;
+    }
+
+    deleteByRelativeKey(publicUrl.substring(prefix.length()));
+  }
+
+  private void deleteByRelativeKey(String relativeKey) {
     try {
       s3Client.deleteObject(
           DeleteObjectRequest.builder().bucket(bucket()).key(fullObjectKey(relativeKey)).build());
@@ -51,7 +90,7 @@ public class S3ImageStorage {
     }
   }
 
-  public String publicUrl(String relativeKey) {
+  private String publicUrl(String relativeKey) {
     String baseUrl = s3Properties.publicBaseUrl();
     if (baseUrl == null || baseUrl.isBlank()) {
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
@@ -94,4 +133,6 @@ public class S3ImageStorage {
     }
     return value.startsWith("/") ? value.substring(1) : value;
   }
+
+  public record StoredImage(String relativeKey, String publicUrl) {}
 }

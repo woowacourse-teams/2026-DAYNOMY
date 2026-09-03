@@ -1,6 +1,7 @@
 package org.grit.daynomy.search.service;
 
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.search.dto.NewsSearchResponse;
 import org.grit.daynomy.search.repository.NewsSearchRepository;
 import org.springframework.data.domain.PageRequest;
@@ -23,7 +24,8 @@ public class NewsSearchService {
 
     PageRequest pageable =
         PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "publishedAt", "id"));
-    return NewsSearchResponse.from(newsSearchRepository.search(escapedKeyword, category, pageable));
+    return NewsSearchResponse.from(
+        newsSearchRepository.search(escapedKeyword, category, NewsStatus.PUBLISHED, pageable));
   }
 
   private String escapeLikeKeyword(String keyword) {
