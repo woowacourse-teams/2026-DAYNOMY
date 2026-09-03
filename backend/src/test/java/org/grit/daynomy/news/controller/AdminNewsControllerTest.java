@@ -3,9 +3,11 @@ package org.grit.daynomy.news.controller;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -89,6 +91,16 @@ class AdminNewsControllerTest {
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
     then(adminNewsService).should().update(eq(1L), eq(request));
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 삭제 API는 204를 반환한다")
+  void deleteNewsReturnsNoContent() throws Exception {
+    willDoNothing().given(adminNewsService).delete(1L);
+
+    mockMvc.perform(delete("/api/admin/news/1")).andExpect(status().isNoContent());
+
+    then(adminNewsService).should().delete(1L);
   }
 
   @Test

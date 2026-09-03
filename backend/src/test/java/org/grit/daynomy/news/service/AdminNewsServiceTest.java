@@ -72,6 +72,20 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("관리자 뉴스 삭제는 삭제 상태로 변경한다")
+  void deleteNewsChangesStatusToDeleted() {
+    News news =
+        News.createAdminDraft(
+            "뉴스 제목", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    adminNewsService.delete(1L);
+
+    assertThat(news.getStatus()).isEqualTo(NewsStatus.DELETED);
+    assertThat(news.getPublishedAt()).isNull();
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 목록을 상태와 함께 페이지로 조회한다")
   void getNewsPageReturnsNewsWithStatus() {
     News news =
