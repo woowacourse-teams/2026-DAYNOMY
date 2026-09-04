@@ -105,11 +105,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     String outputText = extractOutputText(response);
     try {
       JsonNode root = objectMapper.readTree(outputText);
-      return new NewsMarketAnalysis(
-          root.path("cause").asText(),
-          root.path("importance").asText(),
-          parseAssets(root.path("assets")),
-          parseScenarios(root.path("scenarios")));
+      return new NewsMarketAnalysis(root.path("summary").asText(), List.of(), List.of());
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException(
           "Failed to parse OpenAI market analysis response.", exception);

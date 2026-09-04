@@ -34,11 +34,8 @@ public class NewsMarketAnalysis extends BaseEntity {
   @JoinColumn(name = "news_id", nullable = false, unique = true)
   private News news;
 
-  @Column(name = "cause", columnDefinition = "TEXT", nullable = false)
-  private String cause;
-
-  @Column(name = "importance", columnDefinition = "TEXT", nullable = false)
-  private String importance;
+  @Column(name = "summary", columnDefinition = "TEXT", nullable = false)
+  private String summary;
 
   @ElementCollection
   @CollectionTable(
@@ -54,23 +51,16 @@ public class NewsMarketAnalysis extends BaseEntity {
   @OrderColumn(name = "sort_order")
   private List<Scenario> scenarios = new ArrayList<>();
 
-  public NewsMarketAnalysis(
-      String cause, String importance, List<AssetImpact> assets, List<Scenario> scenarios) {
-    this.cause = cause;
-    this.importance = importance;
+  public NewsMarketAnalysis(String summary, List<AssetImpact> assets, List<Scenario> scenarios) {
+    this.summary = summary;
     this.assets = new ArrayList<>(assets);
     this.scenarios = new ArrayList<>(scenarios);
   }
 
   public NewsMarketAnalysis(
-      News news,
-      String cause,
-      String importance,
-      List<AssetImpact> assets,
-      List<Scenario> scenarios) {
+      News news, String summary, List<AssetImpact> assets, List<Scenario> scenarios) {
     this.news = news;
-    this.cause = cause;
-    this.importance = importance;
+    this.summary = summary;
     this.assets = new ArrayList<>(assets);
     this.scenarios = new ArrayList<>(scenarios);
   }

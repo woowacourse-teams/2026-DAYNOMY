@@ -22,8 +22,7 @@ public class MarketAnalysisService {
     newsMarketAnalysisRepository.save(
         new NewsMarketAnalysis(
             news,
-            marketAnalysis.getCause(),
-            marketAnalysis.getImportance(),
+            marketAnalysis.getSummary(),
             marketAnalysis.getAssets(),
             marketAnalysis.getScenarios()));
   }
