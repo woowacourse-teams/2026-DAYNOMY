@@ -319,6 +319,31 @@ body {
   line-height: 31px;
 }
 
+.market-summary-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 28px;
+  padding: 24px 28px;
+  border-radius: 14px;
+  background: #f7f3ff;
+  color: #374151;
+  list-style: none;
+}
+
+.market-summary-card li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 26px;
+}
+
+.market-summary-card li::before {
+  flex: 0 0 auto;
+  content: '✓';
+}
+
 .market-step {
   margin-top: 45px;
 }
