@@ -3,7 +3,6 @@
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AuthContext } from '../../src/auth/AuthContext';
 import { StockListPage } from '../../src/features/stocks/StockListPage';
 import { STOCK_BOOKMARK_STORAGE_KEY } from '../../src/features/stocks/constants';
 
@@ -16,11 +15,9 @@ function jsonResponse(body: unknown, status = 200) {
 
 function renderStocks() {
   return render(
-    <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'USER' }}>
-      <MemoryRouter>
-        <StockListPage />
-      </MemoryRouter>
-    </AuthContext.Provider>,
+    <MemoryRouter>
+      <StockListPage />
+    </MemoryRouter>,
   );
 }
 
@@ -56,7 +53,7 @@ describe('관심 종목 화면', () => {
     expect(bookmarkButton).toBeTruthy();
   });
 
-  it('북마크를 추가하고 해제한 상태를 저장한다', async () => {
+  it('로그인 없이 북마크를 추가하고 해제한 상태를 저장한다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>

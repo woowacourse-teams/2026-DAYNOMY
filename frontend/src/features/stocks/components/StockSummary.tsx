@@ -4,7 +4,6 @@ type StockSummaryProps = {
   baseDate: string | null;
   stockCount: number;
   bookmarkCount: number;
-  isLoggedIn: boolean;
   isFallback: boolean;
 };
 
@@ -12,7 +11,6 @@ export function StockSummary({
   baseDate,
   stockCount,
   bookmarkCount,
-  isLoggedIn,
   isFallback,
 }: StockSummaryProps) {
   return (
@@ -27,12 +25,10 @@ export function StockSummary({
           {stockCount}개{isFallback ? <span className="stock-fallback-badge">mock</span> : null}
         </dd>
       </div>
-      {isLoggedIn ? (
-        <div>
-          <dt>관심</dt>
-          <dd>{bookmarkCount}</dd>
-        </div>
-      ) : null}
+      <div>
+        <dt>관심</dt>
+        <dd>{bookmarkCount}</dd>
+      </div>
     </dl>
   );
 }
