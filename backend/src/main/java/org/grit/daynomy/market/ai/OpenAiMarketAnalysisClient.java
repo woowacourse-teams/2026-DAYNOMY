@@ -23,12 +23,9 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
 
   private static final String MARKET_ANALYSIS_PROMPT =
       """
-      뉴스 본문을 바탕으로 시장 분석을 작성하세요.
-      1. 발생 원인을 뉴스 본문 맥락에서 1~2문장으로 분석하세요.
-      2. 이 이슈가 시장에서 중요한 이유를 1~2문장으로 설명하세요.
-      3. 가장 영향을 받을 수 있는 자산을 1~2개만 고르고 긍정/부정 방향, 영향도, 판단 근거를 작성하세요.
-      4. 단기, 중기, 장기 시나리오를 각각 작성하고 가능성은 0부터 100 사이 정수로 작성하세요.
-      본문에 없는 사실을 단정하지 말고, 불확실하면 근거에 불확실성을 명시하세요.
+      뉴스 본문을 바탕으로 시장 분석 요약을 작성하세요.
+      발생 원인과 이 이슈가 시장에서 중요한 이유를 자연스럽게 연결해 하나의 내용으로 2~4문장 안에 설명하세요.
+      본문에 없는 사실을 단정하지 말고, 불확실한 내용은 불확실하다고 명시하세요.
       """;
 
   private final ObjectMapper objectMapper;

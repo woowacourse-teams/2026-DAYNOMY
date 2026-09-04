@@ -2,6 +2,7 @@ package org.grit.daynomy.market.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -37,6 +38,7 @@ class OpenAiMarketAnalysisClientTest {
         .andExpect(method(HttpMethod.POST))
         .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-api-key"))
         .andExpect(jsonPath("$.model").value("gpt-test"))
+        .andExpect(jsonPath("$.input[0].content").value(containsString("발생 원인과 이 이슈가 시장에서 중요한 이유")))
         .andExpect(jsonPath("$.input[1].content").value("뉴스 본문입니다."))
         .andExpect(jsonPath("$.text.format.schema.properties.importance.type").value("string"))
         .andRespond(withSuccess(createResponse(), MediaType.APPLICATION_JSON));
