@@ -37,20 +37,6 @@ function AppHeader() {
   return showHeader ? <Header /> : null;
 }
 
-function RequireAuth({ children }: { children: ReactNode }) {
-  const { isLoggedIn, loading } = useAuth();
-
-  if (loading) {
-    return null;
-  }
-
-  if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-}
-
 function AdminRoute({ children }: { children: ReactNode }) {
   const { isLoggedIn, loading, role } = useAuth();
 
@@ -138,14 +124,7 @@ export default function App() {
             }
           />
           <Route path="/signup" element={<Navigate to="/login" replace />} />
-          <Route
-            path="/mypage"
-            element={
-              <RequireAuth>
-                <MyPage />
-              </RequireAuth>
-            }
-          />
+          <Route path="/mypage" element={<MyPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AuthProvider>
