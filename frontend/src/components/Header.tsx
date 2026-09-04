@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { trackEvent } from '../analytics';
 import daynomyLogo from '../assets/daynomy-logo.png';
 import { SearchOverlay } from '../features/search/components/SearchOverlay';
-import { useLoginStatus } from '../hooks/useLoginStatus';
 import './Header.css';
 
 function SearchIcon() {
@@ -15,7 +13,6 @@ function SearchIcon() {
 }
 
 export function Header() {
-  const isLoggedIn = useLoginStatus();
   const location = useLocation();
   const isNewsPage =
     location.pathname === '/' ||
@@ -24,15 +21,6 @@ export function Header() {
   const isStockPage = location.pathname.startsWith('/stocks');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (isLoggedIn) {
-      if (!sessionStorage.getItem('daynomy:login-tracked')) {
-        trackEvent('login_success', { method: 'google' });
-        sessionStorage.setItem('daynomy:login-tracked', 'true');
-      }
-    }
-  }, [isLoggedIn]);
 
   useEffect(() => {
     function openSearch(event: KeyboardEvent) {
@@ -83,14 +71,8 @@ export function Header() {
           <kbd className="search-key">/</kbd>
           <span className="search-placeholder">를 눌러 검색하세요</span>
         </button>
-        <Link
-          className={isLoggedIn ? 'mypage-link' : 'login-button'}
-          to={isLoggedIn ? '/mypage' : '/login'}
-          onClick={() => {
-            if (!isLoggedIn) trackEvent('click_login');
-          }}
-        >
-          {isLoggedIn ? '마이페이지' : '로그인'}
+        <Link className="mypage-link" to="/mypage">
+          마이페이지
         </Link>
       </div>
       <SearchOverlay open={searchOpen} onClose={closeSearch} />
