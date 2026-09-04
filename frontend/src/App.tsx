@@ -123,7 +123,7 @@ export default function App() {
               </AdminRoute>
             }
           />
-          <Route path="/signup" element={<Navigate to="/login" replace />} />
+          <Route path="/signup" element={<Navigate to="/" replace />} />
           <Route path="/mypage" element={<MyPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
