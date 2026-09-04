@@ -3,7 +3,6 @@ package org.grit.daynomy.market.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -91,58 +90,15 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
   }
 
   private Map<String, Object> createMarketAnalysisSchema() {
-    Map<String, Object> properties = new LinkedHashMap<>();
-    properties.put("cause", Map.of("type", "string"));
-    properties.put("importance", Map.of("type", "string"));
-    properties.put("assets", createAssetsSchema());
-    properties.put("scenarios", createScenariosSchema());
-
-    Map<String, Object> schema = new LinkedHashMap<>();
-    schema.put("type", "object");
-    schema.put("additionalProperties", false);
-    schema.put("required", List.of("cause", "importance", "assets", "scenarios"));
-    schema.put("properties", properties);
-    return schema;
-  }
-
-  private Map<String, Object> createAssetsSchema() {
-    Map<String, Object> assetProperties = new LinkedHashMap<>();
-    assetProperties.put(
-        "category", Map.of("type", "string", "enum", enumNames(AssetCategory.values())));
-    assetProperties.put(
-        "direction", Map.of("type", "string", "enum", enumNames(ImpactDirection.values())));
-    assetProperties.put(
-        "impactLevel", Map.of("type", "string", "enum", enumNames(ImpactLevel.values())));
-    assetProperties.put("reason", Map.of("type", "string"));
-
-    Map<String, Object> assetItem = new LinkedHashMap<>();
-    assetItem.put("type", "object");
-    assetItem.put("additionalProperties", false);
-    assetItem.put("required", List.of("category", "direction", "impactLevel", "reason"));
-    assetItem.put("properties", assetProperties);
-
-    return Map.of("type", "array", "minItems", 1, "maxItems", 2, "items", assetItem);
-  }
-
-  private Map<String, Object> createScenariosSchema() {
-    Map<String, Object> scenarioProperties = new LinkedHashMap<>();
-    scenarioProperties.put(
-        "timeHorizon", Map.of("type", "string", "enum", enumNames(TimeHorizon.values())));
-    scenarioProperties.put("prediction", Map.of("type", "string"));
-    scenarioProperties.put("probability", Map.of("type", "integer", "minimum", 0, "maximum", 100));
-    scenarioProperties.put("reason", Map.of("type", "string"));
-
-    Map<String, Object> scenarioItem = new LinkedHashMap<>();
-    scenarioItem.put("type", "object");
-    scenarioItem.put("additionalProperties", false);
-    scenarioItem.put("required", List.of("timeHorizon", "prediction", "probability", "reason"));
-    scenarioItem.put("properties", scenarioProperties);
-
-    return Map.of("type", "array", "minItems", 3, "maxItems", 3, "items", scenarioItem);
-  }
-
-  private <E extends Enum<E>> List<String> enumNames(E[] values) {
-    return List.of(values).stream().map(Enum::name).toList();
+    return Map.of(
+        "type",
+        "object",
+        "additionalProperties",
+        false,
+        "required",
+        List.of("summary"),
+        "properties",
+        Map.of("summary", Map.of("type", "string")));
   }
 
   private NewsMarketAnalysis parseMarketAnalysis(String response) {

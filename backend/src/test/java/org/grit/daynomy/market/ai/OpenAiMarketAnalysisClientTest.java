@@ -40,7 +40,12 @@ class OpenAiMarketAnalysisClientTest {
         .andExpect(jsonPath("$.model").value("gpt-test"))
         .andExpect(jsonPath("$.input[0].content").value(containsString("발생 원인과 이 이슈가 시장에서 중요한 이유")))
         .andExpect(jsonPath("$.input[1].content").value("뉴스 본문입니다."))
-        .andExpect(jsonPath("$.text.format.schema.properties.importance.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.summary.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.required[0]").value("summary"))
+        .andExpect(jsonPath("$.text.format.schema.properties.cause").doesNotExist())
+        .andExpect(jsonPath("$.text.format.schema.properties.importance").doesNotExist())
+        .andExpect(jsonPath("$.text.format.schema.properties.assets").doesNotExist())
+        .andExpect(jsonPath("$.text.format.schema.properties.scenarios").doesNotExist())
         .andRespond(withSuccess(createResponse(), MediaType.APPLICATION_JSON));
 
     var analysis = client.analyze("뉴스 본문입니다.");
