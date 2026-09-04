@@ -13,9 +13,6 @@ public record MarketAnalysisResponse(
     @Schema(description = "기간별 시나리오 목록") List<ScenarioResponse> scenarios) {
 
   public static MarketAnalysisResponse from(NewsMarketAnalysis marketAnalysis) {
-    return new MarketAnalysisResponse(
-        marketAnalysis.getSummary(),
-        marketAnalysis.getAssets().stream().map(AssetImpactResponse::from).toList(),
-        marketAnalysis.getScenarios().stream().map(ScenarioResponse::from).toList());
+    return new MarketAnalysisResponse(marketAnalysis.getSummary(), List.of(), List.of());
   }
 }

@@ -5,13 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
-import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
-import org.grit.daynomy.market.domain.asset.AssetImpact;
-import org.grit.daynomy.market.domain.asset.ImpactDirection;
-import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.market.domain.scenario.Scenario;
-import org.grit.daynomy.market.domain.scenario.TimeHorizon;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -105,46 +99,11 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     String outputText = extractOutputText(response);
     try {
       JsonNode root = objectMapper.readTree(outputText);
-      return new NewsMarketAnalysis(root.path("summary").asText(), List.of(), List.of());
+      return new NewsMarketAnalysis(root.path("summary").asText());
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException(
           "Failed to parse OpenAI market analysis response.", exception);
     }
-  }
-
-  private List<AssetImpact> parseAssets(JsonNode assetsNode) {
-    if (!assetsNode.isArray()) {
-      throw new IllegalStateException("OpenAI market analysis response must contain assets array.");
-    }
-
-    return assetsNode
-        .valueStream()
-        .map(
-            node ->
-                new AssetImpact(
-                    AssetCategory.valueOf(node.path("category").asText()),
-                    ImpactDirection.valueOf(node.path("direction").asText()),
-                    ImpactLevel.valueOf(node.path("impactLevel").asText()),
-                    node.path("reason").asText()))
-        .toList();
-  }
-
-  private List<Scenario> parseScenarios(JsonNode scenariosNode) {
-    if (!scenariosNode.isArray()) {
-      throw new IllegalStateException(
-          "OpenAI market analysis response must contain scenarios array.");
-    }
-
-    return scenariosNode
-        .valueStream()
-        .map(
-            node ->
-                new Scenario(
-                    TimeHorizon.valueOf(node.path("timeHorizon").asText()),
-                    node.path("prediction").asText(),
-                    node.path("probability").asInt(),
-                    node.path("reason").asText()))
-        .toList();
   }
 
   private String extractOutputText(String response) {

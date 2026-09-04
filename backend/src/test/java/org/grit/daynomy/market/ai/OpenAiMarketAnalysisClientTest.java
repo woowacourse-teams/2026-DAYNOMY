@@ -48,8 +48,6 @@ class OpenAiMarketAnalysisClientTest {
 
     assertThat(analysis.getSummary())
         .isEqualTo("금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
-    assertThat(analysis.getAssets()).isEmpty();
-    assertThat(analysis.getScenarios()).isEmpty();
     server.verify();
   }
 
