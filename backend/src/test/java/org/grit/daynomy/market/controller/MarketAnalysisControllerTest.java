@@ -7,17 +7,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.List;
-import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
-import org.grit.daynomy.market.domain.asset.ImpactDirection;
-import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.market.domain.scenario.TimeHorizon;
-import org.grit.daynomy.market.dto.AssetImpactResponse;
 import org.grit.daynomy.market.dto.MarketAnalysisResponse;
-import org.grit.daynomy.market.dto.ScenarioResponse;
 import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.junit.jupiter.api.DisplayName;
@@ -59,11 +52,8 @@ class MarketAnalysisControllerTest {
             jsonPath("$.summary").value("금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다."))
         .andExpect(jsonPath("$.cause").doesNotExist())
         .andExpect(jsonPath("$.importance").doesNotExist())
-        .andExpect(jsonPath("$.assets[0].category").value("STOCK"))
-        .andExpect(jsonPath("$.assets[0].direction").value("POSITIVE"))
-        .andExpect(jsonPath("$.assets[0].impactLevel").value("HIGH"))
-        .andExpect(jsonPath("$.scenarios[0].timeHorizon").value("SHORT_TERM"))
-        .andExpect(jsonPath("$.scenarios[0].probability").value(70));
+        .andExpect(jsonPath("$.assets").doesNotExist())
+        .andExpect(jsonPath("$.scenarios").doesNotExist());
 
     verify(marketAnalysisService).getMarketAnalysis(1L);
   }
@@ -96,19 +86,6 @@ class MarketAnalysisControllerTest {
   }
 
   private MarketAnalysisResponse createResponse() {
-    return new MarketAnalysisResponse(
-        "금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.",
-        List.of(
-            new AssetImpactResponse(
-                AssetCategory.STOCK,
-                ImpactDirection.POSITIVE,
-                ImpactLevel.HIGH,
-                "할인율 하락 기대가 주식 밸류에이션에 긍정적입니다.")),
-        List.of(
-            new ScenarioResponse(
-                TimeHorizon.SHORT_TERM,
-                "단기적으로 주식 선호가 개선될 수 있습니다.",
-                70,
-                "금리 인하 기대가 투자 심리를 자극하기 때문입니다.")));
+    return new MarketAnalysisResponse("금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
   }
 }
