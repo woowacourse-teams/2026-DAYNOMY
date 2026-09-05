@@ -1,10 +1,10 @@
 .daynomy-footer {
   display: flex;
   width: 100%;
-  min-height: 138px;
-  align-items: flex-start;
+  min-height: 96px;
+  align-items: center;
   justify-content: center;
-  padding: 50px 24px 60px;
+  padding: 48px 16px 0;
   background: #ffffff;
 }
 
@@ -13,7 +13,8 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 12px 40px;
+  gap: 8px 32px;
+  transform: translateY(48px);
 }
 
 .footer-link {
@@ -26,9 +27,9 @@
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 21px;
+  line-height: 20px;
   text-decoration: none;
   white-space: nowrap;
 }
