@@ -326,19 +326,6 @@
   -webkit-line-clamp: 2;
 }
 
-.article-card p {
-  display: -webkit-box;
-  height: 52px;
-  margin-top: 26px;
-  overflow: hidden;
-  color: #6b7280;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.72;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
 .article-time {
   height: 20px;
   margin-top: 16px;
@@ -429,7 +416,6 @@
 .skeleton .article-thumbnail,
 .skeleton .article-meta span,
 .skeleton .article-body h2,
-.skeleton .article-body p,
 .skeleton .article-time {
   border-radius: 6px;
   background: linear-gradient(90deg, #eef2f6, #ffffff, #eef2f6);
@@ -445,11 +431,6 @@
 .skeleton .article-body h2 {
   width: 80%;
   height: 26px;
-}
-
-.skeleton .article-body p {
-  width: 100%;
-  height: 42px;
 }
 
 @keyframes loading {

@@ -49,6 +49,7 @@ describe('뉴스 탐색 화면', () => {
     const image = view.container.querySelector('img')!;
 
     expect(image.getAttribute('src')).toBe('https://example.com/news.webp');
+    expect(view.queryByText(article.description)).toBeNull();
     expect(image.getAttribute('loading')).toBe('lazy');
     expect(image.getAttribute('decoding')).toBe('async');
 
