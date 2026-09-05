@@ -231,9 +231,10 @@ describe('뉴스 탐색 화면', () => {
     const view = renderPage(<NewsDetailPage />);
 
     expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
-    expect(view.getByText('기준금리가 유지되고 있습니다.')).toBeTruthy();
-    expect(view.getByText('채권 시장의 관망세가 이어지고 있습니다.')).toBeTruthy();
-    expect(view.getByText('추가 지표를 확인해야 합니다.')).toBeTruthy();
+    expect(view.queryByRole('heading', { name: '핵심 요약' })).toBeNull();
+    expect(view.queryByText('기준금리가 유지되고 있습니다.')).toBeNull();
+    expect(view.queryByText('채권 시장의 관망세가 이어지고 있습니다.')).toBeNull();
+    expect(view.queryByText('추가 지표를 확인해야 합니다.')).toBeNull();
     expect(view.container.querySelector('mark.keyword')?.textContent).toContain('금리 동결');
     expect(view.getByText('기준금리 동결은 정책 방향을 보여줍니다.')).toBeTruthy();
     expect(view.getByText('금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.')).toBeTruthy();
