@@ -25,7 +25,14 @@ function normalizeStockCandidate(item: AssetCandidateResponse): StockCandidate {
 }
 
 function assertStockCandidatesResponse(data: AssetCandidatesResponse) {
-  if (!Array.isArray(data.rankings)) {
+  if (
+    !Array.isArray(data.rankings) ||
+    typeof data.page !== 'number' ||
+    typeof data.size !== 'number' ||
+    typeof data.totalPages !== 'number' ||
+    typeof data.totalElements !== 'number' ||
+    typeof data.hasNext !== 'boolean'
+  ) {
     throw new Error('종목 목록 API 응답 형식이 올바르지 않습니다.');
   }
 }
@@ -49,11 +56,17 @@ async function requestKosdaqTopStocks(url: string): Promise<StockCandidatesRespo
   return {
     baseDate: data.baseDate,
     rankings: data.rankings.map(normalizeStockCandidate),
+    page: data.page,
+    size: data.size,
+    totalPages: data.totalPages,
+    totalElements: data.totalElements,
+    hasNext: data.hasNext,
   };
 }
 
-export function getKosdaqTopStocks(): Promise<StockCandidatesResponse> {
-  return requestKosdaqTopStocks('/api/assets/kosdaq/top');
+export function getKosdaqTopStocks(page = 1, size = 10): Promise<StockCandidatesResponse> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  return requestKosdaqTopStocks(`/api/assets/kosdaq/top?${params}`);
 }
 
 export function searchKosdaqTopStocks(keyword: string): Promise<StockCandidatesResponse> {
