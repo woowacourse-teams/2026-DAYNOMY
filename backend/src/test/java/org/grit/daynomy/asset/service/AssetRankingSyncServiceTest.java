@@ -1,14 +1,21 @@
 package org.grit.daynomy.asset.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import org.grit.daynomy.asset.exception.AssetErrorCode;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.publicdata.PublicDataStockPriceClient;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
@@ -105,6 +112,70 @@ class AssetRankingSyncServiceTest {
 
     assertThat(count).isZero();
     verify(assetRankingPersistenceService, never()).saveRankings(anyList());
+  }
+
+  @Test
+  @DisplayName("수동 동기화가 이미 실행 중이면 중복 실행을 거부한다")
+  void syncKosdaqTopRankingsRejectsDuplicateRun() throws Exception {
+    LocalDate today = LocalDate.of(2026, 8, 21);
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    given(publicDataStockPriceClient.getKosdaqStockPrices(today))
+        .willAnswer(
+            invocation -> {
+              started.countDown();
+              release.await(1, TimeUnit.SECONDS);
+              return response(item("20260821", "000001", "종목", "KOSDAQ", "300"));
+            });
+    given(assetRankingPersistenceService.saveRankings(anyList())).willReturn(1);
+
+    Thread firstRun = new Thread(() -> assetRankingSyncService.syncKosdaqTopRankings(today));
+    firstRun.start();
+    assertThat(started.await(1, TimeUnit.SECONDS)).isTrue();
+
+    assertThatThrownBy(() -> assetRankingSyncService.syncKosdaqTopRankings(today))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(AssetErrorCode.ASSET_RANKING_SYNC_ALREADY_RUNNING));
+
+    release.countDown();
+    firstRun.join(1_000);
+    verify(assetRankingPersistenceService, timeout(1_000)).saveRankings(anyList());
+  }
+
+  @Test
+  @DisplayName("스케줄러 동기화가 이미 실행 중이면 중복 실행을 건너뛴다")
+  void syncKosdaqTopRankingsDailySkipsDuplicateRun() throws Exception {
+    LocalDate today = LocalDate.now();
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    given(publicDataStockPriceClient.getKosdaqStockPrices(today))
+        .willAnswer(
+            invocation -> {
+              started.countDown();
+              release.await(1, TimeUnit.SECONDS);
+              return response(
+                  item(
+                      today.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE),
+                      "000001",
+                      "종목",
+                      "KOSDAQ",
+                      "300"));
+            });
+    given(assetRankingPersistenceService.saveRankings(anyList())).willReturn(1);
+
+    Thread firstRun = new Thread(() -> assetRankingSyncService.syncKosdaqTopRankings(today));
+    firstRun.start();
+    assertThat(started.await(1, TimeUnit.SECONDS)).isTrue();
+
+    assertThatCode(() -> assetRankingSyncService.syncKosdaqTopRankingsDaily())
+        .doesNotThrowAnyException();
+
+    release.countDown();
+    firstRun.join(1_000);
+    verify(assetRankingPersistenceService, timeout(1_000)).saveRankings(anyList());
   }
 
   private PublicDataStockPriceResponse response(PublicDataStockPriceItem... items) {
