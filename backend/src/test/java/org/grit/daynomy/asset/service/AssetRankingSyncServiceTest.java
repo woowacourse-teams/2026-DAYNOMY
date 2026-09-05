@@ -109,9 +109,13 @@ class AssetRankingSyncServiceTest {
 
   private PublicDataStockPriceResponse response(PublicDataStockPriceItem... items) {
     return new PublicDataStockPriceResponse(
-        new PublicDataStockPriceResponse.Header("00", "NORMAL SERVICE."),
-        new PublicDataStockPriceResponse.Body(
-            items.length, 1, items.length, new PublicDataStockPriceResponse.Items(List.of(items))));
+        new PublicDataStockPriceResponse.Response(
+            new PublicDataStockPriceResponse.Header("00", "NORMAL SERVICE."),
+            new PublicDataStockPriceResponse.Body(
+                items.length,
+                1,
+                items.length,
+                new PublicDataStockPriceResponse.Items(List.of(items)))));
   }
 
   private PublicDataStockPriceItem item(
