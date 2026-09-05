@@ -11,6 +11,7 @@ import { StockListPage } from './features/stocks/StockListPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { Header } from './components/Header';
+import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
@@ -35,6 +36,12 @@ function AppHeader() {
     location.pathname.startsWith('/mypage');
 
   return showHeader ? <Header /> : null;
+}
+
+function AppFooter() {
+  const location = useLocation();
+
+  return location.pathname.startsWith('/admin') ? null : <Footer />;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -148,6 +155,7 @@ export default function App() {
           />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        <AppFooter />
       </AuthProvider>
     </BrowserRouter>
   );
