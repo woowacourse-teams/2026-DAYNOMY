@@ -19,14 +19,6 @@ function getContentParagraphs(content: string | string[]) {
   return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
 }
 
-function getSummaryItems(description: string | null) {
-  return (description ?? '')
-    .split(/\r?\n|(?<=[.!?。！？])\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 3);
-}
-
 function getMarketSummaryItems(summary: string) {
   return summary
     .split(/\r?\n|(?<=[.!?。！？])\s+/)
@@ -158,19 +150,6 @@ export function NewsDetailPage() {
         </time>
 
         <img className="news-image" src={imageUrl} alt="" />
-
-        <section className="section summary-section">
-          <h2>
-            핵심 요약 <span aria-hidden="true">💡</span>
-          </h2>
-          <div className="summary">
-            <ul>
-              {getSummaryItems(news.description).map((item, index) => (
-                <li key={`${item}-${index}`}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
 
         <section className="body-section" aria-label="뉴스 본문">
           <div className="body-copy">

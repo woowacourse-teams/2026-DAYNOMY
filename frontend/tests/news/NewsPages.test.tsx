@@ -58,6 +58,7 @@ describe('뉴스 탐색 화면', () => {
     const image = view.container.querySelector('img')!;
 
     expect(image.getAttribute('src')).toBe('https://example.com/news.webp');
+    expect(view.queryByText(article.description)).toBeNull();
     expect(image.getAttribute('loading')).toBe('lazy');
     expect(image.getAttribute('decoding')).toBe('async');
 
@@ -106,6 +107,17 @@ describe('뉴스 탐색 화면', () => {
     })) as HTMLAnchorElement;
 
     expect(link.getAttribute('href')).toBe('/news/7');
+    const todayBanner = view.getByRole('button', { name: '오늘의 뉴스' });
+    expect(todayBanner.querySelector('p')).toBeNull();
+    expect(todayBanner.textContent).not.toContain(article.description);
+    const categoryTabs = view.getByRole('navigation', { name: '뉴스 카테고리' });
+    expect(categoryTabs.querySelectorAll('button')).toHaveLength(4);
+    expect(view.getByRole('button', { name: '전체' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '주식' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '부동산' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'ETF' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '금' })).toBeNull();
+    expect(view.queryByRole('button', { name: '채권' })).toBeNull();
     expect(view.getAllByRole('button', { name: /번째 배너 보기/ })).toHaveLength(2);
     expect(view.container.querySelector('.banner-visual img')?.hasAttribute('loading')).toBe(false);
     fireEvent.click(view.getByRole('button', { name: '주식' }));
@@ -224,9 +236,10 @@ describe('뉴스 탐색 화면', () => {
     const view = renderPage(<NewsDetailPage />);
 
     expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
-    expect(view.getByText('기준금리가 유지되고 있습니다.')).toBeTruthy();
-    expect(view.getByText('채권 시장의 관망세가 이어지고 있습니다.')).toBeTruthy();
-    expect(view.getByText('추가 지표를 확인해야 합니다.')).toBeTruthy();
+    expect(view.queryByRole('heading', { name: '핵심 요약' })).toBeNull();
+    expect(view.queryByText('기준금리가 유지되고 있습니다.')).toBeNull();
+    expect(view.queryByText('채권 시장의 관망세가 이어지고 있습니다.')).toBeNull();
+    expect(view.queryByText('추가 지표를 확인해야 합니다.')).toBeNull();
     expect(view.container.querySelector('mark.keyword')?.textContent).toContain('금리 동결');
     expect(view.getByText('기준금리 동결은 정책 방향을 보여줍니다.')).toBeTruthy();
     expect(view.getByText('금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.')).toBeTruthy();

@@ -129,32 +129,6 @@ body {
   letter-spacing: 0;
 }
 
-.summary-section {
-  margin-top: 36px;
-}
-
-.summary-section h2 {
-  margin-bottom: 21px;
-}
-
-.summary {
-  min-height: auto;
-  padding: 36px 44px;
-  border: 0;
-  border-radius: 16px;
-  background: #f7f5ff;
-  color: #374151;
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 32px;
-}
-
-.summary ul {
-  margin: 0;
-  padding-left: 17px;
-  list-style-position: outside;
-}
-
 .body-section {
   margin-top: 36px;
 }
@@ -369,12 +343,5 @@ body {
   .news-image {
     height: auto;
     aspect-ratio: 16 / 9;
-  }
-
-  .summary {
-    min-height: auto;
-    padding: 22px;
-    font-size: 15px;
-    line-height: 32px;
   }
 }

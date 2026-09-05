@@ -167,7 +167,6 @@ export function TodayNewsBanner({ articles, onSelect }: TodayNewsBannerProps) {
                   </time>
                 </div>
                 <h2>{article.title}</h2>
-                <p>{article.description}</p>
                 <time className="banner-date" dateTime={article.publishedAt ?? undefined}>
                   {formatBannerDate(article.publishedAt)}
                 </time>
