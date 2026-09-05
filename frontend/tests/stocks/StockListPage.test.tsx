@@ -63,6 +63,11 @@ describe('관심 종목 화면', () => {
         jsonResponse({
           baseDate: '2026-08-27',
           rankings: [{ rank: 1, code: '005930', name: '삼성전자' }],
+          page: 1,
+          size: 10,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
         }),
       ),
     );
@@ -94,5 +99,41 @@ describe('관심 종목 화면', () => {
     );
     expect(view.getByText('mock')).toBeTruthy();
     expect(view.getByText('에코프로비엠')).toBeTruthy();
+  });
+
+  it('서버 페이지네이션 정보로 다음 페이지를 조회한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('page=2')) {
+        return jsonResponse({
+          baseDate: '2026-09-03',
+          rankings: [{ rank: 11, code: '036930', name: '주성엔지니어링' }],
+          page: 2,
+          size: 10,
+          totalPages: 15,
+          totalElements: 150,
+          hasNext: true,
+        });
+      }
+
+      return jsonResponse({
+        baseDate: '2026-09-03',
+        rankings: [{ rank: 1, code: '196170', name: '알테오젠' }],
+        page: 1,
+        size: 10,
+        totalPages: 15,
+        totalElements: 150,
+        hasNext: true,
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = renderStocks();
+
+    expect(await view.findByText('알테오젠')).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: '2' }));
+
+    expect(await view.findByText('주성엔지니어링')).toBeTruthy();
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/assets/kosdaq/top?page=2&size=10');
   });
 });
