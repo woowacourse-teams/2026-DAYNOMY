@@ -43,10 +43,10 @@ public class News extends BaseEntity {
   private String imageUrl;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "source", nullable = false)
+  @Column(name = "source")
   private NewsSource source;
 
-  @Column(name = "external_id", nullable = false)
+  @Column(name = "external_id")
   private String externalId;
 
   @Column(name = "source_url", columnDefinition = "TEXT", nullable = false)
@@ -59,7 +59,11 @@ public class News extends BaseEntity {
   @Column(name = "published_at")
   private Instant publishedAt;
 
-  public News(
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false, length = 20)
+  private NewsStatus status;
+
+  private News(
       String title,
       String content,
       String description,
@@ -68,7 +72,8 @@ public class News extends BaseEntity {
       String externalId,
       String sourceUrl,
       Category category,
-      Instant publishedAt) {
+      Instant publishedAt,
+      NewsStatus status) {
     this.title = title;
     this.content = content;
     this.description = description;
@@ -78,5 +83,105 @@ public class News extends BaseEntity {
     this.sourceUrl = sourceUrl;
     this.category = category;
     this.publishedAt = publishedAt;
+    this.status = status;
+  }
+
+  public static News createPublished(
+      String title,
+      String content,
+      String description,
+      String imageUrl,
+      NewsSource source,
+      String externalId,
+      String sourceUrl,
+      Category category,
+      Instant publishedAt) {
+    return new News(
+        title,
+        content,
+        description,
+        imageUrl,
+        source,
+        externalId,
+        sourceUrl,
+        category,
+        publishedAt,
+        NewsStatus.PUBLISHED);
+  }
+
+  public static News createDraft(
+      String title,
+      String content,
+      String description,
+      String imageUrl,
+      NewsSource source,
+      String externalId,
+      String sourceUrl,
+      Category category) {
+    return new News(
+        title,
+        content,
+        description,
+        imageUrl,
+        source,
+        externalId,
+        sourceUrl,
+        category,
+        null,
+        NewsStatus.DRAFT);
+  }
+
+  public static News createAdminDraft(
+      String title,
+      String content,
+      String description,
+      String imageUrl,
+      String sourceUrl,
+      Category category) {
+    return new News(
+        title,
+        content,
+        description,
+        imageUrl,
+        null,
+        null,
+        sourceUrl,
+        category,
+        null,
+        NewsStatus.DRAFT);
+  }
+
+  public void update(
+      String title,
+      String content,
+      String description,
+      String imageUrl,
+      String sourceUrl,
+      Category category) {
+    this.title = title;
+    this.content = content;
+    this.description = description;
+    this.imageUrl = imageUrl;
+    this.sourceUrl = sourceUrl;
+    this.category = category;
+  }
+
+  public void publish() {
+    this.status = NewsStatus.PUBLISHED;
+    this.publishedAt = Instant.now();
+  }
+
+  public void reject() {
+    this.status = NewsStatus.REJECTED;
+    this.publishedAt = null;
+  }
+
+  public void delete() {
+    this.status = NewsStatus.DELETED;
+    this.publishedAt = null;
+  }
+
+  public boolean isPublished() {
+    return status == NewsStatus.PUBLISHED;
   }
 }

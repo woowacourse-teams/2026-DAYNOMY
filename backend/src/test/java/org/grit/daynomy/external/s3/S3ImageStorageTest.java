@@ -40,10 +40,10 @@ class S3ImageStorageTest {
   }
 
   @Test
-  void putSendsWebpMetadataToS3() {
+  void uploadSendsWebpMetadataToS3() {
     byte[] content = {1, 2, 3};
 
-    storage.put("news-image.webp", content, "image/webp");
+    S3ImageStorage.StoredImage storedImage = storage.upload(content, "webp", "image/webp");
 
     ArgumentCaptor<PutObjectRequest> requestCaptor =
         ArgumentCaptor.forClass(PutObjectRequest.class);
@@ -52,16 +52,21 @@ class S3ImageStorageTest {
 
     PutObjectRequest request = requestCaptor.getValue();
     assertThat(request.bucket()).isEqualTo(BUCKET);
-    assertThat(request.key()).isEqualTo("daynomy/news-image.webp");
+    assertThat(request.key()).startsWith("daynomy/").endsWith(".webp");
     assertThat(request.contentType()).isEqualTo("image/webp");
     assertThat(request.cacheControl()).isEqualTo("public, max-age=31536000, immutable");
     assertThat(request.contentLength()).isEqualTo(3L);
     assertThat(bodyCaptor.getValue().contentLength()).isEqualTo(3L);
+    assertThat(storedImage.relativeKey()).endsWith(".webp");
+    assertThat(storedImage.publicUrl())
+        .startsWith("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/");
   }
 
   @Test
   void deleteSendsObjectKeyToS3() {
-    storage.delete("news-image.webp");
+    storage.delete(
+        new S3ImageStorage.StoredImage(
+            "news-image.webp", "https://cdn.example.com/news-image.webp"));
 
     ArgumentCaptor<DeleteObjectRequest> requestCaptor =
         ArgumentCaptor.forClass(DeleteObjectRequest.class);
@@ -73,36 +78,55 @@ class S3ImageStorageTest {
   }
 
   @Test
+  void deleteIfManagedDeletesImageFromConfiguredBaseUrl() {
+    storage.deleteIfManaged(
+        "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/news-image.webp");
+
+    ArgumentCaptor<DeleteObjectRequest> requestCaptor =
+        ArgumentCaptor.forClass(DeleteObjectRequest.class);
+    verify(s3Client).deleteObject(requestCaptor.capture());
+
+    assertThat(requestCaptor.getValue().key()).isEqualTo("daynomy/news-image.webp");
+  }
+
+  @Test
+  void deleteIfManagedIgnoresExternalImageUrl() {
+    storage.deleteIfManaged("https://example.com/news-image.webp");
+
+    org.mockito.Mockito.verifyNoInteractions(s3Client);
+  }
+
+  @Test
   void publicUrlUsesConfiguredBaseUrl() {
     storage =
         new S3ImageStorage(
             s3Client, new S3Properties(REGION, BUCKET, "https://images.example.com/daynomy"));
 
-    String publicUrl = storage.publicUrl("/news-image.webp");
+    S3ImageStorage.StoredImage storedImage = storage.upload(new byte[] {1}, "webp", "image/webp");
 
-    assertThat(publicUrl).isEqualTo("https://images.example.com/daynomy/news-image.webp");
+    assertThat(storedImage.publicUrl()).startsWith("https://images.example.com/daynomy/");
   }
 
   @Test
   void publicUrlFailsWhenBaseUrlIsMissing() {
     storage = new S3ImageStorage(s3Client, new S3Properties(REGION, BUCKET, ""));
 
-    assertThatThrownBy(() -> storage.publicUrl("news-image.webp"))
+    assertThatThrownBy(() -> storage.upload(new byte[] {1}, "webp", "image/webp"))
         .isInstanceOf(BusinessException.class);
   }
 
   @Test
   void rejectsNestedObjectKey() {
-    assertThatThrownBy(() -> storage.put("news/image.webp", new byte[] {1}, "image/webp"))
+    assertThatThrownBy(() -> storage.upload(new byte[] {1}, "news/image.webp", "image/webp"))
         .isInstanceOf(BusinessException.class);
   }
 
   @Test
-  void putConvertsS3FailureToBusinessException() {
+  void uploadConvertsS3FailureToBusinessException() {
     given(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
         .willThrow(S3Exception.builder().message("access denied").build());
 
-    assertThatThrownBy(() -> storage.put("news-image.webp", new byte[] {1}, "image/webp"))
+    assertThatThrownBy(() -> storage.upload(new byte[] {1}, "webp", "image/webp"))
         .isInstanceOf(BusinessException.class);
   }
 }

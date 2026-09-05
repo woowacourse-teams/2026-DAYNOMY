@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.NewsDetailResponse;
 import org.grit.daynomy.news.dto.NewsListItemResponse;
 import org.grit.daynomy.news.dto.NewsPageResponse;
@@ -31,8 +32,10 @@ public class NewsService {
     Pageable pageable = PageRequest.of(page - 1, size);
     Page<News> newsPage =
         category == null
-            ? newsRepository.findAllByOrderByPublishedAtDescIdDesc(pageable)
-            : newsRepository.findByCategoryOrderByPublishedAtDescIdDesc(category, pageable);
+            ? newsRepository.findByStatusOrderByPublishedAtDescIdDesc(
+                NewsStatus.PUBLISHED, pageable)
+            : newsRepository.findByStatusAndCategoryOrderByPublishedAtDescIdDesc(
+                NewsStatus.PUBLISHED, category, pageable);
 
     return NewsPageResponse.from(newsPage.map(NewsListItemResponse::from));
   }
@@ -45,15 +48,18 @@ public class NewsService {
 
     Page<News> todayNews =
         newsRepository
-            .findByPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-                startInclusive, endExclusive, PageRequest.of(0, TODAY_NEWS_SIZE));
+            .findByStatusAndPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
+                NewsStatus.PUBLISHED,
+                startInclusive,
+                endExclusive,
+                PageRequest.of(0, TODAY_NEWS_SIZE));
 
     return NewsPageResponse.from(todayNews.map(NewsListItemResponse::from));
   }
 
   public NewsDetailResponse getNewsDetail(Long id) {
     return newsRepository
-        .findById(id)
+        .findByIdAndStatus(id, NewsStatus.PUBLISHED)
         .map(NewsDetailResponse::from)
         .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
   }

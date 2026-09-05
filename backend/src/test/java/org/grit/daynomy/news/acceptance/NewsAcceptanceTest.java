@@ -66,6 +66,24 @@ class NewsAcceptanceTest {
             "external-2",
             Category.REAL_ESTATE,
             Instant.parse("2026-08-17T09:00:00Z")));
+    newsRepository.save(
+        News.createDraft(
+            "draft news",
+            "content",
+            "description",
+            "image.png",
+            NewsSource.DART,
+            "draft-1",
+            "https://example.com/draft-1",
+            Category.STOCK));
+    News deletedNews =
+        createNews(
+            "deleted news",
+            "external-deleted",
+            Category.STOCK,
+            Instant.parse("2026-08-17T08:00:00Z"));
+    deletedNews.delete();
+    newsRepository.save(deletedNews);
 
     given()
         .port(port)
@@ -80,6 +98,30 @@ class NewsAcceptanceTest {
         .body("page", equalTo(1))
         .body("size", equalTo(15))
         .body("totalElements", equalTo(2));
+  }
+
+  @Test
+  @DisplayName("발행되지 않은 뉴스는 공개 상세 조회에서 제외한다")
+  void findDraftNewsReturnsNotFound() {
+    News draft =
+        newsRepository.save(
+            News.createDraft(
+                "draft news",
+                "content",
+                "description",
+                "image.png",
+                NewsSource.DART,
+                "draft-1",
+                "https://example.com/draft-1",
+                Category.STOCK));
+
+    given()
+        .port(port)
+        .when()
+        .get("/api/news/{id}", draft.getId())
+        .then()
+        .statusCode(404)
+        .body("code", equalTo("NEWS_NOT_FOUND"));
   }
 
   @Test
@@ -126,7 +168,7 @@ class NewsAcceptanceTest {
   }
 
   private News createNews(String title, String externalId, Category category, Instant publishedAt) {
-    return new News(
+    return News.createPublished(
         title,
         "content",
         "description",

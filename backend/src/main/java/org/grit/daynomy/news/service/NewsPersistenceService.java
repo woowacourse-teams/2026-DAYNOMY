@@ -33,7 +33,7 @@ public class NewsPersistenceService {
     }
 
     News news =
-        new News(
+        News.createPublished(
             generatedNews.title(),
             generatedNews.content(),
             generatedNews.description(),

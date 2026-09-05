@@ -11,6 +11,7 @@ import org.grit.daynomy.bookmark.domain.Bookmark;
 import org.grit.daynomy.bookmark.repository.BookmarkRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
@@ -33,7 +34,7 @@ public class PortfolioAnalysisService {
   public PortfolioAnalysisResponse getPortfolioAnalysis(Long memberId, Long newsId) {
     News news =
         newsRepository
-            .findById(newsId)
+            .findByIdAndStatus(newsId, NewsStatus.PUBLISHED)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
     List<Bookmark> bookmarks = bookmarkRepository.findAllByMemberIdOrderByIdAsc(memberId);
 
