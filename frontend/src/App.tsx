@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import LoginPage from './features/pages/components/LoginPage';
 import MyPage from './features/pages/components/MyPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
+import { InfoPage } from './features/pages/components/InfoPage';
 import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
 import { NewsListPage } from './features/news/newslist/NewsListPage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
@@ -112,6 +113,10 @@ export default function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/stocks" element={<StockListPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/about" element={<InfoPage page="about" />} />
+          <Route path="/terms" element={<InfoPage page="terms" />} />
+          <Route path="/privacy" element={<InfoPage page="privacy" />} />
+          <Route path="/standard" element={<InfoPage page="standard" />} />
           <Route
             path="/admin"
             element={
