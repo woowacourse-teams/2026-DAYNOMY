@@ -40,6 +40,5 @@ describe('푸터 안내 페이지', () => {
     );
 
     expect(view.getByRole('heading', { level: 1, name: title })).toBeTruthy();
-    expect(view.getByRole('link', { name: 'DAYNOMY 홈' })).toBeTruthy();
   });
 });

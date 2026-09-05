@@ -10,27 +10,7 @@
   margin: 0 auto;
 }
 
-.info-home-link {
-  display: inline-flex;
-  color: #6b7280;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 20px;
-  text-decoration: none;
-}
-
-.info-home-link:hover {
-  color: #4339c0;
-}
-
-.info-home-link:focus-visible {
-  border-radius: 4px;
-  outline: 3px solid var(--focus);
-  outline-offset: 4px;
-}
-
 .info-card {
-  margin-top: 32px;
   padding: 48px;
   border: 1px solid #e4e7ef;
   border-radius: 20px;
@@ -90,7 +70,6 @@
   }
 
   .info-card {
-    margin-top: 24px;
     padding: 32px 24px;
   }
 

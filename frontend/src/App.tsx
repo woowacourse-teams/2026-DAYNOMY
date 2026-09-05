@@ -34,7 +34,11 @@ function AppHeader() {
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/stocks') ||
-    location.pathname.startsWith('/mypage');
+    location.pathname.startsWith('/mypage') ||
+    location.pathname.startsWith('/about') ||
+    location.pathname.startsWith('/terms') ||
+    location.pathname.startsWith('/privacy') ||
+    location.pathname.startsWith('/standard');
 
   return showHeader ? <Header /> : null;
 }

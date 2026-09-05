@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import '../InfoPage.css';
 
 type InfoPageType = 'about' | 'terms' | 'privacy' | 'standard';
@@ -97,9 +96,6 @@ export function InfoPage({ page }: { page: InfoPageType }) {
   return (
     <main className="info-page">
       <div className="info-page-content">
-        <Link className="info-home-link" to="/">
-          DAYNOMY 홈
-        </Link>
         <article className="info-card" aria-labelledby="info-page-title">
           <p className="info-eyebrow">DAYNOMY</p>
           <h1 id="info-page-title">{content.title}</h1>
