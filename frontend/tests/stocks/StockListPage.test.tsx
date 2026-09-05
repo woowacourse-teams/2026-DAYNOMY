@@ -40,6 +40,11 @@ describe('관심 종목 화면', () => {
         jsonResponse({
           baseDate: '2026-08-27',
           rankings: [{ rank: 1, code: '005930', name: '삼성전자' }],
+          page: 1,
+          size: 10,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
         }),
       ),
     );
