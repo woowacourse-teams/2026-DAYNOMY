@@ -97,6 +97,9 @@ describe('뉴스 탐색 화면', () => {
     })) as HTMLAnchorElement;
 
     expect(link.getAttribute('href')).toBe('/news/7');
+    const todayBanner = view.getByRole('button', { name: '오늘의 뉴스' });
+    expect(todayBanner.querySelector('p')).toBeNull();
+    expect(todayBanner.textContent).not.toContain(article.description);
     const categoryTabs = view.getByRole('navigation', { name: '뉴스 카테고리' });
     expect(categoryTabs.querySelectorAll('button')).toHaveLength(4);
     expect(view.getByRole('button', { name: '전체' })).toBeTruthy();

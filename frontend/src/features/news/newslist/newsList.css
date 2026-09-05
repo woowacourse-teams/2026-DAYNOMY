@@ -96,15 +96,6 @@
   font-weight: 900;
 }
 
-.today-banner p {
-  max-width: 620px;
-  margin-top: 20px;
-  color: rgba(255, 255, 255, 0.86);
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1.55;
-}
-
 .banner-date {
   position: absolute;
   left: 72px;
@@ -531,10 +522,6 @@
 
   .today-banner h2 {
     font-size: 24px;
-  }
-
-  .today-banner p {
-    display: none;
   }
 
   .article-list {
