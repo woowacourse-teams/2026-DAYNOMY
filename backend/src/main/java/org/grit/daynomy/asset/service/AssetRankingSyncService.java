@@ -4,13 +4,18 @@ import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.asset.exception.AssetErrorCode;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.publicdata.PublicDataStockPriceClient;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class AssetRankingSyncService {
@@ -21,6 +26,7 @@ public class AssetRankingSyncService {
 
   private final PublicDataStockPriceClient publicDataStockPriceClient;
   private final AssetRankingPersistenceService assetRankingPersistenceService;
+  private final ReentrantLock syncLock = new ReentrantLock();
 
   public int syncKosdaqTopRankings() {
     return syncKosdaqTopRankings(LocalDate.now());
@@ -28,10 +34,30 @@ public class AssetRankingSyncService {
 
   @Scheduled(cron = "0 0 18 * * MON-FRI", zone = "Asia/Seoul")
   public void syncKosdaqTopRankingsDaily() {
-    syncKosdaqTopRankings();
+    if (!syncLock.tryLock()) {
+      log.info(
+          "Skip scheduled KOSDAQ top rankings synchronization because another sync is running");
+      return;
+    }
+    try {
+      syncKosdaqTopRankingsInternal(LocalDate.now());
+    } finally {
+      syncLock.unlock();
+    }
   }
 
   public int syncKosdaqTopRankings(LocalDate today) {
+    if (!syncLock.tryLock()) {
+      throw new BusinessException(AssetErrorCode.ASSET_RANKING_SYNC_ALREADY_RUNNING);
+    }
+    try {
+      return syncKosdaqTopRankingsInternal(today);
+    } finally {
+      syncLock.unlock();
+    }
+  }
+
+  private int syncKosdaqTopRankingsInternal(LocalDate today) {
     for (int daysAgo = 0; daysAgo < LOOKBACK_DAYS; daysAgo++) {
       LocalDate requestedDate = today.minusDays(daysAgo);
       List<PublicDataStockPriceItem> items =

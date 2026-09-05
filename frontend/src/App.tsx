@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import LoginPage from './features/pages/components/LoginPage';
 import MyPage from './features/pages/components/MyPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
+import { InfoPage } from './features/pages/components/InfoPage';
 import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
 import { NewsListPage } from './features/news/newslist/NewsListPage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
@@ -11,10 +12,12 @@ import { StockListPage } from './features/stocks/StockListPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { Header } from './components/Header';
+import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
 import { AdminShell } from './features/admin/components/AdminShell';
+import './App.css';
 import './features/admin/admin.css';
 
 function AnalyticsTracker() {
@@ -32,9 +35,19 @@ function AppHeader() {
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/stocks') ||
-    location.pathname.startsWith('/mypage');
+    location.pathname.startsWith('/mypage') ||
+    location.pathname.startsWith('/about') ||
+    location.pathname.startsWith('/terms') ||
+    location.pathname.startsWith('/privacy') ||
+    location.pathname.startsWith('/standard');
 
   return showHeader ? <Header /> : null;
+}
+
+function AppFooter() {
+  const location = useLocation();
+
+  return location.pathname.startsWith('/admin') ? null : <Footer />;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -97,57 +110,66 @@ export default function App() {
       <AuthProvider>
         <AnalyticsTracker />
         <PostLoginRedirect />
-        <AppHeader />
-        <Routes>
-          <Route path="/" element={<NewsListPage />} />
-          <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
-          <Route path="/news/:newsId" element={<NewsDetailPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/stocks" element={<StockListPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <Navigate to="/admin/news" replace />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/news"
-            element={
-              <AdminRoute>
-                <AdminNewsPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/news/new"
-            element={
-              <AdminRoute>
-                <AdminNewsFormPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/news/:newsId/edit"
-            element={
-              <AdminRoute>
-                <AdminNewsFormPage />
-              </AdminRoute>
-            }
-          />
-          <Route path="/signup" element={<Navigate to="/login" replace />} />
-          <Route
-            path="/mypage"
-            element={
-              <RequireAuth>
-                <MyPage />
-              </RequireAuth>
-            }
-          />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        <div className="app-shell">
+          <AppHeader />
+          <div className="app-content">
+            <Routes>
+              <Route path="/" element={<NewsListPage />} />
+              <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
+              <Route path="/news/:newsId" element={<NewsDetailPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/stocks" element={<StockListPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/about" element={<InfoPage page="about" />} />
+              <Route path="/terms" element={<InfoPage page="terms" />} />
+              <Route path="/privacy" element={<InfoPage page="privacy" />} />
+              <Route path="/standard" element={<InfoPage page="standard" />} />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <Navigate to="/admin/news" replace />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/news"
+                element={
+                  <AdminRoute>
+                    <AdminNewsPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/news/new"
+                element={
+                  <AdminRoute>
+                    <AdminNewsFormPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/news/:newsId/edit"
+                element={
+                  <AdminRoute>
+                    <AdminNewsFormPage />
+                  </AdminRoute>
+                }
+              />
+              <Route path="/signup" element={<Navigate to="/login" replace />} />
+              <Route
+                path="/mypage"
+                element={
+                  <RequireAuth>
+                    <MyPage />
+                  </RequireAuth>
+                }
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </div>
+          <AppFooter />
+        </div>
       </AuthProvider>
     </BrowserRouter>
   );

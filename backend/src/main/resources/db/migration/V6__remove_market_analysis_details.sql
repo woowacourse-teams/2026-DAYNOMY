@@ -1,0 +1,2 @@
+DROP TABLE news_market_analysis_assets;
+DROP TABLE news_market_analysis_scenarios;

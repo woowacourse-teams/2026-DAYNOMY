@@ -169,6 +169,7 @@
 }
 
 .admin-primary-button:disabled,
+.admin-alert button:disabled,
 .admin-row-actions button:disabled,
 .admin-pagination button:disabled {
   cursor: not-allowed;
@@ -277,6 +278,75 @@
   font-weight: 900;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.admin-action-panel,
+.admin-success-panel {
+  margin-top: 42px;
+  border: 1px solid #e4e7ef;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.admin-action-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px;
+}
+
+.admin-panel-eyebrow {
+  color: #737b8c;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-action-panel h2 {
+  margin-top: 7px;
+  color: #111827;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.admin-action-panel p:not(.admin-panel-eyebrow) {
+  max-width: 720px;
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.admin-action-panel .admin-primary-button {
+  min-width: 96px;
+  white-space: nowrap;
+}
+
+.admin-success-panel {
+  padding: 18px 20px;
+  border-color: #bfe7d0;
+  color: #087443;
+  background: #f5fcf8;
+}
+
+.admin-success-panel strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.admin-success-panel p {
+  margin-top: 5px;
+  color: #237855;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-success-panel span {
+  color: #065f37;
+  font-weight: 900;
 }
 
 .admin-table-panel {
@@ -657,6 +727,10 @@
     font-size: 32px;
   }
   .admin-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .admin-action-panel {
     align-items: stretch;
     flex-direction: column;
   }

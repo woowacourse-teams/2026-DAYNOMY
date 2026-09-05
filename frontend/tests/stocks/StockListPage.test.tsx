@@ -1,9 +1,8 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AuthContext } from '../../src/auth/AuthContext';
 import { StockListPage } from '../../src/features/stocks/StockListPage';
 import { STOCK_BOOKMARK_STORAGE_KEY } from '../../src/features/stocks/constants';
 
@@ -16,11 +15,9 @@ function jsonResponse(body: unknown, status = 200) {
 
 function renderStocks() {
   return render(
-    <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'USER' }}>
-      <MemoryRouter>
-        <StockListPage />
-      </MemoryRouter>
-    </AuthContext.Provider>,
+    <MemoryRouter>
+      <StockListPage />
+    </MemoryRouter>,
   );
 }
 
@@ -40,6 +37,11 @@ describe('관심 종목 화면', () => {
         jsonResponse({
           baseDate: '2026-08-27',
           rankings: [{ rank: 1, code: '005930', name: '삼성전자' }],
+          page: 1,
+          size: 10,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
         }),
       ),
     );
@@ -56,13 +58,18 @@ describe('관심 종목 화면', () => {
     expect(bookmarkButton).toBeTruthy();
   });
 
-  it('북마크를 추가하고 해제한 상태를 저장한다', async () => {
+  it('로그인 없이 북마크를 추가하고 해제한 상태를 저장한다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
         jsonResponse({
           baseDate: '2026-08-27',
           rankings: [{ rank: 1, code: '005930', name: '삼성전자' }],
+          page: 1,
+          size: 10,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
         }),
       ),
     );
@@ -80,6 +87,29 @@ describe('관심 종목 화면', () => {
     await waitFor(() => expect(localStorage.getItem('daynomy:stock-bookmarks')).toBe('[]'));
   });
 
+  it('요약 관심 개수는 현재 페이지가 아닌 전체 북마크 개수를 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          baseDate: '2026-08-27',
+          rankings: [{ rank: 1, code: '005930', name: '삼성전자' }],
+          page: 1,
+          size: 10,
+          totalPages: 15,
+          totalElements: 150,
+          hasNext: true,
+        }),
+      ),
+    );
+    localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(['005930', '196170']));
+
+    const view = renderStocks();
+    const summary = view.getByLabelText('종목 목록 요약');
+
+    expect(await within(summary).findByText('2')).toBeTruthy();
+  });
+
   it('종목 API 실패 시 오류 상태와 대체 데이터를 안내한다', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.stubGlobal(
@@ -94,5 +124,41 @@ describe('관심 종목 화면', () => {
     );
     expect(view.getByText('mock')).toBeTruthy();
     expect(view.getByText('에코프로비엠')).toBeTruthy();
+  });
+
+  it('서버 페이지네이션 정보로 다음 페이지를 조회한다', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('page=2')) {
+        return jsonResponse({
+          baseDate: '2026-09-03',
+          rankings: [{ rank: 11, code: '036930', name: '주성엔지니어링' }],
+          page: 2,
+          size: 10,
+          totalPages: 15,
+          totalElements: 150,
+          hasNext: true,
+        });
+      }
+
+      return jsonResponse({
+        baseDate: '2026-09-03',
+        rankings: [{ rank: 1, code: '196170', name: '알테오젠' }],
+        page: 1,
+        size: 10,
+        totalPages: 15,
+        totalElements: 150,
+        hasNext: true,
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = renderStocks();
+
+    expect(await view.findByText('알테오젠')).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: '2' }));
+
+    expect(await view.findByText('주성엔지니어링')).toBeTruthy();
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/assets/kosdaq/top?page=2&size=10');
   });
 });

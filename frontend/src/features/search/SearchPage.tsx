@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { trackEvent } from '../../analytics';
-import { useLoginStatus } from '../../hooks/useLoginStatus';
 import { ArticleCard } from '../news/newslist/components/ArticleCard';
 import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
 import { NEWS_CATEGORIES } from '../news/newslist/constants';
@@ -52,7 +51,6 @@ function SearchPage() {
   }>({ keyword: '', rankings: [] });
   const [stocksLoading, setStocksLoading] = useState(Boolean(searchedKeyword));
   const [stocksError, setStocksError] = useState<string | null>(null);
-  const isLoggedIn = useLoginStatus();
   const resultTitleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -195,11 +193,7 @@ function SearchPage() {
             </span>
 
             {stocks.length > 0 ? (
-              <StockSearchResults
-                keyword={searchedKeyword}
-                stocks={stocks}
-                isLoggedIn={isLoggedIn}
-              />
+              <StockSearchResults keyword={searchedKeyword} stocks={stocks} />
             ) : null}
 
             <CategoryTabs
