@@ -6,7 +6,7 @@ import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 import { getMockNewsDetail } from './mock.ts';
-import type { MarketAnalysisResponse, NewsDetailPayload } from './types.ts';
+import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
 import { useAuth } from '../../../hooks/useLoginStatus.ts';
@@ -54,8 +54,8 @@ function formatDetailDate(value?: string) {
   return `${year}.${month}.${day}`;
 }
 
-function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAnalysisResponse }) {
-  const summary = marketAnalysis?.summary.trim();
+function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnalysisState }) {
+  const summary = marketAnalysis.status === 'success' ? marketAnalysis.data.summary.trim() : '';
 
   if (!summary) {
     return null;
