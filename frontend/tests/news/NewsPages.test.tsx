@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
+import { getApiUrl } from '../../src/api/client';
 import { NewsDetailPage } from '../../src/features/news/newsdetail/NewsDetailPage';
 import { NewsListPage } from '../../src/features/news/newslist/NewsListPage';
 import { ArticleCard } from '../../src/features/news/newslist/components/ArticleCard';
@@ -253,7 +254,7 @@ describe('뉴스 탐색 화면', () => {
       'https://example.com/news/7',
     );
     expect(view.getByRole('link', { name: 'Google로 시작하기' }).getAttribute('href')).toBe(
-      'http://localhost:8080/api/auth/google',
+      getApiUrl('/api/auth/google'),
     );
     expect(view.container.querySelector('.news-image')?.hasAttribute('loading')).toBe(false);
   });
