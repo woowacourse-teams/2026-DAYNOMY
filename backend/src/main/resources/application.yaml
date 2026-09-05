@@ -143,6 +143,8 @@ external:
   public-data:
     service-key: ${PUBLIC_DATA_SERVICE_KEY}
     stock-price-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo
+    connect-timeout: ${PUBLIC_DATA_CONNECT_TIMEOUT:3s}
+    read-timeout: ${PUBLIC_DATA_READ_TIMEOUT:10s}
 
 ai:
   openai:

@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -22,7 +23,14 @@ public class PublicDataStockPriceClient {
 
   public PublicDataStockPriceClient(PublicDataProperties publicDataProperties) {
     this.publicDataProperties = publicDataProperties;
-    this.restClient = RestClient.create(publicDataProperties.stockPriceUrl());
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(toMillis(publicDataProperties.connectTimeout()));
+    requestFactory.setReadTimeout(toMillis(publicDataProperties.readTimeout()));
+    this.restClient =
+        RestClient.builder()
+            .baseUrl(publicDataProperties.stockPriceUrl())
+            .requestFactory(requestFactory)
+            .build();
   }
 
   public PublicDataStockPriceResponse getKosdaqStockPrices(LocalDate baseDate) {
@@ -64,5 +72,9 @@ public class PublicDataStockPriceClient {
       return URLDecoder.decode(serviceKey, StandardCharsets.UTF_8);
     }
     return serviceKey;
+  }
+
+  private int toMillis(java.time.Duration timeout) {
+    return Math.toIntExact(timeout.toMillis());
   }
 }
