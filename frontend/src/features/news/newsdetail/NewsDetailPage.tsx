@@ -6,7 +6,7 @@ import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 import { getMockNewsDetail } from './mock.ts';
-import type { MarketAnalysisResponse, NewsDetailPayload } from './types.ts';
+import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
 import { useAuth } from '../../../hooks/useLoginStatus.ts';
@@ -54,21 +54,26 @@ function formatDetailDate(value?: string) {
   return `${year}.${month}.${day}`;
 }
 
-function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAnalysisResponse }) {
-  const summary = marketAnalysis?.summary.trim();
-
-  if (!summary) {
-    return null;
-  }
-
+function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnalysisState }) {
   return (
     <section className="detail-market" aria-labelledby="detail-market-title">
       <h2 id="detail-market-title">시장 분석</h2>
-      <ul className="market-summary-card">
-        {getMarketSummaryItems(summary).map((item, index) => (
-          <li key={`${item}-${index}`}>{item}</li>
-        ))}
-      </ul>
+      {marketAnalysis.status === 'success' ? (
+        <ul className="market-summary-card">
+          {getMarketSummaryItems(marketAnalysis.data.summary).map((item, index) => (
+            <li key={`${item}-${index}`}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p
+          className="market-summary-card market-analysis-message"
+          role={marketAnalysis.status === 'error' ? 'alert' : 'status'}
+        >
+          {marketAnalysis.status === 'empty'
+            ? '아직 제공된 시장 분석이 없습니다.'
+            : '시장 분석을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'}
+        </p>
+      )}
     </section>
   );
 }
