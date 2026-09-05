@@ -9,6 +9,7 @@ import type {
   AdminNewsResponse,
   AdminNewsSource,
   AdminNewsStatus,
+  AdminAssetRankingSyncResponse,
 } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -75,9 +76,13 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
   );
 }
 
+function isAdminAssetRankingSyncResponse(value: unknown): value is AdminAssetRankingSyncResponse {
+  return isRecord(value) && typeof value.savedCount === 'number';
+}
+
 function assertResponse<T>(value: unknown, isValid: (value: unknown) => value is T): T {
   if (!isValid(value)) {
-    throw new Error('관리자 뉴스 API 응답 형식이 올바르지 않습니다.');
+    throw new Error('관리자 API 응답 형식이 올바르지 않습니다.');
   }
 
   return value;
@@ -149,4 +154,12 @@ export async function updateAdminNews(id: number, values: AdminNewsFormValues, i
 
 export async function deleteAdminNews(id: number) {
   return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
+}
+
+export async function syncAdminAssetRankings(): Promise<AdminAssetRankingSyncResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/assets/kosdaq/top/sync', {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminAssetRankingSyncResponse);
 }
