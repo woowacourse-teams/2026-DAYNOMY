@@ -54,4 +54,9 @@ export const mockStockCandidates: StockCandidatesResponse = {
     { rank: 49, code: '298380', name: '에이비엘바이오' },
     { rank: 50, code: '214450', name: '파마리서치' },
   ],
+  page: 1,
+  size: 50,
+  totalPages: 1,
+  totalElements: 50,
+  hasNext: false,
 };

@@ -32,7 +32,7 @@ test('코스닥 대표 종목 순위 API 응답을 매핑한다', async () => {
 
   const response = await getKosdaqTopStocks();
 
-  assert.equal(calls[0], '/api/assets/kosdaq/top');
+  assert.equal(calls[0], '/api/assets/kosdaq/top?page=1&size=10');
   assert.deepEqual(response, {
     baseDate: '2026-08-21',
     rankings: [
@@ -42,6 +42,11 @@ test('코스닥 대표 종목 순위 API 응답을 매핑한다', async () => {
         name: '에코프로비엠',
       },
     ],
+    page: 1,
+    size: 20,
+    totalPages: 8,
+    totalElements: 150,
+    hasNext: true,
   });
 });
 

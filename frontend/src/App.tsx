@@ -12,6 +12,7 @@ import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { Header } from './components/Header';
 import { useAuth } from './hooks/useLoginStatus';
+import { AdminAssetRankingPage } from './features/admin/AdminAssetRankingPage';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
 import { AdminShell } from './features/admin/components/AdminShell';
@@ -95,7 +96,15 @@ export default function App() {
             path="/admin"
             element={
               <AdminRoute>
-                <Navigate to="/admin/news" replace />
+                <Navigate to="/admin/assets" replace />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/assets"
+            element={
+              <AdminRoute>
+                <AdminAssetRankingPage />
               </AdminRoute>
             }
           />

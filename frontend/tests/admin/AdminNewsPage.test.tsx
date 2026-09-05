@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
+import { AdminAssetRankingPage } from '../../src/features/admin/AdminAssetRankingPage';
 import { AdminNewsFormPage } from '../../src/features/admin/AdminNewsFormPage';
 import { AdminNewsPage } from '../../src/features/admin/AdminNewsPage';
 
@@ -210,5 +211,34 @@ describe('관리자 뉴스 화면', () => {
 
     expect(await view.findByRole('alert')).toBeTruthy();
     expect(view.getByRole('button', { name: '다시 시도' })).toBeTruthy();
+  });
+});
+
+describe('관리자 관심 자산 화면', () => {
+  it('관심 자산 순위 수동 갱신 결과를 표시한다', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push(String(input));
+
+        if (String(input).endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+
+        expect(init?.method).toBe('POST');
+        return jsonResponse({ savedCount: 150 });
+      }),
+    );
+
+    const view = renderAdmin(<AdminAssetRankingPage />);
+    fireEvent.click(view.getByRole('button', { name: '지금 갱신' }));
+
+    expect(await view.findByText('관심 자산 순위 갱신이 완료되었습니다.')).toBeTruthy();
+    expect(view.getByText('150')).toBeTruthy();
+    expect(calls.map((url) => new URL(url, 'http://localhost').pathname)).toEqual([
+      '/api/auth/csrf',
+      '/api/admin/assets/kosdaq/top/sync',
+    ]);
   });
 });

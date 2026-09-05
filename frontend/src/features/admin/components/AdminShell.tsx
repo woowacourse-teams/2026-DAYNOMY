@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import daynomyLogo from '../../../assets/daynomy-logo.png';
 
 export function AdminShell({ children }: { children: ReactNode }) {
@@ -11,9 +11,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <span>관리자</span>
         </Link>
         <nav className="admin-navigation" aria-label="관리자 메뉴">
-          <Link className="active" to="/admin/news">
-            뉴스 관리
-          </Link>
+          <NavLink to="/admin/news">뉴스 관리</NavLink>
+          <NavLink to="/admin/assets">관심 자산</NavLink>
           <Link to="/">서비스 홈</Link>
         </nav>
       </header>

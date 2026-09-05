@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
+import { getApiUrl } from '../../src/api/client';
 import LoginPage from '../../src/features/pages/components/LoginPage';
 
 function renderLogin(path = '/login') {
@@ -25,8 +26,8 @@ describe('로그인 화면', () => {
       name: 'Google로 시작하기',
     }) as HTMLAnchorElement;
 
+    expect(link.getAttribute('href')).toBe(getApiUrl('/api/auth/google'));
     expect(view.getByRole('heading', { name: 'DAYNOMY 관리자 로그인' })).toBeTruthy();
-    expect(new URL(link.href).pathname).toBe('/api/auth/google');
 
     link.addEventListener('click', (event) => event.preventDefault());
     fireEvent.click(link);

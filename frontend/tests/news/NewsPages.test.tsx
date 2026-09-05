@@ -27,6 +27,15 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function getPath(input: RequestInfo | URL) {
+  return new URL(String(input), 'http://localhost').pathname;
+}
+
+function getPathWithSearch(input: RequestInfo | URL) {
+  const url = new URL(String(input), 'http://localhost');
+  return `${url.pathname}${url.search}`;
+}
+
 function renderPage(element: ReactNode, isLoggedIn = false) {
   return render(
     <AuthContext.Provider value={{ isLoggedIn, loading: false, role: isLoggedIn ? 'USER' : null }}>
@@ -66,10 +75,10 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getPathWithSearch(input);
         calls.push(url);
 
-        if (url === '/api/news/today') {
+        if (getPath(input) === '/api/news/today') {
           return jsonResponse({
             items: [article, { ...article, id: 8, title: '오늘의 두 번째 뉴스' }],
             page: 1,
@@ -107,7 +116,7 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) =>
-        String(input) === '/api/news/today'
+        getPath(input) === '/api/news/today'
           ? jsonResponse({
               items: [],
               page: 1,
@@ -131,7 +140,7 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) =>
-        String(input) === '/api/news/today'
+        getPath(input) === '/api/news/today'
           ? jsonResponse({
               items: [],
               page: 1,
@@ -181,7 +190,7 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getPath(input);
         if (url === '/api/news/7') {
           return jsonResponse({
             ...article,
@@ -240,7 +249,7 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getPath(input);
         calls.push(url);
 
         if (url === '/api/news/7') {
