@@ -1,20 +1,44 @@
 import type {
   KeywordsResponse,
   MarketAnalysisResponse,
+  MarketAnalysisState,
   NewsDetailPayload,
   NewsDetailResponse,
 } from './types.ts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
+class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, statusText: string) {
+    super(`${status} ${statusText}`);
+    this.status = status;
+  }
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
 
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    throw new ApiError(response.status, response.statusText);
   }
 
   return response.json() as Promise<T>;
+}
+
+function getMarketAnalysisState(
+  result: PromiseSettledResult<MarketAnalysisResponse>,
+): MarketAnalysisState {
+  if (result.status === 'fulfilled') {
+    return result.value.summary.trim()
+      ? { status: 'success', data: result.value }
+      : { status: 'empty' };
+  }
+
+  return result.reason instanceof ApiError && result.reason.status === 404
+    ? { status: 'empty' }
+    : { status: 'error' };
 }
 
 export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> {
@@ -27,6 +51,6 @@ export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> 
   return {
     news,
     keywords: keywords.status === 'fulfilled' ? keywords.value.keywords : [],
-    marketAnalysis: marketAnalysis.status === 'fulfilled' ? marketAnalysis.value : undefined,
+    marketAnalysis: getMarketAnalysisState(marketAnalysis),
   };
 }
