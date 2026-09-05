@@ -1,0 +1,17 @@
+.app-shell {
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+}
+
+.app-content {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.app-content > * {
+  min-height: 0;
+  flex: 1 1 auto;
+}

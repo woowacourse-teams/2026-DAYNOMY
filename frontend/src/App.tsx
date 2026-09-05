@@ -17,6 +17,7 @@ import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
 import { AdminShell } from './features/admin/components/AdminShell';
+import './App.css';
 import './features/admin/admin.css';
 
 function AnalyticsTracker() {
@@ -109,62 +110,66 @@ export default function App() {
       <AuthProvider>
         <AnalyticsTracker />
         <PostLoginRedirect />
-        <AppHeader />
-        <Routes>
-          <Route path="/" element={<NewsListPage />} />
-          <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
-          <Route path="/news/:newsId" element={<NewsDetailPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/stocks" element={<StockListPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/about" element={<InfoPage page="about" />} />
-          <Route path="/terms" element={<InfoPage page="terms" />} />
-          <Route path="/privacy" element={<InfoPage page="privacy" />} />
-          <Route path="/standard" element={<InfoPage page="standard" />} />
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <Navigate to="/admin/news" replace />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/news"
-            element={
-              <AdminRoute>
-                <AdminNewsPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/news/new"
-            element={
-              <AdminRoute>
-                <AdminNewsFormPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/news/:newsId/edit"
-            element={
-              <AdminRoute>
-                <AdminNewsFormPage />
-              </AdminRoute>
-            }
-          />
-          <Route path="/signup" element={<Navigate to="/login" replace />} />
-          <Route
-            path="/mypage"
-            element={
-              <RequireAuth>
-                <MyPage />
-              </RequireAuth>
-            }
-          />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-        <AppFooter />
+        <div className="app-shell">
+          <AppHeader />
+          <div className="app-content">
+            <Routes>
+              <Route path="/" element={<NewsListPage />} />
+              <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
+              <Route path="/news/:newsId" element={<NewsDetailPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/stocks" element={<StockListPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/about" element={<InfoPage page="about" />} />
+              <Route path="/terms" element={<InfoPage page="terms" />} />
+              <Route path="/privacy" element={<InfoPage page="privacy" />} />
+              <Route path="/standard" element={<InfoPage page="standard" />} />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <Navigate to="/admin/news" replace />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/news"
+                element={
+                  <AdminRoute>
+                    <AdminNewsPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/news/new"
+                element={
+                  <AdminRoute>
+                    <AdminNewsFormPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/news/:newsId/edit"
+                element={
+                  <AdminRoute>
+                    <AdminNewsFormPage />
+                  </AdminRoute>
+                }
+              />
+              <Route path="/signup" element={<Navigate to="/login" replace />} />
+              <Route
+                path="/mypage"
+                element={
+                  <RequireAuth>
+                    <MyPage />
+                  </RequireAuth>
+                }
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </div>
+          <AppFooter />
+        </div>
       </AuthProvider>
     </BrowserRouter>
   );

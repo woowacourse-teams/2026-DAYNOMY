@@ -4,7 +4,7 @@
   min-height: 96px;
   align-items: center;
   justify-content: center;
-  padding: 48px 16px 0;
+  padding: 24px 16px 8px;
   background: #ffffff;
 }
 
@@ -14,7 +14,6 @@
   align-items: center;
   justify-content: center;
   gap: 8px 32px;
-  transform: translateY(48px);
 }
 
 .footer-link {
