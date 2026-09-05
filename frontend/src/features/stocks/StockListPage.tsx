@@ -4,16 +4,14 @@ import { StockList } from './components/StockList';
 import { StockState } from './components/StockState';
 import { StockSummary } from './components/StockSummary';
 import { STOCKS_PER_PAGE } from './constants';
-import { useLoginStatus } from '../../hooks/useLoginStatus';
 import { useStockBookmarks } from './hooks/useStockBookmarks';
 import { useStockCandidates } from './hooks/useStockCandidates';
 import './stockList.css';
 
 export function StockListPage() {
   const [page, setPage] = useState(1);
-  const isLoggedIn = useLoginStatus();
   const { stocks, baseDate, loading, error, isFallback } = useStockCandidates();
-  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks(isLoggedIn);
+  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks();
   const visibleBookmarkCount = stocks.filter((stock) => bookmarkedCodeSet.has(stock.code)).length;
   const totalPages = Math.max(1, Math.ceil(stocks.length / STOCKS_PER_PAGE));
   const visibleStocks = useMemo(
@@ -40,7 +38,6 @@ export function StockListPage() {
           baseDate={baseDate}
           stockCount={stocks.length}
           bookmarkCount={visibleBookmarkCount}
-          isLoggedIn={isLoggedIn}
           isFallback={isFallback}
         />
       </section>
@@ -69,7 +66,6 @@ export function StockListPage() {
           stocks={visibleStocks}
           page={page}
           totalPages={totalPages}
-          isLoggedIn={isLoggedIn}
           bookmarkedCodeSet={bookmarkedCodeSet}
           onBookmarkToggle={toggleBookmark}
           onPageChange={setPage}
