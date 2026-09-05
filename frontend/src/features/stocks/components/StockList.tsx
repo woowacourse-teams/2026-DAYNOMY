@@ -6,7 +6,6 @@ type StockListProps = {
   stocks: StockCandidate[];
   page: number;
   totalPages: number;
-  isLoggedIn: boolean;
   bookmarkedCodeSet: Set<string>;
   onBookmarkToggle: (stock: StockCandidate) => void;
   onPageChange: (page: number) => void;
@@ -35,30 +34,24 @@ export function StockList({
   stocks,
   page,
   totalPages,
-  isLoggedIn,
   bookmarkedCodeSet,
   onBookmarkToggle,
   onPageChange,
 }: StockListProps) {
   return (
     <section className="stock-list-panel" aria-label="코스닥 대표 종목 순위">
-      <div className={isLoggedIn ? 'stock-list-head' : 'stock-list-head guest'} aria-hidden="true">
+      <div className="stock-list-head" aria-hidden="true">
         <span>순위</span>
         <span>종목명</span>
         <span />
-        {isLoggedIn ? <span /> : null}
+        <span />
       </div>
       <div className="stock-list">
         {stocks.map((stock) => {
           const isBookmarked = bookmarkedCodeSet.has(stock.code);
 
           return (
-            <article
-              className={['stock-row', isLoggedIn ? '' : 'guest', isBookmarked ? 'bookmarked' : '']
-                .filter(Boolean)
-                .join(' ')}
-              key={stock.code}
-            >
+            <article className={`stock-row${isBookmarked ? ' bookmarked' : ''}`} key={stock.code}>
               <div className="stock-rank" aria-label={`${stock.rank}위`}>
                 {stock.rank}
               </div>
@@ -67,18 +60,16 @@ export function StockList({
                 <span>{stock.code}</span>
               </div>
               <RankChange value={stock.rankChange} />
-              {isLoggedIn ? (
-                <button
-                  type="button"
-                  className="stock-bookmark-button"
-                  aria-pressed={isBookmarked}
-                  aria-label={`${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`}
-                  title={`${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`}
-                  onClick={() => onBookmarkToggle(stock)}
-                >
-                  <BookmarkIcon selected={isBookmarked} />
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="stock-bookmark-button"
+                aria-pressed={isBookmarked}
+                aria-label={`${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`}
+                title={`${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`}
+                onClick={() => onBookmarkToggle(stock)}
+              >
+                <BookmarkIcon selected={isBookmarked} />
+              </button>
             </article>
           );
         })}

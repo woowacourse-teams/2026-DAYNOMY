@@ -55,51 +55,8 @@ export function getMockNewsDetail(newsId: string): NewsDetailPayload {
       },
     ],
     marketAnalysis: {
-      cause:
-        '시장 변동성이 커지고 개별 종목에 대한 불확실성이 높아지면서 여러 자산에 나누어 투자하려는 수요가 확대되고 있습니다.',
-      importance:
-        'ETF는 한 상품 안에 여러 종목이나 자산을 담아 분산 투자할 수 있어 변동성 국면에서 포트폴리오를 관리하는 수단으로 활용될 수 있습니다. 다만 추종 지수와 편입 자산에 따라 위험과 수익률이 달라집니다.',
-      assets: [
-        {
-          asset: 'ETF',
-          direction: 'POSITIVE',
-          impactLevel: 'HIGH',
-          reason: '분산 투자 수요가 늘면서 ETF로 자금이 유입될 가능성이 커집니다.',
-        },
-        {
-          asset: 'STOCK',
-          direction: 'POSITIVE',
-          impactLevel: 'MEDIUM',
-          reason: '기초자산으로 편입된 종목은 ETF 자금 유입의 영향을 받을 수 있습니다.',
-        },
-        {
-          asset: 'BOND',
-          direction: 'NEUTRAL',
-          impactLevel: 'LOW',
-          reason:
-            '채권형 ETF는 분산 수요의 수혜를 받을 수 있지만 금리 방향에 따라 성과가 달라집니다.',
-        },
-      ],
-      scenarios: [
-        {
-          timeHorizon: 'SHORT_TERM',
-          prediction: '변동성이 높은 구간에서 ETF 자금 유입이 이어질 수 있습니다.',
-          probability: 62,
-          reason: '개별 종목보다 분산형 상품을 선호하는 수요가 커질 수 있습니다.',
-        },
-        {
-          timeHorizon: 'MID_TERM',
-          prediction: '상품별 성과 차이가 커질 수 있습니다.',
-          probability: 48,
-          reason: '추종 지수와 편입 업종, 금리 환경에 따라 자금 흐름이 달라질 수 있습니다.',
-        },
-        {
-          timeHorizon: 'LONG_TERM',
-          prediction: '장기 투자 목적의 ETF 활용이 확대될 수 있습니다.',
-          probability: 36,
-          reason: '낮은 비용으로 분산 투자하려는 수요가 지속될 가능성이 있습니다.',
-        },
-      ],
+      summary:
+        '시장 변동성이 커지고 개별 종목에 대한 불확실성이 높아지면서 여러 자산에 나누어 투자하려는 수요가 확대되고 있습니다. ETF는 한 상품 안에 여러 종목이나 자산을 담아 분산 투자할 수 있어 변동성 국면에서 포트폴리오를 관리하는 수단으로 활용될 수 있습니다. 다만 추종 지수와 편입 자산에 따라 위험과 수익률이 달라집니다.',
     },
   };
 }

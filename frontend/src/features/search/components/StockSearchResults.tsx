@@ -5,11 +5,10 @@ import type { StockCandidate } from '../../stocks/types';
 type StockSearchResultsProps = {
   keyword: string;
   stocks: StockCandidate[];
-  isLoggedIn: boolean;
 };
 
-export function StockSearchResults({ keyword, stocks, isLoggedIn }: StockSearchResultsProps) {
-  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks(isLoggedIn);
+export function StockSearchResults({ keyword, stocks }: StockSearchResultsProps) {
+  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks();
 
   return (
     <section className="stock-search-results" aria-labelledby="stock-result-title">
@@ -27,17 +26,15 @@ export function StockSearchResults({ keyword, stocks, isLoggedIn }: StockSearchR
                 </div>
                 <strong>{stock.name}</strong>
                 <span>{stock.code}</span>
-                {isLoggedIn ? (
-                  <button
-                    type="button"
-                    className="stock-search-bookmark"
-                    aria-pressed={isBookmarked}
-                    aria-label={`${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`}
-                    onClick={() => toggleBookmark(stock)}
-                  >
-                    <BookmarkIcon selected={isBookmarked} />
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  className="stock-search-bookmark"
+                  aria-pressed={isBookmarked}
+                  aria-label={`${stock.name} 북마크 ${isBookmarked ? '해제' : '추가'}`}
+                  onClick={() => toggleBookmark(stock)}
+                >
+                  <BookmarkIcon selected={isBookmarked} />
+                </button>
               </li>
             );
           })}

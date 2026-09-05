@@ -4,7 +4,6 @@ import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-libra
 import axios, { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AuthContext } from '../../src/auth/AuthContext';
 import SearchPage from '../../src/features/search/SearchPage';
 
 const originalAdapter = axios.defaults.adapter;
@@ -57,12 +56,11 @@ function response(
 type RenderSearchOptions = {
   stocks?: (typeof stock)[];
   stockStatus?: number;
-  isLoggedIn?: boolean;
 };
 
 function renderSearch(
   initialEntries = ['/search'],
-  { stocks = [], stockStatus = 200, isLoggedIn = false }: RenderSearchOptions = {},
+  { stocks = [], stockStatus = 200 }: RenderSearchOptions = {},
 ) {
   globalThis.fetch = async () =>
     new Response(
@@ -84,13 +82,7 @@ function renderSearch(
 
   return {
     router,
-    ...render(
-      <AuthContext.Provider
-        value={{ isLoggedIn, loading: false, role: isLoggedIn ? 'USER' : null }}
-      >
-        <RouterProvider router={router} />
-      </AuthContext.Provider>,
-    ),
+    ...render(<RouterProvider router={router} />),
   };
 }
 
@@ -138,7 +130,7 @@ describe('뉴스 검색 화면', () => {
     axios.defaults.adapter = (async (config) =>
       response(config, { content: [] })) satisfies AxiosAdapter;
 
-    const view = submitSearch('삼성', { stocks: [stock], isLoggedIn: true });
+    const view = submitSearch('삼성', { stocks: [stock] });
 
     expect(await view.findByRole('heading', { name: '삼성 검색 결과' })).toBeTruthy();
     expect(view.getByText('삼성전자')).toBeTruthy();

@@ -4,6 +4,7 @@ import {
   createAdminNews,
   getAdminNews,
   isSupportedNewsImage,
+  syncAdminAssetRankings,
 } from '../../src/features/admin/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -100,6 +101,29 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
   assert.deepEqual(
     calls.map(({ url }) => url),
     ['/api/auth/csrf', '/api/admin/news'],
+  );
+});
+
+test('관리자 관심 자산 순위 수동 갱신 API는 CSRF 토큰과 함께 요청한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    if (String(input) === '/api/auth/csrf') {
+      return jsonResponse({ token: 'csrf-token', headerName: 'X-XSRF-TOKEN' });
+    }
+
+    assert.equal(String(input), '/api/admin/assets/kosdaq/top/sync');
+    assert.equal(init?.method, 'POST');
+    assert.equal(new Headers(init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
+    return jsonResponse({ savedCount: 150 });
+  };
+
+  const response = await syncAdminAssetRankings();
+
+  assert.equal(response.savedCount, 150);
+  assert.deepEqual(
+    calls.map(({ url }) => url),
+    ['/api/auth/csrf', '/api/admin/assets/kosdaq/top/sync'],
   );
 });
 

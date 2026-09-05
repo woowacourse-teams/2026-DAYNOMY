@@ -27,6 +27,15 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function getPath(input: RequestInfo | URL) {
+  return new URL(String(input), 'http://localhost').pathname;
+}
+
+function getPathWithSearch(input: RequestInfo | URL) {
+  const url = new URL(String(input), 'http://localhost');
+  return `${url.pathname}${url.search}`;
+}
+
 function renderPage(element: ReactNode, isLoggedIn = false) {
   return render(
     <AuthContext.Provider value={{ isLoggedIn, loading: false, role: isLoggedIn ? 'USER' : null }}>
@@ -66,10 +75,10 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getPathWithSearch(input);
         calls.push(url);
 
-        if (url === '/api/news/today') {
+        if (getPath(input) === '/api/news/today') {
           return jsonResponse({
             items: [article, { ...article, id: 8, title: '오늘의 두 번째 뉴스' }],
             page: 1,
@@ -107,7 +116,7 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) =>
-        String(input) === '/api/news/today'
+        getPath(input) === '/api/news/today'
           ? jsonResponse({
               items: [],
               page: 1,
@@ -131,7 +140,7 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) =>
-        String(input) === '/api/news/today'
+        getPath(input) === '/api/news/today'
           ? jsonResponse({
               items: [],
               page: 1,
@@ -181,7 +190,7 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getPath(input);
         if (url === '/api/news/7') {
           return jsonResponse({
             ...article,
@@ -203,24 +212,8 @@ describe('뉴스 탐색 화면', () => {
         }
         if (url === '/api/news/7/market-analysis') {
           return jsonResponse({
-            cause: '금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.',
-            importance: '기준금리 변화는 대출과 채권 수익률에 연결됩니다.',
-            assets: [
-              {
-                category: 'BOND',
-                direction: 'NEGATIVE',
-                impactLevel: 'MEDIUM',
-                reason: '금리 불확실성이 채권 투자 심리를 제한할 수 있습니다.',
-              },
-            ],
-            scenarios: [
-              {
-                timeHorizon: 'LONG_TERM',
-                prediction: '장기적으로 정책 방향에 따라 시장 흐름이 달라질 수 있습니다.',
-                probability: 45,
-                reason: '추가 경제 지표 확인이 필요합니다.',
-              },
-            ],
+            summary:
+              '금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다. 기준금리 변화는 대출과 채권 수익률에 연결됩니다.',
           });
         }
 
@@ -238,14 +231,15 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByText('기준금리 동결은 정책 방향을 보여줍니다.')).toBeTruthy();
     expect(view.getByText('금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.')).toBeTruthy();
     expect(view.getByText('기준금리 변화는 대출과 채권 수익률에 연결됩니다.')).toBeTruthy();
-    expect(view.getByRole('heading', { name: '채권' })).toBeTruthy();
-    expect(view.getByRole('heading', { name: '장기 시나리오' })).toBeTruthy();
+    expect(view.container.querySelectorAll('.market-summary-card')).toHaveLength(1);
+    expect(view.container.querySelectorAll('.market-summary-card li')).toHaveLength(2);
+    expect(view.queryByRole('heading', { name: '발생 원인' })).toBeNull();
+    expect(view.queryByRole('heading', { name: /가장 영향 가능성이 높은 자산/ })).toBeNull();
+    expect(view.queryByRole('heading', { name: /시나리오/ })).toBeNull();
     expect(view.getByRole('link', { name: '한국은행' }).getAttribute('href')).toBe(
       'https://example.com/news/7',
     );
-    expect(view.getByRole('link', { name: 'Google로 시작하기' }).getAttribute('href')).toBe(
-      '/api/auth/google',
-    );
+    expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
     expect(view.container.querySelector('.news-image')?.hasAttribute('loading')).toBe(false);
   });
 
@@ -255,7 +249,7 @@ describe('뉴스 탐색 화면', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getPath(input);
         calls.push(url);
 
         if (url === '/api/news/7') {
@@ -295,5 +289,6 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByText('반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.')).toBeTruthy();
     expect(calls).toContain('/api/news/7/portfolio-analysis');
     expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
+    expect(view.queryByRole('heading', { name: '시장 분석' })).toBeNull();
   });
 });
