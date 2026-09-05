@@ -8,4 +8,9 @@ export type StockCandidate = {
 export type StockCandidatesResponse = {
   baseDate: string | null;
   rankings: StockCandidate[];
+  page: number;
+  size: number;
+  totalPages: number;
+  totalElements: number;
+  hasNext: boolean;
 };

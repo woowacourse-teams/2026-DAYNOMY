@@ -1,33 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { trackEvent } from '../../analytics';
 import { StockList } from './components/StockList';
 import { StockState } from './components/StockState';
 import { StockSummary } from './components/StockSummary';
 import { STOCKS_PER_PAGE } from './constants';
-import { useLoginStatus } from '../../hooks/useLoginStatus';
 import { useStockBookmarks } from './hooks/useStockBookmarks';
 import { useStockCandidates } from './hooks/useStockCandidates';
 import './stockList.css';
 
 export function StockListPage() {
   const [page, setPage] = useState(1);
-  const isLoggedIn = useLoginStatus();
-  const { stocks, baseDate, loading, error, isFallback } = useStockCandidates();
-  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks(isLoggedIn);
-  const visibleBookmarkCount = stocks.filter((stock) => bookmarkedCodeSet.has(stock.code)).length;
-  const totalPages = Math.max(1, Math.ceil(stocks.length / STOCKS_PER_PAGE));
-  const visibleStocks = useMemo(
-    () => stocks.slice((page - 1) * STOCKS_PER_PAGE, page * STOCKS_PER_PAGE),
-    [page, stocks],
-  );
+  const { stocks, baseDate, totalPages, totalElements, loading, error, isFallback } =
+    useStockCandidates(page, STOCKS_PER_PAGE);
+  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks();
 
   useEffect(() => {
     trackEvent('view_stock_list');
   }, []);
 
   useEffect(() => {
-    setPage(1);
-  }, [stocks]);
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   return (
     <main className="stock-page">
@@ -38,9 +33,8 @@ export function StockListPage() {
         </div>
         <StockSummary
           baseDate={baseDate}
-          stockCount={stocks.length}
-          bookmarkCount={visibleBookmarkCount}
-          isLoggedIn={isLoggedIn}
+          stockCount={totalElements}
+          bookmarkCount={bookmarkedCodeSet.size}
           isFallback={isFallback}
         />
       </section>
@@ -66,10 +60,9 @@ export function StockListPage() {
 
       {stocks.length > 0 ? (
         <StockList
-          stocks={visibleStocks}
+          stocks={stocks}
           page={page}
           totalPages={totalPages}
-          isLoggedIn={isLoggedIn}
           bookmarkedCodeSet={bookmarkedCodeSet}
           onBookmarkToggle={toggleBookmark}
           onPageChange={setPage}

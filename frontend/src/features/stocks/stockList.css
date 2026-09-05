@@ -97,10 +97,6 @@
   line-height: 22px;
 }
 
-.stock-list-head.guest {
-  grid-template-columns: 74px minmax(0, 1fr) 100px;
-}
-
 .stock-list-head span:nth-child(2) {
   text-align: center;
 }
@@ -132,10 +128,6 @@
   transition:
     background 0.16s ease,
     box-shadow 0.16s ease;
-}
-
-.stock-row.guest {
-  grid-template-columns: 74px minmax(0, 1fr) 100px;
 }
 
 .stock-row:last-child {
@@ -362,19 +354,11 @@
     padding: 0 12px;
   }
 
-  .stock-list-head.guest {
-    grid-template-columns: 42px minmax(0, 1fr) 46px;
-  }
-
   .stock-row {
     grid-template-columns: 42px minmax(0, 1fr) 46px 36px;
     min-height: 60px;
     gap: 10px;
     padding: 10px 12px;
-  }
-
-  .stock-row.guest {
-    grid-template-columns: 42px minmax(0, 1fr) 46px;
   }
 
   .stock-rank {

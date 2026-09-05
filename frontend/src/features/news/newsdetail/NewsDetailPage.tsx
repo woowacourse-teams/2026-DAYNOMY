@@ -6,19 +6,10 @@ import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 import { getMockNewsDetail } from './mock.ts';
-import type {
-  Asset,
-  AssetImpactResponse,
-  ImpactDirection,
-  ImpactLevel,
-  MarketAnalysisResponse,
-  NewsDetailPayload,
-  TimeHorizon,
-} from './types.ts';
+import type { MarketAnalysisResponse, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
 import { useAuth } from '../../../hooks/useLoginStatus.ts';
-import { getApiUrl } from '../../pages/api.ts';
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -26,6 +17,13 @@ function getNewsIdFromUrl() {
 
 function getContentParagraphs(content: string | string[]) {
   return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
+}
+
+function getMarketSummaryItems(summary: string) {
+  return summary
+    .split(/\r?\n|(?<=[.!?。！？])\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 const NEWS_SOURCE_LABELS: Record<string, string> = {
@@ -56,189 +54,29 @@ function formatDetailDate(value?: string) {
   return `${year}.${month}.${day}`;
 }
 
-function GoogleIcon() {
-  return (
-    <svg className="detail-google-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="#4285F4"
-        d="M21.6 12.227c0-.709-.064-1.391-.182-2.045H12v3.868h5.382a4.6 4.6 0 0 1-1.995 3.018v2.509h3.231c1.891-1.741 2.982-4.304 2.982-7.35Z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 22c2.7 0 4.964-.895 6.618-2.423l-3.231-2.509c-.895.6-2.041.955-3.387.955-2.605 0-4.81-1.76-5.595-4.123H3.064v2.591A9.997 9.997 0 0 0 12 22Z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M6.405 13.9A6.01 6.01 0 0 1 6.091 12c0-.659.114-1.3.314-1.9V7.509H3.064A9.997 9.997 0 0 0 2 12c0 1.614.386 3.141 1.064 4.491L6.405 13.9Z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 5.977c1.468 0 2.786.505 3.823 1.496l2.868-2.868C16.959 2.991 14.695 2 12 2a9.997 9.997 0 0 0-8.936 5.509L6.405 10.1C7.19 7.737 9.395 5.977 12 5.977Z"
-      />
-    </svg>
-  );
-}
+function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAnalysisResponse }) {
+  const summary = marketAnalysis?.summary.trim();
 
-const fallbackAssetImpacts: AssetImpactResponse[] = [
-  {
-    asset: 'FOREIGN_EXCHANGE',
-    direction: 'NEGATIVE',
-    impactLevel: 'HIGH',
-    reason: '달러 강세가 이어지면 원화 약세 압력이 커져 수입 결제 부담이 커질 수 있어요.',
-  },
-  {
-    asset: 'BOND',
-    direction: 'NEGATIVE',
-    impactLevel: 'MEDIUM',
-    reason: '환율과 물가 부담이 남아 있으면 기준금리 인하 기대가 늦춰질 수 있어요.',
-  },
-  {
-    asset: 'STOCK',
-    direction: 'NEGATIVE',
-    impactLevel: 'MEDIUM',
-    reason: '수입 원가 부담이 큰 업종은 마진 압박을 받을 수 있어요.',
-  },
-];
-
-const directionLabel: Record<ImpactDirection, string> = {
-  POSITIVE: '긍정',
-  NEGATIVE: '부정',
-  NEUTRAL: '중립',
-};
-
-const levelLabel: Record<ImpactLevel, string> = {
-  HIGH: '영향 높음',
-  MEDIUM: '영향 중간',
-  LOW: '영향 낮음',
-};
-
-const timeHorizonLabel: Record<TimeHorizon, string> = {
-  SHORT_TERM: '단기',
-  MID_TERM: '중기',
-  LONG_TERM: '장기',
-};
-
-function getImpactTone(direction: ImpactDirection, impactLevel: ImpactLevel) {
-  if (direction === 'NEUTRAL') {
-    return 'impact-tone-neutral';
+  if (!summary) {
+    return null;
   }
 
-  return `impact-tone-${direction.toLowerCase()}-${impactLevel.toLowerCase()}`;
-}
-
-function getImpactLabel(direction: ImpactDirection, impactLevel: ImpactLevel) {
-  return direction === 'NEUTRAL'
-    ? '영향 없음'
-    : `${directionLabel[direction]} · ${levelLabel[impactLevel]}`;
-}
-
-function getAssetLabel(asset: Asset) {
-  return asset === 'MOCK' ? '기타' : getCategoryLabel(asset);
-}
-
-function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAnalysisResponse }) {
-  const assetImpacts = (
-    marketAnalysis?.assets.length ? marketAnalysis.assets : fallbackAssetImpacts
-  ).slice(0, 3);
-
   return (
-    <>
-      <section className="detail-market" aria-labelledby="detail-market-title">
-        <h2 id="detail-market-title">시장 분석</h2>
-
-        <section className="market-step">
-          <h3>1. 발생 원인</h3>
-          {marketAnalysis?.cause ? (
-            <p>{marketAnalysis.cause}</p>
-          ) : (
-            <ul>
-              <li>글로벌 달러 강세가 이어지면서 원화 가치가 상대적으로 약해지고 있어요.</li>
-              <li>
-                에너지·원자재를 달러로 결제하는 수입 품목은 환율 상승의 영향을 먼저 받을 수 있어요.
-              </li>
-              <li>
-                수입 원가 부담이 커지면 기업 비용과 소비자물가에 시차를 두고 반영될 가능성이 있어요.
-              </li>
-              <li>물가 부담이 다시 커지면 한국은행의 기준금리 인하 기대도 늦춰질 수 있어요.</li>
-            </ul>
-          )}
-        </section>
-
-        <section className="market-step">
-          <h3>2. 이슈가 중요한 이유</h3>
-          <p>
-            {marketAnalysis?.importance ??
-              '환율은 단순히 외환시장 숫자에 그치지 않아요. 수입 물가, 기업 마진, 기준금리 기대, 외국인 자금 흐름이 한 번에 연결되는 지표예요. 특히 수입 비중이 높은 업종은 비용 부담이 빠르게 커질 수 있고, 반대로 수출 비중이 높은 기업은 환율 효과를 일부 기대할 수 있어요.'}
-          </p>
-        </section>
-
-        <section className="market-step">
-          <h3>3. 가장 영향 가능성이 높은 자산 TOP 3</h3>
-          <div className="asset-impact-list">
-            {assetImpacts.map((asset, index) => (
-              <article className="asset-impact-card" key={asset.asset}>
-                <div>
-                  <strong>{`TOP ${index + 1}`}</strong>
-                  <span
-                    className={`impact-pill ${getImpactTone(asset.direction, asset.impactLevel)}`}
-                  >
-                    {getImpactLabel(asset.direction, asset.impactLevel)}
-                  </span>
-                </div>
-                <h4>{getAssetLabel(asset.asset)}</h4>
-                <p>{asset.reason}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="market-step">
-          <h3>4. 단기·중기·장기 시나리오</h3>
-          <div className="scenario-stack">
-            {(marketAnalysis?.scenarios ?? []).slice(0, 3).map((scenario) => (
-              <article className="scenario-strip" key={scenario.timeHorizon}>
-                <div>
-                  <h4>{timeHorizonLabel[scenario.timeHorizon]} 시나리오</h4>
-                  <p>{`${scenario.prediction} ${scenario.reason}`}</p>
-                </div>
-                <strong>가능성 {scenario.probability}%</strong>
-              </article>
-            ))}
-          </div>
-        </section>
-      </section>
-    </>
-  );
-}
-
-function AnalysisLockOverlay() {
-  return (
-    <div className="analysis-lock-overlay" role="dialog" aria-modal="false">
-      <h2>
-        <span>3초면 돼요!</span> 분석을 이어서 확인하세요
-      </h2>
-      <p>뉴스 뒤에 숨은 시장 흐름과 내 관심종목 영향을 함께 볼 수 있어요</p>
-      <ul>
-        <li>
-          <span aria-hidden="true">📊</span>
-          시장이 움직인 이유를 한눈에 정리해요
-        </li>
-        <li>
-          <span aria-hidden="true">💜</span>내 관심종목에 생길 변화를 이어서 확인해요
-        </li>
+    <section className="detail-market" aria-labelledby="detail-market-title">
+      <h2 id="detail-market-title">시장 분석</h2>
+      <ul className="market-summary-card">
+        {getMarketSummaryItems(summary).map((item, index) => (
+          <li key={`${item}-${index}`}>{item}</li>
+        ))}
       </ul>
-      <a href={getApiUrl('/api/auth/google')}>
-        <GoogleIcon />
-        Google로 시작하기
-      </a>
-    </div>
+    </section>
   );
 }
 
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
   const navigate = useNavigate();
-  const { isLoggedIn, loading: isAuthLoading } = useAuth();
+  const { isLoggedIn } = useAuth();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
   const goBack = () => {
@@ -323,15 +161,12 @@ export function NewsDetailPage() {
           </div>
         </section>
 
-        {!isAuthLoading ? (
-          <div className={isLoggedIn ? 'analysis-area' : 'analysis-area is-locked'}>
-            <div className="analysis-content">
-              <DetailAnalysisSections marketAnalysis={marketAnalysis} />
-              {isLoggedIn ? <PortfolioAnalysis newsId={newsId} /> : null}
-            </div>
-            {!isLoggedIn ? <AnalysisLockOverlay /> : null}
+        <div className="analysis-area">
+          <div className="analysis-content">
+            <DetailAnalysisSections marketAnalysis={marketAnalysis} />
+            {isLoggedIn ? <PortfolioAnalysis newsId={newsId} /> : null}
           </div>
-        ) : null}
+        </div>
       </article>
     </main>
   );
