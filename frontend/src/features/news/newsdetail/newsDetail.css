@@ -280,6 +280,12 @@ body {
   content: '✓';
 }
 
+.market-analysis-message {
+  margin-bottom: 0;
+  font-size: 14px;
+  line-height: 26px;
+}
+
 .portfolio-detail-row strong {
   color: #7338f2;
   font-size: 14px;

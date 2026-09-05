@@ -302,6 +302,7 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByText('반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.')).toBeTruthy();
     expect(calls).toContain('/api/news/7/portfolio-analysis');
     expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
-    expect(view.queryByRole('heading', { name: '시장 분석' })).toBeNull();
+    expect(view.getByRole('heading', { name: '시장 분석' })).toBeTruthy();
+    expect(view.getByRole('alert').textContent).toContain('시장 분석을 불러오지 못했습니다.');
   });
 });

@@ -55,20 +55,25 @@ function formatDetailDate(value?: string) {
 }
 
 function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnalysisState }) {
-  const summary = marketAnalysis.status === 'success' ? marketAnalysis.data.summary.trim() : '';
-
-  if (!summary) {
-    return null;
-  }
-
   return (
     <section className="detail-market" aria-labelledby="detail-market-title">
       <h2 id="detail-market-title">시장 분석</h2>
-      <ul className="market-summary-card">
-        {getMarketSummaryItems(summary).map((item, index) => (
-          <li key={`${item}-${index}`}>{item}</li>
-        ))}
-      </ul>
+      {marketAnalysis.status === 'success' ? (
+        <ul className="market-summary-card">
+          {getMarketSummaryItems(marketAnalysis.data.summary).map((item, index) => (
+            <li key={`${item}-${index}`}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p
+          className="market-summary-card market-analysis-message"
+          role={marketAnalysis.status === 'error' ? 'alert' : 'status'}
+        >
+          {marketAnalysis.status === 'empty'
+            ? '아직 제공된 시장 분석이 없습니다.'
+            : '시장 분석을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'}
+        </p>
+      )}
     </section>
   );
 }
