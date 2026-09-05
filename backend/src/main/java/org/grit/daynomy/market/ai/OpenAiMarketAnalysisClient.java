@@ -3,16 +3,9 @@ package org.grit.daynomy.market.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
-import org.grit.daynomy.market.domain.asset.AssetImpact;
-import org.grit.daynomy.market.domain.asset.ImpactDirection;
-import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.market.domain.scenario.Scenario;
-import org.grit.daynomy.market.domain.scenario.TimeHorizon;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -23,12 +16,9 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
 
   private static final String MARKET_ANALYSIS_PROMPT =
       """
-      뉴스 본문을 바탕으로 시장 분석을 작성하세요.
-      1. 발생 원인을 뉴스 본문 맥락에서 1~2문장으로 분석하세요.
-      2. 이 이슈가 시장에서 중요한 이유를 1~2문장으로 설명하세요.
-      3. 가장 영향을 받을 수 있는 자산을 1~2개만 고르고 긍정/부정 방향, 영향도, 판단 근거를 작성하세요.
-      4. 단기, 중기, 장기 시나리오를 각각 작성하고 가능성은 0부터 100 사이 정수로 작성하세요.
-      본문에 없는 사실을 단정하지 말고, 불확실하면 근거에 불확실성을 명시하세요.
+      뉴스 본문을 바탕으로 시장 분석 요약을 작성하세요.
+      발생 원인과 이 이슈가 시장에서 중요한 이유를 자연스럽게 연결해 하나의 내용으로 2~4문장 안에 설명하세요.
+      본문에 없는 사실을 단정하지 말고, 불확실한 내용은 불확실하다고 명시하세요.
       """;
 
   private final ObjectMapper objectMapper;
@@ -94,108 +84,26 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
   }
 
   private Map<String, Object> createMarketAnalysisSchema() {
-    Map<String, Object> properties = new LinkedHashMap<>();
-    properties.put("cause", Map.of("type", "string"));
-    properties.put("importance", Map.of("type", "string"));
-    properties.put("assets", createAssetsSchema());
-    properties.put("scenarios", createScenariosSchema());
-
-    Map<String, Object> schema = new LinkedHashMap<>();
-    schema.put("type", "object");
-    schema.put("additionalProperties", false);
-    schema.put("required", List.of("cause", "importance", "assets", "scenarios"));
-    schema.put("properties", properties);
-    return schema;
-  }
-
-  private Map<String, Object> createAssetsSchema() {
-    Map<String, Object> assetProperties = new LinkedHashMap<>();
-    assetProperties.put(
-        "category", Map.of("type", "string", "enum", enumNames(AssetCategory.values())));
-    assetProperties.put(
-        "direction", Map.of("type", "string", "enum", enumNames(ImpactDirection.values())));
-    assetProperties.put(
-        "impactLevel", Map.of("type", "string", "enum", enumNames(ImpactLevel.values())));
-    assetProperties.put("reason", Map.of("type", "string"));
-
-    Map<String, Object> assetItem = new LinkedHashMap<>();
-    assetItem.put("type", "object");
-    assetItem.put("additionalProperties", false);
-    assetItem.put("required", List.of("category", "direction", "impactLevel", "reason"));
-    assetItem.put("properties", assetProperties);
-
-    return Map.of("type", "array", "minItems", 1, "maxItems", 2, "items", assetItem);
-  }
-
-  private Map<String, Object> createScenariosSchema() {
-    Map<String, Object> scenarioProperties = new LinkedHashMap<>();
-    scenarioProperties.put(
-        "timeHorizon", Map.of("type", "string", "enum", enumNames(TimeHorizon.values())));
-    scenarioProperties.put("prediction", Map.of("type", "string"));
-    scenarioProperties.put("probability", Map.of("type", "integer", "minimum", 0, "maximum", 100));
-    scenarioProperties.put("reason", Map.of("type", "string"));
-
-    Map<String, Object> scenarioItem = new LinkedHashMap<>();
-    scenarioItem.put("type", "object");
-    scenarioItem.put("additionalProperties", false);
-    scenarioItem.put("required", List.of("timeHorizon", "prediction", "probability", "reason"));
-    scenarioItem.put("properties", scenarioProperties);
-
-    return Map.of("type", "array", "minItems", 3, "maxItems", 3, "items", scenarioItem);
-  }
-
-  private <E extends Enum<E>> List<String> enumNames(E[] values) {
-    return List.of(values).stream().map(Enum::name).toList();
+    return Map.of(
+        "type",
+        "object",
+        "additionalProperties",
+        false,
+        "required",
+        List.of("summary"),
+        "properties",
+        Map.of("summary", Map.of("type", "string")));
   }
 
   private NewsMarketAnalysis parseMarketAnalysis(String response) {
     String outputText = extractOutputText(response);
     try {
       JsonNode root = objectMapper.readTree(outputText);
-      return new NewsMarketAnalysis(
-          root.path("cause").asText(),
-          root.path("importance").asText(),
-          parseAssets(root.path("assets")),
-          parseScenarios(root.path("scenarios")));
+      return new NewsMarketAnalysis(root.path("summary").asText());
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException(
           "Failed to parse OpenAI market analysis response.", exception);
     }
-  }
-
-  private List<AssetImpact> parseAssets(JsonNode assetsNode) {
-    if (!assetsNode.isArray()) {
-      throw new IllegalStateException("OpenAI market analysis response must contain assets array.");
-    }
-
-    return assetsNode
-        .valueStream()
-        .map(
-            node ->
-                new AssetImpact(
-                    AssetCategory.valueOf(node.path("category").asText()),
-                    ImpactDirection.valueOf(node.path("direction").asText()),
-                    ImpactLevel.valueOf(node.path("impactLevel").asText()),
-                    node.path("reason").asText()))
-        .toList();
-  }
-
-  private List<Scenario> parseScenarios(JsonNode scenariosNode) {
-    if (!scenariosNode.isArray()) {
-      throw new IllegalStateException(
-          "OpenAI market analysis response must contain scenarios array.");
-    }
-
-    return scenariosNode
-        .valueStream()
-        .map(
-            node ->
-                new Scenario(
-                    TimeHorizon.valueOf(node.path("timeHorizon").asText()),
-                    node.path("prediction").asText(),
-                    node.path("probability").asInt(),
-                    node.path("reason").asText()))
-        .toList();
   }
 
   private String extractOutputText(String response) {

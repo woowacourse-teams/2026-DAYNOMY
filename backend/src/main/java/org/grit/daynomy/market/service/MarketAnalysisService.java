@@ -19,13 +19,7 @@ public class MarketAnalysisService {
 
   @Transactional
   public void saveMarketAnalysis(News news, NewsMarketAnalysis marketAnalysis) {
-    newsMarketAnalysisRepository.save(
-        new NewsMarketAnalysis(
-            news,
-            marketAnalysis.getCause(),
-            marketAnalysis.getImportance(),
-            marketAnalysis.getAssets(),
-            marketAnalysis.getScenarios()));
+    newsMarketAnalysisRepository.save(new NewsMarketAnalysis(news, marketAnalysis.getSummary()));
   }
 
   public MarketAnalysisResponse getMarketAnalysis(Long newsId) {
