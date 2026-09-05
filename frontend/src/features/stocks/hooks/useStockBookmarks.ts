@@ -4,27 +4,17 @@ import { STOCK_BOOKMARK_STORAGE_KEY } from '../constants';
 import type { StockCandidate } from '../types';
 import { readStringArrayStorage } from '../utils';
 
-export function useStockBookmarks(isLoggedIn: boolean) {
-  const [bookmarkedCodes, setBookmarkedCodes] = useState<string[]>([]);
-  const [initializedForLogin, setInitializedForLogin] = useState<boolean | null>(null);
+export function useStockBookmarks() {
+  const [bookmarkedCodes, setBookmarkedCodes] = useState<string[]>(() =>
+    readStringArrayStorage(STOCK_BOOKMARK_STORAGE_KEY),
+  );
   const bookmarkedCodeSet = useMemo(() => new Set(bookmarkedCodes), [bookmarkedCodes]);
 
   useEffect(() => {
-    setBookmarkedCodes(isLoggedIn ? readStringArrayStorage(STOCK_BOOKMARK_STORAGE_KEY) : []);
-    setInitializedForLogin(isLoggedIn);
-  }, [isLoggedIn]);
-
-  useEffect(() => {
-    if (isLoggedIn && initializedForLogin === isLoggedIn) {
-      localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(bookmarkedCodes));
-    }
-  }, [bookmarkedCodes, initializedForLogin, isLoggedIn]);
+    localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(bookmarkedCodes));
+  }, [bookmarkedCodes]);
 
   function toggleBookmark(stock: StockCandidate) {
-    if (!isLoggedIn) {
-      return;
-    }
-
     setBookmarkedCodes((currentCodes) => {
       const isBookmarked = currentCodes.includes(stock.code);
 

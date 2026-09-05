@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import '../LoginPage.css';
 import { getApiUrl } from '../api';
 import { trackEvent } from '../../../analytics';
@@ -29,11 +29,7 @@ function GoogleIcon() {
 
 function LoginPage() {
   const [searchParams] = useSearchParams();
-  const location = useLocation();
   const oauthError = searchParams.get('error') === 'oauth';
-  const isAdminLogin =
-    location.pathname.startsWith('/admin') ||
-    sessionStorage.getItem('daynomy:post-login-path') === '/admin';
   const errorMessage = oauthError ? 'Google 로그인에 실패했습니다.' : null;
 
   useEffect(() => {
@@ -47,21 +43,15 @@ function LoginPage() {
       </Link>
       <section className="login-card">
         <div className="login-heading">
-          <h1>{isAdminLogin ? 'DAYNOMY 관리자 로그인' : 'DAYNOMY 시작하기'}</h1>
-          <p>
-            {isAdminLogin
-              ? '관리자 계정으로 로그인해 뉴스 콘텐츠를 관리하세요'
-              : '오늘의 경제 흐름을 한눈에 확인해보세요'}
-          </p>
+          <h1>DAYNOMY 관리자 로그인</h1>
+          <p>관리자 계정으로 로그인해 뉴스 콘텐츠를 관리하세요</p>
         </div>
 
         <a
           className="google-login-button"
           href={getApiUrl('/api/auth/google')}
           onClick={() => {
-            if (isAdminLogin) {
-              sessionStorage.setItem('daynomy:post-login-path', '/admin');
-            }
+            sessionStorage.setItem('daynomy:post-login-path', '/admin');
             trackEvent('click_login');
           }}
         >

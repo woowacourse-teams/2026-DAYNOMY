@@ -4,18 +4,15 @@ import { StockList } from './components/StockList';
 import { StockState } from './components/StockState';
 import { StockSummary } from './components/StockSummary';
 import { STOCKS_PER_PAGE } from './constants';
-import { useLoginStatus } from '../../hooks/useLoginStatus';
 import { useStockBookmarks } from './hooks/useStockBookmarks';
 import { useStockCandidates } from './hooks/useStockCandidates';
 import './stockList.css';
 
 export function StockListPage() {
   const [page, setPage] = useState(1);
-  const isLoggedIn = useLoginStatus();
   const { stocks, baseDate, totalPages, totalElements, loading, error, isFallback } =
     useStockCandidates(page, STOCKS_PER_PAGE);
-  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks(isLoggedIn);
-  const visibleBookmarkCount = stocks.filter((stock) => bookmarkedCodeSet.has(stock.code)).length;
+  const { bookmarkedCodeSet, toggleBookmark } = useStockBookmarks();
 
   useEffect(() => {
     trackEvent('view_stock_list');
@@ -37,8 +34,7 @@ export function StockListPage() {
         <StockSummary
           baseDate={baseDate}
           stockCount={totalElements}
-          bookmarkCount={visibleBookmarkCount}
-          isLoggedIn={isLoggedIn}
+          bookmarkCount={bookmarkedCodeSet.size}
           isFallback={isFallback}
         />
       </section>
@@ -67,7 +63,6 @@ export function StockListPage() {
           stocks={stocks}
           page={page}
           totalPages={totalPages}
-          isLoggedIn={isLoggedIn}
           bookmarkedCodeSet={bookmarkedCodeSet}
           onBookmarkToggle={toggleBookmark}
           onPageChange={setPage}

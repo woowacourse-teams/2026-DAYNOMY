@@ -1,9 +1,8 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AuthContext } from '../../src/auth/AuthContext';
 import { StockListPage } from '../../src/features/stocks/StockListPage';
 import { STOCK_BOOKMARK_STORAGE_KEY } from '../../src/features/stocks/constants';
 
@@ -16,11 +15,9 @@ function jsonResponse(body: unknown, status = 200) {
 
 function renderStocks() {
   return render(
-    <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'USER' }}>
-      <MemoryRouter>
-        <StockListPage />
-      </MemoryRouter>
-    </AuthContext.Provider>,
+    <MemoryRouter>
+      <StockListPage />
+    </MemoryRouter>,
   );
 }
 
@@ -61,7 +58,7 @@ describe('관심 종목 화면', () => {
     expect(bookmarkButton).toBeTruthy();
   });
 
-  it('북마크를 추가하고 해제한 상태를 저장한다', async () => {
+  it('로그인 없이 북마크를 추가하고 해제한 상태를 저장한다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -88,6 +85,29 @@ describe('관심 종목 화면', () => {
 
     fireEvent.click(view.getByRole('button', { name: '삼성전자 북마크 해제' }));
     await waitFor(() => expect(localStorage.getItem('daynomy:stock-bookmarks')).toBe('[]'));
+  });
+
+  it('요약 관심 개수는 현재 페이지가 아닌 전체 북마크 개수를 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          baseDate: '2026-08-27',
+          rankings: [{ rank: 1, code: '005930', name: '삼성전자' }],
+          page: 1,
+          size: 10,
+          totalPages: 15,
+          totalElements: 150,
+          hasNext: true,
+        }),
+      ),
+    );
+    localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(['005930', '196170']));
+
+    const view = renderStocks();
+    const summary = view.getByLabelText('종목 목록 요약');
+
+    expect(await within(summary).findByText('2')).toBeTruthy();
   });
 
   it('종목 API 실패 시 오류 상태와 대체 데이터를 안내한다', async () => {

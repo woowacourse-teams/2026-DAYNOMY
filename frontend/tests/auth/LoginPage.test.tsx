@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getApiUrl } from '../../src/api/client';
@@ -14,14 +14,25 @@ function renderLogin(path = '/login') {
   return render(<RouterProvider router={router} />);
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  sessionStorage.clear();
+});
 
 describe('로그인 화면', () => {
-  it('Google 로그인 링크를 OAuth 엔드포인트에 연결한다', () => {
+  it('관리자 Google 로그인 링크를 OAuth 엔드포인트에 연결한다', () => {
     const view = renderLogin();
-    const link = view.getByRole('link', { name: 'Google로 시작하기' });
+    const link = view.getByRole('link', {
+      name: 'Google로 시작하기',
+    }) as HTMLAnchorElement;
 
     expect(link.getAttribute('href')).toBe(getApiUrl('/api/auth/google'));
+    expect(view.getByRole('heading', { name: 'DAYNOMY 관리자 로그인' })).toBeTruthy();
+
+    link.addEventListener('click', (event) => event.preventDefault());
+    fireEvent.click(link);
+
+    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/admin');
   });
 
   it('OAuth 실패를 사용자에게 안내한다', () => {

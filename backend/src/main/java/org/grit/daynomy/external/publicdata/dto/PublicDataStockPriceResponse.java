@@ -4,7 +4,18 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record PublicDataStockPriceResponse(Header header, Body body) {
+public record PublicDataStockPriceResponse(Response response) {
+
+  public Header header() {
+    return response == null ? null : response.header();
+  }
+
+  public Body body() {
+    return response == null ? null : response.body();
+  }
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public record Response(Header header, Body body) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   public record Header(String resultCode, String resultMsg) {}
