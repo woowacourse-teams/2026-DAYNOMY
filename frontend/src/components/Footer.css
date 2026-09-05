@@ -1,0 +1,54 @@
+.daynomy-footer {
+  display: flex;
+  width: 100%;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px 8px;
+  background: #ffffff;
+}
+
+.footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 32px;
+}
+
+.footer-link {
+  color: #131417;
+  font-family:
+    'Noto Sans KR',
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.footer-link:hover {
+  color: #4339c0;
+}
+
+a.footer-link:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #4339c0;
+  outline-offset: 4px;
+}
+
+@media (max-width: 600px) {
+  .daynomy-footer {
+    padding-inline: 16px;
+  }
+
+  .footer-nav {
+    column-gap: 24px;
+  }
+}
