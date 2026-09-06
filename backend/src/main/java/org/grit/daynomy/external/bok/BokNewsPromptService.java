@@ -110,17 +110,12 @@ public class BokNewsPromptService {
         다음 JSON 형식으로만 출력하세요. 다른 텍스트나 설명은 포함하지 마세요.
         {
           "title": "...",
-          "description": "...",
           "content": "..."
         }
 
         [title]
         최신 통계 변화가 드러나는 기사 제목으로 작성하세요.
         과장하거나 단정적인 표현은 쓰지 마세요.
-
-        [description]
-        기사 리드문처럼 한 문장으로 작성하세요.
-        title을 그대로 반복하지 말고 핵심 정보를 보완하세요.
 
         [content]
         불릿, 번호 목록, 표, '요약:' 표현 없이 문단 형태로만 작성하세요.
