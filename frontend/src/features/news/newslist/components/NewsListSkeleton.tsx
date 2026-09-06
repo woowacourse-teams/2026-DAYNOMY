@@ -9,7 +9,6 @@ export function NewsListSkeleton() {
           <div className="article-thumbnail" />
           <div className="article-body">
             <h2 />
-            <p />
             <time className="article-time" />
           </div>
         </div>

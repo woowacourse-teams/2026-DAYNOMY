@@ -29,7 +29,6 @@ export function ArticleCard({ article }: ArticleCardProps) {
       />
       <div className="article-body">
         <h2>{article.title}</h2>
-        {article.description ? <p>{article.description}</p> : null}
         <time className="article-time" dateTime={article.publishedAt ?? undefined}>
           {publishedAt}
         </time>

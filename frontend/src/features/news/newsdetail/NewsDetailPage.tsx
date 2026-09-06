@@ -6,7 +6,7 @@ import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 import { getMockNewsDetail } from './mock.ts';
-import type { MarketAnalysisResponse, NewsDetailPayload } from './types.ts';
+import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
 import { useAuth } from '../../../hooks/useLoginStatus.ts';
@@ -17,14 +17,6 @@ function getNewsIdFromUrl() {
 
 function getContentParagraphs(content: string | string[]) {
   return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
-}
-
-function getSummaryItems(description: string | null) {
-  return (description ?? '')
-    .split(/\r?\n|(?<=[.!?。！？])\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 3);
 }
 
 function getMarketSummaryItems(summary: string) {
@@ -62,21 +54,26 @@ function formatDetailDate(value?: string) {
   return `${year}.${month}.${day}`;
 }
 
-function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis?: MarketAnalysisResponse }) {
-  const summary = marketAnalysis?.summary.trim();
-
-  if (!summary) {
-    return null;
-  }
-
+function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnalysisState }) {
   return (
     <section className="detail-market" aria-labelledby="detail-market-title">
       <h2 id="detail-market-title">시장 분석</h2>
-      <ul className="market-summary-card">
-        {getMarketSummaryItems(summary).map((item, index) => (
-          <li key={`${item}-${index}`}>{item}</li>
-        ))}
-      </ul>
+      {marketAnalysis.status === 'success' ? (
+        <ul className="market-summary-card">
+          {getMarketSummaryItems(marketAnalysis.data.summary).map((item, index) => (
+            <li key={`${item}-${index}`}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p
+          className="market-summary-card market-analysis-message"
+          role={marketAnalysis.status === 'error' ? 'alert' : 'status'}
+        >
+          {marketAnalysis.status === 'empty'
+            ? '아직 제공된 시장 분석이 없습니다.'
+            : '시장 분석을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'}
+        </p>
+      )}
     </section>
   );
 }
@@ -158,19 +155,6 @@ export function NewsDetailPage() {
         </time>
 
         <img className="news-image" src={imageUrl} alt="" />
-
-        <section className="section summary-section">
-          <h2>
-            핵심 요약 <span aria-hidden="true">💡</span>
-          </h2>
-          <div className="summary">
-            <ul>
-              {getSummaryItems(news.description).map((item, index) => (
-                <li key={`${item}-${index}`}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
 
         <section className="body-section" aria-label="뉴스 본문">
           <div className="body-copy">

@@ -15,6 +15,13 @@ export const NEWS_CATEGORIES: NewsCategoryOption[] = [
   { label: CATEGORY_LABELS.VIRTUAL_ASSET, value: 'VIRTUAL_ASSET' },
 ];
 
+export const NEWS_LIST_CATEGORIES: NewsCategoryOption[] = [
+  { label: '전체', value: 'ALL' },
+  { label: CATEGORY_LABELS.STOCK, value: 'STOCK' },
+  { label: CATEGORY_LABELS.REAL_ESTATE, value: 'REAL_ESTATE' },
+  { label: CATEGORY_LABELS.ETF, value: 'ETF' },
+];
+
 const emptyTodayNews: NewsListItem = {
   id: 0,
   title: '오늘의 뉴스가 없습니다',

@@ -5,7 +5,7 @@ import { ArticleCard } from './components/ArticleCard';
 import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
 import { TodayNewsBanner } from './components/TodayNewsBanner';
-import { NEWS_CATEGORIES } from './constants';
+import { NEWS_LIST_CATEGORIES } from './constants';
 import type { NewsCategory, NewsListItem, NewsPage } from './types';
 import './newsList.css';
 import { trackEvent } from '../../../analytics';
@@ -26,7 +26,8 @@ export function NewsListPage() {
   const [todayNewsLoading, setTodayNewsLoading] = useState(true);
 
   const selectedCategoryLabel = useMemo(
-    () => NEWS_CATEGORIES.find((category) => category.value === selectedCategory)?.label ?? '전체',
+    () =>
+      NEWS_LIST_CATEGORIES.find((category) => category.value === selectedCategory)?.label ?? '전체',
     [selectedCategory],
   );
   const paginationPages = useMemo(() => {
@@ -164,7 +165,7 @@ export function NewsListPage() {
       ) : null}
 
       <CategoryTabs
-        categories={NEWS_CATEGORIES}
+        categories={NEWS_LIST_CATEGORIES}
         selectedCategory={selectedCategory}
         onChange={handleCategoryChange}
       />
