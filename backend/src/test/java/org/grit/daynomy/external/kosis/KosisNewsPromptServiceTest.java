@@ -38,7 +38,7 @@ class KosisNewsPromptServiceTest {
 
     assertThat(prompts).hasSize(1);
     assertThat(prompts.getFirst().source()).isEqualTo(NewsSource.KOSIS);
-    assertThat(prompts.getFirst().category()).isEqualTo(Category.ECONOMY);
+    assertThat(prompts.getFirst().category()).isEqualTo(Category.STOCK);
     assertThat(prompts.getFirst().externalId()).isEqualTo("consumer-price-index:202607");
     assertThat(prompts.getFirst().instruction())
         .contains(
@@ -74,7 +74,7 @@ class KosisNewsPromptServiceTest {
             "MT_ZTITLE",
             "",
             "M",
-            Category.ECONOMY,
+            Category.STOCK,
             "국가데이터처",
             "소비자물가조사",
             "소비자물가지수");
@@ -96,7 +96,7 @@ class KosisNewsPromptServiceTest {
         viewCode,
         "sample-user-stats-id",
         "M",
-        Category.ECONOMY,
+        Category.STOCK,
         "국가데이터처",
         "소비자물가조사",
         "소비자물가지수");

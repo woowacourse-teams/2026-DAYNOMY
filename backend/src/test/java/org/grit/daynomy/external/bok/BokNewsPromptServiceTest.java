@@ -45,7 +45,7 @@ class BokNewsPromptServiceTest {
 
     assertThat(prompts).hasSize(1);
     assertThat(prompts.getFirst().source()).isEqualTo(NewsSource.BOK);
-    assertThat(prompts.getFirst().category()).isEqualTo(Category.ECONOMY);
+    assertThat(prompts.getFirst().category()).isEqualTo(Category.STOCK);
     assertThat(prompts.getFirst().externalId()).isEqualTo("base-rate:202607");
     assertThat(prompts.getFirst().instruction())
         .contains(
@@ -81,7 +81,7 @@ class BokNewsPromptServiceTest {
         "한국은행 기준금리",
         statisticCode,
         cycle,
-        Category.ECONOMY,
+        Category.STOCK,
         "한국은행",
         "한국은행 기준금리 및 여수신금리",
         "한국은행 기준금리",

@@ -136,7 +136,7 @@ class AdminNewsServiceTest {
             Category.STOCK);
     AdminNewsUpdateRequest request =
         new AdminNewsUpdateRequest(
-            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.BOND);
+            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.ETF);
     MockMultipartFile image =
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
@@ -153,7 +153,7 @@ class AdminNewsServiceTest {
       assertThat(updatedNews.getDescription()).isEqualTo("수정 요약");
       assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
       assertThat(updatedNews.getSourceUrl()).isEqualTo("https://example.com/new");
-      assertThat(updatedNews.getCategory()).isEqualTo(Category.BOND);
+      assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
       assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
       verify(s3ImageStorage, never())
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
@@ -183,7 +183,7 @@ class AdminNewsServiceTest {
             Category.STOCK);
     AdminNewsUpdateRequest request =
         new AdminNewsUpdateRequest(
-            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.BOND);
+            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.ETF);
     MockMultipartFile image =
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     S3ImageStorage.StoredImage uploadedImage =
@@ -212,7 +212,7 @@ class AdminNewsServiceTest {
                 adminNewsService.update(
                     1L,
                     new AdminNewsUpdateRequest(
-                        "수정 제목", "수정 본문", null, "https://example.com/new", Category.BOND),
+                        "수정 제목", "수정 본문", null, "https://example.com/new", Category.ETF),
                     null))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())

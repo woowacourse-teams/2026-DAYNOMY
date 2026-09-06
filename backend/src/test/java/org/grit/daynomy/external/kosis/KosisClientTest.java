@@ -35,7 +35,7 @@ class KosisClientTest {
             "MT_ZTITLE",
             "sample-user-stats-id",
             "M",
-            Category.ECONOMY,
+            Category.STOCK,
             "국가데이터처",
             "소비자물가조사",
             "소비자물가지수");

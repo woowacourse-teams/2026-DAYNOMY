@@ -240,12 +240,12 @@ class AdminNewsControllerTest {
     willReturn("new-image.png").given(news).getImageUrl();
     willReturn(null).given(news).getSource();
     willReturn("https://example.com/new").given(news).getSourceUrl();
-    willReturn(Category.BOND).given(news).getCategory();
+    willReturn(Category.ETF).given(news).getCategory();
     willReturn(null).given(news).getPublishedAt();
     willReturn(NewsStatus.DRAFT).given(news).getStatus();
     AdminNewsUpdateRequest request =
         new AdminNewsUpdateRequest(
-            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.BOND);
+            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.ETF);
     MockMultipartFile requestPart =
         new MockMultipartFile(
             "request",
@@ -257,7 +257,7 @@ class AdminNewsControllerTest {
               "content": "수정 본문",
               "description": "수정 요약",
               "sourceUrl": "https://example.com/new",
-              "category": "BOND"
+              "category": "ETF"
             }
             """
                 .getBytes());
@@ -278,7 +278,7 @@ class AdminNewsControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.title").value("수정 제목"))
-        .andExpect(jsonPath("$.category").value("BOND"))
+        .andExpect(jsonPath("$.category").value("ETF"))
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
     then(adminNewsService).should().update(eq(1L), eq(request), eq(image));

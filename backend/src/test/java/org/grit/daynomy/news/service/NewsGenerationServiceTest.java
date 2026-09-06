@@ -194,7 +194,7 @@ class NewsGenerationServiceTest {
             NewsSource.KOSIS,
             "consumer-price-index:202607",
             "https://kosis.kr",
-            Category.ECONOMY,
+            Category.STOCK,
             Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
     given(kosisNewsPromptService.createPrompts()).willReturn(List.of(prompt));
@@ -231,7 +231,7 @@ class NewsGenerationServiceTest {
             NewsSource.KOSIS,
             "consumer-price-index:202607",
             "https://kosis.kr",
-            Category.ECONOMY,
+            Category.STOCK,
             Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
     GeneratedNews generatedNews = new GeneratedNews("물가 뉴스", "요약", "본문");
@@ -265,7 +265,7 @@ class NewsGenerationServiceTest {
             NewsSource.BOK,
             "base-rate:202607",
             "https://ecos.bok.or.kr",
-            Category.ECONOMY,
+            Category.STOCK,
             Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
     given(bokNewsPromptService.createPrompts()).willReturn(List.of(prompt));

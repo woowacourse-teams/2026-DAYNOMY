@@ -28,13 +28,13 @@ class NewsSearchServiceTest {
   @DisplayName("뉴스 검색은 검색어 공백을 제거하고 1-based 페이지를 Pageable로 변환한다")
   void searchNewsNormalizesKeywordAndPage() {
     PageRequest pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "publishedAt", "id"));
-    given(newsSearchRepository.search("금리", Category.BOND, NewsStatus.PUBLISHED, pageable))
+    given(newsSearchRepository.search("금리", Category.ETF, NewsStatus.PUBLISHED, pageable))
         .willReturn(Page.empty(pageable));
 
-    var response = newsSearchService.search("  금리  ", Category.BOND, 1, 20);
+    var response = newsSearchService.search("  금리  ", Category.ETF, 1, 20);
 
     assertThat(response.page()).isEqualTo(1);
-    then(newsSearchRepository).should().search("금리", Category.BOND, NewsStatus.PUBLISHED, pageable);
+    then(newsSearchRepository).should().search("금리", Category.ETF, NewsStatus.PUBLISHED, pageable);
   }
 
   @Test

@@ -110,7 +110,7 @@ class OpenAiNewsGeneratorTest {
             NewsSource.KOSIS,
             "consumer-price-index:202607",
             "https://kosis.example/consumer-price-index",
-            Category.ECONOMY,
+            Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "KOSIS 기사 작성 지침",
             "[KOSIS 참고 데이터]\n최신 값: 113.42");
@@ -143,7 +143,7 @@ class OpenAiNewsGeneratorTest {
             NewsSource.BOK,
             "base-rate:202607",
             "https://ecos.bok.or.kr",
-            Category.ECONOMY,
+            Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "한국은행 기사 작성 지침",
             "[한국은행 ECOS 참고 데이터]\n최신 값: 2.75");
