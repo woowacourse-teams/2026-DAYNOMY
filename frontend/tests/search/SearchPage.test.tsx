@@ -11,7 +11,6 @@ const originalFetch = globalThis.fetch;
 const article = {
   id: 1,
   title: '기준금리 동결 가능성 확대',
-  description: '기준금리가 유지되고 있습니다.',
   imageUrl: null,
   category: 'ECONOMY',
   publishedAt: '2026-08-14T10:00:00',
