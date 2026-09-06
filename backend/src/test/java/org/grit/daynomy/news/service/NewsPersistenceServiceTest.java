@@ -64,7 +64,6 @@ class NewsPersistenceServiceTest {
     assertThat(newsCaptor.getValue().getExternalId()).isEqualTo("20260817000001");
     assertThat(newsCaptor.getValue().getSourceUrl()).isEqualTo("https://dart.example/1");
     assertThat(newsCaptor.getValue().getImageUrl()).isEqualTo("image.png");
-    assertThat(newsCaptor.getValue().getDescription()).isNull();
     verify(keywordService).saveKeywords(newsCaptor.getValue(), keywords);
     verify(marketAnalysisService).saveMarketAnalysis(newsCaptor.getValue(), marketAnalysis);
   }

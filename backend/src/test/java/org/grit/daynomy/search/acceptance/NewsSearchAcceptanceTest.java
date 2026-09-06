@@ -63,7 +63,6 @@ class NewsSearchAcceptanceTest {
         News.createDraft(
             "기준금리 초안",
             "content",
-            "description",
             "image.png",
             NewsSource.DART,
             "search-draft",
@@ -92,7 +91,6 @@ class NewsSearchAcceptanceTest {
     return News.createPublished(
         title,
         "content",
-        "description",
         "image.png",
         NewsSource.DART,
         externalId,

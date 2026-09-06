@@ -84,7 +84,6 @@ class KeywordControllerTest {
             News.createDraft(
                 "draft news",
                 "content",
-                "description",
                 "image.png",
                 NewsSource.DART,
                 "draft-news",
@@ -121,7 +120,6 @@ class KeywordControllerTest {
     return News.createPublished(
         "keyword news",
         "content",
-        "description",
         "image.png",
         NewsSource.DART,
         "keyword-news",

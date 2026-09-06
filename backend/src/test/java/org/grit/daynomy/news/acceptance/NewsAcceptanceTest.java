@@ -70,7 +70,6 @@ class NewsAcceptanceTest {
         News.createDraft(
             "draft news",
             "content",
-            "description",
             "image.png",
             NewsSource.DART,
             "draft-1",
@@ -108,7 +107,6 @@ class NewsAcceptanceTest {
             News.createDraft(
                 "draft news",
                 "content",
-                "description",
                 "image.png",
                 NewsSource.DART,
                 "draft-1",
@@ -171,7 +169,6 @@ class NewsAcceptanceTest {
     return News.createPublished(
         title,
         "content",
-        "description",
         "image.png",
         NewsSource.DART,
         externalId,

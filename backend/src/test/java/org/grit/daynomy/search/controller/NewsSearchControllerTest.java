@@ -51,7 +51,6 @@ class NewsSearchControllerTest {
                     new NewsListItemResponse(
                         1L,
                         "기준금리 동결 가능성 확대",
-                        "기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다.",
                         "https://example.com/base-rate.webp",
                         Category.ETF,
                         Instant.parse("2026-08-14T10:00:00Z"))),
@@ -64,7 +63,6 @@ class NewsSearchControllerTest {
         .perform(get("/api/search/news").param("q", "금리").param("category", "ETF"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.content[0].category").value("ETF"))
-        .andExpect(jsonPath("$.content[0].description").value("기준금리가 유지되며 채권 시장의 관심이 커지고 있습니다."))
         .andExpect(jsonPath("$.content[0].imageUrl").value("https://example.com/base-rate.webp"))
         .andExpect(jsonPath("$.page").value(1))
         .andExpect(jsonPath("$.size").value(20));

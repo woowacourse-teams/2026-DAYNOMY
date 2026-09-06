@@ -40,7 +40,6 @@ class NewsServiceTest {
         News.createPublished(
             "title",
             "content",
-            "description",
             "image.png",
             NewsSource.DART,
             "external-1",
@@ -83,7 +82,6 @@ class NewsServiceTest {
         News.createPublished(
             "today news",
             "content",
-            "description",
             "image.png",
             NewsSource.DART,
             "external-1",
@@ -129,7 +127,6 @@ class NewsServiceTest {
         News.createPublished(
             "title",
             "content",
-            "description",
             "image.png",
             NewsSource.DART,
             "external-1",

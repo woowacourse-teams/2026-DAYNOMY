@@ -49,21 +49,19 @@ class NewsSearchRepositoryTest {
   @Autowired private NewsSearchRepository newsSearchRepository;
 
   @Test
-  @DisplayName("뉴스 검색 쿼리는 제목·설명·본문을 검색하고 카테고리·정렬·페이징을 적용한다")
+  @DisplayName("뉴스 검색 쿼리는 제목·본문을 검색하고 카테고리·정렬·페이징을 적용한다")
   void searchNewsByKeywordAndCategory() {
     entityManager.persist(
         createNews(
             "금리 제목 뉴스",
             "일반 본문",
-            "일반 설명",
             "title-match",
             Category.ETF,
             Instant.parse("2026-08-14T10:00:00Z")));
     entityManager.persist(
         createNews(
-            "설명 일치 뉴스",
-            "일반 본문",
-            "금리 설명",
+            "최신 본문 일치 뉴스",
+            "금리 본문",
             "description-match",
             Category.ETF,
             Instant.parse("2026-08-14T12:00:00Z")));
@@ -71,7 +69,6 @@ class NewsSearchRepositoryTest {
         createNews(
             "본문 일치 뉴스",
             "금리 본문",
-            "일반 설명",
             "content-match",
             Category.STOCK,
             Instant.parse("2026-08-14T11:00:00Z")));
@@ -79,7 +76,6 @@ class NewsSearchRepositoryTest {
         News.createDraft(
             "금리 초안 뉴스",
             "금리 본문",
-            "금리 설명",
             "image.png",
             NewsSource.DART,
             "draft-match",
@@ -97,11 +93,11 @@ class NewsSearchRepositoryTest {
 
     assertThat(allResults.getContent())
         .extracting(News::getTitle)
-        .containsExactly("설명 일치 뉴스", "본문 일치 뉴스", "금리 제목 뉴스");
+        .containsExactly("최신 본문 일치 뉴스", "본문 일치 뉴스", "금리 제목 뉴스");
     assertThat(etfPage.getContent())
         .singleElement()
         .extracting(News::getTitle)
-        .isEqualTo("설명 일치 뉴스");
+        .isEqualTo("최신 본문 일치 뉴스");
     assertThat(etfPage.getTotalElements()).isEqualTo(2);
     assertThat(etfPage.getTotalPages()).isEqualTo(2);
   }
@@ -113,7 +109,6 @@ class NewsSearchRepositoryTest {
         createNews(
             "금% 문자 뉴스",
             "퍼센트 문자 검색",
-            null,
             "percent-match",
             Category.REAL_ESTATE,
             Instant.parse("2026-08-14T10:00:00Z")));
@@ -121,7 +116,6 @@ class NewsSearchRepositoryTest {
         createNews(
             "금_ 문자 뉴스",
             "밑줄 문자 검색",
-            null,
             "underscore-match",
             Category.REAL_ESTATE,
             Instant.parse("2026-08-15T10:00:00Z")));
@@ -129,7 +123,6 @@ class NewsSearchRepositoryTest {
         createNews(
             "금리 일반 뉴스",
             "일반 검색",
-            null,
             "normal-news",
             Category.STOCK,
             Instant.parse("2026-08-16T10:00:00Z")));
@@ -151,16 +144,10 @@ class NewsSearchRepositoryTest {
   }
 
   private News createNews(
-      String title,
-      String content,
-      String description,
-      String externalId,
-      Category category,
-      Instant publishedAt) {
+      String title, String content, String externalId, Category category, Instant publishedAt) {
     return News.createPublished(
         title,
         content,
-        description,
         "image.png",
         NewsSource.DART,
         externalId,
