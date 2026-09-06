@@ -124,6 +124,54 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("관리자 뉴스 발행은 초안 뉴스를 발행 상태로 변경한다")
+  void publishNewsChangesDraftStatusToPublished() {
+    News news =
+        News.createAdminDraft(
+            "초안 뉴스", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    News publishedNews = adminNewsService.publish(1L);
+
+    assertThat(publishedNews).isSameAs(news);
+    assertThat(publishedNews.getStatus()).isEqualTo(NewsStatus.PUBLISHED);
+    assertThat(publishedNews.getPublishedAt()).isNotNull();
+  }
+
+  @Test
+  @DisplayName("존재하지 않는 뉴스 발행 요청은 예외를 던진다")
+  void publishNewsThrowsWhenNewsIsMissing() {
+    given(newsRepository.findById(1L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> adminNewsService.publish(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
+  }
+
+  @Test
+  @DisplayName("이미 발행된 뉴스는 다시 발행할 수 없다")
+  void publishNewsRejectsNonDraftNews() {
+    News news =
+        News.createPublished(
+            "발행 뉴스",
+            "뉴스 본문",
+            "뉴스 요약",
+            null,
+            null,
+            null,
+            "https://example.com/news/1",
+            Category.STOCK,
+            java.time.Instant.now());
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    assertThatThrownBy(() -> adminNewsService.publish(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.NEWS_NOT_DRAFT);
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 내용을 수정하고 기존 상태는 유지한다")
   void updateNewsChangesContentWithoutChangingStatus() {
     News news =
