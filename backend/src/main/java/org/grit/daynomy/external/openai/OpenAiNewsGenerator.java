@@ -41,7 +41,7 @@ public class OpenAiNewsGenerator {
   private static final Pattern AWKWARD_ATTRIBUTION_PATTERN =
       Pattern.compile("(?s)(?:에 따르면|따르면)[^.!?。！？\\n]{0,40}(?:밝혔다|전했다)");
   private static final List<String> FORBIDDEN_PHRASES =
-      List.of("요약:", "매수", "매도", "투자 권유", "급등", "급락", "주가 상승", "주가 하락");
+      List.of("매수", "매도", "투자 권유", "급등", "급락", "주가 상승", "주가 하락");
 
   private final OpenAiProperties openAiProperties;
   private final RestClient restClient;
