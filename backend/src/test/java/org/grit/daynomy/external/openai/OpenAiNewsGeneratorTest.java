@@ -52,7 +52,6 @@ class OpenAiNewsGeneratorTest {
     var generatedNews = generator.generate(prompt);
 
     assertThat(generatedNews.title()).isEqualTo("테스트 제목");
-    assertThat(generatedNews.description()).isEqualTo("테스트 요약");
     assertThat(generatedNews.content()).isEqualTo("테스트 본문");
   }
 
@@ -64,11 +63,9 @@ class OpenAiNewsGeneratorTest {
             new OpenAiProperties(
                 "test-key",
                 startServer(
-                    openAiResponse("테스트 제목", "테스트 요약.", "요약:\n- 핵심 내용"),
+                    openAiResponse("테스트 제목", "요약:\n- 핵심 내용"),
                     openAiResponse(
-                        "테스트 제목",
-                        "테스트 회사의 핵심 결정이 공시됐다. 운영자금 조달을 위한 유상증자가 진행된다.",
-                        "테스트 회사는 핵심 결정을 공시했다.\n\nDART 공시에 따르면 관련 일정과 금액이 공시에 기재됐다.")),
+                        "테스트 제목", "테스트 회사는 핵심 결정을 공시했다.\n\nDART 공시에 따르면 관련 일정과 금액이 공시에 기재됐다.")),
                 "test-model",
                 "image-model"));
     NewsPrompt prompt =
@@ -86,7 +83,8 @@ class OpenAiNewsGeneratorTest {
     assertThat(generatedNews.title()).isEqualTo("테스트 제목");
     assertThat(requestBodies).hasSize(2);
     assertThat(requestBodies.getFirst())
-        .contains("\"role\":\"developer\"", "\"role\":\"user\"", "DART 참고 데이터");
+        .contains("\"role\":\"developer\"", "\"role\":\"user\"", "DART 참고 데이터")
+        .doesNotContain("\"description\"");
     assertThat(requestBodies.get(1)).contains("[재작성 지침]");
   }
 
@@ -98,11 +96,9 @@ class OpenAiNewsGeneratorTest {
             new OpenAiProperties(
                 "test-key",
                 startServer(
-                    openAiResponse("물가 제목", "물가 요약", "첫 문단만 작성됨"),
+                    openAiResponse("물가 제목", "첫 문단만 작성됨"),
                     openAiResponse(
-                        "물가 제목",
-                        "소비자물가지수 최신 수치를 설명한 요약입니다.",
-                        "소비자물가지수는 최신 시점에 상승했다.\n\nKOSIS에 따르면 이전 시점보다 값이 높아졌다.")),
+                        "물가 제목", "소비자물가지수는 최신 시점에 상승했다.\n\nKOSIS에 따르면 이전 시점보다 값이 높아졌다.")),
                 "test-model",
                 "image-model"));
     NewsPrompt prompt =
@@ -133,9 +129,7 @@ class OpenAiNewsGeneratorTest {
                 "test-key",
                 startServer(
                     openAiResponse(
-                        "금리 제목",
-                        "기준금리 최신 수치를 설명한 요약입니다.",
-                        "한국은행 기준금리는 최신 시점에 유지됐다.\n\n한국은행 ECOS에 따르면 이전 시점과 같은 수준이다.")),
+                        "금리 제목", "한국은행 기준금리는 최신 시점에 유지됐다.\n\n한국은행 ECOS에 따르면 이전 시점과 같은 수준이다.")),
                 "test-model",
                 "image-model"));
     NewsPrompt prompt =
@@ -175,15 +169,13 @@ class OpenAiNewsGeneratorTest {
   }
 
   private String openAiResponse() {
-    return openAiResponse("테스트 제목", "테스트 요약", "테스트 본문");
+    return openAiResponse("테스트 제목", "테스트 본문");
   }
 
-  private String openAiResponse(String title, String description, String content) {
+  private String openAiResponse(String title, String content) {
     String outputText =
         "{\"title\":\""
             + title
-            + "\",\"description\":\""
-            + description
             + "\",\"content\":\""
             + content.replace("\\", "\\\\").replace("\n", "\\n")
             + "\"}";

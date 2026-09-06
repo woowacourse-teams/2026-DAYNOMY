@@ -55,7 +55,7 @@ class BokNewsPromptServiceTest {
             "정확히 2~4개 문단",
             "빈 줄 하나(\\n\\n)",
             "한국은행 ECOS에 따르면")
-        .doesNotContain("2.75", "[한국은행 ECOS 참고 데이터]");
+        .doesNotContain("2.75", "[한국은행 ECOS 참고 데이터]", "\"description\"", "[description]");
     assertThat(prompts.getFirst().sourceData())
         .contains("[한국은행 ECOS 참고 데이터]", "2.75", "증감률", "조회일자")
         .doesNotContain("경제 전문 기자");
