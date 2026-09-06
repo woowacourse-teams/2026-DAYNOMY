@@ -102,6 +102,15 @@ public class AdminNewsController {
     return ResponseEntity.ok(AdminNewsResponse.from(news));
   }
 
+  @Operation(summary = "뉴스 발행", description = "관리자용 초안 뉴스를 발행 상태로 변경합니다.")
+  @PostMapping("/{id}/publish")
+  public ResponseEntity<AdminNewsResponse> publishNews(
+      @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
+    News news = adminNewsService.publish(id);
+
+    return ResponseEntity.ok(AdminNewsResponse.from(news));
+  }
+
   @Operation(summary = "뉴스 수정", description = "관리자용 뉴스 내용을 수정합니다.")
   @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ResponseEntity<AdminNewsResponse> updateNews(

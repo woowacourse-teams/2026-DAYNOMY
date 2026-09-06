@@ -14,6 +14,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.grit.daynomy.common.BaseEntity;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.news.exception.NewsErrorCode;
 
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
@@ -167,6 +169,10 @@ public class News extends BaseEntity {
   }
 
   public void publish() {
+    if (status != NewsStatus.DRAFT) {
+      throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
+    }
+
     this.status = NewsStatus.PUBLISHED;
     this.publishedAt = Instant.now();
   }
