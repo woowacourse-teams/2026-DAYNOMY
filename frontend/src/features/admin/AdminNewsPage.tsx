@@ -8,7 +8,7 @@ import {
   CATEGORY_LABELS,
   NEWS_STATUS_LABELS,
 } from './constants';
-import { deleteAdminNews, getAdminNews } from './api';
+import { deleteAdminNews, getAdminNews, publishAdminNews } from './api';
 import type {
   AdminNewsFilterCategory,
   AdminNewsFilterStatus,
@@ -64,6 +64,7 @@ export function AdminNewsPage() {
   const [status, setStatus] = useState<AdminNewsFilterStatus>('ALL');
   const [category, setCategory] = useState<AdminNewsFilterCategory>('ALL');
   const [loading, setLoading] = useState(true);
+  const [publishingId, setPublishingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -125,6 +126,21 @@ export function AdminNewsPage() {
       setErrorMessage(getErrorMessage(error, '뉴스를 삭제하지 못했습니다.'));
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handlePublish(item: AdminNewsListItemResponse) {
+    if (!window.confirm(`'${item.title}' 뉴스를 발행할까요?`)) return;
+
+    setPublishingId(item.id);
+    setErrorMessage(null);
+    try {
+      await publishAdminNews(item.id);
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, '뉴스를 발행하지 못했습니다.'));
+    } finally {
+      setPublishingId(null);
     }
   }
 
@@ -227,6 +243,16 @@ export function AdminNewsPage() {
                     <td data-label="등록일">{formatDate(item.createdAt)}</td>
                     <td data-label="관리">
                       <div className="admin-row-actions">
+                        {item.status === 'DRAFT' ? (
+                          <button
+                            type="button"
+                            className="publish"
+                            disabled={publishingId === item.id}
+                            onClick={() => handlePublish(item)}
+                          >
+                            {publishingId === item.id ? '발행 중' : '발행'}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => navigate(`/admin/news/${item.id}/edit`)}

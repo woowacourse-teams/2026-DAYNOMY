@@ -166,6 +166,67 @@ describe('관리자 뉴스 화면', () => {
     expect(view.getByRole('button', { name: '2' }).getAttribute('aria-current')).toBe('page');
   });
 
+  it('초안 뉴스 발행 후 목록을 다시 불러온다', async () => {
+    const calls: Array<{ url: string; method?: string }> = [];
+    let listRequestCount = 0;
+    const publishedItem = { ...listItem, status: 'PUBLISHED', publishedAt: '2026-09-06T10:00:00Z' };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, method: init?.method });
+
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+
+        if (url.endsWith('/api/admin/news/1/publish')) {
+          return jsonResponse({
+            id: 1,
+            title: listItem.title,
+            content: '본문',
+            description: listItem.description,
+            imageUrl: null,
+            source: null,
+            sourceUrl: listItem.sourceUrl,
+            category: listItem.category,
+            publishedAt: publishedItem.publishedAt,
+            status: 'PUBLISHED',
+          });
+        }
+
+        listRequestCount += 1;
+        return jsonResponse({
+          items: [listRequestCount === 1 ? listItem : publishedItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const view = renderAdmin(<AdminNewsPage />);
+    expect(await view.findByRole('button', { name: '발행' })).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: '발행' }));
+
+    await waitFor(() => {
+      expect(
+        calls.some(
+          ({ url, method }) => url.endsWith('/api/admin/news/1/publish') && method === 'POST',
+        ),
+      ).toBe(true);
+      expect(view.queryByRole('button', { name: '발행' })).toBeNull();
+      expect(view.container.querySelector('.admin-status-published')?.textContent).toContain(
+        '발행됨',
+      );
+    });
+  });
+
   it('뉴스 등록 폼은 필수값과 URL 형식을 검증한다', async () => {
     vi.stubGlobal(
       'fetch',
