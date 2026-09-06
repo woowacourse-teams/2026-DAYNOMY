@@ -34,7 +34,7 @@ public class NewsSearchController {
     this.newsSearchService = newsSearchService;
   }
 
-  @Operation(summary = "뉴스 검색", description = "제목·설명·본문에서 키워드를 검색하고 카테고리와 페이지 조건을 적용합니다.")
+  @Operation(summary = "뉴스 검색", description = "제목·본문에서 키워드를 검색하고 카테고리와 페이지 조건을 적용합니다.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
