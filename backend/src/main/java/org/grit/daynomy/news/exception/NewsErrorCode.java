@@ -5,7 +5,7 @@ import org.springframework.http.HttpStatus;
 
 public enum NewsErrorCode implements ErrorCode {
   NEWS_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 뉴스를 찾을 수 없습니다."),
-  NEWS_NOT_DRAFT(HttpStatus.CONFLICT, "초안 상태의 뉴스만 발행할 수 있습니다."),
+  NEWS_NOT_DRAFT(HttpStatus.CONFLICT, "초안 상태의 뉴스만 발행 또는 거절할 수 있습니다."),
   INVALID_IMAGE_FILE(HttpStatus.BAD_REQUEST, "지원하지 않는 이미지 파일입니다.");
 
   private final HttpStatus status;

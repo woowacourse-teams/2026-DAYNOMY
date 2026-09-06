@@ -199,6 +199,45 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("관리자 뉴스 거절은 초안 뉴스를 거절 상태로 변경한다")
+  void rejectNewsChangesDraftStatusToRejected() {
+    News news =
+        News.createAdminDraft(
+            "초안 뉴스", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    News rejectedNews = adminNewsService.reject(1L);
+
+    assertThat(rejectedNews).isSameAs(news);
+    assertThat(rejectedNews.getStatus()).isEqualTo(NewsStatus.REJECTED);
+    assertThat(rejectedNews.getPublishedAt()).isNull();
+    verifyNoInteractions(
+        keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
+  }
+
+  @Test
+  @DisplayName("이미 발행된 뉴스는 거절할 수 없다")
+  void rejectNewsRejectsNonDraftNews() {
+    News news =
+        News.createPublished(
+            "발행 뉴스",
+            "뉴스 본문",
+            "뉴스 요약",
+            null,
+            null,
+            null,
+            "https://example.com/news/1",
+            Category.STOCK,
+            java.time.Instant.now());
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    assertThatThrownBy(() -> adminNewsService.reject(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.NEWS_NOT_DRAFT);
+  }
+
+  @Test
   @DisplayName("키워드 추출에 실패하면 뉴스는 초안 상태로 유지한다")
   void publishNewsKeepsDraftWhenKeywordExtractionFails() {
     News news =

@@ -178,6 +178,10 @@ public class News extends BaseEntity {
   }
 
   public void reject() {
+    if (status != NewsStatus.DRAFT) {
+      throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
+    }
+
     this.status = NewsStatus.REJECTED;
     this.publishedAt = null;
   }

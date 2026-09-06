@@ -99,6 +99,17 @@ public class AdminNewsService {
   }
 
   @Transactional
+  public News reject(Long id) {
+    News news =
+        newsRepository
+            .findById(id)
+            .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+
+    news.reject();
+    return news;
+  }
+
+  @Transactional
   public News update(Long id, AdminNewsUpdateRequest request, MultipartFile image) {
     News news =
         newsRepository
