@@ -190,4 +190,8 @@ public class News extends BaseEntity {
   public boolean isPublished() {
     return status == NewsStatus.PUBLISHED;
   }
+
+  public boolean isDraft() {
+    return status == NewsStatus.DRAFT;
+  }
 }
