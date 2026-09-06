@@ -13,6 +13,13 @@ import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.s3.S3ImageStorage;
+import org.grit.daynomy.keyword.ai.KeywordAiClient;
+import org.grit.daynomy.keyword.domain.KeywordCategory;
+import org.grit.daynomy.keyword.domain.NewsKeyword;
+import org.grit.daynomy.keyword.service.KeywordService;
+import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
+import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
@@ -40,6 +47,14 @@ class AdminNewsServiceTest {
   @Mock private NewsRepository newsRepository;
 
   @Mock private S3ImageStorage s3ImageStorage;
+
+  @Mock private KeywordAiClient keywordAiClient;
+
+  @Mock private MarketAnalysisAiClient marketAnalysisAiClient;
+
+  @Mock private KeywordService keywordService;
+
+  @Mock private MarketAnalysisService marketAnalysisService;
 
   @InjectMocks private AdminNewsService adminNewsService;
 
@@ -130,12 +145,21 @@ class AdminNewsServiceTest {
         News.createAdminDraft(
             "초안 뉴스", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    List<NewsKeyword> keywords =
+        List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
+    NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("시장 분석 결과");
+    given(keywordAiClient.extractKeywords("뉴스 본문")).willReturn(keywords);
+    given(marketAnalysisAiClient.analyze("뉴스 본문")).willReturn(marketAnalysis);
 
     News publishedNews = adminNewsService.publish(1L);
 
     assertThat(publishedNews).isSameAs(news);
     assertThat(publishedNews.getStatus()).isEqualTo(NewsStatus.PUBLISHED);
     assertThat(publishedNews.getPublishedAt()).isNotNull();
+    verify(keywordAiClient).extractKeywords("뉴스 본문");
+    verify(marketAnalysisAiClient).analyze("뉴스 본문");
+    verify(keywordService).saveKeywords(news, keywords);
+    verify(marketAnalysisService).saveMarketAnalysis(news, marketAnalysis);
   }
 
   @Test
@@ -169,6 +193,25 @@ class AdminNewsServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(NewsErrorCode.NEWS_NOT_DRAFT);
+
+    verifyNoInteractions(
+        keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
+  }
+
+  @Test
+  @DisplayName("키워드 추출에 실패하면 뉴스는 초안 상태로 유지한다")
+  void publishNewsKeepsDraftWhenKeywordExtractionFails() {
+    News news =
+        News.createAdminDraft(
+            "초안 뉴스", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    RuntimeException failure = new RuntimeException("keyword extraction failed");
+    given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure);
+
+    assertThatThrownBy(() -> adminNewsService.publish(1L)).isSameAs(failure);
+
+    assertThat(news.getStatus()).isEqualTo(NewsStatus.DRAFT);
+    verifyNoInteractions(marketAnalysisAiClient, keywordService, marketAnalysisService);
   }
 
   @Test
