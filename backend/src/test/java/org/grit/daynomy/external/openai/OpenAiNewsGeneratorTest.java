@@ -63,7 +63,7 @@ class OpenAiNewsGeneratorTest {
             new OpenAiProperties(
                 "test-key",
                 startServer(
-                    openAiResponse("테스트 제목", "요약:\n- 핵심 내용"),
+                    openAiResponse("테스트 제목", "매수:\n- 핵심 내용"),
                     openAiResponse(
                         "테스트 제목", "테스트 회사는 핵심 결정을 공시했다.\n\nDART 공시에 따르면 관련 일정과 금액이 공시에 기재됐다.")),
                 "test-model",
