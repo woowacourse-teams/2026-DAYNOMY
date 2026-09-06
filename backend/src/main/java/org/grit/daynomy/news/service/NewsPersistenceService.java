@@ -36,7 +36,6 @@ public class NewsPersistenceService {
         News.createPublished(
             generatedNews.title(),
             generatedNews.content(),
-            null,
             imageUrl,
             prompt.source(),
             prompt.externalId(),
