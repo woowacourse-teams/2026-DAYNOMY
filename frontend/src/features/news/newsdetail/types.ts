@@ -5,7 +5,6 @@ export type NewsDetailResponse = {
   title: string;
   category: Category;
   publishedAt: string;
-  description: string | null;
   content: string | string[];
   imageUrl?: string | null;
   source?: string | null;

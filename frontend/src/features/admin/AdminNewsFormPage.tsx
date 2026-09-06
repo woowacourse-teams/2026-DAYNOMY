@@ -9,7 +9,6 @@ import './admin.css';
 const initialValues: AdminNewsFormValues = {
   title: '',
   content: '',
-  description: '',
   sourceUrl: '',
   category: '',
 };
@@ -68,7 +67,6 @@ export function AdminNewsFormPage() {
         setValues({
           title: news.title,
           content: news.content,
-          description: news.description ?? '',
           sourceUrl: news.sourceUrl,
           category: news.category,
         });
@@ -210,15 +208,6 @@ export function AdminNewsFormPage() {
                 {errors.title}
               </small>
             ) : null}
-          </label>
-
-          <label className="admin-field">
-            <span>요약 설명</span>
-            <input
-              value={values.description}
-              onChange={(event) => updateField('description', event.target.value)}
-              placeholder="목록에 보여줄 뉴스 요약을 입력해 주세요"
-            />
           </label>
 
           <label className="admin-field">
