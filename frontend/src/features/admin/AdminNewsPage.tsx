@@ -8,7 +8,7 @@ import {
   CATEGORY_LABELS,
   NEWS_STATUS_LABELS,
 } from './constants';
-import { deleteAdminNews, getAdminNews, publishAdminNews } from './api';
+import { deleteAdminNews, getAdminNews, publishAdminNews, rejectAdminNews } from './api';
 import type {
   AdminNewsFilterCategory,
   AdminNewsFilterStatus,
@@ -65,6 +65,7 @@ export function AdminNewsPage() {
   const [category, setCategory] = useState<AdminNewsFilterCategory>('ALL');
   const [loading, setLoading] = useState(true);
   const [publishingId, setPublishingId] = useState<number | null>(null);
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -141,6 +142,21 @@ export function AdminNewsPage() {
       setErrorMessage(getErrorMessage(error, '뉴스를 발행하지 못했습니다.'));
     } finally {
       setPublishingId(null);
+    }
+  }
+
+  async function handleReject(item: AdminNewsListItemResponse) {
+    if (!window.confirm(`'${item.title}' 뉴스를 거절할까요?`)) return;
+
+    setRejectingId(item.id);
+    setErrorMessage(null);
+    try {
+      await rejectAdminNews(item.id);
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, '뉴스를 거절하지 못했습니다.'));
+    } finally {
+      setRejectingId(null);
     }
   }
 
@@ -251,6 +267,16 @@ export function AdminNewsPage() {
                             onClick={() => handlePublish(item)}
                           >
                             {publishingId === item.id ? '발행 중' : '발행'}
+                          </button>
+                        ) : null}
+                        {item.status === 'DRAFT' ? (
+                          <button
+                            type="button"
+                            className="reject"
+                            disabled={rejectingId === item.id}
+                            onClick={() => handleReject(item)}
+                          >
+                            {rejectingId === item.id ? '거절 중' : '거절'}
                           </button>
                         ) : null}
                         <button

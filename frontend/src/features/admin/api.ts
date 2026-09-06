@@ -160,6 +160,14 @@ export async function publishAdminNews(id: number) {
   return assertResponse(response, isAdminNewsResponse);
 }
 
+export async function rejectAdminNews(id: number) {
+  const response = await requestWithCsrf<unknown>(`/api/admin/news/${id}/reject`, {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminNewsResponse);
+}
+
 export async function deleteAdminNews(id: number) {
   return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
 }

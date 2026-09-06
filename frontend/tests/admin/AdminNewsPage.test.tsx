@@ -227,6 +227,67 @@ describe('관리자 뉴스 화면', () => {
     });
   });
 
+  it('초안 뉴스 거절 후 목록을 다시 불러온다', async () => {
+    const calls: Array<{ url: string; method?: string }> = [];
+    let listRequestCount = 0;
+    const rejectedItem = { ...listItem, status: 'REJECTED' };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, method: init?.method });
+
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+
+        if (url.endsWith('/api/admin/news/1/reject')) {
+          return jsonResponse({
+            id: 1,
+            title: listItem.title,
+            content: '본문',
+            description: listItem.description,
+            imageUrl: null,
+            source: null,
+            sourceUrl: listItem.sourceUrl,
+            category: listItem.category,
+            publishedAt: null,
+            status: 'REJECTED',
+          });
+        }
+
+        listRequestCount += 1;
+        return jsonResponse({
+          items: [listRequestCount === 1 ? listItem : rejectedItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const view = renderAdmin(<AdminNewsPage />);
+    expect(await view.findByRole('button', { name: '거절' })).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: '거절' }));
+
+    await waitFor(() => {
+      expect(
+        calls.some(
+          ({ url, method }) => url.endsWith('/api/admin/news/1/reject') && method === 'POST',
+        ),
+      ).toBe(true);
+      expect(view.queryByRole('button', { name: '거절' })).toBeNull();
+      expect(view.container.querySelector('.admin-status-rejected')?.textContent).toContain(
+        '반려됨',
+      );
+    });
+  });
+
   it('뉴스 등록 폼은 필수값과 URL 형식을 검증한다', async () => {
     vi.stubGlobal(
       'fetch',

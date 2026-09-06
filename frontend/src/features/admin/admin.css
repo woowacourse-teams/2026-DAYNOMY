@@ -477,6 +477,12 @@
 .admin-row-actions button.publish:hover {
   color: #065f37;
 }
+.admin-row-actions button.reject {
+  color: #a45b00;
+}
+.admin-row-actions button.reject:hover {
+  color: #7d4300;
+}
 .admin-row-actions button.danger {
   color: #c33b3b;
 }
