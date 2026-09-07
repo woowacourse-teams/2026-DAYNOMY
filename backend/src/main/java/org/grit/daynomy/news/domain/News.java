@@ -36,9 +36,6 @@ public class News extends BaseEntity {
   @Column(name = "content", columnDefinition = "TEXT", nullable = false)
   private String content;
 
-  @Column(name = "description", columnDefinition = "TEXT")
-  private String description;
-
   @Column(name = "image_url", columnDefinition = "TEXT")
   private String imageUrl;
 
@@ -66,7 +63,6 @@ public class News extends BaseEntity {
   private News(
       String title,
       String content,
-      String description,
       String imageUrl,
       NewsSource source,
       String externalId,
@@ -76,7 +72,6 @@ public class News extends BaseEntity {
       NewsStatus status) {
     this.title = title;
     this.content = content;
-    this.description = description;
     this.imageUrl = imageUrl;
     this.source = source;
     this.externalId = externalId;
@@ -89,7 +84,6 @@ public class News extends BaseEntity {
   public static News createPublished(
       String title,
       String content,
-      String description,
       String imageUrl,
       NewsSource source,
       String externalId,
@@ -99,7 +93,6 @@ public class News extends BaseEntity {
     return new News(
         title,
         content,
-        description,
         imageUrl,
         source,
         externalId,
@@ -112,55 +105,25 @@ public class News extends BaseEntity {
   public static News createDraft(
       String title,
       String content,
-      String description,
       String imageUrl,
       NewsSource source,
       String externalId,
       String sourceUrl,
       Category category) {
     return new News(
-        title,
-        content,
-        description,
-        imageUrl,
-        source,
-        externalId,
-        sourceUrl,
-        category,
-        null,
-        NewsStatus.DRAFT);
+        title, content, imageUrl, source, externalId, sourceUrl, category, null, NewsStatus.DRAFT);
   }
 
   public static News createAdminDraft(
-      String title,
-      String content,
-      String description,
-      String imageUrl,
-      String sourceUrl,
-      Category category) {
+      String title, String content, String imageUrl, String sourceUrl, Category category) {
     return new News(
-        title,
-        content,
-        description,
-        imageUrl,
-        null,
-        null,
-        sourceUrl,
-        category,
-        null,
-        NewsStatus.DRAFT);
+        title, content, imageUrl, null, null, sourceUrl, category, null, NewsStatus.DRAFT);
   }
 
   public void update(
-      String title,
-      String content,
-      String description,
-      String imageUrl,
-      String sourceUrl,
-      Category category) {
+      String title, String content, String imageUrl, String sourceUrl, Category category) {
     this.title = title;
     this.content = content;
-    this.description = description;
     this.imageUrl = imageUrl;
     this.sourceUrl = sourceUrl;
     this.category = category;

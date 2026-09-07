@@ -110,9 +110,7 @@ public class NewsGenerationService {
       byte[] image;
       try {
         generatedNews = openAiNewsGenerator.generate(prompt);
-        image =
-            openAiImageGenerator.generateNewsImage(
-                generatedNews.title(), generatedNews.description());
+        image = openAiImageGenerator.generateNewsImage(generatedNews.title());
       } catch (BusinessException exception) {
         if (!isAiGenerationFailure(exception)) {
           throw exception;

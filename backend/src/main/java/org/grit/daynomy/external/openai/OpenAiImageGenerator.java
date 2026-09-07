@@ -38,7 +38,7 @@ public class OpenAiImageGenerator {
             .build();
   }
 
-  public byte[] generateNewsImage(String title, String description) {
+  public byte[] generateNewsImage(String title) {
     try {
       log.info(
           "Requesting OpenAI image generation: model={}, title={}",
@@ -50,7 +50,7 @@ public class OpenAiImageGenerator {
               .uri("/images/generations")
               .header("Authorization", "Bearer " + openAiProperties.apiKey())
               .contentType(MediaType.APPLICATION_JSON)
-              .body(requestBody(imagePrompt(title, description)))
+              .body(requestBody(imagePrompt(title)))
               .retrieve()
               .body(String.class);
 
@@ -92,16 +92,15 @@ public class OpenAiImageGenerator {
         IMAGE_FORMAT);
   }
 
-  private String imagePrompt(String title, String description) {
+  private String imagePrompt(String title) {
     return """
         Create a clean editorial finance news thumbnail.
         Do not include text, logos, watermarks, company logos, people, or stock ticker symbols.
         Use abstract market, document, and business imagery suitable for a Korean financial news app.
 
         News title: %s
-        News summary: %s
         """
-        .formatted(title, description);
+        .formatted(title);
   }
 
   private String extractImage(String response) {

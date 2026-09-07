@@ -47,8 +47,7 @@ class AdminNewsServiceTest {
   @DisplayName("관리자 뉴스 등록은 수동 출처의 초안으로 저장한다")
   void createNewsSavesManualDraft() {
     AdminNewsCreateRequest request =
-        new AdminNewsCreateRequest(
-            "뉴스 제목", "뉴스 본문", "뉴스 요약", "https://example.com/news/1", Category.STOCK);
+        new AdminNewsCreateRequest("뉴스 제목", "뉴스 본문", "https://example.com/news/1", Category.STOCK);
     MockMultipartFile image =
         new MockMultipartFile("image", "news.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1, 2, 3});
     given(s3ImageStorage.upload(any(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE)))
@@ -78,8 +77,7 @@ class AdminNewsServiceTest {
   @DisplayName("관리자 뉴스 등록은 지원하지 않는 이미지 형식을 거부한다")
   void createNewsRejectsUnsupportedImage() {
     AdminNewsCreateRequest request =
-        new AdminNewsCreateRequest(
-            "뉴스 제목", "뉴스 본문", "뉴스 요약", "https://example.com/news/1", Category.STOCK);
+        new AdminNewsCreateRequest("뉴스 제목", "뉴스 본문", "https://example.com/news/1", Category.STOCK);
     MockMultipartFile image =
         new MockMultipartFile("image", "news.gif", MediaType.IMAGE_GIF_VALUE, new byte[] {1, 2, 3});
 
@@ -95,8 +93,7 @@ class AdminNewsServiceTest {
   @DisplayName("관리자 뉴스 목록을 상태와 함께 페이지로 조회한다")
   void getNewsPageReturnsNewsWithStatus() {
     News news =
-        News.createAdminDraft(
-            "초안 뉴스", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
+        News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
     PageRequest pageable = PageRequest.of(0, 15);
     given(newsRepository.findAdminNews(null, null, pageable))
         .willReturn(new PageImpl<>(List.of(news), pageable, 1));
@@ -113,8 +110,7 @@ class AdminNewsServiceTest {
   @DisplayName("관리자 뉴스 상세는 발행되지 않은 뉴스도 조회한다")
   void getNewsDetailReturnsDraftNews() {
     News news =
-        News.createAdminDraft(
-            "초안 뉴스", "뉴스 본문", "뉴스 요약", null, "https://example.com/news/1", Category.STOCK);
+        News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
     News foundNews = adminNewsService.getNewsDetail(1L);
@@ -130,13 +126,11 @@ class AdminNewsServiceTest {
         News.createAdminDraft(
             "기존 제목",
             "기존 본문",
-            "기존 요약",
             "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png",
             "https://example.com/old",
             Category.STOCK);
     AdminNewsUpdateRequest request =
-        new AdminNewsUpdateRequest(
-            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.BOND);
+        new AdminNewsUpdateRequest("수정 제목", "수정 본문", "https://example.com/new", Category.ETF);
     MockMultipartFile image =
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
@@ -150,10 +144,9 @@ class AdminNewsServiceTest {
 
       assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
       assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
-      assertThat(updatedNews.getDescription()).isEqualTo("수정 요약");
       assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
       assertThat(updatedNews.getSourceUrl()).isEqualTo("https://example.com/new");
-      assertThat(updatedNews.getCategory()).isEqualTo(Category.BOND);
+      assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
       assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
       verify(s3ImageStorage, never())
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
@@ -177,13 +170,11 @@ class AdminNewsServiceTest {
         News.createAdminDraft(
             "기존 제목",
             "기존 본문",
-            "기존 요약",
             "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png",
             "https://example.com/old",
             Category.STOCK);
     AdminNewsUpdateRequest request =
-        new AdminNewsUpdateRequest(
-            "수정 제목", "수정 본문", "수정 요약", "https://example.com/new", Category.BOND);
+        new AdminNewsUpdateRequest("수정 제목", "수정 본문", "https://example.com/new", Category.ETF);
     MockMultipartFile image =
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     S3ImageStorage.StoredImage uploadedImage =
@@ -212,7 +203,7 @@ class AdminNewsServiceTest {
                 adminNewsService.update(
                     1L,
                     new AdminNewsUpdateRequest(
-                        "수정 제목", "수정 본문", null, "https://example.com/new", Category.BOND),
+                        "수정 제목", "수정 본문", "https://example.com/new", Category.ETF),
                     null))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
@@ -226,7 +217,6 @@ class AdminNewsServiceTest {
         News.createAdminDraft(
             "뉴스 제목",
             "뉴스 본문",
-            "뉴스 요약",
             "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/news.png",
             "https://example.com/news/1",
             Category.STOCK);
