@@ -231,7 +231,6 @@ class AdminNewsControllerTest {
     willReturn(1L).given(news).getId();
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
-    willReturn("뉴스 요약").given(news).getDescription();
     willReturn(null).given(news).getImageUrl();
     willReturn(null).given(news).getSource();
     willReturn("https://example.com/news/1").given(news).getSourceUrl();
@@ -257,7 +256,6 @@ class AdminNewsControllerTest {
     willReturn(1L).given(news).getId();
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
-    willReturn("뉴스 요약").given(news).getDescription();
     willReturn(null).given(news).getImageUrl();
     willReturn(null).given(news).getSource();
     willReturn("https://example.com/news/1").given(news).getSourceUrl();
