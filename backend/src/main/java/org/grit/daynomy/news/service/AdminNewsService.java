@@ -22,6 +22,7 @@ import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -92,7 +93,12 @@ public class AdminNewsService {
     List<NewsKeyword> keywords = keywordAiClient.extractKeywords(news.getContent());
     NewsMarketAnalysis marketAnalysis = marketAnalysisAiClient.analyze(news.getContent());
     keywordService.saveKeywords(news, keywords);
-    marketAnalysisService.saveMarketAnalysis(news, marketAnalysis);
+    try {
+      marketAnalysisService.saveMarketAnalysis(news, marketAnalysis);
+      newsRepository.flush();
+    } catch (DataIntegrityViolationException exception) {
+      throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
+    }
     news.publish();
     return news;
   }

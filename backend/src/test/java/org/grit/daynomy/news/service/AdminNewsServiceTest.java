@@ -34,6 +34,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
@@ -155,6 +156,31 @@ class AdminNewsServiceTest {
     verify(keywordAiClient).extractKeywords("뉴스 본문");
     verify(marketAnalysisAiClient).analyze("뉴스 본문");
     verify(keywordService).saveKeywords(news, keywords);
+    verify(marketAnalysisService).saveMarketAnalysis(news, marketAnalysis);
+    verify(newsRepository).flush();
+  }
+
+  @Test
+  @DisplayName("이미 발행 처리된 뉴스의 시장 분석 중복 저장은 409 예외로 변환한다")
+  void publishNewsConvertsMarketAnalysisUniqueViolation() {
+    News news =
+        News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
+    List<NewsKeyword> keywords =
+        List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
+    NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("시장 분석 결과");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(keywordAiClient.extractKeywords("뉴스 본문")).willReturn(keywords);
+    given(marketAnalysisAiClient.analyze("뉴스 본문")).willReturn(marketAnalysis);
+    org.mockito.BDDMockito.willThrow(new DataIntegrityViolationException("duplicate news_id"))
+        .given(newsRepository)
+        .flush();
+
+    assertThatThrownBy(() -> adminNewsService.publish(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.NEWS_NOT_DRAFT);
+
+    assertThat(news.getStatus()).isEqualTo(NewsStatus.DRAFT);
     verify(marketAnalysisService).saveMarketAnalysis(news, marketAnalysis);
   }
 
