@@ -17,7 +17,6 @@ function jsonResponse(body: unknown, status = 200): Response {
 const listItem = {
   id: 1,
   title: '금리 인상 전망에 시장 주목',
-  description: '금리 결정에 대한 시장의 관심이 커지고 있습니다.',
   imageUrl: 'https://example.com/news.png',
   source: null,
   sourceUrl: 'https://example.com/news/1',
@@ -63,7 +62,6 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
     assert.deepEqual(JSON.parse(await requestPart.text()), {
       title: '새 뉴스',
       content: '본문',
-      description: '',
       sourceUrl: 'https://example.com/news',
       category: 'ECONOMY',
     });
@@ -74,7 +72,6 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
         id: 2,
         title: '새 뉴스',
         content: '본문',
-        description: null,
         imageUrl: null,
         source: null,
         sourceUrl: 'https://example.com/news',
@@ -90,7 +87,6 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
     {
       title: '새 뉴스',
       content: '본문',
-      description: '',
       sourceUrl: 'https://example.com/news',
       category: 'ECONOMY',
     },

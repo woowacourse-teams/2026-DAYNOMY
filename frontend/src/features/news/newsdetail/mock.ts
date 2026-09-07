@@ -17,8 +17,6 @@ export function getMockNewsDetail(newsId: string): NewsDetailPayload {
       title: 'ETF 순자산 증가, 분산 투자 수요 확대',
       category: 'ETF',
       publishedAt: '2026-08-24T00:00:00+09:00',
-      description:
-        '시장 변동성이 커지며 ETF 자금 유입이 이어집니다. 분산형 상품 선호가 강해지고 있습니다.',
       content: detailContent,
       imageUrl: newsDetailMainImage,
       source: 'DAYNOMY',

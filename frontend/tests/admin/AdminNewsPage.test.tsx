@@ -12,7 +12,6 @@ import { AdminNewsPage } from '../../src/features/admin/AdminNewsPage';
 const listItem = {
   id: 1,
   title: '금리 인상 전망에 시장 주목',
-  description: '금리 결정에 대한 시장의 관심이 커지고 있습니다.',
   imageUrl: null,
   source: null,
   sourceUrl: 'https://example.com/news/1',

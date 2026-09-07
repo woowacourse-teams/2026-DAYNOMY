@@ -13,8 +13,6 @@ import type { NewsListItem } from '../../src/features/news/newslist/types';
 const article = {
   id: 7,
   title: '기준금리 동결 가능성 확대',
-  description:
-    '기준금리가 유지되고 있습니다. 채권 시장의 관망세가 이어지고 있습니다. 추가 지표를 확인해야 합니다.',
   category: 'ECONOMY',
   imageUrl: null,
   publishedAt: '2026-08-27T10:00:00Z',
@@ -58,7 +56,6 @@ describe('뉴스 탐색 화면', () => {
     const image = view.container.querySelector('img')!;
 
     expect(image.getAttribute('src')).toBe('https://example.com/news.webp');
-    expect(view.queryByText(article.description)).toBeNull();
     expect(image.getAttribute('loading')).toBe('lazy');
     expect(image.getAttribute('decoding')).toBe('async');
 
@@ -109,7 +106,6 @@ describe('뉴스 탐색 화면', () => {
     expect(link.getAttribute('href')).toBe('/news/7');
     const todayBanner = view.getByRole('button', { name: '오늘의 뉴스' });
     expect(todayBanner.querySelector('p')).toBeNull();
-    expect(todayBanner.textContent).not.toContain(article.description);
     const categoryTabs = view.getByRole('navigation', { name: '뉴스 카테고리' });
     expect(categoryTabs.querySelectorAll('button')).toHaveLength(4);
     expect(view.getByRole('button', { name: '전체' })).toBeTruthy();
