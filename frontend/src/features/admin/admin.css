@@ -413,18 +413,6 @@
   color: #5144d8;
 }
 
-.admin-news-description {
-  display: block;
-  max-width: 640px;
-  margin-top: 4px;
-  overflow: hidden;
-  color: #8b94a6;
-  font-size: 13px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .admin-status {
   display: inline-flex;
   min-height: 26px;
@@ -798,8 +786,7 @@
   .admin-news-table td:first-child {
     width: auto;
   }
-  .admin-news-title,
-  .admin-news-description {
+  .admin-news-title {
     max-width: 100%;
   }
 }

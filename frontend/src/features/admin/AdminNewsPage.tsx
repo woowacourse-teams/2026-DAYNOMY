@@ -248,9 +248,6 @@ export function AdminNewsPage() {
                       <Link className="admin-news-title" to={`/admin/news/${item.id}/edit`}>
                         {item.title}
                       </Link>
-                      <span className="admin-news-description">
-                        {item.description || '설명 없음'}
-                      </span>
                     </td>
                     <td data-label="카테고리">{CATEGORY_LABELS[item.category]}</td>
                     <td data-label="상태">

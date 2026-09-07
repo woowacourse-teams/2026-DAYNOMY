@@ -1,9 +1,9 @@
-import { NEWS_CATEGORIES } from '../news/newslist/constants';
+import { NEWS_LIST_CATEGORIES } from '../news/newslist/constants';
 import { CATEGORY_LABELS } from '../news/newslist/types';
 import type { Category } from '../news/newslist/types';
 import type { AdminNewsFilterCategory, AdminNewsFilterStatus } from './types';
 
-export const ADMIN_NEWS_CATEGORIES = NEWS_CATEGORIES.filter(
+export const ADMIN_NEWS_CATEGORIES = NEWS_LIST_CATEGORIES.filter(
   (option): option is { label: string; value: Category } => option.value !== 'ALL',
 );
 

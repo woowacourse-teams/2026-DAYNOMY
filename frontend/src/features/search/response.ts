@@ -16,7 +16,6 @@ function isNewsListItemResponse(value: unknown): value is NewsListItemResponse {
   return (
     typeof article.id === 'number' &&
     typeof article.title === 'string' &&
-    (article.description === null || typeof article.description === 'string') &&
     (article.imageUrl === null || typeof article.imageUrl === 'string') &&
     isCategory(article.category) &&
     (article.publishedAt === null || typeof article.publishedAt === 'string')
