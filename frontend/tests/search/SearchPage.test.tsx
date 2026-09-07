@@ -103,6 +103,20 @@ afterEach(() => {
 });
 
 describe('뉴스 검색 화면', () => {
+  it('검색 카테고리를 전체, 주식, ETF, 부동산만 표시한다', () => {
+    axios.defaults.adapter = (async (config) =>
+      response(config, { content: [] })) satisfies AxiosAdapter;
+
+    const view = submitSearch('금리');
+    const categoryTabs = view.getByRole('navigation', { name: '뉴스 카테고리' });
+
+    expect(
+      within(categoryTabs)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['전체', '주식', 'ETF', '부동산']);
+  });
+
   it('검색 결과를 뉴스 링크로 표시한다', async () => {
     axios.defaults.adapter = (async (config) =>
       response(config, { content: [article] })) satisfies AxiosAdapter;
@@ -237,7 +251,7 @@ describe('뉴스 검색 화면', () => {
 
     const view = renderSearch(['/search?q=금리&category=ECONOMY&page=2']);
 
-    expect(view.getByRole('button', { name: '경제지표' }).className).toBe('active');
+    expect(view.queryByRole('button', { name: '경제지표' })).toBeNull();
     expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();
     await waitFor(() =>
       expect(document.activeElement).toBe(view.getByRole('heading', { name: '‘금리’ 뉴스' })),
@@ -266,8 +280,8 @@ describe('뉴스 검색 화면', () => {
       page: '1',
     });
 
-    fireEvent.click(view.getByRole('button', { name: '채권' }));
-    await waitFor(() => expect(getCurrentSearchParams(view.router).get('category')).toBe('BOND'));
+    fireEvent.click(view.getByRole('button', { name: 'ETF' }));
+    await waitFor(() => expect(getCurrentSearchParams(view.router).get('category')).toBe('ETF'));
     expect(getCurrentSearchParams(view.router).get('page')).toBe('1');
 
     fireEvent.click(view.getByRole('button', { name: '2' }));
@@ -280,8 +294,8 @@ describe('뉴스 검색 화면', () => {
 
     const view = submitSearch('금리');
     await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ });
-    fireEvent.click(view.getByRole('button', { name: '채권' }));
-    await waitFor(() => expect(getCurrentSearchParams(view.router).get('category')).toBe('BOND'));
+    fireEvent.click(view.getByRole('button', { name: 'ETF' }));
+    await waitFor(() => expect(getCurrentSearchParams(view.router).get('category')).toBe('ETF'));
 
     await act(async () => {
       await view.router.navigate(-1);
@@ -294,8 +308,8 @@ describe('뉴스 검색 화면', () => {
       await view.router.navigate(1);
     });
 
-    expect(getCurrentSearchParams(view.router).get('category')).toBe('BOND');
-    expect(view.getByRole('button', { name: '채권' }).className).toBe('active');
+    expect(getCurrentSearchParams(view.router).get('category')).toBe('ETF');
+    expect(view.getByRole('button', { name: 'ETF' }).className).toBe('active');
   });
 
   it('유효하지 않은 URL 카테고리와 페이지를 기본값으로 처리한다', async () => {
