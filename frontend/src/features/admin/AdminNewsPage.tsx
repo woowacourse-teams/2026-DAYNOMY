@@ -242,58 +242,72 @@ export function AdminNewsPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td data-label="뉴스">
-                      <Link className="admin-news-title" to={`/admin/news/${item.id}/edit`}>
-                        {item.title}
-                      </Link>
-                    </td>
-                    <td data-label="카테고리">{CATEGORY_LABELS[item.category]}</td>
-                    <td data-label="상태">
-                      <StatusBadge status={item.status} />
-                    </td>
-                    <td data-label="등록일">{formatDate(item.createdAt)}</td>
-                    <td data-label="관리">
-                      <div className="admin-row-actions">
-                        {item.status === 'DRAFT' ? (
+                {items.map((item) => {
+                  const isProcessing =
+                    publishingId === item.id || rejectingId === item.id || deletingId === item.id;
+
+                  return (
+                    <tr key={item.id}>
+                      <td data-label="뉴스">
+                        <Link
+                          className="admin-news-title"
+                          to={`/admin/news/${item.id}/edit`}
+                          aria-disabled={isProcessing}
+                          tabIndex={isProcessing ? -1 : undefined}
+                          onClick={(event) => {
+                            if (isProcessing) event.preventDefault();
+                          }}
+                        >
+                          {item.title}
+                        </Link>
+                      </td>
+                      <td data-label="카테고리">{CATEGORY_LABELS[item.category]}</td>
+                      <td data-label="상태">
+                        <StatusBadge status={item.status} />
+                      </td>
+                      <td data-label="등록일">{formatDate(item.createdAt)}</td>
+                      <td data-label="관리">
+                        <div className="admin-row-actions">
+                          {item.status === 'DRAFT' ? (
+                            <button
+                              type="button"
+                              className="publish"
+                              disabled={isProcessing}
+                              onClick={() => handlePublish(item)}
+                            >
+                              {publishingId === item.id ? '발행 중' : '발행'}
+                            </button>
+                          ) : null}
+                          {item.status === 'DRAFT' ? (
+                            <button
+                              type="button"
+                              className="reject"
+                              disabled={isProcessing}
+                              onClick={() => handleReject(item)}
+                            >
+                              {rejectingId === item.id ? '거절 중' : '거절'}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
-                            className="publish"
-                            disabled={publishingId === item.id}
-                            onClick={() => handlePublish(item)}
+                            disabled={isProcessing}
+                            onClick={() => navigate(`/admin/news/${item.id}/edit`)}
                           >
-                            {publishingId === item.id ? '발행 중' : '발행'}
+                            수정
                           </button>
-                        ) : null}
-                        {item.status === 'DRAFT' ? (
                           <button
                             type="button"
-                            className="reject"
-                            disabled={rejectingId === item.id}
-                            onClick={() => handleReject(item)}
+                            className="danger"
+                            disabled={isProcessing}
+                            onClick={() => handleDelete(item)}
                           >
-                            {rejectingId === item.id ? '거절 중' : '거절'}
+                            {deletingId === item.id ? '삭제 중' : '삭제'}
                           </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/admin/news/${item.id}/edit`)}
-                        >
-                          수정
-                        </button>
-                        <button
-                          type="button"
-                          className="danger"
-                          disabled={deletingId === item.id}
-                          onClick={() => handleDelete(item)}
-                        >
-                          {deletingId === item.id ? '삭제 중' : '삭제'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -413,6 +413,12 @@
   color: #5144d8;
 }
 
+.admin-news-title[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .admin-status {
   display: inline-flex;
   min-height: 26px;

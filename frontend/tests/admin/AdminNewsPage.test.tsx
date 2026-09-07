@@ -226,6 +226,67 @@ describe('관리자 뉴스 화면', () => {
     });
   });
 
+  it('뉴스의 액션 처리 중 같은 행의 다른 액션을 비활성화한다', async () => {
+    let resolvePublish: ((response: Response) => void) | undefined;
+    const publishResponse = new Promise<Response>((resolve) => {
+      resolvePublish = resolve;
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+
+        if (url.endsWith('/api/admin/news/1/publish') && init?.method === 'POST') {
+          return publishResponse;
+        }
+
+        return jsonResponse({
+          items: [listItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const view = renderAdmin(<AdminNewsPage />);
+    expect(await view.findByRole('button', { name: '발행' })).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: '발행' }));
+
+    await waitFor(() => {
+      expect(view.getByRole('button', { name: '발행 중' })).toHaveProperty('disabled', true);
+      expect(view.getByRole('button', { name: '거절' })).toHaveProperty('disabled', true);
+      expect(view.getByRole('button', { name: '수정' })).toHaveProperty('disabled', true);
+      expect(view.getByRole('button', { name: '삭제' })).toHaveProperty('disabled', true);
+      expect(view.getByRole('link', { name: listItem.title }).getAttribute('aria-disabled')).toBe(
+        'true',
+      );
+    });
+
+    resolvePublish?.(
+      jsonResponse({
+        id: 1,
+        title: listItem.title,
+        content: '본문',
+        imageUrl: null,
+        source: null,
+        sourceUrl: listItem.sourceUrl,
+        category: listItem.category,
+        publishedAt: '2026-09-06T10:00:00Z',
+        status: 'PUBLISHED',
+      }),
+    );
+  });
+
   it('초안 뉴스 거절 후 목록을 다시 불러온다', async () => {
     const calls: Array<{ url: string; method?: string }> = [];
     let listRequestCount = 0;
