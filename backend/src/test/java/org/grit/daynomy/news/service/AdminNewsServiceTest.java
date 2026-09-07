@@ -106,12 +106,12 @@ class AdminNewsServiceTest {
   }
 
   @Test
-  @DisplayName("관리자 뉴스 목록을 상태와 함께 페이지로 조회한다")
-  void getNewsPageReturnsNewsWithStatus() {
+  @DisplayName("관리자 뉴스 목록은 필터가 없으면 전체를 페이지로 조회한다")
+  void getNewsPageReturnsAllNewsWithoutFilters() {
     News news =
         News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
     PageRequest pageable = PageRequest.of(0, 15);
-    given(newsRepository.findAdminNews(null, null, pageable))
+    given(newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable))
         .willReturn(new PageImpl<>(List.of(news), pageable, 1));
 
     var response = adminNewsService.getNewsPage(1, 15, null, null);
@@ -119,7 +119,7 @@ class AdminNewsServiceTest {
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().getFirst().title()).isEqualTo("초안 뉴스");
     assertThat(response.items().getFirst().status()).isEqualTo(NewsStatus.DRAFT);
-    verify(newsRepository).findAdminNews(null, null, pageable);
+    verify(newsRepository).findAllByOrderByCreatedAtDescIdDesc(pageable);
   }
 
   @Test

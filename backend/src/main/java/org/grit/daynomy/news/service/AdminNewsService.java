@@ -67,8 +67,19 @@ public class AdminNewsService {
 
   public AdminNewsPageResponse getNewsPage(
       int page, int size, NewsStatus status, Category category) {
-    Page<News> newsPage =
-        newsRepository.findAdminNews(status, category, PageRequest.of(page - 1, size));
+    PageRequest pageable = PageRequest.of(page - 1, size);
+    Page<News> newsPage;
+    if (status == null && category == null) {
+      newsPage = newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable);
+    } else if (status == null) {
+      newsPage = newsRepository.findByCategoryOrderByCreatedAtDescIdDesc(category, pageable);
+    } else if (category == null) {
+      newsPage = newsRepository.findByStatusOrderByCreatedAtDescIdDesc(status, pageable);
+    } else {
+      newsPage =
+          newsRepository.findByStatusAndCategoryOrderByCreatedAtDescIdDesc(
+              status, category, pageable);
+    }
 
     return AdminNewsPageResponse.from(newsPage.map(AdminNewsListItemResponse::from));
   }
