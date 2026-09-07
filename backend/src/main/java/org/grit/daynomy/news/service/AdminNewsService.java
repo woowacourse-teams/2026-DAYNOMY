@@ -1,11 +1,18 @@
 package org.grit.daynomy.news.service;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.s3.S3ImageStorage;
+import org.grit.daynomy.keyword.ai.KeywordAiClient;
+import org.grit.daynomy.keyword.domain.NewsKeyword;
+import org.grit.daynomy.keyword.service.KeywordService;
+import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
+import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
@@ -15,6 +22,7 @@ import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -33,6 +41,10 @@ public class AdminNewsService {
 
   private final NewsRepository newsRepository;
   private final S3ImageStorage s3ImageStorage;
+  private final KeywordAiClient keywordAiClient;
+  private final MarketAnalysisAiClient marketAnalysisAiClient;
+  private final KeywordService keywordService;
+  private final MarketAnalysisService marketAnalysisService;
 
   @Transactional
   public News createDraft(AdminNewsCreateRequest request, MultipartFile image) {
@@ -65,6 +77,41 @@ public class AdminNewsService {
     return newsRepository
         .findById(id)
         .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+  }
+
+  @Transactional
+  public News publish(Long id) {
+    News news =
+        newsRepository
+            .findById(id)
+            .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+
+    if (!news.isDraft()) {
+      throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
+    }
+
+    List<NewsKeyword> keywords = keywordAiClient.extractKeywords(news.getContent());
+    NewsMarketAnalysis marketAnalysis = marketAnalysisAiClient.analyze(news.getContent());
+    keywordService.saveKeywords(news, keywords);
+    try {
+      marketAnalysisService.saveMarketAnalysis(news, marketAnalysis);
+      newsRepository.flush();
+    } catch (DataIntegrityViolationException exception) {
+      throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
+    }
+    news.publish();
+    return news;
+  }
+
+  @Transactional
+  public News reject(Long id) {
+    News news =
+        newsRepository
+            .findById(id)
+            .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+
+    news.reject();
+    return news;
   }
 
   @Transactional

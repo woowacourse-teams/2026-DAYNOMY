@@ -225,6 +225,56 @@ class AdminNewsControllerTest {
   }
 
   @Test
+  @DisplayName("관리자 뉴스 발행 API는 발행된 뉴스를 반환한다")
+  void publishNewsReturnsPublishedNews() throws Exception {
+    News news = mock(News.class);
+    willReturn(1L).given(news).getId();
+    willReturn("뉴스 제목").given(news).getTitle();
+    willReturn("뉴스 본문").given(news).getContent();
+    willReturn(null).given(news).getImageUrl();
+    willReturn(null).given(news).getSource();
+    willReturn("https://example.com/news/1").given(news).getSourceUrl();
+    willReturn(Category.STOCK).given(news).getCategory();
+    willReturn(java.time.Instant.parse("2026-09-06T00:00:00Z")).given(news).getPublishedAt();
+    willReturn(NewsStatus.PUBLISHED).given(news).getStatus();
+    willReturn(news).given(adminNewsService).publish(1L);
+
+    mockMvc
+        .perform(post("/api/admin/news/1/publish"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.title").value("뉴스 제목"))
+        .andExpect(jsonPath("$.status").value("PUBLISHED"));
+
+    then(adminNewsService).should().publish(1L);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 거절 API는 거절된 뉴스를 반환한다")
+  void rejectNewsReturnsRejectedNews() throws Exception {
+    News news = mock(News.class);
+    willReturn(1L).given(news).getId();
+    willReturn("뉴스 제목").given(news).getTitle();
+    willReturn("뉴스 본문").given(news).getContent();
+    willReturn(null).given(news).getImageUrl();
+    willReturn(null).given(news).getSource();
+    willReturn("https://example.com/news/1").given(news).getSourceUrl();
+    willReturn(Category.STOCK).given(news).getCategory();
+    willReturn(null).given(news).getPublishedAt();
+    willReturn(NewsStatus.REJECTED).given(news).getStatus();
+    willReturn(news).given(adminNewsService).reject(1L);
+
+    mockMvc
+        .perform(post("/api/admin/news/1/reject"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.title").value("뉴스 제목"))
+        .andExpect(jsonPath("$.status").value("REJECTED"));
+
+    then(adminNewsService).should().reject(1L);
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 수정 API는 수정 요청을 서비스에 전달하고 응답을 반환한다")
   void updateNewsReturnsUpdatedNews() throws Exception {
     News news = mock(News.class);
