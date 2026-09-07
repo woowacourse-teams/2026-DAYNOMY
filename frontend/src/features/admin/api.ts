@@ -150,6 +150,22 @@ export async function updateAdminNews(id: number, values: AdminNewsFormValues, i
   return assertResponse(response, isAdminNewsResponse);
 }
 
+export async function publishAdminNews(id: number) {
+  const response = await requestWithCsrf<unknown>(`/api/admin/news/${id}/publish`, {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminNewsResponse);
+}
+
+export async function rejectAdminNews(id: number) {
+  const response = await requestWithCsrf<unknown>(`/api/admin/news/${id}/reject`, {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminNewsResponse);
+}
+
 export async function deleteAdminNews(id: number) {
   return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
 }
