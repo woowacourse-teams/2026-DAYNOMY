@@ -51,20 +51,14 @@ class NewsRepositoryTest {
   void findAdminNewsFiltersByStatusAndCategory() {
     entityManager.persist(
         News.createAdminDraft(
-            "초안 주식 뉴스", "본문", "요약", null, "https://example.com/draft-stock", Category.STOCK));
+            "초안 주식 뉴스", "본문", null, "https://example.com/draft-stock", Category.STOCK));
     entityManager.persist(
         News.createAdminDraft(
-            "초안 부동산 뉴스",
-            "본문",
-            "요약",
-            null,
-            "https://example.com/draft-estate",
-            Category.REAL_ESTATE));
+            "초안 부동산 뉴스", "본문", null, "https://example.com/draft-estate", Category.REAL_ESTATE));
     entityManager.persist(
         News.createPublished(
             "발행 주식 뉴스",
             "본문",
-            "요약",
             null,
             NewsSource.DART,
             "published-stock",

@@ -25,7 +25,6 @@ export const NEWS_LIST_CATEGORIES: NewsCategoryOption[] = [
 const emptyTodayNews: NewsListItem = {
   id: 0,
   title: '오늘의 뉴스가 없습니다',
-  description: '오늘 발행된 뉴스가 있으면 이 영역에 표시됩니다.',
   category: 'ALL',
   imageUrl: null,
   publishedAt: null,

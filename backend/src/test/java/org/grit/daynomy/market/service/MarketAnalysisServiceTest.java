@@ -78,7 +78,6 @@ class MarketAnalysisServiceTest {
         News.createDraft(
             "draft news",
             "content",
-            "description",
             "image.png",
             NewsSource.DART,
             "draft-news",
@@ -109,7 +108,6 @@ class MarketAnalysisServiceTest {
     return News.createPublished(
         "market news",
         "content",
-        "description",
         "image.png",
         NewsSource.DART,
         "market-news",

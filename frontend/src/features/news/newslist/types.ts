@@ -29,7 +29,6 @@ export function getCategoryLabel(value: string) {
 export type NewsListItemResponse = {
   id: number;
   title: string;
-  description: string | null;
   category: Category;
   imageUrl: string | null;
   publishedAt: string | null;
@@ -38,7 +37,6 @@ export type NewsListItemResponse = {
 export type NewsListItem = {
   id: number | string;
   title: string;
-  description: string | null;
   category: NewsCategory;
   imageUrl: string | null;
   publishedAt: string | null;
@@ -61,7 +59,6 @@ export function toNewsListItem(response: NewsListItemResponse): NewsListItem {
   return {
     id: response.id,
     title: response.title,
-    description: response.description,
     category: response.category,
     imageUrl: response.imageUrl,
     publishedAt: response.publishedAt,

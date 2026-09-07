@@ -29,7 +29,7 @@ class OpenAiImageGeneratorTest {
             new OpenAiProperties(
                 "test-key", startServer(openAiImageResponse()), "text-model", "image-model"));
 
-    byte[] image = generator.generateNewsImage("제목", "요약");
+    byte[] image = generator.generateNewsImage("제목");
 
     assertThat(image).isEqualTo("image".getBytes(StandardCharsets.UTF_8));
   }

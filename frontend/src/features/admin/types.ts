@@ -6,7 +6,6 @@ export type AdminNewsSource = 'DART' | 'KOSIS' | 'BOK';
 export type AdminNewsListItemResponse = {
   id: number;
   title: string;
-  description: string | null;
   imageUrl: string | null;
   source: AdminNewsSource | null;
   sourceUrl: string;
@@ -29,7 +28,6 @@ export type AdminNewsResponse = {
   id: number;
   title: string;
   content: string;
-  description: string | null;
   imageUrl: string | null;
   source: AdminNewsSource | null;
   sourceUrl: string;
@@ -41,7 +39,6 @@ export type AdminNewsResponse = {
 export type AdminNewsFormValues = {
   title: string;
   content: string;
-  description: string;
   sourceUrl: string;
   category: Category | '';
 };

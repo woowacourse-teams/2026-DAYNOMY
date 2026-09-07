@@ -53,7 +53,6 @@ public class AdminNewsService {
           News.createAdminDraft(
               request.title(),
               request.content(),
-              request.description(),
               uploadedImage == null ? null : uploadedImage.publicUrl(),
               request.sourceUrl(),
               request.category());
@@ -121,7 +120,6 @@ public class AdminNewsService {
       news.update(
           request.title(),
           request.content(),
-          request.description(),
           uploadedImage == null ? previousImageUrl : uploadedImage.publicUrl(),
           request.sourceUrl(),
           request.category());

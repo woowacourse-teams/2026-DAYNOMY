@@ -50,20 +50,6 @@ function AppFooter() {
   return location.pathname.startsWith('/admin') ? null : <Footer />;
 }
 
-function RequireAuth({ children }: { children: ReactNode }) {
-  const { isLoggedIn, loading } = useAuth();
-
-  if (loading) {
-    return null;
-  }
-
-  if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-}
-
 function AdminRoute({ children }: { children: ReactNode }) {
   const { isLoggedIn, loading, role } = useAuth();
 
@@ -124,6 +110,7 @@ export default function App() {
               <Route path="/terms" element={<InfoPage page="terms" />} />
               <Route path="/privacy" element={<InfoPage page="privacy" />} />
               <Route path="/standard" element={<InfoPage page="standard" />} />
+              <Route path="/mypage" element={<MyPage />} />
               <Route
                 path="/admin"
                 element={
@@ -157,14 +144,6 @@ export default function App() {
                 }
               />
               <Route path="/signup" element={<Navigate to="/login" replace />} />
-              <Route
-                path="/mypage"
-                element={
-                  <RequireAuth>
-                    <MyPage />
-                  </RequireAuth>
-                }
-              />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </div>

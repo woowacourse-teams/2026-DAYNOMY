@@ -36,7 +36,6 @@ function isAdminNewsListItem(value: unknown): value is AdminNewsListItemResponse
     isRecord(value) &&
     typeof value.id === 'number' &&
     typeof value.title === 'string' &&
-    isNullableString(value.description) &&
     isNullableString(value.imageUrl) &&
     isAdminNewsSource(value.source) &&
     typeof value.sourceUrl === 'string' &&
@@ -66,7 +65,6 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
     typeof value.id === 'number' &&
     typeof value.title === 'string' &&
     typeof value.content === 'string' &&
-    isNullableString(value.description) &&
     isNullableString(value.imageUrl) &&
     isAdminNewsSource(value.source) &&
     typeof value.sourceUrl === 'string' &&

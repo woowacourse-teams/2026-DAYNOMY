@@ -61,7 +61,6 @@ class NewsKeywordRepositoryTest {
     return News.createPublished(
         title,
         "content",
-        "description",
         "image.png",
         NewsSource.DART,
         title,

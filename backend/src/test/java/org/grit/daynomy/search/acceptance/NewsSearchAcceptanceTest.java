@@ -56,24 +56,23 @@ class NewsSearchAcceptanceTest {
   @DisplayName("뉴스 검색 API는 실제 HTTP 요청의 검색어와 카테고리에 맞는 뉴스 페이지를 반환한다")
   void searchNews() {
     newsRepository.save(
-        createNews("기준금리 동결", "search-bond", Category.BOND, Instant.parse("2026-08-17T10:00:00Z")));
+        createNews("기준금리 동결", "search-etf", Category.ETF, Instant.parse("2026-08-17T10:00:00Z")));
     newsRepository.save(
         createNews("증시 반등", "search-stock", Category.STOCK, Instant.parse("2026-08-17T09:00:00Z")));
     newsRepository.save(
         News.createDraft(
             "기준금리 초안",
             "content",
-            "description",
             "image.png",
             NewsSource.DART,
             "search-draft",
             "https://example.com/search-draft",
-            Category.BOND));
+            Category.ETF));
 
     given()
         .port(port)
         .queryParam("q", "금리")
-        .queryParam("category", "BOND")
+        .queryParam("category", "ETF")
         .queryParam("page", 1)
         .queryParam("size", 20)
         .when()
@@ -82,7 +81,7 @@ class NewsSearchAcceptanceTest {
         .statusCode(200)
         .body("content", hasSize(1))
         .body("content[0].title", equalTo("기준금리 동결"))
-        .body("content[0].category", equalTo("BOND"))
+        .body("content[0].category", equalTo("ETF"))
         .body("page", equalTo(1))
         .body("size", equalTo(20))
         .body("totalElements", equalTo(1));
@@ -92,7 +91,6 @@ class NewsSearchAcceptanceTest {
     return News.createPublished(
         title,
         "content",
-        "description",
         "image.png",
         NewsSource.DART,
         externalId,
