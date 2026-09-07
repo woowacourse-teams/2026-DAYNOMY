@@ -10,7 +10,6 @@ import org.grit.daynomy.news.domain.NewsStatus;
 public record AdminNewsListItemResponse(
     @Schema(description = "뉴스 ID", example = "1") Long id,
     @Schema(description = "뉴스 제목", example = "뉴스 제목") String title,
-    @Schema(description = "뉴스 요약 설명", example = "뉴스 요약") String description,
     @Schema(description = "뉴스 이미지 URL", example = "https://example.com/news.png") String imageUrl,
     @Schema(description = "원문 데이터 출처", example = "DART") NewsSource source,
     @Schema(description = "원문 URL", example = "https://example.com/news/1") String sourceUrl,
@@ -23,7 +22,6 @@ public record AdminNewsListItemResponse(
     return new AdminNewsListItemResponse(
         news.getId(),
         news.getTitle(),
-        news.getDescription(),
         news.getImageUrl(),
         news.getSource(),
         news.getSourceUrl(),

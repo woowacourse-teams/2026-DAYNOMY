@@ -55,7 +55,6 @@ class NewsControllerTest {
                     new NewsListItemResponse(
                         1L,
                         "stock news",
-                        "description",
                         "image.png",
                         Category.STOCK,
                         Instant.parse("2026-08-17T10:00:00Z"))),
@@ -150,7 +149,6 @@ class NewsControllerTest {
                     new NewsListItemResponse(
                         1L,
                         "today news",
-                        "description",
                         "image.png",
                         Category.REAL_ESTATE,
                         Instant.parse("2026-08-21T09:00:00Z"))),
@@ -194,7 +192,6 @@ class NewsControllerTest {
                 1L,
                 "detail news",
                 "content",
-                "description",
                 "image.png",
                 NewsSource.DART,
                 "https://example.com/1",

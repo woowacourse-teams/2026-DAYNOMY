@@ -49,29 +49,26 @@ class NewsSearchRepositoryTest {
   @Autowired private NewsSearchRepository newsSearchRepository;
 
   @Test
-  @DisplayName("뉴스 검색 쿼리는 제목·설명·본문을 검색하고 카테고리·정렬·페이징을 적용한다")
+  @DisplayName("뉴스 검색 쿼리는 제목·본문을 검색하고 카테고리·정렬·페이징을 적용한다")
   void searchNewsByKeywordAndCategory() {
     entityManager.persist(
         createNews(
             "금리 제목 뉴스",
             "일반 본문",
-            "일반 설명",
             "title-match",
-            Category.BOND,
+            Category.ETF,
             Instant.parse("2026-08-14T10:00:00Z")));
     entityManager.persist(
         createNews(
-            "설명 일치 뉴스",
-            "일반 본문",
-            "금리 설명",
+            "최신 본문 일치 뉴스",
+            "금리 본문",
             "description-match",
-            Category.BOND,
+            Category.ETF,
             Instant.parse("2026-08-14T12:00:00Z")));
     entityManager.persist(
         createNews(
             "본문 일치 뉴스",
             "금리 본문",
-            "일반 설명",
             "content-match",
             Category.STOCK,
             Instant.parse("2026-08-14T11:00:00Z")));
@@ -79,31 +76,30 @@ class NewsSearchRepositoryTest {
         News.createDraft(
             "금리 초안 뉴스",
             "금리 본문",
-            "금리 설명",
             "image.png",
             NewsSource.DART,
             "draft-match",
             "https://example.com/draft-match",
-            Category.BOND));
+            Category.ETF));
     entityManager.flush();
 
     Sort latestFirst = Sort.by(Sort.Direction.DESC, "publishedAt", "id");
     var allResults =
         newsSearchRepository.search(
             "금리", null, NewsStatus.PUBLISHED, PageRequest.of(0, 10, latestFirst));
-    var bondPage =
+    var etfPage =
         newsSearchRepository.search(
-            "금리", Category.BOND, NewsStatus.PUBLISHED, PageRequest.of(0, 1, latestFirst));
+            "금리", Category.ETF, NewsStatus.PUBLISHED, PageRequest.of(0, 1, latestFirst));
 
     assertThat(allResults.getContent())
         .extracting(News::getTitle)
-        .containsExactly("설명 일치 뉴스", "본문 일치 뉴스", "금리 제목 뉴스");
-    assertThat(bondPage.getContent())
+        .containsExactly("최신 본문 일치 뉴스", "본문 일치 뉴스", "금리 제목 뉴스");
+    assertThat(etfPage.getContent())
         .singleElement()
         .extracting(News::getTitle)
-        .isEqualTo("설명 일치 뉴스");
-    assertThat(bondPage.getTotalElements()).isEqualTo(2);
-    assertThat(bondPage.getTotalPages()).isEqualTo(2);
+        .isEqualTo("최신 본문 일치 뉴스");
+    assertThat(etfPage.getTotalElements()).isEqualTo(2);
+    assertThat(etfPage.getTotalPages()).isEqualTo(2);
   }
 
   @Test
@@ -113,25 +109,22 @@ class NewsSearchRepositoryTest {
         createNews(
             "금% 문자 뉴스",
             "퍼센트 문자 검색",
-            null,
             "percent-match",
-            Category.GOLD,
+            Category.REAL_ESTATE,
             Instant.parse("2026-08-14T10:00:00Z")));
     entityManager.persist(
         createNews(
             "금_ 문자 뉴스",
             "밑줄 문자 검색",
-            null,
             "underscore-match",
-            Category.GOLD,
+            Category.REAL_ESTATE,
             Instant.parse("2026-08-15T10:00:00Z")));
     entityManager.persist(
         createNews(
             "금리 일반 뉴스",
             "일반 검색",
-            null,
             "normal-news",
-            Category.BOND,
+            Category.STOCK,
             Instant.parse("2026-08-16T10:00:00Z")));
     entityManager.flush();
 
@@ -151,16 +144,10 @@ class NewsSearchRepositoryTest {
   }
 
   private News createNews(
-      String title,
-      String content,
-      String description,
-      String externalId,
-      Category category,
-      Instant publishedAt) {
+      String title, String content, String externalId, Category category, Instant publishedAt) {
     return News.createPublished(
         title,
         content,
-        description,
         "image.png",
         NewsSource.DART,
         externalId,
