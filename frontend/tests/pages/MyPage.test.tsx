@@ -1,12 +1,19 @@
 /** @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import MyPage from '../../src/features/pages/components/MyPage';
 import {
   STOCK_BOOKMARK_DETAILS_STORAGE_KEY,
   STOCK_BOOKMARK_STORAGE_KEY,
 } from '../../src/features/stocks/constants';
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
 
 afterEach(() => {
   cleanup();
@@ -36,6 +43,55 @@ describe('마이페이지', () => {
     expect(view.getByText('1개')).toBeTruthy();
     expect(view.getByText('삼성전자')).toBeTruthy();
     expect(view.getByText('005930')).toBeTruthy();
+  });
+
+  it('기존 코드만 저장된 관심자산은 종목 목록 API로 이름을 보정한다', async () => {
+    localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(['005930']));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          baseDate: '2026-08-27',
+          rankings: [{ rank: 1, code: '005930', name: '삼성전자' }],
+          page: 1,
+          size: 100,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        }),
+      ),
+    );
+
+    const view = render(<MyPage />);
+
+    expect(await view.findByText('삼성전자')).toBeTruthy();
+    expect(view.getByText('005930')).toBeTruthy();
+    await waitFor(() =>
+      expect(localStorage.getItem(STOCK_BOOKMARK_DETAILS_STORAGE_KEY)).toContain('삼성전자'),
+    );
+  });
+
+  it('기존 코드만 저장된 관심자산을 보정할 수 없으면 코드를 이름으로 표시한다', async () => {
+    localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(['000000']));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          baseDate: '2026-08-27',
+          rankings: [],
+          page: 1,
+          size: 100,
+          totalPages: 0,
+          totalElements: 0,
+          hasNext: false,
+        }),
+      ),
+    );
+
+    const view = render(<MyPage />);
+
+    expect(view.getByRole('heading', { name: '000000' })).toBeTruthy();
+    expect(view.getAllByText('000000')).toHaveLength(2);
   });
 
   it('관심자산 북마크를 해제하면 로컬 스토리지에서도 제거한다', async () => {

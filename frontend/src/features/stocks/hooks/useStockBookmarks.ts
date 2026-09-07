@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { trackEvent } from '../../../analytics';
 import { STOCK_BOOKMARK_DETAILS_STORAGE_KEY, STOCK_BOOKMARK_STORAGE_KEY } from '../constants';
+import { searchKosdaqTopStocks } from '../api';
 import type { StockCandidate } from '../types';
 import { readStringArrayStorage } from '../utils';
 
@@ -55,6 +56,45 @@ export function useStockBookmarks() {
   useEffect(() => {
     localStorage.setItem(STOCK_BOOKMARK_DETAILS_STORAGE_KEY, JSON.stringify(bookmarkedDetails));
   }, [bookmarkedDetails]);
+
+  useEffect(() => {
+    const missingCodes = bookmarkedCodes.filter((code) => !bookmarkedDetails[code]);
+
+    if (missingCodes.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    Promise.all(
+      missingCodes.map(async (code) => {
+        try {
+          const response = await searchKosdaqTopStocks(code);
+          return response.rankings.find((stock) => stock.code === code) ?? null;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((stocks) => {
+      if (cancelled) {
+        return;
+      }
+
+      const resolvedStocks = stocks.filter((stock): stock is StockCandidate => stock !== null);
+      if (resolvedStocks.length === 0) {
+        return;
+      }
+
+      setBookmarkedDetails((currentDetails) => ({
+        ...currentDetails,
+        ...Object.fromEntries(resolvedStocks.map((stock) => [stock.code, stock])),
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookmarkedCodes, bookmarkedDetails]);
 
   function removeBookmark(code: string) {
     setBookmarkedCodes((currentCodes) =>
