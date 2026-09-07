@@ -47,7 +47,7 @@ class NewsRepositoryTest {
   @Autowired private NewsRepository newsRepository;
 
   @Test
-  @DisplayName("관리자 뉴스 목록 쿼리는 상태와 카테고리로 필터링한다")
+  @DisplayName("관리자 뉴스 목록 조회는 필터 조합별로 동작한다")
   void findAdminNewsFiltersByStatusAndCategory() {
     entityManager.persist(
         News.createAdminDraft(
@@ -67,14 +67,24 @@ class NewsRepositoryTest {
             java.time.Instant.parse("2026-08-17T10:00:00Z")));
     entityManager.flush();
 
-    var drafts = newsRepository.findAdminNews(NewsStatus.DRAFT, null, PageRequest.of(0, 10));
-    var stockNews = newsRepository.findAdminNews(null, Category.STOCK, PageRequest.of(0, 10));
+    var pageable = PageRequest.of(0, 10);
+    var allNews = newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable);
+    var drafts = newsRepository.findByStatusOrderByCreatedAtDescIdDesc(NewsStatus.DRAFT, pageable);
+    var stockNews =
+        newsRepository.findByCategoryOrderByCreatedAtDescIdDesc(Category.STOCK, pageable);
+    var draftStockNews =
+        newsRepository.findByStatusAndCategoryOrderByCreatedAtDescIdDesc(
+            NewsStatus.DRAFT, Category.STOCK, pageable);
 
+    assertThat(allNews.getContent())
+        .extracting(News::getTitle)
+        .containsExactlyInAnyOrder("발행 주식 뉴스", "초안 부동산 뉴스", "초안 주식 뉴스");
     assertThat(drafts.getContent())
         .extracting(News::getTitle)
         .containsExactlyInAnyOrder("초안 주식 뉴스", "초안 부동산 뉴스");
     assertThat(stockNews.getContent())
         .extracting(News::getTitle)
         .containsExactlyInAnyOrder("초안 주식 뉴스", "발행 주식 뉴스");
+    assertThat(draftStockNews.getContent()).extracting(News::getTitle).containsExactly("초안 주식 뉴스");
   }
 }
