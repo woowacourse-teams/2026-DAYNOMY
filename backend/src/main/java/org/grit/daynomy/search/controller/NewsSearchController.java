@@ -34,7 +34,7 @@ public class NewsSearchController {
     this.newsSearchService = newsSearchService;
   }
 
-  @Operation(summary = "뉴스 검색", description = "제목·설명·본문에서 키워드를 검색하고 카테고리와 페이지 조건을 적용합니다.")
+  @Operation(summary = "뉴스 검색", description = "제목·본문에서 키워드를 검색하고 카테고리와 페이지 조건을 적용합니다.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -53,7 +53,7 @@ public class NewsSearchController {
           @Size(max = 100, message = "검색어는 100자 이하여야 합니다.")
           @Pattern(regexp = ".*[\\p{L}\\p{N}].*", message = "올바른 검색어를 입력해주세요.")
           String keyword,
-      @Parameter(description = "카테고리. 생략하면 전체 검색", example = "BOND") @RequestParam(required = false)
+      @Parameter(description = "카테고리. 생략하면 전체 검색", example = "ETF") @RequestParam(required = false)
           Category category,
       @Parameter(description = "페이지 번호(1부터 시작)", example = "1")
           @RequestParam(defaultValue = "1")

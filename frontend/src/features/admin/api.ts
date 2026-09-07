@@ -36,7 +36,6 @@ function isAdminNewsListItem(value: unknown): value is AdminNewsListItemResponse
     isRecord(value) &&
     typeof value.id === 'number' &&
     typeof value.title === 'string' &&
-    isNullableString(value.description) &&
     isNullableString(value.imageUrl) &&
     isAdminNewsSource(value.source) &&
     typeof value.sourceUrl === 'string' &&
@@ -66,7 +65,6 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
     typeof value.id === 'number' &&
     typeof value.title === 'string' &&
     typeof value.content === 'string' &&
-    isNullableString(value.description) &&
     isNullableString(value.imageUrl) &&
     isAdminNewsSource(value.source) &&
     typeof value.sourceUrl === 'string' &&
@@ -147,6 +145,22 @@ export async function updateAdminNews(id: number, values: AdminNewsFormValues, i
   const response = await requestWithCsrf<unknown>(`/api/admin/news/${id}`, {
     method: 'PUT',
     body: createNewsFormData(values, image),
+  });
+
+  return assertResponse(response, isAdminNewsResponse);
+}
+
+export async function publishAdminNews(id: number) {
+  const response = await requestWithCsrf<unknown>(`/api/admin/news/${id}/publish`, {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminNewsResponse);
+}
+
+export async function rejectAdminNews(id: number) {
+  const response = await requestWithCsrf<unknown>(`/api/admin/news/${id}/reject`, {
+    method: 'POST',
   });
 
   return assertResponse(response, isAdminNewsResponse);

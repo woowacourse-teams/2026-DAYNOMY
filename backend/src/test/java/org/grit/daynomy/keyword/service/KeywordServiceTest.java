@@ -122,7 +122,6 @@ class KeywordServiceTest {
     return News.createPublished(
         "keyword news",
         "content",
-        "description",
         "image.png",
         NewsSource.DART,
         "keyword-news",

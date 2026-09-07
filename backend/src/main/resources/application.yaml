@@ -91,7 +91,7 @@ external:
         view-code: MT_ZTITLE
         user-stats-id: ${KOSIS_CONSUMER_PRICE_INDEX_USER_STATS_ID:}
         period: M
-        category: ECONOMY
+        category: STOCK
         source-organization: 국가데이터처
         survey-name: 소비자물가조사
         table-name: 소비자물가지수
@@ -101,7 +101,7 @@ external:
         view-code: MT_ZTITLE
         user-stats-id: ${KOSIS_EMPLOYMENT_RATE_USER_STATS_ID:}
         period: M
-        category: ECONOMY
+        category: STOCK
         source-organization: 국가데이터처
         survey-name: 경제활동인구조사
         table-name: 고용률 및 실업률
@@ -116,7 +116,7 @@ external:
         name: 한국은행 기준금리
         statistic-code: ${BOK_BASE_RATE_STATISTIC_CODE:}
         cycle: M
-        category: ECONOMY
+        category: STOCK
         source-organization: 한국은행
         statistic-name: 한국은행 기준금리 및 여수신금리
         item-name: 한국은행 기준금리
@@ -126,7 +126,7 @@ external:
         name: 원/달러 환율
         statistic-code: ${BOK_EXCHANGE_RATE_USD_STATISTIC_CODE:}
         cycle: D
-        category: FOREIGN_EXCHANGE
+        category: STOCK
         source-organization: 한국은행
         statistic-name: 주요국 통화의 대원화환율
         item-name: 원/달러

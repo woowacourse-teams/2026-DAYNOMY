@@ -18,7 +18,6 @@ test('뉴스 목록 API에 1-based page를 요청하고 백엔드 응답을 매�
         {
           id: 1,
           title: 'stock news',
-          description: 'summary',
           imageUrl: 'https://example.com/news.png',
           category: 'STOCK',
           publishedAt: '2026-08-19T10:00:00',
@@ -40,7 +39,6 @@ test('뉴스 목록 API에 1-based page를 요청하고 백엔드 응답을 매�
       {
         id: 1,
         title: 'stock news',
-        description: 'summary',
         category: 'STOCK',
         imageUrl: 'https://example.com/news.png',
         publishedAt: '2026-08-19T10:00:00',
@@ -75,7 +73,6 @@ test('오늘의 뉴스 API 응답에서 여러 건을 매핑한다', async () =>
         {
           id: 1,
           title: 'today news',
-          description: 'summary',
           imageUrl: null,
           category: 'ECONOMY',
           publishedAt: '2026-08-28T10:00:00Z',
@@ -83,7 +80,6 @@ test('오늘의 뉴스 API 응답에서 여러 건을 매핑한다', async () =>
         {
           id: 2,
           title: 'another today news',
-          description: 'summary 2',
           imageUrl: null,
           category: 'STOCK',
           publishedAt: '2026-08-28T09:00:00Z',

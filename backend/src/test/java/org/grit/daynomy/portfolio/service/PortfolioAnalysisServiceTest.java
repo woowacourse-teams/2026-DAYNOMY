@@ -164,7 +164,6 @@ class PortfolioAnalysisServiceTest {
     return News.createPublished(
         "뉴스 제목",
         "뉴스 본문",
-        "뉴스 설명",
         "image.png",
         NewsSource.DART,
         "external-1",

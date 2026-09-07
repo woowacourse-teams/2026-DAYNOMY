@@ -20,7 +20,6 @@ public interface NewsSearchRepository extends Repository<News, Long> {
         AND (:category IS NULL OR n.category = :category)
         AND (
           LOWER(n.title) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
-          OR LOWER(n.description) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
           OR LOWER(n.content) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
         )
       """)

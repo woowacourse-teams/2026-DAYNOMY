@@ -4,6 +4,8 @@ import {
   createAdminNews,
   getAdminNews,
   isSupportedNewsImage,
+  publishAdminNews,
+  rejectAdminNews,
   syncAdminAssetRankings,
 } from '../../src/features/admin/api.ts';
 
@@ -17,7 +19,6 @@ function jsonResponse(body: unknown, status = 200): Response {
 const listItem = {
   id: 1,
   title: '금리 인상 전망에 시장 주목',
-  description: '금리 결정에 대한 시장의 관심이 커지고 있습니다.',
   imageUrl: 'https://example.com/news.png',
   source: null,
   sourceUrl: 'https://example.com/news/1',
@@ -63,7 +64,6 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
     assert.deepEqual(JSON.parse(await requestPart.text()), {
       title: '새 뉴스',
       content: '본문',
-      description: '',
       sourceUrl: 'https://example.com/news',
       category: 'ECONOMY',
     });
@@ -74,7 +74,6 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
         id: 2,
         title: '새 뉴스',
         content: '본문',
-        description: null,
         imageUrl: null,
         source: null,
         sourceUrl: 'https://example.com/news',
@@ -90,7 +89,6 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
     {
       title: '새 뉴스',
       content: '본문',
-      description: '',
       sourceUrl: 'https://example.com/news',
       category: 'ECONOMY',
     },
@@ -101,6 +99,57 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
   assert.deepEqual(
     calls.map(({ url }) => url),
     ['/api/auth/csrf', '/api/admin/news'],
+  );
+});
+
+test('관리자 뉴스 발행 API는 CSRF 토큰과 함께 발행 요청을 보낸다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    if (String(input) === '/api/auth/csrf') {
+      return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+    }
+
+    assert.equal(String(input), '/api/admin/news/1/publish');
+    assert.equal(init?.method, 'POST');
+    assert.equal(new Headers(init?.headers).get('X-CSRF-TOKEN'), 'csrf-token');
+    return jsonResponse({
+      ...listItem,
+      content: '본문',
+      status: 'PUBLISHED',
+      publishedAt: '2026-09-06T10:00:00Z',
+    });
+  };
+
+  const news = await publishAdminNews(1);
+
+  assert.equal(news.status, 'PUBLISHED');
+  assert.deepEqual(
+    calls.map(({ url }) => url),
+    ['/api/auth/csrf', '/api/admin/news/1/publish'],
+  );
+});
+
+test('관리자 뉴스 거절 API는 CSRF 토큰과 함께 거절 요청을 보낸다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    if (String(input) === '/api/auth/csrf') {
+      return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+    }
+
+    assert.equal(String(input), '/api/admin/news/1/reject');
+    assert.equal(init?.method, 'POST');
+    assert.equal(new Headers(init?.headers).get('X-CSRF-TOKEN'), 'csrf-token');
+    return jsonResponse({ ...listItem, content: '본문', status: 'REJECTED' });
+  };
+
+  const news = await rejectAdminNews(1);
+
+  assert.equal(news.status, 'REJECTED');
+  assert.deepEqual(
+    calls.map(({ url }) => url),
+    ['/api/auth/csrf', '/api/admin/news/1/reject'],
   );
 });
 

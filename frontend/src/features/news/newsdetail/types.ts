@@ -5,7 +5,6 @@ export type NewsDetailResponse = {
   title: string;
   category: Category;
   publishedAt: string;
-  description: string | null;
   content: string | string[];
   imageUrl?: string | null;
   source?: string | null;
@@ -29,8 +28,11 @@ export type MarketAnalysisResponse = {
   summary: string;
 };
 
+export type MarketAnalysisState =
+  { status: 'success'; data: MarketAnalysisResponse } | { status: 'empty' } | { status: 'error' };
+
 export type NewsDetailPayload = {
   news: NewsDetailResponse;
   keywords: KeywordResponse[];
-  marketAnalysis?: MarketAnalysisResponse;
+  marketAnalysis: MarketAnalysisState;
 };
