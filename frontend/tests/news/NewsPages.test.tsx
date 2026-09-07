@@ -252,6 +252,24 @@ describe('뉴스 탐색 화면', () => {
     expect(view.container.querySelector('.news-image')?.hasAttribute('loading')).toBe(false);
   });
 
+  it('뉴스 상세 API 실패 시 목데이터 대신 오류 안내를 표시한다', async () => {
+    window.history.replaceState(null, '', '/news/7');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}, 500)),
+    );
+
+    const view = renderPage(<NewsDetailPage />);
+
+    const errorMessage = await view.findByRole('alert');
+    expect(errorMessage.textContent).toBe(
+      '뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    );
+    expect(
+      view.queryByRole('heading', { name: 'ETF 순자산 증가, 분산 투자 수요 확대' }),
+    ).toBeNull();
+  });
+
   it('시장 분석 데이터가 없어도 뉴스 본문과 데이터 없음 안내를 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     vi.stubGlobal(

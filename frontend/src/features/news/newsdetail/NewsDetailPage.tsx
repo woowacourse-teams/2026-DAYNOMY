@@ -5,7 +5,6 @@ import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
-import { getMockNewsDetail } from './mock.ts';
 import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
@@ -89,17 +88,35 @@ export function NewsDetailPage() {
   };
 
   useEffect(() => {
+    let ignore = false;
+
     trackEvent('view_news_detail', { news_id: newsId });
+    setPayload(undefined);
     setError('');
     getNewsDetail(newsId)
-      .then(setPayload)
-      .catch(() => setPayload(getMockNewsDetail(newsId)));
+      .then((nextPayload) => {
+        if (!ignore) {
+          setPayload(nextPayload);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setPayload(undefined);
+          setError('뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, [newsId]);
 
   if (error) {
     return (
       <main className="news-page">
-        <p className="loading">{error}</p>
+        <p className="loading" role="alert">
+          {error}
+        </p>
       </main>
     );
   }
