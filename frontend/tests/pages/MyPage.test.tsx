@@ -71,6 +71,39 @@ describe('마이페이지', () => {
     );
   });
 
+  it('상세 정보의 저장 key와 종목 코드가 다르면 무시하고 다시 보정한다', async () => {
+    localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(['005930']));
+    localStorage.setItem(
+      STOCK_BOOKMARK_DETAILS_STORAGE_KEY,
+      JSON.stringify({
+        '005930': { rank: 2, code: '000660', name: 'SK하이닉스' },
+      }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          baseDate: '2026-08-27',
+          rankings: [{ rank: 1, code: '005930', name: '삼성전자' }],
+          page: 1,
+          size: 100,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        }),
+      ),
+    );
+
+    const view = render(<MyPage />);
+
+    expect(await view.findByText('삼성전자')).toBeTruthy();
+    expect(view.queryByText('SK하이닉스')).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 북마크 해제' }));
+
+    await waitFor(() => expect(localStorage.getItem(STOCK_BOOKMARK_STORAGE_KEY)).toBe('[]'));
+  });
+
   it('기존 코드만 저장된 관심자산을 보정할 수 없으면 코드를 이름으로 표시한다', async () => {
     localStorage.setItem(STOCK_BOOKMARK_STORAGE_KEY, JSON.stringify(['000000']));
     vi.stubGlobal(

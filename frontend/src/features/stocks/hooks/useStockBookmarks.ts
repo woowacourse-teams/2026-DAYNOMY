@@ -23,6 +23,7 @@ function readStockBookmarkDetailsStorage() {
         typeof value === 'object' &&
         !Array.isArray(value) &&
         typeof (value as StockCandidate).code === 'string' &&
+        (value as StockCandidate).code === code &&
         typeof (value as StockCandidate).name === 'string' &&
         typeof (value as StockCandidate).rank === 'number'
       ) {
