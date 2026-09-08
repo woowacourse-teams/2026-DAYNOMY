@@ -23,6 +23,8 @@ import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsListItemResponse;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
+import org.grit.daynomy.news.dto.NewsSourceRequest;
+import org.grit.daynomy.news.dto.NewsSourceResponse;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.grit.daynomy.news.service.NewsGenerationService;
 import org.junit.jupiter.api.DisplayName;
@@ -62,13 +64,21 @@ class AdminNewsControllerTest {
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
     willReturn("https://example.com/image.png").given(news).getImageUrl();
-    willReturn(null).given(news).getSource();
-    willReturn("https://example.com/news/1").given(news).getSourceUrl();
+    willReturn(
+            java.util.List.of(
+                new org.grit.daynomy.news.domain.NewsSourceInfo(
+                    "직접 입력", "https://example.com/news/1")))
+        .given(news)
+        .getSources();
     willReturn(Category.STOCK).given(news).getCategory();
     willReturn(null).given(news).getPublishedAt();
     willReturn(NewsStatus.DRAFT).given(news).getStatus();
     AdminNewsCreateRequest request =
-        new AdminNewsCreateRequest("뉴스 제목", "뉴스 본문", "https://example.com/news/1", Category.STOCK);
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            java.util.List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
     MockMultipartFile requestPart =
         new MockMultipartFile(
             "request",
@@ -78,7 +88,7 @@ class AdminNewsControllerTest {
             {
               "title": "뉴스 제목",
               "content": "뉴스 본문",
-              "sourceUrl": "https://example.com/news/1",
+              "sources": [{"name": "직접 입력", "url": "https://example.com/news/1"}],
               "category": "STOCK"
             }
             """
@@ -92,7 +102,7 @@ class AdminNewsControllerTest {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.title").value("뉴스 제목"))
-        .andExpect(jsonPath("$.source").doesNotExist())
+        .andExpect(jsonPath("$.sources[0].name").value("직접 입력"))
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
     then(adminNewsService).should().createDraft(eq(request), eq(image));
@@ -110,7 +120,7 @@ class AdminNewsControllerTest {
             {
               "title": "",
               "content": "뉴스 본문",
-              "sourceUrl": "https://example.com/news/1"
+              "sources": [{"name": "직접 입력", "url": "https://example.com/news/1"}]
             }
             """
                 .getBytes());
@@ -174,8 +184,8 @@ class AdminNewsControllerTest {
                         1L,
                         "초안 뉴스",
                         null,
-                        null,
-                        "https://example.com/news/1",
+                        java.util.List.of(
+                            new NewsSourceResponse("직접 입력", "https://example.com/news/1")),
                         Category.STOCK,
                         null,
                         NewsStatus.DRAFT,
@@ -206,8 +216,6 @@ class AdminNewsControllerTest {
     willReturn("초안 뉴스").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
     willReturn(null).given(news).getImageUrl();
-    willReturn(null).given(news).getSource();
-    willReturn("https://example.com/news/1").given(news).getSourceUrl();
     willReturn(Category.STOCK).given(news).getCategory();
     willReturn(null).given(news).getPublishedAt();
     willReturn(NewsStatus.DRAFT).given(news).getStatus();
@@ -232,8 +240,6 @@ class AdminNewsControllerTest {
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
     willReturn(null).given(news).getImageUrl();
-    willReturn(null).given(news).getSource();
-    willReturn("https://example.com/news/1").given(news).getSourceUrl();
     willReturn(Category.STOCK).given(news).getCategory();
     willReturn(java.time.Instant.parse("2026-09-06T00:00:00Z")).given(news).getPublishedAt();
     willReturn(NewsStatus.PUBLISHED).given(news).getStatus();
@@ -257,8 +263,6 @@ class AdminNewsControllerTest {
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
     willReturn(null).given(news).getImageUrl();
-    willReturn(null).given(news).getSource();
-    willReturn("https://example.com/news/1").given(news).getSourceUrl();
     willReturn(Category.STOCK).given(news).getCategory();
     willReturn(null).given(news).getPublishedAt();
     willReturn(NewsStatus.REJECTED).given(news).getStatus();
@@ -282,13 +286,15 @@ class AdminNewsControllerTest {
     willReturn("수정 제목").given(news).getTitle();
     willReturn("수정 본문").given(news).getContent();
     willReturn("new-image.png").given(news).getImageUrl();
-    willReturn(null).given(news).getSource();
-    willReturn("https://example.com/new").given(news).getSourceUrl();
     willReturn(Category.ETF).given(news).getCategory();
     willReturn(null).given(news).getPublishedAt();
     willReturn(NewsStatus.DRAFT).given(news).getStatus();
     AdminNewsUpdateRequest request =
-        new AdminNewsUpdateRequest("수정 제목", "수정 본문", "https://example.com/new", Category.ETF);
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            java.util.List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.ETF);
     MockMultipartFile requestPart =
         new MockMultipartFile(
             "request",
@@ -298,7 +304,7 @@ class AdminNewsControllerTest {
             {
               "title": "수정 제목",
               "content": "수정 본문",
-              "sourceUrl": "https://example.com/new",
+              "sources": [{"name": "직접 입력", "url": "https://example.com/new"}],
               "category": "ETF"
             }
             """
