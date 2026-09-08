@@ -39,9 +39,7 @@ class NewsPersistenceServiceTest {
   void saveSavesNews() {
     NewsPrompt prompt =
         new NewsPrompt(
-            "DART",
-            "20260817000001",
-            "https://dart.example/1",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
@@ -65,9 +63,7 @@ class NewsPersistenceServiceTest {
   void savePersistsNewsWithoutSourceIdentityCheck() {
     NewsPrompt prompt =
         new NewsPrompt(
-            "DART",
-            "20260817000001",
-            "https://dart.example/1",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import java.util.List;
 import org.grit.daynomy.external.kosis.dto.KosisDataItem;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,9 +37,9 @@ class KosisNewsPromptServiceTest {
     var prompts = service.createPrompts();
 
     assertThat(prompts).hasSize(1);
-    assertThat(prompts.getFirst().sourceName()).isEqualTo("KOSIS");
+    assertThat(prompts.getFirst().sources())
+        .containsExactly(new NewsSourceInfo("KOSIS", "https://kosis.kr"));
     assertThat(prompts.getFirst().category()).isEqualTo(Category.STOCK);
-    assertThat(prompts.getFirst().externalId()).isEqualTo("consumer-price-index:202607");
     assertThat(prompts.getFirst().instruction())
         .contains(
             "경제 전문 기자", "JSON 형식으로만", "불릿, 번호 목록, 표", "정확히 2~4개 문단", "빈 줄 하나(\\n\\n)", "KOSIS에 따르면")

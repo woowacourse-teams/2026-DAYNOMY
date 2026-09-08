@@ -24,6 +24,7 @@ import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,9 +78,7 @@ class NewsGenerationServiceTest {
     LocalDate endDate = LocalDate.of(2026, 8, 17);
     NewsPrompt prompt =
         new NewsPrompt(
-            "DART",
-            "20260817000001",
-            "https://dart.example/1",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
@@ -105,17 +104,13 @@ class NewsGenerationServiceTest {
     LocalDate date = LocalDate.of(2026, 8, 17);
     NewsPrompt failedPrompt =
         new NewsPrompt(
-            "DART",
-            "failed",
-            "https://dart.example/failed",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/failed")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "failed prompt");
     NewsPrompt successfulPrompt =
         new NewsPrompt(
-            "DART",
-            "successful",
-            "https://dart.example/successful",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/successful")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "successful prompt");
@@ -143,9 +138,7 @@ class NewsGenerationServiceTest {
     LocalDate endDate = LocalDate.of(2026, 8, 17);
     NewsPrompt prompt =
         new NewsPrompt(
-            "DART",
-            "20260817000001",
-            "https://dart.example/1",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
@@ -168,9 +161,7 @@ class NewsGenerationServiceTest {
   void generateKosisNewsSavesGeneratedNews() {
     NewsPrompt prompt =
         new NewsPrompt(
-            "KOSIS",
-            "consumer-price-index:202607",
-            "https://kosis.kr",
+            List.of(new NewsSourceInfo("KOSIS", "https://kosis.kr")),
             Category.STOCK,
             Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
@@ -191,9 +182,7 @@ class NewsGenerationServiceTest {
   void generateKosisNewsIncludesSavedNews() {
     NewsPrompt prompt =
         new NewsPrompt(
-            "KOSIS",
-            "consumer-price-index:202607",
-            "https://kosis.kr",
+            List.of(new NewsSourceInfo("KOSIS", "https://kosis.kr")),
             Category.STOCK,
             Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
@@ -215,9 +204,7 @@ class NewsGenerationServiceTest {
   void generateBokNewsSavesGeneratedNews() {
     NewsPrompt prompt =
         new NewsPrompt(
-            "한국은행",
-            "base-rate:202607",
-            "https://ecos.bok.or.kr",
+            List.of(new NewsSourceInfo("한국은행", "https://ecos.bok.or.kr")),
             Category.STOCK,
             Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
