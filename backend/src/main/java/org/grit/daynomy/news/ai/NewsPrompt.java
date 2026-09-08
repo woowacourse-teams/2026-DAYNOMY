@@ -1,25 +1,20 @@
 package org.grit.daynomy.news.ai;
 
 import java.time.Instant;
+import java.util.List;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 
 public record NewsPrompt(
-    String sourceName,
-    String externalId,
-    String sourceUrl,
+    List<NewsSourceInfo> sources,
     Category category,
     Instant publishedAt,
     String instruction,
     String sourceData) {
 
   public NewsPrompt(
-      String sourceName,
-      String externalId,
-      String sourceUrl,
-      Category category,
-      Instant publishedAt,
-      String prompt) {
-    this(sourceName, externalId, sourceUrl, category, publishedAt, prompt, "");
+      List<NewsSourceInfo> sources, Category category, Instant publishedAt, String prompt) {
+    this(sources, category, publishedAt, prompt, "");
   }
 
   public String prompt() {
@@ -34,5 +29,9 @@ public record NewsPrompt(
 
   public boolean hasStructuredInput() {
     return sourceData != null && !sourceData.isBlank();
+  }
+
+  public List<String> sourceNames() {
+    return sources.stream().map(NewsSourceInfo::name).toList();
   }
 }

@@ -18,6 +18,7 @@ import org.grit.daynomy.external.dart.dto.DartDisclosureItem;
 import org.grit.daynomy.external.dart.dto.DartMergerDecisionItem;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -108,9 +109,7 @@ public class DartNewsPromptMapper {
 
   private NewsPrompt createPrompt(DartDisclosureItem disclosure, String data) {
     return new NewsPrompt(
-        "DART",
-        disclosure.rceptNo(),
-        DART_DISCLOSURE_URL + disclosure.rceptNo(),
+        List.of(new NewsSourceInfo("DART", DART_DISCLOSURE_URL + disclosure.rceptNo())),
         Category.STOCK,
         parsePublishedAt(disclosure.rceptDt()),
         instruction(),

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.external.kosis.dto.KosisDataItem;
 import org.grit.daynomy.news.ai.NewsPrompt;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -97,9 +98,7 @@ public class KosisNewsPromptService {
 
     return Optional.of(
         new NewsPrompt(
-            "KOSIS",
-            indicator.key() + ":" + latest.period(),
-            KOSIS_URL,
+            List.of(new NewsSourceInfo("KOSIS", KOSIS_URL)),
             indicator.category(),
             Instant.now(),
             instruction(),

@@ -88,10 +88,11 @@ public class NewsGenerationService {
     int savedCount = 0;
     int skippedCount = 0;
     for (NewsPrompt prompt : prompts) {
+      String promptSourceNames =
+          prompt.sourceNames().isEmpty() ? "직접 입력" : String.join(", ", prompt.sourceNames());
       log.info(
-          "Generating news with AI: source={}, externalId={}, category={}, publishedAt={}",
-          prompt.sourceName(),
-          prompt.externalId(),
+          "Generating news with AI: source={}, category={}, publishedAt={}",
+          promptSourceNames,
           prompt.category(),
           prompt.publishedAt());
       GeneratedNews generatedNews;
@@ -105,9 +106,8 @@ public class NewsGenerationService {
         }
         skippedCount++;
         log.warn(
-            "Skipping news after AI generation failure: source={}, externalId={}, errorCode={}",
-            prompt.sourceName(),
-            prompt.externalId(),
+            "Skipping news after AI generation failure: source={}, errorCode={}",
+            promptSourceNames,
             exception.errorCode().code());
         continue;
       }
@@ -120,10 +120,7 @@ public class NewsGenerationService {
 
       savedCount++;
       log.info(
-          "Saved generated news: source={}, externalId={}, title={}",
-          prompt.sourceName(),
-          prompt.externalId(),
-          generatedNews.title());
+          "Saved generated news: source={}, title={}", promptSourceNames, generatedNews.title());
     }
 
     log.info(

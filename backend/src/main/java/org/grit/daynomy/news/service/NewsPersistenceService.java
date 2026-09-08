@@ -9,7 +9,6 @@ import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +33,7 @@ public class NewsPersistenceService {
             generatedNews.title(),
             generatedNews.content(),
             imageUrl,
-            List.of(new NewsSourceInfo(prompt.sourceName(), prompt.sourceUrl())),
+            prompt.sources(),
             prompt.category(),
             prompt.publishedAt());
     newsRepository.save(news);

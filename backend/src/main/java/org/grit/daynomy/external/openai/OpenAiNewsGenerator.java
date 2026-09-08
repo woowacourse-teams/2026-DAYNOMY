@@ -58,53 +58,47 @@ public class OpenAiNewsGenerator {
   }
 
   public GeneratedNews generate(NewsPrompt prompt) {
+    List<String> sourceNames = sourceNames(prompt);
+    String sourceName = String.join(", ", sourceNames);
     try {
       log.info(
-          "Requesting OpenAI news generation: model={}, source={}, externalId={}",
+          "Requesting OpenAI news generation: model={}, source={}",
           openAiProperties.model(),
-          prompt.sourceName(),
-          prompt.externalId());
+          sourceName);
       GeneratedNews generatedNews = requestNews(prompt, "");
       if (shouldValidate(prompt)) {
-        ValidationResult validation = validateNews(prompt.sourceName(), generatedNews);
+        ValidationResult validation = validateNews(sourceNames, generatedNews);
         if (!validation.valid()) {
           log.warn(
-              "Generated news failed content validation: source={}, externalId={}, violations={}",
-              prompt.sourceName(),
-              prompt.externalId(),
+              "Generated news failed content validation: source={}, violations={}",
+              sourceName,
               validation.violations());
           generatedNews = requestNews(prompt, validation.correctionInstruction());
-          ValidationResult retryValidation = validateNews(prompt.sourceName(), generatedNews);
+          ValidationResult retryValidation = validateNews(sourceNames, generatedNews);
           if (!retryValidation.valid()) {
             log.warn(
-                "Regenerated news failed content validation: source={}, externalId={}, violations={}",
-                prompt.sourceName(),
-                prompt.externalId(),
+                "Regenerated news failed content validation: source={}, violations={}",
+                sourceName,
                 retryValidation.violations());
             throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
           }
         }
       }
       log.info(
-          "Received OpenAI generated news: source={}, externalId={}, title={}",
-          prompt.sourceName(),
-          prompt.externalId(),
-          generatedNews.title());
+          "Received OpenAI generated news: source={}, title={}", sourceName, generatedNews.title());
       return generatedNews;
     } catch (HttpStatusCodeException exception) {
       log.warn(
-          "OpenAI news generation request failed: status={}, body={}, source={}, externalId={}",
+          "OpenAI news generation request failed: status={}, body={}, source={}",
           exception.getStatusCode(),
           exception.getResponseBodyAsString(),
-          prompt.sourceName(),
-          prompt.externalId());
+          sourceName);
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     } catch (RestClientException exception) {
       log.warn(
-          "OpenAI news generation request failed: message={}, source={}, externalId={}",
+          "OpenAI news generation request failed: message={}, source={}",
           exception.getMessage(),
-          prompt.sourceName(),
-          prompt.externalId());
+          sourceName);
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     }
   }
@@ -146,7 +140,16 @@ public class OpenAiNewsGenerator {
     return prompt.hasStructuredInput();
   }
 
-  private ValidationResult validateNews(String sourceName, GeneratedNews generatedNews) {
+  private List<String> sourceNames(NewsPrompt prompt) {
+    List<String> sourceNames =
+        prompt.sourceNames().stream()
+            .map(OpenAiNewsGenerator::displaySourceName)
+            .distinct()
+            .toList();
+    return sourceNames.isEmpty() ? List.of("직접 입력") : sourceNames;
+  }
+
+  private ValidationResult validateNews(List<String> sourceNames, GeneratedNews generatedNews) {
     List<String> violations = new ArrayList<>();
     String title = value(generatedNews.title());
     String content = value(generatedNews.content());
@@ -165,9 +168,14 @@ public class OpenAiNewsGenerator {
       if (BULLET_LINE_PATTERN.matcher(content).find()) {
         violations.add("content에 불릿 또는 목록 형식이 없어야 함");
       }
-      int sourceAttributionCount = countMatches(sourceAttributionPattern(sourceName), content);
+      int sourceAttributionCount =
+          sourceNames.stream()
+              .map(this::sourceAttributionPattern)
+              .distinct()
+              .mapToInt(pattern -> countMatches(pattern, content))
+              .sum();
       if (sourceAttributionCount != 1) {
-        violations.add("content에 " + sourceName(sourceName) + " 출처 표현이 한 번만 있어야 함");
+        violations.add("content에 " + String.join(", ", sourceNames) + " 출처 표현이 한 번만 있어야 함");
       }
       if (AWKWARD_ATTRIBUTION_PATTERN.matcher(content).find()) {
         violations.add("출처 표현과 전달 동사를 중복해서 쓰지 않아야 함");
@@ -180,7 +188,7 @@ public class OpenAiNewsGenerator {
         .filter(allText::contains)
         .forEach(phrase -> violations.add("금지 표현이 없어야 함: " + phrase));
 
-    return new ValidationResult(List.copyOf(violations), sourceName);
+    return new ValidationResult(List.copyOf(violations), List.copyOf(sourceNames));
   }
 
   private Pattern sourceAttributionPattern(String sourceName) {
@@ -193,7 +201,7 @@ public class OpenAiNewsGenerator {
     return SOURCE_ATTRIBUTION_PATTERN;
   }
 
-  private static String sourceName(String sourceName) {
+  private static String displaySourceName(String sourceName) {
     return sourceName == null || sourceName.isBlank() ? "직접 입력" : sourceName;
   }
 
@@ -218,7 +226,7 @@ public class OpenAiNewsGenerator {
     return text == null ? "" : text.strip();
   }
 
-  private record ValidationResult(List<String> violations, String sourceName) {
+  private record ValidationResult(List<String> violations, List<String> sourceNames) {
 
     private boolean valid() {
       return violations.isEmpty();
@@ -230,7 +238,7 @@ public class OpenAiNewsGenerator {
           + String.join(", ", violations)
           + ". 위반 사항을 모두 수정한 기사만 출력하세요. "
           + "content는 반드시 2~5개 문단으로 작성하고 문단 사이에는 \\n\\n을 사용하세요. "
-          + OpenAiNewsGenerator.sourceName(sourceName)
+          + String.join(", ", sourceNames)
           + " 출처 표현은 본문에 한 번만 넣고 '따르면 밝혔다'처럼 중복하지 마세요. "
           + "정보가 부족해도 사실을 반복하거나 추측하지 마세요. 참고 데이터에 없는 사실은 추가하지 마세요.";
     }
