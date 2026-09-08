@@ -16,7 +16,6 @@ import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
-import org.grit.daynomy.news.repository.NewsRepository;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -36,7 +35,6 @@ public class NewsGenerationService {
   private final S3ImageStorage s3ImageStorage;
   private final KeywordAiClient keywordAiClient;
   private final MarketAnalysisAiClient marketAnalysisAiClient;
-  private final NewsRepository newsRepository;
   private final NewsPersistenceService newsPersistenceService;
 
   public int generateScheduledDartNews() {
@@ -90,19 +88,9 @@ public class NewsGenerationService {
     int savedCount = 0;
     int skippedCount = 0;
     for (NewsPrompt prompt : prompts) {
-      if (newsRepository.existsBySourceAndExternalId(prompt.source(), prompt.externalId())) {
-        skippedCount++;
-        log.info(
-            "Skipping existing news: source={}, externalId={}, sourceUrl={}",
-            prompt.source(),
-            prompt.externalId(),
-            prompt.sourceUrl());
-        continue;
-      }
-
       log.info(
           "Generating news with AI: source={}, externalId={}, category={}, publishedAt={}",
-          prompt.source(),
+          prompt.sourceName(),
           prompt.externalId(),
           prompt.category(),
           prompt.publishedAt());
@@ -118,7 +106,7 @@ public class NewsGenerationService {
         skippedCount++;
         log.warn(
             "Skipping news after AI generation failure: source={}, externalId={}, errorCode={}",
-            prompt.source(),
+            prompt.sourceName(),
             prompt.externalId(),
             exception.errorCode().code());
         continue;
@@ -128,22 +116,12 @@ public class NewsGenerationService {
       S3ImageStorage.StoredImage uploadedImage = s3ImageStorage.upload(image, "webp", "image/webp");
       String imageUrl = uploadedImage.publicUrl();
 
-      if (!newsPersistenceService.saveIfAbsent(
-          prompt, generatedNews, imageUrl, keywords, marketAnalysis)) {
-        s3ImageStorage.delete(uploadedImage);
-        skippedCount++;
-        log.info(
-            "Skipping existing news after generation: source={}, externalId={}, sourceUrl={}",
-            prompt.source(),
-            prompt.externalId(),
-            prompt.sourceUrl());
-        continue;
-      }
+      newsPersistenceService.save(prompt, generatedNews, imageUrl, keywords, marketAnalysis);
 
       savedCount++;
       log.info(
           "Saved generated news: source={}, externalId={}, title={}",
-          prompt.source(),
+          prompt.sourceName(),
           prompt.externalId(),
           generatedNews.title());
     }

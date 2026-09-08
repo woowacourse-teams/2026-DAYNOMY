@@ -3,9 +3,10 @@ package org.grit.daynomy.search.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,9 +78,7 @@ class NewsSearchRepositoryTest {
             "금리 초안 뉴스",
             "금리 본문",
             "image.png",
-            NewsSource.DART,
-            "draft-match",
-            "https://example.com/draft-match",
+            List.of(new NewsSourceInfo("DART", "https://example.com/draft-match")),
             Category.ETF));
     entityManager.flush();
 
@@ -149,9 +148,7 @@ class NewsSearchRepositoryTest {
         title,
         content,
         "image.png",
-        NewsSource.DART,
-        externalId,
-        "https://example.com/" + externalId,
+        List.of(new NewsSourceInfo("DART", "https://example.com/" + externalId)),
         category,
         publishedAt);
   }

@@ -14,7 +14,6 @@ import java.util.List;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.NewsSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,7 +41,7 @@ class OpenAiNewsGeneratorTest {
                 "test-key", startServer(openAiResponse()), "test-model", "image-model"));
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.DART,
+            "DART",
             "external-1",
             "https://dart.example/1",
             Category.STOCK,
@@ -70,7 +69,7 @@ class OpenAiNewsGeneratorTest {
                 "image-model"));
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.DART,
+            "DART",
             "external-1",
             "https://dart.example/1",
             Category.STOCK,
@@ -103,7 +102,7 @@ class OpenAiNewsGeneratorTest {
                 "image-model"));
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.KOSIS,
+            "KOSIS",
             "consumer-price-index:202607",
             "https://kosis.example/consumer-price-index",
             Category.STOCK,
@@ -134,7 +133,7 @@ class OpenAiNewsGeneratorTest {
                 "image-model"));
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.BOK,
+            "한국은행",
             "base-rate:202607",
             "https://ecos.bok.or.kr",
             Category.STOCK,

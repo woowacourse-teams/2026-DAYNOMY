@@ -18,7 +18,7 @@ import org.grit.daynomy.keyword.exception.KeywordErrorCode;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
@@ -123,9 +123,7 @@ class KeywordServiceTest {
         "keyword news",
         "content",
         "image.png",
-        NewsSource.DART,
-        "keyword-news",
-        "https://example.com/keyword-news",
+        List.of(new NewsSourceInfo("DART", "https://example.com/keyword-news")),
         Category.STOCK,
         Instant.parse("2026-08-17T10:00:00Z"));
   }

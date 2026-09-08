@@ -2,10 +2,9 @@ package org.grit.daynomy.news.ai;
 
 import java.time.Instant;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.NewsSource;
 
 public record NewsPrompt(
-    NewsSource source,
+    String sourceName,
     String externalId,
     String sourceUrl,
     Category category,
@@ -14,13 +13,13 @@ public record NewsPrompt(
     String sourceData) {
 
   public NewsPrompt(
-      NewsSource source,
+      String sourceName,
       String externalId,
       String sourceUrl,
       Category category,
       Instant publishedAt,
       String prompt) {
-    this(source, externalId, sourceUrl, category, publishedAt, prompt, "");
+    this(sourceName, externalId, sourceUrl, category, publishedAt, prompt, "");
   }
 
   public String prompt() {

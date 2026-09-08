@@ -8,11 +8,12 @@ import static org.mockito.Mockito.verify;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
@@ -41,9 +42,7 @@ class NewsServiceTest {
             "title",
             "content",
             "image.png",
-            NewsSource.DART,
-            "external-1",
-            "https://example.com/1",
+            List.of(new NewsSourceInfo("DART", "https://example.com/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T10:00:00Z"));
     given(newsRepository.findByStatusOrderByPublishedAtDescIdDesc(NewsStatus.PUBLISHED, pageable))
@@ -83,9 +82,7 @@ class NewsServiceTest {
             "today news",
             "content",
             "image.png",
-            NewsSource.DART,
-            "external-1",
-            "https://example.com/1",
+            List.of(new NewsSourceInfo("DART", "https://example.com/1")),
             Category.STOCK,
             atHour(today, 10));
     PageRequest pageable = PageRequest.of(0, 9);
@@ -128,9 +125,7 @@ class NewsServiceTest {
             "title",
             "content",
             "image.png",
-            NewsSource.DART,
-            "external-1",
-            "https://example.com/1",
+            List.of(new NewsSourceInfo("DART", "https://example.com/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T10:00:00Z"));
     given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));

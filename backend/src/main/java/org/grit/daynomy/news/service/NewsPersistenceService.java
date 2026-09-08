@@ -9,6 +9,7 @@ import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,29 +23,22 @@ public class NewsPersistenceService {
   private final MarketAnalysisService marketAnalysisService;
 
   @Transactional
-  public boolean saveIfAbsent(
+  public void save(
       NewsPrompt prompt,
       GeneratedNews generatedNews,
       String imageUrl,
       List<NewsKeyword> keywords,
       NewsMarketAnalysis marketAnalysis) {
-    if (newsRepository.existsBySourceAndExternalId(prompt.source(), prompt.externalId())) {
-      return false;
-    }
-
     News news =
         News.createPublished(
             generatedNews.title(),
             generatedNews.content(),
             imageUrl,
-            prompt.source(),
-            prompt.externalId(),
-            prompt.sourceUrl(),
+            List.of(new NewsSourceInfo(prompt.sourceName(), prompt.sourceUrl())),
             prompt.category(),
             prompt.publishedAt());
     newsRepository.save(news);
     keywordService.saveKeywords(news, keywords);
     marketAnalysisService.saveMarketAnalysis(news, marketAnalysis);
-    return true;
   }
 }

@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.external.bok.dto.BokStatisticItem;
 import org.grit.daynomy.news.ai.NewsPrompt;
-import org.grit.daynomy.news.domain.NewsSource;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -92,7 +91,7 @@ public class BokNewsPromptService {
 
     return Optional.of(
         new NewsPrompt(
-            NewsSource.BOK,
+            "한국은행",
             indicator.key() + ":" + latest.period(),
             BOK_URL,
             indicator.category(),

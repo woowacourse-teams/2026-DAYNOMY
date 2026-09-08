@@ -3,11 +3,12 @@ package org.grit.daynomy.keyword.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,9 +63,7 @@ class NewsKeywordRepositoryTest {
         title,
         "content",
         "image.png",
-        NewsSource.DART,
-        title,
-        "https://example.com/" + title.replace(" ", "-"),
+        List.of(new NewsSourceInfo("DART", "https://example.com/" + title.replace(" ", "-"))),
         Category.STOCK,
         Instant.parse("2026-08-17T10:00:00Z"));
   }

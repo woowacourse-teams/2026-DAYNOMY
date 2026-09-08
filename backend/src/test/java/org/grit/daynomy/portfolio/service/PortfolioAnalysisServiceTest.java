@@ -23,7 +23,7 @@ import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
@@ -165,9 +165,7 @@ class PortfolioAnalysisServiceTest {
         "뉴스 제목",
         "뉴스 본문",
         "image.png",
-        NewsSource.DART,
-        "external-1",
-        "https://example.com/news",
+        List.of(new NewsSourceInfo("DART", "https://example.com/news")),
         Category.STOCK,
         Instant.parse("2026-08-23T10:00:00Z"));
   }
