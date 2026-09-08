@@ -27,8 +27,8 @@ function isAdminNewsStatus(value: unknown): value is AdminNewsStatus {
   return value === 'DRAFT' || value === 'PUBLISHED' || value === 'REJECTED' || value === 'DELETED';
 }
 
-function isAdminNewsSource(value: unknown): value is AdminNewsSource | null {
-  return value === null || value === 'DART' || value === 'KOSIS' || value === 'BOK';
+function isAdminNewsSource(value: unknown): value is AdminNewsSource {
+  return isRecord(value) && typeof value.name === 'string' && typeof value.url === 'string';
 }
 
 function isAdminNewsListItem(value: unknown): value is AdminNewsListItemResponse {
@@ -37,8 +37,8 @@ function isAdminNewsListItem(value: unknown): value is AdminNewsListItemResponse
     typeof value.id === 'number' &&
     typeof value.title === 'string' &&
     isNullableString(value.imageUrl) &&
-    isAdminNewsSource(value.source) &&
-    typeof value.sourceUrl === 'string' &&
+    Array.isArray(value.sources) &&
+    value.sources.every(isAdminNewsSource) &&
     isCategory(value.category) &&
     isNullableString(value.publishedAt) &&
     isAdminNewsStatus(value.status) &&
@@ -66,8 +66,8 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
     typeof value.title === 'string' &&
     typeof value.content === 'string' &&
     isNullableString(value.imageUrl) &&
-    isAdminNewsSource(value.source) &&
-    typeof value.sourceUrl === 'string' &&
+    Array.isArray(value.sources) &&
+    value.sources.every(isAdminNewsSource) &&
     isCategory(value.category) &&
     isNullableString(value.publishedAt) &&
     isAdminNewsStatus(value.status)

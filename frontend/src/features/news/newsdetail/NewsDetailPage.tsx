@@ -25,16 +25,6 @@ function getMarketSummaryItems(summary: string) {
     .filter(Boolean);
 }
 
-const NEWS_SOURCE_LABELS: Record<string, string> = {
-  DART: 'DART',
-  KOSIS: '국가통계포털',
-  BOK: '한국은행',
-};
-
-function getNewsSourceLabel(source: string) {
-  return NEWS_SOURCE_LABELS[source] ?? source;
-}
-
 function formatDetailDate(value?: string) {
   if (!value) {
     return '';
@@ -146,23 +136,25 @@ export function NewsDetailPage() {
 
         <div className="detail-meta">
           <span className="detail-category">{getCategoryLabel(news.category)}</span>
-          {news.source && (
-            <span className="detail-source">
-              출처:{' '}
-              {news.sourceUrl ? (
-                <a
-                  className="source-link"
-                  href={news.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {getNewsSourceLabel(news.source)}
-                </a>
-              ) : (
-                getNewsSourceLabel(news.source)
-              )}
-            </span>
-          )}
+          {news.sources.length > 0 ? (
+            <div className="detail-sources">
+              <span>출처:</span>
+              <ul>
+                {news.sources.map((source, index) => (
+                  <li key={`${source.url}-${index}`}>
+                    <a
+                      className="source-link"
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {source.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         <h1>{news.title}</h1>
