@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface NewsKeywordRepository extends JpaRepository<NewsKeyword, Long> {
 
   List<NewsKeyword> findByNewsIdOrderByIdAsc(Long newsId);
+
+  void deleteAllByNewsId(Long newsId);
 }

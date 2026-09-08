@@ -22,6 +22,7 @@ import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSource;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
@@ -299,6 +300,8 @@ class AdminNewsServiceTest {
       assertThat(updatedNews.getSourceUrl()).isEqualTo("https://example.com/new");
       assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
       assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
+      verifyNoInteractions(
+          keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
       verify(s3ImageStorage, never())
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
 
@@ -312,6 +315,91 @@ class AdminNewsServiceTest {
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }
+  }
+
+  @Test
+  @DisplayName("발행된 뉴스의 본문을 수정하면 키워드와 시장 분석을 다시 생성한다")
+  void updatePublishedNewsRegeneratesKeywordsAndMarketAnalysis() {
+    News news =
+        News.createPublished(
+            "기존 제목",
+            "기존 본문",
+            null,
+            NewsSource.DART,
+            "external-id",
+            "https://example.com/old",
+            Category.STOCK,
+            java.time.Instant.now());
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest("수정 제목", "수정 본문", "https://example.com/new", Category.ETF);
+    List<NewsKeyword> keywords =
+        List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
+    NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("수정된 시장 분석 결과");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(keywordAiClient.extractKeywords("수정 본문")).willReturn(keywords);
+    given(marketAnalysisAiClient.analyze("수정 본문")).willReturn(marketAnalysis);
+
+    News updatedNews = adminNewsService.update(1L, request, null);
+
+    assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
+    verify(keywordAiClient).extractKeywords("수정 본문");
+    verify(marketAnalysisAiClient).analyze("수정 본문");
+    verify(keywordService).replaceKeywords(news, keywords);
+    verify(marketAnalysisService).updateMarketAnalysis(1L, marketAnalysis);
+  }
+
+  @Test
+  @DisplayName("시장 분석 생성에 실패하면 뉴스와 기존 분석 데이터를 변경하지 않는다")
+  void updatePublishedNewsKeepsExistingDataWhenMarketAnalysisGenerationFails() {
+    News news =
+        News.createPublished(
+            "기존 제목",
+            "기존 본문",
+            null,
+            NewsSource.DART,
+            "external-id",
+            "https://example.com/old",
+            Category.STOCK,
+            java.time.Instant.now());
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest("수정 제목", "수정 본문", "https://example.com/new", Category.ETF);
+    List<NewsKeyword> keywords =
+        List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
+    RuntimeException failure = new RuntimeException("market analysis generation failed");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(keywordAiClient.extractKeywords("수정 본문")).willReturn(keywords);
+    given(marketAnalysisAiClient.analyze("수정 본문")).willThrow(failure);
+
+    assertThatThrownBy(() -> adminNewsService.update(1L, request, null)).isSameAs(failure);
+
+    assertThat(news.getTitle()).isEqualTo("기존 제목");
+    assertThat(news.getContent()).isEqualTo("기존 본문");
+    verifyNoInteractions(keywordService, marketAnalysisService);
+  }
+
+  @Test
+  @DisplayName("발행된 뉴스의 본문이 변경되지 않으면 키워드와 시장 분석을 다시 생성하지 않는다")
+  void updatePublishedNewsWithoutContentChangeDoesNotRegenerateAnalysis() {
+    News news =
+        News.createPublished(
+            "기존 제목",
+            "기존 본문",
+            null,
+            NewsSource.DART,
+            "external-id",
+            "https://example.com/old",
+            Category.STOCK,
+            java.time.Instant.now());
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest("수정 제목", "기존 본문", "https://example.com/new", Category.ETF);
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    News updatedNews = adminNewsService.update(1L, request, null);
+
+    assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
+    assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
+    verifyNoInteractions(
+        keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
   }
 
   @Test

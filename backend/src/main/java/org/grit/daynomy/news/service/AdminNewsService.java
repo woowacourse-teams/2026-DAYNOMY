@@ -131,9 +131,17 @@ public class AdminNewsService {
         newsRepository
             .findById(id)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+    boolean shouldRegenerateAnalysis =
+        news.isPublished() && !news.getContent().equals(request.content());
     String previousImageUrl = news.getImageUrl();
     S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
     try {
+      if (shouldRegenerateAnalysis) {
+        List<NewsKeyword> keywords = keywordAiClient.extractKeywords(request.content());
+        NewsMarketAnalysis marketAnalysis = marketAnalysisAiClient.analyze(request.content());
+        keywordService.replaceKeywords(news, keywords);
+        marketAnalysisService.updateMarketAnalysis(id, marketAnalysis);
+      }
       news.update(
           request.title(),
           request.content(),
