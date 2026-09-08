@@ -388,13 +388,15 @@ class AdminNewsServiceTest {
             "기존 제목",
             "기존 본문",
             null,
-            NewsSource.DART,
-            "external-id",
-            "https://example.com/old",
+            List.of(new NewsSourceInfo("DART", "https://example.com/old")),
             Category.STOCK,
             java.time.Instant.now());
     AdminNewsUpdateRequest request =
-        new AdminNewsUpdateRequest("수정 제목", "수정 본문", "https://example.com/new", Category.ETF);
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.ETF);
     List<NewsKeyword> keywords =
         List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
     NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("수정된 시장 분석 결과");
@@ -419,13 +421,15 @@ class AdminNewsServiceTest {
             "기존 제목",
             "기존 본문",
             null,
-            NewsSource.DART,
-            "external-id",
-            "https://example.com/old",
+            List.of(new NewsSourceInfo("DART", "https://example.com/old")),
             Category.STOCK,
             java.time.Instant.now());
     AdminNewsUpdateRequest request =
-        new AdminNewsUpdateRequest("수정 제목", "수정 본문", "https://example.com/new", Category.ETF);
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.ETF);
     List<NewsKeyword> keywords =
         List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
     RuntimeException failure = new RuntimeException("market analysis generation failed");
@@ -448,13 +452,15 @@ class AdminNewsServiceTest {
             "기존 제목",
             "기존 본문",
             null,
-            NewsSource.DART,
-            "external-id",
-            "https://example.com/old",
+            List.of(new NewsSourceInfo("DART", "https://example.com/old")),
             Category.STOCK,
             java.time.Instant.now());
     AdminNewsUpdateRequest request =
-        new AdminNewsUpdateRequest("수정 제목", "기존 본문", "https://example.com/new", Category.ETF);
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "기존 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.ETF);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
     News updatedNews = adminNewsService.update(1L, request, null);
