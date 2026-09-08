@@ -50,6 +50,33 @@ class MarketAnalysisServiceTest {
   }
 
   @Test
+  @DisplayName("기존 시장 분석을 새로운 분석 내용으로 수정한다")
+  void updateMarketAnalysisChangesSummary() {
+    NewsMarketAnalysis savedMarketAnalysis = createSavedMarketAnalysis();
+    NewsMarketAnalysis newMarketAnalysis = new NewsMarketAnalysis("수정된 시장 분석 결과");
+    given(newsMarketAnalysisRepository.findByNewsId(1L))
+        .willReturn(Optional.of(savedMarketAnalysis));
+
+    marketAnalysisService.updateMarketAnalysis(1L, newMarketAnalysis);
+
+    assertThat(savedMarketAnalysis.getSummary()).isEqualTo("수정된 시장 분석 결과");
+  }
+
+  @Test
+  @DisplayName("수정할 시장 분석이 없으면 예외를 던진다")
+  void updateMarketAnalysisThrowsWhenMissing() {
+    given(newsMarketAnalysisRepository.findByNewsId(1L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                marketAnalysisService.updateMarketAnalysis(
+                    1L, new NewsMarketAnalysis("수정된 시장 분석 결과")))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND);
+  }
+
+  @Test
   @DisplayName("뉴스 ID로 시장 분석을 조회한다")
   void findMarketAnalysisReturnsAnalysis() {
     given(newsMarketAnalysisRepository.findByNewsId(1L))

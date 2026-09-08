@@ -22,6 +22,16 @@ public class MarketAnalysisService {
     newsMarketAnalysisRepository.save(new NewsMarketAnalysis(news, marketAnalysis.getSummary()));
   }
 
+  @Transactional
+  public void updateMarketAnalysis(Long newsId, NewsMarketAnalysis marketAnalysis) {
+    NewsMarketAnalysis savedMarketAnalysis =
+        newsMarketAnalysisRepository
+            .findByNewsId(newsId)
+            .orElseThrow(() -> new BusinessException(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND));
+
+    savedMarketAnalysis.updateSummary(marketAnalysis.getSummary());
+  }
+
   public MarketAnalysisResponse getMarketAnalysis(Long newsId) {
     return newsMarketAnalysisRepository
         .findByNewsId(newsId)

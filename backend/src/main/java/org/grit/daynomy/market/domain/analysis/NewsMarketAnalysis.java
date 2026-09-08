@@ -38,4 +38,8 @@ public class NewsMarketAnalysis extends BaseEntity {
     this.news = news;
     this.summary = summary;
   }
+
+  public void updateSummary(String summary) {
+    this.summary = summary;
+  }
 }
