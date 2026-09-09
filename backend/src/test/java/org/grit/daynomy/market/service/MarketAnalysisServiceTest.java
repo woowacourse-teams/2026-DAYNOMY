@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
@@ -14,7 +15,7 @@ import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -106,9 +107,7 @@ class MarketAnalysisServiceTest {
             "draft news",
             "content",
             "image.png",
-            NewsSource.DART,
-            "draft-news",
-            "https://example.com/draft-news",
+            List.of(new NewsSourceInfo("DART", "https://example.com/draft-news")),
             Category.STOCK);
     given(newsMarketAnalysisRepository.findByNewsId(1L))
         .willReturn(Optional.of(createSavedMarketAnalysis(draft)));
@@ -136,9 +135,7 @@ class MarketAnalysisServiceTest {
         "market news",
         "content",
         "image.png",
-        NewsSource.DART,
-        "market-news",
-        "https://example.com/market-news",
+        List.of(new NewsSourceInfo("DART", "https://example.com/market-news")),
         Category.STOCK,
         Instant.parse("2026-08-17T10:00:00Z"));
   }

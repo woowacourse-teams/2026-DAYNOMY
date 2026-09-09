@@ -2,9 +2,10 @@ package org.grit.daynomy.news.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,19 +51,25 @@ class NewsRepositoryTest {
   @DisplayName("관리자 뉴스 목록 조회는 필터 조합별로 동작한다")
   void findAdminNewsFiltersByStatusAndCategory() {
     entityManager.persist(
-        News.createAdminDraft(
-            "초안 주식 뉴스", "본문", null, "https://example.com/draft-stock", Category.STOCK));
+        News.createDraft(
+            "초안 주식 뉴스",
+            "본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/draft-stock")),
+            Category.STOCK));
     entityManager.persist(
-        News.createAdminDraft(
-            "초안 부동산 뉴스", "본문", null, "https://example.com/draft-estate", Category.REAL_ESTATE));
+        News.createDraft(
+            "초안 부동산 뉴스",
+            "본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/draft-estate")),
+            Category.REAL_ESTATE));
     entityManager.persist(
         News.createPublished(
             "발행 주식 뉴스",
             "본문",
             null,
-            NewsSource.DART,
-            "published-stock",
-            "https://example.com/published-stock",
+            List.of(new NewsSourceInfo("DART", "https://example.com/published-stock")),
             Category.STOCK,
             java.time.Instant.parse("2026-08-17T10:00:00Z")));
     entityManager.flush();

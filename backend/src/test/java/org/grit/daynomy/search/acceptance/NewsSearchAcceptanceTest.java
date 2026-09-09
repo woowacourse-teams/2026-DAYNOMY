@@ -5,9 +5,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 import java.time.Instant;
+import java.util.List;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,9 +65,7 @@ class NewsSearchAcceptanceTest {
             "기준금리 초안",
             "content",
             "image.png",
-            NewsSource.DART,
-            "search-draft",
-            "https://example.com/search-draft",
+            List.of(new NewsSourceInfo("DART", "https://example.com/search-draft")),
             Category.ETF));
 
     given()
@@ -92,9 +91,7 @@ class NewsSearchAcceptanceTest {
         title,
         "content",
         "image.png",
-        NewsSource.DART,
-        externalId,
-        "https://example.com/" + externalId,
+        List.of(new NewsSourceInfo("DART", "https://example.com/" + externalId)),
         category,
         publishedAt);
   }

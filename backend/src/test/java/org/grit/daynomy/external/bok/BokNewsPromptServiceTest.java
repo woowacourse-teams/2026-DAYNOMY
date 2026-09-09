@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 import java.util.List;
 import org.grit.daynomy.external.bok.dto.BokStatisticItem;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,9 +44,9 @@ class BokNewsPromptServiceTest {
     var prompts = service.createPrompts();
 
     assertThat(prompts).hasSize(1);
-    assertThat(prompts.getFirst().source()).isEqualTo(NewsSource.BOK);
+    assertThat(prompts.getFirst().sources())
+        .containsExactly(new NewsSourceInfo("한국은행", "https://ecos.bok.or.kr"));
     assertThat(prompts.getFirst().category()).isEqualTo(Category.STOCK);
-    assertThat(prompts.getFirst().externalId()).isEqualTo("base-rate:202607");
     assertThat(prompts.getFirst().instruction())
         .contains(
             "경제 전문 기자",

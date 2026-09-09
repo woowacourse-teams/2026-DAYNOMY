@@ -7,9 +7,10 @@ import static org.hamcrest.Matchers.hasSize;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -71,9 +72,7 @@ class NewsAcceptanceTest {
             "draft news",
             "content",
             "image.png",
-            NewsSource.DART,
-            "draft-1",
-            "https://example.com/draft-1",
+            List.of(new NewsSourceInfo("DART", "https://example.com/draft-1")),
             Category.STOCK));
     News deletedNews =
         createNews(
@@ -108,9 +107,7 @@ class NewsAcceptanceTest {
                 "draft news",
                 "content",
                 "image.png",
-                NewsSource.DART,
-                "draft-1",
-                "https://example.com/draft-1",
+                List.of(new NewsSourceInfo("DART", "https://example.com/draft-1")),
                 Category.STOCK));
 
     given()
@@ -170,9 +167,7 @@ class NewsAcceptanceTest {
         title,
         "content",
         "image.png",
-        NewsSource.DART,
-        externalId,
-        "https://example.com/" + externalId,
+        List.of(new NewsSourceInfo("DART", "https://example.com/" + externalId)),
         category,
         publishedAt);
   }

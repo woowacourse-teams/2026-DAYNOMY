@@ -8,24 +8,21 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.grit.daynomy.common.BaseEntity;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.exception.NewsErrorCode;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Entity
-@Table(
-    name = "news",
-    uniqueConstraints =
-        @UniqueConstraint(
-            name = "uk_news_source_external_id",
-            columnNames = {"source", "external_id"}))
+@Table(name = "news")
 public class News extends BaseEntity {
 
   @Id
@@ -41,15 +38,9 @@ public class News extends BaseEntity {
   @Column(name = "image_url", columnDefinition = "TEXT")
   private String imageUrl;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "source")
-  private NewsSource source;
-
-  @Column(name = "external_id")
-  private String externalId;
-
-  @Column(name = "source_url", columnDefinition = "TEXT", nullable = false)
-  private String sourceUrl;
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "sources", columnDefinition = "jsonb", nullable = false)
+  private List<NewsSourceInfo> sources;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "category", nullable = false)
@@ -66,18 +57,14 @@ public class News extends BaseEntity {
       String title,
       String content,
       String imageUrl,
-      NewsSource source,
-      String externalId,
-      String sourceUrl,
+      List<NewsSourceInfo> sources,
       Category category,
       Instant publishedAt,
       NewsStatus status) {
     this.title = title;
     this.content = content;
     this.imageUrl = imageUrl;
-    this.source = source;
-    this.externalId = externalId;
-    this.sourceUrl = sourceUrl;
+    this.sources = List.copyOf(sources);
     this.category = category;
     this.publishedAt = publishedAt;
     this.status = status;
@@ -87,47 +74,31 @@ public class News extends BaseEntity {
       String title,
       String content,
       String imageUrl,
-      NewsSource source,
-      String externalId,
-      String sourceUrl,
+      List<NewsSourceInfo> sources,
       Category category,
       Instant publishedAt) {
-    return new News(
-        title,
-        content,
-        imageUrl,
-        source,
-        externalId,
-        sourceUrl,
-        category,
-        publishedAt,
-        NewsStatus.PUBLISHED);
+    return new News(title, content, imageUrl, sources, category, publishedAt, NewsStatus.PUBLISHED);
   }
 
   public static News createDraft(
       String title,
       String content,
       String imageUrl,
-      NewsSource source,
-      String externalId,
-      String sourceUrl,
+      List<NewsSourceInfo> sources,
       Category category) {
-    return new News(
-        title, content, imageUrl, source, externalId, sourceUrl, category, null, NewsStatus.DRAFT);
-  }
-
-  public static News createAdminDraft(
-      String title, String content, String imageUrl, String sourceUrl, Category category) {
-    return new News(
-        title, content, imageUrl, null, null, sourceUrl, category, null, NewsStatus.DRAFT);
+    return new News(title, content, imageUrl, sources, category, null, NewsStatus.DRAFT);
   }
 
   public void update(
-      String title, String content, String imageUrl, String sourceUrl, Category category) {
+      String title,
+      String content,
+      String imageUrl,
+      List<NewsSourceInfo> sources,
+      Category category) {
     this.title = title;
     this.content = content;
     this.imageUrl = imageUrl;
-    this.sourceUrl = sourceUrl;
+    this.sources = List.copyOf(sources);
     this.category = category;
   }
 

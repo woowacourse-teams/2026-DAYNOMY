@@ -22,29 +22,22 @@ public class NewsPersistenceService {
   private final MarketAnalysisService marketAnalysisService;
 
   @Transactional
-  public boolean saveIfAbsent(
+  public void save(
       NewsPrompt prompt,
       GeneratedNews generatedNews,
       String imageUrl,
       List<NewsKeyword> keywords,
       NewsMarketAnalysis marketAnalysis) {
-    if (newsRepository.existsBySourceAndExternalId(prompt.source(), prompt.externalId())) {
-      return false;
-    }
-
     News news =
         News.createPublished(
             generatedNews.title(),
             generatedNews.content(),
             imageUrl,
-            prompt.source(),
-            prompt.externalId(),
-            prompt.sourceUrl(),
+            prompt.sources(),
             prompt.category(),
             prompt.publishedAt());
     newsRepository.save(news);
     keywordService.saveKeywords(news, keywords);
     marketAnalysisService.saveMarketAnalysis(news, marketAnalysis);
-    return true;
   }
 }

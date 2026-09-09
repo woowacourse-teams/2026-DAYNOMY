@@ -51,11 +51,11 @@ public class AdminNewsService {
     S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
     try {
       News news =
-          News.createAdminDraft(
+          News.createDraft(
               request.title(),
               request.content(),
               uploadedImage == null ? null : uploadedImage.publicUrl(),
-              request.sourceUrl(),
+              request.sourceInfos(),
               request.category());
 
       return newsRepository.save(news);
@@ -146,7 +146,7 @@ public class AdminNewsService {
           request.title(),
           request.content(),
           uploadedImage == null ? previousImageUrl : uploadedImage.publicUrl(),
-          request.sourceUrl(),
+          request.sourceInfos(),
           request.category());
       if (uploadedImage != null) {
         newsRepository.flush();
