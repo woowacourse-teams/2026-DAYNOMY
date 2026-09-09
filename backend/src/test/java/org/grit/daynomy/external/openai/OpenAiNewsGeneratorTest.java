@@ -14,7 +14,7 @@ import java.util.List;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,9 +42,7 @@ class OpenAiNewsGeneratorTest {
                 "test-key", startServer(openAiResponse()), "test-model", "image-model"));
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.DART,
-            "external-1",
-            "https://dart.example/1",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
@@ -70,9 +68,7 @@ class OpenAiNewsGeneratorTest {
                 "image-model"));
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.DART,
-            "external-1",
-            "https://dart.example/1",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "DART 기사 작성 지침",
@@ -103,9 +99,7 @@ class OpenAiNewsGeneratorTest {
                 "image-model"));
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.KOSIS,
-            "consumer-price-index:202607",
-            "https://kosis.example/consumer-price-index",
+            List.of(new NewsSourceInfo("KOSIS", "https://kosis.example/consumer-price-index")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "KOSIS 기사 작성 지침",
@@ -134,9 +128,7 @@ class OpenAiNewsGeneratorTest {
                 "image-model"));
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.BOK,
-            "base-rate:202607",
-            "https://ecos.bok.or.kr",
+            List.of(new NewsSourceInfo("한국은행", "https://ecos.bok.or.kr")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "한국은행 기사 작성 지침",
@@ -148,6 +140,33 @@ class OpenAiNewsGeneratorTest {
     assertThat(requestBodies).hasSize(1);
     assertThat(requestBodies.getFirst())
         .contains("\"role\":\"developer\"", "\"role\":\"user\"", "한국은행 ECOS 참고 데이터");
+  }
+
+  @Test
+  @DisplayName("여러 출처가 있으면 첫 번째 출처만 사용하지 않고 출처 표현을 검증한다")
+  void generateValidatesAmongMultipleSources() throws Exception {
+    OpenAiNewsGenerator generator =
+        new OpenAiNewsGenerator(
+            new OpenAiProperties(
+                "test-key",
+                startServer(
+                    openAiResponse("물가 제목", "소비자물가지수는 최신 시점에 상승했다.\n\nKOSIS에 따르면 값이 높아졌다.")),
+                "test-model",
+                "image-model"));
+    NewsPrompt prompt =
+        new NewsPrompt(
+            List.of(
+                new NewsSourceInfo("DART", "https://dart.example/1"),
+                new NewsSourceInfo("KOSIS", "https://kosis.example")),
+            Category.STOCK,
+            Instant.parse("2026-08-17T00:00:00Z"),
+            "KOSIS 기사 작성 지침",
+            "[KOSIS 참고 데이터]\n최신 값: 113.42");
+
+    GeneratedNews generatedNews = generator.generate(prompt);
+
+    assertThat(generatedNews.title()).isEqualTo("물가 제목");
+    assertThat(requestBodies).hasSize(1);
   }
 
   private String startServer(String... responseBodies) throws IOException {

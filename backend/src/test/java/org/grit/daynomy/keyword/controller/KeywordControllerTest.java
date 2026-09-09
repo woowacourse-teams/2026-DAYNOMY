@@ -9,13 +9,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.util.List;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -85,9 +86,7 @@ class KeywordControllerTest {
                 "draft news",
                 "content",
                 "image.png",
-                NewsSource.DART,
-                "draft-news",
-                "https://example.com/draft-news",
+                List.of(new NewsSourceInfo("DART", "https://example.com/draft-news")),
                 Category.STOCK));
     newsKeywordRepository.save(createKeyword(draft, "금리 인하"));
 
@@ -121,9 +120,7 @@ class KeywordControllerTest {
         "keyword news",
         "content",
         "image.png",
-        NewsSource.DART,
-        "keyword-news",
-        "https://example.com/keyword-news",
+        List.of(new NewsSourceInfo("DART", "https://example.com/keyword-news")),
         Category.STOCK,
         Instant.parse("2026-08-17T10:00:00Z"));
   }

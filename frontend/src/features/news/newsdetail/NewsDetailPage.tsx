@@ -5,7 +5,6 @@ import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
-import { getMockNewsDetail } from './mock.ts';
 import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
@@ -24,16 +23,6 @@ function getMarketSummaryItems(summary: string) {
     .split(/\r?\n|(?<=[.!?。！？])\s+/)
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-const NEWS_SOURCE_LABELS: Record<string, string> = {
-  DART: 'DART',
-  KOSIS: '국가통계포털',
-  BOK: '한국은행',
-};
-
-function getNewsSourceLabel(source: string) {
-  return NEWS_SOURCE_LABELS[source] ?? source;
 }
 
 function formatDetailDate(value?: string) {
@@ -89,17 +78,35 @@ export function NewsDetailPage() {
   };
 
   useEffect(() => {
+    let ignore = false;
+
     trackEvent('view_news_detail', { news_id: newsId });
+    setPayload(undefined);
     setError('');
     getNewsDetail(newsId)
-      .then(setPayload)
-      .catch(() => setPayload(getMockNewsDetail(newsId)));
+      .then((nextPayload) => {
+        if (!ignore) {
+          setPayload(nextPayload);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setPayload(undefined);
+          setError('뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, [newsId]);
 
   if (error) {
     return (
       <main className="news-page">
-        <p className="loading">{error}</p>
+        <p className="loading" role="alert">
+          {error}
+        </p>
       </main>
     );
   }
@@ -129,23 +136,25 @@ export function NewsDetailPage() {
 
         <div className="detail-meta">
           <span className="detail-category">{getCategoryLabel(news.category)}</span>
-          {news.source && (
-            <span className="detail-source">
-              출처:{' '}
-              {news.sourceUrl ? (
-                <a
-                  className="source-link"
-                  href={news.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {getNewsSourceLabel(news.source)}
-                </a>
-              ) : (
-                getNewsSourceLabel(news.source)
-              )}
-            </span>
-          )}
+          {news.sources.length > 0 ? (
+            <div className="detail-sources">
+              <span>출처:</span>
+              <ul>
+                {news.sources.map((source, index) => (
+                  <li key={`${source.url}-${index}`}>
+                    <a
+                      className="source-link"
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {source.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         <h1>{news.title}</h1>

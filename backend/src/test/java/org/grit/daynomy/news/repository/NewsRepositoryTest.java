@@ -2,9 +2,10 @@ package org.grit.daynomy.news.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,34 +48,50 @@ class NewsRepositoryTest {
   @Autowired private NewsRepository newsRepository;
 
   @Test
-  @DisplayName("관리자 뉴스 목록 쿼리는 상태와 카테고리로 필터링한다")
+  @DisplayName("관리자 뉴스 목록 조회는 필터 조합별로 동작한다")
   void findAdminNewsFiltersByStatusAndCategory() {
     entityManager.persist(
-        News.createAdminDraft(
-            "초안 주식 뉴스", "본문", null, "https://example.com/draft-stock", Category.STOCK));
+        News.createDraft(
+            "초안 주식 뉴스",
+            "본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/draft-stock")),
+            Category.STOCK));
     entityManager.persist(
-        News.createAdminDraft(
-            "초안 부동산 뉴스", "본문", null, "https://example.com/draft-estate", Category.REAL_ESTATE));
+        News.createDraft(
+            "초안 부동산 뉴스",
+            "본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/draft-estate")),
+            Category.REAL_ESTATE));
     entityManager.persist(
         News.createPublished(
             "발행 주식 뉴스",
             "본문",
             null,
-            NewsSource.DART,
-            "published-stock",
-            "https://example.com/published-stock",
+            List.of(new NewsSourceInfo("DART", "https://example.com/published-stock")),
             Category.STOCK,
             java.time.Instant.parse("2026-08-17T10:00:00Z")));
     entityManager.flush();
 
-    var drafts = newsRepository.findAdminNews(NewsStatus.DRAFT, null, PageRequest.of(0, 10));
-    var stockNews = newsRepository.findAdminNews(null, Category.STOCK, PageRequest.of(0, 10));
+    var pageable = PageRequest.of(0, 10);
+    var allNews = newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable);
+    var drafts = newsRepository.findByStatusOrderByCreatedAtDescIdDesc(NewsStatus.DRAFT, pageable);
+    var stockNews =
+        newsRepository.findByCategoryOrderByCreatedAtDescIdDesc(Category.STOCK, pageable);
+    var draftStockNews =
+        newsRepository.findByStatusAndCategoryOrderByCreatedAtDescIdDesc(
+            NewsStatus.DRAFT, Category.STOCK, pageable);
 
+    assertThat(allNews.getContent())
+        .extracting(News::getTitle)
+        .containsExactlyInAnyOrder("발행 주식 뉴스", "초안 부동산 뉴스", "초안 주식 뉴스");
     assertThat(drafts.getContent())
         .extracting(News::getTitle)
         .containsExactlyInAnyOrder("초안 주식 뉴스", "초안 부동산 뉴스");
     assertThat(stockNews.getContent())
         .extracting(News::getTitle)
         .containsExactlyInAnyOrder("초안 주식 뉴스", "발행 주식 뉴스");
+    assertThat(draftStockNews.getContent()).extracting(News::getTitle).containsExactly("초안 주식 뉴스");
   }
 }

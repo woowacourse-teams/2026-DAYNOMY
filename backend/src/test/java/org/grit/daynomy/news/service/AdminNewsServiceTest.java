@@ -22,9 +22,11 @@ import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
+import org.grit.daynomy.news.dto.NewsSourceRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -63,7 +65,11 @@ class AdminNewsServiceTest {
   @DisplayName("관리자 뉴스 등록은 수동 출처의 초안으로 저장한다")
   void createNewsSavesManualDraft() {
     AdminNewsCreateRequest request =
-        new AdminNewsCreateRequest("뉴스 제목", "뉴스 본문", "https://example.com/news/1", Category.STOCK);
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
     MockMultipartFile image =
         new MockMultipartFile("image", "news.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1, 2, 3});
     given(s3ImageStorage.upload(any(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE)))
@@ -80,8 +86,8 @@ class AdminNewsServiceTest {
     assertThat(capturedNews.getTitle()).isEqualTo("뉴스 제목");
     assertThat(capturedNews.getContent()).isEqualTo("뉴스 본문");
     assertThat(capturedNews.getImageUrl()).isEqualTo("https://example.com/news-image.png");
-    assertThat(capturedNews.getSource()).isNull();
-    assertThat(capturedNews.getExternalId()).isNull();
+    assertThat(capturedNews.getSources())
+        .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/news/1"));
     assertThat(capturedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
     assertThat(capturedNews.getPublishedAt()).isNull();
     ArgumentCaptor<byte[]> imageCaptor = ArgumentCaptor.forClass(byte[].class);
@@ -90,10 +96,37 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("관리자 뉴스 등록은 여러 출처를 JSONB 목록으로 저장한다")
+  void createNewsSavesMultipleSources() {
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(
+                new NewsSourceRequest("출처 A", "https://example.com/a"),
+                new NewsSourceRequest("출처 B", "https://example.com/b")),
+            Category.STOCK);
+    given(newsRepository.save(any(News.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+    adminNewsService.createDraft(request, null);
+
+    ArgumentCaptor<News> newsCaptor = ArgumentCaptor.forClass(News.class);
+    verify(newsRepository).save(newsCaptor.capture());
+    assertThat(newsCaptor.getValue().getSources())
+        .containsExactly(
+            new NewsSourceInfo("출처 A", "https://example.com/a"),
+            new NewsSourceInfo("출처 B", "https://example.com/b"));
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 등록은 지원하지 않는 이미지 형식을 거부한다")
   void createNewsRejectsUnsupportedImage() {
     AdminNewsCreateRequest request =
-        new AdminNewsCreateRequest("뉴스 제목", "뉴스 본문", "https://example.com/news/1", Category.STOCK);
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
     MockMultipartFile image =
         new MockMultipartFile("image", "news.gif", MediaType.IMAGE_GIF_VALUE, new byte[] {1, 2, 3});
 
@@ -106,12 +139,17 @@ class AdminNewsServiceTest {
   }
 
   @Test
-  @DisplayName("관리자 뉴스 목록을 상태와 함께 페이지로 조회한다")
-  void getNewsPageReturnsNewsWithStatus() {
+  @DisplayName("관리자 뉴스 목록은 필터가 없으면 전체를 페이지로 조회한다")
+  void getNewsPageReturnsAllNewsWithoutFilters() {
     News news =
-        News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
+        News.createDraft(
+            "초안 뉴스",
+            "뉴스 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
     PageRequest pageable = PageRequest.of(0, 15);
-    given(newsRepository.findAdminNews(null, null, pageable))
+    given(newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable))
         .willReturn(new PageImpl<>(List.of(news), pageable, 1));
 
     var response = adminNewsService.getNewsPage(1, 15, null, null);
@@ -119,14 +157,19 @@ class AdminNewsServiceTest {
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().getFirst().title()).isEqualTo("초안 뉴스");
     assertThat(response.items().getFirst().status()).isEqualTo(NewsStatus.DRAFT);
-    verify(newsRepository).findAdminNews(null, null, pageable);
+    verify(newsRepository).findAllByOrderByCreatedAtDescIdDesc(pageable);
   }
 
   @Test
   @DisplayName("관리자 뉴스 상세는 발행되지 않은 뉴스도 조회한다")
   void getNewsDetailReturnsDraftNews() {
     News news =
-        News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
+        News.createDraft(
+            "초안 뉴스",
+            "뉴스 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
     News foundNews = adminNewsService.getNewsDetail(1L);
@@ -139,7 +182,12 @@ class AdminNewsServiceTest {
   @DisplayName("관리자 뉴스 발행은 초안 뉴스를 발행 상태로 변경한다")
   void publishNewsChangesDraftStatusToPublished() {
     News news =
-        News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
+        News.createDraft(
+            "초안 뉴스",
+            "뉴스 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
     List<NewsKeyword> keywords =
         List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
@@ -163,7 +211,12 @@ class AdminNewsServiceTest {
   @DisplayName("이미 발행 처리된 뉴스의 시장 분석 중복 저장은 409 예외로 변환한다")
   void publishNewsConvertsMarketAnalysisUniqueViolation() {
     News news =
-        News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
+        News.createDraft(
+            "초안 뉴스",
+            "뉴스 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
     List<NewsKeyword> keywords =
         List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
     NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("시장 분석 결과");
@@ -202,9 +255,7 @@ class AdminNewsServiceTest {
             "발행 뉴스",
             "뉴스 본문",
             null,
-            null,
-            null,
-            "https://example.com/news/1",
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
             Category.STOCK,
             java.time.Instant.now());
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
@@ -222,7 +273,12 @@ class AdminNewsServiceTest {
   @DisplayName("관리자 뉴스 거절은 초안 뉴스를 거절 상태로 변경한다")
   void rejectNewsChangesDraftStatusToRejected() {
     News news =
-        News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
+        News.createDraft(
+            "초안 뉴스",
+            "뉴스 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
     News rejectedNews = adminNewsService.reject(1L);
@@ -242,9 +298,7 @@ class AdminNewsServiceTest {
             "발행 뉴스",
             "뉴스 본문",
             null,
-            null,
-            null,
-            "https://example.com/news/1",
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
             Category.STOCK,
             java.time.Instant.now());
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
@@ -259,7 +313,12 @@ class AdminNewsServiceTest {
   @DisplayName("키워드 추출에 실패하면 뉴스는 초안 상태로 유지한다")
   void publishNewsKeepsDraftWhenKeywordExtractionFails() {
     News news =
-        News.createAdminDraft("초안 뉴스", "뉴스 본문", null, "https://example.com/news/1", Category.STOCK);
+        News.createDraft(
+            "초안 뉴스",
+            "뉴스 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
     RuntimeException failure = new RuntimeException("keyword extraction failed");
     given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure);
@@ -274,14 +333,18 @@ class AdminNewsServiceTest {
   @DisplayName("관리자 뉴스 내용을 수정하고 기존 상태는 유지한다")
   void updateNewsChangesContentWithoutChangingStatus() {
     News news =
-        News.createAdminDraft(
+        News.createDraft(
             "기존 제목",
             "기존 본문",
             "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png",
-            "https://example.com/old",
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/old")),
             Category.STOCK);
     AdminNewsUpdateRequest request =
-        new AdminNewsUpdateRequest("수정 제목", "수정 본문", "https://example.com/new", Category.ETF);
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.ETF);
     MockMultipartFile image =
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
@@ -296,9 +359,12 @@ class AdminNewsServiceTest {
       assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
       assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
       assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
-      assertThat(updatedNews.getSourceUrl()).isEqualTo("https://example.com/new");
+      assertThat(updatedNews.getSources())
+          .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/new"));
       assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
       assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
+      verifyNoInteractions(
+          keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
       verify(s3ImageStorage, never())
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
 
@@ -315,17 +381,112 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("발행된 뉴스의 본문을 수정하면 키워드와 시장 분석을 다시 생성한다")
+  void updatePublishedNewsRegeneratesKeywordsAndMarketAnalysis() {
+    News news =
+        News.createPublished(
+            "기존 제목",
+            "기존 본문",
+            null,
+            List.of(new NewsSourceInfo("DART", "https://example.com/old")),
+            Category.STOCK,
+            java.time.Instant.now());
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.ETF);
+    List<NewsKeyword> keywords =
+        List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
+    NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("수정된 시장 분석 결과");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(keywordAiClient.extractKeywords("수정 본문")).willReturn(keywords);
+    given(marketAnalysisAiClient.analyze("수정 본문")).willReturn(marketAnalysis);
+
+    News updatedNews = adminNewsService.update(1L, request, null);
+
+    assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
+    verify(keywordAiClient).extractKeywords("수정 본문");
+    verify(marketAnalysisAiClient).analyze("수정 본문");
+    verify(keywordService).replaceKeywords(news, keywords);
+    verify(marketAnalysisService).updateMarketAnalysis(1L, marketAnalysis);
+  }
+
+  @Test
+  @DisplayName("시장 분석 생성에 실패하면 뉴스와 기존 분석 데이터를 변경하지 않는다")
+  void updatePublishedNewsKeepsExistingDataWhenMarketAnalysisGenerationFails() {
+    News news =
+        News.createPublished(
+            "기존 제목",
+            "기존 본문",
+            null,
+            List.of(new NewsSourceInfo("DART", "https://example.com/old")),
+            Category.STOCK,
+            java.time.Instant.now());
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.ETF);
+    List<NewsKeyword> keywords =
+        List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
+    RuntimeException failure = new RuntimeException("market analysis generation failed");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(keywordAiClient.extractKeywords("수정 본문")).willReturn(keywords);
+    given(marketAnalysisAiClient.analyze("수정 본문")).willThrow(failure);
+
+    assertThatThrownBy(() -> adminNewsService.update(1L, request, null)).isSameAs(failure);
+
+    assertThat(news.getTitle()).isEqualTo("기존 제목");
+    assertThat(news.getContent()).isEqualTo("기존 본문");
+    verifyNoInteractions(keywordService, marketAnalysisService);
+  }
+
+  @Test
+  @DisplayName("발행된 뉴스의 본문이 변경되지 않으면 키워드와 시장 분석을 다시 생성하지 않는다")
+  void updatePublishedNewsWithoutContentChangeDoesNotRegenerateAnalysis() {
+    News news =
+        News.createPublished(
+            "기존 제목",
+            "기존 본문",
+            null,
+            List.of(new NewsSourceInfo("DART", "https://example.com/old")),
+            Category.STOCK,
+            java.time.Instant.now());
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "기존 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.ETF);
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    News updatedNews = adminNewsService.update(1L, request, null);
+
+    assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
+    assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
+    verifyNoInteractions(
+        keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
+  }
+
+  @Test
   @DisplayName("뉴스 DB 반영에 실패하면 새 이미지를 정리한다")
   void updateNewsDeletesUploadedImageWhenDatabaseUpdateFails() {
     News news =
-        News.createAdminDraft(
+        News.createDraft(
             "기존 제목",
             "기존 본문",
             "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png",
-            "https://example.com/old",
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/old")),
             Category.STOCK);
     AdminNewsUpdateRequest request =
-        new AdminNewsUpdateRequest("수정 제목", "수정 본문", "https://example.com/new", Category.ETF);
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.ETF);
     MockMultipartFile image =
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     S3ImageStorage.StoredImage uploadedImage =
@@ -354,7 +515,10 @@ class AdminNewsServiceTest {
                 adminNewsService.update(
                     1L,
                     new AdminNewsUpdateRequest(
-                        "수정 제목", "수정 본문", "https://example.com/new", Category.ETF),
+                        "수정 제목",
+                        "수정 본문",
+                        List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+                        Category.ETF),
                     null))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
@@ -365,11 +529,11 @@ class AdminNewsServiceTest {
   @DisplayName("관리자 뉴스 삭제는 삭제 상태로 변경한다")
   void deleteNewsChangesStatusToDeleted() {
     News news =
-        News.createAdminDraft(
+        News.createDraft(
             "뉴스 제목",
             "뉴스 본문",
             "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/news.png",
-            "https://example.com/news/1",
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
             Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 

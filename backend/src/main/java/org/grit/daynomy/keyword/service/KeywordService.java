@@ -38,6 +38,12 @@ public class KeywordService {
             .toList());
   }
 
+  @Transactional
+  public void replaceKeywords(News news, List<NewsKeyword> keywords) {
+    newsKeywordRepository.deleteAllByNewsId(news.getId());
+    saveKeywords(news, keywords);
+  }
+
   public KeywordsResponse getKeywords(Long newsId) {
     if (newsRepository.findByIdAndStatus(newsId, NewsStatus.PUBLISHED).isEmpty()) {
       throw new BusinessException(NewsErrorCode.NEWS_NOT_FOUND);

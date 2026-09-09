@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -18,7 +19,7 @@ import org.grit.daynomy.keyword.exception.KeywordErrorCode;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
@@ -61,6 +62,32 @@ class KeywordServiceTest {
                   assertThat(savedKeywords.get(0).getPoint2()).isEqualTo("두 번째 분석 포인트");
                   assertThat(savedKeywords.get(0).getPoint3()).isEqualTo("세 번째 분석 포인트");
                   assertThat(savedKeywords.get(1).getKeyword()).isEqualTo("부동산 규제");
+                  return true;
+                }));
+  }
+
+  @Test
+  @DisplayName("기존 키워드를 삭제하고 새로운 키워드 목록으로 교체한다")
+  void replaceKeywordsDeletesExistingKeywordsAndSavesNewKeywords() {
+    News news = mock(News.class);
+    given(news.getId()).willReturn(1L);
+    List<NewsKeyword> keywords = List.of(createKeyword("기준금리"), createKeyword("채권시장"));
+
+    keywordService.replaceKeywords(news, keywords);
+
+    verify(newsKeywordRepository).deleteAllByNewsId(1L);
+    verify(newsKeywordRepository)
+        .saveAll(
+            argThat(
+                entities -> {
+                  List<NewsKeyword> savedKeywords = new ArrayList<>();
+                  entities.forEach(savedKeywords::add);
+
+                  assertThat(savedKeywords).hasSize(2);
+                  assertThat(savedKeywords.get(0).getNews()).isSameAs(news);
+                  assertThat(savedKeywords.get(0).getKeyword()).isEqualTo("기준금리");
+                  assertThat(savedKeywords.get(1).getNews()).isSameAs(news);
+                  assertThat(savedKeywords.get(1).getKeyword()).isEqualTo("채권시장");
                   return true;
                 }));
   }
@@ -123,9 +150,7 @@ class KeywordServiceTest {
         "keyword news",
         "content",
         "image.png",
-        NewsSource.DART,
-        "keyword-news",
-        "https://example.com/keyword-news",
+        List.of(new NewsSourceInfo("DART", "https://example.com/keyword-news")),
         Category.STOCK,
         Instant.parse("2026-08-17T10:00:00Z"));
   }

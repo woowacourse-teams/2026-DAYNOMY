@@ -19,9 +19,7 @@ export function getMockNewsDetail(newsId: string): NewsDetailPayload {
       publishedAt: '2026-08-24T00:00:00+09:00',
       content: detailContent,
       imageUrl: newsDetailMainImage,
-      source: 'DAYNOMY',
-      sourceUrl: null,
-      originalUrl: null,
+      sources: [{ name: 'DAYNOMY', url: 'https://daynomy.example.com' }],
     },
     keywords: [
       {

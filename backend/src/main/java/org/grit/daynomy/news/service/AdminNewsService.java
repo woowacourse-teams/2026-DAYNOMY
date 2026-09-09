@@ -51,11 +51,11 @@ public class AdminNewsService {
     S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
     try {
       News news =
-          News.createAdminDraft(
+          News.createDraft(
               request.title(),
               request.content(),
               uploadedImage == null ? null : uploadedImage.publicUrl(),
-              request.sourceUrl(),
+              request.sourceInfos(),
               request.category());
 
       return newsRepository.save(news);
@@ -67,8 +67,19 @@ public class AdminNewsService {
 
   public AdminNewsPageResponse getNewsPage(
       int page, int size, NewsStatus status, Category category) {
-    Page<News> newsPage =
-        newsRepository.findAdminNews(status, category, PageRequest.of(page - 1, size));
+    PageRequest pageable = PageRequest.of(page - 1, size);
+    Page<News> newsPage;
+    if (status == null && category == null) {
+      newsPage = newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable);
+    } else if (status == null) {
+      newsPage = newsRepository.findByCategoryOrderByCreatedAtDescIdDesc(category, pageable);
+    } else if (category == null) {
+      newsPage = newsRepository.findByStatusOrderByCreatedAtDescIdDesc(status, pageable);
+    } else {
+      newsPage =
+          newsRepository.findByStatusAndCategoryOrderByCreatedAtDescIdDesc(
+              status, category, pageable);
+    }
 
     return AdminNewsPageResponse.from(newsPage.map(AdminNewsListItemResponse::from));
   }
@@ -120,14 +131,22 @@ public class AdminNewsService {
         newsRepository
             .findById(id)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+    boolean shouldRegenerateAnalysis =
+        news.isPublished() && !news.getContent().equals(request.content());
     String previousImageUrl = news.getImageUrl();
     S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
     try {
+      if (shouldRegenerateAnalysis) {
+        List<NewsKeyword> keywords = keywordAiClient.extractKeywords(request.content());
+        NewsMarketAnalysis marketAnalysis = marketAnalysisAiClient.analyze(request.content());
+        keywordService.replaceKeywords(news, keywords);
+        marketAnalysisService.updateMarketAnalysis(id, marketAnalysis);
+      }
       news.update(
           request.title(),
           request.content(),
           uploadedImage == null ? previousImageUrl : uploadedImage.publicUrl(),
-          request.sourceUrl(),
+          request.sourceInfos(),
           request.category());
       if (uploadedImage != null) {
         newsRepository.flush();

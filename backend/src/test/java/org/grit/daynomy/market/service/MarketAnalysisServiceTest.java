@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
@@ -14,7 +15,7 @@ import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSource;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +50,33 @@ class MarketAnalysisServiceTest {
   }
 
   @Test
+  @DisplayName("기존 시장 분석을 새로운 분석 내용으로 수정한다")
+  void updateMarketAnalysisChangesSummary() {
+    NewsMarketAnalysis savedMarketAnalysis = createSavedMarketAnalysis();
+    NewsMarketAnalysis newMarketAnalysis = new NewsMarketAnalysis("수정된 시장 분석 결과");
+    given(newsMarketAnalysisRepository.findByNewsId(1L))
+        .willReturn(Optional.of(savedMarketAnalysis));
+
+    marketAnalysisService.updateMarketAnalysis(1L, newMarketAnalysis);
+
+    assertThat(savedMarketAnalysis.getSummary()).isEqualTo("수정된 시장 분석 결과");
+  }
+
+  @Test
+  @DisplayName("수정할 시장 분석이 없으면 예외를 던진다")
+  void updateMarketAnalysisThrowsWhenMissing() {
+    given(newsMarketAnalysisRepository.findByNewsId(1L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                marketAnalysisService.updateMarketAnalysis(
+                    1L, new NewsMarketAnalysis("수정된 시장 분석 결과")))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND);
+  }
+
+  @Test
   @DisplayName("뉴스 ID로 시장 분석을 조회한다")
   void findMarketAnalysisReturnsAnalysis() {
     given(newsMarketAnalysisRepository.findByNewsId(1L))
@@ -79,9 +107,7 @@ class MarketAnalysisServiceTest {
             "draft news",
             "content",
             "image.png",
-            NewsSource.DART,
-            "draft-news",
-            "https://example.com/draft-news",
+            List.of(new NewsSourceInfo("DART", "https://example.com/draft-news")),
             Category.STOCK);
     given(newsMarketAnalysisRepository.findByNewsId(1L))
         .willReturn(Optional.of(createSavedMarketAnalysis(draft)));
@@ -109,9 +135,7 @@ class MarketAnalysisServiceTest {
         "market news",
         "content",
         "image.png",
-        NewsSource.DART,
-        "market-news",
-        "https://example.com/market-news",
+        List.of(new NewsSourceInfo("DART", "https://example.com/market-news")),
         Category.STOCK,
         Instant.parse("2026-08-17T10:00:00Z"));
   }

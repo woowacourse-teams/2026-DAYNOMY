@@ -13,10 +13,10 @@ import java.util.List;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.NewsSource;
 import org.grit.daynomy.news.dto.NewsDetailResponse;
 import org.grit.daynomy.news.dto.NewsListItemResponse;
 import org.grit.daynomy.news.dto.NewsPageResponse;
+import org.grit.daynomy.news.dto.NewsSourceResponse;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.service.NewsService;
 import org.junit.jupiter.api.DisplayName;
@@ -193,8 +193,7 @@ class NewsControllerTest {
                 "detail news",
                 "content",
                 "image.png",
-                NewsSource.DART,
-                "https://example.com/1",
+                List.of(new NewsSourceResponse("DART", "https://example.com/1")),
                 Category.STOCK,
                 Instant.parse("2026-08-17T10:00:00Z")));
 
@@ -203,7 +202,7 @@ class NewsControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.title").value("detail news"))
         .andExpect(jsonPath("$.content").value("content"))
-        .andExpect(jsonPath("$.source").value("DART"));
+        .andExpect(jsonPath("$.sources[0].name").value("DART"));
 
     then(newsService).should().getNewsDetail(1L);
   }

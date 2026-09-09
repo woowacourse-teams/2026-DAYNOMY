@@ -3,9 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { trackEvent } from '../../analytics';
 import { ArticleCard } from '../news/newslist/components/ArticleCard';
 import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
-import { NEWS_CATEGORIES } from '../news/newslist/constants';
 import { isCategory } from '../news/newslist/types';
-import type { NewsCategory, NewsListItem } from '../news/newslist/types';
+import type { NewsCategory, NewsCategoryOption, NewsListItem } from '../news/newslist/types';
 import { searchKosdaqTopStocks } from '../stocks/api';
 import type { StockCandidate } from '../stocks/types';
 import { searchNews } from './api';
@@ -14,6 +13,12 @@ import './SearchPage.css';
 
 const PAGE_SIZE = 10;
 const MAX_VISIBLE_PAGES = 5;
+const SEARCH_CATEGORIES: NewsCategoryOption[] = [
+  { label: '전체', value: 'ALL' },
+  { label: '주식', value: 'STOCK' },
+  { label: 'ETF', value: 'ETF' },
+  { label: '부동산', value: 'REAL_ESTATE' },
+];
 
 function getCategory(searchParams: URLSearchParams): NewsCategory {
   const category = searchParams.get('category');
@@ -197,7 +202,7 @@ function SearchPage() {
             ) : null}
 
             <CategoryTabs
-              categories={NEWS_CATEGORIES}
+              categories={SEARCH_CATEGORIES}
               selectedCategory={selectedCategory}
               onChange={changeCategory}
             />

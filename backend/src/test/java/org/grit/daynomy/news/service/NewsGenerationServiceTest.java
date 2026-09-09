@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
@@ -25,8 +24,7 @@ import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.NewsSource;
-import org.grit.daynomy.news.repository.NewsRepository;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,7 +46,6 @@ class NewsGenerationServiceTest {
   @Mock private S3ImageStorage s3ImageStorage;
   @Mock private KeywordAiClient keywordAiClient;
   @Mock private MarketAnalysisAiClient marketAnalysisAiClient;
-  @Mock private NewsRepository newsRepository;
   @Mock private NewsPersistenceService newsPersistenceService;
 
   @InjectMocks private NewsGenerationService newsGenerationService;
@@ -81,32 +78,23 @@ class NewsGenerationServiceTest {
     LocalDate endDate = LocalDate.of(2026, 8, 17);
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.DART,
-            "20260817000001",
-            "https://dart.example/1",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
     given(dartNewsPromptService.createPrompts(beginDate, endDate, "B", "K"))
         .willReturn(List.of(prompt));
-    given(newsRepository.existsBySourceAndExternalId(NewsSource.DART, "20260817000001"))
-        .willReturn(false);
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("제목", "본문"));
     given(openAiImageGenerator.generateNewsImage("제목")).willReturn(IMAGE_BYTES);
     stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
-    given(
-            newsPersistenceService.saveIfAbsent(
-                prompt, new GeneratedNews("제목", "본문"), IMAGE_URL, List.of(), marketAnalysis))
-        .willReturn(true);
-
     int savedCount = newsGenerationService.generateDartNews(beginDate, endDate, "B", "K");
 
     verify(keywordAiClient).extractKeywords("본문");
     verify(marketAnalysisAiClient).analyze("본문");
     verify(s3ImageStorage).upload(eq(IMAGE_BYTES), eq("webp"), eq("image/webp"));
     verify(newsPersistenceService)
-        .saveIfAbsent(prompt, new GeneratedNews("제목", "본문"), IMAGE_URL, List.of(), marketAnalysis);
+        .save(prompt, new GeneratedNews("제목", "본문"), IMAGE_URL, List.of(), marketAnalysis);
     assertThat(savedCount).isEqualTo(1);
   }
 
@@ -116,17 +104,13 @@ class NewsGenerationServiceTest {
     LocalDate date = LocalDate.of(2026, 8, 17);
     NewsPrompt failedPrompt =
         new NewsPrompt(
-            NewsSource.DART,
-            "failed",
-            "https://dart.example/failed",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/failed")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "failed prompt");
     NewsPrompt successfulPrompt =
         new NewsPrompt(
-            NewsSource.DART,
-            "successful",
-            "https://dart.example/successful",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/successful")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "successful prompt");
@@ -139,49 +123,37 @@ class NewsGenerationServiceTest {
     given(openAiImageGenerator.generateNewsImage("제목")).willReturn(IMAGE_BYTES);
     stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
-    given(
-            newsPersistenceService.saveIfAbsent(
-                successfulPrompt, generatedNews, IMAGE_URL, List.of(), marketAnalysis))
-        .willReturn(true);
-
     int savedCount = newsGenerationService.generateDartNews(date, date, "B", "K");
 
     assertThat(savedCount).isEqualTo(1);
     verify(newsPersistenceService)
-        .saveIfAbsent(successfulPrompt, generatedNews, IMAGE_URL, List.of(), marketAnalysis);
+        .save(successfulPrompt, generatedNews, IMAGE_URL, List.of(), marketAnalysis);
     verify(openAiImageGenerator).generateNewsImage("제목");
   }
 
   @Test
-  @DisplayName("이미 저장된 DART 공시는 뉴스 생성을 건너뛴다")
-  void generateDartNewsSkipsExistingNews() {
+  @DisplayName("동일한 프롬프트도 생성 결과를 저장한다")
+  void generateDartNewsSavesWithoutSourceIdentityCheck() {
     LocalDate beginDate = LocalDate.of(2026, 8, 1);
     LocalDate endDate = LocalDate.of(2026, 8, 17);
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.DART,
-            "20260817000001",
-            "https://dart.example/1",
+            List.of(new NewsSourceInfo("DART", "https://dart.example/1")),
             Category.STOCK,
             Instant.parse("2026-08-17T00:00:00Z"),
             "prompt");
     given(dartNewsPromptService.createPrompts(beginDate, endDate, "B", "K"))
         .willReturn(List.of(prompt));
-    given(newsRepository.existsBySourceAndExternalId(NewsSource.DART, "20260817000001"))
-        .willReturn(true);
+    given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("제목", "본문"));
+    given(openAiImageGenerator.generateNewsImage("제목")).willReturn(IMAGE_BYTES);
+    stubImageUpload();
+    NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
 
     int savedCount = newsGenerationService.generateDartNews(beginDate, endDate, "B", "K");
 
-    assertThat(savedCount).isZero();
-    verify(openAiNewsGenerator, never()).generate(prompt);
-    verify(openAiImageGenerator, never()).generateNewsImage(org.mockito.ArgumentMatchers.any());
-    verify(newsPersistenceService, never())
-        .saveIfAbsent(
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyList(),
-            org.mockito.ArgumentMatchers.any());
+    assertThat(savedCount).isEqualTo(1);
+    verify(newsPersistenceService)
+        .save(prompt, new GeneratedNews("제목", "본문"), IMAGE_URL, List.of(), marketAnalysis);
   }
 
   @Test
@@ -189,66 +161,42 @@ class NewsGenerationServiceTest {
   void generateKosisNewsSavesGeneratedNews() {
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.KOSIS,
-            "consumer-price-index:202607",
-            "https://kosis.kr",
+            List.of(new NewsSourceInfo("KOSIS", "https://kosis.kr")),
             Category.STOCK,
             Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
     given(kosisNewsPromptService.createPrompts()).willReturn(List.of(prompt));
-    given(
-            newsRepository.existsBySourceAndExternalId(
-                NewsSource.KOSIS, "consumer-price-index:202607"))
-        .willReturn(false);
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("물가 뉴스", "본문"));
     given(openAiImageGenerator.generateNewsImage("물가 뉴스")).willReturn(IMAGE_BYTES);
     stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
-    given(
-            newsPersistenceService.saveIfAbsent(
-                prompt, new GeneratedNews("물가 뉴스", "본문"), IMAGE_URL, List.of(), marketAnalysis))
-        .willReturn(true);
-
     int savedCount = newsGenerationService.generateKosisNews();
 
     verify(newsPersistenceService)
-        .saveIfAbsent(
-            prompt, new GeneratedNews("물가 뉴스", "본문"), IMAGE_URL, List.of(), marketAnalysis);
+        .save(prompt, new GeneratedNews("물가 뉴스", "본문"), IMAGE_URL, List.of(), marketAnalysis);
     assertThat(savedCount).isEqualTo(1);
   }
 
   @Test
-  @DisplayName("생성 중 이미 저장된 뉴스가 되면 저장 건수에서 제외한다")
-  void generateKosisNewsExcludesNewsSavedByAnotherFlow() {
+  @DisplayName("생성 결과를 저장하면 저장 건수에 포함한다")
+  void generateKosisNewsIncludesSavedNews() {
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.KOSIS,
-            "consumer-price-index:202607",
-            "https://kosis.kr",
+            List.of(new NewsSourceInfo("KOSIS", "https://kosis.kr")),
             Category.STOCK,
             Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
     GeneratedNews generatedNews = new GeneratedNews("물가 뉴스", "본문");
     given(kosisNewsPromptService.createPrompts()).willReturn(List.of(prompt));
-    given(
-            newsRepository.existsBySourceAndExternalId(
-                NewsSource.KOSIS, "consumer-price-index:202607"))
-        .willReturn(false);
     given(openAiNewsGenerator.generate(prompt)).willReturn(generatedNews);
     given(openAiImageGenerator.generateNewsImage("물가 뉴스")).willReturn(IMAGE_BYTES);
     stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
-    given(
-            newsPersistenceService.saveIfAbsent(
-                prompt, generatedNews, IMAGE_URL, List.of(), marketAnalysis))
-        .willReturn(false);
-
     int savedCount = newsGenerationService.generateKosisNews();
 
-    assertThat(savedCount).isZero();
+    assertThat(savedCount).isEqualTo(1);
     verify(newsPersistenceService)
-        .saveIfAbsent(prompt, generatedNews, IMAGE_URL, List.of(), marketAnalysis);
-    verify(s3ImageStorage).delete(new S3ImageStorage.StoredImage("news-image.webp", IMAGE_URL));
+        .save(prompt, generatedNews, IMAGE_URL, List.of(), marketAnalysis);
   }
 
   @Test
@@ -256,29 +204,19 @@ class NewsGenerationServiceTest {
   void generateBokNewsSavesGeneratedNews() {
     NewsPrompt prompt =
         new NewsPrompt(
-            NewsSource.BOK,
-            "base-rate:202607",
-            "https://ecos.bok.or.kr",
+            List.of(new NewsSourceInfo("한국은행", "https://ecos.bok.or.kr")),
             Category.STOCK,
             Instant.parse("2026-08-18T00:00:00Z"),
             "prompt");
     given(bokNewsPromptService.createPrompts()).willReturn(List.of(prompt));
-    given(newsRepository.existsBySourceAndExternalId(NewsSource.BOK, "base-rate:202607"))
-        .willReturn(false);
     given(openAiNewsGenerator.generate(prompt)).willReturn(new GeneratedNews("금리 뉴스", "본문"));
     given(openAiImageGenerator.generateNewsImage("금리 뉴스")).willReturn(IMAGE_BYTES);
     stubImageUpload();
     NewsMarketAnalysis marketAnalysis = stubAnalyses("본문");
-    given(
-            newsPersistenceService.saveIfAbsent(
-                prompt, new GeneratedNews("금리 뉴스", "본문"), IMAGE_URL, List.of(), marketAnalysis))
-        .willReturn(true);
-
     int savedCount = newsGenerationService.generateBokNews();
 
     verify(newsPersistenceService)
-        .saveIfAbsent(
-            prompt, new GeneratedNews("금리 뉴스", "본문"), IMAGE_URL, List.of(), marketAnalysis);
+        .save(prompt, new GeneratedNews("금리 뉴스", "본문"), IMAGE_URL, List.of(), marketAnalysis);
     assertThat(savedCount).isEqualTo(1);
   }
 
