@@ -7,9 +7,12 @@ export type NewsDetailResponse = {
   publishedAt: string;
   content: string | string[];
   imageUrl?: string | null;
-  source?: string | null;
-  originalUrl?: string | null;
-  sourceUrl?: string | null;
+  sources: NewsSource[];
+};
+
+export type NewsSource = {
+  name: string;
+  url: string;
 };
 
 export type KeywordCategory = 'PERSON' | 'POLICY' | 'EVENT' | 'TERM' | 'TREND';

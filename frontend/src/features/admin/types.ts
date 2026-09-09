@@ -1,14 +1,16 @@
 import type { Category } from '../news/newslist/types';
 
 export type AdminNewsStatus = 'DRAFT' | 'PUBLISHED' | 'REJECTED' | 'DELETED';
-export type AdminNewsSource = 'DART' | 'KOSIS' | 'BOK';
+export type AdminNewsSource = {
+  name: string;
+  url: string;
+};
 
 export type AdminNewsListItemResponse = {
   id: number;
   title: string;
   imageUrl: string | null;
-  source: AdminNewsSource | null;
-  sourceUrl: string;
+  sources: AdminNewsSource[];
   category: Category;
   publishedAt: string | null;
   status: AdminNewsStatus;
@@ -29,8 +31,7 @@ export type AdminNewsResponse = {
   title: string;
   content: string;
   imageUrl: string | null;
-  source: AdminNewsSource | null;
-  sourceUrl: string;
+  sources: AdminNewsSource[];
   category: Category;
   publishedAt: string | null;
   status: AdminNewsStatus;
@@ -39,7 +40,7 @@ export type AdminNewsResponse = {
 export type AdminNewsFormValues = {
   title: string;
   content: string;
-  sourceUrl: string;
+  sources: AdminNewsSource[];
   category: Category | '';
 };
 

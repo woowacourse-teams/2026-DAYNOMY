@@ -9,35 +9,45 @@ import './admin.css';
 const initialValues: AdminNewsFormValues = {
   title: '',
   content: '',
-  sourceUrl: '',
+  sources: [{ name: '', url: '' }],
   category: '',
 };
 
-type FormErrors = Partial<Record<keyof AdminNewsFormValues | 'image', string>>;
+type FormErrors = Partial<Record<'title' | 'content' | 'category' | 'sources' | 'image', string>>;
+type SourceErrors = Array<Partial<Record<'name' | 'url', string>>>;
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError || error instanceof Error ? error.message : fallback;
 }
 
-function validateForm(values: AdminNewsFormValues, image: File | null): FormErrors {
+function validateForm(values: AdminNewsFormValues, image: File | null) {
   const errors: FormErrors = {};
+  const sourceErrors: SourceErrors = values.sources.map((source) => {
+    const itemErrors: Partial<Record<'name' | 'url', string>> = {};
+    if (!source.name.trim()) itemErrors.name = '출처명을 입력해 주세요.';
+    if (!source.url.trim()) {
+      itemErrors.url = '출처 URL을 입력해 주세요.';
+    } else {
+      try {
+        const url = new URL(source.url.trim());
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error();
+      } catch {
+        itemErrors.url = 'http:// 또는 https://로 시작하는 URL을 입력해 주세요.';
+      }
+    }
+    return itemErrors;
+  });
+  if (values.sources.length === 0) errors.sources = '출처를 하나 이상 추가해 주세요.';
+  if (sourceErrors.some((sourceError) => Object.keys(sourceError).length > 0)) {
+    errors.sources = '출처명과 URL을 모두 입력해 주세요.';
+  }
   if (!values.title.trim()) errors.title = '제목을 입력해 주세요.';
   if (!values.content.trim()) errors.content = '본문을 입력해 주세요.';
-  if (!values.sourceUrl.trim()) {
-    errors.sourceUrl = '원문 URL을 입력해 주세요.';
-  } else {
-    try {
-      const url = new URL(values.sourceUrl.trim());
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error();
-    } catch {
-      errors.sourceUrl = 'http:// 또는 https://로 시작하는 URL을 입력해 주세요.';
-    }
-  }
   if (!values.category) errors.category = '카테고리를 선택해 주세요.';
   if (image && !isSupportedNewsImage(image)) {
     errors.image = 'JPG, PNG, WEBP 형식의 5MB 이하 이미지만 업로드할 수 있습니다.';
   }
-  return errors;
+  return { errors, sourceErrors };
 }
 
 export function AdminNewsFormPage() {
@@ -50,6 +60,7 @@ export function AdminNewsFormPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [sourceErrors, setSourceErrors] = useState<SourceErrors>([]);
   const [loading, setLoading] = useState(isEditing);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -67,7 +78,7 @@ export function AdminNewsFormPage() {
         setValues({
           title: news.title,
           content: news.content,
-          sourceUrl: news.sourceUrl,
+          sources: news.sources.length > 0 ? news.sources : [{ name: '', url: '' }],
           category: news.category,
         });
         setExistingImageUrl(news.imageUrl);
@@ -100,9 +111,42 @@ export function AdminNewsFormPage() {
     [existingImageUrl, imagePreview],
   );
 
-  function updateField(field: keyof AdminNewsFormValues, value: string) {
+  function updateField(field: Exclude<keyof AdminNewsFormValues, 'sources'>, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
+  }
+
+  function updateSource(index: number, field: 'name' | 'url', value: string) {
+    setValues((current) => ({
+      ...current,
+      sources: current.sources.map((source, sourceIndex) =>
+        sourceIndex === index ? { ...source, [field]: value } : source,
+      ),
+    }));
+    setSourceErrors((current) =>
+      current.map((sourceError, sourceIndex) =>
+        sourceIndex === index ? { ...sourceError, [field]: undefined } : sourceError,
+      ),
+    );
+    setErrors((current) => ({ ...current, sources: undefined }));
+  }
+
+  function addSource() {
+    setValues((current) => ({
+      ...current,
+      sources: [...current.sources, { name: '', url: '' }],
+    }));
+    setSourceErrors((current) => [...current, {}]);
+  }
+
+  function removeSource(index: number) {
+    if (values.sources.length === 1) return;
+    setValues((current) => ({
+      ...current,
+      sources: current.sources.filter((_, sourceIndex) => sourceIndex !== index),
+    }));
+    setSourceErrors((current) => current.filter((_, sourceIndex) => sourceIndex !== index));
+    setErrors((current) => ({ ...current, sources: undefined }));
   }
 
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
@@ -115,17 +159,21 @@ export function AdminNewsFormPage() {
     event.preventDefault();
     if (isEditing && detailLoadError) return;
 
-    const nextErrors = validateForm(values, image);
-    setErrors(nextErrors);
+    const validation = validateForm(values, image);
+    setErrors(validation.errors);
+    setSourceErrors(validation.sourceErrors);
     setErrorMessage(null);
-    if (Object.keys(nextErrors).length > 0 || !values.category) return;
+    if (Object.keys(validation.errors).length > 0 || !values.category) return;
 
     setSubmitting(true);
     try {
       const normalizedValues = {
         ...values,
         title: values.title.trim(),
-        sourceUrl: values.sourceUrl.trim(),
+        sources: values.sources.map((source) => ({
+          name: source.name.trim(),
+          url: source.url.trim(),
+        })),
       };
       if (isEditing && editingId !== null) {
         await updateAdminNews(editingId, normalizedValues, image);
@@ -252,24 +300,68 @@ export function AdminNewsFormPage() {
             ) : null}
           </label>
 
-          <label className="admin-field">
-            <span>
-              원문 URL <em>*</em>
-            </span>
-            <input
-              type="url"
-              value={values.sourceUrl}
-              onChange={(event) => updateField('sourceUrl', event.target.value)}
-              placeholder="https://example.com/news"
-              aria-invalid={Boolean(errors.sourceUrl)}
-              aria-describedby={errors.sourceUrl ? 'source-url-error' : undefined}
-            />
-            {errors.sourceUrl ? (
-              <small id="source-url-error" className="admin-field-error">
-                {errors.sourceUrl}
-              </small>
-            ) : null}
-          </label>
+          <fieldset className="admin-sources">
+            <legend>
+              출처 <em>*</em>
+            </legend>
+            {values.sources.map((source, index) => {
+              const itemErrors = sourceErrors[index] ?? {};
+              const nameErrorId = `source-${index}-name-error`;
+              const urlErrorId = `source-${index}-url-error`;
+
+              return (
+                <div className="admin-source-row" key={index}>
+                  <div className="admin-source-heading">
+                    <strong>출처 {index + 1}</strong>
+                    <button
+                      className="admin-source-remove"
+                      type="button"
+                      onClick={() => removeSource(index)}
+                      disabled={values.sources.length === 1}
+                      aria-label={`출처 ${index + 1} 삭제`}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                  <label className="admin-field">
+                    <span>출처명</span>
+                    <input
+                      value={source.name}
+                      onChange={(event) => updateSource(index, 'name', event.target.value)}
+                      placeholder="예: 한국은행"
+                      aria-invalid={Boolean(itemErrors.name)}
+                      aria-describedby={itemErrors.name ? nameErrorId : undefined}
+                    />
+                    {itemErrors.name ? (
+                      <small id={nameErrorId} className="admin-field-error">
+                        {itemErrors.name}
+                      </small>
+                    ) : null}
+                  </label>
+                  <label className="admin-field">
+                    <span>출처 URL</span>
+                    <input
+                      type="url"
+                      value={source.url}
+                      onChange={(event) => updateSource(index, 'url', event.target.value)}
+                      placeholder="https://example.com/news"
+                      aria-invalid={Boolean(itemErrors.url)}
+                      aria-describedby={itemErrors.url ? urlErrorId : undefined}
+                    />
+                    {itemErrors.url ? (
+                      <small id={urlErrorId} className="admin-field-error">
+                        {itemErrors.url}
+                      </small>
+                    ) : null}
+                  </label>
+                </div>
+              );
+            })}
+            {errors.sources ? <small className="admin-field-error">{errors.sources}</small> : null}
+            <button className="admin-source-add" type="button" onClick={addSource}>
+              + 출처 추가
+            </button>
+          </fieldset>
 
           <div className="admin-field">
             <span>대표 이미지</span>

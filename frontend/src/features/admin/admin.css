@@ -157,6 +157,8 @@
 
 .admin-primary-button:focus-visible,
 .admin-secondary-button:focus-visible,
+.admin-source-remove:focus-visible,
+.admin-source-add:focus-visible,
 .admin-navigation a:focus-visible,
 .admin-brand:focus-visible,
 .admin-back-link:focus-visible,
@@ -602,6 +604,79 @@
   font-style: normal;
 }
 
+.admin-sources {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-sources legend {
+  padding: 0;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-sources legend em {
+  color: #c33b3b;
+  font-style: normal;
+}
+
+.admin-source-row {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #eef0f5;
+  border-radius: 10px;
+  background: #fafbfe;
+}
+
+.admin-source-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.admin-source-remove,
+.admin-source-add {
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-source-remove {
+  padding: 0;
+  color: #a83232;
+  background: transparent;
+  text-decoration: underline;
+}
+
+.admin-source-add {
+  min-height: 38px;
+  border: 1px dashed #cbd1df;
+  border-radius: 9px;
+  color: #5144d8;
+  background: #ffffff;
+}
+
+.admin-source-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.admin-source-add:hover {
+  border-color: #5144d8;
+  background: #faf9ff;
+}
+
 .admin-field input[aria-invalid='true'],
 .admin-field textarea[aria-invalid='true'],
 .admin-field select[aria-invalid='true'] {
@@ -701,6 +776,7 @@
   .admin-form-side {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .admin-form-side .admin-sources,
   .admin-form-side .admin-field:nth-child(3),
   .admin-form-actions {
     grid-column: 1 / -1;
@@ -821,6 +897,7 @@
   .admin-form-side {
     grid-template-columns: 1fr;
   }
+  .admin-form-side .admin-sources,
   .admin-form-side .admin-field:nth-child(3),
   .admin-form-actions {
     grid-column: auto;

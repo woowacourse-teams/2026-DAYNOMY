@@ -20,8 +20,7 @@ const listItem = {
   id: 1,
   title: '금리 인상 전망에 시장 주목',
   imageUrl: 'https://example.com/news.png',
-  source: null,
-  sourceUrl: 'https://example.com/news/1',
+  sources: [{ name: 'DART', url: 'https://example.com/news/1' }],
   category: 'STOCK',
   publishedAt: null,
   status: 'DRAFT',
@@ -64,7 +63,10 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
     assert.deepEqual(JSON.parse(await requestPart.text()), {
       title: '새 뉴스',
       content: '본문',
-      sourceUrl: 'https://example.com/news',
+      sources: [
+        { name: '직접 입력', url: 'https://example.com/news' },
+        { name: '추가 출처', url: 'https://example.com/another-news' },
+      ],
       category: 'ECONOMY',
     });
     assert.equal(body.get('image'), null);
@@ -75,8 +77,7 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
         title: '새 뉴스',
         content: '본문',
         imageUrl: null,
-        source: null,
-        sourceUrl: 'https://example.com/news',
+        sources: [{ name: '직접 입력', url: 'https://example.com/news' }],
         category: 'ECONOMY',
         publishedAt: null,
         status: 'DRAFT',
@@ -89,7 +90,10 @@ test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파�
     {
       title: '새 뉴스',
       content: '본문',
-      sourceUrl: 'https://example.com/news',
+      sources: [
+        { name: '직접 입력', url: 'https://example.com/news' },
+        { name: '추가 출처', url: 'https://example.com/another-news' },
+      ],
       category: 'ECONOMY',
     },
     null,

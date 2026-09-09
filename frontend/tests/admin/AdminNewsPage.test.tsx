@@ -13,8 +13,7 @@ const listItem = {
   id: 1,
   title: '금리 인상 전망에 시장 주목',
   imageUrl: null,
-  source: null,
-  sourceUrl: 'https://example.com/news/1',
+  sources: [{ name: 'DART', url: 'https://example.com/news/1' }],
   category: 'STOCK',
   publishedAt: null,
   status: 'DRAFT',
@@ -186,8 +185,7 @@ describe('관리자 뉴스 화면', () => {
             title: listItem.title,
             content: '본문',
             imageUrl: null,
-            source: null,
-            sourceUrl: listItem.sourceUrl,
+            sources: listItem.sources,
             category: listItem.category,
             publishedAt: publishedItem.publishedAt,
             status: 'PUBLISHED',
@@ -277,8 +275,7 @@ describe('관리자 뉴스 화면', () => {
         title: listItem.title,
         content: '본문',
         imageUrl: null,
-        source: null,
-        sourceUrl: listItem.sourceUrl,
+        sources: listItem.sources,
         category: listItem.category,
         publishedAt: '2026-09-06T10:00:00Z',
         status: 'PUBLISHED',
@@ -307,8 +304,7 @@ describe('관리자 뉴스 화면', () => {
             title: listItem.title,
             content: '본문',
             imageUrl: null,
-            source: null,
-            sourceUrl: listItem.sourceUrl,
+            sources: listItem.sources,
             category: listItem.category,
             publishedAt: null,
             status: 'REJECTED',
@@ -357,8 +353,20 @@ describe('관리자 뉴스 화면', () => {
 
     expect(await view.findByText('제목을 입력해 주세요.')).toBeTruthy();
     expect(view.getByText('본문을 입력해 주세요.')).toBeTruthy();
-    expect(view.getByText('원문 URL을 입력해 주세요.')).toBeTruthy();
+    expect(view.getByText('출처명을 입력해 주세요.')).toBeTruthy();
+    expect(view.getByText('출처 URL을 입력해 주세요.')).toBeTruthy();
     expect(view.getByText('카테고리를 선택해 주세요.')).toBeTruthy();
+  });
+
+  it('뉴스 등록 폼에서 출처를 추가하고 삭제할 수 있다', () => {
+    const view = renderAdmin(<AdminNewsFormPage />);
+
+    expect(view.getAllByLabelText('출처명')).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '+ 출처 추가' }));
+    expect(view.getAllByLabelText('출처명')).toHaveLength(2);
+
+    fireEvent.click(view.getByRole('button', { name: '출처 2 삭제' }));
+    expect(view.getAllByLabelText('출처명')).toHaveLength(1);
   });
 
   it('수정 대상 뉴스 상세 조회에 실패하면 폼 대신 오류 화면을 표시한다', async () => {

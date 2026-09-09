@@ -61,7 +61,7 @@ body {
 
 .detail-category {
   color: #4339c0;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 20px;
 }
@@ -72,15 +72,38 @@ body {
   gap: 12px;
 }
 
-.detail-source {
+.detail-sources {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   color: #6b7280;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
-  line-height: 20px;
+  line-height: 22px;
+}
+
+.detail-sources ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-sources li:not(:last-child)::after {
+  margin-left: 10px;
+  color: #c7cce0;
+  content: '·';
+}
+
+.detail-sources li {
+  font-size: 15px;
 }
 
 .source-link {
   color: #6b7280;
+  font-size: 15px;
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;

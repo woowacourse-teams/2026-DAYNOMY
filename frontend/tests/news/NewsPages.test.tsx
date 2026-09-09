@@ -203,8 +203,10 @@ describe('뉴스 탐색 화면', () => {
           return jsonResponse({
             ...article,
             content: '금리 동결이 금융시장에 미치는 영향입니다.',
-            source: 'BOK',
-            sourceUrl: 'https://example.com/news/7',
+            sources: [
+              { name: '한국은행', url: 'https://example.com/news/7' },
+              { name: 'DART', url: 'https://example.com/news/7/dart' },
+            ],
           });
         }
         if (url === '/api/news/7/keywords') {
@@ -248,6 +250,9 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByRole('link', { name: '한국은행' }).getAttribute('href')).toBe(
       'https://example.com/news/7',
     );
+    expect(view.getByRole('link', { name: 'DART' }).getAttribute('href')).toBe(
+      'https://example.com/news/7/dart',
+    );
     expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
     expect(view.container.querySelector('.news-image')?.hasAttribute('loading')).toBe(false);
   });
@@ -281,6 +286,7 @@ describe('뉴스 탐색 화면', () => {
           return jsonResponse({
             ...article,
             content: '시장 분석 데이터가 없어도 표시되는 뉴스 본문입니다.',
+            sources: [],
           });
         }
         if (url === '/api/news/7/keywords') {
@@ -314,6 +320,7 @@ describe('뉴스 탐색 화면', () => {
           return jsonResponse({
             ...article,
             content: '시장 분석 API가 실패해도 표시되는 뉴스 본문입니다.',
+            sources: [],
           });
         }
         if (url === '/api/news/7/keywords') {
@@ -349,7 +356,7 @@ describe('뉴스 탐색 화면', () => {
           return jsonResponse({
             ...article,
             content: '뉴스 본문입니다.',
-            source: 'BOK',
+            sources: [{ name: '한국은행', url: 'https://example.com/news/7' }],
           });
         }
         if (url === '/api/news/7/market-analysis') {
