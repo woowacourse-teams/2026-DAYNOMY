@@ -29,6 +29,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class PortfolioAnalysisService {
 
+  private static final int MAX_ANALYZED_ASSET_COUNT = 3;
+
   private final NewsRepository newsRepository;
   private final AssetRepository assetRepository;
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
@@ -52,6 +54,7 @@ public class PortfolioAnalysisService {
 
     List<PortfolioAssetImpactResponse> impacts =
         result.impacts().stream()
+            .limit(MAX_ANALYZED_ASSET_COUNT)
             .map(
                 impact ->
                     PortfolioAssetImpactResponse.of(

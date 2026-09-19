@@ -94,6 +94,44 @@ class PortfolioAnalysisServiceTest {
   }
 
   @Test
+  @DisplayName("영향도순으로 정렬된 분석 결과를 최대 3개까지 반환한다")
+  void analyzeReturnsUpToThreeImpacts() {
+    News news = createNews();
+    Asset firstAsset = createAsset(10L, "삼성전자", "005930");
+    Asset secondAsset = createAsset(20L, "SK하이닉스", "000660");
+    Asset thirdAsset = createAsset(30L, "현대차", "005380");
+    Asset fourthAsset = createAsset(40L, "NAVER", "035420");
+    PortfolioAnalysisRequest request =
+        request(asset(10L, "30"), asset(20L, "25"), asset(30L, "20"), asset(40L, "15"));
+    List<PortfolioAnalysisTarget> targets =
+        List.of(
+            new PortfolioAnalysisTarget(10L, "삼성전자", "STOCK", "005930"),
+            new PortfolioAnalysisTarget(20L, "SK하이닉스", "STOCK", "000660"),
+            new PortfolioAnalysisTarget(30L, "현대차", "STOCK", "005380"),
+            new PortfolioAnalysisTarget(40L, "NAVER", "STOCK", "035420"));
+    PortfolioAnalysisResult analysisResult =
+        new PortfolioAnalysisResult(
+            List.of(
+                impact(10L, ImpactLevel.HIGH, 1),
+                impact(20L, ImpactLevel.HIGH, 2),
+                impact(30L, ImpactLevel.MEDIUM, 3),
+                impact(40L, ImpactLevel.LOW, 4)));
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
+    given(assetRepository.findAllById(List.of(10L, 20L, 30L, 40L)))
+        .willReturn(List.of(firstAsset, secondAsset, thirdAsset, fourthAsset));
+    given(portfolioAnalysisAiClient.analyze("뉴스 본문", targets)).willReturn(analysisResult);
+
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(1L, request);
+
+    assertThat(response.totalAssetCount()).isEqualTo(4);
+    assertThat(response.analyzedAssetCount()).isEqualTo(3);
+    assertThat(response.impacts())
+        .extracting(impact -> impact.assetId())
+        .containsExactly(10L, 20L, 30L);
+    assertThat(response.impacts()).extracting(impact -> impact.rank()).containsExactly(1, 2, 3);
+  }
+
+  @Test
   @DisplayName("포트폴리오가 비어 있으면 AI를 호출하지 않고 빈 분석 결과를 반환한다")
   void analyzeReturnsEmptyResponseWhenPortfolioIsEmpty() {
     given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED))
@@ -172,6 +210,12 @@ class PortfolioAnalysisServiceTest {
 
   private PortfolioAssetRequest asset(Long assetId, String weight) {
     return new PortfolioAssetRequest(assetId, new BigDecimal(weight));
+  }
+
+  private PortfolioAnalysisResult.AssetImpactResult impact(
+      Long assetId, ImpactLevel impactLevel, int sortOrder) {
+    return new PortfolioAnalysisResult.AssetImpactResult(
+        assetId, ImpactDirection.NEUTRAL, impactLevel, "예상 반응", "판단 근거", sortOrder);
   }
 
   private News createNews() {
