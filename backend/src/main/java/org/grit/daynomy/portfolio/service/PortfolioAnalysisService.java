@@ -1,5 +1,6 @@
 package org.grit.daynomy.portfolio.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -7,8 +8,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.repository.AssetRepository;
-import org.grit.daynomy.bookmark.domain.Bookmark;
-import org.grit.daynomy.bookmark.repository.BookmarkRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
@@ -17,8 +16,10 @@ import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
+import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.springframework.stereotype.Service;
 
@@ -27,52 +28,55 @@ import org.springframework.stereotype.Service;
 public class PortfolioAnalysisService {
 
   private final NewsRepository newsRepository;
-  private final BookmarkRepository bookmarkRepository;
   private final AssetRepository assetRepository;
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
 
-  public PortfolioAnalysisResponse getPortfolioAnalysis(Long memberId, Long newsId) {
+  public PortfolioAnalysisResponse analyze(Long newsId, PortfolioAnalysisRequest request) {
     News news =
         newsRepository
             .findByIdAndStatus(newsId, NewsStatus.PUBLISHED)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
-    List<Bookmark> bookmarks = bookmarkRepository.findAllByMemberIdOrderByIdAsc(memberId);
 
-    if (bookmarks.isEmpty()) {
-      return new PortfolioAnalysisResponse(List.of());
+    if (request.assets().isEmpty()) {
+      return PortfolioAnalysisResponse.empty();
     }
 
-    Map<Long, Asset> assetById = findAssetsById(bookmarks);
-    List<PortfolioAnalysisTarget> targets = createTargets(bookmarks, assetById);
+    Map<Long, Asset> assetById = findAssetsById(request.assets());
+    Map<Long, BigDecimal> weightByAssetId = createWeightByAssetId(request.assets());
+    List<PortfolioAnalysisTarget> targets = createTargets(request.assets(), assetById);
     PortfolioAnalysisResult result = portfolioAnalysisAiClient.analyze(news.getContent(), targets);
 
     List<PortfolioAssetImpactResponse> impacts =
         result.impacts().stream()
             .map(
                 impact ->
-                    PortfolioAssetImpactResponse.of(impact, getAsset(assetById, impact.assetId())))
+                    PortfolioAssetImpactResponse.of(
+                        impact,
+                        getAsset(assetById, impact.assetId()),
+                        weightByAssetId.get(impact.assetId())))
             .toList();
-    return new PortfolioAnalysisResponse(impacts);
+    return PortfolioAnalysisResponse.of(request.assets().size(), impacts);
   }
 
-  private Map<Long, Asset> findAssetsById(List<Bookmark> bookmarks) {
-    List<Long> assetIds = bookmarks.stream().map(bookmark -> bookmark.getAsset().getId()).toList();
+  private Map<Long, Asset> findAssetsById(List<PortfolioAssetRequest> portfolioAssets) {
+    List<Long> assetIds = portfolioAssets.stream().map(PortfolioAssetRequest::assetId).toList();
     return assetRepository.findAllById(assetIds).stream()
         .collect(Collectors.toMap(Asset::getId, Function.identity()));
   }
 
+  private Map<Long, BigDecimal> createWeightByAssetId(List<PortfolioAssetRequest> portfolioAssets) {
+    return portfolioAssets.stream()
+        .collect(Collectors.toMap(PortfolioAssetRequest::assetId, PortfolioAssetRequest::weight));
+  }
+
   private List<PortfolioAnalysisTarget> createTargets(
-      List<Bookmark> bookmarks, Map<Long, Asset> assetById) {
-    return bookmarks.stream()
+      List<PortfolioAssetRequest> portfolioAssets, Map<Long, Asset> assetById) {
+    return portfolioAssets.stream()
         .map(
-            bookmark -> {
-              Asset asset = getAsset(assetById, bookmark.getAsset().getId());
+            portfolioAsset -> {
+              Asset asset = getAsset(assetById, portfolioAsset.assetId());
               return new PortfolioAnalysisTarget(
-                  asset.getId(),
-                  bookmark.getId(),
-                  asset.getName(),
-                  asset.getCategory().name(),
-                  asset.getAssetCode());
+                  asset.getId(), asset.getName(), asset.getCategory().name(), asset.getAssetCode());
             })
         .toList();
   }

@@ -12,7 +12,6 @@ public record PortfolioAnalysisResult(List<AssetImpactResult> impacts) {
 
   public record AssetImpactResult(
       Long assetId,
-      Long bookmarkId,
       ImpactDirection direction,
       ImpactLevel impactLevel,
       String expectedReaction,

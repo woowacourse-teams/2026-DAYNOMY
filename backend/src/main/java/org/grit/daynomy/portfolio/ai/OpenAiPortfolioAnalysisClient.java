@@ -30,7 +30,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   private static final String PORTFOLIO_ANALYSIS_PROMPT =
       """
-            뉴스 본문이 사용자가 북마크한 자산에 미치는 영향을 분석하세요.
+            뉴스 본문이 사용자의 포트폴리오 자산에 미치는 영향을 분석하세요.
 
             - 제공된 자산만 분석하세요.
             - 뉴스와 관련성이 있는 자산만 결과에 포함하세요.
@@ -239,7 +239,6 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       parsedImpacts.add(
           new ParsedAssetImpact(
               target.assetId(),
-              target.bookmarkId(),
               ImpactDirection.valueOf(impactNode.path("direction").asText()),
               ImpactLevel.valueOf(impactNode.path("impactLevel").asText()),
               impactNode.path("expectedReaction").asText(),
@@ -306,7 +305,6 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   private record ParsedAssetImpact(
       Long assetId,
-      Long bookmarkId,
       ImpactDirection direction,
       ImpactLevel impactLevel,
       String expectedReaction,
@@ -314,7 +312,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
     private PortfolioAnalysisResult.AssetImpactResult toResult(int sortOrder) {
       return new PortfolioAnalysisResult.AssetImpactResult(
-          assetId, bookmarkId, direction, impactLevel, expectedReaction, reason, sortOrder);
+          assetId, direction, impactLevel, expectedReaction, reason, sortOrder);
     }
   }
 }
