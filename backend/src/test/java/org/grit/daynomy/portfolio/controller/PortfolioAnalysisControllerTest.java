@@ -52,13 +52,11 @@ class PortfolioAnalysisControllerTest {
   @DisplayName("요청으로 전달한 포트폴리오의 뉴스 분석 결과를 반환한다")
   void analyzePortfolioReturnsAnalysis() throws Exception {
     PortfolioAnalysisRequest request =
-        new PortfolioAnalysisRequest(List.of(new PortfolioAssetRequest(10L, new BigDecimal("30"))));
+        new PortfolioAnalysisRequest(
+            List.of(new PortfolioAssetRequest("삼성전자", new BigDecimal("30"))));
     PortfolioAssetImpactResponse impact =
         new PortfolioAssetImpactResponse(
-            10L,
             "삼성전자",
-            "STOCK",
-            "005930",
             new BigDecimal("30"),
             ImpactDirection.POSITIVE,
             ImpactLevel.HIGH,
@@ -75,15 +73,12 @@ class PortfolioAnalysisControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"assets":[{"assetId":10,"weight":30}]}
+                    {"assets":[{"assetName":"삼성전자","weight":30}]}
                     """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.totalAssetCount").value(1))
         .andExpect(jsonPath("$.analyzedAssetCount").value(1))
-        .andExpect(jsonPath("$.impacts[0].assetId").value(10))
         .andExpect(jsonPath("$.impacts[0].assetName").value("삼성전자"))
-        .andExpect(jsonPath("$.impacts[0].category").value("STOCK"))
-        .andExpect(jsonPath("$.impacts[0].assetCode").value("005930"))
         .andExpect(jsonPath("$.impacts[0].weight").value(30))
         .andExpect(jsonPath("$.impacts[0].direction").value("POSITIVE"))
         .andExpect(jsonPath("$.impacts[0].impactLevel").value("HIGH"))

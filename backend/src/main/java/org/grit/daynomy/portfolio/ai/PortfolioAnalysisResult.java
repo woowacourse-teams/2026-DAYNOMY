@@ -11,7 +11,7 @@ public record PortfolioAnalysisResult(List<AssetImpactResult> impacts) {
   }
 
   public record AssetImpactResult(
-      Long assetId,
+      String assetName,
       ImpactDirection direction,
       ImpactLevel impactLevel,
       String expectedReaction,

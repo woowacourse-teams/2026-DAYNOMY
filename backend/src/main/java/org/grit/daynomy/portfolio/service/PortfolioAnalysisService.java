@@ -5,11 +5,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.grit.daynomy.asset.domain.Asset;
-import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
@@ -32,7 +29,6 @@ public class PortfolioAnalysisService {
   private static final int MAX_ANALYZED_ASSET_COUNT = 3;
 
   private final NewsRepository newsRepository;
-  private final AssetRepository assetRepository;
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
 
   public PortfolioAnalysisResponse analyze(Long newsId, PortfolioAnalysisRequest request) {
@@ -47,9 +43,8 @@ public class PortfolioAnalysisService {
       return PortfolioAnalysisResponse.empty();
     }
 
-    Map<Long, Asset> assetById = findAssetsById(request.assets());
-    Map<Long, BigDecimal> weightByAssetId = createWeightByAssetId(request.assets());
-    List<PortfolioAnalysisTarget> targets = createTargets(request.assets(), assetById);
+    Map<String, BigDecimal> weightByAssetName = createWeightByAssetName(request.assets());
+    List<PortfolioAnalysisTarget> targets = createTargets(request.assets());
     PortfolioAnalysisResult result = portfolioAnalysisAiClient.analyze(news.getContent(), targets);
 
     List<PortfolioAssetImpactResponse> impacts =
@@ -58,53 +53,32 @@ public class PortfolioAnalysisService {
             .map(
                 impact ->
                     PortfolioAssetImpactResponse.of(
-                        impact,
-                        getAsset(assetById, impact.assetId()),
-                        weightByAssetId.get(impact.assetId())))
+                        impact, weightByAssetName.get(impact.assetName())))
             .toList();
     return PortfolioAnalysisResponse.of(request.assets().size(), impacts);
   }
 
   private void validateDistinctAssets(List<PortfolioAssetRequest> portfolioAssets) {
-    Set<Long> assetIds = new HashSet<>();
+    Set<String> assetNames = new HashSet<>();
     boolean hasDuplicate =
         portfolioAssets.stream()
-            .map(PortfolioAssetRequest::assetId)
-            .anyMatch(id -> !assetIds.add(id));
+            .map(PortfolioAssetRequest::assetName)
+            .anyMatch(assetName -> !assetNames.add(assetName));
 
     if (hasDuplicate) {
       throw new BusinessException(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
     }
   }
 
-  private Map<Long, Asset> findAssetsById(List<PortfolioAssetRequest> portfolioAssets) {
-    List<Long> assetIds = portfolioAssets.stream().map(PortfolioAssetRequest::assetId).toList();
-    return assetRepository.findAllById(assetIds).stream()
-        .collect(Collectors.toMap(Asset::getId, Function.identity()));
+  private Map<String, BigDecimal> createWeightByAssetName(
+      List<PortfolioAssetRequest> portfolioAssets) {
+    return portfolioAssets.stream()
+        .collect(Collectors.toMap(PortfolioAssetRequest::assetName, PortfolioAssetRequest::weight));
   }
 
-  private Map<Long, BigDecimal> createWeightByAssetId(List<PortfolioAssetRequest> portfolioAssets) {
+  private List<PortfolioAnalysisTarget> createTargets(List<PortfolioAssetRequest> portfolioAssets) {
     return portfolioAssets.stream()
-        .collect(Collectors.toMap(PortfolioAssetRequest::assetId, PortfolioAssetRequest::weight));
-  }
-
-  private List<PortfolioAnalysisTarget> createTargets(
-      List<PortfolioAssetRequest> portfolioAssets, Map<Long, Asset> assetById) {
-    return portfolioAssets.stream()
-        .map(
-            portfolioAsset -> {
-              Asset asset = getAsset(assetById, portfolioAsset.assetId());
-              return new PortfolioAnalysisTarget(
-                  asset.getId(), asset.getName(), asset.getCategory().name(), asset.getAssetCode());
-            })
+        .map(portfolioAsset -> new PortfolioAnalysisTarget(portfolioAsset.assetName()))
         .toList();
-  }
-
-  private Asset getAsset(Map<Long, Asset> assetById, Long assetId) {
-    Asset asset = assetById.get(assetId);
-    if (asset == null) {
-      throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ASSET_NOT_FOUND);
-    }
-    return asset;
   }
 }
