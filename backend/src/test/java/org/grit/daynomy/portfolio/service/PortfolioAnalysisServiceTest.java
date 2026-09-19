@@ -67,10 +67,10 @@ class PortfolioAnalysisServiceTest {
             List.of(
                 new PortfolioAnalysisResult.AssetImpactResult(
                     20L,
-                    ImpactDirection.POSITIVE,
+                    ImpactDirection.NEUTRAL,
                     ImpactLevel.HIGH,
-                    "주가가 상승할 수 있습니다.",
-                    "반도체 수요 증가가 예상됩니다.",
+                    "직접적인 주가 방향은 불분명합니다.",
+                    "긍정 또는 부정 영향을 판단할 근거가 충분하지 않습니다.",
                     1)));
     given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
     given(assetRepository.findAllById(List.of(10L, 20L)))
@@ -87,7 +87,7 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.impacts().get(0).category()).isEqualTo("STOCK");
     assertThat(response.impacts().get(0).assetCode()).isEqualTo("000660");
     assertThat(response.impacts().get(0).weight()).isEqualByComparingTo("22");
-    assertThat(response.impacts().get(0).direction()).isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(response.impacts().get(0).direction()).isEqualTo(ImpactDirection.NEUTRAL);
     assertThat(response.impacts().get(0).impactLevel()).isEqualTo(ImpactLevel.HIGH);
     assertThat(response.impacts().get(0).rank()).isEqualTo(1);
     verify(portfolioAnalysisAiClient).analyze("뉴스 본문", targets);

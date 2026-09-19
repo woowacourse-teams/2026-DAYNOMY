@@ -36,7 +36,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - 뉴스와 관련성이 있는 자산만 결과에 포함하세요.
             - 영향이 큰 자산부터 정렬하세요.
             - assetId는 제공된 값을 그대로 사용하세요.
-            - direction은 POSITIVE 또는 NEGATIVE로 판단하세요.
+            - direction은 뉴스가 자산에 유리한 직접 영향을 주면 POSITIVE, 불리한 직접 영향을 주면 NEGATIVE로 판단하세요.
+            - 관련성은 있지만 긍정 또는 부정 방향을 판단할 근거가 충분하지 않으면 NEUTRAL로 판단하세요.
             - impactLevel은 HIGH, MEDIUM, LOW 중 하나로 판단하세요.
             - expectedReaction에는 예상되는 자산 반응을 작성하세요.
             - reason에는 판단 근거를 작성하세요.
