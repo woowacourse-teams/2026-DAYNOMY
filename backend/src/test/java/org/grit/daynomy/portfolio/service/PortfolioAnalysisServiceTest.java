@@ -47,7 +47,7 @@ class PortfolioAnalysisServiceTest {
   @DisplayName("요청한 포트폴리오 자산을 AI로 분석하고 응답 DTO로 변환한다")
   void analyzeReturnsPortfolioAnalysis() {
     News news = createNews();
-    PortfolioAnalysisRequest request = request(asset("삼성전자", "30"), asset("SK하이닉스", "22"));
+    PortfolioAnalysisRequest request = request(asset(" 삼성전자 ", "78"), asset("SK하이닉스", "22"));
     List<PortfolioAnalysisTarget> targets =
         List.of(new PortfolioAnalysisTarget("삼성전자"), new PortfolioAnalysisTarget("SK하이닉스"));
     PortfolioAnalysisResult analysisResult =
@@ -84,7 +84,7 @@ class PortfolioAnalysisServiceTest {
     News news = createNews();
     PortfolioAnalysisRequest request =
         request(
-            asset("삼성전자", "30"), asset("SK하이닉스", "25"), asset("현대차", "20"), asset("NAVER", "15"));
+            asset("삼성전자", "30"), asset("SK하이닉스", "25"), asset("현대차", "20"), asset("NAVER", "25"));
     List<PortfolioAnalysisTarget> targets =
         List.of(
             new PortfolioAnalysisTarget("삼성전자"),
@@ -129,7 +129,7 @@ class PortfolioAnalysisServiceTest {
   @DisplayName("동일한 뉴스와 포트폴리오를 다시 요청해도 매번 AI로 분석한다")
   void analyzeEveryRequest() {
     News news = createNews();
-    PortfolioAnalysisRequest request = request(asset("삼성전자", "30"));
+    PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
     List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
     given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
     given(portfolioAnalysisAiClient.analyze("뉴스 본문", targets))
@@ -145,7 +145,7 @@ class PortfolioAnalysisServiceTest {
   @DisplayName("뉴스가 없으면 포트폴리오 분석 전에 예외를 던진다")
   void analyzeThrowsWhenNewsIsMissing() {
     given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.empty());
-    PortfolioAnalysisRequest request = request(asset("삼성전자", "30"));
+    PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
 
     assertThatThrownBy(() -> portfolioAnalysisService.analyze(1L, request))
         .isInstanceOf(BusinessException.class)
@@ -157,12 +157,24 @@ class PortfolioAnalysisServiceTest {
   @Test
   @DisplayName("동일한 자산을 중복 요청하면 조회와 AI 분석 전에 예외를 던진다")
   void analyzeThrowsWhenPortfolioAssetIsDuplicated() {
-    PortfolioAnalysisRequest request = request(asset("삼성전자", "30"), asset("삼성전자", "20"));
+    PortfolioAnalysisRequest request = request(asset(" NAVER ", "50"), asset("naver", "50"));
 
     assertThatThrownBy(() -> portfolioAnalysisService.analyze(1L, request))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
+    verifyNoInteractions(newsRepository, portfolioAnalysisAiClient);
+  }
+
+  @Test
+  @DisplayName("포트폴리오 보유 비중의 합이 100이 아니면 분석 전에 예외를 던진다")
+  void analyzeThrowsWhenTotalWeightIsNotOneHundred() {
+    PortfolioAnalysisRequest request = request(asset("삼성전자", "60"), asset("현대차", "30"));
+
+    assertThatThrownBy(() -> portfolioAnalysisService.analyze(1L, request))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(PortfolioErrorCode.INVALID_PORTFOLIO_WEIGHT_TOTAL);
     verifyNoInteractions(newsRepository, portfolioAnalysisAiClient);
   }
 

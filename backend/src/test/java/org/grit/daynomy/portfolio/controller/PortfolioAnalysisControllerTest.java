@@ -53,11 +53,11 @@ class PortfolioAnalysisControllerTest {
   void analyzePortfolioReturnsAnalysis() throws Exception {
     PortfolioAnalysisRequest request =
         new PortfolioAnalysisRequest(
-            List.of(new PortfolioAssetRequest("삼성전자", new BigDecimal("30"))));
+            List.of(new PortfolioAssetRequest("삼성전자", new BigDecimal("100"))));
     PortfolioAssetImpactResponse impact =
         new PortfolioAssetImpactResponse(
             "삼성전자",
-            new BigDecimal("30"),
+            new BigDecimal("100"),
             ImpactDirection.POSITIVE,
             ImpactLevel.HIGH,
             "주가가 상승할 수 있습니다.",
@@ -73,13 +73,13 @@ class PortfolioAnalysisControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"assets":[{"assetName":"삼성전자","weight":30}]}
+                    {"assets":[{"assetName":"삼성전자","weight":100}]}
                     """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.totalAssetCount").value(1))
         .andExpect(jsonPath("$.analyzedAssetCount").value(1))
         .andExpect(jsonPath("$.impacts[0].assetName").value("삼성전자"))
-        .andExpect(jsonPath("$.impacts[0].weight").value(30))
+        .andExpect(jsonPath("$.impacts[0].weight").value(100))
         .andExpect(jsonPath("$.impacts[0].direction").value("POSITIVE"))
         .andExpect(jsonPath("$.impacts[0].impactLevel").value("HIGH"))
         .andExpect(jsonPath("$.impacts[0].summary").value("주가가 상승할 수 있습니다."))
@@ -88,6 +88,27 @@ class PortfolioAnalysisControllerTest {
         .andExpect(jsonPath("$.impacts[0].rank").value(1));
 
     verify(portfolioAnalysisService).analyze(1L, request);
+  }
+
+  @Test
+  @DisplayName("종목명이 100자를 초과하면 요청을 거부한다")
+  void analyzePortfolioRejectsTooLongAssetName() throws Exception {
+    String assetName = "가".repeat(101);
+
+    mockMvc
+        .perform(
+            post("/api/news/1/portfolio-analysis")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"assets":[{"assetName":"%s","weight":100}]}
+                    """
+                        .formatted(assetName)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("assets[0].assetName"));
+
+    verifyNoInteractions(portfolioAnalysisService);
   }
 
   @Test

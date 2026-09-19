@@ -3,6 +3,7 @@ package org.grit.daynomy.portfolio.service;
 import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,6 +34,7 @@ public class PortfolioAnalysisService {
 
   public PortfolioAnalysisResponse analyze(Long newsId, PortfolioAnalysisRequest request) {
     validateDistinctAssets(request.assets());
+    validateTotalWeight(request.assets());
 
     News news =
         newsRepository
@@ -63,10 +65,26 @@ public class PortfolioAnalysisService {
     boolean hasDuplicate =
         portfolioAssets.stream()
             .map(PortfolioAssetRequest::assetName)
+            .map(assetName -> assetName.toLowerCase(Locale.ROOT))
             .anyMatch(assetName -> !assetNames.add(assetName));
 
     if (hasDuplicate) {
       throw new BusinessException(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
+    }
+  }
+
+  private void validateTotalWeight(List<PortfolioAssetRequest> portfolioAssets) {
+    if (portfolioAssets.isEmpty()) {
+      return;
+    }
+
+    BigDecimal totalWeight =
+        portfolioAssets.stream()
+            .map(PortfolioAssetRequest::weight)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    if (totalWeight.compareTo(BigDecimal.valueOf(100)) != 0) {
+      throw new BusinessException(PortfolioErrorCode.INVALID_PORTFOLIO_WEIGHT_TOTAL);
     }
   }
 
