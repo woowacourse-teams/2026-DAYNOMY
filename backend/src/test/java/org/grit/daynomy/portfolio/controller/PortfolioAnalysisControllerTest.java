@@ -64,6 +64,7 @@ class PortfolioAnalysisControllerTest {
             ImpactLevel.HIGH,
             "주가가 상승할 수 있습니다.",
             "반도체 수요 증가가 예상됩니다.",
+            "반도체 수요가 전년 대비 증가했습니다.",
             1);
     when(portfolioAnalysisService.analyze(1L, request))
         .thenReturn(PortfolioAnalysisResponse.of(1, List.of(impact)));
@@ -88,6 +89,7 @@ class PortfolioAnalysisControllerTest {
         .andExpect(jsonPath("$.impacts[0].impactLevel").value("HIGH"))
         .andExpect(jsonPath("$.impacts[0].summary").value("주가가 상승할 수 있습니다."))
         .andExpect(jsonPath("$.impacts[0].reason").value("반도체 수요 증가가 예상됩니다."))
+        .andExpect(jsonPath("$.impacts[0].evidenceSentence").value("반도체 수요가 전년 대비 증가했습니다."))
         .andExpect(jsonPath("$.impacts[0].rank").value(1));
 
     verify(portfolioAnalysisService).analyze(1L, request);

@@ -41,6 +41,9 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - impactLevel은 HIGH, MEDIUM, LOW 중 하나로 판단하세요.
             - expectedReaction에는 예상되는 자산 반응을 작성하세요.
             - reason에는 판단 근거를 작성하세요.
+            - evidenceSentence는 해당 자산의 direction과 impactLevel 판단을 직접 뒷받침하는 뉴스 원문 문장 하나여야 합니다.
+            - newsContent에 문자 그대로 존재하는 완전한 문장만 복사하세요. 문장을 요약·변형·조합하거나 새로운 내용을 만들지 마세요.
+            - 해당 자산과의 영향 관계를 직접 뒷받침하는 원문 문장이 없다면, 관련 없는 문장을 대신 사용하지 말고 해당 자산을 impacts 결과에서 제외하세요.
             - 뉴스에 없는 사실을 단정하지 마세요.
             """;
 
@@ -179,12 +182,20 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         "impactLevel", Map.of("type", "string", "enum", enumNames(ImpactLevel.values())));
     impactProperties.put("expectedReaction", Map.of("type", "string"));
     impactProperties.put("reason", Map.of("type", "string"));
+    impactProperties.put("evidenceSentence", Map.of("type", "string"));
 
     Map<String, Object> impactItem = new LinkedHashMap<>();
     impactItem.put("type", "object");
     impactItem.put("additionalProperties", false);
     impactItem.put(
-        "required", List.of("assetId", "direction", "impactLevel", "expectedReaction", "reason"));
+        "required",
+        List.of(
+            "assetId",
+            "direction",
+            "impactLevel",
+            "expectedReaction",
+            "reason",
+            "evidenceSentence"));
     impactItem.put("properties", impactProperties);
 
     return Map.of("type", "array", "maxItems", targets.size(), "items", impactItem);
@@ -243,7 +254,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               ImpactDirection.valueOf(impactNode.path("direction").asText()),
               ImpactLevel.valueOf(impactNode.path("impactLevel").asText()),
               impactNode.path("expectedReaction").asText(),
-              impactNode.path("reason").asText()));
+              impactNode.path("reason").asText(),
+              impactNode.path("evidenceSentence").asText()));
     }
 
     parsedImpacts.sort(
@@ -309,11 +321,12 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       ImpactDirection direction,
       ImpactLevel impactLevel,
       String expectedReaction,
-      String reason) {
+      String reason,
+      String evidenceSentence) {
 
     private PortfolioAnalysisResult.AssetImpactResult toResult(int sortOrder) {
       return new PortfolioAnalysisResult.AssetImpactResult(
-          assetId, direction, impactLevel, expectedReaction, reason, sortOrder);
+          assetId, direction, impactLevel, expectedReaction, reason, evidenceSentence, sortOrder);
     }
   }
 }

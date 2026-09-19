@@ -71,6 +71,7 @@ class PortfolioAnalysisServiceTest {
                     ImpactLevel.HIGH,
                     "직접적인 주가 방향은 불분명합니다.",
                     "긍정 또는 부정 영향을 판단할 근거가 충분하지 않습니다.",
+                    "반도체 수요가 전년 대비 증가했습니다.",
                     1)));
     given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
     given(assetRepository.findAllById(List.of(10L, 20L)))
@@ -89,6 +90,7 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.impacts().get(0).weight()).isEqualByComparingTo("22");
     assertThat(response.impacts().get(0).direction()).isEqualTo(ImpactDirection.NEUTRAL);
     assertThat(response.impacts().get(0).impactLevel()).isEqualTo(ImpactLevel.HIGH);
+    assertThat(response.impacts().get(0).evidenceSentence()).isEqualTo("반도체 수요가 전년 대비 증가했습니다.");
     assertThat(response.impacts().get(0).rank()).isEqualTo(1);
     verify(portfolioAnalysisAiClient).analyze("뉴스 본문", targets);
   }
@@ -215,7 +217,13 @@ class PortfolioAnalysisServiceTest {
   private PortfolioAnalysisResult.AssetImpactResult impact(
       Long assetId, ImpactLevel impactLevel, int sortOrder) {
     return new PortfolioAnalysisResult.AssetImpactResult(
-        assetId, ImpactDirection.NEUTRAL, impactLevel, "예상 반응", "판단 근거", sortOrder);
+        assetId,
+        ImpactDirection.NEUTRAL,
+        impactLevel,
+        "예상 반응",
+        "판단 근거",
+        "판단에 사용한 뉴스 문장",
+        sortOrder);
   }
 
   private News createNews() {

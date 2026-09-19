@@ -16,5 +16,6 @@ public record PortfolioAnalysisResult(List<AssetImpactResult> impacts) {
       ImpactLevel impactLevel,
       String expectedReaction,
       String reason,
+      String evidenceSentence,
       int sortOrder) {}
 }
