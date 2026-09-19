@@ -154,6 +154,18 @@ class PortfolioAnalysisServiceTest {
     verify(portfolioAnalysisAiClient, never()).analyze(any(), any());
   }
 
+  @Test
+  @DisplayName("동일한 자산을 중복 요청하면 조회와 AI 분석 전에 예외를 던진다")
+  void analyzeThrowsWhenPortfolioAssetIsDuplicated() {
+    PortfolioAnalysisRequest request = request(asset(10L, "30"), asset(10L, "20"));
+
+    assertThatThrownBy(() -> portfolioAnalysisService.analyze(1L, request))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
+    verifyNoInteractions(newsRepository, assetRepository, portfolioAnalysisAiClient);
+  }
+
   private PortfolioAnalysisRequest request(PortfolioAssetRequest... assets) {
     return new PortfolioAnalysisRequest(List.of(assets));
   }

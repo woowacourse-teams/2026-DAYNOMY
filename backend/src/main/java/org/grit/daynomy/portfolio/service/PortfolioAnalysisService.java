@@ -1,8 +1,10 @@
 package org.grit.daynomy.portfolio.service;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,8 @@ public class PortfolioAnalysisService {
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
 
   public PortfolioAnalysisResponse analyze(Long newsId, PortfolioAnalysisRequest request) {
+    validateDistinctAssets(request.assets());
+
     News news =
         newsRepository
             .findByIdAndStatus(newsId, NewsStatus.PUBLISHED)
@@ -56,6 +60,18 @@ public class PortfolioAnalysisService {
                         weightByAssetId.get(impact.assetId())))
             .toList();
     return PortfolioAnalysisResponse.of(request.assets().size(), impacts);
+  }
+
+  private void validateDistinctAssets(List<PortfolioAssetRequest> portfolioAssets) {
+    Set<Long> assetIds = new HashSet<>();
+    boolean hasDuplicate =
+        portfolioAssets.stream()
+            .map(PortfolioAssetRequest::assetId)
+            .anyMatch(id -> !assetIds.add(id));
+
+    if (hasDuplicate) {
+      throw new BusinessException(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
+    }
   }
 
   private Map<Long, Asset> findAssetsById(List<PortfolioAssetRequest> portfolioAssets) {

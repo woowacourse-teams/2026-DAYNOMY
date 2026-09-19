@@ -5,7 +5,8 @@ import org.springframework.http.HttpStatus;
 
 public enum PortfolioErrorCode implements ErrorCode {
   PORTFOLIO_ANALYSIS_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 뉴스의 포트폴리오 분석을 찾을 수 없습니다."),
-  PORTFOLIO_ASSET_NOT_FOUND(HttpStatus.NOT_FOUND, "포트폴리오 자산을 찾을 수 없습니다.");
+  PORTFOLIO_ASSET_NOT_FOUND(HttpStatus.NOT_FOUND, "포트폴리오 자산을 찾을 수 없습니다."),
+  DUPLICATE_PORTFOLIO_ASSET(HttpStatus.BAD_REQUEST, "동일한 포트폴리오 자산을 중복해서 요청할 수 없습니다.");
 
   private final HttpStatus status;
   private final String message;
