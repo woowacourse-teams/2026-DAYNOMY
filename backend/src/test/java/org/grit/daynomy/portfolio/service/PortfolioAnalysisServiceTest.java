@@ -126,6 +126,23 @@ class PortfolioAnalysisServiceTest {
   }
 
   @Test
+  @DisplayName("뉴스와 관련된 보유 종목이 없으면 빈 분석 결과를 반환한다")
+  void analyzeReturnsEmptyResponseWhenNoAssetIsRelatedToNews() {
+    News news = createNews();
+    PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
+    List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
+    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
+    given(portfolioAnalysisAiClient.analyze("뉴스 본문", targets))
+        .willReturn(new PortfolioAnalysisResult(List.of()));
+
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(1L, request);
+
+    assertThat(response.totalAssetCount()).isEqualTo(1);
+    assertThat(response.analyzedAssetCount()).isZero();
+    assertThat(response.impacts()).isEmpty();
+  }
+
+  @Test
   @DisplayName("동일한 뉴스와 포트폴리오를 다시 요청해도 매번 AI로 분석한다")
   void analyzeEveryRequest() {
     News news = createNews();
