@@ -46,9 +46,7 @@ public class OpenAiImageGenerator {
 
   public byte[] generateEconomicNewsImage(String title, String content, Category category) {
     return generateNewsImage(
-        title,
-        economicNewsImagePrompt(title, content, category),
-        ECONOMIC_NEWS_IMAGE_SIZE);
+        title, economicNewsImagePrompt(title, content, category), ECONOMIC_NEWS_IMAGE_SIZE);
   }
 
   private byte[] generateNewsImage(String title, String prompt, String size) {

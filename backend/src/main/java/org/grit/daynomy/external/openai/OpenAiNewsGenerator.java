@@ -142,8 +142,7 @@ public class OpenAiNewsGenerator {
               .body(String.class);
       return parseEconomicNews(response);
     } catch (HttpStatusCodeException exception) {
-      log.warn(
-          "OpenAI economic news generation failed: status={}", exception.getStatusCode());
+      log.warn("OpenAI economic news generation failed: status={}", exception.getStatusCode());
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     } catch (RestClientException exception) {
       log.warn("OpenAI economic news generation failed: message={}", exception.getMessage());
@@ -228,10 +227,7 @@ public class OpenAiNewsGenerator {
                             Map.of("type", "string"),
                             "category",
                             Map.of(
-                                "type",
-                                "string",
-                                "enum",
-                                List.of("REAL_ESTATE", "STOCK", "ETF")),
+                                "type", "string", "enum", List.of("REAL_ESTATE", "STOCK", "ETF")),
                             "sourceUrls",
                             Map.of(
                                 "type",
@@ -274,7 +270,8 @@ public class OpenAiNewsGenerator {
           }
         }
         if (title.isBlank() || content.isBlank() || articleSources.size() < 2) {
-          throw new IllegalArgumentException("Generated economic news is missing required content.");
+          throw new IllegalArgumentException(
+              "Generated economic news is missing required content.");
         }
         generatedNews.add(
             new GeneratedEconomicNews(

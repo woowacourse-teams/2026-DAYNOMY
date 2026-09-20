@@ -44,8 +44,7 @@ public class NewsPersistenceService {
   }
 
   @Transactional
-  public List<News> saveDrafts(
-      List<GeneratedEconomicNews> generatedNews, List<String> imageUrls) {
+  public List<News> saveDrafts(List<GeneratedEconomicNews> generatedNews, List<String> imageUrls) {
     if (generatedNews.size() != imageUrls.size()) {
       throw new IllegalArgumentException(
           "Each generated news article must have an image URL slot.");
