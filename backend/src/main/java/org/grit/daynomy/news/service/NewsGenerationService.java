@@ -14,8 +14,10 @@ import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
+import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
+import org.grit.daynomy.news.domain.News;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -82,6 +84,17 @@ public class NewsGenerationService {
     log.info("Created {} BOK news prompts", prompts.size());
 
     return generateNews(prompts, "BOK");
+  }
+
+  public News generateEconomyNewsDraft() {
+    GeneratedEconomicNews generatedNews = openAiNewsGenerator.generateEconomicNews();
+    News draft = newsPersistenceService.saveDraft(generatedNews);
+    log.info(
+        "Saved scheduled economy news draft: id={}, category={}, sourceCount={}",
+        draft.getId(),
+        draft.getCategory(),
+        generatedNews.sources().size());
+    return draft;
   }
 
   private int generateNews(List<NewsPrompt> prompts, String sourceName) {

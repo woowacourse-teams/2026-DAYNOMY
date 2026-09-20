@@ -2,16 +2,23 @@ package org.grit.daynomy.external.openai;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
+import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
+import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -24,6 +31,19 @@ import org.springframework.web.client.RestClientException;
 public class OpenAiNewsGenerator {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static final String ECONOMY_NEWS_INSTRUCTION =
+      """
+      오늘은 %s(한국 기준)입니다. 웹 검색으로 최근 국내외 경제 이슈를 찾아 한국 독자에게 의미 있는 이슈 한 가지를 선정하고, 한국어 뉴스 초안을 작성하세요.
+
+      경제 전문 매체와 주요 언론의 최신 보도를 우선 확인하고, 게시일과 실제 사건 발생일을 구분하세요. 공공기관 통계나 보도자료만을 주된 소재로 삼지 말고, 언론 보도를 통해 실제로 주목받는 이슈를 고르세요. 중요한 사실과 수치는 검색 결과로 확인되는 범위에서만 쓰고, 기사 문장을 그대로 옮기지 말고 여러 출처의 내용을 종합해 새롭게 서술하세요.
+
+      본문은 객관적인 보도 문체로 2~5개 문단으로 작성하세요. 투자 판단이나 매수·매도 권유는 하지 마세요. 제목과 본문 외에 JSON 스키마의 category도 반환하세요. 카테고리는 다음 기준 중 가장 가까운 하나를 고르세요.
+      - REAL_ESTATE: 주택, 부동산, 전월세, 주택 대출 중심 이슈
+      - ETF: 상장지수펀드 상품이나 ETF 시장 중심 이슈
+      - STOCK: 주식시장, 기업, 금리, 환율, 물가, 고용, 무역 등 그 밖의 경제 이슈
+
+      근거를 확인할 수 있는 이슈가 없으면 추측해 만들지 말고 생성에 실패하세요.
+      """;
   private static final Pattern BULLET_LINE_PATTERN =
       Pattern.compile("(?m)^\\s*(?:[-*•·]|\\d+[.)])\\s+");
   private static final Pattern IDENTIFIER_PATTERN =
@@ -103,6 +123,31 @@ public class OpenAiNewsGenerator {
     }
   }
 
+  public GeneratedEconomicNews generateEconomicNews() {
+    try {
+      log.info(
+          "Requesting OpenAI economic news generation: model={}",
+          openAiProperties.economyNewsModel());
+      String response =
+          restClient
+              .post()
+              .uri("/responses")
+              .header("Authorization", "Bearer " + openAiProperties.apiKey())
+              .contentType(MediaType.APPLICATION_JSON)
+              .body(economicNewsRequestBody())
+              .retrieve()
+              .body(String.class);
+      return parseEconomicNews(response);
+    } catch (HttpStatusCodeException exception) {
+      log.warn(
+          "OpenAI economic news generation failed: status={}", exception.getStatusCode());
+      throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
+    } catch (RestClientException exception) {
+      log.warn("OpenAI economic news generation failed: message={}", exception.getMessage());
+      throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
+    }
+  }
+
   private GeneratedNews requestNews(NewsPrompt prompt, String correctionInstruction) {
     String response =
         restClient
@@ -124,6 +169,104 @@ public class OpenAiNewsGenerator {
         input(prompt, correctionInstruction),
         "text",
         Map.of("format", responseFormat()));
+  }
+
+  private Map<String, Object> economicNewsRequestBody() {
+    return Map.of(
+        "model",
+        openAiProperties.economyNewsModel(),
+        "tools",
+        List.of(Map.of("type", "web_search")),
+        "tool_choice",
+        "required",
+        "include",
+        List.of("web_search_call.action.sources"),
+        "input",
+        ECONOMY_NEWS_INSTRUCTION.formatted(LocalDate.now(ZoneId.of("Asia/Seoul"))),
+        "text",
+        Map.of("format", economicResponseFormat()));
+  }
+
+  private Map<String, Object> economicResponseFormat() {
+    return Map.of(
+        "type",
+        "json_schema",
+        "name",
+        "economic_news_article",
+        "strict",
+        true,
+        "schema",
+        Map.of(
+            "type",
+            "object",
+            "additionalProperties",
+            false,
+            "properties",
+            Map.of(
+                "title", Map.of("type", "string"),
+                "content", Map.of("type", "string"),
+                "category",
+                    Map.of(
+                        "type",
+                        "string",
+                        "enum",
+                        List.of("REAL_ESTATE", "STOCK", "ETF"))),
+            "required",
+            List.of("title", "content", "category")));
+  }
+
+  private GeneratedEconomicNews parseEconomicNews(String response) {
+    try {
+      JsonNode responseJson = OBJECT_MAPPER.readTree(response);
+      JsonNode generated = OBJECT_MAPPER.readTree(extractOutputText(responseJson));
+      String title = generated.path("title").asText();
+      String content = generated.path("content").asText();
+      Category category = Category.valueOf(generated.path("category").asText());
+      List<NewsSourceInfo> sources = extractEconomicNewsSources(responseJson);
+      if (title.isBlank() || content.isBlank() || sources.isEmpty()) {
+        throw new IllegalArgumentException("Generated economic news is missing required content.");
+      }
+      return new GeneratedEconomicNews(title, content, category, sources);
+    } catch (Exception exception) {
+      throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
+    }
+  }
+
+  private List<NewsSourceInfo> extractEconomicNewsSources(JsonNode response) {
+    Map<String, NewsSourceInfo> sources = new LinkedHashMap<>();
+    for (JsonNode item : response.path("output")) {
+      for (JsonNode content : item.path("content")) {
+        for (JsonNode annotation : content.path("annotations")) {
+          if ("url_citation".equals(annotation.path("type").asText())) {
+            addEconomicNewsSource(
+                sources, annotation.path("url").asText(), annotation.path("title").asText());
+          }
+        }
+      }
+      for (JsonNode source : item.path("action").path("sources")) {
+        addEconomicNewsSource(sources, source.path("url").asText(), source.path("title").asText());
+      }
+    }
+    return List.copyOf(sources.values());
+  }
+
+  private void addEconomicNewsSource(
+      Map<String, NewsSourceInfo> sources, String url, String title) {
+    if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) {
+      return;
+    }
+    String name = title == null ? "" : title.strip();
+    if (name.isBlank()) {
+      try {
+        name = URI.create(url).getHost();
+      } catch (IllegalArgumentException ignored) {
+        name = url;
+      }
+    }
+    if (name == null || name.isBlank()) {
+      name = url;
+    }
+    sources.putIfAbsent(url, new NewsSourceInfo(name, url));
   }
 
   private Object input(NewsPrompt prompt, String correctionInstruction) {

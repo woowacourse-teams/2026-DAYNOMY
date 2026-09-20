@@ -6,6 +6,7 @@ import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.service.KeywordService;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.market.service.MarketAnalysisService;
+import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.News;
@@ -39,5 +40,17 @@ public class NewsPersistenceService {
     newsRepository.save(news);
     keywordService.saveKeywords(news, keywords);
     marketAnalysisService.saveMarketAnalysis(news, marketAnalysis);
+  }
+
+  @Transactional
+  public News saveDraft(GeneratedEconomicNews generatedNews) {
+    News draft =
+        News.createDraft(
+            generatedNews.title(),
+            generatedNews.content(),
+            null,
+            generatedNews.sources(),
+            generatedNews.category());
+    return newsRepository.save(draft);
   }
 }
