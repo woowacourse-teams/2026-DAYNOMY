@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getPortfolioAnalysis } from '../api';
+import { getPortfolioAnalysis, retryPortfolioAnalysis } from '../api';
 import type {
   PortfolioAnalysisResponse,
   PortfolioAsset,
@@ -43,25 +43,27 @@ function PortfolioAnalysisEmpty() {
       <span className="portfolio-state-icon" aria-hidden="true">
         −
       </span>
-      <strong>분석할 자산 영향이 없습니다</strong>
-      <p>북마크한 자산이 없거나 이 뉴스와 관련된 자산이 없습니다.</p>
+      <strong>이 뉴스와 직접 관련된 보유 자산이 없어요.</strong>
+      <p>현재 포트폴리오에서 분석할 수 있는 직접적인 영향이 확인되지 않았어요.</p>
     </div>
   );
 }
 
 function PortfolioAnalysisLoading() {
   return (
-    <div className="portfolio-state portfolio-empty" aria-busy="true">
-      <strong>포트폴리오 분석을 불러오는 중입니다.</strong>
+    <div className="portfolio-state portfolio-empty" role="status" aria-live="polite">
+      <strong>내 포트폴리오에 미치는 영향을 분석하고 있어요.</strong>
     </div>
   );
 }
 
-function PortfolioAnalysisError() {
+function PortfolioAnalysisError({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="portfolio-state portfolio-empty" role="alert">
-      <strong>포트폴리오 분석을 불러오지 못했습니다.</strong>
-      <p>잠시 후 다시 확인해 주세요.</p>
+      <strong>포트폴리오 분석을 완료하지 못했어요.</strong>
+      <button className="portfolio-retry-button" type="button" onClick={onRetry}>
+        다시 시도
+      </button>
     </div>
   );
 }
@@ -75,6 +77,7 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
   const [analysis, setAnalysis] = useState<PortfolioAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(assets.length > 0);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let ignore = false;
@@ -89,7 +92,12 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
 
     setLoading(true);
 
-    getPortfolioAnalysis(newsId, assets)
+    const request =
+      retryCount === 0
+        ? getPortfolioAnalysis(newsId, assets)
+        : retryPortfolioAnalysis(newsId, assets);
+
+    request
       .then((response) => {
         if (!ignore) {
           setAnalysis(response);
@@ -113,7 +121,11 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
     return () => {
       ignore = true;
     };
-  }, [assets, newsId]);
+  }, [assets, newsId, retryCount]);
+
+  const handleRetry = () => {
+    setRetryCount((count) => count + 1);
+  };
 
   return (
     <section className="section portfolio-section" aria-labelledby="portfolio-analysis-title">
@@ -128,7 +140,9 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
 
       {assets.length > 0 && loading ? <PortfolioAnalysisLoading /> : null}
 
-      {assets.length > 0 && !loading && error ? <PortfolioAnalysisError /> : null}
+      {assets.length > 0 && !loading && error ? (
+        <PortfolioAnalysisError onRetry={handleRetry} />
+      ) : null}
 
       {assets.length > 0 && !loading && !error && analysis?.impacts.length === 0 ? (
         <PortfolioAnalysisEmpty />

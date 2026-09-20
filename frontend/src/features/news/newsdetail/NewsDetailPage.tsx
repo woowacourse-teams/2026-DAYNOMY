@@ -8,7 +8,6 @@ import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.
 import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
-import { useAuth } from '../../../hooks/useLoginStatus.ts';
 import type { PortfolioAsset } from '../../portfolio/types.ts';
 
 const EMPTY_PORTFOLIO_ASSETS: PortfolioAsset[] = [];
@@ -73,7 +72,6 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnal
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
   const navigate = useNavigate();
-  const { isLoggedIn } = useAuth();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
   const goBack = () => {
@@ -181,9 +179,7 @@ export function NewsDetailPage() {
         <div className="analysis-area">
           <div className="analysis-content">
             <DetailAnalysisSections marketAnalysis={marketAnalysis} />
-            {isLoggedIn ? (
-              <PortfolioAnalysis newsId={newsId} assets={EMPTY_PORTFOLIO_ASSETS} />
-            ) : null}
+            <PortfolioAnalysis newsId={newsId} assets={EMPTY_PORTFOLIO_ASSETS} />
           </div>
         </div>
       </article>

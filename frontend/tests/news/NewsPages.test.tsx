@@ -343,7 +343,7 @@ describe('뉴스 탐색 화면', () => {
     expect(view.queryByRole('status')).toBeNull();
   });
 
-  it('포트폴리오가 비어 있으면 안내 문구를 표시하고 분석 API를 호출하지 않는다', async () => {
+  it('비로그인 상태에서도 빈 포트폴리오 안내를 표시하고 분석 API를 호출하지 않는다', async () => {
     window.history.replaceState(null, '', '/news/7');
     const calls: string[] = [];
     vi.stubGlobal(
@@ -366,7 +366,7 @@ describe('뉴스 탐색 화면', () => {
       }),
     );
 
-    const view = renderPage(<NewsDetailPage />, true);
+    const view = renderPage(<NewsDetailPage />);
 
     expect(
       await view.findByText(

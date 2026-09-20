@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioAnalysis } from '../../src/features/portfolio/components/PortfolioAnalysis';
 
@@ -68,20 +68,59 @@ describe('포트폴리오 분석 화면', () => {
       <PortfolioAnalysis newsId="retry" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
     );
 
-    expect(await view.findByText('분석할 자산 영향이 없습니다')).toBeTruthy();
+    expect(await view.findByText('이 뉴스와 직접 관련된 보유 자산이 없어요.')).toBeTruthy();
   });
 
-  it('분석 API가 실패하면 오류 상태를 표시한다', async () => {
+  it('분석 중이면 로딩 상태를 표시한다', () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse({}, 500)),
+      vi.fn(() => new Promise<Response>(() => undefined)),
     );
+
+    const view = render(
+      <PortfolioAnalysis newsId="loading" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
+    );
+
+    expect(view.getByRole('status').textContent).toContain(
+      '내 포트폴리오에 미치는 영향을 분석하고 있어요.',
+    );
+  });
+
+  it('분석 API가 실패하면 다시 시도할 수 있다', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, 500))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          totalAssetCount: 1,
+          analyzedAssetCount: 1,
+          impacts: [
+            {
+              assetName: '삼성전자',
+              weight: 100,
+              direction: 'POSITIVE',
+              impactLevel: 'HIGH',
+              summary: '재시도 후 분석을 완료했습니다.',
+              reason: '반도체 수요가 증가했습니다.',
+              evidenceSentence: '반도체 수요가 증가했습니다.',
+              rank: 1,
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
 
     const view = render(
       <PortfolioAnalysis newsId="failure" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
     );
 
-    expect(await view.findByRole('alert')).toBeTruthy();
-    expect(view.getByRole('alert').textContent).toContain('포트폴리오 분석을 불러오지 못했습니다.');
+    expect((await view.findByRole('alert')).textContent).toContain(
+      '포트폴리오 분석을 완료하지 못했어요.',
+    );
+
+    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+
+    expect(await view.findByText('재시도 후 분석을 완료했습니다.')).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
