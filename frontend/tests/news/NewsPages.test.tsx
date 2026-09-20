@@ -343,7 +343,7 @@ describe('뉴스 탐색 화면', () => {
     expect(view.queryByRole('status')).toBeNull();
   });
 
-  it('로그인 사용자의 포트폴리오 영향 분석을 표시한다', async () => {
+  it('포트폴리오가 비어 있으면 안내 문구를 표시하고 분석 API를 호출하지 않는다', async () => {
     window.history.replaceState(null, '', '/news/7');
     const calls: string[] = [];
     vi.stubGlobal(
@@ -362,35 +362,18 @@ describe('뉴스 탐색 화면', () => {
         if (url === '/api/news/7/market-analysis') {
           return jsonResponse({ summary: '포트폴리오와 함께 표시되는 시장 분석입니다.' });
         }
-        if (url === '/api/news/7/portfolio-analysis') {
-          return jsonResponse({
-            impacts: [
-              {
-                bookmarkId: 1,
-                assetId: 2,
-                name: '삼성전자',
-                category: 'STOCK',
-                assetCode: '005930',
-                direction: 'POSITIVE',
-                impactLevel: 'HIGH',
-                expectedReaction: '주가가 상승할 수 있습니다.',
-                reason: '반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.',
-                sortOrder: 1,
-              },
-            ],
-          });
-        }
-
         return jsonResponse({}, 500);
       }),
     );
 
     const view = renderPage(<NewsDetailPage />, true);
 
-    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
-    expect(view.getByText('주가가 상승할 수 있습니다.')).toBeTruthy();
-    expect(view.getByText('반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.')).toBeTruthy();
-    expect(calls).toContain('/api/news/7/portfolio-analysis');
+    expect(
+      await view.findByText(
+        '포트폴리오에 자산을 등록하면 이 뉴스가 내 자산에 미치는 영향을 확인할 수 있어요.',
+      ),
+    ).toBeTruthy();
+    expect(calls).not.toContain('/api/news/7/portfolio-analysis');
     expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
     expect(view.getByRole('heading', { name: '시장 분석' })).toBeTruthy();
     expect(view.getByText('포트폴리오와 함께 표시되는 시장 분석입니다.')).toBeTruthy();

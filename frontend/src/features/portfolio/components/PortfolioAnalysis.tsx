@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getPortfolioAnalysis } from '../api';
 import type {
   PortfolioAnalysisResponse,
+  PortfolioAsset,
   PortfolioImpactDirection,
   PortfolioImpactLevel,
 } from '../types';
@@ -10,11 +11,13 @@ import '../portfolio.css';
 const DIRECTION_LABELS: Record<PortfolioImpactDirection, string> = {
   POSITIVE: '긍정',
   NEGATIVE: '부정',
+  NEUTRAL: '중립',
 };
 
 const DIRECTION_ICONS: Record<PortfolioImpactDirection, string> = {
   POSITIVE: '↑',
   NEGATIVE: '↓',
+  NEUTRAL: '→',
 };
 
 const IMPACT_LEVEL_LABELS: Record<PortfolioImpactLevel, string> = {
@@ -22,6 +25,17 @@ const IMPACT_LEVEL_LABELS: Record<PortfolioImpactLevel, string> = {
   MEDIUM: '보통',
   LOW: '낮음',
 };
+
+function PortfolioEmpty() {
+  return (
+    <div className="portfolio-state portfolio-empty">
+      <span className="portfolio-state-icon" aria-hidden="true">
+        −
+      </span>
+      <p>포트폴리오에 자산을 등록하면 이 뉴스가 내 자산에 미치는 영향을 확인할 수 있어요.</p>
+    </div>
+  );
+}
 
 function PortfolioAnalysisEmpty() {
   return (
@@ -52,19 +66,30 @@ function PortfolioAnalysisError() {
   );
 }
 
-export function PortfolioAnalysis({ newsId }: { newsId: string }) {
+type PortfolioAnalysisProps = {
+  newsId: string;
+  assets: PortfolioAsset[];
+};
+
+export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
   const [analysis, setAnalysis] = useState<PortfolioAnalysisResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(assets.length > 0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
 
     setAnalysis(null);
-    setLoading(true);
     setError(null);
 
-    getPortfolioAnalysis(newsId)
+    if (assets.length === 0) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    getPortfolioAnalysis(newsId, assets)
       .then((response) => {
         if (!ignore) {
           setAnalysis(response);
@@ -88,34 +113,38 @@ export function PortfolioAnalysis({ newsId }: { newsId: string }) {
     return () => {
       ignore = true;
     };
-  }, [newsId]);
+  }, [assets, newsId]);
 
   return (
     <section className="section portfolio-section" aria-labelledby="portfolio-analysis-title">
       <div className="portfolio-heading">
         <div>
           <h2 id="portfolio-analysis-title">포트폴리오 분석</h2>
-          <p>내 관심 자산에 미칠 영향을 핵심만 정리했어요.</p>
+          <p>내 포트폴리오에 미칠 영향을 핵심만 정리했어요.</p>
         </div>
       </div>
 
-      {loading ? <PortfolioAnalysisLoading /> : null}
+      {assets.length === 0 ? <PortfolioEmpty /> : null}
 
-      {!loading && error ? <PortfolioAnalysisError /> : null}
+      {assets.length > 0 && loading ? <PortfolioAnalysisLoading /> : null}
 
-      {!loading && !error && analysis?.impacts.length === 0 ? <PortfolioAnalysisEmpty /> : null}
+      {assets.length > 0 && !loading && error ? <PortfolioAnalysisError /> : null}
 
-      {!loading && !error && analysis && analysis.impacts.length > 0 ? (
+      {assets.length > 0 && !loading && !error && analysis?.impacts.length === 0 ? (
+        <PortfolioAnalysisEmpty />
+      ) : null}
+
+      {assets.length > 0 && !loading && !error && analysis && analysis.impacts.length > 0 ? (
         <div className="portfolio-impact-list">
-          {analysis.impacts.map((impact, index) => (
+          {analysis.impacts.map((impact) => (
             <article
               className={`portfolio-impact-card ${impact.direction.toLowerCase()} ${impact.impactLevel.toLowerCase()}`}
-              key={impact.bookmarkId}
+              key={impact.assetName}
             >
               <div className="portfolio-card-header">
                 <div className="portfolio-asset-heading">
-                  <span className="portfolio-rank">{`TOP ${index + 1}`}</span>
-                  <h3>{impact.name}</h3>
+                  <span className="portfolio-rank">{`TOP ${impact.rank}`}</span>
+                  <h3>{impact.assetName}</h3>
                 </div>
                 <span
                   className={`portfolio-impact-badge ${impact.direction.toLowerCase()} ${impact.impactLevel.toLowerCase()}`}
@@ -128,7 +157,7 @@ export function PortfolioAnalysis({ newsId }: { newsId: string }) {
 
               <div className="portfolio-impact-copy">
                 <p>
-                  <strong>반응:</strong> {impact.expectedReaction}
+                  <strong>요약:</strong> {impact.summary}
                 </p>
                 <p>
                   <span>근거:</span> {impact.reason}

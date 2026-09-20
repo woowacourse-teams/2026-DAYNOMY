@@ -22,39 +22,51 @@ describe('포트폴리오 분석 화면', () => {
       'fetch',
       vi.fn(async () =>
         jsonResponse({
+          totalAssetCount: 1,
+          analyzedAssetCount: 1,
           impacts: [
             {
-              bookmarkId: 1,
-              assetId: 2,
-              name: '삼성전자',
-              category: 'STOCK',
-              assetCode: '005930',
+              assetName: '삼성전자',
+              weight: 100,
               direction: 'POSITIVE',
               impactLevel: 'HIGH',
-              expectedReaction: '주가가 상승할 수 있습니다.',
+              summary: '주가가 상승할 수 있습니다.',
               reason: '반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.',
-              sortOrder: 1,
+              evidenceSentence: '반도체 수요가 증가했습니다.',
+              rank: 1,
             },
           ],
         }),
       ),
     );
 
-    const view = render(<PortfolioAnalysis newsId="success" />);
+    const view = render(
+      <PortfolioAnalysis newsId="success" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
+    );
 
     expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
     expect(view.getByText('주가가 상승할 수 있습니다.')).toBeTruthy();
     const highImpactBadge = view.getByLabelText('영향 분석 요약');
     expect(highImpactBadge.textContent).toContain('긍정 · 영향 높음');
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/news/success/portfolio-analysis'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assets: [{ assetName: '삼성전자', weight: 100 }] }),
+      },
+    );
   });
 
   it('영향 분석이 비어 있으면 빈 상태를 표시한다', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse({ impacts: [] })),
+      vi.fn(async () => jsonResponse({ totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] })),
     );
 
-    const view = render(<PortfolioAnalysis newsId="retry" />);
+    const view = render(
+      <PortfolioAnalysis newsId="retry" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
+    );
 
     expect(await view.findByText('분석할 자산 영향이 없습니다')).toBeTruthy();
   });
@@ -65,7 +77,9 @@ describe('포트폴리오 분석 화면', () => {
       vi.fn(async () => jsonResponse({}, 500)),
     );
 
-    const view = render(<PortfolioAnalysis newsId="failure" />);
+    const view = render(
+      <PortfolioAnalysis newsId="failure" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
+    );
 
     expect(await view.findByRole('alert')).toBeTruthy();
     expect(view.getByRole('alert').textContent).toContain('포트폴리오 분석을 불러오지 못했습니다.');

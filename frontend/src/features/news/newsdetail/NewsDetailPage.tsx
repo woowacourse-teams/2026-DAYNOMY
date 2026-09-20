@@ -9,6 +9,9 @@ import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
 import { useAuth } from '../../../hooks/useLoginStatus.ts';
+import type { PortfolioAsset } from '../../portfolio/types.ts';
+
+const EMPTY_PORTFOLIO_ASSETS: PortfolioAsset[] = [];
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -178,7 +181,9 @@ export function NewsDetailPage() {
         <div className="analysis-area">
           <div className="analysis-content">
             <DetailAnalysisSections marketAnalysis={marketAnalysis} />
-            {isLoggedIn ? <PortfolioAnalysis newsId={newsId} /> : null}
+            {isLoggedIn ? (
+              <PortfolioAnalysis newsId={newsId} assets={EMPTY_PORTFOLIO_ASSETS} />
+            ) : null}
           </div>
         </div>
       </article>
