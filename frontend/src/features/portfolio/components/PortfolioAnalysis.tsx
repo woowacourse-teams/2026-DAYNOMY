@@ -274,6 +274,14 @@ function PortfolioImpactDetail({
         </p>
         <p>{impact.reason}</p>
       </div>
+
+      <details className="portfolio-evidence">
+        <summary>
+          판단에 사용한 뉴스 문장
+          <span aria-hidden="true">+</span>
+        </summary>
+        <blockquote>{impact.evidenceSentence}</blockquote>
+      </details>
     </article>
   );
 }

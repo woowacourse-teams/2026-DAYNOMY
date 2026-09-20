@@ -454,6 +454,52 @@ button.portfolio-asset-row:focus-visible {
   font-weight: 900;
 }
 
+.portfolio-evidence {
+  margin-top: 42px;
+}
+
+.portfolio-evidence summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #4b6f98;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.portfolio-evidence summary::-webkit-details-marker {
+  display: none;
+}
+
+.portfolio-evidence summary:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #5144d8;
+  outline-offset: 3px;
+}
+
+.portfolio-evidence summary span {
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 160ms ease-out;
+}
+
+.portfolio-evidence[open] summary span {
+  transform: rotate(45deg);
+}
+
+.portfolio-evidence blockquote {
+  margin: 18px 0 0;
+  padding: 16px 18px;
+  border-left: 3px solid #dce6f2;
+  border-radius: 0 10px 10px 0;
+  background: #f7f9fc;
+  color: #5f6b7d;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 @media (max-width: 760px) {
   .portfolio-analysis-layout {
     grid-template-columns: minmax(0, 1fr);

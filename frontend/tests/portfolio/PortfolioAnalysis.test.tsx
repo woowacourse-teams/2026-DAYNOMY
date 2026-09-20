@@ -63,6 +63,14 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.getByText('영향 수준 높음')).toBeTruthy();
     expect(view.getByText('상세 분석 제외')).toBeTruthy();
 
+    const evidenceSummary = view.getByText('판단에 사용한 뉴스 문장');
+    const evidenceDetails = evidenceSummary.closest('details') as HTMLDetailsElement;
+
+    expect(evidenceDetails.open).toBe(false);
+    fireEvent.click(evidenceSummary);
+    expect(evidenceDetails.open).toBe(true);
+    expect(view.getByText('반도체 수요가 증가했습니다.')).toBeTruthy();
+
     fireEvent.click(view.getByText('SK하이닉스').closest('button') as HTMLButtonElement);
 
     expect(view.getByRole('heading', { name: 'SK하이닉스' })).toBeTruthy();
