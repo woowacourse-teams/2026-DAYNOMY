@@ -16,13 +16,13 @@ public class EconomyNewsGenerationScheduler {
   private final NewsGenerationService newsGenerationService;
 
   @Scheduled(cron = "${news.generation.economy.cron}", zone = "Asia/Seoul")
-  public void generateEconomyNewsDraft() {
-    log.info("Starting scheduled economy news draft generation");
+  public void generateEconomyNewsDrafts() {
+    log.info("Starting scheduled economy news drafts generation");
     try {
-      newsGenerationService.generateEconomyNewsDraft();
+      newsGenerationService.generateEconomyNewsDrafts();
     } catch (BusinessException exception) {
       log.warn(
-          "Scheduled economy news draft generation failed: errorCode={}",
+          "Scheduled economy news drafts generation failed: errorCode={}",
           exception.errorCode().code());
     }
   }

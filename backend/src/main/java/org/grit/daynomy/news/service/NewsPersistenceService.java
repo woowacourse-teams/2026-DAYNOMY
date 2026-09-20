@@ -43,14 +43,18 @@ public class NewsPersistenceService {
   }
 
   @Transactional
-  public News saveDraft(GeneratedEconomicNews generatedNews) {
-    News draft =
-        News.createDraft(
-            generatedNews.title(),
-            generatedNews.content(),
-            null,
-            generatedNews.sources(),
-            generatedNews.category());
-    return newsRepository.save(draft);
+  public List<News> saveDrafts(List<GeneratedEconomicNews> generatedNews) {
+    List<News> drafts =
+        generatedNews.stream()
+            .map(
+                article ->
+                    News.createDraft(
+                        article.title(),
+                        article.content(),
+                        null,
+                        article.sources(),
+                        article.category()))
+            .toList();
+    return newsRepository.saveAll(drafts);
   }
 }

@@ -86,15 +86,11 @@ public class NewsGenerationService {
     return generateNews(prompts, "BOK");
   }
 
-  public News generateEconomyNewsDraft() {
-    GeneratedEconomicNews generatedNews = openAiNewsGenerator.generateEconomicNews();
-    News draft = newsPersistenceService.saveDraft(generatedNews);
-    log.info(
-        "Saved scheduled economy news draft: id={}, category={}, sourceCount={}",
-        draft.getId(),
-        draft.getCategory(),
-        generatedNews.sources().size());
-    return draft;
+  public List<News> generateEconomyNewsDrafts() {
+    List<GeneratedEconomicNews> generatedNews = openAiNewsGenerator.generateEconomicNews();
+    List<News> drafts = newsPersistenceService.saveDrafts(generatedNews);
+    log.info("Saved scheduled economy news drafts: count={}", drafts.size());
+    return drafts;
   }
 
   private int generateNews(List<NewsPrompt> prompts, String sourceName) {
