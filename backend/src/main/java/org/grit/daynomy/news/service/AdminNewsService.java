@@ -6,6 +6,7 @@ import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
@@ -40,6 +41,7 @@ public class AdminNewsService {
   private static final long MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
   private final NewsRepository newsRepository;
+  private final OpenAiImageGenerator openAiImageGenerator;
   private final S3ImageStorage s3ImageStorage;
   private final KeywordAiClient keywordAiClient;
   private final MarketAnalysisAiClient marketAnalysisAiClient;
@@ -88,6 +90,34 @@ public class AdminNewsService {
     return newsRepository
         .findById(id)
         .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+  }
+
+  @Transactional
+  public News generateImage(Long id) {
+    News news =
+        newsRepository
+            .findById(id)
+            .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+    if (!news.isDraft()) {
+      throw new BusinessException(NewsErrorCode.NEWS_IMAGE_GENERATION_NOT_ALLOWED);
+    }
+    if (news.getImageUrl() != null && !news.getImageUrl().isBlank()) {
+      return news;
+    }
+
+    byte[] image =
+        openAiImageGenerator.generateEconomicNewsImage(
+            news.getTitle(), news.getContent(), news.getCategory());
+    S3ImageStorage.StoredImage uploadedImage = s3ImageStorage.upload(image, "webp", "image/webp");
+    try {
+      news.updateImage(uploadedImage.publicUrl());
+      newsRepository.flush();
+      registerImageCleanup(null, uploadedImage);
+      return news;
+    } catch (RuntimeException exception) {
+      deleteUploadedImage(uploadedImage);
+      throw exception;
+    }
   }
 
   @Transactional
