@@ -59,7 +59,7 @@ describe('포트폴리오 분석 화면', () => {
 
     expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
     expect(view.getByText(/주가가 상승할 수 있습니다/)).toBeTruthy();
-    expect(view.getByText('긍정 · 비중 늘리기')).toBeTruthy();
+    expect(view.getAllByText('긍정 영향')).toHaveLength(2);
     expect(view.getByText('영향 수준 높음')).toBeTruthy();
     expect(view.getByText('상세 분석 제외')).toBeTruthy();
 
@@ -75,7 +75,7 @@ describe('포트폴리오 분석 화면', () => {
 
     expect(view.getByRole('heading', { name: 'SK하이닉스' })).toBeTruthy();
     expect(view.getByText(/비용 부담이 커질 수 있습니다/)).toBeTruthy();
-    expect(view.getByText('부정 · 비중 줄이기')).toBeTruthy();
+    expect(view.getAllByText('부정 영향')).toHaveLength(2);
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/news/success/portfolio-analysis'),
       {

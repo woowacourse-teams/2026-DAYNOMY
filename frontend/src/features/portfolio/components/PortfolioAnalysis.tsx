@@ -15,10 +15,10 @@ const DIRECTION_LABELS: Record<PortfolioImpactDirection, string> = {
   NEUTRAL: '중립',
 };
 
-const DIRECTION_ACTION_LABELS: Record<PortfolioImpactDirection, string> = {
-  POSITIVE: '긍정 · 비중 늘리기',
-  NEGATIVE: '부정 · 비중 줄이기',
-  NEUTRAL: '비중 유지',
+const DIRECTION_IMPACT_LABELS: Record<PortfolioImpactDirection, string> = {
+  POSITIVE: '긍정 영향',
+  NEGATIVE: '부정 영향',
+  NEUTRAL: '중립 영향',
 };
 
 const IMPACT_LEVEL_LABELS: Record<PortfolioImpactLevel, string> = {
@@ -217,7 +217,7 @@ function PortfolioAssetList({
               className={`portfolio-asset-analysis${impact ? ` ${impact.direction.toLowerCase()}` : ''}`}
             >
               {impact
-                ? `TOP ${impact.rank} · ${DIRECTION_ACTION_LABELS[impact.direction]}`
+                ? `TOP ${impact.rank} · ${DIRECTION_IMPACT_LABELS[impact.direction]}`
                 : '상세 분석 제외'}
             </span>
             <strong>{`${asset.weight}%`}</strong>
@@ -262,7 +262,7 @@ function PortfolioImpactDetail({
         <div className="portfolio-detail-badge-group">
           <span className="portfolio-direction-badge">
             <DirectionIcon direction={impact.direction} />
-            {DIRECTION_ACTION_LABELS[impact.direction]}
+            {DIRECTION_IMPACT_LABELS[impact.direction]}
           </span>
           <small>{`영향 수준 ${IMPACT_LEVEL_LABELS[impact.impactLevel]}`}</small>
         </div>
