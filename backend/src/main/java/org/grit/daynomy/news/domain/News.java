@@ -102,6 +102,10 @@ public class News extends BaseEntity {
     this.category = category;
   }
 
+  public void updateImage(String imageUrl) {
+    this.imageUrl = imageUrl;
+  }
+
   public void publish() {
     if (status != NewsStatus.DRAFT) {
       throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);

@@ -1,7 +1,7 @@
 package org.grit.daynomy.news.service;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -89,32 +89,10 @@ public class NewsGenerationService {
 
   public List<News> generateEconomyNewsDrafts() {
     List<GeneratedEconomicNews> generatedNews = openAiNewsGenerator.generateEconomicNews();
-    List<String> imageUrls = new ArrayList<>();
-    for (GeneratedEconomicNews article : generatedNews) {
-      imageUrls.add(generateEconomicNewsImage(article));
-    }
+    List<String> imageUrls = Collections.nCopies(generatedNews.size(), null);
     List<News> drafts = newsPersistenceService.saveDrafts(generatedNews, imageUrls);
     log.info("Saved scheduled economy news drafts: count={}", drafts.size());
     return drafts;
-  }
-
-  private String generateEconomicNewsImage(GeneratedEconomicNews article) {
-    try {
-      byte[] image =
-          openAiImageGenerator.generateEconomicNewsImage(
-              article.title(), article.content(), article.category());
-      return s3ImageStorage.upload(image, "webp", "image/webp").publicUrl();
-    } catch (BusinessException exception) {
-      if (exception.errorCode() != ExternalErrorCode.AI_IMAGE_GENERATION_FAILED
-          && exception.errorCode() != ExternalErrorCode.S3_IMAGE_STORAGE_FAILED) {
-        throw exception;
-      }
-      log.warn(
-          "Scheduled economy news image was not saved: category={}, errorCode={}",
-          article.category(),
-          exception.errorCode().code());
-      return null;
-    }
   }
 
   private int generateNews(List<NewsPrompt> prompts, String sourceName) {
