@@ -1,6 +1,7 @@
 import type {
+  PortfolioAnalysisRequest,
   PortfolioAnalysisResponse,
-  PortfolioAssetCategory,
+  PortfolioAsset,
   PortfolioAssetImpactResponse,
   PortfolioImpactDirection,
   PortfolioImpactLevel,
@@ -16,19 +17,7 @@ type PortfolioAnalysisCacheEntry = {
 
 const portfolioAnalysisRequests = new Map<string, PortfolioAnalysisCacheEntry>();
 
-const PORTFOLIO_ASSET_CATEGORIES = new Set<PortfolioAssetCategory>([
-  'GOLD',
-  'STOCK',
-  'BOND',
-  'REAL_ESTATE',
-  'FOREIGN_EXCHANGE',
-  'VIRTUAL_ASSET',
-  'DEPOSIT_SAVINGS',
-  'ETF',
-  'PENSION',
-  'MOCK',
-]);
-const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE']);
+const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE', 'NEUTRAL']);
 const IMPACT_LEVELS = new Set<PortfolioImpactLevel>(['HIGH', 'MEDIUM', 'LOW']);
 
 type ErrorResponse = {
@@ -53,19 +42,16 @@ function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactRe
 
   const impact = value as Record<string, unknown>;
   return (
-    typeof impact.bookmarkId === 'number' &&
-    typeof impact.assetId === 'number' &&
-    typeof impact.name === 'string' &&
-    typeof impact.category === 'string' &&
-    PORTFOLIO_ASSET_CATEGORIES.has(impact.category as PortfolioAssetCategory) &&
-    typeof impact.assetCode === 'string' &&
+    typeof impact.assetName === 'string' &&
+    typeof impact.weight === 'number' &&
     typeof impact.direction === 'string' &&
     IMPACT_DIRECTIONS.has(impact.direction as PortfolioImpactDirection) &&
     typeof impact.impactLevel === 'string' &&
     IMPACT_LEVELS.has(impact.impactLevel as PortfolioImpactLevel) &&
-    typeof impact.expectedReaction === 'string' &&
+    typeof impact.summary === 'string' &&
     typeof impact.reason === 'string' &&
-    Number.isInteger(impact.sortOrder)
+    typeof impact.evidenceSentence === 'string' &&
+    Number.isInteger(impact.rank)
   );
 }
 
@@ -73,13 +59,30 @@ function isPortfolioAnalysisResponse(value: unknown): value is PortfolioAnalysis
   if (!value || typeof value !== 'object') return false;
 
   const response = value as Record<string, unknown>;
-  return Array.isArray(response.impacts) && response.impacts.every(isPortfolioAssetImpact);
+  return (
+    Number.isInteger(response.totalAssetCount) &&
+    Number.isInteger(response.analyzedAssetCount) &&
+    Array.isArray(response.impacts) &&
+    response.impacts.every(isPortfolioAssetImpact)
+  );
 }
 
-async function requestPortfolioAnalysis(newsId: string): Promise<PortfolioAnalysisResponse> {
+function createRequestKey(newsId: string, assets: PortfolioAsset[]) {
+  return JSON.stringify([newsId, assets]);
+}
+
+async function requestPortfolioAnalysis(
+  newsId: string,
+  assets: PortfolioAsset[],
+): Promise<PortfolioAnalysisResponse> {
+  const request: PortfolioAnalysisRequest = { assets };
   const response = await fetch(
     `${API_BASE_URL}/api/news/${encodeURIComponent(newsId)}/portfolio-analysis`,
-    { credentials: 'include' },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    },
   );
 
   if (!response.ok) {
@@ -102,27 +105,31 @@ async function requestPortfolioAnalysis(newsId: string): Promise<PortfolioAnalys
   return data;
 }
 
-export function getPortfolioAnalysis(newsId: string): Promise<PortfolioAnalysisResponse> {
-  const cachedEntry = portfolioAnalysisRequests.get(newsId);
+export function getPortfolioAnalysis(
+  newsId: string,
+  assets: PortfolioAsset[],
+): Promise<PortfolioAnalysisResponse> {
+  const requestKey = createRequestKey(newsId, assets);
+  const cachedEntry = portfolioAnalysisRequests.get(requestKey);
   const isFresh = cachedEntry && (!cachedEntry.expiresAt || Date.now() < cachedEntry.expiresAt);
 
   if (isFresh) return cachedEntry.request;
 
-  if (cachedEntry) portfolioAnalysisRequests.delete(newsId);
+  if (cachedEntry) portfolioAnalysisRequests.delete(requestKey);
 
-  const request = requestPortfolioAnalysis(newsId);
-  portfolioAnalysisRequests.set(newsId, { request });
+  const request = requestPortfolioAnalysis(newsId, assets);
+  portfolioAnalysisRequests.set(requestKey, { request });
 
   void request.then(
     () => {
-      const currentEntry = portfolioAnalysisRequests.get(newsId);
+      const currentEntry = portfolioAnalysisRequests.get(requestKey);
       if (currentEntry?.request === request) {
         currentEntry.expiresAt = Date.now() + PORTFOLIO_ANALYSIS_CACHE_TIME;
       }
     },
     () => {
-      if (portfolioAnalysisRequests.get(newsId)?.request === request) {
-        portfolioAnalysisRequests.delete(newsId);
+      if (portfolioAnalysisRequests.get(requestKey)?.request === request) {
+        portfolioAnalysisRequests.delete(requestKey);
       }
     },
   );
@@ -130,7 +137,10 @@ export function getPortfolioAnalysis(newsId: string): Promise<PortfolioAnalysisR
   return request;
 }
 
-export function retryPortfolioAnalysis(newsId: string): Promise<PortfolioAnalysisResponse> {
-  portfolioAnalysisRequests.delete(newsId);
-  return getPortfolioAnalysis(newsId);
+export function retryPortfolioAnalysis(
+  newsId: string,
+  assets: PortfolioAsset[],
+): Promise<PortfolioAnalysisResponse> {
+  portfolioAnalysisRequests.delete(createRequestKey(newsId, assets));
+  return getPortfolioAnalysis(newsId, assets);
 }
