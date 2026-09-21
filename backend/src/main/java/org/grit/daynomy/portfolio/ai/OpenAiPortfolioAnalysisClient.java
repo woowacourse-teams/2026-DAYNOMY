@@ -85,7 +85,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               .retrieve()
               .body(String.class);
 
-      return parseAnalysis(response, targets);
+      return parseAnalysis(response, targets, newsContent);
     } catch (HttpStatusCodeException exception) {
       log.warn(
           "OpenAI portfolio analysis request failed: status={}, body={}, targetCount={}",
@@ -198,7 +198,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   }
 
   private PortfolioAnalysisResult parseAnalysis(
-      String response, List<PortfolioAnalysisTarget> targets) {
+      String response, List<PortfolioAnalysisTarget> targets, String newsContent) {
     String outputText = extractOutputText(response);
 
     try {
@@ -206,14 +206,14 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       if (root == null) {
         throw analysisFailed();
       }
-      return new PortfolioAnalysisResult(parseImpacts(root.path("impacts"), targets));
+      return new PortfolioAnalysisResult(parseImpacts(root.path("impacts"), targets, newsContent));
     } catch (JsonProcessingException | IllegalArgumentException exception) {
       throw analysisFailed();
     }
   }
 
   private List<PortfolioAnalysisResult.AssetImpactResult> parseImpacts(
-      JsonNode impactsNode, List<PortfolioAnalysisTarget> targets) {
+      JsonNode impactsNode, List<PortfolioAnalysisTarget> targets, String newsContent) {
     if (!impactsNode.isArray()) {
       throw analysisFailed();
     }
@@ -240,6 +240,15 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         throw analysisFailed();
       }
 
+      JsonNode evidenceSentenceNode = impactNode.path("evidenceSentence");
+      if (!evidenceSentenceNode.isTextual()) {
+        throw analysisFailed();
+      }
+      String evidenceSentence = evidenceSentenceNode.textValue();
+      if (evidenceSentence.isBlank() || !newsContent.contains(evidenceSentence)) {
+        throw analysisFailed();
+      }
+
       parsedImpacts.add(
           new ParsedAssetImpact(
               target.assetName(),
@@ -247,7 +256,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               ImpactLevel.valueOf(impactNode.path("impactLevel").asText()),
               impactNode.path("expectedReaction").asText(),
               impactNode.path("reason").asText(),
-              impactNode.path("evidenceSentence").asText()));
+              evidenceSentence));
     }
 
     parsedImpacts.sort(
