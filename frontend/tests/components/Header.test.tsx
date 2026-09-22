@@ -18,6 +18,7 @@ describe('헤더', () => {
     const myPageLink = view.getByRole('link', { name: '마이페이지' });
 
     expect(myPageLink.getAttribute('href')).toBe('/mypage');
+    expect(view.getByRole('link', { name: '포트폴리오' }).getAttribute('href')).toBe('/portfolio');
     expect(view.queryByRole('link', { name: '로그인' })).toBeNull();
   });
 });
