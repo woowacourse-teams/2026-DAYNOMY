@@ -1,6 +1,7 @@
 package org.grit.daynomy.news.service;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,8 +15,10 @@ import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
+import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
+import org.grit.daynomy.news.domain.News;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -82,6 +85,14 @@ public class NewsGenerationService {
     log.info("Created {} BOK news prompts", prompts.size());
 
     return generateNews(prompts, "BOK");
+  }
+
+  public List<News> generateEconomyNewsDrafts() {
+    List<GeneratedEconomicNews> generatedNews = openAiNewsGenerator.generateEconomicNews();
+    List<String> imageUrls = Collections.nCopies(generatedNews.size(), null);
+    List<News> drafts = newsPersistenceService.saveDrafts(generatedNews, imageUrls);
+    log.info("Saved scheduled economy news drafts: count={}", drafts.size());
+    return drafts;
   }
 
   private int generateNews(List<NewsPrompt> prompts, String sourceName) {

@@ -8,7 +8,13 @@ import {
   CATEGORY_LABELS,
   NEWS_STATUS_LABELS,
 } from './constants';
-import { deleteAdminNews, getAdminNews, publishAdminNews, rejectAdminNews } from './api';
+import {
+  deleteAdminNews,
+  generateAdminNewsImage,
+  getAdminNews,
+  publishAdminNews,
+  rejectAdminNews,
+} from './api';
 import type {
   AdminNewsFilterCategory,
   AdminNewsFilterStatus,
@@ -67,6 +73,7 @@ export function AdminNewsPage() {
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [generatingImageId, setGeneratingImageId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -160,6 +167,23 @@ export function AdminNewsPage() {
     }
   }
 
+  async function handleGenerateImage(item: AdminNewsListItemResponse) {
+    if (item.imageUrl && !window.confirm(`'${item.title}' 뉴스 이미지를 새 이미지로 교체할까요?`)) {
+      return;
+    }
+
+    setGeneratingImageId(item.id);
+    setErrorMessage(null);
+    try {
+      await generateAdminNewsImage(item.id);
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, '뉴스 이미지를 생성하지 못했습니다.'));
+    } finally {
+      setGeneratingImageId(null);
+    }
+  }
+
   return (
     <main className="admin-content">
       <div className="admin-page-heading">
@@ -244,7 +268,10 @@ export function AdminNewsPage() {
               <tbody>
                 {items.map((item) => {
                   const isProcessing =
-                    publishingId === item.id || rejectingId === item.id || deletingId === item.id;
+                    publishingId === item.id ||
+                    rejectingId === item.id ||
+                    deletingId === item.id ||
+                    generatingImageId === item.id;
 
                   return (
                     <tr key={item.id}>
@@ -268,6 +295,21 @@ export function AdminNewsPage() {
                       <td data-label="등록일">{formatDate(item.createdAt)}</td>
                       <td data-label="관리">
                         <div className="admin-row-actions">
+                          {item.status === 'DRAFT' || item.status === 'PUBLISHED' ? (
+                            <button
+                              type="button"
+                              disabled={isProcessing}
+                              onClick={() => handleGenerateImage(item)}
+                            >
+                              {generatingImageId === item.id
+                                ? item.imageUrl
+                                  ? '이미지 수정 중'
+                                  : '이미지 생성 중'
+                                : item.imageUrl
+                                  ? '이미지 수정'
+                                  : '이미지 생성'}
+                            </button>
+                          ) : null}
                           {item.status === 'DRAFT' ? (
                             <button
                               type="button"
