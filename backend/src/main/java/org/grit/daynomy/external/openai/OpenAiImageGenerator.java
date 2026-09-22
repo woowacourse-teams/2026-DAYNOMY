@@ -151,7 +151,16 @@ public class OpenAiImageGenerator {
         central event cannot be understood otherwise.
         %s
 
-        Style: documentary press photography with natural camera realism, authentic materials, realistic lighting, restrained colors, and subtle grain. Avoid glossy 3D rendering and conceptual illustration.
+        Style: documentary press photography with natural camera realism, authentic materials,
+        realistic lighting, and restrained colors. Avoid glossy 3D rendering and conceptual
+        illustration.
+        Camera rendering: use one believable focal plane. Keep the main subject moderately sharp
+        while details gradually soften with distance and depth. Preserve gentle lens softness,
+        natural highlight roll-off, slight exposure variation, subtle sensor grain, and restrained
+        micro-contrast. Avoid edge-to-edge sharpness, hyper-detailed surfaces, aggressive HDR,
+        excessive clarity, artificial sharpening, perfectly uniform textures, and overly smooth
+        denoised surfaces. The result should feel like a real press photograph captured on location,
+        not a digitally perfected image.
         Composition: wide horizontal landscape, safe to crop to a 16:9 banner. Keep the main subject toward the right third and leave uncluttered negative space on the left for a headline overlay.
         Accuracy: this is an illustrative cover, not evidence of the reported event. Do not invent
         or imply a specific unverified company facility or event.
