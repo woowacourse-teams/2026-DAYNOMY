@@ -26,11 +26,19 @@ public class OpenAiImageGenerator {
   private static final String IMAGE_FORMAT = "webp";
   private static final String IMAGE_CONTENT_GUIDELINES =
       """
-      People are optional and must not be added by default. Include a person only when their
-      presence is essential to communicate the news story's central event. Do not add people merely
-      for scale, atmosphere, or realism. Otherwise, show no people. If a person is essential, include
-      at most one anonymous, non-identifiable person, preferably from behind or with their face
-      obscured. Never include a crowd or extra people.
+      Start by composing an entirely unoccupied scene with no people. Treat a people-free image as
+      the default and strongest preference. A person may appear only as a strict exception when
+      removing all people would make the central event itself visually incomprehensible because the
+      event inherently depends on a human action. A workplace or industry setting, including an
+      office, factory, laboratory, hospital, store, construction site, or market, is never by itself
+      a reason to include a worker. Do not add people for scale, atmosphere, realism, or visual
+      interest. If objects, machinery, products, documents, buildings, landscapes, or materials can
+      carry the story, show no people. For articles about facilities, production, contracts, supply,
+      investment, earnings, logistics, technology, or research, prefer relevant environments and
+      objects alone. If and only if a person is indispensable, include exactly one anonymous,
+      non-identifiable person, shown from behind or with their face fully obscured. Never include
+      crowds, groups, background figures, silhouettes, reflections of people, screens depicting
+      people, portraits, visible faces, or stray body parts.
       Do not add visible writing by default. Include background text or numerals only when they
       naturally belong to the setting, such as an exchange board, and keep them secondary. Any
       visible glyphs must look clean and correctly formed, never malformed, scrambled, misspelled,
@@ -138,11 +146,21 @@ public class OpenAiImageGenerator {
         Create a realistic editorial cover photograph for a Korean economic news article.
         Show a believable real-world setting directly connected to the industry's or market's
         central issue. Use objects, machinery, buildings, landscapes, or materials to carry the
-        story instead of generic stock charts or abstract finance symbols. Include a person only
-        when essential to communicate the story, following the people guidelines below.
+        story instead of generic stock charts or abstract finance symbols. First compose the scene
+        without people and apply the strict exception in the people guidelines below only when the
+        central event cannot be understood otherwise.
         %s
 
-        Style: documentary press photography with natural camera realism, authentic materials, realistic lighting, restrained colors, and subtle grain. Avoid glossy 3D rendering and conceptual illustration.
+        Style: documentary press photography with natural camera realism, authentic materials,
+        realistic lighting, and restrained colors. Avoid glossy 3D rendering and conceptual
+        illustration.
+        Camera rendering: use one believable focal plane. Keep the main subject moderately sharp
+        while details gradually soften with distance and depth. Preserve gentle lens softness,
+        natural highlight roll-off, slight exposure variation, subtle sensor grain, and restrained
+        micro-contrast. Avoid edge-to-edge sharpness, hyper-detailed surfaces, aggressive HDR,
+        excessive clarity, artificial sharpening, perfectly uniform textures, and overly smooth
+        denoised surfaces. The result should feel like a real press photograph captured on location,
+        not a digitally perfected image.
         Composition: wide horizontal landscape, safe to crop to a 16:9 banner. Keep the main subject toward the right third and leave uncluttered negative space on the left for a headline overlay.
         Accuracy: this is an illustrative cover, not evidence of the reported event. Do not invent
         or imply a specific unverified company facility or event.
