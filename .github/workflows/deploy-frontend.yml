@@ -64,13 +64,18 @@ jobs:
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
           SENTRY_RELEASE: ${{ github.sha }}
         run: |
+          : "${VITE_API_BASE_URL:?VITE_API_BASE_URL is required}"
           : "${SENTRY_DSN:?SENTRY_DSN is required}"
           : "${SENTRY_ENVIRONMENT:?SENTRY_ENVIRONMENT is required}"
-          : "${GA_MEASUREMENT_ID:?GA_MEASUREMENT_ID is required}"
-          : "${SENTRY_AUTH_TOKEN:?SENTRY_AUTH_TOKEN is required}"
-          : "${SENTRY_ORG:?SENTRY_ORG is required}"
-          : "${SENTRY_PROJECT:?SENTRY_PROJECT is required}"
           : "${SENTRY_RELEASE:?SENTRY_RELEASE is required}"
+
+          if [ "$DEPLOY_ENV" = "production" ]; then
+            : "${GA_MEASUREMENT_ID:?GA_MEASUREMENT_ID is required}"
+            : "${SENTRY_AUTH_TOKEN:?SENTRY_AUTH_TOKEN is required}"
+            : "${SENTRY_ORG:?SENTRY_ORG is required}"
+            : "${SENTRY_PROJECT:?SENTRY_PROJECT is required}"
+          fi
+
           npm run "build:${DEPLOY_ENV}"
 
       - name: Verify source maps were removed

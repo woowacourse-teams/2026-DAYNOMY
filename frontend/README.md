@@ -135,15 +135,19 @@ npm run build
 
 GitHub의 `development`, `production` Environment에는 다음 값을 각각 설정합니다.
 
-| 종류     | 이름                 | 용도                                         |
-| -------- | -------------------- | -------------------------------------------- |
-| Variable | `VITE_API_BASE_URL`  | 환경별 API 주소. 같은 origin이면 빈 값       |
-| Variable | `GA_MEASUREMENT_ID`  | 환경별 GA4 웹 데이터 스트림 ID               |
-| Variable | `SENTRY_DSN`         | Sentry 프로젝트 DSN                          |
-| Variable | `SENTRY_ENVIRONMENT` | development는 `staging`, 운영은 `production` |
-| Variable | `SENTRY_ORG`         | Sentry 조직 slug                             |
-| Variable | `SENTRY_PROJECT`     | Sentry 프로젝트 slug                         |
-| Secret   | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드 토큰                           |
+| 종류     | 이름                 | 용도                                           |
+| -------- | -------------------- | ---------------------------------------------- |
+| Variable | `VITE_API_BASE_URL`  | 환경별 API 주소. 같은 origin이면 빈 값         |
+| Variable | `GA_MEASUREMENT_ID`  | GA4 웹 데이터 스트림 ID. 개발 환경은 생략 가능 |
+| Variable | `SENTRY_DSN`         | Sentry 프로젝트 DSN                            |
+| Variable | `SENTRY_ENVIRONMENT` | development는 `staging`, 운영은 `production`   |
+| Variable | `SENTRY_ORG`         | Sentry 조직 slug                               |
+| Variable | `SENTRY_PROJECT`     | Sentry 프로젝트 slug                           |
+| Secret   | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드 토큰                             |
+
+개발 환경은 별도의 GA4 스트림이 준비될 때까지 `GA_MEASUREMENT_ID`를 설정하지 않아
+테스트 트래픽을 수집하지 않습니다. 개발 환경의 Sentry 이벤트는 `staging`으로
+분리하며, 소스맵 업로드는 토큰이 설정된 운영 빌드에서 수행합니다.
 
 호스트 Nginx는 `daynomy.com`을 `127.0.0.1:3000`으로,
 `dev.daynomy.com`을 `127.0.0.1:3001`로 전달합니다. `dev.daynomy.com` DNS와 HTTPS
