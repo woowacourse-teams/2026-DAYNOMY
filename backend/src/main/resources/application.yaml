@@ -164,3 +164,8 @@ news:
     bok:
       enabled: ${BOK_NEWS_GENERATION_ENABLED:false}
       cron: ${BOK_NEWS_GENERATION_CRON:0 30 8 * * *}
+
+stock:
+  sync:
+    enabled: ${STOCK_SYNC_ENABLED:false}
+    cron: ${STOCK_SYNC_CRON:0 10 14 * * MON-FRI}
