@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.then;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
@@ -40,7 +41,10 @@ class StockPriceSyncServiceTest {
     given(stockPriceClient.getStockPrices(baseDate, StockMarket.KOSPI, 1, 1000))
         .willReturn(
             response(
-                1001, List.of(item(baseDate, "005930", "82000"), item(baseDate, "잘못된코드", "1000"))));
+                1001,
+                fullPage(
+                    baseDate,
+                    List.of(item(baseDate, "005930", "82000"), item(baseDate, "잘못된코드", "1000")))));
     given(stockPriceClient.getStockPrices(baseDate, StockMarket.KOSPI, 2, 1000))
         .willReturn(response(1001, List.of(item(baseDate, "000660", "190000"))));
     given(stockPriceClient.getStockPrices(baseDate, StockMarket.KOSDAQ, 1, 1000))
@@ -64,6 +68,20 @@ class StockPriceSyncServiceTest {
             org.assertj.core.groups.Tuple.tuple("005930", new java.math.BigDecimal("82000")),
             org.assertj.core.groups.Tuple.tuple("000660", new java.math.BigDecimal("190000")),
             org.assertj.core.groups.Tuple.tuple("247540", new java.math.BigDecimal("285000")));
+  }
+
+  @Test
+  @DisplayName("시장별 응답 항목 수가 전체 건수보다 적으면 불완전한 종가 스냅샷을 저장하지 않는다")
+  void synchronizeRejectsIncompleteMarketSnapshot() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
+        .willReturn(response(2, List.of(item(today, "005930", "82000"))));
+
+    assertThatThrownBy(() -> syncService.synchronize(today))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
+    then(persistenceService).shouldHaveNoInteractions();
   }
 
   @Test
@@ -103,5 +121,15 @@ class StockPriceSyncServiceTest {
         "KOSPI",
         closePrice,
         "1000000000");
+  }
+
+  private List<PublicDataStockPriceItem> fullPage(
+      LocalDate baseDate, List<PublicDataStockPriceItem> leadingItems) {
+    List<PublicDataStockPriceItem> items = new ArrayList<>(leadingItems);
+    PublicDataStockPriceItem invalidItem = item(baseDate, "잘못된코드", "1000");
+    while (items.size() < 1000) {
+      items.add(invalidItem);
+    }
+    return items;
   }
 }

@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
@@ -42,11 +43,12 @@ class StockMasterSyncServiceTest {
         .willReturn(
             response(
                 1001,
-                List.of(
-                    item(baseDate, "005930", "삼성전자", "KOSPI", "KR7005930003"),
-                    item(baseDate, "005935", "삼성전자우", "KOSPI", "KR7005931001"),
-                    item(baseDate, "000001", "테스트스팩1호", "KOSDAQ", "KR7000000010"),
-                    item(baseDate, "000002", "코넥스종목", "KONEX", "KR7000000028"))));
+                fullPage(
+                    baseDate,
+                    List.of(
+                        item(baseDate, "005930", "삼성전자", "KOSPI", "KR7005930003"),
+                        item(baseDate, "005935", "삼성전자우", "KOSPI", "KR7005931001"),
+                        item(baseDate, "000001", "테스트스팩1호", "KOSDAQ", "KR7000000010")))));
     given(listedStockClient.getListedStocks(baseDate, 2, 1000))
         .willReturn(
             response(1001, List.of(item(baseDate, "000660", "SK하이닉스", "KOSPI", "KR7000660001"))));
@@ -77,6 +79,49 @@ class StockMasterSyncServiceTest {
   }
 
   @Test
+  @DisplayName("응답 항목 수가 전체 건수보다 적으면 불완전한 종목 스냅샷을 저장하지 않는다")
+  void synchronizeRejectsIncompleteSnapshot() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(listedStockClient.getListedStocks(today, 1, 1000))
+        .willReturn(response(2, List.of(item(today, "005930", "삼성전자", "KOSPI", "KR7005930003"))));
+
+    assertThatThrownBy(() -> syncService.synchronize(today))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
+    then(persistenceService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  @DisplayName("기준일 형식이 잘못됐거나 요청일과 다른 종목은 제외한다")
+  void synchronizeSkipsStocksWithInvalidBaseDate() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(listedStockClient.getListedStocks(today, 1, 1000))
+        .willReturn(
+            response(
+                3,
+                List.of(
+                    item(today, "005930", "삼성전자", "KOSPI", "KR7005930003"),
+                    item("잘못된날짜", "000660", "SK하이닉스", "KOSPI", "KR7000660001"),
+                    item(today.minusDays(1), "247540", "에코프로비엠", "KOSDAQ", "KR7247540008"))));
+    given(
+            persistenceService.synchronize(
+                org.mockito.ArgumentMatchers.eq(today), org.mockito.ArgumentMatchers.anyList()))
+        .willReturn(new StockSyncResult(today, 1, 1, 0, 0));
+
+    syncService.synchronize(today);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<StockMasterEntry>> entriesCaptor = ArgumentCaptor.forClass(List.class);
+    then(persistenceService)
+        .should()
+        .synchronize(org.mockito.ArgumentMatchers.eq(today), entriesCaptor.capture());
+    assertThat(entriesCaptor.getValue())
+        .extracting(StockMasterEntry::code)
+        .containsExactly("005930");
+  }
+
+  @Test
   @DisplayName("최근 10일 동안 종목 데이터가 없으면 동기화를 중단한다")
   void synchronizeThrowsWhenSnapshotIsMissing() {
     LocalDate today = LocalDate.of(2026, 9, 21);
@@ -103,13 +148,28 @@ class StockMasterSyncServiceTest {
 
   private PublicDataListedStockItem item(
       LocalDate baseDate, String code, String name, String market, String isinCode) {
-    return new PublicDataListedStockItem(
+    return item(
         baseDate.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE),
         code,
-        isinCode,
-        market,
         name,
-        "1101110000000",
-        name);
+        market,
+        isinCode);
+  }
+
+  private PublicDataListedStockItem item(
+      String baseDate, String code, String name, String market, String isinCode) {
+    return new PublicDataListedStockItem(
+        baseDate, code, isinCode, market, name, "1101110000000", name);
+  }
+
+  private List<PublicDataListedStockItem> fullPage(
+      LocalDate baseDate, List<PublicDataListedStockItem> leadingItems) {
+    List<PublicDataListedStockItem> items = new ArrayList<>(leadingItems);
+    PublicDataListedStockItem excludedItem =
+        item(baseDate, "000002", "코넥스종목", "KONEX", "KR7000000028");
+    while (items.size() < 1000) {
+      items.add(excludedItem);
+    }
+    return items;
   }
 }

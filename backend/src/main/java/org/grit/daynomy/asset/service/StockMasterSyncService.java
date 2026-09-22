@@ -3,6 +3,7 @@ package org.grit.daynomy.asset.service;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,8 +77,11 @@ public class StockMasterSyncService {
         }
         items.addAll(nextPage.items());
       }
+      if (items.size() < firstPage.body().totalCount()) {
+        throw new BusinessException(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
+      }
 
-      List<StockMasterEntry> entries = toEntries(items);
+      List<StockMasterEntry> entries = toEntries(items, requestedDate);
       if (!entries.isEmpty()) {
         return new StockMasterSnapshot(entries.getFirst().baseDate(), entries);
       }
@@ -86,15 +90,17 @@ public class StockMasterSyncService {
     throw new BusinessException(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
   }
 
-  private List<StockMasterEntry> toEntries(List<PublicDataListedStockItem> items) {
+  private List<StockMasterEntry> toEntries(
+      List<PublicDataListedStockItem> items, LocalDate requestedDate) {
     Map<String, StockMasterEntry> entriesByCode = new LinkedHashMap<>();
     for (PublicDataListedStockItem item : items) {
-      toEntry(item).ifPresent(entry -> entriesByCode.put(entry.code(), entry));
+      toEntry(item, requestedDate).ifPresent(entry -> entriesByCode.put(entry.code(), entry));
     }
     return List.copyOf(entriesByCode.values());
   }
 
-  private Optional<StockMasterEntry> toEntry(PublicDataListedStockItem item) {
+  private Optional<StockMasterEntry> toEntry(
+      PublicDataListedStockItem item, LocalDate requestedDate) {
     if (item == null
         || isBlank(item.srtnCd())
         || !STOCK_CODE.matcher(item.srtnCd().trim()).matches()
@@ -109,15 +115,19 @@ public class StockMasterSyncService {
       return Optional.empty();
     }
 
-    return StockMarket.from(normalizeMarket(item.mrktCtg()))
-        .map(
-            market ->
-                new StockMasterEntry(
-                    item.srtnCd().trim(),
-                    name,
-                    market,
-                    item.isinCd().trim(),
-                    LocalDate.parse(item.basDt().trim(), BASIC_DATE_FORMAT)));
+    try {
+      LocalDate baseDate = LocalDate.parse(item.basDt().trim(), BASIC_DATE_FORMAT);
+      if (!requestedDate.equals(baseDate)) {
+        return Optional.empty();
+      }
+      return StockMarket.from(normalizeMarket(item.mrktCtg()))
+          .map(
+              market ->
+                  new StockMasterEntry(
+                      item.srtnCd().trim(), name, market, item.isinCd().trim(), baseDate));
+    } catch (DateTimeParseException exception) {
+      return Optional.empty();
+    }
   }
 
   private boolean isExcludedStock(String name) {

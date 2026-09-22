@@ -102,6 +102,9 @@ public class StockPriceSyncService {
       }
       items.addAll(nextPage.items());
     }
+    if (items.size() < firstPage.body().totalCount()) {
+      throw new BusinessException(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
+    }
     return items;
   }
 
