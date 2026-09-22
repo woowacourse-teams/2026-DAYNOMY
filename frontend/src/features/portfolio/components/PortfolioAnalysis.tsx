@@ -7,7 +7,7 @@ import type {
   PortfolioImpactDirection,
   PortfolioImpactLevel,
 } from '../types';
-import '../portfolio.css';
+import '../portfolioAnalysis.css';
 
 const DIRECTION_LABELS: Record<PortfolioImpactDirection, string> = {
   POSITIVE: '긍정',
@@ -69,8 +69,8 @@ function DirectionIcon({ direction }: { direction: PortfolioImpactDirection }) {
 
 function PortfolioEmpty() {
   return (
-    <div className="portfolio-state portfolio-empty">
-      <span className="portfolio-state-icon" aria-hidden="true">
+    <div className="portfolio-analysis-state portfolio-analysis-empty">
+      <span className="portfolio-analysis-state-icon" aria-hidden="true">
         −
       </span>
       <p>포트폴리오에 자산을 등록하면 이 뉴스가 내 자산에 미치는 영향을 확인할 수 있어요.</p>
@@ -80,8 +80,8 @@ function PortfolioEmpty() {
 
 function PortfolioAnalysisEmpty() {
   return (
-    <div className="portfolio-state portfolio-empty">
-      <span className="portfolio-state-icon" aria-hidden="true">
+    <div className="portfolio-analysis-state portfolio-analysis-empty">
+      <span className="portfolio-analysis-state-icon" aria-hidden="true">
         −
       </span>
       <strong>이 뉴스와 직접 관련된 보유 자산이 없어요.</strong>
@@ -92,7 +92,11 @@ function PortfolioAnalysisEmpty() {
 
 function PortfolioAnalysisLoading() {
   return (
-    <div className="portfolio-state portfolio-empty" role="status" aria-live="polite">
+    <div
+      className="portfolio-analysis-state portfolio-analysis-empty"
+      role="status"
+      aria-live="polite"
+    >
       <strong>내 포트폴리오에 미치는 영향을 분석하고 있어요.</strong>
     </div>
   );
@@ -100,9 +104,9 @@ function PortfolioAnalysisLoading() {
 
 function PortfolioAnalysisError({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="portfolio-state portfolio-empty" role="alert">
+    <div className="portfolio-analysis-state portfolio-analysis-empty" role="alert">
       <strong>포트폴리오 분석을 완료하지 못했어요.</strong>
-      <button className="portfolio-retry-button" type="button" onClick={onRetry}>
+      <button className="portfolio-analysis-retry-button" type="button" onClick={onRetry}>
         다시 시도
       </button>
     </div>
@@ -126,9 +130,9 @@ function PortfolioDonut({
   let offset = 0;
 
   return (
-    <div className="portfolio-donut-wrap">
+    <div className="portfolio-analysis-donut-wrap">
       <svg
-        className="portfolio-donut"
+        className="portfolio-analysis-donut"
         viewBox="0 0 220 220"
         role="group"
         aria-label="전체 포트폴리오의 자산별 보유 비중"
@@ -381,8 +385,11 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
     assets.length > 0 && !loading && (analyzedAssets === null || isPortfolioChanged);
 
   return (
-    <section className="section portfolio-section" aria-labelledby="portfolio-analysis-title">
-      <div className={`portfolio-heading${hasAnalysis ? ' has-analysis' : ''}`}>
+    <section
+      className="section portfolio-analysis-section"
+      aria-labelledby="portfolio-analysis-title"
+    >
+      <div className={`portfolio-analysis-heading${hasAnalysis ? ' has-analysis' : ''}`}>
         <div>
           <h2 id="portfolio-analysis-title">
             {hasAnalysis ? '내 포트폴리오에 미치는 영향' : '포트폴리오 분석'}
@@ -419,8 +426,8 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
 
       {hasAnalysisTarget && !loading && !error && analysis && selectedImpact ? (
         <div className="portfolio-analysis-layout">
-          <div className="portfolio-overview">
-            <div className="portfolio-overview-heading">
+          <div className="portfolio-analysis-overview">
+            <div className="portfolio-analysis-overview-heading">
               <h3>내 포트폴리오</h3>
               <span className={selectedImpact.direction.toLowerCase()}>
                 {`${DIRECTION_LABELS[selectedImpact.direction]} 영향`}

@@ -174,6 +174,43 @@ class AdminNewsControllerTest {
   }
 
   @Test
+  @DisplayName("관리자 경제 뉴스 초안 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
+  void generateEconomyNewsDraftsReturnsSavedCount() throws Exception {
+    given(newsGenerationService.generateEconomyNewsDrafts())
+        .willReturn(java.util.List.of(mock(News.class), mock(News.class)));
+
+    mockMvc
+        .perform(post("/api/admin/news/generate/economy"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.savedCount").value(2));
+
+    then(newsGenerationService).should().generateEconomyNewsDrafts();
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 이미지 생성 API는 생성된 이미지 URL을 반환한다")
+  void generateNewsImageReturnsUpdatedNews() throws Exception {
+    News news = mock(News.class);
+    willReturn(1L).given(news).getId();
+    willReturn("뉴스 제목").given(news).getTitle();
+    willReturn("뉴스 본문").given(news).getContent();
+    willReturn("https://example.com/generated.webp").given(news).getImageUrl();
+    willReturn(Category.STOCK).given(news).getCategory();
+    willReturn(null).given(news).getPublishedAt();
+    willReturn(NewsStatus.DRAFT).given(news).getStatus();
+    willReturn(java.util.List.of()).given(news).getSources();
+    given(adminNewsService.generateImage(1L)).willReturn(news);
+
+    mockMvc
+        .perform(post("/api/admin/news/1/generate-image"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.imageUrl").value("https://example.com/generated.webp"))
+        .andExpect(jsonPath("$.status").value("DRAFT"));
+
+    then(adminNewsService).should().generateImage(1L);
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 목록 조회 API는 페이지와 상태를 서비스에 전달한다")
   void getNewsPageReturnsAdminNews() throws Exception {
     given(adminNewsService.getNewsPage(1, 15, NewsStatus.DRAFT, null))

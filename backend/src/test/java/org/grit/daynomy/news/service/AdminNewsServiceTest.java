@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -12,6 +13,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
@@ -48,6 +50,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class AdminNewsServiceTest {
 
   @Mock private NewsRepository newsRepository;
+
+  @Mock private OpenAiImageGenerator openAiImageGenerator;
 
   @Mock private S3ImageStorage s3ImageStorage;
 
@@ -116,6 +120,102 @@ class AdminNewsServiceTest {
         .containsExactly(
             new NewsSourceInfo("출처 A", "https://example.com/a"),
             new NewsSourceInfo("출처 B", "https://example.com/b"));
+  }
+
+  @Test
+  @DisplayName("초안 이미지 생성은 S3 URL을 뉴스 초안에 저장한다")
+  void generateImageStoresImageForDraft() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    byte[] image = {1, 2, 3};
+    S3ImageStorage.StoredImage uploadedImage =
+        new S3ImageStorage.StoredImage("generated.webp", "https://example.com/generated.webp");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(openAiImageGenerator.generateEconomicNewsImage("뉴스 제목", "뉴스 본문", Category.STOCK))
+        .willReturn(image);
+    given(s3ImageStorage.upload(image, "webp", "image/webp")).willReturn(uploadedImage);
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      News updatedNews = adminNewsService.generateImage(1L);
+
+      assertThat(updatedNews.getImageUrl()).isEqualTo(uploadedImage.publicUrl());
+      verify(newsRepository).flush();
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(
+              synchronization ->
+                  synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+      verify(s3ImageStorage).delete(uploadedImage);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @Test
+  @DisplayName("초안 이미지 저장에 실패하면 S3에 업로드한 이미지를 정리하고 예외를 전달한다")
+  void generateImageCleansUpWhenNewsUpdateFails() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    byte[] image = {1, 2, 3};
+    S3ImageStorage.StoredImage uploadedImage =
+        new S3ImageStorage.StoredImage("generated.webp", "https://example.com/generated.webp");
+    RuntimeException failure = new RuntimeException("database update failed");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(openAiImageGenerator.generateEconomicNewsImage("뉴스 제목", "뉴스 본문", Category.STOCK))
+        .willReturn(image);
+    given(s3ImageStorage.upload(image, "webp", "image/webp")).willReturn(uploadedImage);
+    willThrow(failure).given(newsRepository).flush();
+
+    assertThatThrownBy(() -> adminNewsService.generateImage(1L)).isSameAs(failure);
+
+    verify(s3ImageStorage).delete(uploadedImage);
+  }
+
+  @Test
+  @DisplayName("발행된 뉴스 이미지를 재생성하고 기존 S3 이미지는 커밋 후 정리한다")
+  void generateImageReplacesPublishedImage() {
+    String previousImageUrl = "https://example.com/existing.webp";
+    News news =
+        News.createPublished("뉴스 제목", "뉴스 본문", previousImageUrl, List.of(), Category.STOCK, null);
+    byte[] image = {1, 2, 3};
+    S3ImageStorage.StoredImage uploadedImage =
+        new S3ImageStorage.StoredImage("generated.webp", "https://example.com/generated.webp");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(openAiImageGenerator.generateEconomicNewsImage("뉴스 제목", "뉴스 본문", Category.STOCK))
+        .willReturn(image);
+    given(s3ImageStorage.upload(image, "webp", "image/webp")).willReturn(uploadedImage);
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      News result = adminNewsService.generateImage(1L);
+
+      assertThat(result.getImageUrl()).isEqualTo(uploadedImage.publicUrl());
+      verify(newsRepository).flush();
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(
+              synchronization -> {
+                synchronization.afterCommit();
+                synchronization.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+              });
+      verify(s3ImageStorage).deleteIfManaged(previousImageUrl);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @Test
+  @DisplayName("삭제된 뉴스는 이미지 생성을 거부한다")
+  void generateImageRejectsDeletedNews() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    news.delete();
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    assertThatThrownBy(() -> adminNewsService.generateImage(1L))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(NewsErrorCode.NEWS_IMAGE_GENERATION_NOT_ALLOWED));
+
+    verifyNoInteractions(openAiImageGenerator, s3ImageStorage);
   }
 
   @Test

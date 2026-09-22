@@ -120,6 +120,50 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
+  @DisplayName("근거 문장이 비어 있으면 분석 실패로 처리한다")
+  void analyzeRejectsBlankEvidenceSentence() throws Exception {
+    enqueueOutput(
+        """
+        {
+          "impacts": [
+            {
+              "assetName": "삼성전자",
+              "direction": "POSITIVE",
+              "impactLevel": "HIGH",
+              "expectedReaction": "긍정적입니다.",
+              "reason": "수요가 증가했습니다.",
+              "evidenceSentence": "   "
+            }
+          ]
+        }
+        """);
+
+    assertAnalysisFailed(() -> client.analyze("삼성전자의 수요가 증가했습니다.", targets()));
+  }
+
+  @Test
+  @DisplayName("근거 문장이 뉴스 원문에 없으면 분석 실패로 처리한다")
+  void analyzeRejectsEvidenceSentenceNotInNewsContent() throws Exception {
+    enqueueOutput(
+        """
+        {
+          "impacts": [
+            {
+              "assetName": "삼성전자",
+              "direction": "POSITIVE",
+              "impactLevel": "HIGH",
+              "expectedReaction": "긍정적입니다.",
+              "reason": "수요가 증가했습니다.",
+              "evidenceSentence": "삼성전자의 신규 수요가 크게 증가했습니다."
+            }
+          ]
+        }
+        """);
+
+    assertAnalysisFailed(() -> client.analyze("삼성전자의 수요가 증가했습니다.", targets()));
+  }
+
+  @Test
   @DisplayName("AI 응답 형식이 올바르지 않으면 분석 실패로 처리한다")
   void analyzeRejectsMalformedOutput() throws Exception {
     enqueueOutput("{\"invalid\":[]}");

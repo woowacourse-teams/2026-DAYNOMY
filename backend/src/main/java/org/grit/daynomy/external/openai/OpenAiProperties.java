@@ -10,6 +10,7 @@ public record OpenAiProperties(
     String baseUrl,
     String model,
     String imageModel,
+    String economyNewsModel,
     Duration connectTimeout,
     Duration readTimeout) {
 
@@ -17,6 +18,13 @@ public record OpenAiProperties(
   public OpenAiProperties {}
 
   public OpenAiProperties(String apiKey, String baseUrl, String model, String imageModel) {
-    this(apiKey, baseUrl, model, imageModel, Duration.ofSeconds(3), Duration.ofSeconds(120));
+    this(
+        apiKey,
+        baseUrl,
+        model,
+        imageModel,
+        "gpt-5.5",
+        Duration.ofSeconds(3),
+        Duration.ofSeconds(120));
   }
 }

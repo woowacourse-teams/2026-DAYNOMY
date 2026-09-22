@@ -20,6 +20,15 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError || error instanceof Error ? error.message : fallback;
 }
 
+function getSafeSourceUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function validateForm(values: AdminNewsFormValues, image: File | null) {
   const errors: FormErrors = {};
   const sourceErrors: SourceErrors = values.sources.map((source) => {
@@ -308,20 +317,33 @@ export function AdminNewsFormPage() {
               const itemErrors = sourceErrors[index] ?? {};
               const nameErrorId = `source-${index}-name-error`;
               const urlErrorId = `source-${index}-url-error`;
+              const sourceUrl = getSafeSourceUrl(source.url);
 
               return (
                 <div className="admin-source-row" key={index}>
                   <div className="admin-source-heading">
                     <strong>출처 {index + 1}</strong>
-                    <button
-                      className="admin-source-remove"
-                      type="button"
-                      onClick={() => removeSource(index)}
-                      disabled={values.sources.length === 1}
-                      aria-label={`출처 ${index + 1} 삭제`}
-                    >
-                      삭제
-                    </button>
+                    <div className="admin-source-actions">
+                      {sourceUrl ? (
+                        <a
+                          className="admin-source-link"
+                          href={sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          원문 보기
+                        </a>
+                      ) : null}
+                      <button
+                        className="admin-source-remove"
+                        type="button"
+                        onClick={() => removeSource(index)}
+                        disabled={values.sources.length === 1}
+                        aria-label={`출처 ${index + 1} 삭제`}
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </div>
                   <label className="admin-field">
                     <span>출처명</span>

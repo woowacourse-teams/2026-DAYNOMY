@@ -8,7 +8,14 @@ import {
   CATEGORY_LABELS,
   NEWS_STATUS_LABELS,
 } from './constants';
-import { deleteAdminNews, getAdminNews, publishAdminNews, rejectAdminNews } from './api';
+import {
+  deleteAdminNews,
+  generateAdminEconomyNewsDrafts,
+  generateAdminNewsImage,
+  getAdminNews,
+  publishAdminNews,
+  rejectAdminNews,
+} from './api';
 import type {
   AdminNewsFilterCategory,
   AdminNewsFilterStatus,
@@ -67,6 +74,10 @@ export function AdminNewsPage() {
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [generatingImageId, setGeneratingImageId] = useState<number | null>(null);
+  const [generatingDrafts, setGeneratingDrafts] = useState(false);
+  const [generatedDraftCount, setGeneratedDraftCount] = useState<number | null>(null);
+  const [generationErrorMessage, setGenerationErrorMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -115,6 +126,22 @@ export function AdminNewsPage() {
     setPage(1);
   }
 
+  async function handleGenerateDrafts() {
+    setGeneratingDrafts(true);
+    setGeneratedDraftCount(null);
+    setGenerationErrorMessage(null);
+
+    try {
+      const response = await generateAdminEconomyNewsDrafts();
+      setGeneratedDraftCount(response.savedCount);
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setGenerationErrorMessage(getErrorMessage(error, '경제 뉴스 초안을 생성하지 못했습니다.'));
+    } finally {
+      setGeneratingDrafts(false);
+    }
+  }
+
   async function handleDelete(item: AdminNewsListItemResponse) {
     if (!window.confirm(`'${item.title}' 뉴스를 삭제할까요?`)) return;
 
@@ -160,6 +187,23 @@ export function AdminNewsPage() {
     }
   }
 
+  async function handleGenerateImage(item: AdminNewsListItemResponse) {
+    if (item.imageUrl && !window.confirm(`'${item.title}' 뉴스 이미지를 새 이미지로 교체할까요?`)) {
+      return;
+    }
+
+    setGeneratingImageId(item.id);
+    setErrorMessage(null);
+    try {
+      await generateAdminNewsImage(item.id);
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, '뉴스 이미지를 생성하지 못했습니다.'));
+    } finally {
+      setGeneratingImageId(null);
+    }
+  }
+
   return (
     <main className="admin-content">
       <div className="admin-page-heading">
@@ -172,6 +216,43 @@ export function AdminNewsPage() {
           새 뉴스 등록
         </Link>
       </div>
+
+      <section className="admin-action-panel" aria-labelledby="economy-news-generation-title">
+        <div>
+          <p className="admin-panel-eyebrow">뉴스 자동 생성</p>
+          <h2 id="economy-news-generation-title">예약 생성 또는 지금 생성</h2>
+          <p>
+            예약 생성은 기존 스케줄에 따라 실행됩니다. 필요하면 버튼을 눌러 경제 뉴스 초안을 즉시
+            추가 생성할 수 있습니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="admin-primary-button"
+          disabled={generatingDrafts}
+          onClick={handleGenerateDrafts}
+        >
+          {generatingDrafts ? '생성 중…' : '지금 초안 생성'}
+        </button>
+      </section>
+
+      {generatedDraftCount !== null ? (
+        <section className="admin-success-panel" role="status" aria-live="polite">
+          <strong>경제 뉴스 초안 생성이 완료되었습니다.</strong>
+          <p>
+            저장된 초안 수 <span>{generatedDraftCount.toLocaleString('ko-KR')}</span>건
+          </p>
+        </section>
+      ) : null}
+
+      {generationErrorMessage ? (
+        <section className="admin-alert" role="alert">
+          <strong>{generationErrorMessage}</strong>
+          <button type="button" onClick={handleGenerateDrafts} disabled={generatingDrafts}>
+            다시 시도
+          </button>
+        </section>
+      ) : null}
 
       <section className="admin-toolbar" aria-label="뉴스 목록 필터">
         <label>
@@ -244,7 +325,10 @@ export function AdminNewsPage() {
               <tbody>
                 {items.map((item) => {
                   const isProcessing =
-                    publishingId === item.id || rejectingId === item.id || deletingId === item.id;
+                    publishingId === item.id ||
+                    rejectingId === item.id ||
+                    deletingId === item.id ||
+                    generatingImageId === item.id;
 
                   return (
                     <tr key={item.id}>
@@ -268,6 +352,21 @@ export function AdminNewsPage() {
                       <td data-label="등록일">{formatDate(item.createdAt)}</td>
                       <td data-label="관리">
                         <div className="admin-row-actions">
+                          {item.status === 'DRAFT' || item.status === 'PUBLISHED' ? (
+                            <button
+                              type="button"
+                              disabled={isProcessing}
+                              onClick={() => handleGenerateImage(item)}
+                            >
+                              {generatingImageId === item.id
+                                ? item.imageUrl
+                                  ? '이미지 수정 중'
+                                  : '이미지 생성 중'
+                                : item.imageUrl
+                                  ? '이미지 수정'
+                                  : '이미지 생성'}
+                            </button>
+                          ) : null}
                           {item.status === 'DRAFT' ? (
                             <button
                               type="button"

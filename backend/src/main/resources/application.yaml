@@ -137,12 +137,14 @@ external:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     model: ${OPENAI_MODEL:gpt-5-mini}
     image-model: ${OPENAI_IMAGE_MODEL:gpt-image-1-mini}
+    economy-news-model: ${OPENAI_ECONOMY_NEWS_MODEL:gpt-5.5}
     connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
     read-timeout: ${OPENAI_READ_TIMEOUT:120s}
 
   public-data:
     service-key: ${PUBLIC_DATA_SERVICE_KEY}
     stock-price-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo
+    listed-stock-url: https://apis.data.go.kr/1160100/GetKrxListedInfoService_V2/getItemInfo_V2
     connect-timeout: ${PUBLIC_DATA_CONNECT_TIMEOUT:3s}
     read-timeout: ${PUBLIC_DATA_READ_TIMEOUT:10s}
 
@@ -163,3 +165,15 @@ news:
     bok:
       enabled: ${BOK_NEWS_GENERATION_ENABLED:false}
       cron: ${BOK_NEWS_GENERATION_CRON:0 30 8 * * *}
+    economy:
+      enabled: ${ECONOMY_NEWS_GENERATION_ENABLED:true}
+      cron: ${ECONOMY_NEWS_GENERATION_CRON:0 0 9 * * *}
+
+stock:
+  sync:
+    enabled: ${STOCK_SYNC_ENABLED:false}
+    cron: ${STOCK_SYNC_CRON:0 10 14 * * MON-FRI}
+  price:
+    sync:
+      enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
+      cron: ${STOCK_PRICE_SYNC_CRON:0 30 14 * * MON-FRI}

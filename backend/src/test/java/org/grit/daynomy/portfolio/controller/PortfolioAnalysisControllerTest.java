@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
@@ -107,6 +109,26 @@ class PortfolioAnalysisControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
         .andExpect(jsonPath("$.errors[0].field").value("assets[0].assetName"));
+
+    verifyNoInteractions(portfolioAnalysisService);
+  }
+
+  @Test
+  @DisplayName("포트폴리오 자산이 50개를 초과하면 요청을 거부한다")
+  void analyzePortfolioRejectsTooManyAssets() throws Exception {
+    String assets =
+        IntStream.rangeClosed(1, 51)
+            .mapToObj(index -> "{\"assetName\":\"종목%d\",\"weight\":1}".formatted(index))
+            .collect(Collectors.joining(","));
+
+    mockMvc
+        .perform(
+            post("/api/news/1/portfolio-analysis")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"assets\":[%s]}".formatted(assets)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("assets"));
 
     verifyNoInteractions(portfolioAnalysisService);
   }

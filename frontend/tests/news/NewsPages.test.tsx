@@ -193,7 +193,7 @@ describe('뉴스 탐색 화면', () => {
     expect(panels[1].textContent).toContain('뉴스 목록을 불러오지 못했습니다.');
   });
 
-  it('뉴스 상세 내용과 비로그인 포트폴리오 안내를 표시한다', async () => {
+  it('뉴스 상세 내용과 시장 분석을 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     vi.stubGlobal(
       'fetch',
@@ -341,41 +341,5 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByRole('heading', { name: '시장 분석' })).toBeTruthy();
     expect(view.getByRole('alert').textContent).toContain('시장 분석을 불러오지 못했습니다.');
     expect(view.queryByRole('status')).toBeNull();
-  });
-
-  it('비로그인 상태에서도 빈 포트폴리오 안내를 표시하고 분석 API를 호출하지 않는다', async () => {
-    window.history.replaceState(null, '', '/news/7');
-    const calls: string[] = [];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = getPath(input);
-        calls.push(url);
-
-        if (url === '/api/news/7') {
-          return jsonResponse({
-            ...article,
-            content: '뉴스 본문입니다.',
-            sources: [{ name: '한국은행', url: 'https://example.com/news/7' }],
-          });
-        }
-        if (url === '/api/news/7/market-analysis') {
-          return jsonResponse({ summary: '포트폴리오와 함께 표시되는 시장 분석입니다.' });
-        }
-        return jsonResponse({}, 500);
-      }),
-    );
-
-    const view = renderPage(<NewsDetailPage />);
-
-    expect(
-      await view.findByText(
-        '포트폴리오에 자산을 등록하면 이 뉴스가 내 자산에 미치는 영향을 확인할 수 있어요.',
-      ),
-    ).toBeTruthy();
-    expect(calls).not.toContain('/api/news/7/portfolio-analysis');
-    expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
-    expect(view.getByRole('heading', { name: '시장 분석' })).toBeTruthy();
-    expect(view.getByText('포트폴리오와 함께 표시되는 시장 분석입니다.')).toBeTruthy();
   });
 });

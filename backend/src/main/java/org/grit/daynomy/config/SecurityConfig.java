@@ -62,8 +62,6 @@ public class SecurityConfig {
                     .hasRole("ADMIN")
                     .requestMatchers("/api/users/**")
                     .authenticated()
-                    .requestMatchers("/api/assets/bookmarks/**")
-                    .authenticated()
                     .anyRequest()
                     .permitAll())
         .oauth2Login(

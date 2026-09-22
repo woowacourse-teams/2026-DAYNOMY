@@ -7,6 +7,7 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
+import org.grit.daynomy.news.domain.Category;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -20,8 +21,28 @@ public class OpenAiImageGenerator {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String IMAGE_SIZE = "1024x1024";
+  private static final String ECONOMIC_NEWS_IMAGE_SIZE = "1536x1024";
   private static final String IMAGE_QUALITY = "low";
   private static final String IMAGE_FORMAT = "webp";
+  private static final String IMAGE_CONTENT_GUIDELINES =
+      """
+      People are optional and must not be added by default. Include a person only when their
+      presence is essential to communicate the news story's central event. Do not add people merely
+      for scale, atmosphere, or realism. Otherwise, show no people. If a person is essential, include
+      at most one anonymous, non-identifiable person, preferably from behind or with their face
+      obscured. Never include a crowd or extra people.
+      Do not add visible writing by default. Include background text or numerals only when they
+      naturally belong to the setting, such as an exchange board, and keep them secondary. Any
+      visible glyphs must look clean and correctly formed, never malformed, scrambled, misspelled,
+      or like gibberish. Preserve the language of each text element: render Korean content in Korean
+      and English content in English. Do not translate Korean names, labels, or phrases into English,
+      or English names, labels, or phrases into Korean. Mixed languages are acceptable when natural
+      to the setting. Never invent factual company names, ticker symbols, prices, dates, headlines,
+      or claims. Do not copy the article title or context into the image. Render readable text or
+      values only when exact content is explicitly supplied for rendering. Otherwise, keep necessary
+      background displays softly out of focus so no inaccurate content is legible; omit the text if
+      it cannot be rendered cleanly. Leave nonessential writing surfaces blank.
+      """;
 
   private final OpenAiProperties openAiProperties;
   private final RestClient restClient;
@@ -39,6 +60,15 @@ public class OpenAiImageGenerator {
   }
 
   public byte[] generateNewsImage(String title) {
+    return generateNewsImage(title, imagePrompt(title), IMAGE_SIZE);
+  }
+
+  public byte[] generateEconomicNewsImage(String title, String content, Category category) {
+    return generateNewsImage(
+        title, economicNewsImagePrompt(title, content, category), ECONOMIC_NEWS_IMAGE_SIZE);
+  }
+
+  private byte[] generateNewsImage(String title, String prompt, String size) {
     try {
       log.info(
           "Requesting OpenAI image generation: model={}, title={}",
@@ -50,7 +80,7 @@ public class OpenAiImageGenerator {
               .uri("/images/generations")
               .header("Authorization", "Bearer " + openAiProperties.apiKey())
               .contentType(MediaType.APPLICATION_JSON)
-              .body(requestBody(imagePrompt(title)))
+              .body(requestBody(prompt, size))
               .retrieve()
               .body(String.class);
 
@@ -76,7 +106,7 @@ public class OpenAiImageGenerator {
     }
   }
 
-  private Map<String, Object> requestBody(String prompt) {
+  private Map<String, Object> requestBody(String prompt, String size) {
     return Map.of(
         "model",
         openAiProperties.imageModel(),
@@ -85,7 +115,7 @@ public class OpenAiImageGenerator {
         "n",
         1,
         "size",
-        IMAGE_SIZE,
+        size,
         "quality",
         IMAGE_QUALITY,
         "output_format",
@@ -95,12 +125,33 @@ public class OpenAiImageGenerator {
   private String imagePrompt(String title) {
     return """
         Create a clean editorial finance news thumbnail.
-        Do not include text, logos, watermarks, company logos, people, or stock ticker symbols.
+        %s
         Use abstract market, document, and business imagery suitable for a Korean financial news app.
 
         News title: %s
         """
-        .formatted(title);
+        .formatted(IMAGE_CONTENT_GUIDELINES, title);
+  }
+
+  private String economicNewsImagePrompt(String title, String content, Category category) {
+    return """
+        Create a realistic editorial cover photograph for a Korean economic news article.
+        Show a believable real-world setting directly connected to the industry's or market's
+        central issue. Use objects, machinery, buildings, landscapes, or materials to carry the
+        story instead of generic stock charts or abstract finance symbols. Include a person only
+        when essential to communicate the story, following the people guidelines below.
+        %s
+
+        Style: documentary press photography with natural camera realism, authentic materials, realistic lighting, restrained colors, and subtle grain. Avoid glossy 3D rendering and conceptual illustration.
+        Composition: wide horizontal landscape, safe to crop to a 16:9 banner. Keep the main subject toward the right third and leave uncluttered negative space on the left for a headline overlay.
+        Accuracy: this is an illustrative cover, not evidence of the reported event. Do not invent
+        or imply a specific unverified company facility or event.
+
+        Category: %s
+        Headline: %s
+        Article context: %s
+        """
+        .formatted(IMAGE_CONTENT_GUIDELINES, category.name(), title, content);
   }
 
   private String extractImage(String response) {

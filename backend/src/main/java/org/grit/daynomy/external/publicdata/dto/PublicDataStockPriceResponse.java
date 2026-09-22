@@ -14,6 +14,13 @@ public record PublicDataStockPriceResponse(Response response) {
     return response == null ? null : response.body();
   }
 
+  public List<PublicDataStockPriceItem> items() {
+    if (body() == null || body().items() == null || body().items().item() == null) {
+      return List.of();
+    }
+    return body().items().item();
+  }
+
   @JsonIgnoreProperties(ignoreUnknown = true)
   public record Response(Header header, Body body) {}
 

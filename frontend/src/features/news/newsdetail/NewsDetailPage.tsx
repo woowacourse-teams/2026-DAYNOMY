@@ -5,10 +5,10 @@ import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
 import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
+import type { PortfolioAsset } from '../../portfolio/types.ts';
 import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
-import type { PortfolioAsset } from '../../portfolio/types.ts';
 
 const EMPTY_PORTFOLIO_ASSETS: PortfolioAsset[] = [];
 
