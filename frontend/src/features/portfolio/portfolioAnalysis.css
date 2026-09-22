@@ -199,9 +199,7 @@
 }
 
 .portfolio-donut-segment {
-  transition:
-    stroke-width 160ms ease-out,
-    opacity 160ms ease-out;
+  transition: opacity 160ms ease-out;
 }
 
 .portfolio-donut-segment.is-interactive {
@@ -212,8 +210,11 @@
   opacity: 0.86;
 }
 
-.portfolio-donut-segment.is-interactive:focus-visible {
+.portfolio-donut-segment:focus {
   outline: none;
+}
+
+.portfolio-donut-segment.is-interactive:focus-visible {
   filter: drop-shadow(0 0 3px rgba(21, 26, 42, 0.38));
 }
 

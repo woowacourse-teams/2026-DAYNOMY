@@ -52,9 +52,9 @@ describe('포트폴리오 분석 화면', () => {
     );
 
     const assets = [
+      { assetName: '현대차', weight: 20 },
       { assetName: '삼성전자', weight: 50 },
       { assetName: 'SK하이닉스', weight: 30 },
-      { assetName: '현대차', weight: 20 },
     ];
     const view = render(<PortfolioAnalysis newsId="success" assets={assets} />);
 
@@ -66,6 +66,31 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.getAllByText('긍정 영향')).toHaveLength(2);
     expect(view.getByText('영향 수준 높음')).toBeTruthy();
     expect(view.getByText('상세 분석 제외')).toBeTruthy();
+
+    const assetRows = Array.from(
+      view.getByRole('list', { name: '포트폴리오 보유 자산' }).querySelectorAll('li'),
+    );
+    expect(assetRows.map((row) => row.textContent)).toEqual([
+      '삼성전자TOP 1 · 긍정 영향50%',
+      'SK하이닉스TOP 2 · 부정 영향30%',
+      '현대차상세 분석 제외20%',
+    ]);
+
+    const donutSegments = Array.from(
+      view
+        .getByRole('group', { name: '전체 포트폴리오의 자산별 보유 비중' })
+        .querySelectorAll('.portfolio-donut-segment'),
+    );
+    expect(donutSegments.map((segment) => segment.getAttribute('aria-label'))).toEqual([
+      '삼성전자, 보유 비중 50%, 긍정 영향',
+      'SK하이닉스, 보유 비중 30%, 부정 영향',
+      '현대차, 보유 비중 20%, 상세 분석 제외',
+    ]);
+    expect(donutSegments.map((segment) => segment.getAttribute('data-thickness'))).toEqual([
+      '41',
+      '38',
+      '35',
+    ]);
 
     const evidenceSummary = view.getByText('판단에 사용한 뉴스 문장');
     const evidenceDetails = evidenceSummary.closest('details') as HTMLDetailsElement;
@@ -80,6 +105,11 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.getByRole('heading', { name: 'SK하이닉스' })).toBeTruthy();
     expect(view.getByText(/비용 부담이 커질 수 있습니다/)).toBeTruthy();
     expect(view.getAllByText('부정 영향')).toHaveLength(2);
+    expect(donutSegments.map((segment) => segment.getAttribute('data-thickness'))).toEqual([
+      '38',
+      '41',
+      '35',
+    ]);
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/news/success/portfolio-analysis'),
       {
