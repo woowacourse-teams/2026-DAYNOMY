@@ -10,6 +10,7 @@ import type {
   AdminNewsSource,
   AdminNewsStatus,
   AdminAssetRankingSyncResponse,
+  AdminNewsGenerationResponse,
 } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -75,6 +76,10 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
 }
 
 function isAdminAssetRankingSyncResponse(value: unknown): value is AdminAssetRankingSyncResponse {
+  return isRecord(value) && typeof value.savedCount === 'number';
+}
+
+function isAdminNewsGenerationResponse(value: unknown): value is AdminNewsGenerationResponse {
   return isRecord(value) && typeof value.savedCount === 'number';
 }
 
@@ -172,6 +177,14 @@ export async function generateAdminNewsImage(id: number) {
   });
 
   return assertResponse(response, isAdminNewsResponse);
+}
+
+export async function generateAdminEconomyNewsDrafts(): Promise<AdminNewsGenerationResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy', {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminNewsGenerationResponse);
 }
 
 export async function deleteAdminNews(id: number) {

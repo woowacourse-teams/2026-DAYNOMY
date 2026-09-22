@@ -53,6 +53,49 @@ afterEach(() => {
 });
 
 describe('관리자 뉴스 화면', () => {
+  it('경제 뉴스 초안 생성 버튼을 누르면 즉시 생성하고 결과와 새 목록을 표시한다', async () => {
+    const calls: Array<{ url: string; method?: string }> = [];
+    let listRequestCount = 0;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, method: init?.method });
+
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+
+        if (url.endsWith('/api/admin/news/generate/economy')) {
+          return jsonResponse({ savedCount: 2 });
+        }
+
+        listRequestCount += 1;
+        return jsonResponse({
+          items: [listItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: listRequestCount,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    fireEvent.click(await view.findByRole('button', { name: '지금 초안 생성' }));
+
+    expect(await view.findByText('경제 뉴스 초안 생성이 완료되었습니다.')).toBeTruthy();
+    expect(view.getByRole('status').textContent).toContain('2');
+    await waitFor(() => expect(listRequestCount).toBe(2));
+    expect(
+      calls.some(
+        ({ url, method }) => url.endsWith('/api/admin/news/generate/economy') && method === 'POST',
+      ),
+    ).toBe(true);
+  });
+
   it('뉴스 목록을 표시하고 상태 필터를 API 요청에 반영한다', async () => {
     const calls: string[] = [];
     vi.stubGlobal(
