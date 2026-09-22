@@ -30,8 +30,8 @@
 }
 
 .portfolio-analysis-heading.has-analysis h2 {
-  font-size: 30px;
-  line-height: 1.3;
+  font-size: 22px;
+  line-height: 31px;
 }
 
 .portfolio-analysis-heading.has-analysis p {
@@ -327,7 +327,8 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-asset-name {
   min-width: 0;
   overflow: hidden;
-  font-size: 13px;
+  font-size: 16px;
+  line-height: 28px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -337,7 +338,8 @@ button.portfolio-asset-row:focus-visible {
   overflow: hidden;
   justify-self: stretch;
   color: #a0a9b8;
-  font-size: 11px;
+  font-size: 16px;
+  line-height: 28px;
   font-weight: 600;
   text-align: right;
   text-overflow: ellipsis;
@@ -348,7 +350,8 @@ button.portfolio-asset-row:focus-visible {
   min-width: 52px;
   justify-self: end;
   color: #243047;
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 28px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
@@ -386,7 +389,7 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-detail-header h3 {
   margin: 14px 0 0;
   color: #151a2a;
-  font-size: 32px;
+  font-size: 26px;
   line-height: 1.25;
   font-weight: 900;
   letter-spacing: -0.02em;
@@ -459,8 +462,8 @@ button.portfolio-asset-row:focus-visible {
   max-width: 62ch;
   margin: 0;
   color: #465267;
-  font-size: 15px;
-  line-height: 1.9;
+  font-size: 18px;
+  line-height: 32px;
   text-wrap: pretty;
 }
 
@@ -478,7 +481,7 @@ button.portfolio-asset-row:focus-visible {
   align-items: center;
   gap: 10px;
   color: #4b6f98;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 900;
   cursor: pointer;
   list-style: none;
@@ -514,7 +517,7 @@ button.portfolio-asset-row:focus-visible {
   border-radius: 0 10px 10px 0;
   background: #f7f9fc;
   color: #5f6b7d;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.7;
 }
 
