@@ -55,7 +55,8 @@ class OpenAiImageGeneratorTest {
     generator.generateEconomicNewsImage("금리 인상 전망", "시장 금리가 상승했다", Category.STOCK);
     String economicPrompt = requestPrompt();
     assertThat(economicPrompt.replaceAll("\\s+", " "))
-        .contains("Include a person only when essential to communicate the story");
+        .contains("First compose the scene without people")
+        .contains("only when the central event cannot be understood otherwise");
     assertSharedImageRestrictions(economicPrompt);
   }
 
@@ -84,11 +85,18 @@ class OpenAiImageGeneratorTest {
   private void assertSharedImageRestrictions(String prompt) {
     String normalizedPrompt = prompt.replaceAll("\\s+", " ");
     assertThat(normalizedPrompt)
-        .contains("People are optional and must not be added by default")
-        .contains("Include a person only when their presence is essential")
-        .contains("Do not add people merely for scale, atmosphere, or realism")
-        .contains("Otherwise, show no people")
-        .contains("at most one anonymous, non-identifiable person")
+        .contains("Start by composing an entirely unoccupied scene with no people")
+        .contains("Treat a people-free image as the default and strongest preference")
+        .contains("only as a strict exception")
+        .contains("removing all people would make the central event itself visually incomprehensible")
+        .contains("factory, laboratory, hospital, store, construction site, or market")
+        .contains("is never by itself a reason to include a worker")
+        .contains("If objects, machinery, products, documents, buildings, landscapes, or materials can carry the story, show no people")
+        .contains("facilities, production, contracts, supply, investment, earnings, logistics, technology, or research")
+        .contains("If and only if a person is indispensable")
+        .contains("exactly one anonymous, non-identifiable person")
+        .contains("shown from behind or with their face fully obscured")
+        .contains("Never include crowds, groups, background figures, silhouettes, reflections of people")
         .contains("Do not add visible writing by default")
         .contains("Include background text or numerals only when they naturally belong")
         .contains("clean and correctly formed")
