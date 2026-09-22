@@ -2,17 +2,23 @@ package org.grit.daynomy.external.openai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import org.grit.daynomy.news.domain.Category;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class OpenAiImageGeneratorTest {
 
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
   private HttpServer server;
+  private String requestBody;
 
   @AfterEach
   void tearDown() {
@@ -34,11 +40,32 @@ class OpenAiImageGeneratorTest {
     assertThat(image).isEqualTo("image".getBytes(StandardCharsets.UTF_8));
   }
 
+  @Test
+  @DisplayName("두 이미지 생성 프롬프트가 인물과 문자의 조건부 사용 기준을 공유한다")
+  void imagePromptsSharePeopleAndTextGuidelines() throws Exception {
+    OpenAiImageGenerator generator =
+        new OpenAiImageGenerator(
+            new OpenAiProperties(
+                "test-key", startServer(openAiImageResponse()), "text-model", "image-model"));
+
+    generator.generateNewsImage("금리 인상 전망");
+    String generalPrompt = requestPrompt();
+    assertSharedImageRestrictions(generalPrompt);
+
+    generator.generateEconomicNewsImage("금리 인상 전망", "시장 금리가 상승했다", Category.STOCK);
+    String economicPrompt = requestPrompt();
+    assertThat(economicPrompt.replaceAll("\\s+", " "))
+        .contains("Include a person only when essential to communicate the story");
+    assertSharedImageRestrictions(economicPrompt);
+  }
+
   private String startServer(String responseBody) throws IOException {
     server = HttpServer.create(new InetSocketAddress(0), 0);
     server.createContext(
         "/images/generations",
         exchange -> {
+          requestBody =
+              new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
           byte[] bytes = responseBody.getBytes(StandardCharsets.UTF_8);
           exchange.getResponseHeaders().add("Content-Type", "application/json");
           exchange.sendResponseHeaders(200, bytes.length);
@@ -47,6 +74,33 @@ class OpenAiImageGeneratorTest {
         });
     server.start();
     return "http://localhost:" + server.getAddress().getPort();
+  }
+
+  private String requestPrompt() throws IOException {
+    JsonNode request = OBJECT_MAPPER.readTree(requestBody);
+    return request.path("prompt").asText();
+  }
+
+  private void assertSharedImageRestrictions(String prompt) {
+    String normalizedPrompt = prompt.replaceAll("\\s+", " ");
+    assertThat(normalizedPrompt)
+        .contains("People are optional and must not be added by default")
+        .contains("Include a person only when their presence is essential")
+        .contains("Do not add people merely for scale, atmosphere, or realism")
+        .contains("Otherwise, show no people")
+        .contains("at most one anonymous, non-identifiable person")
+        .contains("Do not add visible writing by default")
+        .contains("Include background text or numerals only when they naturally belong")
+        .contains("clean and correctly formed")
+        .contains("never malformed, scrambled, misspelled, or like gibberish")
+        .contains("Preserve the language of each text element")
+        .contains("render Korean content in Korean and English content in English")
+        .contains("Mixed languages are acceptable when natural to the setting")
+        .contains("Never invent factual company names, ticker symbols, prices, dates, headlines")
+        .contains("Do not copy the article title or context into the image")
+        .contains("Render readable text or values only when exact content is explicitly supplied")
+        .contains("softly out of focus so no inaccurate content is legible")
+        .contains("omit the text if it cannot be rendered cleanly");
   }
 
   private String openAiImageResponse() {

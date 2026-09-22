@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
-import { AdminAssetRankingPage } from '../../src/features/admin/AdminAssetRankingPage';
 import { AdminNewsFormPage } from '../../src/features/admin/AdminNewsFormPage';
 import { AdminNewsPage } from '../../src/features/admin/AdminNewsPage';
 
@@ -53,6 +52,49 @@ afterEach(() => {
 });
 
 describe('관리자 뉴스 화면', () => {
+  it('경제 뉴스 초안 생성 버튼을 누르면 즉시 생성하고 결과와 새 목록을 표시한다', async () => {
+    const calls: Array<{ url: string; method?: string }> = [];
+    let listRequestCount = 0;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, method: init?.method });
+
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+
+        if (url.endsWith('/api/admin/news/generate/economy')) {
+          return jsonResponse({ savedCount: 2 });
+        }
+
+        listRequestCount += 1;
+        return jsonResponse({
+          items: [listItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: listRequestCount,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    fireEvent.click(await view.findByRole('button', { name: '지금 초안 생성' }));
+
+    expect(await view.findByText('경제 뉴스 초안 생성이 완료되었습니다.')).toBeTruthy();
+    expect(view.getByRole('status').textContent).toContain('2');
+    await waitFor(() => expect(listRequestCount).toBe(2));
+    expect(
+      calls.some(
+        ({ url, method }) => url.endsWith('/api/admin/news/generate/economy') && method === 'POST',
+      ),
+    ).toBe(true);
+  });
+
   it('뉴스 목록을 표시하고 상태 필터를 API 요청에 반영한다', async () => {
     const calls: string[] = [];
     vi.stubGlobal(
@@ -519,34 +561,5 @@ describe('관리자 뉴스 화면', () => {
 
     expect(await view.findByRole('alert')).toBeTruthy();
     expect(view.getByRole('button', { name: '다시 시도' })).toBeTruthy();
-  });
-});
-
-describe('관리자 관심 자산 화면', () => {
-  it('관심 자산 순위 수동 갱신 결과를 표시한다', async () => {
-    const calls: string[] = [];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        calls.push(String(input));
-
-        if (String(input).endsWith('/api/auth/csrf')) {
-          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
-        }
-
-        expect(init?.method).toBe('POST');
-        return jsonResponse({ savedCount: 150 });
-      }),
-    );
-
-    const view = renderAdmin(<AdminAssetRankingPage />);
-    fireEvent.click(view.getByRole('button', { name: '지금 갱신' }));
-
-    expect(await view.findByText('관심 자산 순위 갱신이 완료되었습니다.')).toBeTruthy();
-    expect(view.getByText('150')).toBeTruthy();
-    expect(calls.map((url) => new URL(url, 'http://localhost').pathname)).toEqual([
-      '/api/auth/csrf',
-      '/api/admin/assets/kosdaq/top/sync',
-    ]);
   });
 });

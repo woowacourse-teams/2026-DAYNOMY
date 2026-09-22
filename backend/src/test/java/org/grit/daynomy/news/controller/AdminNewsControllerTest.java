@@ -174,6 +174,20 @@ class AdminNewsControllerTest {
   }
 
   @Test
+  @DisplayName("관리자 경제 뉴스 초안 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
+  void generateEconomyNewsDraftsReturnsSavedCount() throws Exception {
+    given(newsGenerationService.generateEconomyNewsDrafts())
+        .willReturn(java.util.List.of(mock(News.class), mock(News.class)));
+
+    mockMvc
+        .perform(post("/api/admin/news/generate/economy"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.savedCount").value(2));
+
+    then(newsGenerationService).should().generateEconomyNewsDrafts();
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 이미지 생성 API는 생성된 이미지 URL을 반환한다")
   void generateNewsImageReturnsUpdatedNews() throws Exception {
     News news = mock(News.class);

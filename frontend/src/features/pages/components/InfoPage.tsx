@@ -20,7 +20,7 @@ const INFO_PAGE_CONTENT: Record<InfoPageType, InfoPageContent> = {
         title: 'DAYNOMY는',
         paragraphs: [
           '복잡한 경제 뉴스와 시장 정보를 한눈에 살펴볼 수 있도록 정리하는 서비스입니다.',
-          '오늘의 주요 뉴스부터 관심종목 흐름까지, 투자 판단에 필요한 정보를 차분하게 확인할 수 있는 경험을 만들어갑니다.',
+          '오늘의 주요 뉴스부터 내 포트폴리오의 수익 현황까지, 투자 판단에 필요한 정보를 차분하게 확인할 수 있는 경험을 만들어갑니다.',
         ],
       },
       {
@@ -38,7 +38,7 @@ const INFO_PAGE_CONTENT: Record<InfoPageType, InfoPageContent> = {
       {
         title: '서비스 이용',
         paragraphs: [
-          'DAYNOMY는 경제 뉴스와 관심종목 정보를 제공하며, 서비스 내용은 운영 상황에 따라 변경될 수 있습니다.',
+          'DAYNOMY는 경제 뉴스와 포트폴리오 정보를 제공하며, 서비스 내용은 운영 상황에 따라 변경될 수 있습니다.',
           '서비스에서 제공하는 정보는 참고용이며 특정 금융상품의 매수 또는 매도를 권유하지 않습니다.',
         ],
       },
@@ -61,7 +61,7 @@ const INFO_PAGE_CONTENT: Record<InfoPageType, InfoPageContent> = {
       {
         title: '이용 목적',
         paragraphs: [
-          '수집한 정보는 로그인 처리, 관심종목 기능 제공, 서비스 개선 및 문의 응대에 사용됩니다.',
+          '수집한 정보는 로그인 처리, 포트폴리오 기능 제공, 서비스 개선 및 문의 응대에 사용됩니다.',
         ],
       },
       {
