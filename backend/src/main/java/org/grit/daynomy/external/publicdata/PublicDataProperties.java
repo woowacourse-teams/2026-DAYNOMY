@@ -5,7 +5,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "external.public-data")
 public record PublicDataProperties(
-    String serviceKey, String stockPriceUrl, Duration connectTimeout, Duration readTimeout) {
+    String serviceKey,
+    String stockPriceUrl,
+    String listedStockUrl,
+    Duration connectTimeout,
+    Duration readTimeout) {
 
   public PublicDataProperties {
     if (connectTimeout == null) {

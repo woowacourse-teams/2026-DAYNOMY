@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record PublicDataStockPriceResponse(Response response) {
+public record PublicDataListedStockResponse(Response response) {
 
   public Header header() {
     return response == null ? null : response.header();
@@ -14,7 +14,7 @@ public record PublicDataStockPriceResponse(Response response) {
     return response == null ? null : response.body();
   }
 
-  public List<PublicDataStockPriceItem> items() {
+  public List<PublicDataListedStockItem> items() {
     if (body() == null || body().items() == null || body().items().item() == null) {
       return List.of();
     }
@@ -31,5 +31,5 @@ public record PublicDataStockPriceResponse(Response response) {
   public record Body(int numOfRows, int pageNo, int totalCount, Items items) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  public record Items(List<PublicDataStockPriceItem> item) {}
+  public record Items(List<PublicDataListedStockItem> item) {}
 }

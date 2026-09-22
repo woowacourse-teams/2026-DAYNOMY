@@ -4,38 +4,38 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
-import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
+import org.grit.daynomy.external.publicdata.dto.PublicDataListedStockResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
-public class PublicDataStockPriceClient {
+public class PublicDataListedStockClient {
 
   private static final DateTimeFormatter BASIC_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
+
   private final PublicDataProperties properties;
   private final RestClient restClient;
 
-  public PublicDataStockPriceClient(PublicDataProperties properties) {
+  public PublicDataListedStockClient(PublicDataProperties properties) {
     this.properties = properties;
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
     this.restClient =
         RestClient.builder()
-            .baseUrl(properties.stockPriceUrl())
+            .baseUrl(properties.listedStockUrl())
             .requestFactory(requestFactory)
             .build();
   }
 
-  public PublicDataStockPriceResponse getStockPrices(
-      LocalDate baseDate, StockMarket market, int pageNo, int numOfRows) {
+  public PublicDataListedStockResponse getListedStocks(
+      LocalDate baseDate, int pageNo, int numOfRows) {
     try {
-      PublicDataStockPriceResponse response =
+      PublicDataListedStockResponse response =
           restClient
               .get()
               .uri(
@@ -46,10 +46,9 @@ public class PublicDataStockPriceClient {
                           .queryParam("pageNo", pageNo)
                           .queryParam("resultType", "json")
                           .queryParam("basDt", baseDate.format(BASIC_DATE_FORMAT))
-                          .queryParam("mrktCls", market.name())
                           .build(normalizedServiceKey()))
               .retrieve()
-              .body(PublicDataStockPriceResponse.class);
+              .body(PublicDataListedStockResponse.class);
       validateResponse(response);
       return response;
     } catch (RestClientException exception) {
@@ -57,7 +56,7 @@ public class PublicDataStockPriceClient {
     }
   }
 
-  private void validateResponse(PublicDataStockPriceResponse response) {
+  private void validateResponse(PublicDataListedStockResponse response) {
     if (response == null || response.header() == null || response.body() == null) {
       throw new BusinessException(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED);
     }
@@ -66,7 +65,7 @@ public class PublicDataStockPriceClient {
     }
   }
 
-  String normalizedServiceKey() {
+  private String normalizedServiceKey() {
     String serviceKey = properties.serviceKey();
     if (serviceKey.contains("%")) {
       return URLDecoder.decode(serviceKey, StandardCharsets.UTF_8);
