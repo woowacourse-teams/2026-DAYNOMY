@@ -5,7 +5,10 @@ import org.springframework.http.HttpStatus;
 
 public enum AssetErrorCode implements ErrorCode {
   STOCK_SYNC_ALREADY_RUNNING(HttpStatus.CONFLICT, "국내 주식 종목 동기화가 이미 진행 중입니다."),
-  STOCK_MASTER_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 국내 주식 종목 데이터를 찾지 못했습니다.");
+  STOCK_MASTER_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 국내 주식 종목 데이터를 찾지 못했습니다."),
+  STOCK_PRICE_SYNC_ALREADY_RUNNING(HttpStatus.CONFLICT, "국내 주식 종가 동기화가 이미 진행 중입니다."),
+  STOCK_PRICE_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 국내 주식 종가 데이터를 찾지 못했습니다."),
+  STOCK_PRICE_NOT_FOUND(HttpStatus.NOT_FOUND, "국내 주식 종가를 찾을 수 없습니다.");
 
   private final HttpStatus status;
   private final String message;

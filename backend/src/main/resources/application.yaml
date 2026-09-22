@@ -169,3 +169,7 @@ stock:
   sync:
     enabled: ${STOCK_SYNC_ENABLED:false}
     cron: ${STOCK_SYNC_CRON:0 10 14 * * MON-FRI}
+  price:
+    sync:
+      enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
+      cron: ${STOCK_PRICE_SYNC_CRON:0 30 14 * * MON-FRI}
