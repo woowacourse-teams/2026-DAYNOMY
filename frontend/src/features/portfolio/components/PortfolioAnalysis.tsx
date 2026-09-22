@@ -360,7 +360,7 @@ function PortfolioImpactDetail({
       <details className="portfolio-evidence">
         <summary>
           판단에 사용한 뉴스 문장
-          <span aria-hidden="true">+</span>
+          <span aria-hidden="true" />
         </summary>
         <blockquote>{impact.evidenceSentence}</blockquote>
       </details>

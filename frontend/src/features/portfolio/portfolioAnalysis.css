@@ -233,7 +233,7 @@
 }
 
 .portfolio-donut-center span {
-  color: #98a2b3;
+  color: #667085;
   font-size: 12px;
   line-height: 1.4;
 }
@@ -263,7 +263,7 @@
 
 .portfolio-donut-center small {
   margin-top: 12px;
-  color: #98a2b3;
+  color: #667085;
   font-size: 11px;
 }
 
@@ -364,21 +364,21 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-impact-detail {
   display: flex;
   min-width: 0;
-  justify-content: center;
+  justify-content: flex-start;
   flex-direction: column;
-  padding: 48px 0 48px 30px;
+  padding: 110px 0 48px 30px;
 }
 
 .portfolio-detail-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 28px;
 }
 
 .portfolio-detail-header > div:first-child > span {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
   font-weight: 900;
 }
@@ -394,10 +394,11 @@ button.portfolio-asset-row:focus-visible {
 
 .portfolio-detail-badge-group {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   flex: 0 0 auto;
   flex-direction: column;
-  gap: 7px;
+  gap: 18px;
+  transform: translate(12px, -7px);
 }
 
 .portfolio-direction-badge {
@@ -442,8 +443,9 @@ button.portfolio-asset-row:focus-visible {
 }
 
 .portfolio-detail-badge-group small {
-  color: #7b8596;
-  font-size: 11px;
+  transform: translateY(2px);
+  color: #596579;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -495,11 +497,14 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-evidence summary span {
   font-size: 18px;
   line-height: 1;
-  transition: transform 160ms ease-out;
 }
 
-.portfolio-evidence[open] summary span {
-  transform: rotate(45deg);
+.portfolio-evidence summary span::before {
+  content: '+';
+}
+
+.portfolio-evidence[open] summary span::before {
+  content: '−';
 }
 
 .portfolio-evidence blockquote {
@@ -511,6 +516,22 @@ button.portfolio-asset-row:focus-visible {
   color: #5f6b7d;
   font-size: 13px;
   line-height: 1.7;
+}
+
+.portfolio-evidence[open] blockquote {
+  animation: portfolio-evidence-reveal 160ms ease-out;
+}
+
+@keyframes portfolio-evidence-reveal {
+  from {
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 @media (max-width: 760px) {
@@ -559,5 +580,6 @@ button.portfolio-asset-row:focus-visible {
 
   .portfolio-detail-badge-group {
     align-items: flex-start;
+    transform: none;
   }
 }
