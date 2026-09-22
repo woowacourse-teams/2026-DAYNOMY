@@ -9,6 +9,7 @@ import type {
   AdminNewsResponse,
   AdminNewsSource,
   AdminNewsStatus,
+  AdminNewsGenerationResponse,
 } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -71,6 +72,10 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
     isNullableString(value.publishedAt) &&
     isAdminNewsStatus(value.status)
   );
+}
+
+function isAdminNewsGenerationResponse(value: unknown): value is AdminNewsGenerationResponse {
+  return isRecord(value) && typeof value.savedCount === 'number';
 }
 
 function assertResponse<T>(value: unknown, isValid: (value: unknown) => value is T): T {
@@ -167,6 +172,14 @@ export async function generateAdminNewsImage(id: number) {
   });
 
   return assertResponse(response, isAdminNewsResponse);
+}
+
+export async function generateAdminEconomyNewsDrafts(): Promise<AdminNewsGenerationResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy', {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminNewsGenerationResponse);
 }
 
 export async function deleteAdminNews(id: number) {

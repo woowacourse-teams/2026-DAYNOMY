@@ -46,3 +46,11 @@ export type AdminNewsFormValues = {
 
 export type AdminNewsFilterStatus = AdminNewsStatus | 'ALL';
 export type AdminNewsFilterCategory = Category | 'ALL';
+
+export type AdminAssetRankingSyncResponse = {
+  savedCount: number;
+};
+
+export type AdminNewsGenerationResponse = {
+  savedCount: number;
+};
