@@ -643,6 +643,19 @@
   font-size: 13px;
 }
 
+.admin-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-source-link {
+  color: #5144d8;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: underline;
+}
+
 .admin-source-remove,
 .admin-source-add {
   border: 0;
