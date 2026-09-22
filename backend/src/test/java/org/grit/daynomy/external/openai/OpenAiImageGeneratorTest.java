@@ -112,15 +112,19 @@ class OpenAiImageGeneratorTest {
         .contains("Start by composing an entirely unoccupied scene with no people")
         .contains("Treat a people-free image as the default and strongest preference")
         .contains("only as a strict exception")
-        .contains("removing all people would make the central event itself visually incomprehensible")
+        .contains(
+            "removing all people would make the central event itself visually incomprehensible")
         .contains("factory, laboratory, hospital, store, construction site, or market")
         .contains("is never by itself a reason to include a worker")
-        .contains("If objects, machinery, products, documents, buildings, landscapes, or materials can carry the story, show no people")
-        .contains("facilities, production, contracts, supply, investment, earnings, logistics, technology, or research")
+        .contains(
+            "If objects, machinery, products, documents, buildings, landscapes, or materials can carry the story, show no people")
+        .contains(
+            "facilities, production, contracts, supply, investment, earnings, logistics, technology, or research")
         .contains("If and only if a person is indispensable")
         .contains("exactly one anonymous, non-identifiable person")
         .contains("shown from behind or with their face fully obscured")
-        .contains("Never include crowds, groups, background figures, silhouettes, reflections of people")
+        .contains(
+            "Never include crowds, groups, background figures, silhouettes, reflections of people")
         .contains("Do not add visible writing by default")
         .contains("Include background text or numerals only when they naturally belong")
         .contains("clean and correctly formed")
