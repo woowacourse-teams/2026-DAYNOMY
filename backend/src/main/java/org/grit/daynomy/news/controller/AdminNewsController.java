@@ -76,6 +76,14 @@ public class AdminNewsController {
     return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
   }
 
+  @Operation(summary = "경제 뉴스 초안 생성 실행", description = "경제 뉴스 초안 생성을 즉시 실행합니다.")
+  @PostMapping("/generate/economy")
+  public ResponseEntity<AdminNewsGenerationResponse> generateEconomyNewsDrafts() {
+    int savedCount = newsGenerationService.generateEconomyNewsDrafts().size();
+
+    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
+  }
+
   @Operation(summary = "뉴스 이미지 생성", description = "초안 또는 발행된 뉴스의 이미지를 생성하거나 교체해 저장합니다.")
   @PostMapping("/{id}/generate-image")
   public ResponseEntity<AdminNewsResponse> generateNewsImage(
