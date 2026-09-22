@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioAnalysis } from '../../src/features/portfolio/components/PortfolioAnalysis';
 
@@ -57,6 +57,9 @@ describe('포트폴리오 분석 화면', () => {
     ];
     const view = render(<PortfolioAnalysis newsId="success" assets={assets} />);
 
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
+
     expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
     expect(view.getByText(/주가가 상승할 수 있습니다/)).toBeTruthy();
     expect(view.getAllByText('긍정 영향')).toHaveLength(2);
@@ -96,10 +99,12 @@ describe('포트폴리오 분석 화면', () => {
       <PortfolioAnalysis newsId="retry" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
     );
 
+    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
+
     expect(await view.findByText('이 뉴스와 직접 관련된 보유 자산이 없어요.')).toBeTruthy();
   });
 
-  it('분석 중이면 로딩 상태를 표시한다', () => {
+  it('분석 버튼을 누르면 로딩 상태를 표시하고 중복 요청을 막는다', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => new Promise<Response>(() => undefined)),
@@ -109,9 +114,18 @@ describe('포트폴리오 분석 화면', () => {
       <PortfolioAnalysis newsId="loading" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
     );
 
+    expect(view.queryByRole('status')).toBeNull();
+
+    const analyzeButton = view.getByRole('button', { name: '포트폴리오 분석하기' });
+    fireEvent.click(analyzeButton);
+
     expect(view.getByRole('status').textContent).toContain(
       '내 포트폴리오에 미치는 영향을 분석하고 있어요.',
     );
+    expect((view.getByRole('button', { name: '분석 중' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('분석 API가 실패하면 다시 시도할 수 있다', async () => {
@@ -142,6 +156,8 @@ describe('포트폴리오 분석 화면', () => {
       <PortfolioAnalysis newsId="failure" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
     );
 
+    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
+
     expect((await view.findByRole('alert')).textContent).toContain(
       '포트폴리오 분석을 완료하지 못했어요.',
     );
@@ -150,5 +166,17 @@ describe('포트폴리오 분석 화면', () => {
 
     expect(await view.findByText(/재시도 후 분석을 완료했습니다/)).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('포트폴리오가 비어 있으면 분석 버튼을 비활성화한다', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(<PortfolioAnalysis newsId="empty" assets={[]} />);
+
+    expect(
+      (view.getByRole('button', { name: '포트폴리오 분석하기' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
   });
 });

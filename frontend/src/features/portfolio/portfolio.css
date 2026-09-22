@@ -44,6 +44,35 @@
   line-height: 1.6;
 }
 
+.portfolio-analysis-button {
+  min-height: 40px;
+  flex: 0 0 auto;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: #151a2a;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.portfolio-analysis-button:hover:not(:disabled) {
+  background: #5144d8;
+}
+
+.portfolio-analysis-button:focus-visible {
+  outline: 2px solid #5144d8;
+  outline-offset: 2px;
+}
+
+.portfolio-analysis-button:disabled {
+  background: #e4e7ec;
+  color: #98a2b3;
+  cursor: not-allowed;
+}
+
 .portfolio-state {
   display: flex;
   min-height: 112px;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getPortfolioAnalysis, retryPortfolioAnalysis } from '../api';
 import type {
   PortfolioAnalysisResponse,
@@ -293,38 +293,41 @@ type PortfolioAnalysisProps = {
 
 export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
   const [analysis, setAnalysis] = useState<PortfolioAnalysisResponse | null>(null);
-  const [loading, setLoading] = useState(assets.length > 0);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
-    let ignore = false;
-
+    requestIdRef.current += 1;
     setAnalysis(null);
     setError(null);
     setSelectedAssetName(null);
+    setLoading(false);
+  }, [newsId]);
 
-    if (assets.length === 0) {
-      setLoading(false);
-      return;
-    }
+  const analyze = (retry = false) => {
+    if (assets.length === 0 || loading) return;
 
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    setAnalysis(null);
+    setError(null);
+    setSelectedAssetName(null);
     setLoading(true);
 
-    const request =
-      retryCount === 0
-        ? getPortfolioAnalysis(newsId, assets)
-        : retryPortfolioAnalysis(newsId, assets);
+    const request = retry
+      ? retryPortfolioAnalysis(newsId, assets)
+      : getPortfolioAnalysis(newsId, assets);
 
     request
       .then((response) => {
-        if (!ignore) {
+        if (requestIdRef.current === requestId) {
           setAnalysis(response);
         }
       })
       .catch((caughtError) => {
-        if (!ignore) {
+        if (requestIdRef.current === requestId) {
           setError(
             caughtError instanceof Error
               ? caughtError.message
@@ -333,15 +336,11 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
         }
       })
       .finally(() => {
-        if (!ignore) {
+        if (requestIdRef.current === requestId) {
           setLoading(false);
         }
       });
-
-    return () => {
-      ignore = true;
-    };
-  }, [assets, newsId, retryCount]);
+  };
 
   const sortedImpacts = useMemo(
     () => [...(analysis?.impacts ?? [])].sort((left, right) => left.rank - right.rank),
@@ -355,7 +354,7 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
     sortedImpacts.find((impact) => impact.assetName === selectedAssetName) ?? sortedImpacts[0];
 
   const handleRetry = () => {
-    setRetryCount((count) => count + 1);
+    analyze(true);
   };
 
   const hasAnalysis = Boolean(analysis && selectedImpact);
@@ -373,6 +372,16 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
               : '내 포트폴리오에 미칠 영향을 핵심만 정리했어요.'}
           </p>
         </div>
+        {!error ? (
+          <button
+            className="portfolio-analysis-button"
+            type="button"
+            disabled={assets.length === 0 || loading || analysis !== null}
+            onClick={() => analyze()}
+          >
+            {loading ? '분석 중' : '포트폴리오 분석하기'}
+          </button>
+        ) : null}
       </div>
 
       {assets.length === 0 ? <PortfolioEmpty /> : null}
