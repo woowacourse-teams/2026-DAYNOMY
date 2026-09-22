@@ -46,7 +46,7 @@ class StockMasterSyncServiceTest {
                 fullPage(
                     baseDate,
                     List.of(
-                        item(baseDate, "005930", "삼성전자", "KOSPI", "KR7005930003"),
+                        item(baseDate, "A005930", "삼성전자", "KOSPI", "KR7005930003"),
                         item(baseDate, "005935", "삼성전자우", "KOSPI", "KR7005931001"),
                         item(baseDate, "000001", "테스트스팩1호", "KOSDAQ", "KR7000000010")))));
     given(listedStockClient.getListedStocks(baseDate, 2, 1000))
