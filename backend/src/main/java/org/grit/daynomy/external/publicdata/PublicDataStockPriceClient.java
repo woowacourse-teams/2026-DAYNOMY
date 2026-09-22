@@ -4,6 +4,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
@@ -16,24 +17,23 @@ import org.springframework.web.client.RestClientException;
 public class PublicDataStockPriceClient {
 
   private static final DateTimeFormatter BASIC_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
-  private static final String KOSDAQ = "KOSDAQ";
-
-  private final PublicDataProperties publicDataProperties;
+  private final PublicDataProperties properties;
   private final RestClient restClient;
 
-  public PublicDataStockPriceClient(PublicDataProperties publicDataProperties) {
-    this.publicDataProperties = publicDataProperties;
+  public PublicDataStockPriceClient(PublicDataProperties properties) {
+    this.properties = properties;
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-    requestFactory.setConnectTimeout(toMillis(publicDataProperties.connectTimeout()));
-    requestFactory.setReadTimeout(toMillis(publicDataProperties.readTimeout()));
+    requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
+    requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
     this.restClient =
         RestClient.builder()
-            .baseUrl(publicDataProperties.stockPriceUrl())
+            .baseUrl(properties.stockPriceUrl())
             .requestFactory(requestFactory)
             .build();
   }
 
-  public PublicDataStockPriceResponse getKosdaqStockPrices(LocalDate baseDate) {
+  public PublicDataStockPriceResponse getStockPrices(
+      LocalDate baseDate, StockMarket market, int pageNo, int numOfRows) {
     try {
       PublicDataStockPriceResponse response =
           restClient
@@ -41,13 +41,13 @@ public class PublicDataStockPriceClient {
               .uri(
                   uriBuilder ->
                       uriBuilder
-                          .queryParam("serviceKey", normalizedServiceKey())
-                          .queryParam("numOfRows", 3000)
-                          .queryParam("pageNo", 1)
+                          .queryParam("serviceKey", "{serviceKey}")
+                          .queryParam("numOfRows", numOfRows)
+                          .queryParam("pageNo", pageNo)
                           .queryParam("resultType", "json")
                           .queryParam("basDt", baseDate.format(BASIC_DATE_FORMAT))
-                          .queryParam("mrktCls", KOSDAQ)
-                          .build())
+                          .queryParam("mrktCls", market.name())
+                          .build(normalizedServiceKey()))
               .retrieve()
               .body(PublicDataStockPriceResponse.class);
       validateResponse(response);
@@ -67,7 +67,7 @@ public class PublicDataStockPriceClient {
   }
 
   String normalizedServiceKey() {
-    String serviceKey = publicDataProperties.serviceKey();
+    String serviceKey = properties.serviceKey();
     if (serviceKey.contains("%")) {
       return URLDecoder.decode(serviceKey, StandardCharsets.UTF_8);
     }

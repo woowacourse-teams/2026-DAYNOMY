@@ -9,7 +9,7 @@ import type {
   AdminNewsResponse,
   AdminNewsSource,
   AdminNewsStatus,
-  AdminAssetRankingSyncResponse,
+  AdminNewsGenerationResponse,
 } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -74,7 +74,7 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
   );
 }
 
-function isAdminAssetRankingSyncResponse(value: unknown): value is AdminAssetRankingSyncResponse {
+function isAdminNewsGenerationResponse(value: unknown): value is AdminNewsGenerationResponse {
   return isRecord(value) && typeof value.savedCount === 'number';
 }
 
@@ -174,14 +174,14 @@ export async function generateAdminNewsImage(id: number) {
   return assertResponse(response, isAdminNewsResponse);
 }
 
-export async function deleteAdminNews(id: number) {
-  return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
-}
-
-export async function syncAdminAssetRankings(): Promise<AdminAssetRankingSyncResponse> {
-  const response = await requestWithCsrf<unknown>('/api/admin/assets/kosdaq/top/sync', {
+export async function generateAdminEconomyNewsDrafts(): Promise<AdminNewsGenerationResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy', {
     method: 'POST',
   });
 
-  return assertResponse(response, isAdminAssetRankingSyncResponse);
+  return assertResponse(response, isAdminNewsGenerationResponse);
+}
+
+export async function deleteAdminNews(id: number) {
+  return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
 }
