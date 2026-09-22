@@ -7,10 +7,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import org.grit.daynomy.asset.domain.StockMarket;
+import org.grit.daynomy.asset.dto.StockPriceResponse;
 import org.grit.daynomy.asset.dto.StockSearchItemResponse;
 import org.grit.daynomy.asset.dto.StockSearchResponse;
+import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.asset.service.StockSearchService;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
@@ -37,6 +41,7 @@ class StockControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private StockSearchService stockSearchService;
+  @MockitoBean private StockPriceService stockPriceService;
 
   @Test
   @DisplayName("국내 주식 검색 API는 종목 검색 결과를 반환한다")
@@ -67,6 +72,26 @@ class StockControllerTest {
         .andExpect(jsonPath("$.errors[0].field").value("keyword"))
         .andExpect(jsonPath("$.errors[0].reason").value("검색어를 입력해주세요."));
 
-    verifyNoInteractions(stockSearchService);
+    verifyNoInteractions(stockSearchService, stockPriceService);
+  }
+
+  @Test
+  @DisplayName("국내 주식 최근 종가 API는 가장 최근 거래일의 종가를 반환한다")
+  void getLatestStockPrice() throws Exception {
+    given(stockPriceService.getLatestPrice(1L))
+        .willReturn(
+            new StockPriceResponse(
+                1L, "005930", "삼성전자", LocalDate.of(2026, 9, 18), new BigDecimal("82000.00")));
+
+    mockMvc
+        .perform(get("/api/stocks/{assetId}/price", 1L))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.assetId").value(1))
+        .andExpect(jsonPath("$.assetCode").value("005930"))
+        .andExpect(jsonPath("$.name").value("삼성전자"))
+        .andExpect(jsonPath("$.baseDate").value("2026-09-18"))
+        .andExpect(jsonPath("$.closePrice").value(82000.00));
+
+    then(stockPriceService).should().getLatestPrice(1L);
   }
 }
