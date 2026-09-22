@@ -6,9 +6,11 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
@@ -21,9 +23,11 @@ import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.ai.GeneratedNews;
 import org.grit.daynomy.news.ai.NewsPrompt;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -218,6 +222,22 @@ class NewsGenerationServiceTest {
     verify(newsPersistenceService)
         .save(prompt, new GeneratedNews("금리 뉴스", "본문"), IMAGE_URL, List.of(), marketAnalysis);
     assertThat(savedCount).isEqualTo(1);
+  }
+
+  @Test
+  @DisplayName("경제 뉴스 초안은 이미지를 생성하지 않고 이미지 URL 없이 저장한다")
+  void generateEconomyNewsDraftsSavesWithoutImages() {
+    GeneratedEconomicNews article =
+        new GeneratedEconomicNews("경제 뉴스", "본문", Category.STOCK, List.of());
+    given(openAiNewsGenerator.generateEconomicNews()).willReturn(List.of(article));
+    given(newsPersistenceService.saveDrafts(List.of(article), Collections.singletonList(null)))
+        .willReturn(List.of());
+
+    List<News> drafts = newsGenerationService.generateEconomyNewsDrafts();
+
+    assertThat(drafts).isEmpty();
+    verify(newsPersistenceService).saveDrafts(List.of(article), Collections.singletonList(null));
+    verifyNoInteractions(openAiImageGenerator, s3ImageStorage);
   }
 
   private NewsMarketAnalysis stubAnalyses(String newsContent) {

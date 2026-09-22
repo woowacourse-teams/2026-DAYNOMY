@@ -161,6 +161,14 @@ export async function rejectAdminNews(id: number) {
   return assertResponse(response, isAdminNewsResponse);
 }
 
+export async function generateAdminNewsImage(id: number) {
+  const response = await requestWithCsrf<unknown>(`/api/admin/news/${id}/generate-image`, {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminNewsResponse);
+}
+
 export async function deleteAdminNews(id: number) {
   return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
 }

@@ -11,11 +11,11 @@ public record PortfolioAnalysisResult(List<AssetImpactResult> impacts) {
   }
 
   public record AssetImpactResult(
-      Long assetId,
-      Long bookmarkId,
+      String assetName,
       ImpactDirection direction,
       ImpactLevel impactLevel,
       String expectedReaction,
       String reason,
+      String evidenceSentence,
       int sortOrder) {}
 }
