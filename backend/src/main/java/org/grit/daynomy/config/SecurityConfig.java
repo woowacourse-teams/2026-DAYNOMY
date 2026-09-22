@@ -61,10 +61,6 @@ public class SecurityConfig {
                     .hasRole("ADMIN")
                     .requestMatchers("/api/users/**")
                     .authenticated()
-                    .requestMatchers("/api/assets/bookmarks/**")
-                    .authenticated()
-                    .requestMatchers("/api/news/*/portfolio-analysis")
-                    .authenticated()
                     .anyRequest()
                     .permitAll())
         .oauth2Login(
