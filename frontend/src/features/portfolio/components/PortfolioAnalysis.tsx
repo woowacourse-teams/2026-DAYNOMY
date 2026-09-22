@@ -293,6 +293,7 @@ type PortfolioAnalysisProps = {
 
 export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
   const [analysis, setAnalysis] = useState<PortfolioAnalysisResponse | null>(null);
+  const [analyzedAssets, setAnalyzedAssets] = useState<PortfolioAsset[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
@@ -301,24 +302,28 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
   useEffect(() => {
     requestIdRef.current += 1;
     setAnalysis(null);
+    setAnalyzedAssets(null);
     setError(null);
     setSelectedAssetName(null);
     setLoading(false);
   }, [newsId]);
 
   const analyze = (retry = false) => {
-    if (assets.length === 0 || loading) return;
+    const snapshot =
+      retry && analyzedAssets ? analyzedAssets : assets.map((asset) => ({ ...asset }));
+    if (snapshot.length === 0 || loading) return;
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
+    setAnalyzedAssets(snapshot);
     setAnalysis(null);
     setError(null);
     setSelectedAssetName(null);
     setLoading(true);
 
     const request = retry
-      ? retryPortfolioAnalysis(newsId, assets)
-      : getPortfolioAnalysis(newsId, assets);
+      ? retryPortfolioAnalysis(newsId, snapshot)
+      : getPortfolioAnalysis(newsId, snapshot);
 
     request
       .then((response) => {
@@ -358,6 +363,8 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
   };
 
   const hasAnalysis = Boolean(analysis && selectedImpact);
+  const displayAssets = analyzedAssets ?? assets;
+  const hasAnalysisTarget = displayAssets.length > 0;
 
   return (
     <section className="section portfolio-section" aria-labelledby="portfolio-analysis-title">
@@ -384,19 +391,19 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
         ) : null}
       </div>
 
-      {assets.length === 0 ? <PortfolioEmpty /> : null}
+      {!hasAnalysisTarget ? <PortfolioEmpty /> : null}
 
-      {assets.length > 0 && loading ? <PortfolioAnalysisLoading /> : null}
+      {hasAnalysisTarget && loading ? <PortfolioAnalysisLoading /> : null}
 
-      {assets.length > 0 && !loading && error ? (
+      {hasAnalysisTarget && !loading && error ? (
         <PortfolioAnalysisError onRetry={handleRetry} />
       ) : null}
 
-      {assets.length > 0 && !loading && !error && analysis?.impacts.length === 0 ? (
+      {hasAnalysisTarget && !loading && !error && analysis?.impacts.length === 0 ? (
         <PortfolioAnalysisEmpty />
       ) : null}
 
-      {assets.length > 0 && !loading && !error && analysis && selectedImpact ? (
+      {hasAnalysisTarget && !loading && !error && analysis && selectedImpact ? (
         <div className="portfolio-analysis-layout">
           <div className="portfolio-overview">
             <div className="portfolio-overview-heading">
@@ -407,13 +414,13 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
             </div>
 
             <PortfolioDonut
-              assets={assets}
+              assets={displayAssets}
               impactByAssetName={impactByAssetName}
               selectedImpact={selectedImpact}
               onSelect={setSelectedAssetName}
             />
             <PortfolioAssetList
-              assets={assets}
+              assets={displayAssets}
               impactByAssetName={impactByAssetName}
               selectedImpact={selectedImpact}
               onSelect={setSelectedAssetName}

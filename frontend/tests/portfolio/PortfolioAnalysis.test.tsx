@@ -179,4 +179,41 @@ describe('포트폴리오 분석 화면', () => {
     ).toBe(true);
     await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
   });
+
+  it('분석 후 포트폴리오가 변경되어도 분석 당시 자산을 표시한다', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        totalAssetCount: 1,
+        analyzedAssetCount: 1,
+        impacts: [
+          {
+            assetName: '삼성전자',
+            weight: 100,
+            direction: 'POSITIVE',
+            impactLevel: 'HIGH',
+            summary: '반도체 수요가 증가했습니다.',
+            reason: '실적 개선이 기대됩니다.',
+            evidenceSentence: '반도체 수요가 증가했습니다.',
+            rank: 1,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(
+      <PortfolioAnalysis newsId="snapshot" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
+    );
+
+    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
+    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+
+    view.rerender(
+      <PortfolioAnalysis newsId="snapshot" assets={[{ assetName: 'SK하이닉스', weight: 100 }]} />,
+    );
+
+    expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
+    expect(view.queryByText('SK하이닉스')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
