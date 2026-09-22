@@ -34,9 +34,81 @@ const DIRECTION_COLORS: Record<PortfolioImpactDirection, string> = {
 };
 
 const INACTIVE_ASSET_COLOR = '#e8eef8';
+const DONUT_CENTER = 110;
+const DONUT_RADIUS = 78;
+const DONUT_SEGMENT_GAP = 4;
 
 function normalizeAssetName(assetName: string) {
   return assetName.trim().toLocaleLowerCase();
+}
+
+function orderAssetsByImpact(
+  assets: PortfolioAsset[],
+  impactByAssetName: Map<string, PortfolioAssetImpactResponse>,
+) {
+  return [...assets].sort((left, right) => {
+    const leftImpact = impactByAssetName.get(normalizeAssetName(left.assetName));
+    const rightImpact = impactByAssetName.get(normalizeAssetName(right.assetName));
+
+    if (leftImpact && rightImpact) return leftImpact.rank - rightImpact.rank;
+    if (leftImpact) return -1;
+    if (rightImpact) return 1;
+    return 0;
+  });
+}
+
+function getDonutPoint(percentage: number, radius: number) {
+  const angle = (percentage / 100) * Math.PI * 2 - Math.PI / 2;
+  return {
+    x: DONUT_CENTER + radius * Math.cos(angle),
+    y: DONUT_CENTER + radius * Math.sin(angle),
+  };
+}
+
+function createDonutSegmentPath(start: number, percentage: number, thickness: number) {
+  const outerRadius = DONUT_RADIUS + thickness / 2;
+  const innerRadius = DONUT_RADIUS - thickness / 2;
+
+  if (percentage >= 99.999) {
+    const outerTop = getDonutPoint(0, outerRadius);
+    const outerBottom = getDonutPoint(50, outerRadius);
+    const innerTop = getDonutPoint(0, innerRadius);
+    const innerBottom = getDonutPoint(50, innerRadius);
+
+    return [
+      `M ${outerTop.x} ${outerTop.y}`,
+      `A ${outerRadius} ${outerRadius} 0 1 1 ${outerBottom.x} ${outerBottom.y}`,
+      `A ${outerRadius} ${outerRadius} 0 1 1 ${outerTop.x} ${outerTop.y}`,
+      `L ${innerTop.x} ${innerTop.y}`,
+      `A ${innerRadius} ${innerRadius} 0 1 0 ${innerBottom.x} ${innerBottom.y}`,
+      `A ${innerRadius} ${innerRadius} 0 1 0 ${innerTop.x} ${innerTop.y}`,
+      'Z',
+    ].join(' ');
+  }
+
+  const halfGap = DONUT_SEGMENT_GAP / 2;
+  const outerInset = Math.min(
+    (Math.asin(Math.min(halfGap / outerRadius, 1)) / (Math.PI * 2)) * 100,
+    percentage / 2,
+  );
+  const innerInset = Math.min(
+    (Math.asin(Math.min(halfGap / innerRadius, 1)) / (Math.PI * 2)) * 100,
+    percentage / 2,
+  );
+  const end = start + percentage;
+  const outerStart = getDonutPoint(start + outerInset, outerRadius);
+  const outerEnd = getDonutPoint(end - outerInset, outerRadius);
+  const innerEnd = getDonutPoint(end - innerInset, innerRadius);
+  const innerStart = getDonutPoint(start + innerInset, innerRadius);
+  const largeArc = percentage > 50 ? 1 : 0;
+
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
+    'Z',
+  ].join(' ');
 }
 
 function createPortfolioSnapshotKey(assets: PortfolioAsset[]) {
@@ -147,7 +219,8 @@ function PortfolioDonut({
   selectedImpact,
   onSelect,
 }: PortfolioDonutProps) {
-  const totalWeight = assets.reduce((sum, asset) => sum + asset.weight, 0);
+  const orderedAssets = orderAssetsByImpact(assets, impactByAssetName);
+  const totalWeight = orderedAssets.reduce((sum, asset) => sum + asset.weight, 0);
   let offset = 0;
 
   return (
@@ -158,17 +231,16 @@ function PortfolioDonut({
         role="group"
         aria-label="전체 포트폴리오의 자산별 보유 비중"
       >
-        {assets.map((asset) => {
+        {orderedAssets.map((asset) => {
           const impact = impactByAssetName.get(normalizeAssetName(asset.assetName));
           const percentage = totalWeight > 0 ? (asset.weight / totalWeight) * 100 : 0;
           const segmentOffset = offset;
-          const segmentGap = Math.min(0.9, percentage * 0.12);
-          const segmentLength = Math.max(percentage - segmentGap, 0);
           const isSelected = impact?.assetName === selectedImpact.assetName;
+          const segmentThickness = isSelected ? 41 : impact ? 38 : 35;
           offset += percentage;
 
           return (
-            <circle
+            <path
               aria-label={
                 impact
                   ? `${asset.assetName}, 보유 비중 ${asset.weight}%, ${DIRECTION_LABELS[impact.direction]} 영향`
@@ -176,9 +248,9 @@ function PortfolioDonut({
               }
               aria-pressed={impact ? isSelected : undefined}
               className={`portfolio-donut-segment${impact ? ' is-interactive' : ''}${isSelected ? ' is-selected' : ''}`}
-              cx="110"
-              cy="110"
-              fill="none"
+              d={createDonutSegmentPath(segmentOffset, percentage, segmentThickness)}
+              data-thickness={segmentThickness}
+              fill={impact ? DIRECTION_COLORS[impact.direction] : INACTIVE_ASSET_COLOR}
               key={asset.assetName}
               onClick={impact ? () => onSelect(impact.assetName) : undefined}
               onKeyDown={
@@ -191,15 +263,8 @@ function PortfolioDonut({
                     }
                   : undefined
               }
-              pathLength="100"
-              r="78"
               role={impact ? 'button' : undefined}
-              stroke={impact ? DIRECTION_COLORS[impact.direction] : INACTIVE_ASSET_COLOR}
-              strokeDasharray={`${segmentLength} ${100 - segmentLength}`}
-              strokeDashoffset={-segmentOffset}
-              strokeWidth={isSelected ? 38 : 35}
               tabIndex={impact ? 0 : -1}
-              transform="rotate(-90 110 110)"
             />
           );
         })}
@@ -231,9 +296,11 @@ function PortfolioAssetList({
   selectedImpact,
   onSelect,
 }: PortfolioAssetListProps) {
+  const orderedAssets = orderAssetsByImpact(assets, impactByAssetName);
+
   return (
     <ul className="portfolio-asset-list" aria-label="포트폴리오 보유 자산">
-      {assets.map((asset) => {
+      {orderedAssets.map((asset) => {
         const impact = impactByAssetName.get(normalizeAssetName(asset.assetName));
         const isSelected = impact?.assetName === selectedImpact.assetName;
         const rowContent = (
@@ -311,7 +378,7 @@ function PortfolioImpactDetail({
       <details className="portfolio-evidence">
         <summary>
           판단에 사용한 뉴스 문장
-          <span aria-hidden="true">+</span>
+          <span aria-hidden="true" />
         </summary>
         <blockquote>{impact.evidenceSentence}</blockquote>
       </details>

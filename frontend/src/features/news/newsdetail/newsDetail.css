@@ -294,9 +294,9 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 400;
-  line-height: 26px;
+  line-height: 32px;
 }
 
 .market-summary-card li::before {
@@ -306,8 +306,8 @@ body {
 
 .market-analysis-message {
   margin-bottom: 0;
-  font-size: 14px;
-  line-height: 26px;
+  font-size: 18px;
+  line-height: 32px;
 }
 
 .portfolio-detail-row strong {
