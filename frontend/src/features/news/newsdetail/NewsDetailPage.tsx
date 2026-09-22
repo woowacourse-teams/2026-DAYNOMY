@@ -4,13 +4,9 @@ import defaultNewsImage from '../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
-import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
-import type { PortfolioAsset } from '../../portfolio/types.ts';
-
-const EMPTY_PORTFOLIO_ASSETS: PortfolioAsset[] = [];
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -179,7 +175,6 @@ export function NewsDetailPage() {
         <div className="analysis-area">
           <div className="analysis-content">
             <DetailAnalysisSections marketAnalysis={marketAnalysis} />
-            <PortfolioAnalysis newsId={newsId} assets={EMPTY_PORTFOLIO_ASSETS} />
           </div>
         </div>
       </article>

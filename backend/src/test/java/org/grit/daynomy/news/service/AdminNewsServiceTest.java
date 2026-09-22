@@ -170,23 +170,42 @@ class AdminNewsServiceTest {
   }
 
   @Test
-  @DisplayName("이미지가 있는 초안의 이미지 생성 재요청은 기존 이미지를 유지한다")
-  void generateImageKeepsExistingImage() {
+  @DisplayName("발행된 뉴스 이미지를 재생성하고 기존 S3 이미지는 커밋 후 정리한다")
+  void generateImageReplacesPublishedImage() {
+    String previousImageUrl = "https://example.com/existing.webp";
     News news =
-        News.createDraft(
-            "뉴스 제목", "뉴스 본문", "https://example.com/existing.webp", List.of(), Category.STOCK);
+        News.createPublished("뉴스 제목", "뉴스 본문", previousImageUrl, List.of(), Category.STOCK, null);
+    byte[] image = {1, 2, 3};
+    S3ImageStorage.StoredImage uploadedImage =
+        new S3ImageStorage.StoredImage("generated.webp", "https://example.com/generated.webp");
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(openAiImageGenerator.generateEconomicNewsImage("뉴스 제목", "뉴스 본문", Category.STOCK))
+        .willReturn(image);
+    given(s3ImageStorage.upload(image, "webp", "image/webp")).willReturn(uploadedImage);
 
-    News result = adminNewsService.generateImage(1L);
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      News result = adminNewsService.generateImage(1L);
 
-    assertThat(result).isSameAs(news);
-    verifyNoInteractions(openAiImageGenerator, s3ImageStorage);
+      assertThat(result.getImageUrl()).isEqualTo(uploadedImage.publicUrl());
+      verify(newsRepository).flush();
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(
+              synchronization -> {
+                synchronization.afterCommit();
+                synchronization.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+              });
+      verify(s3ImageStorage).deleteIfManaged(previousImageUrl);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
   }
 
   @Test
-  @DisplayName("초안이 아닌 뉴스는 이미지 생성을 거부한다")
-  void generateImageRejectsNonDraftNews() {
-    News news = News.createPublished("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK, null);
+  @DisplayName("삭제된 뉴스는 이미지 생성을 거부한다")
+  void generateImageRejectsDeletedNews() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    news.delete();
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
     assertThatThrownBy(() -> adminNewsService.generateImage(1L))

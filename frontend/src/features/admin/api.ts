@@ -190,11 +190,3 @@ export async function generateAdminEconomyNewsDrafts(): Promise<AdminNewsGenerat
 export async function deleteAdminNews(id: number) {
   return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
 }
-
-export async function syncAdminAssetRankings(): Promise<AdminAssetRankingSyncResponse> {
-  const response = await requestWithCsrf<unknown>('/api/admin/assets/kosdaq/top/sync', {
-    method: 'POST',
-  });
-
-  return assertResponse(response, isAdminAssetRankingSyncResponse);
-}
