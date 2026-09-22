@@ -98,13 +98,11 @@ public class AdminNewsService {
         newsRepository
             .findById(id)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
-    if (!news.isDraft()) {
+    if (!news.isDraft() && !news.isPublished()) {
       throw new BusinessException(NewsErrorCode.NEWS_IMAGE_GENERATION_NOT_ALLOWED);
     }
-    if (news.getImageUrl() != null && !news.getImageUrl().isBlank()) {
-      return news;
-    }
 
+    String previousImageUrl = news.getImageUrl();
     byte[] image =
         openAiImageGenerator.generateEconomicNewsImage(
             news.getTitle(), news.getContent(), news.getCategory());
@@ -112,7 +110,7 @@ public class AdminNewsService {
     try {
       news.updateImage(uploadedImage.publicUrl());
       newsRepository.flush();
-      registerImageCleanup(null, uploadedImage);
+      registerImageCleanup(previousImageUrl, uploadedImage);
       return news;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
