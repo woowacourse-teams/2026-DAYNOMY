@@ -39,6 +39,14 @@ function normalizeAssetName(assetName: string) {
   return assetName.trim().toLocaleLowerCase();
 }
 
+function createPortfolioSnapshotKey(assets: PortfolioAsset[]) {
+  return JSON.stringify(
+    assets
+      .map((asset) => ({ assetName: normalizeAssetName(asset.assetName), weight: asset.weight }))
+      .sort((left, right) => left.assetName.localeCompare(right.assetName)),
+  );
+}
+
 function DirectionIcon({ direction }: { direction: PortfolioImpactDirection }) {
   if (direction === 'NEUTRAL') {
     return (
@@ -365,6 +373,11 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
   const hasAnalysis = Boolean(analysis && selectedImpact);
   const displayAssets = analyzedAssets ?? assets;
   const hasAnalysisTarget = displayAssets.length > 0;
+  const isPortfolioChanged =
+    analyzedAssets !== null &&
+    createPortfolioSnapshotKey(assets) !== createPortfolioSnapshotKey(analyzedAssets);
+  const canAnalyze =
+    assets.length > 0 && !loading && (analyzedAssets === null || isPortfolioChanged);
 
   return (
     <section className="section portfolio-section" aria-labelledby="portfolio-analysis-title">
@@ -383,10 +396,10 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
           <button
             className="portfolio-analysis-button"
             type="button"
-            disabled={assets.length === 0 || loading || analysis !== null}
+            disabled={!canAnalyze}
             onClick={() => analyze()}
           >
-            {loading ? '분석 중' : '포트폴리오 분석하기'}
+            {loading ? '분석 중' : analyzedAssets ? '다시 분석하기' : '포트폴리오 분석하기'}
           </button>
         ) : null}
       </div>

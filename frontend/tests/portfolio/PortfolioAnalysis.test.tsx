@@ -208,12 +208,84 @@ describe('포트폴리오 분석 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
     expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
 
+    expect(
+      (view.getByRole('button', { name: '다시 분석하기' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+
     view.rerender(
       <PortfolioAnalysis newsId="snapshot" assets={[{ assetName: 'SK하이닉스', weight: 100 }]} />,
     );
 
     expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
     expect(view.queryByText('SK하이닉스')).toBeNull();
+    expect(
+      (view.getByRole('button', { name: '다시 분석하기' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('자산 순서만 변경되면 다시 분석 버튼을 활성화하지 않는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          totalAssetCount: 2,
+          analyzedAssetCount: 1,
+          impacts: [
+            {
+              assetName: '삼성전자',
+              weight: 60,
+              direction: 'POSITIVE',
+              impactLevel: 'HIGH',
+              summary: '반도체 수요가 증가했습니다.',
+              reason: '실적 개선이 기대됩니다.',
+              evidenceSentence: '반도체 수요가 증가했습니다.',
+              rank: 1,
+            },
+          ],
+        }),
+      ),
+    );
+
+    const view = render(
+      <PortfolioAnalysis
+        newsId="reordered"
+        assets={[
+          { assetName: '삼성전자', weight: 60 },
+          { assetName: 'SK하이닉스', weight: 40 },
+        ]}
+      />,
+    );
+
+    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
+    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+
+    view.rerender(
+      <PortfolioAnalysis
+        newsId="reordered"
+        assets={[
+          { assetName: 'SK하이닉스', weight: 40 },
+          { assetName: ' 삼성전자 ', weight: 60 },
+        ]}
+      />,
+    );
+
+    expect(
+      (view.getByRole('button', { name: '다시 분석하기' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+
+    view.rerender(
+      <PortfolioAnalysis
+        newsId="reordered"
+        assets={[
+          { assetName: 'SK하이닉스', weight: 41 },
+          { assetName: '삼성전자', weight: 59 },
+        ]}
+      />,
+    );
+
+    expect(
+      (view.getByRole('button', { name: '다시 분석하기' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 });
