@@ -1,22 +1,39 @@
-import type { Category } from '../news/newslist/types';
+export type StockMarket = 'KOSPI' | 'KOSDAQ';
 
-export type PortfolioAssetCategory = Category | 'MOCK';
-export type PortfolioImpactDirection = 'POSITIVE' | 'NEGATIVE';
-export type PortfolioImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
-
-export type PortfolioAssetImpactResponse = {
-  bookmarkId: number;
+export type StockSearchItem = {
   assetId: number;
-  name: string;
-  category: PortfolioAssetCategory;
   assetCode: string;
-  direction: PortfolioImpactDirection;
-  impactLevel: PortfolioImpactLevel;
-  expectedReaction: string;
-  reason: string;
-  sortOrder: number;
+  name: string;
+  market: StockMarket;
 };
 
-export type PortfolioAnalysisResponse = {
-  impacts: PortfolioAssetImpactResponse[];
+export type PortfolioHoldingInput = StockSearchItem & {
+  quantity: number;
+  averagePurchasePrice: number;
+};
+
+export type PortfolioHoldingResult = PortfolioHoldingInput & {
+  baseDate: string;
+  closePrice: number;
+  purchaseAmount: number;
+  evaluationAmount: number;
+  profitLoss: number;
+  returnRate: number;
+  weight: number;
+};
+
+export type MarketAllocation = {
+  market: StockMarket;
+  evaluationAmount: number;
+  weight: number;
+};
+
+export type PortfolioCalculation = {
+  baseDate: string;
+  totalPurchaseAmount: number;
+  totalEvaluationAmount: number;
+  totalProfitLoss: number;
+  totalReturnRate: number;
+  holdings: PortfolioHoldingResult[];
+  marketAllocations: MarketAllocation[];
 };
