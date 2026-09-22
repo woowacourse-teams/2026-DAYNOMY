@@ -9,7 +9,6 @@ import type {
   AdminNewsResponse,
   AdminNewsSource,
   AdminNewsStatus,
-  AdminAssetRankingSyncResponse,
 } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -72,10 +71,6 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
     isNullableString(value.publishedAt) &&
     isAdminNewsStatus(value.status)
   );
-}
-
-function isAdminAssetRankingSyncResponse(value: unknown): value is AdminAssetRankingSyncResponse {
-  return isRecord(value) && typeof value.savedCount === 'number';
 }
 
 function assertResponse<T>(value: unknown, isValid: (value: unknown) => value is T): T {
@@ -176,12 +171,4 @@ export async function generateAdminNewsImage(id: number) {
 
 export async function deleteAdminNews(id: number) {
   return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
-}
-
-export async function syncAdminAssetRankings(): Promise<AdminAssetRankingSyncResponse> {
-  const response = await requestWithCsrf<unknown>('/api/admin/assets/kosdaq/top/sync', {
-    method: 'POST',
-  });
-
-  return assertResponse(response, isAdminAssetRankingSyncResponse);
 }
