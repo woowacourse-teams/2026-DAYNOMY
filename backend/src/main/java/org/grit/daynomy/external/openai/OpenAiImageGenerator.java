@@ -24,6 +24,22 @@ public class OpenAiImageGenerator {
   private static final String ECONOMIC_NEWS_IMAGE_SIZE = "1536x1024";
   private static final String IMAGE_QUALITY = "low";
   private static final String IMAGE_FORMAT = "webp";
+  private static final String IMAGE_CONTENT_GUIDELINES =
+      """
+      People are optional and must not be added by default. Include a person only when their
+      presence is essential to communicate the news story's central event. Do not add people merely
+      for scale, atmosphere, or realism. Otherwise, show no people. If a person is essential, include
+      at most one anonymous, non-identifiable person, preferably from behind or with their face
+      obscured. Never include a crowd or extra people.
+      Do not add visible writing by default. Include background text or numerals only when they
+      naturally belong to the setting, such as an exchange board, and keep them secondary. Any
+      visible glyphs must look clean and correctly formed, never malformed, scrambled, misspelled,
+      or like gibberish. Never invent factual company names, ticker symbols, prices, dates, headlines,
+      or claims. Do not copy the article title or context into the image. Render readable text or
+      values only when exact content is explicitly supplied for rendering. Otherwise, keep necessary
+      background displays softly out of focus so no inaccurate content is legible; omit the text if
+      it cannot be rendered cleanly. Leave nonessential writing surfaces blank.
+      """;
 
   private final OpenAiProperties openAiProperties;
   private final RestClient restClient;
@@ -106,29 +122,33 @@ public class OpenAiImageGenerator {
   private String imagePrompt(String title) {
     return """
         Create a clean editorial finance news thumbnail.
-        Do not include text, logos, watermarks, company logos, people, or stock ticker symbols.
+        %s
         Use abstract market, document, and business imagery suitable for a Korean financial news app.
 
         News title: %s
         """
-        .formatted(title);
+        .formatted(IMAGE_CONTENT_GUIDELINES, title);
   }
 
   private String economicNewsImagePrompt(String title, String content, Category category) {
     return """
         Create a realistic editorial cover photograph for a Korean economic news article.
-        Show a believable real-world setting directly connected to the industry's or market's central issue. Use concrete contextual details instead of generic stock charts or abstract finance symbols. If a person helps explain the scene, show one anonymous person from behind or with their face obscured.
+        Show a believable real-world setting directly connected to the industry's or market's
+        central issue. Use objects, machinery, buildings, landscapes, or materials to carry the
+        story instead of generic stock charts or abstract finance symbols. Include a person only
+        when essential to communicate the story, following the people guidelines below.
+        %s
 
         Style: documentary press photography with natural camera realism, authentic materials, realistic lighting, restrained colors, and subtle grain. Avoid glossy 3D rendering and conceptual illustration.
         Composition: wide horizontal landscape, safe to crop to a 16:9 banner. Keep the main subject toward the right third and leave uncluttered negative space on the left for a headline overlay.
-        Accuracy: this is an illustrative cover, not evidence of the reported event. Do not invent or imply a specific unverified person, company facility, or event.
-        Do not include readable text, labels, logos, company marks, watermarks, ticker symbols, fabricated interface elements, or sensational graphics.
+        Accuracy: this is an illustrative cover, not evidence of the reported event. Do not invent
+        or imply a specific unverified company facility or event.
 
         Category: %s
         Headline: %s
         Article context: %s
         """
-        .formatted(category.name(), title, content);
+        .formatted(IMAGE_CONTENT_GUIDELINES, category.name(), title, content);
   }
 
   private String extractImage(String response) {
