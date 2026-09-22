@@ -34,7 +34,10 @@ public class OpenAiImageGenerator {
       Do not add visible writing by default. Include background text or numerals only when they
       naturally belong to the setting, such as an exchange board, and keep them secondary. Any
       visible glyphs must look clean and correctly formed, never malformed, scrambled, misspelled,
-      or like gibberish. Never invent factual company names, ticker symbols, prices, dates, headlines,
+      or like gibberish. Preserve the language of each text element: render Korean content in Korean
+      and English content in English. Do not translate Korean names, labels, or phrases into English,
+      or English names, labels, or phrases into Korean. Mixed languages are acceptable when natural
+      to the setting. Never invent factual company names, ticker symbols, prices, dates, headlines,
       or claims. Do not copy the article title or context into the image. Render readable text or
       values only when exact content is explicitly supplied for rendering. Otherwise, keep necessary
       background displays softly out of focus so no inaccurate content is legible; omit the text if
