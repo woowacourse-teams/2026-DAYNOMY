@@ -1,14 +1,13 @@
 package org.grit.daynomy.portfolio.service;
 
+import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.grit.daynomy.asset.domain.Asset;
-import org.grit.daynomy.asset.repository.AssetRepository;
-import org.grit.daynomy.bookmark.domain.Bookmark;
-import org.grit.daynomy.bookmark.repository.BookmarkRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
@@ -17,8 +16,10 @@ import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
+import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.springframework.stereotype.Service;
 
@@ -26,62 +27,76 @@ import org.springframework.stereotype.Service;
 @Service
 public class PortfolioAnalysisService {
 
+  private static final int MAX_ANALYZED_ASSET_COUNT = 3;
+
   private final NewsRepository newsRepository;
-  private final BookmarkRepository bookmarkRepository;
-  private final AssetRepository assetRepository;
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
 
-  public PortfolioAnalysisResponse getPortfolioAnalysis(Long memberId, Long newsId) {
+  public PortfolioAnalysisResponse analyze(Long newsId, PortfolioAnalysisRequest request) {
+    validateDistinctAssets(request.assets());
+    validateTotalWeight(request.assets());
+
     News news =
         newsRepository
             .findByIdAndStatus(newsId, NewsStatus.PUBLISHED)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
-    List<Bookmark> bookmarks = bookmarkRepository.findAllByMemberIdOrderByIdAsc(memberId);
 
-    if (bookmarks.isEmpty()) {
-      return new PortfolioAnalysisResponse(List.of());
+    if (request.assets().isEmpty()) {
+      return PortfolioAnalysisResponse.empty();
     }
 
-    Map<Long, Asset> assetById = findAssetsById(bookmarks);
-    List<PortfolioAnalysisTarget> targets = createTargets(bookmarks, assetById);
+    Map<String, BigDecimal> weightByAssetName = createWeightByAssetName(request.assets());
+    List<PortfolioAnalysisTarget> targets = createTargets(request.assets());
     PortfolioAnalysisResult result = portfolioAnalysisAiClient.analyze(news.getContent(), targets);
 
     List<PortfolioAssetImpactResponse> impacts =
         result.impacts().stream()
+            .limit(MAX_ANALYZED_ASSET_COUNT)
             .map(
                 impact ->
-                    PortfolioAssetImpactResponse.of(impact, getAsset(assetById, impact.assetId())))
+                    PortfolioAssetImpactResponse.of(
+                        impact, weightByAssetName.get(impact.assetName())))
             .toList();
-    return new PortfolioAnalysisResponse(impacts);
+    return PortfolioAnalysisResponse.of(request.assets().size(), impacts);
   }
 
-  private Map<Long, Asset> findAssetsById(List<Bookmark> bookmarks) {
-    List<Long> assetIds = bookmarks.stream().map(bookmark -> bookmark.getAsset().getId()).toList();
-    return assetRepository.findAllById(assetIds).stream()
-        .collect(Collectors.toMap(Asset::getId, Function.identity()));
-  }
+  private void validateDistinctAssets(List<PortfolioAssetRequest> portfolioAssets) {
+    Set<String> assetNames = new HashSet<>();
+    boolean hasDuplicate =
+        portfolioAssets.stream()
+            .map(PortfolioAssetRequest::assetName)
+            .map(assetName -> assetName.toLowerCase(Locale.ROOT))
+            .anyMatch(assetName -> !assetNames.add(assetName));
 
-  private List<PortfolioAnalysisTarget> createTargets(
-      List<Bookmark> bookmarks, Map<Long, Asset> assetById) {
-    return bookmarks.stream()
-        .map(
-            bookmark -> {
-              Asset asset = getAsset(assetById, bookmark.getAsset().getId());
-              return new PortfolioAnalysisTarget(
-                  asset.getId(),
-                  bookmark.getId(),
-                  asset.getName(),
-                  asset.getCategory().name(),
-                  asset.getAssetCode());
-            })
-        .toList();
-  }
-
-  private Asset getAsset(Map<Long, Asset> assetById, Long assetId) {
-    Asset asset = assetById.get(assetId);
-    if (asset == null) {
-      throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ASSET_NOT_FOUND);
+    if (hasDuplicate) {
+      throw new BusinessException(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
     }
-    return asset;
+  }
+
+  private void validateTotalWeight(List<PortfolioAssetRequest> portfolioAssets) {
+    if (portfolioAssets.isEmpty()) {
+      return;
+    }
+
+    BigDecimal totalWeight =
+        portfolioAssets.stream()
+            .map(PortfolioAssetRequest::weight)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    if (totalWeight.compareTo(BigDecimal.valueOf(100)) != 0) {
+      throw new BusinessException(PortfolioErrorCode.INVALID_PORTFOLIO_WEIGHT_TOTAL);
+    }
+  }
+
+  private Map<String, BigDecimal> createWeightByAssetName(
+      List<PortfolioAssetRequest> portfolioAssets) {
+    return portfolioAssets.stream()
+        .collect(Collectors.toMap(PortfolioAssetRequest::assetName, PortfolioAssetRequest::weight));
+  }
+
+  private List<PortfolioAnalysisTarget> createTargets(List<PortfolioAssetRequest> portfolioAssets) {
+    return portfolioAssets.stream()
+        .map(portfolioAsset -> new PortfolioAnalysisTarget(portfolioAsset.assetName()))
+        .toList();
   }
 }
