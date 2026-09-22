@@ -78,6 +78,23 @@ function PortfolioEmpty() {
   );
 }
 
+function PortfolioLoading() {
+  return (
+    <div className="portfolio-analysis-state portfolio-analysis-empty" role="status">
+      <strong>포트폴리오 정보를 불러오고 있어요.</strong>
+    </div>
+  );
+}
+
+function PortfolioLoadError() {
+  return (
+    <div className="portfolio-analysis-state portfolio-analysis-empty" role="alert">
+      <strong>포트폴리오 정보를 불러오지 못했어요.</strong>
+      <p>잠시 후 페이지를 다시 열어 주세요.</p>
+    </div>
+  );
+}
+
 function PortfolioAnalysisEmpty() {
   return (
     <div className="portfolio-analysis-state portfolio-analysis-empty">
@@ -301,9 +318,14 @@ function PortfolioImpactDetail({
 type PortfolioAnalysisProps = {
   newsId: string;
   assets: PortfolioAsset[];
+  portfolioStatus?: 'loading' | 'ready' | 'error';
 };
 
-export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
+export function PortfolioAnalysis({
+  newsId,
+  assets,
+  portfolioStatus = 'ready',
+}: PortfolioAnalysisProps) {
   const [analysis, setAnalysis] = useState<PortfolioAnalysisResponse | null>(null);
   const [analyzedAssets, setAnalyzedAssets] = useState<PortfolioAsset[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -382,7 +404,10 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
     analyzedAssets !== null &&
     createPortfolioSnapshotKey(assets) !== createPortfolioSnapshotKey(analyzedAssets);
   const canAnalyze =
-    assets.length > 0 && !loading && (analyzedAssets === null || isPortfolioChanged);
+    portfolioStatus === 'ready' &&
+    assets.length > 0 &&
+    !loading &&
+    (analyzedAssets === null || isPortfolioChanged);
 
   return (
     <section
@@ -412,19 +437,34 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
         ) : null}
       </div>
 
-      {!hasAnalysisTarget ? <PortfolioEmpty /> : null}
+      {portfolioStatus === 'loading' ? <PortfolioLoading /> : null}
 
-      {hasAnalysisTarget && loading ? <PortfolioAnalysisLoading /> : null}
+      {portfolioStatus === 'error' ? <PortfolioLoadError /> : null}
 
-      {hasAnalysisTarget && !loading && error ? (
+      {portfolioStatus === 'ready' && !hasAnalysisTarget ? <PortfolioEmpty /> : null}
+
+      {portfolioStatus === 'ready' && hasAnalysisTarget && loading ? (
+        <PortfolioAnalysisLoading />
+      ) : null}
+
+      {portfolioStatus === 'ready' && hasAnalysisTarget && !loading && error ? (
         <PortfolioAnalysisError onRetry={handleRetry} />
       ) : null}
 
-      {hasAnalysisTarget && !loading && !error && analysis?.impacts.length === 0 ? (
+      {portfolioStatus === 'ready' &&
+      hasAnalysisTarget &&
+      !loading &&
+      !error &&
+      analysis?.impacts.length === 0 ? (
         <PortfolioAnalysisEmpty />
       ) : null}
 
-      {hasAnalysisTarget && !loading && !error && analysis && selectedImpact ? (
+      {portfolioStatus === 'ready' &&
+      hasAnalysisTarget &&
+      !loading &&
+      !error &&
+      analysis &&
+      selectedImpact ? (
         <div className="portfolio-analysis-layout">
           <div className="portfolio-analysis-overview">
             <div className="portfolio-analysis-overview-heading">

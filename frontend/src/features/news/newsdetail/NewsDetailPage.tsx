@@ -4,13 +4,15 @@ import defaultNewsImage from '../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
+import { calculatePortfolio } from '../../portfolio/api.ts';
 import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
+import { usePortfolioHoldings } from '../../portfolio/hooks/usePortfolioHoldings.ts';
 import type { PortfolioAsset } from '../../portfolio/types.ts';
 import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
 
-const EMPTY_PORTFOLIO_ASSETS: PortfolioAsset[] = [];
+type PortfolioAssetsStatus = 'loading' | 'ready' | 'error';
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -45,6 +47,26 @@ function formatDetailDate(value?: string) {
   return `${year}.${month}.${day}`;
 }
 
+function toPortfolioAssets(
+  holdings: Awaited<ReturnType<typeof calculatePortfolio>>['holdings'],
+): PortfolioAsset[] {
+  if (holdings.length === 0) return [];
+
+  const assets = holdings.map(({ name, weight }) => ({ assetName: name, weight }));
+  const totalWeight = assets.reduce((sum, asset) => sum + asset.weight, 0);
+  const adjustmentIndex = assets.reduce(
+    (largestIndex, asset, index) =>
+      asset.weight > assets[largestIndex].weight ? index : largestIndex,
+    0,
+  );
+
+  return assets.map((asset, index) =>
+    index === adjustmentIndex
+      ? { ...asset, weight: Number((asset.weight + 100 - totalWeight).toFixed(2)) }
+      : asset,
+  );
+}
+
 function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnalysisState }) {
   return (
     <section className="detail-market" aria-labelledby="detail-market-title">
@@ -72,8 +94,13 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnal
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
   const navigate = useNavigate();
+  const { holdings } = usePortfolioHoldings();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
+  const [portfolioAssets, setPortfolioAssets] = useState<PortfolioAsset[]>([]);
+  const [portfolioAssetsStatus, setPortfolioAssetsStatus] = useState<PortfolioAssetsStatus>(
+    holdings.length > 0 ? 'loading' : 'ready',
+  );
   const goBack = () => {
     navigate('/');
   };
@@ -101,6 +128,33 @@ export function NewsDetailPage() {
       ignore = true;
     };
   }, [newsId]);
+
+  useEffect(() => {
+    if (holdings.length === 0) {
+      setPortfolioAssets([]);
+      setPortfolioAssetsStatus('ready');
+      return;
+    }
+
+    const controller = new AbortController();
+    setPortfolioAssets([]);
+    setPortfolioAssetsStatus('loading');
+
+    calculatePortfolio(holdings, controller.signal)
+      .then((calculation) => {
+        setPortfolioAssets(toPortfolioAssets(calculation.holdings));
+        setPortfolioAssetsStatus('ready');
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setPortfolioAssets([]);
+        setPortfolioAssetsStatus('error');
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [holdings]);
 
   if (error) {
     return (
@@ -179,7 +233,11 @@ export function NewsDetailPage() {
         <div className="analysis-area">
           <div className="analysis-content">
             <DetailAnalysisSections marketAnalysis={marketAnalysis} />
-            <PortfolioAnalysis newsId={newsId} assets={EMPTY_PORTFOLIO_ASSETS} />
+            <PortfolioAnalysis
+              newsId={newsId}
+              assets={portfolioAssets}
+              portfolioStatus={portfolioAssetsStatus}
+            />
           </div>
         </div>
       </article>

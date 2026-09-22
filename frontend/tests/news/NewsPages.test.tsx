@@ -9,6 +9,7 @@ import { NewsDetailPage } from '../../src/features/news/newsdetail/NewsDetailPag
 import { NewsListPage } from '../../src/features/news/newslist/NewsListPage';
 import { ArticleCard } from '../../src/features/news/newslist/components/ArticleCard';
 import type { NewsListItem } from '../../src/features/news/newslist/types';
+import { PORTFOLIO_STORAGE_KEY } from '../../src/features/portfolio/hooks/usePortfolioHoldings';
 
 const article = {
   id: 7,
@@ -44,6 +45,7 @@ function renderPage(element: ReactNode, isLoggedIn = false) {
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   vi.unstubAllGlobals();
   window.history.replaceState(null, '', '/');
 });
@@ -188,7 +190,7 @@ describe('뉴스 탐색 화면', () => {
 
     await waitFor(() => expect(view.container.querySelectorAll('.state-panel')).toHaveLength(2));
 
-    const panels = [...view.container.querySelectorAll('.state-panel')];
+    const panels = Array.from(view.container.querySelectorAll('.state-panel'));
     expect(panels[0].textContent).toContain('오늘의 뉴스를 불러오지 못했습니다.');
     expect(panels[1].textContent).toContain('뉴스 목록을 불러오지 못했습니다.');
   });
@@ -255,6 +257,115 @@ describe('뉴스 탐색 화면', () => {
     );
     expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
     expect(view.container.querySelector('.news-image')?.hasAttribute('loading')).toBe(false);
+  });
+
+  it('현재 포트폴리오의 종목명과 보유 비중으로 뉴스 영향을 분석한다', async () => {
+    window.history.replaceState(null, '', '/news/7');
+    localStorage.setItem(
+      PORTFOLIO_STORAGE_KEY,
+      JSON.stringify([
+        {
+          assetId: 1,
+          assetCode: '005930',
+          name: '삼성전자',
+          market: 'KOSPI',
+          quantity: 10,
+          averagePurchasePrice: 70000,
+        },
+        {
+          assetId: 2,
+          assetCode: '000660',
+          name: 'SK하이닉스',
+          market: 'KOSPI',
+          quantity: 2,
+          averagePurchasePrice: 180000,
+        },
+      ]),
+    );
+
+    let analysisRequestBody: unknown;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = getPath(input);
+
+        if (url === '/api/news/7') {
+          return jsonResponse({
+            ...article,
+            content: '반도체 시장에 관한 뉴스입니다.',
+            sources: [],
+          });
+        }
+        if (url === '/api/news/7/keywords') return jsonResponse({ keywords: [] });
+        if (url === '/api/news/7/market-analysis') {
+          return jsonResponse({ summary: '반도체 시장의 변화를 확인해야 합니다.' });
+        }
+        if (url === '/api/auth/csrf') {
+          return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+        }
+        if (url === '/api/portfolio/calculate') {
+          return jsonResponse({
+            baseDate: '2026-09-22',
+            totalPurchaseAmount: 1060000,
+            totalEvaluationAmount: 1200000,
+            totalProfitLoss: 140000,
+            totalReturnRate: 13.21,
+            holdings: [
+              {
+                assetId: 1,
+                assetCode: '005930',
+                name: '삼성전자',
+                market: 'KOSPI',
+                baseDate: '2026-09-22',
+                quantity: 10,
+                averagePurchasePrice: 70000,
+                closePrice: 80000,
+                purchaseAmount: 700000,
+                evaluationAmount: 800000,
+                profitLoss: 100000,
+                returnRate: 14.29,
+                weight: 66.67,
+              },
+              {
+                assetId: 2,
+                assetCode: '000660',
+                name: 'SK하이닉스',
+                market: 'KOSPI',
+                baseDate: '2026-09-22',
+                quantity: 2,
+                averagePurchasePrice: 180000,
+                closePrice: 200000,
+                purchaseAmount: 360000,
+                evaluationAmount: 400000,
+                profitLoss: 40000,
+                returnRate: 11.11,
+                weight: 33.34,
+              },
+            ],
+            marketAllocations: [{ market: 'KOSPI', evaluationAmount: 1200000, weight: 100 }],
+          });
+        }
+        if (url === '/api/news/7/portfolio-analysis') {
+          analysisRequestBody = JSON.parse(String(init?.body));
+          return jsonResponse({ totalAssetCount: 2, analyzedAssetCount: 0, impacts: [] });
+        }
+
+        return jsonResponse({}, 500);
+      }),
+    );
+
+    const view = renderPage(<NewsDetailPage />);
+    const analyzeButton = await view.findByRole('button', { name: '포트폴리오 분석하기' });
+    await waitFor(() => expect(analyzeButton.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(analyzeButton);
+
+    expect(await view.findByText('이 뉴스와 직접 관련된 보유 자산이 없어요.')).toBeTruthy();
+    expect(analysisRequestBody).toEqual({
+      assets: [
+        { assetName: '삼성전자', weight: 66.66 },
+        { assetName: 'SK하이닉스', weight: 33.34 },
+      ],
+    });
   });
 
   it('뉴스 상세 API 실패 시 목데이터 대신 오류 안내를 표시한다', async () => {

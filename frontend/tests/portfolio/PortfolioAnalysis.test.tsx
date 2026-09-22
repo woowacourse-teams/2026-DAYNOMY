@@ -180,6 +180,24 @@ describe('포트폴리오 분석 화면', () => {
     await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
   });
 
+  it('포트폴리오 정보를 불러오는 상태와 실패 상태를 구분해 표시한다', () => {
+    const view = render(
+      <PortfolioAnalysis newsId="portfolio-state" assets={[]} portfolioStatus="loading" />,
+    );
+
+    expect(view.getByRole('status').textContent).toContain('포트폴리오 정보를 불러오고 있어요.');
+    expect(view.queryByText(/포트폴리오에 자산을 등록하면/)).toBeNull();
+
+    view.rerender(
+      <PortfolioAnalysis newsId="portfolio-state" assets={[]} portfolioStatus="error" />,
+    );
+
+    expect(view.getByRole('alert').textContent).toContain('포트폴리오 정보를 불러오지 못했어요.');
+    expect(
+      (view.getByRole('button', { name: '포트폴리오 분석하기' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
   it('분석 후 포트폴리오가 변경되어도 분석 당시 자산을 표시한다', async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({
