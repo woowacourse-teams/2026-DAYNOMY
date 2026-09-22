@@ -76,9 +76,7 @@ public class AdminNewsController {
     return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
   }
 
-  @Operation(
-      summary = "뉴스 이미지 생성",
-      description = "초안 또는 발행된 뉴스의 이미지를 생성하거나 교체해 저장합니다.")
+  @Operation(summary = "뉴스 이미지 생성", description = "초안 또는 발행된 뉴스의 이미지를 생성하거나 교체해 저장합니다.")
   @PostMapping("/{id}/generate-image")
   public ResponseEntity<AdminNewsResponse> generateNewsImage(
       @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
