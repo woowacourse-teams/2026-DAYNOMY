@@ -320,6 +320,7 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
     const snapshot =
       retry && analyzedAssets ? analyzedAssets : assets.map((asset) => ({ ...asset }));
     if (snapshot.length === 0 || loading) return;
+    const shouldRefresh = retry || analyzedAssets !== null;
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
@@ -329,7 +330,7 @@ export function PortfolioAnalysis({ newsId, assets }: PortfolioAnalysisProps) {
     setSelectedAssetName(null);
     setLoading(true);
 
-    const request = retry
+    const request = shouldRefresh
       ? retryPortfolioAnalysis(newsId, snapshot)
       : getPortfolioAnalysis(newsId, snapshot);
 

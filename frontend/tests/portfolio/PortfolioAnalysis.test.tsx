@@ -288,4 +288,56 @@ describe('포트폴리오 분석 화면', () => {
       (view.getByRole('button', { name: '다시 분석하기' }) as HTMLButtonElement).disabled,
     ).toBe(false);
   });
+
+  it('다시 분석하면 최신 포트폴리오로 스냅샷을 교체하고 캐시 없이 요청한다', async () => {
+    const createAnalysisResponse = (assetName: string) =>
+      jsonResponse({
+        totalAssetCount: 1,
+        analyzedAssetCount: 1,
+        impacts: [
+          {
+            assetName,
+            weight: 100,
+            direction: 'POSITIVE',
+            impactLevel: 'HIGH',
+            summary: `${assetName} 분석 결과입니다.`,
+            reason: `${assetName} 관련 뉴스입니다.`,
+            evidenceSentence: `${assetName} 관련 내용이 확인됐습니다.`,
+            rank: 1,
+          },
+        ],
+      });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(createAnalysisResponse('삼성전자'))
+      .mockResolvedValueOnce(createAnalysisResponse('SK하이닉스'))
+      .mockResolvedValueOnce(createAnalysisResponse('삼성전자'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const samsungAssets = [{ assetName: '삼성전자', weight: 100 }];
+    const hynixAssets = [{ assetName: 'SK하이닉스', weight: 100 }];
+    const view = render(<PortfolioAnalysis newsId="refresh" assets={samsungAssets} />);
+
+    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
+    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+
+    view.rerender(<PortfolioAnalysis newsId="refresh" assets={hynixAssets} />);
+    fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
+    expect(await view.findByRole('heading', { name: 'SK하이닉스' })).toBeTruthy();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('/api/news/refresh/portfolio-analysis'),
+      expect.objectContaining({ body: JSON.stringify({ assets: hynixAssets }) }),
+    );
+
+    view.rerender(<PortfolioAnalysis newsId="refresh" assets={samsungAssets} />);
+    fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
+    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining('/api/news/refresh/portfolio-analysis'),
+      expect.objectContaining({ body: JSON.stringify({ assets: samsungAssets }) }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
 });
