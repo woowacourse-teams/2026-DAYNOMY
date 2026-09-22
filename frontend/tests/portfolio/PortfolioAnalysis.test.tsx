@@ -102,7 +102,10 @@ describe('포트폴리오 분석 화면', () => {
 
     fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
 
-    expect(await view.findByText('이 뉴스와 직접 관련된 보유 자산이 없어요.')).toBeTruthy();
+    const emptyMessage = await view.findByText('이 뉴스와 직접 관련된 보유 자산이 없어요.');
+    const emptyStatus = emptyMessage.closest('[role="status"]');
+    expect(emptyStatus).not.toBeNull();
+    expect(emptyStatus?.getAttribute('aria-live')).toBe('polite');
   });
 
   it('분석 버튼을 누르면 로딩 상태를 표시하고 중복 요청을 막는다', () => {

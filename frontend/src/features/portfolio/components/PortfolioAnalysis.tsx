@@ -97,7 +97,11 @@ function PortfolioLoadError() {
 
 function PortfolioAnalysisEmpty() {
   return (
-    <div className="portfolio-analysis-state portfolio-analysis-empty">
+    <div
+      className="portfolio-analysis-state portfolio-analysis-empty"
+      role="status"
+      aria-live="polite"
+    >
       <span className="portfolio-analysis-state-icon" aria-hidden="true">
         −
       </span>
