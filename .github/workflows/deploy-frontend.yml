@@ -64,7 +64,6 @@ jobs:
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
           SENTRY_RELEASE: ${{ github.sha }}
         run: |
-          : "${VITE_API_BASE_URL:?VITE_API_BASE_URL is required}"
           : "${SENTRY_DSN:?SENTRY_DSN is required}"
           : "${SENTRY_ENVIRONMENT:?SENTRY_ENVIRONMENT is required}"
           : "${SENTRY_RELEASE:?SENTRY_RELEASE is required}"
