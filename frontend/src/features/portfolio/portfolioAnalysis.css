@@ -1,5 +1,7 @@
 .portfolio-analysis-section {
-  margin-top: 56px;
+  width: 100%;
+  max-width: 920px;
+  margin: 56px auto 0;
 }
 
 .portfolio-analysis-section h2 {
@@ -24,7 +26,7 @@
 }
 
 .portfolio-analysis-heading.has-analysis {
-  margin-bottom: 32px;
+  margin-bottom: 38px;
 }
 
 .portfolio-analysis-heading.has-analysis h2 {
@@ -131,13 +133,13 @@
 
 .portfolio-analysis-layout {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  min-height: 610px;
+  grid-template-columns: minmax(0, 40%) minmax(0, 60%);
+  min-height: 560px;
 }
 
 .portfolio-analysis-overview {
   min-width: 0;
-  padding-right: 42px;
+  padding-right: 30px;
   border-right: 1px solid #e6e9f0;
 }
 
@@ -184,8 +186,8 @@
 
 .portfolio-analysis-donut-wrap {
   position: relative;
-  width: min(100%, 320px);
-  margin: 34px auto 30px;
+  width: min(100%, 286px);
+  margin: 34px auto 28px;
   aspect-ratio: 1;
 }
 
@@ -250,11 +252,12 @@
 .portfolio-donut-center b {
   margin-top: 7px;
   color: inherit;
-  font-size: 43px;
+  font-size: 36px;
   line-height: 1;
   font-weight: 900;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .portfolio-donut-center small {
@@ -276,7 +279,7 @@
   width: 100%;
   min-width: 0;
   min-height: 43px;
-  grid-template-columns: 10px minmax(72px, 1fr) minmax(126px, auto) 38px;
+  grid-template-columns: 10px minmax(0, 1fr) minmax(0, 140px) minmax(52px, auto);
   align-items: center;
   gap: 9px;
   padding: 8px 10px;
@@ -329,14 +332,19 @@ button.portfolio-asset-row:focus-visible {
 }
 
 .portfolio-asset-analysis {
-  justify-self: end;
+  min-width: 0;
+  overflow: hidden;
+  justify-self: stretch;
   color: #a0a9b8;
   font-size: 11px;
   font-weight: 600;
+  text-align: right;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .portfolio-asset-row strong {
+  min-width: 52px;
   justify-self: end;
   color: #243047;
   font-size: 14px;
@@ -357,7 +365,7 @@ button.portfolio-asset-row:focus-visible {
   min-width: 0;
   justify-content: center;
   flex-direction: column;
-  padding: 54px 0 54px 48px;
+  padding: 48px 0 48px 30px;
 }
 
 .portfolio-detail-header {
@@ -535,7 +543,7 @@ button.portfolio-asset-row:focus-visible {
   }
 
   .portfolio-asset-row {
-    grid-template-columns: 10px minmax(72px, 1fr) 38px;
+    grid-template-columns: 10px minmax(0, 1fr) minmax(52px, auto);
   }
 
   .portfolio-asset-analysis {

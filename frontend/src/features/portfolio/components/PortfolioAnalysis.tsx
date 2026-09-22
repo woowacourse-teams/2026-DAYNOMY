@@ -34,6 +34,7 @@ const DIRECTION_COLORS: Record<PortfolioImpactDirection, string> = {
 };
 
 const INACTIVE_ASSET_COLOR = '#e8eef8';
+const DONUT_SEGMENT_GAP = 0.9;
 
 function normalizeAssetName(assetName: string) {
   return assetName.trim().toLocaleLowerCase();
@@ -162,7 +163,7 @@ function PortfolioDonut({
           const impact = impactByAssetName.get(normalizeAssetName(asset.assetName));
           const percentage = totalWeight > 0 ? (asset.weight / totalWeight) * 100 : 0;
           const segmentOffset = offset;
-          const segmentGap = Math.min(0.9, percentage * 0.12);
+          const segmentGap = Math.min(DONUT_SEGMENT_GAP, percentage / 2);
           const segmentLength = Math.max(percentage - segmentGap, 0);
           const isSelected = impact?.assetName === selectedImpact.assetName;
           offset += percentage;
@@ -197,7 +198,7 @@ function PortfolioDonut({
               stroke={impact ? DIRECTION_COLORS[impact.direction] : INACTIVE_ASSET_COLOR}
               strokeDasharray={`${segmentLength} ${100 - segmentLength}`}
               strokeDashoffset={-segmentOffset}
-              strokeWidth={isSelected ? 38 : 35}
+              strokeWidth="35"
               tabIndex={impact ? 0 : -1}
               transform="rotate(-90 110 110)"
             />
