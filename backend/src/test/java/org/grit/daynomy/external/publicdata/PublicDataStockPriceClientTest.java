@@ -11,7 +11,8 @@ class PublicDataStockPriceClientTest {
   void decodesEncodedServiceKeyBeforeBuildingQueryParam() {
     PublicDataStockPriceClient client =
         new PublicDataStockPriceClient(
-            new PublicDataProperties("abc%2Fdef%2Bghi%3D%3D", "https://example.com", null, null));
+            new PublicDataProperties(
+                "abc%2Fdef%2Bghi%3D%3D", "https://example.com", "https://example.com", null, null));
 
     assertThat(client.normalizedServiceKey()).isEqualTo("abc/def+ghi==");
   }
@@ -20,7 +21,8 @@ class PublicDataStockPriceClientTest {
   void keepsRawServiceKeyAsIs() {
     PublicDataStockPriceClient client =
         new PublicDataStockPriceClient(
-            new PublicDataProperties("abc/def+ghi==", "https://example.com", null, null));
+            new PublicDataProperties(
+                "abc/def+ghi==", "https://example.com", "https://example.com", null, null));
 
     assertThat(client.normalizedServiceKey()).isEqualTo("abc/def+ghi==");
   }
@@ -28,7 +30,8 @@ class PublicDataStockPriceClientTest {
   @Test
   void usesDefaultTimeouts() {
     PublicDataProperties properties =
-        new PublicDataProperties("service-key", "https://example.com", null, null);
+        new PublicDataProperties(
+            "service-key", "https://example.com", "https://example.com", null, null);
 
     assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(3));
     assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(10));

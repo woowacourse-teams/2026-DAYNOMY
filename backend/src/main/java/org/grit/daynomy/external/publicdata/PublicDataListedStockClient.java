@@ -6,50 +6,49 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
-import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
+import org.grit.daynomy.external.publicdata.dto.PublicDataListedStockResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
-public class PublicDataStockPriceClient {
+public class PublicDataListedStockClient {
 
   private static final DateTimeFormatter BASIC_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
-  private static final String KOSDAQ = "KOSDAQ";
 
-  private final PublicDataProperties publicDataProperties;
+  private final PublicDataProperties properties;
   private final RestClient restClient;
 
-  public PublicDataStockPriceClient(PublicDataProperties publicDataProperties) {
-    this.publicDataProperties = publicDataProperties;
+  public PublicDataListedStockClient(PublicDataProperties properties) {
+    this.properties = properties;
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-    requestFactory.setConnectTimeout(toMillis(publicDataProperties.connectTimeout()));
-    requestFactory.setReadTimeout(toMillis(publicDataProperties.readTimeout()));
+    requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
+    requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
     this.restClient =
         RestClient.builder()
-            .baseUrl(publicDataProperties.stockPriceUrl())
+            .baseUrl(properties.listedStockUrl())
             .requestFactory(requestFactory)
             .build();
   }
 
-  public PublicDataStockPriceResponse getKosdaqStockPrices(LocalDate baseDate) {
+  public PublicDataListedStockResponse getListedStocks(
+      LocalDate baseDate, int pageNo, int numOfRows) {
     try {
-      PublicDataStockPriceResponse response =
+      PublicDataListedStockResponse response =
           restClient
               .get()
               .uri(
                   uriBuilder ->
                       uriBuilder
                           .queryParam("serviceKey", "{serviceKey}")
-                          .queryParam("numOfRows", 3000)
-                          .queryParam("pageNo", 1)
+                          .queryParam("numOfRows", numOfRows)
+                          .queryParam("pageNo", pageNo)
                           .queryParam("resultType", "json")
                           .queryParam("basDt", baseDate.format(BASIC_DATE_FORMAT))
-                          .queryParam("mrktCls", KOSDAQ)
                           .build(normalizedServiceKey()))
               .retrieve()
-              .body(PublicDataStockPriceResponse.class);
+              .body(PublicDataListedStockResponse.class);
       validateResponse(response);
       return response;
     } catch (RestClientException exception) {
@@ -57,7 +56,7 @@ public class PublicDataStockPriceClient {
     }
   }
 
-  private void validateResponse(PublicDataStockPriceResponse response) {
+  private void validateResponse(PublicDataListedStockResponse response) {
     if (response == null || response.header() == null || response.body() == null) {
       throw new BusinessException(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED);
     }
@@ -66,8 +65,8 @@ public class PublicDataStockPriceClient {
     }
   }
 
-  String normalizedServiceKey() {
-    String serviceKey = publicDataProperties.serviceKey();
+  private String normalizedServiceKey() {
+    String serviceKey = properties.serviceKey();
     if (serviceKey.contains("%")) {
       return URLDecoder.decode(serviceKey, StandardCharsets.UTF_8);
     }
