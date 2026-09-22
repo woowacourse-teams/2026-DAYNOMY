@@ -30,16 +30,20 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   private static final String PORTFOLIO_ANALYSIS_PROMPT =
       """
-            뉴스 본문이 사용자가 북마크한 자산에 미치는 영향을 분석하세요.
+            뉴스 본문이 사용자의 포트폴리오 자산에 미치는 영향을 분석하세요.
 
             - 제공된 자산만 분석하세요.
             - 뉴스와 관련성이 있는 자산만 결과에 포함하세요.
             - 영향이 큰 자산부터 정렬하세요.
-            - assetId는 제공된 값을 그대로 사용하세요.
-            - direction은 POSITIVE 또는 NEGATIVE로 판단하세요.
+            - assetName은 제공된 값을 그대로 사용하세요.
+            - direction은 뉴스가 자산에 유리한 직접 영향을 주면 POSITIVE, 불리한 직접 영향을 주면 NEGATIVE로 판단하세요.
+            - 관련성은 있지만 긍정 또는 부정 방향을 판단할 근거가 충분하지 않으면 NEUTRAL로 판단하세요.
             - impactLevel은 HIGH, MEDIUM, LOW 중 하나로 판단하세요.
             - expectedReaction에는 예상되는 자산 반응을 작성하세요.
             - reason에는 판단 근거를 작성하세요.
+            - evidenceSentence는 해당 자산의 direction과 impactLevel 판단을 직접 뒷받침하는 뉴스 원문 문장 하나여야 합니다.
+            - newsContent에 문자 그대로 존재하는 완전한 문장만 복사하세요. 문장을 요약·변형·조합하거나 새로운 내용을 만들지 마세요.
+            - 해당 자산과의 영향 관계를 직접 뒷받침하는 원문 문장이 없다면, 관련 없는 문장을 대신 사용하지 말고 해당 자산을 impacts 결과에서 제외하세요.
             - 뉴스에 없는 사실을 단정하지 마세요.
             """;
 
@@ -81,7 +85,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               .retrieve()
               .body(String.class);
 
-      return parseAnalysis(response, targets);
+      return parseAnalysis(response, targets, newsContent);
     } catch (HttpStatusCodeException exception) {
       log.warn(
           "OpenAI portfolio analysis request failed: status={}, body={}, targetCount={}",
@@ -119,15 +123,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "newsContent",
             newsContent,
             "assets",
-            targets.stream()
-                .map(
-                    target ->
-                        Map.of(
-                            "assetId", target.assetId(),
-                            "name", target.name(),
-                            "category", target.category(),
-                            "assetCode", target.assetCode()))
-                .toList());
+            targets.stream().map(target -> Map.of("assetName", target.assetName())).toList());
 
     try {
       return objectMapper.writeValueAsString(content);
@@ -166,24 +162,32 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   private Map<String, Object> createImpactsSchema(List<PortfolioAnalysisTarget> targets) {
     Map<String, Object> impactProperties = new LinkedHashMap<>();
     impactProperties.put(
-        "assetId",
+        "assetName",
         Map.of(
             "type",
-            "integer",
+            "string",
             "enum",
-            targets.stream().map(PortfolioAnalysisTarget::assetId).toList()));
+            targets.stream().map(PortfolioAnalysisTarget::assetName).toList()));
     impactProperties.put(
         "direction", Map.of("type", "string", "enum", enumNames(ImpactDirection.values())));
     impactProperties.put(
         "impactLevel", Map.of("type", "string", "enum", enumNames(ImpactLevel.values())));
     impactProperties.put("expectedReaction", Map.of("type", "string"));
     impactProperties.put("reason", Map.of("type", "string"));
+    impactProperties.put("evidenceSentence", Map.of("type", "string"));
 
     Map<String, Object> impactItem = new LinkedHashMap<>();
     impactItem.put("type", "object");
     impactItem.put("additionalProperties", false);
     impactItem.put(
-        "required", List.of("assetId", "direction", "impactLevel", "expectedReaction", "reason"));
+        "required",
+        List.of(
+            "assetName",
+            "direction",
+            "impactLevel",
+            "expectedReaction",
+            "reason",
+            "evidenceSentence"));
     impactItem.put("properties", impactProperties);
 
     return Map.of("type", "array", "maxItems", targets.size(), "items", impactItem);
@@ -194,7 +198,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   }
 
   private PortfolioAnalysisResult parseAnalysis(
-      String response, List<PortfolioAnalysisTarget> targets) {
+      String response, List<PortfolioAnalysisTarget> targets, String newsContent) {
     String outputText = extractOutputText(response);
 
     try {
@@ -202,48 +206,57 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       if (root == null) {
         throw analysisFailed();
       }
-      return new PortfolioAnalysisResult(parseImpacts(root.path("impacts"), targets));
+      return new PortfolioAnalysisResult(parseImpacts(root.path("impacts"), targets, newsContent));
     } catch (JsonProcessingException | IllegalArgumentException exception) {
       throw analysisFailed();
     }
   }
 
   private List<PortfolioAnalysisResult.AssetImpactResult> parseImpacts(
-      JsonNode impactsNode, List<PortfolioAnalysisTarget> targets) {
+      JsonNode impactsNode, List<PortfolioAnalysisTarget> targets, String newsContent) {
     if (!impactsNode.isArray()) {
       throw analysisFailed();
     }
 
-    Map<Long, PortfolioAnalysisTarget> targetByAssetId = new HashMap<>();
+    Map<String, PortfolioAnalysisTarget> targetByAssetName = new HashMap<>();
     for (PortfolioAnalysisTarget target : targets) {
-      if (targetByAssetId.put(target.assetId(), target) != null) {
+      if (targetByAssetName.put(target.assetName(), target) != null) {
         throw analysisFailed();
       }
     }
 
-    Set<Long> analyzedAssetIds = new HashSet<>();
+    Set<String> analyzedAssetNames = new HashSet<>();
     List<ParsedAssetImpact> parsedImpacts = new ArrayList<>();
 
     for (JsonNode impactNode : impactsNode) {
-      JsonNode assetIdNode = impactNode.path("assetId");
-      if (!assetIdNode.isIntegralNumber()) {
+      JsonNode assetNameNode = impactNode.path("assetName");
+      if (!assetNameNode.isTextual()) {
         throw analysisFailed();
       }
-      long assetId = assetIdNode.longValue();
-      PortfolioAnalysisTarget target = targetByAssetId.get(assetId);
+      String assetName = assetNameNode.textValue();
+      PortfolioAnalysisTarget target = targetByAssetName.get(assetName);
 
-      if (target == null || !analyzedAssetIds.add(assetId)) {
+      if (target == null || !analyzedAssetNames.add(assetName)) {
+        throw analysisFailed();
+      }
+
+      JsonNode evidenceSentenceNode = impactNode.path("evidenceSentence");
+      if (!evidenceSentenceNode.isTextual()) {
+        throw analysisFailed();
+      }
+      String evidenceSentence = evidenceSentenceNode.textValue();
+      if (evidenceSentence.isBlank() || !newsContent.contains(evidenceSentence)) {
         throw analysisFailed();
       }
 
       parsedImpacts.add(
           new ParsedAssetImpact(
-              target.assetId(),
-              target.bookmarkId(),
+              target.assetName(),
               ImpactDirection.valueOf(impactNode.path("direction").asText()),
               ImpactLevel.valueOf(impactNode.path("impactLevel").asText()),
               impactNode.path("expectedReaction").asText(),
-              impactNode.path("reason").asText()));
+              impactNode.path("reason").asText(),
+              evidenceSentence));
     }
 
     parsedImpacts.sort(
@@ -305,16 +318,16 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   }
 
   private record ParsedAssetImpact(
-      Long assetId,
-      Long bookmarkId,
+      String assetName,
       ImpactDirection direction,
       ImpactLevel impactLevel,
       String expectedReaction,
-      String reason) {
+      String reason,
+      String evidenceSentence) {
 
     private PortfolioAnalysisResult.AssetImpactResult toResult(int sortOrder) {
       return new PortfolioAnalysisResult.AssetImpactResult(
-          assetId, bookmarkId, direction, impactLevel, expectedReaction, reason, sortOrder);
+          assetName, direction, impactLevel, expectedReaction, reason, evidenceSentence, sortOrder);
     }
   }
 }
