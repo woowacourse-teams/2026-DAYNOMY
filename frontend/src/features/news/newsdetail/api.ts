@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../api/client';
 import type {
   KeywordsResponse,
   MarketAnalysisResponse,
@@ -5,8 +6,6 @@ import type {
   NewsDetailPayload,
   NewsDetailResponse,
 } from './types.ts';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 class ApiError extends Error {
   readonly status: number;
@@ -18,7 +17,7 @@ class ApiError extends Error {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+  const response = await fetch(getApiUrl(path));
 
   if (!response.ok) {
     throw new ApiError(response.status, response.statusText);

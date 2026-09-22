@@ -1,25 +1,33 @@
-name: Publish frontend production image
+name: Build and deploy frontend
 
 on:
   push:
     branches:
+      - dev
       - main
     paths:
       - frontend/**
-      - .github/workflows/build-frontend-production.yml
+      - .github/workflows/deploy-frontend.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: frontend-deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   build-and-publish:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
-    environment: production
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
     permissions:
       contents: read
       packages: write
+
+    env:
+      DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
 
     defaults:
       run:
@@ -47,6 +55,7 @@ jobs:
 
       - name: Build and upload Sentry source maps
         env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           SENTRY_ENVIRONMENT: ${{ vars.SENTRY_ENVIRONMENT }}
           GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
@@ -62,7 +71,7 @@ jobs:
           : "${SENTRY_ORG:?SENTRY_ORG is required}"
           : "${SENTRY_PROJECT:?SENTRY_PROJECT is required}"
           : "${SENTRY_RELEASE:?SENTRY_RELEASE is required}"
-          npm run build
+          npm run "build:${DEPLOY_ENV}"
 
       - name: Verify source maps were removed
         run: |
@@ -83,7 +92,7 @@ jobs:
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
             --tag "$IMAGE_NAME:$GITHUB_SHA" \
-            --tag "$IMAGE_NAME:main" \
+            --tag "$IMAGE_NAME:$GITHUB_REF_NAME" \
             .
 
       - name: Validate Nginx configuration
@@ -129,22 +138,54 @@ jobs:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
         run: |
           docker push "$IMAGE_NAME:$GITHUB_SHA"
-          docker push "$IMAGE_NAME:main"
+          docker push "$IMAGE_NAME:$GITHUB_REF_NAME"
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
     needs: build-and-publish
     runs-on: [self-hosted, linux, ARM64, frontend-prod]
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+      url: ${{ github.ref == 'refs/heads/main' && 'https://daynomy.com' || 'https://dev.daynomy.com' }}
     permissions:
+      contents: read
       packages: read
 
+    env:
+      DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+      DEPLOY_URL: ${{ github.ref == 'refs/heads/main' && 'https://daynomy.com' || 'https://dev.daynomy.com' }}
+      FRONTEND_PORT: ${{ github.ref == 'refs/heads/main' && '3000' || '3001' }}
+
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
       - name: Deploy frontend
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: |
+          set -Eeuo pipefail
+
           export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-frontend:$GITHUB_SHA"
+          compose=(docker compose \
+            --project-name "daynomy-frontend-${DEPLOY_ENV}" \
+            --file "$GITHUB_WORKSPACE/frontend/compose.yml")
+
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
-          docker compose --file /opt/daynomy/frontend/compose.yml pull
-          docker compose --file /opt/daynomy/frontend/compose.yml up --detach --wait --remove-orphans
+
+          "${compose[@]}" pull
+
+          if [ "$DEPLOY_ENV" = "production" ]; then
+            docker rm --force frontend >/dev/null 2>&1 || true
+          fi
+
+          "${compose[@]}" up --detach --wait --remove-orphans
+
+      - name: Verify deployment
+        run: |
+          curl --fail --silent --show-error \
+            --retry 10 --retry-all-errors --retry-delay 2 \
+            --max-time 15 \
+            "$DEPLOY_URL/" \
+            | grep -q '<div id="root"></div>'

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getApiUrl } from '../../api/client';
 import { toApiError } from '../../api/error';
 import type { NewsCategory } from '../news/newslist/types';
 import { toNewsPage } from './mapper';
@@ -18,7 +19,9 @@ export function buildNewsSearchUrl(keyword: string, category: NewsCategory, page
 
 export async function searchNews(keyword: string, category: NewsCategory, page = 1, size = 10) {
   try {
-    const { data } = await axios.get<unknown>(buildNewsSearchUrl(keyword, category, page, size));
+    const { data } = await axios.get<unknown>(
+      getApiUrl(buildNewsSearchUrl(keyword, category, page, size)),
+    );
 
     if (!isNewsSearchResponse(data)) throw new Error('검색 API 응답 형식이 올바르지 않습니다.');
 

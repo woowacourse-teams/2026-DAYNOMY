@@ -1,3 +1,4 @@
+import { getApiUrl } from '../../../api/client';
 import { toNewsListItem } from './types';
 import type { NewsCategory, NewsListItemResponse, NewsPage } from './types';
 
@@ -37,7 +38,7 @@ export async function getNews(
     params.set('category', category);
   }
 
-  const response = await fetch(`/api/news?${params.toString()}`);
+  const response = await fetch(getApiUrl(`/api/news?${params.toString()}`));
 
   if (!response.ok) {
     throw new Error('뉴스 목록을 불러오지 못했습니다.');
@@ -55,7 +56,7 @@ export async function getNews(
 }
 
 export async function getTodayNews(): Promise<NewsPage> {
-  const response = await fetch('/api/news/today');
+  const response = await fetch(getApiUrl('/api/news/today'));
 
   if (!response.ok) {
     throw new Error('오늘의 뉴스를 불러오지 못했습니다.');

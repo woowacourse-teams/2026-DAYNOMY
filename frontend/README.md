@@ -39,6 +39,10 @@ npm install
 ```bash
 # 프로덕션 빌드
 npm run build
+
+# 환경별 배포 빌드
+npm run build:development
+npm run build:production
 ```
 
 빌드 결과물은 `dist/` 폴더에 생성됩니다.
@@ -115,6 +119,46 @@ npm run build
 
 `dev` 또는 `main` 대상 Pull Request에서 프론트엔드 파일이 변경되면 Frontend CI가
 포맷, 린트, 테스트와 빌드를 순서대로 실행합니다.
+
+---
+
+## 환경별 배포
+
+| 브랜치 | GitHub Environment | URL                       | 호스트 포트 |
+| ------ | ------------------ | ------------------------- | ----------- |
+| `dev`  | `development`      | `https://dev.daynomy.com` | `3001`      |
+| `main` | `production`       | `https://daynomy.com`     | `3000`      |
+
+`.github/workflows/deploy-frontend.yml`은 브랜치에 맞는 Vite mode로 빌드하고,
+같은 EC2 안에서 서로 다른 Docker Compose 프로젝트로 배포합니다. 환경별 배포는
+동시에 하나만 실행되며 두 컨테이너는 서로 다른 포트를 사용합니다.
+
+GitHub의 `development`, `production` Environment에는 다음 값을 각각 설정합니다.
+
+| 종류     | 이름                 | 용도                                         |
+| -------- | -------------------- | -------------------------------------------- |
+| Variable | `VITE_API_BASE_URL`  | 환경별 API 주소. 같은 origin이면 빈 값       |
+| Variable | `GA_MEASUREMENT_ID`  | 환경별 GA4 웹 데이터 스트림 ID               |
+| Variable | `SENTRY_DSN`         | Sentry 프로젝트 DSN                          |
+| Variable | `SENTRY_ENVIRONMENT` | development는 `staging`, 운영은 `production` |
+| Variable | `SENTRY_ORG`         | Sentry 조직 slug                             |
+| Variable | `SENTRY_PROJECT`     | Sentry 프로젝트 slug                         |
+| Secret   | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드 토큰                           |
+
+호스트 Nginx는 `daynomy.com`을 `127.0.0.1:3000`으로,
+`dev.daynomy.com`을 `127.0.0.1:3001`로 전달합니다. `dev.daynomy.com` DNS와 HTTPS
+인증서를 먼저 설정하고, 환경별 API 주소는 `VITE_API_BASE_URL` 또는 호스트 Nginx의
+`/api` 프록시로 분리합니다.
+
+배포 확인은 각 URL의 HTML에 React root가 있는지 검사합니다. 실패 원인은 Actions
+로그와 다음 명령으로 확인합니다.
+
+```bash
+docker ps --filter label=com.docker.compose.project=daynomy-frontend-development
+docker ps --filter label=com.docker.compose.project=daynomy-frontend-production
+docker logs daynomy-frontend-development-frontend-1
+docker logs daynomy-frontend-production-frontend-1
+```
 
 ---
 
