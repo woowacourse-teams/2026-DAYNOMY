@@ -340,4 +340,42 @@ describe('포트폴리오 분석 화면', () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it('뉴스가 변경되면 이전 스냅샷과 분석 결과를 초기화한다', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        totalAssetCount: 1,
+        analyzedAssetCount: 1,
+        impacts: [
+          {
+            assetName: '삼성전자',
+            weight: 100,
+            direction: 'POSITIVE',
+            impactLevel: 'HIGH',
+            summary: '기존 뉴스의 분석 결과입니다.',
+            reason: '반도체 수요가 증가했습니다.',
+            evidenceSentence: '반도체 수요가 증가했습니다.',
+            rank: 1,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const assets = [{ assetName: '삼성전자', weight: 100 }];
+    const view = render(<PortfolioAnalysis newsId="before" assets={assets} />);
+
+    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
+    expect(await view.findByText(/기존 뉴스의 분석 결과입니다/)).toBeTruthy();
+
+    view.rerender(<PortfolioAnalysis newsId="after" assets={assets} />);
+
+    await waitFor(() => {
+      expect(view.queryByText(/기존 뉴스의 분석 결과입니다/)).toBeNull();
+    });
+    expect(
+      (view.getByRole('button', { name: '포트폴리오 분석하기' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
