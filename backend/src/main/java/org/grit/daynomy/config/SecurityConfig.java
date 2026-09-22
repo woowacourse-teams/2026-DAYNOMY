@@ -41,6 +41,7 @@ public class SecurityConfig {
         .csrf(
             csrf ->
                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .ignoringRequestMatchers("/api/news/*/portfolio-analysis")
                     .csrfTokenRequestHandler(csrfHandler))
         .exceptionHandling(
             exception ->
@@ -62,8 +63,6 @@ public class SecurityConfig {
                     .requestMatchers("/api/users/**")
                     .authenticated()
                     .requestMatchers("/api/assets/bookmarks/**")
-                    .authenticated()
-                    .requestMatchers("/api/news/*/portfolio-analysis")
                     .authenticated()
                     .anyRequest()
                     .permitAll())

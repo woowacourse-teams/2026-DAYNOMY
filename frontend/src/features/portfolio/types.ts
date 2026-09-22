@@ -1,22 +1,28 @@
-import type { Category } from '../news/newslist/types';
+export type PortfolioAsset = {
+  assetName: string;
+  weight: number;
+};
 
-export type PortfolioAssetCategory = Category | 'MOCK';
-export type PortfolioImpactDirection = 'POSITIVE' | 'NEGATIVE';
+export type PortfolioAnalysisRequest = {
+  assets: PortfolioAsset[];
+};
+
+export type PortfolioImpactDirection = 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
 export type PortfolioImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export type PortfolioAssetImpactResponse = {
-  bookmarkId: number;
-  assetId: number;
-  name: string;
-  category: PortfolioAssetCategory;
-  assetCode: string;
+  assetName: string;
+  weight: number;
   direction: PortfolioImpactDirection;
   impactLevel: PortfolioImpactLevel;
-  expectedReaction: string;
+  summary: string;
   reason: string;
-  sortOrder: number;
+  evidenceSentence: string;
+  rank: number;
 };
 
 export type PortfolioAnalysisResponse = {
+  totalAssetCount: number;
+  analyzedAssetCount: number;
   impacts: PortfolioAssetImpactResponse[];
 };
