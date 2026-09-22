@@ -223,6 +223,125 @@ describe('관리자 뉴스 화면', () => {
     });
   });
 
+  it('이미지가 없는 초안에서 이미지를 생성한 뒤 목록을 갱신한다', async () => {
+    const calls: Array<{ url: string; method?: string }> = [];
+    let listRequestCount = 0;
+    const itemWithImage = { ...listItem, imageUrl: 'https://example.com/generated.webp' };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, method: init?.method });
+
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+
+        if (url.endsWith('/api/admin/news/1/generate-image')) {
+          return jsonResponse({
+            id: 1,
+            title: listItem.title,
+            content: '본문',
+            imageUrl: itemWithImage.imageUrl,
+            sources: listItem.sources,
+            category: listItem.category,
+            publishedAt: null,
+            status: 'DRAFT',
+          });
+        }
+
+        listRequestCount += 1;
+        return jsonResponse({
+          items: [listRequestCount === 1 ? listItem : itemWithImage],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    fireEvent.click(await view.findByRole('button', { name: '이미지 생성' }));
+
+    await waitFor(() => {
+      expect(
+        calls.some(
+          ({ url, method }) =>
+            url.endsWith('/api/admin/news/1/generate-image') && method === 'POST',
+        ),
+      ).toBe(true);
+      expect(view.queryByRole('button', { name: '이미지 생성' })).toBeNull();
+    });
+  });
+
+  it('이미 발행된 뉴스의 기존 이미지를 확인 후 재생성한다', async () => {
+    const calls: Array<{ url: string; method?: string }> = [];
+    const publishedItem = {
+      ...listItem,
+      status: 'PUBLISHED',
+      publishedAt: '2026-09-06T10:00:00Z',
+      imageUrl: 'https://example.com/old.webp',
+    };
+    const updatedItem = { ...publishedItem, imageUrl: 'https://example.com/new.webp' };
+    let listRequestCount = 0;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, method: init?.method });
+
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+
+        if (url.endsWith('/api/admin/news/1/generate-image')) {
+          return jsonResponse({
+            id: 1,
+            title: publishedItem.title,
+            content: '본문',
+            imageUrl: updatedItem.imageUrl,
+            sources: publishedItem.sources,
+            category: publishedItem.category,
+            publishedAt: publishedItem.publishedAt,
+            status: 'PUBLISHED',
+          });
+        }
+
+        listRequestCount += 1;
+        return jsonResponse({
+          items: [listRequestCount === 1 ? publishedItem : updatedItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const view = renderAdmin(<AdminNewsPage />);
+    fireEvent.click(await view.findByRole('button', { name: '이미지 수정' }));
+
+    await waitFor(() => {
+      expect(confirm).toHaveBeenCalledWith(
+        `'${publishedItem.title}' 뉴스 이미지를 새 이미지로 교체할까요?`,
+      );
+      expect(
+        calls.some(
+          ({ url, method }) =>
+            url.endsWith('/api/admin/news/1/generate-image') && method === 'POST',
+        ),
+      ).toBe(true);
+      expect(listRequestCount).toBe(2);
+      expect(view.getByRole('button', { name: '이미지 수정' })).toBeTruthy();
+    });
+  });
+
   it('뉴스의 액션 처리 중 같은 행의 다른 액션을 비활성화한다', async () => {
     let resolvePublish: ((response: Response) => void) | undefined;
     const publishResponse = new Promise<Response>((resolve) => {
@@ -262,6 +381,7 @@ describe('관리자 뉴스 화면', () => {
     await waitFor(() => {
       expect(view.getByRole('button', { name: '발행 중' })).toHaveProperty('disabled', true);
       expect(view.getByRole('button', { name: '거절' })).toHaveProperty('disabled', true);
+      expect(view.getByRole('button', { name: '이미지 생성' })).toHaveProperty('disabled', true);
       expect(view.getByRole('button', { name: '수정' })).toHaveProperty('disabled', true);
       expect(view.getByRole('button', { name: '삭제' })).toHaveProperty('disabled', true);
       expect(view.getByRole('link', { name: listItem.title }).getAttribute('aria-disabled')).toBe(
