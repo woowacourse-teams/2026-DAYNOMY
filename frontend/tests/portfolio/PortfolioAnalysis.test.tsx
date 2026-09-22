@@ -2,6 +2,7 @@
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getPortfolioAnalysis } from '../../src/features/portfolio/api';
 import { PortfolioAnalysis } from '../../src/features/portfolio/components/PortfolioAnalysis';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -395,5 +396,28 @@ describe('포트폴리오 분석 화면', () => {
       (view.getByRole('button', { name: '포트폴리오 분석하기' }) as HTMLButtonElement).disabled,
     ).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('완료된 분석 캐시는 TTL이 지나면 자동으로 제거한다', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const assets = [{ assetName: 'TTL 검증 자산', weight: 100 }];
+
+    try {
+      await getPortfolioAnalysis('cache-ttl', assets);
+      await getPortfolioAnalysis('cache-ttl', assets);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+      await getPortfolioAnalysis('cache-ttl', assets);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 });

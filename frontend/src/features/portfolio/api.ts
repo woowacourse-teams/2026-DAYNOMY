@@ -19,6 +19,7 @@ const PORTFOLIO_ANALYSIS_CACHE_TIME = 5 * 60 * 1000;
 type PortfolioAnalysisCacheEntry = {
   request: Promise<PortfolioAnalysisResponse>;
   expiresAt?: number;
+  cleanupTimer?: ReturnType<typeof setTimeout>;
 };
 
 const portfolioAnalysisRequests = new Map<string, PortfolioAnalysisCacheEntry>();
@@ -137,6 +138,12 @@ function createPortfolioAnalysisRequestKey(newsId: string, assets: PortfolioAsse
   return JSON.stringify([newsId, assets]);
 }
 
+function deletePortfolioAnalysisCacheEntry(requestKey: string) {
+  const cachedEntry = portfolioAnalysisRequests.get(requestKey);
+  if (cachedEntry?.cleanupTimer) clearTimeout(cachedEntry.cleanupTimer);
+  portfolioAnalysisRequests.delete(requestKey);
+}
+
 async function requestPortfolioAnalysis(
   newsId: string,
   assets: PortfolioAsset[],
@@ -212,7 +219,7 @@ export function getPortfolioAnalysis(
   const isFresh = cachedEntry && (!cachedEntry.expiresAt || Date.now() < cachedEntry.expiresAt);
 
   if (isFresh) return cachedEntry.request;
-  if (cachedEntry) portfolioAnalysisRequests.delete(requestKey);
+  if (cachedEntry) deletePortfolioAnalysisCacheEntry(requestKey);
 
   const analysisRequest = requestPortfolioAnalysis(newsId, assets);
   portfolioAnalysisRequests.set(requestKey, { request: analysisRequest });
@@ -222,11 +229,16 @@ export function getPortfolioAnalysis(
       const currentEntry = portfolioAnalysisRequests.get(requestKey);
       if (currentEntry?.request === analysisRequest) {
         currentEntry.expiresAt = Date.now() + PORTFOLIO_ANALYSIS_CACHE_TIME;
+        currentEntry.cleanupTimer = setTimeout(() => {
+          if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
+            portfolioAnalysisRequests.delete(requestKey);
+          }
+        }, PORTFOLIO_ANALYSIS_CACHE_TIME);
       }
     },
     () => {
       if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
-        portfolioAnalysisRequests.delete(requestKey);
+        deletePortfolioAnalysisCacheEntry(requestKey);
       }
     },
   );
@@ -238,6 +250,6 @@ export function retryPortfolioAnalysis(
   newsId: string,
   assets: PortfolioAsset[],
 ): Promise<PortfolioAnalysisResponse> {
-  portfolioAnalysisRequests.delete(createPortfolioAnalysisRequestKey(newsId, assets));
+  deletePortfolioAnalysisCacheEntry(createPortfolioAnalysisRequestKey(newsId, assets));
   return getPortfolioAnalysis(newsId, assets);
 }
