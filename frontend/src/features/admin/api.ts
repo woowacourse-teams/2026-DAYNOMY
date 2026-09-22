@@ -9,7 +9,6 @@ import type {
   AdminNewsResponse,
   AdminNewsSource,
   AdminNewsStatus,
-  AdminAssetRankingSyncResponse,
   AdminNewsGenerationResponse,
 } from './types';
 
@@ -73,10 +72,6 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
     isNullableString(value.publishedAt) &&
     isAdminNewsStatus(value.status)
   );
-}
-
-function isAdminAssetRankingSyncResponse(value: unknown): value is AdminAssetRankingSyncResponse {
-  return isRecord(value) && typeof value.savedCount === 'number';
 }
 
 function isAdminNewsGenerationResponse(value: unknown): value is AdminNewsGenerationResponse {
