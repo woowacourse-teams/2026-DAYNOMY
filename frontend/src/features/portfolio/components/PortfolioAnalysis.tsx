@@ -68,6 +68,24 @@ function getDonutPoint(percentage: number, radius: number) {
 function createDonutSegmentPath(start: number, percentage: number, thickness: number) {
   const outerRadius = DONUT_RADIUS + thickness / 2;
   const innerRadius = DONUT_RADIUS - thickness / 2;
+
+  if (percentage >= 99.999) {
+    const outerTop = getDonutPoint(0, outerRadius);
+    const outerBottom = getDonutPoint(50, outerRadius);
+    const innerTop = getDonutPoint(0, innerRadius);
+    const innerBottom = getDonutPoint(50, innerRadius);
+
+    return [
+      `M ${outerTop.x} ${outerTop.y}`,
+      `A ${outerRadius} ${outerRadius} 0 1 1 ${outerBottom.x} ${outerBottom.y}`,
+      `A ${outerRadius} ${outerRadius} 0 1 1 ${outerTop.x} ${outerTop.y}`,
+      `L ${innerTop.x} ${innerTop.y}`,
+      `A ${innerRadius} ${innerRadius} 0 1 0 ${innerBottom.x} ${innerBottom.y}`,
+      `A ${innerRadius} ${innerRadius} 0 1 0 ${innerTop.x} ${innerTop.y}`,
+      'Z',
+    ].join(' ');
+  }
+
   const halfGap = DONUT_SEGMENT_GAP / 2;
   const outerInset = Math.min(
     (Math.asin(Math.min(halfGap / outerRadius, 1)) / (Math.PI * 2)) * 100,

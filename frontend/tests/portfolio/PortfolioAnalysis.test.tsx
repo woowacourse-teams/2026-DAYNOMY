@@ -259,6 +259,9 @@ describe('포트폴리오 분석 화면', () => {
 
     fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
     expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+    expect(
+      view.container.querySelector('.portfolio-donut-segment')?.getAttribute('d')?.match(/\bA\b/g),
+    ).toHaveLength(4);
 
     expect(
       (view.getByRole('button', { name: '다시 분석하기' }) as HTMLButtonElement).disabled,
