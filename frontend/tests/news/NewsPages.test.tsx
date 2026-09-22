@@ -193,7 +193,7 @@ describe('뉴스 탐색 화면', () => {
     expect(panels[1].textContent).toContain('뉴스 목록을 불러오지 못했습니다.');
   });
 
-  it('뉴스 상세 내용과 비로그인 포트폴리오 안내를 표시한다', async () => {
+  it('뉴스 상세 내용과 시장 분석을 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     vi.stubGlobal(
       'fetch',
@@ -341,58 +341,5 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByRole('heading', { name: '시장 분석' })).toBeTruthy();
     expect(view.getByRole('alert').textContent).toContain('시장 분석을 불러오지 못했습니다.');
     expect(view.queryByRole('status')).toBeNull();
-  });
-
-  it('로그인 사용자의 포트폴리오 영향 분석을 표시한다', async () => {
-    window.history.replaceState(null, '', '/news/7');
-    const calls: string[] = [];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = getPath(input);
-        calls.push(url);
-
-        if (url === '/api/news/7') {
-          return jsonResponse({
-            ...article,
-            content: '뉴스 본문입니다.',
-            sources: [{ name: '한국은행', url: 'https://example.com/news/7' }],
-          });
-        }
-        if (url === '/api/news/7/market-analysis') {
-          return jsonResponse({ summary: '포트폴리오와 함께 표시되는 시장 분석입니다.' });
-        }
-        if (url === '/api/news/7/portfolio-analysis') {
-          return jsonResponse({
-            impacts: [
-              {
-                bookmarkId: 1,
-                assetId: 2,
-                name: '삼성전자',
-                category: 'STOCK',
-                assetCode: '005930',
-                direction: 'POSITIVE',
-                impactLevel: 'HIGH',
-                expectedReaction: '주가가 상승할 수 있습니다.',
-                reason: '반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.',
-                sortOrder: 1,
-              },
-            ],
-          });
-        }
-
-        return jsonResponse({}, 500);
-      }),
-    );
-
-    const view = renderPage(<NewsDetailPage />, true);
-
-    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
-    expect(view.getByText('주가가 상승할 수 있습니다.')).toBeTruthy();
-    expect(view.getByText('반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.')).toBeTruthy();
-    expect(calls).toContain('/api/news/7/portfolio-analysis');
-    expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
-    expect(view.getByRole('heading', { name: '시장 분석' })).toBeTruthy();
-    expect(view.getByText('포트폴리오와 함께 표시되는 시장 분석입니다.')).toBeTruthy();
   });
 });

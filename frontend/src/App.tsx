@@ -8,7 +8,6 @@ import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
 import { NewsListPage } from './features/news/newslist/NewsListPage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
 import SearchPage from './features/search/SearchPage';
-import { StockListPage } from './features/stocks/StockListPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { Header } from './components/Header';
@@ -34,7 +33,6 @@ function AppHeader() {
     location.pathname === '/' ||
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
-    location.pathname.startsWith('/stocks') ||
     location.pathname.startsWith('/mypage') ||
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
@@ -104,7 +102,6 @@ export default function App() {
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />
               <Route path="/search" element={<SearchPage />} />
-              <Route path="/stocks" element={<StockListPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/about" element={<InfoPage page="about" />} />
               <Route path="/terms" element={<InfoPage page="terms" />} />

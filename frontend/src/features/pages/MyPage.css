@@ -397,6 +397,20 @@
   line-height: 28px;
 }
 
+.mypage-portfolio-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  margin-top: 20px;
+  padding: 0 16px;
+  border-radius: 5px;
+  color: #fff;
+  background: #263e60;
+  font-size: 13px;
+  text-decoration: none;
+}
+
 @media (max-width: 640px) {
   .mypage-content {
     width: min(calc(100% - 32px), 880px);

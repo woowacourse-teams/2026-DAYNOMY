@@ -4,11 +4,9 @@ import defaultNewsImage from '../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
-import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
-import { useAuth } from '../../../hooks/useLoginStatus.ts';
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -70,7 +68,6 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnal
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
   const navigate = useNavigate();
-  const { isLoggedIn } = useAuth();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
   const goBack = () => {
@@ -178,7 +175,6 @@ export function NewsDetailPage() {
         <div className="analysis-area">
           <div className="analysis-content">
             <DetailAnalysisSections marketAnalysis={marketAnalysis} />
-            {isLoggedIn ? <PortfolioAnalysis newsId={newsId} /> : null}
           </div>
         </div>
       </article>
