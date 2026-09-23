@@ -42,6 +42,14 @@ function mockPortfolioApi() {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes('/api/stocks?')) return jsonResponse({ stocks: [stock] });
+      if (url.endsWith('/api/stocks/1/price'))
+        return jsonResponse({
+          assetId: 1,
+          assetCode: '005930',
+          name: '삼성전자',
+          baseDate: '2026-09-21',
+          closePrice: 75000,
+        });
       if (url.endsWith('/api/auth/csrf'))
         return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
       if (url.endsWith('/api/portfolio/calculate')) return jsonResponse(calculation);
@@ -72,8 +80,14 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
     const result = await within(dialog).findByRole('button', { name: /삼성전자/ });
     fireEvent.click(result);
+    const averagePriceInput = within(dialog).getByLabelText('평균 매수가') as HTMLInputElement;
+    await waitFor(() => expect(averagePriceInput.value).toBe('75000'));
+    fireEvent.click(within(dialog).getByRole('button', { name: '평균 매수가 1,000원 올리기' }));
+    expect(averagePriceInput.value).toBe('76000');
+    fireEvent.click(within(dialog).getByRole('button', { name: '평균 매수가 1,000원 내리기' }));
+    expect(averagePriceInput.value).toBe('75000');
     fireEvent.change(within(dialog).getByLabelText('보유수량'), { target: { value: '10' } });
-    fireEvent.change(within(dialog).getByLabelText('평균 매수가'), { target: { value: '70000' } });
+    fireEvent.change(averagePriceInput, { target: { value: '70000' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
 
     expect(await view.findByText('750,000')).toBeTruthy();

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { searchStocks } from '../api';
+import { getLatestStockPrice, searchStocks } from '../api';
 import type { PortfolioHoldingInput, StockSearchItem } from '../types';
 
 type PortfolioEditorProps = {
@@ -19,6 +19,8 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
   const [results, setResults] = useState<StockSearchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState('');
 
   useEffect(() => {
     if (holding || keyword.trim().length < 1) {
@@ -51,6 +53,31 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
     };
   }, [holding, keyword]);
 
+  useEffect(() => {
+    if (holding || !selectedStock) {
+      setPriceLoading(false);
+      setPriceError('');
+      return;
+    }
+
+    const controller = new AbortController();
+    setPriceLoading(true);
+    setPriceError('');
+    getLatestStockPrice(selectedStock.assetId, controller.signal)
+      .then((price) => {
+        setAveragePrice((currentPrice) => currentPrice || String(Math.round(price.closePrice)));
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setPriceError('최근 종가를 불러오지 못했습니다. 가격을 직접 입력해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPriceLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [holding, selectedStock]);
+
   const quantityNumber = Number(quantity);
   const averagePriceNumber = Number(averagePrice);
   const canSave =
@@ -69,6 +96,18 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
       quantity: quantityNumber,
       averagePurchasePrice: averagePriceNumber,
     });
+  }
+
+  function adjustAveragePrice(amount: number) {
+    const currentPrice = Number(averagePrice);
+    const nextPrice = Math.max(1, (Number.isFinite(currentPrice) ? currentPrice : 0) + amount);
+    setAveragePrice(String(nextPrice));
+  }
+
+  function resetSelectedStock() {
+    setSelectedStock(null);
+    setAveragePrice('');
+    setPriceError('');
   }
 
   return (
@@ -115,7 +154,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                   {selectedStock.assetCode} · {selectedStock.market}
                 </small>
               </div>
-              <button type="button" onClick={() => setSelectedStock(null)}>
+              <button type="button" onClick={resetSelectedStock}>
                 다시 검색
               </button>
             </div>
@@ -179,18 +218,47 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                 onChange={(event) => setQuantity(event.target.value)}
               />
             </label>
-            <label className="portfolio-field">
-              평균 매수가
-              <input
-                type="number"
-                min="1"
-                step="1"
-                inputMode="numeric"
-                placeholder="원"
-                value={averagePrice}
-                onChange={(event) => setAveragePrice(event.target.value)}
-              />
-            </label>
+            <div className="portfolio-field">
+              <label id="average-price-label" htmlFor="average-price-input">
+                평균 매수가
+              </label>
+              <div className="portfolio-price-control" role="group" aria-label="평균 매수가 조절">
+                <button
+                  type="button"
+                  aria-label="평균 매수가 1,000원 내리기"
+                  onClick={() => adjustAveragePrice(-1000)}
+                >
+                  −
+                </button>
+                <input
+                  id="average-price-input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputMode="numeric"
+                  placeholder="원"
+                  value={averagePrice}
+                  onChange={(event) => setAveragePrice(event.target.value)}
+                />
+                <button
+                  type="button"
+                  aria-label="평균 매수가 1,000원 올리기"
+                  onClick={() => adjustAveragePrice(1000)}
+                >
+                  ＋
+                </button>
+              </div>
+              {priceLoading ? (
+                <small className="portfolio-price-message" role="status">
+                  최근 종가를 불러오는 중입니다.
+                </small>
+              ) : null}
+              {priceError ? (
+                <small className="portfolio-price-message error" role="alert">
+                  {priceError}
+                </small>
+              ) : null}
+            </div>
           </div>
 
           <div className="portfolio-dialog-actions">
