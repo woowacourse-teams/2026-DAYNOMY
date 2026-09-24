@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { getNews, getTodayNews } from './api';
 import { ArticleCard } from './components/ArticleCard';
 import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
 import { TodayNewsBanner } from './components/TodayNewsBanner';
 import { NEWS_LIST_CATEGORIES } from './constants';
+import { addTodayNewsDemoData } from './todayNewsDemoData';
 import type { NewsCategory, NewsListItem, NewsPage } from './types';
 import './newsList.css';
 import { trackEvent } from '../../../analytics';
@@ -14,11 +14,11 @@ let todayNewsCache: NewsListItem[] = [];
 const newsPageCache = new Map<string, NewsPage>();
 
 export function NewsListPage() {
-  const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('ALL');
   const [articles, setArticles] = useState<NewsListItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
   const [todayNews, setTodayNews] = useState<NewsListItem[]>(() => todayNewsCache);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +55,7 @@ export function NewsListPage() {
       if (cachedPage) {
         setArticles(cachedPage.content);
         setTotalPages(cachedPage.totalPages);
+        setTotalElements(cachedPage.totalElements);
       }
 
       setLoading(!cachedPage);
@@ -67,13 +68,15 @@ export function NewsListPage() {
           newsPageCache.set(cacheKey, newsPage);
           setArticles(newsPage.content);
           setTotalPages(newsPage.totalPages);
+          setTotalElements(newsPage.totalElements);
         }
       } catch (caughtError) {
         if (!ignore) {
           setArticles([]);
           setTotalPages(1);
+          setTotalElements(0);
           setError(
-            caughtError instanceof Error ? caughtError.message : '뉴스 목록을 불러오지 못했습니다.',
+            caughtError instanceof Error ? caughtError.message : '이슈 목록을 불러오지 못했습니다.',
           );
         }
       } finally {
@@ -98,7 +101,7 @@ export function NewsListPage() {
     async function loadTodayNews() {
       try {
         const todayNewsPage = await getTodayNews();
-        const content = todayNewsPage.content;
+        const content = addTodayNewsDemoData(todayNewsPage.content);
 
         if (!ignore) {
           todayNewsCache = content;
@@ -108,7 +111,7 @@ export function NewsListPage() {
         if (!ignore) {
           todayNewsCache = [];
           setTodayNews([]);
-          setTodayNewsError('오늘의 뉴스를 불러오지 못했습니다.');
+          setTodayNewsError('오늘의 이슈를 불러오지 못했습니다.');
         }
       } finally {
         if (!ignore) {
@@ -135,53 +138,41 @@ export function NewsListPage() {
     window.scrollTo({ top: 0 });
   }
 
-  function handleArticleSelect(article: NewsListItem) {
-    if (!article.id) {
-      return;
-    }
-
-    navigate(`/news/${article.id}`);
-  }
-
   return (
     <main className="news-home">
       <div className="news-title-row">
-        <h1>오늘의 뉴스</h1>
+        <h1>오늘의 이슈</h1>
       </div>
 
-      <TodayNewsBanner articles={todayNews} onSelect={handleArticleSelect} />
-
-      {!todayNewsLoading && !todayNewsError && todayNews.length === 0 ? (
-        <section className="today-banner today-news-empty" aria-label="오늘의 뉴스">
-          <strong>오늘의 뉴스는 없습니다!</strong>
-        </section>
-      ) : null}
+      {!todayNewsError ? <TodayNewsBanner articles={todayNews} loading={todayNewsLoading} /> : null}
 
       {!todayNews.length && todayNewsError ? (
         <section className="state-panel" role="alert">
-          <strong>오늘의 뉴스를 불러오지 못했습니다.</strong>
+          <strong>오늘의 이슈를 불러오지 못했습니다.</strong>
           <p>잠시 후 다시 확인해 주세요.</p>
         </section>
       ) : null}
+
+      <section className="section-header" aria-live="polite">
+        <div className="section-title">
+          <p>{selectedCategoryLabel === '전체' ? '최신' : selectedCategoryLabel} 이슈</p>
+        </div>
+        <div className="section-meta">
+          <span>최신순</span>
+          <span aria-hidden="true">·</span>
+          <span>{loading ? '불러오는 중' : `총 ${totalElements}건`}</span>
+        </div>
+      </section>
 
       <CategoryTabs
         categories={NEWS_LIST_CATEGORIES}
         selectedCategory={selectedCategory}
         onChange={handleCategoryChange}
+        ariaLabel="이슈 카테고리"
       />
 
-      <section className="section-header" aria-live="polite">
-        <div>
-          <p>{selectedCategoryLabel === '전체' ? '최신' : selectedCategoryLabel} 뉴스</p>
-          <strong>{loading ? '불러오는 중' : `${articles.length}건`}</strong>
-        </div>
-        <button type="button" className="sort-button">
-          최신순
-        </button>
-      </section>
-
       <span className="sr-only" role="status">
-        {error ? `뉴스 목록 API 응답을 받지 못했습니다. ${error}` : ''}
+        {error ? `이슈 목록 API 응답을 받지 못했습니다. ${error}` : ''}
         {todayNewsError ? ` ${todayNewsError}` : ''}
       </span>
 
@@ -189,20 +180,20 @@ export function NewsListPage() {
 
       {!loading && !error && articles.length === 0 ? (
         <section className="state-panel">
-          <strong>표시할 뉴스가 없습니다.</strong>
+          <strong>표시할 이슈가 없습니다.</strong>
           <p>다른 카테고리를 선택하거나 잠시 후 다시 확인해 주세요.</p>
         </section>
       ) : null}
 
       {!loading && error ? (
         <section className="state-panel" role="alert">
-          <strong>뉴스 목록을 불러오지 못했습니다.</strong>
+          <strong>이슈 목록을 불러오지 못했습니다.</strong>
           <p>잠시 후 다시 확인해 주세요.</p>
         </section>
       ) : null}
 
       {articles.length > 0 ? (
-        <section className="article-list" aria-label="뉴스 목록">
+        <section className="article-list" aria-label="이슈 목록">
           {articles.map((article) => (
             <ArticleCard article={article} key={article.id} />
           ))}
@@ -210,13 +201,13 @@ export function NewsListPage() {
       ) : null}
 
       {articles.length > 0 && totalPages > 1 ? (
-        <footer className="pagination" aria-label="뉴스 페이지네이션">
+        <footer className="pagination" aria-label="이슈 페이지네이션">
           <button
             type="button"
             className="pagination-arrow"
-            aria-label="이전 페이지"
-            onClick={() => handlePageChange(Math.max(page - 1, 1))}
-            disabled={loading || page === 1}
+            aria-label="표시된 페이지 범위의 첫 페이지"
+            onClick={() => handlePageChange(paginationPages[0] ?? 1)}
+            disabled={loading || page === paginationPages[0]}
           >
             &lt;
           </button>
@@ -235,9 +226,11 @@ export function NewsListPage() {
           <button
             type="button"
             className="pagination-arrow"
-            aria-label="다음 페이지"
-            onClick={() => handlePageChange(Math.min(page + 1, totalPages))}
-            disabled={loading || page === totalPages}
+            aria-label="표시된 페이지 범위의 마지막 페이지"
+            onClick={() =>
+              handlePageChange(paginationPages[paginationPages.length - 1] ?? totalPages)
+            }
+            disabled={loading || page === paginationPages[paginationPages.length - 1]}
           >
             &gt;
           </button>
