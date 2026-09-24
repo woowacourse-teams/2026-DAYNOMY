@@ -1,5 +1,6 @@
 .daynomy-footer {
   display: flex;
+  flex-wrap: wrap;
   width: calc(100% - 32px);
   min-height: 238px;
   margin: 16px auto 0;
@@ -34,6 +35,7 @@
 
 .footer-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 32px;
