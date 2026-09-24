@@ -1,4 +1,5 @@
 .daynomy-header {
+  --header-side-padding: clamp(56px, 8vw, 160px);
   position: relative;
   box-sizing: border-box;
   width: min(100%, 1440px);
@@ -6,7 +7,7 @@
   min-height: 64px;
   max-height: 64px;
   margin: 0 auto;
-  padding: 0 64px;
+  padding: 0 var(--header-side-padding);
   overflow: hidden;
   border-bottom: 0;
   background: #ffffff;
@@ -15,7 +16,7 @@
 
 .daynomy-header .brand {
   position: absolute;
-  left: 64px;
+  left: var(--header-side-padding);
   top: 19.5px;
   display: inline-flex;
   align-items: center;
@@ -83,7 +84,7 @@
 .daynomy-header .header-actions {
   position: absolute;
   top: 15px;
-  right: 57px;
+  right: var(--header-side-padding);
   display: flex;
   align-items: center;
   gap: 14px;
@@ -212,15 +213,15 @@
 
 @media (max-width: 900px) {
   .daynomy-header {
-    padding: 0 24px;
+    --header-side-padding: 32px;
   }
 
   .daynomy-header .brand {
-    left: 24px;
+    left: var(--header-side-padding);
   }
 
   .daynomy-header .header-actions {
-    right: 24px;
+    right: var(--header-side-padding);
   }
 
   .daynomy-header .search-link {
@@ -230,11 +231,11 @@
 
 @media (max-width: 720px) {
   .daynomy-header {
-    padding: 0 16px;
+    --header-side-padding: 18px;
   }
 
   .daynomy-header .brand {
-    left: 16px;
+    left: var(--header-side-padding);
     font-size: 19px;
   }
 
@@ -243,7 +244,7 @@
   }
 
   .daynomy-header .header-actions {
-    right: 16px;
+    right: var(--header-side-padding);
     gap: 10px;
   }
 
