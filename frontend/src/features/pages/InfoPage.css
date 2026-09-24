@@ -1,85 +1,227 @@
 .info-page {
-  min-height: calc(100svh - 96px);
-  padding: 48px 24px 72px;
-  color: #111827;
-  background: #ffffff;
+  min-height: calc(100svh - 64px);
+  padding: 56px 24px 96px;
+  color: #171821;
+  background: #f4f6f8;
 }
 
 .info-page-content {
-  width: min(100%, 920px);
+  width: min(100%, 1180px);
   margin: 0 auto;
 }
 
 .info-card {
-  padding: 48px;
-  border: 1px solid #e4e7ef;
-  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid #e1e5eb;
+  border-radius: 24px;
   background: #ffffff;
 }
 
-.info-eyebrow {
-  color: #7338f2;
-  font-size: 14px;
-  font-weight: 900;
-  line-height: 20px;
+.info-hero {
+  display: flex;
+  min-height: 280px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 48px;
+  padding: 56px clamp(32px, 6vw, 88px) 52px;
+  color: #ffffff;
+  background: #162238;
 }
 
-.info-card h1 {
-  margin-top: 12px;
-  color: #111827;
-  font-size: 36px;
-  font-weight: 900;
-  line-height: 50px;
+.info-hero-copy {
+  max-width: 720px;
+}
+
+.info-hero h1 {
+  color: #ffffff;
+  font-size: clamp(40px, 5vw, 68px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
 }
 
 .info-lead {
-  margin-top: 12px;
-  color: #6b7280;
+  max-width: 620px;
+  margin-top: 20px;
+  color: #bcc8d9;
   font-size: 17px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.info-hero-mark {
+  display: grid;
+  width: 164px;
+  height: 164px;
+  flex: 0 0 auto;
+  align-content: space-between;
+  padding: 18px;
+  border: 1px solid #53637b;
+  color: #d6e0ef;
+  transform: rotate(4deg);
+}
+
+.info-hero-mark span {
+  font-size: 11px;
   font-weight: 700;
-  line-height: 26px;
+  letter-spacing: 0.14em;
+}
+
+.info-hero-mark strong {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.info-page-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: clamp(40px, 7vw, 96px);
+  padding: 64px clamp(32px, 6vw, 88px) 76px;
+}
+
+.info-index {
+  display: flex;
+  align-self: start;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 24px;
+}
+
+.info-index-label {
+  margin-bottom: 8px;
+  color: #9aa5b5;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.info-index a {
+  width: fit-content;
+  color: #697588;
+  font-size: 13px;
+  line-height: 20px;
+  text-decoration: none;
+}
+
+.info-index a:hover {
+  color: #394fc4;
+}
+
+.info-index a:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid #394fc4;
+  outline-offset: 4px;
 }
 
 .info-sections {
   display: grid;
-  gap: 32px;
-  margin-top: 48px;
+  gap: 0;
 }
 
 .info-sections section {
   display: grid;
-  gap: 10px;
+  grid-template-columns: minmax(160px, 0.35fr) minmax(0, 1fr);
+  gap: 36px;
+  padding: 0 0 42px;
+}
+
+.info-sections section + section {
+  padding-top: 42px;
+  border-top: 1px solid #e7eaf0;
 }
 
 .info-sections h2 {
-  color: #111827;
-  font-size: 20px;
-  font-weight: 900;
-  line-height: 28px;
+  color: #171821;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 26px;
+  letter-spacing: -0.02em;
+}
+
+.info-section-copy {
+  display: grid;
+  gap: 14px;
+  max-width: 70ch;
 }
 
 .info-sections p {
-  color: #4b5563;
+  color: #596579;
   font-size: 15px;
   line-height: 28px;
 }
 
 @media (max-width: 600px) {
   .info-page {
-    padding: 32px 20px 56px;
+    padding: 20px 12px 56px;
   }
 
   .info-card {
-    padding: 32px 24px;
+    border-radius: 18px;
   }
 
-  .info-card h1 {
-    font-size: 30px;
-    line-height: 42px;
+  .info-hero {
+    min-height: 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 32px;
+    padding: 36px 24px 32px;
   }
 
   .info-lead {
     font-size: 15px;
-    line-height: 24px;
+    line-height: 25px;
+  }
+
+  .info-hero-mark {
+    width: 132px;
+    height: 132px;
+    align-self: flex-end;
+  }
+
+  .info-hero-mark strong {
+    font-size: 20px;
+  }
+
+  .info-page-layout {
+    display: block;
+    padding: 36px 24px 48px;
+  }
+
+  .info-index {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 20px;
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #e7eaf0;
+  }
+
+  .info-index-label {
+    grid-column: 1 / -1;
+    margin-bottom: 2px;
+  }
+
+  .info-sections section {
+    display: block;
+    padding-bottom: 32px;
+  }
+
+  .info-sections section + section {
+    padding-top: 32px;
+  }
+
+  .info-sections h2 {
+    margin-bottom: 14px;
+  }
+
+  .info-sections p {
+    font-size: 14px;
+    line-height: 25px;
   }
 }
