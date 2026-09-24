@@ -16,7 +16,7 @@
 
 .news-title-row h1 {
   color: #171821;
-  font-size: clamp(28px, 2vw, 36px);
+  font-size: clamp(24px, 1.6vw, 30px);
   line-height: 1.1;
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -340,7 +340,7 @@
 
 .section-title p {
   color: #14171f;
-  font-size: clamp(28px, 2vw, 36px);
+  font-size: clamp(24px, 1.6vw, 30px);
   line-height: 1.2;
   font-weight: 700;
 }
