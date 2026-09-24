@@ -21,7 +21,7 @@
 
 .info-header h1 {
   color: #171821;
-  font-size: clamp(36px, 5vw, 52px);
+  font-size: clamp(30px, 4vw, 40px);
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: -0.04em;
