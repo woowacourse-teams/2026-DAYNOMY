@@ -55,7 +55,6 @@ jobs:
 
       - name: Build and upload Sentry source maps
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           SENTRY_ENVIRONMENT: ${{ vars.SENTRY_ENVIRONMENT }}
           GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
@@ -64,11 +63,11 @@ jobs:
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
           SENTRY_RELEASE: ${{ github.sha }}
         run: |
-          : "${SENTRY_DSN:?SENTRY_DSN is required}"
           : "${SENTRY_ENVIRONMENT:?SENTRY_ENVIRONMENT is required}"
           : "${SENTRY_RELEASE:?SENTRY_RELEASE is required}"
 
           if [ "$DEPLOY_ENV" = "production" ]; then
+            : "${SENTRY_DSN:?SENTRY_DSN is required}"
             : "${GA_MEASUREMENT_ID:?GA_MEASUREMENT_ID is required}"
             : "${SENTRY_AUTH_TOKEN:?SENTRY_AUTH_TOKEN is required}"
             : "${SENTRY_ORG:?SENTRY_ORG is required}"
@@ -76,6 +75,9 @@ jobs:
           fi
 
           npm run "build:${DEPLOY_ENV}"
+          marker="${DEPLOY_ENV}:${GITHUB_SHA}"
+          sed -i "s|</head>|<meta name=\"daynomy-deployment\" content=\"$marker\" /></head>|" dist/index.html
+          grep -Fq "name=\"daynomy-deployment\" content=\"$marker\"" dist/index.html
 
       - name: Verify source maps were removed
         run: |
@@ -147,7 +149,11 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
     needs: build-and-publish
-    runs-on: [self-hosted, linux, ARM64, frontend-prod]
+    runs-on:
+      - self-hosted
+      - linux
+      - ARM64
+      - ${{ github.ref == 'refs/heads/main' && 'frontend-prod' || 'frontend-dev' }}
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
       url: ${{ github.ref == 'refs/heads/main' && 'https://daynomy.com' || 'https://dev.daynomy.com' }}
@@ -158,7 +164,6 @@ jobs:
     env:
       DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
       DEPLOY_URL: ${{ github.ref == 'refs/heads/main' && 'https://daynomy.com' || 'https://dev.daynomy.com' }}
-      FRONTEND_PORT: ${{ github.ref == 'refs/heads/main' && '3000' || '3001' }}
 
     steps:
       - name: Checkout
@@ -171,25 +176,62 @@ jobs:
           set -Eeuo pipefail
 
           export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-frontend:$GITHUB_SHA"
-          compose=(docker compose \
-            --project-name "daynomy-frontend-${DEPLOY_ENV}" \
-            --file "$GITHUB_WORKSPACE/frontend/compose.yml")
+          compose_file="$GITHUB_WORKSPACE/frontend/compose.yml"
+          if [ "$DEPLOY_ENV" = "production" ]; then
+            compose_file="/opt/daynomy/frontend/compose.yml"
+          fi
+          compose=(docker compose --file "$compose_file")
 
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
 
           "${compose[@]}" pull
 
-          if [ "$DEPLOY_ENV" = "production" ]; then
-            docker rm --force frontend >/dev/null 2>&1 || true
-          fi
-
           "${compose[@]}" up --detach --wait --remove-orphans
 
       - name: Verify deployment
         run: |
+          set -euo pipefail
+
           curl --fail --silent --show-error \
             --retry 10 --retry-all-errors --retry-delay 2 \
             --max-time 15 \
             "$DEPLOY_URL/" \
-            | grep -q '<div id="root"></div>'
+            --output "$RUNNER_TEMP/daynomy-frontend.html"
+
+          grep -Fq '<div id="root"></div>' "$RUNNER_TEMP/daynomy-frontend.html"
+          grep -Fq "name=\"daynomy-deployment\" content=\"$DEPLOY_ENV:$GITHUB_SHA\"" \
+            "$RUNNER_TEMP/daynomy-frontend.html"
+
+      - name: Verify API and OAuth routing
+        run: |
+          set -euo pipefail
+
+          # TODO: 개발용 자동 로그인 수단과 복구 가능한 테스트 데이터가 제공되면 인증·쓰기 API를 검증.
+
+          for path in /api/news /api/auth/csrf; do
+            content_type="$(curl --fail --silent --show-error \
+              --retry 10 --retry-all-errors --retry-delay 2 \
+              --max-time 15 --output /dev/null --write-out '%{content_type}' \
+              "$DEPLOY_URL$path")"
+            if [[ "$content_type" != application/json* ]]; then
+              echo "Expected JSON from $path, got $content_type"
+              exit 1
+            fi
+          done
+
+          login_redirect="$(curl --silent --show-error --max-time 15 \
+            --output /dev/null --write-out '%{redirect_url}' \
+            "$DEPLOY_URL/api/auth/google")"
+          if [ "$login_redirect" != "$DEPLOY_URL/oauth2/authorization/google" ]; then
+            echo "Expected Google login redirect, got $login_redirect"
+            exit 1
+          fi
+
+          oauth_status="$(curl --silent --show-error --max-time 15 \
+            --output /dev/null --write-out '%{http_code}' \
+            "$DEPLOY_URL/oauth2/authorization/google")"
+          if [ "$oauth_status" != 302 ]; then
+            echo "Expected OAuth redirect, got HTTP $oauth_status"
+            exit 1
+          fi
