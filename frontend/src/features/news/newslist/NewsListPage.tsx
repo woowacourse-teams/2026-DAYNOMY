@@ -5,7 +5,6 @@ import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
 import { TodayNewsBanner } from './components/TodayNewsBanner';
 import { NEWS_LIST_CATEGORIES } from './constants';
-import { addTodayNewsDemoData } from './todayNewsDemoData';
 import type { NewsCategory, NewsListItem, NewsPage } from './types';
 import './newsList.css';
 import { trackEvent } from '../../../analytics';
@@ -101,7 +100,7 @@ export function NewsListPage() {
     async function loadTodayNews() {
       try {
         const todayNewsPage = await getTodayNews();
-        const content = addTodayNewsDemoData(todayNewsPage.content);
+        const content = todayNewsPage.content;
 
         if (!ignore) {
           todayNewsCache = content;
