@@ -138,41 +138,21 @@ export function InfoPage({ page }: { page: InfoPageType }) {
     <main className="info-page">
       <div className="info-page-content">
         <article className="info-card" aria-labelledby="info-page-title">
-          <header className="info-hero">
-            <div className="info-hero-copy">
-              <h1 id="info-page-title">{content.title}</h1>
-              <p className="info-lead">{content.lead}</p>
-            </div>
-            <div className="info-hero-mark" aria-hidden="true">
-              <span>DAYNOMY</span>
-              <strong>
-                READ
-                <br />
-                CLEARLY
-              </strong>
-            </div>
+          <header className="info-header">
+            <h1 id="info-page-title">{content.title}</h1>
+            <p className="info-lead">{content.lead}</p>
           </header>
-          <div className="info-page-layout">
-            <nav className="info-index" aria-label="페이지 목차">
-              <span className="info-index-label">이 페이지에서</span>
-              {content.sections.map((section, index) => (
-                <a href={`#info-section-${index + 1}`} key={section.title}>
-                  {section.title}
-                </a>
-              ))}
-            </nav>
-            <div className="info-sections">
-              {content.sections.map((section, index) => (
-                <section id={`info-section-${index + 1}`} key={section.title}>
-                  <h2>{section.title}</h2>
-                  <div className="info-section-copy">
-                    {section.paragraphs.map((paragraph) => (
-                      <p key={paragraph}>{paragraph}</p>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+          <div className="info-sections">
+            {content.sections.map((section) => (
+              <section key={section.title}>
+                <h2>{section.title}</h2>
+                <div className="info-section-copy">
+                  {section.paragraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         </article>
       </div>
