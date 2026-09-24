@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import daynomyLogo from '../assets/daynomy-logo.png';
 import { SearchOverlay } from '../features/search/components/SearchOverlay';
 import './Header.css';
 
@@ -47,7 +46,7 @@ export function Header() {
   return (
     <header className="daynomy-header">
       <Link className="brand" to="/" aria-label="DAYNOMY 홈">
-        <img className="brand-logo" src={daynomyLogo} alt="" />
+        DAYNOMY
       </Link>
       <nav className="header-tabs" aria-label="주요 메뉴">
         <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/">
@@ -71,9 +70,6 @@ export function Header() {
           <kbd className="search-key">/</kbd>
           <span className="search-placeholder">를 눌러 검색하세요</span>
         </button>
-        <Link className="mypage-link" to="/mypage">
-          마이페이지
-        </Link>
       </div>
       <SearchOverlay open={searchOpen} onClose={closeSearch} />
     </header>
