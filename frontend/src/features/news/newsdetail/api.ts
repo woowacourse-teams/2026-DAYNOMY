@@ -1,4 +1,3 @@
-import { getApiUrl } from '../../../api/client';
 import type {
   KeywordsResponse,
   MarketAnalysisResponse,
@@ -17,7 +16,7 @@ class ApiError extends Error {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(getApiUrl(path));
+  const response = await fetch(path);
 
   if (!response.ok) {
     throw new ApiError(response.status, response.statusText);

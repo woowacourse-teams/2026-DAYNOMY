@@ -64,7 +64,6 @@ jobs:
           SENTRY_RELEASE: ${{ github.sha }}
         run: |
           : "${SENTRY_ENVIRONMENT:?SENTRY_ENVIRONMENT is required}"
-          : "${SENTRY_RELEASE:?SENTRY_RELEASE is required}"
 
           if [ "$DEPLOY_ENV" = "production" ]; then
             : "${SENTRY_DSN:?SENTRY_DSN is required}"
