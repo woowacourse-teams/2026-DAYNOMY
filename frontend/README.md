@@ -126,42 +126,47 @@ npm run build
 
 | 브랜치 | GitHub Environment | URL                       | 호스트 포트 |
 | ------ | ------------------ | ------------------------- | ----------- |
-| `dev`  | `development`      | `https://dev.daynomy.com` | `3001`      |
+| `dev`  | `development`      | `https://dev.daynomy.com` | `3000`      |
 | `main` | `production`       | `https://daynomy.com`     | `3000`      |
 
 `.github/workflows/deploy-frontend.yml`은 브랜치에 맞는 Vite mode로 빌드하고,
-같은 EC2 안에서 서로 다른 Docker Compose 프로젝트로 배포합니다. 환경별 배포는
-동시에 하나만 실행되며 두 컨테이너는 서로 다른 포트를 사용합니다.
+`dev`는 개발 EC2의 `frontend-dev` 라벨 Runner로, `main`은 운영 EC2의
+`frontend-prod` 라벨 Runner로 배포합니다. 각 EC2에서는 프론트엔드 컨테이너를
+`127.0.0.1:3000`에 노출합니다. 개발·운영은 앱 EC2와 DB를 각각 따로 사용합니다.
+운영 배포는 기존 `/opt/daynomy/frontend/compose.yml`을, 개발 배포는
+저장소의 `frontend/compose.yml`을 사용합니다.
 
 GitHub의 `development`, `production` Environment에는 다음 값을 각각 설정합니다.
 
-| 종류     | 이름                 | 용도                                           |
-| -------- | -------------------- | ---------------------------------------------- |
-| Variable | `VITE_API_BASE_URL`  | 환경별 API 주소. 같은 origin이면 빈 값         |
-| Variable | `GA_MEASUREMENT_ID`  | GA4 웹 데이터 스트림 ID. 개발 환경은 생략 가능 |
-| Variable | `SENTRY_DSN`         | Sentry 프로젝트 DSN                            |
-| Variable | `SENTRY_ENVIRONMENT` | development는 `staging`, 운영은 `production`   |
-| Variable | `SENTRY_ORG`         | Sentry 조직 slug                               |
-| Variable | `SENTRY_PROJECT`     | Sentry 프로젝트 slug                           |
-| Secret   | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드 토큰                             |
+| 종류     | 이름                 | 용도                                         |
+| -------- | -------------------- | -------------------------------------------- |
+| Variable | `GA_MEASUREMENT_ID`  | 환경별 별도 GA4 웹 데이터 스트림 ID          |
+| Variable | `SENTRY_DSN`         | 환경별 별도 Sentry 프로젝트 DSN              |
+| Variable | `SENTRY_ENVIRONMENT` | development는 `staging`, 운영은 `production` |
+| Variable | `SENTRY_ORG`         | Sentry 조직 slug                             |
+| Variable | `SENTRY_PROJECT`     | Sentry 프로젝트 slug                         |
+| Secret   | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드 토큰                           |
 
-개발 환경은 별도의 GA4 스트림이 준비될 때까지 `GA_MEASUREMENT_ID`를 설정하지 않아
-테스트 트래픽을 수집하지 않습니다. 개발 환경의 Sentry 이벤트는 `staging`으로
-분리하며, 소스맵 업로드는 토큰이 설정된 운영 빌드에서 수행합니다.
+개발 환경은 별도의 GA4 스트림과 Sentry 프로젝트가 준비될 때까지
+`GA_MEASUREMENT_ID`와 `SENTRY_DSN`을 비워 테스트 데이터를 수집하지 않습니다.
+이슈를 완료하려면 운영과 다른 두 값을 `development`에 등록해야 합니다. 개발
+Sentry 이벤트는 `staging`으로 구분하며, 소스맵 업로드는 토큰이 설정된 운영 빌드에서
+수행합니다.
 
-호스트 Nginx는 `daynomy.com`을 `127.0.0.1:3000`으로,
-`dev.daynomy.com`을 `127.0.0.1:3001`로 전달합니다. `dev.daynomy.com` DNS와 HTTPS
-인증서를 먼저 설정하고, 환경별 API 주소는 `VITE_API_BASE_URL` 또는 호스트 Nginx의
-`/api` 프록시로 분리합니다.
+각 EC2의 호스트 Nginx는 화면 요청을 프론트엔드 컨테이너로, `/api`와 OAuth 요청을
+같은 EC2의 백엔드로 전달합니다.
 
-배포 확인은 각 URL의 HTML에 React root가 있는지 검사합니다. 실패 원인은 Actions
-로그와 다음 명령으로 확인합니다.
+배포 확인은 각 URL의 HTML에 해당 환경과 Git commit SHA가 표시되는지,
+`/api/news`와 `/api/auth/csrf`의 JSON 응답, Google 로그인 시작 및 OAuth
+리디렉션을 검사합니다. 이는 프록시 연결 확인입니다. 백엔드 CI는
+별도로 API 테스트를 실행하지만 배포된 서버의 전체 API 기능 검증은 아직 연결되지
+않았습니다. 공용 관리자 계정은 자동 테스트에 사용하지 않습니다. 개발 전용 자동
+인증과 테스트 데이터 정리 절차가 준비되면 로그인·쓰기 검증을 개발 배포에 연결합니다.
+실패 원인은 Actions 로그와 다음 명령으로 확인합니다.
 
 ```bash
-docker ps --filter label=com.docker.compose.project=daynomy-frontend-development
-docker ps --filter label=com.docker.compose.project=daynomy-frontend-production
-docker logs daynomy-frontend-development-frontend-1
-docker logs daynomy-frontend-production-frontend-1
+docker ps --filter name=frontend
+docker logs frontend
 ```
 
 ---
