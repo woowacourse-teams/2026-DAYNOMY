@@ -92,7 +92,7 @@ const INFO_PAGE_CONTENT: Record<InfoPageType, InfoPageContent> = {
         title: '이용 목적',
         paragraphs: [
           '수집한 정보는 Google 로그인 처리, 회원 식별, 닉네임 관리, 인증 토큰 발급·갱신·무효화, 보안 및 문의 응대에 사용됩니다.',
-          '배포 환경에서 Google Analytics 또는 Sentry가 설정된 경우 서비스 이용 현황과 오류를 확인하는 데 사용될 수 있습니다. Sentry 전송 데이터에서는 사용자 정보와 인증 관련 값이 제거됩니다.',
+          '배포 환경에서 Google Analytics 또는 Sentry가 설정된 경우 서비스 이용 현황과 오류를 확인하는 데 사용될 수 있습니다. Sentry 전송 데이터에서는 기본 사용자 정보와 요청의 쿠키·본문·헤더·쿼리 문자열 필드가 제거되고, 요청 및 breadcrumb URL의 쿼리와 fragment가 제거됩니다.',
         ],
       },
       {
