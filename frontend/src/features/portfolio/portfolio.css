@@ -606,6 +606,52 @@
   font-size: 13px;
 }
 
+.portfolio-price-control {
+  display: grid;
+  grid-template-columns: 43px minmax(0, 1fr) 43px;
+}
+
+.portfolio-price-control input {
+  position: relative;
+  z-index: 1;
+  border-radius: 0;
+  text-align: right;
+}
+
+.portfolio-price-control button {
+  min-width: 43px;
+  min-height: 43px;
+  border: 1px solid #dce0e3;
+  color: #4f5963;
+  background: #f8f9fa;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.portfolio-price-control button:first-child {
+  border-right: 0;
+  border-radius: 5px 0 0 5px;
+}
+
+.portfolio-price-control button:last-child {
+  border-left: 0;
+  border-radius: 0 5px 5px 0;
+}
+
+.portfolio-price-control button:hover {
+  background: #eef2f6;
+}
+
+.portfolio-price-message {
+  color: var(--portfolio-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.portfolio-price-message.error {
+  color: #a35d5c;
+}
+
 .portfolio-selected-stock {
   min-height: 58px;
   padding: 11px 12px;
