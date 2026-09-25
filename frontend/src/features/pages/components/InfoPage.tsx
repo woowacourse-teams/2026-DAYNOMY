@@ -85,20 +85,22 @@ const INFO_PAGE_CONTENT: Record<InfoPageType, InfoPageContent> = {
         paragraphs: [
           '일반 이용자는 로그인 없이 공개 화면을 이용할 수 있으며, 공개 화면 이용만을 위해 회원가입을 요구하지 않습니다.',
           '서비스 운영을 위한 관리자 인증 과정에서는 Google OAuth를 통해 관리자 계정의 식별자, 이메일 주소, 이름, 프로필 이미지 주소를 처리할 수 있습니다.',
-          '인증을 위해 브라우저 쿠키가 사용될 수 있습니다. 포트폴리오 보유 정보와 최근 검색어는 현재 브라우저의 localStorage에 저장되며 서버 회원 정보와 별도로 관리됩니다.',
+          '인증을 위해 브라우저 쿠키가 사용될 수 있습니다. Google Analytics 4가 설정된 환경에서는 방문·이벤트 분석에 브라우저 쿠키가 사용될 수 있습니다. 포트폴리오 보유 정보와 최근 검색어는 현재 브라우저의 localStorage에 저장되며 서버 회원 정보와 별도로 관리됩니다.',
         ],
       },
       {
         title: '이용 목적',
         paragraphs: [
           '수집한 정보는 Google 로그인 처리, 회원 식별, 닉네임 관리, 인증 토큰 발급·갱신·무효화, 보안 및 문의 응대에 사용됩니다.',
-          '배포 환경에서 Google Analytics 또는 Sentry가 설정된 경우 서비스 이용 현황과 오류를 확인하는 데 사용될 수 있습니다. Sentry 전송 데이터에서는 기본 사용자 정보와 요청의 쿠키·본문·헤더·쿼리 문자열 필드가 제거되고, 요청 및 breadcrumb URL의 쿼리와 fragment가 제거됩니다.',
+          'Google Analytics 4로 공개 화면의 방문 경로, 뉴스 카테고리·기사 번호, 검색어 길이를 분석합니다. 검색어 원문과 관리자 로그인 이벤트는 전송하지 않으며, Google Ads와 연동하지 않습니다.',
+          'Sentry가 설정된 환경에서는 서비스 오류를 확인할 수 있습니다. Sentry 전송 데이터에서는 기본 사용자 정보와 요청의 쿠키·본문·헤더·쿼리 문자열 필드가 제거되고, 요청 및 breadcrumb URL의 쿼리와 fragment가 제거됩니다.',
         ],
       },
       {
         title: '보관과 삭제',
         paragraphs: [
           '관리자 계정의 이용이 종료되면 인증 토큰을 삭제하고 계정을 탈퇴 상태로 전환합니다. 브라우저에 저장된 포트폴리오와 최근 검색어는 이용자가 브라우저 저장소를 직접 삭제해야 합니다.',
+          'Google Analytics 4의 사용자 및 이벤트 단위 데이터 보관 기간은 2개월로 설정되어 있습니다. 집계 보고서에는 별도의 보관 기준이 적용될 수 있습니다.',
           '법령상 보관이 필요한 정보가 있거나 분쟁 대응을 위해 필요한 경우에는 해당 목적에 필요한 기간 동안 보관할 수 있습니다.',
         ],
       },
@@ -153,6 +155,20 @@ export function InfoPage({ page }: { page: InfoPageType }) {
                 </div>
               </section>
             ))}
+            {page === 'privacy' ? (
+              <section>
+                <h2>이용 분석 거부</h2>
+                <div className="info-section-copy">
+                  <p>
+                    지원하는 브라우저에서는{' '}
+                    <a href="https://tools.google.com/dlpage/gaoptout?hl=ko">
+                      Google Analytics 차단 브라우저 부가기능
+                    </a>
+                    으로 분석을 거부할 수 있습니다.
+                  </p>
+                </div>
+              </section>
+            ) : null}
           </div>
         </article>
       </div>
