@@ -147,11 +147,10 @@ GitHub의 `development`, `production` Environment에는 다음 값을 각각 설
 | Variable | `SENTRY_PROJECT`     | Sentry 프로젝트 slug                         |
 | Secret   | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드 토큰                           |
 
-개발 환경은 별도의 GA4 스트림과 Sentry 프로젝트가 준비될 때까지
-`GA_MEASUREMENT_ID`와 `SENTRY_DSN`을 비워 테스트 데이터를 수집하지 않습니다.
-이슈를 완료하려면 운영과 다른 두 값을 `development`에 등록해야 합니다. 개발
-Sentry 이벤트는 `staging`으로 구분하며, 소스맵 업로드는 토큰이 설정된 운영 빌드에서
-수행합니다.
+개발·운영은 각각 다른 GA4 Measurement ID와 Sentry 프로젝트 DSN을 사용합니다.
+개발 Sentry 이벤트는 `staging`, 운영 이벤트는 `production`으로 구분합니다.
+각 Environment의 `SENTRY_AUTH_TOKEN` Secret은 빌드 중 소스맵 업로드에 사용하며,
+설정 변경 후에는 프론트를 다시 빌드·배포해야 합니다.
 
 각 EC2의 호스트 Nginx는 화면 요청을 프론트엔드 컨테이너로, `/api`와 OAuth 요청을
 같은 EC2의 백엔드로 전달합니다.
