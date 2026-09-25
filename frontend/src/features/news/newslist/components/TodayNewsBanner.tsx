@@ -1,47 +1,51 @@
-import { useEffect, useRef, useState } from 'react';
-import type { KeyboardEvent, PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import defaultNewsImage from '../../../../assets/default-news-real-estate.webp';
-import { getCategoryLabel } from '../constants';
+import { getNewsImage } from '../newsImage';
 import type { NewsListItem } from '../types';
-import { formatDate } from '../utils';
 
 type TodayNewsBannerProps = {
   articles: NewsListItem[];
-  onSelect: (article: NewsListItem) => void;
+  loading?: boolean;
 };
 
-const SWIPE_THRESHOLD = 48;
 const AUTO_ADVANCE_MS = 3000;
+const ISSUE_DRAG_THRESHOLD = 8;
 
-function formatBannerDate(value?: string | null) {
-  if (!value) {
-    return '';
-  }
+function getMastheadDate(value?: string | null) {
+  const date = value ? new Date(value) : new Date();
+  const validDate = Number.isNaN(date.getTime()) ? new Date() : date;
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}.${month}.${day}`;
+  return {
+    month: new Intl.DateTimeFormat('en-US', { month: 'short' }).format(validDate).toUpperCase(),
+    day: new Intl.DateTimeFormat('en-US', { day: '2-digit' }).format(validDate),
+    weekday: new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(validDate).toUpperCase(),
+  };
 }
 
-export function TodayNewsBanner({ articles, onSelect }: TodayNewsBannerProps) {
+function DateMasthead({ value }: { value?: string | null }) {
+  const mastheadDate = getMastheadDate(value);
+
+  return (
+    <div className="date-masthead" aria-label={`${mastheadDate.month} ${mastheadDate.day}`}>
+      <span>{mastheadDate.month}</span>
+      <strong>{mastheadDate.day}</strong>
+      <span>{mastheadDate.weekday}</span>
+      <small>TODAY&apos;S ISSUE</small>
+    </div>
+  );
+}
+
+export function TodayNewsBanner({ articles, loading = false }: TodayNewsBannerProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const pointerStartX = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (activeIndex >= articles.length) {
-      setActiveIndex(0);
-    }
-  }, [activeIndex, articles.length]);
+  const [isIssueDragging, setIsIssueDragging] = useState(false);
+  const issueViewportRef = useRef<HTMLDivElement>(null);
+  const issueDragRef = useRef<{
+    startY: number;
+    startScrollTop: number;
+    moved: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) {
@@ -54,9 +58,7 @@ export function TodayNewsBanner({ articles, onSelect }: TodayNewsBannerProps) {
     handlePreferenceChange();
     mediaQuery.addEventListener?.('change', handlePreferenceChange);
 
-    return () => {
-      mediaQuery.removeEventListener?.('change', handlePreferenceChange);
-    };
+    return () => mediaQuery.removeEventListener?.('change', handlePreferenceChange);
   }, []);
 
   useEffect(() => {
@@ -71,126 +73,176 @@ export function TodayNewsBanner({ articles, onSelect }: TodayNewsBannerProps) {
     return () => window.clearInterval(timerId);
   }, [articles.length, isPaused, prefersReducedMotion]);
 
-  function moveSlide(direction: 1 | -1) {
-    setActiveIndex((currentIndex) => {
-      if (articles.length === 0) {
-        return 0;
-      }
+  const currentIndex = articles.length > 0 ? Math.min(activeIndex, articles.length - 1) : 0;
+  const activeArticle = articles[currentIndex];
+  const mastheadValue = activeArticle?.publishedAt ?? articles[0]?.publishedAt;
+  const visibleIssueStartIndex = Math.min(
+    Math.max(currentIndex - 1, 0),
+    Math.max(articles.length - 4, 0),
+  );
 
-      return (currentIndex + direction + articles.length) % articles.length;
+  useEffect(() => {
+    const viewport = issueViewportRef.current;
+    const issueRows = viewport
+      ? Array.from(viewport.querySelectorAll<HTMLElement>('[data-issue-row]'))
+      : [];
+
+    if (!viewport || issueRows.length === 0) {
+      return;
+    }
+
+    const targetTop = issueRows
+      .slice(0, visibleIssueStartIndex)
+      .reduce((totalHeight, issueRow) => totalHeight + issueRow.offsetHeight, 0);
+
+    viewport.scrollTo({
+      top: targetTop,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
     });
+  }, [prefersReducedMotion, visibleIssueStartIndex]);
+
+  function handleIssuePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
+
+    const viewport = event.currentTarget;
+
+    issueDragRef.current = {
+      startY: event.clientY,
+      startScrollTop: viewport.scrollTop,
+      moved: false,
+    };
   }
 
-  function handlePointerDown(event: PointerEvent<HTMLElement>) {
-    pointerStartX.current = event.clientX;
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
+  function handleIssuePointerMove(event: PointerEvent<HTMLDivElement>) {
+    const drag = issueDragRef.current;
 
-  function handlePointerUp(event: PointerEvent<HTMLElement>) {
-    const startX = pointerStartX.current;
-    pointerStartX.current = null;
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-
-    if (startX === null) {
+    if (!drag) {
       return;
     }
 
-    const distance = event.clientX - startX;
+    const distance = event.clientY - drag.startY;
 
-    if (Math.abs(distance) >= SWIPE_THRESHOLD) {
-      moveSlide(distance > 0 ? -1 : 1);
-      return;
+    if (Math.abs(distance) > ISSUE_DRAG_THRESHOLD) {
+      drag.moved = true;
+      setIsIssueDragging(true);
     }
 
-    const activeArticle = articles[activeIndex];
-
-    if (activeArticle) {
-      onSelect(activeArticle);
+    if (drag.moved) {
+      event.currentTarget.scrollTop = drag.startScrollTop - distance;
     }
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.key === 'ArrowLeft') {
-      moveSlide(-1);
+  function handleIssuePointerEnd() {
+    const drag = issueDragRef.current;
+
+    if (!drag) {
       return;
     }
 
-    if (event.key === 'ArrowRight') {
-      moveSlide(1);
-      return;
-    }
+    issueDragRef.current = null;
+    setIsIssueDragging(false);
+  }
 
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
+  function handleIssueSelect(index: number) {
+    setActiveIndex(index);
+    setIsPaused(true);
+  }
 
-      const activeArticle = articles[activeIndex];
-
-      if (activeArticle) {
-        onSelect(activeArticle);
-      }
-    }
+  if (loading) {
+    return (
+      <section className="today-banner today-news-loading" aria-label="오늘의 이슈 불러오는 중">
+        <DateMasthead />
+        <div className="today-story-placeholder" aria-hidden="true">
+          <div className="today-story-image skeleton-block" />
+          <div className="today-story-copy">
+            <div className="skeleton-line skeleton-line-meta" />
+            <div className="skeleton-line skeleton-line-title" />
+          </div>
+        </div>
+        <ol className="today-issue-list" aria-hidden="true">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <li key={index}>
+              <div className="skeleton-line skeleton-line-issue" />
+            </li>
+          ))}
+        </ol>
+      </section>
+    );
   }
 
   if (articles.length === 0) {
-    return null;
+    return (
+      <section className="today-banner today-news-empty" aria-label="오늘의 이슈">
+        <DateMasthead />
+        <div className="today-empty-message">
+          <strong>오늘의 이슈는 없습니다!</strong>
+        </div>
+      </section>
+    );
   }
 
   return (
-    <>
-      <section
-        className="today-banner"
-        aria-label="오늘의 뉴스"
-        role="button"
-        tabIndex={0}
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-        onFocus={() => setIsPaused(true)}
-        onBlur={() => setIsPaused(false)}
-        onKeyDown={handleKeyDown}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={() => {
-          pointerStartX.current = null;
-        }}
-      >
-        <div className="banner-track" style={{ transform: `translateX(-${activeIndex * 100}%)` }}>
-          {articles.map((article) => (
-            <article className="banner-slide" key={article.id}>
-              <div className="banner-content">
-                <div className="article-meta">
-                  <span>{getCategoryLabel(article.category)}</span>
-                  <time dateTime={article.publishedAt ?? undefined}>
-                    {formatDate(article.publishedAt)}
-                  </time>
-                </div>
-                <h2>{article.title}</h2>
-                <time className="banner-date" dateTime={article.publishedAt ?? undefined}>
-                  {formatBannerDate(article.publishedAt)}
-                </time>
-              </div>
-              <div className="banner-visual" aria-hidden="true">
-                <img src={article.imageUrl ?? defaultNewsImage} alt="" draggable={false} />
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+    <section
+      className="today-banner"
+      aria-label="오늘의 이슈"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={() => setIsPaused(false)}
+    >
+      <DateMasthead value={mastheadValue} />
 
-      <div className="carousel-dots" aria-label="오늘의 뉴스 배너">
-        {articles.map((article, index) => (
-          <button
-            type="button"
-            key={article.id}
-            className={index === activeIndex ? 'active' : undefined}
-            aria-label={`${index + 1}번째 배너 보기`}
-            aria-current={index === activeIndex ? 'true' : undefined}
-            onClick={() => setActiveIndex(index)}
+      <a className="today-story" href={`/news/${activeArticle.id}`}>
+        <div className="today-story-image banner-visual">
+          <img
+            src={getNewsImage(activeArticle)}
+            alt=""
+            draggable={false}
+            onError={(event) => {
+              if (event.currentTarget.getAttribute('src') !== defaultNewsImage) {
+                event.currentTarget.src = defaultNewsImage;
+              }
+            }}
           />
-        ))}
+        </div>
+        <div className="today-story-copy">
+          <h2>{activeArticle.title}</h2>
+        </div>
+      </a>
+
+      <div className="today-issue-list" role="list" aria-label="오늘의 이슈 목록">
+        <div
+          className={isIssueDragging ? 'today-issue-viewport is-dragging' : 'today-issue-viewport'}
+          ref={issueViewportRef}
+          onPointerDown={handleIssuePointerDown}
+          onPointerMove={handleIssuePointerMove}
+          onPointerUp={handleIssuePointerEnd}
+          onPointerCancel={handleIssuePointerEnd}
+        >
+          <div className="today-issue-track">
+            {articles.map((article, articleIndex) => (
+              <div className="today-issue-row" data-issue-row role="listitem" key={article.id}>
+                <button
+                  type="button"
+                  className={
+                    articleIndex === currentIndex
+                      ? 'today-issue-button active'
+                      : 'today-issue-button'
+                  }
+                  aria-label={article.title}
+                  aria-pressed={articleIndex === currentIndex}
+                  onClick={() => handleIssueSelect(articleIndex)}
+                >
+                  <span className="issue-number">{String(articleIndex + 1).padStart(2, '0')}</span>
+                  <span>{article.title}</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-    </>
+    </section>
   );
 }
