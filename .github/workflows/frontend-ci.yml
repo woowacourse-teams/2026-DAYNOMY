@@ -64,6 +64,10 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         run: npm run lint
 
+      - name: Typecheck
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run typecheck
+
       - name: Test
         if: steps.changes.outputs.frontend == 'true'
         run: npm test
