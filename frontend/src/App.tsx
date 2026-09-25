@@ -22,8 +22,8 @@ import './features/admin/admin.css';
 function AnalyticsTracker() {
   const location = useLocation();
   useEffect(() => {
-    trackPageView(`${location.pathname}${location.search}`);
-  }, [location.pathname, location.search]);
+    trackPageView(location.pathname);
+  }, [location.pathname]);
   return null;
 }
 
