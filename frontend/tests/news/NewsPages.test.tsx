@@ -431,6 +431,19 @@ describe('뉴스 탐색 화면', () => {
     ).toBeNull();
   });
 
+  it('뉴스 상세 응답의 출처 형식이 잘못되면 오류 안내를 표시한다', async () => {
+    window.history.replaceState(null, '', '/news/7');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ ...article, content: '본문', sources: [42] })),
+    );
+
+    const view = renderPage(<NewsDetailPage />);
+
+    expect((await view.findByRole('alert')).textContent).toContain('뉴스를 불러오지 못했습니다.');
+    expect(view.queryByRole('heading', { name: article.title })).toBeNull();
+  });
+
   it('시장 분석 데이터가 없어도 뉴스 본문과 데이터 없음 안내를 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     vi.stubGlobal(
@@ -497,5 +510,30 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByRole('heading', { name: '시장 분석' })).toBeTruthy();
     expect(view.getByRole('alert').textContent).toContain('시장 분석을 불러오지 못했습니다.');
     expect(view.queryByRole('status')).toBeNull();
+  });
+
+  it('시장 분석·키워드 응답 형식이 잘못돼도 뉴스 본문을 표시한다', async () => {
+    window.history.replaceState(null, '', '/news/7');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = getPath(input);
+        if (url === '/api/news/7') {
+          return jsonResponse({ ...article, content: '정상 뉴스 본문', sources: [] });
+        }
+        if (url === '/api/news/7/keywords') {
+          return jsonResponse({
+            keywords: [{ category: 'INVALID', keyword: '정상', points: ['설명'] }],
+          });
+        }
+        return jsonResponse({ summary: 42 });
+      }),
+    );
+
+    const view = renderPage(<NewsDetailPage />);
+
+    expect(await view.findByText('정상 뉴스 본문')).toBeTruthy();
+    expect(view.getByRole('alert').textContent).toContain('시장 분석을 불러오지 못했습니다.');
+    expect(view.container.querySelector('mark.keyword')).toBeNull();
   });
 });

@@ -1,11 +1,5 @@
-interface ErrorResponse {
-  code?: string;
-  message?: string;
-}
-
-interface CsrfTokenResponse {
-  token: string;
-  headerName: string;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export class ApiError extends Error {
@@ -31,8 +25,16 @@ async function parseError(response: Response): Promise<ApiError> {
   const contentType = response.headers.get('content-type') ?? '';
 
   if (contentType.includes('application/json')) {
-    const error = (await response.json()) as ErrorResponse;
-    return new ApiError(response.status, error.code, error.message);
+    try {
+      const error: unknown = await response.json();
+      if (isRecord(error)) {
+        const code = typeof error.code === 'string' ? error.code : undefined;
+        const message = typeof error.message === 'string' ? error.message : undefined;
+        return new ApiError(response.status, code, message);
+      }
+    } catch {
+      // Fall back to the HTTP status when the error body is not JSON.
+    }
   }
 
   return new ApiError(response.status);
@@ -81,7 +83,16 @@ export async function requestWithCsrf<T>(
   init: RequestInit,
   retryOnUnauthorized = true,
 ): Promise<T> {
-  const csrfToken = await request<CsrfTokenResponse>('/api/auth/csrf', {}, false);
+  const csrfToken = await request<unknown>('/api/auth/csrf', {}, false);
+  if (
+    !isRecord(csrfToken) ||
+    typeof csrfToken.headerName !== 'string' ||
+    !csrfToken.headerName ||
+    typeof csrfToken.token !== 'string' ||
+    !csrfToken.token
+  ) {
+    throw new Error('CSRF 응답 형식이 올바르지 않습니다.');
+  }
   const headers = new Headers(init.headers);
   headers.set(csrfToken.headerName, csrfToken.token);
 
