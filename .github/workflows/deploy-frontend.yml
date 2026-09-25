@@ -8,7 +8,6 @@ on:
     paths:
       - frontend/**
       - .github/workflows/deploy-frontend.yml
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,6 +24,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_tag: ${{ steps.release.outputs.image_tag }}
+      release_version: ${{ steps.release.outputs.release_version }}
 
     env:
       DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
@@ -36,6 +38,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -43,6 +47,47 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+
+      - name: Resolve frontend release
+        id: release
+        run: bash scripts/resolve-release-version.sh
+
+      - name: Set image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-frontend" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Check existing release image
+        id: existing
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
+        run: |
+          if [ -z "$RELEASE_VERSION" ]; then
+            echo 'reuse=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          manifest_error="$RUNNER_TEMP/frontend-manifest-error"
+          if docker manifest inspect "$IMAGE_NAME:$IMAGE_TAG" >/dev/null 2>"$manifest_error"; then
+            docker pull "$IMAGE_NAME:$IMAGE_TAG"
+            image_commit="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_NAME:$IMAGE_TAG")"
+            if [ "$image_commit" != "$GITHUB_SHA" ]; then
+              echo "Release image $IMAGE_TAG belongs to a different commit"
+              exit 1
+            fi
+            echo 'reuse=true' >> "$GITHUB_OUTPUT"
+          elif grep -Eqi 'manifest unknown|no such manifest' "$manifest_error"; then
+            echo 'reuse=false' >> "$GITHUB_OUTPUT"
+          else
+            cat "$manifest_error" >&2
+            exit 1
+          fi
 
       - name: Install dependencies
         run: npm ci
@@ -54,6 +99,7 @@ jobs:
         run: npm run lint
 
       - name: Build and upload Sentry source maps
+        if: steps.existing.outputs.reuse != 'true'
         env:
           SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           SENTRY_ENVIRONMENT: ${{ vars.SENTRY_ENVIRONMENT }}
@@ -61,7 +107,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-          SENTRY_RELEASE: ${{ github.sha }}
+          SENTRY_RELEASE: ${{ steps.release.outputs.image_tag }}
         run: |
           : "${SENTRY_ENVIRONMENT:?SENTRY_ENVIRONMENT is required}"
 
@@ -79,39 +125,40 @@ jobs:
           grep -Fq "name=\"daynomy-deployment\" content=\"$marker\"" dist/index.html
 
       - name: Verify source maps were removed
+        if: steps.existing.outputs.reuse != 'true'
         run: |
           if find dist -type f -name "*.map" -print -quit | grep -q .; then
             echo "Source maps remain in dist"
             exit 1
           fi
 
-      - name: Set image name
-        id: image
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-frontend" >> "$GITHUB_OUTPUT"
-
       - name: Build container image
+        if: steps.existing.outputs.reuse != 'true'
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
         run: |
           docker build \
+            --label "org.opencontainers.image.version=$IMAGE_TAG" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
-            --tag "$IMAGE_NAME:$GITHUB_SHA" \
-            --tag "$IMAGE_NAME:$GITHUB_REF_NAME" \
+            --tag "$IMAGE_NAME:$IMAGE_TAG" \
             .
 
       - name: Validate Nginx configuration
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
-        run: docker run --rm "$IMAGE_NAME:$GITHUB_SHA" nginx -t
+          IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
+        run: docker run --rm "$IMAGE_NAME:$IMAGE_TAG" nginx -t
 
       - name: Smoke test container
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
         run: |
           docker run --detach --name frontend-smoke \
             --publish 127.0.0.1:3000:80 \
-            "$IMAGE_NAME:$GITHUB_SHA"
+            "$IMAGE_NAME:$IMAGE_TAG"
           trap 'docker rm --force frontend-smoke >/dev/null 2>&1 || true' EXIT
 
           dump_container_logs() {
@@ -133,16 +180,20 @@ jobs:
             exit 1
           fi
 
-      - name: Log in to GHCR
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-
       - name: Publish container image
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
+          REUSE_IMAGE: ${{ steps.existing.outputs.reuse }}
         run: |
-          docker push "$IMAGE_NAME:$GITHUB_SHA"
+          if [ "$REUSE_IMAGE" != true ]; then
+            docker push "$IMAGE_NAME:$IMAGE_TAG"
+          fi
+          if [ "$IMAGE_TAG" != "$GITHUB_SHA" ]; then
+            docker tag "$IMAGE_NAME:$IMAGE_TAG" "$IMAGE_NAME:$GITHUB_SHA"
+            docker push "$IMAGE_NAME:$GITHUB_SHA"
+          fi
+          docker tag "$IMAGE_NAME:$IMAGE_TAG" "$IMAGE_NAME:$GITHUB_REF_NAME"
           docker push "$IMAGE_NAME:$GITHUB_REF_NAME"
 
   deploy:
@@ -171,10 +222,11 @@ jobs:
       - name: Deploy frontend
         env:
           GHCR_TOKEN: ${{ github.token }}
+          IMAGE_TAG: ${{ needs.build-and-publish.outputs.image_tag }}
         run: |
           set -Eeuo pipefail
 
-          export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-frontend:$GITHUB_SHA"
+          export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-frontend:$IMAGE_TAG"
           compose_file="$GITHUB_WORKSPACE/frontend/compose.yml"
           if [ "$DEPLOY_ENV" = "production" ]; then
             compose_file="/opt/daynomy/frontend/compose.yml"
@@ -233,4 +285,32 @@ jobs:
           if [ "$oauth_status" != 302 ]; then
             echo "Expected OAuth redirect, got HTTP $oauth_status"
             exit 1
+          fi
+
+  tag-release:
+    if: needs.build-and-publish.outputs.release_version != ''
+    needs:
+      - build-and-publish
+      - deploy
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout deployed commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Tag verified frontend release
+        env:
+          RELEASE_VERSION: ${{ needs.build-and-publish.outputs.release_version }}
+        run: |
+          if git show-ref --verify --quiet "refs/tags/$RELEASE_VERSION"; then
+            test "$(git rev-parse "refs/tags/$RELEASE_VERSION^{commit}")" = "$GITHUB_SHA"
+          else
+            git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              tag -a "$RELEASE_VERSION" -m "frontend $RELEASE_VERSION"
+            git push origin "refs/tags/$RELEASE_VERSION"
           fi
