@@ -124,6 +124,12 @@ npm run build
 
 ## 환경별 배포
 
+프론트 버전 기준, Git tag 발행 및 이전 이미지 재배포 절차는
+[RELEASING.md](RELEASING.md)에 기록합니다. 버전별 변경 내역은
+[CHANGELOG.md](CHANGELOG.md)를 확인합니다.
+`main`에 새 프론트 버전을 병합하면 기존 Docker 배포 흐름에서 자동으로 배포하고,
+검증이 성공한 뒤 Git tag를 생성합니다. Actions 수동 실행은 필요하지 않습니다.
+
 | 브랜치 | GitHub Environment | URL                       | 호스트 포트 |
 | ------ | ------------------ | ------------------------- | ----------- |
 | `dev`  | `development`      | `https://dev.daynomy.com` | `3000`      |
@@ -192,7 +198,7 @@ Sentry는 프론트엔드 오류의 원인과 발생 환경을 확인하기 위�
 - URL 쿼리 문자열 제거
 - 숨김 소스맵 생성 및 Sentry 업로드
 - 배포 결과물에서 소스맵 삭제
-- Git commit SHA를 Sentry release로 기록
+- 일반 배포는 Git commit SHA, 버전 배포는 Git tag를 Sentry release로 기록
 
 ### Sentry 환경 변수
 
@@ -203,7 +209,7 @@ Sentry는 프론트엔드 오류의 원인과 발생 환경을 확인하기 위�
 | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드용 CI Secret       |
 | `SENTRY_ORG`         | Sentry 조직 slug                |
 | `SENTRY_PROJECT`     | Sentry 프로젝트 slug            |
-| `SENTRY_RELEASE`     | 배포한 Git commit SHA           |
+| `SENTRY_RELEASE`     | 일반 배포 SHA 또는 버전 Git tag |
 
 `SENTRY_AUTH_TOKEN`은 브라우저에 전달하지 않고 GitHub Actions Secret으로만 관리합니다.
 
@@ -278,7 +284,7 @@ GA4는 방문자 수, 페이지 이동, 검색, 로그인 전환을 확인하기
 - React Error Boundary 적용
 - 로컬 환경 수집 비활성화
 - Sentry 소스맵 업로드
-- Git SHA 기준 release 기록
+- 일반 배포 SHA·버전 배포 Git tag 기준 release 기록
 - Sentry 개인정보 제거
 - GA4 페이지 조회 및 사용자 행동 이벤트 수집
 - 배포 후 Sentry Release·소스맵 확인
