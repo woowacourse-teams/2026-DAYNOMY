@@ -33,7 +33,7 @@ class OpenAiImageGeneratorTest {
     OpenAiImageGenerator generator =
         new OpenAiImageGenerator(
             new OpenAiProperties(
-                "test-key", startServer(openAiImageResponse()), "text-model", "image-model"));
+                "test-key", startServer(openAiImageResponse()), "image-model"));
 
     byte[] image = generator.generateNewsImage("제목");
 
@@ -46,7 +46,7 @@ class OpenAiImageGeneratorTest {
     OpenAiImageGenerator generator =
         new OpenAiImageGenerator(
             new OpenAiProperties(
-                "test-key", startServer(openAiImageResponse()), "text-model", "image-model"));
+                "test-key", startServer(openAiImageResponse()), "image-model"));
 
     generator.generateNewsImage("금리 인상 전망");
     String generalPrompt = requestPrompt();
@@ -66,7 +66,7 @@ class OpenAiImageGeneratorTest {
     OpenAiImageGenerator generator =
         new OpenAiImageGenerator(
             new OpenAiProperties(
-                "test-key", startServer(openAiImageResponse()), "text-model", "image-model"));
+                "test-key", startServer(openAiImageResponse()), "image-model"));
 
     generator.generateEconomicNewsImage("원료 공급 계약", "바이오 원료 공급 계약을 체결했다", Category.STOCK);
 

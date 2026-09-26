@@ -8,7 +8,6 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
 public record OpenAiProperties(
     String apiKey,
     String baseUrl,
-    String model,
     String imageModel,
     String economyNewsModel,
     Duration connectTimeout,
@@ -17,11 +16,10 @@ public record OpenAiProperties(
   @ConstructorBinding
   public OpenAiProperties {}
 
-  public OpenAiProperties(String apiKey, String baseUrl, String model, String imageModel) {
+  public OpenAiProperties(String apiKey, String baseUrl, String imageModel) {
     this(
         apiKey,
         baseUrl,
-        model,
         imageModel,
         "gpt-5.5",
         Duration.ofSeconds(3),
