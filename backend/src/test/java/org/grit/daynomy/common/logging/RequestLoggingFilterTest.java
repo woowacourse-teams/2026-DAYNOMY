@@ -10,11 +10,13 @@ import ch.qos.logback.core.read.ListAppender;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -40,23 +42,34 @@ class RequestLoggingFilterTest {
     logger.detachAppender(appender);
     logger.setLevel(originalLevel);
     appender.stop();
+    MDC.clear();
   }
 
   @Test
   void logsRequestStartAndCompletion() throws Exception {
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/news");
     MockHttpServletResponse response = new MockHttpServletResponse();
+    AtomicReference<String> requestId = new AtomicReference<>();
+    AtomicReference<String> traceId = new AtomicReference<>();
     FilterChain filterChain =
-        (servletRequest, servletResponse) ->
-            ((MockHttpServletResponse) servletResponse).setStatus(201);
+        (servletRequest, servletResponse) -> {
+          requestId.set(MDC.get("requestId"));
+          traceId.set(MDC.get("traceId"));
+          ((MockHttpServletResponse) servletResponse).setStatus(201);
+        };
 
     requestLoggingFilter.doFilter(request, response, filterChain);
 
+    assertThat(requestId).hasValueSatisfying(value -> assertThat(value).isNotBlank());
+    assertThat(traceId).hasValueSatisfying(value -> assertThat(value).isNotBlank());
+    assertThat(MDC.get("requestId")).isNull();
+    assertThat(MDC.get("traceId")).isNull();
     assertThat(appender.list).hasSize(2);
 
     ILoggingEvent startedLog = appender.list.get(0);
     assertThat(startedLog.getLevel()).isEqualTo(Level.DEBUG);
-    assertThat(startedLog.getFormattedMessage()).isEqualTo("HTTP request started");
+    assertThat(startedLog.getFormattedMessage())
+        .isEqualTo(LogEvent.HTTP_REQUEST_STARTED.message());
     assertThat(keyValues(startedLog))
         .containsEntry("event", "http.request.started")
         .containsEntry("method", "GET")
@@ -64,7 +77,8 @@ class RequestLoggingFilterTest {
 
     ILoggingEvent completedLog = appender.list.get(1);
     assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
-    assertThat(completedLog.getFormattedMessage()).isEqualTo("HTTP request completed");
+    assertThat(completedLog.getFormattedMessage())
+        .isEqualTo(LogEvent.HTTP_REQUEST_COMPLETED.message());
     assertThat(keyValues(completedLog))
         .containsEntry("event", "http.request.completed")
         .containsEntry("method", "GET")
