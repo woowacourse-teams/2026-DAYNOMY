@@ -73,7 +73,8 @@ class AdminNewsServiceTest {
             "뉴스 제목",
             "뉴스 본문",
             List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
-            Category.STOCK);
+            Category.STOCK,
+            "Unsplash");
     MockMultipartFile image =
         new MockMultipartFile("image", "news.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1, 2, 3});
     given(s3ImageStorage.upload(any(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE)))
@@ -90,6 +91,7 @@ class AdminNewsServiceTest {
     assertThat(capturedNews.getTitle()).isEqualTo("뉴스 제목");
     assertThat(capturedNews.getContent()).isEqualTo("뉴스 본문");
     assertThat(capturedNews.getImageUrl()).isEqualTo("https://example.com/news-image.png");
+    assertThat(capturedNews.getImageSource()).isEqualTo("Unsplash");
     assertThat(capturedNews.getSources())
         .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/news/1"));
     assertThat(capturedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
@@ -120,6 +122,7 @@ class AdminNewsServiceTest {
         .containsExactly(
             new NewsSourceInfo("출처 A", "https://example.com/a"),
             new NewsSourceInfo("출처 B", "https://example.com/b"));
+    assertThat(newsCaptor.getValue().getImageSource()).isEmpty();
   }
 
   @Test
@@ -444,7 +447,8 @@ class AdminNewsServiceTest {
             "수정 제목",
             "수정 본문",
             List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
-            Category.ETF);
+            Category.ETF,
+            "Pexels");
     MockMultipartFile image =
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
@@ -459,6 +463,7 @@ class AdminNewsServiceTest {
       assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
       assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
       assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
+      assertThat(updatedNews.getImageSource()).isEqualTo("Pexels");
       assertThat(updatedNews.getSources())
           .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/new"));
       assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);

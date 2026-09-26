@@ -193,6 +193,7 @@ class NewsControllerTest {
                 "detail news",
                 "content",
                 "image.png",
+                "Unsplash",
                 List.of(new NewsSourceResponse("DART", "https://example.com/1")),
                 Category.STOCK,
                 Instant.parse("2026-08-17T10:00:00Z")));
@@ -202,6 +203,7 @@ class NewsControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.title").value("detail news"))
         .andExpect(jsonPath("$.content").value("content"))
+        .andExpect(jsonPath("$.imageSource").value("Unsplash"))
         .andExpect(jsonPath("$.sources[0].name").value("DART"));
 
     then(newsService).should().getNewsDetail(1L);

@@ -133,6 +133,7 @@ class NewsServiceTest {
     var response = newsService.getNewsDetail(1L);
 
     assertThat(response.title()).isEqualTo("title");
+    assertThat(response.imageSource()).isEqualTo("");
     assertThat(response.category()).isEqualTo(Category.STOCK);
   }
 

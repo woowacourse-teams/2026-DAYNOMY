@@ -138,6 +138,7 @@ class NewsAcceptanceTest {
         .statusCode(200)
         .body("title", equalTo("detail news"))
         .body("content", equalTo("content"))
+        .body("imageSource", equalTo(""))
         .body("category", equalTo("STOCK"));
   }
 

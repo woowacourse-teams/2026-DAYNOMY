@@ -64,6 +64,7 @@ class AdminNewsControllerTest {
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
     willReturn("https://example.com/image.png").given(news).getImageUrl();
+    willReturn("Unsplash").given(news).getImageSource();
     willReturn(
             java.util.List.of(
                 new org.grit.daynomy.news.domain.NewsSourceInfo(
@@ -78,7 +79,8 @@ class AdminNewsControllerTest {
             "뉴스 제목",
             "뉴스 본문",
             java.util.List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
-            Category.STOCK);
+            Category.STOCK,
+            "Unsplash");
     MockMultipartFile requestPart =
         new MockMultipartFile(
             "request",
@@ -89,7 +91,8 @@ class AdminNewsControllerTest {
               "title": "뉴스 제목",
               "content": "뉴스 본문",
               "sources": [{"name": "직접 입력", "url": "https://example.com/news/1"}],
-              "category": "STOCK"
+              "category": "STOCK",
+              "imageSource": "Unsplash"
             }
             """
                 .getBytes());
@@ -102,6 +105,7 @@ class AdminNewsControllerTest {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.title").value("뉴스 제목"))
+        .andExpect(jsonPath("$.imageSource").value("Unsplash"))
         .andExpect(jsonPath("$.sources[0].name").value("직접 입력"))
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
@@ -323,6 +327,7 @@ class AdminNewsControllerTest {
     willReturn("수정 제목").given(news).getTitle();
     willReturn("수정 본문").given(news).getContent();
     willReturn("new-image.png").given(news).getImageUrl();
+    willReturn("Pexels").given(news).getImageSource();
     willReturn(Category.ETF).given(news).getCategory();
     willReturn(null).given(news).getPublishedAt();
     willReturn(NewsStatus.DRAFT).given(news).getStatus();
@@ -331,7 +336,8 @@ class AdminNewsControllerTest {
             "수정 제목",
             "수정 본문",
             java.util.List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
-            Category.ETF);
+            Category.ETF,
+            "Pexels");
     MockMultipartFile requestPart =
         new MockMultipartFile(
             "request",
@@ -342,7 +348,8 @@ class AdminNewsControllerTest {
               "title": "수정 제목",
               "content": "수정 본문",
               "sources": [{"name": "직접 입력", "url": "https://example.com/new"}],
-              "category": "ETF"
+              "category": "ETF",
+              "imageSource": "Pexels"
             }
             """
                 .getBytes());
@@ -363,6 +370,7 @@ class AdminNewsControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.title").value("수정 제목"))
+        .andExpect(jsonPath("$.imageSource").value("Pexels"))
         .andExpect(jsonPath("$.category").value("ETF"))
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
