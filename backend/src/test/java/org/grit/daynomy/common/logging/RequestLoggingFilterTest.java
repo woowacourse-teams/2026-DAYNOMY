@@ -68,8 +68,7 @@ class RequestLoggingFilterTest {
 
     ILoggingEvent startedLog = appender.list.get(0);
     assertThat(startedLog.getLevel()).isEqualTo(Level.DEBUG);
-    assertThat(startedLog.getFormattedMessage())
-        .isEqualTo(LogEvent.HTTP_REQUEST_STARTED.message());
+    assertThat(startedLog.getFormattedMessage()).isEqualTo(LogEvent.HTTP_REQUEST_STARTED.message());
     assertThat(keyValues(startedLog))
         .containsEntry("event", "http.request.started")
         .containsEntry("method", "GET")

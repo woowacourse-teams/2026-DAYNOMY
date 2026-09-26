@@ -44,12 +44,12 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
 
         log.atInfo()
-          .addKeyValue("event", LogEvent.HTTP_REQUEST_COMPLETED.code())
-          .addKeyValue("method", request.getMethod())
-          .addKeyValue("uri", request.getRequestURI())
-          .addKeyValue("httpStatus", response.getStatus())
-          .addKeyValue("durationMs", durationMs)
-          .log(LogEvent.HTTP_REQUEST_COMPLETED.message());
+            .addKeyValue("event", LogEvent.HTTP_REQUEST_COMPLETED.code())
+            .addKeyValue("method", request.getMethod())
+            .addKeyValue("uri", request.getRequestURI())
+            .addKeyValue("httpStatus", response.getStatus())
+            .addKeyValue("durationMs", durationMs)
+            .log(LogEvent.HTTP_REQUEST_COMPLETED.message());
       } finally {
         MDC.remove(REQUEST_ID);
         MDC.remove(TRACE_ID);

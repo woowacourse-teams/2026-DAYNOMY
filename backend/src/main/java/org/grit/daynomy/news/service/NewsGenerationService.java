@@ -99,8 +99,7 @@ public class NewsGenerationService {
         .addKeyValue("generationType", "economy")
         .addKeyValue("generatedCount", generatedNews.size())
         .addKeyValue("savedCount", drafts.size())
-        .addKeyValue(
-            "durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt))
+        .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt))
         .log(LogEvent.NEWS_GENERATION_COMPLETED.message());
     return drafts;
   }
