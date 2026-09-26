@@ -178,9 +178,7 @@ class AdminNewsControllerTest {
                 .getBytes());
     willReturn(news).given(adminNewsService).createDraft(eq(request), isNull());
 
-    mockMvc
-        .perform(multipart("/api/admin/news").file(requestPart))
-        .andExpect(status().isCreated());
+    mockMvc.perform(multipart("/api/admin/news").file(requestPart)).andExpect(status().isCreated());
 
     then(adminNewsService).should().createDraft(eq(request), isNull());
   }
