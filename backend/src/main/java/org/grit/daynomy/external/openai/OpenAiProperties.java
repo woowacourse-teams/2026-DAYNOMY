@@ -17,12 +17,6 @@ public record OpenAiProperties(
   public OpenAiProperties {}
 
   public OpenAiProperties(String apiKey, String baseUrl, String imageModel) {
-    this(
-        apiKey,
-        baseUrl,
-        imageModel,
-        "gpt-5.5",
-        Duration.ofSeconds(3),
-        Duration.ofSeconds(120));
+    this(apiKey, baseUrl, imageModel, "gpt-5.5", Duration.ofSeconds(3), Duration.ofSeconds(120));
   }
 }

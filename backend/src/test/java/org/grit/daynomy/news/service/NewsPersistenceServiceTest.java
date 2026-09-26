@@ -29,9 +29,7 @@ class NewsPersistenceServiceTest {
   @Test
   @DisplayName("경제 뉴스 초안을 저장한다")
   void saveDraftsSavesNews() {
-    GeneratedEconomicNews article =
-        new GeneratedEconomicNews(
-            "제목", "본문", Category.STOCK, List.of());
+    GeneratedEconomicNews article = new GeneratedEconomicNews("제목", "본문", Category.STOCK, List.of());
     given(newsRepository.saveAll(anyList()))
         .willAnswer(invocation -> invocation.getArgument(0));
 
