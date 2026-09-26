@@ -64,9 +64,17 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         run: npm run lint
 
+      - name: Typecheck
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run typecheck
+
       - name: Test
         if: steps.changes.outputs.frontend == 'true'
         run: npm test
+
+      - name: Test deployment and cache policy
+        if: steps.changes.outputs.frontend == 'true'
+        run: bash scripts/test-deploy-frontend.sh
 
       - name: Build
         if: steps.changes.outputs.frontend == 'true'
