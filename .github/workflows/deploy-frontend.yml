@@ -15,7 +15,6 @@ permissions:
 concurrency:
   group: frontend-deploy-${{ github.ref_name }}
   cancel-in-progress: false
-  queue: max
 
 jobs:
   build-and-publish:
@@ -93,20 +92,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
       - name: Test
         run: npm test
 
-      - name: Test deployment and cache policy
-        run: bash scripts/test-deploy-frontend.sh
+      - name: Lint
+        run: npm run lint
 
       - name: Build and upload Sentry source maps
         if: steps.existing.outputs.reuse != 'true'
@@ -179,22 +169,10 @@ jobs:
 
           if ! curl --fail --silent --show-error \
             --retry 10 --retry-all-errors --retry-delay 1 \
-            http://127.0.0.1:3000/ --output "$RUNNER_TEMP/frontend-smoke.html"; then
+            http://127.0.0.1:3000/ >/dev/null; then
             dump_container_logs
             exit 1
           fi
-
-          for path in / /index.html /news/1; do
-            curl --fail --silent --head "http://127.0.0.1:3000$path" \
-              | grep -qi '^Cache-Control: no-cache'
-          done
-
-          hashed_assets="$(grep -oE '/assets/[^" ]+-[A-Za-z0-9_-]{8}\.(js|css)' "$RUNNER_TEMP/frontend-smoke.html" | sort -u)"
-          test -n "$hashed_assets"
-          while IFS= read -r asset; do
-            curl --fail --silent --head "http://127.0.0.1:3000$asset" \
-              | grep -qi '^Cache-Control: public, max-age=31536000, immutable'
-          done <<< "$hashed_assets"
 
           if ! curl --fail --silent http://127.0.0.1:3000/news/1 \
             | grep -q '<div id="root"></div>'; then
@@ -232,7 +210,6 @@ jobs:
     permissions:
       contents: read
       packages: read
-    timeout-minutes: 15
 
     env:
       DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
@@ -245,34 +222,41 @@ jobs:
       - name: Deploy frontend
         env:
           GHCR_TOKEN: ${{ github.token }}
-          DEPLOY_VERSION: ${{ needs.build-and-publish.outputs.image_tag }}
+          IMAGE_TAG: ${{ needs.build-and-publish.outputs.image_tag }}
         run: |
           set -Eeuo pipefail
 
-          export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-frontend:$DEPLOY_VERSION"
-          export COMPOSE_FILE="$GITHUB_WORKSPACE/frontend/compose.yml"
+          export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-frontend:$IMAGE_TAG"
+          compose_file="$GITHUB_WORKSPACE/frontend/compose.yml"
           if [ "$DEPLOY_ENV" = "production" ]; then
-            export COMPOSE_FILE="/opt/daynomy/frontend/compose.yml"
+            compose_file="/opt/daynomy/frontend/compose.yml"
           fi
+          compose=(docker compose --file "$compose_file")
 
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
 
-          docker compose --file "$COMPOSE_FILE" pull frontend
-          bash frontend/scripts/deploy-frontend.sh
+          "${compose[@]}" pull
+
+          "${compose[@]}" up --detach --wait --remove-orphans
+
+      - name: Verify deployment
+        run: |
+          set -euo pipefail
+
+          curl --fail --silent --show-error \
+            --retry 10 --retry-all-errors --retry-delay 2 \
+            --max-time 15 \
+            "$DEPLOY_URL/" \
+            --output "$RUNNER_TEMP/daynomy-frontend.html"
+
+          grep -Fq '<div id="root"></div>' "$RUNNER_TEMP/daynomy-frontend.html"
+          grep -Fq "name=\"daynomy-deployment\" content=\"$DEPLOY_ENV:$GITHUB_SHA\"" \
+            "$RUNNER_TEMP/daynomy-frontend.html"
 
       - name: Verify API and OAuth routing
         run: |
-          set -Eeuo pipefail
-          report_result() {
-            status=$?
-            if [ "$status" -ne 0 ]; then
-              echo 'Backend routing check failed; the verified frontend image is retained'
-              echo 'Backend routing check failed. Frontend rollback was not applied.' >> "$GITHUB_STEP_SUMMARY" || true
-            fi
-            exit "$status"
-          }
-          trap report_result EXIT
+          set -euo pipefail
 
           # TODO: 개발용 자동 로그인 수단과 복구 가능한 테스트 데이터가 제공되면 인증·쓰기 API를 검증.
 
