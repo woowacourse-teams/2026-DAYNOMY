@@ -18,7 +18,13 @@ public record AdminNewsUpdateRequest(
     @Schema(description = "뉴스 출처 목록") @NotEmpty(message = "출처는 하나 이상 필요합니다.") @Valid
         List<@NotNull NewsSourceRequest> sources,
     @Schema(description = "뉴스 카테고리", example = "STOCK") @NotNull(message = "카테고리는 필수입니다.")
-        Category category) {
+        Category category,
+    @Schema(description = "뉴스 이미지 출처", example = "Unsplash") String imageSource) {
+
+  public AdminNewsUpdateRequest(
+      String title, String content, List<NewsSourceRequest> sources, Category category) {
+    this(title, content, sources, category, null);
+  }
 
   public List<NewsSourceInfo> sourceInfos() {
     return sources.stream()
