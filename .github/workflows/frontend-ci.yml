@@ -34,7 +34,7 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}/files" \
             --jq '.[].filename')"
 
-          if grep -Eq '^(frontend/|\.github/workflows/frontend-ci\.yml$)' <<< "$changed_files"; then
+          if grep -Eq '^(frontend/|\.github/workflows/(frontend-ci|deploy-frontend)\.yml$)' <<< "$changed_files"; then
             echo "frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "frontend=false" >> "$GITHUB_OUTPUT"
@@ -64,9 +64,17 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         run: npm run lint
 
+      - name: Typecheck
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run typecheck
+
       - name: Test
         if: steps.changes.outputs.frontend == 'true'
         run: npm test
+
+      - name: Test deployment and cache policy
+        if: steps.changes.outputs.frontend == 'true'
+        run: bash scripts/test-deploy-frontend.sh
 
       - name: Build
         if: steps.changes.outputs.frontend == 'true'
