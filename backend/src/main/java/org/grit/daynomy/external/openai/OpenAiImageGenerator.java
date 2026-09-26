@@ -6,6 +6,7 @@ import java.util.Base64;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.springframework.http.MediaType;
@@ -79,7 +80,8 @@ public class OpenAiImageGenerator {
   private byte[] generateNewsImage(String title, String prompt, String size) {
     try {
       log.info(
-          "Requesting OpenAI image generation: model={}, title={}",
+          "event={} Requesting OpenAI image generation: model={}, title={}",
+          LogEvent.AI_IMAGE_GENERATION_REQUESTED.code(),
           openAiProperties.imageModel(),
           title);
       String response =
@@ -93,23 +95,31 @@ public class OpenAiImageGenerator {
               .body(String.class);
 
       byte[] image = Base64.getDecoder().decode(extractImage(response));
-      log.info("Received OpenAI generated image: title={}", title);
+      log.info(
+          "event={} Received OpenAI generated image: title={}",
+          LogEvent.AI_IMAGE_GENERATION_COMPLETED.code(),
+          title);
       return image;
     } catch (HttpStatusCodeException exception) {
       log.warn(
-          "OpenAI image generation request failed: status={}, body={}, title={}",
+          "event={} OpenAI image generation request failed: status={}, body={}, title={}",
+          LogEvent.AI_IMAGE_GENERATION_FAILED.code(),
           exception.getStatusCode(),
           exception.getResponseBodyAsString(),
           title);
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (RestClientException exception) {
       log.warn(
-          "OpenAI image generation request failed: message={}, title={}",
+          "event={} OpenAI image generation request failed: message={}, title={}",
+          LogEvent.AI_IMAGE_GENERATION_FAILED.code(),
           exception.getMessage(),
           title);
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (IllegalArgumentException exception) {
-      log.warn("OpenAI image response contained invalid Base64 data: title={}", title);
+      log.warn(
+          "event={} OpenAI image response contained invalid Base64 data: title={}",
+          LogEvent.AI_IMAGE_GENERATION_FAILED.code(),
+          title);
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     }
   }
