@@ -180,7 +180,14 @@ class AdminNewsServiceTest {
   void generateImageReplacesPublishedImage() {
     String previousImageUrl = "https://example.com/existing.webp";
     News news =
-        News.createPublished("뉴스 제목", "뉴스 본문", previousImageUrl, List.of(), Category.STOCK, null);
+        News.createPublished(
+            "뉴스 제목",
+            "뉴스 본문",
+            previousImageUrl,
+            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"),
+            List.of(),
+            Category.STOCK,
+            null);
     byte[] image = {1, 2, 3};
     S3ImageStorage.StoredImage uploadedImage =
         new S3ImageStorage.StoredImage("generated.webp", "https://example.com/generated.webp");
@@ -194,6 +201,7 @@ class AdminNewsServiceTest {
       News result = adminNewsService.generateImage(1L);
 
       assertThat(result.getImageUrl()).isEqualTo(uploadedImage.publicUrl());
+      assertThat(result.getImageSource()).isEqualTo(ImageSourceInfo.empty());
       verify(newsRepository).flush();
       TransactionSynchronizationManager.getSynchronizations()
           .forEach(
