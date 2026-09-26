@@ -38,8 +38,9 @@ public class News extends BaseEntity {
   @Column(name = "image_url", columnDefinition = "TEXT")
   private String imageUrl;
 
-  @Column(name = "image_source", columnDefinition = "TEXT", nullable = false)
-  private String imageSource;
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "image_source", columnDefinition = "jsonb", nullable = false)
+  private ImageSourceInfo imageSource;
 
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "sources", columnDefinition = "jsonb", nullable = false)
@@ -60,7 +61,7 @@ public class News extends BaseEntity {
       String title,
       String content,
       String imageUrl,
-      String imageSource,
+      ImageSourceInfo imageSource,
       List<NewsSourceInfo> sources,
       Category category,
       Instant publishedAt,
@@ -68,7 +69,7 @@ public class News extends BaseEntity {
     this.title = title;
     this.content = content;
     this.imageUrl = imageUrl;
-    this.imageSource = imageSource == null ? "" : imageSource;
+    this.imageSource = imageSource == null ? ImageSourceInfo.empty() : imageSource;
     this.sources = List.copyOf(sources);
     this.category = category;
     this.publishedAt = publishedAt;
@@ -82,14 +83,15 @@ public class News extends BaseEntity {
       List<NewsSourceInfo> sources,
       Category category,
       Instant publishedAt) {
-    return createPublished(title, content, imageUrl, "", sources, category, publishedAt);
+    return createPublished(
+        title, content, imageUrl, ImageSourceInfo.empty(), sources, category, publishedAt);
   }
 
   public static News createPublished(
       String title,
       String content,
       String imageUrl,
-      String imageSource,
+      ImageSourceInfo imageSource,
       List<NewsSourceInfo> sources,
       Category category,
       Instant publishedAt) {
@@ -110,14 +112,14 @@ public class News extends BaseEntity {
       String imageUrl,
       List<NewsSourceInfo> sources,
       Category category) {
-    return createDraft(title, content, imageUrl, "", sources, category);
+    return createDraft(title, content, imageUrl, ImageSourceInfo.empty(), sources, category);
   }
 
   public static News createDraft(
       String title,
       String content,
       String imageUrl,
-      String imageSource,
+      ImageSourceInfo imageSource,
       List<NewsSourceInfo> sources,
       Category category) {
     return new News(
@@ -130,20 +132,20 @@ public class News extends BaseEntity {
       String imageUrl,
       List<NewsSourceInfo> sources,
       Category category) {
-    update(title, content, imageUrl, "", sources, category);
+    update(title, content, imageUrl, ImageSourceInfo.empty(), sources, category);
   }
 
   public void update(
       String title,
       String content,
       String imageUrl,
-      String imageSource,
+      ImageSourceInfo imageSource,
       List<NewsSourceInfo> sources,
       Category category) {
     this.title = title;
     this.content = content;
     this.imageUrl = imageUrl;
-    this.imageSource = imageSource == null ? "" : imageSource;
+    this.imageSource = imageSource == null ? ImageSourceInfo.empty() : imageSource;
     this.sources = List.copyOf(sources);
     this.category = category;
   }

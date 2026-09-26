@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.ImageSourceInfo;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
 
 public record AdminNewsCreateRequest(
@@ -19,7 +20,7 @@ public record AdminNewsCreateRequest(
         List<@NotNull NewsSourceRequest> sources,
     @Schema(description = "뉴스 카테고리", example = "STOCK") @NotNull(message = "카테고리는 필수입니다.")
         Category category,
-    @Schema(description = "뉴스 이미지 출처", example = "Unsplash") String imageSource) {
+    @Schema(description = "뉴스 이미지 출처") @Valid ImageSourceRequest imageSource) {
 
   public AdminNewsCreateRequest(
       String title, String content, List<NewsSourceRequest> sources, Category category) {
@@ -30,5 +31,9 @@ public record AdminNewsCreateRequest(
     return sources.stream()
         .map(request -> new NewsSourceInfo(request.name(), request.url()))
         .toList();
+  }
+
+  public ImageSourceInfo imageSourceInfo() {
+    return imageSource == null ? ImageSourceInfo.empty() : imageSource.toDomain();
   }
 }
