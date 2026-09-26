@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
   private static final String REQUEST_ID = "requestId";
   private static final String TRACE_ID = "traceId";
+  private static final String AUTOMATION = "automation";
 
   @Override
   protected void doFilterInternal(
@@ -30,6 +32,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     MDC.put(REQUEST_ID, UUID.randomUUID().toString());
     MDC.put(TRACE_ID, UUID.randomUUID().toString());
+    MDC.put(AUTOMATION, detectAutomation(request).code());
 
     log.atDebug()
         .addKeyValue("event", LogEvent.HTTP_REQUEST_STARTED.code())
@@ -53,7 +56,21 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
       } finally {
         MDC.remove(REQUEST_ID);
         MDC.remove(TRACE_ID);
+        MDC.remove(AUTOMATION);
       }
     }
+  }
+
+  private AutomationType detectAutomation(HttpServletRequest request) {
+    String userAgent = request.getHeader("User-Agent");
+    if (userAgent == null) {
+      return AutomationType.UNKNOWN;
+    }
+
+    String normalizedUserAgent = userAgent.toLowerCase(Locale.ROOT);
+    if (normalizedUserAgent.matches(".*(bot|crawler|spider|slurp|curl|wget|postman).*")) {
+      return AutomationType.SUSPECTED_BOT;
+    }
+    return AutomationType.UNKNOWN;
   }
 }

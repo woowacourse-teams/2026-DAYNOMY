@@ -55,6 +55,7 @@ class RequestLoggingFilterTest {
         (servletRequest, servletResponse) -> {
           requestId.set(MDC.get("requestId"));
           traceId.set(MDC.get("traceId"));
+          assertThat(MDC.get("automation")).isEqualTo("unknown");
           ((MockHttpServletResponse) servletResponse).setStatus(201);
         };
 
@@ -64,6 +65,7 @@ class RequestLoggingFilterTest {
     assertThat(traceId).hasValueSatisfying(value -> assertThat(value).isNotBlank());
     assertThat(MDC.get("requestId")).isNull();
     assertThat(MDC.get("traceId")).isNull();
+    assertThat(MDC.get("automation")).isNull();
     assertThat(appender.list).hasSize(2);
 
     ILoggingEvent startedLog = appender.list.get(0);
@@ -73,6 +75,7 @@ class RequestLoggingFilterTest {
         .containsEntry("event", "http.request.started")
         .containsEntry("method", "GET")
         .containsEntry("uri", "/api/news");
+    assertThat(startedLog.getMDCPropertyMap()).containsEntry("automation", "unknown");
 
     ILoggingEvent completedLog = appender.list.get(1);
     assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
@@ -84,6 +87,26 @@ class RequestLoggingFilterTest {
         .containsEntry("uri", "/api/news")
         .containsEntry("httpStatus", 201)
         .containsKey("durationMs");
+    assertThat(completedLog.getMDCPropertyMap()).containsEntry("automation", "unknown");
+  }
+
+  @Test
+  void classifiesAutomationFromUserAgent() throws Exception {
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/news");
+    request.addHeader("User-Agent", "curl/8.0");
+    AtomicReference<String> automation = new AtomicReference<>();
+    FilterChain filterChain =
+        (servletRequest, servletResponse) -> automation.set(MDC.get("automation"));
+
+    requestLoggingFilter.doFilter(request, new MockHttpServletResponse(), filterChain);
+
+    assertThat(automation).hasValue("suspected_bot");
+    assertThat(MDC.get("automation")).isNull();
+    assertThat(appender.list)
+        .allSatisfy(
+            loggingEvent ->
+                assertThat(loggingEvent.getMDCPropertyMap())
+                    .containsEntry("automation", "suspected_bot"));
   }
 
   @Test
