@@ -79,11 +79,13 @@ public class OpenAiImageGenerator {
 
   private byte[] generateNewsImage(String title, String prompt, String size) {
     try {
-      log.info(
-          "event={} Requesting OpenAI image generation: model={}, title={}",
-          LogEvent.AI_IMAGE_GENERATION_REQUESTED.code(),
-          openAiProperties.imageModel(),
-          title);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_REQUESTED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("model", openAiProperties.imageModel())
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_REQUESTED.message());
       String response =
           restClient
               .post()
@@ -95,31 +97,39 @@ public class OpenAiImageGenerator {
               .body(String.class);
 
       byte[] image = Base64.getDecoder().decode(extractImage(response));
-      log.info(
-          "event={} Received OpenAI generated image: title={}",
-          LogEvent.AI_IMAGE_GENERATION_COMPLETED.code(),
-          title);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_COMPLETED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_COMPLETED.message());
       return image;
     } catch (HttpStatusCodeException exception) {
-      log.warn(
-          "event={} OpenAI image generation request failed: status={}, body={}, title={}",
-          LogEvent.AI_IMAGE_GENERATION_FAILED.code(),
-          exception.getStatusCode(),
-          exception.getResponseBodyAsString(),
-          title);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("httpStatus", exception.getStatusCode().value())
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (RestClientException exception) {
-      log.warn(
-          "event={} OpenAI image generation request failed: message={}, title={}",
-          LogEvent.AI_IMAGE_GENERATION_FAILED.code(),
-          exception.getMessage(),
-          title);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("errorType", exception.getClass().getSimpleName())
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (IllegalArgumentException exception) {
-      log.warn(
-          "event={} OpenAI image response contained invalid Base64 data: title={}",
-          LogEvent.AI_IMAGE_GENERATION_FAILED.code(),
-          title);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("errorType", "InvalidBase64")
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     }
   }
