@@ -211,45 +211,6 @@ class AdminNewsControllerTest {
   }
 
   @Test
-  @DisplayName("관리자 DART 뉴스 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
-  void generateDartNewsReturnsSavedCount() throws Exception {
-    given(newsGenerationService.generateScheduledDartNews()).willReturn(2);
-
-    mockMvc
-        .perform(post("/api/admin/news/generate/dart"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.savedCount").value(2));
-
-    then(newsGenerationService).should().generateScheduledDartNews();
-  }
-
-  @Test
-  @DisplayName("관리자 KOSIS 뉴스 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
-  void generateKosisNewsReturnsSavedCount() throws Exception {
-    given(newsGenerationService.generateKosisNews()).willReturn(1);
-
-    mockMvc
-        .perform(post("/api/admin/news/generate/kosis"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.savedCount").value(1));
-
-    then(newsGenerationService).should().generateKosisNews();
-  }
-
-  @Test
-  @DisplayName("관리자 한국은행 뉴스 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
-  void generateBokNewsReturnsSavedCount() throws Exception {
-    given(newsGenerationService.generateBokNews()).willReturn(3);
-
-    mockMvc
-        .perform(post("/api/admin/news/generate/bok"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.savedCount").value(3));
-
-    then(newsGenerationService).should().generateBokNews();
-  }
-
-  @Test
   @DisplayName("관리자 경제 뉴스 초안 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
   void generateEconomyNewsDraftsReturnsSavedCount() throws Exception {
     given(newsGenerationService.generateEconomyNewsDrafts())

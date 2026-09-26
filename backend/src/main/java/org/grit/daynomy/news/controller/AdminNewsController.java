@@ -52,30 +52,6 @@ public class AdminNewsController {
     return ResponseEntity.status(HttpStatus.CREATED).body(AdminNewsResponse.from(news));
   }
 
-  @Operation(summary = "DART 뉴스 생성 실행", description = "관리자용 DART 뉴스 생성을 즉시 실행합니다.")
-  @PostMapping("/generate/dart")
-  public ResponseEntity<AdminNewsGenerationResponse> generateDartNews() {
-    int savedCount = newsGenerationService.generateScheduledDartNews();
-
-    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
-  }
-
-  @Operation(summary = "KOSIS 뉴스 생성 실행", description = "관리자용 KOSIS 뉴스 생성을 즉시 실행합니다.")
-  @PostMapping("/generate/kosis")
-  public ResponseEntity<AdminNewsGenerationResponse> generateKosisNews() {
-    int savedCount = newsGenerationService.generateKosisNews();
-
-    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
-  }
-
-  @Operation(summary = "한국은행 뉴스 생성 실행", description = "관리자용 한국은행 뉴스 생성을 즉시 실행합니다.")
-  @PostMapping("/generate/bok")
-  public ResponseEntity<AdminNewsGenerationResponse> generateBokNews() {
-    int savedCount = newsGenerationService.generateBokNews();
-
-    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
-  }
-
   @Operation(summary = "경제 뉴스 초안 생성 실행", description = "경제 뉴스 초안 생성을 즉시 실행합니다.")
   @PostMapping("/generate/economy")
   public ResponseEntity<AdminNewsGenerationResponse> generateEconomyNewsDrafts() {
