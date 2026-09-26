@@ -118,7 +118,7 @@ npm run build
 ```
 
 `dev` 또는 `main` 대상 Pull Request에서 프론트엔드 파일이 변경되면 Frontend CI가
-포맷, 린트, 테스트와 빌드를 순서대로 실행합니다.
+포맷, 린트, 타입 검사, 테스트, Docker 배포 검증과 빌드를 순서대로 실행합니다.
 
 ---
 
@@ -130,17 +130,17 @@ npm run build
 `main`에 새 프론트 버전을 병합하면 기존 Docker 배포 흐름에서 자동으로 배포하고,
 검증이 성공한 뒤 Git tag를 생성합니다. Actions 수동 실행은 필요하지 않습니다.
 
-| 브랜치 | GitHub Environment | URL                       | 호스트 포트 |
-| ------ | ------------------ | ------------------------- | ----------- |
-| `dev`  | `development`      | `https://dev.daynomy.com` | `3000`      |
-| `main` | `production`       | `https://daynomy.com`     | `3000`      |
+| 브랜치 | GitHub Environment | URL                       | 호스트 포트   |
+| ------ | ------------------ | ------------------------- | ------------- |
+| `dev`  | `development`      | `https://dev.daynomy.com` | `3000`·`3001` |
+| `main` | `production`       | `https://daynomy.com`     | `3000`·`3001` |
 
 `.github/workflows/deploy-frontend.yml`은 브랜치에 맞는 Vite mode로 빌드하고,
 `dev`는 개발 EC2의 `frontend-dev` 라벨 Runner로, `main`은 운영 EC2의
-`frontend-prod` 라벨 Runner로 배포합니다. 각 EC2에서는 프론트엔드 컨테이너를
-`127.0.0.1:3000`에 노출합니다. 개발·운영은 앱 EC2와 DB를 각각 따로 사용합니다.
-운영 배포는 기존 `/opt/daynomy/frontend/compose.yml`을, 개발 배포는
-저장소의 `frontend/compose.yml`을 사용합니다.
+`frontend-prod` 라벨 Runner로 배포합니다. 각 EC2에서 프론트 컨테이너 두 개를
+`127.0.0.1:3000`·`3001`에 번갈아 실행하고, 검증 후 호스트 Nginx 연결을 전환합니다.
+개발·운영 모두 저장소의 `frontend/compose.yml`을 사용하며 앱 EC2와 DB는 각각 분리합니다.
+최초 Nginx 설정과 이전 해시 파일 보관·실패 복구는 [RELEASING.md](RELEASING.md)를 확인합니다.
 
 GitHub의 `development`, `production` Environment에는 다음 값을 각각 설정합니다.
 
@@ -171,7 +171,8 @@ GitHub의 `development`, `production` Environment에는 다음 값을 각각 설
 
 ```bash
 docker ps --filter name=frontend
-docker logs frontend
+# 실제 활성 포트에 해당하는 컨테이너 선택
+docker logs frontend-3001
 ```
 
 ---
