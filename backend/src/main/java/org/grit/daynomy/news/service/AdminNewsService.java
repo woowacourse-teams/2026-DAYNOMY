@@ -57,6 +57,7 @@ public class AdminNewsService {
               request.title(),
               request.content(),
               uploadedImage == null ? null : uploadedImage.publicUrl(),
+              request.imageSourceInfo(),
               request.sourceInfos(),
               request.category());
 
@@ -174,6 +175,7 @@ public class AdminNewsService {
           request.title(),
           request.content(),
           uploadedImage == null ? previousImageUrl : uploadedImage.publicUrl(),
+          request.imageSourceInfo(),
           request.sourceInfos(),
           request.category());
       if (uploadedImage != null) {

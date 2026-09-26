@@ -1,0 +1,2 @@
+ALTER TABLE news
+    ADD COLUMN image_source TEXT NOT NULL DEFAULT '';
