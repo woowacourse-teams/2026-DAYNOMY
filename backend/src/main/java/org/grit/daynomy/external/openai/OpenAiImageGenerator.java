@@ -6,6 +6,7 @@ import java.util.Base64;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.springframework.http.MediaType;
@@ -78,10 +79,13 @@ public class OpenAiImageGenerator {
 
   private byte[] generateNewsImage(String title, String prompt, String size) {
     try {
-      log.info(
-          "Requesting OpenAI image generation: model={}, title={}",
-          openAiProperties.imageModel(),
-          title);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_REQUESTED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("model", openAiProperties.imageModel())
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_REQUESTED.message());
       String response =
           restClient
               .post()
@@ -93,23 +97,39 @@ public class OpenAiImageGenerator {
               .body(String.class);
 
       byte[] image = Base64.getDecoder().decode(extractImage(response));
-      log.info("Received OpenAI generated image: title={}", title);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_COMPLETED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_COMPLETED.message());
       return image;
     } catch (HttpStatusCodeException exception) {
-      log.warn(
-          "OpenAI image generation request failed: status={}, body={}, title={}",
-          exception.getStatusCode(),
-          exception.getResponseBodyAsString(),
-          title);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("httpStatus", exception.getStatusCode().value())
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (RestClientException exception) {
-      log.warn(
-          "OpenAI image generation request failed: message={}, title={}",
-          exception.getMessage(),
-          title);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("errorType", exception.getClass().getSimpleName())
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (IllegalArgumentException exception) {
-      log.warn("OpenAI image response contained invalid Base64 data: title={}", title);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "image-generation")
+          .addKeyValue("errorType", "InvalidBase64")
+          .addKeyValue("title", title)
+          .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     }
   }

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.ai.GeneratedNews;
@@ -84,53 +85,71 @@ public class OpenAiNewsGenerator {
     List<String> sourceNames = sourceNames(prompt);
     String sourceName = String.join(", ", sourceNames);
     try {
-      log.info(
-          "Requesting OpenAI news generation: model={}, source={}",
-          openAiProperties.model(),
-          sourceName);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_REQUESTED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "news-generation")
+          .addKeyValue("model", openAiProperties.model())
+          .addKeyValue("source", sourceName)
+          .log(LogEvent.AI_NEWS_GENERATION_REQUESTED.message());
       GeneratedNews generatedNews = requestNews(prompt, "");
       if (shouldValidate(prompt)) {
         ValidationResult validation = validateNews(sourceNames, generatedNews);
         if (!validation.valid()) {
-          log.warn(
-              "Generated news failed content validation: source={}, violations={}",
-              sourceName,
-              validation.violations());
+          log.atWarn()
+              .addKeyValue("event", LogEvent.AI_NEWS_VALIDATION_FAILED.code())
+              .addKeyValue("source", sourceName)
+              .addKeyValue("violations", validation.violations())
+              .log(LogEvent.AI_NEWS_VALIDATION_FAILED.message());
           generatedNews = requestNews(prompt, validation.correctionInstruction());
           ValidationResult retryValidation = validateNews(sourceNames, generatedNews);
           if (!retryValidation.valid()) {
-            log.warn(
-                "Regenerated news failed content validation: source={}, violations={}",
-                sourceName,
-                retryValidation.violations());
+            log.atWarn()
+                .addKeyValue("event", LogEvent.AI_NEWS_VALIDATION_FAILED.code())
+                .addKeyValue("source", sourceName)
+                .addKeyValue("violations", retryValidation.violations())
+                .log(LogEvent.AI_NEWS_VALIDATION_FAILED.message());
             throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
           }
         }
       }
-      log.info(
-          "Received OpenAI generated news: source={}, title={}", sourceName, generatedNews.title());
+      log.atInfo()
+          .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_COMPLETED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "news-generation")
+          .addKeyValue("source", sourceName)
+          .addKeyValue("title", generatedNews.title())
+          .log(LogEvent.AI_NEWS_GENERATION_COMPLETED.message());
       return generatedNews;
     } catch (HttpStatusCodeException exception) {
-      log.warn(
-          "OpenAI news generation request failed: status={}, body={}, source={}",
-          exception.getStatusCode(),
-          exception.getResponseBodyAsString(),
-          sourceName);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "news-generation")
+          .addKeyValue("httpStatus", exception.getStatusCode().value())
+          .addKeyValue("source", sourceName)
+          .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     } catch (RestClientException exception) {
-      log.warn(
-          "OpenAI news generation request failed: message={}, source={}",
-          exception.getMessage(),
-          sourceName);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "news-generation")
+          .addKeyValue("errorType", exception.getClass().getSimpleName())
+          .addKeyValue("source", sourceName)
+          .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     }
   }
 
   public List<GeneratedEconomicNews> generateEconomicNews() {
     try {
-      log.info(
-          "Requesting OpenAI economic news generation: model={}",
-          openAiProperties.economyNewsModel());
+      log.atInfo()
+          .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_REQUESTED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "economic-news-generation")
+          .addKeyValue("model", openAiProperties.economyNewsModel())
+          .log(LogEvent.AI_NEWS_GENERATION_REQUESTED.message());
       String response =
           restClient
               .post()
@@ -142,10 +161,20 @@ public class OpenAiNewsGenerator {
               .body(String.class);
       return parseEconomicNews(response);
     } catch (HttpStatusCodeException exception) {
-      log.warn("OpenAI economic news generation failed: status={}", exception.getStatusCode());
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "economic-news-generation")
+          .addKeyValue("httpStatus", exception.getStatusCode().value())
+          .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     } catch (RestClientException exception) {
-      log.warn("OpenAI economic news generation failed: message={}", exception.getMessage());
+      log.atWarn()
+          .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "economic-news-generation")
+          .addKeyValue("errorType", exception.getClass().getSimpleName())
+          .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     }
   }

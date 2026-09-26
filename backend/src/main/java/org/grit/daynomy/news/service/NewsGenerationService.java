@@ -3,9 +3,11 @@ package org.grit.daynomy.news.service;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.bok.BokNewsPromptService;
 import org.grit.daynomy.external.dart.DartNewsPromptService;
@@ -88,10 +90,17 @@ public class NewsGenerationService {
   }
 
   public List<News> generateEconomyNewsDrafts() {
+    long startedAt = System.nanoTime();
     List<GeneratedEconomicNews> generatedNews = openAiNewsGenerator.generateEconomicNews();
     List<String> imageUrls = Collections.nCopies(generatedNews.size(), null);
     List<News> drafts = newsPersistenceService.saveDrafts(generatedNews, imageUrls);
-    log.info("Saved scheduled economy news drafts: count={}", drafts.size());
+    log.atInfo()
+        .addKeyValue("event", LogEvent.NEWS_GENERATION_COMPLETED.code())
+        .addKeyValue("generationType", "economy")
+        .addKeyValue("generatedCount", generatedNews.size())
+        .addKeyValue("savedCount", drafts.size())
+        .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt))
+        .log(LogEvent.NEWS_GENERATION_COMPLETED.message());
     return drafts;
   }
 
