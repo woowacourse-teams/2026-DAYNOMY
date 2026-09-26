@@ -232,7 +232,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     env:
       DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
@@ -251,14 +251,11 @@ jobs:
 
           export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-frontend:$DEPLOY_VERSION"
           export COMPOSE_FILE="$GITHUB_WORKSPACE/frontend/compose.yml"
-          if [ "$DEPLOY_ENV" = "production" ]; then
-            export COMPOSE_FILE="/opt/daynomy/frontend/compose.yml"
-          fi
 
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
 
-          docker compose --file "$COMPOSE_FILE" pull frontend
+          docker pull "$FRONTEND_IMAGE"
           bash frontend/scripts/deploy-frontend.sh
 
       - name: Verify API and OAuth routing
