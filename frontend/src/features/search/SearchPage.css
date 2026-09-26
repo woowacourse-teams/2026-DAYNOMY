@@ -1,8 +1,8 @@
 .search-page {
-  width: min(100%, 1440px);
-  min-height: calc(100svh - 64px);
+  --search-side-padding: clamp(56px, 8vw, 160px);
+  width: min(100%, 2560px);
   margin: 0 auto;
-  padding: 68px 64px 78px;
+  padding: 32px var(--search-side-padding) 78px;
   color: #171821;
   background: #fff;
   font-family:
@@ -145,14 +145,10 @@
   display: flex;
   align-items: center;
   gap: 0;
-  margin: 32px 0 0;
-  padding: 0;
+  margin: 0;
+  padding: 0 0 14px;
   overflow-x: auto;
   scrollbar-width: none;
-}
-
-.search-page .search-panel:not(.has-stocks) .category-tabs {
-  margin-top: 70px;
 }
 
 .search-page .category-tabs::-webkit-scrollbar {
@@ -161,30 +157,30 @@
 
 .search-page .category-tabs button {
   display: inline-flex;
-  min-height: 20px;
+  min-height: 40px;
   align-items: center;
   padding: 0;
   border: 0;
   border-radius: 0;
   color: #8a93a3;
   background: transparent;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 500;
   line-height: 20px;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .search-page .category-tabs button:not(:first-child)::before {
-  margin: 0 17px;
+  margin: 0 15px;
   color: #cbd0da;
   content: '·';
 }
 
 .search-page .category-tabs button.active {
-  color: #4339c0;
+  color: #394fc4;
   background: transparent;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .search-page .news-results {
@@ -208,12 +204,9 @@
 }
 
 .search-page .article-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: 402px;
-  column-gap: 68px;
-  row-gap: 92px;
-  margin: 40px 0 0;
+  display: flex;
+  flex-direction: column;
+  margin: 16px 0 0;
 }
 
 .search-page .pagination {
@@ -221,7 +214,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-top: 104px;
+  margin-top: 32px;
 }
 
 .search-page .pagination button {
@@ -292,10 +285,6 @@
 }
 
 @media (max-width: 1000px) {
-  .search-page {
-    padding: 52px 24px 64px;
-  }
-
   .search-page .stock-search-list {
     gap: 24px;
   }
@@ -303,17 +292,19 @@
   .search-page .stock-search-card {
     flex-basis: calc((100% - 24px) / 2);
   }
+}
 
-  .search-page .article-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 32px;
-    row-gap: 64px;
+@media (max-width: 900px) {
+  .search-page {
+    --search-side-padding: 32px;
   }
 }
 
 @media (max-width: 720px) {
   .search-page {
-    padding: 36px 16px 48px;
+    --search-side-padding: 18px;
+    padding-top: 22px;
+    padding-bottom: 48px;
   }
 
   .search-page .stock-search-results h1 {
@@ -332,28 +323,5 @@
 
   .search-page .stock-search-category {
     margin-bottom: 20px;
-  }
-
-  .search-page .search-panel:not(.has-stocks) .category-tabs {
-    margin-top: 44px;
-  }
-
-  .search-page .category-tabs button {
-    font-size: 14px;
-  }
-
-  .search-page .category-tabs button:not(:first-child)::before {
-    margin: 0 12px;
-  }
-
-  .search-page .article-list {
-    grid-template-columns: 1fr;
-    grid-auto-rows: auto;
-    row-gap: 48px;
-    margin-top: 28px;
-  }
-
-  .search-page .pagination {
-    margin-top: 64px;
   }
 }
