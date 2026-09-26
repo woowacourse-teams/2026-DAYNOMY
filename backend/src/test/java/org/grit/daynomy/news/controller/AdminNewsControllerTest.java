@@ -17,12 +17,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.ImageSourceInfo;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsListItemResponse;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
+import org.grit.daynomy.news.dto.ImageSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceResponse;
 import org.grit.daynomy.news.service.AdminNewsService;
@@ -64,7 +66,9 @@ class AdminNewsControllerTest {
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
     willReturn("https://example.com/image.png").given(news).getImageUrl();
-    willReturn("Unsplash").given(news).getImageSource();
+    willReturn(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"))
+        .given(news)
+        .getImageSource();
     willReturn(
             java.util.List.of(
                 new org.grit.daynomy.news.domain.NewsSourceInfo(
@@ -80,7 +84,7 @@ class AdminNewsControllerTest {
             "뉴스 본문",
             java.util.List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
             Category.STOCK,
-            "Unsplash");
+            new ImageSourceRequest("Unsplash", "https://unsplash.com/photos/example"));
     MockMultipartFile requestPart =
         new MockMultipartFile(
             "request",
@@ -92,7 +96,7 @@ class AdminNewsControllerTest {
               "content": "뉴스 본문",
               "sources": [{"name": "직접 입력", "url": "https://example.com/news/1"}],
               "category": "STOCK",
-              "imageSource": "Unsplash"
+              "imageSource": {"name": "Unsplash", "url": "https://unsplash.com/photos/example"}
             }
             """
                 .getBytes());
@@ -105,7 +109,8 @@ class AdminNewsControllerTest {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.title").value("뉴스 제목"))
-        .andExpect(jsonPath("$.imageSource").value("Unsplash"))
+        .andExpect(jsonPath("$.imageSource.name").value("Unsplash"))
+        .andExpect(jsonPath("$.imageSource.url").value("https://unsplash.com/photos/example"))
         .andExpect(jsonPath("$.sources[0].name").value("직접 입력"))
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
@@ -327,7 +332,9 @@ class AdminNewsControllerTest {
     willReturn("수정 제목").given(news).getTitle();
     willReturn("수정 본문").given(news).getContent();
     willReturn("new-image.png").given(news).getImageUrl();
-    willReturn("Pexels").given(news).getImageSource();
+    willReturn(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example"))
+        .given(news)
+        .getImageSource();
     willReturn(Category.ETF).given(news).getCategory();
     willReturn(null).given(news).getPublishedAt();
     willReturn(NewsStatus.DRAFT).given(news).getStatus();
@@ -337,7 +344,7 @@ class AdminNewsControllerTest {
             "수정 본문",
             java.util.List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
             Category.ETF,
-            "Pexels");
+            new ImageSourceRequest("Pexels", "https://pexels.com/photo/example"));
     MockMultipartFile requestPart =
         new MockMultipartFile(
             "request",
@@ -349,7 +356,7 @@ class AdminNewsControllerTest {
               "content": "수정 본문",
               "sources": [{"name": "직접 입력", "url": "https://example.com/new"}],
               "category": "ETF",
-              "imageSource": "Pexels"
+              "imageSource": {"name": "Pexels", "url": "https://pexels.com/photo/example"}
             }
             """
                 .getBytes());
@@ -370,7 +377,7 @@ class AdminNewsControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.title").value("수정 제목"))
-        .andExpect(jsonPath("$.imageSource").value("Pexels"))
+        .andExpect(jsonPath("$.imageSource.name").value("Pexels"))
         .andExpect(jsonPath("$.category").value("ETF"))
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
