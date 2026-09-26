@@ -1,6 +1,7 @@
 package org.grit.daynomy.news.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willDoNothing;
@@ -139,6 +140,74 @@ class AdminNewsControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
         .andExpect(jsonPath("$.errors").isArray());
+
+    verifyNoInteractions(adminNewsService);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 등록 API는 이미지 출처가 모두 비어 있으면 허용한다")
+  void createNewsAllowsEmptyImageSource() throws Exception {
+    News news = mock(News.class);
+    willReturn(1L).given(news).getId();
+    willReturn("뉴스 제목").given(news).getTitle();
+    willReturn("뉴스 본문").given(news).getContent();
+    willReturn(java.util.List.of()).given(news).getSources();
+    willReturn(Category.STOCK).given(news).getCategory();
+    willReturn(NewsStatus.DRAFT).given(news).getStatus();
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            java.util.List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK,
+            new ImageSourceRequest("", ""));
+    MockMultipartFile requestPart =
+        new MockMultipartFile(
+            "request",
+            "",
+            MediaType.APPLICATION_JSON_VALUE,
+            """
+            {
+              "title": "뉴스 제목",
+              "content": "뉴스 본문",
+              "sources": [{"name": "직접 입력", "url": "https://example.com/news/1"}],
+              "category": "STOCK",
+              "imageSource": {"name": "", "url": ""}
+            }
+            """
+                .getBytes());
+    willReturn(news).given(adminNewsService).createDraft(eq(request), isNull());
+
+    mockMvc
+        .perform(multipart("/api/admin/news").file(requestPart))
+        .andExpect(status().isCreated());
+
+    then(adminNewsService).should().createDraft(eq(request), isNull());
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 등록 API는 이미지 출처명이 비어 있으면 요청을 거부한다")
+  void createNewsRejectsPartiallyEmptyImageSource() throws Exception {
+    MockMultipartFile requestPart =
+        new MockMultipartFile(
+            "request",
+            "",
+            MediaType.APPLICATION_JSON_VALUE,
+            """
+            {
+              "title": "뉴스 제목",
+              "content": "뉴스 본문",
+              "sources": [{"name": "직접 입력", "url": "https://example.com/news/1"}],
+              "category": "STOCK",
+              "imageSource": {"name": "", "url": "https://unsplash.com/photos/example"}
+            }
+            """
+                .getBytes());
+
+    mockMvc
+        .perform(multipart("/api/admin/news").file(requestPart))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
     verifyNoInteractions(adminNewsService);
   }
