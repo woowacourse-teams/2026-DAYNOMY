@@ -1,6 +1,7 @@
 package org.grit.daynomy.common.logging;
 
 public enum LogEvent {
+  HTTP_REQUEST_COMPLETED("http.request.completed"),
   AI_NEWS_GENERATION_REQUESTED("ai.news_generation.requested"),
   AI_NEWS_GENERATION_COMPLETED("ai.news_generation.completed"),
   AI_NEWS_GENERATION_FAILED("ai.news_generation.failed"),
