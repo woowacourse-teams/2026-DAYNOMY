@@ -3,9 +3,11 @@ package org.grit.daynomy.keyword.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +17,8 @@ import org.springframework.web.client.RestClient;
 
 @Component
 public class OpenAiKeywordClient implements KeywordAiClient {
+
+  private static final int MIN_KEYWORD_COUNT = 3;
 
   private static final String KEYWORD_EXTRACTION_PROMPT =
       """
@@ -62,7 +66,7 @@ public class OpenAiKeywordClient implements KeywordAiClient {
             .retrieve()
             .body(String.class);
 
-    return parseKeywords(response);
+    return parseKeywords(response, newsContent);
   }
 
   private Map<String, Object> createRequest(String newsContent) {
@@ -116,7 +120,9 @@ public class OpenAiKeywordClient implements KeywordAiClient {
 
     Map<String, Object> properties = new LinkedHashMap<>();
     properties.put(
-        "keywords", Map.of("type", "array", "minItems", 1, "maxItems", 5, "items", keywordItem));
+        "keywords",
+        Map.of(
+            "type", "array", "minItems", MIN_KEYWORD_COUNT, "maxItems", 5, "items", keywordItem));
 
     Map<String, Object> schema = new LinkedHashMap<>();
     schema.put("type", "object");
@@ -130,7 +136,7 @@ public class OpenAiKeywordClient implements KeywordAiClient {
     return List.of(values).stream().map(Enum::name).toList();
   }
 
-  private List<NewsKeyword> parseKeywords(String response) {
+  private List<NewsKeyword> parseKeywords(String response, String newsContent) {
     String outputText = extractOutputText(response);
     try {
       JsonNode keywordsNode = objectMapper.readTree(outputText).path("keywords");
@@ -138,10 +144,28 @@ public class OpenAiKeywordClient implements KeywordAiClient {
         throw new IllegalStateException("OpenAI keyword response must contain keywords array.");
       }
 
-      return keywordsNode.valueStream().map(this::parseKeyword).toList();
+      List<NewsKeyword> keywords = keywordsNode.valueStream().map(this::parseKeyword).toList();
+      return validateKeywords(keywords, newsContent);
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException("Failed to parse OpenAI keyword response.", exception);
     }
+  }
+
+  private List<NewsKeyword> validateKeywords(List<NewsKeyword> keywords, String newsContent) {
+    Set<String> distinctKeywords = new HashSet<>();
+    List<NewsKeyword> validKeywords =
+        keywords.stream()
+            .filter(keyword -> !keyword.getKeyword().isBlank())
+            .filter(keyword -> newsContent.contains(keyword.getKeyword()))
+            .filter(keyword -> distinctKeywords.add(keyword.getKeyword()))
+            .toList();
+
+    if (validKeywords.size() < MIN_KEYWORD_COUNT) {
+      throw new IllegalStateException(
+          "OpenAI keyword response must contain at least 3 valid keywords.");
+    }
+
+    return validKeywords;
   }
 
   private NewsKeyword parseKeyword(JsonNode keywordNode) {
@@ -152,7 +176,7 @@ public class OpenAiKeywordClient implements KeywordAiClient {
 
     return new NewsKeyword(
         KeywordCategory.valueOf(keywordNode.path("category").asText()),
-        keywordNode.path("keyword").asText(),
+        keywordNode.path("keyword").asText().trim(),
         pointsNode.get(0).asText(),
         pointsNode.get(1).asText(),
         pointsNode.get(2).asText());
