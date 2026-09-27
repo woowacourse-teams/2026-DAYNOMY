@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -63,11 +64,15 @@ class StockPriceSyncServiceTest {
         .should()
         .synchronize(org.mockito.ArgumentMatchers.eq(baseDate), entriesCaptor.capture());
     assertThat(entriesCaptor.getValue())
-        .extracting(StockPriceEntry::assetCode, StockPriceEntry::closePrice)
+        .extracting(
+            StockPriceEntry::assetCode, StockPriceEntry::category, StockPriceEntry::closePrice)
         .containsExactly(
-            org.assertj.core.groups.Tuple.tuple("005930", new java.math.BigDecimal("82000")),
-            org.assertj.core.groups.Tuple.tuple("000660", new java.math.BigDecimal("190000")),
-            org.assertj.core.groups.Tuple.tuple("247540", new java.math.BigDecimal("285000")));
+            org.assertj.core.groups.Tuple.tuple(
+                "005930", AssetCategory.STOCK, new java.math.BigDecimal("82000")),
+            org.assertj.core.groups.Tuple.tuple(
+                "000660", AssetCategory.STOCK, new java.math.BigDecimal("190000")),
+            org.assertj.core.groups.Tuple.tuple(
+                "247540", AssetCategory.STOCK, new java.math.BigDecimal("285000")));
   }
 
   @Test

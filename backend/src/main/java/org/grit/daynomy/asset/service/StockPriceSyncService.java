@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -133,7 +134,8 @@ public class StockPriceSyncService {
       if (!requestedDate.equals(baseDate) || closePrice.signum() <= 0) {
         return Optional.empty();
       }
-      return Optional.of(new StockPriceEntry(item.srtnCd().trim(), baseDate, closePrice));
+      return Optional.of(
+          new StockPriceEntry(item.srtnCd().trim(), AssetCategory.STOCK, baseDate, closePrice));
     } catch (DateTimeParseException | NumberFormatException exception) {
       return Optional.empty();
     }
