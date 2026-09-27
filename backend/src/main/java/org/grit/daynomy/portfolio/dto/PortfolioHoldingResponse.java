@@ -2,12 +2,14 @@ package org.grit.daynomy.portfolio.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 
 public record PortfolioHoldingResponse(
     Long assetId,
     String assetCode,
     String name,
+    AssetCategory category,
     StockMarket market,
     LocalDate baseDate,
     long quantity,
