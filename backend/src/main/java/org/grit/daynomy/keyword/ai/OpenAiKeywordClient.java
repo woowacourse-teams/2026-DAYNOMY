@@ -19,7 +19,9 @@ public class OpenAiKeywordClient implements KeywordAiClient {
   private static final String KEYWORD_EXTRACTION_PROMPT =
       """
       뉴스 본문에서 투자자가 이해해야 할 핵심 키워드를 3개에서 5개 추출하세요.
-      각 키워드는 한국어 명사구로 작성하세요.
+      keyword는 뉴스 본문에 연속으로 존재하는 핵심 명사구를 글자 그대로 복사하세요.
+      keyword를 요약·변형·조합하거나, 단어·공백·문장부호·괄호 설명을 추가·삭제하지 마세요.
+      동일한 keyword를 중복해서 반환하지 마세요.
       각 키워드를 이해하는 데 필요한 서로 다른 분석 포인트를 정확히 3개 작성하세요.
       각 포인트는 뉴스 본문 맥락에서 1문장으로 작성하세요.
       각 키워드는 다음 기준에 따라 하나의 카테고리로 분류하세요.

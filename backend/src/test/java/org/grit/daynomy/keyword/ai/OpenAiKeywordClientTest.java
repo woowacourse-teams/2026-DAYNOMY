@@ -34,6 +34,12 @@ class OpenAiKeywordClientTest {
         .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-api-key"))
         .andExpect(jsonPath("$.model").value("gpt-test"))
         .andExpect(jsonPath("$.input[0].content").value(containsString(KeywordCategory.DEFINITION)))
+        .andExpect(
+            jsonPath("$.input[0].content")
+                .value(containsString("뉴스 본문에 연속으로 존재하는 핵심 명사구를 글자 그대로 복사")))
+        .andExpect(jsonPath("$.input[0].content").value(containsString("keyword를 요약·변형·조합")))
+        .andExpect(
+            jsonPath("$.input[0].content").value(containsString("동일한 keyword를 중복해서 반환하지 마세요.")))
         .andExpect(jsonPath("$.input[1].content").value("뉴스 본문입니다."))
         .andExpect(
             jsonPath("$.text.format.schema.properties.keywords.items.properties.category.type")
