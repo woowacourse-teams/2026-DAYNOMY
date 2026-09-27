@@ -12,10 +12,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.publicdata.PublicDataEtfPriceClient;
 import org.grit.daynomy.external.publicdata.PublicDataListedStockClient;
+import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceItem;
+import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceResponse;
 import org.grit.daynomy.external.publicdata.dto.PublicDataListedStockItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataListedStockResponse;
 import org.springframework.stereotype.Service;
@@ -31,13 +35,16 @@ public class StockMasterSyncService {
   private static final Pattern PREFERRED_STOCK_NAME = Pattern.compile(".*(?:\\d+)?우(?:[A-Z])?$");
 
   private final PublicDataListedStockClient listedStockClient;
+  private final PublicDataEtfPriceClient etfPriceClient;
   private final StockMasterPersistenceService persistenceService;
   private final AtomicBoolean running = new AtomicBoolean(false);
 
   public StockMasterSyncService(
       PublicDataListedStockClient listedStockClient,
+      PublicDataEtfPriceClient etfPriceClient,
       StockMasterPersistenceService persistenceService) {
     this.listedStockClient = listedStockClient;
+    this.etfPriceClient = etfPriceClient;
     this.persistenceService = persistenceService;
   }
 
@@ -81,16 +88,37 @@ public class StockMasterSyncService {
         throw new BusinessException(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
       }
 
-      List<StockMasterEntry> entries = toEntries(items, requestedDate);
+      PublicDataEtfPriceResponse firstEtfPage =
+          etfPriceClient.getEtfPrices(requestedDate, 1, PAGE_SIZE);
+      if (firstEtfPage.body().totalCount() == 0 || firstEtfPage.items().isEmpty()) {
+        continue;
+      }
+
+      List<PublicDataEtfPriceItem> etfItems = new ArrayList<>(firstEtfPage.items());
+      int totalEtfPages = (firstEtfPage.body().totalCount() + PAGE_SIZE - 1) / PAGE_SIZE;
+      for (int page = 2; page <= totalEtfPages; page++) {
+        PublicDataEtfPriceResponse nextPage =
+            etfPriceClient.getEtfPrices(requestedDate, page, PAGE_SIZE);
+        if (nextPage.items().isEmpty()) {
+          throw new BusinessException(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
+        }
+        etfItems.addAll(nextPage.items());
+      }
+      if (etfItems.size() < firstEtfPage.body().totalCount()) {
+        throw new BusinessException(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
+      }
+
+      List<StockMasterEntry> entries = new ArrayList<>(toStockEntries(items, requestedDate));
+      entries.addAll(toEtfEntries(etfItems, requestedDate));
       if (!entries.isEmpty()) {
-        return new StockMasterSnapshot(entries.getFirst().baseDate(), entries);
+        return new StockMasterSnapshot(requestedDate, List.copyOf(entries));
       }
     }
 
     throw new BusinessException(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
   }
 
-  private List<StockMasterEntry> toEntries(
+  private List<StockMasterEntry> toStockEntries(
       List<PublicDataListedStockItem> items, LocalDate requestedDate) {
     Map<String, StockMasterEntry> entriesByCode = new LinkedHashMap<>();
     for (PublicDataListedStockItem item : items) {
@@ -124,7 +152,52 @@ public class StockMasterSyncService {
       return StockMarket.from(normalizeMarket(item.mrktCtg()))
           .map(
               market ->
-                  new StockMasterEntry(stockCode, name, market, item.isinCd().trim(), baseDate));
+                  new StockMasterEntry(
+                      stockCode,
+                      name,
+                      AssetCategory.STOCK,
+                      market,
+                      item.isinCd().trim(),
+                      baseDate));
+    } catch (DateTimeParseException exception) {
+      return Optional.empty();
+    }
+  }
+
+  private List<StockMasterEntry> toEtfEntries(
+      List<PublicDataEtfPriceItem> items, LocalDate requestedDate) {
+    Map<String, StockMasterEntry> entriesByCode = new LinkedHashMap<>();
+    for (PublicDataEtfPriceItem item : items) {
+      toEtfEntry(item, requestedDate).ifPresent(entry -> entriesByCode.put(entry.code(), entry));
+    }
+    return List.copyOf(entriesByCode.values());
+  }
+
+  private Optional<StockMasterEntry> toEtfEntry(
+      PublicDataEtfPriceItem item, LocalDate requestedDate) {
+    if (item == null
+        || isBlank(item.srtnCd())
+        || !STOCK_CODE.matcher(item.srtnCd().trim().toUpperCase(Locale.ROOT)).matches()
+        || isBlank(item.itmsNm())
+        || isBlank(item.isinCd())
+        || isBlank(item.basDt())) {
+      return Optional.empty();
+    }
+
+    try {
+      LocalDate baseDate = LocalDate.parse(item.basDt().trim(), BASIC_DATE_FORMAT);
+      if (!requestedDate.equals(baseDate)) {
+        return Optional.empty();
+      }
+      String code = item.srtnCd().trim().toUpperCase(Locale.ROOT).replaceFirst("^A", "");
+      return Optional.of(
+          new StockMasterEntry(
+              code,
+              item.itmsNm().trim(),
+              AssetCategory.ETF,
+              StockMarket.KOSPI,
+              item.isinCd().trim(),
+              baseDate));
     } catch (DateTimeParseException exception) {
       return Optional.empty();
     }

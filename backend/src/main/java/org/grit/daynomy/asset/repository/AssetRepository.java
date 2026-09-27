@@ -2,6 +2,7 @@ package org.grit.daynomy.asset.repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +15,8 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
   Optional<Asset> findByCategoryAndAssetCode(AssetCategory category, String assetCode);
 
   List<Asset> findAllByCategory(AssetCategory category);
+
+  List<Asset> findAllByCategoryIn(Set<AssetCategory> categories);
 
   @Query(
       """
