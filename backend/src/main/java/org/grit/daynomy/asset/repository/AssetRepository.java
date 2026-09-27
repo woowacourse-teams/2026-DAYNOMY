@@ -22,7 +22,7 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
       """
       SELECT a
       FROM Asset a
-      WHERE a.category = :category
+      WHERE a.category IN :categories
         AND a.listed = true
         AND (
           LOWER(a.name) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
@@ -39,8 +39,8 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
         a.name ASC,
         a.id ASC
       """)
-  List<Asset> searchListedStocks(
+  List<Asset> searchListedSecurities(
       @Param("keyword") String keyword,
-      @Param("category") AssetCategory category,
+      @Param("categories") Set<AssetCategory> categories,
       Pageable pageable);
 }

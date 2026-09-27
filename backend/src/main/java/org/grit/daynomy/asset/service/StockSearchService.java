@@ -1,5 +1,6 @@
 package org.grit.daynomy.asset.service;
 
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.dto.StockSearchResponse;
@@ -13,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class StockSearchService {
 
   private static final int SEARCH_RESULT_LIMIT = 20;
+  private static final Set<AssetCategory> SEARCH_CATEGORIES =
+      Set.of(AssetCategory.STOCK, AssetCategory.ETF);
 
   private final AssetRepository assetRepository;
 
@@ -20,8 +23,8 @@ public class StockSearchService {
   public StockSearchResponse search(String keyword) {
     String normalizedKeyword = escapeLikeKeyword(keyword.strip());
     return StockSearchResponse.from(
-        assetRepository.searchListedStocks(
-            normalizedKeyword, AssetCategory.STOCK, PageRequest.of(0, SEARCH_RESULT_LIMIT)));
+        assetRepository.searchListedSecurities(
+            normalizedKeyword, SEARCH_CATEGORIES, PageRequest.of(0, SEARCH_RESULT_LIMIT)));
   }
 
   private String escapeLikeKeyword(String keyword) {
