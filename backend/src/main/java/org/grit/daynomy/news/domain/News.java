@@ -39,6 +39,10 @@ public class News extends BaseEntity {
   private String imageUrl;
 
   @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "image_source", columnDefinition = "jsonb", nullable = false)
+  private ImageSourceInfo imageSource;
+
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "sources", columnDefinition = "jsonb", nullable = false)
   private List<NewsSourceInfo> sources;
 
@@ -57,6 +61,7 @@ public class News extends BaseEntity {
       String title,
       String content,
       String imageUrl,
+      ImageSourceInfo imageSource,
       List<NewsSourceInfo> sources,
       Category category,
       Instant publishedAt,
@@ -64,6 +69,7 @@ public class News extends BaseEntity {
     this.title = title;
     this.content = content;
     this.imageUrl = imageUrl;
+    this.imageSource = imageSource == null ? ImageSourceInfo.empty() : imageSource;
     this.sources = List.copyOf(sources);
     this.category = category;
     this.publishedAt = publishedAt;
@@ -77,7 +83,27 @@ public class News extends BaseEntity {
       List<NewsSourceInfo> sources,
       Category category,
       Instant publishedAt) {
-    return new News(title, content, imageUrl, sources, category, publishedAt, NewsStatus.PUBLISHED);
+    return createPublished(
+        title, content, imageUrl, ImageSourceInfo.empty(), sources, category, publishedAt);
+  }
+
+  public static News createPublished(
+      String title,
+      String content,
+      String imageUrl,
+      ImageSourceInfo imageSource,
+      List<NewsSourceInfo> sources,
+      Category category,
+      Instant publishedAt) {
+    return new News(
+        title,
+        content,
+        imageUrl,
+        imageSource,
+        sources,
+        category,
+        publishedAt,
+        NewsStatus.PUBLISHED);
   }
 
   public static News createDraft(
@@ -86,7 +112,18 @@ public class News extends BaseEntity {
       String imageUrl,
       List<NewsSourceInfo> sources,
       Category category) {
-    return new News(title, content, imageUrl, sources, category, null, NewsStatus.DRAFT);
+    return createDraft(title, content, imageUrl, ImageSourceInfo.empty(), sources, category);
+  }
+
+  public static News createDraft(
+      String title,
+      String content,
+      String imageUrl,
+      ImageSourceInfo imageSource,
+      List<NewsSourceInfo> sources,
+      Category category) {
+    return new News(
+        title, content, imageUrl, imageSource, sources, category, null, NewsStatus.DRAFT);
   }
 
   public void update(
@@ -95,15 +132,27 @@ public class News extends BaseEntity {
       String imageUrl,
       List<NewsSourceInfo> sources,
       Category category) {
+    update(title, content, imageUrl, ImageSourceInfo.empty(), sources, category);
+  }
+
+  public void update(
+      String title,
+      String content,
+      String imageUrl,
+      ImageSourceInfo imageSource,
+      List<NewsSourceInfo> sources,
+      Category category) {
     this.title = title;
     this.content = content;
     this.imageUrl = imageUrl;
+    this.imageSource = imageSource == null ? ImageSourceInfo.empty() : imageSource;
     this.sources = List.copyOf(sources);
     this.category = category;
   }
 
   public void updateImage(String imageUrl) {
     this.imageUrl = imageUrl;
+    this.imageSource = ImageSourceInfo.empty();
   }
 
   public void publish() {
