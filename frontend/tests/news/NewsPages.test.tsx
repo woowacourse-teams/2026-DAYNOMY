@@ -304,6 +304,51 @@ describe('뉴스 탐색 화면', () => {
     expect(view.container.querySelector('.news-image')?.hasAttribute('loading')).toBe(false);
   });
 
+  it('뉴스 키워드는 종류별 최초 등장 위치에 한 번씩 표시한다', async () => {
+    window.history.replaceState(null, '', '/news/7');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = getPath(input);
+        if (url === '/api/news/7') {
+          return jsonResponse({
+            ...article,
+            content:
+              '금리 동결 이후 금리 동결 전망을 확인합니다.\n\n채권시장도 금리 동결의 영향을 받고 채권시장 변화를 주시합니다.',
+            sources: [],
+          });
+        }
+        if (url === '/api/news/7/keywords') {
+          return jsonResponse({
+            keywords: [
+              {
+                category: 'POLICY',
+                keyword: '금리 동결',
+                points: ['금리 정책을 설명합니다.'],
+              },
+              {
+                category: 'TREND',
+                keyword: '채권시장',
+                points: ['채권시장 흐름을 설명합니다.'],
+              },
+            ],
+          });
+        }
+        if (url === '/api/news/7/market-analysis') return jsonResponse({}, 404);
+
+        return jsonResponse({}, 500);
+      }),
+    );
+
+    const view = renderPage(<NewsDetailPage />);
+
+    expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
+    const highlightedKeywords = Array.from(
+      view.container.querySelectorAll<HTMLElement>('mark.keyword'),
+    ).map((keyword) => keyword.firstChild?.textContent);
+    expect(highlightedKeywords).toEqual(['금리 동결', '채권시장']);
+  });
+
   it('현재 포트폴리오의 종목명과 보유 비중으로 뉴스 영향을 분석한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     localStorage.setItem(
