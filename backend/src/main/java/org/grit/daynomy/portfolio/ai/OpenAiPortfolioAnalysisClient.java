@@ -112,6 +112,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       String newsContent, List<PortfolioAnalysisTarget> targets) {
     return Map.of(
         "model", model,
+        "reasoning", Map.of("effort", "low"),
         "input", createInput(newsContent, targets),
         "text", createTextFormat(targets));
   }

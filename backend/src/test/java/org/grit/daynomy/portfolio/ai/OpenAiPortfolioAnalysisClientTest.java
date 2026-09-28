@@ -91,6 +91,7 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(request.getHeader("Authorization")).isEqualTo("Bearer test-api-key");
 
     JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    assertThat(requestBody.path("reasoning").path("effort").asText()).isEqualTo("low");
     JsonNode userContent =
         objectMapper.readTree(requestBody.path("input").get(1).path("content").asText());
     assertThat(userContent.path("assets").get(0).path("assetName").asText()).isEqualTo("삼성전자");
