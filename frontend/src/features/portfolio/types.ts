@@ -7,6 +7,14 @@ export type StockSearchItem = {
   market: StockMarket;
 };
 
+export type StockPrice = {
+  assetId: number;
+  assetCode: string;
+  name: string;
+  baseDate: string;
+  closePrice: number;
+};
+
 export type PortfolioHoldingInput = StockSearchItem & {
   quantity: number;
   averagePurchasePrice: number;
