@@ -302,7 +302,6 @@
 
 @media (max-width: 720px) {
   .search-page {
-    --search-side-padding: 18px;
     padding-top: 22px;
     padding-bottom: 48px;
   }
@@ -323,5 +322,11 @@
 
   .search-page .stock-search-category {
     margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 620px) {
+  .search-page {
+    --search-side-padding: 18px;
   }
 }
