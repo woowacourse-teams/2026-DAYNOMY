@@ -135,8 +135,23 @@ function isPortfolioAnalysisResponse(value: unknown): value is PortfolioAnalysis
   );
 }
 
+function normalizePortfolioAssets(assets: PortfolioAsset[]) {
+  return assets
+    .map((asset) => ({
+      assetName: asset.assetName.trim().toLocaleLowerCase(),
+      weight: Number(asset.weight.toFixed(2)),
+    }))
+    .sort(
+      (left, right) => left.assetName.localeCompare(right.assetName) || left.weight - right.weight,
+    );
+}
+
+export function createPortfolioSnapshotKey(assets: PortfolioAsset[]) {
+  return JSON.stringify(normalizePortfolioAssets(assets));
+}
+
 function createPortfolioAnalysisRequestKey(newsId: string, assets: PortfolioAsset[]) {
-  return JSON.stringify([newsId, assets]);
+  return JSON.stringify([newsId, normalizePortfolioAssets(assets)]);
 }
 
 function savePortfolioAnalysis(requestKey: string, analysis: PortfolioAnalysisResponse) {

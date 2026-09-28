@@ -449,8 +449,42 @@ describe('포트폴리오 분석 화면', () => {
 
     const stored = JSON.parse(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY) ?? '{}');
     expect(stored).toEqual({
-      [JSON.stringify(['storage', assets])]: analysis,
+      [JSON.stringify(['storage', [{ assetName: '저장 검증 자산', weight: 100 }]])]: analysis,
     });
+  });
+
+  it('자산 순서와 이름 및 비중 표현이 달라도 동일한 분석 요청으로 처리한다', async () => {
+    const analysis = { totalAssetCount: 2, analyzedAssetCount: 0, impacts: [] };
+    const fetchMock = vi.fn(async () => jsonResponse(analysis));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getPortfolioAnalysis('normalized', [
+      { assetName: 'KODEX 200', weight: 60.0000001 },
+      { assetName: '삼성전자', weight: 40 },
+    ]);
+    await getPortfolioAnalysis('normalized', [
+      { assetName: ' 삼성전자 ', weight: 40.0 },
+      { assetName: 'kodex 200', weight: 60 },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('자산 비중이 변경되면 새로운 분석 요청으로 처리한다', async () => {
+    const analysis = { totalAssetCount: 2, analyzedAssetCount: 0, impacts: [] };
+    const fetchMock = vi.fn(async () => jsonResponse(analysis));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getPortfolioAnalysis('changed-weight', [
+      { assetName: '삼성전자', weight: 60 },
+      { assetName: 'SK하이닉스', weight: 40 },
+    ]);
+    await getPortfolioAnalysis('changed-weight', [
+      { assetName: '삼성전자', weight: 59.99 },
+      { assetName: 'SK하이닉스', weight: 40.01 },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('브라우저 저장소를 사용할 수 없어도 완료된 분석 결과를 반환한다', async () => {

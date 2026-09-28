@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getPortfolioAnalysis, retryPortfolioAnalysis } from '../api';
+import { createPortfolioSnapshotKey, getPortfolioAnalysis, retryPortfolioAnalysis } from '../api';
 import type {
   PortfolioAnalysisResponse,
   PortfolioAsset,
@@ -109,14 +109,6 @@ function createDonutSegmentPath(start: number, percentage: number, thickness: nu
     `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
     'Z',
   ].join(' ');
-}
-
-function createPortfolioSnapshotKey(assets: PortfolioAsset[]) {
-  return JSON.stringify(
-    assets
-      .map((asset) => ({ assetName: normalizeAssetName(asset.assetName), weight: asset.weight }))
-      .sort((left, right) => left.assetName.localeCompare(right.assetName)),
-  );
 }
 
 function DirectionIcon({ direction }: { direction: PortfolioImpactDirection }) {
