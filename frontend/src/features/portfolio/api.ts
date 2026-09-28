@@ -15,6 +15,7 @@ import type {
 } from './types';
 
 const PORTFOLIO_ANALYSIS_CACHE_TIME = 5 * 60 * 1000;
+export const PORTFOLIO_ANALYSIS_STORAGE_KEY = 'daynomy:portfolio-analysis:v1';
 
 type PortfolioAnalysisCacheEntry = {
   request: Promise<PortfolioAnalysisResponse>;
@@ -138,6 +139,21 @@ function createPortfolioAnalysisRequestKey(newsId: string, assets: PortfolioAsse
   return JSON.stringify([newsId, assets]);
 }
 
+function savePortfolioAnalysis(requestKey: string, analysis: PortfolioAnalysisResponse) {
+  try {
+    const saved = localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
+    const parsed: unknown = saved ? JSON.parse(saved) : {};
+    const storedAnalyses = isRecord(parsed) ? parsed : {};
+
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({ ...storedAnalyses, [requestKey]: analysis }),
+    );
+  } catch {
+    // 브라우저 저장소를 사용할 수 없어도 완료된 분석 결과는 반환한다.
+  }
+}
+
 function deletePortfolioAnalysisCacheEntry(requestKey: string) {
   const cachedEntry = portfolioAnalysisRequests.get(requestKey);
   if (cachedEntry?.cleanupTimer) clearTimeout(cachedEntry.cleanupTimer);
@@ -225,7 +241,8 @@ export function getPortfolioAnalysis(
   portfolioAnalysisRequests.set(requestKey, { request: analysisRequest });
 
   void analysisRequest.then(
-    () => {
+    (analysis) => {
+      savePortfolioAnalysis(requestKey, analysis);
       const currentEntry = portfolioAnalysisRequests.get(requestKey);
       if (currentEntry?.request === analysisRequest) {
         currentEntry.expiresAt = Date.now() + PORTFOLIO_ANALYSIS_CACHE_TIME;

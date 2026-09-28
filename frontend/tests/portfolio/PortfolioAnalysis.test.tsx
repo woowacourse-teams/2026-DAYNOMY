@@ -2,7 +2,10 @@
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getPortfolioAnalysis } from '../../src/features/portfolio/api';
+import {
+  getPortfolioAnalysis,
+  PORTFOLIO_ANALYSIS_STORAGE_KEY,
+} from '../../src/features/portfolio/api';
 import { PortfolioAnalysis } from '../../src/features/portfolio/components/PortfolioAnalysis';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -14,6 +17,8 @@ function jsonResponse(body: unknown, status = 200) {
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -432,6 +437,37 @@ describe('포트폴리오 분석 화면', () => {
       (view.getByRole('button', { name: '포트폴리오 분석하기' }) as HTMLButtonElement).disabled,
     ).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('완료된 분석 결과를 뉴스와 포트폴리오 스냅샷 기준으로 저장한다', async () => {
+    const analysis = { totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] };
+    const fetchMock = vi.fn(async () => jsonResponse(analysis));
+    vi.stubGlobal('fetch', fetchMock);
+    const assets = [{ assetName: '저장 검증 자산', weight: 100 }];
+
+    await getPortfolioAnalysis('storage', assets);
+
+    const stored = JSON.parse(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY) ?? '{}');
+    expect(stored).toEqual({
+      [JSON.stringify(['storage', assets])]: analysis,
+    });
+  });
+
+  it('브라우저 저장소를 사용할 수 없어도 완료된 분석 결과를 반환한다', async () => {
+    const analysis = { totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(analysis)),
+    );
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('저장소를 사용할 수 없습니다.');
+    });
+
+    await expect(
+      getPortfolioAnalysis('storage-unavailable', [
+        { assetName: '저장 실패 검증 자산', weight: 100 },
+      ]),
+    ).resolves.toEqual(analysis);
   });
 
   it('완료된 분석 캐시는 TTL이 지나면 자동으로 제거한다', async () => {
