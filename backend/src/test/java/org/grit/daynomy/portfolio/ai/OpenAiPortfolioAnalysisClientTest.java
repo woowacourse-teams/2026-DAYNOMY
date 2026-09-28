@@ -134,6 +134,24 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
+  @DisplayName("뉴스 원문에 명시된 영향의 범위와 규모를 기준으로 영향 수준을 판단하도록 요청한다")
+  void analyzeRequestsImpactLevelBasedOnExplicitCriteria() throws Exception {
+    enqueueOutput("{\"impacts\":[]}");
+
+    client.analyze("뉴스 본문", targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    String developerPrompt = requestBody.path("input").get(0).path("content").asText();
+
+    assertThat(developerPrompt)
+        .contains("impactLevel은 direction과 관계없이 뉴스 원문에 명시된 영향의 범위, 규모, 즉시성, 확실성을 기준으로 판단하세요.")
+        .contains("기업 전반이나 주요 실적·생산·수급에 미치는 영향이 크고 구체적이면 HIGH로 판단하세요.")
+        .contains("직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.")
+        .contains("직접적인 영향이 있으나 범위가 좁고 규모가 작거나 일시적이면 LOW로 판단하세요.");
+  }
+
+  @Test
   @DisplayName("요청하지 않은 종목명이 AI 응답에 포함되면 분석 실패로 처리한다")
   void analyzeRejectsUnknownAssetName() throws Exception {
     enqueueOutput(
