@@ -98,6 +98,23 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
+  @DisplayName("사용자 노출 문장은 해요체로 작성하고 뉴스 원문 문체는 유지하도록 요청한다")
+  void analyzeRequestsFriendlyToneExceptForEvidenceSentence() throws Exception {
+    enqueueOutput("{\"impacts\":[]}");
+
+    client.analyze("뉴스 본문", targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    String developerPrompt = requestBody.path("input").get(0).path("content").asText();
+
+    assertThat(developerPrompt)
+        .contains("expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.")
+        .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.")
+        .contains("evidenceSentence는 뉴스 원문의 문체를 그대로 유지하고 해요체로 바꾸지 마세요.");
+  }
+
+  @Test
   @DisplayName("요청하지 않은 종목명이 AI 응답에 포함되면 분석 실패로 처리한다")
   void analyzeRejectsUnknownAssetName() throws Exception {
     enqueueOutput(

@@ -39,9 +39,12 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - direction은 뉴스가 자산에 유리한 직접 영향을 주면 POSITIVE, 불리한 직접 영향을 주면 NEGATIVE로 판단하세요.
             - 관련성은 있지만 긍정 또는 부정 방향을 판단할 근거가 충분하지 않으면 NEUTRAL로 판단하세요.
             - impactLevel은 HIGH, MEDIUM, LOW 중 하나로 판단하세요.
-            - expectedReaction에는 예상되는 자산 반응을 작성하세요.
-            - reason에는 판단 근거를 작성하세요.
+            - expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.
+            - reason에는 판단 근거를 자연스러운 해요체로 작성하세요.
+            - expectedReaction과 reason의 모든 문장은 '-했어요.', '-해요.', '-예요.'와 같은 해요체로 끝내세요.
+            - expectedReaction과 reason에 '-하다.', '-했음.', '-함.'과 같은 문어체나 명사형 종결 표현을 사용하지 마세요.
             - evidenceSentence는 해당 자산의 direction과 impactLevel 판단을 직접 뒷받침하는 뉴스 원문 문장 하나여야 합니다.
+            - evidenceSentence는 뉴스 원문의 문체를 그대로 유지하고 해요체로 바꾸지 마세요.
             - newsContent에 문자 그대로 존재하는 완전한 문장만 복사하세요. 문장을 요약·변형·조합하거나 새로운 내용을 만들지 마세요.
             - 해당 자산과의 영향 관계를 직접 뒷받침하는 원문 문장이 없다면, 관련 없는 문장을 대신 사용하지 말고 해당 자산을 impacts 결과에서 제외하세요.
             - 뉴스에 없는 사실을 단정하지 마세요.
