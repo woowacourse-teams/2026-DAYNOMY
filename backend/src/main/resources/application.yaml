@@ -54,6 +54,9 @@ jwt:
   access-token-expiration: ${ACCESS_TOKEN_EXPIRATION:1800000}
   refresh-token-expiration: ${REFRESH_TOKEN_EXPIRATION:1209600000}
 
+cookie:
+  secure: ${COOKIE_SECURE:false}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
