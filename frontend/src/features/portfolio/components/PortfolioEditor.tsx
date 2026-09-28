@@ -81,6 +81,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
 
   const quantityNumber = Number(quantity);
   const averagePriceNumber = Number(averagePrice);
+  const canAdjustAveragePrice = Number.isFinite(averagePriceNumber) && averagePriceNumber > 0;
   const canSave =
     selectedStock !== null &&
     Number.isSafeInteger(quantityNumber) &&
@@ -100,8 +101,8 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
   }
 
   function adjustAveragePrice(amount: number) {
-    const currentPrice = Number(averagePrice);
-    const nextPrice = Math.max(1, (Number.isFinite(currentPrice) ? currentPrice : 0) + amount);
+    if (!canAdjustAveragePrice) return;
+    const nextPrice = Math.max(1, averagePriceNumber + amount);
     setAveragePrice(String(nextPrice));
   }
 
@@ -227,6 +228,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                 <button
                   type="button"
                   aria-label="평균 매수가 1,000원 내리기"
+                  disabled={!canAdjustAveragePrice}
                   onClick={() => adjustAveragePrice(-1000)}
                 >
                   −
@@ -244,6 +246,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                 <button
                   type="button"
                   aria-label="평균 매수가 1,000원 올리기"
+                  disabled={!canAdjustAveragePrice}
                   onClick={() => adjustAveragePrice(1000)}
                 >
                   ＋

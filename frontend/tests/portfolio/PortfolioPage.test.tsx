@@ -147,6 +147,54 @@ describe('포트폴리오 화면', () => {
     await waitFor(() => expect(averagePriceInput.value).toBe('80000'));
   });
 
+  it('최근 종가를 불러오는 동안 평균 매수가 조절을 막는다', async () => {
+    let resolvePrice!: (response: Response) => void;
+    const priceResponse = new Promise<Response>((resolve) => {
+      resolvePrice = resolve;
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/api/stocks?')) return jsonResponse({ stocks: [stock] });
+        if (url.endsWith('/api/stocks/1/price')) return priceResponse;
+        return jsonResponse({}, 404);
+      }),
+    );
+
+    const view = render(<PortfolioPage />);
+    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+
+    const dialog = view.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
+    fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));
+
+    const averagePriceInput = within(dialog).getByLabelText('평균 매수가') as HTMLInputElement;
+    const increaseButton = within(dialog).getByRole('button', {
+      name: '평균 매수가 1,000원 올리기',
+    }) as HTMLButtonElement;
+    expect(increaseButton.disabled).toBe(true);
+    fireEvent.click(increaseButton);
+    expect(averagePriceInput.value).toBe('');
+
+    await act(async () => {
+      resolvePrice(
+        jsonResponse({
+          ...stock,
+          baseDate: '2026-09-21',
+          closePrice: 75000,
+        }),
+      );
+      await priceResponse;
+    });
+
+    await waitFor(() => expect(averagePriceInput.value).toBe('75000'));
+    expect(increaseButton.disabled).toBe(false);
+    fireEvent.click(increaseButton);
+    expect(averagePriceInput.value).toBe('76000');
+  });
+
   it('로컬 저장 자산을 복원해 계산하고 삭제한다', async () => {
     localStorage.setItem(
       PORTFOLIO_STORAGE_KEY,
