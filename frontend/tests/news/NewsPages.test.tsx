@@ -101,14 +101,16 @@ describe('뉴스 탐색 화면', () => {
     );
 
     const view = renderPage(<NewsListPage />);
-    const link = (await view.findByRole('link', {
-      name: /기준금리 동결 가능성 확대/,
-    })) as HTMLAnchorElement;
+    await waitFor(() =>
+      expect(view.container.querySelector('.article-list a[href="/news/7"]')).not.toBeNull(),
+    );
+    const link = view.container.querySelector<HTMLAnchorElement>('.article-list a[href="/news/7"]');
 
-    expect(link.getAttribute('href')).toBe('/news/7');
-    const todayBanner = view.getByRole('button', { name: '오늘의 뉴스' });
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('href')).toBe('/news/7');
+    const todayBanner = view.getByRole('region', { name: '오늘의 이슈' });
     expect(todayBanner.querySelector('p')).toBeNull();
-    const categoryTabs = view.getByRole('navigation', { name: '뉴스 카테고리' });
+    const categoryTabs = view.getByRole('navigation', { name: '이슈 카테고리' });
     expect(categoryTabs.querySelectorAll('button')).toHaveLength(4);
     expect(view.getByRole('button', { name: '전체' })).toBeTruthy();
     expect(view.getByRole('button', { name: '주식' })).toBeTruthy();
@@ -116,10 +118,53 @@ describe('뉴스 탐색 화면', () => {
     expect(view.getByRole('button', { name: 'ETF' })).toBeTruthy();
     expect(view.queryByRole('button', { name: '금' })).toBeNull();
     expect(view.queryByRole('button', { name: '채권' })).toBeNull();
-    expect(view.getAllByRole('button', { name: /번째 배너 보기/ })).toHaveLength(2);
+    expect(view.queryByRole('button', { name: '이전 오늘의 이슈' })).toBeNull();
+    expect(view.queryByRole('button', { name: '다음 오늘의 이슈' })).toBeNull();
+    expect(view.getByRole('button', { name: '오늘의 두 번째 뉴스' })).toBeTruthy();
     expect(view.container.querySelector('.banner-visual img')?.hasAttribute('loading')).toBe(false);
     fireEvent.click(view.getByRole('button', { name: '주식' }));
     await waitFor(() => expect(calls.some((url) => url.includes('category=STOCK'))).toBe(true));
+  });
+
+  it('페이지 범위 화살표를 누르면 현재 표시된 숫자의 끝으로 이동한다', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = getPathWithSearch(input);
+        calls.push(url);
+
+        if (getPath(input) === '/api/news/today') {
+          return jsonResponse({
+            items: [],
+            page: 1,
+            size: 6,
+            totalPages: 0,
+            totalElements: 0,
+            hasNext: false,
+          });
+        }
+
+        return jsonResponse({
+          items: [article],
+          page: Number(new URL(String(input), 'http://localhost').searchParams.get('page')),
+          size: 6,
+          totalPages: 10,
+          totalElements: 60,
+          hasNext: true,
+        });
+      }),
+    );
+
+    const view = renderPage(<NewsListPage />);
+    await waitFor(() =>
+      expect(view.getByRole('button', { name: '표시된 페이지 범위의 마지막 페이지' })).toBeTruthy(),
+    );
+
+    fireEvent.click(view.getByRole('button', { name: '표시된 페이지 범위의 마지막 페이지' }));
+
+    await waitFor(() => expect(calls.some((url) => url.includes('page=5'))).toBe(true));
+    expect(view.getByRole('button', { name: '5', current: 'page' })).toBeTruthy();
   });
 
   it('뉴스 목록 API 실패를 사용자에게 안내한다', async () => {
@@ -142,7 +187,7 @@ describe('뉴스 탐색 화면', () => {
     const view = renderPage(<NewsListPage />);
 
     expect((await view.findByRole('status')).textContent).toContain(
-      '뉴스 목록을 불러오지 못했습니다.',
+      '이슈 목록을 불러오지 못했습니다.',
     );
   });
 
@@ -171,10 +216,10 @@ describe('뉴스 탐색 화면', () => {
     );
 
     const view = renderPage(<NewsListPage />);
-    const emptyBanner = await view.findByRole('region', { name: '오늘의 뉴스' });
+    const emptyBanner = await view.findByRole('region', { name: '오늘의 이슈' });
 
     expect(emptyBanner.classList.contains('today-news-empty')).toBe(true);
-    expect(emptyBanner.textContent).toContain('오늘의 뉴스는 없습니다!');
+    expect(emptyBanner.textContent).toContain('오늘의 이슈는 없습니다!');
     expect(emptyBanner.compareDocumentPosition(view.getByRole('button', { name: '전체' }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
@@ -191,8 +236,8 @@ describe('뉴스 탐색 화면', () => {
     await waitFor(() => expect(view.container.querySelectorAll('.state-panel')).toHaveLength(2));
 
     const panels = Array.from(view.container.querySelectorAll('.state-panel'));
-    expect(panels[0].textContent).toContain('오늘의 뉴스를 불러오지 못했습니다.');
-    expect(panels[1].textContent).toContain('뉴스 목록을 불러오지 못했습니다.');
+    expect(panels[0].textContent).toContain('오늘의 이슈를 불러오지 못했습니다.');
+    expect(panels[1].textContent).toContain('이슈 목록을 불러오지 못했습니다.');
   });
 
   it('뉴스 상세 내용과 시장 분석을 표시한다', async () => {
@@ -257,6 +302,51 @@ describe('뉴스 탐색 화면', () => {
     );
     expect(view.queryByRole('link', { name: 'Google로 시작하기' })).toBeNull();
     expect(view.container.querySelector('.news-image')?.hasAttribute('loading')).toBe(false);
+  });
+
+  it('뉴스 키워드는 종류별 최초 등장 위치에 한 번씩 표시한다', async () => {
+    window.history.replaceState(null, '', '/news/7');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = getPath(input);
+        if (url === '/api/news/7') {
+          return jsonResponse({
+            ...article,
+            content:
+              '금리 동결 이후 금리 동결 전망을 확인합니다.\n\n채권시장도 금리 동결의 영향을 받고 채권시장 변화를 주시합니다.',
+            sources: [],
+          });
+        }
+        if (url === '/api/news/7/keywords') {
+          return jsonResponse({
+            keywords: [
+              {
+                category: 'POLICY',
+                keyword: '금리 동결',
+                points: ['금리 정책을 설명합니다.'],
+              },
+              {
+                category: 'TREND',
+                keyword: '채권시장',
+                points: ['채권시장 흐름을 설명합니다.'],
+              },
+            ],
+          });
+        }
+        if (url === '/api/news/7/market-analysis') return jsonResponse({}, 404);
+
+        return jsonResponse({}, 500);
+      }),
+    );
+
+    const view = renderPage(<NewsDetailPage />);
+
+    expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
+    const highlightedKeywords = Array.from(
+      view.container.querySelectorAll<HTMLElement>('mark.keyword'),
+    ).map((keyword) => keyword.firstChild?.textContent);
+    expect(highlightedKeywords).toEqual(['금리 동결', '채권시장']);
   });
 
   it('현재 포트폴리오의 종목명과 보유 비중으로 뉴스 영향을 분석한다', async () => {

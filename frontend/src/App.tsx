@@ -1,7 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
-import MyPage from './features/pages/components/MyPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
 import { InfoPage } from './features/pages/components/InfoPage';
 import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
@@ -35,7 +34,6 @@ function AppHeader() {
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/portfolio') ||
-    location.pathname.startsWith('/mypage') ||
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
     location.pathname.startsWith('/privacy') ||
@@ -111,7 +109,6 @@ export default function App() {
               <Route path="/terms" element={<InfoPage page="terms" />} />
               <Route path="/privacy" element={<InfoPage page="privacy" />} />
               <Route path="/standard" element={<InfoPage page="standard" />} />
-              <Route path="/mypage" element={<MyPage />} />
               <Route
                 path="/admin"
                 element={
