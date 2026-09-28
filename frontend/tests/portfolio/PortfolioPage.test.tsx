@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
 import { PORTFOLIO_STORAGE_KEY } from '../../src/features/portfolio/hooks/usePortfolioHoldings';
 
 const stock = { assetId: 1, assetCode: '005930', name: '삼성전자', market: 'KOSPI' } as const;
+const secondStock = { assetId: 2, assetCode: '000150', name: '두산', market: 'KOSPI' } as const;
 const calculation = {
   baseDate: '2026-09-21',
   totalPurchaseAmount: 700000,
@@ -95,6 +96,55 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('heading', { name: '시장 구성' })).toBeTruthy();
     expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('005930');
+  });
+
+  it('종목을 다시 선택하면 이전 종목의 늦은 종가 응답을 무시한다', async () => {
+    let resolveFirstPrice!: (response: Response) => void;
+    const firstPriceResponse = new Promise<Response>((resolve) => {
+      resolveFirstPrice = resolve;
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/api/stocks?')) return jsonResponse({ stocks: [stock, secondStock] });
+        if (url.endsWith('/api/stocks/1/price')) return firstPriceResponse;
+        if (url.endsWith('/api/stocks/2/price'))
+          return jsonResponse({
+            ...secondStock,
+            baseDate: '2026-09-21',
+            closePrice: 80000,
+          });
+        return jsonResponse({}, 404);
+      }),
+    );
+
+    const view = render(<PortfolioPage />);
+    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+
+    const dialog = view.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '주식' } });
+    fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '다시 검색' }));
+
+    await act(async () => {
+      resolveFirstPrice(
+        jsonResponse({
+          ...stock,
+          baseDate: '2026-09-21',
+          closePrice: 75000,
+        }),
+      );
+      await firstPriceResponse;
+    });
+
+    const averagePriceInput = within(dialog).getByLabelText('평균 매수가') as HTMLInputElement;
+    expect(averagePriceInput.value).toBe('');
+
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '두산' } });
+    fireEvent.click(await within(dialog).findByRole('button', { name: /두산/ }));
+    await waitFor(() => expect(averagePriceInput.value).toBe('80000'));
   });
 
   it('로컬 저장 자산을 복원해 계산하고 삭제한다', async () => {

@@ -65,6 +65,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
     setPriceError('');
     getLatestStockPrice(selectedStock.assetId, controller.signal)
       .then((price) => {
+        if (controller.signal.aborted) return;
         setAveragePrice((currentPrice) => currentPrice || String(Math.round(price.closePrice)));
       })
       .catch(() => {
