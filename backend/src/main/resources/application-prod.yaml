@@ -1,0 +1,12 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+cookie:
+  secure: false
+
+news:
+  generation:
+    economy:
+      enabled: true

@@ -54,9 +54,6 @@ jwt:
   access-token-expiration: ${ACCESS_TOKEN_EXPIRATION:1800000}
   refresh-token-expiration: ${REFRESH_TOKEN_EXPIRATION:1209600000}
 
-cookie:
-  secure: ${COOKIE_SECURE:false}
-
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -88,7 +85,6 @@ ai:
 news:
   generation:
     economy:
-      enabled: ${ECONOMY_NEWS_GENERATION_ENABLED:true}
       cron: ${ECONOMY_NEWS_GENERATION_CRON:0 0 9 * * *}
 
 stock:
