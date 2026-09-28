@@ -115,6 +115,24 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
+  @DisplayName("뉴스 원문의 직접적인 근거를 기준으로 영향 방향을 판단하도록 요청한다")
+  void analyzeRequestsDirectionBasedOnDirectEvidence() throws Exception {
+    enqueueOutput("{\"impacts\":[]}");
+
+    client.analyze("뉴스 본문", targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    String developerPrompt = requestBody.path("input").get(0).path("content").asText();
+
+    assertThat(developerPrompt)
+        .contains("자산의 실적, 수요, 경쟁력 또는 수급에 유리한 직접 영향이 명확하면 POSITIVE로 판단하세요.")
+        .contains("자산의 실적, 수요, 경쟁력 또는 수급에 불리한 직접 영향이 명확하면 NEGATIVE로 판단하세요.")
+        .contains("긍정·부정 요인이 함께 존재하면 NEUTRAL로 판단하세요.")
+        .contains("시장 전반의 분위기나 일반적인 업황만으로 개별 자산의 방향을 추측하지 마세요.");
+  }
+
+  @Test
   @DisplayName("요청하지 않은 종목명이 AI 응답에 포함되면 분석 실패로 처리한다")
   void analyzeRejectsUnknownAssetName() throws Exception {
     enqueueOutput(
