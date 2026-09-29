@@ -28,10 +28,10 @@ import org.springframework.web.client.RestClientException;
 public class OpenAiNewsGenerator {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private static final int ECONOMIC_NEWS_ARTICLE_COUNT = 3;
+  private static final int ECONOMIC_NEWS_ARTICLE_COUNT = 4;
   private static final String ECONOMY_NEWS_INSTRUCTION =
       """
-      오늘은 %s(한국 기준)입니다. 웹 검색으로 최근 국내외 경제 이슈 중 한국 주식시장이나 상장 기업에 영향을 줄 수 있는 이슈 3개를 찾아 뉴스 초안을 작성하세요. 세 이슈는 서로 다른 사건과 주제를 다뤄야 하며, 특정 대기업이나 인기 종목의 뉴스만 반복하지 마세요.
+      오늘은 %s(한국 기준)입니다. 웹 검색으로 최근 국내외 경제 이슈 중 한국 주식시장이나 상장 기업에 영향을 줄 수 있는 이슈 4개를 찾아 뉴스 초안을 작성하세요. 네 이슈는 서로 다른 사건과 주제를 다뤄야 하며, 특정 대기업이나 인기 종목의 뉴스만 반복하지 마세요.
 
       기업의 수주·공급 계약, 실적·투자·생산 변화, 산업별 수요 변화, 수출·공급망 변화, 금리·환율·물가·고용·무역 정책 등 다양한 유형의 구체적인 사건을 폭넓게 살피세요. 기업을 다룰 때는 삼성전자·SK하이닉스 같은 초대형주에 검색 결과가 편중되지 않도록 코스피·코스닥의 다양한 업종과 규모의 상장 기업을 함께 검색하세요. 가능한 경우 대형주와 중소형주, 코스피와 코스닥, 서로 다른 산업을 섞어 선정하고, 기업 규모나 인지도보다 사건의 구체성·최신성·경제적 연관성을 기준으로 판단하세요. 부동산이나 ETF 이슈는 해당 시장의 변화가 분명하고 기존 카테고리에 가장 잘 맞을 때 선택하세요. 공공기관 통계나 보도자료만을 주된 소재로 삼지 말고, 경제 전문 매체와 주요 언론의 최신 보도를 우선 확인하세요. 게시일과 실제 사건 발생일을 구분하고, 각 이슈의 사실관계를 가능한 한 서로 독립된 출처 2곳 이상으로 확인하세요.
 
@@ -42,7 +42,7 @@ public class OpenAiNewsGenerator {
       - ETF: 상장지수펀드 상품이나 ETF 시장 중심 이슈
       - STOCK: 상장 기업, 주식시장, 금리, 환율, 물가, 고용, 무역 등 그 밖의 경제 이슈
 
-      이슈마다 서로 다른 사건을 다루고, 같은 사건을 제목이나 관점만 바꾸어 중복 작성하지 마세요. 근거가 부족한 이슈를 추측해 채우지 마세요. 확인 가능한 이슈가 3개 미만이면 생성에 실패하세요.
+      이슈마다 서로 다른 사건을 다루고, 같은 사건을 제목이나 관점만 바꾸어 중복 작성하지 마세요. 근거가 부족한 이슈를 추측해 채우지 마세요. 확인 가능한 이슈가 4개 미만이면 생성에 실패하세요.
       """;
 
   private final OpenAiProperties openAiProperties;
@@ -174,7 +174,7 @@ public class OpenAiNewsGenerator {
       JsonNode generated = OBJECT_MAPPER.readTree(extractOutputText(responseJson));
       JsonNode articles = generated.path("articles");
       if (!articles.isArray() || articles.size() != ECONOMIC_NEWS_ARTICLE_COUNT) {
-        throw new IllegalArgumentException("Expected exactly three economic news articles.");
+        throw new IllegalArgumentException("Expected exactly four economic news articles.");
       }
 
       Map<String, NewsSourceInfo> availableSources = new LinkedHashMap<>();
