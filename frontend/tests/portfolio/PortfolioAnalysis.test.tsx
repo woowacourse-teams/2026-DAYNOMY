@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getPortfolioAnalysis,
+  getStoredPortfolioAnalysis,
   PORTFOLIO_ANALYSIS_STORAGE_KEY,
 } from '../../src/features/portfolio/api';
 import { PortfolioAnalysis } from '../../src/features/portfolio/components/PortfolioAnalysis';
@@ -29,21 +30,24 @@ describe('포트폴리오 분석 화면', () => {
     localStorage.setItem(
       PORTFOLIO_ANALYSIS_STORAGE_KEY,
       JSON.stringify({
-        [requestKey]: {
-          totalAssetCount: 1,
-          analyzedAssetCount: 1,
-          impacts: [
-            {
-              assetName: '삼성전자',
-              weight: 100,
-              direction: 'POSITIVE',
-              impactLevel: 'HIGH',
-              summary: '저장된 분석 결과예요.',
-              reason: '저장된 근거예요.',
-              evidenceSentence: '저장된 뉴스 문장이에요.',
-              rank: 1,
-            },
-          ],
+        version: 1,
+        analyses: {
+          [requestKey]: {
+            totalAssetCount: 1,
+            analyzedAssetCount: 1,
+            impacts: [
+              {
+                assetName: '삼성전자',
+                weight: 100,
+                direction: 'POSITIVE',
+                impactLevel: 'HIGH',
+                summary: '저장된 분석 결과예요.',
+                reason: '저장된 근거예요.',
+                evidenceSentence: '저장된 뉴스 문장이에요.',
+                rank: 1,
+              },
+            ],
+          },
         },
       }),
     );
@@ -64,21 +68,24 @@ describe('포트폴리오 분석 화면', () => {
     localStorage.setItem(
       PORTFOLIO_ANALYSIS_STORAGE_KEY,
       JSON.stringify({
-        [requestKey]: {
-          totalAssetCount: 1,
-          analyzedAssetCount: 1,
-          impacts: [
-            {
-              assetName: '삼성전자',
-              weight: 100,
-              direction: 'POSITIVE',
-              impactLevel: 'HIGH',
-              summary: '다른 포트폴리오의 분석 결과예요.',
-              reason: '다른 포트폴리오의 근거예요.',
-              evidenceSentence: '다른 포트폴리오의 뉴스 문장이에요.',
-              rank: 1,
-            },
-          ],
+        version: 1,
+        analyses: {
+          [requestKey]: {
+            totalAssetCount: 1,
+            analyzedAssetCount: 1,
+            impacts: [
+              {
+                assetName: '삼성전자',
+                weight: 100,
+                direction: 'POSITIVE',
+                impactLevel: 'HIGH',
+                summary: '다른 포트폴리오의 분석 결과예요.',
+                reason: '다른 포트폴리오의 근거예요.',
+                evidenceSentence: '다른 포트폴리오의 뉴스 문장이에요.',
+                rank: 1,
+              },
+            ],
+          },
         },
       }),
     );
@@ -523,7 +530,10 @@ describe('포트폴리오 분석 화면', () => {
 
     const stored = JSON.parse(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY) ?? '{}');
     expect(stored).toEqual({
-      [JSON.stringify(['storage', [{ assetName: '저장 검증 자산', weight: 100 }]])]: analysis,
+      version: 1,
+      analyses: {
+        [JSON.stringify(['storage', [{ assetName: '저장 검증 자산', weight: 100 }]])]: analysis,
+      },
     });
   });
 
@@ -536,13 +546,56 @@ describe('포트폴리오 분석 화면', () => {
     ]);
     localStorage.setItem(
       PORTFOLIO_ANALYSIS_STORAGE_KEY,
-      JSON.stringify({ [requestKey]: analysis }),
+      JSON.stringify({ version: 1, analyses: { [requestKey]: analysis } }),
     );
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(getPortfolioAnalysis('stored-analysis', assets)).resolves.toEqual(analysis);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('깨진 JSON 저장 데이터를 제거한다', () => {
+    localStorage.setItem(PORTFOLIO_ANALYSIS_STORAGE_KEY, '{');
+
+    expect(
+      getStoredPortfolioAnalysis('invalid-json', [
+        { assetName: '잘못된 저장 데이터 자산', weight: 100 },
+      ]),
+    ).toBeNull();
+    expect(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('지원하지 않는 버전의 저장 데이터를 제거한다', () => {
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({ version: 0, analyses: {} }),
+    );
+
+    expect(
+      getStoredPortfolioAnalysis('old-version', [
+        { assetName: '이전 버전 저장 데이터 자산', weight: 100 },
+      ]),
+    ).toBeNull();
+    expect(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('형식이 잘못된 분석 결과를 제거한 뒤 API로 새로 분석한다', async () => {
+    const assets = [{ assetName: '잘못된 분석 결과 자산', weight: 100 }];
+    const requestKey = JSON.stringify([
+      'invalid-analysis',
+      [{ assetName: '잘못된 분석 결과 자산', weight: 100 }],
+    ]);
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({ version: 1, analyses: { [requestKey]: { invalid: true } } }),
+    );
+    const analysis = { totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] };
+    const fetchMock = vi.fn(async () => jsonResponse(analysis));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getPortfolioAnalysis('invalid-analysis', assets)).resolves.toEqual(analysis);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('자산 순서와 이름 및 비중 표현이 달라도 동일한 분석 요청으로 처리한다', async () => {

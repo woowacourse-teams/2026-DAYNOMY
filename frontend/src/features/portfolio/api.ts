@@ -15,12 +15,18 @@ import type {
 } from './types';
 
 const PORTFOLIO_ANALYSIS_CACHE_TIME = 5 * 60 * 1000;
+const PORTFOLIO_ANALYSIS_STORAGE_VERSION = 1;
 export const PORTFOLIO_ANALYSIS_STORAGE_KEY = 'daynomy:portfolio-analysis:v1';
 
 type PortfolioAnalysisCacheEntry = {
   request: Promise<PortfolioAnalysisResponse>;
   expiresAt?: number;
   cleanupTimer?: ReturnType<typeof setTimeout>;
+};
+
+type PortfolioAnalysisStorage = {
+  version: number;
+  analyses: Record<string, unknown>;
 };
 
 const portfolioAnalysisRequests = new Map<string, PortfolioAnalysisCacheEntry>();
@@ -154,34 +160,75 @@ function createPortfolioAnalysisRequestKey(newsId: string, assets: PortfolioAsse
   return JSON.stringify([newsId, normalizePortfolioAssets(assets)]);
 }
 
-function savePortfolioAnalysis(requestKey: string, analysis: PortfolioAnalysisResponse) {
+function emptyPortfolioAnalysisStorage(): PortfolioAnalysisStorage {
+  return { version: PORTFOLIO_ANALYSIS_STORAGE_VERSION, analyses: {} };
+}
+
+function clearPortfolioAnalysisStorage() {
+  try {
+    localStorage.removeItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
+  } catch {
+    // 브라우저 저장소를 사용할 수 없어도 분석 기능은 계속한다.
+  }
+}
+
+function readPortfolioAnalysisStorage(): PortfolioAnalysisStorage {
   try {
     const saved = localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
-    const parsed: unknown = saved ? JSON.parse(saved) : {};
-    const storedAnalyses = isRecord(parsed) ? parsed : {};
+    if (!saved) return emptyPortfolioAnalysisStorage();
 
-    localStorage.setItem(
-      PORTFOLIO_ANALYSIS_STORAGE_KEY,
-      JSON.stringify({ ...storedAnalyses, [requestKey]: analysis }),
-    );
+    const parsed: unknown = JSON.parse(saved);
+    if (
+      !isRecord(parsed) ||
+      parsed.version !== PORTFOLIO_ANALYSIS_STORAGE_VERSION ||
+      !isRecord(parsed.analyses) ||
+      Array.isArray(parsed.analyses)
+    ) {
+      clearPortfolioAnalysisStorage();
+      return emptyPortfolioAnalysisStorage();
+    }
+
+    return {
+      version: PORTFOLIO_ANALYSIS_STORAGE_VERSION,
+      analyses: parsed.analyses,
+    };
+  } catch {
+    clearPortfolioAnalysisStorage();
+    return emptyPortfolioAnalysisStorage();
+  }
+}
+
+function writePortfolioAnalysisStorage(storage: PortfolioAnalysisStorage) {
+  try {
+    if (Object.keys(storage.analyses).length === 0) {
+      clearPortfolioAnalysisStorage();
+      return;
+    }
+
+    localStorage.setItem(PORTFOLIO_ANALYSIS_STORAGE_KEY, JSON.stringify(storage));
   } catch {
     // 브라우저 저장소를 사용할 수 없어도 완료된 분석 결과는 반환한다.
   }
 }
 
+function savePortfolioAnalysis(requestKey: string, analysis: PortfolioAnalysisResponse) {
+  const storage = readPortfolioAnalysisStorage();
+  writePortfolioAnalysisStorage({
+    ...storage,
+    analyses: { ...storage.analyses, [requestKey]: analysis },
+  });
+}
+
 function loadStoredPortfolioAnalysis(requestKey: string) {
-  try {
-    const saved = localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
-    if (!saved) return null;
+  const storage = readPortfolioAnalysisStorage();
+  const analysis = storage.analyses[requestKey];
+  if (analysis === undefined) return null;
+  if (isPortfolioAnalysisResponse(analysis)) return analysis;
 
-    const parsed: unknown = JSON.parse(saved);
-    if (!isRecord(parsed)) return null;
-
-    const analysis = parsed[requestKey];
-    return isPortfolioAnalysisResponse(analysis) ? analysis : null;
-  } catch {
-    return null;
-  }
+  const remainingAnalyses = { ...storage.analyses };
+  delete remainingAnalyses[requestKey];
+  writePortfolioAnalysisStorage({ ...storage, analyses: remainingAnalyses });
+  return null;
 }
 
 export function getStoredPortfolioAnalysis(
@@ -192,18 +239,12 @@ export function getStoredPortfolioAnalysis(
 }
 
 function deleteStoredPortfolioAnalysis(requestKey: string) {
-  try {
-    const saved = localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
-    if (!saved) return;
+  const storage = readPortfolioAnalysisStorage();
+  if (!(requestKey in storage.analyses)) return;
 
-    const parsed: unknown = JSON.parse(saved);
-    if (!isRecord(parsed) || !(requestKey in parsed)) return;
-
-    const { [requestKey]: _deleted, ...remainingAnalyses } = parsed;
-    localStorage.setItem(PORTFOLIO_ANALYSIS_STORAGE_KEY, JSON.stringify(remainingAnalyses));
-  } catch {
-    // 브라우저 저장소를 사용할 수 없어도 재분석 요청은 계속한다.
-  }
+  const remainingAnalyses = { ...storage.analyses };
+  delete remainingAnalyses[requestKey];
+  writePortfolioAnalysisStorage({ ...storage, analyses: remainingAnalyses });
 }
 
 function deletePortfolioAnalysisCacheEntry(requestKey: string) {
