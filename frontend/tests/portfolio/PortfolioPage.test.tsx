@@ -7,6 +7,12 @@ import { PORTFOLIO_STORAGE_KEY } from '../../src/features/portfolio/hooks/usePor
 
 const stock = { assetId: 1, assetCode: '005930', name: '삼성전자', market: 'KOSPI' } as const;
 const secondStock = { assetId: 2, assetCode: '000150', name: '두산', market: 'KOSPI' } as const;
+const kosdaqStock = {
+  assetId: 3,
+  assetCode: '247540',
+  name: '에코프로비엠',
+  market: 'KOSDAQ',
+} as const;
 const calculation = {
   baseDate: '2026-09-21',
   totalPurchaseAmount: 700000,
@@ -145,6 +151,33 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '두산' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /두산/ }));
     await waitFor(() => expect(averagePriceInput.value).toBe('80000'));
+  });
+
+  it('검색 결과를 시장별로 필터링한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('/api/stocks?')) {
+          return jsonResponse({ stocks: [stock, kosdaqStock] });
+        }
+        return jsonResponse({}, 404);
+      }),
+    );
+
+    const view = render(<PortfolioPage />);
+    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+
+    const dialog = view.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '주식' } });
+    await within(dialog).findByRole('button', { name: /삼성전자/ });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'KOSDAQ' }));
+    expect(within(dialog).queryByRole('button', { name: /삼성전자/ })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /에코프로비엠/ })).toBeTruthy();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'KOSPI' }));
+    expect(within(dialog).getByRole('button', { name: /삼성전자/ })).toBeTruthy();
+    expect(within(dialog).queryByRole('button', { name: /에코프로비엠/ })).toBeNull();
   });
 
   it('최근 종가를 불러오는 동안 평균 매수가 조절을 막는다', async () => {
