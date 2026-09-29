@@ -108,7 +108,10 @@ test('검색어 입력에서 뉴스 결과와 상세 화면까지 이동한다',
   await page.getByRole('dialog', { name: '통합 검색' }).getByRole('textbox').press('Enter');
 
   await expect(page).toHaveURL(/\/search\?q=/);
-  await page.getByRole('link', { name: /기준금리 동결 가능성 확대/ }).click();
+  await page
+    .getByRole('region', { name: '검색된 뉴스 목록' })
+    .getByRole('link', { name: /기준금리 동결 가능성 확대/ })
+    .click();
   await expect(page).toHaveURL(/\/news\/7$/);
   await expect(page.getByRole('heading', { name: article.title, level: 1 })).toBeVisible();
 });
