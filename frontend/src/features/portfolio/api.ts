@@ -1,5 +1,6 @@
 import { getApiUrl, request, requestWithCsrf } from '../../api/client';
 import type {
+  AssetCategory,
   MarketAllocation,
   PortfolioAnalysisRequest,
   PortfolioAnalysisResponse,
@@ -52,12 +53,17 @@ function isMarket(value: unknown): value is StockMarket {
   return value === 'KOSPI' || value === 'KOSDAQ';
 }
 
+function isAssetCategory(value: unknown): value is AssetCategory {
+  return value === 'STOCK' || value === 'ETF';
+}
+
 function isStock(value: unknown): value is StockSearchItem {
   return (
     isRecord(value) &&
     typeof value.assetId === 'number' &&
     typeof value.assetCode === 'string' &&
     typeof value.name === 'string' &&
+    isAssetCategory(value.category) &&
     isMarket(value.market)
   );
 }
