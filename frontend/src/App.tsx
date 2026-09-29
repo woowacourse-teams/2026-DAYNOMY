@@ -15,7 +15,6 @@ import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
-import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import './App.css';
 import './features/admin/admin.css';
@@ -139,14 +138,6 @@ export default function App() {
                 element={
                   <AdminRoute>
                     <AdminNewsFormPage />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/admin/stocks"
-                element={
-                  <AdminRoute>
-                    <AdminStockSyncPage />
                   </AdminRoute>
                 }
               />

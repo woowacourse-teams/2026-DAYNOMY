@@ -54,19 +54,3 @@ export type AdminAssetRankingSyncResponse = {
 export type AdminNewsGenerationResponse = {
   savedCount: number;
 };
-
-export type AdminStockSyncResponse = {
-  baseDate: string;
-  syncedCount: number;
-  createdCount: number;
-  updatedCount: number;
-  delistedCount: number;
-};
-
-export type AdminStockPriceSyncResponse = {
-  baseDate: string;
-  receivedCount: number;
-  createdCount: number;
-  updatedCount: number;
-  skippedCount: number;
-};
