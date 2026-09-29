@@ -169,7 +169,7 @@ function savePortfolioAnalysis(requestKey: string, analysis: PortfolioAnalysisRe
   }
 }
 
-function loadPortfolioAnalysis(requestKey: string) {
+function loadStoredPortfolioAnalysis(requestKey: string) {
   try {
     const saved = localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
     if (!saved) return null;
@@ -182,6 +182,13 @@ function loadPortfolioAnalysis(requestKey: string) {
   } catch {
     return null;
   }
+}
+
+export function getStoredPortfolioAnalysis(
+  newsId: string,
+  assets: PortfolioAsset[],
+): PortfolioAnalysisResponse | null {
+  return loadStoredPortfolioAnalysis(createPortfolioAnalysisRequestKey(newsId, assets));
 }
 
 function deleteStoredPortfolioAnalysis(requestKey: string) {
@@ -282,7 +289,7 @@ export function getPortfolioAnalysis(
   if (isFresh) return cachedEntry.request;
   if (cachedEntry) deletePortfolioAnalysisCacheEntry(requestKey);
 
-  const storedAnalysis = loadPortfolioAnalysis(requestKey);
+  const storedAnalysis = loadStoredPortfolioAnalysis(requestKey);
   if (storedAnalysis) return Promise.resolve(storedAnalysis);
 
   const analysisRequest = requestPortfolioAnalysis(newsId, assets);

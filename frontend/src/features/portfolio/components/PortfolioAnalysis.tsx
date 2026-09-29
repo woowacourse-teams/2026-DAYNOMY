@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortfolioSnapshotKey, getPortfolioAnalysis, retryPortfolioAnalysis } from '../api';
+import {
+  createPortfolioSnapshotKey,
+  getPortfolioAnalysis,
+  getStoredPortfolioAnalysis,
+  retryPortfolioAnalysis,
+} from '../api';
 import type {
   PortfolioAnalysisResponse,
   PortfolioAsset,
@@ -395,6 +400,7 @@ export function PortfolioAnalysis({
   const [error, setError] = useState<string | null>(null);
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const restoredNewsIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     requestIdRef.current += 1;
@@ -404,6 +410,23 @@ export function PortfolioAnalysis({
     setSelectedAssetName(null);
     setLoading(false);
   }, [newsId]);
+
+  useEffect(() => {
+    if (portfolioStatus !== 'ready' || assets.length === 0) return;
+    if (restoredNewsIdRef.current === newsId) return;
+
+    restoredNewsIdRef.current = newsId;
+
+    const storedAnalysis = getStoredPortfolioAnalysis(newsId, assets);
+    if (!storedAnalysis) return;
+
+    requestIdRef.current += 1;
+    setAnalysis(storedAnalysis);
+    setAnalyzedAssets(assets.map((asset) => ({ ...asset })));
+    setError(null);
+    setSelectedAssetName(null);
+    setLoading(false);
+  }, [newsId, portfolioStatus, assets]);
 
   const analyze = (retry = false) => {
     const snapshot =

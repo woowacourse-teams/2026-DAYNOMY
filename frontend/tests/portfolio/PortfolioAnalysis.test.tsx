@@ -23,6 +23,80 @@ afterEach(() => {
 });
 
 describe('포트폴리오 분석 화면', () => {
+  it('저장된 분석 결과가 있으면 API 호출 없이 화면에 복원한다', async () => {
+    const assets = [{ assetName: '삼성전자', weight: 100 }];
+    const requestKey = JSON.stringify(['restored', [{ assetName: '삼성전자', weight: 100 }]]);
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({
+        [requestKey]: {
+          totalAssetCount: 1,
+          analyzedAssetCount: 1,
+          impacts: [
+            {
+              assetName: '삼성전자',
+              weight: 100,
+              direction: 'POSITIVE',
+              impactLevel: 'HIGH',
+              summary: '저장된 분석 결과예요.',
+              reason: '저장된 근거예요.',
+              evidenceSentence: '저장된 뉴스 문장이에요.',
+              rank: 1,
+            },
+          ],
+        },
+      }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(<PortfolioAnalysis newsId="restored" assets={assets} />);
+
+    expect(await view.findByText(/저장된 분석 결과예요/)).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('현재 포트폴리오와 다른 저장 결과는 화면에 복원하지 않는다', () => {
+    const requestKey = JSON.stringify([
+      'different-portfolio',
+      [{ assetName: '삼성전자', weight: 100 }],
+    ]);
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({
+        [requestKey]: {
+          totalAssetCount: 1,
+          analyzedAssetCount: 1,
+          impacts: [
+            {
+              assetName: '삼성전자',
+              weight: 100,
+              direction: 'POSITIVE',
+              impactLevel: 'HIGH',
+              summary: '다른 포트폴리오의 분석 결과예요.',
+              reason: '다른 포트폴리오의 근거예요.',
+              evidenceSentence: '다른 포트폴리오의 뉴스 문장이에요.',
+              rank: 1,
+            },
+          ],
+        },
+      }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(
+      <PortfolioAnalysis
+        newsId="different-portfolio"
+        assets={[{ assetName: 'SK하이닉스', weight: 100 }]}
+      />,
+    );
+
+    expect(view.queryByText('다른 포트폴리오의 분석 결과예요.')).toBeNull();
+    expect(view.getByRole('button', { name: '포트폴리오 분석하기' })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('API에서 포트폴리오 영향 결과를 표시한다', async () => {
     vi.stubGlobal(
       'fetch',
