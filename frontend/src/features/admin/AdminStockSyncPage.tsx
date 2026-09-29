@@ -24,6 +24,7 @@ export function AdminStockSyncPage() {
   async function handleStockSync() {
     setRunningTask('stocks');
     setStockError(null);
+    setStockResult(null);
 
     try {
       setStockResult(await syncAdminStocks());
@@ -37,6 +38,7 @@ export function AdminStockSyncPage() {
   async function handlePriceSync() {
     setRunningTask('prices');
     setPriceError(null);
+    setPriceResult(null);
 
     try {
       setPriceResult(await syncAdminStockPrices());
