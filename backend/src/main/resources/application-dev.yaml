@@ -3,12 +3,6 @@ spring:
     activate:
       on-profile: dev
 
-server:
-  forward-headers-strategy: native
-
-cookie:
-  secure: true
-
 news:
   generation:
     economy:
