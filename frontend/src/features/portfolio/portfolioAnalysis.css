@@ -470,10 +470,12 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-detail-copy p {
   max-width: 62ch;
   margin: 0;
+  overflow-wrap: break-word;
   color: #465267;
   font-size: 18px;
   line-height: 32px;
   text-wrap: pretty;
+  word-break: keep-all;
 }
 
 .portfolio-detail-copy strong {
@@ -522,12 +524,15 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-evidence blockquote {
   margin: 18px 0 0;
   padding: 16px 18px;
+  overflow-wrap: break-word;
   border-left: 3px solid #dce6f2;
   border-radius: 0 10px 10px 0;
   background: #f7f9fc;
   color: #5f6b7d;
   font-size: 15px;
   line-height: 1.7;
+  text-wrap: pretty;
+  word-break: keep-all;
 }
 
 .portfolio-evidence[open] blockquote {
