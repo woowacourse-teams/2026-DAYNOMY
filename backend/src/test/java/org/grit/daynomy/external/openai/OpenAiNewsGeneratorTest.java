@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
@@ -58,6 +59,29 @@ class OpenAiNewsGeneratorTest {
         .contains("대형주와 중소형주, 코스피와 코스닥");
   }
 
+  @Test
+  @DisplayName("확인된 부동산 이슈가 있으면 기본 뉴스에 부동산 뉴스를 추가한다")
+  void generateEconomicNewsAllowsAdditionalRealEstateArticle() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(successResponseWithFiveArticles()));
+    OpenAiNewsGenerator generator =
+        new OpenAiNewsGenerator(
+            new OpenAiProperties(
+                "test-key",
+                server.url("/v1").toString(),
+                "test-image-model",
+                "test-news-model",
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(1)));
+
+    List<GeneratedEconomicNews> generatedNews = generator.generateEconomicNews();
+
+    assertThat(generatedNews).hasSize(5);
+    assertThat(generatedNews.get(4).category().name()).isEqualTo("REAL_ESTATE");
+  }
+
   private String successResponseWithFourArticles() throws Exception {
     ObjectMapper objectMapper = new ObjectMapper();
     List<Map<String, Object>> sources =
@@ -96,6 +120,39 @@ class OpenAiNewsGeneratorTest {
         category,
         "sourceUrls",
         List.of("https://example.com/" + source, "https://example.com/" + (source + 1)));
+  }
+
+  private String successResponseWithFiveArticles() throws Exception {
+    ObjectMapper objectMapper = new ObjectMapper();
+    List<Map<String, Object>> sources = new ArrayList<>();
+    List<Map<String, Object>> articles = new ArrayList<>();
+    for (int index = 0; index < 5; index++) {
+      int source = index * 2 + 1;
+      sources.add(
+          Map.of(
+              "type", "url_citation",
+              "url", "https://example.com/" + source,
+              "title", "출처 " + source));
+      sources.add(
+          Map.of(
+              "type", "url_citation",
+              "url", "https://example.com/" + (source + 1),
+              "title", "출처 " + (source + 1)));
+      articles.add(
+          article(
+              (index + 1) + " 번째 뉴스",
+              (index + 1) + " 번째 본문",
+              index == 4 ? "REAL_ESTATE" : "STOCK",
+              source));
+    }
+    String generatedArticles = objectMapper.writeValueAsString(Map.of("articles", articles));
+    Map<String, Object> outputText =
+        Map.of(
+            "type", "output_text",
+            "text", generatedArticles,
+            "annotations", sources);
+    return objectMapper.writeValueAsString(
+        Map.of("output", List.of(Map.of("content", List.of(outputText)))));
   }
 
   private String successResponse() {
