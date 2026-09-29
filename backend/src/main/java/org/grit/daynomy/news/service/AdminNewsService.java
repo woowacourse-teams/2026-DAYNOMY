@@ -6,6 +6,7 @@ import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
@@ -61,7 +62,13 @@ public class AdminNewsService {
               request.sourceInfos(),
               request.category());
 
-      return newsRepository.save(news);
+      News savedNews = newsRepository.save(news);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.NEWS_DRAFT_CREATED.code())
+          .addKeyValue("newsId", savedNews.getId())
+          .addKeyValue("category", savedNews.getCategory())
+          .log(LogEvent.NEWS_DRAFT_CREATED.message());
+      return savedNews;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
       throw exception;
@@ -112,6 +119,10 @@ public class AdminNewsService {
       news.updateImage(uploadedImage.publicUrl());
       newsRepository.flush();
       registerImageCleanup(previousImageUrl, uploadedImage);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.NEWS_IMAGE_GENERATED.code())
+          .addKeyValue("newsId", news.getId())
+          .log(LogEvent.NEWS_IMAGE_GENERATED.message());
       return news;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
@@ -140,6 +151,10 @@ public class AdminNewsService {
       throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
     }
     news.publish();
+    log.atInfo()
+        .addKeyValue("event", LogEvent.NEWS_PUBLISH_COMPLETED.code())
+        .addKeyValue("newsId", news.getId())
+        .log(LogEvent.NEWS_PUBLISH_COMPLETED.message());
     return news;
   }
 
@@ -151,6 +166,10 @@ public class AdminNewsService {
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
 
     news.reject();
+    log.atInfo()
+        .addKeyValue("event", LogEvent.NEWS_REJECT_COMPLETED.code())
+        .addKeyValue("newsId", news.getId())
+        .log(LogEvent.NEWS_REJECT_COMPLETED.message());
     return news;
   }
 
@@ -182,6 +201,11 @@ public class AdminNewsService {
         newsRepository.flush();
         registerImageCleanup(previousImageUrl, uploadedImage);
       }
+      log.atInfo()
+          .addKeyValue("event", LogEvent.NEWS_UPDATE_COMPLETED.code())
+          .addKeyValue("newsId", news.getId())
+          .addKeyValue("analysisRegenerated", shouldRegenerateAnalysis)
+          .log(LogEvent.NEWS_UPDATE_COMPLETED.message());
       return news;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
@@ -197,6 +221,10 @@ public class AdminNewsService {
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
     news.delete();
     s3ImageStorage.deleteIfManaged(news.getImageUrl());
+    log.atInfo()
+        .addKeyValue("event", LogEvent.NEWS_DELETE_COMPLETED.code())
+        .addKeyValue("newsId", news.getId())
+        .log(LogEvent.NEWS_DELETE_COMPLETED.message());
   }
 
   private S3ImageStorage.StoredImage uploadImage(MultipartFile image) {
@@ -239,7 +267,11 @@ public class AdminNewsService {
     try {
       s3ImageStorage.delete(uploadedImage);
     } catch (BusinessException exception) {
-      log.warn("Failed to clean up uploaded news image: key={}", uploadedImage.relativeKey());
+      log.atWarn()
+          .addKeyValue("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
+          .addKeyValue("provider", "s3")
+          .addKeyValue("relativeKey", uploadedImage.relativeKey())
+          .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
     }
   }
 
@@ -265,7 +297,10 @@ public class AdminNewsService {
     try {
       s3ImageStorage.deleteIfManaged(previousImageUrl);
     } catch (BusinessException exception) {
-      log.warn("Failed to delete previous news image after transaction commit");
+      log.atWarn()
+          .addKeyValue("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
+          .addKeyValue("provider", "s3")
+          .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
     }
   }
 }
