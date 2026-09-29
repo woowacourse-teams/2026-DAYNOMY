@@ -6,6 +6,7 @@ import {
   getPortfolioAnalysis,
   getStoredPortfolioAnalysis,
   PORTFOLIO_ANALYSIS_STORAGE_KEY,
+  retryPortfolioAnalysis,
 } from '../../src/features/portfolio/api';
 import { PortfolioAnalysis } from '../../src/features/portfolio/components/PortfolioAnalysis';
 
@@ -555,6 +556,53 @@ describe('포트폴리오 분석 화면', () => {
 
     await expect(getPortfolioAnalysis('stored-analysis', assets)).resolves.toEqual(analysis);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('이전 요청이 늦게 완료되어도 재분석 결과를 덮어쓰지 않는다', async () => {
+    const assets = [{ assetName: '삼성전자', weight: 100 }];
+    const createAnalysis = (summary: string) => ({
+      totalAssetCount: 1,
+      analyzedAssetCount: 1,
+      impacts: [
+        {
+          assetName: '삼성전자',
+          weight: 100,
+          direction: 'POSITIVE' as const,
+          impactLevel: 'HIGH' as const,
+          summary,
+          reason: `${summary} 근거예요.`,
+          evidenceSentence: `${summary} 근거 문장이에요.`,
+          rank: 1,
+        },
+      ],
+    });
+    const previousAnalysis = createAnalysis('이전 분석 결과예요.');
+    const latestAnalysis = createAnalysis('최신 분석 결과예요.');
+    let resolvePrevious!: (response: Response) => void;
+    let resolveLatest!: (response: Response) => void;
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          resolvePrevious = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          resolveLatest = resolve;
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const previousRequest = getPortfolioAnalysis('race-condition', assets);
+    const latestRequest = retryPortfolioAnalysis('race-condition', assets);
+
+    resolveLatest(jsonResponse(latestAnalysis));
+    await expect(latestRequest).resolves.toEqual(latestAnalysis);
+    resolvePrevious(jsonResponse(previousAnalysis));
+    await expect(previousRequest).resolves.toEqual(previousAnalysis);
+
+    expect(getStoredPortfolioAnalysis('race-condition', assets)).toEqual(latestAnalysis);
   });
 
   it('깨진 JSON 저장 데이터를 제거한다', () => {

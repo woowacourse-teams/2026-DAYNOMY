@@ -338,16 +338,16 @@ export function getPortfolioAnalysis(
 
   void analysisRequest.then(
     (analysis) => {
-      savePortfolioAnalysis(requestKey, analysis);
       const currentEntry = portfolioAnalysisRequests.get(requestKey);
-      if (currentEntry?.request === analysisRequest) {
-        currentEntry.expiresAt = Date.now() + PORTFOLIO_ANALYSIS_CACHE_TIME;
-        currentEntry.cleanupTimer = setTimeout(() => {
-          if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
-            portfolioAnalysisRequests.delete(requestKey);
-          }
-        }, PORTFOLIO_ANALYSIS_CACHE_TIME);
-      }
+      if (currentEntry?.request !== analysisRequest) return;
+
+      savePortfolioAnalysis(requestKey, analysis);
+      currentEntry.expiresAt = Date.now() + PORTFOLIO_ANALYSIS_CACHE_TIME;
+      currentEntry.cleanupTimer = setTimeout(() => {
+        if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
+          portfolioAnalysisRequests.delete(requestKey);
+        }
+      }, PORTFOLIO_ANALYSIS_CACHE_TIME);
     },
     () => {
       if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
