@@ -398,6 +398,8 @@ describe('뉴스 탐색 화면', () => {
             baseDate: '2026-09-22',
             totalPurchaseAmount: 1060000,
             totalEvaluationAmount: 1200000,
+            dailyProfitLoss: null,
+            dailyReturnRate: null,
             totalProfitLoss: 140000,
             totalReturnRate: 13.21,
             holdings: [
