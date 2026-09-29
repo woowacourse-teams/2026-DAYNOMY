@@ -10,6 +10,14 @@ const MARKET_FILTERS: Array<{ value: MarketFilter; label: string }> = [
   { value: 'KOSDAQ', label: 'KOSDAQ' },
 ];
 
+function normalizePriceInput(value: string) {
+  return value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+}
+
+function formatPriceInput(value: string) {
+  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 type PortfolioEditorProps = {
   holding?: PortfolioHoldingInput;
   savedAssetIds: number[];
@@ -326,13 +334,12 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                 <div className="portfolio-input-with-unit">
                   <input
                     id="average-price-input"
-                    type="number"
-                    min="1"
-                    step="1"
+                    type="text"
                     inputMode="numeric"
+                    pattern="[0-9,]*"
                     placeholder="0"
-                    value={averagePrice}
-                    onChange={(event) => setAveragePrice(event.target.value)}
+                    value={formatPriceInput(averagePrice)}
+                    onChange={(event) => setAveragePrice(normalizePriceInput(event.target.value))}
                   />
                   <span>원</span>
                 </div>

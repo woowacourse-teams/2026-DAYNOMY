@@ -88,13 +88,14 @@ describe('포트폴리오 화면', () => {
     const result = await within(dialog).findByRole('button', { name: /삼성전자/ });
     fireEvent.click(result);
     const averagePriceInput = within(dialog).getByLabelText('평균 매수가') as HTMLInputElement;
-    await waitFor(() => expect(averagePriceInput.value).toBe('75000'));
+    await waitFor(() => expect(averagePriceInput.value).toBe('75,000'));
     fireEvent.click(within(dialog).getByRole('button', { name: '평균 매수가 1,000원 올리기' }));
-    expect(averagePriceInput.value).toBe('76000');
+    expect(averagePriceInput.value).toBe('76,000');
     fireEvent.click(within(dialog).getByRole('button', { name: '평균 매수가 1,000원 내리기' }));
-    expect(averagePriceInput.value).toBe('75000');
+    expect(averagePriceInput.value).toBe('75,000');
     fireEvent.change(within(dialog).getByLabelText('보유수량'), { target: { value: '10' } });
-    fireEvent.change(averagePriceInput, { target: { value: '70000' } });
+    fireEvent.change(averagePriceInput, { target: { value: '70,000' } });
+    expect(averagePriceInput.value).toBe('70,000');
     fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
 
     expect(await view.findByText('750,000')).toBeTruthy();
@@ -150,7 +151,7 @@ describe('포트폴리오 화면', () => {
 
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '두산' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /두산/ }));
-    await waitFor(() => expect(averagePriceInput.value).toBe('80000'));
+    await waitFor(() => expect(averagePriceInput.value).toBe('80,000'));
   });
 
   it('검색 결과를 시장별로 필터링한다', async () => {
@@ -250,10 +251,10 @@ describe('포트폴리오 화면', () => {
       await priceResponse;
     });
 
-    await waitFor(() => expect(averagePriceInput.value).toBe('75000'));
+    await waitFor(() => expect(averagePriceInput.value).toBe('75,000'));
     expect(increaseButton.disabled).toBe(false);
     fireEvent.click(increaseButton);
-    expect(averagePriceInput.value).toBe('76000');
+    expect(averagePriceInput.value).toBe('76,000');
   });
 
   it('로컬 저장 자산을 복원해 계산하고 삭제한다', async () => {
