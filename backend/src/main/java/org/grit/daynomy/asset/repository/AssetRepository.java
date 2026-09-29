@@ -2,6 +2,7 @@ package org.grit.daynomy.asset.repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.springframework.data.domain.Pageable;
@@ -15,11 +16,13 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
   List<Asset> findAllByCategory(AssetCategory category);
 
+  List<Asset> findAllByCategoryIn(Set<AssetCategory> categories);
+
   @Query(
       """
       SELECT a
       FROM Asset a
-      WHERE a.category = :category
+      WHERE a.category IN :categories
         AND a.listed = true
         AND (
           LOWER(a.name) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
@@ -36,8 +39,8 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
         a.name ASC,
         a.id ASC
       """)
-  List<Asset> searchListedStocks(
+  List<Asset> searchListedSecurities(
       @Param("keyword") String keyword,
-      @Param("category") AssetCategory category,
+      @Param("categories") Set<AssetCategory> categories,
       Pageable pageable);
 }

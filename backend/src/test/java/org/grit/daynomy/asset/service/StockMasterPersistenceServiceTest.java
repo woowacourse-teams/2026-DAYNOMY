@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.then;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
@@ -33,18 +34,36 @@ class StockMasterPersistenceServiceTest {
         Asset.listedStock("삼성전자 구명칭", "005930", StockMarket.KOSPI, "KR7005930003", previousDate);
     Asset delisted =
         Asset.listedStock("상장폐지종목", "123450", StockMarket.KOSDAQ, "KR7123450009", previousDate);
-    given(assetRepository.findAllByCategory(AssetCategory.STOCK))
+    given(assetRepository.findAllByCategoryIn(Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
         .willReturn(List.of(samsung, delisted));
 
     StockSyncResult result =
         persistenceService.synchronize(
             baseDate,
             List.of(
-                new StockMasterEntry("005930", "삼성전자", StockMarket.KOSPI, "KR7005930003", baseDate),
                 new StockMasterEntry(
-                    "000660", "SK하이닉스", StockMarket.KOSPI, "KR7000660001", baseDate)));
+                    "005930",
+                    "삼성전자",
+                    AssetCategory.STOCK,
+                    StockMarket.KOSPI,
+                    "KR7005930003",
+                    baseDate),
+                new StockMasterEntry(
+                    "000660",
+                    "SK하이닉스",
+                    AssetCategory.STOCK,
+                    StockMarket.KOSPI,
+                    "KR7000660001",
+                    baseDate),
+                new StockMasterEntry(
+                    "069500",
+                    "KODEX 200",
+                    AssetCategory.ETF,
+                    StockMarket.KOSPI,
+                    "KR7069500007",
+                    baseDate)));
 
-    assertThat(result).isEqualTo(new StockSyncResult(baseDate, 2, 1, 1, 1));
+    assertThat(result).isEqualTo(new StockSyncResult(baseDate, 3, 2, 1, 1));
     assertThat(samsung.getName()).isEqualTo("삼성전자");
     assertThat(samsung.isListed()).isTrue();
     assertThat(delisted.isListed()).isFalse();
@@ -53,8 +72,43 @@ class StockMasterPersistenceServiceTest {
     ArgumentCaptor<List<Asset>> assetsCaptor = ArgumentCaptor.forClass(List.class);
     then(assetRepository).should().saveAll(assetsCaptor.capture());
     assertThat(assetsCaptor.getValue())
-        .hasSize(3)
+        .hasSize(4)
         .extracting(Asset::getAssetCode)
-        .containsExactly("005930", "000660", "123450");
+        .containsExactly("005930", "000660", "069500", "123450");
+  }
+
+  @Test
+  @DisplayName("ETF 데이터가 없는 주식 동기화에서는 기존 ETF를 비활성화하지 않는다")
+  void synchronizeOnlyCategoriesIncludedInEntries() {
+    LocalDate previousDate = LocalDate.of(2026, 9, 17);
+    LocalDate baseDate = LocalDate.of(2026, 9, 18);
+    Asset missingStock =
+        Asset.listedStock("누락 주식", "123450", StockMarket.KOSDAQ, "KR7123450009", previousDate);
+    Asset existingEtf =
+        Asset.listedSecurity(
+            "KODEX 200",
+            AssetCategory.ETF,
+            "069500",
+            StockMarket.KOSPI,
+            "KR7069500007",
+            previousDate);
+    given(assetRepository.findAllByCategoryIn(Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .willReturn(List.of(missingStock, existingEtf));
+
+    StockSyncResult result =
+        persistenceService.synchronize(
+            baseDate,
+            List.of(
+                new StockMasterEntry(
+                    "005930",
+                    "삼성전자",
+                    AssetCategory.STOCK,
+                    StockMarket.KOSPI,
+                    "KR7005930003",
+                    baseDate)));
+
+    assertThat(result).isEqualTo(new StockSyncResult(baseDate, 1, 1, 0, 1));
+    assertThat(missingStock.isListed()).isFalse();
+    assertThat(existingEtf.isListed()).isTrue();
   }
 }

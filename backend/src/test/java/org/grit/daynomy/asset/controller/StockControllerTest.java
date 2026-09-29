@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.dto.StockPriceResponse;
 import org.grit.daynomy.asset.dto.StockSearchItemResponse;
@@ -49,7 +50,9 @@ class StockControllerTest {
     given(stockSearchService.search("삼성"))
         .willReturn(
             new StockSearchResponse(
-                List.of(new StockSearchItemResponse(1L, "005930", "삼성전자", StockMarket.KOSPI))));
+                List.of(
+                    new StockSearchItemResponse(
+                        1L, "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI))));
 
     mockMvc
         .perform(get("/api/stocks").param("q", "삼성"))
@@ -57,6 +60,7 @@ class StockControllerTest {
         .andExpect(jsonPath("$.stocks[0].assetId").value(1))
         .andExpect(jsonPath("$.stocks[0].assetCode").value("005930"))
         .andExpect(jsonPath("$.stocks[0].name").value("삼성전자"))
+        .andExpect(jsonPath("$.stocks[0].category").value("STOCK"))
         .andExpect(jsonPath("$.stocks[0].market").value("KOSPI"));
 
     then(stockSearchService).should().search("삼성");

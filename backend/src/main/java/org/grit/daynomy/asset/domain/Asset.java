@@ -62,7 +62,20 @@ public class Asset extends BaseEntity {
 
   public static Asset listedStock(
       String name, String assetCode, StockMarket market, String isinCode, LocalDate baseDate) {
-    Asset asset = new Asset(name, AssetCategory.STOCK, assetCode);
+    return listedSecurity(name, AssetCategory.STOCK, assetCode, market, isinCode, baseDate);
+  }
+
+  public static Asset listedSecurity(
+      String name,
+      AssetCategory category,
+      String assetCode,
+      StockMarket market,
+      String isinCode,
+      LocalDate baseDate) {
+    if (category != AssetCategory.STOCK && category != AssetCategory.ETF) {
+      throw new IllegalArgumentException("상장 증권은 주식 또는 ETF여야 합니다.");
+    }
+    Asset asset = new Asset(name, category, assetCode);
     asset.market = market;
     asset.isinCode = isinCode;
     asset.listed = true;

@@ -4,6 +4,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import java.util.List;
+import java.util.Set;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -21,14 +22,14 @@ class StockSearchServiceTest {
   @InjectMocks private StockSearchService stockSearchService;
 
   @Test
-  @DisplayName("국내 주식 검색은 검색어를 정규화하고 결과를 20개로 제한한다")
+  @DisplayName("국내 주식·ETF 검색은 검색어를 정규화하고 결과를 20개로 제한한다")
   void searchNormalizesKeywordAndLimitsResults() {
     PageRequest limit = PageRequest.of(0, 20);
-    given(assetRepository.searchListedStocks("삼성!%", AssetCategory.STOCK, limit))
-        .willReturn(List.of());
+    Set<AssetCategory> categories = Set.of(AssetCategory.STOCK, AssetCategory.ETF);
+    given(assetRepository.searchListedSecurities("삼성!%", categories, limit)).willReturn(List.of());
 
     stockSearchService.search("  삼성%  ");
 
-    then(assetRepository).should().searchListedStocks("삼성!%", AssetCategory.STOCK, limit);
+    then(assetRepository).should().searchListedSecurities("삼성!%", categories, limit);
   }
 }
