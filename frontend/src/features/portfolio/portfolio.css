@@ -81,6 +81,8 @@
   color: var(--portfolio-muted);
   font-size: 13px;
   line-height: 1.7;
+  text-wrap: balance;
+  word-break: keep-all;
 }
 
 .portfolio-state {
