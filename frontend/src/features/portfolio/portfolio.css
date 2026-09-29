@@ -1666,3 +1666,375 @@
     gap: 8px;
   }
 }
+
+/* Approved portfolio dashboard demo */
+.portfolio-page {
+  --portfolio-demo-line: #e5e9ef;
+  --portfolio-demo-soft: #f3f6fa;
+  --portfolio-demo-navy: #21395f;
+  width: min(100%, 1120px);
+  padding: 38px 42px 56px;
+}
+
+.portfolio-page-title {
+  height: auto;
+  margin: 0 0 18px;
+}
+
+.portfolio-page-title h1 {
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.portfolio-head-actions,
+.portfolio-holdings-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.portfolio-head-actions .portfolio-primary-button,
+.portfolio-head-actions .portfolio-secondary-button {
+  min-height: 38px;
+  border-radius: 7px;
+}
+
+.portfolio-freshness {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 14px;
+  color: var(--portfolio-muted);
+  font-size: 12px;
+}
+
+.portfolio-freshness i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--portfolio-demo-navy);
+}
+
+.portfolio-overview {
+  display: grid;
+  grid-template-columns: minmax(250px, 1.45fr) repeat(3, minmax(120px, 0.72fr));
+  gap: 0;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 1px solid var(--portfolio-demo-line);
+}
+
+.portfolio-overview > div {
+  display: block;
+  min-width: 0;
+  min-height: 128px;
+  padding: 25px 24px;
+  border: 0;
+}
+
+.portfolio-overview > div + div {
+  border-left: 1px solid var(--portfolio-demo-line);
+}
+
+.portfolio-overview dt,
+.portfolio-overview small {
+  display: block;
+  color: var(--portfolio-muted);
+  font-size: 12px;
+}
+
+.portfolio-overview > div:not(.portfolio-summary-total) > dd {
+  overflow: hidden;
+  margin: 14px 0 0;
+  font-size: 18px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-overview > div:not(.portfolio-summary-total) > small {
+  margin-top: 6px;
+}
+
+.portfolio-overview .portfolio-balance-value {
+  margin: 12px 0 0;
+  font-size: 31px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.portfolio-overview .portfolio-daily-performance {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 0;
+  margin: 10px 0 0;
+}
+
+.portfolio-overview .portfolio-daily-performance > span {
+  padding: 0;
+  color: var(--portfolio-muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.portfolio-overview .portfolio-daily-performance strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.portfolio-overview .portfolio-daily-performance small {
+  display: inline-block;
+  margin: 0 0 0 7px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: inherit;
+  background: #fbefed;
+  font-size: 10px;
+}
+
+.portfolio-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 18px;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+}
+
+.portfolio-composition,
+.portfolio-insights {
+  min-height: 272px;
+  padding: 22px 24px;
+  border: 1px solid var(--portfolio-demo-line);
+  background: #fff;
+}
+
+.portfolio-chart-heading {
+  margin-bottom: 20px;
+}
+
+.portfolio-chart-heading h2,
+.portfolio-section-title h2 {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.portfolio-composition-content {
+  grid-template-columns: 130px 1fr;
+  gap: 24px;
+  margin-top: 0;
+}
+
+.portfolio-composition .portfolio-donut-wrap {
+  width: 128px;
+  height: 128px;
+}
+
+.portfolio-composition .portfolio-donut-caption strong {
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.portfolio-category-list {
+  gap: 13px;
+}
+
+.portfolio-market-summary {
+  justify-content: flex-start;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 13px;
+  border-top-color: var(--portfolio-demo-line);
+}
+
+.portfolio-market-summary dl {
+  gap: 16px;
+}
+
+.portfolio-insight-list {
+  display: grid;
+}
+
+.portfolio-insight-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 66px;
+  border-top: 1px solid var(--portfolio-demo-line);
+}
+
+.portfolio-insight-row:first-child {
+  border-top: 0;
+}
+
+.portfolio-insight-number {
+  color: #a1a9b5;
+  font-size: 11px;
+}
+
+.portfolio-insight-copy strong,
+.portfolio-insight-copy span {
+  display: block;
+}
+
+.portfolio-insight-copy strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.portfolio-insight-copy span {
+  margin-top: 3px;
+  color: var(--portfolio-muted);
+  font-size: 11px;
+}
+
+.portfolio-insight-value {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.portfolio-holdings {
+  padding: 22px 24px 8px;
+  border: 1px solid var(--portfolio-demo-line);
+  background: #fff;
+}
+
+.portfolio-section-title {
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.portfolio-section-title h2 span {
+  color: var(--portfolio-demo-navy);
+  font-size: 12px;
+}
+
+.portfolio-filters {
+  gap: 16px;
+  border: 0;
+}
+
+.portfolio-filters button {
+  padding: 7px 0;
+  font-size: 12px;
+}
+
+.portfolio-sort-control {
+  padding: 0;
+}
+
+.portfolio-sort-control select {
+  min-height: 34px;
+  border-color: var(--portfolio-demo-line);
+}
+
+.portfolio-table-wrap table {
+  min-width: 810px;
+  font-size: 12px;
+}
+
+.portfolio-table-wrap th {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--portfolio-demo-line);
+  font-size: 11px;
+}
+
+.portfolio-table-wrap td {
+  padding: 15px 10px;
+  border-bottom-color: var(--portfolio-demo-line);
+  font-size: 12px;
+}
+
+.portfolio-table-note {
+  padding: 14px 0 8px;
+}
+
+@media (max-width: 780px) {
+  .portfolio-page {
+    padding: 28px 20px 42px;
+  }
+
+  .portfolio-overview {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .portfolio-overview > div {
+    min-height: 110px;
+  }
+
+  .portfolio-overview > div + div {
+    border-left: 0;
+  }
+
+  .portfolio-overview > div:nth-child(even) {
+    border-left: 1px solid var(--portfolio-demo-line);
+  }
+
+  .portfolio-overview > div:nth-child(n + 3) {
+    border-top: 1px solid var(--portfolio-demo-line);
+  }
+
+  .portfolio-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .portfolio-page-title {
+    align-items: flex-start;
+  }
+
+  .portfolio-head-actions,
+  .portfolio-holdings-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .portfolio-head-actions .portfolio-primary-button,
+  .portfolio-head-actions .portfolio-secondary-button,
+  .portfolio-filters button,
+  .portfolio-sort-control select {
+    min-height: 44px;
+  }
+
+  .portfolio-page-title h1 {
+    font-size: 22px;
+  }
+
+  .portfolio-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-overview > div,
+  .portfolio-overview > div:nth-child(even),
+  .portfolio-overview > div:nth-child(n + 2) {
+    min-height: 94px;
+    padding: 19px 18px;
+    border-left: 0;
+    border-top: 1px solid var(--portfolio-demo-line);
+  }
+
+  .portfolio-overview > div:first-child {
+    border-top: 0;
+  }
+
+  .portfolio-composition-content {
+    grid-template-columns: 112px 1fr;
+  }
+
+  .portfolio-composition .portfolio-donut-wrap {
+    width: 108px;
+    height: 108px;
+  }
+
+  .portfolio-section-title {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+}

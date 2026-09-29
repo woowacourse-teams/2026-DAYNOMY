@@ -134,31 +134,41 @@ function InsightCards({ calculation }: { calculation: PortfolioCalculation }) {
     holding.returnRate > best.returnRate ? holding : best,
   );
   const etfWeight = getCategoryWeight(calculation, 'ETF');
+  const etfCount = calculation.holdings.filter((holding) => holding.category === 'ETF').length;
 
   return (
     <section className="portfolio-insights" aria-labelledby="insights-title">
       <div className="portfolio-chart-heading">
         <h2 id="insights-title">포트폴리오 요약</h2>
-        <span>현재 평가금액 기준</span>
+        <span>현재 구성 기준</span>
       </div>
-      <div className="portfolio-insight-grid">
-        <article>
-          <span>가장 큰 비중</span>
-          <strong>{largestHolding.name}</strong>
-          <small>{formatPercent(largestHolding.weight)}</small>
-        </article>
-        <article>
-          <span>수익률 상위</span>
-          <strong>{bestHolding.name}</strong>
-          <small className={profitClass(bestHolding.returnRate)}>
+      <div className="portfolio-insight-list">
+        <div className="portfolio-insight-row">
+          <span className="portfolio-insight-number">01</span>
+          <div className="portfolio-insight-copy">
+            <strong>가장 비중이 큰 자산</strong>
+            <span>{largestHolding.name}</span>
+          </div>
+          <span className="portfolio-insight-value">{formatPercent(largestHolding.weight)}</span>
+        </div>
+        <div className="portfolio-insight-row">
+          <span className="portfolio-insight-number">02</span>
+          <div className="portfolio-insight-copy">
+            <strong>수익률이 가장 높은 자산</strong>
+            <span>{bestHolding.name}</span>
+          </div>
+          <span className={`portfolio-insight-value ${profitClass(bestHolding.returnRate)}`}>
             {formatPercent(bestHolding.returnRate, true)}
-          </small>
-        </article>
-        <article>
-          <span>ETF 비중</span>
-          <strong>{formatPercent(etfWeight)}</strong>
-          <small>{etfWeight > 0 ? '분산 자산 포함' : '보유 ETF 없음'}</small>
-        </article>
+          </span>
+        </div>
+        <div className="portfolio-insight-row">
+          <span className="portfolio-insight-number">03</span>
+          <div className="portfolio-insight-copy">
+            <strong>ETF 보유 비중</strong>
+            <span>{etfCount}개 상품</span>
+          </div>
+          <span className="portfolio-insight-value">{formatPercent(etfWeight)}</span>
+        </div>
       </div>
     </section>
   );
@@ -240,7 +250,27 @@ export function PortfolioPage() {
     <main className="portfolio-page">
       <div className="portfolio-page-title">
         <h1>내 포트폴리오</h1>
-        <span>국내 주식·ETF · 전일 종가 기준</span>
+        {calculation ? (
+          <div className="portfolio-head-actions">
+            <button
+              type="button"
+              className="portfolio-secondary-button"
+              aria-pressed={amountsHidden}
+              onClick={() => setAmountsHidden((hidden) => !hidden)}
+            >
+              {amountsHidden ? '금액 보기' : '금액 숨기기'}
+            </button>
+            <button
+              type="button"
+              className="portfolio-primary-button"
+              onClick={() => setEditor({})}
+            >
+              ＋ 자산 추가
+            </button>
+          </div>
+        ) : (
+          <span>국내 주식·ETF · 전일 종가 기준</span>
+        )}
       </div>
 
       {holdings.length === 0 ? (
@@ -275,71 +305,65 @@ export function PortfolioPage() {
 
       {!loading && calculation ? (
         <>
-          <section className="portfolio-overview" aria-label="자산 요약">
-            <div className="portfolio-balance">
-              <div className="portfolio-balance-label">
-                <p>전체 자산 평가금액</p>
-                <button
-                  type="button"
-                  className="portfolio-privacy-button"
-                  aria-pressed={amountsHidden}
-                  onClick={() => setAmountsHidden((hidden) => !hidden)}
-                >
-                  {amountsHidden ? '금액 보기' : '금액 숨기기'}
-                </button>
-              </div>
-              <p className="portfolio-balance-value">
+          <div className="portfolio-freshness">
+            <i aria-hidden="true" />
+            <span>
+              {calculation.baseDate.replaceAll('-', '.')} 종가 기준 · {calculation.holdings.length}
+              개 자산 정상 반영
+            </span>
+          </div>
+          <dl className="portfolio-overview" aria-label="자산 요약">
+            <div className="portfolio-summary-total">
+              <dt>전체 자산 평가금액</dt>
+              <dd className="portfolio-balance-value">
                 {displayWon(calculation.totalEvaluationAmount)}
-              </p>
-              <div className="portfolio-performance-row">
-                <div className="portfolio-daily-performance">
-                  <span>오늘</span>
-                  {calculation.dailyProfitLoss !== null && calculation.dailyReturnRate !== null ? (
-                    <p className={profitClass(calculation.dailyProfitLoss)}>
-                      {displayWon(calculation.dailyProfitLoss, true)}
-                      <small>{formatPercent(calculation.dailyReturnRate, true)}</small>
-                    </p>
-                  ) : (
-                    <p className="portfolio-pending-daily">
-                      계산 준비 중 <small>직전 거래일 시세가 더 필요해요</small>
-                    </p>
-                  )}
-                </div>
-                <p
-                  className={`portfolio-cumulative-profit ${profitClass(calculation.totalProfitLoss)}`}
-                >
-                  누적 {displayWon(calculation.totalProfitLoss, true)}
-                  <span>{formatPercent(calculation.totalReturnRate, true)}</span>
-                </p>
-              </div>
+              </dd>
+              <dd className="portfolio-daily-performance">
+                <span>오늘 손익</span>
+                {calculation.dailyProfitLoss !== null && calculation.dailyReturnRate !== null ? (
+                  <strong className={profitClass(calculation.dailyProfitLoss)}>
+                    {displayWon(calculation.dailyProfitLoss, true)}
+                    <small>{formatPercent(calculation.dailyReturnRate, true)}</small>
+                  </strong>
+                ) : (
+                  <strong className="portfolio-pending-daily">계산 준비 중</strong>
+                )}
+              </dd>
             </div>
-            <dl className="portfolio-balance-details">
-              <div>
-                <dt>투자원금</dt>
-                <dd>{displayWon(calculation.totalPurchaseAmount)}</dd>
-                <small>평균 매수가 합계</small>
-              </div>
-              <div>
-                <dt>기준일</dt>
-                <dd className="portfolio-base-date">{calculation.baseDate.replaceAll('-', '.')}</dd>
-                <small>전일 종가 · 보유 자산 {calculation.holdings.length}개</small>
-              </div>
-            </dl>
-          </section>
+            <div>
+              <dt>투자원금</dt>
+              <dd>{displayWon(calculation.totalPurchaseAmount)}</dd>
+              <small>수수료·세금 미반영</small>
+            </div>
+            <div>
+              <dt>누적 손익</dt>
+              <dd className={profitClass(calculation.totalProfitLoss)}>
+                {displayWon(calculation.totalProfitLoss, true)}
+              </dd>
+              <small className={profitClass(calculation.totalReturnRate)}>
+                {formatPercent(calculation.totalReturnRate, true)}
+              </small>
+            </div>
+            <div>
+              <dt>보유 자산</dt>
+              <dd>{calculation.holdings.length}개</dd>
+              <small>
+                주식 {calculation.holdings.filter((holding) => holding.category === 'STOCK').length}{' '}
+                · ETF {calculation.holdings.filter((holding) => holding.category === 'ETF').length}
+              </small>
+            </div>
+          </dl>
 
           <div className="portfolio-charts">
-            <InsightCards calculation={calculation} />
-            <section
-              className="portfolio-composition portfolio-allocation"
-              aria-labelledby="composition-title"
-            >
+            <section className="portfolio-composition" aria-labelledby="composition-title">
               <div className="portfolio-chart-heading">
-                <h2 id="composition-title">주식·ETF 구성</h2>
+                <h2 id="composition-title">자산 구성</h2>
                 <span>평가금액 기준</span>
               </div>
               <CompositionChart calculation={calculation} />
               <MarketSummary calculation={calculation} />
             </section>
+            <InsightCards calculation={calculation} />
           </div>
 
           <section className="portfolio-holdings" aria-labelledby="holdings-title">
@@ -347,49 +371,34 @@ export function PortfolioPage() {
               <h2 id="holdings-title">
                 보유 자산 <span>{calculation.holdings.length}</span>
               </h2>
-              <button
-                type="button"
-                className="portfolio-primary-button"
-                onClick={() => setEditor({})}
-              >
-                ＋ 자산 추가
-              </button>
-            </div>
-            <div className="portfolio-holdings-toolbar">
-              <div className="portfolio-filters" role="group" aria-label="자산 유형">
-                {(['ALL', 'STOCK', 'ETF'] as const).map((category) => {
-                  const count =
-                    category === 'ALL'
-                      ? calculation.holdings.length
-                      : calculation.holdings.filter((holding) => holding.category === category)
-                          .length;
-                  return (
+              <div className="portfolio-holdings-tools">
+                <div className="portfolio-filters" role="group" aria-label="자산 유형">
+                  {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
                     <button
                       key={category}
                       type="button"
                       aria-pressed={categoryFilter === category}
                       onClick={() => setCategoryFilter(category)}
                     >
-                      {category === 'ALL' ? '전체' : getCategoryLabel(category)}{' '}
-                      <span>{count}</span>
+                      {category === 'ALL' ? '전체' : getCategoryLabel(category)}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
+                <label className="portfolio-sort-control">
+                  <span className="sr-only">정렬 기준</span>
+                  <select
+                    aria-label="보유 자산 정렬"
+                    value={sort}
+                    onChange={(event) => setSort(event.target.value as PortfolioSort)}
+                  >
+                    <option value="DEFAULT">기본 순서</option>
+                    <option value="EVALUATION">평가금액 높은 순</option>
+                    <option value="PROFIT">손익 높은 순</option>
+                    <option value="RETURN">수익률 높은 순</option>
+                    <option value="WEIGHT">비중 높은 순</option>
+                  </select>
+                </label>
               </div>
-              <label className="portfolio-sort-control">
-                <span>정렬</span>
-                <select
-                  aria-label="보유 자산 정렬"
-                  value={sort}
-                  onChange={(event) => setSort(event.target.value as PortfolioSort)}
-                >
-                  <option value="DEFAULT">추가한 순서</option>
-                  <option value="EVALUATION">평가금액 높은 순</option>
-                  <option value="PROFIT">평가손익 높은 순</option>
-                  <option value="RETURN">수익률 높은 순</option>
-                  <option value="WEIGHT">비중 높은 순</option>
-                </select>
-              </label>
             </div>
             <div
               className="portfolio-table-wrap"

@@ -123,7 +123,7 @@ describe('포트폴리오 화면', () => {
     expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
     expect(view.getByText('+10,000원')).toBeTruthy();
     expect(view.getByRole('img', { name: '주식 100.00%, ETF 0.00%' })).toBeTruthy();
-    expect(view.getByRole('heading', { name: '주식·ETF 구성' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '포트폴리오 요약' })).toBeTruthy();
     expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('005930');
@@ -195,7 +195,7 @@ describe('포트폴리오 화면', () => {
     let rows = within(table).getAllByRole('row');
     expect(within(rows[1]).getByText('KODEX 200')).toBeTruthy();
 
-    fireEvent.click(view.getByRole('button', { name: '주식 1' }));
+    fireEvent.click(view.getByRole('button', { name: '주식' }));
     rows = within(table).getAllByRole('row');
     expect(within(rows[1]).getByText('삼성전자')).toBeTruthy();
     expect(within(table).queryByText('KODEX 200')).toBeNull();
