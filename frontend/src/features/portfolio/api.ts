@@ -169,6 +169,36 @@ function savePortfolioAnalysis(requestKey: string, analysis: PortfolioAnalysisRe
   }
 }
 
+function loadPortfolioAnalysis(requestKey: string) {
+  try {
+    const saved = localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
+    if (!saved) return null;
+
+    const parsed: unknown = JSON.parse(saved);
+    if (!isRecord(parsed)) return null;
+
+    const analysis = parsed[requestKey];
+    return isPortfolioAnalysisResponse(analysis) ? analysis : null;
+  } catch {
+    return null;
+  }
+}
+
+function deleteStoredPortfolioAnalysis(requestKey: string) {
+  try {
+    const saved = localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
+    if (!saved) return;
+
+    const parsed: unknown = JSON.parse(saved);
+    if (!isRecord(parsed) || !(requestKey in parsed)) return;
+
+    const { [requestKey]: _deleted, ...remainingAnalyses } = parsed;
+    localStorage.setItem(PORTFOLIO_ANALYSIS_STORAGE_KEY, JSON.stringify(remainingAnalyses));
+  } catch {
+    // 브라우저 저장소를 사용할 수 없어도 재분석 요청은 계속한다.
+  }
+}
+
 function deletePortfolioAnalysisCacheEntry(requestKey: string) {
   const cachedEntry = portfolioAnalysisRequests.get(requestKey);
   if (cachedEntry?.cleanupTimer) clearTimeout(cachedEntry.cleanupTimer);
@@ -252,6 +282,9 @@ export function getPortfolioAnalysis(
   if (isFresh) return cachedEntry.request;
   if (cachedEntry) deletePortfolioAnalysisCacheEntry(requestKey);
 
+  const storedAnalysis = loadPortfolioAnalysis(requestKey);
+  if (storedAnalysis) return Promise.resolve(storedAnalysis);
+
   const analysisRequest = requestPortfolioAnalysis(newsId, assets);
   portfolioAnalysisRequests.set(requestKey, { request: analysisRequest });
 
@@ -282,6 +315,8 @@ export function retryPortfolioAnalysis(
   newsId: string,
   assets: PortfolioAsset[],
 ): Promise<PortfolioAnalysisResponse> {
-  deletePortfolioAnalysisCacheEntry(createPortfolioAnalysisRequestKey(newsId, assets));
+  const requestKey = createPortfolioAnalysisRequestKey(newsId, assets);
+  deletePortfolioAnalysisCacheEntry(requestKey);
+  deleteStoredPortfolioAnalysis(requestKey);
   return getPortfolioAnalysis(newsId, assets);
 }

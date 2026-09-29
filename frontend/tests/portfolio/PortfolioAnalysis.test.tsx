@@ -453,6 +453,24 @@ describe('포트폴리오 분석 화면', () => {
     });
   });
 
+  it('동일한 뉴스와 포트폴리오의 저장된 분석 결과가 있으면 API를 호출하지 않는다', async () => {
+    const assets = [{ assetName: '저장 결과 재사용 자산', weight: 100 }];
+    const analysis = { totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] };
+    const requestKey = JSON.stringify([
+      'stored-analysis',
+      [{ assetName: '저장 결과 재사용 자산', weight: 100 }],
+    ]);
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({ [requestKey]: analysis }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getPortfolioAnalysis('stored-analysis', assets)).resolves.toEqual(analysis);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('자산 순서와 이름 및 비중 표현이 달라도 동일한 분석 요청으로 처리한다', async () => {
     const analysis = { totalAssetCount: 2, analyzedAssetCount: 0, impacts: [] };
     const fetchMock = vi.fn(async () => jsonResponse(analysis));
@@ -504,7 +522,7 @@ describe('포트폴리오 분석 화면', () => {
     ).resolves.toEqual(analysis);
   });
 
-  it('완료된 분석 캐시는 TTL이 지나면 자동으로 제거한다', async () => {
+  it('메모리 캐시 TTL이 지나도 저장된 분석 결과를 재사용한다', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn(async () =>
       jsonResponse({ totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] }),
@@ -519,8 +537,7 @@ describe('포트폴리오 분석 화면', () => {
 
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
       await getPortfolioAnalysis('cache-ttl', assets);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       vi.clearAllTimers();
       vi.useRealTimers();
