@@ -250,27 +250,7 @@ export function PortfolioPage() {
     <main className="portfolio-page">
       <div className="portfolio-page-title">
         <h1>내 포트폴리오</h1>
-        {calculation ? (
-          <div className="portfolio-head-actions">
-            <button
-              type="button"
-              className="portfolio-secondary-button"
-              aria-pressed={amountsHidden}
-              onClick={() => setAmountsHidden((hidden) => !hidden)}
-            >
-              {amountsHidden ? '금액 보기' : '금액 숨기기'}
-            </button>
-            <button
-              type="button"
-              className="portfolio-primary-button"
-              onClick={() => setEditor({})}
-            >
-              ＋ 자산 추가
-            </button>
-          </div>
-        ) : (
-          <span>국내 주식·ETF · 전일 종가 기준</span>
-        )}
+        <span>국내 주식·ETF · 전일 종가 기준</span>
       </div>
 
       {holdings.length === 0 ? (
@@ -314,7 +294,17 @@ export function PortfolioPage() {
           </div>
           <dl className="portfolio-overview" aria-label="자산 요약">
             <div className="portfolio-summary-total">
-              <dt>전체 자산 평가금액</dt>
+              <div className="portfolio-balance-label">
+                <dt>전체 자산 평가금액</dt>
+                <button
+                  type="button"
+                  className="portfolio-privacy-button"
+                  aria-pressed={amountsHidden}
+                  onClick={() => setAmountsHidden((hidden) => !hidden)}
+                >
+                  {amountsHidden ? '금액 보기' : '금액 숨기기'}
+                </button>
+              </div>
               <dd className="portfolio-balance-value">
                 {displayWon(calculation.totalEvaluationAmount)}
               </dd>
@@ -372,6 +362,13 @@ export function PortfolioPage() {
                 보유 자산 <span>{calculation.holdings.length}</span>
               </h2>
               <div className="portfolio-holdings-tools">
+                <button
+                  type="button"
+                  className="portfolio-primary-button"
+                  onClick={() => setEditor({})}
+                >
+                  ＋ 자산 추가
+                </button>
                 <div className="portfolio-filters" role="group" aria-label="자산 유형">
                   {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
                     <button
