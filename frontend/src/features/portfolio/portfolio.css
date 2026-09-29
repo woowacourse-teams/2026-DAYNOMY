@@ -1668,17 +1668,23 @@
 }
 
 /* Approved portfolio dashboard demo */
+.app-content:has(> .portfolio-page) {
+  background: #f7f8fa;
+}
+
 .portfolio-page {
   --portfolio-demo-line: #e5e9ef;
   --portfolio-demo-soft: #f3f6fa;
   --portfolio-demo-navy: #21395f;
-  width: min(100%, 1120px);
+  width: 100%;
+  max-width: none;
   padding: 38px 42px 56px;
+  background: #f7f8fa;
 }
 
 .portfolio-page-title {
   height: auto;
-  margin: 0 0 18px;
+  margin: 0 0 clamp(18px, 2vw, 40px);
 }
 
 .portfolio-page-title h1 {
@@ -1705,12 +1711,12 @@
   gap: 7px;
   margin-bottom: 14px;
   color: var(--portfolio-muted);
-  font-size: 12px;
+  font-size: clamp(12px, 1.3vw, 26px);
 }
 
 .portfolio-freshness i {
-  width: 6px;
-  height: 6px;
+  width: clamp(6px, 0.6vw, 12px);
+  height: clamp(6px, 0.6vw, 12px);
   border-radius: 50%;
   background: var(--portfolio-demo-navy);
 }
@@ -1722,13 +1728,14 @@
   margin: 0 0 18px;
   padding: 0;
   border: 1px solid var(--portfolio-demo-line);
+  background: #fff;
 }
 
 .portfolio-overview > div {
   display: block;
   min-width: 0;
-  min-height: 128px;
-  padding: 25px 24px;
+  min-height: clamp(156px, 15.8vw, 312px);
+  padding: clamp(32px, 3.2vw, 64px) clamp(27px, 2.7vw, 54px);
   border: 0;
 }
 
@@ -1740,25 +1747,25 @@
 .portfolio-overview small {
   display: block;
   color: var(--portfolio-muted);
-  font-size: 12px;
+  font-size: clamp(12px, 1.3vw, 26px);
 }
 
 .portfolio-overview > div:not(.portfolio-summary-total) > dd {
   overflow: hidden;
-  margin: 14px 0 0;
-  font-size: 18px;
+  margin: clamp(14px, 1.4vw, 28px) 0 0;
+  font-size: clamp(18px, 1.92vw, 38px);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .portfolio-overview > div:not(.portfolio-summary-total) > small {
-  margin-top: 6px;
+  margin-top: clamp(6px, 0.6vw, 12px);
 }
 
 .portfolio-overview .portfolio-balance-value {
-  margin: 12px 0 0;
-  font-size: 31px;
+  margin: clamp(12px, 1.2vw, 24px) 0 0;
+  font-size: clamp(31px, 1.92vw, 38px);
   font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.2;
@@ -1768,38 +1775,38 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: clamp(7px, 0.7vw, 14px);
   min-height: 0;
-  margin: 10px 0 0;
+  margin: clamp(10px, 1vw, 20px) 0 0;
 }
 
 .portfolio-overview .portfolio-daily-performance > span {
   padding: 0;
   color: var(--portfolio-muted);
   background: transparent;
-  font-size: 11px;
+  font-size: clamp(11px, 1.25vw, 25px);
   font-weight: 400;
 }
 
 .portfolio-overview .portfolio-daily-performance strong {
-  font-size: 13px;
+  font-size: clamp(13px, 1.5vw, 30px);
   font-weight: 500;
 }
 
 .portfolio-overview .portfolio-daily-performance small {
   display: inline-block;
-  margin: 0 0 0 7px;
-  padding: 3px 6px;
+  margin: 0 0 0 clamp(7px, 0.7vw, 14px);
+  padding: clamp(3px, 0.3vw, 6px) clamp(6px, 0.6vw, 12px);
   border-radius: 999px;
   color: inherit;
   background: #fbefed;
-  font-size: 10px;
+  font-size: clamp(10px, 1.25vw, 25px);
 }
 
 .portfolio-charts {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
-  gap: 18px;
+  gap: clamp(18px, 2vw, 40px);
   margin: 0 0 18px;
   padding: 0;
   border: 0;
@@ -1807,52 +1814,68 @@
 
 .portfolio-composition,
 .portfolio-insights {
-  min-height: 272px;
-  padding: 22px 24px;
+  height: clamp(312px, 31.65vw, 626px);
+  min-height: clamp(312px, 31.65vw, 626px);
+  padding: clamp(27px, 2.7vw, 54px);
   border: 1px solid var(--portfolio-demo-line);
   background: #fff;
 }
 
 .portfolio-chart-heading {
-  margin-bottom: 20px;
+  margin-bottom: clamp(20px, 2vw, 40px);
 }
 
 .portfolio-chart-heading h2,
 .portfolio-section-title h2 {
-  font-size: 17px;
+  font-size: clamp(17px, 1.97vw, 39px);
   font-weight: 500;
 }
 
+.portfolio-chart-heading > span {
+  font-size: clamp(11px, 1.25vw, 25px);
+}
+
 .portfolio-composition-content {
-  grid-template-columns: 130px 1fr;
-  gap: 24px;
+  grid-template-columns: clamp(140px, 14.25vw, 282px) 1fr;
+  gap: clamp(24px, 2.4vw, 48px);
   margin-top: 0;
 }
 
 .portfolio-composition .portfolio-donut-wrap {
-  width: 128px;
-  height: 128px;
+  width: clamp(140px, 14.25vw, 282px);
+  height: clamp(140px, 14.25vw, 282px);
 }
 
 .portfolio-composition .portfolio-donut-caption strong {
-  font-size: 19px;
+  font-size: clamp(19px, 2vw, 40px);
   font-weight: 500;
 }
 
+.portfolio-composition .portfolio-donut-caption span,
+.portfolio-composition .portfolio-donut-caption small {
+  font-size: clamp(11px, 1.25vw, 25px);
+}
+
 .portfolio-category-list {
-  gap: 13px;
+  gap: clamp(13px, 1.3vw, 26px);
+}
+
+.portfolio-category-list dt,
+.portfolio-category-list dd {
+  font-size: clamp(12px, 1.35vw, 27px);
 }
 
 .portfolio-market-summary {
   justify-content: flex-start;
-  gap: 16px;
-  margin-top: 20px;
-  padding-top: 13px;
+  gap: clamp(16px, 1.6vw, 32px);
+  margin-top: clamp(20px, 2vw, 40px);
+  padding-top: clamp(13px, 1.3vw, 26px);
   border-top-color: var(--portfolio-demo-line);
+  font-size: clamp(11px, 1.25vw, 25px);
 }
 
 .portfolio-market-summary dl {
-  gap: 16px;
+  gap: clamp(16px, 1.6vw, 32px);
 }
 
 .portfolio-insight-list {
@@ -1861,10 +1884,10 @@
 
 .portfolio-insight-row {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-columns: clamp(30px, 3vw, 60px) minmax(0, 1fr) auto;
   align-items: center;
-  gap: 16px;
-  min-height: 66px;
+  gap: clamp(16px, 1.6vw, 32px);
+  min-height: clamp(66px, 7.4vw, 146px);
   border-top: 1px solid var(--portfolio-demo-line);
 }
 
@@ -1874,7 +1897,7 @@
 
 .portfolio-insight-number {
   color: #a1a9b5;
-  font-size: 11px;
+  font-size: clamp(11px, 1.2vw, 24px);
 }
 
 .portfolio-insight-copy strong,
@@ -1883,18 +1906,18 @@
 }
 
 .portfolio-insight-copy strong {
-  font-size: 13px;
+  font-size: clamp(13px, 1.47vw, 29px);
   font-weight: 500;
 }
 
 .portfolio-insight-copy span {
-  margin-top: 3px;
+  margin-top: clamp(3px, 0.3vw, 6px);
   color: var(--portfolio-muted);
-  font-size: 11px;
+  font-size: clamp(11px, 1.25vw, 25px);
 }
 
 .portfolio-insight-value {
-  font-size: 15px;
+  font-size: clamp(15px, 1.62vw, 32px);
   font-weight: 500;
 }
 
@@ -1954,7 +1977,7 @@
   padding: 14px 0 8px;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1100px) {
   .portfolio-page {
     padding: 28px 20px 42px;
   }
@@ -1981,6 +2004,11 @@
 
   .portfolio-charts {
     grid-template-columns: 1fr;
+  }
+
+  .portfolio-composition,
+  .portfolio-insights {
+    height: auto;
   }
 }
 
