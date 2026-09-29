@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record PublicDataProperties(
     String serviceKey,
     String stockPriceUrl,
+    String etfPriceUrl,
     String listedStockUrl,
     Duration connectTimeout,
     Duration readTimeout) {
