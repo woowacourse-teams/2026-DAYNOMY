@@ -32,23 +32,24 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
   const [priceError, setPriceError] = useState('');
 
   useEffect(() => {
-    if (holding || keyword.trim().length < 1) {
+    const trimmedKeyword = keyword.trim();
+
+    if (holding || trimmedKeyword.length < 1) {
       setResults([]);
       setLoading(false);
+      setError('');
       return;
     }
 
     const controller = new AbortController();
+    setLoading(true);
+    setError('');
     const timer = window.setTimeout(() => {
-      setLoading(true);
-      setError('');
-      searchStocks(keyword.trim(), controller.signal)
+      searchStocks(trimmedKeyword, controller.signal)
         .then(setResults)
-        .catch((caughtError: unknown) => {
+        .catch(() => {
           if (controller.signal.aborted) return;
-          setError(
-            caughtError instanceof Error ? caughtError.message : '종목을 검색하지 못했습니다.',
-          );
+          setError('네트워크 상태를 확인하고 잠시 후 다시 검색해 주세요.');
           setResults([]);
         })
         .finally(() => {
@@ -234,21 +235,26 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                   <strong>보유 중인 종목을 검색해 보세요</strong>
                   <p>국내 KOSPI · KOSDAQ 종목을 추가할 수 있습니다.</p>
                 </div>
-              ) : null}
-              {loading ? <p className="portfolio-search-status">검색 중입니다.</p> : null}
-              {error ? (
-                <p className="portfolio-search-status error" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              {!loading && !error && keyword.trim() && filteredResults.length === 0 ? (
-                <p className="portfolio-search-status">
-                  {results.length > 0
-                    ? `${marketFilter} 시장에 일치하는 종목이 없습니다.`
-                    : '검색된 종목이 없습니다.'}
-                </p>
-              ) : null}
-              {filteredResults.length > 0 ? (
+              ) : loading ? (
+                <div className="portfolio-search-status" role="status">
+                  <strong>종목을 검색하고 있어요</strong>
+                  <p>잠시만 기다려 주세요.</p>
+                </div>
+              ) : error ? (
+                <div className="portfolio-search-status error" role="alert">
+                  <strong>검색 결과를 불러오지 못했어요</strong>
+                  <p>{error}</p>
+                </div>
+              ) : filteredResults.length === 0 ? (
+                <div className="portfolio-search-status">
+                  <strong>검색된 종목이 없어요</strong>
+                  <p>
+                    {results.length > 0
+                      ? `${marketFilter} 시장에 일치하는 종목이 없습니다.`
+                      : '종목명이나 종목코드를 다시 확인해 주세요.'}
+                  </p>
+                </div>
+              ) : (
                 <ul>
                   {filteredResults.map((stock) => {
                     const alreadySaved = savedAssetIds.includes(stock.assetId);
@@ -281,7 +287,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                     );
                   })}
                 </ul>
-              ) : null}
+              )}
             </div>
           ) : null}
 

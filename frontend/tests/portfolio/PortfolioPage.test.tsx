@@ -180,6 +180,34 @@ describe('포트폴리오 화면', () => {
     expect(within(dialog).queryByRole('button', { name: /에코프로비엠/ })).toBeNull();
   });
 
+  it('검색 실패를 사용자용 문구로 표시하고 검색어를 지우면 오류를 초기화한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    );
+
+    const view = render(<PortfolioPage />);
+    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+
+    const dialog = view.getByRole('dialog');
+    const searchInput = within(dialog).getByRole('searchbox');
+    fireEvent.change(searchInput, { target: { value: '없는종목' } });
+
+    const error = await within(dialog).findByRole('alert');
+    expect(within(error).getByText('검색 결과를 불러오지 못했어요')).toBeTruthy();
+    expect(
+      within(error).getByText('네트워크 상태를 확인하고 잠시 후 다시 검색해 주세요.'),
+    ).toBeTruthy();
+    expect(within(dialog).queryByText('Failed to fetch')).toBeNull();
+    expect(within(dialog).queryByText('보유 중인 종목을 검색해 보세요')).toBeNull();
+
+    fireEvent.change(searchInput, { target: { value: '' } });
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull());
+    expect(within(dialog).getByText('보유 중인 종목을 검색해 보세요')).toBeTruthy();
+  });
+
   it('최근 종가를 불러오는 동안 평균 매수가 조절을 막는다', async () => {
     let resolvePrice!: (response: Response) => void;
     const priceResponse = new Promise<Response>((resolve) => {

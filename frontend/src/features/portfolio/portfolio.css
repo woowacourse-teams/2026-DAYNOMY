@@ -860,8 +860,8 @@
 }
 
 .portfolio-search-results {
-  min-height: 280px;
-  max-height: min(410px, calc(100svh - 285px));
+  height: clamp(240px, calc(100svh - 285px), 320px);
+  min-height: 240px;
   overflow-y: auto;
   scrollbar-color: #c6ccd3 transparent;
   scrollbar-width: thin;
@@ -869,7 +869,7 @@
 
 .portfolio-search-empty {
   display: grid;
-  min-height: 280px;
+  height: 100%;
   place-content: center;
   justify-items: center;
   padding: 42px 32px 54px;
@@ -902,16 +902,32 @@
 
 .portfolio-search-status {
   display: grid;
-  min-height: 240px;
+  height: 100%;
   place-content: center;
+  justify-items: center;
   padding: 32px;
   color: var(--portfolio-muted);
   font-size: 13px;
   text-align: center;
 }
 
+.portfolio-search-status strong {
+  color: #30363d;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.portfolio-search-status p {
+  margin-top: 8px;
+  line-height: 1.6;
+}
+
 .portfolio-search-status.error {
-  color: #9b5050;
+  color: #7b5b5b;
+}
+
+.portfolio-search-status.error strong {
+  color: #914b4b;
 }
 
 .portfolio-search-results ul {
@@ -1183,8 +1199,8 @@
   }
 
   .portfolio-search-results {
+    height: clamp(260px, calc(100svh - 260px), 360px);
     min-height: 260px;
-    max-height: calc(100svh - 260px);
   }
 
   .portfolio-search-results li button {
