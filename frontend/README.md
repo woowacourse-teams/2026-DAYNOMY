@@ -39,6 +39,10 @@ npm install
 ```bash
 # 프로덕션 빌드
 npm run build
+
+# 환경별 배포 빌드
+npm run build:development
+npm run build:production
 ```
 
 빌드 결과물은 `dist/` 폴더에 생성됩니다.
@@ -114,7 +118,62 @@ npm run build
 ```
 
 `dev` 또는 `main` 대상 Pull Request에서 프론트엔드 파일이 변경되면 Frontend CI가
-포맷, 린트, 테스트와 빌드를 순서대로 실행합니다.
+포맷, 린트, 타입 검사, 테스트, Docker 배포 검증과 빌드를 순서대로 실행합니다.
+
+---
+
+## 환경별 배포
+
+프론트 버전 기준, Git tag 발행 및 이전 이미지 재배포 절차는
+[RELEASING.md](RELEASING.md)에 기록합니다. 버전별 변경 내역은
+[CHANGELOG.md](CHANGELOG.md)를 확인합니다.
+`main`에 새 프론트 버전을 병합하면 기존 Docker 배포 흐름에서 자동으로 배포하고,
+검증이 성공한 뒤 Git tag를 생성합니다. Actions 수동 실행은 필요하지 않습니다.
+
+| 브랜치 | GitHub Environment | URL                       | 호스트 포트   |
+| ------ | ------------------ | ------------------------- | ------------- |
+| `dev`  | `development`      | `https://dev.daynomy.com` | `3000`·`3001` |
+| `main` | `production`       | `https://daynomy.com`     | `3000`·`3001` |
+
+`.github/workflows/deploy-frontend.yml`은 브랜치에 맞는 Vite mode로 빌드하고,
+`dev`는 개발 EC2의 `frontend-dev` 라벨 Runner로, `main`은 운영 EC2의
+`frontend-prod` 라벨 Runner로 배포합니다. 각 EC2에서 프론트 컨테이너 두 개를
+`127.0.0.1:3000`·`3001`에 번갈아 실행하고, 검증 후 호스트 Nginx 연결을 전환합니다.
+개발·운영 모두 저장소의 `frontend/compose.yml`을 사용하며 앱 EC2와 DB는 각각 분리합니다.
+최초 Nginx 설정과 이전 해시 파일 보관·실패 복구는 [RELEASING.md](RELEASING.md)를 확인합니다.
+
+GitHub의 `development`, `production` Environment에는 다음 값을 각각 설정합니다.
+
+| 종류     | 이름                 | 용도                                         |
+| -------- | -------------------- | -------------------------------------------- |
+| Variable | `GA_MEASUREMENT_ID`  | 환경별 별도 GA4 웹 데이터 스트림 ID          |
+| Variable | `SENTRY_DSN`         | 환경별 별도 Sentry 프로젝트 DSN              |
+| Variable | `SENTRY_ENVIRONMENT` | development는 `staging`, 운영은 `production` |
+| Variable | `SENTRY_ORG`         | Sentry 조직 slug                             |
+| Variable | `SENTRY_PROJECT`     | Sentry 프로젝트 slug                         |
+| Secret   | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드 토큰                           |
+
+개발·운영은 각각 다른 GA4 Measurement ID와 Sentry 프로젝트 DSN을 사용합니다.
+개발 Sentry 이벤트는 `staging`, 운영 이벤트는 `production`으로 구분합니다.
+각 Environment의 `SENTRY_AUTH_TOKEN` Secret은 빌드 중 소스맵 업로드에 사용하며,
+설정 변경 후에는 프론트를 다시 빌드·배포해야 합니다.
+
+각 EC2의 호스트 Nginx는 화면 요청을 프론트엔드 컨테이너로, `/api`와 OAuth 요청을
+같은 EC2의 백엔드로 전달합니다.
+
+배포 확인은 각 URL의 HTML에 해당 환경과 Git commit SHA가 표시되는지,
+`/api/news`와 `/api/auth/csrf`의 JSON 응답, Google 로그인 시작 및 OAuth
+리디렉션을 검사합니다. 이는 프록시 연결 확인입니다. 백엔드 CI는
+별도로 API 테스트를 실행하지만 배포된 서버의 전체 API 기능 검증은 아직 연결되지
+않았습니다. 공용 관리자 계정은 자동 테스트에 사용하지 않습니다. 개발 전용 자동
+인증과 테스트 데이터 정리 절차가 준비되면 로그인·쓰기 검증을 개발 배포에 연결합니다.
+실패 원인은 Actions 로그와 다음 명령으로 확인합니다.
+
+```bash
+docker ps --filter name=frontend
+# 실제 활성 포트에 해당하는 컨테이너 선택
+docker logs frontend-3001
+```
 
 ---
 
@@ -140,7 +199,7 @@ Sentry는 프론트엔드 오류의 원인과 발생 환경을 확인하기 위�
 - URL 쿼리 문자열 제거
 - 숨김 소스맵 생성 및 Sentry 업로드
 - 배포 결과물에서 소스맵 삭제
-- Git commit SHA를 Sentry release로 기록
+- 일반 배포는 Git commit SHA, 버전 배포는 Git tag를 Sentry release로 기록
 
 ### Sentry 환경 변수
 
@@ -151,7 +210,7 @@ Sentry는 프론트엔드 오류의 원인과 발생 환경을 확인하기 위�
 | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드용 CI Secret       |
 | `SENTRY_ORG`         | Sentry 조직 slug                |
 | `SENTRY_PROJECT`     | Sentry 프로젝트 slug            |
-| `SENTRY_RELEASE`     | 배포한 Git commit SHA           |
+| `SENTRY_RELEASE`     | 일반 배포 SHA 또는 버전 Git tag |
 
 `SENTRY_AUTH_TOKEN`은 브라우저에 전달하지 않고 GitHub Actions Secret으로만 관리합니다.
 
@@ -226,7 +285,7 @@ GA4는 방문자 수, 페이지 이동, 검색, 로그인 전환을 확인하기
 - React Error Boundary 적용
 - 로컬 환경 수집 비활성화
 - Sentry 소스맵 업로드
-- Git SHA 기준 release 기록
+- 일반 배포 SHA·버전 배포 Git tag 기준 release 기록
 - Sentry 개인정보 제거
 - GA4 페이지 조회 및 사용자 행동 이벤트 수집
 - 배포 후 Sentry Release·소스맵 확인
