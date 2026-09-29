@@ -566,6 +566,7 @@
   display: flex;
   max-height: calc(100svh - 48px);
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .portfolio-dialog .sr-only {
