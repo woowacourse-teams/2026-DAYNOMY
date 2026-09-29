@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -20,15 +21,21 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class StockPricePersistenceService {
 
+  private static final Set<AssetCategory> SUPPORTED_CATEGORIES =
+      Set.of(AssetCategory.STOCK, AssetCategory.ETF);
+
   private final AssetRepository assetRepository;
   private final StockDailyPriceRepository stockDailyPriceRepository;
 
   @Transactional
   public StockPriceSyncResult synchronize(LocalDate baseDate, List<StockPriceEntry> entries) {
-    Map<String, Asset> listedStocksByCode =
-        assetRepository.findAllByCategory(AssetCategory.STOCK).stream()
+    Map<AssetKey, Asset> listedAssetsByKey =
+        assetRepository.findAllByCategoryIn(SUPPORTED_CATEGORIES).stream()
             .filter(Asset::isListed)
-            .collect(Collectors.toMap(Asset::getAssetCode, Function.identity()));
+            .collect(
+                Collectors.toMap(
+                    asset -> new AssetKey(asset.getCategory(), asset.getAssetCode()),
+                    Function.identity()));
     Map<Long, StockDailyPrice> existingPricesByAssetId = new HashMap<>();
     for (StockDailyPrice price : stockDailyPriceRepository.findAllByBaseDate(baseDate)) {
       existingPricesByAssetId.put(price.getAsset().getId(), price);
@@ -40,7 +47,7 @@ public class StockPricePersistenceService {
     List<StockDailyPrice> pricesToSave = new ArrayList<>();
 
     for (StockPriceEntry entry : entries) {
-      Asset asset = listedStocksByCode.get(entry.assetCode());
+      Asset asset = listedAssetsByKey.get(new AssetKey(entry.category(), entry.assetCode()));
       if (asset == null) {
         skippedCount++;
         continue;
@@ -62,4 +69,6 @@ public class StockPricePersistenceService {
     return new StockPriceSyncResult(
         baseDate, entries.size(), createdCount, updatedCount, skippedCount);
   }
+
+  private record AssetKey(AssetCategory category, String code) {}
 }
