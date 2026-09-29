@@ -12,10 +12,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.publicdata.PublicDataEtfPriceClient;
 import org.grit.daynomy.external.publicdata.PublicDataStockPriceClient;
+import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceItem;
+import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceResponse;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
 import org.springframework.stereotype.Service;
@@ -30,13 +34,16 @@ public class StockPriceSyncService {
   private static final Pattern STOCK_CODE = Pattern.compile("\\d{6}");
 
   private final PublicDataStockPriceClient stockPriceClient;
+  private final PublicDataEtfPriceClient etfPriceClient;
   private final StockPricePersistenceService persistenceService;
   private final AtomicBoolean running = new AtomicBoolean(false);
 
   public StockPriceSyncService(
       PublicDataStockPriceClient stockPriceClient,
+      PublicDataEtfPriceClient etfPriceClient,
       StockPricePersistenceService persistenceService) {
     this.stockPriceClient = stockPriceClient;
+    this.etfPriceClient = etfPriceClient;
     this.persistenceService = persistenceService;
   }
 
@@ -76,9 +83,11 @@ public class StockPriceSyncService {
         continue;
       }
 
-      List<StockPriceEntry> entries = toEntries(items, requestedDate);
+      List<PublicDataEtfPriceItem> etfItems = getAllEtfPages(requestedDate);
+      List<StockPriceEntry> entries = new ArrayList<>(toStockEntries(items, requestedDate));
+      entries.addAll(toEtfEntries(etfItems, requestedDate));
       if (!entries.isEmpty()) {
-        return new StockPriceSnapshot(requestedDate, entries);
+        return new StockPriceSnapshot(requestedDate, List.copyOf(entries));
       }
     }
 
@@ -108,16 +117,38 @@ public class StockPriceSyncService {
     return items;
   }
 
-  private List<StockPriceEntry> toEntries(
+  private List<PublicDataEtfPriceItem> getAllEtfPages(LocalDate baseDate) {
+    PublicDataEtfPriceResponse firstPage = etfPriceClient.getEtfPrices(baseDate, 1, PAGE_SIZE);
+    if (firstPage.body().totalCount() == 0 || firstPage.items().isEmpty()) {
+      return List.of();
+    }
+
+    List<PublicDataEtfPriceItem> items = new ArrayList<>(firstPage.items());
+    int totalPages = (firstPage.body().totalCount() + PAGE_SIZE - 1) / PAGE_SIZE;
+    for (int page = 2; page <= totalPages; page++) {
+      PublicDataEtfPriceResponse nextPage = etfPriceClient.getEtfPrices(baseDate, page, PAGE_SIZE);
+      if (nextPage.items().isEmpty()) {
+        throw new BusinessException(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
+      }
+      items.addAll(nextPage.items());
+    }
+    if (items.size() < firstPage.body().totalCount()) {
+      throw new BusinessException(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
+    }
+    return items;
+  }
+
+  private List<StockPriceEntry> toStockEntries(
       List<PublicDataStockPriceItem> items, LocalDate requestedDate) {
     Map<String, StockPriceEntry> entriesByCode = new LinkedHashMap<>();
     for (PublicDataStockPriceItem item : items) {
-      toEntry(item, requestedDate).ifPresent(entry -> entriesByCode.put(entry.assetCode(), entry));
+      toStockEntry(item, requestedDate)
+          .ifPresent(entry -> entriesByCode.put(entry.assetCode(), entry));
     }
     return List.copyOf(entriesByCode.values());
   }
 
-  private Optional<StockPriceEntry> toEntry(
+  private Optional<StockPriceEntry> toStockEntry(
       PublicDataStockPriceItem item, LocalDate requestedDate) {
     if (item == null
         || isBlank(item.srtnCd())
@@ -133,7 +164,41 @@ public class StockPriceSyncService {
       if (!requestedDate.equals(baseDate) || closePrice.signum() <= 0) {
         return Optional.empty();
       }
-      return Optional.of(new StockPriceEntry(item.srtnCd().trim(), baseDate, closePrice));
+      return Optional.of(
+          new StockPriceEntry(item.srtnCd().trim(), AssetCategory.STOCK, baseDate, closePrice));
+    } catch (DateTimeParseException | NumberFormatException exception) {
+      return Optional.empty();
+    }
+  }
+
+  private List<StockPriceEntry> toEtfEntries(
+      List<PublicDataEtfPriceItem> items, LocalDate requestedDate) {
+    Map<String, StockPriceEntry> entriesByCode = new LinkedHashMap<>();
+    for (PublicDataEtfPriceItem item : items) {
+      toEtfEntry(item, requestedDate)
+          .ifPresent(entry -> entriesByCode.put(entry.assetCode(), entry));
+    }
+    return List.copyOf(entriesByCode.values());
+  }
+
+  private Optional<StockPriceEntry> toEtfEntry(
+      PublicDataEtfPriceItem item, LocalDate requestedDate) {
+    if (item == null
+        || isBlank(item.srtnCd())
+        || !STOCK_CODE.matcher(item.srtnCd().trim()).matches()
+        || isBlank(item.basDt())
+        || isBlank(item.clpr())) {
+      return Optional.empty();
+    }
+
+    try {
+      LocalDate baseDate = LocalDate.parse(item.basDt().trim(), BASIC_DATE_FORMAT);
+      BigDecimal closePrice = new BigDecimal(item.clpr().trim());
+      if (!requestedDate.equals(baseDate) || closePrice.signum() <= 0) {
+        return Optional.empty();
+      }
+      return Optional.of(
+          new StockPriceEntry(item.srtnCd().trim(), AssetCategory.ETF, baseDate, closePrice));
     } catch (DateTimeParseException | NumberFormatException exception) {
       return Optional.empty();
     }
