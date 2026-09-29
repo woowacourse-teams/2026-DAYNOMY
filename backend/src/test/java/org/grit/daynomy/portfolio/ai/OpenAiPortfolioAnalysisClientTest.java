@@ -134,7 +134,7 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  @DisplayName("뉴스 원문에 명시된 영향의 범위와 규모를 기준으로 영향 수준을 판단하도록 요청한다")
+  @DisplayName("영향 수준을 HIGH, LOW, MEDIUM 우선순위에 따라 판단하도록 요청한다")
   void analyzeRequestsImpactLevelBasedOnExplicitCriteria() throws Exception {
     enqueueOutput("{\"impacts\":[]}");
 
@@ -145,10 +145,12 @@ class OpenAiPortfolioAnalysisClientTest {
     String developerPrompt = requestBody.path("input").get(0).path("content").asText();
 
     assertThat(developerPrompt)
-        .contains("impactLevel은 direction과 관계없이 뉴스 원문에 명시된 영향의 범위, 규모, 즉시성, 확실성을 기준으로 판단하세요.")
-        .contains("기업 전반이나 주요 실적·생산·수급에 미치는 영향이 크고 구체적이면 HIGH로 판단하세요.")
-        .contains("직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.")
-        .contains("직접적인 영향이 있으나 범위가 좁고 규모가 작거나 일시적이면 LOW로 판단하세요.");
+        .contains(
+            "impactLevel은 direction과 관계없이 뉴스 원문에 명시된 영향의 범위, 규모, 즉시성, 확실성을 기준으로 HIGH, LOW, MEDIUM 순서로 판단하세요.")
+        .contains("영향 기간이 짧더라도 규모가 크면 HIGH를 유지하세요.")
+        .contains("HIGH에 해당하지 않고 영향 규모가 작거나 일시적이라고 명시된 경우에는 LOW로 우선 판단하세요.")
+        .contains(
+            "HIGH와 LOW에 해당하지 않으면서 직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.");
   }
 
   @Test
