@@ -42,25 +42,54 @@ public class PortfolioCalculationService {
     List<CalculatedHolding> calculatedHoldings = new ArrayList<>();
     BigDecimal totalPurchaseAmount = BigDecimal.ZERO;
     BigDecimal totalEvaluationAmount = BigDecimal.ZERO;
+    BigDecimal previousEvaluationAmount = BigDecimal.ZERO;
     LocalDate baseDate = null;
+    Set<LocalDate> currentPriceDates = new HashSet<>();
+    Set<LocalDate> previousPriceDates = new HashSet<>();
+    boolean allHoldingsHavePreviousPrice = true;
 
     for (PortfolioHoldingRequest holding : request.holdings()) {
-      StockDailyPrice price = latestPrice(holding.assetId());
+      List<StockDailyPrice> prices = latestPrices(holding.assetId());
+      StockDailyPrice price = prices.getFirst();
       CalculatedHolding calculated = calculateHolding(holding, price);
       calculatedHoldings.add(calculated);
       totalPurchaseAmount = totalPurchaseAmount.add(calculated.purchaseAmount());
       totalEvaluationAmount = totalEvaluationAmount.add(calculated.evaluationAmount());
       baseDate = earlierDate(baseDate, price.getBaseDate());
+      currentPriceDates.add(price.getBaseDate());
+
+      if (prices.size() < 2 || !prices.get(1).getBaseDate().isBefore(price.getBaseDate())) {
+        allHoldingsHavePreviousPrice = false;
+      } else {
+        StockDailyPrice previousPrice = prices.get(1);
+        previousPriceDates.add(previousPrice.getBaseDate());
+        previousEvaluationAmount =
+            previousEvaluationAmount.add(
+                previousPrice.getClosePrice().multiply(BigDecimal.valueOf(holding.quantity())));
+      }
     }
 
     totalPurchaseAmount = money(totalPurchaseAmount);
     totalEvaluationAmount = money(totalEvaluationAmount);
     BigDecimal totalProfitLoss = money(totalEvaluationAmount.subtract(totalPurchaseAmount));
+    BigDecimal dailyProfitLoss = null;
+    BigDecimal dailyReturnRate = null;
+    boolean canCalculateDailyPerformance =
+        allHoldingsHavePreviousPrice
+            && currentPriceDates.size() == 1
+            && previousPriceDates.size() == 1;
+    if (canCalculateDailyPerformance) {
+      previousEvaluationAmount = money(previousEvaluationAmount);
+      dailyProfitLoss = money(totalEvaluationAmount.subtract(previousEvaluationAmount));
+      dailyReturnRate = percentage(dailyProfitLoss, previousEvaluationAmount);
+    }
 
     return new PortfolioCalculationResponse(
         baseDate,
         totalPurchaseAmount,
         totalEvaluationAmount,
+        dailyProfitLoss,
+        dailyReturnRate,
         totalProfitLoss,
         percentage(totalProfitLoss, totalPurchaseAmount),
         holdingResponses(calculatedHoldings, totalEvaluationAmount),
@@ -76,10 +105,13 @@ public class PortfolioCalculationService {
     }
   }
 
-  private StockDailyPrice latestPrice(Long assetId) {
-    return stockDailyPriceRepository
-        .findFirstByAssetIdOrderByBaseDateDesc(assetId)
-        .orElseThrow(() -> new BusinessException(AssetErrorCode.STOCK_PRICE_NOT_FOUND));
+  private List<StockDailyPrice> latestPrices(Long assetId) {
+    List<StockDailyPrice> prices =
+        stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(assetId);
+    if (prices.isEmpty()) {
+      throw new BusinessException(AssetErrorCode.STOCK_PRICE_NOT_FOUND);
+    }
+    return prices;
   }
 
   private CalculatedHolding calculateHolding(

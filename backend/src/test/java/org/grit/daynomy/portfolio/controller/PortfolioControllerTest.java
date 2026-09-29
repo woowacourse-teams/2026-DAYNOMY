@@ -71,6 +71,8 @@ class PortfolioControllerTest {
         .andExpect(jsonPath("$.baseDate").value("2026-09-18"))
         .andExpect(jsonPath("$.totalPurchaseAmount").value(650000.00))
         .andExpect(jsonPath("$.totalEvaluationAmount").value(820000.00))
+        .andExpect(jsonPath("$.dailyProfitLoss").value(20000.00))
+        .andExpect(jsonPath("$.dailyReturnRate").value(2.50))
         .andExpect(jsonPath("$.totalProfitLoss").value(170000.00))
         .andExpect(jsonPath("$.totalReturnRate").value(26.15))
         .andExpect(jsonPath("$.holdings[0].category").value("STOCK"))
@@ -139,6 +141,8 @@ class PortfolioControllerTest {
         LocalDate.of(2026, 9, 18),
         new BigDecimal("650000.00"),
         new BigDecimal("820000.00"),
+        new BigDecimal("20000.00"),
+        new BigDecimal("2.50"),
         new BigDecimal("170000.00"),
         new BigDecimal("26.15"),
         List.of(
