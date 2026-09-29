@@ -89,7 +89,6 @@ ai:
 news:
   generation:
     economy:
-      enabled: ${ECONOMY_NEWS_GENERATION_ENABLED:true}
       cron: ${ECONOMY_NEWS_GENERATION_CRON:0 0 9 * * *}
 
 stock:
