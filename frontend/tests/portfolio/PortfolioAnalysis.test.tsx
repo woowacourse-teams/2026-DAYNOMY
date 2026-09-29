@@ -239,9 +239,11 @@ describe('포트폴리오 분석 화면', () => {
     const analyzeButton = view.getByRole('button', { name: '포트폴리오 분석하기' });
     fireEvent.click(analyzeButton);
 
-    expect(view.getByRole('status').textContent).toContain(
-      '내 포트폴리오에 미치는 영향을 분석하고 있어요.',
-    );
+    const loadingStatus = view.getByRole('status');
+    expect(loadingStatus.textContent).toContain('내 포트폴리오에 미치는 영향을 분석하고 있어요.');
+    expect(
+      loadingStatus.querySelector('.portfolio-analysis-spinner')?.getAttribute('aria-hidden'),
+    ).toBe('true');
     expect((view.getByRole('button', { name: '분석 중' }) as HTMLButtonElement).disabled).toBe(
       true,
     );

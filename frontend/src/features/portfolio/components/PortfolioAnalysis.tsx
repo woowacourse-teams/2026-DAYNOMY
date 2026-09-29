@@ -187,6 +187,7 @@ function PortfolioAnalysisLoading() {
       role="status"
       aria-live="polite"
     >
+      <span className="portfolio-analysis-spinner" aria-hidden="true" />
       <strong>내 포트폴리오에 미치는 영향을 분석하고 있어요.</strong>
     </div>
   );
