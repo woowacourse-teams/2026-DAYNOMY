@@ -211,29 +211,65 @@ export function PortfolioPage() {
   return (
     <main className="portfolio-page">
       <div className="portfolio-page-title">
-        <h1>내 포트폴리오</h1>
+        <div>
+          <h1>내 포트폴리오</h1>
+          <p>보유 자산의 현재 가치와 수익 흐름을 한눈에 확인하세요.</p>
+        </div>
         <span>국내 주식 · 전일 종가 기준</span>
       </div>
 
       {holdings.length === 0 ? (
         <section className="portfolio-empty" aria-labelledby="portfolio-empty-title">
-          <span className="portfolio-empty-mark">₩</span>
-          <h2 id="portfolio-empty-title">첫 자산을 추가해 보세요</h2>
-          <p>보유 종목과 평균 매수가를 입력하면 수익률과 자산 비중을 한눈에 보여드려요.</p>
-          <button type="button" className="portfolio-primary-button" onClick={() => setEditor({})}>
-            ＋ 자산 추가
-          </button>
+          <div className="portfolio-empty-copy">
+            <h2 id="portfolio-empty-title">첫 자산을 추가해 보세요</h2>
+            <p>
+              종목과 매수 정보를 등록하면 전일 종가를 기준으로 평가금액, 수익률, 시장 비중을 계산해
+              드려요.
+            </p>
+            <button
+              type="button"
+              className="portfolio-primary-button"
+              onClick={() => setEditor({})}
+            >
+              자산 추가하기
+            </button>
+          </div>
+          <ol className="portfolio-empty-steps" aria-label="포트폴리오 시작 방법">
+            <li>
+              <span>1</span>
+              <div>
+                <strong>보유 종목 선택</strong>
+                <p>국내 주식명이나 종목코드로 검색하세요.</p>
+              </div>
+            </li>
+            <li>
+              <span>2</span>
+              <div>
+                <strong>매수 정보 입력</strong>
+                <p>보유 수량과 평균 매수가를 입력하세요.</p>
+              </div>
+            </li>
+            <li>
+              <span>3</span>
+              <div>
+                <strong>자산 현황 확인</strong>
+                <p>평가손익과 시장 구성을 바로 확인하세요.</p>
+              </div>
+            </li>
+          </ol>
         </section>
       ) : null}
 
       {loading ? (
-        <p className="portfolio-state" aria-live="polite">
-          포트폴리오를 계산하고 있습니다.
-        </p>
+        <section className="portfolio-state" aria-live="polite" aria-busy="true">
+          <strong>포트폴리오를 계산하고 있습니다.</strong>
+          <p>최신 종가를 기준으로 자산 현황을 불러오는 중입니다.</p>
+        </section>
       ) : null}
 
       {!loading && error ? (
         <section className="portfolio-state" role="alert">
+          <strong>자산 현황을 불러오지 못했습니다.</strong>
           <p>{error}</p>
           <button
             type="button"
@@ -309,7 +345,7 @@ export function PortfolioPage() {
                 className="portfolio-primary-button"
                 onClick={() => setEditor({})}
               >
-                ＋ 자산 추가
+                자산 추가
               </button>
             </div>
             <div className="portfolio-filters" role="group" aria-label="시장 구분">
@@ -334,7 +370,7 @@ export function PortfolioPage() {
               className="portfolio-table-wrap"
               tabIndex={0}
               role="region"
-              aria-label="보유 자산 표, 좁은 화면에서 가로 스크롤"
+              aria-label="보유 자산 상세 정보"
             >
               <table>
                 <thead>
@@ -354,7 +390,7 @@ export function PortfolioPage() {
                 <tbody>
                   {filteredHoldings.map((holding) => (
                     <tr key={holding.assetId}>
-                      <td>
+                      <td data-label="종목">
                         <div className="portfolio-asset">
                           <span className="portfolio-monogram">{holding.name.slice(0, 1)}</span>
                           <div>
@@ -365,16 +401,18 @@ export function PortfolioPage() {
                           </div>
                         </div>
                       </td>
-                      <td>{numberFormatter.format(holding.quantity)}주</td>
-                      <td>{formatWon(holding.averagePurchasePrice)}</td>
-                      <td>{formatWon(holding.closePrice)}</td>
-                      <td className="portfolio-value">{formatWon(holding.evaluationAmount)}</td>
-                      <td className={profitClass(holding.profitLoss)}>
+                      <td data-label="보유수량">{numberFormatter.format(holding.quantity)}주</td>
+                      <td data-label="평균 매수가">{formatWon(holding.averagePurchasePrice)}</td>
+                      <td data-label="현재가">{formatWon(holding.closePrice)}</td>
+                      <td data-label="평가금액" className="portfolio-value">
+                        {formatWon(holding.evaluationAmount)}
+                      </td>
+                      <td data-label="평가손익" className={profitClass(holding.profitLoss)}>
                         {formatSignedWon(holding.profitLoss)}
                         <small>{formatPercent(holding.returnRate, true)}</small>
                       </td>
-                      <td>{formatPercent(holding.weight)}</td>
-                      <td>
+                      <td data-label="비중">{formatPercent(holding.weight)}</td>
+                      <td data-label="관리">
                         <div className="portfolio-row-actions">
                           <button type="button" onClick={() => setEditor({ holding })}>
                             수정
