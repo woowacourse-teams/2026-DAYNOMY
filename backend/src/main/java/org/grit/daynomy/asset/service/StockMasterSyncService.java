@@ -90,22 +90,21 @@ public class StockMasterSyncService {
 
       PublicDataEtfPriceResponse firstEtfPage =
           etfPriceClient.getEtfPrices(requestedDate, 1, PAGE_SIZE);
-      if (firstEtfPage.body().totalCount() == 0 || firstEtfPage.items().isEmpty()) {
-        continue;
-      }
-
-      List<PublicDataEtfPriceItem> etfItems = new ArrayList<>(firstEtfPage.items());
-      int totalEtfPages = (firstEtfPage.body().totalCount() + PAGE_SIZE - 1) / PAGE_SIZE;
-      for (int page = 2; page <= totalEtfPages; page++) {
-        PublicDataEtfPriceResponse nextPage =
-            etfPriceClient.getEtfPrices(requestedDate, page, PAGE_SIZE);
-        if (nextPage.items().isEmpty()) {
+      List<PublicDataEtfPriceItem> etfItems = new ArrayList<>();
+      if (firstEtfPage.body().totalCount() > 0 && !firstEtfPage.items().isEmpty()) {
+        etfItems.addAll(firstEtfPage.items());
+        int totalEtfPages = (firstEtfPage.body().totalCount() + PAGE_SIZE - 1) / PAGE_SIZE;
+        for (int page = 2; page <= totalEtfPages; page++) {
+          PublicDataEtfPriceResponse nextPage =
+              etfPriceClient.getEtfPrices(requestedDate, page, PAGE_SIZE);
+          if (nextPage.items().isEmpty()) {
+            throw new BusinessException(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
+          }
+          etfItems.addAll(nextPage.items());
+        }
+        if (etfItems.size() < firstEtfPage.body().totalCount()) {
           throw new BusinessException(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
         }
-        etfItems.addAll(nextPage.items());
-      }
-      if (etfItems.size() < firstEtfPage.body().totalCount()) {
-        throw new BusinessException(AssetErrorCode.STOCK_MASTER_DATA_NOT_FOUND);
       }
 
       List<StockMasterEntry> entries = new ArrayList<>(toStockEntries(items, requestedDate));

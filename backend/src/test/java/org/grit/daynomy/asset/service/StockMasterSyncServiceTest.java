@@ -138,6 +138,30 @@ class StockMasterSyncServiceTest {
   }
 
   @Test
+  @DisplayName("ETF 데이터가 없어도 주식 종목을 동기화한다")
+  void synchronizeStocksWithoutEtfData() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(listedStockClient.getListedStocks(today, 1, 1000))
+        .willReturn(response(1, List.of(item(today, "005930", "삼성전자", "KOSPI", "KR7005930003"))));
+    given(etfPriceClient.getEtfPrices(today, 1, 1000)).willReturn(etfResponse(0, List.of()));
+    given(
+            persistenceService.synchronize(
+                org.mockito.ArgumentMatchers.eq(today), org.mockito.ArgumentMatchers.anyList()))
+        .willReturn(new StockSyncResult(today, 1, 1, 0, 0));
+
+    syncService.synchronize(today);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<StockMasterEntry>> entriesCaptor = ArgumentCaptor.forClass(List.class);
+    then(persistenceService)
+        .should()
+        .synchronize(org.mockito.ArgumentMatchers.eq(today), entriesCaptor.capture());
+    assertThat(entriesCaptor.getValue())
+        .extracting(StockMasterEntry::code, StockMasterEntry::category)
+        .containsExactly(org.assertj.core.groups.Tuple.tuple("005930", AssetCategory.STOCK));
+  }
+
+  @Test
   @DisplayName("최근 10일 동안 종목 데이터가 없으면 동기화를 중단한다")
   void synchronizeThrowsWhenSnapshotIsMissing() {
     LocalDate today = LocalDate.of(2026, 9, 21);

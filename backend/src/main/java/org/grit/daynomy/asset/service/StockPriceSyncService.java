@@ -84,10 +84,6 @@ public class StockPriceSyncService {
       }
 
       List<PublicDataEtfPriceItem> etfItems = getAllEtfPages(requestedDate);
-      if (etfItems.isEmpty()) {
-        continue;
-      }
-
       List<StockPriceEntry> entries = new ArrayList<>(toStockEntries(items, requestedDate));
       entries.addAll(toEtfEntries(etfItems, requestedDate));
       if (!entries.isEmpty()) {

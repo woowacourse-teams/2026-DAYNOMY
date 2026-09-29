@@ -31,6 +31,7 @@ public class StockMasterPersistenceService {
     }
 
     Set<AssetKey> synchronizedKeys = new HashSet<>();
+    Set<AssetCategory> synchronizedCategories = new HashSet<>();
     List<Asset> changedAssets = new ArrayList<>();
     int createdCount = 0;
     int updatedCount = 0;
@@ -38,6 +39,7 @@ public class StockMasterPersistenceService {
     for (StockMasterEntry entry : entries) {
       AssetKey key = new AssetKey(entry.category(), entry.code());
       synchronizedKeys.add(key);
+      synchronizedCategories.add(entry.category());
       Asset asset = existingByKey.get(key);
       if (asset == null) {
         changedAssets.add(
@@ -62,7 +64,9 @@ public class StockMasterPersistenceService {
     int delistedCount = 0;
     for (Asset asset : existingByKey.values()) {
       AssetKey key = new AssetKey(asset.getCategory(), asset.getAssetCode());
-      if (!synchronizedKeys.contains(key) && asset.delist()) {
+      if (synchronizedCategories.contains(asset.getCategory())
+          && !synchronizedKeys.contains(key)
+          && asset.delist()) {
         changedAssets.add(asset);
         delistedCount++;
       }

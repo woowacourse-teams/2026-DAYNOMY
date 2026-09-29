@@ -98,6 +98,34 @@ class StockPriceSyncServiceTest {
   }
 
   @Test
+  @DisplayName("ETF 데이터가 없어도 주식 종가를 동기화한다")
+  void synchronizeStockPricesWithoutEtfData() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
+        .willReturn(response(1, List.of(item(today, "005930", "82000"))));
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSDAQ, 1, 1000))
+        .willReturn(response(1, List.of(item(today, "247540", "285000"))));
+    given(etfPriceClient.getEtfPrices(today, 1, 1000)).willReturn(etfResponse(0, List.of()));
+    given(
+            persistenceService.synchronize(
+                org.mockito.ArgumentMatchers.eq(today), org.mockito.ArgumentMatchers.anyList()))
+        .willReturn(new StockPriceSyncResult(today, 2, 2, 0, 0));
+
+    syncService.synchronize(today);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<StockPriceEntry>> entriesCaptor = ArgumentCaptor.forClass(List.class);
+    then(persistenceService)
+        .should()
+        .synchronize(org.mockito.ArgumentMatchers.eq(today), entriesCaptor.capture());
+    assertThat(entriesCaptor.getValue())
+        .extracting(StockPriceEntry::assetCode, StockPriceEntry::category)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple("005930", AssetCategory.STOCK),
+            org.assertj.core.groups.Tuple.tuple("247540", AssetCategory.STOCK));
+  }
+
+  @Test
   @DisplayName("최근 10일 동안 양 시장의 종가 데이터가 없으면 동기화를 중단한다")
   void synchronizeThrowsWhenSnapshotIsMissing() {
     LocalDate today = LocalDate.of(2026, 9, 21);
