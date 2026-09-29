@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getPortfolioAnalysis, retryPortfolioAnalysis } from '../api';
+import {
+  createPortfolioSnapshotKey,
+  getPortfolioAnalysis,
+  getStoredPortfolioAnalysis,
+  retryPortfolioAnalysis,
+} from '../api';
 import type {
   PortfolioAnalysisResponse,
   PortfolioAsset,
@@ -111,14 +116,6 @@ function createDonutSegmentPath(start: number, percentage: number, thickness: nu
   ].join(' ');
 }
 
-function createPortfolioSnapshotKey(assets: PortfolioAsset[]) {
-  return JSON.stringify(
-    assets
-      .map((asset) => ({ assetName: normalizeAssetName(asset.assetName), weight: asset.weight }))
-      .sort((left, right) => left.assetName.localeCompare(right.assetName)),
-  );
-}
-
 function DirectionIcon({ direction }: { direction: PortfolioImpactDirection }) {
   if (direction === 'NEUTRAL') {
     return (
@@ -190,6 +187,7 @@ function PortfolioAnalysisLoading() {
       role="status"
       aria-live="polite"
     >
+      <span className="portfolio-analysis-spinner" aria-hidden="true" />
       <strong>내 포트폴리오에 미치는 영향을 분석하고 있어요.</strong>
     </div>
   );
@@ -403,9 +401,12 @@ export function PortfolioAnalysis({
   const [error, setError] = useState<string | null>(null);
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const restoredAnalysisKeyRef = useRef<string | null>(null);
+  const shouldRefreshRef = useRef(false);
 
   useEffect(() => {
     requestIdRef.current += 1;
+    shouldRefreshRef.current = false;
     setAnalysis(null);
     setAnalyzedAssets(null);
     setError(null);
@@ -413,11 +414,50 @@ export function PortfolioAnalysis({
     setLoading(false);
   }, [newsId]);
 
+  useEffect(() => {
+    if (!analyzedAssets) return;
+    if (createPortfolioSnapshotKey(assets) === createPortfolioSnapshotKey(analyzedAssets)) return;
+
+    requestIdRef.current += 1;
+    shouldRefreshRef.current = true;
+    setAnalysis(null);
+    setAnalyzedAssets(null);
+    setError(null);
+    setSelectedAssetName(null);
+    setLoading(false);
+  }, [assets, analyzedAssets]);
+
+  useEffect(() => {
+    if (portfolioStatus !== 'ready' || assets.length === 0) return;
+    if (
+      analyzedAssets &&
+      createPortfolioSnapshotKey(assets) !== createPortfolioSnapshotKey(analyzedAssets)
+    ) {
+      return;
+    }
+
+    const restoreKey = JSON.stringify([newsId, createPortfolioSnapshotKey(assets)]);
+    if (restoredAnalysisKeyRef.current === restoreKey) return;
+
+    restoredAnalysisKeyRef.current = restoreKey;
+
+    const storedAnalysis = getStoredPortfolioAnalysis(newsId, assets);
+    if (!storedAnalysis) return;
+
+    requestIdRef.current += 1;
+    shouldRefreshRef.current = false;
+    setAnalysis(storedAnalysis);
+    setAnalyzedAssets(assets.map((asset) => ({ ...asset })));
+    setError(null);
+    setSelectedAssetName(null);
+    setLoading(false);
+  }, [newsId, portfolioStatus, assets, analyzedAssets]);
+
   const analyze = (retry = false) => {
     const snapshot =
       retry && analyzedAssets ? analyzedAssets : assets.map((asset) => ({ ...asset }));
     if (snapshot.length === 0 || loading) return;
-    const shouldRefresh = retry || analyzedAssets !== null;
+    const shouldRefresh = retry || shouldRefreshRef.current || analyzedAssets !== null;
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
@@ -430,6 +470,7 @@ export function PortfolioAnalysis({
     const request = shouldRefresh
       ? retryPortfolioAnalysis(newsId, snapshot)
       : getPortfolioAnalysis(newsId, snapshot);
+    shouldRefreshRef.current = false;
 
     request
       .then((response) => {
