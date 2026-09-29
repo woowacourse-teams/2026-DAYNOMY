@@ -311,7 +311,7 @@ describe('포트폴리오 분석 화면', () => {
     ).toBe(true);
   });
 
-  it('분석 후 포트폴리오가 변경되어도 분석 당시 자산을 표시한다', async () => {
+  it('분석 후 포트폴리오가 변경되면 기존 분석 결과를 표시하지 않는다', async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({
         totalAssetCount: 1,
@@ -350,8 +350,8 @@ describe('포트폴리오 분석 화면', () => {
       <PortfolioAnalysis newsId="snapshot" assets={[{ assetName: 'SK하이닉스', weight: 100 }]} />,
     );
 
-    expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
-    expect(view.queryByText('SK하이닉스')).toBeNull();
+    expect(view.queryByRole('heading', { name: '삼성전자' })).toBeNull();
+    expect(view.queryByText(/반도체 수요가 증가했습니다/)).toBeNull();
     expect(
       (view.getByRole('button', { name: '다시 분석하기' }) as HTMLButtonElement).disabled,
     ).toBe(false);

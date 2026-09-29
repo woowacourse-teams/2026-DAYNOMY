@@ -412,6 +412,17 @@ export function PortfolioAnalysis({
   }, [newsId]);
 
   useEffect(() => {
+    if (!analyzedAssets) return;
+    if (createPortfolioSnapshotKey(assets) === createPortfolioSnapshotKey(analyzedAssets)) return;
+
+    requestIdRef.current += 1;
+    setAnalysis(null);
+    setError(null);
+    setSelectedAssetName(null);
+    setLoading(false);
+  }, [assets, analyzedAssets]);
+
+  useEffect(() => {
     if (portfolioStatus !== 'ready' || assets.length === 0) return;
     if (restoredNewsIdRef.current === newsId) return;
 
