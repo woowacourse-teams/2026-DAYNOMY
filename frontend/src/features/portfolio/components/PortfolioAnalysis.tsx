@@ -401,7 +401,7 @@ export function PortfolioAnalysis({
   const [error, setError] = useState<string | null>(null);
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const requestIdRef = useRef(0);
-  const restoredNewsIdRef = useRef<string | null>(null);
+  const restoredAnalysisKeyRef = useRef<string | null>(null);
   const shouldRefreshRef = useRef(false);
 
   useEffect(() => {
@@ -429,9 +429,17 @@ export function PortfolioAnalysis({
 
   useEffect(() => {
     if (portfolioStatus !== 'ready' || assets.length === 0) return;
-    if (restoredNewsIdRef.current === newsId) return;
+    if (
+      analyzedAssets &&
+      createPortfolioSnapshotKey(assets) !== createPortfolioSnapshotKey(analyzedAssets)
+    ) {
+      return;
+    }
 
-    restoredNewsIdRef.current = newsId;
+    const restoreKey = JSON.stringify([newsId, createPortfolioSnapshotKey(assets)]);
+    if (restoredAnalysisKeyRef.current === restoreKey) return;
+
+    restoredAnalysisKeyRef.current = restoreKey;
 
     const storedAnalysis = getStoredPortfolioAnalysis(newsId, assets);
     if (!storedAnalysis) return;
@@ -443,7 +451,7 @@ export function PortfolioAnalysis({
     setError(null);
     setSelectedAssetName(null);
     setLoading(false);
-  }, [newsId, portfolioStatus, assets]);
+  }, [newsId, portfolioStatus, assets, analyzedAssets]);
 
   const analyze = (retry = false) => {
     const snapshot =

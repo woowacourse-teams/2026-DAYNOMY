@@ -105,6 +105,49 @@ describe('포트폴리오 분석 화면', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('같은 뉴스에서 포트폴리오가 변경되면 변경된 포트폴리오의 저장 결과를 복원한다', async () => {
+    const samsungAssets = [{ assetName: '삼성전자', weight: 100 }];
+    const hynixAssets = [{ assetName: 'SK하이닉스', weight: 100 }];
+    const createAnalysis = (assetName: string) => ({
+      totalAssetCount: 1,
+      analyzedAssetCount: 1,
+      impacts: [
+        {
+          assetName,
+          weight: 100,
+          direction: 'POSITIVE',
+          impactLevel: 'HIGH',
+          summary: `${assetName} 저장 결과예요.`,
+          reason: `${assetName} 저장 근거예요.`,
+          evidenceSentence: `${assetName} 저장 문장이에요.`,
+          rank: 1,
+        },
+      ],
+    });
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        analyses: {
+          [JSON.stringify(['portfolio-change', samsungAssets])]: createAnalysis('삼성전자'),
+          [JSON.stringify(['portfolio-change', [{ assetName: 'sk하이닉스', weight: 100 }]])]:
+            createAnalysis('SK하이닉스'),
+        },
+      }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const view = render(<PortfolioAnalysis newsId="portfolio-change" assets={samsungAssets} />);
+
+    expect(await view.findByText(/삼성전자 저장 결과예요/)).toBeTruthy();
+
+    view.rerender(<PortfolioAnalysis newsId="portfolio-change" assets={hynixAssets} />);
+
+    expect(await view.findByText(/SK하이닉스 저장 결과예요/)).toBeTruthy();
+    expect(view.queryByText(/삼성전자 저장 결과예요/)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('API에서 포트폴리오 영향 결과를 표시한다', async () => {
     vi.stubGlobal(
       'fetch',
@@ -321,7 +364,7 @@ describe('포트폴리오 분석 화면', () => {
     ).toBe(true);
   });
 
-  it('분석 후 포트폴리오가 변경되면 기존 결과를 지우고 원래 구성으로 돌아와도 다시 분석한다', async () => {
+  it('분석 후 다른 포트폴리오로 변경하면 기존 결과를 지우고 원래 구성의 결과는 복원한다', async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({
         totalAssetCount: 1,
@@ -371,9 +414,9 @@ describe('포트폴리오 분석 화면', () => {
       <PortfolioAnalysis newsId="snapshot" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
     );
 
-    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
     expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(view.getAllByText(/반도체 수요가 증가했습니다/).length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('분석 후 포트폴리오가 비면 자산 등록 안내를 표시한다', async () => {
@@ -494,8 +537,7 @@ describe('포트폴리오 분석 화면', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(createAnalysisResponse('삼성전자'))
-      .mockResolvedValueOnce(createAnalysisResponse('SK하이닉스'))
-      .mockResolvedValueOnce(createAnalysisResponse('삼성전자'));
+      .mockResolvedValueOnce(createAnalysisResponse('SK하이닉스'));
     vi.stubGlobal('fetch', fetchMock);
 
     const samsungAssets = [{ assetName: '삼성전자', weight: 100 }];
@@ -514,15 +556,7 @@ describe('포트폴리오 분석 화면', () => {
       expect.objectContaining({ body: JSON.stringify({ assets: hynixAssets }) }),
     );
 
-    view.rerender(<PortfolioAnalysis newsId="refresh" assets={samsungAssets} />);
-    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
-    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
-      expect.stringContaining('/api/news/refresh/portfolio-analysis'),
-      expect.objectContaining({ body: JSON.stringify({ assets: samsungAssets }) }),
-    );
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('뉴스가 변경되면 이전 스냅샷과 분석 결과를 초기화한다', async () => {
