@@ -68,10 +68,8 @@ afterEach(() => {
 describe('포트폴리오 화면', () => {
   it('저장된 자산이 없으면 추가 안내를 표시한다', () => {
     const view = render(<PortfolioPage />);
-    expect(view.getByText('보유 자산의 현재 가치와 수익 흐름을 한눈에 확인하세요.')).toBeTruthy();
     expect(view.getByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeTruthy();
     expect(view.getByRole('button', { name: /자산 추가/ })).toBeTruthy();
-    expect(view.getByRole('list', { name: '포트폴리오 시작 방법' }).children).toHaveLength(3);
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
