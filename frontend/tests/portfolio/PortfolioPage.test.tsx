@@ -5,13 +5,33 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
 import { PORTFOLIO_STORAGE_KEY } from '../../src/features/portfolio/hooks/usePortfolioHoldings';
 
-const stock = { assetId: 1, assetCode: '005930', name: '삼성전자', market: 'KOSPI' } as const;
-const secondStock = { assetId: 2, assetCode: '000150', name: '두산', market: 'KOSPI' } as const;
+const stock = {
+  assetId: 1,
+  assetCode: '005930',
+  name: '삼성전자',
+  category: 'STOCK',
+  market: 'KOSPI',
+} as const;
+const secondStock = {
+  assetId: 2,
+  assetCode: '000150',
+  name: '두산',
+  category: 'STOCK',
+  market: 'KOSPI',
+} as const;
 const kosdaqStock = {
   assetId: 3,
   assetCode: '247540',
   name: '에코프로비엠',
+  category: 'STOCK',
   market: 'KOSDAQ',
+} as const;
+const etf = {
+  assetId: 4,
+  assetCode: '069500',
+  name: 'KODEX 200',
+  category: 'ETF',
+  market: 'KOSPI',
 } as const;
 const calculation = {
   baseDate: '2026-09-21',
@@ -154,12 +174,12 @@ describe('포트폴리오 화면', () => {
     await waitFor(() => expect(averagePriceInput.value).toBe('80,000'));
   });
 
-  it('검색 결과를 시장별로 필터링한다', async () => {
+  it('검색 결과를 주식과 ETF로 필터링한다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
         if (String(input).includes('/api/stocks?')) {
-          return jsonResponse({ stocks: [stock, kosdaqStock] });
+          return jsonResponse({ stocks: [stock, kosdaqStock, etf] });
         }
         return jsonResponse({}, 404);
       }),
@@ -172,13 +192,50 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '주식' } });
     await within(dialog).findByRole('button', { name: /삼성전자/ });
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'KOSDAQ' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'ETF' }));
     expect(within(dialog).queryByRole('button', { name: /삼성전자/ })).toBeNull();
-    expect(within(dialog).getByRole('button', { name: /에코프로비엠/ })).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: /KODEX 200/ })).toBeTruthy();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'KOSPI' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '주식' }));
     expect(within(dialog).getByRole('button', { name: /삼성전자/ })).toBeTruthy();
-    expect(within(dialog).queryByRole('button', { name: /에코프로비엠/ })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /에코프로비엠/ })).toBeTruthy();
+    expect(within(dialog).queryByRole('button', { name: /KODEX 200/ })).toBeNull();
+  });
+
+  it('ETF를 검색해 포트폴리오에 추가한다', async () => {
+    const etfCalculation = {
+      ...calculation,
+      holdings: [{ ...calculation.holdings[0], ...etf }],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/api/stocks?')) return jsonResponse({ stocks: [etf] });
+        if (url.endsWith('/api/stocks/4/price'))
+          return jsonResponse({ ...etf, baseDate: '2026-09-21', closePrice: 35000 });
+        if (url.endsWith('/api/auth/csrf'))
+          return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+        if (url.endsWith('/api/portfolio/calculate')) return jsonResponse(etfCalculation);
+        return jsonResponse({}, 404);
+      }),
+    );
+
+    const view = render(<PortfolioPage />);
+    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+    const dialog = view.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'KODEX' } });
+    fireEvent.click(await within(dialog).findByRole('button', { name: /KODEX 200/ }));
+    await waitFor(() =>
+      expect((within(dialog).getByLabelText('평균 매수가') as HTMLInputElement).value).toBe(
+        '35,000',
+      ),
+    );
+    fireEvent.change(within(dialog).getByLabelText('보유수량'), { target: { value: '3' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
+
+    expect(await view.findByText('KODEX 200')).toBeTruthy();
+    expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('"category":"ETF"');
   });
 
   it('검색 실패를 사용자용 문구로 표시하고 검색어를 지우면 오류를 초기화한다', async () => {
@@ -206,7 +263,7 @@ describe('포트폴리오 화면', () => {
 
     fireEvent.change(searchInput, { target: { value: '' } });
     await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull());
-    expect(within(dialog).getByText('보유 중인 종목을 검색해 보세요')).toBeTruthy();
+    expect(within(dialog).getByText('보유 중인 주식과 ETF를 검색해 보세요')).toBeTruthy();
   });
 
   it('최근 종가를 불러오는 동안 평균 매수가 조절을 막는다', async () => {
@@ -260,7 +317,16 @@ describe('포트폴리오 화면', () => {
   it('로컬 저장 자산을 복원해 계산하고 삭제한다', async () => {
     localStorage.setItem(
       PORTFOLIO_STORAGE_KEY,
-      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+      JSON.stringify([
+        {
+          assetId: stock.assetId,
+          assetCode: stock.assetCode,
+          name: stock.name,
+          market: stock.market,
+          quantity: 10,
+          averagePurchasePrice: 70000,
+        },
+      ]),
     );
     mockPortfolioApi();
     const view = render(<PortfolioPage />);

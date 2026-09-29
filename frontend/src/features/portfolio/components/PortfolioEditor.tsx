@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import { getLatestStockPrice, searchStocks } from '../api';
-import type { PortfolioHoldingInput, StockMarket, StockSearchItem } from '../types';
+import type { AssetCategory, PortfolioHoldingInput, StockSearchItem } from '../types';
 
-type MarketFilter = 'ALL' | StockMarket;
+type CategoryFilter = 'ALL' | AssetCategory;
 
-const MARKET_FILTERS: Array<{ value: MarketFilter; label: string }> = [
+const CATEGORY_FILTERS: Array<{ value: CategoryFilter; label: string }> = [
   { value: 'ALL', label: '전체' },
-  { value: 'KOSPI', label: 'KOSPI' },
-  { value: 'KOSDAQ', label: 'KOSDAQ' },
+  { value: 'STOCK', label: '주식' },
+  { value: 'ETF', label: 'ETF' },
 ];
+
+function getCategoryLabel(category: AssetCategory) {
+  return category === 'ETF' ? 'ETF' : '주식';
+}
 
 function normalizePriceInput(value: string) {
   return value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
@@ -33,7 +37,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
     holding ? String(holding.averagePurchasePrice) : '',
   );
   const [results, setResults] = useState<StockSearchItem[]>([]);
-  const [marketFilter, setMarketFilter] = useState<MarketFilter>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [priceLoading, setPriceLoading] = useState(false);
@@ -107,7 +111,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
     Number.isFinite(averagePriceNumber) &&
     averagePriceNumber > 0;
   const filteredResults = results.filter(
-    (stock) => marketFilter === 'ALL' || stock.market === marketFilter,
+    (stock) => categoryFilter === 'ALL' || stock.category === categoryFilter,
   );
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -164,7 +168,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                 <p>
                   {isDetailsStep
                     ? '보유 정보를 입력해 주세요.'
-                    : '포트폴리오에 담을 국내 주식을 찾아보세요.'}
+                    : '포트폴리오에 담을 국내 주식과 ETF를 찾아보세요.'}
                 </p>
               </div>
             </div>
@@ -186,7 +190,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
               <div>
                 <strong>{holding.name}</strong>
                 <small>
-                  {holding.assetCode} · {holding.market}
+                  {getCategoryLabel(holding.category)} · {holding.assetCode} · {holding.market}
                 </small>
               </div>
             </div>
@@ -196,7 +200,8 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
               <div>
                 <strong>{selectedStock.name}</strong>
                 <small>
-                  {selectedStock.assetCode} · {selectedStock.market}
+                  {getCategoryLabel(selectedStock.category)} · {selectedStock.assetCode} ·{' '}
+                  {selectedStock.market}
                 </small>
               </div>
               <button type="button" onClick={resetSelectedStock}>
@@ -220,13 +225,13 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                 />
               </label>
 
-              <div className="portfolio-market-tabs" role="group" aria-label="시장 필터">
-                {MARKET_FILTERS.map((filter) => (
+              <div className="portfolio-market-tabs" role="group" aria-label="자산 유형 필터">
+                {CATEGORY_FILTERS.map((filter) => (
                   <button
                     key={filter.value}
                     type="button"
-                    aria-pressed={marketFilter === filter.value}
-                    onClick={() => setMarketFilter(filter.value)}
+                    aria-pressed={categoryFilter === filter.value}
+                    onClick={() => setCategoryFilter(filter.value)}
                   >
                     {filter.label}
                   </button>
@@ -240,8 +245,8 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
               {!keyword.trim() ? (
                 <div className="portfolio-search-empty">
                   <span>종목 검색</span>
-                  <strong>보유 중인 종목을 검색해 보세요</strong>
-                  <p>국내 KOSPI · KOSDAQ 종목을 추가할 수 있습니다.</p>
+                  <strong>보유 중인 주식과 ETF를 검색해 보세요</strong>
+                  <p>국내 KOSPI · KOSDAQ 상장 자산을 추가할 수 있습니다.</p>
                 </div>
               ) : loading ? (
                 <div className="portfolio-search-status" role="status">
@@ -258,7 +263,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                   <strong>검색된 종목이 없어요</strong>
                   <p>
                     {results.length > 0
-                      ? `${marketFilter} 시장에 일치하는 종목이 없습니다.`
+                      ? `${categoryFilter === 'STOCK' ? '주식' : 'ETF'} 검색 결과가 없습니다.`
                       : '종목명이나 종목코드를 다시 확인해 주세요.'}
                   </p>
                 </div>
@@ -279,7 +284,8 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                           <span className="portfolio-search-copy">
                             <strong>{stock.name}</strong>
                             <small>
-                              {stock.assetCode} <span>{stock.market}</span>
+                              {stock.assetCode} <span>{getCategoryLabel(stock.category)}</span>{' '}
+                              <span>{stock.market}</span>
                             </small>
                           </span>
                           <em>
