@@ -119,6 +119,82 @@ describe('관리자 뉴스 화면', () => {
     await waitFor(() => expect(calls.some((url) => url.includes('status=PUBLISHED'))).toBe(true));
   });
 
+  it('검색 조건을 페이지·필터 변경에도 유지하고 초기화한다', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        calls.push(url);
+        const page = Number(new URL(url, 'http://localhost').searchParams.get('page'));
+        return jsonResponse({
+          items: [listItem],
+          page,
+          size: 15,
+          totalPages: 3,
+          totalElements: 31,
+          hasNext: page < 3,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    expect(await view.findByRole('link', { name: listItem.title })).toBeTruthy();
+
+    fireEvent.change(view.getByRole('searchbox', { name: '뉴스 검색' }), {
+      target: { value: ' 금리 ' },
+    });
+    expect(calls).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '검색' }));
+    await waitFor(() => expect(calls.at(-1)).toContain('q=%EA%B8%88%EB%A6%AC'));
+
+    fireEvent.click(view.getByRole('button', { name: '2' }));
+    await waitFor(() => expect(calls.at(-1)).toContain('page=2&size=15&q=%EA%B8%88%EB%A6%AC'));
+
+    fireEvent.change(view.getByLabelText('상태'), { target: { value: 'DRAFT' } });
+    await waitFor(() => expect(calls.at(-1)).toContain('page=1&size=15&status=DRAFT&q='));
+
+    fireEvent.change(view.getByLabelText('카테고리'), { target: { value: 'STOCK' } });
+    await waitFor(() => expect(calls.at(-1)).toContain('status=DRAFT&category=STOCK&q='));
+
+    fireEvent.click(view.getByRole('button', { name: '초기화' }));
+    await waitFor(() =>
+      expect(calls.at(-1)).toContain('page=1&size=15&status=DRAFT&category=STOCK'),
+    );
+    expect(calls.at(-1)).not.toContain('&q=');
+  });
+
+  it('검색 결과가 없으면 빈 목록 안내를 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const hasKeyword = new URL(String(input), 'http://localhost').searchParams.has('q');
+        return jsonResponse({
+          items: hasKeyword ? [] : [listItem],
+          page: 1,
+          size: 15,
+          totalPages: hasKeyword ? 0 : 1,
+          totalElements: hasKeyword ? 0 : 1,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    expect(await view.findByRole('link', { name: listItem.title })).toBeTruthy();
+
+    fireEvent.change(view.getByRole('searchbox', { name: '뉴스 검색' }), {
+      target: { value: '없는뉴스' },
+    });
+    fireEvent.click(view.getByRole('button', { name: '검색' }));
+
+    expect(await view.findByText('조건에 맞는 뉴스가 없습니다.')).toBeTruthy();
+    expect(view.queryByRole('link', { name: '첫 뉴스 등록하기' })).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '초기화' }));
+    expect(await view.findByRole('link', { name: listItem.title })).toBeTruthy();
+  });
+
   it('마지막 뉴스 삭제 후 줄어든 마지막 페이지로 이동한다', async () => {
     const calls: string[] = [];
     let listRequestCount = 0;
