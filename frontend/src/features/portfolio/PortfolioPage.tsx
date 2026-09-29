@@ -29,6 +29,10 @@ function profitClass(value: number) {
   return value > 0 ? 'portfolio-gain' : value < 0 ? 'portfolio-loss' : '';
 }
 
+function getCategoryLabel(category: PortfolioHoldingInput['category']) {
+  return category === 'ETF' ? 'ETF' : '주식';
+}
+
 function ReturnsChart({ calculation }: { calculation: PortfolioCalculation }) {
   const values = calculation.holdings.map((holding) => holding.returnRate);
   const labels = calculation.holdings.map((holding) => holding.name);
@@ -212,14 +216,14 @@ export function PortfolioPage() {
     <main className="portfolio-page">
       <div className="portfolio-page-title">
         <h1>내 포트폴리오</h1>
-        <span>국내 주식 · 전일 종가 기준</span>
+        <span>국내 주식·ETF · 전일 종가 기준</span>
       </div>
 
       {holdings.length === 0 ? (
         <section className="portfolio-empty" aria-labelledby="portfolio-empty-title">
           <span className="portfolio-empty-mark">₩</span>
           <h2 id="portfolio-empty-title">첫 자산을 추가해 보세요</h2>
-          <p>보유 종목과 평균 매수가를 입력하면 수익률과 자산 비중을 한눈에 보여드려요.</p>
+          <p>보유 자산과 평균 매수가를 입력하면 수익률과 자산 비중을 한눈에 보여드려요.</p>
           <button type="button" className="portfolio-primary-button" onClick={() => setEditor({})}>
             ＋ 자산 추가
           </button>
@@ -360,7 +364,8 @@ export function PortfolioPage() {
                           <div>
                             <strong>{holding.name}</strong>
                             <small>
-                              {holding.assetCode} · {holding.market}
+                              {getCategoryLabel(holding.category)} · {holding.assetCode} ·{' '}
+                              {holding.market}
                             </small>
                           </div>
                         </div>

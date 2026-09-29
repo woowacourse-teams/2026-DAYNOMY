@@ -1,5 +1,6 @@
 import { getApiUrl, request, requestWithCsrf } from '../../api/client';
 import type {
+  AssetCategory,
   MarketAllocation,
   PortfolioAnalysisRequest,
   PortfolioAnalysisResponse,
@@ -11,6 +12,7 @@ import type {
   PortfolioImpactDirection,
   PortfolioImpactLevel,
   StockMarket,
+  StockPrice,
   StockSearchItem,
 } from './types';
 
@@ -58,13 +60,29 @@ function isMarket(value: unknown): value is StockMarket {
   return value === 'KOSPI' || value === 'KOSDAQ';
 }
 
+function isAssetCategory(value: unknown): value is AssetCategory {
+  return value === 'STOCK' || value === 'ETF';
+}
+
 function isStock(value: unknown): value is StockSearchItem {
   return (
     isRecord(value) &&
     typeof value.assetId === 'number' &&
     typeof value.assetCode === 'string' &&
     typeof value.name === 'string' &&
+    isAssetCategory(value.category) &&
     isMarket(value.market)
+  );
+}
+
+function isStockPrice(value: unknown): value is StockPrice {
+  return (
+    isRecord(value) &&
+    typeof value.assetId === 'number' &&
+    typeof value.assetCode === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.baseDate === 'string' &&
+    hasNumber(value, 'closePrice')
   );
 }
 
@@ -296,6 +314,16 @@ export async function searchStocks(keyword: string, signal?: AbortSignal) {
   }
 
   return response.stocks;
+}
+
+export async function getLatestStockPrice(assetId: number, signal?: AbortSignal) {
+  const response = await request<unknown>(`/api/stocks/${assetId}/price`, { signal });
+
+  if (!isStockPrice(response)) {
+    throw new Error('최근 종가 응답 형식이 올바르지 않습니다.');
+  }
+
+  return response;
 }
 
 export async function calculatePortfolio(holdings: PortfolioHoldingInput[], signal?: AbortSignal) {

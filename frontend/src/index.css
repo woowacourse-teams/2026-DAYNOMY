@@ -1,4 +1,6 @@
 :root {
+  scrollbar-gutter: stable;
+
   --bg: #ffffff;
   --surface: #ffffff;
   --surface-strong: #f1f3f7;

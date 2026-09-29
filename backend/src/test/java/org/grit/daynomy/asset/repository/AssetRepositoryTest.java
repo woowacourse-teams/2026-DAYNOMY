@@ -3,6 +3,7 @@ package org.grit.daynomy.asset.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
+import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
@@ -46,7 +47,7 @@ class AssetRepositoryTest {
   @Autowired private AssetRepository assetRepository;
 
   @Test
-  @DisplayName("국내 주식 검색은 상장 종목의 종목명과 종목코드만 검색한다")
+  @DisplayName("국내 주식·ETF 검색은 상장 종목의 종목명과 종목코드만 검색한다")
   void searchListedStocksByNameAndCode() {
     LocalDate baseDate = LocalDate.of(2026, 9, 18);
     Asset samsung =
@@ -55,18 +56,26 @@ class AssetRepositoryTest {
         Asset.listedStock("삼성전자우", "005935", StockMarket.KOSPI, "KR7005931001", baseDate);
     Asset delisted =
         Asset.listedStock("삼성구주", "005931", StockMarket.KOSPI, "KR7005932009", baseDate);
+    Asset samsungEtf =
+        Asset.listedSecurity(
+            "KODEX 삼성그룹", AssetCategory.ETF, "102780", StockMarket.KOSPI, "KR7102780002", baseDate);
     delisted.delist();
     entityManager.persist(samsung);
     entityManager.persist(samsungPreferred);
     entityManager.persist(delisted);
+    entityManager.persist(samsungEtf);
     entityManager.flush();
 
     var nameResults =
-        assetRepository.searchListedStocks("삼성", AssetCategory.STOCK, PageRequest.of(0, 20));
+        assetRepository.searchListedSecurities(
+            "삼성", Set.of(AssetCategory.STOCK, AssetCategory.ETF), PageRequest.of(0, 20));
     var codeResults =
-        assetRepository.searchListedStocks("005930", AssetCategory.STOCK, PageRequest.of(0, 20));
+        assetRepository.searchListedSecurities(
+            "005930", Set.of(AssetCategory.STOCK, AssetCategory.ETF), PageRequest.of(0, 20));
 
-    assertThat(nameResults).extracting(Asset::getAssetCode).containsExactly("005930", "005935");
+    assertThat(nameResults)
+        .extracting(Asset::getAssetCode)
+        .containsExactly("005930", "005935", "102780");
     assertThat(codeResults).singleElement().isSameAs(samsung);
   }
 }

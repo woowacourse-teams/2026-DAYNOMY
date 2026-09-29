@@ -36,12 +36,21 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - 뉴스와 관련성이 있는 자산만 결과에 포함하세요.
             - 영향이 큰 자산부터 정렬하세요.
             - assetName은 제공된 값을 그대로 사용하세요.
-            - direction은 뉴스가 자산에 유리한 직접 영향을 주면 POSITIVE, 불리한 직접 영향을 주면 NEGATIVE로 판단하세요.
-            - 관련성은 있지만 긍정 또는 부정 방향을 판단할 근거가 충분하지 않으면 NEUTRAL로 판단하세요.
-            - impactLevel은 HIGH, MEDIUM, LOW 중 하나로 판단하세요.
-            - expectedReaction에는 예상되는 자산 반응을 작성하세요.
-            - reason에는 판단 근거를 작성하세요.
+            - direction은 뉴스 원문에 명시된 직접적인 영향만을 근거로 판단하세요.
+            - 자산의 실적, 수요, 경쟁력 또는 수급에 유리한 직접 영향이 명확하면 POSITIVE로 판단하세요.
+            - 자산의 실적, 수요, 경쟁력 또는 수급에 불리한 직접 영향이 명확하면 NEGATIVE로 판단하세요.
+            - 긍정 또는 부정 방향을 판단할 직접적인 근거가 부족하거나 긍정·부정 요인이 함께 존재하면 NEUTRAL로 판단하세요.
+            - 시장 전반의 분위기나 일반적인 업황만으로 개별 자산의 방향을 추측하지 마세요.
+            - impactLevel은 direction과 관계없이 뉴스 원문에 명시된 영향의 범위, 규모, 즉시성, 확실성을 기준으로 HIGH, LOW, MEDIUM 순서로 판단하세요.
+            - 기업 전반이나 주요 실적·생산·수급에 미치는 영향이 크고 구체적이면 HIGH로 판단하세요. 영향 기간이 짧더라도 규모가 크면 HIGH를 유지하세요.
+            - HIGH에 해당하지 않고 영향 규모가 작거나 일시적이라고 명시된 경우에는 LOW로 우선 판단하세요.
+            - HIGH와 LOW에 해당하지 않으면서 직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.
+            - expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.
+            - reason에는 판단 근거를 자연스러운 해요체로 작성하세요.
+            - expectedReaction과 reason의 모든 문장은 '-했어요.', '-해요.', '-예요.'와 같은 해요체로 끝내세요.
+            - expectedReaction과 reason에 '-하다.', '-했음.', '-함.'과 같은 문어체나 명사형 종결 표현을 사용하지 마세요.
             - evidenceSentence는 해당 자산의 direction과 impactLevel 판단을 직접 뒷받침하는 뉴스 원문 문장 하나여야 합니다.
+            - evidenceSentence는 뉴스 원문의 문체를 그대로 유지하고 해요체로 바꾸지 마세요.
             - newsContent에 문자 그대로 존재하는 완전한 문장만 복사하세요. 문장을 요약·변형·조합하거나 새로운 내용을 만들지 마세요.
             - 해당 자산과의 영향 관계를 직접 뒷받침하는 원문 문장이 없다면, 관련 없는 문장을 대신 사용하지 말고 해당 자산을 impacts 결과에서 제외하세요.
             - 뉴스에 없는 사실을 단정하지 마세요.
@@ -106,6 +115,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       String newsContent, List<PortfolioAnalysisTarget> targets) {
     return Map.of(
         "model", model,
+        "reasoning", Map.of("effort", "low"),
         "input", createInput(newsContent, targets),
         "text", createTextFormat(targets));
   }

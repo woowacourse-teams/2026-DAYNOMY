@@ -40,6 +40,7 @@ class PublicDataStockPriceClientTest {
             new PublicDataProperties(
                 "encoded%2Fkey%2Bvalue%3D",
                 server.url("/stock-prices").toString(),
+                "https://example.com/etf-prices",
                 "https://example.com/listed-stocks",
                 null,
                 null));
@@ -70,7 +71,8 @@ class PublicDataStockPriceClientTest {
     PublicDataStockPriceClient client =
         new PublicDataStockPriceClient(
             new PublicDataProperties(
-                "abc%2Fdef%2Bghi%3D%3D", "https://example.com", "https://example.com", null, null));
+                "abc%2Fdef%2Bghi%3D%3D",
+                "https://example.com", "https://example.com", "https://example.com", null, null));
 
     assertThat(client.normalizedServiceKey()).isEqualTo("abc/def+ghi==");
   }
@@ -80,7 +82,12 @@ class PublicDataStockPriceClientTest {
     PublicDataStockPriceClient client =
         new PublicDataStockPriceClient(
             new PublicDataProperties(
-                "abc/def+ghi==", "https://example.com", "https://example.com", null, null));
+                "abc/def+ghi==",
+                "https://example.com",
+                "https://example.com",
+                "https://example.com",
+                null,
+                null));
 
     assertThat(client.normalizedServiceKey()).isEqualTo("abc/def+ghi==");
   }
@@ -89,7 +96,12 @@ class PublicDataStockPriceClientTest {
   void usesDefaultTimeouts() {
     PublicDataProperties properties =
         new PublicDataProperties(
-            "service-key", "https://example.com", "https://example.com", null, null);
+            "service-key",
+            "https://example.com",
+            "https://example.com",
+            "https://example.com",
+            null,
+            null);
 
     assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(3));
     assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(10));
