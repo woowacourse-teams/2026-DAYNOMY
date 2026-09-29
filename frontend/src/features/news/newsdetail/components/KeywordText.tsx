@@ -9,9 +9,18 @@ const keywordCategoryLabels: Record<KeywordCategory, string> = {
   TREND: '흐름',
 };
 
-function highlightKeywords(text: string, keywords: KeywordResponse[]) {
+function highlightKeywords(
+  text: string,
+  keywords: KeywordResponse[],
+  highlightedKeywords: Set<string>,
+) {
   const matches = keywords
-    .filter((keyword) => keyword.keyword && text.includes(keyword.keyword))
+    .filter(
+      (keyword) =>
+        keyword.keyword &&
+        !highlightedKeywords.has(keyword.keyword) &&
+        text.includes(keyword.keyword),
+    )
     .sort((a, b) => b.keyword.length - a.keyword.length);
 
   if (!matches.length) return text;
@@ -20,7 +29,10 @@ function highlightKeywords(text: string, keywords: KeywordResponse[]) {
   let index = 0;
 
   while (index < text.length) {
-    const match = matches.find((keyword) => text.startsWith(keyword.keyword, index));
+    const match = matches.find(
+      (keyword) =>
+        !highlightedKeywords.has(keyword.keyword) && text.startsWith(keyword.keyword, index),
+    );
 
     if (!match) {
       parts.push(text[index]);
@@ -43,12 +55,29 @@ function highlightKeywords(text: string, keywords: KeywordResponse[]) {
         </span>
       </mark>,
     );
+    highlightedKeywords.add(match.keyword);
     index += match.keyword.length;
   }
 
   return parts;
 }
 
-export function KeywordText({ text, keywords }: { text: string; keywords: KeywordResponse[] }) {
-  return <>{highlightKeywords(text, keywords)}</>;
+export function KeywordText({
+  paragraphs,
+  keywords,
+}: {
+  paragraphs: string[];
+  keywords: KeywordResponse[];
+}) {
+  const highlightedKeywords = new Set<string>();
+
+  return (
+    <>
+      {paragraphs.map((paragraph, index) => (
+        <p key={`${index}-${paragraph}`}>
+          {highlightKeywords(paragraph, keywords, highlightedKeywords)}
+        </p>
+      ))}
+    </>
+  );
 }
