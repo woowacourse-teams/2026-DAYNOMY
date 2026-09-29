@@ -402,9 +402,11 @@ export function PortfolioAnalysis({
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const restoredNewsIdRef = useRef<string | null>(null);
+  const shouldRefreshRef = useRef(false);
 
   useEffect(() => {
     requestIdRef.current += 1;
+    shouldRefreshRef.current = false;
     setAnalysis(null);
     setAnalyzedAssets(null);
     setError(null);
@@ -417,7 +419,9 @@ export function PortfolioAnalysis({
     if (createPortfolioSnapshotKey(assets) === createPortfolioSnapshotKey(analyzedAssets)) return;
 
     requestIdRef.current += 1;
+    shouldRefreshRef.current = true;
     setAnalysis(null);
+    setAnalyzedAssets(null);
     setError(null);
     setSelectedAssetName(null);
     setLoading(false);
@@ -433,6 +437,7 @@ export function PortfolioAnalysis({
     if (!storedAnalysis) return;
 
     requestIdRef.current += 1;
+    shouldRefreshRef.current = false;
     setAnalysis(storedAnalysis);
     setAnalyzedAssets(assets.map((asset) => ({ ...asset })));
     setError(null);
@@ -444,7 +449,7 @@ export function PortfolioAnalysis({
     const snapshot =
       retry && analyzedAssets ? analyzedAssets : assets.map((asset) => ({ ...asset }));
     if (snapshot.length === 0 || loading) return;
-    const shouldRefresh = retry || analyzedAssets !== null;
+    const shouldRefresh = retry || shouldRefreshRef.current || analyzedAssets !== null;
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
@@ -457,6 +462,7 @@ export function PortfolioAnalysis({
     const request = shouldRefresh
       ? retryPortfolioAnalysis(newsId, snapshot)
       : getPortfolioAnalysis(newsId, snapshot);
+    shouldRefreshRef.current = false;
 
     request
       .then((response) => {
