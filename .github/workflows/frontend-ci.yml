@@ -34,7 +34,7 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}/files" \
             --jq '.[].filename')"
 
-          if grep -Eq '^(frontend/|\.github/workflows/frontend-ci\.yml$)' <<< "$changed_files"; then
+          if grep -Eq '^(frontend/|\.github/workflows/(frontend-ci|deploy-frontend)\.yml$)' <<< "$changed_files"; then
             echo "frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "frontend=false" >> "$GITHUB_OUTPUT"
@@ -64,10 +64,35 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         run: npm run lint
 
+      - name: Typecheck
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run typecheck
+
       - name: Test
         if: steps.changes.outputs.frontend == 'true'
         run: npm test
 
+      - name: Test deployment and cache policy
+        if: steps.changes.outputs.frontend == 'true'
+        run: bash scripts/test-deploy-frontend.sh
+
       - name: Build
         if: steps.changes.outputs.frontend == 'true'
         run: npm run build
+
+      - name: Install Chromium
+        if: steps.changes.outputs.frontend == 'true'
+        run: npx playwright install --with-deps --only-shell chromium
+
+      - name: Test browser flows
+        id: e2e
+        if: steps.changes.outputs.frontend == 'true'
+        run: npm run test:e2e
+
+      - name: Upload failed browser test results
+        if: ${{ failure() && steps.e2e.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-e2e-${{ github.run_id }}
+          path: frontend/test-results/
+          retention-days: 7

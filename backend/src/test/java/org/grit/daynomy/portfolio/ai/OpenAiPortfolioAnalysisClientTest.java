@@ -91,10 +91,66 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(request.getHeader("Authorization")).isEqualTo("Bearer test-api-key");
 
     JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    assertThat(requestBody.path("reasoning").path("effort").asText()).isEqualTo("low");
     JsonNode userContent =
         objectMapper.readTree(requestBody.path("input").get(1).path("content").asText());
     assertThat(userContent.path("assets").get(0).path("assetName").asText()).isEqualTo("삼성전자");
     assertThat(userContent.toString()).doesNotContain("assetId");
+  }
+
+  @Test
+  @DisplayName("사용자 노출 문장은 해요체로 작성하고 뉴스 원문 문체는 유지하도록 요청한다")
+  void analyzeRequestsFriendlyToneExceptForEvidenceSentence() throws Exception {
+    enqueueOutput("{\"impacts\":[]}");
+
+    client.analyze("뉴스 본문", targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    String developerPrompt = requestBody.path("input").get(0).path("content").asText();
+
+    assertThat(developerPrompt)
+        .contains("expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.")
+        .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.")
+        .contains("evidenceSentence는 뉴스 원문의 문체를 그대로 유지하고 해요체로 바꾸지 마세요.");
+  }
+
+  @Test
+  @DisplayName("뉴스 원문의 직접적인 근거를 기준으로 영향 방향을 판단하도록 요청한다")
+  void analyzeRequestsDirectionBasedOnDirectEvidence() throws Exception {
+    enqueueOutput("{\"impacts\":[]}");
+
+    client.analyze("뉴스 본문", targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    String developerPrompt = requestBody.path("input").get(0).path("content").asText();
+
+    assertThat(developerPrompt)
+        .contains("자산의 실적, 수요, 경쟁력 또는 수급에 유리한 직접 영향이 명확하면 POSITIVE로 판단하세요.")
+        .contains("자산의 실적, 수요, 경쟁력 또는 수급에 불리한 직접 영향이 명확하면 NEGATIVE로 판단하세요.")
+        .contains("긍정·부정 요인이 함께 존재하면 NEUTRAL로 판단하세요.")
+        .contains("시장 전반의 분위기나 일반적인 업황만으로 개별 자산의 방향을 추측하지 마세요.");
+  }
+
+  @Test
+  @DisplayName("영향 수준을 HIGH, LOW, MEDIUM 우선순위에 따라 판단하도록 요청한다")
+  void analyzeRequestsImpactLevelBasedOnExplicitCriteria() throws Exception {
+    enqueueOutput("{\"impacts\":[]}");
+
+    client.analyze("뉴스 본문", targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    String developerPrompt = requestBody.path("input").get(0).path("content").asText();
+
+    assertThat(developerPrompt)
+        .contains(
+            "impactLevel은 direction과 관계없이 뉴스 원문에 명시된 영향의 범위, 규모, 즉시성, 확실성을 기준으로 HIGH, LOW, MEDIUM 순서로 판단하세요.")
+        .contains("영향 기간이 짧더라도 규모가 크면 HIGH를 유지하세요.")
+        .contains("HIGH에 해당하지 않고 영향 규모가 작거나 일시적이라고 명시된 경우에는 LOW로 우선 판단하세요.")
+        .contains(
+            "HIGH와 LOW에 해당하지 않으면서 직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.");
   }
 
   @Test

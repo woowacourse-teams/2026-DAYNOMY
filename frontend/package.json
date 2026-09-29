@@ -1,11 +1,13 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run build:production",
+    "build:development": "npm run typecheck && vite build --mode development",
+    "build:production": "npm run typecheck && vite build --mode production",
     "lint": "oxlint",
     "typecheck": "tsc -b",
     "format": "prettier . --write",
@@ -13,6 +15,7 @@
     "test": "npm run test:unit && npm run test:ui",
     "test:unit": "node --import tsx --test \"tests/**/*.test.ts\"",
     "test:ui": "vitest run --exclude 'tests/**/*.test.ts'",
+    "test:e2e": "playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -23,6 +26,7 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@sentry/vite-plugin": "^5.4.0",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24.13.3",

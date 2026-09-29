@@ -37,7 +37,11 @@ class PublicDataListedStockClientTest {
         new PublicDataListedStockClient(
             new PublicDataProperties(
                 "encoded%2Fkey%2Bvalue%3D",
-                "https://example.com/prices", server.url("/listed-stocks").toString(), null, null));
+                "https://example.com/prices",
+                "https://example.com/etf-prices",
+                server.url("/listed-stocks").toString(),
+                null,
+                null));
 
     var response = client.getListedStocks(LocalDate.of(2026, 9, 18), 2, 1000);
 

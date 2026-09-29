@@ -1,7 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
-import MyPage from './features/pages/components/MyPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
 import { InfoPage } from './features/pages/components/InfoPage';
 import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
@@ -16,6 +15,7 @@ import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
+import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import './App.css';
 import './features/admin/admin.css';
@@ -23,8 +23,8 @@ import './features/admin/admin.css';
 function AnalyticsTracker() {
   const location = useLocation();
   useEffect(() => {
-    trackPageView(`${location.pathname}${location.search}`);
-  }, [location.pathname, location.search]);
+    trackPageView(location.pathname);
+  }, [location.pathname]);
   return null;
 }
 
@@ -35,7 +35,6 @@ function AppHeader() {
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/portfolio') ||
-    location.pathname.startsWith('/mypage') ||
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
     location.pathname.startsWith('/privacy') ||
@@ -111,7 +110,6 @@ export default function App() {
               <Route path="/terms" element={<InfoPage page="terms" />} />
               <Route path="/privacy" element={<InfoPage page="privacy" />} />
               <Route path="/standard" element={<InfoPage page="standard" />} />
-              <Route path="/mypage" element={<MyPage />} />
               <Route
                 path="/admin"
                 element={
@@ -141,6 +139,14 @@ export default function App() {
                 element={
                   <AdminRoute>
                     <AdminNewsFormPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/stocks"
+                element={
+                  <AdminRoute>
+                    <AdminStockSyncPage />
                   </AdminRoute>
                 }
               />

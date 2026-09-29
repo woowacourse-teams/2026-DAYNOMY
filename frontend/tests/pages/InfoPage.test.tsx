@@ -12,6 +12,7 @@ const pages = [
   ['개인정보처리방침', '/privacy', 'privacy'],
   ['DAYNOMY Std.', '/standard', 'standard'],
 ] as const;
+const footerPages = pages.slice(0, 3);
 
 afterEach(() => cleanup());
 
@@ -23,11 +24,11 @@ describe('푸터 안내 페이지', () => {
       </MemoryRouter>,
     );
 
-    for (const [label, path] of pages) {
+    for (const [label, path] of footerPages) {
       expect(view.getByRole('link', { name: label }).getAttribute('href')).toBe(path);
     }
 
-    expect(view.getByRole('link', { name: '메일문의' }).getAttribute('href')).toBe(
+    expect(view.getByRole('link', { name: '문의하기' }).getAttribute('href')).toBe(
       'mailto:paperchoigo@gmail.com',
     );
   });

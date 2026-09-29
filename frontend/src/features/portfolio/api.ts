@@ -1,5 +1,6 @@
 import { getApiUrl, request, requestWithCsrf } from '../../api/client';
 import type {
+  AssetCategory,
   MarketAllocation,
   PortfolioAnalysisRequest,
   PortfolioAnalysisResponse,
@@ -11,15 +12,23 @@ import type {
   PortfolioImpactDirection,
   PortfolioImpactLevel,
   StockMarket,
+  StockPrice,
   StockSearchItem,
 } from './types';
 
 const PORTFOLIO_ANALYSIS_CACHE_TIME = 5 * 60 * 1000;
+const PORTFOLIO_ANALYSIS_STORAGE_VERSION = 1;
+export const PORTFOLIO_ANALYSIS_STORAGE_KEY = 'daynomy:portfolio-analysis:v1';
 
 type PortfolioAnalysisCacheEntry = {
   request: Promise<PortfolioAnalysisResponse>;
   expiresAt?: number;
   cleanupTimer?: ReturnType<typeof setTimeout>;
+};
+
+type PortfolioAnalysisStorage = {
+  version: number;
+  analyses: Record<string, unknown>;
 };
 
 const portfolioAnalysisRequests = new Map<string, PortfolioAnalysisCacheEntry>();
@@ -51,13 +60,29 @@ function isMarket(value: unknown): value is StockMarket {
   return value === 'KOSPI' || value === 'KOSDAQ';
 }
 
+function isAssetCategory(value: unknown): value is AssetCategory {
+  return value === 'STOCK' || value === 'ETF';
+}
+
 function isStock(value: unknown): value is StockSearchItem {
   return (
     isRecord(value) &&
     typeof value.assetId === 'number' &&
     typeof value.assetCode === 'string' &&
     typeof value.name === 'string' &&
+    isAssetCategory(value.category) &&
     isMarket(value.market)
+  );
+}
+
+function isStockPrice(value: unknown): value is StockPrice {
+  return (
+    isRecord(value) &&
+    typeof value.assetId === 'number' &&
+    typeof value.assetCode === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.baseDate === 'string' &&
+    hasNumber(value, 'closePrice')
   );
 }
 
@@ -134,8 +159,110 @@ function isPortfolioAnalysisResponse(value: unknown): value is PortfolioAnalysis
   );
 }
 
+function normalizePortfolioAssets(assets: PortfolioAsset[]) {
+  return assets
+    .map((asset) => ({
+      assetName: asset.assetName.trim().toLocaleLowerCase(),
+      weight: Number(asset.weight.toFixed(2)),
+    }))
+    .sort(
+      (left, right) => left.assetName.localeCompare(right.assetName) || left.weight - right.weight,
+    );
+}
+
+export function createPortfolioSnapshotKey(assets: PortfolioAsset[]) {
+  return JSON.stringify(normalizePortfolioAssets(assets));
+}
+
 function createPortfolioAnalysisRequestKey(newsId: string, assets: PortfolioAsset[]) {
-  return JSON.stringify([newsId, assets]);
+  return JSON.stringify([newsId, normalizePortfolioAssets(assets)]);
+}
+
+function emptyPortfolioAnalysisStorage(): PortfolioAnalysisStorage {
+  return { version: PORTFOLIO_ANALYSIS_STORAGE_VERSION, analyses: {} };
+}
+
+function clearPortfolioAnalysisStorage() {
+  try {
+    localStorage.removeItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
+  } catch {
+    // 브라우저 저장소를 사용할 수 없어도 분석 기능은 계속한다.
+  }
+}
+
+function readPortfolioAnalysisStorage(): PortfolioAnalysisStorage {
+  try {
+    const saved = localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
+    if (!saved) return emptyPortfolioAnalysisStorage();
+
+    const parsed: unknown = JSON.parse(saved);
+    if (
+      !isRecord(parsed) ||
+      parsed.version !== PORTFOLIO_ANALYSIS_STORAGE_VERSION ||
+      !isRecord(parsed.analyses) ||
+      Array.isArray(parsed.analyses)
+    ) {
+      clearPortfolioAnalysisStorage();
+      return emptyPortfolioAnalysisStorage();
+    }
+
+    return {
+      version: PORTFOLIO_ANALYSIS_STORAGE_VERSION,
+      analyses: parsed.analyses,
+    };
+  } catch {
+    clearPortfolioAnalysisStorage();
+    return emptyPortfolioAnalysisStorage();
+  }
+}
+
+function writePortfolioAnalysisStorage(storage: PortfolioAnalysisStorage) {
+  try {
+    if (Object.keys(storage.analyses).length === 0) {
+      clearPortfolioAnalysisStorage();
+      return;
+    }
+
+    localStorage.setItem(PORTFOLIO_ANALYSIS_STORAGE_KEY, JSON.stringify(storage));
+  } catch {
+    // 브라우저 저장소를 사용할 수 없어도 완료된 분석 결과는 반환한다.
+  }
+}
+
+function savePortfolioAnalysis(requestKey: string, analysis: PortfolioAnalysisResponse) {
+  const storage = readPortfolioAnalysisStorage();
+  writePortfolioAnalysisStorage({
+    ...storage,
+    analyses: { ...storage.analyses, [requestKey]: analysis },
+  });
+}
+
+function loadStoredPortfolioAnalysis(requestKey: string) {
+  const storage = readPortfolioAnalysisStorage();
+  const analysis = storage.analyses[requestKey];
+  if (analysis === undefined) return null;
+  if (isPortfolioAnalysisResponse(analysis)) return analysis;
+
+  const remainingAnalyses = { ...storage.analyses };
+  delete remainingAnalyses[requestKey];
+  writePortfolioAnalysisStorage({ ...storage, analyses: remainingAnalyses });
+  return null;
+}
+
+export function getStoredPortfolioAnalysis(
+  newsId: string,
+  assets: PortfolioAsset[],
+): PortfolioAnalysisResponse | null {
+  return loadStoredPortfolioAnalysis(createPortfolioAnalysisRequestKey(newsId, assets));
+}
+
+function deleteStoredPortfolioAnalysis(requestKey: string) {
+  const storage = readPortfolioAnalysisStorage();
+  if (!(requestKey in storage.analyses)) return;
+
+  const remainingAnalyses = { ...storage.analyses };
+  delete remainingAnalyses[requestKey];
+  writePortfolioAnalysisStorage({ ...storage, analyses: remainingAnalyses });
 }
 
 function deletePortfolioAnalysisCacheEntry(requestKey: string) {
@@ -189,6 +316,16 @@ export async function searchStocks(keyword: string, signal?: AbortSignal) {
   return response.stocks;
 }
 
+export async function getLatestStockPrice(assetId: number, signal?: AbortSignal) {
+  const response = await request<unknown>(`/api/stocks/${assetId}/price`, { signal });
+
+  if (!isStockPrice(response)) {
+    throw new Error('최근 종가 응답 형식이 올바르지 않습니다.');
+  }
+
+  return response;
+}
+
 export async function calculatePortfolio(holdings: PortfolioHoldingInput[], signal?: AbortSignal) {
   const response = await requestWithCsrf<unknown>('/api/portfolio/calculate', {
     method: 'POST',
@@ -221,20 +358,24 @@ export function getPortfolioAnalysis(
   if (isFresh) return cachedEntry.request;
   if (cachedEntry) deletePortfolioAnalysisCacheEntry(requestKey);
 
+  const storedAnalysis = loadStoredPortfolioAnalysis(requestKey);
+  if (storedAnalysis) return Promise.resolve(storedAnalysis);
+
   const analysisRequest = requestPortfolioAnalysis(newsId, assets);
   portfolioAnalysisRequests.set(requestKey, { request: analysisRequest });
 
   void analysisRequest.then(
-    () => {
+    (analysis) => {
       const currentEntry = portfolioAnalysisRequests.get(requestKey);
-      if (currentEntry?.request === analysisRequest) {
-        currentEntry.expiresAt = Date.now() + PORTFOLIO_ANALYSIS_CACHE_TIME;
-        currentEntry.cleanupTimer = setTimeout(() => {
-          if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
-            portfolioAnalysisRequests.delete(requestKey);
-          }
-        }, PORTFOLIO_ANALYSIS_CACHE_TIME);
-      }
+      if (currentEntry?.request !== analysisRequest) return;
+
+      savePortfolioAnalysis(requestKey, analysis);
+      currentEntry.expiresAt = Date.now() + PORTFOLIO_ANALYSIS_CACHE_TIME;
+      currentEntry.cleanupTimer = setTimeout(() => {
+        if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
+          portfolioAnalysisRequests.delete(requestKey);
+        }
+      }, PORTFOLIO_ANALYSIS_CACHE_TIME);
     },
     () => {
       if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
@@ -250,6 +391,8 @@ export function retryPortfolioAnalysis(
   newsId: string,
   assets: PortfolioAsset[],
 ): Promise<PortfolioAnalysisResponse> {
-  deletePortfolioAnalysisCacheEntry(createPortfolioAnalysisRequestKey(newsId, assets));
+  const requestKey = createPortfolioAnalysisRequestKey(newsId, assets);
+  deletePortfolioAnalysisCacheEntry(requestKey);
+  deleteStoredPortfolioAnalysis(requestKey);
   return getPortfolioAnalysis(newsId, assets);
 }

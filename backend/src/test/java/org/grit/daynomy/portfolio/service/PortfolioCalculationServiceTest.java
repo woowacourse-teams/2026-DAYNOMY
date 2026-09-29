@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
@@ -33,10 +34,10 @@ class PortfolioCalculationServiceTest {
   @InjectMocks private PortfolioCalculationService calculationService;
 
   @Test
-  @DisplayName("최근 종가로 포트폴리오 손익과 종목·시장 비중을 계산한다")
+  @DisplayName("주식과 ETF의 최근 종가로 혼합 포트폴리오 손익과 비중을 계산한다")
   void calculatePortfolio() {
-    Asset samsung = stock(1L, "005930", "삼성전자", StockMarket.KOSPI);
-    Asset ecoPro = stock(2L, "247540", "에코프로비엠", StockMarket.KOSDAQ);
+    Asset samsung = asset(1L, "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI);
+    Asset kodex200 = asset(2L, "069500", "KODEX 200", AssetCategory.ETF, StockMarket.KOSPI);
     given(stockDailyPriceRepository.findFirstByAssetIdOrderByBaseDateDesc(1L))
         .willReturn(
             Optional.of(
@@ -44,7 +45,8 @@ class PortfolioCalculationServiceTest {
     given(stockDailyPriceRepository.findFirstByAssetIdOrderByBaseDateDesc(2L))
         .willReturn(
             Optional.of(
-                new StockDailyPrice(ecoPro, LocalDate.of(2026, 9, 17), new BigDecimal("285000"))));
+                new StockDailyPrice(
+                    kodex200, LocalDate.of(2026, 9, 17), new BigDecimal("285000"))));
     PortfolioCalculateRequest request =
         new PortfolioCalculateRequest(
             List.of(
@@ -59,15 +61,19 @@ class PortfolioCalculationServiceTest {
     assertThat(response.totalProfitLoss()).isEqualByComparingTo("140000.00");
     assertThat(response.totalReturnRate()).isEqualByComparingTo("11.20");
     assertThat(response.holdings())
-        .extracting(holding -> holding.assetCode(), holding -> holding.weight())
+        .extracting(
+            holding -> holding.assetCode(),
+            holding -> holding.category(),
+            holding -> holding.weight())
         .containsExactly(
-            org.assertj.core.groups.Tuple.tuple("005930", new BigDecimal("58.99")),
-            org.assertj.core.groups.Tuple.tuple("247540", new BigDecimal("41.01")));
+            org.assertj.core.groups.Tuple.tuple(
+                "005930", AssetCategory.STOCK, new BigDecimal("58.99")),
+            org.assertj.core.groups.Tuple.tuple(
+                "069500", AssetCategory.ETF, new BigDecimal("41.01")));
     assertThat(response.marketAllocations())
         .extracting(allocation -> allocation.market(), allocation -> allocation.weight())
         .containsExactly(
-            org.assertj.core.groups.Tuple.tuple(StockMarket.KOSPI, new BigDecimal("58.99")),
-            org.assertj.core.groups.Tuple.tuple(StockMarket.KOSDAQ, new BigDecimal("41.01")));
+            org.assertj.core.groups.Tuple.tuple(StockMarket.KOSPI, new BigDecimal("100.00")));
   }
 
   @Test
@@ -101,11 +107,13 @@ class PortfolioCalculationServiceTest {
         .isEqualTo(AssetErrorCode.STOCK_PRICE_NOT_FOUND);
   }
 
-  private Asset stock(Long id, String code, String name, StockMarket market) {
+  private Asset asset(
+      Long id, String code, String name, AssetCategory category, StockMarket market) {
     Asset asset = mock(Asset.class);
     given(asset.getId()).willReturn(id);
     given(asset.getAssetCode()).willReturn(code);
     given(asset.getName()).willReturn(name);
+    given(asset.getCategory()).willReturn(category);
     given(asset.getMarket()).willReturn(market);
     return asset;
   }

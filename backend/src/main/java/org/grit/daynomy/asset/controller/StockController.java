@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "국내 주식", description = "포트폴리오에 추가할 국내 주식을 조회합니다.")
+@Tag(name = "국내 주식·ETF", description = "포트폴리오에 추가할 국내 주식과 ETF를 조회합니다.")
 @Validated
 @RequiredArgsConstructor
 @RequestMapping("/api/stocks")
@@ -33,7 +33,7 @@ public class StockController {
   private final StockSearchService stockSearchService;
   private final StockPriceService stockPriceService;
 
-  @Operation(summary = "국내 주식 검색", description = "종목명 또는 종목코드로 상장 종목을 최대 20개 검색합니다.")
+  @Operation(summary = "국내 주식·ETF 통합 검색", description = "종목명 또는 종목코드로 상장 주식과 ETF를 최대 20개 검색합니다.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -55,7 +55,7 @@ public class StockController {
     return stockSearchService.search(keyword);
   }
 
-  @Operation(summary = "국내 주식 최근 종가 조회", description = "저장된 가장 최근 거래일의 종가를 조회합니다.")
+  @Operation(summary = "국내 주식·ETF 최근 종가 조회", description = "저장된 가장 최근 거래일의 종가를 조회합니다.")
   @GetMapping("/{assetId}/price")
   public StockPriceResponse getLatestPrice(@PathVariable Long assetId) {
     return stockPriceService.getLatestPrice(assetId);

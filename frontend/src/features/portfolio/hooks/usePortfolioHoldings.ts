@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { PortfolioHoldingInput, StockMarket } from '../types';
+import type { AssetCategory, PortfolioHoldingInput, StockMarket } from '../types';
 
 export const PORTFOLIO_STORAGE_KEY = 'daynomy:portfolio-holdings:v1';
 
@@ -7,14 +7,20 @@ function isMarket(value: unknown): value is StockMarket {
   return value === 'KOSPI' || value === 'KOSDAQ';
 }
 
-function isHolding(value: unknown): value is PortfolioHoldingInput {
-  if (!value || typeof value !== 'object') return false;
-  const holding = value as Partial<PortfolioHoldingInput>;
+function isCategory(value: unknown): value is AssetCategory {
+  return value === 'STOCK' || value === 'ETF';
+}
 
-  return (
+function normalizeHolding(value: unknown): PortfolioHoldingInput | null {
+  if (!value || typeof value !== 'object') return null;
+  const holding = value as Partial<PortfolioHoldingInput>;
+  const category = holding.category ?? 'STOCK';
+
+  if (
     typeof holding.assetId === 'number' &&
     typeof holding.assetCode === 'string' &&
     typeof holding.name === 'string' &&
+    isCategory(category) &&
     isMarket(holding.market) &&
     typeof holding.quantity === 'number' &&
     Number.isFinite(holding.quantity) &&
@@ -22,7 +28,19 @@ function isHolding(value: unknown): value is PortfolioHoldingInput {
     typeof holding.averagePurchasePrice === 'number' &&
     Number.isFinite(holding.averagePurchasePrice) &&
     holding.averagePurchasePrice > 0
-  );
+  ) {
+    return {
+      assetId: holding.assetId,
+      assetCode: holding.assetCode,
+      name: holding.name,
+      category,
+      market: holding.market,
+      quantity: holding.quantity,
+      averagePurchasePrice: holding.averagePurchasePrice,
+    };
+  }
+
+  return null;
 }
 
 function loadHoldings() {
@@ -33,11 +51,13 @@ function loadHoldings() {
     if (!Array.isArray(parsed)) return [];
 
     const seen = new Set<number>();
-    return parsed.filter((holding): holding is PortfolioHoldingInput => {
-      if (!isHolding(holding) || seen.has(holding.assetId)) return false;
+    return parsed.reduce<PortfolioHoldingInput[]>((holdings, value) => {
+      const holding = normalizeHolding(value);
+      if (!holding || seen.has(holding.assetId)) return holdings;
       seen.add(holding.assetId);
-      return true;
-    });
+      holdings.push(holding);
+      return holdings;
+    }, []);
   } catch {
     return [];
   }

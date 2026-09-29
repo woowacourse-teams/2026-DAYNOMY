@@ -109,6 +109,7 @@ public class PortfolioCalculationService {
                     holding.asset().getId(),
                     holding.asset().getAssetCode(),
                     holding.asset().getName(),
+                    holding.asset().getCategory(),
                     holding.asset().getMarket(),
                     holding.baseDate(),
                     holding.quantity(),

@@ -108,7 +108,7 @@ export function NewsDetailPage() {
   useEffect(() => {
     let ignore = false;
 
-    trackEvent('view_news_detail', { news_id: newsId });
+    if (/^\d+$/.test(newsId)) trackEvent('view_news_detail', { news_id: newsId });
     setPayload(undefined);
     setError('');
     getNewsDetail(newsId)
@@ -222,11 +222,7 @@ export function NewsDetailPage() {
 
         <section className="body-section" aria-label="뉴스 본문">
           <div className="body-copy">
-            {getContentParagraphs(news.content).map((paragraph) => (
-              <p key={paragraph}>
-                <KeywordText text={paragraph} keywords={keywords} />
-              </p>
-            ))}
+            <KeywordText paragraphs={getContentParagraphs(news.content)} keywords={keywords} />
           </div>
         </section>
 

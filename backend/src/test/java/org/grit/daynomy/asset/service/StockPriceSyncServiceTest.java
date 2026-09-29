@@ -9,10 +9,14 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.publicdata.PublicDataEtfPriceClient;
 import org.grit.daynomy.external.publicdata.PublicDataStockPriceClient;
+import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceItem;
+import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceResponse;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class StockPriceSyncServiceTest {
 
   @Mock private PublicDataStockPriceClient stockPriceClient;
+  @Mock private PublicDataEtfPriceClient etfPriceClient;
   @Mock private StockPricePersistenceService persistenceService;
   @InjectMocks private StockPriceSyncService syncService;
 
@@ -49,25 +54,33 @@ class StockPriceSyncServiceTest {
         .willReturn(response(1001, List.of(item(baseDate, "000660", "190000"))));
     given(stockPriceClient.getStockPrices(baseDate, StockMarket.KOSDAQ, 1, 1000))
         .willReturn(response(1, List.of(item(baseDate, "247540", "285000"))));
+    given(etfPriceClient.getEtfPrices(baseDate, 1, 1000))
+        .willReturn(etfResponse(1, List.of(etfItem(baseDate, "069500", "KODEX 200", "53000"))));
     given(
             persistenceService.synchronize(
                 org.mockito.ArgumentMatchers.eq(baseDate), org.mockito.ArgumentMatchers.anyList()))
-        .willReturn(new StockPriceSyncResult(baseDate, 3, 3, 0, 0));
+        .willReturn(new StockPriceSyncResult(baseDate, 4, 4, 0, 0));
 
     StockPriceSyncResult result = syncService.synchronize(today);
 
-    assertThat(result.receivedCount()).isEqualTo(3);
+    assertThat(result.receivedCount()).isEqualTo(4);
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<StockPriceEntry>> entriesCaptor = ArgumentCaptor.forClass(List.class);
     then(persistenceService)
         .should()
         .synchronize(org.mockito.ArgumentMatchers.eq(baseDate), entriesCaptor.capture());
     assertThat(entriesCaptor.getValue())
-        .extracting(StockPriceEntry::assetCode, StockPriceEntry::closePrice)
+        .extracting(
+            StockPriceEntry::assetCode, StockPriceEntry::category, StockPriceEntry::closePrice)
         .containsExactly(
-            org.assertj.core.groups.Tuple.tuple("005930", new java.math.BigDecimal("82000")),
-            org.assertj.core.groups.Tuple.tuple("000660", new java.math.BigDecimal("190000")),
-            org.assertj.core.groups.Tuple.tuple("247540", new java.math.BigDecimal("285000")));
+            org.assertj.core.groups.Tuple.tuple(
+                "005930", AssetCategory.STOCK, new java.math.BigDecimal("82000")),
+            org.assertj.core.groups.Tuple.tuple(
+                "000660", AssetCategory.STOCK, new java.math.BigDecimal("190000")),
+            org.assertj.core.groups.Tuple.tuple(
+                "247540", AssetCategory.STOCK, new java.math.BigDecimal("285000")),
+            org.assertj.core.groups.Tuple.tuple(
+                "069500", AssetCategory.ETF, new java.math.BigDecimal("53000")));
   }
 
   @Test
@@ -82,6 +95,34 @@ class StockPriceSyncServiceTest {
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
     then(persistenceService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  @DisplayName("ETF 데이터가 없어도 주식 종가를 동기화한다")
+  void synchronizeStockPricesWithoutEtfData() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
+        .willReturn(response(1, List.of(item(today, "005930", "82000"))));
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSDAQ, 1, 1000))
+        .willReturn(response(1, List.of(item(today, "247540", "285000"))));
+    given(etfPriceClient.getEtfPrices(today, 1, 1000)).willReturn(etfResponse(0, List.of()));
+    given(
+            persistenceService.synchronize(
+                org.mockito.ArgumentMatchers.eq(today), org.mockito.ArgumentMatchers.anyList()))
+        .willReturn(new StockPriceSyncResult(today, 2, 2, 0, 0));
+
+    syncService.synchronize(today);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<StockPriceEntry>> entriesCaptor = ArgumentCaptor.forClass(List.class);
+    then(persistenceService)
+        .should()
+        .synchronize(org.mockito.ArgumentMatchers.eq(today), entriesCaptor.capture());
+    assertThat(entriesCaptor.getValue())
+        .extracting(StockPriceEntry::assetCode, StockPriceEntry::category)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple("005930", AssetCategory.STOCK),
+            org.assertj.core.groups.Tuple.tuple("247540", AssetCategory.STOCK));
   }
 
   @Test
@@ -111,6 +152,25 @@ class StockPriceSyncServiceTest {
             new PublicDataStockPriceResponse.Header("00", "NORMAL SERVICE."),
             new PublicDataStockPriceResponse.Body(
                 1000, 1, totalCount, new PublicDataStockPriceResponse.Items(items))));
+  }
+
+  private PublicDataEtfPriceResponse etfResponse(
+      int totalCount, List<PublicDataEtfPriceItem> items) {
+    return new PublicDataEtfPriceResponse(
+        new PublicDataEtfPriceResponse.Response(
+            new PublicDataEtfPriceResponse.Header("00", "NORMAL SERVICE."),
+            new PublicDataEtfPriceResponse.Body(
+                1000, 1, totalCount, new PublicDataEtfPriceResponse.Items(items))));
+  }
+
+  private PublicDataEtfPriceItem etfItem(
+      LocalDate baseDate, String code, String name, String closePrice) {
+    return new PublicDataEtfPriceItem(
+        baseDate.format(DateTimeFormatter.BASIC_ISO_DATE),
+        code,
+        "KR7" + code + "007",
+        name,
+        closePrice);
   }
 
   private PublicDataStockPriceItem item(LocalDate baseDate, String code, String closePrice) {

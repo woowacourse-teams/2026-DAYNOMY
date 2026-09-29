@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
@@ -72,6 +73,7 @@ class PortfolioControllerTest {
         .andExpect(jsonPath("$.totalEvaluationAmount").value(820000.00))
         .andExpect(jsonPath("$.totalProfitLoss").value(170000.00))
         .andExpect(jsonPath("$.totalReturnRate").value(26.15))
+        .andExpect(jsonPath("$.holdings[0].category").value("STOCK"))
         .andExpect(jsonPath("$.holdings[0].weight").value(100.00))
         .andExpect(jsonPath("$.marketAllocations[0].market").value("KOSPI"));
 
@@ -144,6 +146,7 @@ class PortfolioControllerTest {
                 1L,
                 "005930",
                 "삼성전자",
+                AssetCategory.STOCK,
                 StockMarket.KOSPI,
                 LocalDate.of(2026, 9, 18),
                 10L,

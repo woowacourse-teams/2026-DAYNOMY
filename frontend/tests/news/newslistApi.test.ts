@@ -64,6 +64,55 @@ test('뉴스 목록 응답 계약이 맞지 않으면 빈 목록으로 처리하
   await assert.rejects(() => getNews());
 });
 
+test('뉴스 항목의 카테고리가 잘못되면 화면 데이터로 전달하지 않는다', async () => {
+  globalThis.fetch = async () =>
+    jsonResponse({
+      items: [{ id: 1, title: '뉴스', imageUrl: null, category: 'UNKNOWN', publishedAt: null }],
+      page: 1,
+      size: 6,
+      totalPages: 1,
+      totalElements: 1,
+      hasNext: false,
+    });
+
+  await assert.rejects(() => getNews(), /응답 형식이 올바르지 않습니다/);
+});
+
+test('뉴스 목록의 모든 항목과 총 건수를 유지한다', async () => {
+  globalThis.fetch = async () =>
+    jsonResponse({
+      items: [
+        {
+          id: 24,
+          title: '첫 번째 뉴스',
+          imageUrl: null,
+          category: 'STOCK',
+          publishedAt: '2026-09-23T11:05:00Z',
+        },
+        {
+          id: 25,
+          title: '두 번째 뉴스',
+          imageUrl: null,
+          category: 'STOCK',
+          publishedAt: '2026-09-23T11:04:00Z',
+        },
+      ],
+      page: 1,
+      size: 10,
+      totalPages: 1,
+      totalElements: 2,
+      hasNext: false,
+    });
+
+  const page = await getNews();
+
+  assert.deepEqual(
+    page.content.map((item) => item.id),
+    [24, 25],
+  );
+  assert.equal(page.totalElements, 2);
+});
+
 test('오늘의 뉴스 API 응답에서 여러 건을 매핑한다', async () => {
   const calls: string[] = [];
   globalThis.fetch = async (input) => {
@@ -99,4 +148,10 @@ test('오늘의 뉴스 API 응답에서 여러 건을 매핑한다', async () =>
   assert.equal(page.content.length, 2);
   assert.equal(page.content[0].title, 'today news');
   assert.equal(page.content[1].title, 'another today news');
+});
+
+test('오늘의 뉴스 응답에 페이지 정보가 없으면 거부한다', async () => {
+  globalThis.fetch = async () => jsonResponse({ items: [] });
+
+  await assert.rejects(() => getTodayNews(), /응답 형식이 올바르지 않습니다/);
 });
