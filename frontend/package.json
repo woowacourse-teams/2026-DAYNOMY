@@ -15,6 +15,7 @@
     "test": "npm run test:unit && npm run test:ui",
     "test:unit": "node --import tsx --test \"tests/**/*.test.ts\"",
     "test:ui": "vitest run --exclude 'tests/**/*.test.ts'",
+    "test:e2e": "playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@sentry/vite-plugin": "^5.4.0",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24.13.3",
