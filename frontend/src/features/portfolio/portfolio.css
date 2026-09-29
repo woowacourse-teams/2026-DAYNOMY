@@ -2031,10 +2031,6 @@
     min-height: 44px;
   }
 
-  .portfolio-page-title h1 {
-    font-size: 22px;
-  }
-
   .portfolio-overview {
     grid-template-columns: 1fr;
   }
