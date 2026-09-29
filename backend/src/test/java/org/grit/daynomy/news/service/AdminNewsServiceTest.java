@@ -33,6 +33,7 @@ import org.grit.daynomy.news.dto.ImageSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.grit.daynomy.search.repository.NewsSearchRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -52,6 +54,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class AdminNewsServiceTest {
 
   @Mock private NewsRepository newsRepository;
+
+  @Mock private NewsSearchRepository newsSearchRepository;
 
   @Mock private OpenAiImageGenerator openAiImageGenerator;
 
@@ -266,12 +270,29 @@ class AdminNewsServiceTest {
     given(newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable))
         .willReturn(new PageImpl<>(List.of(news), pageable, 1));
 
-    var response = adminNewsService.getNewsPage(1, 15, null, null);
+    var response = adminNewsService.getNewsPage(1, 15, null, null, "  ");
 
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().getFirst().title()).isEqualTo("초안 뉴스");
     assertThat(response.items().getFirst().status()).isEqualTo(NewsStatus.DRAFT);
     verify(newsRepository).findAllByOrderByCreatedAtDescIdDesc(pageable);
+    verifyNoInteractions(newsSearchRepository);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 검색은 검색어를 이스케이프하고 필터·정렬·페이지를 전달한다")
+  void getNewsPageSearchesWithFilters() {
+    News news = News.createDraft("금%리_ 뉴스", "본문", null, List.of(), Category.STOCK);
+    PageRequest pageable = PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+    given(newsSearchRepository.search("금!%리!_", Category.STOCK, NewsStatus.DRAFT, pageable))
+        .willReturn(new PageImpl<>(List.of(news), pageable, 3));
+
+    var response = adminNewsService.getNewsPage(2, 2, NewsStatus.DRAFT, Category.STOCK, " 금%리_ ");
+
+    assertThat(response.items()).extracting("title").containsExactly("금%리_ 뉴스");
+    assertThat(response.totalElements()).isEqualTo(3);
+    verify(newsSearchRepository).search("금!%리!_", Category.STOCK, NewsStatus.DRAFT, pageable);
+    verifyNoInteractions(newsRepository);
   }
 
   @Test

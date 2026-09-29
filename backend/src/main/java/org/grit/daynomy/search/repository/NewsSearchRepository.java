@@ -16,7 +16,7 @@ public interface NewsSearchRepository extends Repository<News, Long> {
       """
       SELECT n
       FROM News n
-      WHERE n.status = :status
+      WHERE (:status IS NULL OR n.status = :status)
         AND (:category IS NULL OR n.category = :category)
         AND (
           LOWER(n.title) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
