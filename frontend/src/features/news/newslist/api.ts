@@ -1,4 +1,4 @@
-import { toNewsListItem } from './types';
+import { isCategory, toNewsListItem } from './types';
 import type { NewsCategory, NewsListItemResponse, NewsPage } from './types';
 
 type NewsPageResponse = {
@@ -12,7 +12,39 @@ type NewsPageResponse = {
 
 const DEFAULT_PAGE_SIZE = 6;
 
-function normalizeNewsPage(data: NewsPageResponse): NewsPage {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNewsListItemResponse(value: unknown): value is NewsListItemResponse {
+  return (
+    isRecord(value) &&
+    Number.isInteger(value.id) &&
+    typeof value.title === 'string' &&
+    isCategory(value.category) &&
+    (value.imageUrl === null || typeof value.imageUrl === 'string') &&
+    (value.publishedAt === null || typeof value.publishedAt === 'string')
+  );
+}
+
+function isNewsPageResponse(value: unknown): value is NewsPageResponse {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.items) &&
+    value.items.every(isNewsListItemResponse) &&
+    Number.isInteger(value.page) &&
+    Number.isInteger(value.size) &&
+    Number.isInteger(value.totalPages) &&
+    Number.isInteger(value.totalElements) &&
+    typeof value.hasNext === 'boolean'
+  );
+}
+
+function normalizeNewsPage(data: unknown): NewsPage {
+  if (!isNewsPageResponse(data)) {
+    throw new Error('이슈 API 응답 형식이 올바르지 않습니다.');
+  }
+
   return {
     content: data.items.map(toNewsListItem),
     page: data.page,
@@ -48,7 +80,7 @@ export async function getNews(
     throw new Error('이슈 API 응답 형식이 올바르지 않습니다.');
   }
 
-  const data = (await response.json()) as NewsPageResponse;
+  const data: unknown = await response.json();
 
   return normalizeNewsPage(data);
 }
@@ -60,11 +92,7 @@ export async function getTodayNews(): Promise<NewsPage> {
     throw new Error('오늘의 이슈를 불러오지 못했습니다.');
   }
 
-  const data = (await response.json()) as NewsPageResponse;
-
-  if (!data || !Array.isArray(data.items)) {
-    throw new Error('오늘의 이슈를 불러오지 못했습니다.');
-  }
+  const data: unknown = await response.json();
 
   return normalizeNewsPage(data);
 }

@@ -104,6 +104,15 @@
   font-weight: 900;
 }
 
+.portfolio-analysis-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #dce6f2;
+  border-top-color: #5144d8;
+  border-radius: 50%;
+  animation: portfolio-analysis-spin 800ms linear infinite;
+}
+
 .portfolio-analysis-state strong {
   color: #151a2a;
   font-size: 15px;
@@ -253,7 +262,7 @@
 .portfolio-donut-center b {
   margin-top: 7px;
   color: inherit;
-  font-size: 36px;
+  font-size: 32px;
   line-height: 1;
   font-weight: 900;
   letter-spacing: -0.03em;
@@ -461,10 +470,12 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-detail-copy p {
   max-width: 62ch;
   margin: 0;
+  overflow-wrap: break-word;
   color: #465267;
   font-size: 18px;
   line-height: 32px;
   text-wrap: pretty;
+  word-break: keep-all;
 }
 
 .portfolio-detail-copy strong {
@@ -513,12 +524,15 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-evidence blockquote {
   margin: 18px 0 0;
   padding: 16px 18px;
+  overflow-wrap: break-word;
   border-left: 3px solid #dce6f2;
   border-radius: 0 10px 10px 0;
   background: #f7f9fc;
   color: #5f6b7d;
   font-size: 15px;
   line-height: 1.7;
+  text-wrap: pretty;
+  word-break: keep-all;
 }
 
 .portfolio-evidence[open] blockquote {
@@ -534,6 +548,19 @@ button.portfolio-asset-row:focus-visible {
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+@keyframes portfolio-analysis-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-analysis-spinner,
+  .portfolio-evidence[open] blockquote {
+    animation: none;
   }
 }
 

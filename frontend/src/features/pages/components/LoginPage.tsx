@@ -1,8 +1,6 @@
-import { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import '../LoginPage.css';
 import { getApiUrl } from '../api';
-import { trackEvent } from '../../../analytics';
 
 function GoogleIcon() {
   return (
@@ -32,10 +30,6 @@ function LoginPage() {
   const oauthError = searchParams.get('error') === 'oauth';
   const errorMessage = oauthError ? 'Google 로그인에 실패했습니다.' : null;
 
-  useEffect(() => {
-    if (oauthError) trackEvent('login_failure', { method: 'google', error_code: 'oauth' });
-  }, [oauthError]);
-
   return (
     <main className="login-page">
       <Link className="login-close" to="/" aria-label="닫기">
@@ -52,7 +46,6 @@ function LoginPage() {
           href={getApiUrl('/api/auth/google')}
           onClick={() => {
             sessionStorage.setItem('daynomy:post-login-path', '/admin');
-            trackEvent('click_login');
           }}
         >
           <GoogleIcon />

@@ -2,7 +2,12 @@
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getPortfolioAnalysis } from '../../src/features/portfolio/api';
+import {
+  getPortfolioAnalysis,
+  getStoredPortfolioAnalysis,
+  PORTFOLIO_ANALYSIS_STORAGE_KEY,
+  retryPortfolioAnalysis,
+} from '../../src/features/portfolio/api';
 import { PortfolioAnalysis } from '../../src/features/portfolio/components/PortfolioAnalysis';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -14,10 +19,135 @@ function jsonResponse(body: unknown, status = 200) {
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe('포트폴리오 분석 화면', () => {
+  it('저장된 분석 결과가 있으면 API 호출 없이 화면에 복원한다', async () => {
+    const assets = [{ assetName: '삼성전자', weight: 100 }];
+    const requestKey = JSON.stringify(['restored', [{ assetName: '삼성전자', weight: 100 }]]);
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        analyses: {
+          [requestKey]: {
+            totalAssetCount: 1,
+            analyzedAssetCount: 1,
+            impacts: [
+              {
+                assetName: '삼성전자',
+                weight: 100,
+                direction: 'POSITIVE',
+                impactLevel: 'HIGH',
+                summary: '저장된 분석 결과예요.',
+                reason: '저장된 근거예요.',
+                evidenceSentence: '저장된 뉴스 문장이에요.',
+                rank: 1,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(<PortfolioAnalysis newsId="restored" assets={assets} />);
+
+    expect(await view.findByText(/저장된 분석 결과예요/)).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('현재 포트폴리오와 다른 저장 결과는 화면에 복원하지 않는다', () => {
+    const requestKey = JSON.stringify([
+      'different-portfolio',
+      [{ assetName: '삼성전자', weight: 100 }],
+    ]);
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        analyses: {
+          [requestKey]: {
+            totalAssetCount: 1,
+            analyzedAssetCount: 1,
+            impacts: [
+              {
+                assetName: '삼성전자',
+                weight: 100,
+                direction: 'POSITIVE',
+                impactLevel: 'HIGH',
+                summary: '다른 포트폴리오의 분석 결과예요.',
+                reason: '다른 포트폴리오의 근거예요.',
+                evidenceSentence: '다른 포트폴리오의 뉴스 문장이에요.',
+                rank: 1,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(
+      <PortfolioAnalysis
+        newsId="different-portfolio"
+        assets={[{ assetName: 'SK하이닉스', weight: 100 }]}
+      />,
+    );
+
+    expect(view.queryByText('다른 포트폴리오의 분석 결과예요.')).toBeNull();
+    expect(view.getByRole('button', { name: '포트폴리오 분석하기' })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('같은 뉴스에서 포트폴리오가 변경되면 변경된 포트폴리오의 저장 결과를 복원한다', async () => {
+    const samsungAssets = [{ assetName: '삼성전자', weight: 100 }];
+    const hynixAssets = [{ assetName: 'SK하이닉스', weight: 100 }];
+    const createAnalysis = (assetName: string) => ({
+      totalAssetCount: 1,
+      analyzedAssetCount: 1,
+      impacts: [
+        {
+          assetName,
+          weight: 100,
+          direction: 'POSITIVE',
+          impactLevel: 'HIGH',
+          summary: `${assetName} 저장 결과예요.`,
+          reason: `${assetName} 저장 근거예요.`,
+          evidenceSentence: `${assetName} 저장 문장이에요.`,
+          rank: 1,
+        },
+      ],
+    });
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        analyses: {
+          [JSON.stringify(['portfolio-change', samsungAssets])]: createAnalysis('삼성전자'),
+          [JSON.stringify(['portfolio-change', [{ assetName: 'sk하이닉스', weight: 100 }]])]:
+            createAnalysis('SK하이닉스'),
+        },
+      }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const view = render(<PortfolioAnalysis newsId="portfolio-change" assets={samsungAssets} />);
+
+    expect(await view.findByText(/삼성전자 저장 결과예요/)).toBeTruthy();
+
+    view.rerender(<PortfolioAnalysis newsId="portfolio-change" assets={hynixAssets} />);
+
+    expect(await view.findByText(/SK하이닉스 저장 결과예요/)).toBeTruthy();
+    expect(view.queryByText(/삼성전자 저장 결과예요/)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('API에서 포트폴리오 영향 결과를 표시한다', async () => {
     vi.stubGlobal(
       'fetch',
@@ -153,9 +283,11 @@ describe('포트폴리오 분석 화면', () => {
     const analyzeButton = view.getByRole('button', { name: '포트폴리오 분석하기' });
     fireEvent.click(analyzeButton);
 
-    expect(view.getByRole('status').textContent).toContain(
-      '내 포트폴리오에 미치는 영향을 분석하고 있어요.',
-    );
+    const loadingStatus = view.getByRole('status');
+    expect(loadingStatus.textContent).toContain('내 포트폴리오에 미치는 영향을 분석하고 있어요.');
+    expect(
+      loadingStatus.querySelector('.portfolio-analysis-spinner')?.getAttribute('aria-hidden'),
+    ).toBe('true');
     expect((view.getByRole('button', { name: '분석 중' }) as HTMLButtonElement).disabled).toBe(
       true,
     );
@@ -232,7 +364,7 @@ describe('포트폴리오 분석 화면', () => {
     ).toBe(true);
   });
 
-  it('분석 후 포트폴리오가 변경되어도 분석 당시 자산을 표시한다', async () => {
+  it('분석 후 다른 포트폴리오로 변경하면 기존 결과를 지우고 원래 구성의 결과는 복원한다', async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({
         totalAssetCount: 1,
@@ -271,12 +403,52 @@ describe('포트폴리오 분석 화면', () => {
       <PortfolioAnalysis newsId="snapshot" assets={[{ assetName: 'SK하이닉스', weight: 100 }]} />,
     );
 
-    expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
-    expect(view.queryByText('SK하이닉스')).toBeNull();
+    expect(view.queryByRole('heading', { name: '삼성전자' })).toBeNull();
+    expect(view.queryByText(/반도체 수요가 증가했습니다/)).toBeNull();
     expect(
-      (view.getByRole('button', { name: '다시 분석하기' }) as HTMLButtonElement).disabled,
+      (view.getByRole('button', { name: '포트폴리오 분석하기' }) as HTMLButtonElement).disabled,
     ).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <PortfolioAnalysis newsId="snapshot" assets={[{ assetName: '삼성전자', weight: 100 }]} />,
+    );
+
+    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+    expect(view.getAllByText(/반도체 수요가 증가했습니다/).length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('분석 후 포트폴리오가 비면 자산 등록 안내를 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          totalAssetCount: 1,
+          analyzedAssetCount: 0,
+          impacts: [],
+        }),
+      ),
+    );
+
+    const view = render(
+      <PortfolioAnalysis
+        newsId="empty-after-analysis"
+        assets={[{ assetName: '삼성전자', weight: 100 }]}
+      />,
+    );
+
+    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
+    expect(await view.findByText('이 뉴스와 직접 관련된 보유 자산이 없어요.')).toBeTruthy();
+
+    view.rerender(<PortfolioAnalysis newsId="empty-after-analysis" assets={[]} />);
+
+    expect(
+      view.getByText(
+        '포트폴리오에 자산을 등록하면 이 뉴스가 내 자산에 미치는 영향을 확인할 수 있어요.',
+      ),
+    ).toBeTruthy();
+    expect(view.queryByText('이 뉴스와 직접 관련된 보유 자산이 없어요.')).toBeNull();
   });
 
   it('자산 순서만 변경되면 다시 분석 버튼을 활성화하지 않는다', async () => {
@@ -340,7 +512,7 @@ describe('포트폴리오 분석 화면', () => {
     );
 
     expect(
-      (view.getByRole('button', { name: '다시 분석하기' }) as HTMLButtonElement).disabled,
+      (view.getByRole('button', { name: '포트폴리오 분석하기' }) as HTMLButtonElement).disabled,
     ).toBe(false);
   });
 
@@ -365,8 +537,7 @@ describe('포트폴리오 분석 화면', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(createAnalysisResponse('삼성전자'))
-      .mockResolvedValueOnce(createAnalysisResponse('SK하이닉스'))
-      .mockResolvedValueOnce(createAnalysisResponse('삼성전자'));
+      .mockResolvedValueOnce(createAnalysisResponse('SK하이닉스'));
     vi.stubGlobal('fetch', fetchMock);
 
     const samsungAssets = [{ assetName: '삼성전자', weight: 100 }];
@@ -377,7 +548,7 @@ describe('포트폴리오 분석 화면', () => {
     expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
 
     view.rerender(<PortfolioAnalysis newsId="refresh" assets={hynixAssets} />);
-    fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
+    fireEvent.click(view.getByRole('button', { name: '포트폴리오 분석하기' }));
     expect(await view.findByRole('heading', { name: 'SK하이닉스' })).toBeTruthy();
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -385,15 +556,7 @@ describe('포트폴리오 분석 화면', () => {
       expect.objectContaining({ body: JSON.stringify({ assets: hynixAssets }) }),
     );
 
-    view.rerender(<PortfolioAnalysis newsId="refresh" assets={samsungAssets} />);
-    fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
-    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
-      expect.stringContaining('/api/news/refresh/portfolio-analysis'),
-      expect.objectContaining({ body: JSON.stringify({ assets: samsungAssets }) }),
-    );
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('뉴스가 변경되면 이전 스냅샷과 분석 결과를 초기화한다', async () => {
@@ -434,7 +597,183 @@ describe('포트폴리오 분석 화면', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('완료된 분석 캐시는 TTL이 지나면 자동으로 제거한다', async () => {
+  it('완료된 분석 결과를 뉴스와 포트폴리오 스냅샷 기준으로 저장한다', async () => {
+    const analysis = { totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] };
+    const fetchMock = vi.fn(async () => jsonResponse(analysis));
+    vi.stubGlobal('fetch', fetchMock);
+    const assets = [{ assetName: '저장 검증 자산', weight: 100 }];
+
+    await getPortfolioAnalysis('storage', assets);
+
+    const stored = JSON.parse(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY) ?? '{}');
+    expect(stored).toEqual({
+      version: 1,
+      analyses: {
+        [JSON.stringify(['storage', [{ assetName: '저장 검증 자산', weight: 100 }]])]: analysis,
+      },
+    });
+  });
+
+  it('동일한 뉴스와 포트폴리오의 저장된 분석 결과가 있으면 API를 호출하지 않는다', async () => {
+    const assets = [{ assetName: '저장 결과 재사용 자산', weight: 100 }];
+    const analysis = { totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] };
+    const requestKey = JSON.stringify([
+      'stored-analysis',
+      [{ assetName: '저장 결과 재사용 자산', weight: 100 }],
+    ]);
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({ version: 1, analyses: { [requestKey]: analysis } }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getPortfolioAnalysis('stored-analysis', assets)).resolves.toEqual(analysis);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('이전 요청이 늦게 완료되어도 재분석 결과를 덮어쓰지 않는다', async () => {
+    const assets = [{ assetName: '삼성전자', weight: 100 }];
+    const createAnalysis = (summary: string) => ({
+      totalAssetCount: 1,
+      analyzedAssetCount: 1,
+      impacts: [
+        {
+          assetName: '삼성전자',
+          weight: 100,
+          direction: 'POSITIVE' as const,
+          impactLevel: 'HIGH' as const,
+          summary,
+          reason: `${summary} 근거예요.`,
+          evidenceSentence: `${summary} 근거 문장이에요.`,
+          rank: 1,
+        },
+      ],
+    });
+    const previousAnalysis = createAnalysis('이전 분석 결과예요.');
+    const latestAnalysis = createAnalysis('최신 분석 결과예요.');
+    let resolvePrevious!: (response: Response) => void;
+    let resolveLatest!: (response: Response) => void;
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          resolvePrevious = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          resolveLatest = resolve;
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const previousRequest = getPortfolioAnalysis('race-condition', assets);
+    const latestRequest = retryPortfolioAnalysis('race-condition', assets);
+
+    resolveLatest(jsonResponse(latestAnalysis));
+    await expect(latestRequest).resolves.toEqual(latestAnalysis);
+    resolvePrevious(jsonResponse(previousAnalysis));
+    await expect(previousRequest).resolves.toEqual(previousAnalysis);
+
+    expect(getStoredPortfolioAnalysis('race-condition', assets)).toEqual(latestAnalysis);
+  });
+
+  it('깨진 JSON 저장 데이터를 제거한다', () => {
+    localStorage.setItem(PORTFOLIO_ANALYSIS_STORAGE_KEY, '{');
+
+    expect(
+      getStoredPortfolioAnalysis('invalid-json', [
+        { assetName: '잘못된 저장 데이터 자산', weight: 100 },
+      ]),
+    ).toBeNull();
+    expect(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('지원하지 않는 버전의 저장 데이터를 제거한다', () => {
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({ version: 0, analyses: {} }),
+    );
+
+    expect(
+      getStoredPortfolioAnalysis('old-version', [
+        { assetName: '이전 버전 저장 데이터 자산', weight: 100 },
+      ]),
+    ).toBeNull();
+    expect(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('형식이 잘못된 분석 결과를 제거한 뒤 API로 새로 분석한다', async () => {
+    const assets = [{ assetName: '잘못된 분석 결과 자산', weight: 100 }];
+    const requestKey = JSON.stringify([
+      'invalid-analysis',
+      [{ assetName: '잘못된 분석 결과 자산', weight: 100 }],
+    ]);
+    localStorage.setItem(
+      PORTFOLIO_ANALYSIS_STORAGE_KEY,
+      JSON.stringify({ version: 1, analyses: { [requestKey]: { invalid: true } } }),
+    );
+    const analysis = { totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] };
+    const fetchMock = vi.fn(async () => jsonResponse(analysis));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getPortfolioAnalysis('invalid-analysis', assets)).resolves.toEqual(analysis);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('자산 순서와 이름 및 비중 표현이 달라도 동일한 분석 요청으로 처리한다', async () => {
+    const analysis = { totalAssetCount: 2, analyzedAssetCount: 0, impacts: [] };
+    const fetchMock = vi.fn(async () => jsonResponse(analysis));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getPortfolioAnalysis('normalized', [
+      { assetName: 'KODEX 200', weight: 60.0000001 },
+      { assetName: '삼성전자', weight: 40 },
+    ]);
+    await getPortfolioAnalysis('normalized', [
+      { assetName: ' 삼성전자 ', weight: 40.0 },
+      { assetName: 'kodex 200', weight: 60 },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('자산 비중이 변경되면 새로운 분석 요청으로 처리한다', async () => {
+    const analysis = { totalAssetCount: 2, analyzedAssetCount: 0, impacts: [] };
+    const fetchMock = vi.fn(async () => jsonResponse(analysis));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getPortfolioAnalysis('changed-weight', [
+      { assetName: '삼성전자', weight: 60 },
+      { assetName: 'SK하이닉스', weight: 40 },
+    ]);
+    await getPortfolioAnalysis('changed-weight', [
+      { assetName: '삼성전자', weight: 59.99 },
+      { assetName: 'SK하이닉스', weight: 40.01 },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('브라우저 저장소를 사용할 수 없어도 완료된 분석 결과를 반환한다', async () => {
+    const analysis = { totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(analysis)),
+    );
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('저장소를 사용할 수 없습니다.');
+    });
+
+    await expect(
+      getPortfolioAnalysis('storage-unavailable', [
+        { assetName: '저장 실패 검증 자산', weight: 100 },
+      ]),
+    ).resolves.toEqual(analysis);
+  });
+
+  it('메모리 캐시 TTL이 지나도 저장된 분석 결과를 재사용한다', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn(async () =>
       jsonResponse({ totalAssetCount: 1, analyzedAssetCount: 0, impacts: [] }),
@@ -449,8 +788,7 @@ describe('포트폴리오 분석 화면', () => {
 
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
       await getPortfolioAnalysis('cache-ttl', assets);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       vi.clearAllTimers();
       vi.useRealTimers();

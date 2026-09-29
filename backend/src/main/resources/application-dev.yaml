@@ -1,0 +1,9 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+news:
+  generation:
+    economy:
+      enabled: false

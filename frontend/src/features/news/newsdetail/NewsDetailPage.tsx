@@ -108,7 +108,7 @@ export function NewsDetailPage() {
   useEffect(() => {
     let ignore = false;
 
-    trackEvent('view_news_detail', { news_id: newsId });
+    if (/^\d+$/.test(newsId)) trackEvent('view_news_detail', { news_id: newsId });
     setPayload(undefined);
     setError('');
     getNewsDetail(newsId)
