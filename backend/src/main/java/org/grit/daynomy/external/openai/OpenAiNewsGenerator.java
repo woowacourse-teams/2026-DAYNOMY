@@ -36,7 +36,7 @@ public class OpenAiNewsGenerator {
 
       기업의 수주·공급 계약, 실적·투자·생산 변화, 산업별 수요 변화, 수출·공급망 변화, 금리·환율·물가·고용·무역 정책 등 다양한 유형의 구체적인 사건을 폭넓게 살피세요. 기업을 다룰 때는 삼성전자·SK하이닉스 같은 초대형주에 검색 결과가 편중되지 않도록 코스피·코스닥의 다양한 업종과 규모의 상장 기업을 함께 검색하세요. 가능한 경우 대형주와 중소형주, 코스피와 코스닥, 서로 다른 산업을 섞어 선정하고, 기업 규모나 인지도보다 사건의 구체성·최신성·경제적 연관성을 기준으로 판단하세요.
 
-      기본 4개를 작성한 뒤 주택가격·주택 거래량·분양·공급·전월세·주택담보대출·부동산 금융·관련 정책 중 최근의 구체적인 사건이 있는지 별도로 검색하세요. 서로 독립된 출처 2곳 이상으로 확인할 수 있고 한국 경제나 부동산 시장에 영향을 줄 만한 이슈가 있을 때만 REAL_ESTATE 카테고리의 부동산 뉴스 1개를 추가하세요. 확인 가능한 부동산 이슈가 없으면 부동산 뉴스를 억지로 만들지 말고 기본 4개만 반환하세요. 추가하는 부동산 뉴스도 기존 기사와 다른 사건이어야 합니다. ETF 이슈는 해당 시장의 변화가 분명하고 기존 카테고리에 가장 잘 맞을 때 기본 4개 중 하나로 선택하세요.
+      기본 4개를 작성한 뒤, 기본 4개에 REAL_ESTATE 기사가 하나도 없을 때만 주택가격·주택 거래량·분양·공급·전월세·주택담보대출·부동산 금융·관련 정책 중 최근의 구체적인 사건이 있는지 별도로 검색하세요. 서로 독립된 출처 2곳 이상으로 확인할 수 있고 한국 경제나 부동산 시장에 영향을 줄 만한 이슈가 있을 때만 REAL_ESTATE 카테고리의 부동산 뉴스 1개를 추가하세요. 기본 4개에 부동산 기사가 이미 하나 이상 있거나 추가로 확인 가능한 부동산 이슈가 없으면 기본 4개만 반환하세요. 부동산 기사가 여러 개 포함되는 것은 허용하되, 각 기사는 서로 다른 사건을 다뤄야 합니다. ETF 이슈는 해당 시장의 변화가 분명하고 기존 카테고리에 가장 잘 맞을 때 기본 4개 중 하나로 선택하세요.
 
       공공기관 통계나 보도자료만을 주된 소재로 삼지 말고, 경제 전문 매체와 주요 언론의 최신 보도를 우선 확인하세요. 게시일과 실제 사건 발생일을 구분하고, 각 이슈의 사실관계를 가능한 한 서로 독립된 출처 2곳 이상으로 확인하세요.
 
@@ -47,7 +47,7 @@ public class OpenAiNewsGenerator {
       - ETF: 상장지수펀드 상품이나 ETF 시장 중심 이슈
       - STOCK: 상장 기업, 주식시장, 금리, 환율, 물가, 고용, 무역 등 그 밖의 경제 이슈
 
-      이슈마다 서로 다른 사건을 다루고, 같은 사건을 제목이나 관점만 바꾸어 중복 작성하지 마세요. 근거가 부족한 이슈를 추측해 채우지 마세요. 기본 뉴스가 4개 미만이면 생성에 실패하세요. 부동산 추가 뉴스가 없을 때 4개, 있을 때 5개를 반환하세요.
+      이슈마다 서로 다른 사건을 다루고, 같은 사건을 제목이나 관점만 바꾸어 중복 작성하지 마세요. 근거가 부족한 이슈를 추측해 채우지 마세요. 기본 뉴스가 4개 미만이면 생성에 실패하세요. 부동산 추가 뉴스가 없거나 기본 뉴스에 부동산 기사가 이미 포함되어 있으면 4개, 부동산 추가 뉴스가 있으면 5개를 반환하세요.
       """;
 
   private final OpenAiProperties openAiProperties;
@@ -189,10 +189,14 @@ public class OpenAiNewsGenerator {
           .forEach(source -> availableSources.put(source.url(), source));
 
       List<GeneratedEconomicNews> generatedNews = new ArrayList<>();
+      int realEstateArticleCount = 0;
       for (JsonNode article : articles) {
         String title = article.path("title").asText();
         String content = article.path("content").asText();
         Category category = Category.valueOf(article.path("category").asText());
+        if (category == Category.REAL_ESTATE) {
+          realEstateArticleCount++;
+        }
         Map<String, NewsSourceInfo> articleSources = new LinkedHashMap<>();
         for (JsonNode sourceUrl : article.path("sourceUrls")) {
           NewsSourceInfo source = availableSources.get(sourceUrl.asText());
@@ -207,6 +211,10 @@ public class OpenAiNewsGenerator {
         generatedNews.add(
             new GeneratedEconomicNews(
                 title, content, category, List.copyOf(articleSources.values())));
+      }
+      if (articles.size() == MAX_ECONOMIC_NEWS_ARTICLE_COUNT && realEstateArticleCount == 0) {
+        throw new IllegalArgumentException(
+            "Five economic news articles must include at least one real estate article.");
       }
       return List.copyOf(generatedNews);
     } catch (Exception exception) {

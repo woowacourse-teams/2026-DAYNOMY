@@ -11,6 +11,7 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
+import org.grit.daynomy.news.domain.Category;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +52,9 @@ class OpenAiNewsGeneratorTest {
     List<GeneratedEconomicNews> generatedNews = generator.generateEconomicNews();
 
     assertThat(generatedNews).hasSize(4);
+    assertThat(generatedNews)
+        .extracting(GeneratedEconomicNews::category)
+        .containsExactly(Category.STOCK, Category.STOCK, Category.ETF, Category.STOCK);
     RecordedRequest request = server.takeRequest();
     String requestBody = request.getBody().readUtf8();
     assertThat(requestBody)
@@ -79,7 +83,14 @@ class OpenAiNewsGeneratorTest {
     List<GeneratedEconomicNews> generatedNews = generator.generateEconomicNews();
 
     assertThat(generatedNews).hasSize(5);
-    assertThat(generatedNews.get(4).category().name()).isEqualTo("REAL_ESTATE");
+    assertThat(generatedNews)
+        .extracting(GeneratedEconomicNews::category)
+        .containsExactly(
+            Category.STOCK,
+            Category.STOCK,
+            Category.STOCK,
+            Category.REAL_ESTATE,
+            Category.REAL_ESTATE);
   }
 
   private String successResponseWithFourArticles() throws Exception {
@@ -99,7 +110,7 @@ class OpenAiNewsGeneratorTest {
             article("첫 번째 뉴스", "첫 번째 본문", "STOCK", 1),
             article("두 번째 뉴스", "두 번째 본문", "STOCK", 3),
             article("세 번째 뉴스", "세 번째 본문", "ETF", 5),
-            article("네 번째 뉴스", "네 번째 본문", "REAL_ESTATE", 7));
+            article("네 번째 뉴스", "네 번째 본문", "STOCK", 7));
     String generatedArticles = objectMapper.writeValueAsString(Map.of("articles", articles));
     Map<String, Object> outputText =
         Map.of(
@@ -142,7 +153,7 @@ class OpenAiNewsGeneratorTest {
           article(
               (index + 1) + " 번째 뉴스",
               (index + 1) + " 번째 본문",
-              index == 4 ? "REAL_ESTATE" : "STOCK",
+              index >= 3 ? "REAL_ESTATE" : "STOCK",
               source));
     }
     String generatedArticles = objectMapper.writeValueAsString(Map.of("articles", articles));
