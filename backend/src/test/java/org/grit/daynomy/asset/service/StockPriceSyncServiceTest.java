@@ -20,6 +20,7 @@ import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.publicdata.PublicDataEtfPriceClient;
 import org.grit.daynomy.external.publicdata.PublicDataStockPriceClient;
 import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceItem;
@@ -194,6 +195,25 @@ class StockPriceSyncServiceTest {
         .containsEntry("exception", IllegalStateException.class.getSimpleName())
         .containsKey("durationMs");
     assertThat(failedLog.getFormattedMessage()).doesNotContain("database failure");
+  }
+
+  @Test
+  @DisplayName("외부 종가 API 호출이 실패하면 전체 동기화 실패를 기록한다")
+  void synchronizeLogsExternalApiFailure() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
+        .willThrow(new BusinessException(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED));
+
+    assertThatThrownBy(() -> syncService.synchronize(today))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED);
+
+    ILoggingEvent failedLog = logFor(LogEvent.STOCK_PRICE_SYNC_FAILED);
+    assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(keyValues(failedLog))
+        .containsEntry("errorCode", ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED.code())
+        .containsKey("durationMs");
   }
 
   @Test

@@ -85,13 +85,11 @@ public class StockPriceSyncService {
           .log(LogEvent.STOCK_PRICE_SYNC_COMPLETED.message());
       return result;
     } catch (BusinessException exception) {
-      if (exception.errorCode() == AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND) {
-        log.atError()
-            .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_FAILED.code())
-            .addKeyValue("errorCode", exception.errorCode().code())
-            .addKeyValue("durationMs", elapsedMillis(startedAt))
-            .log(LogEvent.STOCK_PRICE_SYNC_FAILED.message());
-      }
+      log.atError()
+          .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_FAILED.code())
+          .addKeyValue("errorCode", exception.errorCode().code())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.STOCK_PRICE_SYNC_FAILED.message());
       throw exception;
     } catch (RuntimeException exception) {
       log.atError()
