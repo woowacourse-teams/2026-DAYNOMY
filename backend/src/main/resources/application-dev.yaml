@@ -7,3 +7,7 @@ news:
   generation:
     economy:
       enabled: false
+
+logging:
+  level:
+    org.grit.daynomy: DEBUG

@@ -5,20 +5,30 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.publicdata.PublicDataEtfPriceClient;
 import org.grit.daynomy.external.publicdata.PublicDataStockPriceClient;
 import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceResponse;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +36,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
 class StockPriceSyncServiceTest {
@@ -34,6 +45,26 @@ class StockPriceSyncServiceTest {
   @Mock private PublicDataEtfPriceClient etfPriceClient;
   @Mock private StockPricePersistenceService persistenceService;
   @InjectMocks private StockPriceSyncService syncService;
+
+  private final Logger logger = (Logger) LoggerFactory.getLogger(StockPriceSyncService.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+  private Level originalLevel;
+
+  @BeforeEach
+  void setUpLogging() {
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
+  }
+
+  @AfterEach
+  void tearDownLogging() {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
+  }
 
   @Test
   @DisplayName("가장 최근 거래일의 KOSPI·KOSDAQ 종가를 전체 페이지에서 동기화한다")
@@ -81,6 +112,16 @@ class StockPriceSyncServiceTest {
                 "247540", AssetCategory.STOCK, new java.math.BigDecimal("285000")),
             org.assertj.core.groups.Tuple.tuple(
                 "069500", AssetCategory.ETF, new java.math.BigDecimal("53000")));
+
+    ILoggingEvent completedLog = logFor(LogEvent.STOCK_PRICE_SYNC_COMPLETED);
+    assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
+    assertThat(keyValues(completedLog))
+        .containsEntry("baseDate", baseDate)
+        .containsEntry("receivedCount", 4)
+        .containsEntry("createdCount", 4)
+        .containsEntry("updatedCount", 0)
+        .containsEntry("skippedCount", 0)
+        .containsKey("durationMs");
   }
 
   @Test
@@ -95,6 +136,12 @@ class StockPriceSyncServiceTest {
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
     then(persistenceService).shouldHaveNoInteractions();
+
+    ILoggingEvent failedLog = logFor(LogEvent.STOCK_PRICE_SYNC_FAILED);
+    assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(keyValues(failedLog))
+        .containsEntry("errorCode", AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND.code())
+        .containsKey("durationMs");
   }
 
   @Test
@@ -123,6 +170,50 @@ class StockPriceSyncServiceTest {
         .containsExactly(
             org.assertj.core.groups.Tuple.tuple("005930", AssetCategory.STOCK),
             org.assertj.core.groups.Tuple.tuple("247540", AssetCategory.STOCK));
+  }
+
+  @Test
+  @DisplayName("종가 저장 중 예상하지 못한 오류가 발생하면 동기화 실패를 기록한다")
+  void synchronizeLogsUnexpectedPersistenceFailure() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
+        .willReturn(response(1, List.of(item(today, "005930", "82000"))));
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSDAQ, 1, 1000))
+        .willReturn(response(1, List.of(item(today, "247540", "285000"))));
+    given(etfPriceClient.getEtfPrices(today, 1, 1000)).willReturn(etfResponse(0, List.of()));
+    given(
+            persistenceService.synchronize(
+                org.mockito.ArgumentMatchers.eq(today), org.mockito.ArgumentMatchers.anyList()))
+        .willThrow(new IllegalStateException("database failure"));
+
+    assertThatThrownBy(() -> syncService.synchronize(today))
+        .isInstanceOf(IllegalStateException.class);
+
+    ILoggingEvent failedLog = logFor(LogEvent.STOCK_PRICE_SYNC_FAILED);
+    assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(keyValues(failedLog))
+        .containsEntry("exception", IllegalStateException.class.getSimpleName())
+        .containsKey("durationMs");
+    assertThat(failedLog.getFormattedMessage()).doesNotContain("database failure");
+  }
+
+  @Test
+  @DisplayName("외부 종가 API 호출이 실패하면 전체 동기화 실패를 기록한다")
+  void synchronizeLogsExternalApiFailure() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
+        .willThrow(new BusinessException(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED));
+
+    assertThatThrownBy(() -> syncService.synchronize(today))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED);
+
+    ILoggingEvent failedLog = logFor(LogEvent.STOCK_PRICE_SYNC_FAILED);
+    assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(keyValues(failedLog))
+        .containsEntry("errorCode", ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED.code())
+        .containsKey("durationMs");
   }
 
   @Test
@@ -191,5 +282,18 @@ class StockPriceSyncServiceTest {
       items.add(invalidItem);
     }
     return items;
+  }
+
+  private ILoggingEvent logFor(LogEvent event) {
+    return appender.list.stream()
+        .filter(candidate -> event.code().equals(keyValues(candidate).get("event")))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
   }
 }

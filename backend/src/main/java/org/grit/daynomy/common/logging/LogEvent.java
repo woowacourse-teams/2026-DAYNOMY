@@ -14,6 +14,7 @@ public enum LogEvent {
   NEWS_GENERATION_STARTED("news.generation.started", "경제 뉴스 예약 생성 시작"),
   NEWS_GENERATION_FAILED("news.generation.failed", "경제 뉴스 예약 생성 실패"),
 
+  PORTFOLIO_CALCULATION_STARTED("portfolio.calculation.started", "포트폴리오 계산 시작"),
   PORTFOLIO_CALCULATION_COMPLETED("portfolio.calculation.completed", "포트폴리오 계산 완료"),
   PORTFOLIO_ANALYSIS_REQUESTED("portfolio.analysis.requested", "포트폴리오 분석 요청"),
   PORTFOLIO_ANALYSIS_COMPLETED("portfolio.analysis.completed", "포트폴리오 분석 완료"),
@@ -29,6 +30,14 @@ public enum LogEvent {
 
   EXTERNAL_UPLOAD_FAILED("external.upload.failed", "외부 이미지 업로드 실패"),
   EXTERNAL_DELETE_FAILED("external.delete.failed", "외부 이미지 삭제 실패"),
+  EXTERNAL_API_REQUESTED("external.api.requested", "외부 API 호출 시작"),
+  EXTERNAL_API_COMPLETED("external.api.completed", "외부 API 호출 완료"),
+  EXTERNAL_API_FAILED("external.api.failed", "외부 API 호출 실패"),
+
+  STOCK_PRICE_SYNC_STARTED("stock-price.sync.started", "종가 동기화 시작"),
+  STOCK_PRICE_SYNC_COMPLETED("stock-price.sync.completed", "종가 동기화 완료"),
+  STOCK_PRICE_SYNC_SKIPPED("stock-price.sync.skipped", "종가 동기화 스킵"),
+  STOCK_PRICE_SYNC_FAILED("stock-price.sync.failed", "종가 동기화 실패"),
 
   AI_NEWS_GENERATION_REQUESTED("ai.news_generation.requested", "OpenAI 뉴스 생성 요청"),
   AI_NEWS_GENERATION_COMPLETED("ai.news_generation.completed", "OpenAI 뉴스 생성 완료"),
