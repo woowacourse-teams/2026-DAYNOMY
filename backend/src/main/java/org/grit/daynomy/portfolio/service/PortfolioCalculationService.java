@@ -9,13 +9,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculateRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
@@ -26,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
+@Slf4j
 @Service
 public class PortfolioCalculationService {
 
@@ -38,33 +42,78 @@ public class PortfolioCalculationService {
   @Transactional(readOnly = true)
   public PortfolioCalculationResponse calculate(PortfolioCalculateRequest request) {
     validateNoDuplicateAssets(request.holdings());
+    long startedAt = System.nanoTime();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.PORTFOLIO_CALCULATION_STARTED.code())
+        .addKeyValue("holdingCount", request.holdings().size())
+        .log(LogEvent.PORTFOLIO_CALCULATION_STARTED.message());
 
     List<CalculatedHolding> calculatedHoldings = new ArrayList<>();
     BigDecimal totalPurchaseAmount = BigDecimal.ZERO;
     BigDecimal totalEvaluationAmount = BigDecimal.ZERO;
+    BigDecimal previousEvaluationAmount = BigDecimal.ZERO;
     LocalDate baseDate = null;
+    Set<LocalDate> currentPriceDates = new HashSet<>();
+    Set<LocalDate> previousPriceDates = new HashSet<>();
+    boolean allHoldingsHavePreviousPrice = true;
 
     for (PortfolioHoldingRequest holding : request.holdings()) {
-      StockDailyPrice price = latestPrice(holding.assetId());
+      List<StockDailyPrice> prices = latestPrices(holding.assetId());
+      StockDailyPrice price = prices.getFirst();
       CalculatedHolding calculated = calculateHolding(holding, price);
       calculatedHoldings.add(calculated);
       totalPurchaseAmount = totalPurchaseAmount.add(calculated.purchaseAmount());
       totalEvaluationAmount = totalEvaluationAmount.add(calculated.evaluationAmount());
       baseDate = earlierDate(baseDate, price.getBaseDate());
+      currentPriceDates.add(price.getBaseDate());
+
+      if (prices.size() < 2 || !prices.get(1).getBaseDate().isBefore(price.getBaseDate())) {
+        allHoldingsHavePreviousPrice = false;
+      } else {
+        StockDailyPrice previousPrice = prices.get(1);
+        previousPriceDates.add(previousPrice.getBaseDate());
+        previousEvaluationAmount =
+            previousEvaluationAmount.add(
+                previousPrice.getClosePrice().multiply(BigDecimal.valueOf(holding.quantity())));
+      }
     }
 
     totalPurchaseAmount = money(totalPurchaseAmount);
     totalEvaluationAmount = money(totalEvaluationAmount);
     BigDecimal totalProfitLoss = money(totalEvaluationAmount.subtract(totalPurchaseAmount));
+    BigDecimal dailyProfitLoss = null;
+    BigDecimal dailyReturnRate = null;
+    boolean canCalculateDailyPerformance =
+        allHoldingsHavePreviousPrice
+            && currentPriceDates.size() == 1
+            && previousPriceDates.size() == 1;
+    if (canCalculateDailyPerformance) {
+      previousEvaluationAmount = money(previousEvaluationAmount);
+      dailyProfitLoss = money(totalEvaluationAmount.subtract(previousEvaluationAmount));
+      dailyReturnRate = percentage(dailyProfitLoss, previousEvaluationAmount);
+    }
 
-    return new PortfolioCalculationResponse(
-        baseDate,
-        totalPurchaseAmount,
-        totalEvaluationAmount,
-        totalProfitLoss,
-        percentage(totalProfitLoss, totalPurchaseAmount),
-        holdingResponses(calculatedHoldings, totalEvaluationAmount),
-        marketAllocations(calculatedHoldings, totalEvaluationAmount));
+    PortfolioCalculationResponse response =
+        new PortfolioCalculationResponse(
+            baseDate,
+            totalPurchaseAmount,
+            totalEvaluationAmount,
+            dailyProfitLoss,
+            dailyReturnRate,
+            totalProfitLoss,
+            percentage(totalProfitLoss, totalPurchaseAmount),
+            holdingResponses(calculatedHoldings, totalEvaluationAmount),
+            marketAllocations(calculatedHoldings, totalEvaluationAmount));
+
+    log.atInfo()
+        .addKeyValue("event", LogEvent.PORTFOLIO_CALCULATION_COMPLETED.code())
+        .addKeyValue("holdingCount", calculatedHoldings.size())
+        .addKeyValue("marketCount", response.marketAllocations().size())
+        .addKeyValue("baseDate", response.baseDate())
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
+        .log(LogEvent.PORTFOLIO_CALCULATION_COMPLETED.message());
+
+    return response;
   }
 
   private void validateNoDuplicateAssets(List<PortfolioHoldingRequest> holdings) {
@@ -76,10 +125,13 @@ public class PortfolioCalculationService {
     }
   }
 
-  private StockDailyPrice latestPrice(Long assetId) {
-    return stockDailyPriceRepository
-        .findFirstByAssetIdOrderByBaseDateDesc(assetId)
-        .orElseThrow(() -> new BusinessException(AssetErrorCode.STOCK_PRICE_NOT_FOUND));
+  private List<StockDailyPrice> latestPrices(Long assetId) {
+    List<StockDailyPrice> prices =
+        stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(assetId);
+    if (prices.isEmpty()) {
+      throw new BusinessException(AssetErrorCode.STOCK_PRICE_NOT_FOUND);
+    }
+    return prices;
   }
 
   private CalculatedHolding calculateHolding(
@@ -154,6 +206,10 @@ public class PortfolioCalculationService {
 
   private LocalDate earlierDate(LocalDate current, LocalDate candidate) {
     return current == null || candidate.isBefore(current) ? candidate : current;
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
   private record CalculatedHolding(

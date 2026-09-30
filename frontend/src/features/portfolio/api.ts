@@ -90,6 +90,10 @@ function hasNumber(value: Record<string, unknown>, key: string) {
   return typeof value[key] === 'number' && Number.isFinite(value[key]);
 }
 
+function hasNullableNumber(value: Record<string, unknown>, key: string) {
+  return value[key] === null || hasNumber(value, key);
+}
+
 function isHoldingResult(value: unknown): value is PortfolioHoldingResult {
   if (!isRecord(value)) return false;
   const record = value;
@@ -123,6 +127,8 @@ function isPortfolioCalculation(value: unknown): value is PortfolioCalculation {
     typeof value.baseDate === 'string' &&
     hasNumber(value, 'totalPurchaseAmount') &&
     hasNumber(value, 'totalEvaluationAmount') &&
+    hasNullableNumber(value, 'dailyProfitLoss') &&
+    hasNullableNumber(value, 'dailyReturnRate') &&
     hasNumber(value, 'totalProfitLoss') &&
     hasNumber(value, 'totalReturnRate') &&
     Array.isArray(value.holdings) &&

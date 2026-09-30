@@ -1,30 +1,52 @@
 package org.grit.daynomy.external.publicdata;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.grit.daynomy.asset.domain.StockMarket;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class PublicDataStockPriceClientTest {
 
   private MockWebServer server;
+  private final Logger logger = (Logger) LoggerFactory.getLogger(PublicDataStockPriceClient.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+  private Level originalLevel;
 
   @BeforeEach
   void setUp() throws Exception {
     server = new MockWebServer();
     server.start();
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
   }
 
   @AfterEach
   void tearDown() throws Exception {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
     server.shutdown();
   }
 
@@ -64,6 +86,57 @@ class PublicDataStockPriceClientTest {
     assertThat(request.getRequestUrl().queryParameter("pageNo")).isEqualTo("2");
     assertThat(request.getRequestUrl().queryParameter("numOfRows")).isEqualTo("1000");
     assertThat(request.getRequestUrl().queryParameter("resultType")).isEqualTo("json");
+
+    assertThat(appender.list).hasSize(2);
+    ILoggingEvent completedLog = appender.list.get(1);
+    assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
+    assertThat(completedLog.getFormattedMessage())
+        .isEqualTo(LogEvent.EXTERNAL_API_COMPLETED.message());
+    assertThat(keyValues(completedLog))
+        .containsEntry("event", LogEvent.EXTERNAL_API_COMPLETED.code())
+        .containsEntry("api", "PUBLIC_DATA_STOCK_PRICE")
+        .containsEntry("operation", "getStockPrices")
+        .containsEntry("market", StockMarket.KOSPI)
+        .containsEntry("baseDate", LocalDate.of(2026, 9, 18))
+        .containsEntry("pageNo", 2)
+        .containsEntry("responseCount", 1)
+        .containsEntry("responseStatus", "00")
+        .containsKey("durationMs");
+  }
+
+  @Test
+  @DisplayName("주식 시세 API 실패를 응답 본문 없이 구조화 로그로 기록한다")
+  void logsHttpFailureWithoutResponseBody() {
+    server.enqueue(new MockResponse().setResponseCode(500).setBody("secret-response-body"));
+    PublicDataStockPriceClient client =
+        new PublicDataStockPriceClient(
+            new PublicDataProperties(
+                "service-key",
+                server.url("/stock-prices").toString(),
+                "https://example.com/etf-prices",
+                "https://example.com/listed-stocks",
+                null,
+                null));
+
+    assertThatThrownBy(
+            () -> client.getStockPrices(LocalDate.of(2026, 9, 18), StockMarket.KOSPI, 1, 1000))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED);
+
+    assertThat(appender.list).hasSize(2);
+    ILoggingEvent failedLog = appender.list.get(1);
+    assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(failedLog.getFormattedMessage())
+        .isEqualTo(LogEvent.EXTERNAL_API_FAILED.message())
+        .doesNotContain("secret-response-body");
+    assertThat(keyValues(failedLog))
+        .containsEntry("event", LogEvent.EXTERNAL_API_FAILED.code())
+        .containsEntry("api", "PUBLIC_DATA_STOCK_PRICE")
+        .containsEntry("responseStatus", "500")
+        .containsEntry("errorCode", ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED.code())
+        .containsKey("durationMs")
+        .doesNotContainKeys("serviceKey", "responseBody");
   }
 
   @Test
@@ -130,5 +203,11 @@ class PublicDataStockPriceClientTest {
           }
         }
         """;
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
   }
 }

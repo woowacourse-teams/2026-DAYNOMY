@@ -8,13 +8,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
+@Slf4j
 @Component
 public class OpenAiKeywordClient implements KeywordAiClient {
 
@@ -56,17 +62,64 @@ public class OpenAiKeywordClient implements KeywordAiClient {
       throw new IllegalStateException("OPENAI_API_KEY is required to extract news keywords.");
     }
 
-    String response =
-        restClient
-            .post()
-            .uri("/responses")
-            .contentType(MediaType.APPLICATION_JSON)
-            .headers(headers -> headers.setBearerAuth(apiKey))
-            .body(createRequest(newsContent))
-            .retrieve()
-            .body(String.class);
+    long startedAt = System.nanoTime();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.KEYWORD_EXTRACTION_REQUESTED.code())
+        .addKeyValue("api", "OpenAI")
+        .addKeyValue("operation", "keyword-extraction")
+        .log(LogEvent.KEYWORD_EXTRACTION_REQUESTED.message());
 
-    return parseKeywords(response, newsContent);
+    try {
+      String response =
+          restClient
+              .post()
+              .uri("/responses")
+              .contentType(MediaType.APPLICATION_JSON)
+              .headers(headers -> headers.setBearerAuth(apiKey))
+              .body(createRequest(newsContent))
+              .retrieve()
+              .body(String.class);
+
+      List<NewsKeyword> keywords = parseKeywords(response, newsContent);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.KEYWORD_EXTRACTION_COMPLETED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "keyword-extraction")
+          .addKeyValue("keywordCount", keywords.size())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.KEYWORD_EXTRACTION_COMPLETED.message());
+      return keywords;
+    } catch (HttpStatusCodeException exception) {
+      log.atWarn()
+          .addKeyValue("event", LogEvent.KEYWORD_EXTRACTION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "keyword-extraction")
+          .addKeyValue("httpStatus", exception.getStatusCode().value())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("errorType", exception.getClass().getSimpleName())
+          .log(LogEvent.KEYWORD_EXTRACTION_FAILED.message());
+      throw exception;
+    } catch (RestClientException exception) {
+      logKeywordExtractionFailure(startedAt, exception.getClass().getSimpleName());
+      throw exception;
+    } catch (IllegalStateException | IllegalArgumentException exception) {
+      logKeywordExtractionFailure(startedAt, "InvalidAiResponse");
+      throw exception;
+    }
+  }
+
+  private void logKeywordExtractionFailure(long startedAt, String errorType) {
+    log.atWarn()
+        .addKeyValue("event", LogEvent.KEYWORD_EXTRACTION_FAILED.code())
+        .addKeyValue("api", "OpenAI")
+        .addKeyValue("operation", "keyword-extraction")
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
+        .addKeyValue("errorType", errorType)
+        .log(LogEvent.KEYWORD_EXTRACTION_FAILED.message());
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
   private Map<String, Object> createRequest(String newsContent) {

@@ -37,6 +37,8 @@ const calculation = {
   baseDate: '2026-09-21',
   totalPurchaseAmount: 700000,
   totalEvaluationAmount: 750000,
+  dailyProfitLoss: 10000,
+  dailyReturnRate: 1.35,
   totalProfitLoss: 50000,
   totalReturnRate: 7.142857,
   holdings: [
@@ -118,11 +120,85 @@ describe('포트폴리오 화면', () => {
     expect(averagePriceInput.value).toBe('70,000');
     fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
 
-    expect(await view.findByText('750,000')).toBeTruthy();
-    expect(view.getByRole('img', { name: '종목별 수익률' })).toBeTruthy();
-    expect(view.getByRole('heading', { name: '시장 구성' })).toBeTruthy();
+    expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
+    expect(view.getByText('+10,000원')).toBeTruthy();
+    expect(view.getByRole('img', { name: '주식 100.00%, ETF 0.00%' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '포트폴리오 요약' })).toBeTruthy();
     expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('005930');
+  });
+
+  it('민감한 금액을 한 번에 숨기고 다시 표시한다', async () => {
+    localStorage.setItem(
+      PORTFOLIO_STORAGE_KEY,
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+    const view = render(<PortfolioPage />);
+
+    await view.findAllByText('750,000원');
+    fireEvent.click(view.getByRole('button', { name: '금액 숨기기' }));
+
+    expect(view.queryByText('750,000원')).toBeNull();
+    expect(view.getAllByText('••••••원').length).toBeGreaterThan(2);
+    fireEvent.click(view.getByRole('button', { name: '금액 보기' }));
+    expect(view.getAllByText('750,000원').length).toBeGreaterThan(0);
+  });
+
+  it('보유 자산을 유형으로 필터링하고 선택한 기준으로 정렬한다', async () => {
+    localStorage.setItem(
+      PORTFOLIO_STORAGE_KEY,
+      JSON.stringify([
+        { ...stock, quantity: 10, averagePurchasePrice: 70000 },
+        { ...etf, quantity: 30, averagePurchasePrice: 30000 },
+      ]),
+    );
+    const mixedCalculation = {
+      ...calculation,
+      totalPurchaseAmount: 1600000,
+      totalEvaluationAmount: 1650000,
+      holdings: [
+        calculation.holdings[0],
+        {
+          ...etf,
+          baseDate: '2026-09-21',
+          quantity: 30,
+          averagePurchasePrice: 30000,
+          closePrice: 30000,
+          purchaseAmount: 900000,
+          evaluationAmount: 900000,
+          profitLoss: 0,
+          returnRate: 0,
+          weight: 54.55,
+        },
+      ],
+      marketAllocations: [{ market: 'KOSPI', evaluationAmount: 1650000, weight: 100 }],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+        }
+        if (url.endsWith('/api/portfolio/calculate')) return jsonResponse(mixedCalculation);
+        return jsonResponse({}, 404);
+      }),
+    );
+    const view = render(<PortfolioPage />);
+    const table = await view.findByRole('region', { name: /보유 자산 표/ });
+
+    fireEvent.change(view.getByRole('combobox', { name: '보유 자산 정렬' }), {
+      target: { value: 'EVALUATION' },
+    });
+    let rows = within(table).getAllByRole('row');
+    expect(within(rows[1]).getByText('KODEX 200')).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: '주식' }));
+    rows = within(table).getAllByRole('row');
+    expect(within(rows[1]).getByText('삼성전자')).toBeTruthy();
+    expect(within(table).queryByText('KODEX 200')).toBeNull();
   });
 
   it('종목을 다시 선택하면 이전 종목의 늦은 종가 응답을 무시한다', async () => {
@@ -234,7 +310,7 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(within(dialog).getByLabelText('보유수량'), { target: { value: '3' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
 
-    expect(await view.findByText('KODEX 200')).toBeTruthy();
+    expect((await view.findAllByText('KODEX 200')).length).toBeGreaterThan(0);
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('"category":"ETF"');
   });
 
@@ -331,7 +407,7 @@ describe('포트폴리오 화면', () => {
     mockPortfolioApi();
     const view = render(<PortfolioPage />);
 
-    expect(await view.findByText('750,000')).toBeTruthy();
+    expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
     fireEvent.click(view.getByRole('button', { name: '삭제' }));
     await waitFor(() =>
       expect(view.getByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeTruthy(),

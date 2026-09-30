@@ -4,6 +4,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.config.properties.S3Properties;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.springframework.stereotype.Component;
@@ -48,7 +49,12 @@ public class S3ImageStorage {
               .build(),
           RequestBody.fromBytes(content));
     } catch (S3Exception | SdkClientException exception) {
-      log.warn("S3 image upload failed: relativeKey={}", relativeKey, exception);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.EXTERNAL_UPLOAD_FAILED.code())
+          .addKeyValue("provider", "s3")
+          .addKeyValue("relativeKey", relativeKey)
+          .setCause(exception)
+          .log(LogEvent.EXTERNAL_UPLOAD_FAILED.message());
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
     }
   }
@@ -85,7 +91,12 @@ public class S3ImageStorage {
       s3Client.deleteObject(
           DeleteObjectRequest.builder().bucket(bucket()).key(fullObjectKey(relativeKey)).build());
     } catch (S3Exception | SdkClientException exception) {
-      log.warn("S3 image deletion failed: relativeKey={}", relativeKey, exception);
+      log.atWarn()
+          .addKeyValue("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
+          .addKeyValue("provider", "s3")
+          .addKeyValue("relativeKey", relativeKey)
+          .setCause(exception)
+          .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
     }
   }
