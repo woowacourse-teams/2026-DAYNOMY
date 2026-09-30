@@ -10,12 +10,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculateRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
@@ -26,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
+@Slf4j
 @Service
 public class PortfolioCalculationService {
 
@@ -84,16 +87,25 @@ public class PortfolioCalculationService {
       dailyReturnRate = percentage(dailyProfitLoss, previousEvaluationAmount);
     }
 
-    return new PortfolioCalculationResponse(
-        baseDate,
-        totalPurchaseAmount,
-        totalEvaluationAmount,
-        dailyProfitLoss,
-        dailyReturnRate,
-        totalProfitLoss,
-        percentage(totalProfitLoss, totalPurchaseAmount),
-        holdingResponses(calculatedHoldings, totalEvaluationAmount),
-        marketAllocations(calculatedHoldings, totalEvaluationAmount));
+    PortfolioCalculationResponse response =
+        new PortfolioCalculationResponse(
+            baseDate,
+            totalPurchaseAmount,
+            totalEvaluationAmount,
+            dailyProfitLoss,
+            dailyReturnRate,
+            totalProfitLoss,
+            percentage(totalProfitLoss, totalPurchaseAmount),
+            holdingResponses(calculatedHoldings, totalEvaluationAmount),
+            marketAllocations(calculatedHoldings, totalEvaluationAmount));
+
+    log.atInfo()
+        .addKeyValue("event", LogEvent.PORTFOLIO_CALCULATION_COMPLETED.code())
+        .addKeyValue("holdingCount", request.holdings().size())
+        .addKeyValue("marketCount", response.marketAllocations().size())
+        .log(LogEvent.PORTFOLIO_CALCULATION_COMPLETED.message());
+
+    return response;
   }
 
   private void validateNoDuplicateAssets(List<PortfolioHoldingRequest> holdings) {

@@ -12,8 +12,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -83,6 +85,14 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       throw analysisFailed();
     }
 
+    long startedAt = System.nanoTime();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_REQUESTED.code())
+        .addKeyValue("api", "OpenAI")
+        .addKeyValue("operation", "portfolio-analysis")
+        .addKeyValue("targetCount", targets.size())
+        .log(LogEvent.PORTFOLIO_ANALYSIS_REQUESTED.message());
+
     try {
       String response =
           restClient
@@ -94,21 +104,52 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               .retrieve()
               .body(String.class);
 
-      return parseAnalysis(response, targets, newsContent);
+      PortfolioAnalysisResult result = parseAnalysis(response, targets, newsContent);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_COMPLETED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "portfolio-analysis")
+          .addKeyValue("targetCount", targets.size())
+          .addKeyValue("analyzedCount", result.impacts().size())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.PORTFOLIO_ANALYSIS_COMPLETED.message());
+      return result;
     } catch (HttpStatusCodeException exception) {
-      log.warn(
-          "OpenAI portfolio analysis request failed: status={}, body={}, targetCount={}",
-          exception.getStatusCode(),
-          exception.getResponseBodyAsString(),
-          targets.size());
+      log.atWarn()
+          .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "portfolio-analysis")
+          .addKeyValue("httpStatus", exception.getStatusCode().value())
+          .addKeyValue("targetCount", targets.size())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("errorType", exception.getClass().getSimpleName())
+          .log(LogEvent.PORTFOLIO_ANALYSIS_FAILED.message());
       throw analysisFailed();
     } catch (RestClientException exception) {
-      log.warn(
-          "OpenAI portfolio analysis request failed: message={}, targetCount={}",
-          exception.getMessage(),
-          targets.size());
+      log.atWarn()
+          .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "portfolio-analysis")
+          .addKeyValue("targetCount", targets.size())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("errorType", exception.getClass().getSimpleName())
+          .log(LogEvent.PORTFOLIO_ANALYSIS_FAILED.message());
       throw analysisFailed();
+    } catch (BusinessException exception) {
+      log.atWarn()
+          .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "portfolio-analysis")
+          .addKeyValue("targetCount", targets.size())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("errorType", "InvalidAiResponse")
+          .log(LogEvent.PORTFOLIO_ANALYSIS_FAILED.message());
+      throw exception;
     }
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
   private Map<String, Object> createRequest(
