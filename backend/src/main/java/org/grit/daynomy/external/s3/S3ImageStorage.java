@@ -53,6 +53,7 @@ public class S3ImageStorage {
           .addKeyValue("event", LogEvent.EXTERNAL_UPLOAD_FAILED.code())
           .addKeyValue("provider", "s3")
           .addKeyValue("relativeKey", relativeKey)
+          .setCause(exception)
           .log(LogEvent.EXTERNAL_UPLOAD_FAILED.message());
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
     }
@@ -94,6 +95,7 @@ public class S3ImageStorage {
           .addKeyValue("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
           .addKeyValue("provider", "s3")
           .addKeyValue("relativeKey", relativeKey)
+          .setCause(exception)
           .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
     }
