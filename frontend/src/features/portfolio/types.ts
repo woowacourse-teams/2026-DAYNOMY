@@ -42,6 +42,8 @@ export type PortfolioCalculation = {
   baseDate: string;
   totalPurchaseAmount: number;
   totalEvaluationAmount: number;
+  dailyProfitLoss: number | null;
+  dailyReturnRate: number | null;
   totalProfitLoss: number;
   totalReturnRate: number;
   holdings: PortfolioHoldingResult[];
