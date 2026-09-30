@@ -3,17 +3,23 @@ package org.grit.daynomy.portfolio.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -21,18 +27,27 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 class OpenAiPortfolioAnalysisClientTest {
 
   private final ObjectMapper objectMapper = new ObjectMapper();
+  private final Logger logger =
+      (Logger) LoggerFactory.getLogger(OpenAiPortfolioAnalysisClient.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
   private MockWebServer server;
   private OpenAiPortfolioAnalysisClient client;
+  private Level originalLevel;
 
   @BeforeEach
   void setUp() throws IOException {
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
     server = new MockWebServer();
     server.start();
     client =
@@ -43,6 +58,9 @@ class OpenAiPortfolioAnalysisClientTest {
   @AfterEach
   void tearDown() throws IOException {
     server.shutdown();
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
   }
 
   @Test
@@ -85,6 +103,18 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(result.impacts().getFirst().impactLevel()).isEqualTo(ImpactLevel.HIGH);
     assertThat(result.impacts().getFirst().evidenceSentence())
         .isEqualTo("SK하이닉스의 수요와 비용이 모두 증가했습니다.");
+
+    ILoggingEvent completedLog = appender.list.getLast();
+    assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
+    assertThat(completedLog.getFormattedMessage())
+        .isEqualTo(LogEvent.PORTFOLIO_ANALYSIS_COMPLETED.message());
+    assertThat(keyValues(completedLog))
+        .containsEntry("event", "portfolio.analysis.completed")
+        .containsEntry("api", "OpenAI")
+        .containsEntry("operation", "portfolio-analysis")
+        .containsEntry("targetCount", 2)
+        .containsEntry("analyzedCount", 2)
+        .containsKey("durationMs");
 
     RecordedRequest request = server.takeRequest();
     assertThat(request.getPath()).isEqualTo("/responses");
@@ -230,13 +260,29 @@ class OpenAiPortfolioAnalysisClientTest {
   @Test
   @DisplayName("OpenAI가 HTTP 오류를 반환하면 분석 실패로 처리한다")
   void analyzeHandlesHttpError() {
+    String responseBody = "{\"error\":\"sensitive-response\"}";
     server.enqueue(
         new MockResponse()
             .setResponseCode(500)
             .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
-            .setBody("{\"error\":\"failed\"}"));
+            .setBody(responseBody));
 
     assertAnalysisFailed(() -> client.analyze("뉴스 본문", targets()));
+
+    ILoggingEvent failedLog = appender.list.getLast();
+    assertThat(failedLog.getLevel()).isEqualTo(Level.WARN);
+    assertThat(failedLog.getFormattedMessage())
+        .isEqualTo(LogEvent.PORTFOLIO_ANALYSIS_FAILED.message())
+        .doesNotContain(responseBody)
+        .doesNotContain("sensitive-response");
+    assertThat(keyValues(failedLog))
+        .containsEntry("event", "portfolio.analysis.failed")
+        .containsEntry("api", "OpenAI")
+        .containsEntry("operation", "portfolio-analysis")
+        .containsEntry("httpStatus", 500)
+        .containsEntry("targetCount", 2)
+        .containsKey("durationMs")
+        .containsKey("errorType");
   }
 
   private List<PortfolioAnalysisTarget> targets() {
@@ -263,5 +309,10 @@ class OpenAiPortfolioAnalysisClientTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    return loggingEvent.getKeyValuePairs().stream()
+        .collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
   }
 }

@@ -5,12 +5,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
+@Slf4j
 @Component
 public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
 
@@ -43,17 +49,63 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       throw new IllegalStateException("OPENAI_API_KEY is required to analyze news market impact.");
     }
 
-    String response =
-        restClient
-            .post()
-            .uri("/responses")
-            .contentType(MediaType.APPLICATION_JSON)
-            .headers(headers -> headers.setBearerAuth(apiKey))
-            .body(createRequest(newsContent))
-            .retrieve()
-            .body(String.class);
+    long startedAt = System.nanoTime();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.MARKET_ANALYSIS_REQUESTED.code())
+        .addKeyValue("api", "OpenAI")
+        .addKeyValue("operation", "market-analysis")
+        .log(LogEvent.MARKET_ANALYSIS_REQUESTED.message());
 
-    return parseMarketAnalysis(response);
+    try {
+      String response =
+          restClient
+              .post()
+              .uri("/responses")
+              .contentType(MediaType.APPLICATION_JSON)
+              .headers(headers -> headers.setBearerAuth(apiKey))
+              .body(createRequest(newsContent))
+              .retrieve()
+              .body(String.class);
+
+      NewsMarketAnalysis result = parseMarketAnalysis(response);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.MARKET_ANALYSIS_COMPLETED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "market-analysis")
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.MARKET_ANALYSIS_COMPLETED.message());
+      return result;
+    } catch (HttpStatusCodeException exception) {
+      log.atWarn()
+          .addKeyValue("event", LogEvent.MARKET_ANALYSIS_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "market-analysis")
+          .addKeyValue("httpStatus", exception.getStatusCode().value())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("errorType", exception.getClass().getSimpleName())
+          .log(LogEvent.MARKET_ANALYSIS_FAILED.message());
+      throw exception;
+    } catch (RestClientException exception) {
+      logMarketAnalysisFailure(startedAt, exception.getClass().getSimpleName());
+      throw exception;
+    } catch (IllegalStateException | IllegalArgumentException exception) {
+      logMarketAnalysisFailure(startedAt, "InvalidAiResponse");
+      throw exception;
+    }
+  }
+
+  private void logMarketAnalysisFailure(long startedAt, String errorType) {
+    log.atWarn()
+        .addKeyValue("event", LogEvent.MARKET_ANALYSIS_FAILED.code())
+        .addKeyValue("api", "OpenAI")
+        .addKeyValue("operation", "market-analysis")
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
+        .addKeyValue("errorType", errorType)
+        .log(LogEvent.MARKET_ANALYSIS_FAILED.message());
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
   private Map<String, Object> createRequest(String newsContent) {

@@ -6,9 +6,15 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
@@ -16,21 +22,45 @@ import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculateRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioCalculationServiceTest {
 
   @Mock private StockDailyPriceRepository stockDailyPriceRepository;
   @InjectMocks private PortfolioCalculationService calculationService;
+
+  private final Logger logger = (Logger) LoggerFactory.getLogger(PortfolioCalculationService.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+  private Level originalLevel;
+
+  @BeforeEach
+  void setUpLogging() {
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
+  }
+
+  @AfterEach
+  void tearDownLogging() {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
+  }
 
   @Test
   @DisplayName("주식과 ETF의 최근 종가로 혼합 포트폴리오 손익과 비중을 계산한다")
@@ -75,6 +105,25 @@ class PortfolioCalculationServiceTest {
         .extracting(allocation -> allocation.market(), allocation -> allocation.weight())
         .containsExactly(
             org.assertj.core.groups.Tuple.tuple(StockMarket.KOSPI, new BigDecimal("100.00")));
+
+    assertThat(appender.list).hasSize(2);
+    ILoggingEvent completedLog = appender.list.get(1);
+    assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
+    assertThat(completedLog.getFormattedMessage())
+        .isEqualTo(LogEvent.PORTFOLIO_CALCULATION_COMPLETED.message());
+    assertThat(keyValues(completedLog))
+        .containsEntry("event", LogEvent.PORTFOLIO_CALCULATION_COMPLETED.code())
+        .containsEntry("holdingCount", 2)
+        .containsEntry("marketCount", 1)
+        .containsEntry("baseDate", LocalDate.of(2026, 9, 17))
+        .containsKey("durationMs")
+        .doesNotContainKeys(
+            "assetId",
+            "quantity",
+            "averagePurchasePrice",
+            "totalPurchaseAmount",
+            "totalEvaluationAmount",
+            "totalProfitLoss");
   }
 
   @Test
@@ -135,5 +184,11 @@ class PortfolioCalculationServiceTest {
     given(asset.getCategory()).willReturn(category);
     given(asset.getMarket()).willReturn(market);
     return asset;
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
   }
 }
