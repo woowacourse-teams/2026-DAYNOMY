@@ -63,11 +63,13 @@ public class AdminNewsService {
               request.category());
 
       News savedNews = newsRepository.save(news);
-      log.atInfo()
-          .addKeyValue("event", LogEvent.NEWS_DRAFT_CREATED.code())
-          .addKeyValue("newsId", savedNews.getId())
-          .addKeyValue("category", savedNews.getCategory())
-          .log(LogEvent.NEWS_DRAFT_CREATED.message());
+      registerAfterCommit(
+          () ->
+              log.atInfo()
+                  .addKeyValue("event", LogEvent.NEWS_DRAFT_CREATED.code())
+                  .addKeyValue("newsId", savedNews.getId())
+                  .addKeyValue("category", savedNews.getCategory())
+                  .log(LogEvent.NEWS_DRAFT_CREATED.message()));
       return savedNews;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
@@ -119,10 +121,12 @@ public class AdminNewsService {
       news.updateImage(uploadedImage.publicUrl());
       newsRepository.flush();
       registerImageCleanup(previousImageUrl, uploadedImage);
-      log.atInfo()
-          .addKeyValue("event", LogEvent.NEWS_IMAGE_GENERATED.code())
-          .addKeyValue("newsId", news.getId())
-          .log(LogEvent.NEWS_IMAGE_GENERATED.message());
+      registerAfterCommit(
+          () ->
+              log.atInfo()
+                  .addKeyValue("event", LogEvent.NEWS_IMAGE_GENERATED.code())
+                  .addKeyValue("newsId", news.getId())
+                  .log(LogEvent.NEWS_IMAGE_GENERATED.message()));
       return news;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
@@ -151,10 +155,12 @@ public class AdminNewsService {
       throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
     }
     news.publish();
-    log.atInfo()
-        .addKeyValue("event", LogEvent.NEWS_PUBLISH_COMPLETED.code())
-        .addKeyValue("newsId", news.getId())
-        .log(LogEvent.NEWS_PUBLISH_COMPLETED.message());
+    registerAfterCommit(
+        () ->
+            log.atInfo()
+                .addKeyValue("event", LogEvent.NEWS_PUBLISH_COMPLETED.code())
+                .addKeyValue("newsId", news.getId())
+                .log(LogEvent.NEWS_PUBLISH_COMPLETED.message()));
     return news;
   }
 
@@ -166,10 +172,12 @@ public class AdminNewsService {
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
 
     news.reject();
-    log.atInfo()
-        .addKeyValue("event", LogEvent.NEWS_REJECT_COMPLETED.code())
-        .addKeyValue("newsId", news.getId())
-        .log(LogEvent.NEWS_REJECT_COMPLETED.message());
+    registerAfterCommit(
+        () ->
+            log.atInfo()
+                .addKeyValue("event", LogEvent.NEWS_REJECT_COMPLETED.code())
+                .addKeyValue("newsId", news.getId())
+                .log(LogEvent.NEWS_REJECT_COMPLETED.message()));
     return news;
   }
 
@@ -201,11 +209,13 @@ public class AdminNewsService {
         newsRepository.flush();
         registerImageCleanup(previousImageUrl, uploadedImage);
       }
-      log.atInfo()
-          .addKeyValue("event", LogEvent.NEWS_UPDATE_COMPLETED.code())
-          .addKeyValue("newsId", news.getId())
-          .addKeyValue("analysisRegenerated", shouldRegenerateAnalysis)
-          .log(LogEvent.NEWS_UPDATE_COMPLETED.message());
+      registerAfterCommit(
+          () ->
+              log.atInfo()
+                  .addKeyValue("event", LogEvent.NEWS_UPDATE_COMPLETED.code())
+                  .addKeyValue("newsId", news.getId())
+                  .addKeyValue("analysisRegenerated", shouldRegenerateAnalysis)
+                  .log(LogEvent.NEWS_UPDATE_COMPLETED.message()));
       return news;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
@@ -221,10 +231,12 @@ public class AdminNewsService {
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
     news.delete();
     s3ImageStorage.deleteIfManaged(news.getImageUrl());
-    log.atInfo()
-        .addKeyValue("event", LogEvent.NEWS_DELETE_COMPLETED.code())
-        .addKeyValue("newsId", news.getId())
-        .log(LogEvent.NEWS_DELETE_COMPLETED.message());
+    registerAfterCommit(
+        () ->
+            log.atInfo()
+                .addKeyValue("event", LogEvent.NEWS_DELETE_COMPLETED.code())
+                .addKeyValue("newsId", news.getId())
+                .log(LogEvent.NEWS_DELETE_COMPLETED.message()));
   }
 
   private S3ImageStorage.StoredImage uploadImage(MultipartFile image) {
@@ -289,6 +301,16 @@ public class AdminNewsService {
             if (status == STATUS_ROLLED_BACK) {
               deleteUploadedImage(uploadedImage);
             }
+          }
+        });
+  }
+
+  private void registerAfterCommit(Runnable action) {
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            action.run();
           }
         });
   }

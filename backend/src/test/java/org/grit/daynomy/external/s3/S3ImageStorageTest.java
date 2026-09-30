@@ -6,14 +6,23 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import java.util.HashMap;
+import java.util.Map;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.config.properties.S3Properties;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -29,6 +38,10 @@ class S3ImageStorageTest {
   @Mock private S3Client s3Client;
 
   private S3ImageStorage storage;
+  private final Logger logger = (Logger) LoggerFactory.getLogger(S3ImageStorage.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+  private Level originalLevel;
 
   @BeforeEach
   void setUp() {
@@ -37,6 +50,17 @@ class S3ImageStorageTest {
             s3Client,
             new S3Properties(
                 REGION, BUCKET, "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy"));
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
+  }
+
+  @AfterEach
+  void tearDown() {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
   }
 
   @Test
@@ -128,5 +152,43 @@ class S3ImageStorageTest {
 
     assertThatThrownBy(() -> storage.upload(new byte[] {1}, "webp", "image/webp"))
         .isInstanceOf(BusinessException.class);
+
+    ILoggingEvent log = appender.list.getFirst();
+    assertThat(log.getLevel()).isEqualTo(Level.WARN);
+    assertThat(log.getFormattedMessage()).isEqualTo(LogEvent.EXTERNAL_UPLOAD_FAILED.message());
+    assertThat(keyValues(log))
+        .containsEntry("event", LogEvent.EXTERNAL_UPLOAD_FAILED.code())
+        .containsEntry("provider", "s3")
+        .containsKey("relativeKey");
+    assertThat(keyValues(log).get("relativeKey").toString()).endsWith(".webp");
+    assertThat(log.getThrowableProxy()).isNotNull();
+  }
+
+  @Test
+  void deleteConvertsS3FailureToBusinessExceptionAndLogsStructuredFailure() {
+    given(s3Client.deleteObject(any(DeleteObjectRequest.class)))
+        .willThrow(S3Exception.builder().message("access denied").build());
+
+    assertThatThrownBy(
+            () ->
+                storage.delete(
+                    new S3ImageStorage.StoredImage(
+                        "news-image.webp", "https://cdn.example.com/news-image.webp")))
+        .isInstanceOf(BusinessException.class);
+
+    ILoggingEvent log = appender.list.getFirst();
+    assertThat(log.getLevel()).isEqualTo(Level.WARN);
+    assertThat(log.getFormattedMessage()).isEqualTo(LogEvent.EXTERNAL_DELETE_FAILED.message());
+    assertThat(keyValues(log))
+        .containsEntry("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
+        .containsEntry("provider", "s3")
+        .containsEntry("relativeKey", "news-image.webp");
+    assertThat(log.getThrowableProxy()).isNotNull();
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
   }
 }
