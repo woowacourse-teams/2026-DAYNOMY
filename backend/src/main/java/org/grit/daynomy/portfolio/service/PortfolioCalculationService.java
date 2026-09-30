@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
@@ -41,6 +42,11 @@ public class PortfolioCalculationService {
   @Transactional(readOnly = true)
   public PortfolioCalculationResponse calculate(PortfolioCalculateRequest request) {
     validateNoDuplicateAssets(request.holdings());
+    long startedAt = System.nanoTime();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.PORTFOLIO_CALCULATION_STARTED.code())
+        .addKeyValue("holdingCount", request.holdings().size())
+        .log(LogEvent.PORTFOLIO_CALCULATION_STARTED.message());
 
     List<CalculatedHolding> calculatedHoldings = new ArrayList<>();
     BigDecimal totalPurchaseAmount = BigDecimal.ZERO;
@@ -101,8 +107,10 @@ public class PortfolioCalculationService {
 
     log.atInfo()
         .addKeyValue("event", LogEvent.PORTFOLIO_CALCULATION_COMPLETED.code())
-        .addKeyValue("holdingCount", request.holdings().size())
+        .addKeyValue("holdingCount", calculatedHoldings.size())
         .addKeyValue("marketCount", response.marketAllocations().size())
+        .addKeyValue("baseDate", response.baseDate())
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
         .log(LogEvent.PORTFOLIO_CALCULATION_COMPLETED.message());
 
     return response;
@@ -198,6 +206,10 @@ public class PortfolioCalculationService {
 
   private LocalDate earlierDate(LocalDate current, LocalDate candidate) {
     return current == null || candidate.isBefore(current) ? candidate : current;
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
   private record CalculatedHolding(

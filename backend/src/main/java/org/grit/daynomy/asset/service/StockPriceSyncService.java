@@ -10,12 +10,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.publicdata.PublicDataEtfPriceClient;
 import org.grit.daynomy.external.publicdata.PublicDataStockPriceClient;
 import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceItem;
@@ -24,6 +27,7 @@ import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class StockPriceSyncService {
 
@@ -53,12 +57,49 @@ public class StockPriceSyncService {
 
   StockPriceSyncResult synchronize(LocalDate today) {
     if (!running.compareAndSet(false, true)) {
+      log.atWarn()
+          .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_SKIPPED.code())
+          .addKeyValue("reasonCode", AssetErrorCode.STOCK_PRICE_SYNC_ALREADY_RUNNING.code())
+          .log(LogEvent.STOCK_PRICE_SYNC_SKIPPED.message());
       throw new BusinessException(AssetErrorCode.STOCK_PRICE_SYNC_ALREADY_RUNNING);
     }
 
+    long startedAt = System.nanoTime();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_STARTED.code())
+        .addKeyValue("requestedDate", today)
+        .log(LogEvent.STOCK_PRICE_SYNC_STARTED.message());
+
     try {
       StockPriceSnapshot snapshot = findLatestSnapshot(today);
-      return persistenceService.synchronize(snapshot.baseDate(), snapshot.entries());
+      StockPriceSyncResult result =
+          persistenceService.synchronize(snapshot.baseDate(), snapshot.entries());
+      log.atInfo()
+          .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_COMPLETED.code())
+          .addKeyValue("baseDate", result.baseDate())
+          .addKeyValue("receivedCount", result.receivedCount())
+          .addKeyValue("createdCount", result.createdCount())
+          .addKeyValue("updatedCount", result.updatedCount())
+          .addKeyValue("skippedCount", result.skippedCount())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.STOCK_PRICE_SYNC_COMPLETED.message());
+      return result;
+    } catch (BusinessException exception) {
+      if (exception.errorCode() == AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND) {
+        log.atError()
+            .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_FAILED.code())
+            .addKeyValue("errorCode", exception.errorCode().code())
+            .addKeyValue("durationMs", elapsedMillis(startedAt))
+            .log(LogEvent.STOCK_PRICE_SYNC_FAILED.message());
+      }
+      throw exception;
+    } catch (RuntimeException exception) {
+      log.atError()
+          .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_FAILED.code())
+          .addKeyValue("exception", exception.getClass().getSimpleName())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.STOCK_PRICE_SYNC_FAILED.message());
+      throw exception;
     } finally {
       running.set(false);
     }
@@ -206,6 +247,10 @@ public class StockPriceSyncService {
 
   private boolean isBlank(String value) {
     return value == null || value.isBlank();
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
   private record StockPriceSnapshot(LocalDate baseDate, List<StockPriceEntry> entries) {}
