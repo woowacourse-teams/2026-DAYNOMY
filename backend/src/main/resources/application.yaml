@@ -36,6 +36,18 @@ spring:
       hibernate:
         format_sql: true
 
+management:
+  server:
+    address: 127.0.0.1
+    port: ${MANAGEMENT_SERVER_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
 app:
   cors:
     allowed-origin: ${FRONTEND_BASE_URL:http://localhost:5173}
