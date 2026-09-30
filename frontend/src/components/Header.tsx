@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { trackEvent } from '../analytics';
 import { SearchOverlay } from '../features/search/components/SearchOverlay';
 import './Header.css';
 
@@ -64,7 +65,10 @@ export function Header() {
           aria-label="검색 열기"
           aria-haspopup="dialog"
           aria-expanded={searchOpen}
-          onClick={() => setSearchOpen(true)}
+          onClick={() => {
+            trackEvent('click_search_open');
+            setSearchOpen(true);
+          }}
         >
           <SearchIcon />
           <kbd className="search-key">/</kbd>
