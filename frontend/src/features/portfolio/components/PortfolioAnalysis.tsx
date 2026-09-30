@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { trackEvent } from '../../../analytics';
 import {
   createPortfolioSnapshotKey,
   getPortfolioAnalysis,
@@ -457,6 +458,7 @@ export function PortfolioAnalysis({
     const snapshot =
       retry && analyzedAssets ? analyzedAssets : assets.map((asset) => ({ ...asset }));
     if (snapshot.length === 0 || loading) return;
+    trackEvent('start_portfolio_analysis');
     const shouldRefresh = retry || shouldRefreshRef.current || analyzedAssets !== null;
 
     const requestId = requestIdRef.current + 1;
