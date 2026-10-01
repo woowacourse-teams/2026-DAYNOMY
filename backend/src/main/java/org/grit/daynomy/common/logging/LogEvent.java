@@ -19,6 +19,7 @@ public enum LogEvent {
   PORTFOLIO_ANALYSIS_REQUESTED("portfolio.analysis.requested", "포트폴리오 분석 요청"),
   PORTFOLIO_ANALYSIS_COMPLETED("portfolio.analysis.completed", "포트폴리오 분석 완료"),
   PORTFOLIO_ANALYSIS_FAILED("portfolio.analysis.failed", "포트폴리오 분석 실패"),
+  PORTFOLIO_SNAPSHOT_COMPLETED("portfolio.snapshot.completed", "포트폴리오 일별 스냅샷 생성 완료"),
 
   MARKET_ANALYSIS_REQUESTED("market.analysis.requested", "시장 분석 요청"),
   MARKET_ANALYSIS_COMPLETED("market.analysis.completed", "시장 분석 완료"),
