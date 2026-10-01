@@ -9,7 +9,9 @@ public record PortfolioPerformancePointResponse(
     BigDecimal totalPurchaseAmount,
     BigDecimal totalEvaluationAmount,
     BigDecimal totalProfitLoss,
-    BigDecimal totalReturnRate) {
+    BigDecimal totalReturnRate,
+    BigDecimal dailyProfitLoss,
+    BigDecimal dailyReturnRate) {
 
   public static PortfolioPerformancePointResponse from(PortfolioDailySnapshot snapshot) {
     return new PortfolioPerformancePointResponse(
@@ -17,6 +19,8 @@ public record PortfolioPerformancePointResponse(
         snapshot.getTotalPurchaseAmount(),
         snapshot.getTotalEvaluationAmount(),
         snapshot.getTotalProfitLoss(),
-        snapshot.getTotalReturnRate());
+        snapshot.getTotalReturnRate(),
+        snapshot.getDailyProfitLoss(),
+        snapshot.getDailyReturnRate());
   }
 }

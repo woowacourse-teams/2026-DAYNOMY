@@ -1,25 +1,20 @@
 package org.grit.daynomy.portfolio.service;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot;
-import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformancePointResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceStatus;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
-import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,35 +24,48 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PortfolioSnapshotService {
 
-  private static final BigDecimal HUNDRED = new BigDecimal("100");
-
   private final PortfolioRepository portfolioRepository;
-  private final PortfolioHoldingRepository holdingRepository;
   private final PortfolioDailySnapshotRepository snapshotRepository;
   private final StockDailyPriceRepository stockPriceRepository;
+  private final PortfolioSnapshotTransactionService snapshotTransactionService;
 
-  @Transactional
   public int createLatestSnapshots() {
-    LocalDate baseDate =
-        stockPriceRepository
-            .findFirstByOrderByBaseDateDesc()
-            .map(StockDailyPrice::getBaseDate)
-            .orElse(null);
-    if (baseDate == null) {
+    List<LocalDate> baseDates = stockPriceRepository.findDistinctBaseDatesOrderByBaseDate();
+    if (baseDates.isEmpty()) {
       return 0;
     }
-    int createdCount = 0;
-    for (Portfolio portfolio : portfolioRepository.findAll()) {
-      if (createSnapshot(portfolio, baseDate)) {
-        createdCount++;
+
+    List<Portfolio> portfolios = portfolioRepository.findAll();
+    int snapshotCount = 0;
+    int failureCount = 0;
+    for (int dateIndex = 0; dateIndex < baseDates.size(); dateIndex++) {
+      LocalDate baseDate = baseDates.get(dateIndex);
+      LocalDate previousBaseDate = dateIndex == 0 ? null : baseDates.get(dateIndex - 1);
+      for (Portfolio portfolio : portfolios) {
+        try {
+          if (snapshotTransactionService.createSnapshot(
+              portfolio.getId(), baseDate, previousBaseDate)) {
+            snapshotCount++;
+          }
+        } catch (RuntimeException exception) {
+          failureCount++;
+          log.atError()
+              .setCause(exception)
+              .addKeyValue("event", LogEvent.PORTFOLIO_SNAPSHOT_FAILED.code())
+              .addKeyValue("portfolioId", portfolio.getId())
+              .addKeyValue("baseDate", baseDate)
+              .log("포트폴리오 스냅샷 생성 실패");
+        }
       }
     }
+
     log.atInfo()
         .addKeyValue("event", LogEvent.PORTFOLIO_SNAPSHOT_COMPLETED.code())
-        .addKeyValue("baseDate", baseDate)
-        .addKeyValue("portfolioCount", createdCount)
+        .addKeyValue("baseDate", baseDates.getLast())
+        .addKeyValue("snapshotCount", snapshotCount)
+        .addKeyValue("failureCount", failureCount)
         .log(LogEvent.PORTFOLIO_SNAPSHOT_COMPLETED.message());
-    return createdCount;
+    return snapshotCount;
   }
 
   @Transactional(readOnly = true)
@@ -88,52 +96,5 @@ public class PortfolioSnapshotService {
         baseDate,
         previousBaseDate,
         snapshots.stream().map(PortfolioPerformancePointResponse::from).toList());
-  }
-
-  private boolean createSnapshot(Portfolio portfolio, LocalDate baseDate) {
-    List<PortfolioHolding> holdings =
-        holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId());
-    if (holdings.isEmpty()) {
-      return false;
-    }
-    BigDecimal purchase = BigDecimal.ZERO;
-    BigDecimal evaluation = BigDecimal.ZERO;
-    for (PortfolioHolding holding : holdings) {
-      StockDailyPrice price =
-          stockPriceRepository
-              .findByAssetIdAndBaseDate(holding.getAsset().getId(), baseDate)
-              .orElse(null);
-      if (price == null) {
-        return false;
-      }
-      BigDecimal quantity = BigDecimal.valueOf(holding.getQuantity());
-      purchase = purchase.add(holding.getAveragePurchasePrice().multiply(quantity));
-      evaluation = evaluation.add(price.getClosePrice().multiply(quantity));
-    }
-    BigDecimal totalPurchase = money(purchase);
-    BigDecimal totalEvaluation = money(evaluation);
-    BigDecimal profit = money(totalEvaluation.subtract(totalPurchase));
-    BigDecimal returnRate = percentage(profit, totalPurchase);
-    PortfolioDailySnapshot snapshot =
-        snapshotRepository
-            .findByPortfolioIdAndBaseDate(portfolio.getId(), baseDate)
-            .orElseGet(
-                () ->
-                    new PortfolioDailySnapshot(
-                        portfolio, baseDate, totalPurchase, totalEvaluation, profit, returnRate));
-    snapshot.update(totalPurchase, totalEvaluation, profit, returnRate);
-    snapshotRepository.save(snapshot);
-    return true;
-  }
-
-  private BigDecimal money(BigDecimal value) {
-    return value.setScale(2, RoundingMode.HALF_UP);
-  }
-
-  private BigDecimal percentage(BigDecimal amount, BigDecimal total) {
-    if (total.signum() == 0) {
-      return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-    }
-    return amount.multiply(HUNDRED).divide(total, 2, RoundingMode.HALF_UP);
   }
 }

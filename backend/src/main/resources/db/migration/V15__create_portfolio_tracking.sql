@@ -48,6 +48,8 @@ CREATE TABLE portfolio_daily_snapshots (
     total_evaluation_amount NUMERIC(19, 2) NOT NULL,
     total_profit_loss NUMERIC(19, 2) NOT NULL,
     total_return_rate NUMERIC(10, 2) NOT NULL,
+    daily_profit_loss NUMERIC(19, 2),
+    daily_return_rate NUMERIC(10, 2),
     created_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
     CONSTRAINT uk_portfolio_daily_snapshots_portfolio_date UNIQUE (portfolio_id, base_date),

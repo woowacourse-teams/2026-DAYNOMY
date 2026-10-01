@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 public interface StockDailyPriceRepository extends JpaRepository<StockDailyPrice, Long> {
 
@@ -17,4 +18,7 @@ public interface StockDailyPriceRepository extends JpaRepository<StockDailyPrice
   Optional<StockDailyPrice> findFirstByOrderByBaseDateDesc();
 
   Optional<StockDailyPrice> findByAssetIdAndBaseDate(Long assetId, LocalDate baseDate);
+
+  @Query("select distinct price.baseDate from StockDailyPrice price order by price.baseDate")
+  List<LocalDate> findDistinctBaseDatesOrderByBaseDate();
 }

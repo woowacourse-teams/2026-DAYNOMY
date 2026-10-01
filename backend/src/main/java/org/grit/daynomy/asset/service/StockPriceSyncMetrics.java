@@ -33,7 +33,7 @@ public class StockPriceSyncMetrics {
 
   public void recordSuccess(StockPriceSyncResult result) {
     lastSuccessEpochSeconds.set(Instant.now().getEpochSecond());
-    latestBaseDateEpochDay.set(result.baseDate().toEpochDay());
+    latestBaseDateEpochDay.accumulateAndGet(result.baseDate().toEpochDay(), Math::max);
     latestReceivedCount.set(result.receivedCount());
   }
 
