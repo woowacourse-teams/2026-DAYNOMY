@@ -16,6 +16,7 @@ describe('헤더', () => {
     );
 
     expect(view.queryByRole('link', { name: '마이페이지' })).toBeNull();
+    expect(view.getByRole('link', { name: 'DAYNOMY 홈' }).getAttribute('href')).toBe('/portfolio');
     expect(view.getByRole('link', { name: '포트폴리오' }).getAttribute('href')).toBe('/portfolio');
     expect(view.queryByRole('link', { name: '로그인' })).toBeNull();
   });
