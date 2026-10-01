@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: DAYNOMY backend CloudWatch metric and log alarms
+
+Parameters:
+  DevBackendInstanceId:
+    Type: AWS::EC2::Instance::Id
+    Default: i-0583a6a613e3d85a9
+    Description: ec2-daynomy-server-dev instance ID
+
+  ProdBackendInstanceId:
+    Type: AWS::EC2::Instance::Id
+    Default: i-0e487a6bc5126421c
+    Description: ec2-daynomy-server-prod instance ID
+
+  DevBackendLogGroupName:
+    Type: String
+    Default: /daynomy/dev/backend
+
+  ProdBackendLogGroupName:
+    Type: String
+    Default: /daynomy/prod/backend
+
+Resources:
+  MonitoringAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: daynomy-monitoring-alerts
+      DisplayName: DAYNOMY monitoring alerts
+
+  DevBackendErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: daynomy-dev-backend-error
+      FilterPattern: ERROR
+      LogGroupName: !Ref DevBackendLogGroupName
+      MetricTransformations:
+        - MetricNamespace: DAYNOMY/Logs
+          MetricName: DevBackendErrorCount
+          MetricValue: "1"
+          DefaultValue: 0
+          Unit: Count
+
+  ProdBackendErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: daynomy-prod-backend-error
+      FilterPattern: ERROR
+      LogGroupName: !Ref ProdBackendLogGroupName
+      MetricTransformations:
+        - MetricNamespace: DAYNOMY/Logs
+          MetricName: ProdBackendErrorCount
+          MetricValue: "1"
+          DefaultValue: 0
+          Unit: Count
+
+  DevBackendErrorBurstAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: daynomy-dev-backend-error-burst
+      AlarmDescription: DEV 백엔드에서 5분 동안 ERROR 로그가 10건 이상 발생했습니다.
+      Namespace: DAYNOMY/Logs
+      MetricName: DevBackendErrorCount
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref MonitoringAlarmTopic
+      OKActions:
+        - !Ref MonitoringAlarmTopic
+
+  ProdBackendErrorBurstAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: daynomy-prod-backend-error-burst
+      AlarmDescription: PROD 백엔드에서 5분 동안 ERROR 로그가 5건 이상 발생했습니다.
+      Namespace: DAYNOMY/Logs
+      MetricName: ProdBackendErrorCount
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref MonitoringAlarmTopic
+      OKActions:
+        - !Ref MonitoringAlarmTopic
+
+  DevEc2StatusCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: daynomy-dev-ec2-status-check-failed
+      AlarmDescription: DEV 백엔드 EC2 상태 검사가 5분 동안 실패했습니다.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref DevBackendInstanceId
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 5
+      DatapointsToAlarm: 5
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref MonitoringAlarmTopic
+      OKActions:
+        - !Ref MonitoringAlarmTopic
+
+  ProdEc2StatusCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: daynomy-prod-ec2-status-check-failed
+      AlarmDescription: PROD 백엔드 EC2 상태 검사가 2분 동안 실패했습니다.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref ProdBackendInstanceId
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref MonitoringAlarmTopic
+      OKActions:
+        - !Ref MonitoringAlarmTopic
+
+  DevCpuCreditLowAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: daynomy-dev-cpu-credit-low
+      AlarmDescription: DEV 백엔드 EC2 CPU 크레딧이 15분 동안 20 미만입니다.
+      Namespace: AWS/EC2
+      MetricName: CPUCreditBalance
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref DevBackendInstanceId
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 3
+      Threshold: 20
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref MonitoringAlarmTopic
+      OKActions:
+        - !Ref MonitoringAlarmTopic
+
+  ProdCpuCreditLowAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: daynomy-prod-cpu-credit-low
+      AlarmDescription: PROD 백엔드 EC2 CPU 크레딧이 15분 동안 20 미만입니다.
+      Namespace: AWS/EC2
+      MetricName: CPUCreditBalance
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref ProdBackendInstanceId
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 3
+      Threshold: 20
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref MonitoringAlarmTopic
+      OKActions:
+        - !Ref MonitoringAlarmTopic
+
+Outputs:
+  MonitoringAlarmTopicArn:
+    Description: Amazon Q Developer Slack 채널에 연결할 SNS Topic ARN
+    Value: !Ref MonitoringAlarmTopic
