@@ -11,13 +11,13 @@ alerting:
   alertmanagers:
     - static_configs:
         - targets:
-            - alertmanager:9093
+            - 127.0.0.1:9093
 
 scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets:
-          - prometheus:9090
+          - 127.0.0.1:9090
         labels:
           environment: monitoring
           service: prometheus
@@ -25,7 +25,7 @@ scrape_configs:
   - job_name: alertmanager
     static_configs:
       - targets:
-          - alertmanager:9093
+          - 127.0.0.1:9093
         labels:
           environment: monitoring
           service: alertmanager
@@ -33,7 +33,7 @@ scrape_configs:
   - job_name: blackbox-exporter
     static_configs:
       - targets:
-          - blackbox-exporter:9115
+          - 127.0.0.1:9115
         labels:
           environment: monitoring
           service: blackbox-exporter
@@ -62,4 +62,4 @@ scrape_configs:
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: blackbox-exporter:9115
+        replacement: 127.0.0.1:9115

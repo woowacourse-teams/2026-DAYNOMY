@@ -29,25 +29,25 @@ route:
 receivers:
   - name: prod-critical
     slack_configs:
-      - api_url_file: /run/secrets/slack_webhook_url
+      - api_url_file: /opt/daynomy-monitoring/secrets/slack_webhook_url
         send_resolved: true
         title: '[DAYNOMY][{{ .Status | toUpper }}][PROD][CRITICAL] {{ .CommonLabels.alertname }}'
         text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\n{{ end }}'
   - name: prod-notifications
     slack_configs:
-      - api_url_file: /run/secrets/slack_webhook_url
+      - api_url_file: /opt/daynomy-monitoring/secrets/slack_webhook_url
         send_resolved: true
         title: '[DAYNOMY][{{ .Status | toUpper }}][PROD] {{ .CommonLabels.alertname }}'
         text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\n{{ end }}'
   - name: dev-notifications
     slack_configs:
-      - api_url_file: /run/secrets/slack_webhook_url
+      - api_url_file: /opt/daynomy-monitoring/secrets/slack_webhook_url
         send_resolved: true
         title: '[DAYNOMY][{{ .Status | toUpper }}][DEV] {{ .CommonLabels.alertname }}'
         text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\n{{ end }}'
   - name: certificate-notifications
     slack_configs:
-      - api_url_file: /run/secrets/slack_webhook_url
+      - api_url_file: /opt/daynomy-monitoring/secrets/slack_webhook_url
         send_resolved: true
         title: '[DAYNOMY][{{ .Status | toUpper }}][{{ .CommonLabels.environment | toUpper }}] TLS 인증서 만료 임박'
         text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\n{{ end }}'

@@ -12,8 +12,9 @@ public URL: Blackbox Exporter ────────────────�
                                                         └─> Alertmanager
 ```
 
-Prometheus 컨테이너는 Alloy의 전송을 받도록 반드시
-`--web.enable-remote-write-receiver` 옵션으로 실행한다.
+monitoring EC2의 Prometheus systemd 서비스는 Alloy의 전송을 받도록 반드시
+`--web.enable-remote-write-receiver` 옵션으로 실행한다. Grafana, Loki, Alloy와 동일하게
+Prometheus, Alertmanager, Blackbox Exporter도 systemd 서비스로 운영한다.
 
 ## Alloy 환경변수
 
@@ -52,7 +53,7 @@ GRANT CONNECT ON DATABASE daynomy TO daynomy_monitor;
 
 - monitoring EC2의 `9090`은 server/db EC2의 Security Group에서만 허용한다.
 - Actuator `8081`은 `127.0.0.1`에만 바인딩하므로 외부 인바운드 규칙을 만들지 않는다.
-- Alertmanager `9093`, Blackbox Exporter `9115`는 Docker 내부 네트워크에서만 사용한다.
+- Alertmanager `9093`, Blackbox Exporter `9115`는 monitoring EC2 내부에서만 사용한다.
 - Prometheus와 Alertmanager 관리 화면을 인터넷에 공개하지 않는다.
 
 ## Slack 알림
@@ -61,17 +62,11 @@ GRANT CONNECT ON DATABASE daynomy TO daynomy_monitor;
 하나 만든다. Webhook URL은 저장소에 기록하지 않고 monitoring EC2에만 저장한다.
 
 ```text
-/run/secrets/slack_webhook_url
+/opt/daynomy-monitoring/secrets/slack_webhook_url
 ```
 
 파일에는 Slack Incoming Webhook URL 한 줄만 넣고 권한을 `600`으로 제한한다.
-Alertmanager 컨테이너에는 이 파일을 읽기 전용으로 마운트한다.
-
-```yaml
-volumes:
-  - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-  - ./secrets/slack_webhook_url:/run/secrets/slack_webhook_url:ro
-```
+Alertmanager systemd 서비스가 이 경로를 읽는다.
 
 Webhook URL 자체는 팀원 간에도 공개 채널이나 문서에 남기지 않는다. 나중에 이메일을
 추가하려면 각 receiver에 `email_configs`를 함께 추가하면 두 채널로 동시에 전송된다.
