@@ -55,7 +55,11 @@ public class SavedPortfolioService {
   @Transactional
   public SavedPortfolioHoldingResponse add(
       Long memberId, SavedPortfolioHoldingCreateRequest request) {
-    Portfolio portfolio = getOrCreatePortfolio(memberId);
+    Member member =
+        memberRepository
+            .findByIdForUpdate(memberId)
+            .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+    Portfolio portfolio = getOrCreatePortfolio(member);
     if (holdingRepository.existsByPortfolioIdAndAssetId(portfolio.getId(), request.assetId())) {
       throw new BusinessException(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
     }
@@ -115,7 +119,7 @@ public class SavedPortfolioService {
     }
     Portfolio portfolio = getPortfolio(memberId);
     return historyRepository
-        .findAllByPortfolioIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+        .findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
             portfolio.getId(),
             from.atStartOfDay(SEOUL).toInstant(),
             to.plusDays(1).atStartOfDay(SEOUL).toInstant())
@@ -124,17 +128,10 @@ public class SavedPortfolioService {
         .toList();
   }
 
-  private Portfolio getOrCreatePortfolio(Long memberId) {
+  private Portfolio getOrCreatePortfolio(Member member) {
     return portfolioRepository
-        .findByMemberId(memberId)
-        .orElseGet(
-            () -> {
-              Member member =
-                  memberRepository
-                      .findById(memberId)
-                      .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
-              return portfolioRepository.save(Portfolio.create(member));
-            });
+        .findByMemberId(member.getId())
+        .orElseGet(() -> portfolioRepository.save(Portfolio.create(member)));
   }
 
   private Portfolio getPortfolio(Long memberId) {

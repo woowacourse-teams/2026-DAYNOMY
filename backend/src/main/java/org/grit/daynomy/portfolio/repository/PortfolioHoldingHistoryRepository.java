@@ -8,6 +8,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PortfolioHoldingHistoryRepository
     extends JpaRepository<PortfolioHoldingHistory, Long> {
 
-  List<PortfolioHoldingHistory> findAllByPortfolioIdAndCreatedAtBetweenOrderByCreatedAtDesc(
-      Long portfolioId, Instant from, Instant to);
+  List<PortfolioHoldingHistory>
+      findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+          Long portfolioId, Instant from, Instant to);
+
+  List<PortfolioHoldingHistory> findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAsc(
+      Long portfolioId, Instant to);
 }
