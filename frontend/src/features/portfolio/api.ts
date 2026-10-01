@@ -8,6 +8,10 @@ import type {
   PortfolioAssetImpactResponse,
   PortfolioCalculation,
   PortfolioHoldingInput,
+  PortfolioHoldingHistory,
+  PortfolioHoldingChangeType,
+  PortfolioPerformance,
+  PortfolioPerformancePoint,
   PortfolioHoldingResult,
   PortfolioImpactDirection,
   PortfolioImpactLevel,
@@ -34,6 +38,7 @@ type PortfolioAnalysisStorage = {
 const portfolioAnalysisRequests = new Map<string, PortfolioAnalysisCacheEntry>();
 const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE', 'NEUTRAL']);
 const IMPACT_LEVELS = new Set<PortfolioImpactLevel>(['HIGH', 'MEDIUM', 'LOW']);
+const HOLDING_CHANGE_TYPES = new Set<PortfolioHoldingChangeType>(['ADDED', 'UPDATED', 'REMOVED']);
 
 type PortfolioErrorResponse = {
   code?: unknown;
@@ -109,6 +114,55 @@ function isHoldingResult(value: unknown): value is PortfolioHoldingResult {
     hasNumber(record, 'profitLoss') &&
     hasNumber(record, 'returnRate') &&
     hasNumber(record, 'weight')
+  );
+}
+
+function isSavedHolding(value: unknown): value is PortfolioHoldingInput {
+  if (!isRecord(value) || !isStock(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    hasNumber(record, 'quantity') &&
+    Number.isSafeInteger(record.quantity) &&
+    (record.quantity as number) > 0 &&
+    hasNumber(record, 'averagePurchasePrice') &&
+    (record.averagePurchasePrice as number) > 0
+  );
+}
+
+function isPerformancePoint(value: unknown): value is PortfolioPerformancePoint {
+  return (
+    isRecord(value) &&
+    typeof value.baseDate === 'string' &&
+    hasNumber(value, 'totalPurchaseAmount') &&
+    hasNumber(value, 'totalEvaluationAmount') &&
+    hasNumber(value, 'totalProfitLoss') &&
+    hasNumber(value, 'totalReturnRate')
+  );
+}
+
+function isPerformance(value: unknown): value is PortfolioPerformance {
+  return (
+    isRecord(value) &&
+    (value.status === 'READY' || value.status === 'INSUFFICIENT_DATA') &&
+    (value.reason === null || value.reason === 'SNAPSHOT_DATA_INSUFFICIENT') &&
+    (value.baseDate === null || typeof value.baseDate === 'string') &&
+    (value.previousBaseDate === null || typeof value.previousBaseDate === 'string') &&
+    Array.isArray(value.points) &&
+    value.points.every(isPerformancePoint)
+  );
+}
+
+function isHoldingHistory(value: unknown): value is PortfolioHoldingHistory {
+  return (
+    isRecord(value) &&
+    typeof value.assetId === 'number' &&
+    typeof value.assetCode === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.changeType === 'string' &&
+    HOLDING_CHANGE_TYPES.has(value.changeType as PortfolioHoldingChangeType) &&
+    hasNumber(value, 'quantity') &&
+    hasNumber(value, 'averagePurchasePrice') &&
+    typeof value.occurredAt === 'string'
   );
 }
 
@@ -350,6 +404,78 @@ export async function calculatePortfolio(holdings: PortfolioHoldingInput[], sign
     throw new Error('포트폴리오 계산 응답 형식이 올바르지 않습니다.');
   }
 
+  return response;
+}
+
+export async function getSavedPortfolio(signal?: AbortSignal) {
+  const response = await request<unknown>('/api/users/me/portfolio', { signal });
+  if (
+    !isRecord(response) ||
+    !Array.isArray(response.holdings) ||
+    !response.holdings.every(isSavedHolding)
+  ) {
+    throw new Error('포트폴리오 조회 응답 형식이 올바르지 않습니다.');
+  }
+  return response.holdings;
+}
+
+export async function addSavedPortfolioHolding(holding: PortfolioHoldingInput) {
+  const response = await requestWithCsrf<unknown>('/api/users/me/portfolio/holdings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      assetId: holding.assetId,
+      quantity: holding.quantity,
+      averagePurchasePrice: holding.averagePurchasePrice,
+    }),
+  });
+  if (!isSavedHolding(response)) {
+    throw new Error('보유자산 추가 응답 형식이 올바르지 않습니다.');
+  }
+  return response;
+}
+
+export async function updateSavedPortfolioHolding(holding: PortfolioHoldingInput) {
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/holdings/${holding.assetId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quantity: holding.quantity,
+        averagePurchasePrice: holding.averagePurchasePrice,
+      }),
+    },
+  );
+  if (!isSavedHolding(response)) {
+    throw new Error('보유자산 수정 응답 형식이 올바르지 않습니다.');
+  }
+  return response;
+}
+
+export function removeSavedPortfolioHolding(assetId: number) {
+  return requestWithCsrf<void>(`/api/users/me/portfolio/holdings/${assetId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getPortfolioPerformance(from: string, to: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ from, to });
+  const response = await request<unknown>(`/api/users/me/portfolio/performance?${query}`, {
+    signal,
+  });
+  if (!isPerformance(response)) {
+    throw new Error('포트폴리오 수익률 응답 형식이 올바르지 않습니다.');
+  }
+  return response;
+}
+
+export async function getPortfolioHistories(from: string, to: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ from, to });
+  const response = await request<unknown>(`/api/users/me/portfolio/histories?${query}`, { signal });
+  if (!Array.isArray(response) || !response.every(isHoldingHistory)) {
+    throw new Error('포트폴리오 변경 이력 응답 형식이 올바르지 않습니다.');
+  }
   return response;
 }
 

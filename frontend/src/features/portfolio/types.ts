@@ -22,6 +22,41 @@ export type PortfolioHoldingInput = StockSearchItem & {
   averagePurchasePrice: number;
 };
 
+export type SavedPortfolio = {
+  holdings: PortfolioHoldingInput[];
+};
+
+export type PortfolioPerformanceStatus = 'READY' | 'INSUFFICIENT_DATA';
+export type PortfolioPerformanceUnavailableReason = 'SNAPSHOT_DATA_INSUFFICIENT';
+
+export type PortfolioPerformancePoint = {
+  baseDate: string;
+  totalPurchaseAmount: number;
+  totalEvaluationAmount: number;
+  totalProfitLoss: number;
+  totalReturnRate: number;
+};
+
+export type PortfolioPerformance = {
+  status: PortfolioPerformanceStatus;
+  reason: PortfolioPerformanceUnavailableReason | null;
+  baseDate: string | null;
+  previousBaseDate: string | null;
+  points: PortfolioPerformancePoint[];
+};
+
+export type PortfolioHoldingChangeType = 'ADDED' | 'UPDATED' | 'REMOVED';
+
+export type PortfolioHoldingHistory = {
+  assetId: number;
+  assetCode: string;
+  name: string;
+  changeType: PortfolioHoldingChangeType;
+  quantity: number;
+  averagePurchasePrice: number;
+  occurredAt: string;
+};
+
 export type PortfolioHoldingResult = PortfolioHoldingInput & {
   baseDate: string;
   closePrice: number;

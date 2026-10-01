@@ -1418,6 +1418,13 @@
   border-top: 1px solid #edf0f2;
 }
 
+.portfolio-dialog-actions > p {
+  align-self: center;
+  margin: 0 auto 0 0;
+  color: #b04444;
+  font-size: 12px;
+}
+
 .portfolio-dialog-actions .portfolio-primary-button,
 .portfolio-dialog-actions .portfolio-secondary-button {
   min-width: 104px;
@@ -2059,6 +2066,27 @@
   font-size: 12px;
 }
 
+.portfolio-tracking-state {
+  display: grid;
+  min-height: 210px;
+  margin: 14px 0 0;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  color: #718096;
+  font-size: 12px;
+  text-align: center;
+}
+
+.portfolio-tracking-state strong {
+  color: #34435a;
+  font-size: 14px;
+}
+
+.portfolio-tracking-state p {
+  margin: 0;
+}
+
 .portfolio-return-chart {
   display: block;
   width: 100%;
@@ -2142,6 +2170,11 @@
   min-width: 0;
   color: #536176;
   font-size: 11px;
+}
+
+.portfolio-return-events .portfolio-return-events-empty {
+  grid-column: 1 / -1;
+  color: #8a96a8;
 }
 
 .portfolio-return-events i {

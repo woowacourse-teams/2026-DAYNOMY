@@ -26,7 +26,7 @@ type PortfolioEditorProps = {
   holding?: PortfolioHoldingInput;
   savedAssetIds: number[];
   onClose: () => void;
-  onSave: (holding: PortfolioHoldingInput) => void;
+  onSave: (holding: PortfolioHoldingInput) => Promise<void>;
 };
 
 export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: PortfolioEditorProps) {
@@ -42,6 +42,8 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
   const [error, setError] = useState('');
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState('');
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     const trimmedKeyword = keyword.trim();
@@ -114,15 +116,24 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
     (stock) => categoryFilter === 'ALL' || stock.category === categoryFilter,
   );
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedStock || !canSave) return;
-
-    onSave({
-      ...selectedStock,
-      quantity: quantityNumber,
-      averagePurchasePrice: averagePriceNumber,
-    });
+    if (!selectedStock || !canSave || saveLoading) return;
+    setSaveLoading(true);
+    setSaveError('');
+    try {
+      await onSave({
+        ...selectedStock,
+        quantity: quantityNumber,
+        averagePurchasePrice: averagePriceNumber,
+      });
+    } catch (caughtError) {
+      setSaveError(
+        caughtError instanceof Error ? caughtError.message : '보유자산을 저장하지 못했습니다.',
+      );
+    } finally {
+      setSaveLoading(false);
+    }
   }
 
   function adjustAveragePrice(amount: number) {
@@ -375,11 +386,21 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
 
           {isDetailsStep ? (
             <div className="portfolio-dialog-actions">
-              <button type="button" className="portfolio-secondary-button" onClick={onClose}>
+              {saveError ? <p role="alert">{saveError}</p> : null}
+              <button
+                type="button"
+                className="portfolio-secondary-button"
+                disabled={saveLoading}
+                onClick={onClose}
+              >
                 취소
               </button>
-              <button type="submit" className="portfolio-primary-button" disabled={!canSave}>
-                {holding ? '수정하기' : '추가하기'}
+              <button
+                type="submit"
+                className="portfolio-primary-button"
+                disabled={!canSave || saveLoading}
+              >
+                {saveLoading ? '저장 중' : holding ? '수정하기' : '추가하기'}
               </button>
             </div>
           ) : null}

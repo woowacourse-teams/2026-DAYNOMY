@@ -393,6 +393,30 @@ describe('뉴스 탐색 화면', () => {
         if (url === '/api/auth/csrf') {
           return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
         }
+        if (url === '/api/users/me/portfolio') {
+          return jsonResponse({
+            holdings: [
+              {
+                assetId: 1,
+                assetCode: '005930',
+                name: '삼성전자',
+                category: 'STOCK',
+                market: 'KOSPI',
+                quantity: 10,
+                averagePurchasePrice: 70000,
+              },
+              {
+                assetId: 2,
+                assetCode: '000660',
+                name: 'SK하이닉스',
+                category: 'STOCK',
+                market: 'KOSPI',
+                quantity: 2,
+                averagePurchasePrice: 180000,
+              },
+            ],
+          });
+        }
         if (url === '/api/portfolio/calculate') {
           return jsonResponse({
             baseDate: '2026-09-22',
