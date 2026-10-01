@@ -7,7 +7,6 @@ import type {
   PortfolioCalculation,
   PortfolioHoldingInput,
   PortfolioHoldingResult,
-  StockMarket,
 } from './types';
 import './portfolio.css';
 
@@ -19,6 +18,23 @@ const percentFormatter = new Intl.NumberFormat('ko-KR', {
 const HIDDEN_AMOUNT = '••••••원';
 
 type PortfolioSort = 'DEFAULT' | 'EVALUATION' | 'PROFIT' | 'RETURN' | 'WEIGHT';
+
+type PortfolioPerformancePoint = {
+  date: string;
+  returnRate: number;
+  event?: string;
+  eventChange?: number;
+};
+
+const MOCK_PORTFOLIO_PERFORMANCE: PortfolioPerformancePoint[] = [
+  { date: '2026-09-24', returnRate: 0 },
+  { date: '2026-09-25', returnRate: 2.1 },
+  { date: '2026-09-26', returnRate: 4, event: '삼성전자 추가', eventChange: 0.67 },
+  { date: '2026-09-27', returnRate: 1 },
+  { date: '2026-09-28', returnRate: 3 },
+  { date: '2026-09-29', returnRate: 5, event: '보유수량 수정', eventChange: -0.43 },
+  { date: '2026-09-30', returnRate: 3.08 },
+];
 
 function formatWon(value: number) {
   return `${numberFormatter.format(Math.round(value))}원`;
@@ -63,14 +79,14 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
           role="img"
           aria-label={`주식 ${formatPercent(stockWeight)}, ETF ${formatPercent(etfWeight)}`}
         >
-          <g transform="rotate(-90 90 90)" fill="none" strokeWidth="19">
+          <g transform="rotate(-90 90 90)" fill="none" strokeWidth="24">
             <circle cx="90" cy="90" r="66" stroke="#f0f2f5" />
             <circle
               cx="90"
               cy="90"
               r="66"
               pathLength="100"
-              stroke="#4169ac"
+              stroke="#2463b5"
               strokeDasharray={`${stockWeight} ${100 - stockWeight}`}
             />
             <circle
@@ -78,7 +94,7 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
               cy="90"
               r="66"
               pathLength="100"
-              stroke="#9eb5d2"
+              stroke="#4f9ba8"
               strokeDasharray={`${etfWeight} ${100 - etfWeight}`}
               strokeDashoffset={-stockWeight}
             />
@@ -92,84 +108,134 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
           </strong>
         </div>
       </div>
-      <dl className="portfolio-allocation-list portfolio-category-list">
-        {(['STOCK', 'ETF'] as AssetCategory[]).map((category) => (
-          <div key={category}>
-            <dt>
-              <i className={`portfolio-dot ${category.toLowerCase()}`} />
-              {getCategoryLabel(category)}
-            </dt>
-            <dd>{formatPercent(category === 'STOCK' ? stockWeight : etfWeight)}</dd>
-          </div>
+      <div className="portfolio-composition-breakdown">
+        <dl className="portfolio-allocation-list portfolio-category-list">
+          {(['STOCK', 'ETF'] as AssetCategory[]).map((category) => {
+            const weight = category === 'STOCK' ? stockWeight : etfWeight;
+            return (
+              <div key={category}>
+                <div>
+                  <dt>
+                    <i className={`portfolio-dot ${category.toLowerCase()}`} />
+                    {getCategoryLabel(category)}
+                  </dt>
+                  <dd>{formatPercent(weight)}</dd>
+                </div>
+                <span className="portfolio-allocation-bar" aria-hidden="true">
+                  <i style={{ width: `${weight}%` }} />
+                </span>
+              </div>
+            );
+          })}
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioReturnChart() {
+  const width = 720;
+  const height = 190;
+  const padding = { top: 12, right: 12, bottom: 8, left: 38 };
+  const values = MOCK_PORTFOLIO_PERFORMANCE.map((point) => point.returnRate);
+  const minimum = 0;
+  const maximum = Math.max(6, ...values);
+  const range = maximum - minimum || 1;
+  const x = (index: number) =>
+    MOCK_PORTFOLIO_PERFORMANCE.length === 1
+      ? width / 2
+      : padding.left +
+        (index / (MOCK_PORTFOLIO_PERFORMANCE.length - 1)) * (width - padding.left - padding.right);
+  const y = (value: number) =>
+    padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
+  const points = MOCK_PORTFOLIO_PERFORMANCE.map(
+    (point, index) => `${x(index)},${y(point.returnRate)}`,
+  );
+  const areaPoints = `${x(0)},${y(0)} ${points.join(' ')} ${x(
+    MOCK_PORTFOLIO_PERFORMANCE.length - 1,
+  )},${y(0)}`;
+  const latest = MOCK_PORTFOLIO_PERFORMANCE.at(-1);
+  const events = MOCK_PORTFOLIO_PERFORMANCE.filter(
+    (point): point is PortfolioPerformancePoint & { event: string; eventChange: number } =>
+      Boolean(point.event) && point.eventChange !== undefined,
+  );
+  const turningPoints = MOCK_PORTFOLIO_PERFORMANCE.flatMap((point, index, allPoints) => {
+    if (index === 0 || index === allPoints.length - 1) return [];
+    const previous = allPoints[index - 1].returnRate;
+    const next = allPoints[index + 1].returnRate;
+    const isPeak = point.returnRate > previous && point.returnRate > next;
+    const isTrough = point.returnRate < previous && point.returnRate < next;
+    return isPeak || isTrough ? [{ point, index }] : [];
+  });
+  const guideValues = [0, 2, 4, 6];
+
+  return (
+    <section className="portfolio-return-dashboard" aria-labelledby="return-dashboard-title">
+      <div className="portfolio-dashboard-heading">
+        <h2 id="return-dashboard-title">수익률 추적</h2>
+      </div>
+      <div className="portfolio-return-summary">
+        <strong>{formatPercent(latest?.returnRate ?? 0, true)}</strong>
+        <span>최근 7일 누적 수익률</span>
+      </div>
+      <svg
+        className="portfolio-return-chart"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`일별 포트폴리오 수익률 추이, 현재 ${formatPercent(latest?.returnRate ?? 0, true)}`}
+      >
+        <defs>
+          <linearGradient id="portfolio-return-area-gradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#2474d2" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#2474d2" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {guideValues.map((value) => (
+          <g key={value} className="portfolio-return-guide">
+            <line x1={padding.left} y1={y(value)} x2={width - padding.right} y2={y(value)} />
+            <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
+              {value}%
+            </text>
+          </g>
         ))}
-      </dl>
-    </div>
-  );
-}
-
-function MarketSummary({ calculation }: { calculation: PortfolioCalculation }) {
-  return (
-    <div className="portfolio-market-summary">
-      <span>시장 구성</span>
-      <dl>
-        {(['KOSPI', 'KOSDAQ'] as StockMarket[]).map((market) => {
-          const allocation = calculation.marketAllocations.find((item) => item.market === market);
-          return (
-            <div key={market}>
-              <dt>{market}</dt>
-              <dd>{formatPercent(allocation?.weight ?? 0)}</dd>
-            </div>
-          );
-        })}
-      </dl>
-    </div>
-  );
-}
-
-function InsightCards({ calculation }: { calculation: PortfolioCalculation }) {
-  const largestHolding = calculation.holdings.reduce((largest, holding) =>
-    holding.weight > largest.weight ? holding : largest,
-  );
-  const bestHolding = calculation.holdings.reduce((best, holding) =>
-    holding.returnRate > best.returnRate ? holding : best,
-  );
-  const etfWeight = getCategoryWeight(calculation, 'ETF');
-  const etfCount = calculation.holdings.filter((holding) => holding.category === 'ETF').length;
-
-  return (
-    <section className="portfolio-insights" aria-labelledby="insights-title">
-      <div className="portfolio-chart-heading">
-        <h2 id="insights-title">포트폴리오 요약</h2>
-        <span>현재 구성 기준</span>
+        <polygon
+          className="portfolio-return-area"
+          points={areaPoints}
+          fill="url(#portfolio-return-area-gradient)"
+        />
+        <polyline className="portfolio-return-line" points={points.join(' ')} />
+        {turningPoints.map(({ point, index }) => (
+          <circle
+            key={point.date}
+            className="portfolio-return-point"
+            cx={x(index)}
+            cy={y(point.returnRate)}
+            r={5}
+          >
+            <title>
+              방향 전환 {point.date.replaceAll('-', '.')} {formatPercent(point.returnRate, true)}
+            </title>
+          </circle>
+        ))}
+      </svg>
+      <div className="portfolio-return-dates" aria-hidden="true">
+        {MOCK_PORTFOLIO_PERFORMANCE.map((point) => (
+          <span key={point.date}>{point.date.slice(5).replace('-', '.')}</span>
+        ))}
       </div>
-      <div className="portfolio-insight-list">
-        <div className="portfolio-insight-row">
-          <span className="portfolio-insight-number">01</span>
-          <div className="portfolio-insight-copy">
-            <strong>가장 비중이 큰 자산</strong>
-            <span>{largestHolding.name}</span>
-          </div>
-          <span className="portfolio-insight-value">{formatPercent(largestHolding.weight)}</span>
-        </div>
-        <div className="portfolio-insight-row">
-          <span className="portfolio-insight-number">02</span>
-          <div className="portfolio-insight-copy">
-            <strong>수익률이 가장 높은 자산</strong>
-            <span>{bestHolding.name}</span>
-          </div>
-          <span className={`portfolio-insight-value ${profitClass(bestHolding.returnRate)}`}>
-            {formatPercent(bestHolding.returnRate, true)}
-          </span>
-        </div>
-        <div className="portfolio-insight-row">
-          <span className="portfolio-insight-number">03</span>
-          <div className="portfolio-insight-copy">
-            <strong>ETF 보유 비중</strong>
-            <span>{etfCount}개 상품</span>
-          </div>
-          <span className="portfolio-insight-value">{formatPercent(etfWeight)}</span>
-        </div>
-      </div>
+      <span className="portfolio-events-label">자산 변경 이력</span>
+      <ul className="portfolio-return-events" aria-label="자산 변경 이력">
+        {events.map((event) => (
+          <li key={`${event.date}-${event.event}`}>
+            <i aria-hidden="true" />
+            <time dateTime={event.date}>{event.date.slice(5).replace('-', '.')}</time>
+            <span>{event.event}</span>
+            <strong className={event.eventChange < 0 ? 'is-negative' : undefined}>
+              {formatPercent(event.eventChange, true)}p
+            </strong>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -200,6 +266,7 @@ export function PortfolioPage() {
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | AssetCategory>('ALL');
   const [sort, setSort] = useState<PortfolioSort>('DEFAULT');
   const [amountsHidden, setAmountsHidden] = useState(false);
+  const [analysisExpanded, setAnalysisExpanded] = useState(true);
 
   useEffect(() => {
     if (holdings.length === 0) {
@@ -211,7 +278,6 @@ export function PortfolioPage() {
 
     const controller = new AbortController();
     setLoading(true);
-    setError('');
     calculatePortfolio(holdings, controller.signal)
       .then(setCalculation)
       .catch((caughtError: unknown) => {
@@ -250,7 +316,6 @@ export function PortfolioPage() {
     <main className="portfolio-page">
       <div className="portfolio-page-title">
         <h1>내 포트폴리오</h1>
-        <span>국내 주식·ETF · 전일 종가 기준</span>
       </div>
 
       {holdings.length === 0 ? (
@@ -302,6 +367,10 @@ export function PortfolioPage() {
                   aria-pressed={amountsHidden}
                   onClick={() => setAmountsHidden((hidden) => !hidden)}
                 >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                    <circle cx="12" cy="12" r="2.75" />
+                  </svg>
                   {amountsHidden ? '금액 보기' : '금액 숨기기'}
                 </button>
               </div>
@@ -323,7 +392,6 @@ export function PortfolioPage() {
             <div>
               <dt>투자원금</dt>
               <dd>{displayWon(calculation.totalPurchaseAmount)}</dd>
-              <small>수수료·세금 미반영</small>
             </div>
             <div>
               <dt>누적 손익</dt>
@@ -344,58 +412,79 @@ export function PortfolioPage() {
             </div>
           </dl>
 
-          <div className="portfolio-charts">
-            <section className="portfolio-composition" aria-labelledby="composition-title">
-              <div className="portfolio-chart-heading">
-                <h2 id="composition-title">자산 구성</h2>
-                <span>평가금액 기준</span>
+          <section className="portfolio-analysis" aria-labelledby="portfolio-analysis-title">
+            <div className="portfolio-analysis-toolbar">
+              <button
+                type="button"
+                aria-label={`자산 분석 ${analysisExpanded ? '접기' : '펼치기'}`}
+                aria-expanded={analysisExpanded}
+                aria-controls="portfolio-analysis-content"
+                onClick={() => setAnalysisExpanded((expanded) => !expanded)}
+              >
+                <span id="portfolio-analysis-title" className="portfolio-analysis-title">
+                  자산 분석
+                </span>
+                <span className="portfolio-analysis-action">
+                  {analysisExpanded ? '접기' : '펼치기'}
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="m4 6 4 4 4-4" />
+                  </svg>
+                </span>
+              </button>
+            </div>
+            {analysisExpanded ? (
+              <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
+                <PortfolioReturnChart />
+                <section className="portfolio-composition" aria-labelledby="composition-title">
+                  <div className="portfolio-dashboard-heading">
+                    <h2 id="composition-title">자산 구성</h2>
+                  </div>
+                  <CompositionChart calculation={calculation} />
+                </section>
               </div>
-              <CompositionChart calculation={calculation} />
-              <MarketSummary calculation={calculation} />
-            </section>
-            <InsightCards calculation={calculation} />
-          </div>
+            ) : null}
+          </section>
 
           <section className="portfolio-holdings" aria-labelledby="holdings-title">
             <div className="portfolio-section-title">
               <h2 id="holdings-title">
                 보유 자산 <span>{calculation.holdings.length}</span>
               </h2>
-              <div className="portfolio-holdings-tools">
-                <button
-                  type="button"
-                  className="portfolio-primary-button"
-                  onClick={() => setEditor({})}
-                >
-                  ＋ 자산 추가
-                </button>
-                <div className="portfolio-filters" role="group" aria-label="자산 유형">
-                  {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      aria-pressed={categoryFilter === category}
-                      onClick={() => setCategoryFilter(category)}
-                    >
-                      {category === 'ALL' ? '전체' : getCategoryLabel(category)}
-                    </button>
-                  ))}
-                </div>
-                <label className="portfolio-sort-control">
-                  <span className="sr-only">정렬 기준</span>
-                  <select
-                    aria-label="보유 자산 정렬"
-                    value={sort}
-                    onChange={(event) => setSort(event.target.value as PortfolioSort)}
+              <button
+                type="button"
+                className="portfolio-primary-button"
+                onClick={() => setEditor({})}
+              >
+                ＋ 자산 추가
+              </button>
+            </div>
+            <div className="portfolio-holdings-toolbar">
+              <div className="portfolio-filters" role="group" aria-label="자산 유형">
+                {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    aria-pressed={categoryFilter === category}
+                    onClick={() => setCategoryFilter(category)}
                   >
-                    <option value="DEFAULT">기본 순서</option>
-                    <option value="EVALUATION">평가금액 높은 순</option>
-                    <option value="PROFIT">손익 높은 순</option>
-                    <option value="RETURN">수익률 높은 순</option>
-                    <option value="WEIGHT">비중 높은 순</option>
-                  </select>
-                </label>
+                    {category === 'ALL' ? '전체' : getCategoryLabel(category)}
+                  </button>
+                ))}
               </div>
+              <label className="portfolio-sort-control">
+                <span className="sr-only">정렬 기준</span>
+                <select
+                  aria-label="보유 자산 정렬"
+                  value={sort}
+                  onChange={(event) => setSort(event.target.value as PortfolioSort)}
+                >
+                  <option value="DEFAULT">기본 순서</option>
+                  <option value="EVALUATION">평가금액 높은 순</option>
+                  <option value="PROFIT">손익 높은 순</option>
+                  <option value="RETURN">수익률 높은 순</option>
+                  <option value="WEIGHT">비중 높은 순</option>
+                </select>
+              </label>
             </div>
             <div
               className="portfolio-table-wrap"
@@ -465,9 +554,9 @@ export function PortfolioPage() {
               </table>
             </div>
             <div className="portfolio-table-note">
-              <span role="status">
+              <span className="sr-only" role="status">
                 {categoryFilter === 'ALL' ? '전체' : getCategoryLabel(categoryFilter)}{' '}
-                {visibleHoldings.length}개 자산
+                {visibleHoldings.length}개 자산 표시 중
               </span>
               <span>수수료·세금 미반영</span>
             </div>

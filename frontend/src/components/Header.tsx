@@ -46,15 +46,15 @@ export function Header() {
 
   return (
     <header className="daynomy-header">
-      <Link className="brand" to="/" aria-label="DAYNOMY 홈">
+      <Link className="brand" to="/portfolio" aria-label="DAYNOMY 홈">
         DAYNOMY
       </Link>
       <nav className="header-tabs" aria-label="주요 메뉴">
-        <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/">
-          이슈
-        </Link>
         <Link className={isPortfolioPage ? 'header-tab active' : 'header-tab'} to="/portfolio">
           포트폴리오
+        </Link>
+        <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/">
+          이슈
         </Link>
       </nav>
       <div className="header-actions">

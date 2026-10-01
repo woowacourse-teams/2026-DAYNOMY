@@ -35,6 +35,7 @@ public class StockPriceSyncService {
   private static final DateTimeFormatter BASIC_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
   private static final int PAGE_SIZE = 1000;
   private static final int LOOKBACK_DAYS = 10;
+  private static final int REQUIRED_SNAPSHOT_COUNT = 2;
   private static final Pattern STOCK_CODE = Pattern.compile("\\d{6}");
 
   private final PublicDataStockPriceClient stockPriceClient;
@@ -71,9 +72,14 @@ public class StockPriceSyncService {
         .log(LogEvent.STOCK_PRICE_SYNC_STARTED.message());
 
     try {
-      StockPriceSnapshot snapshot = findLatestSnapshot(today);
+      List<StockPriceSnapshot> snapshots = findLatestSnapshots(today);
+      for (int index = snapshots.size() - 1; index > 0; index--) {
+        StockPriceSnapshot snapshot = snapshots.get(index);
+        persistenceService.synchronize(snapshot.baseDate(), snapshot.entries());
+      }
+      StockPriceSnapshot latestSnapshot = snapshots.getFirst();
       StockPriceSyncResult result =
-          persistenceService.synchronize(snapshot.baseDate(), snapshot.entries());
+          persistenceService.synchronize(latestSnapshot.baseDate(), latestSnapshot.entries());
       log.atInfo()
           .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_COMPLETED.code())
           .addKeyValue("baseDate", result.baseDate())
@@ -103,7 +109,8 @@ public class StockPriceSyncService {
     }
   }
 
-  private StockPriceSnapshot findLatestSnapshot(LocalDate today) {
+  private List<StockPriceSnapshot> findLatestSnapshots(LocalDate today) {
+    List<StockPriceSnapshot> snapshots = new ArrayList<>();
     for (int daysAgo = 0; daysAgo <= LOOKBACK_DAYS; daysAgo++) {
       LocalDate requestedDate = today.minusDays(daysAgo);
       List<PublicDataStockPriceItem> items = new ArrayList<>();
@@ -126,11 +133,17 @@ public class StockPriceSyncService {
       List<StockPriceEntry> entries = new ArrayList<>(toStockEntries(items, requestedDate));
       entries.addAll(toEtfEntries(etfItems, requestedDate));
       if (!entries.isEmpty()) {
-        return new StockPriceSnapshot(requestedDate, List.copyOf(entries));
+        snapshots.add(new StockPriceSnapshot(requestedDate, List.copyOf(entries)));
+        if (snapshots.size() == REQUIRED_SNAPSHOT_COUNT) {
+          return List.copyOf(snapshots);
+        }
       }
     }
 
-    throw new BusinessException(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
+    if (snapshots.isEmpty()) {
+      throw new BusinessException(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
+    }
+    return List.copyOf(snapshots);
   }
 
   private List<PublicDataStockPriceItem> getAllPages(LocalDate baseDate, StockMarket market) {

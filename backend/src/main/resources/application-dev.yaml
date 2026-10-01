@@ -11,3 +11,8 @@ news:
 logging:
   level:
     org.grit.daynomy: DEBUG
+
+management:
+  metrics:
+    tags:
+      environment: dev
