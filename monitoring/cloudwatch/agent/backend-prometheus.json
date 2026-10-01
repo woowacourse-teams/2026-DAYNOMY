@@ -1,0 +1,117 @@
+{
+  "logs": {
+    "metrics_collected": {
+      "prometheus": {
+        "cluster_name": "daynomy",
+        "log_group_name": "/daynomy/metrics/backend",
+        "prometheus_config_path": "/opt/aws/amazon-cloudwatch-agent/var/daynomy-prometheus.yaml",
+        "emf_processor": {
+          "metric_declaration_dedup": true,
+          "metric_namespace": "DAYNOMY/Application",
+          "metric_unit": {
+            "jvm_memory_used_bytes": "Bytes",
+            "jvm_memory_max_bytes": "Bytes",
+            "jvm_gc_pause_seconds_count": "Count",
+            "jvm_gc_pause_seconds_sum": "Seconds",
+            "jvm_gc_pause_seconds_max": "Seconds",
+            "jvm_threads_live_threads": "Count",
+            "http_server_requests_seconds_count": "Count",
+            "http_server_requests_seconds_sum": "Seconds",
+            "http_server_requests_seconds_max": "Seconds",
+            "hikaricp_connections_active": "Count",
+            "hikaricp_connections_idle": "Count",
+            "hikaricp_connections_pending": "Count",
+            "hikaricp_connections_max": "Count"
+          },
+          "metric_declaration": [
+            {
+              "source_labels": [
+                "job"
+              ],
+              "label_matcher": "^daynomy-backend$",
+              "dimensions": [
+                [
+                  "application",
+                  "environment",
+                  "area",
+                  "id"
+                ]
+              ],
+              "metric_selectors": [
+                "^jvm_memory_(used|max)_bytes$"
+              ]
+            },
+            {
+              "source_labels": [
+                "job"
+              ],
+              "label_matcher": "^daynomy-backend$",
+              "dimensions": [
+                [
+                  "application",
+                  "environment",
+                  "action",
+                  "cause"
+                ]
+              ],
+              "metric_selectors": [
+                "^jvm_gc_pause_seconds_(count|sum|max)$"
+              ]
+            },
+            {
+              "source_labels": [
+                "job"
+              ],
+              "label_matcher": "^daynomy-backend$",
+              "dimensions": [
+                [
+                  "application",
+                  "environment"
+                ]
+              ],
+              "metric_selectors": [
+                "^jvm_threads_live_threads$"
+              ]
+            },
+            {
+              "source_labels": [
+                "job"
+              ],
+              "label_matcher": "^daynomy-backend$",
+              "dimensions": [
+                [
+                  "application",
+                  "environment",
+                  "method",
+                  "outcome",
+                  "status",
+                  "uri"
+                ]
+              ],
+              "metric_selectors": [
+                "^http_server_requests_seconds_(count|sum|max)$"
+              ]
+            },
+            {
+              "source_labels": [
+                "job"
+              ],
+              "label_matcher": "^daynomy-backend$",
+              "dimensions": [
+                [
+                  "application",
+                  "environment",
+                  "pool"
+                ]
+              ],
+              "metric_selectors": [
+                "^hikaricp_connections_(active|idle|pending|max)$"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "force_flush_interval": 5
+  }
+}
