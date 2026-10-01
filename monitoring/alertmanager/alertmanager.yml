@@ -1,0 +1,53 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: dev-notifications
+  group_by: [alertname, environment, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - receiver: certificate-notifications
+      matchers:
+        - alertname="TlsCertificateExpiringSoon"
+      repeat_interval: 24h
+    - receiver: prod-critical
+      matchers:
+        - environment="prod"
+        - severity="critical"
+      repeat_interval: 30m
+    - receiver: prod-notifications
+      matchers:
+        - environment="prod"
+      repeat_interval: 2h
+    - receiver: dev-notifications
+      matchers:
+        - environment="dev"
+      repeat_interval: 4h
+
+receivers:
+  - name: prod-critical
+    slack_configs:
+      - api_url_file: /run/secrets/slack_webhook_url
+        send_resolved: true
+        title: '[DAYNOMY][{{ .Status | toUpper }}][PROD][CRITICAL] {{ .CommonLabels.alertname }}'
+        text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\n{{ end }}'
+  - name: prod-notifications
+    slack_configs:
+      - api_url_file: /run/secrets/slack_webhook_url
+        send_resolved: true
+        title: '[DAYNOMY][{{ .Status | toUpper }}][PROD] {{ .CommonLabels.alertname }}'
+        text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\n{{ end }}'
+  - name: dev-notifications
+    slack_configs:
+      - api_url_file: /run/secrets/slack_webhook_url
+        send_resolved: true
+        title: '[DAYNOMY][{{ .Status | toUpper }}][DEV] {{ .CommonLabels.alertname }}'
+        text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\n{{ end }}'
+  - name: certificate-notifications
+    slack_configs:
+      - api_url_file: /run/secrets/slack_webhook_url
+        send_resolved: true
+        title: '[DAYNOMY][{{ .Status | toUpper }}][{{ .CommonLabels.environment | toUpper }}] TLS 인증서 만료 임박'
+        text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\n{{ end }}'

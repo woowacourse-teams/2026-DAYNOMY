@@ -47,9 +47,17 @@ management:
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
   metrics:
     tags:
       application: ${spring.application.name}
+      environment: local
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 100ms,300ms,1s,2s
 
 app:
   cors:

@@ -7,3 +7,8 @@ news:
   generation:
     economy:
       enabled: true
+
+management:
+  metrics:
+    tags:
+      environment: prod
