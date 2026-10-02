@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { calculatePortfolio, getPortfolioHistories, getPortfolioPerformance } from './api';
+import { calculatePortfolio } from './api';
 import { PortfolioEditor } from './components/PortfolioEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
+import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
 import type {
   AssetCategory,
   PortfolioCalculation,
   PortfolioHoldingHistory,
   PortfolioHoldingInput,
   PortfolioHoldingResult,
-  PortfolioPerformance,
+  PortfolioPerformancePoint,
 } from './types';
 import './portfolio.css';
 
@@ -119,51 +120,17 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
 }
 
 type PortfolioReturnChartProps = {
-  performance: PortfolioPerformance | null;
+  points: PortfolioPerformancePoint[];
   histories: PortfolioHoldingHistory[];
   loading: boolean;
   error: string;
   onRetry: () => void;
 };
 
-const HISTORY_LABEL = {
-  ADDED: '추가',
-  UPDATED: '수정',
-  REMOVED: '삭제',
-} as const;
-
-function HistoryList({ histories }: { histories: PortfolioHoldingHistory[] }) {
-  return (
-    <>
-      <span className="portfolio-events-label">자산 변경 이력</span>
-      <ul className="portfolio-return-events" aria-label="자산 변경 이력">
-        {histories.length === 0 ? (
-          <li className="portfolio-return-events-empty">최근 7일 내 변경 이력이 없습니다.</li>
-        ) : (
-          histories.map((history) => {
-            const occurredAt = new Date(history.occurredAt);
-            const dateLabel = `${String(occurredAt.getMonth() + 1).padStart(2, '0')}.${String(
-              occurredAt.getDate(),
-            ).padStart(2, '0')}`;
-            return (
-              <li key={`${history.assetId}-${history.occurredAt}-${history.changeType}`}>
-                <i aria-hidden="true" />
-                <time dateTime={history.occurredAt}>{dateLabel}</time>
-                <span>
-                  {history.name} {HISTORY_LABEL[history.changeType]}
-                </span>
-                <strong>{numberFormatter.format(history.quantity)}주</strong>
-              </li>
-            );
-          })
-        )}
-      </ul>
-    </>
-  );
-}
+const HISTORY_LABEL = { ADDED: '추가', UPDATED: '수정', REMOVED: '삭제' } as const;
 
 function PortfolioReturnChart({
-  performance,
+  points,
   histories,
   loading,
   error,
@@ -172,35 +139,26 @@ function PortfolioReturnChart({
   const width = 720;
   const height = 190;
   const padding = { top: 12, right: 12, bottom: 8, left: 38 };
-  const pointsData = performance?.points ?? [];
-  const values = pointsData.map((point) => point.totalReturnRate);
+  const values = points.map((point) => point.totalReturnRate);
   const minimum = Math.min(0, ...values);
   const maximum = Math.max(0, ...values);
   const range = maximum - minimum || 1;
   const x = (index: number) =>
-    pointsData.length === 1
+    points.length === 1
       ? width / 2
-      : padding.left + (index / (pointsData.length - 1)) * (width - padding.left - padding.right);
+      : padding.left + (index / (points.length - 1)) * (width - padding.left - padding.right);
   const y = (value: number) =>
     padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
-  const points = pointsData.map((point, index) => `${x(index)},${y(point.totalReturnRate)}`);
-  const areaPoints = pointsData.length
-    ? `${x(0)},${y(0)} ${points.join(' ')} ${x(pointsData.length - 1)},${y(0)}`
+  const chartPoints = points.map((point, index) => `${x(index)},${y(point.totalReturnRate)}`);
+  const areaPoints = points.length
+    ? `${x(0)},${y(0)} ${chartPoints.join(' ')} ${x(points.length - 1)},${y(0)}`
     : '';
-  const latest = pointsData.at(-1);
-  const latestBaseDate = latest ? new Date(`${latest.baseDate}T00:00:00`) : null;
-  const dataAgeDays = latestBaseDate
-    ? Math.floor((Date.now() - latestBaseDate.getTime()) / (24 * 60 * 60 * 1000))
-    : 0;
-  const turningPoints = pointsData.flatMap((point, index, allPoints) => {
-    if (index === 0 || index === allPoints.length - 1) return [];
-    const previous = allPoints[index - 1].totalReturnRate;
-    const next = allPoints[index + 1].totalReturnRate;
-    const isPeak = point.totalReturnRate > previous && point.totalReturnRate > next;
-    const isTrough = point.totalReturnRate < previous && point.totalReturnRate < next;
-    return isPeak || isTrough ? [{ point, index }] : [];
-  });
+  const latest = points.at(-1);
   const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
+  const firstDate = points.at(0)?.occurredAt.slice(0, 10);
+  const visibleHistories = firstDate
+    ? histories.filter((history) => history.occurredAt.slice(0, 10) >= firstDate)
+    : [];
 
   return (
     <section className="portfolio-return-dashboard" aria-labelledby="return-dashboard-title">
@@ -220,26 +178,23 @@ function PortfolioReturnChart({
           </button>
         </div>
       ) : null}
-      {!loading && !error && performance?.status === 'INSUFFICIENT_DATA' ? (
+      {!loading && !error && points.length < 2 ? (
         <div className="portfolio-tracking-state">
           <strong>수익률 데이터를 준비하고 있어요</strong>
-          <p>최소 2일의 스냅샷이 쌓이면 추이를 보여드립니다.</p>
+          <p>기간별 종가가 2일 이상 쌓이면 추이를 보여드립니다.</p>
         </div>
       ) : null}
-      {!loading && !error && performance?.status === 'READY' && latest ? (
+      {!loading && !error && points.length >= 2 && latest ? (
         <>
           <div className="portfolio-return-summary">
             <strong>{formatPercent(latest.totalReturnRate, true)}</strong>
-            <span>
-              최근 7일 누적 수익률 · {latest.baseDate.replaceAll('-', '.')} 기준
-              {dataAgeDays > 3 ? ' · 데이터 동기화 지연 가능' : ''}
-            </span>
+            <span>최근 {points.length}회 포트폴리오 구성 기준</span>
           </div>
           <svg
             className="portfolio-return-chart"
             viewBox={`0 0 ${width} ${height}`}
             role="img"
-            aria-label={`일별 포트폴리오 수익률 추이, 현재 ${formatPercent(latest.totalReturnRate, true)}`}
+            aria-label={`포트폴리오 변경별 수익률 추이, 현재 ${formatPercent(latest.totalReturnRate, true)}`}
           >
             <defs>
               <linearGradient id="portfolio-return-area-gradient" x1="0" y1="0" x2="0" y2="1">
@@ -260,34 +215,41 @@ function PortfolioReturnChart({
               points={areaPoints}
               fill="url(#portfolio-return-area-gradient)"
             />
-            <polyline className="portfolio-return-line" points={points.join(' ')} />
-            {turningPoints.map(({ point, index }) => (
-              <circle
-                key={point.baseDate}
-                className="portfolio-return-point"
-                cx={x(index)}
-                cy={y(point.totalReturnRate)}
-                r={5}
-              >
-                <title>
-                  방향 전환 {point.baseDate.replaceAll('-', '.')}{' '}
-                  {formatPercent(point.totalReturnRate, true)}
-                </title>
-              </circle>
-            ))}
+            <polyline className="portfolio-return-line" points={chartPoints.join(' ')} />
           </svg>
           <div
             className="portfolio-return-dates"
-            style={{ gridTemplateColumns: `repeat(${pointsData.length}, minmax(0, 1fr))` }}
+            style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}
             aria-hidden="true"
           >
-            {pointsData.map((point) => (
-              <span key={point.baseDate}>{point.baseDate.slice(5).replace('-', '.')}</span>
+            {points.map((point) => (
+              <span key={point.occurredAt}>{point.occurredAt.slice(5, 10).replace('-', '.')}</span>
             ))}
           </div>
+          <span className="portfolio-events-label">자산 변경 이력</span>
+          <ul className="portfolio-return-events" aria-label="자산 변경 이력">
+            {visibleHistories.length === 0 ? (
+              <li className="portfolio-return-events-empty">최근 변경 이력이 없습니다.</li>
+            ) : (
+              visibleHistories.map((history) => {
+                const holding = history.holding ?? history.previousHolding;
+                return (
+                  <li key={`${history.occurredAt}-${holding?.assetId}-${history.changeType}`}>
+                    <i aria-hidden="true" />
+                    <time dateTime={history.occurredAt}>
+                      {history.occurredAt.slice(5, 10).replace('-', '.')}
+                    </time>
+                    <span>
+                      {holding?.name} {HISTORY_LABEL[history.changeType]}
+                    </span>
+                    <strong>{numberFormatter.format(holding?.quantity ?? 0)}주</strong>
+                  </li>
+                );
+              })
+            )}
+          </ul>
         </>
       ) : null}
-      {!loading && !error ? <HistoryList histories={histories} /> : null}
     </section>
   );
 }
@@ -308,16 +270,10 @@ function compareHoldings(
   return (second[key] as number) - (first[key] as number);
 }
 
-function formatDateParameter(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 export function PortfolioPage() {
   const {
     holdings,
+    histories,
     loading: holdingsLoading,
     saving: holdingsSaving,
     error: holdingsError,
@@ -326,14 +282,10 @@ export function PortfolioPage() {
     removeHolding,
   } = usePortfolioHoldings();
   const [calculation, setCalculation] = useState<PortfolioCalculation | null>(null);
+  const performance = usePortfolioPerformance(calculation, holdings);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
-  const [performance, setPerformance] = useState<PortfolioPerformance | null>(null);
-  const [histories, setHistories] = useState<PortfolioHoldingHistory[]>([]);
-  const [trackingLoading, setTrackingLoading] = useState(false);
-  const [trackingError, setTrackingError] = useState('');
-  const [trackingRetryCount, setTrackingRetryCount] = useState(0);
   const [editor, setEditor] = useState<{ holding?: PortfolioHoldingInput } | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | AssetCategory>('ALL');
   const [sort, setSort] = useState<PortfolioSort>('DEFAULT');
@@ -367,48 +319,6 @@ export function PortfolioPage() {
 
     return () => controller.abort();
   }, [holdings, holdingsLoading, retryCount]);
-
-  useEffect(() => {
-    if (holdingsLoading || holdings.length === 0) {
-      setPerformance(null);
-      setHistories([]);
-      setTrackingLoading(false);
-      setTrackingError('');
-      return;
-    }
-
-    const controller = new AbortController();
-    const to = new Date();
-    const from = new Date(to);
-    from.setDate(to.getDate() - 6);
-    setTrackingLoading(true);
-    setTrackingError('');
-    Promise.all([
-      getPortfolioPerformance(
-        formatDateParameter(from),
-        formatDateParameter(to),
-        controller.signal,
-      ),
-      getPortfolioHistories(formatDateParameter(from), formatDateParameter(to), controller.signal),
-    ])
-      .then(([nextPerformance, nextHistories]) => {
-        setPerformance(nextPerformance);
-        setHistories(nextHistories);
-      })
-      .catch((caughtError: unknown) => {
-        if (controller.signal.aborted) return;
-        setTrackingError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : '수익률과 변경 이력을 불러오지 못했습니다.',
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setTrackingLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [holdings, holdingsLoading, trackingRetryCount]);
 
   const visibleHoldings = useMemo(() => {
     const filtered =
@@ -551,11 +461,11 @@ export function PortfolioPage() {
             {analysisExpanded ? (
               <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
                 <PortfolioReturnChart
-                  performance={performance}
+                  points={performance.points}
                   histories={histories}
-                  loading={trackingLoading}
-                  error={trackingError}
-                  onRetry={() => setTrackingRetryCount((count) => count + 1)}
+                  loading={performance.loading}
+                  error={performance.error}
+                  onRetry={performance.retry}
                 />
                 <section className="portfolio-composition" aria-labelledby="composition-title">
                   <div className="portfolio-dashboard-heading">

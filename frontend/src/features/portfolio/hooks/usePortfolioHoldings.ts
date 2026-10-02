@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import {
-  addSavedPortfolioHolding,
-  getSavedPortfolio,
-  removeSavedPortfolioHolding,
-  updateSavedPortfolioHolding,
-} from '../api';
-import type { AssetCategory, PortfolioHoldingInput, StockMarket } from '../types';
+import type {
+  AssetCategory,
+  PortfolioHoldingHistory,
+  PortfolioHoldingInput,
+  StockMarket,
+} from '../types';
 
 export const PORTFOLIO_STORAGE_KEY = 'daynomy:portfolio-holdings:v1';
+export const PORTFOLIO_HISTORY_STORAGE_KEY = 'daynomy:portfolio-holding-history:v1';
 
 function isMarket(value: unknown): value is StockMarket {
   return value === 'KOSPI' || value === 'KOSDAQ';
@@ -47,7 +47,7 @@ function normalizeHolding(value: unknown): PortfolioHoldingInput | null {
   return null;
 }
 
-function loadLegacyHoldings() {
+function loadHoldings() {
   try {
     const saved = localStorage.getItem(PORTFOLIO_STORAGE_KEY);
     if (!saved) return [];
@@ -66,92 +66,84 @@ function loadLegacyHoldings() {
   }
 }
 
-async function migrateLegacyHoldings(serverHoldings: PortfolioHoldingInput[]) {
-  const legacyHoldings = loadLegacyHoldings();
-  if (legacyHoldings.length === 0) return serverHoldings;
-  const migrated = [...serverHoldings];
-  const savedAssetIds = new Set(serverHoldings.map((holding) => holding.assetId));
-  for (const holding of legacyHoldings) {
-    if (savedAssetIds.has(holding.assetId)) continue;
-    const saved = await addSavedPortfolioHolding(holding);
-    migrated.push(saved);
-    savedAssetIds.add(saved.assetId);
+function loadHistories() {
+  try {
+    const saved = localStorage.getItem(PORTFOLIO_HISTORY_STORAGE_KEY);
+    if (!saved) return [];
+    const parsed: unknown = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is PortfolioHoldingHistory => {
+      if (!value || typeof value !== 'object') return false;
+      const history = value as Partial<PortfolioHoldingHistory>;
+      return (
+        (history.changeType === 'ADDED' ||
+          history.changeType === 'UPDATED' ||
+          history.changeType === 'REMOVED') &&
+        typeof history.occurredAt === 'string' &&
+        !Number.isNaN(Date.parse(history.occurredAt)) &&
+        (history.previousHolding === null || normalizeHolding(history.previousHolding) !== null) &&
+        (history.holding === null || normalizeHolding(history.holding) !== null)
+      );
+    });
+  } catch {
+    return [];
   }
-  localStorage.removeItem(PORTFOLIO_STORAGE_KEY);
-  return migrated;
-}
-
-function userMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 export function usePortfolioHoldings() {
-  const [holdings, setHoldings] = useState<PortfolioHoldingInput[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [reloadCount, setReloadCount] = useState(0);
+  const [holdings, setHoldings] = useState<PortfolioHoldingInput[]>(loadHoldings);
+  const [histories, setHistories] = useState<PortfolioHoldingHistory[]>(loadHistories);
 
   useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError('');
-    getSavedPortfolio(controller.signal)
-      .then(migrateLegacyHoldings)
-      .then((savedHoldings) => {
-        if (!controller.signal.aborted) setHoldings(savedHoldings);
-      })
-      .catch((caughtError: unknown) => {
-        if (controller.signal.aborted) return;
-        setError(userMessage(caughtError, '포트폴리오를 불러오지 못했습니다.'));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [reloadCount]);
+    localStorage.setItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(holdings));
+  }, [holdings]);
+
+  useEffect(() => {
+    localStorage.setItem(PORTFOLIO_HISTORY_STORAGE_KEY, JSON.stringify(histories));
+  }, [histories]);
 
   async function saveHolding(nextHolding: PortfolioHoldingInput) {
-    const exists = holdings.some((holding) => holding.assetId === nextHolding.assetId);
-    setSaving(true);
-    setError('');
-    try {
-      const saved = exists
-        ? await updateSavedPortfolioHolding(nextHolding)
-        : await addSavedPortfolioHolding(nextHolding);
-      setHoldings((current) =>
-        exists
-          ? current.map((holding) => (holding.assetId === saved.assetId ? saved : holding))
-          : [...current, saved],
-      );
-    } catch (caughtError) {
-      const message = userMessage(caughtError, '보유자산을 저장하지 못했습니다.');
-      setError(message);
-      throw new Error(message);
-    } finally {
-      setSaving(false);
-    }
+    const previousHolding = holdings.find((holding) => holding.assetId === nextHolding.assetId);
+    setHoldings(
+      previousHolding
+        ? holdings.map((holding) =>
+            holding.assetId === nextHolding.assetId ? nextHolding : holding,
+          )
+        : [...holdings, nextHolding],
+    );
+    setHistories((current) => [
+      ...current,
+      {
+        changeType: previousHolding ? 'UPDATED' : 'ADDED',
+        occurredAt: new Date().toISOString(),
+        previousHolding: previousHolding ?? null,
+        holding: nextHolding,
+      },
+    ]);
   }
 
-  async function removeHolding(assetId: number) {
-    setSaving(true);
-    setError('');
-    try {
-      await removeSavedPortfolioHolding(assetId);
-      setHoldings((current) => current.filter((holding) => holding.assetId !== assetId));
-    } catch (caughtError) {
-      setError(userMessage(caughtError, '보유자산을 삭제하지 못했습니다.'));
-    } finally {
-      setSaving(false);
-    }
+  function removeHolding(assetId: number) {
+    const previousHolding = holdings.find((holding) => holding.assetId === assetId);
+    if (!previousHolding) return;
+    setHoldings((current) => current.filter((holding) => holding.assetId !== assetId));
+    setHistories((current) => [
+      ...current,
+      {
+        changeType: 'REMOVED',
+        occurredAt: new Date().toISOString(),
+        previousHolding,
+        holding: null,
+      },
+    ]);
   }
 
   return {
     holdings,
-    loading,
-    saving,
-    error,
-    retry: () => setReloadCount((count) => count + 1),
+    histories,
+    loading: false,
+    saving: false,
+    error: '',
+    retry: () => undefined,
     saveHolding,
     removeHolding,
   };
