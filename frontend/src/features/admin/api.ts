@@ -115,6 +115,7 @@ export async function getAdminNews(
   status: AdminNewsFilterStatus = 'ALL',
   category: AdminNewsFilterCategory = 'ALL',
   signal?: AbortSignal,
+  keyword = '',
 ): Promise<AdminNewsPageResponse> {
   const params = new URLSearchParams({
     page: String(page),
@@ -127,6 +128,10 @@ export async function getAdminNews(
 
   if (category !== 'ALL') {
     params.set('category', category);
+  }
+
+  if (keyword.trim()) {
+    params.set('q', keyword.trim());
   }
 
   const response = await request<unknown>(`/api/admin/news?${params.toString()}`, { signal });

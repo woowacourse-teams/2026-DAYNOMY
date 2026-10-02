@@ -42,8 +42,10 @@ test('관리자 뉴스 목록 API에 상태·카테고리 필터와 1-based page
   };
 
   const page = await getAdminNews(2, 'DRAFT', 'STOCK');
+  await getAdminNews(2, 'DRAFT', 'STOCK', undefined, ' 금리 인상 ');
 
   assert.equal(calls[0], '/api/admin/news?page=2&size=15&status=DRAFT&category=STOCK');
+  assert.equal(new URL(calls[1], 'http://localhost').searchParams.get('q'), '금리 인상');
   assert.equal(page.items[0].status, 'DRAFT');
   assert.equal(page.totalElements, 31);
 });
