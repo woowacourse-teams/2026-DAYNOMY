@@ -181,6 +181,7 @@
 
 .admin-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 14px;
   margin-top: 42px;
@@ -195,6 +196,25 @@
   gap: 6px;
 }
 
+.admin-search-form {
+  display: flex;
+  flex: 1 1 420px;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-search-form label {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-search-form .admin-primary-button,
+.admin-search-form .admin-secondary-button {
+  min-height: 40px;
+  padding: 0 12px;
+}
+
 .admin-toolbar label span,
 .admin-field > span {
   color: #374151;
@@ -203,6 +223,7 @@
 }
 
 .admin-toolbar select,
+.admin-toolbar input,
 .admin-field input,
 .admin-field textarea,
 .admin-field select {
@@ -225,6 +246,12 @@
   padding: 0 12px;
 }
 
+.admin-toolbar input {
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+}
+
 .admin-field input,
 .admin-field select {
   height: 46px;
@@ -238,6 +265,7 @@
 }
 
 .admin-toolbar select:focus,
+.admin-toolbar input:focus,
 .admin-field input:focus,
 .admin-field textarea:focus,
 .admin-field select:focus {
@@ -911,6 +939,10 @@
     align-items: stretch;
     flex-direction: column;
   }
+  .admin-search-form {
+    flex: none;
+    width: 100%;
+  }
   .admin-action-panel {
     align-items: stretch;
     flex-direction: column;
@@ -1014,6 +1046,7 @@
   .admin-primary-button,
   .admin-secondary-button,
   .admin-toolbar select,
+  .admin-toolbar input,
   .admin-field input,
   .admin-field textarea,
   .admin-field select {
