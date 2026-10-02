@@ -250,7 +250,7 @@ class AdminNewsControllerTest {
   @Test
   @DisplayName("관리자 뉴스 목록 조회 API는 페이지와 상태를 서비스에 전달한다")
   void getNewsPageReturnsAdminNews() throws Exception {
-    given(adminNewsService.getNewsPage(1, 15, NewsStatus.DRAFT, null))
+    given(adminNewsService.getNewsPage(1, 15, NewsStatus.DRAFT, null, null))
         .willReturn(
             new AdminNewsPageResponse(
                 java.util.List.of(
@@ -279,7 +279,39 @@ class AdminNewsControllerTest {
         .andExpect(jsonPath("$.page").value(1))
         .andExpect(jsonPath("$.totalElements").value(1));
 
-    then(adminNewsService).should().getNewsPage(1, 15, NewsStatus.DRAFT, null);
+    then(adminNewsService).should().getNewsPage(1, 15, NewsStatus.DRAFT, null, null);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 목록 API는 검색어와 필터를 서비스에 전달한다")
+  void getNewsPagePassesSearchKeyword() throws Exception {
+    given(adminNewsService.getNewsPage(2, 10, NewsStatus.REJECTED, Category.STOCK, "금리"))
+        .willReturn(new AdminNewsPageResponse(java.util.List.of(), 2, 10, 2, 11, false));
+
+    mockMvc
+        .perform(
+            get("/api/admin/news")
+                .param("q", "금리")
+                .param("status", "REJECTED")
+                .param("category", "STOCK")
+                .param("page", "2")
+                .param("size", "10"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items").isEmpty())
+        .andExpect(jsonPath("$.page").value(2));
+
+    then(adminNewsService).should().getNewsPage(2, 10, NewsStatus.REJECTED, Category.STOCK, "금리");
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 목록 API는 100자를 넘는 검색어를 거부한다")
+  void getNewsPageRejectsTooLongKeyword() throws Exception {
+    mockMvc
+        .perform(get("/api/admin/news").param("q", "가".repeat(101)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+    verifyNoInteractions(adminNewsService);
   }
 
   @Test

@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -69,7 +70,7 @@ public class AdminNewsController {
     return ResponseEntity.ok(AdminNewsResponse.from(news));
   }
 
-  @Operation(summary = "관리자 뉴스 목록 조회", description = "관리자용 뉴스 목록을 상태·카테고리별로 조회합니다.")
+  @Operation(summary = "관리자 뉴스 목록 조회", description = "관리자용 뉴스 목록을 검색어·상태·카테고리별로 조회합니다.")
   @GetMapping
   public ResponseEntity<AdminNewsPageResponse> getNewsPage(
       @Parameter(description = "1부터 시작하는 페이지 번호", example = "1")
@@ -82,8 +83,12 @@ public class AdminNewsController {
           @Max(value = 100, message = "페이지 크기는 100 이하여야 합니다.")
           int size,
       @Parameter(description = "뉴스 상태") @RequestParam(required = false) NewsStatus status,
-      @Parameter(description = "뉴스 카테고리") @RequestParam(required = false) Category category) {
-    return ResponseEntity.ok(adminNewsService.getNewsPage(page, size, status, category));
+      @Parameter(description = "뉴스 카테고리") @RequestParam(required = false) Category category,
+      @Parameter(description = "제목·본문 검색어(최대 100자)")
+          @RequestParam(name = "q", required = false)
+          @Size(max = 100, message = "검색어는 100자 이하여야 합니다.")
+          String keyword) {
+    return ResponseEntity.ok(adminNewsService.getNewsPage(page, size, status, category, keyword));
   }
 
   @Operation(summary = "관리자 뉴스 상세 조회", description = "관리자용으로 뉴스 상세 정보를 조회합니다.")

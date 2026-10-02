@@ -142,6 +142,41 @@ class NewsSearchRepositoryTest {
         .isEqualTo("금_ 문자 뉴스");
   }
 
+  @Test
+  @DisplayName("관리자 검색은 모든 상태에서 제목·본문을 검색하고 필터와 페이지를 적용한다")
+  void searchAdminNewsAcrossStatuses() {
+    entityManager.persist(News.createDraft("금리 일반 뉴스", "본문", null, List.of(), Category.STOCK));
+    entityManager.persist(
+        createNews(
+            "금% 발행 뉴스",
+            "본문", "published-match", Category.STOCK, Instant.parse("2026-08-14T10:00:00Z")));
+    News draft =
+        entityManager.persist(News.createDraft("초안 뉴스", "금% 본문", null, List.of(), Category.STOCK));
+    News rejected = News.createDraft("금% 반려 뉴스", "본문", null, List.of(), Category.STOCK);
+    rejected.reject();
+    entityManager.persist(rejected);
+    News etf =
+        entityManager.persist(News.createDraft("금% ETF 뉴스", "본문", null, List.of(), Category.ETF));
+    entityManager.flush();
+
+    Sort latestFirst = Sort.by(Sort.Direction.DESC, "createdAt", "id");
+    var firstPage =
+        newsSearchRepository.search("금!%", null, null, PageRequest.of(0, 2, latestFirst));
+    var draftStock =
+        newsSearchRepository.search(
+            "금!%", Category.STOCK, NewsStatus.DRAFT, PageRequest.of(0, 2, latestFirst));
+    var noResults =
+        newsSearchRepository.search("없음", null, null, PageRequest.of(0, 2, latestFirst));
+
+    assertThat(firstPage.getTotalElements()).isEqualTo(4);
+    assertThat(firstPage.getTotalPages()).isEqualTo(2);
+    assertThat(firstPage.getContent())
+        .extracting(News::getId)
+        .containsExactly(etf.getId(), rejected.getId());
+    assertThat(draftStock.getContent()).singleElement().isSameAs(draft);
+    assertThat(noResults.getContent()).isEmpty();
+  }
+
   private News createNews(
       String title, String content, String externalId, Category category, Instant publishedAt) {
     return News.createPublished(

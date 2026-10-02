@@ -24,9 +24,11 @@ import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.grit.daynomy.search.repository.NewsSearchRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -42,6 +44,7 @@ public class AdminNewsService {
   private static final long MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
   private final NewsRepository newsRepository;
+  private final NewsSearchRepository newsSearchRepository;
   private final OpenAiImageGenerator openAiImageGenerator;
   private final S3ImageStorage s3ImageStorage;
   private final KeywordAiClient keywordAiClient;
@@ -78,19 +81,22 @@ public class AdminNewsService {
   }
 
   public AdminNewsPageResponse getNewsPage(
-      int page, int size, NewsStatus status, Category category) {
-    PageRequest pageable = PageRequest.of(page - 1, size);
+      int page, int size, NewsStatus status, Category category, String keyword) {
+    PageRequest pageable =
+        PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
     Page<News> newsPage;
-    if (status == null && category == null) {
-      newsPage = newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable);
+    if (keyword != null && !keyword.isBlank()) {
+      String escapedKeyword =
+          keyword.strip().replace("!", "!!").replace("%", "!%").replace("_", "!_");
+      newsPage = newsSearchRepository.search(escapedKeyword, category, status, pageable);
+    } else if (status == null && category == null) {
+      newsPage = newsRepository.findAll(pageable);
     } else if (status == null) {
-      newsPage = newsRepository.findByCategoryOrderByCreatedAtDescIdDesc(category, pageable);
+      newsPage = newsRepository.findByCategory(category, pageable);
     } else if (category == null) {
-      newsPage = newsRepository.findByStatusOrderByCreatedAtDescIdDesc(status, pageable);
+      newsPage = newsRepository.findByStatus(status, pageable);
     } else {
-      newsPage =
-          newsRepository.findByStatusAndCategoryOrderByCreatedAtDescIdDesc(
-              status, category, pageable);
+      newsPage = newsRepository.findByStatusAndCategory(status, category, pageable);
     }
 
     return AdminNewsPageResponse.from(newsPage.map(AdminNewsListItemResponse::from));
