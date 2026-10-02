@@ -10,6 +10,8 @@ import type {
   AdminNewsSource,
   AdminNewsStatus,
   AdminNewsGenerationResponse,
+  AdminStockPriceSyncResponse,
+  AdminStockSyncResponse,
 } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -78,6 +80,28 @@ function isAdminNewsGenerationResponse(value: unknown): value is AdminNewsGenera
   return isRecord(value) && typeof value.savedCount === 'number';
 }
 
+function isAdminStockSyncResponse(value: unknown): value is AdminStockSyncResponse {
+  return (
+    isRecord(value) &&
+    typeof value.baseDate === 'string' &&
+    typeof value.syncedCount === 'number' &&
+    typeof value.createdCount === 'number' &&
+    typeof value.updatedCount === 'number' &&
+    typeof value.delistedCount === 'number'
+  );
+}
+
+function isAdminStockPriceSyncResponse(value: unknown): value is AdminStockPriceSyncResponse {
+  return (
+    isRecord(value) &&
+    typeof value.baseDate === 'string' &&
+    typeof value.receivedCount === 'number' &&
+    typeof value.createdCount === 'number' &&
+    typeof value.updatedCount === 'number' &&
+    typeof value.skippedCount === 'number'
+  );
+}
+
 function assertResponse<T>(value: unknown, isValid: (value: unknown) => value is T): T {
   if (!isValid(value)) {
     throw new Error('관리자 API 응답 형식이 올바르지 않습니다.');
@@ -91,6 +115,7 @@ export async function getAdminNews(
   status: AdminNewsFilterStatus = 'ALL',
   category: AdminNewsFilterCategory = 'ALL',
   signal?: AbortSignal,
+  keyword = '',
 ): Promise<AdminNewsPageResponse> {
   const params = new URLSearchParams({
     page: String(page),
@@ -103,6 +128,10 @@ export async function getAdminNews(
 
   if (category !== 'ALL') {
     params.set('category', category);
+  }
+
+  if (keyword.trim()) {
+    params.set('q', keyword.trim());
   }
 
   const response = await request<unknown>(`/api/admin/news?${params.toString()}`, { signal });
@@ -184,4 +213,20 @@ export async function generateAdminEconomyNewsDrafts(): Promise<AdminNewsGenerat
 
 export async function deleteAdminNews(id: number) {
   return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
+}
+
+export async function syncAdminStocks(): Promise<AdminStockSyncResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/stocks/sync', {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminStockSyncResponse);
+}
+
+export async function syncAdminStockPrices(): Promise<AdminStockPriceSyncResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/stocks/prices/sync', {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminStockPriceSyncResponse);
 }

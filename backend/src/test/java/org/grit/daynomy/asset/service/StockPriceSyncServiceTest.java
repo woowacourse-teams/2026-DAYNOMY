@@ -5,20 +5,30 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.publicdata.PublicDataEtfPriceClient;
 import org.grit.daynomy.external.publicdata.PublicDataStockPriceClient;
 import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceResponse;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +36,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
 class StockPriceSyncServiceTest {
@@ -33,13 +44,35 @@ class StockPriceSyncServiceTest {
   @Mock private PublicDataStockPriceClient stockPriceClient;
   @Mock private PublicDataEtfPriceClient etfPriceClient;
   @Mock private StockPricePersistenceService persistenceService;
+  @Mock private StockPriceSyncMetrics syncMetrics;
   @InjectMocks private StockPriceSyncService syncService;
 
+  private final Logger logger = (Logger) LoggerFactory.getLogger(StockPriceSyncService.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+  private Level originalLevel;
+
+  @BeforeEach
+  void setUpLogging() {
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
+  }
+
+  @AfterEach
+  void tearDownLogging() {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
+  }
+
   @Test
-  @DisplayName("가장 최근 거래일의 KOSPI·KOSDAQ 종가를 전체 페이지에서 동기화한다")
+  @DisplayName("최근 2개 거래일의 KOSPI·KOSDAQ 종가를 전체 페이지에서 동기화한다")
   void synchronizeLatestStockPrices() {
     LocalDate today = LocalDate.of(2026, 9, 21);
     LocalDate baseDate = today.minusDays(3);
+    LocalDate previousBaseDate = baseDate.minusDays(1);
     stubEmptyDay(today);
     stubEmptyDay(today.minusDays(1));
     stubEmptyDay(today.minusDays(2));
@@ -56,10 +89,8 @@ class StockPriceSyncServiceTest {
         .willReturn(response(1, List.of(item(baseDate, "247540", "285000"))));
     given(etfPriceClient.getEtfPrices(baseDate, 1, 1000))
         .willReturn(etfResponse(1, List.of(etfItem(baseDate, "069500", "KODEX 200", "53000"))));
-    given(
-            persistenceService.synchronize(
-                org.mockito.ArgumentMatchers.eq(baseDate), org.mockito.ArgumentMatchers.anyList()))
-        .willReturn(new StockPriceSyncResult(baseDate, 4, 4, 0, 0));
+    stubCompleteSnapshot(previousBaseDate);
+    stubPersistenceResult();
 
     StockPriceSyncResult result = syncService.synchronize(today);
 
@@ -69,6 +100,11 @@ class StockPriceSyncServiceTest {
     then(persistenceService)
         .should()
         .synchronize(org.mockito.ArgumentMatchers.eq(baseDate), entriesCaptor.capture());
+    then(persistenceService)
+        .should()
+        .synchronize(
+            org.mockito.ArgumentMatchers.eq(previousBaseDate),
+            org.mockito.ArgumentMatchers.anyList());
     assertThat(entriesCaptor.getValue())
         .extracting(
             StockPriceEntry::assetCode, StockPriceEntry::category, StockPriceEntry::closePrice)
@@ -81,6 +117,16 @@ class StockPriceSyncServiceTest {
                 "247540", AssetCategory.STOCK, new java.math.BigDecimal("285000")),
             org.assertj.core.groups.Tuple.tuple(
                 "069500", AssetCategory.ETF, new java.math.BigDecimal("53000")));
+
+    ILoggingEvent completedLog = logFor(LogEvent.STOCK_PRICE_SYNC_COMPLETED);
+    assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
+    assertThat(keyValues(completedLog))
+        .containsEntry("baseDate", baseDate)
+        .containsEntry("receivedCount", 4)
+        .containsEntry("createdCount", 4)
+        .containsEntry("updatedCount", 0)
+        .containsEntry("skippedCount", 0)
+        .containsKey("durationMs");
   }
 
   @Test
@@ -95,21 +141,26 @@ class StockPriceSyncServiceTest {
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
     then(persistenceService).shouldHaveNoInteractions();
+
+    ILoggingEvent failedLog = logFor(LogEvent.STOCK_PRICE_SYNC_FAILED);
+    assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(keyValues(failedLog))
+        .containsEntry("errorCode", AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND.code())
+        .containsKey("durationMs");
   }
 
   @Test
   @DisplayName("ETF 데이터가 없어도 주식 종가를 동기화한다")
   void synchronizeStockPricesWithoutEtfData() {
     LocalDate today = LocalDate.of(2026, 9, 21);
+    LocalDate previousBaseDate = today.minusDays(1);
     given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
         .willReturn(response(1, List.of(item(today, "005930", "82000"))));
     given(stockPriceClient.getStockPrices(today, StockMarket.KOSDAQ, 1, 1000))
         .willReturn(response(1, List.of(item(today, "247540", "285000"))));
     given(etfPriceClient.getEtfPrices(today, 1, 1000)).willReturn(etfResponse(0, List.of()));
-    given(
-            persistenceService.synchronize(
-                org.mockito.ArgumentMatchers.eq(today), org.mockito.ArgumentMatchers.anyList()))
-        .willReturn(new StockPriceSyncResult(today, 2, 2, 0, 0));
+    stubCompleteSnapshot(previousBaseDate);
+    stubPersistenceResult();
 
     syncService.synchronize(today);
 
@@ -123,6 +174,61 @@ class StockPriceSyncServiceTest {
         .containsExactly(
             org.assertj.core.groups.Tuple.tuple("005930", AssetCategory.STOCK),
             org.assertj.core.groups.Tuple.tuple("247540", AssetCategory.STOCK));
+  }
+
+  @Test
+  @DisplayName("종가 저장 중 예상하지 못한 오류가 발생하면 동기화 실패를 기록한다")
+  void synchronizeLogsUnexpectedPersistenceFailure() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    LocalDate previousBaseDate = today.minusDays(1);
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
+        .willReturn(response(1, List.of(item(today, "005930", "82000"))));
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSDAQ, 1, 1000))
+        .willReturn(response(1, List.of(item(today, "247540", "285000"))));
+    given(etfPriceClient.getEtfPrices(today, 1, 1000)).willReturn(etfResponse(0, List.of()));
+    stubCompleteSnapshot(previousBaseDate);
+    given(
+            persistenceService.synchronize(
+                org.mockito.ArgumentMatchers.any(LocalDate.class),
+                org.mockito.ArgumentMatchers.anyList()))
+        .willAnswer(
+            invocation -> {
+              LocalDate baseDate = invocation.getArgument(0);
+              if (baseDate.equals(today)) {
+                throw new IllegalStateException("database failure");
+              }
+              List<?> entries = invocation.getArgument(1);
+              return new StockPriceSyncResult(baseDate, entries.size(), entries.size(), 0, 0);
+            });
+
+    assertThatThrownBy(() -> syncService.synchronize(today))
+        .isInstanceOf(IllegalStateException.class);
+
+    ILoggingEvent failedLog = logFor(LogEvent.STOCK_PRICE_SYNC_FAILED);
+    assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(keyValues(failedLog))
+        .containsEntry("exception", IllegalStateException.class.getSimpleName())
+        .containsKey("durationMs");
+    assertThat(failedLog.getFormattedMessage()).doesNotContain("database failure");
+  }
+
+  @Test
+  @DisplayName("외부 종가 API 호출이 실패하면 전체 동기화 실패를 기록한다")
+  void synchronizeLogsExternalApiFailure() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
+        .willThrow(new BusinessException(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED));
+
+    assertThatThrownBy(() -> syncService.synchronize(today))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED);
+
+    ILoggingEvent failedLog = logFor(LogEvent.STOCK_PRICE_SYNC_FAILED);
+    assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(keyValues(failedLog))
+        .containsEntry("errorCode", ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED.code())
+        .containsKey("durationMs");
   }
 
   @Test
@@ -140,9 +246,50 @@ class StockPriceSyncServiceTest {
     then(persistenceService).shouldHaveNoInteractions();
   }
 
+  @Test
+  @DisplayName("지정한 기간의 거래일 종가만 백필한다")
+  void backfillStockPrices() {
+    LocalDate from = LocalDate.of(2026, 9, 18);
+    LocalDate to = LocalDate.of(2026, 9, 20);
+    stubCompleteSnapshot(from);
+    stubEmptyDay(from.plusDays(1));
+    stubEmptyDay(to);
+    stubPersistenceResult();
+
+    StockPriceBackfillResult result = syncService.backfill(from, to);
+
+    assertThat(result.synchronizedDateCount()).isEqualTo(1);
+    assertThat(result.createdCount()).isEqualTo(2);
+    then(persistenceService)
+        .should()
+        .synchronize(org.mockito.ArgumentMatchers.eq(from), org.mockito.ArgumentMatchers.anyList());
+    then(syncMetrics).should().recordSuccess(org.mockito.ArgumentMatchers.any());
+  }
+
   private void stubEmptyDay(LocalDate date) {
     given(stockPriceClient.getStockPrices(date, StockMarket.KOSPI, 1, 1000))
         .willReturn(response(0, List.of()));
+  }
+
+  private void stubCompleteSnapshot(LocalDate date) {
+    given(stockPriceClient.getStockPrices(date, StockMarket.KOSPI, 1, 1000))
+        .willReturn(response(1, List.of(item(date, "005930", "80000"))));
+    given(stockPriceClient.getStockPrices(date, StockMarket.KOSDAQ, 1, 1000))
+        .willReturn(response(1, List.of(item(date, "247540", "280000"))));
+    given(etfPriceClient.getEtfPrices(date, 1, 1000)).willReturn(etfResponse(0, List.of()));
+  }
+
+  private void stubPersistenceResult() {
+    given(
+            persistenceService.synchronize(
+                org.mockito.ArgumentMatchers.any(LocalDate.class),
+                org.mockito.ArgumentMatchers.anyList()))
+        .willAnswer(
+            invocation -> {
+              LocalDate baseDate = invocation.getArgument(0);
+              List<?> entries = invocation.getArgument(1);
+              return new StockPriceSyncResult(baseDate, entries.size(), entries.size(), 0, 0);
+            });
   }
 
   private PublicDataStockPriceResponse response(
@@ -191,5 +338,18 @@ class StockPriceSyncServiceTest {
       items.add(invalidItem);
     }
     return items;
+  }
+
+  private ILoggingEvent logFor(LogEvent event) {
+    return appender.list.stream()
+        .filter(candidate -> event.code().equals(keyValues(candidate).get("event")))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
   }
 }

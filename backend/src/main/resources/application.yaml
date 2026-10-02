@@ -36,6 +36,29 @@ spring:
       hibernate:
         format_sql: true
 
+management:
+  server:
+    address: 127.0.0.1
+    port: ${MANAGEMENT_SERVER_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: local
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 100ms,300ms,1s,2s
+
 app:
   cors:
     allowed-origin: ${FRONTEND_BASE_URL:http://localhost:5173}
@@ -75,7 +98,7 @@ external:
   public-data:
     service-key: ${PUBLIC_DATA_SERVICE_KEY}
     stock-price-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo
-    etf-price-url: https://apis.data.go.kr/1160100/service/GetSecuritiesProductInfoService/getETFPriceInfo
+    etf-price-url: https://apis.data.go.kr/1160100/GetSecuritiesProductInfoService_V2/getETFPriceInfo_V2
     listed-stock-url: https://apis.data.go.kr/1160100/GetKrxListedInfoService_V2/getItemInfo_V2
     connect-timeout: ${PUBLIC_DATA_CONNECT_TIMEOUT:3s}
     read-timeout: ${PUBLIC_DATA_READ_TIMEOUT:10s}
@@ -89,7 +112,6 @@ ai:
 news:
   generation:
     economy:
-      enabled: ${ECONOMY_NEWS_GENERATION_ENABLED:true}
       cron: ${ECONOMY_NEWS_GENERATION_CRON:0 0 9 * * *}
 
 stock:
@@ -100,6 +122,11 @@ stock:
     sync:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
       cron: ${STOCK_PRICE_SYNC_CRON:0 30 14 * * MON-FRI}
+
+portfolio:
+  snapshot:
+    enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
+    cron: ${PORTFOLIO_SNAPSHOT_CRON:0 0 15 * * MON-FRI}
 
 logging:
   structured:

@@ -1,0 +1,23 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+news:
+  generation:
+    economy:
+      enabled: true
+
+stock:
+  price:
+    sync:
+      enabled: true
+
+portfolio:
+  snapshot:
+    enabled: true
+
+management:
+  metrics:
+    tags:
+      environment: prod

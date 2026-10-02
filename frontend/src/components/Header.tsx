@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { trackEvent } from '../analytics';
 import { SearchOverlay } from '../features/search/components/SearchOverlay';
 import './Header.css';
 
@@ -14,10 +15,8 @@ function SearchIcon() {
 export function Header() {
   const location = useLocation();
   const isNewsPage =
-    location.pathname === '/' ||
-    location.pathname.startsWith('/news') ||
-    location.pathname.startsWith('/search');
-  const isPortfolioPage = location.pathname.startsWith('/portfolio');
+    location.pathname.startsWith('/news') || location.pathname.startsWith('/search');
+  const isPortfolioPage = location.pathname === '/' || location.pathname.startsWith('/portfolio');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -49,11 +48,11 @@ export function Header() {
         DAYNOMY
       </Link>
       <nav className="header-tabs" aria-label="주요 메뉴">
-        <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/">
-          이슈
-        </Link>
-        <Link className={isPortfolioPage ? 'header-tab active' : 'header-tab'} to="/portfolio">
+        <Link className={isPortfolioPage ? 'header-tab active' : 'header-tab'} to="/">
           포트폴리오
+        </Link>
+        <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/news">
+          이슈
         </Link>
       </nav>
       <div className="header-actions">
@@ -64,7 +63,10 @@ export function Header() {
           aria-label="검색 열기"
           aria-haspopup="dialog"
           aria-expanded={searchOpen}
-          onClick={() => setSearchOpen(true)}
+          onClick={() => {
+            trackEvent('click_search_open');
+            setSearchOpen(true);
+          }}
         >
           <SearchIcon />
           <kbd className="search-key">/</kbd>

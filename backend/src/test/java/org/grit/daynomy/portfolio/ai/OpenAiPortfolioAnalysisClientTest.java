@@ -3,17 +3,23 @@ package org.grit.daynomy.portfolio.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -21,18 +27,27 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 class OpenAiPortfolioAnalysisClientTest {
 
   private final ObjectMapper objectMapper = new ObjectMapper();
+  private final Logger logger =
+      (Logger) LoggerFactory.getLogger(OpenAiPortfolioAnalysisClient.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
   private MockWebServer server;
   private OpenAiPortfolioAnalysisClient client;
+  private Level originalLevel;
 
   @BeforeEach
   void setUp() throws IOException {
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
     server = new MockWebServer();
     server.start();
     client =
@@ -43,6 +58,9 @@ class OpenAiPortfolioAnalysisClientTest {
   @AfterEach
   void tearDown() throws IOException {
     server.shutdown();
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
   }
 
   @Test
@@ -86,15 +104,83 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(result.impacts().getFirst().evidenceSentence())
         .isEqualTo("SK하이닉스의 수요와 비용이 모두 증가했습니다.");
 
+    ILoggingEvent completedLog = appender.list.getLast();
+    assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
+    assertThat(completedLog.getFormattedMessage())
+        .isEqualTo(LogEvent.PORTFOLIO_ANALYSIS_COMPLETED.message());
+    assertThat(keyValues(completedLog))
+        .containsEntry("event", "portfolio.analysis.completed")
+        .containsEntry("api", "OpenAI")
+        .containsEntry("operation", "portfolio-analysis")
+        .containsEntry("targetCount", 2)
+        .containsEntry("analyzedCount", 2)
+        .containsKey("durationMs");
+
     RecordedRequest request = server.takeRequest();
     assertThat(request.getPath()).isEqualTo("/responses");
     assertThat(request.getHeader("Authorization")).isEqualTo("Bearer test-api-key");
 
     JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    assertThat(requestBody.path("reasoning").path("effort").asText()).isEqualTo("low");
     JsonNode userContent =
         objectMapper.readTree(requestBody.path("input").get(1).path("content").asText());
     assertThat(userContent.path("assets").get(0).path("assetName").asText()).isEqualTo("삼성전자");
     assertThat(userContent.toString()).doesNotContain("assetId");
+  }
+
+  @Test
+  @DisplayName("사용자 노출 문장은 해요체로 작성하고 뉴스 원문 문체는 유지하도록 요청한다")
+  void analyzeRequestsFriendlyToneExceptForEvidenceSentence() throws Exception {
+    enqueueOutput("{\"impacts\":[]}");
+
+    client.analyze("뉴스 본문", targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    String developerPrompt = requestBody.path("input").get(0).path("content").asText();
+
+    assertThat(developerPrompt)
+        .contains("expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.")
+        .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.")
+        .contains("evidenceSentence는 뉴스 원문의 문체를 그대로 유지하고 해요체로 바꾸지 마세요.");
+  }
+
+  @Test
+  @DisplayName("뉴스 원문의 직접적인 근거를 기준으로 영향 방향을 판단하도록 요청한다")
+  void analyzeRequestsDirectionBasedOnDirectEvidence() throws Exception {
+    enqueueOutput("{\"impacts\":[]}");
+
+    client.analyze("뉴스 본문", targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    String developerPrompt = requestBody.path("input").get(0).path("content").asText();
+
+    assertThat(developerPrompt)
+        .contains("자산의 실적, 수요, 경쟁력 또는 수급에 유리한 직접 영향이 명확하면 POSITIVE로 판단하세요.")
+        .contains("자산의 실적, 수요, 경쟁력 또는 수급에 불리한 직접 영향이 명확하면 NEGATIVE로 판단하세요.")
+        .contains("긍정·부정 요인이 함께 존재하면 NEUTRAL로 판단하세요.")
+        .contains("시장 전반의 분위기나 일반적인 업황만으로 개별 자산의 방향을 추측하지 마세요.");
+  }
+
+  @Test
+  @DisplayName("영향 수준을 HIGH, LOW, MEDIUM 우선순위에 따라 판단하도록 요청한다")
+  void analyzeRequestsImpactLevelBasedOnExplicitCriteria() throws Exception {
+    enqueueOutput("{\"impacts\":[]}");
+
+    client.analyze("뉴스 본문", targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    String developerPrompt = requestBody.path("input").get(0).path("content").asText();
+
+    assertThat(developerPrompt)
+        .contains(
+            "impactLevel은 direction과 관계없이 뉴스 원문에 명시된 영향의 범위, 규모, 즉시성, 확실성을 기준으로 HIGH, LOW, MEDIUM 순서로 판단하세요.")
+        .contains("영향 기간이 짧더라도 규모가 크면 HIGH를 유지하세요.")
+        .contains("HIGH에 해당하지 않고 영향 규모가 작거나 일시적이라고 명시된 경우에는 LOW로 우선 판단하세요.")
+        .contains(
+            "HIGH와 LOW에 해당하지 않으면서 직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.");
   }
 
   @Test
@@ -174,13 +260,29 @@ class OpenAiPortfolioAnalysisClientTest {
   @Test
   @DisplayName("OpenAI가 HTTP 오류를 반환하면 분석 실패로 처리한다")
   void analyzeHandlesHttpError() {
+    String responseBody = "{\"error\":\"sensitive-response\"}";
     server.enqueue(
         new MockResponse()
             .setResponseCode(500)
             .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
-            .setBody("{\"error\":\"failed\"}"));
+            .setBody(responseBody));
 
     assertAnalysisFailed(() -> client.analyze("뉴스 본문", targets()));
+
+    ILoggingEvent failedLog = appender.list.getLast();
+    assertThat(failedLog.getLevel()).isEqualTo(Level.WARN);
+    assertThat(failedLog.getFormattedMessage())
+        .isEqualTo(LogEvent.PORTFOLIO_ANALYSIS_FAILED.message())
+        .doesNotContain(responseBody)
+        .doesNotContain("sensitive-response");
+    assertThat(keyValues(failedLog))
+        .containsEntry("event", "portfolio.analysis.failed")
+        .containsEntry("api", "OpenAI")
+        .containsEntry("operation", "portfolio-analysis")
+        .containsEntry("httpStatus", 500)
+        .containsEntry("targetCount", 2)
+        .containsKey("durationMs")
+        .containsKey("errorType");
   }
 
   private List<PortfolioAnalysisTarget> targets() {
@@ -207,5 +309,10 @@ class OpenAiPortfolioAnalysisClientTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    return loggingEvent.getKeyValuePairs().stream()
+        .collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
   }
 }

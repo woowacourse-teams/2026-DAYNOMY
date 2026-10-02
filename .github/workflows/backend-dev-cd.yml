@@ -136,7 +136,7 @@ jobs:
               --fail \
               --silent \
               --max-time 5 \
-              http://127.0.0.1:8080/api/news \
+              http://127.0.0.1:8081/actuator/health \
               >/dev/null; then
               HEALTHY=true
               break

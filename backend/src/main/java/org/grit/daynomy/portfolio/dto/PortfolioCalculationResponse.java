@@ -8,6 +8,8 @@ public record PortfolioCalculationResponse(
     LocalDate baseDate,
     BigDecimal totalPurchaseAmount,
     BigDecimal totalEvaluationAmount,
+    BigDecimal dailyProfitLoss,
+    BigDecimal dailyReturnRate,
     BigDecimal totalProfitLoss,
     BigDecimal totalReturnRate,
     List<PortfolioHoldingResponse> holdings,

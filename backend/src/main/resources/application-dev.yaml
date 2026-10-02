@@ -1,0 +1,18 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+news:
+  generation:
+    economy:
+      enabled: false
+
+logging:
+  level:
+    org.grit.daynomy: DEBUG
+
+management:
+  metrics:
+    tags:
+      environment: dev

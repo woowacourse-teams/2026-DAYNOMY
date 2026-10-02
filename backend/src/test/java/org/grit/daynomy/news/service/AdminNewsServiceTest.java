@@ -10,9 +10,16 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
@@ -34,6 +41,8 @@ import org.grit.daynomy.news.dto.NewsSourceRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.search.repository.NewsSearchRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +50,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -52,6 +62,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 @ExtendWith(MockitoExtension.class)
 class AdminNewsServiceTest {
+
+  private final Logger logger = (Logger) LoggerFactory.getLogger(AdminNewsService.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+  private Level originalLevel;
 
   @Mock private NewsRepository newsRepository;
 
@@ -71,6 +86,24 @@ class AdminNewsServiceTest {
 
   @InjectMocks private AdminNewsService adminNewsService;
 
+  @BeforeEach
+  void setUpLogging() {
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
+  }
+
+  @AfterEach
+  void tearDownLogging() {
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
+  }
+
   @Test
   @DisplayName("관리자 뉴스 등록은 수동 출처의 초안으로 저장한다")
   void createNewsSavesManualDraft() {
@@ -88,6 +121,7 @@ class AdminNewsServiceTest {
             new S3ImageStorage.StoredImage("news-image.png", "https://example.com/news-image.png"));
     given(newsRepository.save(any(News.class))).willAnswer(invocation -> invocation.getArgument(0));
 
+    TransactionSynchronizationManager.initSynchronization();
     News savedNews = adminNewsService.createDraft(request, image);
 
     ArgumentCaptor<News> newsCaptor = ArgumentCaptor.forClass(News.class);
@@ -106,6 +140,11 @@ class AdminNewsServiceTest {
     ArgumentCaptor<byte[]> imageCaptor = ArgumentCaptor.forClass(byte[].class);
     verify(s3ImageStorage).upload(imageCaptor.capture(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE));
     assertThat(imageCaptor.getValue()).containsExactly(1, 2, 3);
+    assertThat(appender.list).isEmpty();
+
+    commitTransaction();
+    ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_DRAFT_CREATED);
+    assertThat(keyValues(log)).containsKey("newsId").containsEntry("category", Category.STOCK);
   }
 
   @Test
@@ -121,6 +160,7 @@ class AdminNewsServiceTest {
             Category.STOCK);
     given(newsRepository.save(any(News.class))).willAnswer(invocation -> invocation.getArgument(0));
 
+    TransactionSynchronizationManager.initSynchronization();
     adminNewsService.createDraft(request, null);
 
     ArgumentCaptor<News> newsCaptor = ArgumentCaptor.forClass(News.class);
@@ -130,6 +170,7 @@ class AdminNewsServiceTest {
             new NewsSourceInfo("출처 A", "https://example.com/a"),
             new NewsSourceInfo("출처 B", "https://example.com/b"));
     assertThat(newsCaptor.getValue().getImageSource()).isEqualTo(ImageSourceInfo.empty());
+    commitTransaction();
   }
 
   @Test
@@ -155,6 +196,7 @@ class AdminNewsServiceTest {
               synchronization ->
                   synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
       verify(s3ImageStorage).delete(uploadedImage);
+      assertThat(appender.list).isEmpty();
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }
@@ -207,6 +249,7 @@ class AdminNewsServiceTest {
       assertThat(result.getImageUrl()).isEqualTo(uploadedImage.publicUrl());
       assertThat(result.getImageSource()).isEqualTo(ImageSourceInfo.empty());
       verify(newsRepository).flush();
+      assertThat(appender.list).isEmpty();
       TransactionSynchronizationManager.getSynchronizations()
           .forEach(
               synchronization -> {
@@ -214,6 +257,8 @@ class AdminNewsServiceTest {
                 synchronization.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
               });
       verify(s3ImageStorage).deleteIfManaged(previousImageUrl);
+      ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_IMAGE_GENERATED);
+      assertThat(keyValues(log)).containsKey("newsId");
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }
@@ -266,16 +311,15 @@ class AdminNewsServiceTest {
             null,
             List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
             Category.STOCK);
-    PageRequest pageable = PageRequest.of(0, 15);
-    given(newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable))
-        .willReturn(new PageImpl<>(List.of(news), pageable, 1));
+    PageRequest pageable = PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+    given(newsRepository.findAll(pageable)).willReturn(new PageImpl<>(List.of(news), pageable, 1));
 
     var response = adminNewsService.getNewsPage(1, 15, null, null, "  ");
 
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().getFirst().title()).isEqualTo("초안 뉴스");
     assertThat(response.items().getFirst().status()).isEqualTo(NewsStatus.DRAFT);
-    verify(newsRepository).findAllByOrderByCreatedAtDescIdDesc(pageable);
+    verify(newsRepository).findAll(pageable);
     verifyNoInteractions(newsSearchRepository);
   }
 
@@ -330,6 +374,7 @@ class AdminNewsServiceTest {
     given(keywordAiClient.extractKeywords("뉴스 본문")).willReturn(keywords);
     given(marketAnalysisAiClient.analyze("뉴스 본문")).willReturn(marketAnalysis);
 
+    TransactionSynchronizationManager.initSynchronization();
     News publishedNews = adminNewsService.publish(1L);
 
     assertThat(publishedNews).isSameAs(news);
@@ -340,6 +385,11 @@ class AdminNewsServiceTest {
     verify(keywordService).saveKeywords(news, keywords);
     verify(marketAnalysisService).saveMarketAnalysis(news, marketAnalysis);
     verify(newsRepository).flush();
+    assertThat(appender.list).isEmpty();
+
+    commitTransaction();
+    ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_PUBLISH_COMPLETED);
+    assertThat(keyValues(log)).containsKey("newsId");
   }
 
   @Test
@@ -416,6 +466,7 @@ class AdminNewsServiceTest {
             Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
+    TransactionSynchronizationManager.initSynchronization();
     News rejectedNews = adminNewsService.reject(1L);
 
     assertThat(rejectedNews).isSameAs(news);
@@ -423,6 +474,11 @@ class AdminNewsServiceTest {
     assertThat(rejectedNews.getPublishedAt()).isNull();
     verifyNoInteractions(
         keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
+    assertThat(appender.list).isEmpty();
+
+    commitTransaction();
+    ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_REJECT_COMPLETED);
+    assertThat(keyValues(log)).containsKey("newsId");
   }
 
   @Test
@@ -505,6 +561,7 @@ class AdminNewsServiceTest {
           keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
       verify(s3ImageStorage, never())
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
+      assertThat(appender.list).isEmpty();
 
       for (TransactionSynchronization synchronization :
           TransactionSynchronizationManager.getSynchronizations()) {
@@ -513,6 +570,8 @@ class AdminNewsServiceTest {
 
       verify(s3ImageStorage)
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
+      ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_UPDATE_COMPLETED);
+      assertThat(keyValues(log)).containsKey("newsId").containsEntry("analysisRegenerated", false);
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }
@@ -542,6 +601,7 @@ class AdminNewsServiceTest {
     given(keywordAiClient.extractKeywords("수정 본문")).willReturn(keywords);
     given(marketAnalysisAiClient.analyze("수정 본문")).willReturn(marketAnalysis);
 
+    TransactionSynchronizationManager.initSynchronization();
     News updatedNews = adminNewsService.update(1L, request, null);
 
     assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
@@ -549,6 +609,9 @@ class AdminNewsServiceTest {
     verify(marketAnalysisAiClient).analyze("수정 본문");
     verify(keywordService).replaceKeywords(news, keywords);
     verify(marketAnalysisService).updateMarketAnalysis(1L, marketAnalysis);
+    commitTransaction();
+    ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_UPDATE_COMPLETED);
+    assertThat(keyValues(log)).containsKey("newsId").containsEntry("analysisRegenerated", true);
   }
 
   @Test
@@ -601,12 +664,16 @@ class AdminNewsServiceTest {
             Category.ETF);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
+    TransactionSynchronizationManager.initSynchronization();
     News updatedNews = adminNewsService.update(1L, request, null);
 
     assertThat(updatedNews.getTitle()).isEqualTo("수정 제목");
     assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
     verifyNoInteractions(
         keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
+    commitTransaction();
+    ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_UPDATE_COMPLETED);
+    assertThat(keyValues(log)).containsKey("newsId").containsEntry("analysisRegenerated", false);
   }
 
   @Test
@@ -675,10 +742,43 @@ class AdminNewsServiceTest {
             Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
 
+    TransactionSynchronizationManager.initSynchronization();
     adminNewsService.delete(1L);
 
     assertThat(news.getStatus()).isEqualTo(NewsStatus.DELETED);
     assertThat(news.getPublishedAt()).isNull();
     verify(s3ImageStorage).deleteIfManaged(news.getImageUrl());
+    assertThat(appender.list).isEmpty();
+
+    commitTransaction();
+    ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_DELETE_COMPLETED);
+    assertThat(keyValues(log)).containsKey("newsId");
+  }
+
+  private void commitTransaction() {
+    TransactionSynchronizationManager.getSynchronizations()
+        .forEach(TransactionSynchronization::afterCommit);
+    TransactionSynchronizationManager.getSynchronizations()
+        .forEach(
+            synchronization ->
+                synchronization.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+    TransactionSynchronizationManager.clearSynchronization();
+  }
+
+  private ILoggingEvent assertCompletionLog(LogEvent event) {
+    ILoggingEvent loggingEvent =
+        appender.list.stream()
+            .filter(candidate -> event.code().equals(keyValues(candidate).get("event")))
+            .findFirst()
+            .orElseThrow();
+    assertThat(loggingEvent.getLevel()).isEqualTo(Level.INFO);
+    assertThat(loggingEvent.getFormattedMessage()).isEqualTo(event.message());
+    return loggingEvent;
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
   }
 }

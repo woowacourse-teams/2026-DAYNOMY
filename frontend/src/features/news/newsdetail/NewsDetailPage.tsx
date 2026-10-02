@@ -102,13 +102,13 @@ export function NewsDetailPage() {
     holdings.length > 0 ? 'loading' : 'ready',
   );
   const goBack = () => {
-    navigate('/');
+    navigate('/news');
   };
 
   useEffect(() => {
     let ignore = false;
 
-    trackEvent('view_news_detail', { news_id: newsId });
+    if (/^\d+$/.test(newsId)) trackEvent('view_news_detail', { news_id: newsId });
     setPayload(undefined);
     setError('');
     getNewsDetail(newsId)

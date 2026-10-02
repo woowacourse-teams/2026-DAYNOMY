@@ -6,6 +6,7 @@ import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
@@ -64,7 +65,15 @@ public class AdminNewsService {
               request.sourceInfos(),
               request.category());
 
-      return newsRepository.save(news);
+      News savedNews = newsRepository.save(news);
+      registerAfterCommit(
+          () ->
+              log.atInfo()
+                  .addKeyValue("event", LogEvent.NEWS_DRAFT_CREATED.code())
+                  .addKeyValue("newsId", savedNews.getId())
+                  .addKeyValue("category", savedNews.getCategory())
+                  .log(LogEvent.NEWS_DRAFT_CREATED.message()));
+      return savedNews;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
       throw exception;
@@ -73,24 +82,21 @@ public class AdminNewsService {
 
   public AdminNewsPageResponse getNewsPage(
       int page, int size, NewsStatus status, Category category, String keyword) {
-    PageRequest pageable = PageRequest.of(page - 1, size);
+    PageRequest pageable =
+        PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
     Page<News> newsPage;
     if (keyword != null && !keyword.isBlank()) {
       String escapedKeyword =
           keyword.strip().replace("!", "!!").replace("%", "!%").replace("_", "!_");
-      PageRequest searchPageable =
-          PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
-      newsPage = newsSearchRepository.search(escapedKeyword, category, status, searchPageable);
+      newsPage = newsSearchRepository.search(escapedKeyword, category, status, pageable);
     } else if (status == null && category == null) {
-      newsPage = newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable);
+      newsPage = newsRepository.findAll(pageable);
     } else if (status == null) {
-      newsPage = newsRepository.findByCategoryOrderByCreatedAtDescIdDesc(category, pageable);
+      newsPage = newsRepository.findByCategory(category, pageable);
     } else if (category == null) {
-      newsPage = newsRepository.findByStatusOrderByCreatedAtDescIdDesc(status, pageable);
+      newsPage = newsRepository.findByStatus(status, pageable);
     } else {
-      newsPage =
-          newsRepository.findByStatusAndCategoryOrderByCreatedAtDescIdDesc(
-              status, category, pageable);
+      newsPage = newsRepository.findByStatusAndCategory(status, category, pageable);
     }
 
     return AdminNewsPageResponse.from(newsPage.map(AdminNewsListItemResponse::from));
@@ -121,6 +127,12 @@ public class AdminNewsService {
       news.updateImage(uploadedImage.publicUrl());
       newsRepository.flush();
       registerImageCleanup(previousImageUrl, uploadedImage);
+      registerAfterCommit(
+          () ->
+              log.atInfo()
+                  .addKeyValue("event", LogEvent.NEWS_IMAGE_GENERATED.code())
+                  .addKeyValue("newsId", news.getId())
+                  .log(LogEvent.NEWS_IMAGE_GENERATED.message()));
       return news;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
@@ -149,6 +161,12 @@ public class AdminNewsService {
       throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
     }
     news.publish();
+    registerAfterCommit(
+        () ->
+            log.atInfo()
+                .addKeyValue("event", LogEvent.NEWS_PUBLISH_COMPLETED.code())
+                .addKeyValue("newsId", news.getId())
+                .log(LogEvent.NEWS_PUBLISH_COMPLETED.message()));
     return news;
   }
 
@@ -160,6 +178,12 @@ public class AdminNewsService {
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
 
     news.reject();
+    registerAfterCommit(
+        () ->
+            log.atInfo()
+                .addKeyValue("event", LogEvent.NEWS_REJECT_COMPLETED.code())
+                .addKeyValue("newsId", news.getId())
+                .log(LogEvent.NEWS_REJECT_COMPLETED.message()));
     return news;
   }
 
@@ -191,6 +215,13 @@ public class AdminNewsService {
         newsRepository.flush();
         registerImageCleanup(previousImageUrl, uploadedImage);
       }
+      registerAfterCommit(
+          () ->
+              log.atInfo()
+                  .addKeyValue("event", LogEvent.NEWS_UPDATE_COMPLETED.code())
+                  .addKeyValue("newsId", news.getId())
+                  .addKeyValue("analysisRegenerated", shouldRegenerateAnalysis)
+                  .log(LogEvent.NEWS_UPDATE_COMPLETED.message()));
       return news;
     } catch (RuntimeException exception) {
       deleteUploadedImage(uploadedImage);
@@ -206,6 +237,12 @@ public class AdminNewsService {
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
     news.delete();
     s3ImageStorage.deleteIfManaged(news.getImageUrl());
+    registerAfterCommit(
+        () ->
+            log.atInfo()
+                .addKeyValue("event", LogEvent.NEWS_DELETE_COMPLETED.code())
+                .addKeyValue("newsId", news.getId())
+                .log(LogEvent.NEWS_DELETE_COMPLETED.message()));
   }
 
   private S3ImageStorage.StoredImage uploadImage(MultipartFile image) {
@@ -248,7 +285,11 @@ public class AdminNewsService {
     try {
       s3ImageStorage.delete(uploadedImage);
     } catch (BusinessException exception) {
-      log.warn("Failed to clean up uploaded news image: key={}", uploadedImage.relativeKey());
+      log.atWarn()
+          .addKeyValue("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
+          .addKeyValue("provider", "s3")
+          .addKeyValue("relativeKey", uploadedImage.relativeKey())
+          .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
     }
   }
 
@@ -270,11 +311,24 @@ public class AdminNewsService {
         });
   }
 
+  private void registerAfterCommit(Runnable action) {
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            action.run();
+          }
+        });
+  }
+
   private void deletePreviousImage(String previousImageUrl) {
     try {
       s3ImageStorage.deleteIfManaged(previousImageUrl);
     } catch (BusinessException exception) {
-      log.warn("Failed to delete previous news image after transaction commit");
+      log.atWarn()
+          .addKeyValue("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
+          .addKeyValue("provider", "s3")
+          .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
     }
   }
 }

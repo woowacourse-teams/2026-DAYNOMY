@@ -22,6 +22,25 @@ export type PortfolioHoldingInput = StockSearchItem & {
   averagePurchasePrice: number;
 };
 
+export type PortfolioHoldingChangeType = 'ADDED' | 'UPDATED' | 'REMOVED';
+
+export type PortfolioHoldingHistory = {
+  changeType: PortfolioHoldingChangeType;
+  occurredAt: string;
+  previousHolding: PortfolioHoldingInput | null;
+  holding: PortfolioHoldingInput | null;
+};
+
+export type PortfolioPerformancePoint = {
+  baseDate: string;
+  recordedAt: string;
+  source: 'CLOSE' | 'HOLDING_CHANGE';
+  totalPurchaseAmount: number;
+  totalEvaluationAmount: number;
+  totalProfitLoss: number;
+  totalReturnRate: number;
+};
+
 export type PortfolioHoldingResult = PortfolioHoldingInput & {
   baseDate: string;
   closePrice: number;
@@ -42,6 +61,8 @@ export type PortfolioCalculation = {
   baseDate: string;
   totalPurchaseAmount: number;
   totalEvaluationAmount: number;
+  dailyProfitLoss: number | null;
+  dailyReturnRate: number | null;
   totalProfitLoss: number;
   totalReturnRate: number;
   holdings: PortfolioHoldingResult[];

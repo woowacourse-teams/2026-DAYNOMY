@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { formatDate } from '../news/newslist/utils';
@@ -70,6 +71,8 @@ export function AdminNewsPage() {
   const [totalElements, setTotalElements] = useState(0);
   const [status, setStatus] = useState<AdminNewsFilterStatus>('ALL');
   const [category, setCategory] = useState<AdminNewsFilterCategory>('ALL');
+  const [searchInput, setSearchInput] = useState('');
+  const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(true);
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
@@ -86,7 +89,7 @@ export function AdminNewsPage() {
     setLoading(true);
     setErrorMessage(null);
 
-    getAdminNews(page, status, category, controller.signal)
+    getAdminNews(page, status, category, controller.signal, keyword)
       .then((response) => {
         if (controller.signal.aborted) return;
         const nextTotalPages = Math.max(1, response.totalPages);
@@ -112,9 +115,22 @@ export function AdminNewsPage() {
       });
 
     return () => controller.abort();
-  }, [category, page, reloadKey, status]);
+  }, [category, keyword, page, reloadKey, status]);
 
   const paginationPages = useMemo(() => getPaginationPages(page, totalPages), [page, totalPages]);
+  const hasSearchConditions = Boolean(keyword) || status !== 'ALL' || category !== 'ALL';
+
+  function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setKeyword(searchInput.trim());
+    setPage(1);
+  }
+
+  function clearSearch() {
+    setSearchInput('');
+    setKeyword('');
+    setPage(1);
+  }
 
   function handleStatusChange(nextStatus: AdminNewsFilterStatus) {
     setStatus(nextStatus);
@@ -255,6 +271,24 @@ export function AdminNewsPage() {
       ) : null}
 
       <section className="admin-toolbar" aria-label="뉴스 목록 필터">
+        <form className="admin-search-form" onSubmit={handleSearch}>
+          <label>
+            <span>뉴스 검색</span>
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="제목·본문 검색"
+              maxLength={100}
+            />
+          </label>
+          <button type="submit" className="admin-primary-button">
+            검색
+          </button>
+          <button type="button" className="admin-secondary-button" onClick={clearSearch}>
+            초기화
+          </button>
+        </form>
         <label>
           <span>상태</span>
           <select
@@ -284,7 +318,8 @@ export function AdminNewsPage() {
           </select>
         </label>
         <p className="admin-total-count" aria-live="polite">
-          전체 <strong>{totalElements.toLocaleString('ko-KR')}</strong>건
+          {hasSearchConditions ? '조회 결과' : '전체'}{' '}
+          <strong>{totalElements.toLocaleString('ko-KR')}</strong>건
         </p>
       </section>
 
@@ -298,14 +333,27 @@ export function AdminNewsPage() {
       ) : null}
 
       <section className="admin-table-panel" aria-label="관리자 뉴스 목록">
-        {loading ? <div className="admin-table-loading">뉴스 목록을 불러오는 중입니다.</div> : null}
+        {loading ? (
+          <div className="admin-table-loading">
+            {keyword ? '뉴스를 검색하는 중입니다.' : '뉴스 목록을 불러오는 중입니다.'}
+          </div>
+        ) : null}
         {!loading && !errorMessage && items.length === 0 ? (
           <div className="admin-empty-state">
-            <strong>등록된 뉴스가 없습니다.</strong>
-            <p>새 뉴스를 등록하면 이곳에서 콘텐츠를 관리할 수 있습니다.</p>
-            <Link className="admin-secondary-button" to="/admin/news/new">
-              첫 뉴스 등록하기
-            </Link>
+            {hasSearchConditions ? (
+              <>
+                <strong>조건에 맞는 뉴스가 없습니다.</strong>
+                <p>검색어 또는 필터를 변경해 다시 확인해 주세요.</p>
+              </>
+            ) : (
+              <>
+                <strong>등록된 뉴스가 없습니다.</strong>
+                <p>새 뉴스를 등록하면 이곳에서 콘텐츠를 관리할 수 있습니다.</p>
+                <Link className="admin-secondary-button" to="/admin/news/new">
+                  첫 뉴스 등록하기
+                </Link>
+              </>
+            )}
           </div>
         ) : null}
         {!loading && items.length > 0 ? (
