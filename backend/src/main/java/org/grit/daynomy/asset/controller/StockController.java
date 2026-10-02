@@ -9,13 +9,18 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.dto.StockPriceResponse;
+import org.grit.daynomy.asset.dto.StockPricesResponse;
 import org.grit.daynomy.asset.dto.StockSearchResponse;
 import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.asset.service.StockSearchService;
 import org.grit.daynomy.common.response.ErrorResponse;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -59,5 +64,14 @@ public class StockController {
   @GetMapping("/{assetId}/price")
   public StockPriceResponse getLatestPrice(@PathVariable Long assetId) {
     return stockPriceService.getLatestPrice(assetId);
+  }
+
+  @Operation(summary = "국내 주식·ETF 기간별 종가 조회", description = "여러 종목의 31일 이내 거래일별 종가를 조회합니다.")
+  @GetMapping("/prices")
+  public StockPricesResponse getPrices(
+      @RequestParam @Size(min = 1, max = 50) List<@Positive Long> assetIds,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+    return stockPriceService.getPrices(assetIds, from, to);
   }
 }
