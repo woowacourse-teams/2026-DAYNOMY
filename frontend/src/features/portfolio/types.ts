@@ -22,6 +22,23 @@ export type PortfolioHoldingInput = StockSearchItem & {
   averagePurchasePrice: number;
 };
 
+export type PortfolioHoldingChangeType = 'ADDED' | 'UPDATED' | 'REMOVED';
+
+export type PortfolioHoldingHistory = {
+  changeType: PortfolioHoldingChangeType;
+  occurredAt: string;
+  previousHolding: PortfolioHoldingInput | null;
+  holding: PortfolioHoldingInput | null;
+};
+
+export type PortfolioPerformancePoint = {
+  baseDate: string;
+  totalPurchaseAmount: number;
+  totalEvaluationAmount: number;
+  totalProfitLoss: number;
+  totalReturnRate: number;
+};
+
 export type PortfolioHoldingResult = PortfolioHoldingInput & {
   baseDate: string;
   closePrice: number;

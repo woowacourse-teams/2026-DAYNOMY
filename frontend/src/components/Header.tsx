@@ -15,10 +15,8 @@ function SearchIcon() {
 export function Header() {
   const location = useLocation();
   const isNewsPage =
-    location.pathname === '/' ||
-    location.pathname.startsWith('/news') ||
-    location.pathname.startsWith('/search');
-  const isPortfolioPage = location.pathname.startsWith('/portfolio');
+    location.pathname.startsWith('/news') || location.pathname.startsWith('/search');
+  const isPortfolioPage = location.pathname === '/' || location.pathname.startsWith('/portfolio');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -46,14 +44,14 @@ export function Header() {
 
   return (
     <header className="daynomy-header">
-      <Link className="brand" to="/portfolio" aria-label="DAYNOMY 홈">
+      <Link className="brand" to="/" aria-label="DAYNOMY 홈">
         DAYNOMY
       </Link>
       <nav className="header-tabs" aria-label="주요 메뉴">
-        <Link className={isPortfolioPage ? 'header-tab active' : 'header-tab'} to="/portfolio">
+        <Link className={isPortfolioPage ? 'header-tab active' : 'header-tab'} to="/">
           포트폴리오
         </Link>
-        <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/">
+        <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/news">
           이슈
         </Link>
       </nav>

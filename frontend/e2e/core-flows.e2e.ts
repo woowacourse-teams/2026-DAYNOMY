@@ -102,7 +102,7 @@ test('검색어 입력에서 뉴스 결과와 상세 화면까지 이동한다',
     }),
   );
 
-  await page.goto('/');
+  await page.goto('/news');
   await page.getByRole('button', { name: '검색 열기' }).click();
   await page.getByRole('dialog', { name: '통합 검색' }).getByRole('textbox').fill('금리');
   await page.getByRole('dialog', { name: '통합 검색' }).getByRole('textbox').press('Enter');
@@ -119,7 +119,7 @@ test('검색어 입력에서 뉴스 결과와 상세 화면까지 이동한다',
 test('뉴스 목록에서 상세 본문을 읽고 목록으로 돌아온다', async ({ page }) => {
   await mockNewsApi(page);
 
-  await page.goto('/');
+  await page.goto('/news');
   await page
     .getByRole('region', { name: '이슈 목록' })
     .getByRole('link', { name: /기준금리 동결 가능성 확대/ })
@@ -130,6 +130,6 @@ test('뉴스 목록에서 상세 본문을 읽고 목록으로 돌아온다', as
     '기준금리는 당분간 동결될 전망입니다.',
   );
   await page.getByRole('button', { name: '전 페이지로 돌아가기' }).click();
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL('/news');
   await expect(page.getByRole('region', { name: '이슈 목록' })).toContainText(article.title);
 });

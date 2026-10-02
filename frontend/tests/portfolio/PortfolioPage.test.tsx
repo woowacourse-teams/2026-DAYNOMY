@@ -1,9 +1,10 @@
 /** @vitest-environment jsdom */
 
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
 import { PORTFOLIO_STORAGE_KEY } from '../../src/features/portfolio/hooks/usePortfolioHoldings';
+import { PORTFOLIO_PERFORMANCE_STORAGE_KEY } from '../../src/features/portfolio/hooks/usePortfolioPerformance';
 
 const stock = {
   assetId: 1,
@@ -65,10 +66,34 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function portfolioApiResponse(input: RequestInfo | URL, _init?: RequestInit) {
+  const url = String(input);
+  if (url.endsWith('/api/auth/csrf')) {
+    return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+  }
+  if (url.includes('/api/stocks/prices?')) {
+    const assetIds = new URL(url, 'http://localhost').searchParams.getAll('assetIds').map(Number);
+    return jsonResponse({
+      prices: assetIds.flatMap((assetId) => {
+        const asset = [stock, secondStock, kosdaqStock, etf].find(
+          (candidate) => candidate.assetId === assetId,
+        );
+        const initialPrice = assetId === etf.assetId ? 32000 : 70000;
+        return [24, 25, 26, 27, 28, 29, 30].map((day, index) => ({
+          ...asset,
+          baseDate: `2026-09-${day}`,
+          closePrice: initialPrice + index * 1000,
+        }));
+      }),
+    });
+  }
+  return null;
+}
+
 function mockPortfolioApi() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (input: RequestInfo | URL) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes('/api/stocks?')) return jsonResponse({ stocks: [stock] });
       if (url.endsWith('/api/stocks/1/price'))
@@ -81,11 +106,36 @@ function mockPortfolioApi() {
         });
       if (url.endsWith('/api/auth/csrf'))
         return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
-      if (url.endsWith('/api/portfolio/calculate')) return jsonResponse(calculation);
+      if (url.endsWith('/api/portfolio/calculate')) {
+        const request = JSON.parse(String(init?.body)) as {
+          holdings: Array<{ assetId: number; quantity: number; averagePurchasePrice: number }>;
+        };
+        const requestedHolding = request.holdings[0];
+        return jsonResponse({
+          ...calculation,
+          holdings: calculation.holdings.map((holding) => ({
+            ...holding,
+            quantity: requestedHolding?.quantity ?? holding.quantity,
+            averagePurchasePrice:
+              requestedHolding?.averagePurchasePrice ?? holding.averagePurchasePrice,
+          })),
+        });
+      }
+      const portfolioResponse = portfolioApiResponse(input, init);
+      if (portfolioResponse) return portfolioResponse;
       return jsonResponse({}, 404);
     }),
   );
 }
+
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      return portfolioApiResponse(input, init) ?? jsonResponse({}, 404);
+    }),
+  );
+});
 
 afterEach(() => {
   cleanup();
@@ -94,16 +144,16 @@ afterEach(() => {
 });
 
 describe('포트폴리오 화면', () => {
-  it('저장된 자산이 없으면 추가 안내를 표시한다', () => {
+  it('저장된 자산이 없으면 추가 안내를 표시한다', async () => {
     const view = render(<PortfolioPage />);
-    expect(view.getByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeTruthy();
+    expect(await view.findByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeTruthy();
     expect(view.getByRole('button', { name: /자산 추가/ })).toBeTruthy();
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
     mockPortfolioApi();
     const view = render(<PortfolioPage />);
-    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
@@ -129,15 +179,8 @@ describe('포트폴리오 화면', () => {
     expect(view.queryByText('KOSPI')).toBeNull();
     expect(view.queryByText('KOSDAQ')).toBeNull();
     expect(view.getByRole('heading', { name: '수익률 추적' })).toBeTruthy();
-    expect(view.getByRole('img', { name: /일별 포트폴리오 수익률 추이/ })).toBeTruthy();
+    expect(await view.findByRole('img', { name: /일별 포트폴리오 수익률 추이/ })).toBeTruthy();
     expect(view.queryByText('샘플 데이터')).toBeNull();
-    expect(view.getByText('삼성전자 추가')).toBeTruthy();
-    expect(view.getByText('보유수량 수정')).toBeTruthy();
-    expect(view.container.querySelectorAll('.portfolio-return-point')).toHaveLength(3);
-    expect(view.container.querySelectorAll('.portfolio-return-events i')).toHaveLength(2);
-    expect(view.getByText('09.24')).toBeTruthy();
-    expect(view.getByText('09.27')).toBeTruthy();
-    expect(view.getByText('09.30')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '자산 분석 접기' }));
     expect(view.queryByRole('heading', { name: '자산 구성' })).toBeNull();
     expect(view.queryByRole('heading', { name: '수익률 추적' })).toBeNull();
@@ -197,12 +240,14 @@ describe('포트폴리오 화면', () => {
     };
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         if (url.endsWith('/api/auth/csrf')) {
           return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
         }
         if (url.endsWith('/api/portfolio/calculate')) return jsonResponse(mixedCalculation);
+        const portfolioResponse = portfolioApiResponse(input, init);
+        if (portfolioResponse) return portfolioResponse;
         return jsonResponse({}, 404);
       }),
     );
@@ -229,7 +274,7 @@ describe('포트폴리오 화면', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         if (url.includes('/api/stocks?')) return jsonResponse({ stocks: [stock, secondStock] });
         if (url.endsWith('/api/stocks/1/price')) return firstPriceResponse;
@@ -239,12 +284,14 @@ describe('포트폴리오 화면', () => {
             baseDate: '2026-09-21',
             closePrice: 80000,
           });
+        const portfolioResponse = portfolioApiResponse(input, init);
+        if (portfolioResponse) return portfolioResponse;
         return jsonResponse({}, 404);
       }),
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '주식' } });
@@ -273,16 +320,18 @@ describe('포트폴리오 화면', () => {
   it('검색 결과를 주식과 ETF로 필터링한다', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input).includes('/api/stocks?')) {
           return jsonResponse({ stocks: [stock, kosdaqStock, etf] });
         }
+        const portfolioResponse = portfolioApiResponse(input, init);
+        if (portfolioResponse) return portfolioResponse;
         return jsonResponse({}, 404);
       }),
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '주식' } });
@@ -305,7 +354,7 @@ describe('포트폴리오 화면', () => {
     };
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         if (url.includes('/api/stocks?')) return jsonResponse({ stocks: [etf] });
         if (url.endsWith('/api/stocks/4/price'))
@@ -313,12 +362,14 @@ describe('포트폴리오 화면', () => {
         if (url.endsWith('/api/auth/csrf'))
           return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
         if (url.endsWith('/api/portfolio/calculate')) return jsonResponse(etfCalculation);
+        const portfolioResponse = portfolioApiResponse(input, init);
+        if (portfolioResponse) return portfolioResponse;
         return jsonResponse({}, 404);
       }),
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'KODEX' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /KODEX 200/ }));
@@ -337,13 +388,14 @@ describe('포트폴리오 화면', () => {
   it('검색 실패를 사용자용 문구로 표시하고 검색어를 지우면 오류를 초기화한다', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => {
-        throw new TypeError('Failed to fetch');
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('/api/stocks?')) throw new TypeError('Failed to fetch');
+        return portfolioApiResponse(input, init) ?? jsonResponse({}, 404);
       }),
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
 
     const dialog = view.getByRole('dialog');
     const searchInput = within(dialog).getByRole('searchbox');
@@ -370,16 +422,18 @@ describe('포트폴리오 화면', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         if (url.includes('/api/stocks?')) return jsonResponse({ stocks: [stock] });
         if (url.endsWith('/api/stocks/1/price')) return priceResponse;
+        const portfolioResponse = portfolioApiResponse(input, init);
+        if (portfolioResponse) return portfolioResponse;
         return jsonResponse({}, 404);
       }),
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(view.getByRole('button', { name: /자산 추가/ }));
+    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
@@ -408,6 +462,31 @@ describe('포트폴리오 화면', () => {
     expect(increaseButton.disabled).toBe(false);
     fireEvent.click(increaseButton);
     expect(averagePriceInput.value).toBe('76,000');
+  });
+
+  it('로컬에 저장된 보유자산을 수정한다', async () => {
+    localStorage.setItem(
+      PORTFOLIO_STORAGE_KEY,
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+    const view = render(<PortfolioPage />);
+
+    await view.findAllByText('750,000원');
+    fireEvent.click(view.getByRole('button', { name: '수정' }));
+    const dialog = view.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('보유수량'), { target: { value: '12' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '수정하기' }));
+
+    await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+    expect(await view.findByRole('img', { name: /일별 포트폴리오 수익률 추이/ })).toBeTruthy();
+    expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('"quantity":12');
+    expect(
+      JSON.parse(localStorage.getItem(PORTFOLIO_PERFORMANCE_STORAGE_KEY) ?? '[]'),
+    ).toHaveLength(7);
+    expect(
+      vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes('/api/users/me/')),
+    ).toBe(false);
   });
 
   it('로컬 저장 자산을 복원해 계산하고 삭제한다', async () => {

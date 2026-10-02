@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { calculatePortfolio } from './api';
 import { PortfolioEditor } from './components/PortfolioEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
+import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
 import type {
   AssetCategory,
   PortfolioCalculation,
+  PortfolioHoldingHistory,
   PortfolioHoldingInput,
   PortfolioHoldingResult,
+  PortfolioPerformancePoint,
 } from './types';
 import './portfolio.css';
 
@@ -18,23 +21,6 @@ const percentFormatter = new Intl.NumberFormat('ko-KR', {
 const HIDDEN_AMOUNT = '••••••원';
 
 type PortfolioSort = 'DEFAULT' | 'EVALUATION' | 'PROFIT' | 'RETURN' | 'WEIGHT';
-
-type PortfolioPerformancePoint = {
-  date: string;
-  returnRate: number;
-  event?: string;
-  eventChange?: number;
-};
-
-const MOCK_PORTFOLIO_PERFORMANCE: PortfolioPerformancePoint[] = [
-  { date: '2026-09-24', returnRate: 0 },
-  { date: '2026-09-25', returnRate: 2.1 },
-  { date: '2026-09-26', returnRate: 4, event: '삼성전자 추가', eventChange: 0.67 },
-  { date: '2026-09-27', returnRate: 1 },
-  { date: '2026-09-28', returnRate: 3 },
-  { date: '2026-09-29', returnRate: 5, event: '보유수량 수정', eventChange: -0.43 },
-  { date: '2026-09-30', returnRate: 3.08 },
-];
 
 function formatWon(value: number) {
   return `${numberFormatter.format(Math.round(value))}원`;
@@ -133,109 +119,137 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
   );
 }
 
-function PortfolioReturnChart() {
+type PortfolioReturnChartProps = {
+  points: PortfolioPerformancePoint[];
+  histories: PortfolioHoldingHistory[];
+  loading: boolean;
+  error: string;
+  onRetry: () => void;
+};
+
+const HISTORY_LABEL = { ADDED: '추가', UPDATED: '수정', REMOVED: '삭제' } as const;
+
+function PortfolioReturnChart({
+  points,
+  histories,
+  loading,
+  error,
+  onRetry,
+}: PortfolioReturnChartProps) {
   const width = 720;
   const height = 190;
   const padding = { top: 12, right: 12, bottom: 8, left: 38 };
-  const values = MOCK_PORTFOLIO_PERFORMANCE.map((point) => point.returnRate);
-  const minimum = 0;
-  const maximum = Math.max(6, ...values);
+  const values = points.map((point) => point.totalReturnRate);
+  const minimum = Math.min(0, ...values);
+  const maximum = Math.max(0, ...values);
   const range = maximum - minimum || 1;
   const x = (index: number) =>
-    MOCK_PORTFOLIO_PERFORMANCE.length === 1
+    points.length === 1
       ? width / 2
-      : padding.left +
-        (index / (MOCK_PORTFOLIO_PERFORMANCE.length - 1)) * (width - padding.left - padding.right);
+      : padding.left + (index / (points.length - 1)) * (width - padding.left - padding.right);
   const y = (value: number) =>
     padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
-  const points = MOCK_PORTFOLIO_PERFORMANCE.map(
-    (point, index) => `${x(index)},${y(point.returnRate)}`,
-  );
-  const areaPoints = `${x(0)},${y(0)} ${points.join(' ')} ${x(
-    MOCK_PORTFOLIO_PERFORMANCE.length - 1,
-  )},${y(0)}`;
-  const latest = MOCK_PORTFOLIO_PERFORMANCE.at(-1);
-  const events = MOCK_PORTFOLIO_PERFORMANCE.filter(
-    (point): point is PortfolioPerformancePoint & { event: string; eventChange: number } =>
-      Boolean(point.event) && point.eventChange !== undefined,
-  );
-  const turningPoints = MOCK_PORTFOLIO_PERFORMANCE.flatMap((point, index, allPoints) => {
-    if (index === 0 || index === allPoints.length - 1) return [];
-    const previous = allPoints[index - 1].returnRate;
-    const next = allPoints[index + 1].returnRate;
-    const isPeak = point.returnRate > previous && point.returnRate > next;
-    const isTrough = point.returnRate < previous && point.returnRate < next;
-    return isPeak || isTrough ? [{ point, index }] : [];
-  });
-  const guideValues = [0, 2, 4, 6];
+  const chartPoints = points.map((point, index) => `${x(index)},${y(point.totalReturnRate)}`);
+  const areaPoints = points.length
+    ? `${x(0)},${y(0)} ${chartPoints.join(' ')} ${x(points.length - 1)},${y(0)}`
+    : '';
+  const latest = points.at(-1);
+  const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
+  const firstDate = points.at(0)?.baseDate;
+  const visibleHistories = firstDate
+    ? histories.filter((history) => history.occurredAt.slice(0, 10) >= firstDate)
+    : [];
 
   return (
     <section className="portfolio-return-dashboard" aria-labelledby="return-dashboard-title">
       <div className="portfolio-dashboard-heading">
         <h2 id="return-dashboard-title">수익률 추적</h2>
       </div>
-      <div className="portfolio-return-summary">
-        <strong>{formatPercent(latest?.returnRate ?? 0, true)}</strong>
-        <span>최근 7일 누적 수익률</span>
-      </div>
-      <svg
-        className="portfolio-return-chart"
-        viewBox={`0 0 ${width} ${height}`}
-        role="img"
-        aria-label={`일별 포트폴리오 수익률 추이, 현재 ${formatPercent(latest?.returnRate ?? 0, true)}`}
-      >
-        <defs>
-          <linearGradient id="portfolio-return-area-gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#2474d2" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#2474d2" stopOpacity="0.02" />
-          </linearGradient>
-        </defs>
-        {guideValues.map((value) => (
-          <g key={value} className="portfolio-return-guide">
-            <line x1={padding.left} y1={y(value)} x2={width - padding.right} y2={y(value)} />
-            <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
-              {value}%
-            </text>
-          </g>
-        ))}
-        <polygon
-          className="portfolio-return-area"
-          points={areaPoints}
-          fill="url(#portfolio-return-area-gradient)"
-        />
-        <polyline className="portfolio-return-line" points={points.join(' ')} />
-        {turningPoints.map(({ point, index }) => (
-          <circle
-            key={point.date}
-            className="portfolio-return-point"
-            cx={x(index)}
-            cy={y(point.returnRate)}
-            r={5}
+      {loading ? (
+        <p className="portfolio-tracking-state" role="status">
+          수익률을 불러오고 있습니다.
+        </p>
+      ) : null}
+      {!loading && error ? (
+        <div className="portfolio-tracking-state" role="alert">
+          <p>{error}</p>
+          <button type="button" className="portfolio-secondary-button" onClick={onRetry}>
+            다시 시도
+          </button>
+        </div>
+      ) : null}
+      {!loading && !error && points.length < 2 ? (
+        <div className="portfolio-tracking-state">
+          <strong>수익률 데이터를 준비하고 있어요</strong>
+          <p>기간별 종가가 2일 이상 쌓이면 추이를 보여드립니다.</p>
+        </div>
+      ) : null}
+      {!loading && !error && points.length >= 2 && latest ? (
+        <>
+          <div className="portfolio-return-summary">
+            <strong>{formatPercent(latest.totalReturnRate, true)}</strong>
+            <span>최근 {points.length}거래일 총수익률</span>
+          </div>
+          <svg
+            className="portfolio-return-chart"
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label={`일별 포트폴리오 수익률 추이, 현재 ${formatPercent(latest.totalReturnRate, true)}`}
           >
-            <title>
-              방향 전환 {point.date.replaceAll('-', '.')} {formatPercent(point.returnRate, true)}
-            </title>
-          </circle>
-        ))}
-      </svg>
-      <div className="portfolio-return-dates" aria-hidden="true">
-        {MOCK_PORTFOLIO_PERFORMANCE.map((point) => (
-          <span key={point.date}>{point.date.slice(5).replace('-', '.')}</span>
-        ))}
-      </div>
-      <span className="portfolio-events-label">자산 변경 이력</span>
-      <ul className="portfolio-return-events" aria-label="자산 변경 이력">
-        {events.map((event) => (
-          <li key={`${event.date}-${event.event}`}>
-            <i aria-hidden="true" />
-            <time dateTime={event.date}>{event.date.slice(5).replace('-', '.')}</time>
-            <span>{event.event}</span>
-            <strong className={event.eventChange < 0 ? 'is-negative' : undefined}>
-              {formatPercent(event.eventChange, true)}p
-            </strong>
-          </li>
-        ))}
-      </ul>
+            <defs>
+              <linearGradient id="portfolio-return-area-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2474d2" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#2474d2" stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+            {guideValues.map((value) => (
+              <g key={value} className="portfolio-return-guide">
+                <line x1={padding.left} y1={y(value)} x2={width - padding.right} y2={y(value)} />
+                <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
+                  {percentFormatter.format(value)}%
+                </text>
+              </g>
+            ))}
+            <polygon
+              className="portfolio-return-area"
+              points={areaPoints}
+              fill="url(#portfolio-return-area-gradient)"
+            />
+            <polyline className="portfolio-return-line" points={chartPoints.join(' ')} />
+          </svg>
+          <div
+            className="portfolio-return-dates"
+            style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}
+            aria-hidden="true"
+          >
+            {points.map((point) => (
+              <span key={point.baseDate}>{point.baseDate.slice(5).replace('-', '.')}</span>
+            ))}
+          </div>
+          <span className="portfolio-events-label">자산 변경 이력</span>
+          <ul className="portfolio-return-events" aria-label="자산 변경 이력">
+            {visibleHistories.length === 0 ? (
+              <li className="portfolio-return-events-empty">최근 변경 이력이 없습니다.</li>
+            ) : (
+              visibleHistories.map((history) => {
+                const holding = history.holding ?? history.previousHolding;
+                return (
+                  <li key={`${history.occurredAt}-${holding?.assetId}-${history.changeType}`}>
+                    <i aria-hidden="true" />
+                    <time dateTime={history.occurredAt}>
+                      {history.occurredAt.slice(5, 10).replace('-', '.')}
+                    </time>
+                    <span>
+                      {holding?.name} {HISTORY_LABEL[history.changeType]}
+                    </span>
+                    <strong>{numberFormatter.format(holding?.quantity ?? 0)}주</strong>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        </>
+      ) : null}
     </section>
   );
 }
@@ -257,9 +271,19 @@ function compareHoldings(
 }
 
 export function PortfolioPage() {
-  const { holdings, saveHolding, removeHolding } = usePortfolioHoldings();
+  const {
+    holdings,
+    histories,
+    loading: holdingsLoading,
+    saving: holdingsSaving,
+    error: holdingsError,
+    retry: retryHoldings,
+    saveHolding,
+    removeHolding,
+  } = usePortfolioHoldings();
   const [calculation, setCalculation] = useState<PortfolioCalculation | null>(null);
-  const [loading, setLoading] = useState(holdings.length > 0);
+  const performance = usePortfolioPerformance(holdings);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [editor, setEditor] = useState<{ holding?: PortfolioHoldingInput } | null>(null);
@@ -269,6 +293,7 @@ export function PortfolioPage() {
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
 
   useEffect(() => {
+    if (holdingsLoading) return;
     if (holdings.length === 0) {
       setCalculation(null);
       setLoading(false);
@@ -278,6 +303,7 @@ export function PortfolioPage() {
 
     const controller = new AbortController();
     setLoading(true);
+    setError('');
     calculatePortfolio(holdings, controller.signal)
       .then(setCalculation)
       .catch((caughtError: unknown) => {
@@ -292,7 +318,7 @@ export function PortfolioPage() {
       });
 
     return () => controller.abort();
-  }, [holdings, retryCount]);
+  }, [holdings, holdingsLoading, retryCount]);
 
   const visibleHoldings = useMemo(() => {
     const filtered =
@@ -302,8 +328,8 @@ export function PortfolioPage() {
     return [...filtered].sort((first, second) => compareHoldings(first, second, sort));
   }, [calculation, categoryFilter, sort]);
 
-  function save(nextHolding: PortfolioHoldingInput) {
-    saveHolding(nextHolding);
+  async function save(nextHolding: PortfolioHoldingInput) {
+    await saveHolding(nextHolding);
     setEditor(null);
   }
 
@@ -318,7 +344,7 @@ export function PortfolioPage() {
         <h1>내 포트폴리오</h1>
       </div>
 
-      {holdings.length === 0 ? (
+      {!holdingsLoading && !holdingsError && holdings.length === 0 ? (
         <section className="portfolio-empty" aria-labelledby="portfolio-empty-title">
           <span className="portfolio-empty-mark">₩</span>
           <h2 id="portfolio-empty-title">첫 자산을 추가해 보세요</h2>
@@ -329,26 +355,26 @@ export function PortfolioPage() {
         </section>
       ) : null}
 
-      {loading ? (
+      {holdingsLoading || loading ? (
         <p className="portfolio-state" aria-live="polite">
-          포트폴리오를 계산하고 있습니다.
+          {holdingsLoading ? '포트폴리오를 불러오고 있습니다.' : '포트폴리오를 계산하고 있습니다.'}
         </p>
       ) : null}
 
-      {!loading && error ? (
+      {!holdingsLoading && (holdingsError || error) ? (
         <section className="portfolio-state" role="alert">
-          <p>{error}</p>
+          <p>{holdingsError || error}</p>
           <button
             type="button"
             className="portfolio-secondary-button"
-            onClick={() => setRetryCount((count) => count + 1)}
+            onClick={() => (holdingsError ? retryHoldings() : setRetryCount((count) => count + 1))}
           >
             다시 시도
           </button>
         </section>
       ) : null}
 
-      {!loading && calculation ? (
+      {!holdingsLoading && !loading && !holdingsError && calculation ? (
         <>
           <div className="portfolio-freshness">
             <i aria-hidden="true" />
@@ -434,7 +460,13 @@ export function PortfolioPage() {
             </div>
             {analysisExpanded ? (
               <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
-                <PortfolioReturnChart />
+                <PortfolioReturnChart
+                  points={performance.points}
+                  histories={histories}
+                  loading={performance.loading}
+                  error={performance.error}
+                  onRetry={performance.retry}
+                />
                 <section className="portfolio-composition" aria-labelledby="composition-title">
                   <div className="portfolio-dashboard-heading">
                     <h2 id="composition-title">자산 구성</h2>
@@ -533,10 +565,18 @@ export function PortfolioPage() {
                       <td>{formatPercent(holding.weight)}</td>
                       <td>
                         <div className="portfolio-row-actions">
-                          <button type="button" onClick={() => setEditor({ holding })}>
+                          <button
+                            type="button"
+                            disabled={holdingsSaving}
+                            onClick={() => setEditor({ holding })}
+                          >
                             수정
                           </button>
-                          <button type="button" onClick={() => removeHolding(holding.assetId)}>
+                          <button
+                            type="button"
+                            disabled={holdingsSaving}
+                            onClick={() => void removeHolding(holding.assetId)}
+                          >
                             삭제
                           </button>
                         </div>
