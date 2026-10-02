@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,15 +42,18 @@ public class StockPriceSyncService {
   private final PublicDataStockPriceClient stockPriceClient;
   private final PublicDataEtfPriceClient etfPriceClient;
   private final StockPricePersistenceService persistenceService;
+  private final StockPriceSyncMetrics syncMetrics;
   private final AtomicBoolean running = new AtomicBoolean(false);
 
   public StockPriceSyncService(
       PublicDataStockPriceClient stockPriceClient,
       PublicDataEtfPriceClient etfPriceClient,
-      StockPricePersistenceService persistenceService) {
+      StockPricePersistenceService persistenceService,
+      StockPriceSyncMetrics syncMetrics) {
     this.stockPriceClient = stockPriceClient;
     this.etfPriceClient = etfPriceClient;
     this.persistenceService = persistenceService;
+    this.syncMetrics = syncMetrics;
   }
 
   public StockPriceSyncResult synchronize() {
@@ -80,6 +84,7 @@ public class StockPriceSyncService {
       StockPriceSnapshot latestSnapshot = snapshots.getFirst();
       StockPriceSyncResult result =
           persistenceService.synchronize(latestSnapshot.baseDate(), latestSnapshot.entries());
+      syncMetrics.recordSuccess(result);
       log.atInfo()
           .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_COMPLETED.code())
           .addKeyValue("baseDate", result.baseDate())
@@ -109,31 +114,53 @@ public class StockPriceSyncService {
     }
   }
 
+  public StockPriceBackfillResult backfill(LocalDate from, LocalDate to) {
+    if (from == null || to == null || from.isAfter(to) || ChronoUnit.DAYS.between(from, to) > 30) {
+      throw new BusinessException(AssetErrorCode.INVALID_STOCK_PRICE_BACKFILL_RANGE);
+    }
+    if (!running.compareAndSet(false, true)) {
+      throw new BusinessException(AssetErrorCode.STOCK_PRICE_SYNC_ALREADY_RUNNING);
+    }
+    try {
+      int synchronizedDates = 0;
+      int received = 0;
+      int created = 0;
+      int updated = 0;
+      int skipped = 0;
+      StockPriceSyncResult latest = null;
+      for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
+        Optional<StockPriceSnapshot> snapshot = findSnapshot(date);
+        if (snapshot.isEmpty()) {
+          continue;
+        }
+        StockPriceSyncResult result =
+            persistenceService.synchronize(date, snapshot.get().entries());
+        synchronizedDates++;
+        received += result.receivedCount();
+        created += result.createdCount();
+        updated += result.updatedCount();
+        skipped += result.skippedCount();
+        if (latest == null || result.baseDate().isAfter(latest.baseDate())) {
+          latest = result;
+        }
+      }
+      if (latest != null) {
+        syncMetrics.recordSuccess(latest);
+      }
+      return new StockPriceBackfillResult(
+          from, to, synchronizedDates, received, created, updated, skipped);
+    } finally {
+      running.set(false);
+    }
+  }
+
   private List<StockPriceSnapshot> findLatestSnapshots(LocalDate today) {
     List<StockPriceSnapshot> snapshots = new ArrayList<>();
     for (int daysAgo = 0; daysAgo <= LOOKBACK_DAYS; daysAgo++) {
       LocalDate requestedDate = today.minusDays(daysAgo);
-      List<PublicDataStockPriceItem> items = new ArrayList<>();
-      boolean complete = true;
-
-      for (StockMarket market : StockMarket.values()) {
-        List<PublicDataStockPriceItem> marketItems = getAllPages(requestedDate, market);
-        if (marketItems.isEmpty()) {
-          complete = false;
-          break;
-        }
-        items.addAll(marketItems);
-      }
-
-      if (!complete) {
-        continue;
-      }
-
-      List<PublicDataEtfPriceItem> etfItems = getAllEtfPages(requestedDate);
-      List<StockPriceEntry> entries = new ArrayList<>(toStockEntries(items, requestedDate));
-      entries.addAll(toEtfEntries(etfItems, requestedDate));
-      if (!entries.isEmpty()) {
-        snapshots.add(new StockPriceSnapshot(requestedDate, List.copyOf(entries)));
+      Optional<StockPriceSnapshot> snapshot = findSnapshot(requestedDate);
+      if (snapshot.isPresent()) {
+        snapshots.add(snapshot.get());
         if (snapshots.size() == REQUIRED_SNAPSHOT_COUNT) {
           return List.copyOf(snapshots);
         }
@@ -144,6 +171,24 @@ public class StockPriceSyncService {
       throw new BusinessException(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
     }
     return List.copyOf(snapshots);
+  }
+
+  private Optional<StockPriceSnapshot> findSnapshot(LocalDate requestedDate) {
+    List<PublicDataStockPriceItem> items = new ArrayList<>();
+    for (StockMarket market : StockMarket.values()) {
+      List<PublicDataStockPriceItem> marketItems = getAllPages(requestedDate, market);
+      if (marketItems.isEmpty()) {
+        return Optional.empty();
+      }
+      items.addAll(marketItems);
+    }
+    List<PublicDataEtfPriceItem> etfItems = getAllEtfPages(requestedDate);
+    List<StockPriceEntry> entries = new ArrayList<>(toStockEntries(items, requestedDate));
+    entries.addAll(toEtfEntries(etfItems, requestedDate));
+    if (entries.isEmpty()) {
+      return Optional.empty();
+    }
+    return Optional.of(new StockPriceSnapshot(requestedDate, List.copyOf(entries)));
   }
 
   private List<PublicDataStockPriceItem> getAllPages(LocalDate baseDate, StockMarket market) {

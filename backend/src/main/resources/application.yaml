@@ -123,6 +123,11 @@ stock:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
       cron: ${STOCK_PRICE_SYNC_CRON:0 30 14 * * MON-FRI}
 
+portfolio:
+  snapshot:
+    enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
+    cron: ${PORTFOLIO_SNAPSHOT_CRON:0 0 15 * * MON-FRI}
+
 logging:
   structured:
     format:

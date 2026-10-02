@@ -44,6 +44,7 @@ class StockPriceSyncServiceTest {
   @Mock private PublicDataStockPriceClient stockPriceClient;
   @Mock private PublicDataEtfPriceClient etfPriceClient;
   @Mock private StockPricePersistenceService persistenceService;
+  @Mock private StockPriceSyncMetrics syncMetrics;
   @InjectMocks private StockPriceSyncService syncService;
 
   private final Logger logger = (Logger) LoggerFactory.getLogger(StockPriceSyncService.class);
@@ -243,6 +244,26 @@ class StockPriceSyncServiceTest {
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
     then(persistenceService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  @DisplayName("지정한 기간의 거래일 종가만 백필한다")
+  void backfillStockPrices() {
+    LocalDate from = LocalDate.of(2026, 9, 18);
+    LocalDate to = LocalDate.of(2026, 9, 20);
+    stubCompleteSnapshot(from);
+    stubEmptyDay(from.plusDays(1));
+    stubEmptyDay(to);
+    stubPersistenceResult();
+
+    StockPriceBackfillResult result = syncService.backfill(from, to);
+
+    assertThat(result.synchronizedDateCount()).isEqualTo(1);
+    assertThat(result.createdCount()).isEqualTo(2);
+    then(persistenceService)
+        .should()
+        .synchronize(org.mockito.ArgumentMatchers.eq(from), org.mockito.ArgumentMatchers.anyList());
+    then(syncMetrics).should().recordSuccess(org.mockito.ArgumentMatchers.any());
   }
 
   private void stubEmptyDay(LocalDate date) {

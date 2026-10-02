@@ -8,6 +8,15 @@ news:
     economy:
       enabled: true
 
+stock:
+  price:
+    sync:
+      enabled: true
+
+portfolio:
+  snapshot:
+    enabled: true
+
 management:
   metrics:
     tags:
