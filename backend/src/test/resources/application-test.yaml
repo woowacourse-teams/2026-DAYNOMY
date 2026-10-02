@@ -39,6 +39,7 @@ app:
     s3:
       region: ap-northeast-2
       bucket: test-bucket
+      object-prefix: daynomy
       public-base-url: https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy
 
 cookie:

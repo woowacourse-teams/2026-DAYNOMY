@@ -49,7 +49,10 @@ class S3ImageStorageTest {
         new S3ImageStorage(
             s3Client,
             new S3Properties(
-                REGION, BUCKET, "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy"));
+                REGION,
+                BUCKET,
+                "daynomy",
+                "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy"));
     originalLevel = logger.getLevel();
     logger.setLevel(Level.DEBUG);
     appender.start();
@@ -84,6 +87,26 @@ class S3ImageStorageTest {
     assertThat(storedImage.relativeKey()).endsWith(".webp");
     assertThat(storedImage.publicUrl())
         .startsWith("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/");
+  }
+
+  @Test
+  void uploadUsesConfiguredObjectPrefix() {
+    storage =
+        new S3ImageStorage(
+            s3Client,
+            new S3Properties(
+                REGION,
+                BUCKET,
+                "daynomy-dev",
+                "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy-dev"));
+
+    storage.upload(new byte[] {1}, "webp", "image/webp");
+
+    ArgumentCaptor<PutObjectRequest> requestCaptor =
+        ArgumentCaptor.forClass(PutObjectRequest.class);
+    verify(s3Client).putObject(requestCaptor.capture(), any(RequestBody.class));
+
+    assertThat(requestCaptor.getValue().key()).startsWith("daynomy-dev/");
   }
 
   @Test
@@ -124,7 +147,8 @@ class S3ImageStorageTest {
   void publicUrlUsesConfiguredBaseUrl() {
     storage =
         new S3ImageStorage(
-            s3Client, new S3Properties(REGION, BUCKET, "https://images.example.com/daynomy"));
+            s3Client,
+            new S3Properties(REGION, BUCKET, "daynomy", "https://images.example.com/daynomy"));
 
     S3ImageStorage.StoredImage storedImage = storage.upload(new byte[] {1}, "webp", "image/webp");
 
@@ -133,7 +157,7 @@ class S3ImageStorageTest {
 
   @Test
   void publicUrlFailsWhenBaseUrlIsMissing() {
-    storage = new S3ImageStorage(s3Client, new S3Properties(REGION, BUCKET, ""));
+    storage = new S3ImageStorage(s3Client, new S3Properties(REGION, BUCKET, "daynomy", ""));
 
     assertThatThrownBy(() -> storage.upload(new byte[] {1}, "webp", "image/webp"))
         .isInstanceOf(BusinessException.class);
