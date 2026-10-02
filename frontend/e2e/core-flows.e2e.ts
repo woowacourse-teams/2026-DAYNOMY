@@ -130,6 +130,6 @@ test('뉴스 목록에서 상세 본문을 읽고 목록으로 돌아온다', as
     '기준금리는 당분간 동결될 전망입니다.',
   );
   await page.getByRole('button', { name: '전 페이지로 돌아가기' }).click();
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL('/news');
   await expect(page.getByRole('region', { name: '이슈 목록' })).toContainText(article.title);
 });

@@ -102,7 +102,7 @@ export function NewsDetailPage() {
     holdings.length > 0 ? 'loading' : 'ready',
   );
   const goBack = () => {
-    navigate('/');
+    navigate('/news');
   };
 
   useEffect(() => {
