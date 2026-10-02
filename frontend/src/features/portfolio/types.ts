@@ -33,6 +33,8 @@ export type PortfolioHoldingHistory = {
 
 export type PortfolioPerformancePoint = {
   baseDate: string;
+  recordedAt: string;
+  source: 'CLOSE' | 'HOLDING_CHANGE';
   totalPurchaseAmount: number;
   totalEvaluationAmount: number;
   totalProfitLoss: number;
