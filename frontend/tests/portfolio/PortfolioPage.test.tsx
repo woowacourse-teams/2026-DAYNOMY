@@ -71,6 +71,22 @@ function portfolioApiResponse(input: RequestInfo | URL, _init?: RequestInit) {
   if (url.endsWith('/api/auth/csrf')) {
     return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
   }
+  if (url.includes('/api/stocks/prices?')) {
+    const assetIds = new URL(url, 'http://localhost').searchParams.getAll('assetIds').map(Number);
+    return jsonResponse({
+      prices: assetIds.flatMap((assetId) => {
+        const asset = [stock, secondStock, kosdaqStock, etf].find(
+          (candidate) => candidate.assetId === assetId,
+        );
+        const initialPrice = assetId === etf.assetId ? 32000 : 70000;
+        return [24, 25, 26, 27, 28, 29, 30].map((day, index) => ({
+          ...asset,
+          baseDate: `2026-09-${day}`,
+          closePrice: initialPrice + index * 1000,
+        }));
+      }),
+    });
+  }
   return null;
 }
 
@@ -163,7 +179,7 @@ describe('포트폴리오 화면', () => {
     expect(view.queryByText('KOSPI')).toBeNull();
     expect(view.queryByText('KOSDAQ')).toBeNull();
     expect(view.getByRole('heading', { name: '수익률 추적' })).toBeTruthy();
-    expect(view.getByText('수익률 데이터를 준비하고 있어요')).toBeTruthy();
+    expect(await view.findByRole('img', { name: /일별 포트폴리오 수익률 추이/ })).toBeTruthy();
     expect(view.queryByText('샘플 데이터')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '자산 분석 접기' }));
     expect(view.queryByRole('heading', { name: '자산 구성' })).toBeNull();
@@ -463,11 +479,11 @@ describe('포트폴리오 화면', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '수정하기' }));
 
     await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
-    expect(await view.findByRole('img', { name: /포트폴리오 변경별 수익률 추이/ })).toBeTruthy();
+    expect(await view.findByRole('img', { name: /일별 포트폴리오 수익률 추이/ })).toBeTruthy();
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('"quantity":12');
     expect(
       JSON.parse(localStorage.getItem(PORTFOLIO_PERFORMANCE_STORAGE_KEY) ?? '[]'),
-    ).toHaveLength(2);
+    ).toHaveLength(7);
     expect(
       vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes('/api/users/me/')),
     ).toBe(false);

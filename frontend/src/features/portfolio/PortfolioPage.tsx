@@ -155,7 +155,7 @@ function PortfolioReturnChart({
     : '';
   const latest = points.at(-1);
   const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
-  const firstDate = points.at(0)?.occurredAt.slice(0, 10);
+  const firstDate = points.at(0)?.baseDate;
   const visibleHistories = firstDate
     ? histories.filter((history) => history.occurredAt.slice(0, 10) >= firstDate)
     : [];
@@ -188,13 +188,13 @@ function PortfolioReturnChart({
         <>
           <div className="portfolio-return-summary">
             <strong>{formatPercent(latest.totalReturnRate, true)}</strong>
-            <span>최근 {points.length}회 포트폴리오 구성 기준</span>
+            <span>최근 {points.length}거래일 총수익률</span>
           </div>
           <svg
             className="portfolio-return-chart"
             viewBox={`0 0 ${width} ${height}`}
             role="img"
-            aria-label={`포트폴리오 변경별 수익률 추이, 현재 ${formatPercent(latest.totalReturnRate, true)}`}
+            aria-label={`일별 포트폴리오 수익률 추이, 현재 ${formatPercent(latest.totalReturnRate, true)}`}
           >
             <defs>
               <linearGradient id="portfolio-return-area-gradient" x1="0" y1="0" x2="0" y2="1">
@@ -223,7 +223,7 @@ function PortfolioReturnChart({
             aria-hidden="true"
           >
             {points.map((point) => (
-              <span key={point.occurredAt}>{point.occurredAt.slice(5, 10).replace('-', '.')}</span>
+              <span key={point.baseDate}>{point.baseDate.slice(5).replace('-', '.')}</span>
             ))}
           </div>
           <span className="portfolio-events-label">자산 변경 이력</span>
@@ -282,7 +282,7 @@ export function PortfolioPage() {
     removeHolding,
   } = usePortfolioHoldings();
   const [calculation, setCalculation] = useState<PortfolioCalculation | null>(null);
-  const performance = usePortfolioPerformance(calculation, holdings);
+  const performance = usePortfolioPerformance(holdings);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
