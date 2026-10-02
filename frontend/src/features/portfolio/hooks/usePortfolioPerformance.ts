@@ -202,36 +202,29 @@ export function usePortfolioPerformance(holdings: PortfolioHoldingInput[]) {
 
         setPoints((currentPoints) => {
           if (performanceState?.holdingKey === holdingKey) {
-            const closePoints = calculatedPoints
-              .filter((point) => point.baseDate > performanceState.lastCloseDate)
-              .map((point) => ({
-                ...point,
-                totalReturnRate:
-                  ((1 + performanceState.baseReturnRate / 100) *
-                    (point.totalEvaluationAmount / performanceState.baseEvaluationAmount) -
-                    1) *
-                  100,
-              }));
+            const closePoints = calculatedPoints.filter(
+              (point) => point.baseDate > performanceState.lastCloseDate,
+            );
             if (closePoints.length === 0) return currentPoints;
 
             const nextPoints = [...currentPoints, ...closePoints].slice(-7);
+            const latestClosePoint = closePoints.at(-1);
             savePerformance(nextPoints, {
               ...performanceState,
-              lastCloseDate: closePoints.at(-1)?.baseDate ?? performanceState.lastCloseDate,
+              baseEvaluationAmount:
+                latestClosePoint?.totalEvaluationAmount ?? performanceState.baseEvaluationAmount,
+              baseReturnRate: latestClosePoint?.totalReturnRate ?? performanceState.baseReturnRate,
+              lastCloseDate: latestClosePoint?.baseDate ?? performanceState.lastCloseDate,
             });
             return nextPoints;
           }
 
-          const previousReturnRate = performanceState
-            ? (currentPoints.at(-1)?.totalReturnRate ?? performanceState.baseReturnRate)
-            : 0;
           const recordedAt = new Date().toISOString();
           const holdingChangePoint: PortfolioPerformancePoint = {
             ...latestCalculatedPoint,
             baseDate: formatDate(new Date()),
             recordedAt,
             source: 'HOLDING_CHANGE',
-            totalReturnRate: previousReturnRate,
           };
           const nextPoints = [...(performanceState ? currentPoints : []), holdingChangePoint].slice(
             -7,
@@ -240,7 +233,7 @@ export function usePortfolioPerformance(holdings: PortfolioHoldingInput[]) {
             version: 1,
             holdingKey,
             baseEvaluationAmount: latestCalculatedPoint.totalEvaluationAmount,
-            baseReturnRate: previousReturnRate,
+            baseReturnRate: latestCalculatedPoint.totalReturnRate,
             lastCloseDate: latestCalculatedPoint.baseDate,
           });
           return nextPoints;

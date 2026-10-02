@@ -182,7 +182,7 @@ describe('포트폴리오 화면', () => {
     expect(view.queryByText('KOSPI')).toBeNull();
     expect(view.queryByText('KOSDAQ')).toBeNull();
     expect(view.getByRole('heading', { name: '수익률 추적' })).toBeTruthy();
-    expect(await view.findByRole('img', { name: /현재 0.00%/ })).toBeTruthy();
+    expect(await view.findByRole('img', { name: /현재 \+8.57%/ })).toBeTruthy();
     expect(view.queryByText('샘플 데이터')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '자산 분석 접기' }));
     expect(view.queryByRole('heading', { name: '자산 구성' })).toBeNull();
@@ -195,7 +195,7 @@ describe('포트폴리오 화면', () => {
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('005930');
   });
 
-  it('저장된 기준점 이후 종가 변동만 누적 수익률에 반영한다', async () => {
+  it('새 종가로 현재 포트폴리오 수익률을 다시 계산한다', async () => {
     localStorage.setItem(
       PORTFOLIO_STORAGE_KEY,
       JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
@@ -226,7 +226,7 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
 
-    expect(await view.findByRole('img', { name: /현재 \+6.40%/ })).toBeTruthy();
+    expect(await view.findByRole('img', { name: /현재 \+8.57%/ })).toBeTruthy();
     expect(view.getByText('포트폴리오 누적 수익률')).toBeTruthy();
   });
 
@@ -533,21 +533,24 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage />);
 
     await view.findAllByText('750,000원');
-    await view.findByRole('img', { name: /현재 \+6.40%/ });
+    await view.findByRole('img', { name: /현재 \+8.57%/ });
     fireEvent.click(view.getByRole('button', { name: '수정' }));
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('보유수량'), { target: { value: '12' } });
+    fireEvent.change(within(dialog).getByLabelText('평균 매수가'), {
+      target: { value: '60,000' },
+    });
     fireEvent.click(within(dialog).getByRole('button', { name: '수정하기' }));
 
     await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
-    expect(await view.findByRole('img', { name: /현재 \+6.40%/ })).toBeTruthy();
+    expect(await view.findByRole('img', { name: /현재 \+26.67%/ })).toBeTruthy();
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('"quantity":12');
     await waitFor(() => {
       const state = JSON.parse(
         localStorage.getItem(PORTFOLIO_PERFORMANCE_STATE_STORAGE_KEY) ?? '{}',
       ) as { holdingKey?: string; baseReturnRate?: number };
-      expect(state.holdingKey).toBe('[[1,12,70000]]');
-      expect(state.baseReturnRate).toBeCloseTo(6.4);
+      expect(state.holdingKey).toBe('[[1,12,60000]]');
+      expect(state.baseReturnRate).toBeCloseTo(26.6667);
     });
     const storedPoints = JSON.parse(
       localStorage.getItem(PORTFOLIO_PERFORMANCE_STORAGE_KEY) ?? '[]',
@@ -556,7 +559,7 @@ describe('포트폴리오 화면', () => {
       source: 'CLOSE' | 'HOLDING_CHANGE';
       totalReturnRate: number;
     }>;
-    expect(storedPoints.at(-1)?.totalReturnRate).toBeCloseTo(6.4);
+    expect(storedPoints.at(-1)?.totalReturnRate).toBeCloseTo(26.6667);
     expect(storedPoints.at(-1)?.source).toBe('HOLDING_CHANGE');
 
     fireEvent.click(view.getByRole('button', { name: '수정' }));
@@ -564,15 +567,27 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(within(secondDialog).getByLabelText('보유수량'), {
       target: { value: '14' },
     });
+    fireEvent.change(within(secondDialog).getByLabelText('평균 매수가'), {
+      target: { value: '80,000' },
+    });
     fireEvent.click(within(secondDialog).getByRole('button', { name: '수정하기' }));
 
+    expect(await view.findByRole('img', { name: /현재 −5.00%/ })).toBeTruthy();
     await waitFor(() => {
       const points = JSON.parse(
         localStorage.getItem(PORTFOLIO_PERFORMANCE_STORAGE_KEY) ?? '[]',
-      ) as Array<{ baseDate: string; source: 'CLOSE' | 'HOLDING_CHANGE' }>;
+      ) as Array<{
+        baseDate: string;
+        source: 'CLOSE' | 'HOLDING_CHANGE';
+        totalReturnRate: number;
+      }>;
       const holdingChanges = points.filter((point) => point.source === 'HOLDING_CHANGE');
       expect(holdingChanges).toHaveLength(2);
       expect(new Set(holdingChanges.map((point) => point.baseDate)).size).toBe(1);
+      expect(holdingChanges.map((point) => point.totalReturnRate)).toEqual([
+        expect.closeTo(26.6667, 3),
+        -5,
+      ]);
     });
     expect(
       vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes('/api/users/me/')),
