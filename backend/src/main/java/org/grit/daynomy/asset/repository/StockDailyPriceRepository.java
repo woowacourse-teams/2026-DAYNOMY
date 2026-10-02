@@ -15,6 +15,9 @@ public interface StockDailyPriceRepository extends JpaRepository<StockDailyPrice
 
   List<StockDailyPrice> findTop2ByAssetIdOrderByBaseDateDesc(Long assetId);
 
+  List<StockDailyPrice> findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+      List<Long> assetIds, LocalDate from, LocalDate to);
+
   Optional<StockDailyPrice> findFirstByOrderByBaseDateDesc();
 
   Optional<StockDailyPrice> findByAssetIdAndBaseDate(Long assetId, LocalDate baseDate);
