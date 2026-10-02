@@ -140,8 +140,10 @@ function PortfolioReturnChart({
   const height = 190;
   const padding = { top: 12, right: 12, bottom: 8, left: 38 };
   const values = points.map((point) => point.totalReturnRate);
-  const minimum = Math.min(0, ...values);
-  const maximum = Math.max(0, ...values);
+  const rawMinimum = Math.min(0, ...values);
+  const rawMaximum = Math.max(0, ...values);
+  const minimum = rawMinimum === rawMaximum ? rawMinimum - 1 : rawMinimum;
+  const maximum = rawMinimum === rawMaximum ? rawMaximum + 1 : rawMaximum;
   const range = maximum - minimum || 1;
   const x = (index: number) =>
     points.length === 1
@@ -178,23 +180,23 @@ function PortfolioReturnChart({
           </button>
         </div>
       ) : null}
-      {!loading && !error && points.length < 2 ? (
+      {!loading && !error && points.length === 0 ? (
         <div className="portfolio-tracking-state">
           <strong>수익률 데이터를 준비하고 있어요</strong>
-          <p>기간별 종가가 2일 이상 쌓이면 추이를 보여드립니다.</p>
+          <p>자산을 등록하거나 종가가 갱신되면 바로 기록합니다.</p>
         </div>
       ) : null}
-      {!loading && !error && points.length >= 2 && latest ? (
+      {!loading && !error && points.length >= 1 && latest ? (
         <>
           <div className="portfolio-return-summary">
             <strong>{formatPercent(latest.totalReturnRate, true)}</strong>
-            <span>최근 {points.length}거래일 총수익률</span>
+            <span>포트폴리오 누적 수익률</span>
           </div>
           <svg
             className="portfolio-return-chart"
             viewBox={`0 0 ${width} ${height}`}
             role="img"
-            aria-label={`일별 포트폴리오 수익률 추이, 현재 ${formatPercent(latest.totalReturnRate, true)}`}
+            aria-label={`포트폴리오 수익률 변동, 현재 ${formatPercent(latest.totalReturnRate, true)}`}
           >
             <defs>
               <linearGradient id="portfolio-return-area-gradient" x1="0" y1="0" x2="0" y2="1">
@@ -210,20 +212,35 @@ function PortfolioReturnChart({
                 </text>
               </g>
             ))}
-            <polygon
-              className="portfolio-return-area"
-              points={areaPoints}
-              fill="url(#portfolio-return-area-gradient)"
-            />
-            <polyline className="portfolio-return-line" points={chartPoints.join(' ')} />
+            {points.length >= 2 ? (
+              <>
+                <polygon
+                  className="portfolio-return-area"
+                  points={areaPoints}
+                  fill="url(#portfolio-return-area-gradient)"
+                />
+                <polyline className="portfolio-return-line" points={chartPoints.join(' ')} />
+              </>
+            ) : null}
+            {points.map((point, index) => (
+              <circle
+                key={`${point.recordedAt}-${index}`}
+                className="portfolio-return-point"
+                cx={x(index)}
+                cy={y(point.totalReturnRate)}
+                r="5"
+              />
+            ))}
           </svg>
           <div
             className="portfolio-return-dates"
             style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}
             aria-hidden="true"
           >
-            {points.map((point) => (
-              <span key={point.baseDate}>{point.baseDate.slice(5).replace('-', '.')}</span>
+            {points.map((point, index) => (
+              <span key={`${point.recordedAt}-${index}`}>
+                {point.baseDate.slice(5).replace('-', '.')}
+              </span>
             ))}
           </div>
           <span className="portfolio-events-label">자산 변경 이력</span>

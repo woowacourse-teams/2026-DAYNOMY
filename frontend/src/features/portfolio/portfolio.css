@@ -2147,6 +2147,10 @@
   text-align: right;
 }
 
+.portfolio-return-dates span:only-child {
+  text-align: center;
+}
+
 .portfolio-events-label {
   margin-top: 16px;
   color: #607087;
