@@ -43,6 +43,16 @@ function AppHeader() {
   return showHeader ? <Header /> : null;
 }
 
+export function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [pathname]);
+
+  return null;
+}
+
 function AppFooter() {
   const location = useLocation();
 
@@ -94,6 +104,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <AnalyticsTracker />
+        <ScrollToTop />
         <PostLoginRedirect />
         <div className="app-shell">
           <AppHeader />
