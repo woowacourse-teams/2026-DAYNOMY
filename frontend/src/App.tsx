@@ -43,6 +43,16 @@ function AppHeader() {
   return showHeader ? <Header /> : null;
 }
 
+export function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [pathname]);
+
+  return null;
+}
+
 function AppFooter() {
   const location = useLocation();
 
@@ -94,17 +104,19 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <AnalyticsTracker />
+        <ScrollToTop />
         <PostLoginRedirect />
         <div className="app-shell">
           <AppHeader />
           <div className="app-content">
             <Routes>
-              <Route path="/" element={<NewsListPage />} />
+              <Route path="/" element={<PortfolioPage />} />
+              <Route path="/portfolio" element={<Navigate to="/" replace />} />
+              <Route path="/news" element={<NewsListPage />} />
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />
               <Route path="/search" element={<SearchPage />} />
-              <Route path="/portfolio" element={<PortfolioPage />} />
-              <Route path="/stocks" element={<Navigate to="/portfolio" replace />} />
+              <Route path="/stocks" element={<Navigate to="/" replace />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/about" element={<InfoPage page="about" />} />
               <Route path="/terms" element={<InfoPage page="terms" />} />

@@ -332,6 +332,27 @@ export async function getLatestStockPrice(assetId: number, signal?: AbortSignal)
   return response;
 }
 
+export async function getStockPrices(
+  assetIds: number[],
+  from: string,
+  to: string,
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({ from, to });
+  assetIds.forEach((assetId) => query.append('assetIds', String(assetId)));
+  const response = await request<unknown>(`/api/stocks/prices?${query.toString()}`, { signal });
+
+  if (
+    !isRecord(response) ||
+    !Array.isArray(response.prices) ||
+    !response.prices.every(isStockPrice)
+  ) {
+    throw new Error('기간별 종가 응답 형식이 올바르지 않습니다.');
+  }
+
+  return response.prices;
+}
+
 export async function calculatePortfolio(holdings: PortfolioHoldingInput[], signal?: AbortSignal) {
   const response = await requestWithCsrf<unknown>('/api/portfolio/calculate', {
     method: 'POST',
