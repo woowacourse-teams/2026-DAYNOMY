@@ -1,6 +1,7 @@
 package org.grit.daynomy.external.openai;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -10,6 +11,7 @@ import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.domain.Category;
 import org.junit.jupiter.api.AfterEach;
@@ -60,7 +62,12 @@ class OpenAiNewsGeneratorTest {
     assertThat(requestBody)
         .contains("특정 대기업이나 인기 종목의 뉴스만 반복하지 마세요")
         .contains("코스피·코스닥의 다양한 업종과 규모의 상장 기업")
-        .contains("대형주와 중소형주, 코스피와 코스닥");
+        .contains("대형주와 중소형주, 코스피와 코스닥")
+        .contains("해라체")
+        .contains("합쇼체")
+        .contains("공백 포함 1,000~1,800자")
+        .contains("최근 3일 이내")
+        .contains("시장 분석이나 투자 의견이 아니라");
   }
 
   @Test
@@ -93,7 +100,71 @@ class OpenAiNewsGeneratorTest {
             Category.REAL_ESTATE);
   }
 
+  @Test
+  @DisplayName("본문 검증에 실패하면 최대 재시도 횟수 내에서 뉴스를 다시 생성한다")
+  void generateEconomicNewsRetriesWhenContentValidationFails() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(successResponseWithFourArticles(false)));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(successResponseWithFourArticles(true)));
+    OpenAiNewsGenerator generator =
+        new OpenAiNewsGenerator(
+            new OpenAiProperties(
+                "test-key",
+                server.url("/v1").toString(),
+                "test-image-model",
+                "test-news-model",
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(1)));
+
+    List<GeneratedEconomicNews> generatedNews = generator.generateEconomicNews();
+
+    assertThat(generatedNews).hasSize(4);
+    server.takeRequest();
+    String retryRequestBody = server.takeRequest().getBody().readUtf8();
+    assertThat(retryRequestBody)
+        .contains("이전 뉴스 초안이 본문 규칙 검증에 실패했습니다")
+        .contains("공백 포함 1,000~1,800자");
+  }
+
+  @Test
+  @DisplayName("본문 검증에 계속 실패하면 최대 세 번 요청한 뒤 생성에 실패한다")
+  void generateEconomicNewsStopsAfterMaximumAttempts() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(successResponseWithFourArticles(false)));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(successResponseWithFourArticles(false)));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(successResponseWithFourArticles(false)));
+    OpenAiNewsGenerator generator =
+        new OpenAiNewsGenerator(
+            new OpenAiProperties(
+                "test-key",
+                server.url("/v1").toString(),
+                "test-image-model",
+                "test-news-model",
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(1)));
+
+    assertThatThrownBy(generator::generateEconomicNews).isInstanceOf(BusinessException.class);
+    assertThat(server.getRequestCount()).isEqualTo(3);
+  }
+
   private String successResponseWithFourArticles() throws Exception {
+    return successResponseWithFourArticles(true);
+  }
+
+  private String successResponseWithFourArticles(boolean validContent) throws Exception {
     ObjectMapper objectMapper = new ObjectMapper();
     List<Map<String, Object>> sources =
         List.of(
@@ -107,10 +178,10 @@ class OpenAiNewsGeneratorTest {
             Map.of("type", "url_citation", "url", "https://example.com/8", "title", "출처 8"));
     List<Map<String, Object>> articles =
         List.of(
-            article("첫 번째 뉴스", "첫 번째 본문", "STOCK", 1),
-            article("두 번째 뉴스", "두 번째 본문", "STOCK", 3),
-            article("세 번째 뉴스", "세 번째 본문", "ETF", 5),
-            article("네 번째 뉴스", "네 번째 본문", "STOCK", 7));
+            article("첫 번째 뉴스", "첫 번째 본문", "STOCK", 1, validContent),
+            article("두 번째 뉴스", "두 번째 본문", "STOCK", 3, validContent),
+            article("세 번째 뉴스", "세 번째 본문", "ETF", 5, validContent),
+            article("네 번째 뉴스", "네 번째 본문", "STOCK", 7, validContent));
     String generatedArticles = objectMapper.writeValueAsString(Map.of("articles", articles));
     Map<String, Object> outputText =
         Map.of(
@@ -121,16 +192,29 @@ class OpenAiNewsGeneratorTest {
         Map.of("output", List.of(Map.of("content", List.of(outputText)))));
   }
 
-  private Map<String, Object> article(String title, String content, String category, int source) {
+  private Map<String, Object> article(
+      String title, String content, String category, int source, boolean validContent) {
     return Map.of(
         "title",
         title,
         "content",
-        content,
+        validContent ? validContent(content) : content,
         "category",
         category,
         "sourceUrls",
         List.of("https://example.com/" + source, "https://example.com/" + (source + 1)));
+  }
+
+  private String validContent(String label) {
+    String paragraph =
+        "공식 자료에 따르면 계약 대상과 금액, 일정이 확인됐다. 관련 기업은 공개된 조건에 따라 사업을 진행하며, 계약 이행 과정과 결과는 향후 공시와 자료를 통해 확인할 수 있다. ";
+    return String.join(
+        "\n\n",
+        label + " " + paragraph.repeat(3),
+        "계약의 주요 조건과 사업 범위가 공개됐다. " + paragraph.repeat(3),
+        "관련 기업과 기관은 공개된 일정에 따라 후속 절차를 진행한다. " + paragraph.repeat(3),
+        "계약 기간과 공급 대상은 공개 자료에 기재된 내용에 따른다. " + paragraph.repeat(3),
+        "추가 내용은 향후 공시와 공식 자료를 통해 확인될 예정이다. " + paragraph.repeat(3));
   }
 
   private String successResponseWithFiveArticles() throws Exception {
@@ -154,7 +238,8 @@ class OpenAiNewsGeneratorTest {
               (index + 1) + " 번째 뉴스",
               (index + 1) + " 번째 본문",
               index >= 3 ? "REAL_ESTATE" : "STOCK",
-              source));
+              source,
+              true));
     }
     String generatedArticles = objectMapper.writeValueAsString(Map.of("articles", articles));
     Map<String, Object> outputText =
