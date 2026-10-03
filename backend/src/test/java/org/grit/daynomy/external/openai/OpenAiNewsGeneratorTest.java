@@ -78,8 +78,7 @@ class OpenAiNewsGeneratorTest {
 
     assertThat(server.getRequestCount()).isEqualTo(2);
     assertThat(server.takeRequest()).isNotNull();
-    assertThat(server.takeRequest().getBody().readUtf8())
-        .contains("이전 조사 결과가 최신성");
+    assertThat(server.takeRequest().getBody().readUtf8()).contains("이전 조사 결과가 최신성");
   }
 
   @Test
@@ -91,8 +90,7 @@ class OpenAiNewsGeneratorTest {
             "뉴스 제목",
             LocalDate.now(ZoneId.of("Asia/Seoul")),
             Category.STOCK,
-            List.of(
-                "첫 번째 확인 사실", "두 번째 확인 사실", "세 번째 확인 사실"),
+            List.of("첫 번째 확인 사실", "두 번째 확인 사실", "세 번째 확인 사실"),
             List.of(
                 new NewsSourceInfo("출처 1", "https://example.com/1"),
                 new NewsSourceInfo("출처 2", "https://example.com/2")));
@@ -105,8 +103,7 @@ class OpenAiNewsGeneratorTest {
     assertThat(generated.getFirst().content()).hasSizeGreaterThanOrEqualTo(1_000);
     assertThat(server.getRequestCount()).isEqualTo(2);
     server.takeRequest();
-    assertThat(server.takeRequest().getBody().readUtf8())
-        .contains("이전 본문 묶음이 형식 검증에 실패했다");
+    assertThat(server.takeRequest().getBody().readUtf8()).contains("이전 본문 묶음이 형식 검증에 실패했다");
   }
 
   private OpenAiNewsGenerator newGenerator() {
@@ -187,9 +184,7 @@ class OpenAiNewsGeneratorTest {
         Map.of(
             "output",
             List.of(
-                Map.of(
-                    "content",
-                    List.of(Map.of("type", "output_text", "text", writerJson))))));
+                Map.of("content", List.of(Map.of("type", "output_text", "text", writerJson))))));
   }
 
   private String validContent(String label) {
