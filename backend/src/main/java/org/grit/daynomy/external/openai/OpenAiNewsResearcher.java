@@ -158,8 +158,10 @@ public class OpenAiNewsResearcher {
                         false,
                         "properties",
                         Map.of(
-                            "title", Map.of("type", "string"),
-                            "date", Map.of("type", "string"),
+                            "title",
+                            Map.of("type", "string"),
+                            "date",
+                            Map.of("type", "string"),
                             "facts",
                             Map.of(
                                 "type", "array", "minItems", 3, "items", Map.of("type", "string")),
@@ -246,8 +248,7 @@ public class OpenAiNewsResearcher {
       for (JsonNode content : item.path("content")) {
         for (JsonNode annotation : content.path("annotations")) {
           if ("url_citation".equals(annotation.path("type").asText())) {
-            addSource(
-                sources, annotation.path("url").asText(), annotation.path("title").asText());
+            addSource(sources, annotation.path("url").asText(), annotation.path("title").asText());
           }
         }
       }

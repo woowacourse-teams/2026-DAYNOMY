@@ -71,7 +71,8 @@ class OpenAiNewsGeneratorTest {
   @Test
   void researcherRetriesWhenRecentDateValidationFails() throws Exception {
     server.enqueue(jsonResponse(researchResponse("2026-09-01")));
-    server.enqueue(jsonResponse(researchResponse(LocalDate.now(ZoneId.of("Asia/Seoul")).toString())));
+    server.enqueue(
+        jsonResponse(researchResponse(LocalDate.now(ZoneId.of("Asia/Seoul")).toString())));
 
     new OpenAiNewsResearcher(properties()).researchEconomicNews();
 
@@ -90,7 +91,8 @@ class OpenAiNewsGeneratorTest {
             "뉴스 제목",
             LocalDate.now(ZoneId.of("Asia/Seoul")),
             Category.STOCK,
-            List.of("첫 번째 확인 사실", "두 번째 확인 사실", "세 번째 확인 사실"),
+            List.of(
+                "첫 번째 확인 사실", "두 번째 확인 사실", "세 번째 확인 사실"),
             List.of(
                 new NewsSourceInfo("출처 1", "https://example.com/1"),
                 new NewsSourceInfo("출처 2", "https://example.com/2")));
@@ -161,7 +163,8 @@ class OpenAiNewsGeneratorTest {
         Map.of("output", List.of(Map.of("content", List.of(outputText)))));
   }
 
-  private Map<String, Object> researchArticle(String title, String date, String category, int source) {
+  private Map<String, Object> researchArticle(
+      String title, String date, String category, int source) {
     return Map.of(
         "title",
         title,

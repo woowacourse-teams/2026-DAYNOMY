@@ -177,7 +177,8 @@ public class OpenAiNewsWriter {
       JsonNode responseJson = OBJECT_MAPPER.readTree(response);
       JsonNode articles = OBJECT_MAPPER.readTree(extractOutputText(responseJson)).path("articles");
       if (!articles.isArray() || articles.size() != research.size()) {
-        throw new IllegalArgumentException("Writer must return one article for each research item.");
+        throw new IllegalArgumentException(
+            "Writer must return one article for each research item.");
       }
 
       List<GeneratedEconomicNews> generatedNews = new ArrayList<>();

@@ -13,7 +13,8 @@ final class OpenAiPromptLoader {
     try (InputStream input = new ClassPathResource(path).getInputStream()) {
       return new String(input.readAllBytes(), StandardCharsets.UTF_8);
     } catch (IOException exception) {
-      throw new IllegalStateException("OpenAI prompt resource could not be loaded: " + path, exception);
+      throw new IllegalStateException(
+          "OpenAI prompt resource could not be loaded: " + path, exception);
     }
   }
 }
