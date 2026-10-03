@@ -106,6 +106,26 @@ class OpenAiNewsGeneratorTest {
     assertThat(server.takeRequest().getBody().readUtf8()).contains("이전 본문 묶음이 형식 검증에 실패했다");
   }
 
+  @Test
+  void writerDoesNotCountUnicodeBlankSegmentAsParagraph() throws Exception {
+    server.enqueue(jsonResponse(writerResponse(List.of(validContentWithBlankSegment()))));
+    EconomicNewsResearch research =
+        new EconomicNewsResearch(
+            "뉴스 제목",
+            LocalDate.now(ZoneId.of("Asia/Seoul")),
+            Category.STOCK,
+            List.of("첫 번째 확인 사실", "두 번째 확인 사실", "세 번째 확인 사실"),
+            List.of(
+                new NewsSourceInfo("출처 1", "https://example.com/1"),
+                new NewsSourceInfo("출처 2", "https://example.com/2")));
+
+    List<GeneratedEconomicNews> generated =
+        new OpenAiNewsWriter(properties()).write(List.of(research));
+
+    assertThat(generated).hasSize(1);
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
   private OpenAiNewsGenerator newGenerator() {
     OpenAiProperties properties = properties();
     return new OpenAiNewsGenerator(
@@ -197,5 +217,23 @@ class OpenAiNewsGeneratorTest {
         "관련 기업과 기관은 공개된 일정에 따라 후속 절차를 진행한다. " + paragraph.repeat(3),
         "계약 기간과 공급 대상은 공개 자료에 기재된 내용에 따른다. " + paragraph.repeat(3),
         "추가 내용은 향후 공시와 공식 자료를 통해 확인될 예정이다. " + paragraph.repeat(3));
+  }
+
+  private String validContentWithBlankSegment() {
+    String paragraph =
+        "공식 자료에서 계약 규모와 일정이 확인됐다. 회사는 공개된 조건에 따라 사업을 진행하고 있다. 관련 절차는 공시된 일정에 따라 진행된다. ";
+    List<String> paragraphs =
+        List.of(
+            paragraph.repeat(2),
+            "\u2003",
+            paragraph.repeat(2),
+            paragraph.repeat(2),
+            paragraph.repeat(2),
+            paragraph.repeat(2),
+            paragraph.repeat(2),
+            paragraph.repeat(2),
+            paragraph.repeat(2),
+            paragraph.repeat(2));
+    return String.join("\n\n", paragraphs);
   }
 }

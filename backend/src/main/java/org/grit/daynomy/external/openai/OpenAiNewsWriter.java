@@ -3,6 +3,7 @@ package org.grit.daynomy.external.openai;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -197,7 +198,10 @@ public class OpenAiNewsWriter {
 
   private void validateContent(String content) {
     int contentLength = content.codePointCount(0, content.length());
-    int paragraphCount = content.split("\\R\\s*\\R").length;
+    long paragraphCount =
+        Arrays.stream(content.split("\\R\\s*\\R"))
+            .filter(paragraph -> !paragraph.isBlank())
+            .count();
     if (content.isBlank()
         || contentLength < MIN_CONTENT_LENGTH
         || contentLength > MAX_CONTENT_LENGTH) {
