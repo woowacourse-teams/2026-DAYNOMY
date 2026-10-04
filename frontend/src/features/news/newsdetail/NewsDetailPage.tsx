@@ -64,8 +64,9 @@ function NewsImageCredit({ imageSource }: { imageSource?: NewsImageSource }) {
     <p className="news-image-credit">
       이미지:{' '}
       <a href={imageSource.url} target="_blank" rel="noopener noreferrer">
-        {imageSource.author || imageSource.name}
+        {imageSource.name}
       </a>
+      {imageSource.author ? ` · ${imageSource.author}` : null}
       {imageSource.license ? ' · ' : null}
       {imageSource.license ? (
         imageSource.licenseUrl ? (

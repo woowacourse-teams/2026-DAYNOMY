@@ -358,6 +358,41 @@ describe('뉴스 탐색 화면', () => {
     expect(highlightedKeywords).toEqual(['금리 동결', '채권시장']);
   });
 
+  it('뉴스 이미지 출처명과 저작자를 함께 표시한다', async () => {
+    window.history.replaceState(null, '', '/news/7');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = getPath(input);
+        if (url === '/api/news/7') {
+          return jsonResponse({
+            ...article,
+            content: 'Wikimedia 이미지 출처를 확인하는 뉴스 본문입니다.',
+            imageUrl: 'https://upload.wikimedia.org/wikimedia.jpg',
+            imageSource: {
+              name: 'Wikimedia Commons',
+              url: 'https://commons.wikimedia.org/wiki/File:Seoul.jpg',
+              author: 'Jane Doe',
+              license: 'CC BY 4.0',
+              licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+              type: 'WIKIMEDIA',
+            },
+            sources: [],
+          });
+        }
+        if (url === '/api/news/7/keywords') return jsonResponse({ keywords: [] });
+        if (url === '/api/news/7/market-analysis') return jsonResponse({}, 404);
+        return jsonResponse({}, 500);
+      }),
+    );
+
+    const view = renderPage(<NewsDetailPage />);
+
+    expect(await view.findByRole('link', { name: 'Wikimedia Commons' })).toBeTruthy();
+    expect(view.container.querySelector('.news-image-credit')?.textContent).toContain('Jane Doe');
+    expect(view.getByRole('link', { name: 'CC BY 4.0' })).toBeTruthy();
+  });
+
   it('현재 포트폴리오의 종목명과 보유 비중으로 뉴스 영향을 분석한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     localStorage.setItem(
