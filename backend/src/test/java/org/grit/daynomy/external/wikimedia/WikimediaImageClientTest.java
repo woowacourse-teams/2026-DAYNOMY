@@ -1,11 +1,15 @@
 package org.grit.daynomy.external.wikimedia;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import okio.Buffer;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +64,19 @@ class WikimediaImageClientTest {
 
     assertThat(client.search("  ")).isEmpty();
     assertThat(server.getRequestCount()).isZero();
+  }
+
+  @Test
+  void downloadRejectsImageLargerThan5MiB() {
+    server.enqueue(
+        new MockResponse().setHeader("Content-Type", "application/json").setBody(searchResponse()));
+    server.enqueue(new MockResponse().setBody(new Buffer().write(new byte[5 * 1024 * 1024 + 1])));
+
+    WikimediaImageClient client = newClient();
+
+    assertThatThrownBy(() -> client.download("File:Seoul skyline.jpg"))
+        .isInstanceOf(BusinessException.class)
+        .hasMessage(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED.message());
   }
 
   private WikimediaImageClient newClient() {

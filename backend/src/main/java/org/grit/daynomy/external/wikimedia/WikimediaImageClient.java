@@ -2,6 +2,9 @@ package org.grit.daynomy.external.wikimedia;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +25,7 @@ import org.springframework.web.client.RestClientException;
 public class WikimediaImageClient {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static final int MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
   private static final int SEARCH_LIMIT = 50;
   private static final int THUMBNAIL_WIDTH = 1_200;
   private static final String COMMONS_HOST = "commons.wikimedia.org";
@@ -88,11 +92,13 @@ public class WikimediaImageClient {
               .get()
               .uri(URI.create(candidate.thumbnailUrl()))
               .header(HttpHeaders.USER_AGENT, userAgent())
-              .retrieve()
-              .body(byte[].class);
-      if (content == null || content.length == 0 || content.length > 5 * 1024 * 1024) {
-        throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
-      }
+              .exchange(
+                  (request, response) -> {
+                    if (!response.getStatusCode().is2xxSuccessful()) {
+                      throw new RestClientException("Wikimedia Commons image download failed");
+                    }
+                    return readContent(response.getBody());
+                  });
       String contentType = mediaType(candidate.thumbnailUrl());
       return new ImportedImage(candidate, content, contentType, extension(contentType));
     } catch (BusinessException exception) {
@@ -104,6 +110,28 @@ public class WikimediaImageClient {
       log.warn("Wikimedia Commons image download failed", exception);
       throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
     }
+  }
+
+  private byte[] readContent(InputStream input) throws IOException {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    byte[] buffer = new byte[8_192];
+    int totalBytes = 0;
+    while (totalBytes <= MAX_IMAGE_SIZE_BYTES) {
+      int bytesToRead = Math.min(buffer.length, MAX_IMAGE_SIZE_BYTES + 1 - totalBytes);
+      int read = input.read(buffer, 0, bytesToRead);
+      if (read == -1) {
+        break;
+      }
+      totalBytes += read;
+      if (totalBytes > MAX_IMAGE_SIZE_BYTES) {
+        throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
+      }
+      output.write(buffer, 0, read);
+    }
+    if (totalBytes == 0) {
+      throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
+    }
+    return output.toByteArray();
   }
 
   private WikimediaImageCandidate findCandidate(String title) {
