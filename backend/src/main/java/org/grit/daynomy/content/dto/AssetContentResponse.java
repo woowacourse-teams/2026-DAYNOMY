@@ -10,6 +10,7 @@ public record AssetContentResponse(
     ContentSourceType sourceType,
     String title,
     String url,
+    String imageUrl,
     Instant createdAt) {
 
   public static AssetContentResponse from(AssetContent content) {
@@ -19,6 +20,7 @@ public record AssetContentResponse(
         content.getSourceType(),
         content.getTitle(),
         content.getUrl(),
+        content.getNews() == null ? content.getImageUrl() : content.getNews().getImageUrl(),
         content.getCreatedAt());
   }
 }

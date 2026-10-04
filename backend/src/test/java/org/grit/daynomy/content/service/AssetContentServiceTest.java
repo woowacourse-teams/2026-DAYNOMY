@@ -16,6 +16,8 @@ import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.exception.ContentErrorCode;
+import org.grit.daynomy.external.youtube.YouTubeClient;
+import org.grit.daynomy.external.youtube.YouTubeVideoCandidate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +30,7 @@ class AssetContentServiceTest {
 
   @Mock private AssetRepository assetRepository;
   @Mock private AssetContentRepository contentRepository;
+  @Mock private YouTubeClient youtubeClient;
   @InjectMocks private AssetContentService assetContentService;
 
   @Test
@@ -63,7 +66,7 @@ class AssetContentServiceTest {
 
     var request =
         new AssetContentRequest(
-            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news");
+            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news", null);
 
     assertThatThrownBy(() -> assetContentService.createContent(1L, request))
         .isInstanceOf(BusinessException.class)
@@ -72,5 +75,25 @@ class AssetContentServiceTest {
 
     then(contentRepository).should().existsByAssetIdAndUrl(1L, "https://example.com/news");
     then(contentRepository).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
+  @DisplayName("YouTube 검색은 종목을 확인한 뒤 검색 결과를 반환한다")
+  void searchYouTube() {
+    Asset asset = mock(Asset.class);
+    given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
+    given(youtubeClient.search("삼성전자 005930"))
+        .willReturn(
+            List.of(
+                new YouTubeVideoCandidate(
+                    "삼성전자 분석", "https://www.youtube.com/watch?v=abc", "채널", "2026-10-04", "")));
+
+    var response = assetContentService.searchYouTube(1L, "삼성전자 005930");
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().getFirst().title()).isEqualTo("삼성전자 분석");
+    assertThat(response.items().getFirst().url())
+        .isEqualTo("https://www.youtube.com/watch?v=abc");
+    then(youtubeClient).should().search("삼성전자 005930");
   }
 }

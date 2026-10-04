@@ -51,22 +51,37 @@ public class AssetContent extends BaseEntity {
   @Column(name = "url", nullable = false, columnDefinition = "TEXT")
   private String url;
 
-  private AssetContent(Asset asset, ContentSourceType sourceType, String title, String url) {
+  @Column(name = "image_url", columnDefinition = "TEXT")
+  private String imageUrl;
+
+  private AssetContent(
+      Asset asset, ContentSourceType sourceType, String title, String url, String imageUrl) {
     this.asset = asset;
     this.sourceType = sourceType;
     this.title = title;
     this.url = url;
+    this.imageUrl = imageUrl;
   }
 
   private AssetContent(
-      Asset asset, News news, ContentSourceType sourceType, String title, String url) {
-    this(asset, sourceType, title, url);
+      Asset asset,
+      News news,
+      ContentSourceType sourceType,
+      String title,
+      String url,
+      String imageUrl) {
+    this(asset, sourceType, title, url, imageUrl);
     this.news = news;
   }
 
   public static AssetContent create(
       Asset asset, ContentSourceType sourceType, String title, String url) {
-    return new AssetContent(asset, sourceType, title, url);
+    return create(asset, sourceType, title, url, null);
+  }
+
+  public static AssetContent create(
+      Asset asset, ContentSourceType sourceType, String title, String url, String imageUrl) {
+    return new AssetContent(asset, sourceType, title, url, imageUrl);
   }
 
   public static AssetContent createInternalNews(Asset asset, News news) {
@@ -75,6 +90,7 @@ public class AssetContent extends BaseEntity {
         news,
         ContentSourceType.INTERNAL_NEWS,
         news.getTitle(),
-        "/news/" + news.getId());
+        "/news/" + news.getId(),
+        null);
   }
 }

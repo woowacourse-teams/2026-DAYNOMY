@@ -14,4 +14,7 @@ public record AssetContentRequest(
     @NotBlank(message = "URL을 입력해주세요.")
         @Size(max = 2000, message = "URL은 2000자 이하여야 합니다.")
         @Pattern(regexp = "https?://\\S+", message = "http 또는 https URL을 입력해주세요.")
-        String url) {}
+        String url,
+    @Size(max = 2000, message = "이미지 URL은 2000자 이하여야 합니다.")
+        @Pattern(regexp = "https?://\\S+", message = "http 또는 https 이미지 URL을 입력해주세요.")
+        String imageUrl) {}

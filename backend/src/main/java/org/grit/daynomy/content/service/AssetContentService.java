@@ -11,9 +11,12 @@ import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
-import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.content.dto.YouTubeSearchResponse;
+import org.grit.daynomy.content.dto.YouTubeVideoResponse;
 import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.news.domain.News;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +28,7 @@ public class AssetContentService {
 
   private final AssetRepository assetRepository;
   private final AssetContentRepository contentRepository;
+  private final YouTubeClient youtubeClient;
 
   public AssetContentsResponse getContents(Long assetId) {
     Asset asset = getAsset(assetId);
@@ -40,6 +44,12 @@ public class AssetContentService {
         .map(AssetContent::getAsset)
         .map(StockSearchItemResponse::from)
         .toList();
+  }
+
+  public YouTubeSearchResponse searchYouTube(Long assetId, String keyword) {
+    getAsset(assetId);
+    return new YouTubeSearchResponse(
+        youtubeClient.search(keyword).stream().map(YouTubeVideoResponse::from).toList());
   }
 
   @Transactional
@@ -69,7 +79,8 @@ public class AssetContentService {
     }
 
     AssetContent content =
-        AssetContent.create(asset, request.sourceType(), request.title().strip(), url);
+        AssetContent.create(
+            asset, request.sourceType(), request.title().strip(), url, stripToNull(request.imageUrl()));
     return AssetContentResponse.from(contentRepository.save(content));
   }
 
@@ -88,5 +99,11 @@ public class AssetContentService {
     return assetRepository
         .findById(assetId)
         .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
+  }
+
+  private String stripToNull(String value) {
+    if (value == null) return null;
+    String stripped = value.strip();
+    return stripped.isEmpty() ? null : stripped;
   }
 }

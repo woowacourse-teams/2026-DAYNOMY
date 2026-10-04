@@ -5,6 +5,8 @@ import org.springframework.http.HttpStatus;
 
 public enum ExternalErrorCode implements ErrorCode {
   PUBLIC_DATA_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "공공데이터 API 요청에 실패했습니다."),
+  YOUTUBE_API_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "YouTube API 키가 설정되지 않았습니다."),
+  YOUTUBE_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "YouTube API 요청에 실패했습니다."),
   S3_IMAGE_STORAGE_FAILED(HttpStatus.BAD_GATEWAY, "이미지 저장소 요청에 실패했습니다."),
   WIKIMEDIA_IMAGE_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "Wikimedia Commons 이미지 요청에 실패했습니다."),
   AI_NEWS_GENERATION_FAILED(HttpStatus.BAD_GATEWAY, "AI 뉴스 생성에 실패했습니다."),

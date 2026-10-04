@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
+import org.grit.daynomy.content.dto.YouTubeSearchResponse;
 import org.grit.daynomy.content.service.AssetContentService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
 
@@ -44,6 +46,14 @@ public class AdminAssetContentController {
   public ResponseEntity<AssetContentsResponse> getContents(
       @PathVariable @Positive Long assetId) {
     return ResponseEntity.ok(assetContentService.getContents(assetId));
+  }
+
+  @Operation(summary = "YouTube 영상 검색")
+  @GetMapping("/youtube-search")
+  public ResponseEntity<YouTubeSearchResponse> searchYouTube(
+      @PathVariable @Positive Long assetId,
+      @RequestParam @jakarta.validation.constraints.Size(min = 2, max = 100) String keyword) {
+    return ResponseEntity.ok(assetContentService.searchYouTube(assetId, keyword.strip()));
   }
 
   @Operation(summary = "종목 관련 자료 삭제")
