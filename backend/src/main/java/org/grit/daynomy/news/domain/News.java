@@ -151,8 +151,12 @@ public class News extends BaseEntity {
   }
 
   public void updateImage(String imageUrl) {
+    updateImage(imageUrl, ImageSourceInfo.empty());
+  }
+
+  public void updateImage(String imageUrl, ImageSourceInfo imageSource) {
     this.imageUrl = imageUrl;
-    this.imageSource = ImageSourceInfo.empty();
+    this.imageSource = imageSource == null ? ImageSourceInfo.empty() : imageSource;
   }
 
   public void publish() {
