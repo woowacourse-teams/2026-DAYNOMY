@@ -509,6 +509,9 @@ export function AdminNewsFormPage() {
                     }`}
                     type="button"
                     key={candidate.title}
+                    aria-label={`Wikimedia 이미지 ${candidate.title} · ${
+                      candidate.author || '저작자 정보 없음'
+                    } · ${candidate.license}`}
                     onClick={() => selectWikimediaImage(candidate)}
                   >
                     <img src={candidate.thumbnailUrl} alt="" />

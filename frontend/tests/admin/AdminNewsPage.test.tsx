@@ -638,7 +638,9 @@ describe('관리자 뉴스 화면', () => {
     });
     fireEvent.click(view.getByRole('button', { name: '검색' }));
 
-    const candidate = await view.findByRole('button', { name: /Jane Doe.*CC BY 4\.0/ });
+    const candidate = await view.findByRole('button', {
+      name: /File:Seoul\.jpg.*Jane Doe.*CC BY 4\.0/,
+    });
     fireEvent.click(candidate);
 
     expect(view.getByAltText('뉴스 대표 이미지 미리보기').getAttribute('src')).toBe(
