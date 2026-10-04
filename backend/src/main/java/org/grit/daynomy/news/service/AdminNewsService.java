@@ -312,7 +312,27 @@ public class AdminNewsService {
     }
 
     ImageSourceInfo requestedSource = request.imageSourceInfo();
-    return requestedSource.type() == ImageSourceType.NONE ? news.getImageSource() : requestedSource;
+    if (requestedSource.type() == ImageSourceType.NONE) {
+      return news.getImageSource();
+    }
+
+    ImageSourceInfo existingSource = news.getImageSource();
+    ImageSourceType type =
+        hasSameIdentity(existingSource, requestedSource)
+            ? existingSource.type()
+            : requestedSource.type();
+
+    return new ImageSourceInfo(
+        requestedSource.name(),
+        requestedSource.url(),
+        requestedSource.author(),
+        requestedSource.license(),
+        requestedSource.licenseUrl(),
+        type);
+  }
+
+  private boolean hasSameIdentity(ImageSourceInfo first, ImageSourceInfo second) {
+    return first.name().equals(second.name()) && first.url().equals(second.url());
   }
 
   private ImageSourceInfo imageSourceForCreate(

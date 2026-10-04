@@ -670,6 +670,54 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("기존 이미지 출처 메타데이터를 수정해도 출처 유형은 유지한다")
+  void updateImageSourceMetadataKeepsExistingType() {
+    String sourceUrl = "https://commons.wikimedia.org/wiki/File:Seoul_skyline.jpg";
+    News news =
+        News.createDraft(
+            "기존 제목",
+            "기존 본문",
+            "https://example.com/wikimedia.jpg",
+            ImageSourceInfo.wikimedia(
+                "Wikimedia Commons",
+                sourceUrl,
+                "기존 저작자",
+                "CC BY 4.0",
+                "https://creativecommons.org/licenses/by/4.0/"),
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK,
+            new ImageSourceRequest(
+                "Wikimedia Commons",
+                sourceUrl,
+                "수정 저작자",
+                "CC BY-SA 4.0",
+                "https://creativecommons.org/licenses/by-sa/4.0/"));
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      News updatedNews = adminNewsService.update(1L, request, null);
+
+      assertThat(updatedNews.getImageSource())
+          .isEqualTo(
+              ImageSourceInfo.wikimedia(
+                  "Wikimedia Commons",
+                  sourceUrl,
+                  "수정 저작자",
+                  "CC BY-SA 4.0",
+                  "https://creativecommons.org/licenses/by-sa/4.0/"));
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @Test
   @DisplayName("시장 분석 생성에 실패하면 뉴스와 기존 분석 데이터를 변경하지 않는다")
   void updatePublishedNewsKeepsExistingDataWhenMarketAnalysisGenerationFails() {
     News news =
