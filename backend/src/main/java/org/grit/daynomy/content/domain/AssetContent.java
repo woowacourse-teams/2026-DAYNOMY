@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.common.BaseEntity;
+import org.grit.daynomy.news.domain.News;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -36,6 +37,10 @@ public class AssetContent extends BaseEntity {
   @JoinColumn(name = "asset_id", nullable = false)
   private Asset asset;
 
+  @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
+  @JoinColumn(name = "news_id")
+  private News news;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "source_type", nullable = false, length = 30)
   private ContentSourceType sourceType;
@@ -53,8 +58,23 @@ public class AssetContent extends BaseEntity {
     this.url = url;
   }
 
+  private AssetContent(
+      Asset asset, News news, ContentSourceType sourceType, String title, String url) {
+    this(asset, sourceType, title, url);
+    this.news = news;
+  }
+
   public static AssetContent create(
       Asset asset, ContentSourceType sourceType, String title, String url) {
     return new AssetContent(asset, sourceType, title, url);
+  }
+
+  public static AssetContent createInternalNews(Asset asset, News news) {
+    return new AssetContent(
+        asset,
+        news,
+        ContentSourceType.INTERNAL_NEWS,
+        news.getTitle(),
+        "/news/" + news.getId());
   }
 }

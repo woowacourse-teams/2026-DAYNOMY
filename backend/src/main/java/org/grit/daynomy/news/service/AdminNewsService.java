@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
@@ -58,6 +59,7 @@ public class AdminNewsService {
   private final MarketAnalysisAiClient marketAnalysisAiClient;
   private final KeywordService keywordService;
   private final MarketAnalysisService marketAnalysisService;
+  private final AssetContentService assetContentService;
 
   @Transactional
   public News createDraft(AdminNewsCreateRequest request, MultipartFile image) {
@@ -73,6 +75,7 @@ public class AdminNewsService {
               request.category());
 
       News savedNews = newsRepository.save(news);
+      assetContentService.syncNewsContents(savedNews, request.assetIds());
       registerAfterCommit(
           () ->
               log.atInfo()
@@ -225,6 +228,7 @@ public class AdminNewsService {
           imageSourceForUpdate(news, request, imageUpload),
           request.sourceInfos(),
           request.category());
+      assetContentService.syncNewsContents(news, request.assetIds());
       if (uploadedImage != null) {
         newsRepository.flush();
         registerImageCleanup(previousImageUrl, uploadedImage);

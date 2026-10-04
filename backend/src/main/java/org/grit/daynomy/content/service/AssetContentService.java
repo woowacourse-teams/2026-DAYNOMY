@@ -1,16 +1,20 @@
 package org.grit.daynomy.content.service;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.dto.StockSearchItemResponse;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
+import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
-import org.grit.daynomy.asset.repository.AssetRepository;
-import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.exception.ContentErrorCode;
+import org.grit.daynomy.content.repository.AssetContentRepository;
+import org.grit.daynomy.news.domain.News;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +29,35 @@ public class AssetContentService {
   public AssetContentsResponse getContents(Long assetId) {
     Asset asset = getAsset(assetId);
     return AssetContentsResponse.from(
-        asset, contentRepository.findAllByAssetIdOrderByCreatedAtDescIdDesc(assetId));
+        asset,
+        contentRepository.findAllByAssetIdOrderByCreatedAtDescIdDesc(assetId).stream()
+            .filter(content -> content.getNews() == null || content.getNews().isPublished())
+            .toList());
+  }
+
+  public List<StockSearchItemResponse> getRelatedAssets(Long newsId) {
+    return contentRepository.findAllByNewsId(newsId).stream()
+        .map(AssetContent::getAsset)
+        .map(StockSearchItemResponse::from)
+        .toList();
+  }
+
+  @Transactional
+  public void syncNewsContents(News news, List<Long> assetIds) {
+    if (news.getId() == null) {
+      throw new IllegalStateException("뉴스가 저장된 후 관련 종목을 연결해야 합니다.");
+    }
+
+    List<Long> distinctAssetIds =
+        new LinkedHashSet<>(assetIds == null ? List.of() : assetIds).stream().toList();
+    List<Asset> assets = assetRepository.findAllById(distinctAssetIds);
+    if (assets.size() != distinctAssetIds.size()) {
+      throw new BusinessException(AssetErrorCode.ASSET_NOT_FOUND);
+    }
+
+    contentRepository.deleteAllByNewsId(news.getId());
+    contentRepository.saveAll(
+        assets.stream().map(asset -> AssetContent.createInternalNews(asset, news)).toList());
   }
 
   @Transactional

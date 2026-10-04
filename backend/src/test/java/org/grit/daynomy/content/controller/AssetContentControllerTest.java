@@ -56,7 +56,7 @@ class AssetContentControllerTest {
                         null))));
 
     mockMvc
-        .perform(get("/api/stocks/{assetId}/contents", 1L))
+        .perform(get("/api/assets/{assetId}/contents", 1L))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.contents[0].id").value(10))
         .andExpect(jsonPath("$.contents[0].assetId").value(1))

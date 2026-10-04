@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
@@ -88,6 +89,8 @@ class AdminNewsServiceTest {
   @Mock private KeywordService keywordService;
 
   @Mock private MarketAnalysisService marketAnalysisService;
+
+  @Mock private AssetContentService assetContentService;
 
   @InjectMocks private AdminNewsService adminNewsService;
 
