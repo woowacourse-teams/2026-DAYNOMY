@@ -4,12 +4,14 @@ import type {
   AdminNewsFilterCategory,
   AdminNewsFilterStatus,
   AdminNewsFormValues,
+  AdminNewsImageSource,
   AdminNewsListItemResponse,
   AdminNewsPageResponse,
   AdminNewsResponse,
   AdminNewsSource,
   AdminNewsStatus,
   AdminNewsGenerationResponse,
+  AdminWikimediaImageCandidate,
   AdminStockPriceSyncResponse,
   AdminStockSyncResponse,
 } from './types';
@@ -31,6 +33,31 @@ function isAdminNewsStatus(value: unknown): value is AdminNewsStatus {
 
 function isAdminNewsSource(value: unknown): value is AdminNewsSource {
   return isRecord(value) && typeof value.name === 'string' && typeof value.url === 'string';
+}
+
+function isAdminNewsImageSource(value: unknown): value is AdminNewsImageSource {
+  return (
+    isRecord(value) &&
+    typeof value.name === 'string' &&
+    typeof value.url === 'string' &&
+    typeof value.author === 'string' &&
+    typeof value.license === 'string' &&
+    typeof value.licenseUrl === 'string'
+  );
+}
+
+function isWikimediaImageCandidate(value: unknown): value is AdminWikimediaImageCandidate {
+  return (
+    isRecord(value) &&
+    typeof value.title === 'string' &&
+    typeof value.thumbnailUrl === 'string' &&
+    typeof value.sourceUrl === 'string' &&
+    typeof value.author === 'string' &&
+    typeof value.license === 'string' &&
+    typeof value.licenseUrl === 'string' &&
+    typeof value.width === 'number' &&
+    typeof value.height === 'number'
+  );
 }
 
 function isAdminNewsListItem(value: unknown): value is AdminNewsListItemResponse {
@@ -68,11 +95,20 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
     typeof value.title === 'string' &&
     typeof value.content === 'string' &&
     isNullableString(value.imageUrl) &&
+    (value.imageSource === undefined || isAdminNewsImageSource(value.imageSource)) &&
     Array.isArray(value.sources) &&
     value.sources.every(isAdminNewsSource) &&
     isCategory(value.category) &&
     isNullableString(value.publishedAt) &&
     isAdminNewsStatus(value.status)
+  );
+}
+
+function isWikimediaImageSearchResponse(
+  value: unknown,
+): value is { items: AdminWikimediaImageCandidate[] } {
+  return (
+    isRecord(value) && Array.isArray(value.items) && value.items.every(isWikimediaImageCandidate)
   );
 }
 
@@ -168,6 +204,17 @@ export async function createAdminNews(values: AdminNewsFormValues, image: File |
   });
 
   return assertResponse(response, isAdminNewsResponse);
+}
+
+export async function searchWikimediaImages(
+  keyword: string,
+  signal?: AbortSignal,
+): Promise<AdminWikimediaImageCandidate[]> {
+  const params = new URLSearchParams({ keyword: keyword.trim() });
+  const response = await request<unknown>(`/api/admin/news/image-search?${params.toString()}`, {
+    signal,
+  });
+  return assertResponse(response, isWikimediaImageSearchResponse).items;
 }
 
 export async function updateAdminNews(id: number, values: AdminNewsFormValues, image: File | null) {

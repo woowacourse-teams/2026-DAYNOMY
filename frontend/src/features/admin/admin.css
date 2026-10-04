@@ -851,6 +851,95 @@
   display: none;
 }
 
+.admin-image-search {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid #edf0f5;
+}
+
+.admin-image-search strong {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.admin-image-search p {
+  margin-top: 5px;
+  color: #8b94a6;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.admin-image-search-controls {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.admin-image-search-controls .admin-field {
+  flex: 1;
+}
+
+.admin-image-search-controls .admin-secondary-button {
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.admin-image-candidates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-image-candidate {
+  display: grid;
+  gap: 5px;
+  padding: 5px;
+  overflow: hidden;
+  border: 1px solid #e4e7ef;
+  border-radius: 8px;
+  color: #4b5563;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-image-candidate:hover,
+.admin-image-candidate.is-selected {
+  border-color: #5144d8;
+  box-shadow: 0 0 0 2px #eeecff;
+}
+
+.admin-image-candidate img {
+  width: 100%;
+  aspect-ratio: 1.35;
+  object-fit: cover;
+  border-radius: 5px;
+  background: #f3f4f6;
+}
+
+.admin-image-candidate span,
+.admin-image-candidate small {
+  overflow: hidden;
+  padding: 0 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-image-candidate span {
+  color: #374151;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.admin-image-candidate small {
+  color: #8b94a6;
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .admin-form-actions {
   display: flex;
   justify-content: flex-end;
@@ -905,6 +994,7 @@
   }
   .admin-form-side .admin-sources,
   .admin-form-side .admin-field:nth-child(3),
+  .admin-form-side .admin-image-search,
   .admin-form-actions {
     grid-column: 1 / -1;
   }
@@ -1030,8 +1120,18 @@
   }
   .admin-form-side .admin-sources,
   .admin-form-side .admin-field:nth-child(3),
+  .admin-form-side .admin-image-search,
   .admin-form-actions {
     grid-column: auto;
+  }
+
+  .admin-image-search-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-image-candidates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .admin-form-actions {
     flex-direction: column-reverse;

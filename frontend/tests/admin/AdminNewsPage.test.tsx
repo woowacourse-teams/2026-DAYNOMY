@@ -607,6 +607,46 @@ describe('관리자 뉴스 화면', () => {
     expect(view.getAllByLabelText('출처명')).toHaveLength(1);
   });
 
+  it('뉴스 등록 폼에서 Wikimedia Commons 이미지를 검색하고 선택할 수 있다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('/api/admin/news/image-search')) {
+          return jsonResponse({
+            items: [
+              {
+                title: 'File:Seoul.jpg',
+                thumbnailUrl: 'https://upload.wikimedia.org/thumb.jpg',
+                sourceUrl: 'https://commons.wikimedia.org/wiki/File:Seoul.jpg',
+                author: 'Jane Doe',
+                license: 'CC BY 4.0',
+                licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+                width: 1200,
+                height: 800,
+              },
+            ],
+          });
+        }
+
+        return jsonResponse({}, 404);
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsFormPage />);
+    fireEvent.change(view.getByLabelText('이미지 검색어'), {
+      target: { value: 'Seoul skyline' },
+    });
+    fireEvent.click(view.getByRole('button', { name: '검색' }));
+
+    const candidate = await view.findByRole('button', { name: /Jane Doe.*CC BY 4\.0/ });
+    fireEvent.click(candidate);
+
+    expect(view.getByAltText('뉴스 대표 이미지 미리보기').getAttribute('src')).toBe(
+      'https://upload.wikimedia.org/thumb.jpg',
+    );
+    expect(view.getByText(/선택됨: Jane Doe · CC BY 4\.0/)).toBeTruthy();
+  });
+
   it('수정 대상 뉴스 상세 조회에 실패하면 폼 대신 오류 화면을 표시한다', async () => {
     vi.stubGlobal(
       'fetch',

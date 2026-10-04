@@ -6,6 +6,29 @@ export type AdminNewsSource = {
   url: string;
 };
 
+export type AdminNewsImageSource = {
+  name: string;
+  url: string;
+  author: string;
+  license: string;
+  licenseUrl: string;
+};
+
+export type AdminWikimediaImageSelection = {
+  title: string;
+};
+
+export type AdminWikimediaImageCandidate = {
+  title: string;
+  thumbnailUrl: string;
+  sourceUrl: string;
+  author: string;
+  license: string;
+  licenseUrl: string;
+  width: number;
+  height: number;
+};
+
 export type AdminNewsListItemResponse = {
   id: number;
   title: string;
@@ -31,6 +54,7 @@ export type AdminNewsResponse = {
   title: string;
   content: string;
   imageUrl: string | null;
+  imageSource?: AdminNewsImageSource;
   sources: AdminNewsSource[];
   category: Category;
   publishedAt: string | null;
@@ -42,6 +66,7 @@ export type AdminNewsFormValues = {
   content: string;
   sources: AdminNewsSource[];
   category: Category | '';
+  imageSelection?: AdminWikimediaImageSelection | null;
 };
 
 export type AdminNewsFilterStatus = AdminNewsStatus | 'ALL';
