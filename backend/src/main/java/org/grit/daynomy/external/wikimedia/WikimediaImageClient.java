@@ -33,6 +33,12 @@ public class WikimediaImageClient {
   private static final Pattern CC_BY_LICENSE =
       Pattern.compile("^cc by(?: \\d+(?:\\.\\d+)?(?: [a-z]{2})?)?$");
   private static final String PUBLIC_DOMAIN_LICENSE = "public domain";
+  private static final byte[] JPEG_SIGNATURE = {(byte) 0xff, (byte) 0xd8, (byte) 0xff};
+  private static final byte[] PNG_SIGNATURE = {
+    (byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
+  };
+  private static final byte[] RIFF_SIGNATURE = {'R', 'I', 'F', 'F'};
+  private static final byte[] WEBP_SIGNATURE = {'W', 'E', 'B', 'P'};
   private static final String COMMONS_HOST = "commons.wikimedia.org";
   private static final String UPLOAD_HOST = "upload.wikimedia.org";
   private static final String THUMB_HOST = "thumb.wikimedia.org";
@@ -90,7 +96,7 @@ public class WikimediaImageClient {
   public ImportedImage download(String title) {
     try {
       WikimediaImageCandidate candidate = findCandidate(title);
-      byte[] content =
+      DownloadedImage downloadedImage =
           RestClient.builder()
               .requestFactory(requestFactory())
               .build()
@@ -102,10 +108,16 @@ public class WikimediaImageClient {
                     if (!response.getStatusCode().is2xxSuccessful()) {
                       throw new RestClientException("Wikimedia Commons image download failed");
                     }
-                    return readContent(response.getBody());
+                    byte[] content = readContent(response.getBody());
+                    return new DownloadedImage(
+                        content,
+                        resolveContentType(response.getHeaders().getContentType(), content));
                   });
-      String contentType = mediaType(candidate.thumbnailUrl());
-      return new ImportedImage(candidate, content, contentType, extension(contentType));
+      return new ImportedImage(
+          candidate,
+          downloadedImage.content(),
+          downloadedImage.contentType(),
+          extension(downloadedImage.contentType()));
     } catch (BusinessException exception) {
       throw exception;
     } catch (HttpStatusCodeException exception) {
@@ -215,7 +227,7 @@ public class WikimediaImageClient {
         || CC_BY_LICENSE.matcher(normalized).matches();
   }
 
-  private boolean isSupportedMime(String mime) {
+  private static boolean isSupportedMime(String mime) {
     return MediaType.IMAGE_JPEG_VALUE.equals(mime)
         || MediaType.IMAGE_PNG_VALUE.equals(mime)
         || IMAGE_WEBP.equals(mime);
@@ -240,15 +252,44 @@ public class WikimediaImageClient {
     return value.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").strip();
   }
 
-  private String mediaType(String url) {
-    String lower = url.toLowerCase();
-    if (lower.contains(".png")) {
+  static String resolveContentType(MediaType responseContentType, byte[] content) {
+    String detectedContentType = detectContentType(content);
+    if (detectedContentType != null) {
+      return detectedContentType;
+    }
+    if (responseContentType != null) {
+      String headerContentType =
+          "%s/%s".formatted(responseContentType.getType(), responseContentType.getSubtype());
+      if (isSupportedMime(headerContentType)) {
+        return headerContentType;
+      }
+    }
+    throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
+  }
+
+  private static String detectContentType(byte[] content) {
+    if (hasSignature(content, 0, JPEG_SIGNATURE)) {
+      return MediaType.IMAGE_JPEG_VALUE;
+    }
+    if (hasSignature(content, 0, PNG_SIGNATURE)) {
       return MediaType.IMAGE_PNG_VALUE;
     }
-    if (lower.contains(".webp")) {
+    if (hasSignature(content, 0, RIFF_SIGNATURE) && hasSignature(content, 8, WEBP_SIGNATURE)) {
       return IMAGE_WEBP;
     }
-    return MediaType.IMAGE_JPEG_VALUE;
+    return null;
+  }
+
+  private static boolean hasSignature(byte[] content, int offset, byte[] signature) {
+    if (content == null || content.length < offset + signature.length) {
+      return false;
+    }
+    for (int index = 0; index < signature.length; index++) {
+      if (content[offset + index] != signature[index]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private String extension(String contentType) {
@@ -273,6 +314,8 @@ public class WikimediaImageClient {
   private int toMillis(java.time.Duration timeout) {
     return Math.toIntExact(timeout.toMillis());
   }
+
+  private record DownloadedImage(byte[] content, String contentType) {}
 
   public record ImportedImage(
       WikimediaImageCandidate candidate, byte[] content, String contentType, String extension) {}

@@ -13,6 +13,7 @@ import org.grit.daynomy.external.ExternalErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 
 class WikimediaImageClientTest {
 
@@ -85,6 +86,14 @@ class WikimediaImageClientTest {
     assertThatThrownBy(() -> client.download("File:Seoul skyline.jpg"))
         .isInstanceOf(BusinessException.class)
         .hasMessage(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED.message());
+  }
+
+  @Test
+  void resolveContentTypeUsesDownloadedBytesBeforeResponseHeader() {
+    byte[] png = {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
+
+    assertThat(WikimediaImageClient.resolveContentType(MediaType.IMAGE_JPEG, png))
+        .isEqualTo(MediaType.IMAGE_PNG_VALUE);
   }
 
   private WikimediaImageClient newClient() {
