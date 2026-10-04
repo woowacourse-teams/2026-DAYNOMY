@@ -250,6 +250,14 @@ describe('뉴스 탐색 화면', () => {
           return jsonResponse({
             ...article,
             content: '금리 동결이 금융시장에 미치는 영향입니다.',
+            imageSource: {
+              name: '',
+              url: '',
+              author: '',
+              license: '',
+              licenseUrl: '',
+              type: 'AI_GENERATED',
+            },
             sources: [
               { name: '한국은행', url: 'https://example.com/news/7' },
               { name: 'DART', url: 'https://example.com/news/7/dart' },
@@ -281,6 +289,7 @@ describe('뉴스 탐색 화면', () => {
     const view = renderPage(<NewsDetailPage />);
 
     expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
+    expect(view.getByText('AI로 생성된 이미지입니다.')).toBeTruthy();
     expect(view.queryByRole('heading', { name: '핵심 요약' })).toBeNull();
     expect(view.queryByText('기준금리가 유지되고 있습니다.')).toBeNull();
     expect(view.queryByText('채권 시장의 관망세가 이어지고 있습니다.')).toBeNull();

@@ -8,7 +8,7 @@ import { calculatePortfolio } from '../../portfolio/api.ts';
 import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
 import { usePortfolioHoldings } from '../../portfolio/hooks/usePortfolioHoldings.ts';
 import type { PortfolioAsset } from '../../portfolio/types.ts';
-import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
+import type { MarketAnalysisState, NewsDetailPayload, NewsImageSource } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
 
@@ -45,6 +45,39 @@ function formatDetailDate(value?: string) {
   const day = String(date.getDate()).padStart(2, '0');
 
   return `${year}.${month}.${day}`;
+}
+
+function NewsImageCredit({ imageSource }: { imageSource?: NewsImageSource }) {
+  if (!imageSource || imageSource.type === 'NONE') {
+    return null;
+  }
+
+  if (imageSource.type === 'AI_GENERATED') {
+    return <p className="news-image-credit">AI로 생성된 이미지입니다.</p>;
+  }
+
+  if (!imageSource.name || !imageSource.url) {
+    return null;
+  }
+
+  return (
+    <p className="news-image-credit">
+      이미지:{' '}
+      <a href={imageSource.url} target="_blank" rel="noopener noreferrer">
+        {imageSource.author || imageSource.name}
+      </a>
+      {imageSource.license ? ' · ' : null}
+      {imageSource.license ? (
+        imageSource.licenseUrl ? (
+          <a href={imageSource.licenseUrl} target="_blank" rel="noopener noreferrer">
+            {imageSource.license}
+          </a>
+        ) : (
+          imageSource.license
+        )
+      ) : null}
+    </p>
+  );
 }
 
 function toPortfolioAssets(
@@ -219,24 +252,7 @@ export function NewsDetailPage() {
         </time>
 
         <img className="news-image" src={imageUrl} alt="" />
-        {news.imageSource?.name && news.imageSource.url ? (
-          <p className="news-image-credit">
-            이미지:{' '}
-            <a href={news.imageSource.url} target="_blank" rel="noopener noreferrer">
-              {news.imageSource.author || news.imageSource.name}
-            </a>
-            {news.imageSource.license ? ' · ' : null}
-            {news.imageSource.license ? (
-              news.imageSource.licenseUrl ? (
-                <a href={news.imageSource.licenseUrl} target="_blank" rel="noopener noreferrer">
-                  {news.imageSource.license}
-                </a>
-              ) : (
-                news.imageSource.license
-              )
-            ) : null}
-          </p>
-        ) : null}
+        <NewsImageCredit imageSource={news.imageSource} />
 
         <section className="body-section" aria-label="뉴스 본문">
           <div className="body-copy">
