@@ -24,8 +24,7 @@ public record AdminNewsResponse(
     return from(news, List.of());
   }
 
-  public static AdminNewsResponse from(
-      News news, List<StockSearchItemResponse> relatedAssets) {
+  public static AdminNewsResponse from(News news, List<StockSearchItemResponse> relatedAssets) {
     return new AdminNewsResponse(
         news.getId(),
         news.getTitle(),

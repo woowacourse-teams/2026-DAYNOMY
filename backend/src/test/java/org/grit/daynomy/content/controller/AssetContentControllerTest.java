@@ -7,12 +7,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
 import org.grit.daynomy.content.service.AssetContentService;
-import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
-import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

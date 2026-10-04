@@ -8,11 +8,11 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
 import org.grit.daynomy.content.service.AssetContentService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.validation.annotation.Validated;
 
 @Tag(name = "주식 관련 자료", description = "종목에 연결된 이슈·뉴스·외부 자료 조회 API")
 @Validated

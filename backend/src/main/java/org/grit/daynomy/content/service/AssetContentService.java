@@ -7,6 +7,7 @@ import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.dto.StockSearchItemResponse;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.dto.AssetContentResponse;
@@ -15,7 +16,6 @@ import org.grit.daynomy.content.dto.YouTubeSearchResponse;
 import org.grit.daynomy.content.dto.YouTubeVideoResponse;
 import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
-import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.news.domain.News;
 import org.springframework.stereotype.Service;
@@ -80,7 +80,11 @@ public class AssetContentService {
 
     AssetContent content =
         AssetContent.create(
-            asset, request.sourceType(), request.title().strip(), url, stripToNull(request.imageUrl()));
+            asset,
+            request.sourceType(),
+            request.title().strip(),
+            url,
+            stripToNull(request.imageUrl()));
     return AssetContentResponse.from(contentRepository.save(content));
   }
 
@@ -90,8 +94,7 @@ public class AssetContentService {
     AssetContent content =
         contentRepository
             .findByIdAndAsset_Id(contentId, assetId)
-            .orElseThrow(
-                () -> new BusinessException(ContentErrorCode.ASSET_CONTENT_NOT_FOUND));
+            .orElseThrow(() -> new BusinessException(ContentErrorCode.ASSET_CONTENT_NOT_FOUND));
     contentRepository.delete(content);
   }
 

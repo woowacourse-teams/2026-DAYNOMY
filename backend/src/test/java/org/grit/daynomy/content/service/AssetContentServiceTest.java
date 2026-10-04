@@ -9,13 +9,13 @@ import static org.mockito.Mockito.mock;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.AssetContentRequest;
-import org.grit.daynomy.asset.repository.AssetRepository;
-import org.grit.daynomy.content.repository.AssetContentRepository;
-import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.exception.ContentErrorCode;
+import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.external.youtube.YouTubeVideoCandidate;
 import org.junit.jupiter.api.DisplayName;
@@ -61,8 +61,7 @@ class AssetContentServiceTest {
   void createContentRejectsDuplicateUrl() {
     Asset asset = mock(Asset.class);
     given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
-    given(contentRepository.existsByAssetIdAndUrl(1L, "https://example.com/news"))
-        .willReturn(true);
+    given(contentRepository.existsByAssetIdAndUrl(1L, "https://example.com/news")).willReturn(true);
 
     var request =
         new AssetContentRequest(
@@ -92,8 +91,7 @@ class AssetContentServiceTest {
 
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().getFirst().title()).isEqualTo("삼성전자 분석");
-    assertThat(response.items().getFirst().url())
-        .isEqualTo("https://www.youtube.com/watch?v=abc");
+    assertThat(response.items().getFirst().url()).isEqualTo("https://www.youtube.com/watch?v=abc");
     then(youtubeClient).should().search("삼성전자 005930");
   }
 }

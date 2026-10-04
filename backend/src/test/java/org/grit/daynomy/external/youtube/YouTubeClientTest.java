@@ -53,7 +53,10 @@ class YouTubeClientTest {
     YouTubeClient client =
         new YouTubeClient(
             new YouTubeProperties(
-                "test-api-key", server.url("/").toString(), Duration.ofSeconds(1), Duration.ofSeconds(1)));
+                "test-api-key",
+                server.url("/").toString(),
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(1)));
 
     var candidates = client.search("삼성전자 005930");
 
@@ -62,8 +65,7 @@ class YouTubeClientTest {
         .satisfies(
             candidate -> {
               assertThat(candidate.title()).isEqualTo("삼성전자 분석");
-              assertThat(candidate.url())
-                  .isEqualTo("https://www.youtube.com/watch?v=abc123");
+              assertThat(candidate.url()).isEqualTo("https://www.youtube.com/watch?v=abc123");
               assertThat(candidate.channelTitle()).isEqualTo("DAYNOMY");
               assertThat(candidate.thumbnailUrl()).isEqualTo("https://i.ytimg.com/high.jpg");
             });
