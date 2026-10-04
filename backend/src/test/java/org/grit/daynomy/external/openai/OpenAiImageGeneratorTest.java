@@ -40,7 +40,7 @@ class OpenAiImageGeneratorTest {
   }
 
   @Test
-  @DisplayName("두 이미지 생성 프롬프트가 인물과 문자의 조건부 사용 기준을 공유한다")
+  @DisplayName("두 이미지 생성 프롬프트가 사람과 문자 생성을 엄격히 제한한다")
   void imagePromptsSharePeopleAndTextGuidelines() throws Exception {
     OpenAiImageGenerator generator =
         new OpenAiImageGenerator(
@@ -53,8 +53,12 @@ class OpenAiImageGeneratorTest {
     generator.generateEconomicNewsImage("금리 인상 전망", "시장 금리가 상승했다", Category.STOCK);
     String economicPrompt = requestPrompt();
     assertThat(economicPrompt.replaceAll("\\s+", " "))
-        .contains("First compose the scene without people")
-        .contains("only when the central event cannot be understood otherwise");
+        .contains("Compose an entirely unoccupied scene with no people first")
+        .contains(
+            "only when removing all people would make the central event visually incomprehensible")
+        .contains("No such text is requested here, so use no text at all")
+        .contains("semantic subject reference only")
+        .doesNotContain("Headline:");
     assertSharedImageRestrictions(economicPrompt);
   }
 
@@ -106,34 +110,27 @@ class OpenAiImageGeneratorTest {
   private void assertSharedImageRestrictions(String prompt) {
     String normalizedPrompt = prompt.replaceAll("\\s+", " ");
     assertThat(normalizedPrompt)
-        .contains("Start by composing an entirely unoccupied scene with no people")
+        .contains("Compose an entirely unoccupied scene with no people")
         .contains("Treat a people-free image as the default and strongest preference")
-        .contains("only as a strict exception")
         .contains(
-            "removing all people would make the central event itself visually incomprehensible")
-        .contains("factory, laboratory, hospital, store, construction site, or market")
+            "removing all people would make the central event visually incomprehensible")
         .contains("is never by itself a reason to include a worker")
-        .contains(
-            "If objects, machinery, products, documents, buildings, landscapes, or materials can carry the story, show no people")
-        .contains(
-            "facilities, production, contracts, supply, investment, earnings, logistics, technology, or research")
-        .contains("If and only if a person is indispensable")
+        .contains("Do not add people for scale, atmosphere, realism, or visual interest")
+        .contains("If a person is indispensable")
         .contains("exactly one anonymous, non-identifiable person")
-        .contains("shown from behind or with their face fully obscured")
+        .contains("shown from behind or with the face fully obscured")
         .contains(
             "Never include crowds, groups, background figures, silhouettes, reflections of people")
-        .contains("Do not add visible writing by default")
-        .contains("Include background text or numerals only when they naturally belong")
-        .contains("clean and correctly formed")
-        .contains("never malformed, scrambled, misspelled, or like gibberish")
-        .contains("Preserve the language of each text element")
-        .contains("render Korean content in Korean and English content in English")
-        .contains("Mixed languages are acceptable when natural to the setting")
-        .contains("Never invent factual company names, ticker symbols, prices, dates, headlines")
-        .contains("Do not copy the article title or context into the image")
-        .contains("Render readable text or values only when exact content is explicitly supplied")
-        .contains("softly out of focus so no inaccurate content is legible")
-        .contains("omit the text if it cannot be rendered cleanly");
+        .contains("Absolute text policy: the image must contain no visible text by default")
+        .contains("Do not include words, letters, Korean characters, numbers, prices, dates")
+        .contains("logos, brand marks, ticker symbols, labels, captions, headlines")
+        .contains("signs, newspapers, documents, contracts, screens, dashboards, charts, graphs")
+        .contains("watermarks, or UI elements")
+        .contains("Do not create fake writing, pseudo-text, scribbles, or random glyphs")
+        .contains("Only include a specific text element when the request explicitly identifies it")
+        .contains("No such text is requested here, so use no text at all")
+        .contains("Never render, copy, paraphrase, translate, or visualize any words, letters")
+        .contains("Final check: remove all text-like marks and all unnecessary people");
   }
 
   private String openAiImageResponse() {
