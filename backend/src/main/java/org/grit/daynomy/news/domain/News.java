@@ -150,10 +150,6 @@ public class News extends BaseEntity {
     this.category = category;
   }
 
-  public void updateImage(String imageUrl) {
-    updateImage(imageUrl, ImageSourceInfo.empty());
-  }
-
   public void updateImage(String imageUrl, ImageSourceInfo imageSource) {
     this.imageUrl = imageUrl;
     this.imageSource = imageSource == null ? ImageSourceInfo.empty() : imageSource;

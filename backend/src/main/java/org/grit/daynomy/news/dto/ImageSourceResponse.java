@@ -13,15 +13,6 @@ public record ImageSourceResponse(
         String licenseUrl,
     @Schema(description = "이미지 유형", example = "WIKIMEDIA") ImageSourceType type) {
 
-  public ImageSourceResponse(String name, String url) {
-    this(name, url, "", "", "", ImageSourceType.MANUAL);
-  }
-
-  public ImageSourceResponse(
-      String name, String url, String author, String license, String licenseUrl) {
-    this(name, url, author, license, licenseUrl, ImageSourceType.MANUAL);
-  }
-
   public static ImageSourceResponse from(ImageSourceInfo source) {
     if (source == null) {
       return empty();

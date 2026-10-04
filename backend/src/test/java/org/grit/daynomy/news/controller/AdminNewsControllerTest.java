@@ -93,7 +93,7 @@ class AdminNewsControllerTest {
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
     willReturn("https://example.com/image.png").given(news).getImageUrl();
-    willReturn(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"))
+    willReturn(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example", "", "", ""))
         .given(news)
         .getImageSource();
     willReturn(
@@ -418,7 +418,7 @@ class AdminNewsControllerTest {
     willReturn("수정 제목").given(news).getTitle();
     willReturn("수정 본문").given(news).getContent();
     willReturn("new-image.png").given(news).getImageUrl();
-    willReturn(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example"))
+    willReturn(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example", "", "", ""))
         .given(news)
         .getImageSource();
     willReturn(Category.ETF).given(news).getCategory();

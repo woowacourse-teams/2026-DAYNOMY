@@ -8,10 +8,6 @@ public record ImageSourceInfo(
     String licenseUrl,
     ImageSourceType type) {
 
-  public ImageSourceInfo(String name, String url) {
-    this(name, url, "", "", "", ImageSourceType.MANUAL);
-  }
-
   public ImageSourceInfo(
       String name, String url, String author, String license, String licenseUrl) {
     this(name, url, author, license, licenseUrl, ImageSourceType.MANUAL);

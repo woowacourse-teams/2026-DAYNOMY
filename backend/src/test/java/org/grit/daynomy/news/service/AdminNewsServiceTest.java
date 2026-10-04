@@ -137,7 +137,8 @@ class AdminNewsServiceTest {
     assertThat(capturedNews.getContent()).isEqualTo("뉴스 본문");
     assertThat(capturedNews.getImageUrl()).isEqualTo("https://example.com/news-image.png");
     assertThat(capturedNews.getImageSource())
-        .isEqualTo(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"));
+        .isEqualTo(
+            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example", "", "", ""));
     assertThat(capturedNews.getSources())
         .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/news/1"));
     assertThat(capturedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
@@ -284,7 +285,7 @@ class AdminNewsServiceTest {
             "뉴스 제목",
             "뉴스 본문",
             previousImageUrl,
-            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"),
+            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example", "", "", ""),
             List.of(),
             Category.STOCK,
             null);
@@ -606,7 +607,7 @@ class AdminNewsServiceTest {
       assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
       assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
       assertThat(updatedNews.getImageSource())
-          .isEqualTo(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example"));
+          .isEqualTo(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example", "", "", ""));
       assertThat(updatedNews.getSources())
           .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/new"));
       assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
