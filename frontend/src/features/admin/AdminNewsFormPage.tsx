@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { ADMIN_NEWS_CATEGORIES, CATEGORY_LABELS } from './constants';
@@ -90,6 +90,12 @@ export function AdminNewsFormPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [detailLoadError, setDetailLoadError] = useState<string | null>(null);
+  const imageSearchRequestId = useRef(0);
+  const imageSearchController = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => imageSearchController.current?.abort();
+  }, []);
 
   useEffect(() => {
     if (!isEditing || editingId === null) return;
@@ -187,6 +193,11 @@ export function AdminNewsFormPage() {
 
   async function handleWikimediaSearch() {
     const keyword = imageKeyword.trim();
+    const requestId = imageSearchRequestId.current + 1;
+    imageSearchRequestId.current = requestId;
+    imageSearchController.current?.abort();
+    imageSearchController.current = null;
+
     if (keyword.length < 2) {
       setImageSearchStatus('error');
       setImageSearchError('검색어를 두 글자 이상 입력해 주세요.');
@@ -196,17 +207,25 @@ export function AdminNewsFormPage() {
 
     setImageSearchStatus('loading');
     setImageSearchError(null);
+    const controller = new AbortController();
+    imageSearchController.current = controller;
     try {
-      const candidates = await searchWikimediaImages(keyword);
+      const candidates = await searchWikimediaImages(keyword, controller.signal);
+      if (requestId !== imageSearchRequestId.current) return;
       setImageCandidates(candidates);
       setImageSearchStatus('success');
       if (candidates.length === 0) {
         setImageSearchError('사용할 수 있는 이미지가 없습니다. 다른 검색어를 입력해 주세요.');
       }
     } catch (error) {
+      if (controller.signal.aborted || requestId !== imageSearchRequestId.current) return;
       setImageCandidates([]);
       setImageSearchStatus('error');
       setImageSearchError(getErrorMessage(error, 'Wikimedia Commons 검색에 실패했습니다.'));
+    } finally {
+      if (requestId === imageSearchRequestId.current) {
+        imageSearchController.current = null;
+      }
     }
   }
 
