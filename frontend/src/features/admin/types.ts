@@ -12,7 +12,10 @@ export type AdminNewsImageSource = {
   author: string;
   license: string;
   licenseUrl: string;
+  type: AdminNewsImageSourceType;
 };
+
+export type AdminNewsImageSourceType = 'NONE' | 'AI_GENERATED' | 'WIKIMEDIA' | 'MANUAL';
 
 export type AdminWikimediaImageSelection = {
   title: string;

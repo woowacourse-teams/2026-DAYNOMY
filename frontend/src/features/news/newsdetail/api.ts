@@ -5,6 +5,7 @@ import type {
   NewsDetailPayload,
   NewsDetailResponse,
   NewsImageSource,
+  NewsImageSourceType,
 } from './types.ts';
 import { isCategory } from '../newslist/types.ts';
 
@@ -49,7 +50,14 @@ function isNewsImageSource(value: unknown): value is NewsImageSource {
     typeof value.url === 'string' &&
     typeof value.author === 'string' &&
     typeof value.license === 'string' &&
-    typeof value.licenseUrl === 'string'
+    typeof value.licenseUrl === 'string' &&
+    isNewsImageSourceType(value.type)
+  );
+}
+
+function isNewsImageSourceType(value: unknown): value is NewsImageSourceType {
+  return (
+    value === 'NONE' || value === 'AI_GENERATED' || value === 'WIKIMEDIA' || value === 'MANUAL'
   );
 }
 

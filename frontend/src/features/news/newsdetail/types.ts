@@ -17,7 +17,10 @@ export type NewsImageSource = {
   author: string;
   license: string;
   licenseUrl: string;
+  type: NewsImageSourceType;
 };
+
+export type NewsImageSourceType = 'NONE' | 'AI_GENERATED' | 'WIKIMEDIA' | 'MANUAL';
 
 export type NewsSource = {
   name: string;

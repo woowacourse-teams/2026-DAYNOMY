@@ -5,6 +5,7 @@ import type {
   AdminNewsFilterStatus,
   AdminNewsFormValues,
   AdminNewsImageSource,
+  AdminNewsImageSourceType,
   AdminNewsListItemResponse,
   AdminNewsPageResponse,
   AdminNewsResponse,
@@ -42,7 +43,14 @@ function isAdminNewsImageSource(value: unknown): value is AdminNewsImageSource {
     typeof value.url === 'string' &&
     typeof value.author === 'string' &&
     typeof value.license === 'string' &&
-    typeof value.licenseUrl === 'string'
+    typeof value.licenseUrl === 'string' &&
+    isAdminNewsImageSourceType(value.type)
+  );
+}
+
+function isAdminNewsImageSourceType(value: unknown): value is AdminNewsImageSourceType {
+  return (
+    value === 'NONE' || value === 'AI_GENERATED' || value === 'WIKIMEDIA' || value === 'MANUAL'
   );
 }
 
