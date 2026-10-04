@@ -9,6 +9,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
@@ -28,6 +29,10 @@ public class WikimediaImageClient {
   private static final int MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
   private static final int SEARCH_LIMIT = 50;
   private static final int THUMBNAIL_WIDTH = 1_200;
+  private static final Pattern CC0_LICENSE = Pattern.compile("^cc0(?: \\d+(?:\\.\\d+)?)?$");
+  private static final Pattern CC_BY_LICENSE =
+      Pattern.compile("^cc by(?: \\d+(?:\\.\\d+)?(?: [a-z]{2})?)?$");
+  private static final String PUBLIC_DOMAIN_LICENSE = "public domain";
   private static final String COMMONS_HOST = "commons.wikimedia.org";
   private static final String UPLOAD_HOST = "upload.wikimedia.org";
   private static final String THUMB_HOST = "thumb.wikimedia.org";
@@ -205,10 +210,9 @@ public class WikimediaImageClient {
 
   private boolean isAllowedLicense(String license) {
     String normalized = license == null ? "" : license.toLowerCase(Locale.ROOT).strip();
-    return normalized.contains("public domain")
-        || normalized.contains("cc0")
-        || normalized.equals("cc by")
-        || normalized.startsWith("cc by ");
+    return PUBLIC_DOMAIN_LICENSE.equals(normalized)
+        || CC0_LICENSE.matcher(normalized).matches()
+        || CC_BY_LICENSE.matcher(normalized).matches();
   }
 
   private boolean isSupportedMime(String mime) {

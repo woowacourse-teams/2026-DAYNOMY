@@ -39,8 +39,10 @@ class WikimediaImageClientTest {
     var candidates = client.search("Seoul skyline");
 
     assertThat(candidates)
-        .singleElement()
-        .satisfies(
+        .extracting(WikimediaImageCandidate::title)
+        .containsExactlyInAnyOrder("File:Seoul skyline.jpg", "File:CC0.jpg");
+    assertThat(candidates)
+        .anySatisfy(
             candidate -> {
               assertThat(candidate.title()).isEqualTo("File:Seoul skyline.jpg");
               assertThat(candidate.author()).isEqualTo("Jane Doe");
@@ -49,6 +51,12 @@ class WikimediaImageClientTest {
                   .isEqualTo("https://creativecommons.org/licenses/by/4.0/");
               assertThat(candidate.width()).isEqualTo(1_200);
               assertThat(candidate.height()).isEqualTo(800);
+            });
+    assertThat(candidates)
+        .anySatisfy(
+            candidate -> {
+              assertThat(candidate.title()).isEqualTo("File:CC0.jpg");
+              assertThat(candidate.license()).isEqualTo("CC0 1.0");
             });
 
     RecordedRequest request = server.takeRequest();
@@ -109,6 +117,16 @@ class WikimediaImageClientTest {
         }]
       },
       {
+        "title": "File:CC0.jpg",
+        "imageinfo": [{
+          "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/CC0.jpg/1200px-CC0.jpg",
+          "mime": "image/jpeg",
+          "width": 1200,
+          "height": 800,
+          "extmetadata": {"LicenseShortName": {"value": "CC0 1.0"}}
+        }]
+      },
+      {
         "title": "File:Share alike.jpg",
         "imageinfo": [{
           "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Share_alike.jpg/1200px-Share_alike.jpg",
@@ -136,6 +154,26 @@ class WikimediaImageClientTest {
           "width": 1200,
           "height": 800,
           "extmetadata": {"LicenseShortName": {"value": "CC BY-NC 4.0"}}
+        }]
+      },
+      {
+        "title": "File:Not public domain.jpg",
+        "imageinfo": [{
+          "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Not_public_domain.jpg/1200px-Not_public_domain.jpg",
+          "mime": "image/jpeg",
+          "width": 1200,
+          "height": 800,
+          "extmetadata": {"LicenseShortName": {"value": "Not public domain"}}
+        }]
+      },
+      {
+        "title": "File:Composite license.jpg",
+        "imageinfo": [{
+          "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Composite_license.jpg/1200px-Composite_license.jpg",
+          "mime": "image/jpeg",
+          "width": 1200,
+          "height": 800,
+          "extmetadata": {"LicenseShortName": {"value": "CC BY-SA 3.0 + GFDL"}}
         }]
       }
     ]
