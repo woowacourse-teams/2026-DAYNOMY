@@ -188,7 +188,7 @@ class AdminNewsServiceTest {
       assertThat(savedNews.getImageUrl()).isEqualTo("https://example.com/wikimedia.jpg");
       assertThat(savedNews.getImageSource())
           .isEqualTo(
-              new ImageSourceInfo(
+              ImageSourceInfo.wikimedia(
                   "Wikimedia Commons",
                   candidate.sourceUrl(),
                   "Jane Doe",
@@ -301,7 +301,7 @@ class AdminNewsServiceTest {
       News result = adminNewsService.generateImage(1L);
 
       assertThat(result.getImageUrl()).isEqualTo(uploadedImage.publicUrl());
-      assertThat(result.getImageSource()).isEqualTo(ImageSourceInfo.empty());
+      assertThat(result.getImageSource()).isEqualTo(ImageSourceInfo.aiGenerated());
       verify(newsRepository).flush();
       assertThat(appender.list).isEmpty();
       TransactionSynchronizationManager.getSynchronizations()
