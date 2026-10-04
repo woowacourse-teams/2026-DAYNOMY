@@ -25,8 +25,7 @@ public class OpenAiImageGenerator {
   private static final String ECONOMIC_NEWS_IMAGE_SIZE = "1536x1024";
   private static final String IMAGE_QUALITY = "low";
   private static final String IMAGE_FORMAT = "webp";
-  private static final String IMAGE_PROMPT =
-      OpenAiPromptLoader.load("prompts/image-generator.txt");
+  private static final String IMAGE_PROMPT = OpenAiPromptLoader.load("prompts/image-generator.txt");
 
   private final OpenAiProperties openAiProperties;
   private final RestClient restClient;

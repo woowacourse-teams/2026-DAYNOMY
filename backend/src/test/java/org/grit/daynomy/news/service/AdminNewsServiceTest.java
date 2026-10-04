@@ -169,7 +169,8 @@ class AdminNewsServiceTest {
     given(wikimediaImageClient.download(candidate.title()))
         .willReturn(new WikimediaImageClient.ImportedImage(candidate, image, "image/jpeg", "jpg"));
     given(s3ImageStorage.upload(image, "jpg", "image/jpeg"))
-        .willReturn(new S3ImageStorage.StoredImage("wikimedia.jpg", "https://example.com/wikimedia.jpg"));
+        .willReturn(
+            new S3ImageStorage.StoredImage("wikimedia.jpg", "https://example.com/wikimedia.jpg"));
     given(newsRepository.save(any(News.class))).willAnswer(invocation -> invocation.getArgument(0));
     AdminNewsCreateRequest request =
         new AdminNewsCreateRequest(

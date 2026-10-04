@@ -1,6 +1,7 @@
 package org.grit.daynomy.news.domain;
 
-public record ImageSourceInfo(String name, String url, String author, String license, String licenseUrl) {
+public record ImageSourceInfo(
+    String name, String url, String author, String license, String licenseUrl) {
 
   public ImageSourceInfo(String name, String url) {
     this(name, url, "", "", "");

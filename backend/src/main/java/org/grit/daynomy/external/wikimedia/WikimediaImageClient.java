@@ -37,7 +37,8 @@ public class WikimediaImageClient {
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
-    this.restClient = RestClient.builder().baseUrl(properties.baseUrl()).requestFactory(requestFactory).build();
+    this.restClient =
+        RestClient.builder().baseUrl(properties.baseUrl()).requestFactory(requestFactory).build();
   }
 
   public List<WikimediaImageCandidate> search(String keyword) {
@@ -128,7 +129,8 @@ public class WikimediaImageClient {
       return parseCandidates(response).stream()
           .filter(candidate -> candidate.title().equals(title))
           .findFirst()
-          .orElseThrow(() -> new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED));
+          .orElseThrow(
+              () -> new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED));
     } catch (BusinessException exception) {
       throw exception;
     } catch (HttpStatusCodeException exception) {
@@ -148,7 +150,8 @@ public class WikimediaImageClient {
         String license = metadata(info, "LicenseShortName");
         String licenseUrl = metadata(info, "LicenseUrl");
         String thumbnailUrl = info.path("thumburl").asText();
-        String sourceUrl = "https://commons.wikimedia.org/wiki/" + page.path("title").asText().replace(' ', '_');
+        String sourceUrl =
+            "https://commons.wikimedia.org/wiki/" + page.path("title").asText().replace(' ', '_');
         if (!isSupportedMime(mime)
             || thumbnailUrl.isBlank()
             || !isAllowedLicense(license)

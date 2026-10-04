@@ -9,8 +9,8 @@ import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
-import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
+import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.service.KeywordService;
@@ -367,6 +367,5 @@ public class AdminNewsService {
     }
   }
 
-  private record ImageUpload(
-      S3ImageStorage.StoredImage storedImage, ImageSourceInfo source) {}
+  private record ImageUpload(S3ImageStorage.StoredImage storedImage, ImageSourceInfo source) {}
 }

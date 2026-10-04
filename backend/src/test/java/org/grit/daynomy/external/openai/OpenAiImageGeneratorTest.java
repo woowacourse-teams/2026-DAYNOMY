@@ -112,8 +112,7 @@ class OpenAiImageGeneratorTest {
     assertThat(normalizedPrompt)
         .contains("Compose an entirely unoccupied scene with no people")
         .contains("Treat a people-free image as the default and strongest preference")
-        .contains(
-            "removing all people would make the central event visually incomprehensible")
+        .contains("removing all people would make the central event visually incomprehensible")
         .contains("is never by itself a reason to include a worker")
         .contains("Do not add people for scale, atmosphere, realism, or visual interest")
         .contains("If a person is indispensable")
@@ -135,13 +134,13 @@ class OpenAiImageGeneratorTest {
 
   private String openAiImageResponse() {
     return """
-        {
-          "data": [
-            {
-              "b64_json": "aW1hZ2U="
-            }
-          ]
-        }
-        """;
+           {
+             "data": [
+               {
+                 "b64_json": "aW1hZ2U="
+               }
+             ]
+           }
+           """;
   }
 }

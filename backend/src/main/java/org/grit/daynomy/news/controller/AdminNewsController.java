@@ -62,13 +62,14 @@ public class AdminNewsController {
     return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
   }
 
-  @Operation(summary = "Wikimedia Commons 이미지 검색", description = "라이선스가 허용된 Wikimedia Commons 이미지를 검색합니다.")
+  @Operation(
+      summary = "Wikimedia Commons 이미지 검색",
+      description = "라이선스가 허용된 Wikimedia Commons 이미지를 검색합니다.")
   @GetMapping("/image-search")
   public ResponseEntity<WikimediaImageSearchResponse> searchWikimediaImages(
       @RequestParam @jakarta.validation.constraints.Size(min = 2, max = 100) String keyword) {
     return ResponseEntity.ok(
-        new WikimediaImageSearchResponse(
-            adminNewsService.searchWikimediaImages(keyword.strip())));
+        new WikimediaImageSearchResponse(adminNewsService.searchWikimediaImages(keyword.strip())));
   }
 
   @Operation(summary = "뉴스 이미지 생성", description = "초안 또는 발행된 뉴스의 이미지를 생성하거나 교체해 저장합니다.")

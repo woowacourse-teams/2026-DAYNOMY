@@ -28,9 +28,7 @@ class WikimediaImageClientTest {
   @Test
   void searchReturnsOnlySupportedCommerciallyUsableImages() throws Exception {
     server.enqueue(
-        new MockResponse()
-            .setHeader("Content-Type", "application/json")
-            .setBody(searchResponse()));
+        new MockResponse().setHeader("Content-Type", "application/json").setBody(searchResponse()));
 
     WikimediaImageClient client = newClient();
 
@@ -75,57 +73,57 @@ class WikimediaImageClientTest {
 
   private String searchResponse() {
     return """
-        {
-          "query": {
-            "pages": [
-              {
-                "title": "File:Seoul skyline.jpg",
-                "imageinfo": [{
-                  "url": "https://upload.wikimedia.org/wikipedia/commons/a/ab/Seoul_skyline.jpg",
-                  "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Seoul_skyline.jpg/1200px-Seoul_skyline.jpg",
-                  "mime": "image/jpeg",
-                  "width": 1200,
-                  "height": 800,
-                  "extmetadata": {
-                    "Artist": {"value": "<b>Jane Doe</b>"},
-                    "LicenseShortName": {"value": "CC BY 4.0"},
-                    "LicenseUrl": {"value": "https://creativecommons.org/licenses/by/4.0/"}
-                  }
-                }]
-              },
-              {
-                "title": "File:Share alike.jpg",
-                "imageinfo": [{
-                  "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Share_alike.jpg/1200px-Share_alike.jpg",
-                  "mime": "image/jpeg",
-                  "width": 1200,
-                  "height": 800,
-                  "extmetadata": {"LicenseShortName": {"value": "CC BY-SA 4.0"}}
-                }]
-              },
-              {
-                "title": "File:Animated.gif",
-                "imageinfo": [{
-                  "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Animated.gif/1200px-Animated.gif",
-                  "mime": "image/gif",
-                  "width": 1200,
-                  "height": 800,
-                  "extmetadata": {"LicenseShortName": {"value": "CC0"}}
-                }]
-              },
-              {
-                "title": "File:Noncommercial.jpg",
-                "imageinfo": [{
-                  "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Noncommercial.jpg/1200px-Noncommercial.jpg",
-                  "mime": "image/jpeg",
-                  "width": 1200,
-                  "height": 800,
-                  "extmetadata": {"LicenseShortName": {"value": "CC BY-NC 4.0"}}
-                }]
-              }
-            ]
+{
+  "query": {
+    "pages": [
+      {
+        "title": "File:Seoul skyline.jpg",
+        "imageinfo": [{
+          "url": "https://upload.wikimedia.org/wikipedia/commons/a/ab/Seoul_skyline.jpg",
+          "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Seoul_skyline.jpg/1200px-Seoul_skyline.jpg",
+          "mime": "image/jpeg",
+          "width": 1200,
+          "height": 800,
+          "extmetadata": {
+            "Artist": {"value": "<b>Jane Doe</b>"},
+            "LicenseShortName": {"value": "CC BY 4.0"},
+            "LicenseUrl": {"value": "https://creativecommons.org/licenses/by/4.0/"}
           }
-        }
-        """;
+        }]
+      },
+      {
+        "title": "File:Share alike.jpg",
+        "imageinfo": [{
+          "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Share_alike.jpg/1200px-Share_alike.jpg",
+          "mime": "image/jpeg",
+          "width": 1200,
+          "height": 800,
+          "extmetadata": {"LicenseShortName": {"value": "CC BY-SA 4.0"}}
+        }]
+      },
+      {
+        "title": "File:Animated.gif",
+        "imageinfo": [{
+          "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Animated.gif/1200px-Animated.gif",
+          "mime": "image/gif",
+          "width": 1200,
+          "height": 800,
+          "extmetadata": {"LicenseShortName": {"value": "CC0"}}
+        }]
+      },
+      {
+        "title": "File:Noncommercial.jpg",
+        "imageinfo": [{
+          "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Noncommercial.jpg/1200px-Noncommercial.jpg",
+          "mime": "image/jpeg",
+          "width": 1200,
+          "height": 800,
+          "extmetadata": {"LicenseShortName": {"value": "CC BY-NC 4.0"}}
+        }]
+      }
+    ]
+  }
+}
+""";
   }
 }

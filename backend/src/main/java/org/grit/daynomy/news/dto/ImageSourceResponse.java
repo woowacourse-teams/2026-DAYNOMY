@@ -5,8 +5,7 @@ import org.grit.daynomy.news.domain.ImageSourceInfo;
 
 public record ImageSourceResponse(
     @Schema(description = "이미지 출처명", example = "Unsplash") String name,
-    @Schema(description = "이미지 출처 URL", example = "https://unsplash.com/photos/example")
-        String url,
+    @Schema(description = "이미지 출처 URL", example = "https://unsplash.com/photos/example") String url,
     @Schema(description = "이미지 저작자", example = "Jane Doe") String author,
     @Schema(description = "이미지 라이선스", example = "CC BY 4.0") String license,
     @Schema(description = "이미지 라이선스 URL", example = "https://creativecommons.org/licenses/by/4.0/")
