@@ -19,6 +19,7 @@ import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.ImageSourceInfo;
+import org.grit.daynomy.news.domain.ImageSourceType;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
@@ -67,7 +68,7 @@ public class AdminNewsService {
               request.title(),
               request.content(),
               imageUpload.storedImage() == null ? null : imageUpload.storedImage().publicUrl(),
-              imageUpload.source() == null ? request.imageSourceInfo() : imageUpload.source(),
+              imageSourceForCreate(request, imageUpload),
               request.sourceInfos(),
               request.category());
 
@@ -136,7 +137,7 @@ public class AdminNewsService {
             news.getTitle(), news.getContent(), news.getCategory());
     S3ImageStorage.StoredImage uploadedImage = s3ImageStorage.upload(image, "webp", "image/webp");
     try {
-      news.updateImage(uploadedImage.publicUrl());
+      news.updateImage(uploadedImage.publicUrl(), ImageSourceInfo.aiGenerated());
       newsRepository.flush();
       registerImageCleanup(previousImageUrl, uploadedImage);
       registerAfterCommit(
@@ -221,7 +222,7 @@ public class AdminNewsService {
           request.title(),
           request.content(),
           uploadedImage == null ? previousImageUrl : uploadedImage.publicUrl(),
-          imageUpload.source() == null ? request.imageSourceInfo() : imageUpload.source(),
+          imageSourceForUpdate(news, request, imageUpload),
           request.sourceInfos(),
           request.category());
       if (uploadedImage != null) {
@@ -277,7 +278,7 @@ public class AdminNewsService {
       WikimediaImageCandidate candidate = importedImage.candidate();
       return new ImageUpload(
           storedImage,
-          new ImageSourceInfo(
+          ImageSourceInfo.wikimedia(
               "Wikimedia Commons",
               candidate.sourceUrl(),
               candidate.author(),
@@ -293,10 +294,57 @@ public class AdminNewsService {
     String extension = extensionOf(contentType);
     try {
       byte[] content = image.getBytes();
-      return new ImageUpload(s3ImageStorage.upload(content, extension, contentType), null);
+      return new ImageUpload(
+          s3ImageStorage.upload(content, extension, contentType), ImageSourceInfo.manual());
     } catch (IOException exception) {
       throw new BusinessException(NewsErrorCode.INVALID_IMAGE_FILE);
     }
+  }
+
+  private ImageSourceInfo imageSourceForUpdate(
+      News news, AdminNewsUpdateRequest request, ImageUpload imageUpload) {
+    if (imageUpload.source() != null) {
+      if (imageUpload.source().type() == ImageSourceType.MANUAL
+          && request.imageSourceInfo().type() != ImageSourceType.NONE) {
+        return request.imageSourceInfo();
+      }
+      return imageUpload.source();
+    }
+
+    ImageSourceInfo requestedSource = request.imageSourceInfo();
+    if (requestedSource.type() == ImageSourceType.NONE) {
+      return news.getImageSource();
+    }
+
+    ImageSourceInfo existingSource = news.getImageSource();
+    ImageSourceType type =
+        hasSameIdentity(existingSource, requestedSource)
+            ? existingSource.type()
+            : requestedSource.type();
+
+    return new ImageSourceInfo(
+        requestedSource.name(),
+        requestedSource.url(),
+        requestedSource.author(),
+        requestedSource.license(),
+        requestedSource.licenseUrl(),
+        type);
+  }
+
+  private boolean hasSameIdentity(ImageSourceInfo first, ImageSourceInfo second) {
+    return first.name().equals(second.name()) && first.url().equals(second.url());
+  }
+
+  private ImageSourceInfo imageSourceForCreate(
+      AdminNewsCreateRequest request, ImageUpload imageUpload) {
+    if (imageUpload.source() == null) {
+      return request.imageSourceInfo();
+    }
+    if (imageUpload.source().type() == ImageSourceType.MANUAL
+        && request.imageSourceInfo().type() != ImageSourceType.NONE) {
+      return request.imageSourceInfo();
+    }
+    return imageUpload.source();
   }
 
   private String extensionOf(String contentType) {

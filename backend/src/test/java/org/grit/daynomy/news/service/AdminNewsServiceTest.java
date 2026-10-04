@@ -137,7 +137,8 @@ class AdminNewsServiceTest {
     assertThat(capturedNews.getContent()).isEqualTo("뉴스 본문");
     assertThat(capturedNews.getImageUrl()).isEqualTo("https://example.com/news-image.png");
     assertThat(capturedNews.getImageSource())
-        .isEqualTo(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"));
+        .isEqualTo(
+            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example", "", "", ""));
     assertThat(capturedNews.getSources())
         .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/news/1"));
     assertThat(capturedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
@@ -188,7 +189,7 @@ class AdminNewsServiceTest {
       assertThat(savedNews.getImageUrl()).isEqualTo("https://example.com/wikimedia.jpg");
       assertThat(savedNews.getImageSource())
           .isEqualTo(
-              new ImageSourceInfo(
+              ImageSourceInfo.wikimedia(
                   "Wikimedia Commons",
                   candidate.sourceUrl(),
                   "Jane Doe",
@@ -284,7 +285,7 @@ class AdminNewsServiceTest {
             "뉴스 제목",
             "뉴스 본문",
             previousImageUrl,
-            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"),
+            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example", "", "", ""),
             List.of(),
             Category.STOCK,
             null);
@@ -301,7 +302,7 @@ class AdminNewsServiceTest {
       News result = adminNewsService.generateImage(1L);
 
       assertThat(result.getImageUrl()).isEqualTo(uploadedImage.publicUrl());
-      assertThat(result.getImageSource()).isEqualTo(ImageSourceInfo.empty());
+      assertThat(result.getImageSource()).isEqualTo(ImageSourceInfo.aiGenerated());
       verify(newsRepository).flush();
       assertThat(appender.list).isEmpty();
       TransactionSynchronizationManager.getSynchronizations()
@@ -606,7 +607,7 @@ class AdminNewsServiceTest {
       assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
       assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
       assertThat(updatedNews.getImageSource())
-          .isEqualTo(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example"));
+          .isEqualTo(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example", "", "", ""));
       assertThat(updatedNews.getSources())
           .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/new"));
       assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
@@ -666,6 +667,54 @@ class AdminNewsServiceTest {
     commitTransaction();
     ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_UPDATE_COMPLETED);
     assertThat(keyValues(log)).containsKey("newsId").containsEntry("analysisRegenerated", true);
+  }
+
+  @Test
+  @DisplayName("기존 이미지 출처 메타데이터를 수정해도 출처 유형은 유지한다")
+  void updateImageSourceMetadataKeepsExistingType() {
+    String sourceUrl = "https://commons.wikimedia.org/wiki/File:Seoul_skyline.jpg";
+    News news =
+        News.createDraft(
+            "기존 제목",
+            "기존 본문",
+            "https://example.com/wikimedia.jpg",
+            ImageSourceInfo.wikimedia(
+                "Wikimedia Commons",
+                sourceUrl,
+                "기존 저작자",
+                "CC BY 4.0",
+                "https://creativecommons.org/licenses/by/4.0/"),
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK,
+            new ImageSourceRequest(
+                "Wikimedia Commons",
+                sourceUrl,
+                "수정 저작자",
+                "CC BY-SA 4.0",
+                "https://creativecommons.org/licenses/by-sa/4.0/"));
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      News updatedNews = adminNewsService.update(1L, request, null);
+
+      assertThat(updatedNews.getImageSource())
+          .isEqualTo(
+              ImageSourceInfo.wikimedia(
+                  "Wikimedia Commons",
+                  sourceUrl,
+                  "수정 저작자",
+                  "CC BY-SA 4.0",
+                  "https://creativecommons.org/licenses/by-sa/4.0/"));
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
   }
 
   @Test
