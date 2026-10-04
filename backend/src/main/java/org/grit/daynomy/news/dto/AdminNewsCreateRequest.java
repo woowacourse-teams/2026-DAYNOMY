@@ -20,11 +20,22 @@ public record AdminNewsCreateRequest(
         List<@NotNull NewsSourceRequest> sources,
     @Schema(description = "뉴스 카테고리", example = "STOCK") @NotNull(message = "카테고리는 필수입니다.")
         Category category,
-    @Schema(description = "뉴스 이미지 출처") @Valid ImageSourceRequest imageSource) {
+    @Schema(description = "뉴스 이미지 출처") @Valid ImageSourceRequest imageSource,
+    @Schema(description = "Wikimedia Commons 선택 이미지") @Valid
+        WikimediaImageSelectionRequest imageSelection) {
 
   public AdminNewsCreateRequest(
       String title, String content, List<NewsSourceRequest> sources, Category category) {
-    this(title, content, sources, category, null);
+    this(title, content, sources, category, null, null);
+  }
+
+  public AdminNewsCreateRequest(
+      String title,
+      String content,
+      List<NewsSourceRequest> sources,
+      Category category,
+      ImageSourceRequest imageSource) {
+    this(title, content, sources, category, imageSource, null);
   }
 
   public List<NewsSourceInfo> sourceInfos() {

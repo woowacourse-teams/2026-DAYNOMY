@@ -9,6 +9,8 @@ import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
+import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
+import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.service.KeywordService;
@@ -16,12 +18,15 @@ import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.ImageSourceInfo;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsListItemResponse;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
+import org.grit.daynomy.news.dto.WikimediaImageCandidateResponse;
+import org.grit.daynomy.news.dto.WikimediaImageSelectionRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.search.repository.NewsSearchRepository;
@@ -47,6 +52,7 @@ public class AdminNewsService {
   private final NewsSearchRepository newsSearchRepository;
   private final OpenAiImageGenerator openAiImageGenerator;
   private final S3ImageStorage s3ImageStorage;
+  private final WikimediaImageClient wikimediaImageClient;
   private final KeywordAiClient keywordAiClient;
   private final MarketAnalysisAiClient marketAnalysisAiClient;
   private final KeywordService keywordService;
@@ -54,14 +60,14 @@ public class AdminNewsService {
 
   @Transactional
   public News createDraft(AdminNewsCreateRequest request, MultipartFile image) {
-    S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
+    ImageUpload imageUpload = uploadImage(image, request.imageSelection());
     try {
       News news =
           News.createDraft(
               request.title(),
               request.content(),
-              uploadedImage == null ? null : uploadedImage.publicUrl(),
-              request.imageSourceInfo(),
+              imageUpload.storedImage() == null ? null : imageUpload.storedImage().publicUrl(),
+              imageUpload.source() == null ? request.imageSourceInfo() : imageUpload.source(),
               request.sourceInfos(),
               request.category());
 
@@ -75,9 +81,15 @@ public class AdminNewsService {
                   .log(LogEvent.NEWS_DRAFT_CREATED.message()));
       return savedNews;
     } catch (RuntimeException exception) {
-      deleteUploadedImage(uploadedImage);
+      deleteUploadedImage(imageUpload.storedImage());
       throw exception;
     }
+  }
+
+  public List<WikimediaImageCandidateResponse> searchWikimediaImages(String keyword) {
+    return wikimediaImageClient.search(keyword).stream()
+        .map(WikimediaImageCandidateResponse::from)
+        .toList();
   }
 
   public AdminNewsPageResponse getNewsPage(
@@ -196,7 +208,8 @@ public class AdminNewsService {
     boolean shouldRegenerateAnalysis =
         news.isPublished() && !news.getContent().equals(request.content());
     String previousImageUrl = news.getImageUrl();
-    S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
+    ImageUpload imageUpload = uploadImage(image, request.imageSelection());
+    S3ImageStorage.StoredImage uploadedImage = imageUpload.storedImage();
     try {
       if (shouldRegenerateAnalysis) {
         List<NewsKeyword> keywords = keywordAiClient.extractKeywords(request.content());
@@ -208,7 +221,7 @@ public class AdminNewsService {
           request.title(),
           request.content(),
           uploadedImage == null ? previousImageUrl : uploadedImage.publicUrl(),
-          request.imageSourceInfo(),
+          imageUpload.source() == null ? request.imageSourceInfo() : imageUpload.source(),
           request.sourceInfos(),
           request.category());
       if (uploadedImage != null) {
@@ -245,9 +258,31 @@ public class AdminNewsService {
                 .log(LogEvent.NEWS_DELETE_COMPLETED.message()));
   }
 
-  private S3ImageStorage.StoredImage uploadImage(MultipartFile image) {
+  private ImageUpload uploadImage(
+      MultipartFile image, WikimediaImageSelectionRequest imageSelection) {
+    if (image != null && !image.isEmpty() && imageSelection != null) {
+      throw new BusinessException(NewsErrorCode.INVALID_WIKIMEDIA_IMAGE);
+    }
+
     if (image == null || image.isEmpty()) {
-      return null;
+      if (imageSelection == null) {
+        return new ImageUpload(null, null);
+      }
+
+      WikimediaImageClient.ImportedImage importedImage =
+          wikimediaImageClient.download(imageSelection.title());
+      S3ImageStorage.StoredImage storedImage =
+          s3ImageStorage.upload(
+              importedImage.content(), importedImage.extension(), importedImage.contentType());
+      WikimediaImageCandidate candidate = importedImage.candidate();
+      return new ImageUpload(
+          storedImage,
+          new ImageSourceInfo(
+              "Wikimedia Commons",
+              candidate.sourceUrl(),
+              candidate.author(),
+              candidate.license(),
+              candidate.licenseUrl()));
     }
 
     if (image.getSize() > MAX_IMAGE_SIZE_BYTES) {
@@ -258,7 +293,7 @@ public class AdminNewsService {
     String extension = extensionOf(contentType);
     try {
       byte[] content = image.getBytes();
-      return s3ImageStorage.upload(content, extension, contentType);
+      return new ImageUpload(s3ImageStorage.upload(content, extension, contentType), null);
     } catch (IOException exception) {
       throw new BusinessException(NewsErrorCode.INVALID_IMAGE_FILE);
     }
@@ -331,4 +366,7 @@ public class AdminNewsService {
           .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
     }
   }
+
+  private record ImageUpload(
+      S3ImageStorage.StoredImage storedImage, ImageSourceInfo source) {}
 }
