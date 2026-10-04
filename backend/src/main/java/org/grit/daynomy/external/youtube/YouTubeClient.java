@@ -50,7 +50,7 @@ public class YouTubeClient {
                           .queryParam("part", "snippet")
                           .queryParam("q", keyword.strip())
                           .queryParam("type", "video")
-                          .queryParam("order", "relevance")
+                          .queryParam("order", "date")
                           .queryParam("maxResults", SEARCH_LIMIT)
                           .queryParam("safeSearch", "moderate")
                           .queryParam("key", properties.apiKey())

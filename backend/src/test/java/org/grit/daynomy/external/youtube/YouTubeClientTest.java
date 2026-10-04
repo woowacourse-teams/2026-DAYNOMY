@@ -71,6 +71,7 @@ class YouTubeClientTest {
     RecordedRequest request = server.takeRequest();
     assertThat(request.getRequestUrl().queryParameter("q")).isEqualTo("삼성전자 005930");
     assertThat(request.getRequestUrl().queryParameter("type")).isEqualTo("video");
+    assertThat(request.getRequestUrl().queryParameter("order")).isEqualTo("date");
     assertThat(request.getRequestUrl().queryParameter("maxResults")).isEqualTo("10");
     assertThat(request.getRequestUrl().queryParameter("key")).isEqualTo("test-api-key");
   }
