@@ -7,7 +7,16 @@ export type NewsDetailResponse = {
   publishedAt: string;
   content: string | string[];
   imageUrl?: string | null;
+  imageSource?: NewsImageSource;
   sources: NewsSource[];
+};
+
+export type NewsImageSource = {
+  name: string;
+  url: string;
+  author: string;
+  license: string;
+  licenseUrl: string;
 };
 
 export type NewsSource = {

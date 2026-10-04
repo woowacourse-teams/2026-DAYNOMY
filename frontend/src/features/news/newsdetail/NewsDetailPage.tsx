@@ -219,6 +219,24 @@ export function NewsDetailPage() {
         </time>
 
         <img className="news-image" src={imageUrl} alt="" />
+        {news.imageSource?.name && news.imageSource.url ? (
+          <p className="news-image-credit">
+            이미지:{' '}
+            <a href={news.imageSource.url} target="_blank" rel="noopener noreferrer">
+              {news.imageSource.author || news.imageSource.name}
+            </a>
+            {news.imageSource.license ? ' · ' : null}
+            {news.imageSource.license ? (
+              news.imageSource.licenseUrl ? (
+                <a href={news.imageSource.licenseUrl} target="_blank" rel="noopener noreferrer">
+                  {news.imageSource.license}
+                </a>
+              ) : (
+                news.imageSource.license
+              )
+            ) : null}
+          </p>
+        ) : null}
 
         <section className="body-section" aria-label="뉴스 본문">
           <div className="body-copy">
