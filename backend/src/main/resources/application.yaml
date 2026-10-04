@@ -96,6 +96,12 @@ external:
     connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
     read-timeout: ${OPENAI_READ_TIMEOUT:120s}
 
+  wikimedia:
+    base-url: ${WIKIMEDIA_BASE_URL:https://commons.wikimedia.org}
+    user-agent: ${WIKIMEDIA_USER_AGENT:daynomy/1.0}
+    connect-timeout: ${WIKIMEDIA_CONNECT_TIMEOUT:3s}
+    read-timeout: ${WIKIMEDIA_READ_TIMEOUT:15s}
+
   public-data:
     service-key: ${PUBLIC_DATA_SERVICE_KEY}
     stock-price-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo

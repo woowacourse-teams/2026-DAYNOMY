@@ -22,6 +22,8 @@ import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
+import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
+import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
@@ -38,6 +40,7 @@ import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.dto.ImageSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceRequest;
+import org.grit.daynomy.news.dto.WikimediaImageSelectionRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.search.repository.NewsSearchRepository;
@@ -75,6 +78,8 @@ class AdminNewsServiceTest {
   @Mock private OpenAiImageGenerator openAiImageGenerator;
 
   @Mock private S3ImageStorage s3ImageStorage;
+
+  @Mock private WikimediaImageClient wikimediaImageClient;
 
   @Mock private KeywordAiClient keywordAiClient;
 
@@ -145,6 +150,55 @@ class AdminNewsServiceTest {
     commitTransaction();
     ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_DRAFT_CREATED);
     assertThat(keyValues(log)).containsKey("newsId").containsEntry("category", Category.STOCK);
+  }
+
+  @Test
+  @DisplayName("Wikimedia Commons 선택 이미지는 S3와 라이선스 출처를 함께 저장한다")
+  void createNewsSavesSelectedWikimediaImage() {
+    WikimediaImageCandidate candidate =
+        new WikimediaImageCandidate(
+            "File:Seoul skyline.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/seoul.jpg",
+            "https://commons.wikimedia.org/wiki/File:Seoul_skyline.jpg",
+            "Jane Doe",
+            "CC BY 4.0",
+            "https://creativecommons.org/licenses/by/4.0/",
+            1200,
+            800);
+    byte[] image = {1, 2, 3};
+    given(wikimediaImageClient.download(candidate.title()))
+        .willReturn(new WikimediaImageClient.ImportedImage(candidate, image, "image/jpeg", "jpg"));
+    given(s3ImageStorage.upload(image, "jpg", "image/jpeg"))
+        .willReturn(
+            new S3ImageStorage.StoredImage("wikimedia.jpg", "https://example.com/wikimedia.jpg"));
+    given(newsRepository.save(any(News.class))).willAnswer(invocation -> invocation.getArgument(0));
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK,
+            null,
+            new WikimediaImageSelectionRequest(candidate.title()));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      News savedNews = adminNewsService.createDraft(request, null);
+
+      assertThat(savedNews.getImageUrl()).isEqualTo("https://example.com/wikimedia.jpg");
+      assertThat(savedNews.getImageSource())
+          .isEqualTo(
+              new ImageSourceInfo(
+                  "Wikimedia Commons",
+                  candidate.sourceUrl(),
+                  "Jane Doe",
+                  "CC BY 4.0",
+                  "https://creativecommons.org/licenses/by/4.0/"));
+      verify(wikimediaImageClient).download(candidate.title());
+      verify(s3ImageStorage).upload(image, "jpg", "image/jpeg");
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
   }
 
   @Test
