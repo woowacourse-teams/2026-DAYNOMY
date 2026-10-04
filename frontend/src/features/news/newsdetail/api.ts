@@ -4,6 +4,8 @@ import type {
   MarketAnalysisState,
   NewsDetailPayload,
   NewsDetailResponse,
+  NewsImageSource,
+  NewsImageSourceType,
 } from './types.ts';
 import { isCategory } from '../newslist/types.ts';
 
@@ -32,11 +34,30 @@ function isNewsDetailResponse(value: unknown): value is NewsDetailResponse {
     (value.imageUrl === undefined ||
       value.imageUrl === null ||
       typeof value.imageUrl === 'string') &&
+    (value.imageSource === undefined || isNewsImageSource(value.imageSource)) &&
     Array.isArray(value.sources) &&
     value.sources.every(
       (source: unknown) =>
         isRecord(source) && typeof source.name === 'string' && typeof source.url === 'string',
     )
+  );
+}
+
+function isNewsImageSource(value: unknown): value is NewsImageSource {
+  return (
+    isRecord(value) &&
+    typeof value.name === 'string' &&
+    typeof value.url === 'string' &&
+    typeof value.author === 'string' &&
+    typeof value.license === 'string' &&
+    typeof value.licenseUrl === 'string' &&
+    isNewsImageSourceType(value.type)
+  );
+}
+
+function isNewsImageSourceType(value: unknown): value is NewsImageSourceType {
+  return (
+    value === 'NONE' || value === 'AI_GENERATED' || value === 'WIKIMEDIA' || value === 'MANUAL'
   );
 }
 
