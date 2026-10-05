@@ -168,6 +168,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         "reasoning", Map.of("effort", "low"),
         "tools", List.of(Map.of("type", "web_search")),
         "tool_choice", "required",
+        "include", List.of("web_search_call.action.sources"),
         "input", createInput(targets),
         "text", createTextFormat(targets));
   }
@@ -289,10 +290,20 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
                       source -> source,
                       (first, ignored) -> first,
                       LinkedHashMap::new));
-      return new PortfolioAnalysisResult(
-          requiredText(root, "overallImpact"),
-          parseImpacts(root.path("impacts"), targets, sourceByUrl),
-          output.sources());
+      List<PortfolioAnalysisResult.AssetImpactResult> impacts =
+          parseImpacts(root.path("impacts"), targets, sourceByUrl);
+      List<PortfolioAnalysisResult.Source> sources =
+          impacts.stream()
+              .flatMap(impact -> impact.sources().stream())
+              .collect(
+                  Collectors.collectingAndThen(
+                      Collectors.toMap(
+                          source -> normalizeSourceUrl(source.url()),
+                          source -> source,
+                          (first, ignored) -> first,
+                          LinkedHashMap::new),
+                      sourcesByUrl -> List.copyOf(sourcesByUrl.values())));
+      return new PortfolioAnalysisResult(requiredText(root, "overallImpact"), impacts, sources);
     } catch (JsonProcessingException | IllegalArgumentException exception) {
       throw analysisFailed();
     }
@@ -451,6 +462,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         throw analysisFailed();
       }
 
+      List<PortfolioAnalysisResult.Source> searchSources = parseSearchSources(output);
       for (JsonNode item : output) {
         JsonNode content = item.path("content");
 
@@ -463,7 +475,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             String outputText = contentItem.path("text").asText();
             if (!outputText.isBlank()) {
               List<PortfolioAnalysisResult.Source> sources =
-                  parseSources(contentItem.path("annotations"));
+                  mergeSources(parseSources(contentItem.path("annotations")), searchSources);
               if (sources.isEmpty()) {
                 throw analysisFailed();
               }
@@ -477,6 +489,44 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     }
 
     throw analysisFailed();
+  }
+
+  private List<PortfolioAnalysisResult.Source> parseSearchSources(JsonNode outputNode) {
+    Map<String, PortfolioAnalysisResult.Source> sourceByUrl = new LinkedHashMap<>();
+    for (JsonNode item : outputNode) {
+      if (!"web_search_call".equals(item.path("type").asText())) {
+        continue;
+      }
+      JsonNode sourcesNode = item.path("action").path("sources");
+      if (!sourcesNode.isArray()) {
+        continue;
+      }
+      for (JsonNode sourceNode : sourcesNode) {
+        String url = sourceNode.path("url").asText();
+        if (!isHttpUrl(url)) {
+          continue;
+        }
+        String title = sourceNode.path("title").asText();
+        if (title.isBlank()) {
+          String host = URI.create(url).getHost();
+          title = host == null ? url : host;
+        }
+        sourceByUrl.putIfAbsent(
+            normalizeSourceUrl(url), new PortfolioAnalysisResult.Source(title, url));
+      }
+    }
+    return List.copyOf(sourceByUrl.values());
+  }
+
+  private List<PortfolioAnalysisResult.Source> mergeSources(
+      List<PortfolioAnalysisResult.Source> citationSources,
+      List<PortfolioAnalysisResult.Source> searchSources) {
+    Map<String, PortfolioAnalysisResult.Source> sourceByUrl = new LinkedHashMap<>();
+    citationSources.forEach(
+        source -> sourceByUrl.putIfAbsent(normalizeSourceUrl(source.url()), source));
+    searchSources.forEach(
+        source -> sourceByUrl.putIfAbsent(normalizeSourceUrl(source.url()), source));
+    return List.copyOf(sourceByUrl.values());
   }
 
   private List<PortfolioAnalysisResult.Source> parseSources(JsonNode annotationsNode) {

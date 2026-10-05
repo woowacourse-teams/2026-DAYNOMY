@@ -139,6 +139,8 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(requestBody.path("reasoning").path("effort").asText()).isEqualTo("low");
     assertThat(requestBody.path("tools").get(0).path("type").asText()).isEqualTo("web_search");
     assertThat(requestBody.path("tool_choice").asText()).isEqualTo("required");
+    assertThat(requestBody.path("include").get(0).asText())
+        .isEqualTo("web_search_call.action.sources");
     JsonNode impactsSchema =
         requestBody.path("text").path("format").path("schema").path("properties").path("impacts");
     assertThat(impactsSchema.path("minItems").asInt()).isEqualTo(2);
@@ -337,6 +339,25 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
+  @DisplayName("인용에 포함되지 않아도 웹 검색에서 사용한 출처는 자산별 근거로 연결한다")
+  void analyzeUsesCompleteWebSearchSources() throws Exception {
+    String searchSourceUrl = "https://example.com/consulted-source";
+    enqueueOutputWithSearchSources(
+        validOutput()
+            .replace("\"direction\": \"NEUTRAL\"", "\"direction\": \"POSITIVE\"")
+            .replace("https://example.com/semiconductor", searchSourceUrl),
+        searchSourceUrl);
+
+    PortfolioAnalysisResult result = client.analyze(targets());
+
+    PortfolioAnalysisResult.Source expectedSource =
+        new PortfolioAnalysisResult.Source("웹 검색 사용 출처", searchSourceUrl);
+    assertThat(result.impacts())
+        .allSatisfy(impact -> assertThat(impact.sources()).containsExactly(expectedSource));
+    assertThat(result.sources()).containsExactly(expectedSource);
+  }
+
+  @Test
   @DisplayName("출처가 없는 자산은 중립이며 영향 수준이 낮을 때만 허용한다")
   void analyzeAllowsNeutralLowAssetWithoutSource() throws Exception {
     enqueueOutput(validOutput().replace("[\"https://example.com/semiconductor\"]", "[]"));
@@ -450,6 +471,42 @@ class OpenAiPortfolioAnalysisClientTest {
                                         "반도체 산업 동향",
                                         "url",
                                         citationUrl))))))));
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+            .setBody(response));
+  }
+
+  private void enqueueOutputWithSearchSources(String outputText, String sourceUrl)
+      throws JsonProcessingException {
+    String response =
+        objectMapper.writeValueAsString(
+            Map.of(
+                "output",
+                List.of(
+                    Map.of(
+                        "type",
+                        "web_search_call",
+                        "action",
+                        Map.of(
+                            "type",
+                            "search",
+                            "sources",
+                            List.of(
+                                Map.of("type", "url", "title", "웹 검색 사용 출처", "url", sourceUrl)))),
+                    Map.of(
+                        "type",
+                        "message",
+                        "content",
+                        List.of(
+                            Map.of(
+                                "type",
+                                "output_text",
+                                "text",
+                                outputText,
+                                "annotations",
+                                List.of()))))));
     server.enqueue(
         new MockResponse()
             .setResponseCode(200)
