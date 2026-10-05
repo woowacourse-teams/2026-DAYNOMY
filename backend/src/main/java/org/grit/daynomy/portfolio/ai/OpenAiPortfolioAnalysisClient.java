@@ -32,18 +32,18 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   private static final String PORTFOLIO_ANALYSIS_PROMPT =
       """
-            뉴스 본문이 사용자의 포트폴리오 자산에 미치는 영향을 분석하세요.
+            웹 검색을 통해 오늘의 주요 경제·금융·산업 이슈를 찾고, 사용자의 포트폴리오 자산에 미치는 영향을 분석하세요.
 
-            - 제공된 자산만 분석하세요.
-            - 뉴스와 관련성이 있는 자산만 결과에 포함하세요.
+            - 제공된 모든 자산을 impacts 결과에 한 번씩 포함하세요.
+            - 각 자산과 관련성이 높고 신뢰할 수 있는 최신 검색 결과를 근거로 사용하세요.
             - 영향이 큰 자산부터 정렬하세요.
             - assetName은 제공된 값을 그대로 사용하세요.
-            - direction은 뉴스 원문에 명시된 직접적인 영향만을 근거로 판단하세요.
+            - direction은 검색 결과에서 확인한 직접적인 영향만을 근거로 판단하세요.
             - 자산의 실적, 수요, 경쟁력 또는 수급에 유리한 직접 영향이 명확하면 POSITIVE로 판단하세요.
             - 자산의 실적, 수요, 경쟁력 또는 수급에 불리한 직접 영향이 명확하면 NEGATIVE로 판단하세요.
             - 긍정 또는 부정 방향을 판단할 직접적인 근거가 부족하거나 긍정·부정 요인이 함께 존재하면 NEUTRAL로 판단하세요.
             - 시장 전반의 분위기나 일반적인 업황만으로 개별 자산의 방향을 추측하지 마세요.
-            - impactLevel은 direction과 관계없이 뉴스 원문에 명시된 영향의 범위, 규모, 즉시성, 확실성을 기준으로 HIGH, LOW, MEDIUM 순서로 판단하세요.
+            - impactLevel은 direction과 관계없이 검색 결과에서 확인한 영향의 범위, 규모, 즉시성, 확실성을 기준으로 HIGH, LOW, MEDIUM 순서로 판단하세요.
             - 기업 전반이나 주요 실적·생산·수급에 미치는 영향이 크고 구체적이면 HIGH로 판단하세요. 영향 기간이 짧더라도 규모가 크면 HIGH를 유지하세요.
             - HIGH에 해당하지 않고 영향 규모가 작거나 일시적이라고 명시된 경우에는 LOW로 우선 판단하세요.
             - HIGH와 LOW에 해당하지 않으면서 직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.
@@ -51,11 +51,9 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - reason에는 판단 근거를 자연스러운 해요체로 작성하세요.
             - expectedReaction과 reason의 모든 문장은 '-했어요.', '-해요.', '-예요.'와 같은 해요체로 끝내세요.
             - expectedReaction과 reason에 '-하다.', '-했음.', '-함.'과 같은 문어체나 명사형 종결 표현을 사용하지 마세요.
-            - evidenceSentence는 해당 자산의 direction과 impactLevel 판단을 직접 뒷받침하는 뉴스 원문 문장 하나여야 합니다.
-            - evidenceSentence는 뉴스 원문의 문체를 그대로 유지하고 해요체로 바꾸지 마세요.
-            - newsContent에 문자 그대로 존재하는 완전한 문장만 복사하세요. 문장을 요약·변형·조합하거나 새로운 내용을 만들지 마세요.
-            - 해당 자산과의 영향 관계를 직접 뒷받침하는 원문 문장이 없다면, 관련 없는 문장을 대신 사용하지 말고 해당 자산을 impacts 결과에서 제외하세요.
-            - 뉴스에 없는 사실을 단정하지 마세요.
+            - evidenceSentence에는 해당 자산의 direction과 impactLevel 판단을 뒷받침하는 검색 근거를 한 문장으로 작성하세요.
+            - 중요한 관련 이슈를 찾지 못한 자산은 NEUTRAL과 LOW로 판단하고, 관련 이슈가 확인되지 않았음을 명시하세요.
+            - 검색 결과에서 확인할 수 없는 사실을 단정하지 마세요.
             """;
 
   private final ObjectMapper objectMapper;
@@ -75,8 +73,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   }
 
   @Override
-  public PortfolioAnalysisResult analyze(
-      String newsContent, List<PortfolioAnalysisTarget> targets) {
+  public PortfolioAnalysisResult analyze(List<PortfolioAnalysisTarget> targets) {
     if (targets.isEmpty()) {
       return new PortfolioAnalysisResult(List.of());
     }
@@ -100,11 +97,11 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               .uri("/responses")
               .contentType(MediaType.APPLICATION_JSON)
               .headers(headers -> headers.setBearerAuth(apiKey))
-              .body(createRequest(newsContent, targets))
+              .body(createRequest(targets))
               .retrieve()
               .body(String.class);
 
-      PortfolioAnalysisResult result = parseAnalysis(response, targets, newsContent);
+      PortfolioAnalysisResult result = parseAnalysis(response, targets);
       log.atInfo()
           .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_COMPLETED.code())
           .addKeyValue("api", "OpenAI")
@@ -152,27 +149,25 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
-  private Map<String, Object> createRequest(
-      String newsContent, List<PortfolioAnalysisTarget> targets) {
+  private Map<String, Object> createRequest(List<PortfolioAnalysisTarget> targets) {
     return Map.of(
         "model", model,
         "reasoning", Map.of("effort", "low"),
-        "input", createInput(newsContent, targets),
+        "tools", List.of(Map.of("type", "web_search")),
+        "tool_choice", "required",
+        "input", createInput(targets),
         "text", createTextFormat(targets));
   }
 
-  private List<Map<String, Object>> createInput(
-      String newsContent, List<PortfolioAnalysisTarget> targets) {
+  private List<Map<String, Object>> createInput(List<PortfolioAnalysisTarget> targets) {
     return List.of(
         Map.of("role", "developer", "content", PORTFOLIO_ANALYSIS_PROMPT),
-        Map.of("role", "user", "content", createUserContent(newsContent, targets)));
+        Map.of("role", "user", "content", createUserContent(targets)));
   }
 
-  private String createUserContent(String newsContent, List<PortfolioAnalysisTarget> targets) {
+  private String createUserContent(List<PortfolioAnalysisTarget> targets) {
     Map<String, Object> content =
         Map.of(
-            "newsContent",
-            newsContent,
             "assets",
             targets.stream().map(target -> Map.of("assetName", target.assetName())).toList());
 
@@ -241,7 +236,15 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "evidenceSentence"));
     impactItem.put("properties", impactProperties);
 
-    return Map.of("type", "array", "maxItems", targets.size(), "items", impactItem);
+    return Map.of(
+        "type",
+        "array",
+        "minItems",
+        targets.size(),
+        "maxItems",
+        targets.size(),
+        "items",
+        impactItem);
   }
 
   private <E extends Enum<E>> List<String> enumNames(E[] values) {
@@ -249,7 +252,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   }
 
   private PortfolioAnalysisResult parseAnalysis(
-      String response, List<PortfolioAnalysisTarget> targets, String newsContent) {
+      String response, List<PortfolioAnalysisTarget> targets) {
     String outputText = extractOutputText(response);
 
     try {
@@ -257,14 +260,14 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       if (root == null) {
         throw analysisFailed();
       }
-      return new PortfolioAnalysisResult(parseImpacts(root.path("impacts"), targets, newsContent));
+      return new PortfolioAnalysisResult(parseImpacts(root.path("impacts"), targets));
     } catch (JsonProcessingException | IllegalArgumentException exception) {
       throw analysisFailed();
     }
   }
 
   private List<PortfolioAnalysisResult.AssetImpactResult> parseImpacts(
-      JsonNode impactsNode, List<PortfolioAnalysisTarget> targets, String newsContent) {
+      JsonNode impactsNode, List<PortfolioAnalysisTarget> targets) {
     if (!impactsNode.isArray()) {
       throw analysisFailed();
     }
@@ -296,7 +299,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         throw analysisFailed();
       }
       String evidenceSentence = evidenceSentenceNode.textValue();
-      if (evidenceSentence.isBlank() || !newsContent.contains(evidenceSentence)) {
+      if (evidenceSentence.isBlank()) {
         throw analysisFailed();
       }
 

@@ -6,7 +6,7 @@ import java.util.List;
 public record PortfolioAnalysisResponse(
     @Schema(description = "요청으로 전달받은 전체 포트폴리오 자산 수", example = "7") int totalAssetCount,
     @Schema(description = "실제 분석된 자산 수", example = "3") int analyzedAssetCount,
-    @Schema(description = "포트폴리오 자산별 뉴스 영향 분석 목록") List<PortfolioAssetImpactResponse> impacts) {
+    @Schema(description = "포트폴리오 자산별 주요 이슈 영향 분석 목록") List<PortfolioAssetImpactResponse> impacts) {
 
   public PortfolioAnalysisResponse {
     impacts = List.copyOf(impacts);

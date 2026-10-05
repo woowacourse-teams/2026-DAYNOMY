@@ -9,10 +9,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
-import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsStatus;
-import org.grit.daynomy.news.exception.NewsErrorCode;
-import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
@@ -27,19 +23,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class PortfolioAnalysisService {
 
-  private static final int MAX_ANALYZED_ASSET_COUNT = 3;
-
-  private final NewsRepository newsRepository;
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
 
-  public PortfolioAnalysisResponse analyze(Long newsId, PortfolioAnalysisRequest request) {
+  public PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
     validateDistinctAssets(request.assets());
     validateTotalWeight(request.assets());
-
-    News news =
-        newsRepository
-            .findByIdAndStatus(newsId, NewsStatus.PUBLISHED)
-            .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
 
     if (request.assets().isEmpty()) {
       return PortfolioAnalysisResponse.empty();
@@ -47,11 +35,10 @@ public class PortfolioAnalysisService {
 
     Map<String, BigDecimal> weightByAssetName = createWeightByAssetName(request.assets());
     List<PortfolioAnalysisTarget> targets = createTargets(request.assets());
-    PortfolioAnalysisResult result = portfolioAnalysisAiClient.analyze(news.getContent(), targets);
+    PortfolioAnalysisResult result = portfolioAnalysisAiClient.analyze(targets);
 
     List<PortfolioAssetImpactResponse> impacts =
         result.impacts().stream()
-            .limit(MAX_ANALYZED_ASSET_COUNT)
             .map(
                 impact ->
                     PortfolioAssetImpactResponse.of(

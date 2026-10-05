@@ -8,18 +8,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.news.domain.Category;
-import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsSourceInfo;
-import org.grit.daynomy.news.domain.NewsStatus;
-import org.grit.daynomy.news.exception.NewsErrorCode;
-import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
@@ -37,8 +29,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class PortfolioAnalysisServiceTest {
 
-  @Mock private NewsRepository newsRepository;
-
   @Mock private PortfolioAnalysisAiClient portfolioAnalysisAiClient;
 
   @InjectMocks private PortfolioAnalysisService portfolioAnalysisService;
@@ -46,7 +36,6 @@ class PortfolioAnalysisServiceTest {
   @Test
   @DisplayName("요청한 포트폴리오 자산을 AI로 분석하고 응답 DTO로 변환한다")
   void analyzeReturnsPortfolioAnalysis() {
-    News news = createNews();
     PortfolioAnalysisRequest request = request(asset(" 삼성전자 ", "78"), asset("SK하이닉스", "22"));
     List<PortfolioAnalysisTarget> targets =
         List.of(new PortfolioAnalysisTarget("삼성전자"), new PortfolioAnalysisTarget("SK하이닉스"));
@@ -61,10 +50,9 @@ class PortfolioAnalysisServiceTest {
                     "긍정 또는 부정 영향을 판단할 근거가 충분하지 않습니다.",
                     "반도체 수요가 전년 대비 증가했습니다.",
                     1)));
-    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
-    given(portfolioAnalysisAiClient.analyze("뉴스 본문", targets)).willReturn(analysisResult);
+    given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
 
-    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(1L, request);
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request);
 
     assertThat(response.totalAssetCount()).isEqualTo(2);
     assertThat(response.analyzedAssetCount()).isEqualTo(1);
@@ -75,13 +63,12 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.impacts().get(0).impactLevel()).isEqualTo(ImpactLevel.HIGH);
     assertThat(response.impacts().get(0).evidenceSentence()).isEqualTo("반도체 수요가 전년 대비 증가했습니다.");
     assertThat(response.impacts().get(0).rank()).isEqualTo(1);
-    verify(portfolioAnalysisAiClient).analyze("뉴스 본문", targets);
+    verify(portfolioAnalysisAiClient).analyze(targets);
   }
 
   @Test
-  @DisplayName("영향도순으로 정렬된 분석 결과를 최대 3개까지 반환한다")
-  void analyzeReturnsUpToThreeImpacts() {
-    News news = createNews();
+  @DisplayName("영향도순으로 정렬된 전체 자산의 분석 결과를 반환한다")
+  void analyzeReturnsAllImpacts() {
     PortfolioAnalysisRequest request =
         request(
             asset("삼성전자", "30"), asset("SK하이닉스", "25"), asset("현대차", "20"), asset("NAVER", "25"));
@@ -98,26 +85,22 @@ class PortfolioAnalysisServiceTest {
                 impact("SK하이닉스", ImpactLevel.HIGH, 2),
                 impact("현대차", ImpactLevel.MEDIUM, 3),
                 impact("NAVER", ImpactLevel.LOW, 4)));
-    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
-    given(portfolioAnalysisAiClient.analyze("뉴스 본문", targets)).willReturn(analysisResult);
+    given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
 
-    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(1L, request);
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request);
 
     assertThat(response.totalAssetCount()).isEqualTo(4);
-    assertThat(response.analyzedAssetCount()).isEqualTo(3);
+    assertThat(response.analyzedAssetCount()).isEqualTo(4);
     assertThat(response.impacts())
         .extracting(impact -> impact.assetName())
-        .containsExactly("삼성전자", "SK하이닉스", "현대차");
-    assertThat(response.impacts()).extracting(impact -> impact.rank()).containsExactly(1, 2, 3);
+        .containsExactly("삼성전자", "SK하이닉스", "현대차", "NAVER");
+    assertThat(response.impacts()).extracting(impact -> impact.rank()).containsExactly(1, 2, 3, 4);
   }
 
   @Test
   @DisplayName("포트폴리오가 비어 있으면 AI를 호출하지 않고 빈 분석 결과를 반환한다")
   void analyzeReturnsEmptyResponseWhenPortfolioIsEmpty() {
-    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED))
-        .willReturn(Optional.of(createNews()));
-
-    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(1L, request());
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request());
 
     assertThat(response.totalAssetCount()).isZero();
     assertThat(response.analyzedAssetCount()).isZero();
@@ -126,49 +109,17 @@ class PortfolioAnalysisServiceTest {
   }
 
   @Test
-  @DisplayName("뉴스와 관련된 보유 종목이 없으면 빈 분석 결과를 반환한다")
-  void analyzeReturnsEmptyResponseWhenNoAssetIsRelatedToNews() {
-    News news = createNews();
-    PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
-    List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
-    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
-    given(portfolioAnalysisAiClient.analyze("뉴스 본문", targets))
-        .willReturn(new PortfolioAnalysisResult(List.of()));
-
-    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(1L, request);
-
-    assertThat(response.totalAssetCount()).isEqualTo(1);
-    assertThat(response.analyzedAssetCount()).isZero();
-    assertThat(response.impacts()).isEmpty();
-  }
-
-  @Test
-  @DisplayName("동일한 뉴스와 포트폴리오를 다시 요청해도 매번 AI로 분석한다")
+  @DisplayName("동일한 포트폴리오를 다시 요청해도 매번 AI로 분석한다")
   void analyzeEveryRequest() {
-    News news = createNews();
     PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
     List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
-    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
-    given(portfolioAnalysisAiClient.analyze("뉴스 본문", targets))
+    given(portfolioAnalysisAiClient.analyze(targets))
         .willReturn(new PortfolioAnalysisResult(List.of()));
 
-    portfolioAnalysisService.analyze(1L, request);
-    portfolioAnalysisService.analyze(1L, request);
+    portfolioAnalysisService.analyze(request);
+    portfolioAnalysisService.analyze(request);
 
-    verify(portfolioAnalysisAiClient, times(2)).analyze("뉴스 본문", targets);
-  }
-
-  @Test
-  @DisplayName("뉴스가 없으면 포트폴리오 분석 전에 예외를 던진다")
-  void analyzeThrowsWhenNewsIsMissing() {
-    given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.empty());
-    PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
-
-    assertThatThrownBy(() -> portfolioAnalysisService.analyze(1L, request))
-        .isInstanceOf(BusinessException.class)
-        .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
-    verifyNoInteractions(portfolioAnalysisAiClient);
+    verify(portfolioAnalysisAiClient, times(2)).analyze(targets);
   }
 
   @Test
@@ -176,11 +127,11 @@ class PortfolioAnalysisServiceTest {
   void analyzeThrowsWhenPortfolioAssetIsDuplicated() {
     PortfolioAnalysisRequest request = request(asset(" NAVER ", "50"), asset("naver", "50"));
 
-    assertThatThrownBy(() -> portfolioAnalysisService.analyze(1L, request))
+    assertThatThrownBy(() -> portfolioAnalysisService.analyze(request))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
-    verifyNoInteractions(newsRepository, portfolioAnalysisAiClient);
+    verifyNoInteractions(portfolioAnalysisAiClient);
   }
 
   @Test
@@ -188,11 +139,11 @@ class PortfolioAnalysisServiceTest {
   void analyzeThrowsWhenTotalWeightIsNotOneHundred() {
     PortfolioAnalysisRequest request = request(asset("삼성전자", "60"), asset("현대차", "30"));
 
-    assertThatThrownBy(() -> portfolioAnalysisService.analyze(1L, request))
+    assertThatThrownBy(() -> portfolioAnalysisService.analyze(request))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(PortfolioErrorCode.INVALID_PORTFOLIO_WEIGHT_TOTAL);
-    verifyNoInteractions(newsRepository, portfolioAnalysisAiClient);
+    verifyNoInteractions(portfolioAnalysisAiClient);
   }
 
   private PortfolioAnalysisRequest request(PortfolioAssetRequest... assets) {
@@ -211,17 +162,7 @@ class PortfolioAnalysisServiceTest {
         impactLevel,
         "예상 반응",
         "판단 근거",
-        "판단에 사용한 뉴스 문장",
+        "판단에 사용한 검색 근거",
         sortOrder);
-  }
-
-  private News createNews() {
-    return News.createPublished(
-        "뉴스 제목",
-        "뉴스 본문",
-        "image.png",
-        List.of(new NewsSourceInfo("DART", "https://example.com/news")),
-        Category.STOCK,
-        Instant.parse("2026-08-23T10:00:00Z"));
   }
 }

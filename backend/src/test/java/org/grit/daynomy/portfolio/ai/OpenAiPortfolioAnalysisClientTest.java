@@ -90,8 +90,7 @@ class OpenAiPortfolioAnalysisClientTest {
         }
         """);
 
-    PortfolioAnalysisResult result =
-        client.analyze("삼성전자의 신규 수요가 증가할 전망입니다. SK하이닉스의 수요와 비용이 모두 증가했습니다.", targets());
+    PortfolioAnalysisResult result = client.analyze(targets());
 
     assertThat(result.impacts())
         .extracting(PortfolioAnalysisResult.AssetImpactResult::assetName)
@@ -122,6 +121,8 @@ class OpenAiPortfolioAnalysisClientTest {
 
     JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
     assertThat(requestBody.path("reasoning").path("effort").asText()).isEqualTo("low");
+    assertThat(requestBody.path("tools").get(0).path("type").asText()).isEqualTo("web_search");
+    assertThat(requestBody.path("tool_choice").asText()).isEqualTo("required");
     JsonNode userContent =
         objectMapper.readTree(requestBody.path("input").get(1).path("content").asText());
     assertThat(userContent.path("assets").get(0).path("assetName").asText()).isEqualTo("삼성전자");
@@ -129,11 +130,11 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  @DisplayName("사용자 노출 문장은 해요체로 작성하고 뉴스 원문 문체는 유지하도록 요청한다")
-  void analyzeRequestsFriendlyToneExceptForEvidenceSentence() throws Exception {
+  @DisplayName("사용자 노출 문장을 해요체로 작성하도록 요청한다")
+  void analyzeRequestsFriendlyTone() throws Exception {
     enqueueOutput("{\"impacts\":[]}");
 
-    client.analyze("뉴스 본문", targets());
+    client.analyze(targets());
 
     RecordedRequest request = server.takeRequest();
     JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
@@ -141,16 +142,15 @@ class OpenAiPortfolioAnalysisClientTest {
 
     assertThat(developerPrompt)
         .contains("expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.")
-        .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.")
-        .contains("evidenceSentence는 뉴스 원문의 문체를 그대로 유지하고 해요체로 바꾸지 마세요.");
+        .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.");
   }
 
   @Test
-  @DisplayName("뉴스 원문의 직접적인 근거를 기준으로 영향 방향을 판단하도록 요청한다")
+  @DisplayName("웹 검색의 직접적인 근거를 기준으로 영향 방향을 판단하도록 요청한다")
   void analyzeRequestsDirectionBasedOnDirectEvidence() throws Exception {
     enqueueOutput("{\"impacts\":[]}");
 
-    client.analyze("뉴스 본문", targets());
+    client.analyze(targets());
 
     RecordedRequest request = server.takeRequest();
     JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
@@ -168,7 +168,7 @@ class OpenAiPortfolioAnalysisClientTest {
   void analyzeRequestsImpactLevelBasedOnExplicitCriteria() throws Exception {
     enqueueOutput("{\"impacts\":[]}");
 
-    client.analyze("뉴스 본문", targets());
+    client.analyze(targets());
 
     RecordedRequest request = server.takeRequest();
     JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
@@ -176,7 +176,7 @@ class OpenAiPortfolioAnalysisClientTest {
 
     assertThat(developerPrompt)
         .contains(
-            "impactLevel은 direction과 관계없이 뉴스 원문에 명시된 영향의 범위, 규모, 즉시성, 확실성을 기준으로 HIGH, LOW, MEDIUM 순서로 판단하세요.")
+            "impactLevel은 direction과 관계없이 검색 결과에서 확인한 영향의 범위, 규모, 즉시성, 확실성을 기준으로 HIGH, LOW, MEDIUM 순서로 판단하세요.")
         .contains("영향 기간이 짧더라도 규모가 크면 HIGH를 유지하세요.")
         .contains("HIGH에 해당하지 않고 영향 규모가 작거나 일시적이라고 명시된 경우에는 LOW로 우선 판단하세요.")
         .contains(
@@ -202,7 +202,7 @@ class OpenAiPortfolioAnalysisClientTest {
         }
         """);
 
-    assertAnalysisFailed(() -> client.analyze("뉴스 본문", targets()));
+    assertAnalysisFailed(() -> client.analyze(targets()));
   }
 
   @Test
@@ -224,29 +224,7 @@ class OpenAiPortfolioAnalysisClientTest {
         }
         """);
 
-    assertAnalysisFailed(() -> client.analyze("삼성전자의 수요가 증가했습니다.", targets()));
-  }
-
-  @Test
-  @DisplayName("근거 문장이 뉴스 원문에 없으면 분석 실패로 처리한다")
-  void analyzeRejectsEvidenceSentenceNotInNewsContent() throws Exception {
-    enqueueOutput(
-        """
-        {
-          "impacts": [
-            {
-              "assetName": "삼성전자",
-              "direction": "POSITIVE",
-              "impactLevel": "HIGH",
-              "expectedReaction": "긍정적입니다.",
-              "reason": "수요가 증가했습니다.",
-              "evidenceSentence": "삼성전자의 신규 수요가 크게 증가했습니다."
-            }
-          ]
-        }
-        """);
-
-    assertAnalysisFailed(() -> client.analyze("삼성전자의 수요가 증가했습니다.", targets()));
+    assertAnalysisFailed(() -> client.analyze(targets()));
   }
 
   @Test
@@ -254,7 +232,7 @@ class OpenAiPortfolioAnalysisClientTest {
   void analyzeRejectsMalformedOutput() throws Exception {
     enqueueOutput("{\"invalid\":[]}");
 
-    assertAnalysisFailed(() -> client.analyze("뉴스 본문", targets()));
+    assertAnalysisFailed(() -> client.analyze(targets()));
   }
 
   @Test
@@ -267,7 +245,7 @@ class OpenAiPortfolioAnalysisClientTest {
             .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
             .setBody(responseBody));
 
-    assertAnalysisFailed(() -> client.analyze("뉴스 본문", targets()));
+    assertAnalysisFailed(() -> client.analyze(targets()));
 
     ILoggingEvent failedLog = appender.list.getLast();
     assertThat(failedLog.getLevel()).isEqualTo(Level.WARN);

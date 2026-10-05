@@ -12,11 +12,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
-import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
@@ -51,7 +49,7 @@ class PortfolioAnalysisControllerTest {
   @MockitoBean private PortfolioAnalysisService portfolioAnalysisService;
 
   @Test
-  @DisplayName("요청으로 전달한 포트폴리오의 뉴스 분석 결과를 반환한다")
+  @DisplayName("요청으로 전달한 전체 포트폴리오의 분석 결과를 반환한다")
   void analyzePortfolioReturnsAnalysis() throws Exception {
     PortfolioAnalysisRequest request =
         new PortfolioAnalysisRequest(
@@ -66,12 +64,12 @@ class PortfolioAnalysisControllerTest {
             "반도체 수요 증가가 예상됩니다.",
             "반도체 수요가 전년 대비 증가했습니다.",
             1);
-    when(portfolioAnalysisService.analyze(1L, request))
+    when(portfolioAnalysisService.analyze(request))
         .thenReturn(PortfolioAnalysisResponse.of(1, List.of(impact)));
 
     mockMvc
         .perform(
-            post("/api/news/1/portfolio-analysis")
+            post("/api/portfolio/analysis")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -89,7 +87,7 @@ class PortfolioAnalysisControllerTest {
         .andExpect(jsonPath("$.impacts[0].evidenceSentence").value("반도체 수요가 전년 대비 증가했습니다."))
         .andExpect(jsonPath("$.impacts[0].rank").value(1));
 
-    verify(portfolioAnalysisService).analyze(1L, request);
+    verify(portfolioAnalysisService).analyze(request);
   }
 
   @Test
@@ -99,7 +97,7 @@ class PortfolioAnalysisControllerTest {
 
     mockMvc
         .perform(
-            post("/api/news/1/portfolio-analysis")
+            post("/api/portfolio/analysis")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -123,7 +121,7 @@ class PortfolioAnalysisControllerTest {
 
     mockMvc
         .perform(
-            post("/api/news/1/portfolio-analysis")
+            post("/api/portfolio/analysis")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"assets\":[%s]}".formatted(assets)))
         .andExpect(status().isBadRequest())
@@ -131,45 +129,5 @@ class PortfolioAnalysisControllerTest {
         .andExpect(jsonPath("$.errors[0].field").value("assets"));
 
     verifyNoInteractions(portfolioAnalysisService);
-  }
-
-  @Test
-  @DisplayName("뉴스 ID가 숫자가 아니면 요청을 거부한다")
-  void analyzePortfolioRejectsInvalidNewsIdType() throws Exception {
-    mockMvc
-        .perform(
-            post("/api/news/not-a-number/portfolio-analysis")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {"assets":[]}
-                    """))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
-        .andExpect(jsonPath("$.errors[0].field").value("newsId"));
-
-    verifyNoInteractions(portfolioAnalysisService);
-  }
-
-  @Test
-  @DisplayName("뉴스가 없으면 에러 응답을 반환한다")
-  void analyzePortfolioReturnsNotFoundWhenNewsIsMissing() throws Exception {
-    PortfolioAnalysisRequest request = new PortfolioAnalysisRequest(List.of());
-    when(portfolioAnalysisService.analyze(999L, request))
-        .thenThrow(new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
-
-    mockMvc
-        .perform(
-            post("/api/news/999/portfolio-analysis")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {"assets":[]}
-                    """))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.code").value("NEWS_NOT_FOUND"))
-        .andExpect(jsonPath("$.message").value("해당 뉴스를 찾을 수 없습니다."));
-
-    verify(portfolioAnalysisService).analyze(999L, request);
   }
 }
