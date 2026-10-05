@@ -18,6 +18,8 @@ import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.news.domain.News;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Service
 public class AssetContentService {
+
+  private static final String ASSET_CONTENT_URL_UNIQUE_CONSTRAINT =
+      "uk_stock_related_contents_asset_url";
 
   private final AssetRepository assetRepository;
   private final AssetContentRepository contentRepository;
@@ -86,7 +91,14 @@ public class AssetContentService {
             request.title().strip(),
             url,
             stripToNull(request.imageUrl()));
-    return AssetContentResponse.from(contentRepository.save(content));
+    try {
+      return AssetContentResponse.from(contentRepository.saveAndFlush(content));
+    } catch (DataIntegrityViolationException exception) {
+      if (isAssetContentUrlUniqueConstraintViolation(exception)) {
+        throw new BusinessException(ContentErrorCode.ASSET_CONTENT_ALREADY_EXISTS);
+      }
+      throw exception;
+    }
   }
 
   @Transactional
@@ -109,5 +121,18 @@ public class AssetContentService {
     if (value == null) return null;
     String stripped = value.strip();
     return stripped.isEmpty() ? null : stripped;
+  }
+
+  private boolean isAssetContentUrlUniqueConstraintViolation(
+      DataIntegrityViolationException exception) {
+    Throwable cause = exception;
+    while (cause != null) {
+      if (cause instanceof ConstraintViolationException constraintViolationException) {
+        return ASSET_CONTENT_URL_UNIQUE_CONSTRAINT.equals(
+            constraintViolationException.getConstraintName());
+      }
+      cause = cause.getCause();
+    }
+    return false;
   }
 }

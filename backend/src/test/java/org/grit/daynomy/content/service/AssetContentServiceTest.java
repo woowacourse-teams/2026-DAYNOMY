@@ -2,6 +2,7 @@ package org.grit.daynomy.content.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -21,6 +22,7 @@ import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.external.youtube.YouTubeVideoCandidate;
 import org.grit.daynomy.news.domain.News;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +30,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class AssetContentServiceTest {
@@ -113,5 +116,47 @@ class AssetContentServiceTest {
     inOrder.verify(contentRepository).deleteAllByNewsId(1L);
     inOrder.verify(contentRepository).flush();
     inOrder.verify(contentRepository).saveAll(anyList());
+  }
+
+  @Test
+  @DisplayName("동시 등록으로 URL 유니크 제약조건 위반 시 중복 오류로 변환한다")
+  void createContentMapsUrlUniqueConstraintViolation() {
+    Asset asset = mock(Asset.class);
+    ConstraintViolationException constraintViolation = mock(ConstraintViolationException.class);
+    DataIntegrityViolationException exception =
+        new DataIntegrityViolationException("duplicate content", constraintViolation);
+    given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
+    given(contentRepository.existsByAssetIdAndUrl(1L, "https://example.com/news"))
+        .willReturn(false);
+    given(constraintViolation.getConstraintName())
+        .willReturn("uk_stock_related_contents_asset_url");
+    given(contentRepository.saveAndFlush(any(AssetContent.class))).willThrow(exception);
+
+    var request =
+        new AssetContentRequest(
+            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news", null);
+
+    assertThatThrownBy(() -> assetContentService.createContent(1L, request))
+        .isInstanceOf(BusinessException.class)
+        .extracting(error -> ((BusinessException) error).errorCode())
+        .isEqualTo(ContentErrorCode.ASSET_CONTENT_ALREADY_EXISTS);
+  }
+
+  @Test
+  @DisplayName("다른 데이터 무결성 예외는 중복 오류로 변환하지 않는다")
+  void createContentRethrowsOtherDataIntegrityViolation() {
+    Asset asset = mock(Asset.class);
+    DataIntegrityViolationException exception =
+        new DataIntegrityViolationException("other constraint");
+    given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
+    given(contentRepository.existsByAssetIdAndUrl(1L, "https://example.com/news"))
+        .willReturn(false);
+    given(contentRepository.saveAndFlush(any(AssetContent.class))).willThrow(exception);
+
+    var request =
+        new AssetContentRequest(
+            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news", null);
+
+    assertThatThrownBy(() -> assetContentService.createContent(1L, request)).isSameAs(exception);
   }
 }
