@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import defaultNewsImage from '../../assets/default-news-real-estate.webp';
 import './card-design-preview.css';
 
@@ -61,9 +62,17 @@ const previewDesigns: PreviewDesign[] = [
 ];
 
 function PreviewMedia({ card, design }: { card: PreviewCard; design: PreviewDesign }) {
+  const [source, setSource] = useState(card.image);
+
   return (
     <div className="card-preview-media">
-      <img src={card.image} alt="" />
+      <img
+        src={source}
+        alt=""
+        onError={() => {
+          if (source !== defaultNewsImage) setSource(defaultNewsImage);
+        }}
+      />
       {card.type === 'youtube' ? (
         <span className="card-preview-play" aria-hidden="true">
           ▶
