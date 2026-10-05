@@ -18,6 +18,7 @@ import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNews
 import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import { StockContentPage } from './features/stock-content/StockContentPage';
+import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -119,6 +120,7 @@ export default function App() {
               <Route path="/news/:newsId" element={<NewsDetailPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/stocks" element={<Navigate to="/" replace />} />
+              <Route path="/stocks/:assetId/card-preview" element={<CardDesignPreviewPage />} />
               <Route path="/stocks/:assetId" element={<StockContentPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/about" element={<InfoPage page="about" />} />
