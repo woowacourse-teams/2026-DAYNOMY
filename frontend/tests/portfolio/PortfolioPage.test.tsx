@@ -109,6 +109,23 @@ function mockPortfolioApi() {
         });
       if (url.endsWith('/api/auth/csrf'))
         return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      if (url.endsWith('/api/assets/1/contents'))
+        return jsonResponse({
+          assetId: 1,
+          assetCode: '005930',
+          assetName: '삼성전자',
+          contents: [
+            {
+              id: 10,
+              assetId: 1,
+              sourceType: 'YOUTUBE',
+              title: '삼성전자 분석 영상',
+              url: 'https://youtube.com/watch?v=abc',
+              imageUrl: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
+              createdAt: null,
+            },
+          ],
+        });
       if (url.endsWith('/api/portfolio/calculate')) {
         const request = JSON.parse(String(init?.body)) as {
           holdings: Array<{ assetId: number; quantity: number; averagePurchasePrice: number }>;
@@ -151,6 +168,23 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage />);
     expect(await view.findByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeTruthy();
     expect(view.getByRole('button', { name: /자산 추가/ })).toBeTruthy();
+  });
+
+  it('보유 자산의 관련 정보를 펼치고 이미지를 표시한다', async () => {
+    localStorage.setItem(
+      PORTFOLIO_STORAGE_KEY,
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+
+    const view = render(<PortfolioPage />);
+    await view.findAllByText('750,000원');
+    fireEvent.click(view.getByRole('button', { name: '관련 정보' }));
+
+    expect(await view.findByText('삼성전자 분석 영상')).toBeTruthy();
+    expect(
+      view.container.querySelector<HTMLImageElement>('.portfolio-related-content-panel img')?.src,
+    ).toBe('https://i.ytimg.com/vi/abc/hqdefault.jpg');
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
