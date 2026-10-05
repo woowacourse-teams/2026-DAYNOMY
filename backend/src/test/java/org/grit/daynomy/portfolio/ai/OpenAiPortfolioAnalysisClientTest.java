@@ -69,12 +69,15 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutput(
         """
         {
+          "overallImpact": "반도체 비중이 높아 관련 이슈의 영향을 크게 받을 수 있어요.",
           "impacts": [
             {
               "assetName": "삼성전자",
               "direction": "POSITIVE",
               "impactLevel": "LOW",
+              "issueSummary": "신규 수요가 증가할 전망이에요.",
               "expectedReaction": "장기적으로 긍정적일 수 있습니다.",
+              "outlook": "수요 증가 여부를 지켜봐야 해요.",
               "reason": "신규 수요가 예상됩니다.",
               "evidenceSentence": "삼성전자의 신규 수요가 증가할 전망입니다."
             },
@@ -82,7 +85,9 @@ class OpenAiPortfolioAnalysisClientTest {
               "assetName": "SK하이닉스",
               "direction": "NEUTRAL",
               "impactLevel": "HIGH",
+              "issueSummary": "수요와 비용이 함께 증가했어요.",
               "expectedReaction": "방향은 불분명합니다.",
+              "outlook": "비용 부담의 지속 여부를 확인해야 해요.",
               "reason": "상반된 요인이 존재합니다.",
               "evidenceSentence": "SK하이닉스의 수요와 비용이 모두 증가했습니다."
             }
@@ -100,8 +105,14 @@ class OpenAiPortfolioAnalysisClientTest {
         .containsExactly(1, 2);
     assertThat(result.impacts().getFirst().direction()).isEqualTo(ImpactDirection.NEUTRAL);
     assertThat(result.impacts().getFirst().impactLevel()).isEqualTo(ImpactLevel.HIGH);
+    assertThat(result.overallImpact()).contains("반도체 비중");
+    assertThat(result.impacts().getFirst().issueSummary()).contains("수요와 비용");
+    assertThat(result.impacts().getFirst().outlook()).contains("비용 부담");
     assertThat(result.impacts().getFirst().evidenceSentence())
         .isEqualTo("SK하이닉스의 수요와 비용이 모두 증가했습니다.");
+    assertThat(result.sources())
+        .containsExactly(
+            new PortfolioAnalysisResult.Source("반도체 산업 동향", "https://example.com/semiconductor"));
 
     ILoggingEvent completedLog = appender.list.getLast();
     assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
@@ -126,13 +137,15 @@ class OpenAiPortfolioAnalysisClientTest {
     JsonNode userContent =
         objectMapper.readTree(requestBody.path("input").get(1).path("content").asText());
     assertThat(userContent.path("assets").get(0).path("assetName").asText()).isEqualTo("삼성전자");
+    assertThat(userContent.path("assets").get(0).path("weight").decimalValue())
+        .isEqualByComparingTo("60");
     assertThat(userContent.toString()).doesNotContain("assetId");
   }
 
   @Test
   @DisplayName("사용자 노출 문장을 해요체로 작성하도록 요청한다")
   void analyzeRequestsFriendlyTone() throws Exception {
-    enqueueOutput("{\"impacts\":[]}");
+    enqueueOutput(validOutput());
 
     client.analyze(targets());
 
@@ -141,14 +154,21 @@ class OpenAiPortfolioAnalysisClientTest {
     String developerPrompt = requestBody.path("input").get(0).path("content").asText();
 
     assertThat(developerPrompt)
+        .contains("issueSummary에는 자산과 관련된 오늘의 주요 이슈를 요약하세요.")
         .contains("expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.")
+        .contains("outlook에는 검색 결과를 근거로 향후 방향성을 작성하세요.")
+        .contains("overallImpact는 투자 초보자도 쉽게 이해할 수 있도록 3~4문장으로 작성하세요.")
+        .contains("overallImpact에는 포트폴리오에서 비중이 큰 자산과 주요 이슈를 먼저 설명하세요.")
+        .contains("긍정·부정 요인이 전체 포트폴리오에 어떻게 작용하는지 구체적으로 설명하세요.")
+        .contains("overallImpact의 마지막 문장에는 앞으로 주의해서 볼 지표나 이슈를 안내하세요.")
+        .contains("어려운 금융 용어와 단정적인 투자 권유 표현은 사용하지 마세요.")
         .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.");
   }
 
   @Test
   @DisplayName("웹 검색의 직접적인 근거를 기준으로 영향 방향을 판단하도록 요청한다")
   void analyzeRequestsDirectionBasedOnDirectEvidence() throws Exception {
-    enqueueOutput("{\"impacts\":[]}");
+    enqueueOutput(validOutput());
 
     client.analyze(targets());
 
@@ -166,7 +186,7 @@ class OpenAiPortfolioAnalysisClientTest {
   @Test
   @DisplayName("영향 수준을 HIGH, LOW, MEDIUM 우선순위에 따라 판단하도록 요청한다")
   void analyzeRequestsImpactLevelBasedOnExplicitCriteria() throws Exception {
-    enqueueOutput("{\"impacts\":[]}");
+    enqueueOutput(validOutput());
 
     client.analyze(targets());
 
@@ -189,12 +209,15 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutput(
         """
         {
+          "overallImpact": "전체 영향이에요.",
           "impacts": [
             {
               "assetName": "현대차",
               "direction": "POSITIVE",
               "impactLevel": "HIGH",
+              "issueSummary": "수요가 증가했어요.",
               "expectedReaction": "긍정적입니다.",
+              "outlook": "수요가 이어질 수 있어요.",
               "reason": "수요가 증가했습니다.",
               "evidenceSentence": "현대차 수요가 증가했습니다."
             }
@@ -211,12 +234,15 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutput(
         """
         {
+          "overallImpact": "전체 영향이에요.",
           "impacts": [
             {
               "assetName": "삼성전자",
               "direction": "POSITIVE",
               "impactLevel": "HIGH",
+              "issueSummary": "수요가 증가했어요.",
               "expectedReaction": "긍정적입니다.",
+              "outlook": "수요가 이어질 수 있어요.",
               "reason": "수요가 증가했습니다.",
               "evidenceSentence": "   "
             }
@@ -231,6 +257,14 @@ class OpenAiPortfolioAnalysisClientTest {
   @DisplayName("AI 응답 형식이 올바르지 않으면 분석 실패로 처리한다")
   void analyzeRejectsMalformedOutput() throws Exception {
     enqueueOutput("{\"invalid\":[]}");
+
+    assertAnalysisFailed(() -> client.analyze(targets()));
+  }
+
+  @Test
+  @DisplayName("웹 검색 인용 출처가 없으면 분석 실패로 처리한다")
+  void analyzeRejectsMissingSources() throws Exception {
+    enqueueOutputWithoutAnnotations("{\"overallImpact\":\"전체 영향이에요.\",\"impacts\":[]}");
 
     assertAnalysisFailed(() -> client.analyze(targets()));
   }
@@ -264,7 +298,39 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   private List<PortfolioAnalysisTarget> targets() {
-    return List.of(new PortfolioAnalysisTarget("삼성전자"), new PortfolioAnalysisTarget("SK하이닉스"));
+    return List.of(
+        new PortfolioAnalysisTarget("삼성전자", new java.math.BigDecimal("60")),
+        new PortfolioAnalysisTarget("SK하이닉스", new java.math.BigDecimal("40")));
+  }
+
+  private String validOutput() {
+    return """
+        {
+          "overallImpact": "전체 영향이에요.",
+          "impacts": [
+            {
+              "assetName": "삼성전자",
+              "direction": "NEUTRAL",
+              "impactLevel": "LOW",
+              "issueSummary": "관련 이슈를 확인했어요.",
+              "expectedReaction": "중립적인 반응이 예상돼요.",
+              "outlook": "추가 흐름을 확인해야 해요.",
+              "reason": "직접적인 영향이 제한적이에요.",
+              "evidenceSentence": "관련 검색 근거예요."
+            },
+            {
+              "assetName": "SK하이닉스",
+              "direction": "NEUTRAL",
+              "impactLevel": "LOW",
+              "issueSummary": "관련 이슈를 확인했어요.",
+              "expectedReaction": "중립적인 반응이 예상돼요.",
+              "outlook": "추가 흐름을 확인해야 해요.",
+              "reason": "직접적인 영향이 제한적이에요.",
+              "evidenceSentence": "관련 검색 근거예요."
+            }
+          ]
+        }
+        """;
   }
 
   private void enqueueOutput(String outputText) throws JsonProcessingException {
@@ -274,7 +340,45 @@ class OpenAiPortfolioAnalysisClientTest {
                 "output",
                 List.of(
                     Map.of(
-                        "content", List.of(Map.of("type", "output_text", "text", outputText))))));
+                        "content",
+                        List.of(
+                            Map.of(
+                                "type",
+                                "output_text",
+                                "text",
+                                outputText,
+                                "annotations",
+                                List.of(
+                                    Map.of(
+                                        "type",
+                                        "url_citation",
+                                        "title",
+                                        "반도체 산업 동향",
+                                        "url",
+                                        "https://example.com/semiconductor"))))))));
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+            .setBody(response));
+  }
+
+  private void enqueueOutputWithoutAnnotations(String outputText) throws JsonProcessingException {
+    String response =
+        objectMapper.writeValueAsString(
+            Map.of(
+                "output",
+                List.of(
+                    Map.of(
+                        "content",
+                        List.of(
+                            Map.of(
+                                "type",
+                                "output_text",
+                                "text",
+                                outputText,
+                                "annotations",
+                                List.of()))))));
     server.enqueue(
         new MockResponse()
             .setResponseCode(200)

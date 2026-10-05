@@ -17,6 +17,7 @@ import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 import org.grit.daynomy.portfolio.service.PortfolioAnalysisService;
@@ -60,12 +61,19 @@ class PortfolioAnalysisControllerTest {
             new BigDecimal("100"),
             ImpactDirection.POSITIVE,
             ImpactLevel.HIGH,
+            "반도체 수요가 증가했어요.",
             "주가가 상승할 수 있습니다.",
+            "수요 증가가 이어질 수 있어요.",
             "반도체 수요 증가가 예상됩니다.",
             "반도체 수요가 전년 대비 증가했습니다.",
             1);
     when(portfolioAnalysisService.analyze(request))
-        .thenReturn(PortfolioAnalysisResponse.of(1, List.of(impact)));
+        .thenReturn(
+            PortfolioAnalysisResponse.of(
+                1,
+                "반도체 비중이 높아 긍정적인 영향이 예상돼요.",
+                List.of(impact),
+                List.of(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"))));
 
     mockMvc
         .perform(
@@ -78,14 +86,19 @@ class PortfolioAnalysisControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.totalAssetCount").value(1))
         .andExpect(jsonPath("$.analyzedAssetCount").value(1))
+        .andExpect(jsonPath("$.overallImpact").value("반도체 비중이 높아 긍정적인 영향이 예상돼요."))
         .andExpect(jsonPath("$.impacts[0].assetName").value("삼성전자"))
         .andExpect(jsonPath("$.impacts[0].weight").value(100))
         .andExpect(jsonPath("$.impacts[0].direction").value("POSITIVE"))
         .andExpect(jsonPath("$.impacts[0].impactLevel").value("HIGH"))
-        .andExpect(jsonPath("$.impacts[0].summary").value("주가가 상승할 수 있습니다."))
+        .andExpect(jsonPath("$.impacts[0].issueSummary").value("반도체 수요가 증가했어요."))
+        .andExpect(jsonPath("$.impacts[0].expectedReaction").value("주가가 상승할 수 있습니다."))
+        .andExpect(jsonPath("$.impacts[0].outlook").value("수요 증가가 이어질 수 있어요."))
         .andExpect(jsonPath("$.impacts[0].reason").value("반도체 수요 증가가 예상됩니다."))
         .andExpect(jsonPath("$.impacts[0].evidenceSentence").value("반도체 수요가 전년 대비 증가했습니다."))
-        .andExpect(jsonPath("$.impacts[0].rank").value(1));
+        .andExpect(jsonPath("$.impacts[0].rank").value(1))
+        .andExpect(jsonPath("$.sources[0].title").value("한국거래소"))
+        .andExpect(jsonPath("$.sources[0].url").value("https://example.com/news"));
 
     verify(portfolioAnalysisService).analyze(request);
   }

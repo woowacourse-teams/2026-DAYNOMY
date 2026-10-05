@@ -14,6 +14,7 @@ import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
@@ -44,7 +45,10 @@ public class PortfolioAnalysisService {
                     PortfolioAssetImpactResponse.of(
                         impact, weightByAssetName.get(impact.assetName())))
             .toList();
-    return PortfolioAnalysisResponse.of(request.assets().size(), impacts);
+    List<PortfolioAnalysisSourceResponse> sources =
+        result.sources().stream().map(PortfolioAnalysisSourceResponse::from).toList();
+    return PortfolioAnalysisResponse.of(
+        request.assets().size(), result.overallImpact(), impacts, sources);
   }
 
   private void validateDistinctAssets(List<PortfolioAssetRequest> portfolioAssets) {
@@ -83,7 +87,9 @@ public class PortfolioAnalysisService {
 
   private List<PortfolioAnalysisTarget> createTargets(List<PortfolioAssetRequest> portfolioAssets) {
     return portfolioAssets.stream()
-        .map(portfolioAsset -> new PortfolioAnalysisTarget(portfolioAsset.assetName()))
+        .map(
+            portfolioAsset ->
+                new PortfolioAnalysisTarget(portfolioAsset.assetName(), portfolioAsset.weight()))
         .toList();
   }
 }

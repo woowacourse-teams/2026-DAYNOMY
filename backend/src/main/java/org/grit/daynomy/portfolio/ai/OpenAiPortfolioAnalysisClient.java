@@ -3,6 +3,7 @@ package org.grit.daynomy.portfolio.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -36,6 +37,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
             - 제공된 모든 자산을 impacts 결과에 한 번씩 포함하세요.
             - 각 자산과 관련성이 높고 신뢰할 수 있는 최신 검색 결과를 근거로 사용하세요.
+            - 검색 결과에서 확인한 출처를 반드시 인용하세요.
             - 영향이 큰 자산부터 정렬하세요.
             - assetName은 제공된 값을 그대로 사용하세요.
             - direction은 검색 결과에서 확인한 직접적인 영향만을 근거로 판단하세요.
@@ -48,9 +50,16 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - HIGH에 해당하지 않고 영향 규모가 작거나 일시적이라고 명시된 경우에는 LOW로 우선 판단하세요.
             - HIGH와 LOW에 해당하지 않으면서 직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.
             - expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.
+            - issueSummary에는 자산과 관련된 오늘의 주요 이슈를 요약하세요.
+            - outlook에는 검색 결과를 근거로 향후 방향성을 작성하세요.
             - reason에는 판단 근거를 자연스러운 해요체로 작성하세요.
-            - expectedReaction과 reason의 모든 문장은 '-했어요.', '-해요.', '-예요.'와 같은 해요체로 끝내세요.
-            - expectedReaction과 reason에 '-하다.', '-했음.', '-함.'과 같은 문어체나 명사형 종결 표현을 사용하지 마세요.
+            - overallImpact는 투자 초보자도 쉽게 이해할 수 있도록 3~4문장으로 작성하세요.
+            - overallImpact에는 포트폴리오에서 비중이 큰 자산과 주요 이슈를 먼저 설명하세요.
+            - 긍정·부정 요인이 전체 포트폴리오에 어떻게 작용하는지 구체적으로 설명하세요.
+            - overallImpact의 마지막 문장에는 앞으로 주의해서 볼 지표나 이슈를 안내하세요.
+            - 어려운 금융 용어와 단정적인 투자 권유 표현은 사용하지 마세요.
+            - issueSummary, expectedReaction, outlook, reason, overallImpact의 모든 문장은 '-했어요.', '-해요.', '-예요.'와 같은 해요체로 끝내세요.
+            - 사용자에게 노출되는 문장에 '-하다.', '-했음.', '-함.'과 같은 문어체나 명사형 종결 표현을 사용하지 마세요.
             - evidenceSentence에는 해당 자산의 direction과 impactLevel 판단을 뒷받침하는 검색 근거를 한 문장으로 작성하세요.
             - 중요한 관련 이슈를 찾지 못한 자산은 NEUTRAL과 LOW로 판단하고, 관련 이슈가 확인되지 않았음을 명시하세요.
             - 검색 결과에서 확인할 수 없는 사실을 단정하지 마세요.
@@ -75,7 +84,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   @Override
   public PortfolioAnalysisResult analyze(List<PortfolioAnalysisTarget> targets) {
     if (targets.isEmpty()) {
-      return new PortfolioAnalysisResult(List.of());
+      return new PortfolioAnalysisResult("", List.of(), List.of());
     }
 
     if (apiKey == null || apiKey.isBlank()) {
@@ -169,7 +178,9 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     Map<String, Object> content =
         Map.of(
             "assets",
-            targets.stream().map(target -> Map.of("assetName", target.assetName())).toList());
+            targets.stream()
+                .map(target -> Map.of("assetName", target.assetName(), "weight", target.weight()))
+                .toList());
 
     try {
       return objectMapper.writeValueAsString(content);
@@ -194,12 +205,13 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   private Map<String, Object> createSchema(List<PortfolioAnalysisTarget> targets) {
     Map<String, Object> properties = new LinkedHashMap<>();
+    properties.put("overallImpact", Map.of("type", "string"));
     properties.put("impacts", createImpactsSchema(targets));
 
     Map<String, Object> schema = new LinkedHashMap<>();
     schema.put("type", "object");
     schema.put("additionalProperties", false);
-    schema.put("required", List.of("impacts"));
+    schema.put("required", List.of("overallImpact", "impacts"));
     schema.put("properties", properties);
 
     return schema;
@@ -218,7 +230,9 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         "direction", Map.of("type", "string", "enum", enumNames(ImpactDirection.values())));
     impactProperties.put(
         "impactLevel", Map.of("type", "string", "enum", enumNames(ImpactLevel.values())));
+    impactProperties.put("issueSummary", Map.of("type", "string"));
     impactProperties.put("expectedReaction", Map.of("type", "string"));
+    impactProperties.put("outlook", Map.of("type", "string"));
     impactProperties.put("reason", Map.of("type", "string"));
     impactProperties.put("evidenceSentence", Map.of("type", "string"));
 
@@ -231,7 +245,9 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "assetName",
             "direction",
             "impactLevel",
+            "issueSummary",
             "expectedReaction",
+            "outlook",
             "reason",
             "evidenceSentence"));
     impactItem.put("properties", impactProperties);
@@ -253,14 +269,17 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   private PortfolioAnalysisResult parseAnalysis(
       String response, List<PortfolioAnalysisTarget> targets) {
-    String outputText = extractOutputText(response);
+    OutputContent output = extractOutputContent(response);
 
     try {
-      JsonNode root = objectMapper.readTree(outputText);
+      JsonNode root = objectMapper.readTree(output.text());
       if (root == null) {
         throw analysisFailed();
       }
-      return new PortfolioAnalysisResult(parseImpacts(root.path("impacts"), targets));
+      return new PortfolioAnalysisResult(
+          requiredText(root, "overallImpact"),
+          parseImpacts(root.path("impacts"), targets),
+          output.sources());
     } catch (JsonProcessingException | IllegalArgumentException exception) {
       throw analysisFailed();
     }
@@ -308,9 +327,15 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               target.assetName(),
               ImpactDirection.valueOf(impactNode.path("direction").asText()),
               ImpactLevel.valueOf(impactNode.path("impactLevel").asText()),
-              impactNode.path("expectedReaction").asText(),
-              impactNode.path("reason").asText(),
+              requiredText(impactNode, "issueSummary"),
+              requiredText(impactNode, "expectedReaction"),
+              requiredText(impactNode, "outlook"),
+              requiredText(impactNode, "reason"),
               evidenceSentence));
+    }
+
+    if (analyzedAssetNames.size() != targets.size()) {
+      throw analysisFailed();
     }
 
     parsedImpacts.sort(
@@ -332,7 +357,15 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     };
   }
 
-  private String extractOutputText(String response) {
+  private String requiredText(JsonNode node, String fieldName) {
+    JsonNode field = node.path(fieldName);
+    if (!field.isTextual() || field.textValue().isBlank()) {
+      throw analysisFailed();
+    }
+    return field.textValue();
+  }
+
+  private OutputContent extractOutputContent(String response) {
     try {
       JsonNode root = objectMapper.readTree(response);
       if (root == null) {
@@ -355,7 +388,12 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
           if ("output_text".equals(contentItem.path("type").asText())) {
             String outputText = contentItem.path("text").asText();
             if (!outputText.isBlank()) {
-              return outputText;
+              List<PortfolioAnalysisResult.Source> sources =
+                  parseSources(contentItem.path("annotations"));
+              if (sources.isEmpty()) {
+                throw analysisFailed();
+              }
+              return new OutputContent(outputText, sources);
             }
           }
         }
@@ -367,6 +405,36 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     throw analysisFailed();
   }
 
+  private List<PortfolioAnalysisResult.Source> parseSources(JsonNode annotationsNode) {
+    if (!annotationsNode.isArray()) {
+      throw analysisFailed();
+    }
+
+    Map<String, PortfolioAnalysisResult.Source> sourceByUrl = new LinkedHashMap<>();
+    for (JsonNode annotation : annotationsNode) {
+      if (!"url_citation".equals(annotation.path("type").asText())) {
+        continue;
+      }
+
+      String title = requiredText(annotation, "title");
+      String url = requiredText(annotation, "url");
+      if (!isHttpUrl(url)) {
+        throw analysisFailed();
+      }
+      sourceByUrl.putIfAbsent(url, new PortfolioAnalysisResult.Source(title, url));
+    }
+    return List.copyOf(sourceByUrl.values());
+  }
+
+  private boolean isHttpUrl(String url) {
+    try {
+      String scheme = URI.create(url).getScheme();
+      return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+    } catch (IllegalArgumentException exception) {
+      return false;
+    }
+  }
+
   private BusinessException analysisFailed() {
     return new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
   }
@@ -375,13 +443,25 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       String assetName,
       ImpactDirection direction,
       ImpactLevel impactLevel,
+      String issueSummary,
       String expectedReaction,
+      String outlook,
       String reason,
       String evidenceSentence) {
 
     private PortfolioAnalysisResult.AssetImpactResult toResult(int sortOrder) {
       return new PortfolioAnalysisResult.AssetImpactResult(
-          assetName, direction, impactLevel, expectedReaction, reason, evidenceSentence, sortOrder);
+          assetName,
+          direction,
+          impactLevel,
+          issueSummary,
+          expectedReaction,
+          outlook,
+          reason,
+          evidenceSentence,
+          sortOrder);
     }
   }
+
+  private record OutputContent(String text, List<PortfolioAnalysisResult.Source> sources) {}
 }
