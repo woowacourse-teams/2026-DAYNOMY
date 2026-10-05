@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -257,7 +258,14 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "sourceUrls"));
     impactItem.put("properties", impactProperties);
 
-    return Map.of("type", "array", "items", impactItem);
+    Map<String, Object> impactsSchema = new LinkedHashMap<>();
+    impactsSchema.put("type", "array");
+    impactsSchema.put("items", impactItem);
+    if (!model.startsWith("ft:")) {
+      impactsSchema.put("minItems", targets.size());
+      impactsSchema.put("maxItems", targets.size());
+    }
+    return impactsSchema;
   }
 
   private <E extends Enum<E>> List<String> enumNames(E[] values) {
@@ -275,7 +283,12 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       }
       Map<String, PortfolioAnalysisResult.Source> sourceByUrl =
           output.sources().stream()
-              .collect(Collectors.toMap(PortfolioAnalysisResult.Source::url, source -> source));
+              .collect(
+                  Collectors.toMap(
+                      source -> normalizeSourceUrl(source.url()),
+                      source -> source,
+                      (first, ignored) -> first,
+                      LinkedHashMap::new));
       return new PortfolioAnalysisResult(
           requiredText(root, "overallImpact"),
           parseImpacts(root.path("impacts"), targets, sourceByUrl),
@@ -373,13 +386,41 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         throw analysisFailed();
       }
       String sourceUrl = sourceUrlNode.textValue();
-      PortfolioAnalysisResult.Source source = sourceByUrl.get(sourceUrl);
+      PortfolioAnalysisResult.Source source = sourceByUrl.get(normalizeSourceUrl(sourceUrl));
       if (source == null) {
-        throw analysisFailed();
+        continue;
       }
-      assetSourceByUrl.putIfAbsent(sourceUrl, source);
+      assetSourceByUrl.putIfAbsent(source.url(), source);
     }
     return List.copyOf(assetSourceByUrl.values());
+  }
+
+  private String normalizeSourceUrl(String url) {
+    try {
+      URI uri = URI.create(url).normalize();
+      String scheme = uri.getScheme();
+      String authority = uri.getRawAuthority();
+      if (scheme == null || authority == null) {
+        return url;
+      }
+
+      String path = uri.getRawPath();
+      if (path != null && path.length() > 1 && path.endsWith("/")) {
+        path = path.substring(0, path.length() - 1);
+      }
+      String query =
+          Arrays.stream(uri.getRawQuery() == null ? new String[0] : uri.getRawQuery().split("&"))
+              .filter(parameter -> !parameter.toLowerCase(Locale.ROOT).startsWith("utm_source="))
+              .collect(Collectors.joining("&"));
+
+      return scheme.toLowerCase(Locale.ROOT)
+          + "://"
+          + authority.toLowerCase(Locale.ROOT)
+          + (path == null ? "" : path)
+          + (query.isBlank() ? "" : "?" + query);
+    } catch (IllegalArgumentException exception) {
+      return url;
+    }
   }
 
   private int impactLevelPriority(ImpactLevel impactLevel) {
