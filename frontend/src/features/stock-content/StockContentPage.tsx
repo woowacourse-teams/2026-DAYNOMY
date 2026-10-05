@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import defaultNewsImage from '../../assets/default-news-real-estate.webp';
 import { getStockRelatedContents } from './api';
@@ -124,6 +124,9 @@ export function StockContentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeVideoId, setActiveVideoId] = useState<number | null>(null);
+  const activeVideoTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const modalDialogRef = useRef<HTMLElement | null>(null);
+  const modalCloseButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!Number.isSafeInteger(assetId) || assetId <= 0) {
@@ -159,16 +162,48 @@ export function StockContentPage() {
     if (activeVideoId === null) return;
 
     const previousOverflow = document.body.style.overflow;
+    const trigger = activeVideoTriggerRef.current;
+    const focusableSelector =
+      'button:not([disabled]), iframe, a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setActiveVideoId(null);
+      if (event.key === 'Escape') {
+        setActiveVideoId(null);
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const dialog = modalDialogRef.current;
+      if (!dialog) return;
+
+      const focusableElements = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus();
+      } else if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
     };
 
     document.body.style.overflow = 'hidden';
+    modalCloseButtonRef.current?.focus();
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
+      if (trigger && document.contains(trigger)) trigger.focus();
     };
   }, [activeVideoId]);
 
@@ -291,7 +326,10 @@ export function StockContentPage() {
                                     className="stock-content-video-preview"
                                     type="button"
                                     aria-label={`${content.title} 크게 재생`}
-                                    onClick={() => setActiveVideoId(content.id)}
+                                    onClick={(event) => {
+                                      activeVideoTriggerRef.current = event.currentTarget;
+                                      setActiveVideoId(content.id);
+                                    }}
                                   >
                                     <YouTubeThumbnail content={content} />
                                     <span className="stock-content-video-play" aria-hidden="true">
@@ -360,6 +398,7 @@ export function StockContentPage() {
         >
           <section
             className="stock-content-video-modal-dialog"
+            ref={modalDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="stock-content-video-modal-title"
@@ -369,6 +408,7 @@ export function StockContentPage() {
               <strong id="stock-content-video-modal-title">{activeVideo.title}</strong>
               <button
                 className="stock-content-video-modal-close"
+                ref={modalCloseButtonRef}
                 type="button"
                 aria-label="영상 닫기"
                 onClick={() => setActiveVideoId(null)}

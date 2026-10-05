@@ -94,16 +94,25 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
 
     expect(view.container.querySelectorAll('iframe')).toHaveLength(0);
 
-    fireEvent.click(await view.findByRole('button', { name: '삼성전자 분석 영상 크게 재생' }));
+    const trigger = await view.findByRole('button', { name: '삼성전자 분석 영상 크게 재생' });
+    fireEvent.click(trigger);
 
     expect(view.getByRole('dialog')).toBeTruthy();
+    const closeButton = view.getByRole('button', { name: '영상 닫기' });
+    expect(document.activeElement).toBe(closeButton);
     expect(view.getByTitle('삼성전자 분석 영상').getAttribute('src')).toBe(
       'https://www.youtube.com/embed/abc?autoplay=1&playsinline=1&rel=0',
     );
     expect(view.container.querySelectorAll('iframe')).toHaveLength(1);
 
-    fireEvent.click(view.getByRole('button', { name: '영상 닫기' }));
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(view.getByTitle('삼성전자 분석 영상'));
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(document.activeElement).toBe(closeButton);
+
+    fireEvent.click(closeButton);
     expect(view.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it('YouTube로 확인할 수 없는 URL은 기존 링크로 표시한다', async () => {
