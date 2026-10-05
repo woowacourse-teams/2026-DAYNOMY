@@ -2364,27 +2364,73 @@
   color: #c34a50;
 }
 
-.portfolio-related-content-row td {
-  padding: 0;
-  background: #f8fafc;
+.portfolio-dashboard-layout {
+  min-width: 0;
+}
+
+.portfolio-dashboard-layout.has-related-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 420px);
+  gap: 24px;
+  align-items: start;
+}
+
+.portfolio-dashboard-main {
+  min-width: 0;
+}
+
+.portfolio-holdings-layout {
+  min-width: 0;
+}
+
+.portfolio-holdings-table-column {
+  min-width: 0;
 }
 
 .portfolio-related-content-panel {
+  position: sticky;
+  top: 24px;
   display: grid;
-  gap: 10px;
-  padding: 16px 20px;
-  border-top: 1px solid var(--portfolio-demo-line);
+  align-content: start;
+  gap: 14px;
+  max-height: calc(100svh - 48px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--portfolio-demo-line);
+  background: #f8fafc;
 }
 
-.portfolio-related-content-panel > strong {
+.portfolio-related-content-heading {
+  position: sticky;
+  top: -20px;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -20px -20px 0;
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid #e4ebf3;
+  background: #f8fafc;
+}
+
+.portfolio-related-content-heading strong {
   color: #27354a;
-  font-size: 13px;
+  font-size: 15px;
+}
+
+.portfolio-related-content-heading span {
+  color: #7c8da3;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .portfolio-related-content-panel > p {
   margin: 0;
   color: #65748a;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .portfolio-related-content-panel > p[role='alert'] {
@@ -2393,7 +2439,7 @@
 
 .portfolio-related-content-panel ul {
   display: grid;
-  gap: 8px;
+  gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -2401,14 +2447,21 @@
 
 .portfolio-related-content-panel li {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 14px;
   min-width: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e4ebf3;
+}
+
+.portfolio-related-content-panel li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .portfolio-related-content-panel li > img {
-  width: 96px;
-  height: 54px;
+  width: 112px;
+  height: 63px;
   flex: 0 0 auto;
   border-radius: 6px;
   object-fit: cover;
@@ -2424,17 +2477,49 @@
 .portfolio-related-content-panel li span {
   flex: 0 0 auto;
   color: var(--portfolio-accent);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .portfolio-related-content-panel li a {
+  display: -webkit-box;
   overflow: hidden;
   color: #27354a;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.5;
   text-overflow: ellipsis;
   text-decoration: none;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.portfolio-related-content-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: sticky;
+  bottom: -20px;
+  z-index: 1;
+  width: 100%;
+  justify-self: start;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid #cbd7e5;
+  border-radius: 5px;
+  color: var(--portfolio-accent);
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  box-shadow: 0 -8px 16px rgb(248 250 252 / 92%);
+}
+
+.portfolio-related-content-more:hover {
+  border-color: var(--portfolio-accent);
+  background: #f5f8fc;
 }
 
 .portfolio-related-content-panel li a:hover {
@@ -2472,7 +2557,28 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 620px) {
+  .portfolio-dashboard-layout.has-related-content {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-related-content-panel {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .portfolio-related-content-heading,
+  .portfolio-related-content-more {
+    position: static;
+  }
+
+  .portfolio-related-content-more {
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 620px) {
   .portfolio-dashboard-grid {
     grid-template-columns: 1fr;
     gap: 16px;
