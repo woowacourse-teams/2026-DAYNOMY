@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { syncAdminStockPrices, syncAdminStocks } from './api';
 import type { AdminStockPriceSyncResponse, AdminStockSyncResponse } from './types';
-import { AdminStockContentsPanel } from './AdminStockContentsPanel';
 import './admin.css';
 
 type SyncTask = 'stocks' | 'prices';
@@ -159,7 +158,6 @@ export function AdminStockSyncPage() {
           ) : null}
         </section>
       </div>
-      <AdminStockContentsPanel />
     </main>
   );
 }
