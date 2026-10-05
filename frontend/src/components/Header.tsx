@@ -49,15 +49,24 @@ export function Header() {
         DAYNOMY
       </Link>
       <nav className="header-tabs" aria-label="주요 메뉴">
-        <Link className={isPortfolioPage ? 'header-tab active' : 'header-tab'} to="/">
+        <Link
+          className={isPortfolioPage ? 'header-tab active' : 'header-tab'}
+          to="/"
+          aria-current={isPortfolioPage ? 'page' : undefined}
+        >
           포트폴리오
         </Link>
-        <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/news">
+        <Link
+          className={isNewsPage ? 'header-tab active' : 'header-tab'}
+          to="/news"
+          aria-current={isNewsPage ? 'page' : undefined}
+        >
           이슈
         </Link>
         <Link
           className={isInvestmentCalendarPage ? 'header-tab active' : 'header-tab'}
           to="/investment-calendar"
+          aria-current={isInvestmentCalendarPage ? 'page' : undefined}
         >
           투자 캘린더
         </Link>

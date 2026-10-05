@@ -102,12 +102,22 @@
 }
 
 .investment-calendar-month-control button {
+  display: grid;
+  place-items: center;
   width: 25px;
   height: 30px;
   padding: 0;
   color: var(--calendar-muted);
-  font-size: 22px;
-  line-height: 1;
+}
+
+.investment-calendar-month-control svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .investment-calendar-view-button {
@@ -139,7 +149,6 @@
 
 .investment-calendar-event-button[aria-pressed='true'] {
   background: var(--calendar-blue-soft);
-  box-shadow: inset 3px 0 0 var(--calendar-blue);
 }
 
 .investment-calendar-date {
@@ -550,12 +559,15 @@
     margin-left: 0;
   }
 
-  .investment-calendar-table-wrap {
-    overflow-x: auto;
+  .investment-calendar-table-wrap table {
+    table-layout: fixed;
   }
 
-  .investment-calendar-table-wrap table {
-    min-width: 440px;
+  .investment-calendar-table-wrap th,
+  .investment-calendar-table-wrap td {
+    padding-right: 4px;
+    padding-left: 4px;
+    font-size: 11px;
   }
 
   .investment-calendar-last-result {

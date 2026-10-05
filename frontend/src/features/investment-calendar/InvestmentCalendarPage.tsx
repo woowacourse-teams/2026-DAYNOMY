@@ -11,6 +11,15 @@ import './investmentCalendar.css';
 const SEOUL_TIME_ZONE = 'Asia/Seoul';
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
+function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
+  const path = direction === 'left' ? '15 18 9 12 15 6' : '9 18 15 12 9 6';
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <polyline points={path} />
+    </svg>
+  );
+}
+
 function initialMonth() {
   if (import.meta.env.DEV && import.meta.env.VITE_INVESTMENT_CALENDAR_MOCK_ENABLED !== 'false') {
     return { year: 2026, month: 10 };
@@ -341,13 +350,13 @@ export function InvestmentCalendarPage() {
           <div className="investment-calendar-panel-head">
             <div className="investment-calendar-month-control">
               <button type="button" aria-label="이전 달" onClick={() => changeMonth(-1)}>
-                ‹
+                <ChevronIcon direction="left" />
               </button>
               <strong>
                 {year}년 {month}월
               </strong>
               <button type="button" aria-label="다음 달" onClick={() => changeMonth(1)}>
-                ›
+                <ChevronIcon direction="right" />
               </button>
             </div>
             <button
