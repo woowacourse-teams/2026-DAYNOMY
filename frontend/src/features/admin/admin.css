@@ -1496,6 +1496,15 @@
     justify-content: flex-start;
   }
 
+  .admin-related-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-related-form .admin-primary-button {
+    width: 100%;
+  }
+
   .admin-news-table,
   .admin-news-table tbody,
   .admin-news-table tr,
