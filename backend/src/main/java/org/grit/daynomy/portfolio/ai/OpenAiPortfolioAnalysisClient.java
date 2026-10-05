@@ -253,15 +253,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "evidenceSentence"));
     impactItem.put("properties", impactProperties);
 
-    return Map.of(
-        "type",
-        "array",
-        "minItems",
-        targets.size(),
-        "maxItems",
-        targets.size(),
-        "items",
-        impactItem);
+    return Map.of("type", "array", "items", impactItem);
   }
 
   private <E extends Enum<E>> List<String> enumNames(E[] values) {
