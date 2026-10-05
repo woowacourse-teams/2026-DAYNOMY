@@ -29,12 +29,12 @@ public record AdminNewsUpdateRequest(
         List<@NotNull @Positive Long> assetIds) {
 
   public AdminNewsUpdateRequest {
-    assetIds = assetIds == null ? List.of() : List.copyOf(assetIds);
+    assetIds = assetIds == null ? null : List.copyOf(assetIds);
   }
 
   public AdminNewsUpdateRequest(
       String title, String content, List<NewsSourceRequest> sources, Category category) {
-    this(title, content, sources, category, null, null, List.of());
+    this(title, content, sources, category, null, null, null);
   }
 
   public AdminNewsUpdateRequest(
@@ -43,7 +43,7 @@ public record AdminNewsUpdateRequest(
       List<NewsSourceRequest> sources,
       Category category,
       ImageSourceRequest imageSource) {
-    this(title, content, sources, category, imageSource, null, List.of());
+    this(title, content, sources, category, imageSource, null, null);
   }
 
   public AdminNewsUpdateRequest(
@@ -53,7 +53,7 @@ public record AdminNewsUpdateRequest(
       Category category,
       ImageSourceRequest imageSource,
       WikimediaImageSelectionRequest imageSelection) {
-    this(title, content, sources, category, imageSource, imageSelection, List.of());
+    this(title, content, sources, category, imageSource, imageSelection, null);
   }
 
   public List<NewsSourceInfo> sourceInfos() {

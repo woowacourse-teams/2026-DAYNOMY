@@ -228,7 +228,9 @@ public class AdminNewsService {
           imageSourceForUpdate(news, request, imageUpload),
           request.sourceInfos(),
           request.category());
-      assetContentService.syncNewsContents(news, request.assetIds());
+      if (request.assetIds() != null) {
+        assetContentService.syncNewsContents(news, request.assetIds());
+      }
       if (uploadedImage != null) {
         newsRepository.flush();
         registerImageCleanup(previousImageUrl, uploadedImage);
