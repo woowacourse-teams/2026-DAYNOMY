@@ -109,6 +109,50 @@ function mockPortfolioApi() {
         });
       if (url.endsWith('/api/auth/csrf'))
         return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      if (url.endsWith('/api/assets/1/contents'))
+        return jsonResponse({
+          assetId: 1,
+          assetCode: '005930',
+          assetName: '삼성전자',
+          contents: [
+            {
+              id: 10,
+              assetId: 1,
+              sourceType: 'YOUTUBE',
+              title: '삼성전자 분석 영상',
+              url: 'https://youtube.com/watch?v=abc',
+              imageUrl: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
+              createdAt: null,
+            },
+            {
+              id: 11,
+              assetId: 1,
+              sourceType: 'YOUTUBE',
+              title: '삼성전자 두 번째 분석 영상',
+              url: 'https://youtube.com/watch?v=def',
+              imageUrl: 'https://i.ytimg.com/vi/def/hqdefault.jpg',
+              createdAt: null,
+            },
+            {
+              id: 12,
+              assetId: 1,
+              sourceType: 'INTERNAL_NEWS',
+              title: '삼성전자 관련 이슈',
+              url: '/news/12',
+              imageUrl: null,
+              createdAt: null,
+            },
+            ...Array.from({ length: 8 }, (_, index) => ({
+              id: 20 + index,
+              assetId: 1,
+              sourceType: 'YOUTUBE',
+              title: `삼성전자 추가 콘텐츠 ${index + 1}`,
+              url: `https://youtube.com/watch?v=extra-${index + 1}`,
+              imageUrl: null,
+              createdAt: null,
+            })),
+          ],
+        });
       if (url.endsWith('/api/portfolio/calculate')) {
         const request = JSON.parse(String(init?.body)) as {
           holdings: Array<{ assetId: number; quantity: number; averagePurchasePrice: number }>;
@@ -151,6 +195,35 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage />);
     expect(await view.findByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeTruthy();
     expect(view.getByRole('button', { name: /자산 추가/ })).toBeTruthy();
+  });
+
+  it('보유 자산의 소식을 펼치고 이미지를 표시한다', async () => {
+    localStorage.setItem(
+      PORTFOLIO_STORAGE_KEY,
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+
+    const view = render(<PortfolioPage />);
+    await view.findAllByText('750,000원');
+    fireEvent.click(view.getByRole('button', { name: '소식' }));
+
+    expect(await view.findByText('삼성전자 분석 영상')).toBeTruthy();
+    const dashboardLayout = view.container.querySelector(
+      '.portfolio-dashboard-layout.has-related-content',
+    );
+    expect(dashboardLayout).not.toBeNull();
+    expect(view.getByRole('complementary', { name: '소식' })).toBeTruthy();
+    expect(
+      dashboardLayout?.querySelector('.portfolio-holdings .portfolio-related-content-panel'),
+    ).toBeNull();
+    const moreLink = view.getByRole('link', { name: '더보기' });
+    expect(moreLink.getAttribute('href')).toBe('/stocks/1');
+    expect(view.getByText('삼성전자 관련 이슈')).toBeTruthy();
+    expect(view.queryByText('삼성전자 추가 콘텐츠 8')).toBeNull();
+    expect(
+      view.container.querySelector<HTMLImageElement>('.portfolio-related-content-panel img')?.src,
+    ).toBe('https://i.ytimg.com/vi/abc/hqdefault.jpg');
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {

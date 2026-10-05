@@ -9,6 +9,8 @@ import {
   searchWikimediaImages,
   updateAdminNews,
 } from './api';
+import { searchStocks } from '../portfolio/api';
+import type { StockSearchItem } from '../portfolio/types';
 import type { AdminNewsFormValues, AdminWikimediaImageCandidate } from './types';
 import './admin.css';
 
@@ -18,6 +20,7 @@ const initialValues: AdminNewsFormValues = {
   sources: [{ name: '', url: '' }],
   category: '',
   imageSelection: null,
+  assetIds: [],
 };
 
 type FormErrors = Partial<Record<'title' | 'content' | 'category' | 'sources' | 'image', string>>;
@@ -90,11 +93,21 @@ export function AdminNewsFormPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [detailLoadError, setDetailLoadError] = useState<string | null>(null);
+  const [assetSearchKeyword, setAssetSearchKeyword] = useState('');
+  const [assetSearchResults, setAssetSearchResults] = useState<StockSearchItem[]>([]);
+  const [selectedAssets, setSelectedAssets] = useState<StockSearchItem[]>([]);
+  const [assetSearchLoading, setAssetSearchLoading] = useState(false);
+  const [assetSearchError, setAssetSearchError] = useState<string | null>(null);
   const imageSearchRequestId = useRef(0);
   const imageSearchController = useRef<AbortController | null>(null);
+  const assetSearchRequestId = useRef(0);
+  const assetSearchController = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    return () => imageSearchController.current?.abort();
+    return () => {
+      imageSearchController.current?.abort();
+      assetSearchController.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -112,7 +125,9 @@ export function AdminNewsFormPage() {
           sources: news.sources.length > 0 ? news.sources : [{ name: '', url: '' }],
           category: news.category,
           imageSelection: null,
+          assetIds: (news.relatedAssets ?? []).map((asset) => asset.assetId),
         });
+        setSelectedAssets(news.relatedAssets ?? []);
         setExistingImageUrl(news.imageUrl);
       })
       .catch((error) => {
@@ -143,9 +158,63 @@ export function AdminNewsFormPage() {
     [existingImageUrl, imagePreview, selectedImageCandidate],
   );
 
-  function updateField(field: Exclude<keyof AdminNewsFormValues, 'sources'>, value: string) {
+  function updateField(
+    field: Exclude<keyof AdminNewsFormValues, 'sources' | 'assetIds'>,
+    value: string,
+  ) {
     setValues((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
+  }
+
+  async function searchRelatedAssets() {
+    const keyword = assetSearchKeyword.trim();
+    const requestId = assetSearchRequestId.current + 1;
+    assetSearchRequestId.current = requestId;
+    assetSearchController.current?.abort();
+    assetSearchController.current = null;
+
+    if (!keyword) {
+      setAssetSearchError('종목명 또는 종목코드를 입력해 주세요.');
+      setAssetSearchResults([]);
+      setAssetSearchLoading(false);
+      return;
+    }
+
+    setAssetSearchLoading(true);
+    setAssetSearchError(null);
+    const controller = new AbortController();
+    assetSearchController.current = controller;
+    try {
+      const results = await searchStocks(keyword, controller.signal);
+      if (requestId !== assetSearchRequestId.current) return;
+      setAssetSearchResults(results);
+    } catch (error) {
+      if (controller.signal.aborted || requestId !== assetSearchRequestId.current) return;
+      setAssetSearchResults([]);
+      setAssetSearchError(getErrorMessage(error, '관련 종목을 검색하지 못했습니다.'));
+    } finally {
+      if (requestId === assetSearchRequestId.current) {
+        setAssetSearchLoading(false);
+        assetSearchController.current = null;
+      }
+    }
+  }
+
+  function addRelatedAsset(asset: StockSearchItem) {
+    if (selectedAssets.some((selected) => selected.assetId === asset.assetId)) return;
+    setSelectedAssets((current) => [...current, asset]);
+    setValues((current) => ({
+      ...current,
+      assetIds: [...(current.assetIds ?? []), asset.assetId],
+    }));
+  }
+
+  function removeRelatedAsset(assetId: number) {
+    setSelectedAssets((current) => current.filter((asset) => asset.assetId !== assetId));
+    setValues((current) => ({
+      ...current,
+      assetIds: (current.assetIds ?? []).filter((selectedId) => selectedId !== assetId),
+    }));
   }
 
   function updateSource(index: number, field: 'name' | 'url', value: string) {
@@ -384,6 +453,82 @@ export function AdminNewsFormPage() {
               <small className="admin-field-error">{errors.category}</small>
             ) : null}
           </label>
+
+          <fieldset className="admin-related-assets">
+            <legend>관련 종목</legend>
+            <p className="admin-field-hint">
+              발행 후 해당 종목의 정보 허브에 이 뉴스가 자동으로 표시됩니다.
+            </p>
+            <div className="admin-related-asset-search">
+              <label className="admin-field">
+                <span className="sr-only">관련 종목 검색</span>
+                <input
+                  value={assetSearchKeyword}
+                  onChange={(event) => setAssetSearchKeyword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void searchRelatedAssets();
+                    }
+                  }}
+                  placeholder="삼성전자 또는 005930"
+                />
+              </label>
+              <button
+                className="admin-secondary-button"
+                type="button"
+                onClick={() => void searchRelatedAssets()}
+                disabled={assetSearchLoading}
+              >
+                {assetSearchLoading ? '종목 검색 중…' : '종목 검색'}
+              </button>
+            </div>
+            {assetSearchError ? (
+              <small className="admin-field-error">{assetSearchError}</small>
+            ) : null}
+            {assetSearchResults.length > 0 ? (
+              <ul className="admin-related-asset-results">
+                {assetSearchResults.map((asset) => {
+                  const selected = selectedAssets.some(
+                    (selectedAsset) => selectedAsset.assetId === asset.assetId,
+                  );
+                  return (
+                    <li key={asset.assetId}>
+                      <button
+                        type="button"
+                        onClick={() => addRelatedAsset(asset)}
+                        disabled={selected || selectedAssets.length >= 20}
+                      >
+                        <strong>{asset.name}</strong>
+                        <span>
+                          {asset.assetCode} · {asset.market}
+                        </span>
+                        <em>{selected ? '선택됨' : '추가'}</em>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            {selectedAssets.length > 0 ? (
+              <ul className="admin-selected-assets" aria-label="선택한 관련 종목">
+                {selectedAssets.map((asset) => (
+                  <li key={asset.assetId}>
+                    <span>
+                      {asset.name} · {asset.assetCode}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeRelatedAsset(asset.assetId)}
+                      aria-label={`${asset.name} 관련 종목 선택 해제`}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </fieldset>
 
           <fieldset className="admin-sources">
             <legend>

@@ -1,4 +1,5 @@
 import type { Category } from '../news/newslist/types';
+import type { StockSearchItem } from '../portfolio/types';
 
 export type AdminNewsStatus = 'DRAFT' | 'PUBLISHED' | 'REJECTED' | 'DELETED';
 export type AdminNewsSource = {
@@ -62,6 +63,7 @@ export type AdminNewsResponse = {
   category: Category;
   publishedAt: string | null;
   status: AdminNewsStatus;
+  relatedAssets?: StockSearchItem[];
 };
 
 export type AdminNewsFormValues = {
@@ -70,6 +72,7 @@ export type AdminNewsFormValues = {
   sources: AdminNewsSource[];
   category: Category | '';
   imageSelection?: AdminWikimediaImageSelection | null;
+  assetIds?: number[];
 };
 
 export type AdminNewsFilterStatus = AdminNewsStatus | 'ALL';
