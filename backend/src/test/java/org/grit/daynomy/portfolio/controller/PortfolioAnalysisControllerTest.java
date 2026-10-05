@@ -15,6 +15,7 @@ import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
+import org.grit.daynomy.portfolio.domain.PortfolioImpactSummary;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
@@ -71,6 +72,11 @@ class PortfolioAnalysisControllerTest {
         .thenReturn(
             PortfolioAnalysisResponse.of(
                 1,
+                new PortfolioImpactSummary(
+                    ImpactDirection.POSITIVE,
+                    new BigDecimal("100.00"),
+                    new BigDecimal("100.00"),
+                    new BigDecimal("0.00")),
                 "반도체 비중이 높아 긍정적인 영향이 예상돼요.",
                 List.of(impact),
                 List.of(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"))));
@@ -86,6 +92,10 @@ class PortfolioAnalysisControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.totalAssetCount").value(1))
         .andExpect(jsonPath("$.analyzedAssetCount").value(1))
+        .andExpect(jsonPath("$.overallDirection").value("POSITIVE"))
+        .andExpect(jsonPath("$.overallScore").value(100.00))
+        .andExpect(jsonPath("$.positiveImpactScore").value(100.00))
+        .andExpect(jsonPath("$.negativeImpactScore").value(0.00))
         .andExpect(jsonPath("$.overallImpact").value("반도체 비중이 높아 긍정적인 영향이 예상돼요."))
         .andExpect(jsonPath("$.impacts[0].assetName").value("삼성전자"))
         .andExpect(jsonPath("$.impacts[0].weight").value(100))

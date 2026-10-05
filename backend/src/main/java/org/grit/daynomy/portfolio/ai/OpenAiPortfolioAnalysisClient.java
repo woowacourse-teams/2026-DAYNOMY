@@ -56,6 +56,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - overallImpact는 투자 초보자도 쉽게 이해할 수 있도록 3~4문장으로 작성하세요.
             - overallImpact에는 포트폴리오에서 비중이 큰 자산과 주요 이슈를 먼저 설명하세요.
             - 긍정·부정 요인이 전체 포트폴리오에 어떻게 작용하는지 구체적으로 설명하세요.
+            - 전체 포트폴리오의 최종 긍정·중립·부정 방향은 서버가 계산하므로 overallImpact에서 최종 방향을 단정하지 마세요.
             - overallImpact의 마지막 문장에는 앞으로 주의해서 볼 지표나 이슈를 안내하세요.
             - 어려운 금융 용어와 단정적인 투자 권유 표현은 사용하지 마세요.
             - issueSummary, expectedReaction, outlook, reason, overallImpact의 모든 문장은 '-했어요.', '-해요.', '-예요.'와 같은 해요체로 끝내세요.
