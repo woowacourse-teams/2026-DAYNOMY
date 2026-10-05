@@ -503,10 +503,10 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
   const canAnalyze = assets.length > 0 && !loading;
 
   return (
-    <section className="portfolio-analysis-section" aria-labelledby="portfolio-analysis-title">
+    <section className="portfolio-analysis-section" aria-labelledby="portfolio-ai-analysis-title">
       <div className={`portfolio-analysis-heading${hasAnalysis ? ' has-analysis' : ''}`}>
         <div>
-          <h2 id="portfolio-analysis-title">
+          <h2 id="portfolio-ai-analysis-title">
             {hasAnalysis ? '오늘의 포트폴리오 분석' : '포트폴리오 AI 분석'}
           </h2>
           <p>
