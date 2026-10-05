@@ -21,7 +21,13 @@ public record PortfolioAnalysisResult(
       String outlook,
       String reason,
       String evidenceSentence,
-      int sortOrder) {}
+      List<Source> sources,
+      int sortOrder) {
+
+    public AssetImpactResult {
+      sources = List.copyOf(sources);
+    }
+  }
 
   public record Source(String title, String url) {}
 }

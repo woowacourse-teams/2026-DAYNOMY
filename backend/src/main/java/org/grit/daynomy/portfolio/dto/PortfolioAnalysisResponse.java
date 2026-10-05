@@ -2,6 +2,7 @@ package org.grit.daynomy.portfolio.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.portfolio.domain.PortfolioImpactSummary;
@@ -17,6 +18,7 @@ public record PortfolioAnalysisResponse(
         BigDecimal positiveImpactScore,
     @Schema(description = "부정 자산의 보유 비중과 영향 수준을 반영한 기여 점수(0~100)", example = "9.00")
         BigDecimal negativeImpactScore,
+    @Schema(description = "분석 생성 시각. 분석 결과가 없으면 null", nullable = true) Instant analyzedAt,
     @Schema(description = "자산별 분석을 종합한 전체 포트폴리오 예상 영향") String overallImpact,
     @Schema(description = "포트폴리오 자산별 주요 이슈 영향 분석 목록") List<PortfolioAssetImpactResponse> impacts,
     @Schema(description = "분석에 사용된 웹 검색 출처") List<PortfolioAnalysisSourceResponse> sources) {
@@ -29,6 +31,7 @@ public record PortfolioAnalysisResponse(
   public static PortfolioAnalysisResponse of(
       int totalAssetCount,
       PortfolioImpactSummary impactSummary,
+      Instant analyzedAt,
       String overallImpact,
       List<PortfolioAssetImpactResponse> impacts,
       List<PortfolioAnalysisSourceResponse> sources) {
@@ -39,6 +42,7 @@ public record PortfolioAnalysisResponse(
         impactSummary.score(),
         impactSummary.positiveScore(),
         impactSummary.negativeScore(),
+        analyzedAt,
         overallImpact,
         impacts,
         sources);
@@ -52,6 +56,7 @@ public record PortfolioAnalysisResponse(
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
+        null,
         "",
         List.of(),
         List.of());

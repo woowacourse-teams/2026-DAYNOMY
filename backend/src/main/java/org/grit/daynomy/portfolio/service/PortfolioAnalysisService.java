@@ -1,6 +1,7 @@
 package org.grit.daynomy.portfolio.service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -57,7 +58,12 @@ public class PortfolioAnalysisService {
                             impact.weight(), impact.direction(), impact.impactLevel()))
                 .toList());
     return PortfolioAnalysisResponse.of(
-        request.assets().size(), impactSummary, result.overallImpact(), impacts, sources);
+        request.assets().size(),
+        impactSummary,
+        Instant.now(),
+        result.overallImpact(),
+        impacts,
+        sources);
   }
 
   private void validateDistinctAssets(List<PortfolioAssetRequest> portfolioAssets) {

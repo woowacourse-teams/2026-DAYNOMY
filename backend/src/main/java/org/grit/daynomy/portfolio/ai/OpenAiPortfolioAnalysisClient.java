@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
@@ -62,7 +63,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - issueSummary, expectedReaction, outlook, reason, overallImpact의 모든 문장은 '-했어요.', '-해요.', '-예요.'와 같은 해요체로 끝내세요.
             - 사용자에게 노출되는 문장에 '-하다.', '-했음.', '-함.'과 같은 문어체나 명사형 종결 표현을 사용하지 마세요.
             - evidenceSentence에는 해당 자산의 direction과 impactLevel 판단을 뒷받침하는 검색 근거를 한 문장으로 작성하세요.
-            - 중요한 관련 이슈를 찾지 못한 자산은 NEUTRAL과 LOW로 판단하고, 관련 이슈가 확인되지 않았음을 명시하세요.
+            - sourceUrls에는 해당 자산의 판단에 직접 사용한 인용 출처 URL만 포함하세요.
+            - 중요한 관련 이슈를 찾지 못한 자산은 sourceUrls를 빈 배열로 반환하고 NEUTRAL과 LOW로 판단하며, 관련 이슈가 확인되지 않았음을 명시하세요.
             - 검색 결과에서 확인할 수 없는 사실을 단정하지 마세요.
             """;
 
@@ -236,6 +238,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     impactProperties.put("outlook", Map.of("type", "string"));
     impactProperties.put("reason", Map.of("type", "string"));
     impactProperties.put("evidenceSentence", Map.of("type", "string"));
+    impactProperties.put("sourceUrls", Map.of("type", "array", "items", Map.of("type", "string")));
 
     Map<String, Object> impactItem = new LinkedHashMap<>();
     impactItem.put("type", "object");
@@ -250,7 +253,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "expectedReaction",
             "outlook",
             "reason",
-            "evidenceSentence"));
+            "evidenceSentence",
+            "sourceUrls"));
     impactItem.put("properties", impactProperties);
 
     return Map.of("type", "array", "items", impactItem);
@@ -269,9 +273,12 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       if (root == null) {
         throw analysisFailed();
       }
+      Map<String, PortfolioAnalysisResult.Source> sourceByUrl =
+          output.sources().stream()
+              .collect(Collectors.toMap(PortfolioAnalysisResult.Source::url, source -> source));
       return new PortfolioAnalysisResult(
           requiredText(root, "overallImpact"),
-          parseImpacts(root.path("impacts"), targets),
+          parseImpacts(root.path("impacts"), targets, sourceByUrl),
           output.sources());
     } catch (JsonProcessingException | IllegalArgumentException exception) {
       throw analysisFailed();
@@ -279,7 +286,9 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   }
 
   private List<PortfolioAnalysisResult.AssetImpactResult> parseImpacts(
-      JsonNode impactsNode, List<PortfolioAnalysisTarget> targets) {
+      JsonNode impactsNode,
+      List<PortfolioAnalysisTarget> targets,
+      Map<String, PortfolioAnalysisResult.Source> sourceByUrl) {
     if (!impactsNode.isArray()) {
       throw analysisFailed();
     }
@@ -315,16 +324,26 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         throw analysisFailed();
       }
 
+      ImpactDirection direction = ImpactDirection.valueOf(impactNode.path("direction").asText());
+      ImpactLevel impactLevel = ImpactLevel.valueOf(impactNode.path("impactLevel").asText());
+      List<PortfolioAnalysisResult.Source> sources =
+          parseAssetSources(impactNode.path("sourceUrls"), sourceByUrl);
+      if (sources.isEmpty()
+          && (direction != ImpactDirection.NEUTRAL || impactLevel != ImpactLevel.LOW)) {
+        throw analysisFailed();
+      }
+
       parsedImpacts.add(
           new ParsedAssetImpact(
               target.assetName(),
-              ImpactDirection.valueOf(impactNode.path("direction").asText()),
-              ImpactLevel.valueOf(impactNode.path("impactLevel").asText()),
+              direction,
+              impactLevel,
               requiredText(impactNode, "issueSummary"),
               requiredText(impactNode, "expectedReaction"),
               requiredText(impactNode, "outlook"),
               requiredText(impactNode, "reason"),
-              evidenceSentence));
+              evidenceSentence,
+              sources));
     }
 
     if (analyzedAssetNames.size() != targets.size()) {
@@ -340,6 +359,27 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     }
 
     return List.copyOf(results);
+  }
+
+  private List<PortfolioAnalysisResult.Source> parseAssetSources(
+      JsonNode sourceUrlsNode, Map<String, PortfolioAnalysisResult.Source> sourceByUrl) {
+    if (!sourceUrlsNode.isArray()) {
+      throw analysisFailed();
+    }
+
+    Map<String, PortfolioAnalysisResult.Source> assetSourceByUrl = new LinkedHashMap<>();
+    for (JsonNode sourceUrlNode : sourceUrlsNode) {
+      if (!sourceUrlNode.isTextual()) {
+        throw analysisFailed();
+      }
+      String sourceUrl = sourceUrlNode.textValue();
+      PortfolioAnalysisResult.Source source = sourceByUrl.get(sourceUrl);
+      if (source == null) {
+        throw analysisFailed();
+      }
+      assetSourceByUrl.putIfAbsent(sourceUrl, source);
+    }
+    return List.copyOf(assetSourceByUrl.values());
   }
 
   private int impactLevelPriority(ImpactLevel impactLevel) {
@@ -440,7 +480,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       String expectedReaction,
       String outlook,
       String reason,
-      String evidenceSentence) {
+      String evidenceSentence,
+      List<PortfolioAnalysisResult.Source> sources) {
 
     private PortfolioAnalysisResult.AssetImpactResult toResult(int sortOrder) {
       return new PortfolioAnalysisResult.AssetImpactResult(
@@ -452,6 +493,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
           outlook,
           reason,
           evidenceSentence,
+          sources,
           sortOrder);
     }
   }

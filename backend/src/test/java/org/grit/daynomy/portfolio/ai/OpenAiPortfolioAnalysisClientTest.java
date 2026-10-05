@@ -79,7 +79,8 @@ class OpenAiPortfolioAnalysisClientTest {
               "expectedReaction": "장기적으로 긍정적일 수 있습니다.",
               "outlook": "수요 증가 여부를 지켜봐야 해요.",
               "reason": "신규 수요가 예상됩니다.",
-              "evidenceSentence": "삼성전자의 신규 수요가 증가할 전망입니다."
+              "evidenceSentence": "삼성전자의 신규 수요가 증가할 전망입니다.",
+              "sourceUrls": ["https://example.com/semiconductor"]
             },
             {
               "assetName": "SK하이닉스",
@@ -89,7 +90,8 @@ class OpenAiPortfolioAnalysisClientTest {
               "expectedReaction": "방향은 불분명합니다.",
               "outlook": "비용 부담의 지속 여부를 확인해야 해요.",
               "reason": "상반된 요인이 존재합니다.",
-              "evidenceSentence": "SK하이닉스의 수요와 비용이 모두 증가했습니다."
+              "evidenceSentence": "SK하이닉스의 수요와 비용이 모두 증가했습니다.",
+              "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]
         }
@@ -110,6 +112,9 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(result.impacts().getFirst().outlook()).contains("비용 부담");
     assertThat(result.impacts().getFirst().evidenceSentence())
         .isEqualTo("SK하이닉스의 수요와 비용이 모두 증가했습니다.");
+    assertThat(result.impacts().getFirst().sources())
+        .containsExactly(
+            new PortfolioAnalysisResult.Source("반도체 산업 동향", "https://example.com/semiconductor"));
     assertThat(result.sources())
         .containsExactly(
             new PortfolioAnalysisResult.Source("반도체 산업 동향", "https://example.com/semiconductor"));
@@ -163,7 +168,8 @@ class OpenAiPortfolioAnalysisClientTest {
         .contains("전체 포트폴리오의 최종 긍정·중립·부정 방향은 서버가 계산하므로 overallImpact에서 최종 방향을 단정하지 마세요.")
         .contains("overallImpact의 마지막 문장에는 앞으로 주의해서 볼 지표나 이슈를 안내하세요.")
         .contains("어려운 금융 용어와 단정적인 투자 권유 표현은 사용하지 마세요.")
-        .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.");
+        .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.")
+        .contains("sourceUrls에는 해당 자산의 판단에 직접 사용한 인용 출처 URL만 포함하세요.");
   }
 
   @Test
@@ -220,7 +226,8 @@ class OpenAiPortfolioAnalysisClientTest {
               "expectedReaction": "긍정적입니다.",
               "outlook": "수요가 이어질 수 있어요.",
               "reason": "수요가 증가했습니다.",
-              "evidenceSentence": "현대차 수요가 증가했습니다."
+              "evidenceSentence": "현대차 수요가 증가했습니다.",
+              "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]
         }
@@ -245,7 +252,8 @@ class OpenAiPortfolioAnalysisClientTest {
               "expectedReaction": "긍정적입니다.",
               "outlook": "수요가 이어질 수 있어요.",
               "reason": "수요가 증가했습니다.",
-              "evidenceSentence": "   "
+              "evidenceSentence": "   ",
+              "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]
         }
@@ -266,6 +274,36 @@ class OpenAiPortfolioAnalysisClientTest {
   @DisplayName("웹 검색 인용 출처가 없으면 분석 실패로 처리한다")
   void analyzeRejectsMissingSources() throws Exception {
     enqueueOutputWithoutAnnotations("{\"overallImpact\":\"전체 영향이에요.\",\"impacts\":[]}");
+
+    assertAnalysisFailed(() -> client.analyze(targets()));
+  }
+
+  @Test
+  @DisplayName("자산별 출처가 OpenAI 인용 목록에 없으면 분석 실패로 처리한다")
+  void analyzeRejectsUncitedAssetSource() throws Exception {
+    enqueueOutput(
+        validOutput().replace("https://example.com/semiconductor", "https://example.com/uncited"));
+
+    assertAnalysisFailed(() -> client.analyze(targets()));
+  }
+
+  @Test
+  @DisplayName("출처가 없는 자산은 중립이며 영향 수준이 낮을 때만 허용한다")
+  void analyzeAllowsNeutralLowAssetWithoutSource() throws Exception {
+    enqueueOutput(validOutput().replace("[\"https://example.com/semiconductor\"]", "[]"));
+
+    PortfolioAnalysisResult result = client.analyze(targets());
+
+    assertThat(result.impacts()).allSatisfy(impact -> assertThat(impact.sources()).isEmpty());
+  }
+
+  @Test
+  @DisplayName("출처가 없는 자산이 중립 또는 낮은 영향이 아니면 분석 실패로 처리한다")
+  void analyzeRejectsDirectionalAssetWithoutSource() throws Exception {
+    enqueueOutput(
+        validOutput()
+            .replaceFirst("\"direction\": \"NEUTRAL\"", "\"direction\": \"POSITIVE\"")
+            .replaceFirst("\\[\"https://example\\.com/semiconductor\"\\]", "[]"));
 
     assertAnalysisFailed(() -> client.analyze(targets()));
   }
@@ -317,7 +355,8 @@ class OpenAiPortfolioAnalysisClientTest {
               "expectedReaction": "중립적인 반응이 예상돼요.",
               "outlook": "추가 흐름을 확인해야 해요.",
               "reason": "직접적인 영향이 제한적이에요.",
-              "evidenceSentence": "관련 검색 근거예요."
+              "evidenceSentence": "관련 검색 근거예요.",
+              "sourceUrls": ["https://example.com/semiconductor"]
             },
             {
               "assetName": "SK하이닉스",
@@ -327,7 +366,8 @@ class OpenAiPortfolioAnalysisClientTest {
               "expectedReaction": "중립적인 반응이 예상돼요.",
               "outlook": "추가 흐름을 확인해야 해요.",
               "reason": "직접적인 영향이 제한적이에요.",
-              "evidenceSentence": "관련 검색 근거예요."
+              "evidenceSentence": "관련 검색 근거예요.",
+              "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]
         }

@@ -2,6 +2,7 @@ package org.grit.daynomy.portfolio.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
+import java.util.List;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
@@ -17,7 +18,12 @@ public record PortfolioAssetImpactResponse(
     @Schema(description = "판단 근거", example = "반도체 수요 증가가 실적 개선으로 이어질 수 있습니다.") String reason,
     @Schema(description = "판단에 사용한 웹 검색 근거", example = "반도체 수요가 전년 대비 증가했습니다.")
         String evidenceSentence,
+    @Schema(description = "자산 분석에 사용된 웹 검색 출처") List<PortfolioAnalysisSourceResponse> sources,
     @Schema(description = "자산 영향도 순위", example = "1") int rank) {
+
+  public PortfolioAssetImpactResponse {
+    sources = List.copyOf(sources);
+  }
 
   public static PortfolioAssetImpactResponse of(
       PortfolioAnalysisResult.AssetImpactResult impact, BigDecimal weight) {
@@ -31,6 +37,7 @@ public record PortfolioAssetImpactResponse(
         impact.outlook(),
         impact.reason(),
         impact.evidenceSentence(),
+        impact.sources().stream().map(PortfolioAnalysisSourceResponse::from).toList(),
         impact.sortOrder());
   }
 }

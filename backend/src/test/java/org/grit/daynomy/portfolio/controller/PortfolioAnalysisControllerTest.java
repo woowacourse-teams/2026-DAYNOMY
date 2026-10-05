@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -67,6 +68,7 @@ class PortfolioAnalysisControllerTest {
             "수요 증가가 이어질 수 있어요.",
             "반도체 수요 증가가 예상됩니다.",
             "반도체 수요가 전년 대비 증가했습니다.",
+            List.of(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news")),
             1);
     when(portfolioAnalysisService.analyze(request))
         .thenReturn(
@@ -77,6 +79,7 @@ class PortfolioAnalysisControllerTest {
                     new BigDecimal("100.00"),
                     new BigDecimal("100.00"),
                     new BigDecimal("0.00")),
+                Instant.parse("2026-10-05T08:00:00Z"),
                 "반도체 비중이 높아 긍정적인 영향이 예상돼요.",
                 List.of(impact),
                 List.of(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"))));
@@ -96,6 +99,7 @@ class PortfolioAnalysisControllerTest {
         .andExpect(jsonPath("$.overallScore").value(100.00))
         .andExpect(jsonPath("$.positiveImpactScore").value(100.00))
         .andExpect(jsonPath("$.negativeImpactScore").value(0.00))
+        .andExpect(jsonPath("$.analyzedAt").value("2026-10-05T08:00:00Z"))
         .andExpect(jsonPath("$.overallImpact").value("반도체 비중이 높아 긍정적인 영향이 예상돼요."))
         .andExpect(jsonPath("$.impacts[0].assetName").value("삼성전자"))
         .andExpect(jsonPath("$.impacts[0].weight").value(100))
@@ -106,6 +110,8 @@ class PortfolioAnalysisControllerTest {
         .andExpect(jsonPath("$.impacts[0].outlook").value("수요 증가가 이어질 수 있어요."))
         .andExpect(jsonPath("$.impacts[0].reason").value("반도체 수요 증가가 예상됩니다."))
         .andExpect(jsonPath("$.impacts[0].evidenceSentence").value("반도체 수요가 전년 대비 증가했습니다."))
+        .andExpect(jsonPath("$.impacts[0].sources[0].title").value("한국거래소"))
+        .andExpect(jsonPath("$.impacts[0].sources[0].url").value("https://example.com/news"))
         .andExpect(jsonPath("$.impacts[0].rank").value(1))
         .andExpect(jsonPath("$.sources[0].title").value("한국거래소"))
         .andExpect(jsonPath("$.sources[0].url").value("https://example.com/news"));

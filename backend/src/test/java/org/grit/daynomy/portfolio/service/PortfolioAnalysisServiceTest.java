@@ -55,6 +55,8 @@ class PortfolioAnalysisServiceTest {
                     "수요와 비용 추이를 함께 확인해야 해요.",
                     "긍정 또는 부정 영향을 판단할 근거가 충분하지 않습니다.",
                     "반도체 수요가 전년 대비 증가했습니다.",
+                    List.of(
+                        new PortfolioAnalysisResult.Source("한국거래소", "https://example.com/news")),
                     1)),
             List.of(new PortfolioAnalysisResult.Source("한국거래소", "https://example.com/news")));
     given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
@@ -76,7 +78,10 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.impacts().get(0).issueSummary()).contains("반도체 수요");
     assertThat(response.impacts().get(0).outlook()).contains("추이");
     assertThat(response.impacts().get(0).evidenceSentence()).isEqualTo("반도체 수요가 전년 대비 증가했습니다.");
+    assertThat(response.impacts().get(0).sources())
+        .containsExactly(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"));
     assertThat(response.impacts().get(0).rank()).isEqualTo(1);
+    assertThat(response.analyzedAt()).isNotNull();
     assertThat(response.sources())
         .containsExactly(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"));
     verify(portfolioAnalysisAiClient).analyze(targets);
@@ -124,6 +129,7 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.analyzedAssetCount()).isZero();
     assertThat(response.overallDirection()).isEqualTo(ImpactDirection.NEUTRAL);
     assertThat(response.overallScore()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(response.analyzedAt()).isNull();
     assertThat(response.impacts()).isEmpty();
     verifyNoInteractions(portfolioAnalysisAiClient);
   }
@@ -186,6 +192,7 @@ class PortfolioAnalysisServiceTest {
         "향후 방향성",
         "판단 근거",
         "판단에 사용한 검색 근거",
+        List.of(new PortfolioAnalysisResult.Source("출처", "https://example.com")),
         sortOrder);
   }
 }
