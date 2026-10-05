@@ -299,8 +299,9 @@
 
 .investment-calendar-watch p {
   margin: 0;
-  color: var(--calendar-muted);
+  color: #43536b;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .investment-calendar-reference {
@@ -343,24 +344,47 @@
   white-space: nowrap;
 }
 
+.investment-calendar-table-wrap {
+  overflow: hidden;
+  margin-top: 12px;
+  border: 1px solid var(--calendar-line);
+  border-radius: 12px;
+}
+
 .investment-calendar-table-wrap table {
   width: 100%;
-  margin-top: 10px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .investment-calendar-table-wrap th {
-  padding: 9px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--calendar-line);
+  background: #f7f9fc;
   color: var(--calendar-muted);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 650;
   text-align: left;
 }
 
 .investment-calendar-table-wrap td {
-  padding: 13px 10px;
+  padding: 12px;
   border-bottom: 1px solid var(--calendar-line);
+  color: var(--calendar-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.investment-calendar-table-wrap tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.investment-calendar-table-wrap th:first-child {
+  width: 28%;
+}
+
+.investment-calendar-table-wrap th:nth-child(2) {
+  width: 22%;
 }
 
 .investment-calendar-table-wrap th:nth-child(n + 2),
@@ -368,23 +392,29 @@
   text-align: right;
 }
 
+.investment-calendar-table-wrap th:last-child,
+.investment-calendar-table-wrap td:last-child {
+  width: 50%;
+  white-space: nowrap;
+}
+
 .investment-calendar-table-wrap td:first-child {
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .investment-calendar-table-wrap .positive {
   color: #c24141;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .investment-calendar-table-wrap .negative {
   color: var(--calendar-blue);
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .investment-calendar-table-wrap .neutral {
   color: var(--calendar-text);
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .investment-calendar-basis,
@@ -559,15 +589,18 @@
     margin-left: 0;
   }
 
-  .investment-calendar-table-wrap table {
-    table-layout: fixed;
-  }
-
   .investment-calendar-table-wrap th,
   .investment-calendar-table-wrap td {
-    padding-right: 4px;
-    padding-left: 4px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .investment-calendar-table-wrap th {
     font-size: 11px;
+  }
+
+  .investment-calendar-table-wrap td {
+    font-size: 12px;
   }
 
   .investment-calendar-last-result {
