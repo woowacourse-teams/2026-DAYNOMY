@@ -131,7 +131,7 @@ function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactRe
   );
 }
 
-function isPortfolioAnalysisResponse(value: unknown): value is PortfolioAnalysisResponse {
+export function isPortfolioAnalysisResponse(value: unknown): value is PortfolioAnalysisResponse {
   return (
     isRecord(value) &&
     Number.isInteger(value.totalAssetCount) &&

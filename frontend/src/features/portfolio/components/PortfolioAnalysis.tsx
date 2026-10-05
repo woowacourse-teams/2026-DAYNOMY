@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { trackEvent } from '../../../analytics';
 import { analyzePortfolio, createPortfolioSnapshotKey } from '../api';
+import {
+  clearPortfolioAnalysis,
+  loadPortfolioAnalysis,
+  savePortfolioAnalysis,
+} from '../portfolioAnalysisStorage';
 import type {
   PortfolioAsset,
   PortfolioAnalysisResponse,
@@ -399,18 +404,33 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const portfolioSnapshotKey = createPortfolioSnapshotKey(assets);
 
   useEffect(() => {
-    if (!analyzedAssets) return;
-    if (createPortfolioSnapshotKey(assets) === createPortfolioSnapshotKey(analyzedAssets)) return;
+    if (assets.length === 0) {
+      requestIdRef.current += 1;
+      clearPortfolioAnalysis();
+      setAnalysis(null);
+      setAnalyzedAssets(null);
+      setError(null);
+      setSelectedAssetName(null);
+      setLoading(false);
+      return;
+    }
+    if (analysis || analyzedAssets) return;
 
     requestIdRef.current += 1;
-    setAnalysis(null);
-    setAnalyzedAssets(null);
+    const cachedAnalysis = loadPortfolioAnalysis();
+    setAnalysis(cachedAnalysis);
+    setAnalyzedAssets(
+      cachedAnalysis
+        ? cachedAnalysis.impacts.map(({ assetName, weight }) => ({ assetName, weight }))
+        : null,
+    );
     setError(null);
     setSelectedAssetName(null);
     setLoading(false);
-  }, [assets, analyzedAssets]);
+  }, [analysis, analyzedAssets, assets, portfolioSnapshotKey]);
 
   const analyze = () => {
     const snapshot = assets.map((asset) => ({ ...asset }));
@@ -429,6 +449,7 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
       .then((response) => {
         if (requestIdRef.current === requestId) {
           setAnalysis(response);
+          savePortfolioAnalysis(snapshot, response);
         }
       })
       .catch((caughtError) => {
