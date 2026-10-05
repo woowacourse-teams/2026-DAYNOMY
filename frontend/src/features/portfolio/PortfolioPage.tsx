@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { calculatePortfolio } from './api';
 import { PortfolioEditor } from './components/PortfolioEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
 import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
+import { getStockRelatedContents } from '../stock-content/api';
+import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../stock-content/types';
 import type {
   AssetCategory,
   PortfolioCalculation,
@@ -308,6 +310,12 @@ export function PortfolioPage() {
   const [sort, setSort] = useState<PortfolioSort>('DEFAULT');
   const [amountsHidden, setAmountsHidden] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
+  const [expandedContentAssetId, setExpandedContentAssetId] = useState<number | null>(null);
+  const [relatedContents, setRelatedContents] = useState<Record<number, StockRelatedContent[]>>({});
+  const [relatedContentLoadingAssetId, setRelatedContentLoadingAssetId] = useState<number | null>(
+    null,
+  );
+  const [relatedContentErrors, setRelatedContentErrors] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (holdingsLoading) return;
@@ -348,6 +356,31 @@ export function PortfolioPage() {
   async function save(nextHolding: PortfolioHoldingInput) {
     await saveHolding(nextHolding);
     setEditor(null);
+  }
+
+  async function toggleRelatedContents(assetId: number) {
+    if (expandedContentAssetId === assetId) {
+      setExpandedContentAssetId(null);
+      return;
+    }
+
+    setExpandedContentAssetId(assetId);
+    if (Object.prototype.hasOwnProperty.call(relatedContents, assetId)) return;
+
+    setRelatedContentLoadingAssetId(assetId);
+    setRelatedContentErrors((current) => ({ ...current, [assetId]: '' }));
+    try {
+      const response = await getStockRelatedContents(assetId);
+      setRelatedContents((current) => ({ ...current, [assetId]: response.contents }));
+    } catch (caughtError) {
+      setRelatedContentErrors((current) => ({
+        ...current,
+        [assetId]:
+          caughtError instanceof Error ? caughtError.message : '관련 콘텐츠를 불러오지 못했습니다.',
+      }));
+    } finally {
+      setRelatedContentLoadingAssetId((current) => (current === assetId ? null : current));
+    }
   }
 
   function displayWon(value: number, signed = false) {
@@ -558,47 +591,115 @@ export function PortfolioPage() {
                 </thead>
                 <tbody>
                   {visibleHoldings.map((holding) => (
-                    <tr key={holding.assetId}>
-                      <td>
-                        <div className="portfolio-asset">
-                          <span className="portfolio-monogram">{holding.name.slice(0, 1)}</span>
-                          <div>
-                            <strong>{holding.name}</strong>
-                            <small>
-                              {getCategoryLabel(holding.category)} · {holding.assetCode} ·{' '}
-                              {holding.market}
-                            </small>
+                    <Fragment key={holding.assetId}>
+                      <tr>
+                        <td>
+                          <div className="portfolio-asset">
+                            <span className="portfolio-monogram">{holding.name.slice(0, 1)}</span>
+                            <div>
+                              <a
+                                className="portfolio-asset-link"
+                                href={`/stocks/${holding.assetId}`}
+                              >
+                                {holding.name}
+                              </a>
+                              <small>
+                                {getCategoryLabel(holding.category)} · {holding.assetCode} ·{' '}
+                                {holding.market}
+                              </small>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td>{numberFormatter.format(holding.quantity)}주</td>
-                      <td>{displayWon(holding.averagePurchasePrice)}</td>
-                      <td>{formatWon(holding.closePrice)}</td>
-                      <td className="portfolio-value">{displayWon(holding.evaluationAmount)}</td>
-                      <td className={`portfolio-profit-cell ${profitClass(holding.profitLoss)}`}>
-                        <strong>{displayWon(holding.profitLoss, true)}</strong>
-                        <small>{formatPercent(holding.returnRate, true)}</small>
-                      </td>
-                      <td>{formatPercent(holding.weight)}</td>
-                      <td>
-                        <div className="portfolio-row-actions">
-                          <button
-                            type="button"
-                            disabled={holdingsSaving}
-                            onClick={() => setEditor({ holding })}
-                          >
-                            수정
-                          </button>
-                          <button
-                            type="button"
-                            disabled={holdingsSaving}
-                            onClick={() => void removeHolding(holding.assetId)}
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                        <td>{numberFormatter.format(holding.quantity)}주</td>
+                        <td>{displayWon(holding.averagePurchasePrice)}</td>
+                        <td>{formatWon(holding.closePrice)}</td>
+                        <td className="portfolio-value">{displayWon(holding.evaluationAmount)}</td>
+                        <td className={`portfolio-profit-cell ${profitClass(holding.profitLoss)}`}>
+                          <strong>{displayWon(holding.profitLoss, true)}</strong>
+                          <small>{formatPercent(holding.returnRate, true)}</small>
+                        </td>
+                        <td>{formatPercent(holding.weight)}</td>
+                        <td>
+                          <div className="portfolio-row-actions">
+                            <button
+                              type="button"
+                              disabled={relatedContentLoadingAssetId === holding.assetId}
+                              aria-expanded={expandedContentAssetId === holding.assetId}
+                              onClick={() => void toggleRelatedContents(holding.assetId)}
+                            >
+                              {expandedContentAssetId === holding.assetId
+                                ? '관련 정보 닫기'
+                                : '관련 정보'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={holdingsSaving}
+                              onClick={() => setEditor({ holding })}
+                            >
+                              수정
+                            </button>
+                            <button
+                              type="button"
+                              disabled={holdingsSaving}
+                              onClick={() => void removeHolding(holding.assetId)}
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedContentAssetId === holding.assetId ? (
+                        <tr className="portfolio-related-content-row">
+                          <td colSpan={8}>
+                            <div className="portfolio-related-content-panel">
+                              <strong>관련 정보</strong>
+                              {relatedContentLoadingAssetId === holding.assetId ? (
+                                <p role="status">관련 정보를 불러오는 중입니다.</p>
+                              ) : null}
+                              {relatedContentErrors[holding.assetId] ? (
+                                <p role="alert">{relatedContentErrors[holding.assetId]}</p>
+                              ) : null}
+                              {relatedContentLoadingAssetId !== holding.assetId &&
+                              !relatedContentErrors[holding.assetId] &&
+                              (relatedContents[holding.assetId] ?? []).length === 0 ? (
+                                <p>등록된 관련 정보가 없습니다.</p>
+                              ) : null}
+                              {(relatedContents[holding.assetId] ?? []).length > 0 ? (
+                                <ul>
+                                  {(relatedContents[holding.assetId] ?? []).map((content) => (
+                                    <li key={content.id}>
+                                      {content.imageUrl ? (
+                                        <img src={content.imageUrl} alt="" loading="lazy" />
+                                      ) : null}
+                                      <div>
+                                        <span>
+                                          {STOCK_CONTENT_SOURCE_LABELS[content.sourceType]}
+                                        </span>
+                                        <a
+                                          href={content.url}
+                                          target={
+                                            content.sourceType === 'INTERNAL_NEWS'
+                                              ? undefined
+                                              : '_blank'
+                                          }
+                                          rel={
+                                            content.sourceType === 'INTERNAL_NEWS'
+                                              ? undefined
+                                              : 'noreferrer'
+                                          }
+                                        >
+                                          {content.title}
+                                        </a>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   ))}
                   {visibleHoldings.length === 0 ? (
                     <tr>
