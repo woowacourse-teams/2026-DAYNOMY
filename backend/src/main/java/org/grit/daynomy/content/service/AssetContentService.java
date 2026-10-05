@@ -66,6 +66,7 @@ public class AssetContentService {
     }
 
     contentRepository.deleteAllByNewsId(news.getId());
+    contentRepository.flush();
     contentRepository.saveAll(
         assets.stream().map(asset -> AssetContent.createInternalNews(asset, news)).toList());
   }

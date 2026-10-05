@@ -2,8 +2,10 @@ package org.grit.daynomy.content.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 
 import java.util.List;
@@ -18,9 +20,11 @@ import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.external.youtube.YouTubeVideoCandidate;
+import org.grit.daynomy.news.domain.News;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -93,5 +97,21 @@ class AssetContentServiceTest {
     assertThat(response.items().getFirst().title()).isEqualTo("삼성전자 분석");
     assertThat(response.items().getFirst().url()).isEqualTo("https://www.youtube.com/watch?v=abc");
     then(youtubeClient).should().search("삼성전자 005930");
+  }
+
+  @Test
+  @DisplayName("뉴스 관련 종목 동기화는 기존 연결을 flush한 뒤 새 연결을 저장한다")
+  void syncNewsContentsFlushesBeforeSaving() {
+    News news = mock(News.class);
+    Asset asset = mock(Asset.class);
+    given(news.getId()).willReturn(1L);
+    given(assetRepository.findAllById(List.of(1L))).willReturn(List.of(asset));
+
+    assetContentService.syncNewsContents(news, List.of(1L));
+
+    InOrder inOrder = inOrder(contentRepository);
+    inOrder.verify(contentRepository).deleteAllByNewsId(1L);
+    inOrder.verify(contentRepository).flush();
+    inOrder.verify(contentRepository).saveAll(anyList());
   }
 }
