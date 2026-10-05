@@ -157,6 +157,7 @@
 
 .admin-primary-button:focus-visible,
 .admin-secondary-button:focus-visible,
+.admin-related-content-filter:focus-visible,
 .admin-source-remove:focus-visible,
 .admin-source-add:focus-visible,
 .admin-navigation a:focus-visible,
@@ -316,6 +317,10 @@
   border: 1px solid #e4e7ef;
   border-radius: 14px;
   background: #ffffff;
+}
+
+.admin-stock-contents-page .admin-related-content-panel {
+  margin-top: 0;
 }
 
 .admin-related-assets {
@@ -581,6 +586,91 @@
 
 .admin-related-url-field {
   flex: 1.4 !important;
+}
+
+.admin-related-content-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 24px;
+  padding: 16px 0 14px;
+  border-top: 1px solid #edf0f5;
+}
+
+.admin-related-content-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.admin-related-content-summary strong {
+  color: #27354a;
+  font-size: 14px;
+}
+
+.admin-related-content-summary span {
+  color: #7c8da3;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-related-content-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.admin-related-content-filter {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid #e1e5ed;
+  border-radius: 8px;
+  color: #6b7280;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.admin-related-content-filter:hover {
+  border-color: #bfc5d8;
+  color: #374151;
+}
+
+.admin-related-content-filter[aria-pressed='true'] {
+  border-color: #c7c2ff;
+  color: #4339c0;
+  background: #f0efff;
+}
+
+.admin-related-content-filter small {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  place-items: center;
+  border-radius: 999px;
+  color: #8b94a6;
+  background: #f3f5f8;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-related-content-filter[aria-pressed='true'] small {
+  color: #5144d8;
+  background: #ffffff;
 }
 
 .admin-related-content-list {
@@ -1395,6 +1485,15 @@
   }
   .admin-total-count {
     margin: 4px 0 0;
+  }
+
+  .admin-related-content-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-related-content-filters {
+    justify-content: flex-start;
   }
 
   .admin-news-table,

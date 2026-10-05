@@ -16,6 +16,15 @@ import {
 } from '../stock-content/types';
 
 const SOURCE_TYPES: StockRelatedContentSource[] = ['YOUTUBE', 'THREADS', 'OTHER'];
+type ContentFilter = 'ALL' | StockRelatedContentSource;
+
+const CONTENT_FILTERS: { value: ContentFilter; label: string }[] = [
+  { value: 'ALL', label: '전체' },
+  { value: 'YOUTUBE', label: 'YouTube' },
+  { value: 'THREADS', label: 'Threads' },
+  { value: 'INTERNAL_NEWS', label: 'DAYNOMY 이슈' },
+  { value: 'OTHER', label: '기타' },
+];
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError || error instanceof Error ? error.message : fallback;
@@ -26,6 +35,7 @@ export function AdminStockContentsPanel() {
   const [stocks, setStocks] = useState<StockSearchItem[]>([]);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
   const [contents, setContents] = useState<StockRelatedContentsResponse | null>(null);
+  const [contentFilter, setContentFilter] = useState<ContentFilter>('ALL');
   const [youtubeResults, setYoutubeResults] = useState<YouTubeSearchItem[]>([]);
   const [sourceType, setSourceType] = useState<StockRelatedContentSource>('YOUTUBE');
   const [title, setTitle] = useState('');
@@ -59,6 +69,7 @@ export function AdminStockContentsPanel() {
   async function selectStock(stock: StockSearchItem) {
     setSelectedStock(stock);
     setContents(null);
+    setContentFilter('ALL');
     setYoutubeResults([]);
     setYoutubeError('');
     setLoading(true);
@@ -149,6 +160,18 @@ export function AdminStockContentsPanel() {
     } finally {
       setSaving(false);
     }
+  }
+
+  const allContents = contents?.contents ?? [];
+  const visibleContents =
+    contentFilter === 'ALL'
+      ? allContents
+      : allContents.filter((content) => content.sourceType === contentFilter);
+
+  function getContentCount(filter: ContentFilter) {
+    return filter === 'ALL'
+      ? allContents.length
+      : allContents.filter((content) => content.sourceType === filter).length;
   }
 
   return (
@@ -286,8 +309,35 @@ export function AdminStockContentsPanel() {
             </button>
           </form>
 
+          {contents ? (
+            <div className="admin-related-content-toolbar">
+              <div className="admin-related-content-summary">
+                <strong>연결된 자료</strong>
+                <span>{allContents.length}건</span>
+              </div>
+              <div
+                className="admin-related-content-filters"
+                role="group"
+                aria-label="자료 카테고리"
+              >
+                {CONTENT_FILTERS.map((filter) => (
+                  <button
+                    type="button"
+                    className="admin-related-content-filter"
+                    aria-pressed={contentFilter === filter.value}
+                    key={filter.value}
+                    onClick={() => setContentFilter(filter.value)}
+                  >
+                    <span>{filter.label}</span>
+                    <small>{getContentCount(filter.value)}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <ul className="admin-related-content-list">
-            {(contents?.contents ?? []).map((content) => (
+            {visibleContents.map((content) => (
               <li key={content.id}>
                 {content.imageUrl ? <img src={content.imageUrl} alt="" loading="lazy" /> : null}
                 <div>
@@ -306,8 +356,12 @@ export function AdminStockContentsPanel() {
                 </button>
               </li>
             ))}
-            {contents && contents.contents.length === 0 ? (
-              <li className="admin-related-empty">등록된 링크가 없습니다.</li>
+            {contents && visibleContents.length === 0 ? (
+              <li className="admin-related-empty">
+                {contentFilter === 'ALL'
+                  ? '등록된 링크가 없습니다.'
+                  : '선택한 카테고리에 등록된 링크가 없습니다.'}
+              </li>
             ) : null}
           </ul>
         </div>
