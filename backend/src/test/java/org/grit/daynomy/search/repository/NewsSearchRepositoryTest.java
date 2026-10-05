@@ -8,6 +8,8 @@ import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.domain.NewsStatus;
+import org.grit.daynomy.search.domain.NewsSearchSort;
+import org.grit.daynomy.search.domain.NewsSearchTerms;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +50,175 @@ class NewsSearchRepositoryTest {
   @Autowired private TestEntityManager entityManager;
 
   @Autowired private NewsSearchRepository newsSearchRepository;
+
+  @Test
+  @DisplayName("공개 검색은 제목·본문에 나뉜 모든 단어를 찾고 필터·페이지 건수를 유지한다")
+  void searchPublishedNewsByAllTerms() {
+    News titleMatch =
+        entityManager.persist(
+            createNews(
+                "기준금리 추가 인하",
+                "일반 본문",
+                "terms-title",
+                Category.ETF,
+                Instant.parse("2026-08-14T10:00:00Z")));
+    News splitMatch =
+        entityManager.persist(
+            createNews(
+                "기준금리 전망",
+                "추가 인하 가능성",
+                "terms-split",
+                Category.ETF,
+                Instant.parse("2026-08-14T11:00:00Z")));
+    News reversedMatch =
+        entityManager.persist(
+            createNews(
+                "인하를 검토하는 기준금리",
+                "일반 본문",
+                "terms-reversed",
+                Category.STOCK,
+                Instant.parse("2026-08-14T12:00:00Z")));
+    entityManager.persist(
+        createNews(
+            "기준금리 전망",
+            "인상 가능성",
+            "terms-missing",
+            Category.ETF,
+            Instant.parse("2026-08-14T13:00:00Z")));
+    entityManager.persist(News.createDraft("금리 인하 초안", "본문", null, List.of(), Category.ETF));
+    entityManager.flush();
+
+    var specification = specification("  금리\t인하\u2003금리  ", null, NewsSearchSort.LATEST);
+    var firstPage = newsSearchRepository.findAll(specification, PageRequest.of(0, 2));
+    var secondPage = newsSearchRepository.findAll(specification, PageRequest.of(1, 2));
+    var pastLastPage = newsSearchRepository.findAll(specification, PageRequest.of(4, 2));
+    var etfResults =
+        newsSearchRepository.findAll(
+            specification("인하 금리", Category.ETF, NewsSearchSort.LATEST), PageRequest.of(0, 10));
+
+    assertThat(firstPage.getContent()).containsExactly(reversedMatch, splitMatch);
+    assertThat(firstPage.getTotalElements()).isEqualTo(3);
+    assertThat(firstPage.getTotalPages()).isEqualTo(2);
+    assertThat(secondPage.getContent()).containsExactly(titleMatch);
+    assertThat(secondPage.getTotalElements()).isEqualTo(3);
+    assertThat(pastLastPage.getContent()).isEmpty();
+    assertThat(pastLastPage.getTotalElements()).isEqualTo(3);
+    assertThat(etfResults.getContent()).containsExactly(splitMatch, titleMatch);
+    assertThat(
+            newsSearchRepository
+                .findAll(specification("금리", null, NewsSearchSort.LATEST), PageRequest.of(0, 10))
+                .getTotalElements())
+        .isEqualTo(4);
+  }
+
+  @Test
+  @DisplayName("관련도 검색은 제목 일치 단어 수를 우선하며 발행일·ID로 동점을 정렬한다")
+  void searchPublishedNewsRanksTitleMatchesAndBreaksTies() {
+    Instant samePublishedAt = Instant.parse("2026-08-14T10:00:00Z");
+    News firstTitle =
+        entityManager.persist(
+            createNews("금리 추가 인하 전망", "본문", "rank-title-1", Category.ETF, samePublishedAt));
+    News secondTitle =
+        entityManager.persist(
+            createNews("인하 가능성과 기준금리", "본문", "rank-title-2", Category.ETF, samePublishedAt));
+    News split =
+        entityManager.persist(
+            createNews(
+                "기준금리 전망",
+                "추가 인하",
+                "rank-split",
+                Category.ETF,
+                Instant.parse("2026-08-14T11:00:00Z")));
+    News body =
+        entityManager.persist(
+            createNews(
+                "시장 전망",
+                "금리 인하",
+                "rank-body",
+                Category.ETF,
+                Instant.parse("2026-08-14T12:00:00Z")));
+    entityManager.flush();
+
+    var relevant = specification("금리 인하", null, NewsSearchSort.RELEVANCE);
+    var firstPage = newsSearchRepository.findAll(relevant, PageRequest.of(0, 2));
+    var secondPage = newsSearchRepository.findAll(relevant, PageRequest.of(1, 2));
+    var latest =
+        newsSearchRepository.findAll(
+            specification("금리 인하", null, NewsSearchSort.LATEST), PageRequest.of(0, 10));
+
+    assertThat(firstPage.getContent()).containsExactly(secondTitle, firstTitle);
+    assertThat(firstPage.getTotalElements()).isEqualTo(4);
+    assertThat(firstPage.getTotalPages()).isEqualTo(2);
+    assertThat(secondPage.getContent()).containsExactly(split, body);
+    assertThat(latest.getContent()).containsExactly(body, split, secondTitle, firstTitle);
+  }
+
+  @Test
+  @DisplayName("공개 검색은 %, _, !와 따옴표를 일반 문자로 검색하고 영문 대소문자를 구분하지 않는다")
+  void searchPublishedNewsTreatsSpecialCharactersAsLiterals() {
+    Instant publishedAt = Instant.parse("2026-08-14T10:00:00Z");
+    News literal =
+        entityManager.persist(
+            createNews("금%리_!'ETF 뉴스", "본문", "public-literal", Category.ETF, publishedAt));
+    entityManager.persist(
+        createNews("금리 ETF 뉴스", "일반 뉴스", "public-normal", Category.ETF, publishedAt));
+    entityManager.persist(
+        createNews("금%리X!'ETF 뉴스", "본문", "public-wildcard", Category.ETF, publishedAt));
+    entityManager.flush();
+
+    var results =
+        newsSearchRepository.findAll(
+            specification("금%리_!'etf ETF etf", null, NewsSearchSort.RELEVANCE),
+            PageRequest.of(0, 10));
+
+    assertThat(results.getContent()).containsExactly(literal);
+  }
+
+  @Test
+  @DisplayName("공개 검색은 뉴스 발행·수정·삭제 결과를 즉시 반영한다")
+  void searchPublishedNewsReflectsNewsChanges() {
+    News news =
+        entityManager.persist(News.createDraft("금리 인하 전망", "본문", null, List.of(), Category.ETF));
+    var specification = specification("금리 인하", null, NewsSearchSort.RELEVANCE);
+    var pageable = PageRequest.of(0, 10);
+    assertThat(newsSearchRepository.findAll(specification, pageable).getContent()).isEmpty();
+
+    news.publish();
+    entityManager.flush();
+    assertThat(newsSearchRepository.findAll(specification, pageable).getContent())
+        .containsExactly(news);
+
+    news.update("산업 전망", "관련 내용 없음", null, List.of(), Category.ETF);
+    entityManager.flush();
+    assertThat(newsSearchRepository.findAll(specification, pageable).getContent()).isEmpty();
+
+    news.update("금리 전망", "인하 가능성", null, List.of(), Category.ETF);
+    entityManager.flush();
+    assertThat(newsSearchRepository.findAll(specification, pageable).getContent())
+        .containsExactly(news);
+
+    news.delete();
+    entityManager.flush();
+    assertThat(newsSearchRepository.findAll(specification, pageable).getContent()).isEmpty();
+  }
+
+  @Test
+  @DisplayName("관리자 검색은 공개 검색의 다중 단어 규칙을 적용하지 않고 기존 구문 검색을 유지한다")
+  void adminSearchRetainsPhraseMatching() {
+    News phrase =
+        entityManager.persist(News.createDraft("금리 인하 전망", "본문", null, List.of(), Category.ETF));
+    entityManager.persist(News.createDraft("금리 추가 인하 전망", "본문", null, List.of(), Category.ETF));
+    entityManager.flush();
+
+    var results =
+        newsSearchRepository.search(
+            "금리 인하",
+            null,
+            null,
+            PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
+
+    assertThat(results.getContent()).containsExactly(phrase);
+  }
 
   @Test
   @DisplayName("뉴스 검색 쿼리는 제목·본문을 검색하고 카테고리·정렬·페이징을 적용한다")
@@ -186,5 +357,10 @@ class NewsSearchRepositoryTest {
         List.of(new NewsSourceInfo("DART", "https://example.com/" + externalId)),
         category,
         publishedAt);
+  }
+
+  private NewsSearchSpecification specification(
+      String keyword, Category category, NewsSearchSort sort) {
+    return new NewsSearchSpecification(NewsSearchTerms.from(keyword), category, sort);
   }
 }
