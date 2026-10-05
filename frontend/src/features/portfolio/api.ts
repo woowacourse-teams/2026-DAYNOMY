@@ -7,10 +7,13 @@ import type {
   PortfolioAsset,
   PortfolioAssetImpactResponse,
   PortfolioCalculation,
+  PortfolioDashboardAnalysisResponse,
+  PortfolioDashboardAssetImpactResponse,
   PortfolioHoldingInput,
   PortfolioHoldingResult,
   PortfolioImpactDirection,
   PortfolioImpactLevel,
+  PortfolioAnalysisSource,
   StockMarket,
   StockPrice,
   StockSearchItem,
@@ -162,6 +165,54 @@ function isPortfolioAnalysisResponse(value: unknown): value is PortfolioAnalysis
     Number.isInteger(value.analyzedAssetCount) &&
     Array.isArray(value.impacts) &&
     value.impacts.every(isPortfolioAssetImpact)
+  );
+}
+
+function isPortfolioAnalysisSource(value: unknown): value is PortfolioAnalysisSource {
+  return isRecord(value) && typeof value.title === 'string' && typeof value.url === 'string';
+}
+
+function isPortfolioDashboardAssetImpact(
+  value: unknown,
+): value is PortfolioDashboardAssetImpactResponse {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.assetName === 'string' &&
+    hasNumber(value, 'weight') &&
+    typeof value.direction === 'string' &&
+    IMPACT_DIRECTIONS.has(value.direction as PortfolioImpactDirection) &&
+    typeof value.impactLevel === 'string' &&
+    IMPACT_LEVELS.has(value.impactLevel as PortfolioImpactLevel) &&
+    typeof value.issueSummary === 'string' &&
+    typeof value.expectedReaction === 'string' &&
+    typeof value.outlook === 'string' &&
+    typeof value.reason === 'string' &&
+    typeof value.evidenceSentence === 'string' &&
+    Array.isArray(value.sources) &&
+    value.sources.every(isPortfolioAnalysisSource) &&
+    Number.isInteger(value.rank)
+  );
+}
+
+function isPortfolioDashboardAnalysisResponse(
+  value: unknown,
+): value is PortfolioDashboardAnalysisResponse {
+  return (
+    isRecord(value) &&
+    Number.isInteger(value.totalAssetCount) &&
+    Number.isInteger(value.analyzedAssetCount) &&
+    typeof value.overallDirection === 'string' &&
+    IMPACT_DIRECTIONS.has(value.overallDirection as PortfolioImpactDirection) &&
+    hasNumber(value, 'overallScore') &&
+    hasNumber(value, 'positiveImpactScore') &&
+    hasNumber(value, 'negativeImpactScore') &&
+    (value.analyzedAt === null || typeof value.analyzedAt === 'string') &&
+    typeof value.overallImpact === 'string' &&
+    Array.isArray(value.impacts) &&
+    value.impacts.every(isPortfolioDashboardAssetImpact) &&
+    Array.isArray(value.sources) &&
+    value.sources.every(isPortfolioAnalysisSource)
   );
 }
 
@@ -369,6 +420,22 @@ export async function calculatePortfolio(holdings: PortfolioHoldingInput[], sign
 
   if (!isPortfolioCalculation(response)) {
     throw new Error('포트폴리오 계산 응답 형식이 올바르지 않습니다.');
+  }
+
+  return response;
+}
+
+export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortSignal) {
+  const analysisRequest: PortfolioAnalysisRequest = { assets };
+  const response = await request<unknown>('/api/portfolio/analysis', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(analysisRequest),
+    signal,
+  });
+
+  if (!isPortfolioDashboardAnalysisResponse(response)) {
+    throw new Error('포트폴리오 분석 API 응답 형식이 올바르지 않습니다.');
   }
 
   return response;

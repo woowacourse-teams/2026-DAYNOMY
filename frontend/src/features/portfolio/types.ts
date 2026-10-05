@@ -97,3 +97,35 @@ export type PortfolioAnalysisResponse = {
   analyzedAssetCount: number;
   impacts: PortfolioAssetImpactResponse[];
 };
+
+export type PortfolioAnalysisSource = {
+  title: string;
+  url: string;
+};
+
+export type PortfolioDashboardAssetImpactResponse = {
+  assetName: string;
+  weight: number;
+  direction: PortfolioImpactDirection;
+  impactLevel: PortfolioImpactLevel;
+  issueSummary: string;
+  expectedReaction: string;
+  outlook: string;
+  reason: string;
+  evidenceSentence: string;
+  sources: PortfolioAnalysisSource[];
+  rank: number;
+};
+
+export type PortfolioDashboardAnalysisResponse = {
+  totalAssetCount: number;
+  analyzedAssetCount: number;
+  overallDirection: PortfolioImpactDirection;
+  overallScore: number;
+  positiveImpactScore: number;
+  negativeImpactScore: number;
+  analyzedAt: string | null;
+  overallImpact: string;
+  impacts: PortfolioDashboardAssetImpactResponse[];
+  sources: PortfolioAnalysisSource[];
+};
