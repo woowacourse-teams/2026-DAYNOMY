@@ -1,0 +1,25 @@
+INSERT INTO investment_events (
+    event_type, title, announced_at, previous_value, actual_value, value_unit,
+    source_name, source_url, source_key, related_asset_code, created_at, updated_at
+) VALUES
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-01-11 13:30:00+00', 3.1000, 3.4000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-01', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-02-13 13:30:00+00', 3.4000, 3.1000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-02', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-03-12 12:30:00+00', 3.1000, 3.2000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-03', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-04-10 12:30:00+00', 3.2000, 3.5000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-04', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-05-15 12:30:00+00', 3.5000, 3.4000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-05', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-06-12 12:30:00+00', 3.4000, 3.3000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-06', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-07-11 12:30:00+00', 3.3000, 3.0000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-07', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-08-14 12:30:00+00', 3.0000, 2.9000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-08', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-09-11 12:30:00+00', 2.9000, 2.5000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-09', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2024-10-10 12:30:00+00', 2.5000, 2.4000, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2024-10', NULL, NOW(), NOW()),
+    ('US_CPI', '미국 소비자물가지수 발표', '2026-10-13 12:30:00+00', 2.9000, NULL, '%', '미국 노동통계국', 'https://www.bls.gov/cpi/', 'BLS-CPI-2026-10', NULL, NOW(), NOW()),
+    ('KOREA_BASE_RATE', '한국 기준금리 결정', '2024-01-11 01:00:00+00', 3.5000, 3.5000, '%', '한국은행', 'https://www.bok.or.kr/portal/main/main.do', 'BOK-RATE-2024-01', NULL, NOW(), NOW()),
+    ('KOREA_BASE_RATE', '한국 기준금리 결정', '2024-02-22 01:00:00+00', 3.5000, 3.5000, '%', '한국은행', 'https://www.bok.or.kr/portal/main/main.do', 'BOK-RATE-2024-02', NULL, NOW(), NOW()),
+    ('KOREA_BASE_RATE', '한국 기준금리 결정', '2024-04-12 01:00:00+00', 3.5000, 3.5000, '%', '한국은행', 'https://www.bok.or.kr/portal/main/main.do', 'BOK-RATE-2024-04', NULL, NOW(), NOW()),
+    ('KOREA_BASE_RATE', '한국 기준금리 결정', '2024-05-23 01:00:00+00', 3.5000, 3.5000, '%', '한국은행', 'https://www.bok.or.kr/portal/main/main.do', 'BOK-RATE-2024-05', NULL, NOW(), NOW()),
+    ('KOREA_BASE_RATE', '한국 기준금리 결정', '2024-07-11 01:00:00+00', 3.5000, 3.5000, '%', '한국은행', 'https://www.bok.or.kr/portal/main/main.do', 'BOK-RATE-2024-07', NULL, NOW(), NOW()),
+    ('KOREA_BASE_RATE', '한국 기준금리 결정', '2026-10-29 01:00:00+00', 2.5000, NULL, '%', '한국은행', 'https://www.bok.or.kr/portal/main/main.do', 'BOK-RATE-2026-10', NULL, NOW(), NOW()),
+    ('CORPORATE_EARNINGS', '두산 3분기 실적 발표', '2024-10-25 06:30:00+00', 1187.0000, 1297.0000, '억원', '전자공시시스템', 'https://dart.fss.or.kr/', 'DART-000150-2024-Q3', '000150', NOW(), NOW()),
+    ('CORPORATE_EARNINGS', '두산 1분기 실적 발표', '2025-04-25 06:30:00+00', 1120.0000, 1347.0000, '억원', '전자공시시스템', 'https://dart.fss.or.kr/', 'DART-000150-2025-Q1', '000150', NOW(), NOW()),
+    ('CORPORATE_EARNINGS', '두산 2분기 실적 발표', '2025-07-25 06:30:00+00', 1347.0000, 1205.0000, '억원', '전자공시시스템', 'https://dart.fss.or.kr/', 'DART-000150-2025-Q2', '000150', NOW(), NOW()),
+    ('CORPORATE_EARNINGS', '두산 3분기 실적 발표', '2026-10-23 06:30:00+00', 1205.0000, NULL, '억원', '전자공시시스템', 'https://dart.fss.or.kr/', 'DART-000150-2026-Q3', '000150', NOW(), NOW());
