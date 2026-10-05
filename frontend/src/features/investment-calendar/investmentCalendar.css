@@ -2,7 +2,7 @@
   --calendar-line: #dbe2ec;
   --calendar-text: #111827;
   --calendar-muted: #65738a;
-  --calendar-faint: #8a96a8;
+  --calendar-faint: #66758b;
   --calendar-blue: #235aa6;
   --calendar-blue-soft: #edf4ff;
   width: min(1120px, calc(100% - 48px));
@@ -23,7 +23,7 @@
 
 .investment-calendar-page button:focus-visible,
 .investment-calendar-page a:focus-visible {
-  outline: 3px solid rgb(35 90 166 / 25%);
+  outline: 3px solid #235aa6;
   outline-offset: 2px;
 }
 
@@ -373,7 +373,7 @@
 }
 
 .investment-calendar-table-wrap .positive {
-  color: #c95050;
+  color: #c24141;
   font-weight: 750;
 }
 
