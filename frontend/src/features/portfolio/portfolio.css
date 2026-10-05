@@ -275,6 +275,16 @@
   font-weight: 650;
 }
 
+.portfolio-asset-link {
+  color: inherit;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.portfolio-asset-link:hover {
+  color: #2463b5;
+}
+
 .portfolio-profit-cell small {
   color: inherit !important;
 }
@@ -2352,6 +2362,83 @@
 
 .portfolio-row-actions button:last-child {
   color: #c34a50;
+}
+
+.portfolio-related-content-row td {
+  padding: 0;
+  background: #f8fafc;
+}
+
+.portfolio-related-content-panel {
+  display: grid;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--portfolio-demo-line);
+}
+
+.portfolio-related-content-panel > strong {
+  color: #27354a;
+  font-size: 13px;
+}
+
+.portfolio-related-content-panel > p {
+  margin: 0;
+  color: #65748a;
+  font-size: 12px;
+}
+
+.portfolio-related-content-panel > p[role='alert'] {
+  color: #b13c45;
+}
+
+.portfolio-related-content-panel ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.portfolio-related-content-panel li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.portfolio-related-content-panel li > img {
+  width: 96px;
+  height: 54px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #eef1f6;
+}
+
+.portfolio-related-content-panel li > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.portfolio-related-content-panel li span {
+  flex: 0 0 auto;
+  color: var(--portfolio-accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.portfolio-related-content-panel li a {
+  overflow: hidden;
+  color: #27354a;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.portfolio-related-content-panel li a:hover {
+  color: var(--portfolio-accent);
 }
 
 @media (max-width: 1100px) {
