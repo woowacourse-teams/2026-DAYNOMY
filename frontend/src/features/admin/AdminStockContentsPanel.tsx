@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { searchStocks } from '../portfolio/api';
 import type { StockSearchItem } from '../portfolio/types';
@@ -45,6 +45,18 @@ export function AdminStockContentsPanel() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [youtubeError, setYoutubeError] = useState('');
+  const selectedStockRef = useRef<StockSearchItem | null>(null);
+  const contentsRequestIdRef = useRef(0);
+  const contentsControllerRef = useRef<AbortController | null>(null);
+  const youtubeRequestIdRef = useRef(0);
+  const youtubeControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      contentsControllerRef.current?.abort();
+      youtubeControllerRef.current?.abort();
+    };
+  }, []);
 
   async function search() {
     const trimmedKeyword = keyword.trim();
@@ -67,57 +79,140 @@ export function AdminStockContentsPanel() {
   }
 
   async function selectStock(stock: StockSearchItem) {
+    const requestId = contentsRequestIdRef.current + 1;
+    contentsRequestIdRef.current = requestId;
+    selectedStockRef.current = stock;
+    youtubeRequestIdRef.current += 1;
+    youtubeControllerRef.current?.abort();
+    youtubeControllerRef.current = null;
     setSelectedStock(stock);
     setContents(null);
     setContentFilter('ALL');
     setYoutubeResults([]);
+    setYoutubeLoading(false);
     setYoutubeError('');
     setLoading(true);
     setError('');
+    contentsControllerRef.current?.abort();
+    const controller = new AbortController();
+    contentsControllerRef.current = controller;
     try {
-      setContents(await getAdminStockRelatedContents(stock.assetId));
+      const nextContents = await getAdminStockRelatedContents(stock.assetId, controller.signal);
+      if (
+        requestId !== contentsRequestIdRef.current ||
+        selectedStockRef.current?.assetId !== stock.assetId
+      ) {
+        return;
+      }
+      setContents(nextContents);
     } catch (caughtError) {
+      if (
+        controller.signal.aborted ||
+        requestId !== contentsRequestIdRef.current ||
+        selectedStockRef.current?.assetId !== stock.assetId
+      ) {
+        return;
+      }
       setError(getErrorMessage(caughtError, '종목 관련 자료를 불러오지 못했습니다.'));
     } finally {
-      setLoading(false);
+      if (requestId === contentsRequestIdRef.current) {
+        setLoading(false);
+        contentsControllerRef.current = null;
+      }
     }
   }
 
-  async function reloadContents() {
-    if (!selectedStock) return;
-    setContents(await getAdminStockRelatedContents(selectedStock.assetId));
+  async function reloadContents(assetId: number) {
+    if (selectedStockRef.current?.assetId !== assetId) return;
+
+    const requestId = contentsRequestIdRef.current + 1;
+    contentsRequestIdRef.current = requestId;
+    contentsControllerRef.current?.abort();
+    const controller = new AbortController();
+    contentsControllerRef.current = controller;
+    try {
+      const nextContents = await getAdminStockRelatedContents(assetId, controller.signal);
+      if (
+        requestId !== contentsRequestIdRef.current ||
+        selectedStockRef.current?.assetId !== assetId
+      ) {
+        return;
+      }
+      setContents(nextContents);
+    } catch (caughtError) {
+      if (
+        controller.signal.aborted ||
+        requestId !== contentsRequestIdRef.current ||
+        selectedStockRef.current?.assetId !== assetId
+      ) {
+        return;
+      }
+      setError(getErrorMessage(caughtError, '종목 관련 자료를 불러오지 못했습니다.'));
+    } finally {
+      if (requestId === contentsRequestIdRef.current) {
+        contentsControllerRef.current = null;
+      }
+    }
   }
 
   async function searchYouTube() {
-    if (!selectedStock || youtubeLoading) return;
+    const stock = selectedStockRef.current;
+    if (!stock || youtubeLoading) return;
 
+    const requestId = youtubeRequestIdRef.current + 1;
+    youtubeRequestIdRef.current = requestId;
+    const assetId = stock.assetId;
     setYoutubeLoading(true);
     setYoutubeError('');
+    youtubeControllerRef.current?.abort();
+    const controller = new AbortController();
+    youtubeControllerRef.current = controller;
     try {
-      const keyword = `${selectedStock.name} ${selectedStock.assetCode}`;
-      setYoutubeResults(await searchAdminYouTubeVideos(selectedStock.assetId, keyword));
+      const keyword = `${stock.name} ${stock.assetCode}`;
+      const results = await searchAdminYouTubeVideos(assetId, keyword, controller.signal);
+      if (
+        requestId !== youtubeRequestIdRef.current ||
+        selectedStockRef.current?.assetId !== assetId
+      ) {
+        return;
+      }
+      setYoutubeResults(results);
     } catch (caughtError) {
+      if (
+        controller.signal.aborted ||
+        requestId !== youtubeRequestIdRef.current ||
+        selectedStockRef.current?.assetId !== assetId
+      ) {
+        return;
+      }
       setYoutubeResults([]);
       setYoutubeError(getErrorMessage(caughtError, 'YouTube 영상을 검색하지 못했습니다.'));
     } finally {
-      setYoutubeLoading(false);
+      if (requestId === youtubeRequestIdRef.current) {
+        setYoutubeLoading(false);
+        youtubeControllerRef.current = null;
+      }
     }
   }
 
   async function saveYouTube(video: YouTubeSearchItem) {
-    if (!selectedStock || saving) return;
+    const stock = selectedStockRef.current;
+    if (!stock || saving) return;
 
+    const assetId = stock.assetId;
     setSaving(true);
     setError('');
     try {
-      await createAdminStockRelatedContent(selectedStock.assetId, {
+      if (selectedStockRef.current?.assetId !== assetId) return;
+      await createAdminStockRelatedContent(assetId, {
         sourceType: 'YOUTUBE',
         title: video.title,
         url: video.url,
         imageUrl: video.thumbnailUrl,
       });
+      if (selectedStockRef.current?.assetId !== assetId) return;
       setYoutubeResults((current) => current.filter((item) => item.url !== video.url));
-      await reloadContents();
+      await reloadContents(assetId);
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, 'YouTube 영상을 등록하지 못했습니다.'));
     } finally {
@@ -127,19 +222,23 @@ export function AdminStockContentsPanel() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedStock || !title.trim() || !url.trim() || saving) return;
+    const stock = selectedStockRef.current;
+    if (!stock || !title.trim() || !url.trim() || saving) return;
 
+    const assetId = stock.assetId;
     setSaving(true);
     setError('');
     try {
-      await createAdminStockRelatedContent(selectedStock.assetId, {
+      if (selectedStockRef.current?.assetId !== assetId) return;
+      await createAdminStockRelatedContent(assetId, {
         sourceType,
         title: title.trim(),
         url: url.trim(),
       });
+      if (selectedStockRef.current?.assetId !== assetId) return;
       setTitle('');
       setUrl('');
-      await reloadContents();
+      await reloadContents(assetId);
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, '관련 자료를 등록하지 못했습니다.'));
     } finally {
@@ -148,13 +247,16 @@ export function AdminStockContentsPanel() {
   }
 
   async function removeContent(contentId: number) {
-    if (!selectedStock || !window.confirm('이 링크를 삭제할까요?')) return;
+    const stock = selectedStockRef.current;
+    if (!stock || !window.confirm('이 링크를 삭제할까요?')) return;
 
+    const assetId = stock.assetId;
     setSaving(true);
     setError('');
     try {
-      await deleteAdminStockRelatedContent(selectedStock.assetId, contentId);
-      await reloadContents();
+      await deleteAdminStockRelatedContent(assetId, contentId);
+      if (selectedStockRef.current?.assetId !== assetId) return;
+      await reloadContents(assetId);
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, '관련 자료를 삭제하지 못했습니다.'));
     } finally {

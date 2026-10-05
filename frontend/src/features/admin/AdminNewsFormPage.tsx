@@ -100,9 +100,14 @@ export function AdminNewsFormPage() {
   const [assetSearchError, setAssetSearchError] = useState<string | null>(null);
   const imageSearchRequestId = useRef(0);
   const imageSearchController = useRef<AbortController | null>(null);
+  const assetSearchRequestId = useRef(0);
+  const assetSearchController = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    return () => imageSearchController.current?.abort();
+    return () => {
+      imageSearchController.current?.abort();
+      assetSearchController.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -163,21 +168,35 @@ export function AdminNewsFormPage() {
 
   async function searchRelatedAssets() {
     const keyword = assetSearchKeyword.trim();
+    const requestId = assetSearchRequestId.current + 1;
+    assetSearchRequestId.current = requestId;
+    assetSearchController.current?.abort();
+    assetSearchController.current = null;
+
     if (!keyword) {
       setAssetSearchError('종목명 또는 종목코드를 입력해 주세요.');
       setAssetSearchResults([]);
+      setAssetSearchLoading(false);
       return;
     }
 
     setAssetSearchLoading(true);
     setAssetSearchError(null);
+    const controller = new AbortController();
+    assetSearchController.current = controller;
     try {
-      setAssetSearchResults(await searchStocks(keyword));
+      const results = await searchStocks(keyword, controller.signal);
+      if (requestId !== assetSearchRequestId.current) return;
+      setAssetSearchResults(results);
     } catch (error) {
+      if (controller.signal.aborted || requestId !== assetSearchRequestId.current) return;
       setAssetSearchResults([]);
       setAssetSearchError(getErrorMessage(error, '관련 종목을 검색하지 못했습니다.'));
     } finally {
-      setAssetSearchLoading(false);
+      if (requestId === assetSearchRequestId.current) {
+        setAssetSearchLoading(false);
+        assetSearchController.current = null;
+      }
     }
   }
 
