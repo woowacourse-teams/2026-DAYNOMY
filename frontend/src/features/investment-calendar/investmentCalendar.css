@@ -345,10 +345,9 @@
 }
 
 .investment-calendar-table-wrap {
-  overflow: hidden;
   margin-top: 12px;
-  border: 1px solid var(--calendar-line);
-  border-radius: 12px;
+  border-top: 1px solid var(--calendar-line);
+  border-bottom: 1px solid var(--calendar-line);
 }
 
 .investment-calendar-table-wrap table {
@@ -358,20 +357,19 @@
 }
 
 .investment-calendar-table-wrap th {
-  padding: 10px 12px;
+  padding: 10px 4px;
   border-bottom: 1px solid var(--calendar-line);
-  background: #f7f9fc;
   color: var(--calendar-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   text-align: left;
 }
 
 .investment-calendar-table-wrap td {
-  padding: 12px;
+  padding: 15px 4px;
   border-bottom: 1px solid var(--calendar-line);
   color: var(--calendar-text);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
@@ -380,11 +378,11 @@
 }
 
 .investment-calendar-table-wrap th:first-child {
-  width: 28%;
+  width: 24%;
 }
 
 .investment-calendar-table-wrap th:nth-child(2) {
-  width: 22%;
+  width: 24%;
 }
 
 .investment-calendar-table-wrap th:nth-child(n + 2),
@@ -394,7 +392,7 @@
 
 .investment-calendar-table-wrap th:last-child,
 .investment-calendar-table-wrap td:last-child {
-  width: 50%;
+  width: 52%;
   white-space: nowrap;
 }
 
@@ -404,17 +402,17 @@
 
 .investment-calendar-table-wrap .positive {
   color: #c24141;
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .investment-calendar-table-wrap .negative {
   color: var(--calendar-blue);
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .investment-calendar-table-wrap .neutral {
   color: var(--calendar-text);
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .investment-calendar-basis,

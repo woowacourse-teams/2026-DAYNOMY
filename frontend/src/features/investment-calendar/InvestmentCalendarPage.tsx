@@ -74,23 +74,30 @@ function formatRate(value: number | null) {
   return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
 }
 
-function compactWon(value: number | null) {
-  if (value === null) return '-';
-  const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+function compactWonMagnitude(value: number) {
   const absolute = Math.abs(value);
-  if (absolute >= 100_000_000) return `${sign}${(absolute / 100_000_000).toFixed(1)}억원`;
-  if (absolute >= 10_000)
-    return `${sign}${Math.round(absolute / 10_000).toLocaleString('ko-KR')}만원`;
-  return `${sign}${absolute.toLocaleString('ko-KR')}원`;
+  if (absolute >= 100_000_000) return `${(absolute / 100_000_000).toFixed(1)}억원`;
+  if (absolute >= 10_000) return `${Math.round(absolute / 10_000).toLocaleString('ko-KR')}만원`;
+  return `${absolute.toLocaleString('ko-KR')}원`;
 }
 
 function formatRange(statistics: PortfolioReactionStatistics) {
   if (statistics.lowerEstimatedAmount === null || statistics.upperEstimatedAmount === null) {
     return '-';
   }
-  return `${compactWon(statistics.lowerEstimatedAmount)} ~ ${compactWon(
-    statistics.upperEstimatedAmount,
-  )}`;
+
+  const lower = statistics.lowerEstimatedAmount;
+  const upper = statistics.upperEstimatedAmount;
+  if (lower === 0 && upper === 0) return '변화 없음';
+  if (lower === 0) return `변화 없음 – ${compactWonMagnitude(upper)} 증가`;
+  if (upper === 0) return `${compactWonMagnitude(lower)} 감소 – 변화 없음`;
+  if (lower >= 0) {
+    return `${compactWonMagnitude(lower)} – ${compactWonMagnitude(upper)} 증가`;
+  }
+  if (upper <= 0) {
+    return `${compactWonMagnitude(upper)} – ${compactWonMagnitude(lower)} 감소`;
+  }
+  return `${compactWonMagnitude(lower)} 감소 – ${compactWonMagnitude(upper)} 증가`;
 }
 
 function impactLabel(level: InvestmentCalendarEvent['portfolioAnalysis']['impactLevel']) {
@@ -246,7 +253,7 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
                 <tr>
                   <th>{resultColumnTitle(event.type)}</th>
                   <th>중앙값</th>
-                  <th>내 돈 범위</th>
+                  <th>내 자산 변화</th>
                 </tr>
               </thead>
               <tbody>

@@ -31,6 +31,8 @@ describe('투자 캘린더 화면', () => {
     expect(
       await view.findByText('내 자산은 물가가 오른 뒤 약세였던 경우가 많았습니다.'),
     ).toBeTruthy();
+    expect(view.getByText('18만원 – 31만원 증가')).toBeTruthy();
+    expect(view.getByText('4만원 감소 – 7만원 증가')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: /두산 3분기 실적/ }));
 
     expect(view.getByText('두산은 영업이익이 늘어난 뒤 강세였던 경우가 많았습니다.')).toBeTruthy();
