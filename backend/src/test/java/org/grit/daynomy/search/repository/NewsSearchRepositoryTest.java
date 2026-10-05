@@ -17,7 +17,6 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -203,21 +202,23 @@ class NewsSearchRepositoryTest {
   }
 
   @Test
-  @DisplayName("관리자 검색은 공개 검색의 다중 단어 규칙을 적용하지 않고 기존 구문 검색을 유지한다")
-  void adminSearchRetainsPhraseMatching() {
+  @DisplayName("관리자 검색은 단어 사이의 다른 내용과 역순·제목·본문에 나뉜 단어를 찾는다")
+  void adminSearchMatchesAllTerms() {
     News phrase =
         entityManager.persist(News.createDraft("금리 인하 전망", "본문", null, List.of(), Category.ETF));
-    entityManager.persist(News.createDraft("금리 추가 인하 전망", "본문", null, List.of(), Category.ETF));
+    News separated =
+        entityManager.persist(News.createDraft("금리 추가 인하 전망", "본문", null, List.of(), Category.ETF));
+    News split =
+        entityManager.persist(News.createDraft("인하 전망", "금리", null, List.of(), Category.ETF));
+    entityManager.persist(News.createDraft("금리 동결", "본문", null, List.of(), Category.ETF));
     entityManager.flush();
 
     var results =
-        newsSearchRepository.search(
-            "금리 인하",
-            null,
-            null,
-            PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
+        newsSearchRepository.findAll(
+            adminSpecification("  금리\t인하 금리  ", null, null, NewsSearchSort.LATEST),
+            PageRequest.of(0, 10));
 
-    assertThat(results.getContent()).containsExactly(phrase);
+    assertThat(results.getContent()).containsExactly(split, separated, phrase);
   }
 
   @Test
@@ -253,13 +254,12 @@ class NewsSearchRepositoryTest {
             Category.ETF));
     entityManager.flush();
 
-    Sort latestFirst = Sort.by(Sort.Direction.DESC, "publishedAt", "id");
     var allResults =
-        newsSearchRepository.search(
-            "금리", null, NewsStatus.PUBLISHED, PageRequest.of(0, 10, latestFirst));
+        newsSearchRepository.findAll(
+            specification("금리", null, NewsSearchSort.LATEST), PageRequest.of(0, 10));
     var etfPage =
-        newsSearchRepository.search(
-            "금리", Category.ETF, NewsStatus.PUBLISHED, PageRequest.of(0, 1, latestFirst));
+        newsSearchRepository.findAll(
+            specification("금리", Category.ETF, NewsSearchSort.LATEST), PageRequest.of(0, 1));
 
     assertThat(allResults.getContent())
         .extracting(News::getTitle)
@@ -299,9 +299,10 @@ class NewsSearchRepositoryTest {
     entityManager.flush();
 
     PageRequest pageable = PageRequest.of(0, 20);
-    var percentResults = newsSearchRepository.search("금!%", null, NewsStatus.PUBLISHED, pageable);
+    var percentResults =
+        newsSearchRepository.findAll(specification("금%", null, NewsSearchSort.LATEST), pageable);
     var underscoreResults =
-        newsSearchRepository.search("금!_", null, NewsStatus.PUBLISHED, pageable);
+        newsSearchRepository.findAll(specification("금_", null, NewsSearchSort.LATEST), pageable);
 
     assertThat(percentResults.getContent())
         .singleElement()
@@ -328,24 +329,101 @@ class NewsSearchRepositoryTest {
     entityManager.persist(rejected);
     News etf =
         entityManager.persist(News.createDraft("금% ETF 뉴스", "본문", null, List.of(), Category.ETF));
+    News deleted = News.createDraft("금% 삭제 뉴스", "본문", null, List.of(), Category.STOCK);
+    deleted.delete();
+    entityManager.persist(deleted);
     entityManager.flush();
 
-    Sort latestFirst = Sort.by(Sort.Direction.DESC, "createdAt", "id");
     var firstPage =
-        newsSearchRepository.search("금!%", null, null, PageRequest.of(0, 2, latestFirst));
+        newsSearchRepository.findAll(
+            adminSpecification("금%", null, null, NewsSearchSort.LATEST), PageRequest.of(0, 2));
     var draftStock =
-        newsSearchRepository.search(
-            "금!%", Category.STOCK, NewsStatus.DRAFT, PageRequest.of(0, 2, latestFirst));
+        newsSearchRepository.findAll(
+            adminSpecification("금%", Category.STOCK, NewsStatus.DRAFT, NewsSearchSort.LATEST),
+            PageRequest.of(0, 2));
     var noResults =
-        newsSearchRepository.search("없음", null, null, PageRequest.of(0, 2, latestFirst));
+        newsSearchRepository.findAll(
+            adminSpecification("없음", null, null, NewsSearchSort.LATEST), PageRequest.of(0, 2));
 
-    assertThat(firstPage.getTotalElements()).isEqualTo(4);
-    assertThat(firstPage.getTotalPages()).isEqualTo(2);
+    assertThat(firstPage.getTotalElements()).isEqualTo(5);
+    assertThat(firstPage.getTotalPages()).isEqualTo(3);
     assertThat(firstPage.getContent())
         .extracting(News::getId)
-        .containsExactly(etf.getId(), rejected.getId());
+        .containsExactly(deleted.getId(), etf.getId());
     assertThat(draftStock.getContent()).singleElement().isSameAs(draft);
     assertThat(noResults.getContent()).isEmpty();
+  }
+
+  @Test
+  @DisplayName("관리자 관련도 정렬은 제목 일치·등록일·ID 순으로 정렬하고 COUNT·페이지를 유지한다")
+  void adminSearchRanksTitleMatchesAndUsesCreatedAt() {
+    News olderTitle =
+        entityManager.persist(
+            createNews(
+                "금리 인하 전망",
+                "본문",
+                "admin-older",
+                Category.ETF,
+                Instant.parse("2026-08-20T10:00:00Z")));
+    News newerTitle =
+        entityManager.persist(News.createDraft("인하를 검토하는 금리", "본문", null, List.of(), Category.ETF));
+    News split =
+        entityManager.persist(News.createDraft("금리 전망", "인하 가능성", null, List.of(), Category.ETF));
+    News body =
+        entityManager.persist(
+            createNews(
+                "시장 전망",
+                "금리 추가 인하",
+                "admin-body",
+                Category.ETF,
+                Instant.parse("2026-08-10T10:00:00Z")));
+    entityManager.flush();
+    entityManager
+        .getEntityManager()
+        .createNativeQuery(
+            "UPDATE news SET created_at = CASE WHEN id IN (:older, :newer) "
+                + "THEN TIMESTAMPTZ '2026-08-14 10:00:00+00' "
+                + "WHEN id = :split THEN TIMESTAMPTZ '2026-08-15 10:00:00+00' "
+                + "ELSE TIMESTAMPTZ '2026-08-16 10:00:00+00' END")
+        .setParameter("older", olderTitle.getId())
+        .setParameter("newer", newerTitle.getId())
+        .setParameter("split", split.getId())
+        .executeUpdate();
+
+    var relevant = adminSpecification("금리 인하", Category.ETF, null, NewsSearchSort.RELEVANCE);
+    var first = newsSearchRepository.findAll(relevant, PageRequest.of(0, 2));
+    var second = newsSearchRepository.findAll(relevant, PageRequest.of(1, 2));
+    var pastLast = newsSearchRepository.findAll(relevant, PageRequest.of(3, 2));
+    var latest =
+        newsSearchRepository.findAll(
+            adminSpecification("금리 인하", Category.ETF, null, NewsSearchSort.LATEST),
+            PageRequest.of(0, 10));
+
+    assertThat(first.getContent()).containsExactly(newerTitle, olderTitle);
+    assertThat(first.getTotalElements()).isEqualTo(4);
+    assertThat(first.getTotalPages()).isEqualTo(2);
+    assertThat(second.getContent()).containsExactly(split, body);
+    assertThat(pastLast.getContent()).isEmpty();
+    assertThat(pastLast.getTotalElements()).isEqualTo(4);
+    assertThat(latest.getContent()).containsExactly(body, split, newerTitle, olderTitle);
+  }
+
+  @Test
+  @DisplayName("관리자 다중 단어 검색도 특수문자를 일반 문자로 검색하고 영문 대소문자를 정규화한다")
+  void adminSearchTreatsSpecialCharactersAsLiterals() {
+    News match =
+        entityManager.persist(
+            News.createDraft("금%리_!'ETF 전망", "인하", null, List.of(), Category.ETF));
+    entityManager.persist(News.createDraft("금리 ETF 전망", "인하", null, List.of(), Category.ETF));
+    entityManager.persist(News.createDraft("금%리_!'ETF 전망", "동결", null, List.of(), Category.ETF));
+    entityManager.flush();
+
+    var results =
+        newsSearchRepository.findAll(
+            adminSpecification("  금%리_!'etf\t인하 인하  ", null, null, NewsSearchSort.RELEVANCE),
+            PageRequest.of(0, 10));
+
+    assertThat(results.getContent()).containsExactly(match);
   }
 
   private News createNews(
@@ -362,5 +440,10 @@ class NewsSearchRepositoryTest {
   private NewsSearchSpecification specification(
       String keyword, Category category, NewsSearchSort sort) {
     return new NewsSearchSpecification(NewsSearchTerms.from(keyword), category, sort);
+  }
+
+  private NewsSearchSpecification adminSpecification(
+      String keyword, Category category, NewsStatus status, NewsSearchSort sort) {
+    return NewsSearchSpecification.forAdmin(NewsSearchTerms.from(keyword), category, status, sort);
   }
 }
