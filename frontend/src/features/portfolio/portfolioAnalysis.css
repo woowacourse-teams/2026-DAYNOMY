@@ -1,7 +1,9 @@
 .portfolio-analysis-section {
   width: 100%;
-  max-width: 920px;
-  margin: 56px auto 0;
+  margin: 16px 0 0;
+  padding: 20px;
+  border: 1px solid #dce4ee;
+  background: #fff;
 }
 
 .portfolio-analysis-section h2 {
@@ -36,6 +38,48 @@
 
 .portfolio-analysis-heading.has-analysis p {
   font-size: 14px;
+}
+
+.portfolio-overall-impact {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.35fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 28px;
+  padding: 18px 20px;
+  border: 1px solid #e3e9f0;
+  background: #f8fafc;
+}
+
+.portfolio-overall-impact > div {
+  display: grid;
+  gap: 6px;
+}
+
+.portfolio-overall-impact span {
+  color: #68778d;
+  font-size: 12px;
+}
+
+.portfolio-overall-impact strong {
+  color: #667085;
+  font-size: 16px;
+}
+
+.portfolio-overall-impact.positive strong {
+  color: #d8323b;
+}
+
+.portfolio-overall-impact.negative strong {
+  color: #256fc3;
+}
+
+.portfolio-overall-impact p {
+  margin: 0;
+  color: #465267;
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: keep-all;
 }
 
 .portfolio-analysis-heading p,
@@ -539,6 +583,21 @@ button.portfolio-asset-row:focus-visible {
   animation: portfolio-evidence-reveal 160ms ease-out;
 }
 
+.portfolio-evidence-sources {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.portfolio-evidence-sources a {
+  color: #256fc3;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 @keyframes portfolio-evidence-reveal {
   from {
     transform: translateY(-4px);
@@ -565,6 +624,11 @@ button.portfolio-asset-row:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .portfolio-overall-impact {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
   .portfolio-analysis-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -583,7 +647,8 @@ button.portfolio-asset-row:focus-visible {
 
 @media (max-width: 520px) {
   .portfolio-analysis-section {
-    margin-top: 42px;
+    margin-top: 16px;
+    padding: 16px;
   }
 
   .portfolio-analysis-heading.has-analysis h2 {

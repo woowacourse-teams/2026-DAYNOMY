@@ -191,6 +191,8 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '수익률 추적' })).toBeTruthy();
     expect(view.queryByRole('heading', { name: '포트폴리오 요약' })).toBeNull();
+    expect(view.getByRole('heading', { name: '포트폴리오 AI 분석' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '분석하기' })).toBeTruthy();
     expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('005930');
   });

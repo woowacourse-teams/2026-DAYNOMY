@@ -1,4 +1,4 @@
-import { getApiUrl, request, requestWithCsrf } from '../../api/client';
+import { request, requestWithCsrf } from '../../api/client';
 import type {
   AssetCategory,
   MarketAllocation,
@@ -7,8 +7,6 @@ import type {
   PortfolioAsset,
   PortfolioAssetImpactResponse,
   PortfolioCalculation,
-  PortfolioDashboardAnalysisResponse,
-  PortfolioDashboardAssetImpactResponse,
   PortfolioHoldingInput,
   PortfolioHoldingResult,
   PortfolioImpactDirection,
@@ -19,41 +17,8 @@ import type {
   StockSearchItem,
 } from './types';
 
-const PORTFOLIO_ANALYSIS_CACHE_TIME = 5 * 60 * 1000;
-const PORTFOLIO_ANALYSIS_STORAGE_VERSION = 1;
-export const PORTFOLIO_ANALYSIS_STORAGE_KEY = 'daynomy:portfolio-analysis:v1';
-
-type PortfolioAnalysisCacheEntry = {
-  request: Promise<PortfolioAnalysisResponse>;
-  expiresAt?: number;
-  cleanupTimer?: ReturnType<typeof setTimeout>;
-};
-
-type PortfolioAnalysisStorage = {
-  version: number;
-  analyses: Record<string, unknown>;
-};
-
-const portfolioAnalysisRequests = new Map<string, PortfolioAnalysisCacheEntry>();
 const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE', 'NEUTRAL']);
 const IMPACT_LEVELS = new Set<PortfolioImpactLevel>(['HIGH', 'MEDIUM', 'LOW']);
-
-type PortfolioErrorResponse = {
-  code?: unknown;
-  message?: unknown;
-};
-
-export class PortfolioApiError extends Error {
-  readonly status: number;
-  readonly code?: string;
-
-  constructor(status: number, code?: string, message = '포트폴리오 분석을 불러오지 못했습니다.') {
-    super(message);
-    this.name = 'PortfolioApiError';
-    this.status = status;
-    this.code = code;
-  }
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -141,40 +106,11 @@ function isPortfolioCalculation(value: unknown): value is PortfolioCalculation {
   );
 }
 
-function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactResponse {
-  if (!isRecord(value)) return false;
-
-  return (
-    typeof value.assetName === 'string' &&
-    hasNumber(value, 'weight') &&
-    typeof value.direction === 'string' &&
-    IMPACT_DIRECTIONS.has(value.direction as PortfolioImpactDirection) &&
-    typeof value.impactLevel === 'string' &&
-    IMPACT_LEVELS.has(value.impactLevel as PortfolioImpactLevel) &&
-    typeof value.summary === 'string' &&
-    typeof value.reason === 'string' &&
-    typeof value.evidenceSentence === 'string' &&
-    Number.isInteger(value.rank)
-  );
-}
-
-function isPortfolioAnalysisResponse(value: unknown): value is PortfolioAnalysisResponse {
-  return (
-    isRecord(value) &&
-    Number.isInteger(value.totalAssetCount) &&
-    Number.isInteger(value.analyzedAssetCount) &&
-    Array.isArray(value.impacts) &&
-    value.impacts.every(isPortfolioAssetImpact)
-  );
-}
-
 function isPortfolioAnalysisSource(value: unknown): value is PortfolioAnalysisSource {
   return isRecord(value) && typeof value.title === 'string' && typeof value.url === 'string';
 }
 
-function isPortfolioDashboardAssetImpact(
-  value: unknown,
-): value is PortfolioDashboardAssetImpactResponse {
+function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactResponse {
   if (!isRecord(value)) return false;
 
   return (
@@ -195,9 +131,7 @@ function isPortfolioDashboardAssetImpact(
   );
 }
 
-function isPortfolioDashboardAnalysisResponse(
-  value: unknown,
-): value is PortfolioDashboardAnalysisResponse {
+function isPortfolioAnalysisResponse(value: unknown): value is PortfolioAnalysisResponse {
   return (
     isRecord(value) &&
     Number.isInteger(value.totalAssetCount) &&
@@ -210,7 +144,7 @@ function isPortfolioDashboardAnalysisResponse(
     (value.analyzedAt === null || typeof value.analyzedAt === 'string') &&
     typeof value.overallImpact === 'string' &&
     Array.isArray(value.impacts) &&
-    value.impacts.every(isPortfolioDashboardAssetImpact) &&
+    value.impacts.every(isPortfolioAssetImpact) &&
     Array.isArray(value.sources) &&
     value.sources.every(isPortfolioAnalysisSource)
   );
@@ -229,137 +163,6 @@ function normalizePortfolioAssets(assets: PortfolioAsset[]) {
 
 export function createPortfolioSnapshotKey(assets: PortfolioAsset[]) {
   return JSON.stringify(normalizePortfolioAssets(assets));
-}
-
-function createPortfolioAnalysisRequestKey(newsId: string, assets: PortfolioAsset[]) {
-  return JSON.stringify([newsId, normalizePortfolioAssets(assets)]);
-}
-
-function emptyPortfolioAnalysisStorage(): PortfolioAnalysisStorage {
-  return { version: PORTFOLIO_ANALYSIS_STORAGE_VERSION, analyses: {} };
-}
-
-function clearPortfolioAnalysisStorage() {
-  try {
-    localStorage.removeItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
-  } catch {
-    // 브라우저 저장소를 사용할 수 없어도 분석 기능은 계속한다.
-  }
-}
-
-function readPortfolioAnalysisStorage(): PortfolioAnalysisStorage {
-  try {
-    const saved = localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY);
-    if (!saved) return emptyPortfolioAnalysisStorage();
-
-    const parsed: unknown = JSON.parse(saved);
-    if (
-      !isRecord(parsed) ||
-      parsed.version !== PORTFOLIO_ANALYSIS_STORAGE_VERSION ||
-      !isRecord(parsed.analyses) ||
-      Array.isArray(parsed.analyses)
-    ) {
-      clearPortfolioAnalysisStorage();
-      return emptyPortfolioAnalysisStorage();
-    }
-
-    return {
-      version: PORTFOLIO_ANALYSIS_STORAGE_VERSION,
-      analyses: parsed.analyses,
-    };
-  } catch {
-    clearPortfolioAnalysisStorage();
-    return emptyPortfolioAnalysisStorage();
-  }
-}
-
-function writePortfolioAnalysisStorage(storage: PortfolioAnalysisStorage) {
-  try {
-    if (Object.keys(storage.analyses).length === 0) {
-      clearPortfolioAnalysisStorage();
-      return;
-    }
-
-    localStorage.setItem(PORTFOLIO_ANALYSIS_STORAGE_KEY, JSON.stringify(storage));
-  } catch {
-    // 브라우저 저장소를 사용할 수 없어도 완료된 분석 결과는 반환한다.
-  }
-}
-
-function savePortfolioAnalysis(requestKey: string, analysis: PortfolioAnalysisResponse) {
-  const storage = readPortfolioAnalysisStorage();
-  writePortfolioAnalysisStorage({
-    ...storage,
-    analyses: { ...storage.analyses, [requestKey]: analysis },
-  });
-}
-
-function loadStoredPortfolioAnalysis(requestKey: string) {
-  const storage = readPortfolioAnalysisStorage();
-  const analysis = storage.analyses[requestKey];
-  if (analysis === undefined) return null;
-  if (isPortfolioAnalysisResponse(analysis)) return analysis;
-
-  const remainingAnalyses = { ...storage.analyses };
-  delete remainingAnalyses[requestKey];
-  writePortfolioAnalysisStorage({ ...storage, analyses: remainingAnalyses });
-  return null;
-}
-
-export function getStoredPortfolioAnalysis(
-  newsId: string,
-  assets: PortfolioAsset[],
-): PortfolioAnalysisResponse | null {
-  return loadStoredPortfolioAnalysis(createPortfolioAnalysisRequestKey(newsId, assets));
-}
-
-function deleteStoredPortfolioAnalysis(requestKey: string) {
-  const storage = readPortfolioAnalysisStorage();
-  if (!(requestKey in storage.analyses)) return;
-
-  const remainingAnalyses = { ...storage.analyses };
-  delete remainingAnalyses[requestKey];
-  writePortfolioAnalysisStorage({ ...storage, analyses: remainingAnalyses });
-}
-
-function deletePortfolioAnalysisCacheEntry(requestKey: string) {
-  const cachedEntry = portfolioAnalysisRequests.get(requestKey);
-  if (cachedEntry?.cleanupTimer) clearTimeout(cachedEntry.cleanupTimer);
-  portfolioAnalysisRequests.delete(requestKey);
-}
-
-async function requestPortfolioAnalysis(
-  newsId: string,
-  assets: PortfolioAsset[],
-): Promise<PortfolioAnalysisResponse> {
-  const analysisRequest: PortfolioAnalysisRequest = { assets };
-  const response = await fetch(
-    getApiUrl(`/api/news/${encodeURIComponent(newsId)}/portfolio-analysis`),
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(analysisRequest),
-    },
-  );
-
-  if (!response.ok) {
-    const contentType = response.headers.get('content-type') ?? '';
-    const error = contentType.includes('application/json')
-      ? ((await response.json()) as PortfolioErrorResponse)
-      : undefined;
-    throw new PortfolioApiError(
-      response.status,
-      typeof error?.code === 'string' ? error.code : undefined,
-      typeof error?.message === 'string' ? error.message : undefined,
-    );
-  }
-
-  const data = (await response.json()) as unknown;
-  if (!isPortfolioAnalysisResponse(data)) {
-    throw new Error('포트폴리오 분석 API 응답 형식이 올바르지 않습니다.');
-  }
-
-  return data;
 }
 
 export async function searchStocks(keyword: string, signal?: AbortSignal) {
@@ -434,59 +237,9 @@ export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortS
     signal,
   });
 
-  if (!isPortfolioDashboardAnalysisResponse(response)) {
+  if (!isPortfolioAnalysisResponse(response)) {
     throw new Error('포트폴리오 분석 API 응답 형식이 올바르지 않습니다.');
   }
 
   return response;
-}
-
-export function getPortfolioAnalysis(
-  newsId: string,
-  assets: PortfolioAsset[],
-): Promise<PortfolioAnalysisResponse> {
-  const requestKey = createPortfolioAnalysisRequestKey(newsId, assets);
-  const cachedEntry = portfolioAnalysisRequests.get(requestKey);
-  const isFresh = cachedEntry && (!cachedEntry.expiresAt || Date.now() < cachedEntry.expiresAt);
-
-  if (isFresh) return cachedEntry.request;
-  if (cachedEntry) deletePortfolioAnalysisCacheEntry(requestKey);
-
-  const storedAnalysis = loadStoredPortfolioAnalysis(requestKey);
-  if (storedAnalysis) return Promise.resolve(storedAnalysis);
-
-  const analysisRequest = requestPortfolioAnalysis(newsId, assets);
-  portfolioAnalysisRequests.set(requestKey, { request: analysisRequest });
-
-  void analysisRequest.then(
-    (analysis) => {
-      const currentEntry = portfolioAnalysisRequests.get(requestKey);
-      if (currentEntry?.request !== analysisRequest) return;
-
-      savePortfolioAnalysis(requestKey, analysis);
-      currentEntry.expiresAt = Date.now() + PORTFOLIO_ANALYSIS_CACHE_TIME;
-      currentEntry.cleanupTimer = setTimeout(() => {
-        if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
-          portfolioAnalysisRequests.delete(requestKey);
-        }
-      }, PORTFOLIO_ANALYSIS_CACHE_TIME);
-    },
-    () => {
-      if (portfolioAnalysisRequests.get(requestKey)?.request === analysisRequest) {
-        deletePortfolioAnalysisCacheEntry(requestKey);
-      }
-    },
-  );
-
-  return analysisRequest;
-}
-
-export function retryPortfolioAnalysis(
-  newsId: string,
-  assets: PortfolioAsset[],
-): Promise<PortfolioAnalysisResponse> {
-  const requestKey = createPortfolioAnalysisRequestKey(newsId, assets);
-  deletePortfolioAnalysisCacheEntry(requestKey);
-  deleteStoredPortfolioAnalysis(requestKey);
-  return getPortfolioAnalysis(newsId, assets);
 }

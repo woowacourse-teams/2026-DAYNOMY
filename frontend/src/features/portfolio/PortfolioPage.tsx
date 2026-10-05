@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { calculatePortfolio } from './api';
+import { PortfolioAnalysis } from './components/PortfolioAnalysis';
 import { PortfolioEditor } from './components/PortfolioEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
 import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
 import type {
   AssetCategory,
   PortfolioCalculation,
+  PortfolioAsset,
   PortfolioHoldingHistory,
   PortfolioHoldingInput,
   PortfolioHoldingResult,
@@ -287,6 +289,24 @@ function compareHoldings(
   return (second[key] as number) - (first[key] as number);
 }
 
+function toPortfolioAnalysisAssets(holdings: PortfolioHoldingResult[]): PortfolioAsset[] {
+  if (holdings.length === 0) return [];
+
+  const assets = holdings.map(({ name, weight }) => ({ assetName: name, weight }));
+  const totalWeight = assets.reduce((sum, asset) => sum + asset.weight, 0);
+  const adjustmentIndex = assets.reduce(
+    (largestIndex, asset, index) =>
+      asset.weight > assets[largestIndex].weight ? index : largestIndex,
+    0,
+  );
+
+  return assets.map((asset, index) =>
+    index === adjustmentIndex
+      ? { ...asset, weight: Number((asset.weight + 100 - totalWeight).toFixed(2)) }
+      : asset,
+  );
+}
+
 export function PortfolioPage() {
   const {
     holdings,
@@ -344,6 +364,10 @@ export function PortfolioPage() {
       ) ?? [];
     return [...filtered].sort((first, second) => compareHoldings(first, second, sort));
   }, [calculation, categoryFilter, sort]);
+  const analysisAssets = useMemo(
+    () => toPortfolioAnalysisAssets(calculation?.holdings ?? []),
+    [calculation],
+  );
 
   async function save(nextHolding: PortfolioHoldingInput) {
     await saveHolding(nextHolding);
@@ -618,6 +642,7 @@ export function PortfolioPage() {
               <span>수수료·세금 미반영</span>
             </div>
           </section>
+          <PortfolioAnalysis assets={analysisAssets} />
         </>
       ) : null}
 
