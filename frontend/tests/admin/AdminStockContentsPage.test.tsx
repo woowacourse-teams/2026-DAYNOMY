@@ -80,9 +80,7 @@ describe('관리자 종목 연결 화면', () => {
 
     expect(await view.findByText('삼성전자 분석 영상')).toBeTruthy();
     expect(view.getByText('삼성전자 Threads 자료')).toBeTruthy();
-    expect(view.getByRole('button', { name: '전체2' }).getAttribute('aria-pressed')).toBe(
-      'true',
-    );
+    expect(view.getByRole('button', { name: '전체2' }).getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(view.getByRole('button', { name: 'YouTube1' }));
 
