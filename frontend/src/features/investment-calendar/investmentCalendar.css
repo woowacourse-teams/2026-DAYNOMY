@@ -466,6 +466,15 @@
   font-size: 14px;
 }
 
+.investment-calendar-analysis-state strong {
+  margin-bottom: 7px;
+  color: var(--calendar-text);
+}
+
+.investment-calendar-analysis-state span {
+  font-size: 13px;
+}
+
 .investment-calendar-disclaimer {
   margin: 18px 0 0;
 }

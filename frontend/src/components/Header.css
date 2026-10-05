@@ -267,3 +267,9 @@
     font-size: 12px;
   }
 }
+
+@media (max-width: 560px) {
+  .daynomy-header .header-actions {
+    display: none;
+  }
+}

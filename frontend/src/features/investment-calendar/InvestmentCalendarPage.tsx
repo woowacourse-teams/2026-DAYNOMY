@@ -220,6 +220,11 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
         <div className="investment-calendar-analysis-state">
           포트폴리오에 자산을 추가하면 과거 반응을 확인할 수 있어요.
         </div>
+      ) : analysis.status === 'INSUFFICIENT_DATA' ? (
+        <div className="investment-calendar-analysis-state">
+          <strong>아직 비교할 과거 사례가 부족해요.</strong>
+          <span>표본이 3회 이상 쌓이면 내 자산의 반응 범위를 보여드릴게요.</span>
+        </div>
       ) : (
         <>
           <div className="investment-calendar-impact-head">
