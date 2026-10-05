@@ -61,7 +61,15 @@ const previewDesigns: PreviewDesign[] = [
   },
 ];
 
-function PreviewMedia({ card, design }: { card: PreviewCard; design: PreviewDesign }) {
+function PreviewMedia({
+  card,
+  design,
+  index,
+}: {
+  card: PreviewCard;
+  design: PreviewDesign;
+  index: number;
+}) {
   const [source, setSource] = useState(card.image);
 
   return (
@@ -78,15 +86,25 @@ function PreviewMedia({ card, design }: { card: PreviewCard; design: PreviewDesi
           ▶
         </span>
       ) : null}
-      {design.className === 'numbered' ? <span className="card-preview-index">01</span> : null}
+      {design.className === 'numbered' ? (
+        <span className="card-preview-index">{String(index + 1).padStart(2, '0')}</span>
+      ) : null}
     </div>
   );
 }
 
-function PreviewCardItem({ card, design }: { card: PreviewCard; design: PreviewDesign }) {
+function PreviewCardItem({
+  card,
+  design,
+  index,
+}: {
+  card: PreviewCard;
+  design: PreviewDesign;
+  index: number;
+}) {
   return (
     <article className={`card-preview-card card-preview-card--${design.className}`}>
-      <PreviewMedia card={card} design={design} />
+      <PreviewMedia card={card} design={design} index={index} />
       <div className="card-preview-copy">
         <span className="card-preview-eyebrow">
           {card.type === 'issue' ? 'DAYNOMY 이슈' : 'YouTube'}
@@ -124,8 +142,8 @@ export function CardDesignPreviewPage() {
                 <p>{design.description}</p>
               </div>
               <div className={`card-preview-grid card-preview-grid--${design.className}`}>
-                {previewCards.map((card) => (
-                  <PreviewCardItem card={card} design={design} key={card.type} />
+                {previewCards.map((card, index) => (
+                  <PreviewCardItem card={card} design={design} index={index} key={card.type} />
                 ))}
               </div>
             </section>
