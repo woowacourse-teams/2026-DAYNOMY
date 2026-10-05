@@ -518,6 +518,16 @@
   margin: 18px 0 0;
 }
 
+@media (min-width: 1340px) {
+  .investment-calendar-page {
+    width: min(1680px, calc(100% - (2 * clamp(56px, 8vw, 160px))));
+  }
+
+  .investment-calendar-workspace {
+    grid-template-columns: clamp(336px, 28%, 420px) minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 820px) {
   .investment-calendar-page {
     width: min(100% - 32px, 1120px);
