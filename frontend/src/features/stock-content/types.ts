@@ -35,6 +35,6 @@ export type StockRelatedContentRequest = {
 export const STOCK_CONTENT_SOURCE_LABELS: Record<StockRelatedContentSource, string> = {
   YOUTUBE: 'YouTube',
   THREADS: 'Threads',
-  INTERNAL_NEWS: 'DAYNOMY 뉴스',
+  INTERNAL_NEWS: 'DAYNOMY 이슈',
   OTHER: '기타',
 };
