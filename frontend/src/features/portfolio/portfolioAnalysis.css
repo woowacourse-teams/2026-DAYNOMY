@@ -57,8 +57,8 @@
 }
 
 .portfolio-overall-impact span {
-  color: #68778d;
-  font-size: 12px;
+  color: #596579;
+  font-size: 13px;
 }
 
 .portfolio-overall-impact strong {
@@ -76,8 +76,8 @@
 
 .portfolio-overall-impact p {
   margin: 0;
-  color: #465267;
-  font-size: 13px;
+  color: #354052;
+  font-size: 14px;
   line-height: 1.7;
   word-break: keep-all;
 }
@@ -89,14 +89,14 @@
 .portfolio-overall-summary > time {
   display: block;
   margin-top: 7px;
-  color: #8b95a7;
-  font-size: 11px;
+  color: #68778d;
+  font-size: 12px;
 }
 
 .portfolio-score-guide {
   margin-top: 10px;
-  color: #596579;
-  font-size: 12px;
+  color: #465267;
+  font-size: 13px;
 }
 
 .portfolio-score-guide summary {
@@ -113,8 +113,8 @@
 
 .portfolio-score-guide > p {
   margin-top: 10px;
-  color: #68778d;
-  font-size: 12px;
+  color: #596579;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -271,7 +271,7 @@
 }
 
 .portfolio-analysis-overview-heading > span {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 900;
 }
 
@@ -344,15 +344,9 @@
   pointer-events: none;
 }
 
-.portfolio-donut-center span {
-  color: #667085;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
 .portfolio-donut-center strong {
   max-width: 100%;
-  margin-top: 6px;
+  margin-top: 0;
   overflow: hidden;
   color: #151a2a;
   font-size: 17px;

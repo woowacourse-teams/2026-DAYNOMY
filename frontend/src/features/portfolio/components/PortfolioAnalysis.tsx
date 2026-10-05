@@ -49,6 +49,10 @@ function formatImpactScore(score: number) {
   return `${sign}${Math.abs(score).toFixed(2)}점`;
 }
 
+function formatImpactMagnitude(score: number) {
+  return `${Math.abs(score).toFixed(2)}점`;
+}
+
 function formatAnalyzedAt(analyzedAt: string | null) {
   if (!analyzedAt) return null;
   const date = new Date(analyzedAt);
@@ -278,7 +282,6 @@ function PortfolioDonut({
         className={`portfolio-donut-center ${selectedImpact.direction.toLowerCase()}`}
         aria-live="polite"
       >
-        <span>{`영향도 TOP ${selectedImpact.rank}`}</span>
         <strong>{selectedImpact.assetName}</strong>
         <b>{`${selectedImpact.weight}%`}</b>
         <small>현재 보유 비중</small>
@@ -544,7 +547,7 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
           <div className={`portfolio-overall-impact ${analysis.overallDirection.toLowerCase()}`}>
             <div className="portfolio-overall-score">
               <span>전체 포트폴리오 예상 영향</span>
-              <strong>{`${DIRECTION_LABELS[analysis.overallDirection]} · ${formatImpactScore(analysis.overallScore)}`}</strong>
+              <strong>{`${DIRECTION_LABELS[analysis.overallDirection]} 영향 ${formatImpactMagnitude(analysis.overallScore)}`}</strong>
             </div>
             <div className="portfolio-overall-summary">
               <p>{analysis.overallImpact}</p>

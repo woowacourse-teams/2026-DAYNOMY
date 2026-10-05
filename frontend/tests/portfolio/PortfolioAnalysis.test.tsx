@@ -80,7 +80,7 @@ describe('포트폴리오 분석 화면', () => {
 
     fireEvent.click(view.getByRole('button', { name: '분석하기' }));
 
-    expect(await view.findByText('긍정 · +51.00점')).toBeTruthy();
+    expect(await view.findByText('긍정 영향 51.00점')).toBeTruthy();
     expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
     expect(view.getByText(/분석 기준/)).toBeTruthy();
     expect(view.getByRole('heading', { name: '삼성전자' })).toBeTruthy();
@@ -222,11 +222,11 @@ describe('포트폴리오 분석 화면', () => {
     const firstView = render(<PortfolioAnalysis assets={assets} />);
 
     fireEvent.click(firstView.getByRole('button', { name: '분석하기' }));
-    expect(await firstView.findByText('긍정 · +51.00점')).toBeTruthy();
+    expect(await firstView.findByText('긍정 영향 51.00점')).toBeTruthy();
     firstView.unmount();
 
     const secondView = render(<PortfolioAnalysis assets={assets} />);
-    expect(await secondView.findByText('긍정 · +51.00점')).toBeTruthy();
+    expect(await secondView.findByText('긍정 영향 51.00점')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -249,7 +249,7 @@ describe('포트폴리오 분석 화면', () => {
     await waitFor(() => {
       expect(view.getByRole('button', { name: '분석하기' })).toBeTruthy();
     });
-    expect(view.queryByText('긍정 · +51.00점')).toBeNull();
+    expect(view.queryByText('긍정 영향 51.00점')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -268,10 +268,10 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} />);
 
     fireEvent.click(view.getByRole('button', { name: '분석하기' }));
-    expect(await view.findByText('긍정 · +51.00점')).toBeTruthy();
+    expect(await view.findByText('긍정 영향 51.00점')).toBeTruthy();
 
     fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
-    expect(await view.findByText('부정 · −25.00점')).toBeTruthy();
+    expect(await view.findByText('부정 영향 25.00점')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY)).toContain(
       '새로운 이슈로 부정 영향이 예상돼요.',
@@ -286,6 +286,6 @@ describe('포트폴리오 분석 화면', () => {
     await waitFor(() => {
       expect(view.getByRole('button', { name: '분석하기' })).toBeTruthy();
     });
-    expect(view.queryByText('긍정 · +51.00점')).toBeNull();
+    expect(view.queryByText('긍정 영향 51.00점')).toBeNull();
   });
 });
