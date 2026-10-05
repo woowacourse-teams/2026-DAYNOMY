@@ -49,6 +49,19 @@ function formatImpactScore(score: number) {
   return `${sign}${Math.abs(score).toFixed(2)}점`;
 }
 
+function formatAnalyzedAt(analyzedAt: string | null) {
+  if (!analyzedAt) return null;
+  const date = new Date(analyzedAt);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${year}.${month}.${day} ${hour}:${minute} 분석 기준`;
+}
+
 function normalizeAssetName(assetName: string) {
   return assetName.trim().toLocaleLowerCase();
 }
@@ -478,6 +491,7 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
   );
   const selectedImpact =
     sortedImpacts.find((impact) => impact.assetName === selectedAssetName) ?? sortedImpacts[0];
+  const analyzedAtLabel = formatAnalyzedAt(analysis?.analyzedAt ?? null);
 
   const handleRetry = () => {
     analyze();
@@ -528,11 +542,37 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
       {hasAnalysisTarget && !loading && !error && analysis && selectedImpact ? (
         <>
           <div className={`portfolio-overall-impact ${analysis.overallDirection.toLowerCase()}`}>
-            <div>
+            <div className="portfolio-overall-score">
               <span>전체 포트폴리오 예상 영향</span>
               <strong>{`${DIRECTION_LABELS[analysis.overallDirection]} · ${formatImpactScore(analysis.overallScore)}`}</strong>
             </div>
-            <p>{analysis.overallImpact}</p>
+            <div className="portfolio-overall-summary">
+              <p>{analysis.overallImpact}</p>
+              {analyzedAtLabel ? (
+                <time dateTime={analysis.analyzedAt ?? undefined}>{analyzedAtLabel}</time>
+              ) : null}
+              <details className="portfolio-score-guide">
+                <summary>영향 점수 산정 기준</summary>
+                <p>
+                  보유 비중과 자산별 영향 방향·수준을 합산한 -100~100 지표예요. 예상 수익률이나 상승
+                  확률은 아닙니다.
+                </p>
+                <dl>
+                  <div>
+                    <dt>긍정 기여</dt>
+                    <dd>{formatImpactScore(analysis.positiveImpactScore)}</dd>
+                  </div>
+                  <div>
+                    <dt>부정 기여</dt>
+                    <dd>{`−${Math.abs(analysis.negativeImpactScore).toFixed(2)}점`}</dd>
+                  </div>
+                  <div>
+                    <dt>전체 영향</dt>
+                    <dd>{formatImpactScore(analysis.overallScore)}</dd>
+                  </div>
+                </dl>
+              </details>
+            </div>
           </div>
           <div className="portfolio-analysis-layout">
             <div className="portfolio-analysis-overview">

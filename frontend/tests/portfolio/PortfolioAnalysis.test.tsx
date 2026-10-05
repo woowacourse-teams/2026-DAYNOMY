@@ -82,6 +82,7 @@ describe('포트폴리오 분석 화면', () => {
 
     expect(await view.findByText('긍정 · +51.00점')).toBeTruthy();
     expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
+    expect(view.getByText(/분석 기준/)).toBeTruthy();
     expect(view.getByRole('heading', { name: '삼성전자' })).toBeTruthy();
     expect(view.getByText('실적 개선 기대가 주가에 긍정적으로 반영될 수 있어요.')).toBeTruthy();
 
@@ -103,6 +104,21 @@ describe('포트폴리오 분석 화면', () => {
     const sourceLink = view.getByRole('link', { name: '메모리 시장 동향' });
     expect(sourceLink.getAttribute('href')).toBe('https://example.com/memory');
     expect(sourceLink.getAttribute('target')).toBe('_blank');
+  });
+
+  it('가중 영향 점수의 산정 기준과 기여 점수를 안내한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(analysisResponse)),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} />);
+
+    fireEvent.click(view.getByRole('button', { name: '분석하기' }));
+    fireEvent.click(await view.findByText('영향 점수 산정 기준'));
+
+    expect(view.getByText(/예상 수익률이나 상승 확률은 아닙니다/)).toBeTruthy();
+    expect(view.getByText('+60.00점')).toBeTruthy();
+    expect(view.getByText('−9.00점')).toBeTruthy();
   });
 
   it('분석 중에는 로딩 상태를 표시하고 중복 요청을 막는다', async () => {

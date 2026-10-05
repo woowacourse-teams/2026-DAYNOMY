@@ -51,7 +51,7 @@
   background: #f8fafc;
 }
 
-.portfolio-overall-impact > div {
+.portfolio-overall-score {
   display: grid;
   gap: 6px;
 }
@@ -80,6 +80,65 @@
   font-size: 13px;
   line-height: 1.7;
   word-break: keep-all;
+}
+
+.portfolio-overall-summary {
+  min-width: 0;
+}
+
+.portfolio-overall-summary > time {
+  display: block;
+  margin-top: 7px;
+  color: #8b95a7;
+  font-size: 11px;
+}
+
+.portfolio-score-guide {
+  margin-top: 10px;
+  color: #596579;
+  font-size: 12px;
+}
+
+.portfolio-score-guide summary {
+  width: fit-content;
+  color: #365f91;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.portfolio-score-guide summary:focus-visible {
+  outline: 2px solid #5144d8;
+  outline-offset: 2px;
+}
+
+.portfolio-score-guide > p {
+  margin-top: 10px;
+  color: #68778d;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.portfolio-score-guide dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 10px 0 0;
+}
+
+.portfolio-score-guide dl > div {
+  display: flex;
+  gap: 5px;
+}
+
+.portfolio-score-guide dt {
+  color: #8b95a7;
+}
+
+.portfolio-score-guide dd {
+  margin: 0;
+  color: #354052;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .portfolio-analysis-heading p,
