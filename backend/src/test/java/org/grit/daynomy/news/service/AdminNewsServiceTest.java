@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
 import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
@@ -88,6 +89,8 @@ class AdminNewsServiceTest {
   @Mock private KeywordService keywordService;
 
   @Mock private MarketAnalysisService marketAnalysisService;
+
+  @Mock private AssetContentService assetContentService;
 
   @InjectMocks private AdminNewsService adminNewsService;
 
@@ -614,6 +617,7 @@ class AdminNewsServiceTest {
       assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
       verifyNoInteractions(
           keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
+      verify(assetContentService, never()).syncNewsContents(any(), any());
       verify(s3ImageStorage, never())
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
       assertThat(appender.list).isEmpty();
@@ -627,6 +631,37 @@ class AdminNewsServiceTest {
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
       ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_UPDATE_COMPLETED);
       assertThat(keyValues(log)).containsKey("newsId").containsEntry("analysisRegenerated", false);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @Test
+  @DisplayName("명시적으로 빈 종목 목록을 전달하면 뉴스 관련 종목을 비운다")
+  void updateNewsClearsAssetLinksWhenAssetIdsAreEmpty() {
+    News news =
+        News.createDraft(
+            "기존 제목",
+            "기존 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/old")),
+            Category.STOCK);
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.STOCK,
+            null,
+            null,
+            List.of());
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      adminNewsService.update(1L, request, null);
+
+      verify(assetContentService).syncNewsContents(news, List.of());
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }

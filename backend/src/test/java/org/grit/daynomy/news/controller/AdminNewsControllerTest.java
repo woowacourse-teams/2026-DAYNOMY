@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.ImageSourceInfo;
 import org.grit.daynomy.news.domain.News;
@@ -59,6 +60,8 @@ class AdminNewsControllerTest {
   @MockitoBean private AdminNewsService adminNewsService;
 
   @MockitoBean private NewsGenerationService newsGenerationService;
+
+  @MockitoBean private AssetContentService assetContentService;
 
   @Test
   @DisplayName("관리자 Wikimedia Commons 이미지 검색 API는 후보 목록을 반환한다")
