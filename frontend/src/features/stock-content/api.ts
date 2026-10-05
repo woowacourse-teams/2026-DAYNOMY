@@ -16,6 +16,19 @@ function isSource(value: unknown): value is StockRelatedContentSource {
   );
 }
 
+function isSafeContentUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.trim() === '' || value.trim().startsWith('//')) {
+    return false;
+  }
+
+  try {
+    const parsedUrl = new URL(value, 'https://daynomy.local');
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function isRelatedContent(value: unknown) {
   return (
     isRecord(value) &&
@@ -23,7 +36,7 @@ function isRelatedContent(value: unknown) {
     typeof value.assetId === 'number' &&
     isSource(value.sourceType) &&
     typeof value.title === 'string' &&
-    typeof value.url === 'string' &&
+    isSafeContentUrl(value.url) &&
     (value.imageUrl === null || typeof value.imageUrl === 'string') &&
     (value.createdAt === null || typeof value.createdAt === 'string')
   );
