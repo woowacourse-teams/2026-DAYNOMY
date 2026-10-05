@@ -17,6 +17,7 @@ export function Header() {
   const isNewsPage =
     location.pathname.startsWith('/news') || location.pathname.startsWith('/search');
   const isPortfolioPage = location.pathname === '/' || location.pathname.startsWith('/portfolio');
+  const isInvestmentCalendarPage = location.pathname.startsWith('/investment-calendar');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -53,6 +54,12 @@ export function Header() {
         </Link>
         <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/news">
           이슈
+        </Link>
+        <Link
+          className={isInvestmentCalendarPage ? 'header-tab active' : 'header-tab'}
+          to="/investment-calendar"
+        >
+          투자 캘린더
         </Link>
       </nav>
       <div className="header-actions">

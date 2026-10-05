@@ -8,6 +8,7 @@ import { NewsListPage } from './features/news/newslist/NewsListPage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
 import SearchPage from './features/search/SearchPage';
 import { PortfolioPage } from './features/portfolio/PortfolioPage';
+import { InvestmentCalendarPage } from './features/investment-calendar/InvestmentCalendarPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { Header } from './components/Header';
@@ -38,6 +39,7 @@ function AppHeader() {
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/portfolio') ||
+    location.pathname.startsWith('/investment-calendar') ||
     location.pathname.startsWith('/stocks/') ||
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
@@ -116,6 +118,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<PortfolioPage />} />
               <Route path="/portfolio" element={<Navigate to="/" replace />} />
+              <Route path="/investment-calendar" element={<InvestmentCalendarPage />} />
               <Route path="/news" element={<NewsListPage />} />
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />

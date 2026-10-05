@@ -19,6 +19,9 @@ describe('헤더', () => {
     expect(view.getByRole('link', { name: 'DAYNOMY 홈' }).getAttribute('href')).toBe('/');
     expect(view.getByRole('link', { name: '포트폴리오' }).getAttribute('href')).toBe('/');
     expect(view.getByRole('link', { name: '이슈' }).getAttribute('href')).toBe('/news');
+    expect(view.getByRole('link', { name: '투자 캘린더' }).getAttribute('href')).toBe(
+      '/investment-calendar',
+    );
     expect(view.queryByRole('link', { name: '로그인' })).toBeNull();
   });
 });
