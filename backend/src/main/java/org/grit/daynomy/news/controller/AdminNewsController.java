@@ -20,6 +20,7 @@ import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.dto.WikimediaImageSearchResponse;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.grit.daynomy.news.service.NewsGenerationService;
+import org.grit.daynomy.search.domain.NewsSearchSort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -83,7 +84,12 @@ public class AdminNewsController {
     return ResponseEntity.ok(toResponse(news));
   }
 
-  @Operation(summary = "관리자 뉴스 목록 조회", description = "관리자용 뉴스 목록을 검색어·상태·카테고리별로 조회합니다.")
+  @Operation(
+      summary = "관리자 뉴스 목록 조회",
+      description =
+          "공백으로 구분한 모든 검색 단어가 제목 또는 본문에 포함된 뉴스를 상태·카테고리별로 조회합니다. "
+              + "정렬은 기본 등록일 최신순(LATEST), 제목 일치 우선(RELEVANCE)을 지원합니다. "
+              + "검색어 생략 또는 공백 입력 시 기존 등록일 최신순 목록을 반환합니다.")
   @GetMapping
   public ResponseEntity<AdminNewsPageResponse> getNewsPage(
       @Parameter(description = "1부터 시작하는 페이지 번호", example = "1")
@@ -100,8 +106,12 @@ public class AdminNewsController {
       @Parameter(description = "제목·본문 검색어(최대 100자)")
           @RequestParam(name = "q", required = false)
           @Size(max = 100, message = "검색어는 100자 이하여야 합니다.")
-          String keyword) {
-    return ResponseEntity.ok(adminNewsService.getNewsPage(page, size, status, category, keyword));
+          String keyword,
+      @Parameter(description = "정렬 방식: LATEST(등록일 최신순), RELEVANCE(제목 일치 우선)")
+          @RequestParam(defaultValue = "LATEST")
+          NewsSearchSort sort) {
+    return ResponseEntity.ok(
+        adminNewsService.getNewsPage(page, size, status, category, keyword, sort));
   }
 
   @Operation(summary = "관리자 뉴스 상세 조회", description = "관리자용으로 뉴스 상세 정보를 조회합니다.")

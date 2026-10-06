@@ -214,7 +214,7 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('button', { name: /자산 추가/ })).toBeTruthy();
   });
 
-  it('보유 자산의 소식을 펼치고 이미지를 표시한다', async () => {
+  it('보유 자산의 소식 버튼을 비활성화한다', async () => {
     localStorage.setItem(
       PORTFOLIO_STORAGE_KEY,
       JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
@@ -223,24 +223,16 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await view.findAllByText('750,000원');
-    fireEvent.click(view.getByRole('button', { name: '소식' }));
+    const relatedContentsButton = view.getByRole('button', { name: '소식' });
+    expect(relatedContentsButton).toHaveProperty('disabled', true);
+    fireEvent.click(relatedContentsButton);
 
-    expect(await view.findByText('삼성전자 분석 영상')).toBeTruthy();
-    const dashboardLayout = view.container.querySelector(
-      '.portfolio-dashboard-layout.has-related-content',
-    );
-    expect(dashboardLayout).not.toBeNull();
-    expect(view.getByRole('complementary', { name: '소식' })).toBeTruthy();
+    expect(view.queryByRole('complementary', { name: '소식' })).toBeNull();
     expect(
-      dashboardLayout?.querySelector('.portfolio-holdings .portfolio-related-content-panel'),
-    ).toBeNull();
-    const moreLink = view.getByRole('link', { name: '더보기' });
-    expect(moreLink.getAttribute('href')).toBe('/stocks/1');
-    expect(view.getByText('삼성전자 관련 이슈')).toBeTruthy();
-    expect(view.queryByText('삼성전자 추가 콘텐츠 8')).toBeNull();
-    expect(
-      view.container.querySelector<HTMLImageElement>('.portfolio-related-content-panel img')?.src,
-    ).toBe('https://i.ytimg.com/vi/abc/hqdefault.jpg');
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) => String(input).endsWith('/api/assets/1/contents')),
+    ).toBe(false);
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
