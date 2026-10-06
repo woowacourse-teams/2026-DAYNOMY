@@ -15,8 +15,6 @@ import org.springframework.util.StringUtils;
 @Service
 public class CustomOidcUserService {
 
-  private static final int MAX_NICKNAME_LENGTH = 20;
-
   private final MemberService memberService;
   private final OidcUserService delegate = new OidcUserService();
 
@@ -28,10 +26,7 @@ public class CustomOidcUserService {
 
     Member member =
         memberService.findOrCreateGoogleMember(
-            userInfo.providerId(),
-            userInfo.email(),
-            createNickname(userInfo.name(), userInfo.email()),
-            userInfo.profileImageUrl());
+            userInfo.providerId(), userInfo.email(), userInfo.name(), userInfo.profileImageUrl());
 
     return new CustomOidcUser(member, oidcUser);
   }
@@ -41,15 +36,5 @@ public class CustomOidcUserService {
       throw new OAuth2AuthenticationException(
           new OAuth2Error("invalid_google_user"), "Google 사용자 정보가 올바르지 않습니다.");
     }
-  }
-
-  private String createNickname(String name, String email) {
-    String nickname = StringUtils.hasText(name) ? name : email.split("@")[0];
-
-    if (nickname.length() > MAX_NICKNAME_LENGTH) {
-      return nickname.substring(0, MAX_NICKNAME_LENGTH);
-    }
-
-    return nickname;
   }
 }
