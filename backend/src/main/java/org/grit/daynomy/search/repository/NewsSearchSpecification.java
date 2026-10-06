@@ -14,13 +14,29 @@ import org.grit.daynomy.search.domain.NewsSearchSort;
 import org.grit.daynomy.search.domain.NewsSearchTerms;
 import org.springframework.data.jpa.domain.Specification;
 
-public record NewsSearchSpecification(NewsSearchTerms terms, Category category, NewsSearchSort sort)
+public record NewsSearchSpecification(
+    NewsSearchTerms terms,
+    Category category,
+    NewsSearchSort sort,
+    NewsStatus status,
+    boolean adminSearch)
     implements Specification<News> {
+
+  public NewsSearchSpecification(NewsSearchTerms terms, Category category, NewsSearchSort sort) {
+    this(terms, category, sort, NewsStatus.PUBLISHED, false);
+  }
+
+  public static NewsSearchSpecification forAdmin(
+      NewsSearchTerms terms, Category category, NewsStatus status, NewsSearchSort sort) {
+    return new NewsSearchSpecification(terms, category, sort, status, true);
+  }
 
   @Override
   public Predicate toPredicate(Root<News> root, CriteriaQuery<?> query, CriteriaBuilder builder) {
     List<Predicate> predicates = new ArrayList<>();
-    predicates.add(builder.equal(root.get("status"), NewsStatus.PUBLISHED));
+    if (status != null) {
+      predicates.add(builder.equal(root.get("status"), status));
+    }
     if (category != null) {
       predicates.add(builder.equal(root.get("category"), category));
     }
@@ -41,7 +57,10 @@ public record NewsSearchSpecification(NewsSearchTerms terms, Category category, 
     }
 
     if (query != null && query.getResultType() != Long.class) {
-      var latest = List.of(builder.desc(root.get("publishedAt")), builder.desc(root.get("id")));
+      var latest =
+          List.of(
+              builder.desc(root.get(adminSearch ? "createdAt" : "publishedAt")),
+              builder.desc(root.get("id")));
       if (relevance) {
         query.orderBy(builder.desc(titleMatches), latest.getFirst(), latest.getLast());
       } else {
