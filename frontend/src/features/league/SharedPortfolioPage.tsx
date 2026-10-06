@@ -150,10 +150,7 @@ export function SharedPortfolioPage() {
               <h2 id="shared-import-title" ref={panelHeading} tabIndex={-1}>
                 가져올 자산 선택
               </h2>
-              <p>
-                이 브라우저의 원본을 읽었습니다. 
-                선택하지 않은 공유용 자산은 유지됩니다.
-              </p>
+              <p>이 브라우저의 원본을 읽었습니다. 선택하지 않은 공유용 자산은 유지됩니다.</p>
               {source.length === 0 ? (
                 <p>
                   원본에 등록된 자산이 없어요. <Link to="/">포트폴리오 입력하기</Link>

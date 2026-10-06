@@ -68,7 +68,6 @@ export function LeaguePage() {
           <p>투자자를 선택해 성과와 위험을 확인하세요. 순위는 로그인 없이 볼 수 있어요.</p>
         </div>
         <div className="league-hero-actions">
-          
           {isLoggedIn ? (
             <>
               <Link className="league-primary-link" to="/portfolio/publication">
