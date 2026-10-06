@@ -276,6 +276,8 @@ if docker inspect "$prefix" >/dev/null 2>&1; then
 fi
 
 assert_failed labels one v1.0.0 "$sha_four"
+grep -Fq 'Frontend deployment stage: Validate image and host configuration' "$test_dir/labels.log"
+test "$(sed -n 's/^- Stage: //p' "$GITHUB_STEP_SUMMARY" | tail -1)" = 'Validate image and host configuration'
 assert_public "$sha_two"
 assert_failed marker bad-marker v1.0.2 "$sha_three"
 assert_public "$sha_two"
@@ -283,11 +285,13 @@ wait "$rollback_slow_pid"
 rollback_slow_pid=''
 cat "$test_dir/rollback-slow.log"
 assert_failed health unhealthy v1.0.2 "$sha_three"
+test "$(sed -n 's/^- Stage: //p' "$GITHUB_STEP_SUMMARY" | tail -1)" = 'Start candidate container'
 assert_public "$sha_two"
 touch "$test_dir/fail-nginx-check"
 assert_failed nginx four v1.0.3 "$sha_four"
 assert_public "$sha_two"
 grep -Fq 'Rolled back: previous container retained; deployment remains failed' "$test_dir/nginx.log"
+test "$(sed -n 's/^- Stage: //p' "$GITHUB_STEP_SUMMARY" | tail -1)" = 'Switch Nginx upstream'
 
 run_deploy four v1.0.3 "$sha_four"
 assert_public "$sha_four"

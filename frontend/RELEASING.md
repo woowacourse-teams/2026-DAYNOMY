@@ -98,6 +98,10 @@ sudo nginx -t && sudo systemctl reload nginx
 ## 버전·실패 원인 확인
 
 Actions의 **Frontend deployment** 요약에서 버전·커밋·복구 결과를 확인합니다.
+**Frontend CD stages** 요약에는 GHCR 로그인·이미지 다운로드·배포·API/OAuth 검사의 결과가 표시됩니다.
+로그인은 2분, 이미지 다운로드는 5분을 넘으면 실패하고 배포를 시작하지 않습니다.
+배포 로그와 요약의 `Stage`에서 이미지·호스트 검사, 이전 버전 확인, 요청 종료 대기,
+자산 보관, 후보 컨테이너 실행·검증, Nginx 전환, 공개 응답 검증 중 어디서 멈췄는지 확인합니다.
 
 AWS IAM·SSH 없이 개발·운영 서버 상태를 확인하려면 Actions의 **Diagnose deployment runner**를
 수동 실행하고 `target_environment`를 선택합니다. 기본값은 `development`이며 `frontend-dev` 러너를
