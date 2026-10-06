@@ -1,0 +1,161 @@
+.finance-knowledge {
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+}
+.finance-purpose-links {
+  width: calc(100% - 40px);
+  box-sizing: border-box;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  border-block: 1px solid #e5e7eb;
+  padding: 16px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.finance-purpose-links span {
+  color: #536071;
+}
+.finance-guide-tools {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  margin-bottom: 20px;
+}
+.finance-guide-tools label {
+  display: block;
+  flex: 1;
+  font-size: 14px;
+}
+.finance-guide-tools input {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #cbd0d8;
+  border-radius: 4px;
+  margin-top: 8px;
+  font: inherit;
+}
+.finance-guide-tools button {
+  border: 1px solid #cbd0d8;
+  padding: 12px;
+  background: white;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+  font-size: 14px;
+}
+.finance-guide-storage {
+  color: #647080;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.finance-guide-list article {
+  padding: 24px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.finance-guide-list article > span {
+  color: #596676;
+  font-size: 13px;
+}
+.finance-guide-list h2 {
+  margin: 8px 0;
+  font-size: 21px;
+  line-height: 1.5;
+}
+.finance-guide-list h2 a {
+  text-decoration: none;
+  color: #172130;
+}
+.finance-guide-list h2 a:hover {
+  text-decoration: underline;
+}
+.finance-guide-list p {
+  margin: 0 0 10px;
+  color: #3d4b5b;
+  line-height: 1.7;
+}
+.finance-guide-list small {
+  display: block;
+  color: #647080;
+  line-height: 1.8;
+  font-size: 14px;
+  max-width: 76ch;
+}
+.finance-guide-read-link {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 14px;
+}
+.finance-knowledge .finance-guide-detail {
+  max-width: 760px;
+  margin: 0 auto;
+}
+.finance-knowledge .finance-guide-detail h1 {
+  font-size: 30px;
+  line-height: 1.5;
+  margin-top: 12px;
+}
+.finance-knowledge .finance-guide-detail h2 {
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+.finance-knowledge .finance-guide-detail p,
+.finance-knowledge .finance-guide-detail li {
+  line-height: 1.9;
+}
+.finance-knowledge .finance-guide-summary {
+  background: white;
+  padding: 24px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.finance-knowledge .finance-guide-columns {
+  display: block;
+}
+.finance-knowledge .finance-guide-columns section,
+.finance-knowledge .finance-guide-checks,
+.finance-account-preparation {
+  padding: 28px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.finance-article-index {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  padding: 18px 0;
+  border-block: 1px solid #e5e7eb;
+}
+
+.finance-knowledge section[id] {
+  scroll-margin-top: 100px;
+}
+.finance-account-preparation label {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  margin: 18px 0;
+}
+.finance-account-preparation input {
+  width: 18px;
+  height: 18px;
+  margin-top: 5px;
+}
+.finance-account-preparation small {
+  display: block;
+  color: #647080;
+  font-size: 14px;
+  line-height: 1.8;
+}
+@media (max-width: 600px) {
+  .finance-guide-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .finance-knowledge .finance-guide-detail h1 {
+    font-size: 25px;
+  }
+}
