@@ -4,6 +4,8 @@ import type { PortfolioHoldingInput, PortfolioPerformancePoint, StockPrice } fro
 
 export const PORTFOLIO_PERFORMANCE_STORAGE_KEY = 'daynomy:portfolio-performance:v1';
 export const PORTFOLIO_PERFORMANCE_STATE_STORAGE_KEY = 'daynomy:portfolio-performance-state:v1';
+const PERFORMANCE_RETENTION_COUNT = 1500;
+const PERFORMANCE_LOOKBACK_DAYS = 1830;
 
 type PortfolioPerformanceState = {
   version: 1;
@@ -55,7 +57,7 @@ function loadPoints() {
             const point = normalizePerformancePoint(value);
             return point ? [point] : [];
           })
-          .slice(-7)
+          .slice(-PERFORMANCE_RETENTION_COUNT)
       : [];
   } catch {
     return [];
@@ -165,7 +167,9 @@ export function usePortfolioPerformance(holdings: PortfolioHoldingInput[]) {
             totalEvaluationAmount: 0,
             totalProfitLoss: 0,
           };
-          const nextPoints = [...currentPoints, holdingChangePoint].slice(-7);
+          const nextPoints = [...currentPoints, holdingChangePoint].slice(
+            -PERFORMANCE_RETENTION_COUNT,
+          );
           savePerformance(nextPoints, {
             ...performanceState,
             holdingKey: '[]',
@@ -183,7 +187,7 @@ export function usePortfolioPerformance(holdings: PortfolioHoldingInput[]) {
     const controller = new AbortController();
     const to = new Date();
     const from = new Date(to);
-    from.setDate(to.getDate() - 14);
+    from.setDate(to.getDate() - PERFORMANCE_LOOKBACK_DAYS);
     const holdingKey = createHoldingKey(holdings);
     const performanceState = loadPerformanceState();
     setLoading(true);
@@ -205,10 +209,26 @@ export function usePortfolioPerformance(holdings: PortfolioHoldingInput[]) {
             const closePoints = calculatedPoints.filter(
               (point) => point.baseDate > performanceState.lastCloseDate,
             );
-            if (closePoints.length === 0) return currentPoints;
+            const earliestCalculatedDate = calculatedPoints.at(0)?.baseDate;
+            const earliestStoredDate = currentPoints.at(0)?.baseDate;
+            const needsBackfill =
+              currentPoints.length < 2 ||
+              (earliestCalculatedDate !== undefined &&
+                earliestStoredDate !== undefined &&
+                earliestCalculatedDate < earliestStoredDate);
+            if (closePoints.length === 0 && !needsBackfill) return currentPoints;
 
-            const nextPoints = [...currentPoints, ...closePoints].slice(-7);
-            const latestClosePoint = closePoints.at(-1);
+            const nextPoints = [
+              ...(needsBackfill ? calculatedPoints : currentPoints),
+              ...(needsBackfill ? currentPoints : closePoints),
+            ]
+              .sort(
+                (first, second) =>
+                  first.baseDate.localeCompare(second.baseDate) ||
+                  first.recordedAt.localeCompare(second.recordedAt),
+              )
+              .slice(-PERFORMANCE_RETENTION_COUNT);
+            const latestClosePoint = closePoints.at(-1) ?? latestCalculatedPoint;
             savePerformance(nextPoints, {
               ...performanceState,
               baseEvaluationAmount:
@@ -226,9 +246,13 @@ export function usePortfolioPerformance(holdings: PortfolioHoldingInput[]) {
             recordedAt,
             source: 'HOLDING_CHANGE',
           };
-          const nextPoints = [...(performanceState ? currentPoints : []), holdingChangePoint].slice(
-            -7,
-          );
+          const basePoints = performanceState ? currentPoints : calculatedPoints;
+          const nextPoints = [
+            ...basePoints,
+            ...(latestCalculatedPoint.baseDate === holdingChangePoint.baseDate
+              ? []
+              : [holdingChangePoint]),
+          ].slice(-PERFORMANCE_RETENTION_COUNT);
           savePerformance(nextPoints, {
             version: 1,
             holdingKey,
