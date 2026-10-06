@@ -2190,34 +2190,6 @@
   stroke-width: 1.8;
 }
 
-.portfolio-return-summary {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: baseline;
-  gap: 3px 10px;
-  margin-top: 20px;
-}
-
-.portfolio-return-summary strong {
-  grid-column: 1 / -1;
-  color: var(--portfolio-trend-accent);
-  font-size: 27px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-
-.portfolio-return-summary span {
-  grid-column: 1 / -1;
-  color: #718096;
-  font-size: 12px;
-}
-
-.portfolio-return-summary small {
-  grid-column: 1 / -1;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
 .portfolio-trend-legend {
   display: flex;
   align-items: center;
@@ -2514,107 +2486,6 @@
 
 .portfolio-return-dates span:only-child {
   text-align: center;
-}
-
-.portfolio-trend-period-basis {
-  margin: 10px 0 0;
-  color: #8a93a0;
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.portfolio-events-label {
-  margin-top: 16px;
-  color: #607087;
-  font-size: 11px;
-}
-
-.portfolio-return-events {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 24px;
-  margin: 8px 0 0;
-  padding: 12px 0 0;
-  border-top: 1px solid #edf1f5;
-  list-style: none;
-}
-
-.portfolio-return-events li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  color: #536176;
-  font-size: 11px;
-}
-
-.portfolio-return-events .portfolio-return-events-empty {
-  grid-column: 1 / -1;
-  color: #8a96a8;
-}
-
-.portfolio-return-events i {
-  width: 2px;
-  height: 16px;
-  flex: none;
-  background: #2463b5;
-}
-
-.portfolio-return-events time {
-  color: #8a96a8;
-  font-variant-numeric: tabular-nums;
-}
-
-.portfolio-return-events strong {
-  color: #2463b5;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-
-.portfolio-return-events strong.is-negative {
-  color: #536c89;
-}
-
-.portfolio-trend-detail-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 24px 0 0;
-  padding: 18px 0;
-  border-top: 1px solid #e8edf3;
-  border-bottom: 1px solid #e8edf3;
-}
-
-.portfolio-trend-detail-summary > div {
-  min-width: 0;
-  padding: 0 20px;
-  border-left: 1px solid #e8edf3;
-}
-
-.portfolio-trend-detail-summary > div:first-child {
-  padding-left: 0;
-  border-left: 0;
-}
-
-.portfolio-trend-detail-summary dt {
-  color: #7a8799;
-  font-size: 11px;
-}
-
-.portfolio-trend-detail-summary dd {
-  overflow: hidden;
-  margin: 7px 0 0;
-  color: #253247;
-  font-size: 15px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.portfolio-trend-detail-summary dd small {
-  margin-left: 4px;
-  font-size: 11px;
 }
 
 .portfolio-trend-dialog-backdrop {
@@ -3130,25 +3001,6 @@
     width: min(214px, calc(100% - 24px));
   }
 
-  .portfolio-trend-detail-summary {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .portfolio-trend-detail-summary > div {
-    min-height: 76px;
-    padding: 14px;
-    border-top: 1px solid #e8edf3;
-  }
-
-  .portfolio-trend-detail-summary > div:nth-child(odd) {
-    padding-left: 0;
-    border-left: 0;
-  }
-
-  .portfolio-trend-detail-summary > div:nth-child(-n + 2) {
-    border-top: 0;
-  }
-
   .portfolio-dashboard-grid {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -3180,16 +3032,6 @@
 
   .portfolio-return-dates {
     font-size: 10px;
-  }
-
-  .portfolio-trend-period-basis {
-    line-height: 1.5;
-    text-align: left;
-  }
-
-  .portfolio-return-events {
-    grid-template-columns: 1fr;
-    gap: 8px;
   }
 }
 

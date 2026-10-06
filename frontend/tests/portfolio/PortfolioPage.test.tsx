@@ -292,8 +292,8 @@ describe('포트폴리오 화면', () => {
     expect(view.queryByText(/1월 1일부터.*거래일 종가 기준/)).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '자산 추이 크게 보기' }));
     const trendDialog = view.getByRole('dialog', { name: '자산 추이 상세' });
-    expect(within(trendDialog).getByText('현재 보유 수량 · 거래일 종가 기준')).toBeTruthy();
-    expect(within(trendDialog).getByText(/1월 1일부터.*거래일 종가 기준/)).toBeTruthy();
+    expect(within(trendDialog).queryByText('현재 보유 수량 · 거래일 종가 기준')).toBeNull();
+    expect(within(trendDialog).queryByText(/1월 1일부터.*거래일 종가 기준/)).toBeNull();
     fireEvent.click(within(trendDialog).getByRole('button', { name: '자산 추이 상세 닫기' }));
     expect(view.queryByText('샘플 데이터')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '자산 분석 접기' }));
@@ -363,7 +363,7 @@ describe('포트폴리오 화면', () => {
     expect(view.queryByText(/최근 1개월.*거래일 종가 기준/)).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '자산 추이 크게 보기' }));
     const trendDialog = view.getByRole('dialog', { name: '자산 추이 상세' });
-    expect(within(trendDialog).getByText(/최근 1개월.*거래일 종가 기준/)).toBeTruthy();
+    expect(within(trendDialog).queryByText(/최근 1개월.*거래일 종가 기준/)).toBeNull();
   });
 
   it('기간별 종가 기록이 없어도 현재 계산 결과로 자산 추이를 표시한다', async () => {
@@ -447,7 +447,9 @@ describe('포트폴리오 화면', () => {
         }) as HTMLSelectElement
       ).value,
     ).toBe('5Y');
-    expect(within(dialog).getByText('기간 변동')).toBeTruthy();
+    expect(within(dialog).queryByText('기간 변동')).toBeNull();
+    expect(within(dialog).queryByText('최고 · 최저')).toBeNull();
+    expect(within(dialog).queryByText('자산 변경 이력')).toBeNull();
     expect(within(dialog).queryByText('자산 구성')).toBeNull();
     expect(within(dialog).getByRole('status').textContent).toContain('매입원금');
     expect(within(dialog).getByRole('status').textContent).toContain('평가금액');

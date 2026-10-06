@@ -10,7 +10,6 @@ import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../stock-
 import type {
   AssetCategory,
   PortfolioCalculation,
-  PortfolioHoldingHistory,
   PortfolioHoldingInput,
   PortfolioHoldingResult,
   PortfolioPerformancePoint,
@@ -164,7 +163,6 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
 
 type PortfolioAssetTrendChartProps = {
   points: PortfolioPerformancePoint[];
-  histories: PortfolioHoldingHistory[];
   loading: boolean;
   error: string;
   onRetry: () => void;
@@ -175,13 +173,12 @@ type PortfolioAssetTrendChartProps = {
   onExpand?: () => void;
 };
 
-const HISTORY_LABEL = { ADDED: '추가', UPDATED: '수정', REMOVED: '삭제' } as const;
 const TREND_PERIODS = [
-  { value: 'YTD', label: '올해', basis: '1월 1일부터' },
-  { value: '1M', label: '1달', basis: '최근 1개월' },
-  { value: '6M', label: '6달', basis: '최근 6개월' },
-  { value: '1Y', label: '1년', basis: '최근 1년' },
-  { value: '5Y', label: '5년', basis: '최근 5년' },
+  { value: 'YTD', label: '올해' },
+  { value: '1M', label: '1달' },
+  { value: '6M', label: '6달' },
+  { value: '1Y', label: '1년' },
+  { value: '5Y', label: '5년' },
 ] as const;
 type TrendPeriod = (typeof TREND_PERIODS)[number]['value'];
 
@@ -200,10 +197,6 @@ function getTrendPeriodStart(baseDate: string, period: TrendPeriod) {
     date.setUTCDate(Math.min(day, lastDay));
   }
   return date.toISOString().slice(0, 10);
-}
-
-function formatPeriodBoundary(value: string) {
-  return value.replaceAll('-', '.');
 }
 
 function formatTrendAxisDate(value: string, period: TrendPeriod) {
@@ -251,7 +244,6 @@ function createFiveYearTrendDemo(latest: PortfolioPerformancePoint) {
 
 function PortfolioAssetTrendChart({
   points,
-  histories,
   loading,
   error,
   onRetry,
@@ -328,22 +320,7 @@ function PortfolioAssetTrendChart({
         : activeX < width * 0.28
           ? ' align-left'
           : '';
-  const first = visiblePoints.at(0);
-  const periodChange =
-    latest && first ? latest.totalEvaluationAmount - first.totalEvaluationAmount : 0;
-  const periodChangeRate =
-    first && first.totalEvaluationAmount !== 0
-      ? (periodChange / first.totalEvaluationAmount) * 100
-      : 0;
-  const evaluationAmounts = visiblePoints.map((point) => point.totalEvaluationAmount);
-  const periodMaximum = evaluationAmounts.length > 0 ? Math.max(...evaluationAmounts) : 0;
-  const periodMinimum = evaluationAmounts.length > 0 ? Math.min(...evaluationAmounts) : 0;
   const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
-  const firstDate = visiblePoints.at(0)?.baseDate;
-  const selectedPeriod = TREND_PERIODS.find((option) => option.value === period);
-  const visibleHistories = firstDate
-    ? histories.filter((history) => history.occurredAt.slice(0, 10) >= firstDate)
-    : [];
   const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
   const dateLabels = Array.from(
     new Set(
@@ -381,7 +358,6 @@ function PortfolioAssetTrendChart({
       <div className="portfolio-dashboard-heading">
         <div className="portfolio-trend-title">
           <h2 id={titleId}>{expanded ? '자산 추이 상세' : '자산 추이'}</h2>
-          {expanded ? <span>현재 보유 수량 · 거래일 종가 기준</span> : null}
         </div>
         <div className="portfolio-trend-controls">
           {points.length > 0 || expanded ? (
@@ -443,18 +419,6 @@ function PortfolioAssetTrendChart({
       ) : null}
       {!loading && !error && visiblePoints.length >= 1 && latest ? (
         <>
-          {expanded ? (
-            <div className="portfolio-return-summary">
-              <span>현재 평가금액</span>
-              <strong>
-                {amountsHidden ? HIDDEN_AMOUNT : formatWon(latest.totalEvaluationAmount)}
-              </strong>
-              <small className={profitClass(latest.totalProfitLoss)}>
-                누적 손익 {amountsHidden ? HIDDEN_AMOUNT : formatSignedWon(latest.totalProfitLoss)}{' '}
-                {formatPercent(latest.totalReturnRate, true)}
-              </small>
-            </div>
-          ) : null}
           <div
             className="portfolio-return-chart-wrap"
             tabIndex={0}
@@ -593,67 +557,6 @@ function PortfolioAssetTrendChart({
               <span key={baseDate}>{formatTrendAxisDate(baseDate, period)}</span>
             ))}
           </div>
-          {expanded && firstDate && latest ? (
-            <p className="portfolio-trend-period-basis">
-              {selectedPeriod?.basis} · {formatPeriodBoundary(firstDate)}–
-              {formatPeriodBoundary(latest.baseDate)} 표시 · 거래일 종가 기준
-            </p>
-          ) : null}
-          {expanded ? (
-            <>
-              <dl className="portfolio-trend-detail-summary" aria-label="기간 요약">
-                <div>
-                  <dt>시작</dt>
-                  <dd>
-                    {amountsHidden || !first
-                      ? HIDDEN_AMOUNT
-                      : formatWon(first.totalEvaluationAmount)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>현재</dt>
-                  <dd>{amountsHidden ? HIDDEN_AMOUNT : formatWon(latest.totalEvaluationAmount)}</dd>
-                </div>
-                <div>
-                  <dt>기간 변동</dt>
-                  <dd className={profitClass(periodChange)}>
-                    {amountsHidden ? HIDDEN_AMOUNT : formatSignedWon(periodChange)}{' '}
-                    <small>{formatPercent(periodChangeRate, true)}</small>
-                  </dd>
-                </div>
-                <div>
-                  <dt>최고 · 최저</dt>
-                  <dd>
-                    {amountsHidden
-                      ? HIDDEN_AMOUNT
-                      : `${formatWon(periodMaximum)} · ${formatWon(periodMinimum)}`}
-                  </dd>
-                </div>
-              </dl>
-              <span className="portfolio-events-label">자산 변경 이력</span>
-              <ul className="portfolio-return-events" aria-label="자산 변경 이력">
-                {visibleHistories.length === 0 ? (
-                  <li className="portfolio-return-events-empty">최근 변경 이력이 없습니다.</li>
-                ) : (
-                  visibleHistories.map((history) => {
-                    const holding = history.holding ?? history.previousHolding;
-                    return (
-                      <li key={`${history.occurredAt}-${holding?.assetId}-${history.changeType}`}>
-                        <i aria-hidden="true" />
-                        <time dateTime={history.occurredAt}>
-                          {history.occurredAt.slice(5, 10).replace('-', '.')}
-                        </time>
-                        <span>
-                          {holding?.name} {HISTORY_LABEL[history.changeType]}
-                        </span>
-                        <strong>{numberFormatter.format(holding?.quantity ?? 0)}주</strong>
-                      </li>
-                    );
-                  })
-                )}
-              </ul>
-            </>
-          ) : null}
         </>
       ) : null}
     </section>
@@ -718,7 +621,6 @@ function compareHoldings(
 export function PortfolioPage() {
   const {
     holdings,
-    histories,
     loading: holdingsLoading,
     saving: holdingsSaving,
     error: holdingsError,
@@ -1024,7 +926,6 @@ export function PortfolioPage() {
                 <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
                   <PortfolioAssetTrendChart
                     points={trendPoints}
-                    histories={histories}
                     loading={performance.loading && !dashboardCalculation}
                     error={dashboardCalculation ? '' : performance.error}
                     onRetry={performance.retry}
@@ -1212,7 +1113,6 @@ export function PortfolioPage() {
       {trendDialogOpen ? (
         <PortfolioTrendDialog
           points={trendPoints}
-          histories={histories}
           loading={performance.loading && !calculation}
           error={calculation ? '' : performance.error}
           onRetry={performance.retry}
