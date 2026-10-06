@@ -5,13 +5,15 @@ import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-public interface NewsSearchRepository extends Repository<News, Long> {
+public interface NewsSearchRepository
+    extends Repository<News, Long>, JpaSpecificationExecutor<News> {
 
-  // 부분 문자열 검색은 MVP용이며 데이터가 늘면 PostgreSQL 전문 검색으로 교체한다.
+  // 관리자 검색은 검색어 전체에 대한 부분 일치와 기존 상태·정렬 조건을 유지한다.
   @Query(
       """
       SELECT n
