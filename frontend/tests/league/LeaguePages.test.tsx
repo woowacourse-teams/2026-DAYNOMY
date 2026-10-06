@@ -87,6 +87,7 @@ describe('투자 리그 화면', () => {
     expect(view.getByText('+2.50%')).toBeTruthy();
     expect(view.getByText('최대 하락')).toBeTruthy();
     expect(view.getByRole('link', { name: '로그인하고 참여하기' })).toBeTruthy();
+    expect(view.queryByRole('link', { name: '목데이터로 화면 보기' })).toBeNull();
   });
 
   it('비회원도 공개 종목을 바로 조회하고 결제 안내는 보이지 않는다', async () => {

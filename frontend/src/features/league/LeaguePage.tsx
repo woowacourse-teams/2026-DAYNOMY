@@ -6,7 +6,6 @@ import { getLeagueWeeks, getRankings } from './api';
 import { experienceLabels, formatRate, leagueLabels, riskLabels } from './labels';
 import type { LeagueType, LeagueWeek, RankingResponse } from './types';
 import './league.css';
-import { canPreviewLeague, isLeaguePreview } from './leaguePreviewState';
 
 const leagueTypes: LeagueType[] = ['WEEKLY_RETURN', 'CONSISTENT', 'STABLE', 'BEGINNER'];
 
@@ -69,11 +68,6 @@ export function LeaguePage() {
           <p>투자자를 선택해 성과와 위험을 확인하세요. 순위는 로그인 없이 볼 수 있어요.</p>
         </div>
         <div className="league-hero-actions">
-          {import.meta.env.DEV && canPreviewLeague() && !isLeaguePreview() ? (
-            <a className="league-secondary-link" href="/league?leaguePreview=1">
-              목데이터로 화면 보기
-            </a>
-          ) : null}
           {isLoggedIn ? (
             <>
               <Link className="league-primary-link" to="/portfolio/publication">

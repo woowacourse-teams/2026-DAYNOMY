@@ -1,5 +1,4 @@
 import { request, requestWithCsrf } from '../../api/client';
-import { isLeaguePreview, previewSourceHoldings } from './leaguePreviewState';
 
 export type SourceHolding = {
   assetId: number;
@@ -87,7 +86,6 @@ function portfolio(value: unknown): SharedPortfolio {
 
 /** 원본 저장소를 읽기만 한다. 원본 Hook이나 저장 함수를 호출하지 않는다. */
 export function readSourceHoldings(): SourceHolding[] {
-  if (import.meta.env?.DEV && isLeaguePreview()) return previewSourceHoldings();
   const raw = localStorage.getItem('daynomy:portfolio-holdings:v1');
   if (!raw) return [];
   const parsed: unknown = JSON.parse(raw);

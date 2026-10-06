@@ -10,7 +10,6 @@ import {
 } from './sharedPortfolioApi';
 import './league.css';
 import './shared-portfolio.css';
-import { isLeaguePreview } from './leaguePreviewState';
 import { HoldingDecisions } from './HoldingDecisions';
 
 const won = (value: number | null) =>
@@ -23,7 +22,6 @@ const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : '요청을 처리하지 못했습니다. 다시 시도해 주세요.';
 
 export function SharedPortfolioPage() {
-  const preview = import.meta.env.DEV && isLeaguePreview();
   const [data, setData] = useState<SharedPortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -99,13 +97,7 @@ export function SharedPortfolioPage() {
           <h1>공유 포트폴리오</h1>
           <p>원본 포트폴리오에서 종목을 가져오고, 공개할 종목만 선택하세요.</p>
         </div>
-        {preview ? (
-          <button type="button" disabled={loading || busy || !data} onClick={openImport}>
-            샘플 원본 자산 보기
-          </button>
-        ) : (
-          <Link to="/">원본 포트폴리오 보기 →</Link>
-        )}
+        <Link to="/">원본 포트폴리오 보기 →</Link>
       </header>
       <p className="shared-boundary">
         여기서는 원본을 불러오고 종목을 숨기거나 다시 보여줄 수 있어요. 수량과 매수가는 원본에서
@@ -158,12 +150,7 @@ export function SharedPortfolioPage() {
               <h2 id="shared-import-title" ref={panelHeading} tabIndex={-1}>
                 가져올 자산 선택
               </h2>
-              <p>
-                {preview
-                  ? '미리보기용 샘플 원본입니다. 실제 브라우저의 원본 자산은 읽거나 변경하지 않습니다.'
-                  : '이 브라우저의 원본을 읽었습니다.'}{' '}
-                선택하지 않은 공유용 자산은 유지됩니다.
-              </p>
+              <p>이 브라우저의 원본을 읽었습니다. 선택하지 않은 공유용 자산은 유지됩니다.</p>
               {source.length === 0 ? (
                 <p>
                   원본에 등록된 자산이 없어요. <Link to="/">포트폴리오 입력하기</Link>
