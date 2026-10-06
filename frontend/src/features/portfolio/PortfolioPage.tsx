@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { calculatePortfolio } from './api';
+import { PortfolioAnalysis } from './components/PortfolioAnalysis';
 import { PortfolioEditor } from './components/PortfolioEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
 import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
+import { toPortfolioAnalysisAssets } from './portfolioAnalysisAssets';
 import { getStockRelatedContents } from '../stock-content/api';
 import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../stock-content/types';
 import type {
@@ -353,6 +355,10 @@ export function PortfolioPage() {
       ) ?? [];
     return [...filtered].sort((first, second) => compareHoldings(first, second, sort));
   }, [calculation, categoryFilter, sort]);
+  const analysisAssets = useMemo(
+    () => toPortfolioAnalysisAssets(calculation?.holdings ?? []),
+    [calculation],
+  );
   const expandedHolding = calculation?.holdings.find(
     (holding) => holding.assetId === expandedContentAssetId,
   );
@@ -735,6 +741,7 @@ export function PortfolioPage() {
                 </div>
               </div>
             </section>
+            <PortfolioAnalysis assets={analysisAssets} />
           </div>
           {renderRelatedContentPanel()}
         </div>

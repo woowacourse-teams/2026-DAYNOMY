@@ -81,19 +81,34 @@ export type PortfolioAnalysisRequest = {
 export type PortfolioImpactDirection = 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
 export type PortfolioImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 
+export type PortfolioAnalysisSource = {
+  title: string;
+  url: string;
+};
+
 export type PortfolioAssetImpactResponse = {
   assetName: string;
   weight: number;
   direction: PortfolioImpactDirection;
   impactLevel: PortfolioImpactLevel;
-  summary: string;
+  issueSummary: string;
+  expectedReaction: string;
+  outlook: string;
   reason: string;
   evidenceSentence: string;
+  sources: PortfolioAnalysisSource[];
   rank: number;
 };
 
 export type PortfolioAnalysisResponse = {
   totalAssetCount: number;
   analyzedAssetCount: number;
+  overallDirection: PortfolioImpactDirection;
+  overallScore: number;
+  positiveImpactScore: number;
+  negativeImpactScore: number;
+  analyzedAt: string | null;
+  overallImpact: string;
   impacts: PortfolioAssetImpactResponse[];
+  sources: PortfolioAnalysisSource[];
 };

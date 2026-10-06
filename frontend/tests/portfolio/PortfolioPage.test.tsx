@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
+import { toPortfolioAnalysisAssets } from '../../src/features/portfolio/portfolioAnalysisAssets';
 import { PORTFOLIO_STORAGE_KEY } from '../../src/features/portfolio/hooks/usePortfolioHoldings';
 import {
   PORTFOLIO_PERFORMANCE_STATE_STORAGE_KEY,
@@ -191,6 +192,22 @@ afterEach(() => {
 });
 
 describe('포트폴리오 화면', () => {
+  it('반올림된 비중이 0인 자산을 분석 대상에서 제외한다', () => {
+    const zeroWeightHolding = {
+      ...calculation.holdings[0],
+      assetId: 2,
+      assetCode: '000150',
+      name: '두산',
+      evaluationAmount: 1,
+      weight: 0,
+    };
+
+    expect(
+      toPortfolioAnalysisAssets([{ ...calculation.holdings[0], weight: 99.99 }, zeroWeightHolding]),
+    ).toEqual([{ assetName: '삼성전자', weight: 100 }]);
+    expect(toPortfolioAnalysisAssets([zeroWeightHolding])).toEqual([]);
+  });
+
   it('저장된 자산이 없으면 추가 안내를 표시한다', async () => {
     const view = render(<PortfolioPage />);
     expect(await view.findByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeTruthy();
@@ -256,6 +273,8 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '수익률 추적' })).toBeTruthy();
     expect(view.queryByRole('heading', { name: '포트폴리오 요약' })).toBeNull();
+    expect(view.getByRole('heading', { name: '포트폴리오 AI 분석' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '분석하기' })).toBeTruthy();
     expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('005930');
   });
