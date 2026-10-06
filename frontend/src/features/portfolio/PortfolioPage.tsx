@@ -268,7 +268,7 @@ function PortfolioAssetTrendChart({
       ? `${padding.left},${y(minimum)} ${evaluationLinePoints.join(' ')} ${width - padding.right},${y(minimum)}`
       : '';
   const latest = visiblePoints.at(-1);
-  const trendColor = '#e85d5d';
+  const trendColor = '#f04452';
   const activeIndex =
     hoveredIndex === null
       ? expanded
@@ -438,8 +438,8 @@ function PortfolioAssetTrendChart({
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={trendColor} stopOpacity="0.2" />
-                  <stop offset="100%" stopColor={trendColor} stopOpacity="0.015" />
+                  <stop offset="0%" stopColor={trendColor} stopOpacity="0.12" />
+                  <stop offset="100%" stopColor={trendColor} stopOpacity="0" />
                 </linearGradient>
               </defs>
               {guideValues.map((value) => (
@@ -473,13 +473,13 @@ function PortfolioAssetTrendChart({
                         className="portfolio-return-point principal"
                         cx={padding.left}
                         cy={y(visiblePoints[0].totalPurchaseAmount)}
-                        r="4"
+                        r="3.5"
                       />
                       <circle
                         className="portfolio-return-point evaluation"
                         cx={padding.left}
                         cy={y(visiblePoints[0].totalEvaluationAmount)}
-                        r="5"
+                        r="4.5"
                       />
                     </g>
                   ) : null}
@@ -498,13 +498,13 @@ function PortfolioAssetTrendChart({
                     className="portfolio-return-point evaluation"
                     cx={activeX}
                     cy={y(activePoint.totalEvaluationAmount)}
-                    r="5"
+                    r="4.5"
                   />
                   <circle
                     className="portfolio-return-point principal"
                     cx={activeX}
                     cy={y(activePoint.totalPurchaseAmount)}
-                    r="4"
+                    r="3.5"
                   />
                 </g>
               ) : null}

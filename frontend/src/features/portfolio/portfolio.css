@@ -2050,7 +2050,7 @@
 }
 
 .portfolio-return-dashboard {
-  --portfolio-trend-accent: #e85d5d;
+  --portfolio-trend-accent: #f04452;
 
   display: grid;
   min-width: 0;
@@ -2221,8 +2221,8 @@
 .portfolio-trend-legend {
   display: flex;
   align-items: center;
-  gap: 14px;
-  color: #4f5867;
+  gap: 12px;
+  color: #6b7684;
   font-size: 12px;
 }
 
@@ -2233,16 +2233,16 @@
 }
 
 .portfolio-trend-legend span::before {
-  width: 20px;
-  height: 4px;
+  width: 16px;
+  height: 3px;
   border-radius: 99px;
   background: var(--portfolio-trend-accent);
   content: '';
 }
 
 .portfolio-trend-legend .principal::before {
-  height: 4px;
-  background: #8d9bad;
+  height: 3px;
+  background: #98a2b3;
 }
 
 .portfolio-return-dashboard:has(.portfolio-tracking-state.is-empty),
@@ -2320,7 +2320,7 @@
 .portfolio-return-chart-wrap {
   position: relative;
   min-width: 0;
-  margin-top: 18px;
+  margin-top: 12px;
   outline: 0;
 }
 
@@ -2331,7 +2331,7 @@
 }
 
 .portfolio-return-dashboard.is-compact .portfolio-return-chart {
-  height: 244px;
+  height: 218px;
 }
 
 .portfolio-return-dashboard.is-expanded {
@@ -2353,13 +2353,13 @@
 }
 
 .portfolio-return-guide line {
-  stroke: #e0e4e9;
+  stroke: #f0f2f5;
   stroke-width: 1;
 }
 
 .portfolio-return-guide text {
-  fill: #8290a3;
-  font-size: 10px;
+  fill: #a3acb9;
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2371,12 +2371,12 @@
 
 .portfolio-return-line.evaluation {
   stroke: var(--portfolio-trend-accent);
-  stroke-width: 4.5;
+  stroke-width: 3;
 }
 
 .portfolio-return-line.principal {
-  stroke: #8d9bad;
-  stroke-width: 2.25;
+  stroke: #98a2b3;
+  stroke-width: 1.5;
 }
 
 .portfolio-return-area {
@@ -2384,22 +2384,22 @@
 }
 
 .portfolio-return-point {
-  fill: #fff;
-  stroke-width: 3;
+  stroke: #fff;
+  stroke-width: 2;
 }
 
 .portfolio-return-point.evaluation {
-  stroke: var(--portfolio-trend-accent);
+  fill: var(--portfolio-trend-accent);
 }
 
 .portfolio-return-point.principal {
-  stroke: #8d9bad;
+  fill: #98a2b3;
 }
 
 .portfolio-return-cursor {
-  stroke: #9aa8ba;
-  stroke-dasharray: 5 5;
-  stroke-width: 1.25;
+  stroke: #c7cdd5;
+  stroke-dasharray: 3 4;
+  stroke-width: 1;
 }
 
 .portfolio-return-tooltip {
