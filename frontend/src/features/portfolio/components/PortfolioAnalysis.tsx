@@ -49,10 +49,6 @@ function formatImpactScore(score: number) {
   return `${sign}${Math.abs(score).toFixed(2)}점`;
 }
 
-function formatImpactMagnitude(score: number) {
-  return `${Math.abs(score).toFixed(2)}점`;
-}
-
 function formatAnalyzedAt(analyzedAt: string | null) {
   if (!analyzedAt) return null;
   const date = new Date(analyzedAt);
@@ -159,6 +155,14 @@ function DirectionIcon({ direction }: { direction: PortfolioImpactDirection }) {
   );
 }
 
+function ExternalLinkIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20">
+      <path d="M11 4h5v5M9 11l7-7M16 11v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4" />
+    </svg>
+  );
+}
+
 function PortfolioEmpty() {
   return (
     <div className="portfolio-analysis-state portfolio-analysis-empty">
@@ -215,18 +219,23 @@ function PortfolioAnalysisError({ onRetry }: { onRetry: () => void }) {
 type PortfolioDonutProps = {
   assets: PortfolioAsset[];
   impactByAssetName: Map<string, PortfolioAssetImpactResponse>;
-  selectedImpact: PortfolioAssetImpactResponse;
+  selectedImpact?: PortfolioAssetImpactResponse;
+  overallDirection: PortfolioImpactDirection;
   onSelect: (assetName: string) => void;
+  onSelectOverall: () => void;
 };
 
 function PortfolioDonut({
   assets,
   impactByAssetName,
   selectedImpact,
+  overallDirection,
   onSelect,
+  onSelectOverall,
 }: PortfolioDonutProps) {
   const orderedAssets = orderAssetsByImpact(assets, impactByAssetName);
   const totalWeight = orderedAssets.reduce((sum, asset) => sum + asset.weight, 0);
+  const isOverallSelected = !selectedImpact;
   let offset = 0;
 
   return (
@@ -237,55 +246,69 @@ function PortfolioDonut({
         role="group"
         aria-label="전체 포트폴리오의 자산별 보유 비중"
       >
-        {orderedAssets.map((asset) => {
-          const impact = impactByAssetName.get(normalizeAssetName(asset.assetName));
-          const percentage = totalWeight > 0 ? (asset.weight / totalWeight) * 100 : 0;
-          const segmentOffset = offset;
-          const isSelected = impact?.assetName === selectedImpact.assetName;
-          const segmentThickness = isSelected ? 41 : 38;
-          offset += percentage;
+        {isOverallSelected ? (
+          <path
+            aria-label={`전체 포트폴리오, ${DIRECTION_LABELS[overallDirection]} 영향`}
+            className="portfolio-donut-segment is-overall"
+            d={createDonutSegmentPath(0, 100, 38)}
+            fill={DIRECTION_COLORS[overallDirection]}
+            role="img"
+          />
+        ) : (
+          orderedAssets.map((asset) => {
+            const impact = impactByAssetName.get(normalizeAssetName(asset.assetName));
+            const percentage = totalWeight > 0 ? (asset.weight / totalWeight) * 100 : 0;
+            const segmentOffset = offset;
+            const isSelected = impact?.assetName === selectedImpact.assetName;
+            const segmentThickness = isSelected ? 41 : 38;
+            offset += percentage;
 
-          return (
-            <path
-              aria-label={
-                impact
-                  ? `${asset.assetName}, 보유 비중 ${asset.weight}%, ${DIRECTION_LABELS[impact.direction]} 영향`
-                  : `${asset.assetName}, 보유 비중 ${asset.weight}%, 분석 결과 없음`
-              }
-              aria-pressed={impact ? isSelected : undefined}
-              className={`portfolio-donut-segment${impact ? ' is-interactive' : ''}${isSelected ? ' is-selected' : ''}`}
-              d={createDonutSegmentPath(segmentOffset, percentage, segmentThickness)}
-              data-thickness={segmentThickness}
-              fill={
-                isSelected && impact ? DIRECTION_COLORS[impact.direction] : INACTIVE_ASSET_COLOR
-              }
-              key={asset.assetName}
-              onClick={impact ? () => onSelect(impact.assetName) : undefined}
-              onKeyDown={
-                impact
-                  ? (event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        onSelect(impact.assetName);
+            return (
+              <path
+                aria-label={
+                  impact
+                    ? `${asset.assetName}, 보유 비중 ${asset.weight}%, ${DIRECTION_LABELS[impact.direction]} 영향`
+                    : `${asset.assetName}, 보유 비중 ${asset.weight}%, 분석 결과 없음`
+                }
+                aria-pressed={impact ? isSelected : undefined}
+                className={`portfolio-donut-segment${impact ? ' is-interactive' : ''}${isSelected ? ' is-selected' : ''}`}
+                d={createDonutSegmentPath(segmentOffset, percentage, segmentThickness)}
+                data-thickness={segmentThickness}
+                fill={
+                  impact && isSelected ? DIRECTION_COLORS[impact.direction] : INACTIVE_ASSET_COLOR
+                }
+                key={asset.assetName}
+                onClick={impact ? () => onSelect(impact.assetName) : undefined}
+                onKeyDown={
+                  impact
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onSelect(impact.assetName);
+                        }
                       }
-                    }
-                  : undefined
-              }
-              role={impact ? 'button' : undefined}
-              tabIndex={impact ? 0 : -1}
-            />
-          );
-        })}
+                    : undefined
+                }
+                role={impact ? 'button' : undefined}
+                tabIndex={impact ? 0 : -1}
+              />
+            );
+          })
+        )}
       </svg>
 
-      <div
-        className={`portfolio-donut-center ${selectedImpact.direction.toLowerCase()}`}
+      <button
+        className={`portfolio-donut-center ${(selectedImpact?.direction ?? overallDirection).toLowerCase()}${isOverallSelected ? ' is-overall' : ''}`}
+        type="button"
+        aria-label="전체 포트폴리오 분석 보기"
+        aria-pressed={isOverallSelected}
         aria-live="polite"
+        onClick={onSelectOverall}
       >
-        <strong>{selectedImpact.assetName}</strong>
-        <b>{`${selectedImpact.weight}%`}</b>
-        <small>현재 보유 비중</small>
-      </div>
+        <strong>{selectedImpact?.assetName ?? '전체 포트폴리오'}</strong>
+        {selectedImpact ? <b>{`${selectedImpact.weight}%`}</b> : null}
+        {isOverallSelected ? <small>전체 분석</small> : null}
+      </button>
     </div>
   );
 }
@@ -293,63 +316,160 @@ function PortfolioDonut({
 type PortfolioAssetListProps = {
   assets: PortfolioAsset[];
   impactByAssetName: Map<string, PortfolioAssetImpactResponse>;
-  selectedImpact: PortfolioAssetImpactResponse;
+  selectedImpact?: PortfolioAssetImpactResponse;
+  overallDirection: PortfolioImpactDirection;
+  overallScore: number;
   onSelect: (assetName: string) => void;
+  onSelectOverall: () => void;
 };
 
 function PortfolioAssetList({
   assets,
   impactByAssetName,
   selectedImpact,
+  overallDirection,
+  overallScore,
   onSelect,
+  onSelectOverall,
 }: PortfolioAssetListProps) {
   const orderedAssets = orderAssetsByImpact(assets, impactByAssetName);
 
   return (
-    <ul className="portfolio-asset-list" aria-label="포트폴리오 보유 자산">
-      {orderedAssets.map((asset) => {
-        const impact = impactByAssetName.get(normalizeAssetName(asset.assetName));
-        const isSelected = impact?.assetName === selectedImpact.assetName;
-        const rowContent = (
-          <>
-            <span
-              className="portfolio-asset-dot"
-              style={{
-                backgroundColor:
-                  isSelected && impact ? DIRECTION_COLORS[impact.direction] : INACTIVE_ASSET_COLOR,
-              }}
-              aria-hidden="true"
-            />
-            <span className="portfolio-asset-name">{asset.assetName}</span>
-            <span
-              className={`portfolio-asset-analysis${impact ? ` ${impact.direction.toLowerCase()}` : ''}`}
-            >
-              {impact
-                ? `TOP ${impact.rank} · ${DIRECTION_IMPACT_LABELS[impact.direction]}`
-                : '분석 결과 없음'}
-            </span>
-            <strong>{`${asset.weight}%`}</strong>
-          </>
-        );
-
-        return (
-          <li key={asset.assetName}>
-            {impact ? (
-              <button
-                className={`portfolio-asset-row ${impact.direction.toLowerCase()}${isSelected ? ' is-selected' : ''}`}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => onSelect(impact.assetName)}
+    <div className="portfolio-asset-selector">
+      <div className="portfolio-overall-option">
+        <button
+          className={`portfolio-asset-row portfolio-overall-row ${overallDirection.toLowerCase()}${selectedImpact ? '' : ' is-selected'}`}
+          type="button"
+          aria-label={`전체 포트폴리오 분석 보기, ${DIRECTION_LABELS[overallDirection]} 영향, 영향 점수 ${formatImpactScore(overallScore)}`}
+          aria-pressed={!selectedImpact}
+          onClick={onSelectOverall}
+        >
+          <span
+            className="portfolio-asset-dot"
+            style={{
+              backgroundColor: selectedImpact
+                ? INACTIVE_ASSET_COLOR
+                : DIRECTION_COLORS[overallDirection],
+            }}
+            aria-hidden="true"
+          />
+          <span className="portfolio-asset-name">전체 포트폴리오</span>
+          <span className={`portfolio-asset-analysis ${overallDirection.toLowerCase()}`}>
+            {`전체 분석 · ${DIRECTION_IMPACT_LABELS[overallDirection]}`}
+          </span>
+          <strong>{formatImpactScore(overallScore)}</strong>
+        </button>
+      </div>
+      <ul className="portfolio-asset-list" aria-label="포트폴리오 보유 자산">
+        {orderedAssets.map((asset) => {
+          const impact = impactByAssetName.get(normalizeAssetName(asset.assetName));
+          const isSelected = impact?.assetName === selectedImpact?.assetName;
+          const showDirectionColor = !selectedImpact || isSelected;
+          const rowContent = (
+            <>
+              <span
+                className="portfolio-asset-dot"
+                style={{
+                  backgroundColor:
+                    showDirectionColor && impact
+                      ? DIRECTION_COLORS[impact.direction]
+                      : INACTIVE_ASSET_COLOR,
+                }}
+                aria-hidden="true"
+              />
+              <span className="portfolio-asset-name">{asset.assetName}</span>
+              <span
+                className={`portfolio-asset-analysis${impact ? ` ${impact.direction.toLowerCase()}` : ''}`}
               >
-                {rowContent}
-              </button>
-            ) : (
-              <div className="portfolio-asset-row is-disabled">{rowContent}</div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+                {impact
+                  ? `TOP ${impact.rank} · ${DIRECTION_IMPACT_LABELS[impact.direction]}`
+                  : '분석 결과 없음'}
+              </span>
+              <strong>{`${asset.weight}%`}</strong>
+            </>
+          );
+
+          return (
+            <li key={asset.assetName}>
+              {impact ? (
+                <button
+                  className={`portfolio-asset-row ${impact.direction.toLowerCase()}${isSelected ? ' is-selected' : ''}`}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => onSelect(impact.assetName)}
+                >
+                  {rowContent}
+                </button>
+              ) : (
+                <div className="portfolio-asset-row is-disabled">{rowContent}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function PortfolioOverallImpactDetail({
+  analysis,
+  analyzedAtLabel,
+}: {
+  analysis: PortfolioAnalysisResponse;
+  analyzedAtLabel: string | null;
+}) {
+  return (
+    <article
+      className={`portfolio-impact-detail is-overall ${analysis.overallDirection.toLowerCase()}`}
+    >
+      <div className="portfolio-detail-header">
+        <div>
+          <span>전체 포트폴리오 예상 영향</span>
+          <h3>전체 포트폴리오</h3>
+        </div>
+        <div className="portfolio-detail-badge-group">
+          <span className="portfolio-direction-badge">
+            <DirectionIcon direction={analysis.overallDirection} />
+            {DIRECTION_IMPACT_LABELS[analysis.overallDirection]}
+          </span>
+          <small>{`영향 점수 ${formatImpactScore(analysis.overallScore)}`}</small>
+        </div>
+      </div>
+
+      <div className="portfolio-detail-copy">
+        <p>{analysis.overallImpact}</p>
+      </div>
+
+      {analyzedAtLabel ? (
+        <time className="portfolio-detail-time" dateTime={analysis.analyzedAt ?? undefined}>
+          {analyzedAtLabel}
+        </time>
+      ) : null}
+
+      <details className="portfolio-evidence">
+        <summary>
+          <span className="portfolio-evidence-label is-closed">
+            {`분석 출처 ${analysis.sources.length}개 보기`}
+          </span>
+          <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
+          <span className="portfolio-evidence-toggle-icon" aria-hidden="true" />
+        </summary>
+        {analysis.sources.length > 0 ? (
+          <ul className="portfolio-evidence-sources">
+            {analysis.sources.map((source) => (
+              <li key={source.url}>
+                <a href={source.url} target="_blank" rel="noopener noreferrer">
+                  {source.title}
+                  <ExternalLinkIcon />
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>직접 연결된 출처가 없어요.</p>
+        )}
+      </details>
+    </article>
   );
 }
 
@@ -378,25 +498,29 @@ function PortfolioImpactDetail({
 
       <div className="portfolio-detail-copy">
         <p>
-          {impact.issueSummary} 현재 보유 비중은 <strong>{`${impact.weight}%`}</strong>예요.
+          <span>
+            {impact.issueSummary} 현재 보유 비중은 <strong>{`${impact.weight}%`}</strong>예요.
+          </span>{' '}
+          <span>{impact.expectedReaction}</span> <span>{impact.outlook}</span>{' '}
+          <span>{impact.reason}</span>
         </p>
-        <p>{impact.expectedReaction}</p>
-        <p>{impact.outlook}</p>
-        <p>{impact.reason}</p>
       </div>
 
       <details className="portfolio-evidence">
         <summary>
-          판단에 사용한 출처
-          <span aria-hidden="true" />
+          <span className="portfolio-evidence-label is-closed">
+            {`분석 출처 ${impact.sources.length}개 보기`}
+          </span>
+          <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
+          <span className="portfolio-evidence-toggle-icon" aria-hidden="true" />
         </summary>
-        <blockquote>{impact.evidenceSentence}</blockquote>
         {impact.sources.length > 0 ? (
           <ul className="portfolio-evidence-sources">
             {impact.sources.map((source) => (
               <li key={source.url}>
                 <a href={source.url} target="_blank" rel="noopener noreferrer">
                   {source.title}
+                  <ExternalLinkIcon />
                 </a>
               </li>
             ))}
@@ -492,15 +616,16 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
     () => new Map(sortedImpacts.map((impact) => [normalizeAssetName(impact.assetName), impact])),
     [sortedImpacts],
   );
-  const selectedImpact =
-    sortedImpacts.find((impact) => impact.assetName === selectedAssetName) ?? sortedImpacts[0];
+  const selectedImpact = selectedAssetName
+    ? sortedImpacts.find((impact) => impact.assetName === selectedAssetName)
+    : undefined;
   const analyzedAtLabel = formatAnalyzedAt(analysis?.analyzedAt ?? null);
 
   const handleRetry = () => {
     analyze();
   };
 
-  const hasAnalysis = Boolean(analysis && selectedImpact);
+  const hasAnalysis = Boolean(analysis && sortedImpacts.length > 0);
   const displayAssets = analyzedAssets ?? assets;
   const hasAnalysisTarget = displayAssets.length > 0;
   const canAnalyze = assets.length > 0 && !loading;
@@ -513,7 +638,7 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
             {hasAnalysis ? '오늘의 포트폴리오 분석' : '포트폴리오 AI 분석'}
           </h2>
           <p>
-            {analysis && selectedImpact
+            {analysis
               ? `오늘의 주요 이슈가 보유 자산 ${analysis.analyzedAssetCount}개에 미칠 영향을 분석했어요.`
               : '오늘의 경제·금융·산업 이슈가 보유 자산에 미칠 영향을 확인해 보세요.'}
           </p>
@@ -542,47 +667,39 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
         <PortfolioAnalysisEmpty />
       ) : null}
 
-      {hasAnalysisTarget && !loading && !error && analysis && selectedImpact ? (
+      {hasAnalysisTarget && !loading && !error && analysis && sortedImpacts.length > 0 ? (
         <>
-          <div className={`portfolio-overall-impact ${analysis.overallDirection.toLowerCase()}`}>
-            <div className="portfolio-overall-score">
-              <span>전체 포트폴리오 예상 영향</span>
-              <strong>{`${DIRECTION_LABELS[analysis.overallDirection]} 영향 ${formatImpactMagnitude(analysis.overallScore)}`}</strong>
-            </div>
-            <div className="portfolio-overall-summary">
-              <p>{analysis.overallImpact}</p>
-              {analyzedAtLabel ? (
-                <time dateTime={analysis.analyzedAt ?? undefined}>{analyzedAtLabel}</time>
-              ) : null}
-              <details className="portfolio-score-guide">
-                <summary>영향 점수 산정 기준</summary>
-                <p>
-                  보유 비중과 자산별 영향 방향·수준을 합산한 -100~100 지표예요. 예상 수익률이나 상승
-                  확률은 아닙니다.
-                </p>
-                <dl>
-                  <div>
-                    <dt>긍정 기여</dt>
-                    <dd>{formatImpactScore(analysis.positiveImpactScore)}</dd>
-                  </div>
-                  <div>
-                    <dt>부정 기여</dt>
-                    <dd>{`−${Math.abs(analysis.negativeImpactScore).toFixed(2)}점`}</dd>
-                  </div>
-                  <div>
-                    <dt>전체 영향</dt>
-                    <dd>{formatImpactScore(analysis.overallScore)}</dd>
-                  </div>
-                </dl>
-              </details>
-            </div>
+          <div className="portfolio-score-panel">
+            <details className="portfolio-score-guide">
+              <summary>영향 점수 산정 기준</summary>
+              <p>
+                보유 비중과 자산별 영향 방향·수준을 합산한 -100~100 지표예요. 예상 수익률이나 상승
+                확률은 아닙니다.
+              </p>
+              <dl>
+                <div>
+                  <dt>긍정 기여</dt>
+                  <dd>{formatImpactScore(analysis.positiveImpactScore)}</dd>
+                </div>
+                <div>
+                  <dt>부정 기여</dt>
+                  <dd>{`−${Math.abs(analysis.negativeImpactScore).toFixed(2)}점`}</dd>
+                </div>
+                <div>
+                  <dt>전체 영향</dt>
+                  <dd>{formatImpactScore(analysis.overallScore)}</dd>
+                </div>
+              </dl>
+            </details>
           </div>
           <div className="portfolio-analysis-layout">
             <div className="portfolio-analysis-overview">
               <div className="portfolio-analysis-overview-heading">
                 <h3>내 포트폴리오</h3>
-                <span className={selectedImpact.direction.toLowerCase()}>
-                  {`${DIRECTION_LABELS[selectedImpact.direction]} 영향`}
+                <span
+                  className={(selectedImpact?.direction ?? analysis.overallDirection).toLowerCase()}
+                >
+                  {`${DIRECTION_LABELS[selectedImpact?.direction ?? analysis.overallDirection]} 영향`}
                 </span>
               </div>
 
@@ -590,23 +707,34 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
                 assets={displayAssets}
                 impactByAssetName={impactByAssetName}
                 selectedImpact={selectedImpact}
+                overallDirection={analysis.overallDirection}
                 onSelect={setSelectedAssetName}
+                onSelectOverall={() => setSelectedAssetName(null)}
               />
               <PortfolioAssetList
                 assets={displayAssets}
                 impactByAssetName={impactByAssetName}
                 selectedImpact={selectedImpact}
+                overallDirection={analysis.overallDirection}
+                overallScore={analysis.overallScore}
                 onSelect={setSelectedAssetName}
+                onSelectOverall={() => setSelectedAssetName(null)}
               />
               <p className="portfolio-weight-caption">
-                전체 포트폴리오에서 차지하는 현재 비중이에요.
+                {selectedImpact
+                  ? '전체 포트폴리오에서 차지하는 현재 비중이에요.'
+                  : '색상은 각 자산에 예상되는 영향 방향을 나타내요.'}
               </p>
             </div>
 
-            <PortfolioImpactDetail
-              impact={selectedImpact}
-              analyzedAssetCount={analysis.analyzedAssetCount}
-            />
+            {selectedImpact ? (
+              <PortfolioImpactDetail
+                impact={selectedImpact}
+                analyzedAssetCount={analysis.analyzedAssetCount}
+              />
+            ) : (
+              <PortfolioOverallImpactDetail analysis={analysis} analyzedAtLabel={analyzedAtLabel} />
+            )}
           </div>
         </>
       ) : null}

@@ -80,11 +80,35 @@ describe('포트폴리오 분석 화면', () => {
 
     fireEvent.click(view.getByRole('button', { name: '분석하기' }));
 
-    expect(await view.findByText('긍정 영향 51.00점')).toBeTruthy();
+    expect(await view.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
     expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
     expect(view.getByText(/분석 기준/)).toBeTruthy();
+
+    const overallDonut = view.getByRole('img', {
+      name: '전체 포트폴리오, 긍정 영향',
+    });
+    expect(overallDonut.getAttribute('fill')).toBe('#ef464d');
+    const overallButton = view.getByRole('button', { name: '전체 포트폴리오 분석 보기' });
+    expect(overallButton.textContent).toBe('전체 포트폴리오전체 분석');
+    const overallListButton = view.getByRole('button', {
+      name: '전체 포트폴리오 분석 보기, 긍정 영향, 영향 점수 +51.00점',
+    });
+    expect(view.getByText('영향 점수 +51.00점')).toBeTruthy();
+
+    fireEvent.click(view.getByText('삼성전자').closest('button') as HTMLButtonElement);
     expect(view.getByRole('heading', { name: '삼성전자' })).toBeTruthy();
     expect(view.getByText('실적 개선 기대가 주가에 긍정적으로 반영될 수 있어요.')).toBeTruthy();
+    expect(view.getByRole('button', { name: '전체 포트폴리오 분석 보기' }).textContent).toBe(
+      '삼성전자60%',
+    );
+    const samsungDonutSegment = view.getByRole('button', {
+      name: '삼성전자, 보유 비중 60%, 긍정 영향',
+    });
+    const hynixDonutSegment = view.getByRole('button', {
+      name: 'SK하이닉스, 보유 비중 40%, 부정 영향',
+    });
+    expect(samsungDonutSegment.getAttribute('fill')).toBe('#ef464d');
+    expect(hynixDonutSegment.getAttribute('fill')).toBe('#e8eef8');
 
     const request = fetchMock.mock.calls[0];
     expect(String(request[0])).toContain('/api/portfolio/analysis');
@@ -99,11 +123,17 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.getByRole('heading', { name: 'SK하이닉스' })).toBeTruthy();
     expect(view.getByText('단기 주가 변동성이 커질 수 있어요.')).toBeTruthy();
 
-    const evidenceSummary = view.getByText('판단에 사용한 출처');
+    const evidenceSummary = view.getByText('분석 출처 1개 보기');
     fireEvent.click(evidenceSummary);
     const sourceLink = view.getByRole('link', { name: '메모리 시장 동향' });
     expect(sourceLink.getAttribute('href')).toBe('https://example.com/memory');
     expect(sourceLink.getAttribute('target')).toBe('_blank');
+
+    fireEvent.click(overallListButton);
+    expect(view.getByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
+    expect(view.getByRole('img', { name: '전체 포트폴리오, 긍정 영향' }).getAttribute('fill')).toBe(
+      '#ef464d',
+    );
   });
 
   it('가중 영향 점수의 산정 기준과 기여 점수를 안내한다', async () => {
@@ -160,7 +190,7 @@ describe('포트폴리오 분석 화면', () => {
     );
 
     fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
-    expect(await view.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+    expect(await view.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -200,12 +230,12 @@ describe('포트폴리오 분석 화면', () => {
     const firstView = render(<PortfolioAnalysis assets={assets} />);
 
     fireEvent.click(firstView.getByRole('button', { name: '분석하기' }));
-    expect(await firstView.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+    expect(await firstView.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
     firstView.unmount();
 
     const secondView = render(<PortfolioAnalysis assets={changedAssets} />);
 
-    expect(await secondView.findByRole('heading', { name: '삼성전자' })).toBeTruthy();
+    expect(await secondView.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
     expect(secondView.queryByText('현대차')).toBeNull();
 
     fireEvent.click(secondView.getByRole('button', { name: '다시 분석하기' }));
@@ -222,11 +252,11 @@ describe('포트폴리오 분석 화면', () => {
     const firstView = render(<PortfolioAnalysis assets={assets} />);
 
     fireEvent.click(firstView.getByRole('button', { name: '분석하기' }));
-    expect(await firstView.findByText('긍정 영향 51.00점')).toBeTruthy();
+    expect(await firstView.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
     firstView.unmount();
 
     const secondView = render(<PortfolioAnalysis assets={assets} />);
-    expect(await secondView.findByText('긍정 영향 51.00점')).toBeTruthy();
+    expect(await secondView.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -249,7 +279,7 @@ describe('포트폴리오 분석 화면', () => {
     await waitFor(() => {
       expect(view.getByRole('button', { name: '분석하기' })).toBeTruthy();
     });
-    expect(view.queryByText('긍정 영향 51.00점')).toBeNull();
+    expect(view.queryByRole('heading', { name: '전체 포트폴리오' })).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -268,10 +298,10 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} />);
 
     fireEvent.click(view.getByRole('button', { name: '분석하기' }));
-    expect(await view.findByText('긍정 영향 51.00점')).toBeTruthy();
+    expect(await view.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
 
     fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
-    expect(await view.findByText('부정 영향 25.00점')).toBeTruthy();
+    expect(await view.findByText('새로운 이슈로 부정 영향이 예상돼요.')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY)).toContain(
       '새로운 이슈로 부정 영향이 예상돼요.',
@@ -286,6 +316,6 @@ describe('포트폴리오 분석 화면', () => {
     await waitFor(() => {
       expect(view.getByRole('button', { name: '분석하기' })).toBeTruthy();
     });
-    expect(view.queryByText('긍정 영향 51.00점')).toBeNull();
+    expect(view.queryByRole('heading', { name: '전체 포트폴리오' })).toBeNull();
   });
 });
