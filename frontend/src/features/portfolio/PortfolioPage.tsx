@@ -22,8 +22,23 @@ const percentFormatter = new Intl.NumberFormat('ko-KR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const compactWonFormatter = new Intl.NumberFormat('ko-KR', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
 const HIDDEN_AMOUNT = '••••••원';
 const RELATED_CONTENT_PREVIEW_COUNT = 10;
+const EMPTY_PORTFOLIO_CALCULATION: PortfolioCalculation = {
+  baseDate: '',
+  totalPurchaseAmount: 0,
+  totalEvaluationAmount: 0,
+  dailyProfitLoss: null,
+  dailyReturnRate: null,
+  totalProfitLoss: 0,
+  totalReturnRate: 0,
+  holdings: [],
+  marketAllocations: [],
+};
 
 type PortfolioSort = 'DEFAULT' | 'EVALUATION' | 'PROFIT' | 'RETURN' | 'WEIGHT';
 
@@ -41,8 +56,31 @@ function formatPercent(value: number, signed = false) {
   return `${sign}${percentFormatter.format(Math.abs(value))}%`;
 }
 
+function formatCompactWon(value: number) {
+  return `${compactWonFormatter.format(Math.round(value))}원`;
+}
+
+function formatTrendDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return `${year}년 ${month}월 ${day}일`;
+}
+
 function profitClass(value: number) {
   return value > 0 ? 'portfolio-gain' : value < 0 ? 'portfolio-loss' : '';
+}
+
+function createCurrentPerformancePoint(
+  calculation: PortfolioCalculation,
+): PortfolioPerformancePoint {
+  return {
+    baseDate: calculation.baseDate,
+    recordedAt: `${calculation.baseDate}T15:30:00.000Z`,
+    source: 'CLOSE',
+    totalPurchaseAmount: calculation.totalPurchaseAmount,
+    totalEvaluationAmount: calculation.totalEvaluationAmount,
+    totalProfitLoss: calculation.totalProfitLoss,
+    totalReturnRate: calculation.totalReturnRate,
+  };
 }
 
 function getCategoryLabel(category: AssetCategory) {
@@ -124,57 +162,222 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
   );
 }
 
-type PortfolioReturnChartProps = {
+type PortfolioAssetTrendChartProps = {
   points: PortfolioPerformancePoint[];
   histories: PortfolioHoldingHistory[];
   loading: boolean;
   error: string;
   onRetry: () => void;
+  amountsHidden: boolean;
+  period: TrendPeriod;
+  onPeriodChange: (period: TrendPeriod) => void;
+  mode?: 'compact' | 'expanded';
+  onExpand?: () => void;
 };
 
 const HISTORY_LABEL = { ADDED: '추가', UPDATED: '수정', REMOVED: '삭제' } as const;
+const TREND_PERIODS = [
+  { value: 'YTD', label: '올해', basis: '1월 1일부터' },
+  { value: '1M', label: '1달', basis: '최근 1개월' },
+  { value: '6M', label: '6달', basis: '최근 6개월' },
+  { value: '1Y', label: '1년', basis: '최근 1년' },
+  { value: '5Y', label: '5년', basis: '최근 5년' },
+] as const;
+type TrendPeriod = (typeof TREND_PERIODS)[number]['value'];
 
-function PortfolioReturnChart({
+function getTrendPeriodStart(baseDate: string, period: TrendPeriod) {
+  const date = new Date(`${baseDate}T00:00:00Z`);
+  if (period === 'YTD') {
+    date.setUTCMonth(0, 1);
+  } else {
+    const months = period === '1M' ? 1 : period === '6M' ? 6 : period === '1Y' ? 12 : 60;
+    const day = date.getUTCDate();
+    date.setUTCDate(1);
+    date.setUTCMonth(date.getUTCMonth() - months);
+    const lastDay = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+    date.setUTCDate(Math.min(day, lastDay));
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function formatPeriodBoundary(value: string) {
+  return value.replaceAll('-', '.');
+}
+
+function PortfolioAssetTrendChart({
   points,
   histories,
   loading,
   error,
   onRetry,
-}: PortfolioReturnChartProps) {
+  amountsHidden,
+  period,
+  onPeriodChange,
+  mode = 'compact',
+  onExpand,
+}: PortfolioAssetTrendChartProps) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const expanded = mode === 'expanded';
+  const titleId = expanded ? 'expanded-asset-trend-title' : 'asset-trend-title';
+  const gradientId = expanded
+    ? 'expanded-portfolio-return-area-gradient'
+    : 'portfolio-return-area-gradient';
+  const latestAvailablePoint = points.at(-1);
+  const visiblePoints = useMemo(() => {
+    if (!latestAvailablePoint) return [];
+    const cutoffDate = getTrendPeriodStart(latestAvailablePoint.baseDate, period);
+    return points.filter((point) => point.baseDate >= cutoffDate);
+  }, [latestAvailablePoint, period, points]);
   const width = 720;
-  const height = 190;
-  const padding = { top: 12, right: 12, bottom: 8, left: 38 };
-  const values = points.map((point) => point.totalReturnRate);
-  const rawMinimum = Math.min(0, ...values);
-  const rawMaximum = Math.max(0, ...values);
-  const minimum = rawMinimum === rawMaximum ? rawMinimum - 1 : rawMinimum;
-  const maximum = rawMinimum === rawMaximum ? rawMaximum + 1 : rawMaximum;
+  const height = expanded ? 300 : 190;
+  const padding = { top: 14, right: 12, bottom: 8, left: 58 };
+  const values = visiblePoints.flatMap((point) => [
+    point.totalPurchaseAmount,
+    point.totalEvaluationAmount,
+  ]);
+  const rawMinimum = Math.min(...values);
+  const rawMaximum = Math.max(...values);
+  const amountPadding = Math.max((rawMaximum - rawMinimum) * 0.16, rawMaximum * 0.015, 1);
+  const minimum = Math.max(0, rawMinimum - amountPadding);
+  const maximum = rawMaximum + amountPadding;
   const range = maximum - minimum || 1;
+  const hasSinglePoint = visiblePoints.length === 1;
   const x = (index: number) =>
-    points.length === 1
-      ? width / 2
-      : padding.left + (index / (points.length - 1)) * (width - padding.left - padding.right);
+    hasSinglePoint
+      ? padding.left
+      : padding.left +
+        (index / (visiblePoints.length - 1)) * (width - padding.left - padding.right);
   const y = (value: number) =>
     padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
-  const chartPoints = points.map((point, index) => `${x(index)},${y(point.totalReturnRate)}`);
-  const areaPoints = points.length
-    ? `${x(0)},${y(0)} ${chartPoints.join(' ')} ${x(points.length - 1)},${y(0)}`
-    : '';
-  const latest = points.at(-1);
+  const evaluationPoints = visiblePoints.map(
+    (point, index) => `${x(index)},${y(point.totalEvaluationAmount)}`,
+  );
+  const purchasePoints = visiblePoints.map(
+    (point, index) => `${x(index)},${y(point.totalPurchaseAmount)}`,
+  );
+  const evaluationLinePoints = hasSinglePoint
+    ? [`${padding.left},${y(visiblePoints[0].totalEvaluationAmount)}`]
+    : evaluationPoints;
+  const purchaseLinePoints = hasSinglePoint
+    ? [`${padding.left},${y(visiblePoints[0].totalPurchaseAmount)}`]
+    : purchasePoints;
+  const areaPoints =
+    visiblePoints.length > 1
+      ? `${padding.left},${y(minimum)} ${evaluationLinePoints.join(' ')} ${width - padding.right},${y(minimum)}`
+      : '';
+  const latest = visiblePoints.at(-1);
+  const trendColor = '#e85d5d';
+  const activeIndex =
+    hoveredIndex === null
+      ? expanded
+        ? visiblePoints.length - 1
+        : null
+      : Math.min(hoveredIndex, visiblePoints.length - 1);
+  const activePoint = activeIndex === null ? null : visiblePoints[activeIndex];
+  const activeX = activeIndex === null ? null : x(activeIndex);
+  const tooltipAlignment =
+    activeX === null
+      ? ''
+      : activeX > width * 0.72
+        ? ' align-right'
+        : activeX < width * 0.28
+          ? ' align-left'
+          : '';
+  const first = visiblePoints.at(0);
+  const periodChange =
+    latest && first ? latest.totalEvaluationAmount - first.totalEvaluationAmount : 0;
+  const periodChangeRate =
+    first && first.totalEvaluationAmount !== 0
+      ? (periodChange / first.totalEvaluationAmount) * 100
+      : 0;
+  const evaluationAmounts = visiblePoints.map((point) => point.totalEvaluationAmount);
+  const periodMaximum = evaluationAmounts.length > 0 ? Math.max(...evaluationAmounts) : 0;
+  const periodMinimum = evaluationAmounts.length > 0 ? Math.min(...evaluationAmounts) : 0;
   const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
-  const firstDate = points.at(0)?.baseDate;
+  const firstDate = visiblePoints.at(0)?.baseDate;
+  const selectedPeriod = TREND_PERIODS.find((option) => option.value === period);
   const visibleHistories = firstDate
     ? histories.filter((history) => history.occurredAt.slice(0, 10) >= firstDate)
     : [];
+  const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
+  const dateLabels = Array.from(
+    new Set(
+      [visiblePoints.at(0), middlePoint, visiblePoints.at(-1)]
+        .filter((point): point is PortfolioPerformancePoint => Boolean(point))
+        .map((point) => point.baseDate),
+    ),
+  );
+
+  function selectNearestPoint(clientX: number, chart: SVGSVGElement) {
+    if (visiblePoints.length === 0) return;
+    const bounds = chart.getBoundingClientRect();
+    const chartX = ((clientX - bounds.left) / bounds.width) * width;
+    const ratio = (chartX - padding.left) / (width - padding.left - padding.right);
+    const index =
+      visiblePoints.length === 1
+        ? 0
+        : Math.round(Math.max(0, Math.min(1, ratio)) * (visiblePoints.length - 1));
+    setHoveredIndex(index);
+  }
+
+  function moveActivePoint(direction: -1 | 1) {
+    if (visiblePoints.length === 0) return;
+    const currentIndex = activeIndex ?? visiblePoints.length - 1;
+    setHoveredIndex(Math.max(0, Math.min(visiblePoints.length - 1, currentIndex + direction)));
+  }
 
   return (
-    <section className="portfolio-return-dashboard" aria-labelledby="return-dashboard-title">
+    <section className={`portfolio-return-dashboard is-${mode}`} aria-labelledby={titleId}>
       <div className="portfolio-dashboard-heading">
-        <h2 id="return-dashboard-title">수익률 추적</h2>
+        <div className="portfolio-trend-title">
+          <h2 id={titleId}>{expanded ? '자산 추이 상세' : '자산 추이'}</h2>
+          {expanded ? <span>현재 보유 수량 · 거래일 종가 기준</span> : null}
+        </div>
+        <div className="portfolio-trend-controls">
+          {points.length > 0 || expanded ? (
+            <>
+              <label className="portfolio-trend-period-select">
+                <span className="portfolio-visually-hidden">자산 추이 기간</span>
+                <select
+                  aria-label="자산 추이 기간"
+                  value={period}
+                  onChange={(event) => onPeriodChange(event.currentTarget.value as TrendPeriod)}
+                >
+                  {TREND_PERIODS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="m4 6 4 4 4-4" />
+                </svg>
+              </label>
+              <div className="portfolio-trend-legend" aria-label="자산 추이 범례">
+                <span className="evaluation">자산</span>
+                <span className="principal">원금</span>
+              </div>
+            </>
+          ) : null}
+          {!expanded && onExpand ? (
+            <button
+              type="button"
+              className="portfolio-trend-expand"
+              aria-label="자산 추이 크게 보기"
+              onClick={onExpand}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14 5h5v5M10 19H5v-5M19 5l-6 6M5 19l6-6" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
       </div>
       {loading ? (
         <p className="portfolio-tracking-state" role="status">
-          수익률을 불러오고 있습니다.
+          자산 추이를 불러오고 있습니다.
         </p>
       ) : null}
       {!loading && error ? (
@@ -186,93 +389,265 @@ function PortfolioReturnChart({
         </div>
       ) : null}
       {!loading && !error && points.length === 0 ? (
-        <div className="portfolio-tracking-state">
-          <strong>수익률 데이터를 준비하고 있어요</strong>
-          <p>자산을 등록하거나 종가가 갱신되면 바로 기록합니다.</p>
+        <div className="portfolio-tracking-state is-empty" role="status">
+          <strong>표시할 자산이 없습니다</strong>
         </div>
       ) : null}
-      {!loading && !error && points.length >= 1 && latest ? (
+      {!loading && !error && visiblePoints.length >= 1 && latest ? (
         <>
-          <div className="portfolio-return-summary">
-            <strong>{formatPercent(latest.totalReturnRate, true)}</strong>
-            <span>포트폴리오 누적 수익률</span>
-          </div>
-          <svg
-            className="portfolio-return-chart"
-            viewBox={`0 0 ${width} ${height}`}
-            role="img"
-            aria-label={`포트폴리오 수익률 변동, 현재 ${formatPercent(latest.totalReturnRate, true)}`}
-          >
-            <defs>
-              <linearGradient id="portfolio-return-area-gradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2474d2" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="#2474d2" stopOpacity="0.02" />
-              </linearGradient>
-            </defs>
-            {guideValues.map((value) => (
-              <g key={value} className="portfolio-return-guide">
-                <line x1={padding.left} y1={y(value)} x2={width - padding.right} y2={y(value)} />
-                <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
-                  {percentFormatter.format(value)}%
-                </text>
-              </g>
-            ))}
-            {points.length >= 2 ? (
-              <>
-                <polygon
-                  className="portfolio-return-area"
-                  points={areaPoints}
-                  fill="url(#portfolio-return-area-gradient)"
-                />
-                <polyline className="portfolio-return-line" points={chartPoints.join(' ')} />
-              </>
-            ) : null}
-            {points.map((point, index) => (
-              <circle
-                key={`${point.recordedAt}-${index}`}
-                className="portfolio-return-point"
-                cx={x(index)}
-                cy={y(point.totalReturnRate)}
-                r="5"
-              />
-            ))}
-          </svg>
+          {expanded ? (
+            <div className="portfolio-return-summary">
+              <span>현재 평가금액</span>
+              <strong>
+                {amountsHidden ? HIDDEN_AMOUNT : formatWon(latest.totalEvaluationAmount)}
+              </strong>
+              <small className={profitClass(latest.totalProfitLoss)}>
+                누적 손익 {amountsHidden ? HIDDEN_AMOUNT : formatSignedWon(latest.totalProfitLoss)}{' '}
+                {formatPercent(latest.totalReturnRate, true)}
+              </small>
+            </div>
+          ) : null}
           <div
-            className="portfolio-return-dates"
-            style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}
-            aria-hidden="true"
+            className="portfolio-return-chart-wrap"
+            tabIndex={0}
+            aria-label="자산 추이 그래프. 좌우 방향키로 날짜를 이동할 수 있습니다."
+            onBlur={() => setHoveredIndex(null)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                moveActivePoint(-1);
+              }
+              if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                moveActivePoint(1);
+              }
+            }}
           >
-            {points.map((point, index) => (
-              <span key={`${point.recordedAt}-${index}`}>
-                {point.baseDate.slice(5).replace('-', '.')}
-              </span>
+            <svg
+              className="portfolio-return-chart"
+              viewBox={`0 0 ${width} ${height}`}
+              role="img"
+              aria-label={
+                amountsHidden
+                  ? '포트폴리오 자산 추이, 금액 숨김'
+                  : `포트폴리오 자산 추이, 평가금액 ${formatWon(latest.totalEvaluationAmount)}, 매입원금 ${formatWon(latest.totalPurchaseAmount)}`
+              }
+              onPointerDown={(event) => selectNearestPoint(event.clientX, event.currentTarget)}
+              onPointerMove={(event) => selectNearestPoint(event.clientX, event.currentTarget)}
+              onPointerLeave={() => setHoveredIndex(null)}
+            >
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={trendColor} stopOpacity="0.2" />
+                  <stop offset="100%" stopColor={trendColor} stopOpacity="0.015" />
+                </linearGradient>
+              </defs>
+              {guideValues.map((value) => (
+                <g key={value} className="portfolio-return-guide">
+                  <line x1={padding.left} y1={y(value)} x2={width - padding.right} y2={y(value)} />
+                  <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
+                    {amountsHidden ? '—' : formatCompactWon(value)}
+                  </text>
+                </g>
+              ))}
+              {visiblePoints.length >= 1 ? (
+                <>
+                  {areaPoints ? (
+                    <polygon
+                      className="portfolio-return-area"
+                      points={areaPoints}
+                      fill={`url(#${gradientId})`}
+                    />
+                  ) : null}
+                  <polyline
+                    className="portfolio-return-line evaluation"
+                    points={evaluationLinePoints.join(' ')}
+                  />
+                  <polyline
+                    className="portfolio-return-line principal"
+                    points={purchaseLinePoints.join(' ')}
+                  />
+                  {hasSinglePoint && !activePoint ? (
+                    <g className="portfolio-return-single-point">
+                      <circle
+                        className="portfolio-return-point principal"
+                        cx={padding.left}
+                        cy={y(visiblePoints[0].totalPurchaseAmount)}
+                        r="4"
+                      />
+                      <circle
+                        className="portfolio-return-point evaluation"
+                        cx={padding.left}
+                        cy={y(visiblePoints[0].totalEvaluationAmount)}
+                        r="5"
+                      />
+                    </g>
+                  ) : null}
+                </>
+              ) : null}
+              {activePoint && activeX !== null ? (
+                <g className="portfolio-return-active-point">
+                  <line
+                    className="portfolio-return-cursor"
+                    x1={activeX}
+                    y1={padding.top}
+                    x2={activeX}
+                    y2={height - padding.bottom}
+                  />
+                  <circle
+                    className="portfolio-return-point evaluation"
+                    cx={activeX}
+                    cy={y(activePoint.totalEvaluationAmount)}
+                    r="5"
+                  />
+                  <circle
+                    className="portfolio-return-point principal"
+                    cx={activeX}
+                    cy={y(activePoint.totalPurchaseAmount)}
+                    r="4"
+                  />
+                </g>
+              ) : null}
+            </svg>
+            {activePoint && activeX !== null ? (
+              <div
+                className={`portfolio-return-tooltip${tooltipAlignment}`}
+                style={{
+                  left: `${(activeX / width) * 100}%`,
+                  top: `${(y(activePoint.totalEvaluationAmount) / height) * 100}%`,
+                }}
+                role="status"
+                aria-live="polite"
+              >
+                <time dateTime={activePoint.baseDate}>{formatTrendDate(activePoint.baseDate)}</time>
+                <dl>
+                  <div className="principal">
+                    <dt>매입원금</dt>
+                    <dd>
+                      {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalPurchaseAmount)}
+                    </dd>
+                  </div>
+                  <div className="evaluation">
+                    <dt>평가금액</dt>
+                    <dd>
+                      {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalEvaluationAmount)}
+                      <small className={profitClass(activePoint.totalProfitLoss)}>
+                        {formatPercent(activePoint.totalReturnRate, true)}
+                      </small>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            ) : null}
+          </div>
+          <div className="portfolio-return-dates" aria-hidden="true">
+            {dateLabels.map((baseDate) => (
+              <span key={baseDate}>{baseDate.slice(5).replace('-', '.')}</span>
             ))}
           </div>
-          <span className="portfolio-events-label">자산 변경 이력</span>
-          <ul className="portfolio-return-events" aria-label="자산 변경 이력">
-            {visibleHistories.length === 0 ? (
-              <li className="portfolio-return-events-empty">최근 변경 이력이 없습니다.</li>
-            ) : (
-              visibleHistories.map((history) => {
-                const holding = history.holding ?? history.previousHolding;
-                return (
-                  <li key={`${history.occurredAt}-${holding?.assetId}-${history.changeType}`}>
-                    <i aria-hidden="true" />
-                    <time dateTime={history.occurredAt}>
-                      {history.occurredAt.slice(5, 10).replace('-', '.')}
-                    </time>
-                    <span>
-                      {holding?.name} {HISTORY_LABEL[history.changeType]}
-                    </span>
-                    <strong>{numberFormatter.format(holding?.quantity ?? 0)}주</strong>
-                  </li>
-                );
-              })
-            )}
-          </ul>
+          {expanded && firstDate && latest ? (
+            <p className="portfolio-trend-period-basis">
+              {selectedPeriod?.basis} · {formatPeriodBoundary(firstDate)}–
+              {formatPeriodBoundary(latest.baseDate)} 표시 · 거래일 종가 기준
+            </p>
+          ) : null}
+          {expanded ? (
+            <>
+              <dl className="portfolio-trend-detail-summary" aria-label="기간 요약">
+                <div>
+                  <dt>시작</dt>
+                  <dd>
+                    {amountsHidden || !first
+                      ? HIDDEN_AMOUNT
+                      : formatWon(first.totalEvaluationAmount)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>현재</dt>
+                  <dd>{amountsHidden ? HIDDEN_AMOUNT : formatWon(latest.totalEvaluationAmount)}</dd>
+                </div>
+                <div>
+                  <dt>기간 변동</dt>
+                  <dd className={profitClass(periodChange)}>
+                    {amountsHidden ? HIDDEN_AMOUNT : formatSignedWon(periodChange)}{' '}
+                    <small>{formatPercent(periodChangeRate, true)}</small>
+                  </dd>
+                </div>
+                <div>
+                  <dt>최고 · 최저</dt>
+                  <dd>
+                    {amountsHidden
+                      ? HIDDEN_AMOUNT
+                      : `${formatWon(periodMaximum)} · ${formatWon(periodMinimum)}`}
+                  </dd>
+                </div>
+              </dl>
+              <span className="portfolio-events-label">자산 변경 이력</span>
+              <ul className="portfolio-return-events" aria-label="자산 변경 이력">
+                {visibleHistories.length === 0 ? (
+                  <li className="portfolio-return-events-empty">최근 변경 이력이 없습니다.</li>
+                ) : (
+                  visibleHistories.map((history) => {
+                    const holding = history.holding ?? history.previousHolding;
+                    return (
+                      <li key={`${history.occurredAt}-${holding?.assetId}-${history.changeType}`}>
+                        <i aria-hidden="true" />
+                        <time dateTime={history.occurredAt}>
+                          {history.occurredAt.slice(5, 10).replace('-', '.')}
+                        </time>
+                        <span>
+                          {holding?.name} {HISTORY_LABEL[history.changeType]}
+                        </span>
+                        <strong>{numberFormatter.format(holding?.quantity ?? 0)}주</strong>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            </>
+          ) : null}
         </>
       ) : null}
     </section>
+  );
+}
+
+type PortfolioTrendDialogProps = Omit<PortfolioAssetTrendChartProps, 'mode' | 'onExpand'> & {
+  onClose: () => void;
+};
+
+function PortfolioTrendDialog({ onClose, ...chartProps }: PortfolioTrendDialogProps) {
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+
+  return (
+    <div className="portfolio-trend-dialog-backdrop" onMouseDown={onClose}>
+      <section
+        className="portfolio-trend-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="expanded-asset-trend-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="portfolio-trend-dialog-close"
+          aria-label="자산 추이 상세 닫기"
+          autoFocus
+          onClick={onClose}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+        <PortfolioAssetTrendChart {...chartProps} mode="expanded" />
+      </section>
+    </div>
   );
 }
 
@@ -313,6 +688,8 @@ export function PortfolioPage() {
   const [sort, setSort] = useState<PortfolioSort>('DEFAULT');
   const [amountsHidden, setAmountsHidden] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
+  const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const [expandedContentAssetId, setExpandedContentAssetId] = useState<number | null>(null);
   const [relatedContents, setRelatedContents] = useState<Record<number, StockRelatedContent[]>>({});
   const [relatedContentLoadingAssetId, setRelatedContentLoadingAssetId] = useState<number | null>(
@@ -348,20 +725,41 @@ export function PortfolioPage() {
     return () => controller.abort();
   }, [holdings, holdingsLoading, retryCount]);
 
+  const dashboardCalculation =
+    calculation ??
+    (!holdingsLoading && !holdingsError && holdings.length === 0
+      ? EMPTY_PORTFOLIO_CALCULATION
+      : null);
+
   const visibleHoldings = useMemo(() => {
     const filtered =
-      calculation?.holdings.filter(
+      dashboardCalculation?.holdings.filter(
         (holding) => categoryFilter === 'ALL' || holding.category === categoryFilter,
       ) ?? [];
     return [...filtered].sort((first, second) => compareHoldings(first, second, sort));
-  }, [calculation, categoryFilter, sort]);
+  }, [dashboardCalculation, categoryFilter, sort]);
   const analysisAssets = useMemo(
     () => toPortfolioAnalysisAssets(calculation?.holdings ?? []),
     [calculation],
   );
-  const expandedHolding = calculation?.holdings.find(
+  const expandedHolding = dashboardCalculation?.holdings.find(
     (holding) => holding.assetId === expandedContentAssetId,
   );
+  const trendPoints = useMemo(() => {
+    if (holdings.length === 0) return [];
+    if (!calculation) return performance.points;
+    const currentPoint = createCurrentPerformancePoint(calculation);
+    return [
+      ...performance.points.filter((point) => point.baseDate !== currentPoint.baseDate),
+      currentPoint,
+    ]
+      .sort(
+        (first, second) =>
+          first.baseDate.localeCompare(second.baseDate) ||
+          first.recordedAt.localeCompare(second.recordedAt),
+      )
+      .slice(-100);
+  }, [calculation, holdings.length, performance.points]);
 
   async function save(nextHolding: PortfolioHoldingInput) {
     await saveHolding(nextHolding);
@@ -455,17 +853,6 @@ export function PortfolioPage() {
         <h1>내 포트폴리오</h1>
       </div>
 
-      {!holdingsLoading && !holdingsError && holdings.length === 0 ? (
-        <section className="portfolio-empty" aria-labelledby="portfolio-empty-title">
-          <span className="portfolio-empty-mark">₩</span>
-          <h2 id="portfolio-empty-title">첫 자산을 추가해 보세요</h2>
-          <p>보유 자산과 평균 매수가를 입력하면 수익률과 자산 비중을 한눈에 보여드려요.</p>
-          <button type="button" className="portfolio-primary-button" onClick={() => setEditor({})}>
-            ＋ 자산 추가
-          </button>
-        </section>
-      ) : null}
-
       {holdingsLoading || loading ? (
         <p className="portfolio-state" aria-live="polite">
           {holdingsLoading ? '포트폴리오를 불러오고 있습니다.' : '포트폴리오를 계산하고 있습니다.'}
@@ -485,18 +872,11 @@ export function PortfolioPage() {
         </section>
       ) : null}
 
-      {!holdingsLoading && !loading && !holdingsError && calculation ? (
+      {!holdingsLoading && !loading && !holdingsError && dashboardCalculation ? (
         <div
           className={`portfolio-dashboard-layout${expandedHolding ? ' has-related-content' : ''}`}
         >
           <div className="portfolio-dashboard-main">
-            <div className="portfolio-freshness">
-              <i aria-hidden="true" />
-              <span>
-                {calculation.baseDate.replaceAll('-', '.')} 종가 기준 ·{' '}
-                {calculation.holdings.length}개 자산 정상 반영
-              </span>
-            </div>
             <dl className="portfolio-overview" aria-label="자산 요약">
               <div className="portfolio-summary-total">
                 <div className="portfolio-balance-label">
@@ -515,40 +895,55 @@ export function PortfolioPage() {
                   </button>
                 </div>
                 <dd className="portfolio-balance-value">
-                  {displayWon(calculation.totalEvaluationAmount)}
+                  {displayWon(dashboardCalculation.totalEvaluationAmount)}
                 </dd>
                 <dd className="portfolio-daily-performance">
                   <span>오늘 손익</span>
-                  {calculation.dailyProfitLoss !== null && calculation.dailyReturnRate !== null ? (
-                    <strong className={profitClass(calculation.dailyProfitLoss)}>
-                      {displayWon(calculation.dailyProfitLoss, true)}
-                      <small>{formatPercent(calculation.dailyReturnRate, true)}</small>
+                  {dashboardCalculation.dailyProfitLoss !== null &&
+                  dashboardCalculation.dailyReturnRate !== null ? (
+                    <strong className={profitClass(dashboardCalculation.dailyProfitLoss)}>
+                      {displayWon(dashboardCalculation.dailyProfitLoss, true)}
+                      <small>{formatPercent(dashboardCalculation.dailyReturnRate, true)}</small>
                     </strong>
                   ) : (
-                    <strong className="portfolio-pending-daily">계산 준비 중</strong>
+                    <strong
+                      className="portfolio-pending-daily"
+                      aria-label={
+                        dashboardCalculation.holdings.length === 0 ? '표시할 자산 없음' : undefined
+                      }
+                    >
+                      {dashboardCalculation.holdings.length === 0 ? '-' : '계산 준비 중'}
+                    </strong>
                   )}
                 </dd>
               </div>
               <div>
                 <dt>투자원금</dt>
-                <dd>{displayWon(calculation.totalPurchaseAmount)}</dd>
+                <dd>{displayWon(dashboardCalculation.totalPurchaseAmount)}</dd>
               </div>
               <div>
                 <dt>누적 손익</dt>
-                <dd className={profitClass(calculation.totalProfitLoss)}>
-                  {displayWon(calculation.totalProfitLoss, true)}
+                <dd className={profitClass(dashboardCalculation.totalProfitLoss)}>
+                  {displayWon(dashboardCalculation.totalProfitLoss, true)}
                 </dd>
-                <small className={profitClass(calculation.totalReturnRate)}>
-                  {formatPercent(calculation.totalReturnRate, true)}
+                <small className={profitClass(dashboardCalculation.totalReturnRate)}>
+                  {formatPercent(dashboardCalculation.totalReturnRate, true)}
                 </small>
               </div>
               <div>
                 <dt>보유 자산</dt>
-                <dd>{calculation.holdings.length}개</dd>
+                <dd>{dashboardCalculation.holdings.length}개</dd>
                 <small>
                   주식{' '}
-                  {calculation.holdings.filter((holding) => holding.category === 'STOCK').length} ·
-                  ETF {calculation.holdings.filter((holding) => holding.category === 'ETF').length}
+                  {
+                    dashboardCalculation.holdings.filter((holding) => holding.category === 'STOCK')
+                      .length
+                  }{' '}
+                  · ETF{' '}
+                  {
+                    dashboardCalculation.holdings.filter((holding) => holding.category === 'ETF')
+                      .length
+                  }
                 </small>
               </div>
             </dl>
@@ -575,18 +970,26 @@ export function PortfolioPage() {
               </div>
               {analysisExpanded ? (
                 <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
-                  <PortfolioReturnChart
-                    points={performance.points}
+                  <PortfolioAssetTrendChart
+                    points={trendPoints}
                     histories={histories}
-                    loading={performance.loading}
-                    error={performance.error}
+                    loading={performance.loading && !dashboardCalculation}
+                    error={dashboardCalculation ? '' : performance.error}
                     onRetry={performance.retry}
+                    amountsHidden={amountsHidden}
+                    period={trendPeriod}
+                    onPeriodChange={setTrendPeriod}
+                    onExpand={() => setTrendDialogOpen(true)}
                   />
                   <section className="portfolio-composition" aria-labelledby="composition-title">
                     <div className="portfolio-dashboard-heading">
                       <h2 id="composition-title">자산 구성</h2>
                     </div>
-                    <CompositionChart calculation={calculation} />
+                    {dashboardCalculation.holdings.length === 0 ? (
+                      <p className="portfolio-module-empty">표시할 자산이 없습니다</p>
+                    ) : (
+                      <CompositionChart calculation={dashboardCalculation} />
+                    )}
                   </section>
                 </div>
               ) : null}
@@ -595,15 +998,34 @@ export function PortfolioPage() {
             <section className="portfolio-holdings" aria-labelledby="holdings-title">
               <div className="portfolio-section-title">
                 <h2 id="holdings-title">
-                  보유 자산 <span>{calculation.holdings.length}</span>
+                  보유 자산 <span>{dashboardCalculation.holdings.length}</span>
                 </h2>
-                <button
-                  type="button"
-                  className="portfolio-primary-button"
-                  onClick={() => setEditor({})}
-                >
-                  ＋ 자산 추가
-                </button>
+                <div className="portfolio-holdings-actions">
+                  <label className="portfolio-sort-control">
+                    <span className="sr-only">정렬 기준</span>
+                    <select
+                      aria-label="보유 자산 정렬"
+                      value={sort}
+                      onChange={(event) => setSort(event.target.value as PortfolioSort)}
+                    >
+                      <option value="DEFAULT">기본 순서</option>
+                      <option value="EVALUATION">평가금액 높은 순</option>
+                      <option value="PROFIT">손익 높은 순</option>
+                      <option value="RETURN">수익률 높은 순</option>
+                      <option value="WEIGHT">비중 높은 순</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="portfolio-primary-button"
+                    onClick={() => setEditor({})}
+                  >
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                      <path d="M10 4.5v11M4.5 10h11" />
+                    </svg>
+                    자산 추가
+                  </button>
+                </div>
               </div>
               <div className="portfolio-holdings-layout">
                 <div className="portfolio-holdings-table-column">
@@ -620,20 +1042,6 @@ export function PortfolioPage() {
                         </button>
                       ))}
                     </div>
-                    <label className="portfolio-sort-control">
-                      <span className="sr-only">정렬 기준</span>
-                      <select
-                        aria-label="보유 자산 정렬"
-                        value={sort}
-                        onChange={(event) => setSort(event.target.value as PortfolioSort)}
-                      >
-                        <option value="DEFAULT">기본 순서</option>
-                        <option value="EVALUATION">평가금액 높은 순</option>
-                        <option value="PROFIT">손익 높은 순</option>
-                        <option value="RETURN">수익률 높은 순</option>
-                        <option value="WEIGHT">비중 높은 순</option>
-                      </select>
-                    </label>
                   </div>
                   <div
                     className="portfolio-table-wrap"
@@ -724,7 +1132,9 @@ export function PortfolioPage() {
                         {visibleHoldings.length === 0 ? (
                           <tr>
                             <td className="portfolio-no-results" colSpan={8}>
-                              선택한 유형의 보유 자산이 없습니다.
+                              {dashboardCalculation.holdings.length === 0
+                                ? '표시할 자산이 없습니다'
+                                : '선택한 유형의 보유 자산이 없습니다.'}
                             </td>
                           </tr>
                         ) : null}
@@ -745,6 +1155,20 @@ export function PortfolioPage() {
           </div>
           {renderRelatedContentPanel()}
         </div>
+      ) : null}
+
+      {trendDialogOpen ? (
+        <PortfolioTrendDialog
+          points={trendPoints}
+          histories={histories}
+          loading={performance.loading && !calculation}
+          error={calculation ? '' : performance.error}
+          onRetry={performance.retry}
+          amountsHidden={amountsHidden}
+          period={trendPeriod}
+          onPeriodChange={setTrendPeriod}
+          onClose={() => setTrendDialogOpen(false)}
+        />
       ) : null}
 
       {editor ? (
