@@ -1878,6 +1878,7 @@
   margin: 0;
   font-size: 18px;
   font-weight: 650;
+  line-height: 1.4;
   letter-spacing: -0.03em;
 }
 
@@ -1892,7 +1893,7 @@
 }
 
 .portfolio-analysis {
-  margin-bottom: 16px;
+  margin-bottom: 36px;
 }
 
 .portfolio-analysis-toolbar {
@@ -1917,6 +1918,7 @@
   color: #172033;
   font-size: 18px;
   font-weight: 650;
+  line-height: 1.4;
   letter-spacing: -0.03em;
 }
 
@@ -2665,14 +2667,36 @@
 }
 
 .portfolio-filters {
-  gap: 24px;
+  gap: 2px;
+  width: fit-content;
+  padding: 4px;
   border: 0;
+  border-radius: 12px;
+  background: #f2f4f6;
 }
 
 .portfolio-filters button {
-  min-height: 42px;
-  padding: 9px 0 10px;
-  font-size: 13px;
+  min-width: 56px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  color: #8b95a1;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.portfolio-filters button:hover {
+  color: #4e5968;
+  background: rgb(255 255 255 / 60%);
+}
+
+.portfolio-filters button[aria-pressed='true'] {
+  border-bottom-color: transparent;
+  color: #333d4b;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
 }
 
 .portfolio-sort-control {
@@ -2740,13 +2764,13 @@
 
 .portfolio-holdings-toolbar {
   align-items: center;
-  min-height: 58px;
-  padding: 0;
+  min-height: 0;
+  padding: 10px 2px 18px;
   border-bottom: 0;
 }
 
 .portfolio-holdings-toolbar .portfolio-filters {
-  align-self: stretch;
+  align-self: auto;
 }
 
 .portfolio-table-wrap table {
@@ -3258,16 +3282,16 @@
 
   .portfolio-holdings-toolbar {
     align-items: center;
-    min-height: 60px;
-    padding: 8px 18px;
+    min-height: 0;
+    padding: 8px 0 14px;
     flex-direction: row;
     gap: 12px;
   }
 
   .portfolio-holdings-toolbar .portfolio-filters {
-    align-self: stretch;
-    flex: 1 1 auto;
-    gap: 16px;
+    align-self: auto;
+    flex: 0 0 auto;
+    gap: 2px;
   }
 
   .portfolio-holdings-toolbar .portfolio-sort-control {
