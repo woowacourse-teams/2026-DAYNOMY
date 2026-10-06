@@ -421,7 +421,9 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       }
       String query =
           Arrays.stream(uri.getRawQuery() == null ? new String[0] : uri.getRawQuery().split("&"))
-              .filter(parameter -> !parameter.toLowerCase(Locale.ROOT).startsWith("utm_source="))
+              .filter(
+                  parameter ->
+                      !parameter.split("=", 2)[0].toLowerCase(Locale.ROOT).startsWith("utm_"))
               .collect(Collectors.joining("&"));
 
       return scheme.toLowerCase(Locale.ROOT)

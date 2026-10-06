@@ -323,9 +323,13 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  @DisplayName("OpenAI 인용 URL의 추적 파라미터 차이는 같은 출처로 처리한다")
+  @DisplayName("OpenAI 인용 URL의 UTM 추적 파라미터는 제거하고 일반 파라미터는 유지한다")
   void analyzeMatchesCitationWithTrackingParameter() throws Exception {
-    enqueueOutput(validOutput(), "https://example.com/semiconductor?utm_source=openai");
+    String sourceUrl = "https://example.com/semiconductor?articleId=123";
+    String citationUrl =
+        "https://example.com/semiconductor?utm_source=openai&utm_medium=referral&UTM_Campaign=spring&articleId=123";
+    enqueueOutput(
+        validOutput().replace("https://example.com/semiconductor", sourceUrl), citationUrl);
 
     PortfolioAnalysisResult result = client.analyze(targets());
 
@@ -333,9 +337,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .allSatisfy(
             impact ->
                 assertThat(impact.sources())
-                    .containsExactly(
-                        new PortfolioAnalysisResult.Source(
-                            "반도체 산업 동향", "https://example.com/semiconductor?utm_source=openai")));
+                    .containsExactly(new PortfolioAnalysisResult.Source("반도체 산업 동향", citationUrl)));
   }
 
   @Test
