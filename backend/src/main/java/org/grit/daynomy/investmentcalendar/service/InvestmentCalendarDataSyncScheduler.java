@@ -20,6 +20,7 @@ public class InvestmentCalendarDataSyncScheduler {
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
   private final InvestmentCalendarDataSyncService syncService;
+  private final InvestmentCalendarPriceBackfillService priceBackfillService;
   private final AtomicBoolean running = new AtomicBoolean();
 
   @EventListener(ApplicationReadyEvent.class)
@@ -40,8 +41,27 @@ public class InvestmentCalendarDataSyncScheduler {
           result.createdCount(),
           result.updatedCount(),
           result.unchangedCount());
+      backfillPrices();
     } finally {
       running.set(false);
+    }
+  }
+
+  private void backfillPrices() {
+    try {
+      InvestmentCalendarPriceBackfillResult result =
+          priceBackfillService.backfill(LocalDate.now(SEOUL));
+      log.info(
+          "Finished investment calendar price backfill: assetCount={}, fetchedCount={}, createdCount={}, updatedCount={}, unchangedCount={}",
+          result.assetCount(),
+          result.fetchedCount(),
+          result.createdCount(),
+          result.updatedCount(),
+          result.unchangedCount());
+    } catch (RuntimeException exception) {
+      log.warn(
+          "Investment calendar price backfill failed: errorType={}",
+          exception.getClass().getSimpleName());
     }
   }
 }
