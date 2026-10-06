@@ -74,7 +74,6 @@ app:
     s3:
       region: ${AWS_REGION:}
       bucket: ${AWS_S3_BUCKET:}
-      object-prefix: ${AWS_S3_OBJECT_PREFIX:}
       public-base-url: ${AWS_S3_PUBLIC_BASE_URL}
 
 jwt:
@@ -100,18 +99,6 @@ external:
     economy-news-model: ${OPENAI_ECONOMY_NEWS_MODEL:gpt-5.5}
     connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
     read-timeout: ${OPENAI_READ_TIMEOUT:120s}
-
-  wikimedia:
-    base-url: ${WIKIMEDIA_BASE_URL:https://commons.wikimedia.org}
-    user-agent: ${WIKIMEDIA_USER_AGENT:daynomy/1.0}
-    connect-timeout: ${WIKIMEDIA_CONNECT_TIMEOUT:3s}
-    read-timeout: ${WIKIMEDIA_READ_TIMEOUT:15s}
-
-  youtube:
-    api-key: ${YOUTUBE_API_KEY:}
-    base-url: ${YOUTUBE_BASE_URL:https://www.googleapis.com/youtube/v3}
-    connect-timeout: ${YOUTUBE_CONNECT_TIMEOUT:3s}
-    read-timeout: ${YOUTUBE_READ_TIMEOUT:10s}
 
   public-data:
     service-key: ${PUBLIC_DATA_SERVICE_KEY}
