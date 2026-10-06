@@ -4,11 +4,11 @@ import { PortfolioAnalysis } from './components/PortfolioAnalysis';
 import { PortfolioEditor } from './components/PortfolioEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
 import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
+import { toPortfolioAnalysisAssets } from './portfolioAnalysisAssets';
 import { getStockRelatedContents } from '../stock-content/api';
 import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../stock-content/types';
 import type {
   AssetCategory,
-  PortfolioAsset,
   PortfolioCalculation,
   PortfolioHoldingHistory,
   PortfolioHoldingInput,
@@ -290,24 +290,6 @@ function compareHoldings(
   if (sort === 'DEFAULT') return 0;
   const key = sortValue[sort];
   return (second[key] as number) - (first[key] as number);
-}
-
-function toPortfolioAnalysisAssets(holdings: PortfolioHoldingResult[]): PortfolioAsset[] {
-  if (holdings.length === 0) return [];
-
-  const assets = holdings.map(({ name, weight }) => ({ assetName: name, weight }));
-  const totalWeight = assets.reduce((sum, asset) => sum + asset.weight, 0);
-  const adjustmentIndex = assets.reduce(
-    (largestIndex, asset, index) =>
-      asset.weight > assets[largestIndex].weight ? index : largestIndex,
-    0,
-  );
-
-  return assets.map((asset, index) =>
-    index === adjustmentIndex
-      ? { ...asset, weight: Number((asset.weight + 100 - totalWeight).toFixed(2)) }
-      : asset,
-  );
 }
 
 export function PortfolioPage() {
