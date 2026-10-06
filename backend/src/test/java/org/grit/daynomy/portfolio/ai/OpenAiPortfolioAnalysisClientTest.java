@@ -367,6 +367,9 @@ class OpenAiPortfolioAnalysisClientTest {
     PortfolioAnalysisResult result = client.analyze(targets());
 
     assertThat(result.impacts()).allSatisfy(impact -> assertThat(impact.sources()).isEmpty());
+    assertThat(result.sources())
+        .containsExactly(
+            new PortfolioAnalysisResult.Source("반도체 산업 동향", "https://example.com/semiconductor"));
   }
 
   @Test

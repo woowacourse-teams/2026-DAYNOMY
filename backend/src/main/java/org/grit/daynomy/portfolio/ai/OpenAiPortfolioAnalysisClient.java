@@ -292,17 +292,10 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
                       LinkedHashMap::new));
       List<PortfolioAnalysisResult.AssetImpactResult> impacts =
           parseImpacts(root.path("impacts"), targets, sourceByUrl);
+      List<PortfolioAnalysisResult.Source> impactSources =
+          impacts.stream().flatMap(impact -> impact.sources().stream()).toList();
       List<PortfolioAnalysisResult.Source> sources =
-          impacts.stream()
-              .flatMap(impact -> impact.sources().stream())
-              .collect(
-                  Collectors.collectingAndThen(
-                      Collectors.toMap(
-                          source -> normalizeSourceUrl(source.url()),
-                          source -> source,
-                          (first, ignored) -> first,
-                          LinkedHashMap::new),
-                      sourcesByUrl -> List.copyOf(sourcesByUrl.values())));
+          mergeSources(output.citationSources(), impactSources);
       return new PortfolioAnalysisResult(requiredText(root, "overallImpact"), impacts, sources);
     } catch (JsonProcessingException | IllegalArgumentException exception) {
       throw analysisFailed();
@@ -476,12 +469,14 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
           if ("output_text".equals(contentItem.path("type").asText())) {
             String outputText = contentItem.path("text").asText();
             if (!outputText.isBlank()) {
+              List<PortfolioAnalysisResult.Source> citationSources =
+                  parseSources(contentItem.path("annotations"));
               List<PortfolioAnalysisResult.Source> sources =
-                  mergeSources(parseSources(contentItem.path("annotations")), searchSources);
+                  mergeSources(citationSources, searchSources);
               if (sources.isEmpty()) {
                 throw analysisFailed();
               }
-              return new OutputContent(outputText, sources);
+              return new OutputContent(outputText, sources, citationSources);
             }
           }
         }
@@ -591,5 +586,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     }
   }
 
-  private record OutputContent(String text, List<PortfolioAnalysisResult.Source> sources) {}
+  private record OutputContent(
+      String text,
+      List<PortfolioAnalysisResult.Source> sources,
+      List<PortfolioAnalysisResult.Source> citationSources) {}
 }
