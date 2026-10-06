@@ -689,7 +689,7 @@ export function PortfolioPage() {
                               <div className="portfolio-row-actions">
                                 <button
                                   type="button"
-                                  disabled={relatedContentLoadingAssetId === holding.assetId}
+                                  disabled
                                   aria-expanded={expandedContentAssetId === holding.assetId}
                                   onClick={() => void toggleRelatedContents(holding.assetId)}
                                 >
