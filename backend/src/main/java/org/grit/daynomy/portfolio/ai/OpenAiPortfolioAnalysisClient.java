@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -167,6 +168,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         "reasoning", Map.of("effort", "low"),
         "tools", List.of(Map.of("type", "web_search")),
         "tool_choice", "required",
+        "include", List.of("web_search_call.action.sources"),
         "input", createInput(targets),
         "text", createTextFormat(targets));
   }
@@ -257,7 +259,14 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "sourceUrls"));
     impactItem.put("properties", impactProperties);
 
-    return Map.of("type", "array", "items", impactItem);
+    Map<String, Object> impactsSchema = new LinkedHashMap<>();
+    impactsSchema.put("type", "array");
+    impactsSchema.put("items", impactItem);
+    if (!model.startsWith("ft:")) {
+      impactsSchema.put("minItems", targets.size());
+      impactsSchema.put("maxItems", targets.size());
+    }
+    return impactsSchema;
   }
 
   private <E extends Enum<E>> List<String> enumNames(E[] values) {
@@ -275,11 +284,19 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       }
       Map<String, PortfolioAnalysisResult.Source> sourceByUrl =
           output.sources().stream()
-              .collect(Collectors.toMap(PortfolioAnalysisResult.Source::url, source -> source));
-      return new PortfolioAnalysisResult(
-          requiredText(root, "overallImpact"),
-          parseImpacts(root.path("impacts"), targets, sourceByUrl),
-          output.sources());
+              .collect(
+                  Collectors.toMap(
+                      source -> normalizeSourceUrl(source.url()),
+                      source -> source,
+                      (first, ignored) -> first,
+                      LinkedHashMap::new));
+      List<PortfolioAnalysisResult.AssetImpactResult> impacts =
+          parseImpacts(root.path("impacts"), targets, sourceByUrl);
+      List<PortfolioAnalysisResult.Source> impactSources =
+          impacts.stream().flatMap(impact -> impact.sources().stream()).toList();
+      List<PortfolioAnalysisResult.Source> sources =
+          mergeSources(output.citationSources(), impactSources);
+      return new PortfolioAnalysisResult(requiredText(root, "overallImpact"), impacts, sources);
     } catch (JsonProcessingException | IllegalArgumentException exception) {
       throw analysisFailed();
     }
@@ -373,13 +390,43 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         throw analysisFailed();
       }
       String sourceUrl = sourceUrlNode.textValue();
-      PortfolioAnalysisResult.Source source = sourceByUrl.get(sourceUrl);
+      PortfolioAnalysisResult.Source source = sourceByUrl.get(normalizeSourceUrl(sourceUrl));
       if (source == null) {
-        throw analysisFailed();
+        continue;
       }
-      assetSourceByUrl.putIfAbsent(sourceUrl, source);
+      assetSourceByUrl.putIfAbsent(source.url(), source);
     }
     return List.copyOf(assetSourceByUrl.values());
+  }
+
+  private String normalizeSourceUrl(String url) {
+    try {
+      URI uri = URI.create(url).normalize();
+      String scheme = uri.getScheme();
+      String authority = uri.getRawAuthority();
+      if (scheme == null || authority == null) {
+        return url;
+      }
+
+      String path = uri.getRawPath();
+      if (path != null && path.length() > 1 && path.endsWith("/")) {
+        path = path.substring(0, path.length() - 1);
+      }
+      String query =
+          Arrays.stream(uri.getRawQuery() == null ? new String[0] : uri.getRawQuery().split("&"))
+              .filter(
+                  parameter ->
+                      !parameter.split("=", 2)[0].toLowerCase(Locale.ROOT).startsWith("utm_"))
+              .collect(Collectors.joining("&"));
+
+      return scheme.toLowerCase(Locale.ROOT)
+          + "://"
+          + authority.toLowerCase(Locale.ROOT)
+          + (path == null ? "" : path)
+          + (query.isBlank() ? "" : "?" + query);
+    } catch (IllegalArgumentException exception) {
+      return url;
+    }
   }
 
   private int impactLevelPriority(ImpactLevel impactLevel) {
@@ -410,6 +457,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         throw analysisFailed();
       }
 
+      List<PortfolioAnalysisResult.Source> searchSources = parseSearchSources(output);
       for (JsonNode item : output) {
         JsonNode content = item.path("content");
 
@@ -421,12 +469,14 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
           if ("output_text".equals(contentItem.path("type").asText())) {
             String outputText = contentItem.path("text").asText();
             if (!outputText.isBlank()) {
-              List<PortfolioAnalysisResult.Source> sources =
+              List<PortfolioAnalysisResult.Source> citationSources =
                   parseSources(contentItem.path("annotations"));
+              List<PortfolioAnalysisResult.Source> sources =
+                  mergeSources(citationSources, searchSources);
               if (sources.isEmpty()) {
                 throw analysisFailed();
               }
-              return new OutputContent(outputText, sources);
+              return new OutputContent(outputText, sources, citationSources);
             }
           }
         }
@@ -436,6 +486,44 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     }
 
     throw analysisFailed();
+  }
+
+  private List<PortfolioAnalysisResult.Source> parseSearchSources(JsonNode outputNode) {
+    Map<String, PortfolioAnalysisResult.Source> sourceByUrl = new LinkedHashMap<>();
+    for (JsonNode item : outputNode) {
+      if (!"web_search_call".equals(item.path("type").asText())) {
+        continue;
+      }
+      JsonNode sourcesNode = item.path("action").path("sources");
+      if (!sourcesNode.isArray()) {
+        continue;
+      }
+      for (JsonNode sourceNode : sourcesNode) {
+        String url = sourceNode.path("url").asText();
+        if (!isHttpUrl(url)) {
+          continue;
+        }
+        String title = sourceNode.path("title").asText();
+        if (title.isBlank()) {
+          String host = URI.create(url).getHost();
+          title = host == null ? url : host;
+        }
+        sourceByUrl.putIfAbsent(
+            normalizeSourceUrl(url), new PortfolioAnalysisResult.Source(title, url));
+      }
+    }
+    return List.copyOf(sourceByUrl.values());
+  }
+
+  private List<PortfolioAnalysisResult.Source> mergeSources(
+      List<PortfolioAnalysisResult.Source> citationSources,
+      List<PortfolioAnalysisResult.Source> searchSources) {
+    Map<String, PortfolioAnalysisResult.Source> sourceByUrl = new LinkedHashMap<>();
+    citationSources.forEach(
+        source -> sourceByUrl.putIfAbsent(normalizeSourceUrl(source.url()), source));
+    searchSources.forEach(
+        source -> sourceByUrl.putIfAbsent(normalizeSourceUrl(source.url()), source));
+    return List.copyOf(sourceByUrl.values());
   }
 
   private List<PortfolioAnalysisResult.Source> parseSources(JsonNode annotationsNode) {
@@ -498,5 +586,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     }
   }
 
-  private record OutputContent(String text, List<PortfolioAnalysisResult.Source> sources) {}
+  private record OutputContent(
+      String text,
+      List<PortfolioAnalysisResult.Source> sources,
+      List<PortfolioAnalysisResult.Source> citationSources) {}
 }

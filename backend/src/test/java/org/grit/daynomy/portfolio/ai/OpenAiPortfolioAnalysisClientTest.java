@@ -139,12 +139,36 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(requestBody.path("reasoning").path("effort").asText()).isEqualTo("low");
     assertThat(requestBody.path("tools").get(0).path("type").asText()).isEqualTo("web_search");
     assertThat(requestBody.path("tool_choice").asText()).isEqualTo("required");
+    assertThat(requestBody.path("include").get(0).asText())
+        .isEqualTo("web_search_call.action.sources");
+    JsonNode impactsSchema =
+        requestBody.path("text").path("format").path("schema").path("properties").path("impacts");
+    assertThat(impactsSchema.path("minItems").asInt()).isEqualTo(2);
+    assertThat(impactsSchema.path("maxItems").asInt()).isEqualTo(2);
     JsonNode userContent =
         objectMapper.readTree(requestBody.path("input").get(1).path("content").asText());
     assertThat(userContent.path("assets").get(0).path("assetName").asText()).isEqualTo("삼성전자");
     assertThat(userContent.path("assets").get(0).path("weight").decimalValue())
         .isEqualByComparingTo("60");
     assertThat(userContent.toString()).doesNotContain("assetId");
+  }
+
+  @Test
+  @DisplayName("파인튜닝 모델 요청에는 지원하지 않는 배열 길이 제약을 포함하지 않는다")
+  void analyzeOmitsArrayBoundsForFineTunedModel() throws Exception {
+    client =
+        new OpenAiPortfolioAnalysisClient(
+            RestClient.builder(), server.url("/").toString(), "test-api-key", "ft:test-model");
+    enqueueOutput(validOutput());
+
+    client.analyze(targets());
+
+    RecordedRequest request = server.takeRequest();
+    JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
+    JsonNode impactsSchema =
+        requestBody.path("text").path("format").path("schema").path("properties").path("impacts");
+    assertThat(impactsSchema.has("minItems")).isFalse();
+    assertThat(impactsSchema.has("maxItems")).isFalse();
   }
 
   @Test
@@ -279,12 +303,60 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  @DisplayName("자산별 출처가 OpenAI 인용 목록에 없으면 분석 실패로 처리한다")
-  void analyzeRejectsUncitedAssetSource() throws Exception {
+  @DisplayName("OpenAI가 인용하지 않은 자산별 출처는 결과에서 제외한다")
+  void analyzeIgnoresUncitedAssetSource() throws Exception {
     enqueueOutput(
-        validOutput().replace("https://example.com/semiconductor", "https://example.com/uncited"));
+        validOutput()
+            .replace(
+                "[\"https://example.com/semiconductor\"]",
+                "[\"https://example.com/semiconductor\", \"https://example.com/uncited\"]"));
 
-    assertAnalysisFailed(() -> client.analyze(targets()));
+    PortfolioAnalysisResult result = client.analyze(targets());
+
+    assertThat(result.impacts())
+        .allSatisfy(
+            impact ->
+                assertThat(impact.sources())
+                    .containsExactly(
+                        new PortfolioAnalysisResult.Source(
+                            "반도체 산업 동향", "https://example.com/semiconductor")));
+  }
+
+  @Test
+  @DisplayName("OpenAI 인용 URL의 UTM 추적 파라미터는 제거하고 일반 파라미터는 유지한다")
+  void analyzeMatchesCitationWithTrackingParameter() throws Exception {
+    String sourceUrl = "https://example.com/semiconductor?articleId=123";
+    String citationUrl =
+        "https://example.com/semiconductor?utm_source=openai&utm_medium=referral&UTM_Campaign=spring&articleId=123";
+    enqueueOutput(
+        validOutput().replace("https://example.com/semiconductor", sourceUrl), citationUrl);
+
+    PortfolioAnalysisResult result = client.analyze(targets());
+
+    assertThat(result.impacts())
+        .allSatisfy(
+            impact ->
+                assertThat(impact.sources())
+                    .containsExactly(new PortfolioAnalysisResult.Source("반도체 산업 동향", citationUrl)));
+  }
+
+  @Test
+  @DisplayName("인용에 포함되지 않아도 웹 검색에서 사용한 출처는 자산별 근거로 연결한다")
+  void analyzeUsesCompleteWebSearchSources() throws Exception {
+    String searchSourceUrl = "https://example.com/consulted-source";
+    enqueueOutputWithSearchSources(
+        validOutput()
+            .replace("\"direction\": \"NEUTRAL\"", "\"direction\": \"POSITIVE\"")
+            .replace("https://example.com/semiconductor", searchSourceUrl),
+        searchSourceUrl);
+
+    PortfolioAnalysisResult result = client.analyze(targets());
+
+    PortfolioAnalysisResult.Source expectedSource =
+        new PortfolioAnalysisResult.Source("웹 검색 사용 출처", searchSourceUrl);
+    assertThat(result.impacts())
+        .allSatisfy(impact -> assertThat(impact.sources()).containsExactly(expectedSource));
+    assertThat(result.sources()).containsExactly(expectedSource);
   }
 
   @Test
@@ -295,6 +367,9 @@ class OpenAiPortfolioAnalysisClientTest {
     PortfolioAnalysisResult result = client.analyze(targets());
 
     assertThat(result.impacts()).allSatisfy(impact -> assertThat(impact.sources()).isEmpty());
+    assertThat(result.sources())
+        .containsExactly(
+            new PortfolioAnalysisResult.Source("반도체 산업 동향", "https://example.com/semiconductor"));
   }
 
   @Test
@@ -375,6 +450,10 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   private void enqueueOutput(String outputText) throws JsonProcessingException {
+    enqueueOutput(outputText, "https://example.com/semiconductor");
+  }
+
+  private void enqueueOutput(String outputText, String citationUrl) throws JsonProcessingException {
     String response =
         objectMapper.writeValueAsString(
             Map.of(
@@ -396,7 +475,43 @@ class OpenAiPortfolioAnalysisClientTest {
                                         "title",
                                         "반도체 산업 동향",
                                         "url",
-                                        "https://example.com/semiconductor"))))))));
+                                        citationUrl))))))));
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+            .setBody(response));
+  }
+
+  private void enqueueOutputWithSearchSources(String outputText, String sourceUrl)
+      throws JsonProcessingException {
+    String response =
+        objectMapper.writeValueAsString(
+            Map.of(
+                "output",
+                List.of(
+                    Map.of(
+                        "type",
+                        "web_search_call",
+                        "action",
+                        Map.of(
+                            "type",
+                            "search",
+                            "sources",
+                            List.of(
+                                Map.of("type", "url", "title", "웹 검색 사용 출처", "url", sourceUrl)))),
+                    Map.of(
+                        "type",
+                        "message",
+                        "content",
+                        List.of(
+                            Map.of(
+                                "type",
+                                "output_text",
+                                "text",
+                                outputText,
+                                "annotations",
+                                List.of()))))));
     server.enqueue(
         new MockResponse()
             .setResponseCode(200)
