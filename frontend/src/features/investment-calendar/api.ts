@@ -4,6 +4,7 @@ import type {
   InvestmentCalendar,
   InvestmentCalendarEvent,
   InvestmentCalendarLoadResult,
+  InvestmentCalendarScope,
   InvestmentEventDirection,
   InvestmentEventType,
   PortfolioEventAnalysisStatus,
@@ -97,19 +98,20 @@ export function isInvestmentCalendar(value: unknown): value is InvestmentCalenda
 }
 
 function shouldUseMockData() {
-  return import.meta.env.DEV && import.meta.env.VITE_INVESTMENT_CALENDAR_MOCK_ENABLED !== 'false';
+  return import.meta.env.DEV && import.meta.env.VITE_INVESTMENT_CALENDAR_MOCK_ENABLED === 'true';
 }
 
 export async function getInvestmentCalendar(
   year: number,
   month: number,
+  scope: InvestmentCalendarScope,
   signal?: AbortSignal,
 ): Promise<InvestmentCalendarLoadResult> {
   if (shouldUseMockData()) {
     return { calendar: getMockInvestmentCalendar(year, month), isDemo: true };
   }
 
-  const query = new URLSearchParams({ year: String(year), month: String(month) });
+  const query = new URLSearchParams({ year: String(year), month: String(month), scope });
   const response = await request<unknown>(`/api/users/me/investment-calendar?${query.toString()}`, {
     signal,
   });

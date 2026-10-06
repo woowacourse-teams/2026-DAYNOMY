@@ -4,6 +4,7 @@ import { getInvestmentCalendar } from './api';
 import { InvestmentCalendarNotification } from './InvestmentCalendarNotification';
 import type {
   InvestmentCalendarEvent,
+  InvestmentCalendarScope,
   InvestmentEventDirection,
   InvestmentEventType,
   PortfolioReactionStatistics,
@@ -23,7 +24,7 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
 }
 
 function initialMonth() {
-  if (import.meta.env.DEV && import.meta.env.VITE_INVESTMENT_CALENDAR_MOCK_ENABLED !== 'false') {
+  if (import.meta.env.DEV && import.meta.env.VITE_INVESTMENT_CALENDAR_MOCK_ENABLED === 'true') {
     return { year: 2026, month: 10 };
   }
   const now = new Date();
@@ -165,7 +166,15 @@ function CalendarGrid({
 }) {
   const firstWeekday = new Date(year, month - 1, 1).getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
-  const eventByDay = new Map(events.map((event) => [eventDateParts(event.announcedAt).day, event]));
+  const eventsByDay = new Map<number, InvestmentCalendarEvent[]>();
+  events.forEach((event) => {
+    const day = eventDateParts(event.announcedAt).day;
+    eventsByDay.set(day, [...(eventsByDay.get(day) ?? []), event]);
+  });
+  const selectedDay = events.find((event) => event.id === selectedEventId);
+  const selectedDayEvents = selectedDay
+    ? (eventsByDay.get(eventDateParts(selectedDay.announcedAt).day) ?? [])
+    : [];
   const cells = Array.from({ length: Math.ceil((firstWeekday + daysInMonth) / 7) * 7 });
 
   return (
@@ -181,22 +190,45 @@ function CalendarGrid({
           if (day < 1 || day > daysInMonth) {
             return <span className="investment-calendar-day empty" key={`empty-${index}`} />;
           }
-          const event = eventByDay.get(day);
+          const dayEvents = eventsByDay.get(day) ?? [];
+          const event = dayEvents[0];
+          const selected = dayEvents.some((item) => item.id === selectedEventId);
           return (
             <button
               className={event ? 'investment-calendar-day has-event' : 'investment-calendar-day'}
               type="button"
               key={day}
               disabled={!event}
-              aria-pressed={event ? event.id === selectedEventId : undefined}
-              aria-label={event ? `${month}월 ${day}일 ${event.title}` : `${month}월 ${day}일`}
+              aria-pressed={event ? selected : undefined}
+              aria-label={
+                dayEvents.length === 1
+                  ? `${month}월 ${day}일 ${event.title}`
+                  : dayEvents.length > 1
+                    ? `${month}월 ${day}일 투자 일정 ${dayEvents.length}건`
+                    : `${month}월 ${day}일`
+              }
               onClick={() => event && onSelect(event.id)}
             >
-              {day}
+              <span>{day}</span>
+              {dayEvents.length > 0 ? <small>일정 {dayEvents.length}건</small> : null}
             </button>
           );
         })}
       </div>
+      {selectedDayEvents.length > 0 ? (
+        <div className="investment-calendar-day-events" aria-label="선택한 날짜의 일정">
+          {selectedDayEvents.map((event) => (
+            <button
+              type="button"
+              key={event.id}
+              aria-pressed={event.id === selectedEventId}
+              onClick={() => onSelect(event.id)}
+            >
+              {event.title.replace(' 발표', '')}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -236,7 +268,9 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
 
       {analysis.status === 'NO_PORTFOLIO' ? (
         <div className="investment-calendar-analysis-state">
-          포트폴리오에 자산을 추가하면 과거 반응을 확인할 수 있어요.
+          {event.type === 'CORPORATE_EARNINGS' && analysis.relatedAssetCount === 0
+            ? '내 포트폴리오와 직접 관련 없는 기업 일정입니다.'
+            : '포트폴리오에 자산을 추가하면 과거 반응을 확인할 수 있어요.'}
         </div>
       ) : analysis.status === 'INSUFFICIENT_DATA' ? (
         <div className="investment-calendar-analysis-state">
@@ -304,16 +338,18 @@ export function InvestmentCalendarPage() {
   const [events, setEvents] = useState<InvestmentCalendarEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [calendarView, setCalendarView] = useState(false);
+  const [calendarScope, setCalendarScope] = useState<InvestmentCalendarScope>('PORTFOLIO');
   const [isDemo, setIsDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const requestedScope: InvestmentCalendarScope = calendarView ? calendarScope : 'PORTFOLIO';
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(false);
-    void getInvestmentCalendar(year, month, controller.signal).then(
+    void getInvestmentCalendar(year, month, requestedScope, controller.signal).then(
       (result) => {
         setEvents(result.calendar.events);
         setIsDemo(result.isDemo);
@@ -329,7 +365,7 @@ export function InvestmentCalendarPage() {
       },
     );
     return () => controller.abort();
-  }, [month, reloadKey, year]);
+  }, [month, reloadKey, requestedScope, year]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId) ?? null,
@@ -381,6 +417,25 @@ export function InvestmentCalendarPage() {
               {calendarView ? '목록으로 보기' : '달력으로 보기'}
             </button>
           </div>
+
+          {calendarView ? (
+            <div className="investment-calendar-scope" aria-label="일정 범위">
+              <button
+                type="button"
+                aria-pressed={calendarScope === 'PORTFOLIO'}
+                onClick={() => setCalendarScope('PORTFOLIO')}
+              >
+                내 일정
+              </button>
+              <button
+                type="button"
+                aria-pressed={calendarScope === 'ALL'}
+                onClick={() => setCalendarScope('ALL')}
+              >
+                전체 일정
+              </button>
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="investment-calendar-side-state" aria-busy="true">

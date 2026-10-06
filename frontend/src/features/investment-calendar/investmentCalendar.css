@@ -537,6 +537,28 @@
   white-space: nowrap;
 }
 
+.investment-calendar-scope {
+  display: flex;
+  gap: 4px;
+  padding: 10px 16px 0;
+}
+
+.investment-calendar-scope button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--calendar-muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.investment-calendar-scope button[aria-pressed='true'] {
+  color: var(--calendar-blue);
+  background: var(--calendar-blue-soft);
+}
+
 .investment-calendar-event-button {
   width: 100%;
   min-height: 92px;
@@ -612,6 +634,18 @@
   font-size: 12px;
 }
 
+.investment-calendar-day > span {
+  display: block;
+}
+
+.investment-calendar-day small {
+  display: block;
+  margin-top: 2px;
+  color: var(--calendar-blue);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
 .investment-calendar-day:disabled {
   opacity: 1;
 }
@@ -621,18 +655,6 @@
   cursor: pointer;
 }
 
-.investment-calendar-day.has-event::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: 5px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--calendar-blue);
-  transform: translateX(-50%);
-}
-
 .investment-calendar-day[aria-pressed='true'] {
   color: var(--calendar-blue);
   background: var(--calendar-blue-soft);
@@ -640,6 +662,33 @@
 
 .investment-calendar-day.empty {
   display: block;
+}
+
+.investment-calendar-day-events {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--calendar-line);
+}
+
+.investment-calendar-day-events button {
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--calendar-text);
+  background: #f7f9fc;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.investment-calendar-day-events button[aria-pressed='true'] {
+  color: var(--calendar-blue);
+  background: var(--calendar-blue-soft);
+  font-weight: 700;
 }
 
 .investment-calendar-detail {

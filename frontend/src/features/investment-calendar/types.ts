@@ -1,4 +1,5 @@
 export type InvestmentEventType = 'US_CPI' | 'KOREA_BASE_RATE' | 'CORPORATE_EARNINGS';
+export type InvestmentCalendarScope = 'PORTFOLIO' | 'ALL';
 export type InvestmentEventDirection = 'DECREASED' | 'UNCHANGED' | 'INCREASED' | 'UNAVAILABLE';
 export type PortfolioEventAnalysisStatus = 'READY' | 'NO_PORTFOLIO' | 'INSUFFICIENT_DATA';
 export type PortfolioEventImpactLevel = 'LOW' | 'MEDIUM' | 'HIGH';

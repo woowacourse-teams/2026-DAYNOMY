@@ -99,7 +99,12 @@ describe('투자 캘린더 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '다음 달' }));
 
     expect(await view.findByText('이번 달 예정된 일정이 없어요.')).toBeTruthy();
-    expect(mockedGetInvestmentCalendar).toHaveBeenLastCalledWith(2026, 11, expect.any(AbortSignal));
+    expect(mockedGetInvestmentCalendar).toHaveBeenLastCalledWith(
+      2026,
+      11,
+      'PORTFOLIO',
+      expect.any(AbortSignal),
+    );
   });
 
   it('요청이 실패하면 다시 시도할 수 있다', async () => {

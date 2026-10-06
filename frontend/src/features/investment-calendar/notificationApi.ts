@@ -50,7 +50,10 @@ export function isInvestmentCalendarNotificationSetting(
 }
 
 function shouldUseMockData() {
-  return import.meta.env.DEV && import.meta.env.VITE_INVESTMENT_CALENDAR_MOCK_ENABLED !== 'false';
+  return (
+    import.meta.env.DEV &&
+    import.meta.env.VITE_INVESTMENT_CALENDAR_NOTIFICATION_MOCK_ENABLED !== 'false'
+  );
 }
 
 function readMockSetting(): InvestmentCalendarNotificationSetting | null {
