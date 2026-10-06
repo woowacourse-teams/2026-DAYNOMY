@@ -51,6 +51,20 @@ class NewsSearchRepositoryTest {
   @Autowired private NewsSearchRepository newsSearchRepository;
 
   @Test
+  @DisplayName("Flyway는 관리자 뉴스 검색 정렬 인덱스를 유효한 상태로 생성한다")
+  void migrationCreatesValidAdminSearchOrderIndex() {
+    Object valid =
+        entityManager
+            .getEntityManager()
+            .createNativeQuery(
+                "SELECT indisvalid FROM pg_index WHERE indexrelid ="
+                    + " 'idx_news_created_id'::regclass")
+            .getSingleResult();
+
+    assertThat(valid).isEqualTo(true);
+  }
+
+  @Test
   @DisplayName("공개 검색은 제목·본문에 나뉜 모든 단어를 찾고 필터·페이지 건수를 유지한다")
   void searchPublishedNewsByAllTerms() {
     News titleMatch =
