@@ -2334,6 +2334,10 @@
   height: 218px;
 }
 
+.portfolio-return-dashboard.is-compact.has-single-point .portfolio-return-chart {
+  height: 140px;
+}
+
 .portfolio-return-dashboard.is-expanded {
   padding: 30px 32px 32px;
   border: 0;

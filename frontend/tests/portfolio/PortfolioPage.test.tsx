@@ -389,6 +389,9 @@ describe('포트폴리오 화면', () => {
     ).toBeTruthy();
     expect(view.container.querySelectorAll('.portfolio-return-line')).toHaveLength(2);
     expect(
+      view.container.querySelector('.portfolio-return-dashboard.is-compact.has-single-point'),
+    ).toBeTruthy();
+    expect(
       view.container
         .querySelector('.portfolio-return-single-point .portfolio-return-point.evaluation')
         ?.getAttribute('cx'),

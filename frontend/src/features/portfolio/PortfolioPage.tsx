@@ -328,8 +328,13 @@ function PortfolioAssetTrendChart({
     setHoveredIndex(Math.max(0, Math.min(visiblePoints.length - 1, currentIndex + direction)));
   }
 
+  const singlePointClass = visiblePoints.length === 1 ? ' has-single-point' : '';
+
   return (
-    <section className={`portfolio-return-dashboard is-${mode}`} aria-labelledby={titleId}>
+    <section
+      className={`portfolio-return-dashboard is-${mode}${singlePointClass}`}
+      aria-labelledby={titleId}
+    >
       <div className="portfolio-dashboard-heading">
         <div className="portfolio-trend-title">
           <h2 id={titleId}>{expanded ? '자산 추이 상세' : '자산 추이'}</h2>
