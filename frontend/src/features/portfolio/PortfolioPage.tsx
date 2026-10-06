@@ -206,6 +206,49 @@ function formatPeriodBoundary(value: string) {
   return value.replaceAll('-', '.');
 }
 
+function formatTrendAxisDate(value: string, period: TrendPeriod) {
+  return period === '1Y' || period === '5Y'
+    ? value.slice(0, 7).replace('-', '.')
+    : value.slice(5).replace('-', '.');
+}
+
+function isFiveYearTrendDemoEnabled() {
+  return (
+    import.meta.env.DEV &&
+    new URLSearchParams(window.location.search).get('portfolioTrendDemo') === '5y'
+  );
+}
+
+function createFiveYearTrendDemo(latest: PortfolioPerformancePoint) {
+  const endDate = new Date(`${latest.baseDate}T00:00:00Z`);
+  const pointCount = 61;
+
+  return Array.from({ length: pointCount }, (_, index): PortfolioPerformancePoint => {
+    if (index === pointCount - 1) return latest;
+
+    const progress = index / (pointCount - 1);
+    const date = new Date(endDate);
+    date.setUTCDate(1);
+    date.setUTCMonth(date.getUTCMonth() - (pointCount - 1 - index));
+    const totalPurchaseAmount = latest.totalPurchaseAmount * (0.56 + progress * 0.44);
+    const marketMovement =
+      0.96 + progress * 0.12 + Math.sin(index * 0.58) * 0.035 + Math.sin(index * 0.19) * 0.02;
+    const totalEvaluationAmount = totalPurchaseAmount * marketMovement;
+    const totalProfitLoss = totalEvaluationAmount - totalPurchaseAmount;
+
+    return {
+      baseDate: date.toISOString().slice(0, 10),
+      recordedAt: date.toISOString(),
+      source: 'CLOSE',
+      totalPurchaseAmount,
+      totalEvaluationAmount,
+      totalProfitLoss,
+      totalReturnRate:
+        totalPurchaseAmount === 0 ? 0 : (totalProfitLoss / totalPurchaseAmount) * 100,
+    };
+  });
+}
+
 function PortfolioAssetTrendChart({
   points,
   histories,
@@ -547,7 +590,7 @@ function PortfolioAssetTrendChart({
           </div>
           <div className="portfolio-return-dates" aria-hidden="true">
             {dateLabels.map((baseDate) => (
-              <span key={baseDate}>{baseDate.slice(5).replace('-', '.')}</span>
+              <span key={baseDate}>{formatTrendAxisDate(baseDate, period)}</span>
             ))}
           </div>
           {expanded && firstDate && latest ? (
@@ -693,7 +736,10 @@ export function PortfolioPage() {
   const [sort, setSort] = useState<PortfolioSort>('DEFAULT');
   const [amountsHidden, setAmountsHidden] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
-  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
+  const fiveYearTrendDemoEnabled = isFiveYearTrendDemoEnabled();
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>(
+    fiveYearTrendDemoEnabled ? '5Y' : 'YTD',
+  );
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const [expandedContentAssetId, setExpandedContentAssetId] = useState<number | null>(null);
   const [relatedContents, setRelatedContents] = useState<Record<number, StockRelatedContent[]>>({});
@@ -754,7 +800,7 @@ export function PortfolioPage() {
     if (holdings.length === 0) return [];
     if (!calculation) return performance.points;
     const currentPoint = createCurrentPerformancePoint(calculation);
-    return [
+    const accumulatedPoints = [
       ...performance.points.filter((point) => point.baseDate !== currentPoint.baseDate),
       currentPoint,
     ]
@@ -763,8 +809,9 @@ export function PortfolioPage() {
           first.baseDate.localeCompare(second.baseDate) ||
           first.recordedAt.localeCompare(second.recordedAt),
       )
-      .slice(-100);
-  }, [calculation, holdings.length, performance.points]);
+      .slice(-1500);
+    return fiveYearTrendDemoEnabled ? createFiveYearTrendDemo(currentPoint) : accumulatedPoints;
+  }, [calculation, fiveYearTrendDemoEnabled, holdings.length, performance.points]);
 
   async function save(nextHolding: PortfolioHoldingInput) {
     await saveHolding(nextHolding);

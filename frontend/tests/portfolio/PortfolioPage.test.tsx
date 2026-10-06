@@ -188,6 +188,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
 });
 
@@ -397,6 +398,26 @@ describe('포트폴리오 화면', () => {
     ).toBe('58');
     expect(view.container.querySelector('.portfolio-return-area')).toBeNull();
     expect(view.queryByText('표시할 추이가 없어요')).toBeNull();
+  });
+
+  it('로컬 5년 데모는 연도 축과 5년 기간을 표시한다', async () => {
+    window.history.replaceState(null, '', '/?portfolioTrendDemo=5y');
+    localStorage.setItem(
+      PORTFOLIO_STORAGE_KEY,
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+
+    const view = render(<PortfolioPage />);
+
+    await view.findByRole('img', {
+      name: /평가금액 750,000원, 매입원금 700,000원/,
+    });
+    expect(
+      (view.getByRole('combobox', { name: '자산 추이 기간' }) as HTMLSelectElement).value,
+    ).toBe('5Y');
+    expect(view.getByText('2021.10')).toBeTruthy();
+    expect(view.getByText('2026.09')).toBeTruthy();
   });
 
   it('자산 추이 그래프를 상세 화면으로 확장하고 닫는다', async () => {
