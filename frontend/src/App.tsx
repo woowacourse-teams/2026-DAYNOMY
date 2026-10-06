@@ -18,6 +18,7 @@ import SearchPage from './features/search/SearchPage';
 import { PortfolioPage } from './features/portfolio/PortfolioPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
+import { safeReturnPath } from './auth/returnPath';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
@@ -73,13 +74,19 @@ function AppFooter() {
 
 function AdminRoute({ children }: { children: ReactNode }) {
   const { isLoggedIn, loading, role } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <main className="admin-state-page" aria-busy="true" />;
   }
 
   if (!isLoggedIn) {
-    return <LoginPage />;
+    return (
+      <Navigate
+        to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
+        replace
+      />
+    );
   }
 
   if (role !== 'ADMIN') {
@@ -137,12 +144,16 @@ function PostLoginRedirect() {
   useEffect(() => {
     if (loading || !isLoggedIn) return;
 
-    const targetPath = sessionStorage.getItem('daynomy:post-login-path');
-    if (!targetPath || location.pathname === targetPath) return;
+    const storedPath = sessionStorage.getItem('daynomy:post-login-path');
+    const targetPath = safeReturnPath(storedPath);
+    if (!storedPath || `${location.pathname}${location.search}${location.hash}` === targetPath) {
+      sessionStorage.removeItem('daynomy:post-login-path');
+      return;
+    }
 
     sessionStorage.removeItem('daynomy:post-login-path');
     navigate(targetPath, { replace: true });
-  }, [isLoggedIn, loading, location.pathname, navigate]);
+  }, [isLoggedIn, loading, location.pathname, location.search, location.hash, navigate]);
 
   return null;
 }
