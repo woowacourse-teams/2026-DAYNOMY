@@ -1,13 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import {
-  BrowserRouter,
-  Link,
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-} from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
 import { InfoPage } from './features/pages/components/InfoPage';
@@ -16,19 +8,23 @@ import { NewsListPage } from './features/news/newslist/NewsListPage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
 import SearchPage from './features/search/SearchPage';
 import { PortfolioPage } from './features/portfolio/PortfolioPage';
+import { LeaguePage } from './features/league/LeaguePage';
+import { InvestorProfilePage } from './features/league/InvestorProfilePage';
+import { PublicationSettingsPage } from './features/league/PublicationSettingsPage';
+import { InvestmentRecordsPage } from './features/league/InvestmentRecordsPage';
+import { FollowingPage } from './features/league/FollowingPage';
+import { MyPage } from './features/account/MyPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { safeReturnPath } from './auth/returnPath';
-import { Header } from './components/Header';
+import { ServiceHeader } from './features/navigation/ServiceHeader';
+import { LeagueNavigation } from './features/league/LeagueNavigation';
 import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
-import { AdminStockContentsPage } from './features/admin/AdminStockContentsPage';
 import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminShell } from './features/admin/components/AdminShell';
-import { StockContentPage } from './features/stock-content/StockContentPage';
-import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -47,13 +43,14 @@ function AppHeader() {
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/portfolio') ||
-    location.pathname.startsWith('/stocks/') ||
+    location.pathname.startsWith('/league') ||
+    location.pathname === '/mypage' ||
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
     location.pathname.startsWith('/privacy') ||
     location.pathname.startsWith('/standard');
 
-  return showHeader ? <Header /> : null;
+  return showHeader ? <ServiceHeader /> : null;
 }
 
 export function ScrollToTop() {
@@ -100,36 +97,20 @@ function AdminRoute({ children }: { children: ReactNode }) {
   return <AdminShell>{children}</AdminShell>;
 }
 
-function PortfolioRoute({ children }: { children: ReactNode }) {
+function UserRoute({ children }: { children: ReactNode }) {
   const { isLoggedIn, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
-    return (
-      <main className="portfolio-page" aria-busy="true">
-        <div className="portfolio-page-title">
-          <h1>내 포트폴리오</h1>
-        </div>
-      </main>
-    );
+    return <main className="league-page league-state" aria-busy="true" />;
   }
 
   if (!isLoggedIn) {
     return (
-      <main className="portfolio-page">
-        <div className="portfolio-page-title">
-          <h1>내 포트폴리오</h1>
-        </div>
-        <section className="portfolio-auth-required" aria-labelledby="portfolio-login-title">
-          <h2 id="portfolio-login-title">로그인해야 볼 수 있습니다</h2>
-          <p>로그인하고 내 포트폴리오를 확인해보세요.</p>
-          <Link
-            className="portfolio-primary-button portfolio-login-button"
-            to="/login?returnTo=%2F"
-          >
-            로그인
-          </Link>
-        </section>
-      </main>
+      <Navigate
+        to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
+        replace
+      />
     );
   }
 
@@ -167,24 +148,57 @@ export default function App() {
         <PostLoginRedirect />
         <div className="app-shell">
           <AppHeader />
+          <LeagueNavigation />
           <div className="app-content">
             <Routes>
+              <Route path="/" element={<PortfolioPage />} />
+              <Route path="/portfolio" element={<Navigate to="/" replace />} />
               <Route
-                path="/"
+                path="/portfolio/records"
+                element={<Navigate to="/league/portfolio" replace />}
+              />
+              <Route
+                path="/league/portfolio"
                 element={
-                  <PortfolioRoute>
-                    <PortfolioPage />
-                  </PortfolioRoute>
+                  <UserRoute>
+                    <InvestmentRecordsPage />
+                  </UserRoute>
                 }
               />
-              <Route path="/portfolio" element={<Navigate to="/" replace />} />
+              <Route
+                path="/portfolio/publication"
+                element={
+                  <UserRoute>
+                    <PublicationSettingsPage />
+                  </UserRoute>
+                }
+              />
+              <Route path="/league" element={<LeaguePage />} />
+              <Route
+                path="/league/following"
+                element={
+                  <UserRoute>
+                    <FollowingPage />
+                  </UserRoute>
+                }
+              />
+              <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+              <Route path="/membership" element={<Navigate to="/league" replace />} />
+              <Route
+                path="/mypage"
+                element={
+                  <UserRoute>
+                    <MyPage />
+                  </UserRoute>
+                }
+              />
               <Route path="/news" element={<NewsListPage />} />
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />
               <Route path="/search" element={<SearchPage />} />
+              <Route path="/romi/*" element={<Navigate to="/" replace />} />
+              <Route path="/finance/*" element={<Navigate to="/" replace />} />
               <Route path="/stocks" element={<Navigate to="/" replace />} />
-              <Route path="/stocks/:assetId/card-preview" element={<CardDesignPreviewPage />} />
-              <Route path="/stocks/:assetId" element={<StockContentPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/about" element={<InfoPage page="about" />} />
               <Route path="/terms" element={<InfoPage page="terms" />} />
@@ -227,14 +241,6 @@ export default function App() {
                 element={
                   <AdminRoute>
                     <AdminStockSyncPage />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/admin/stock-contents"
-                element={
-                  <AdminRoute>
-                    <AdminStockContentsPage />
                   </AdminRoute>
                 }
               />
