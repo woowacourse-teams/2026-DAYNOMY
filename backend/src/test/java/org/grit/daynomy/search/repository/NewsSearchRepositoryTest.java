@@ -51,6 +51,20 @@ class NewsSearchRepositoryTest {
   @Autowired private NewsSearchRepository newsSearchRepository;
 
   @Test
+  @DisplayName("Flyway는 뉴스 검색 정렬 인덱스를 유효한 상태로 생성한다")
+  void migrationCreatesValidSearchOrderIndex() {
+    Object valid =
+        entityManager
+            .getEntityManager()
+            .createNativeQuery(
+                "SELECT indisvalid FROM pg_index WHERE indexrelid ="
+                    + " 'idx_news_status_published_id'::regclass")
+            .getSingleResult();
+
+    assertThat(valid).isEqualTo(true);
+  }
+
+  @Test
   @DisplayName("Flyway는 관리자 뉴스 검색 정렬 인덱스를 유효한 상태로 생성한다")
   void migrationCreatesValidAdminSearchOrderIndex() {
     Object valid =
