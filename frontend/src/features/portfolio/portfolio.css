@@ -2662,8 +2662,9 @@
 .portfolio-section-title h2 span {
   margin-left: 7px;
   color: var(--portfolio-accent);
-  font-size: 14px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .portfolio-filters {
@@ -2696,6 +2697,7 @@
   border-bottom-color: transparent;
   color: #333d4b;
   background: #fff;
+  font-weight: 600;
   box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
 }
 
@@ -2704,12 +2706,13 @@
 }
 
 .portfolio-sort-control select {
-  min-height: 42px;
+  min-height: 38px;
   padding-right: 34px;
   border-color: var(--portfolio-demo-line);
   border-radius: 5px;
   color: #27354a;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .portfolio-holdings-actions {
@@ -2741,12 +2744,13 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 42px;
-  padding: 0 16px;
+  min-height: 38px;
+  padding: 0 14px;
   border-radius: 10px;
   background: #3182f6;
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .portfolio-holdings-actions > .portfolio-primary-button:hover {
@@ -2754,8 +2758,8 @@
 }
 
 .portfolio-holdings-actions > .portfolio-primary-button svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
