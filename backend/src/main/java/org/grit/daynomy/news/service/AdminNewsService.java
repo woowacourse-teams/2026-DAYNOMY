@@ -7,8 +7,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
+import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
+import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.service.KeywordService;
@@ -16,12 +19,16 @@ import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.market.service.MarketAnalysisService;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.ImageSourceInfo;
+import org.grit.daynomy.news.domain.ImageSourceType;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsListItemResponse;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
+import org.grit.daynomy.news.dto.WikimediaImageCandidateResponse;
+import org.grit.daynomy.news.dto.WikimediaImageSelectionRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.search.repository.NewsSearchRepository;
@@ -47,25 +54,28 @@ public class AdminNewsService {
   private final NewsSearchRepository newsSearchRepository;
   private final OpenAiImageGenerator openAiImageGenerator;
   private final S3ImageStorage s3ImageStorage;
+  private final WikimediaImageClient wikimediaImageClient;
   private final KeywordAiClient keywordAiClient;
   private final MarketAnalysisAiClient marketAnalysisAiClient;
   private final KeywordService keywordService;
   private final MarketAnalysisService marketAnalysisService;
+  private final AssetContentService assetContentService;
 
   @Transactional
   public News createDraft(AdminNewsCreateRequest request, MultipartFile image) {
-    S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
+    ImageUpload imageUpload = uploadImage(image, request.imageSelection());
     try {
       News news =
           News.createDraft(
               request.title(),
               request.content(),
-              uploadedImage == null ? null : uploadedImage.publicUrl(),
-              request.imageSourceInfo(),
+              imageUpload.storedImage() == null ? null : imageUpload.storedImage().publicUrl(),
+              imageSourceForCreate(request, imageUpload),
               request.sourceInfos(),
               request.category());
 
       News savedNews = newsRepository.save(news);
+      assetContentService.syncNewsContents(savedNews, request.assetIds());
       registerAfterCommit(
           () ->
               log.atInfo()
@@ -75,9 +85,15 @@ public class AdminNewsService {
                   .log(LogEvent.NEWS_DRAFT_CREATED.message()));
       return savedNews;
     } catch (RuntimeException exception) {
-      deleteUploadedImage(uploadedImage);
+      deleteUploadedImage(imageUpload.storedImage());
       throw exception;
     }
+  }
+
+  public List<WikimediaImageCandidateResponse> searchWikimediaImages(String keyword) {
+    return wikimediaImageClient.search(keyword).stream()
+        .map(WikimediaImageCandidateResponse::from)
+        .toList();
   }
 
   public AdminNewsPageResponse getNewsPage(
@@ -124,7 +140,7 @@ public class AdminNewsService {
             news.getTitle(), news.getContent(), news.getCategory());
     S3ImageStorage.StoredImage uploadedImage = s3ImageStorage.upload(image, "webp", "image/webp");
     try {
-      news.updateImage(uploadedImage.publicUrl());
+      news.updateImage(uploadedImage.publicUrl(), ImageSourceInfo.aiGenerated());
       newsRepository.flush();
       registerImageCleanup(previousImageUrl, uploadedImage);
       registerAfterCommit(
@@ -196,7 +212,8 @@ public class AdminNewsService {
     boolean shouldRegenerateAnalysis =
         news.isPublished() && !news.getContent().equals(request.content());
     String previousImageUrl = news.getImageUrl();
-    S3ImageStorage.StoredImage uploadedImage = uploadImage(image);
+    ImageUpload imageUpload = uploadImage(image, request.imageSelection());
+    S3ImageStorage.StoredImage uploadedImage = imageUpload.storedImage();
     try {
       if (shouldRegenerateAnalysis) {
         List<NewsKeyword> keywords = keywordAiClient.extractKeywords(request.content());
@@ -208,9 +225,12 @@ public class AdminNewsService {
           request.title(),
           request.content(),
           uploadedImage == null ? previousImageUrl : uploadedImage.publicUrl(),
-          request.imageSourceInfo(),
+          imageSourceForUpdate(news, request, imageUpload),
           request.sourceInfos(),
           request.category());
+      if (request.assetIds() != null) {
+        assetContentService.syncNewsContents(news, request.assetIds());
+      }
       if (uploadedImage != null) {
         newsRepository.flush();
         registerImageCleanup(previousImageUrl, uploadedImage);
@@ -245,9 +265,31 @@ public class AdminNewsService {
                 .log(LogEvent.NEWS_DELETE_COMPLETED.message()));
   }
 
-  private S3ImageStorage.StoredImage uploadImage(MultipartFile image) {
+  private ImageUpload uploadImage(
+      MultipartFile image, WikimediaImageSelectionRequest imageSelection) {
+    if (image != null && !image.isEmpty() && imageSelection != null) {
+      throw new BusinessException(NewsErrorCode.INVALID_WIKIMEDIA_IMAGE);
+    }
+
     if (image == null || image.isEmpty()) {
-      return null;
+      if (imageSelection == null) {
+        return new ImageUpload(null, null);
+      }
+
+      WikimediaImageClient.ImportedImage importedImage =
+          wikimediaImageClient.download(imageSelection.title());
+      S3ImageStorage.StoredImage storedImage =
+          s3ImageStorage.upload(
+              importedImage.content(), importedImage.extension(), importedImage.contentType());
+      WikimediaImageCandidate candidate = importedImage.candidate();
+      return new ImageUpload(
+          storedImage,
+          ImageSourceInfo.wikimedia(
+              "Wikimedia Commons",
+              candidate.sourceUrl(),
+              candidate.author(),
+              candidate.license(),
+              candidate.licenseUrl()));
     }
 
     if (image.getSize() > MAX_IMAGE_SIZE_BYTES) {
@@ -258,10 +300,57 @@ public class AdminNewsService {
     String extension = extensionOf(contentType);
     try {
       byte[] content = image.getBytes();
-      return s3ImageStorage.upload(content, extension, contentType);
+      return new ImageUpload(
+          s3ImageStorage.upload(content, extension, contentType), ImageSourceInfo.manual());
     } catch (IOException exception) {
       throw new BusinessException(NewsErrorCode.INVALID_IMAGE_FILE);
     }
+  }
+
+  private ImageSourceInfo imageSourceForUpdate(
+      News news, AdminNewsUpdateRequest request, ImageUpload imageUpload) {
+    if (imageUpload.source() != null) {
+      if (imageUpload.source().type() == ImageSourceType.MANUAL
+          && request.imageSourceInfo().type() != ImageSourceType.NONE) {
+        return request.imageSourceInfo();
+      }
+      return imageUpload.source();
+    }
+
+    ImageSourceInfo requestedSource = request.imageSourceInfo();
+    if (requestedSource.type() == ImageSourceType.NONE) {
+      return news.getImageSource();
+    }
+
+    ImageSourceInfo existingSource = news.getImageSource();
+    ImageSourceType type =
+        hasSameIdentity(existingSource, requestedSource)
+            ? existingSource.type()
+            : requestedSource.type();
+
+    return new ImageSourceInfo(
+        requestedSource.name(),
+        requestedSource.url(),
+        requestedSource.author(),
+        requestedSource.license(),
+        requestedSource.licenseUrl(),
+        type);
+  }
+
+  private boolean hasSameIdentity(ImageSourceInfo first, ImageSourceInfo second) {
+    return first.name().equals(second.name()) && first.url().equals(second.url());
+  }
+
+  private ImageSourceInfo imageSourceForCreate(
+      AdminNewsCreateRequest request, ImageUpload imageUpload) {
+    if (imageUpload.source() == null) {
+      return request.imageSourceInfo();
+    }
+    if (imageUpload.source().type() == ImageSourceType.MANUAL
+        && request.imageSourceInfo().type() != ImageSourceType.NONE) {
+      return request.imageSourceInfo();
+    }
+    return imageUpload.source();
   }
 
   private String extensionOf(String contentType) {
@@ -331,4 +420,6 @@ public class AdminNewsService {
           .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
     }
   }
+
+  private record ImageUpload(S3ImageStorage.StoredImage storedImage, ImageSourceInfo source) {}
 }

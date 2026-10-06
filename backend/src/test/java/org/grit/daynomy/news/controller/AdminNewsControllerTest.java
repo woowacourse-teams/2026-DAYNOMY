@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.ImageSourceInfo;
 import org.grit.daynomy.news.domain.News;
@@ -28,6 +29,7 @@ import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.dto.ImageSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceResponse;
+import org.grit.daynomy.news.dto.WikimediaImageCandidateResponse;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.grit.daynomy.news.service.NewsGenerationService;
 import org.junit.jupiter.api.DisplayName;
@@ -59,6 +61,33 @@ class AdminNewsControllerTest {
 
   @MockitoBean private NewsGenerationService newsGenerationService;
 
+  @MockitoBean private AssetContentService assetContentService;
+
+  @Test
+  @DisplayName("관리자 Wikimedia Commons 이미지 검색 API는 후보 목록을 반환한다")
+  void searchWikimediaImagesReturnsCandidates() throws Exception {
+    given(adminNewsService.searchWikimediaImages("Seoul"))
+        .willReturn(
+            java.util.List.of(
+                new WikimediaImageCandidateResponse(
+                    "File:Seoul.jpg",
+                    "https://upload.wikimedia.org/thumb.jpg",
+                    "https://commons.wikimedia.org/wiki/File:Seoul.jpg",
+                    "Jane Doe",
+                    "CC BY 4.0",
+                    "https://creativecommons.org/licenses/by/4.0/",
+                    1200,
+                    800)));
+
+    mockMvc
+        .perform(get("/api/admin/news/image-search").param("keyword", "Seoul"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].title").value("File:Seoul.jpg"))
+        .andExpect(jsonPath("$.items[0].license").value("CC BY 4.0"));
+
+    then(adminNewsService).should().searchWikimediaImages("Seoul");
+  }
+
   @Test
   @DisplayName("관리자 뉴스 등록 API는 초안 뉴스를 생성하고 201을 반환한다")
   void createNewsReturnsCreatedDraft() throws Exception {
@@ -67,7 +96,7 @@ class AdminNewsControllerTest {
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
     willReturn("https://example.com/image.png").given(news).getImageUrl();
-    willReturn(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"))
+    willReturn(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example", "", "", ""))
         .given(news)
         .getImageSource();
     willReturn(
@@ -392,7 +421,7 @@ class AdminNewsControllerTest {
     willReturn("수정 제목").given(news).getTitle();
     willReturn("수정 본문").given(news).getContent();
     willReturn("new-image.png").given(news).getImageUrl();
-    willReturn(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example"))
+    willReturn(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example", "", "", ""))
         .given(news)
         .getImageSource();
     willReturn(Category.ETF).given(news).getCategory();

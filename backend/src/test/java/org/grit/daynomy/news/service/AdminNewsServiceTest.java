@@ -20,8 +20,11 @@ import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.external.openai.OpenAiImageGenerator;
 import org.grit.daynomy.external.s3.S3ImageStorage;
+import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
+import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
@@ -38,6 +41,7 @@ import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.dto.ImageSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceRequest;
+import org.grit.daynomy.news.dto.WikimediaImageSelectionRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.search.repository.NewsSearchRepository;
@@ -76,6 +80,8 @@ class AdminNewsServiceTest {
 
   @Mock private S3ImageStorage s3ImageStorage;
 
+  @Mock private WikimediaImageClient wikimediaImageClient;
+
   @Mock private KeywordAiClient keywordAiClient;
 
   @Mock private MarketAnalysisAiClient marketAnalysisAiClient;
@@ -83,6 +89,8 @@ class AdminNewsServiceTest {
   @Mock private KeywordService keywordService;
 
   @Mock private MarketAnalysisService marketAnalysisService;
+
+  @Mock private AssetContentService assetContentService;
 
   @InjectMocks private AdminNewsService adminNewsService;
 
@@ -132,7 +140,8 @@ class AdminNewsServiceTest {
     assertThat(capturedNews.getContent()).isEqualTo("뉴스 본문");
     assertThat(capturedNews.getImageUrl()).isEqualTo("https://example.com/news-image.png");
     assertThat(capturedNews.getImageSource())
-        .isEqualTo(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"));
+        .isEqualTo(
+            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example", "", "", ""));
     assertThat(capturedNews.getSources())
         .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/news/1"));
     assertThat(capturedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
@@ -145,6 +154,55 @@ class AdminNewsServiceTest {
     commitTransaction();
     ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_DRAFT_CREATED);
     assertThat(keyValues(log)).containsKey("newsId").containsEntry("category", Category.STOCK);
+  }
+
+  @Test
+  @DisplayName("Wikimedia Commons 선택 이미지는 S3와 라이선스 출처를 함께 저장한다")
+  void createNewsSavesSelectedWikimediaImage() {
+    WikimediaImageCandidate candidate =
+        new WikimediaImageCandidate(
+            "File:Seoul skyline.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/seoul.jpg",
+            "https://commons.wikimedia.org/wiki/File:Seoul_skyline.jpg",
+            "Jane Doe",
+            "CC BY 4.0",
+            "https://creativecommons.org/licenses/by/4.0/",
+            1200,
+            800);
+    byte[] image = {1, 2, 3};
+    given(wikimediaImageClient.download(candidate.title()))
+        .willReturn(new WikimediaImageClient.ImportedImage(candidate, image, "image/jpeg", "jpg"));
+    given(s3ImageStorage.upload(image, "jpg", "image/jpeg"))
+        .willReturn(
+            new S3ImageStorage.StoredImage("wikimedia.jpg", "https://example.com/wikimedia.jpg"));
+    given(newsRepository.save(any(News.class))).willAnswer(invocation -> invocation.getArgument(0));
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK,
+            null,
+            new WikimediaImageSelectionRequest(candidate.title()));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      News savedNews = adminNewsService.createDraft(request, null);
+
+      assertThat(savedNews.getImageUrl()).isEqualTo("https://example.com/wikimedia.jpg");
+      assertThat(savedNews.getImageSource())
+          .isEqualTo(
+              ImageSourceInfo.wikimedia(
+                  "Wikimedia Commons",
+                  candidate.sourceUrl(),
+                  "Jane Doe",
+                  "CC BY 4.0",
+                  "https://creativecommons.org/licenses/by/4.0/"));
+      verify(wikimediaImageClient).download(candidate.title());
+      verify(s3ImageStorage).upload(image, "jpg", "image/jpeg");
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
   }
 
   @Test
@@ -230,7 +288,7 @@ class AdminNewsServiceTest {
             "뉴스 제목",
             "뉴스 본문",
             previousImageUrl,
-            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"),
+            new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example", "", "", ""),
             List.of(),
             Category.STOCK,
             null);
@@ -247,7 +305,7 @@ class AdminNewsServiceTest {
       News result = adminNewsService.generateImage(1L);
 
       assertThat(result.getImageUrl()).isEqualTo(uploadedImage.publicUrl());
-      assertThat(result.getImageSource()).isEqualTo(ImageSourceInfo.empty());
+      assertThat(result.getImageSource()).isEqualTo(ImageSourceInfo.aiGenerated());
       verify(newsRepository).flush();
       assertThat(appender.list).isEmpty();
       TransactionSynchronizationManager.getSynchronizations()
@@ -552,13 +610,14 @@ class AdminNewsServiceTest {
       assertThat(updatedNews.getContent()).isEqualTo("수정 본문");
       assertThat(updatedNews.getImageUrl()).isEqualTo("https://example.com/new-image.png");
       assertThat(updatedNews.getImageSource())
-          .isEqualTo(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example"));
+          .isEqualTo(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example", "", "", ""));
       assertThat(updatedNews.getSources())
           .containsExactly(new NewsSourceInfo("직접 입력", "https://example.com/new"));
       assertThat(updatedNews.getCategory()).isEqualTo(Category.ETF);
       assertThat(updatedNews.getStatus()).isEqualTo(NewsStatus.DRAFT);
       verifyNoInteractions(
           keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
+      verify(assetContentService, never()).syncNewsContents(any(), any());
       verify(s3ImageStorage, never())
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
       assertThat(appender.list).isEmpty();
@@ -572,6 +631,37 @@ class AdminNewsServiceTest {
           .deleteIfManaged("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/old.png");
       ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_UPDATE_COMPLETED);
       assertThat(keyValues(log)).containsKey("newsId").containsEntry("analysisRegenerated", false);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @Test
+  @DisplayName("명시적으로 빈 종목 목록을 전달하면 뉴스 관련 종목을 비운다")
+  void updateNewsClearsAssetLinksWhenAssetIdsAreEmpty() {
+    News news =
+        News.createDraft(
+            "기존 제목",
+            "기존 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/old")),
+            Category.STOCK);
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
+            Category.STOCK,
+            null,
+            null,
+            List.of());
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      adminNewsService.update(1L, request, null);
+
+      verify(assetContentService).syncNewsContents(news, List.of());
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }
@@ -612,6 +702,54 @@ class AdminNewsServiceTest {
     commitTransaction();
     ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_UPDATE_COMPLETED);
     assertThat(keyValues(log)).containsKey("newsId").containsEntry("analysisRegenerated", true);
+  }
+
+  @Test
+  @DisplayName("기존 이미지 출처 메타데이터를 수정해도 출처 유형은 유지한다")
+  void updateImageSourceMetadataKeepsExistingType() {
+    String sourceUrl = "https://commons.wikimedia.org/wiki/File:Seoul_skyline.jpg";
+    News news =
+        News.createDraft(
+            "기존 제목",
+            "기존 본문",
+            "https://example.com/wikimedia.jpg",
+            ImageSourceInfo.wikimedia(
+                "Wikimedia Commons",
+                sourceUrl,
+                "기존 저작자",
+                "CC BY 4.0",
+                "https://creativecommons.org/licenses/by/4.0/"),
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
+    AdminNewsUpdateRequest request =
+        new AdminNewsUpdateRequest(
+            "수정 제목",
+            "수정 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK,
+            new ImageSourceRequest(
+                "Wikimedia Commons",
+                sourceUrl,
+                "수정 저작자",
+                "CC BY-SA 4.0",
+                "https://creativecommons.org/licenses/by-sa/4.0/"));
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      News updatedNews = adminNewsService.update(1L, request, null);
+
+      assertThat(updatedNews.getImageSource())
+          .isEqualTo(
+              ImageSourceInfo.wikimedia(
+                  "Wikimedia Commons",
+                  sourceUrl,
+                  "수정 저작자",
+                  "CC BY-SA 4.0",
+                  "https://creativecommons.org/licenses/by-sa/4.0/"));
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
   }
 
   @Test

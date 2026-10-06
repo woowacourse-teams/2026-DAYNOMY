@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
@@ -16,6 +17,7 @@ import org.grit.daynomy.news.dto.AdminNewsGenerationResponse;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
+import org.grit.daynomy.news.dto.WikimediaImageSearchResponse;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.grit.daynomy.news.service.NewsGenerationService;
 import org.springframework.http.HttpStatus;
@@ -42,6 +44,7 @@ public class AdminNewsController {
 
   private final AdminNewsService adminNewsService;
   private final NewsGenerationService newsGenerationService;
+  private final AssetContentService assetContentService;
 
   @Operation(summary = "뉴스 등록", description = "관리자용 뉴스를 초안 상태로 등록합니다.")
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -50,7 +53,7 @@ public class AdminNewsController {
       @RequestPart(value = "image", required = false) MultipartFile image) {
     News news = adminNewsService.createDraft(request, image);
 
-    return ResponseEntity.status(HttpStatus.CREATED).body(AdminNewsResponse.from(news));
+    return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(news));
   }
 
   @Operation(summary = "경제 뉴스 초안 생성 실행", description = "경제 뉴스 초안 생성을 즉시 실행합니다.")
@@ -61,13 +64,23 @@ public class AdminNewsController {
     return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
   }
 
+  @Operation(
+      summary = "Wikimedia Commons 이미지 검색",
+      description = "라이선스가 허용된 Wikimedia Commons 이미지를 검색합니다.")
+  @GetMapping("/image-search")
+  public ResponseEntity<WikimediaImageSearchResponse> searchWikimediaImages(
+      @RequestParam @jakarta.validation.constraints.Size(min = 2, max = 100) String keyword) {
+    return ResponseEntity.ok(
+        new WikimediaImageSearchResponse(adminNewsService.searchWikimediaImages(keyword.strip())));
+  }
+
   @Operation(summary = "뉴스 이미지 생성", description = "초안 또는 발행된 뉴스의 이미지를 생성하거나 교체해 저장합니다.")
   @PostMapping("/{id}/generate-image")
   public ResponseEntity<AdminNewsResponse> generateNewsImage(
       @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
     News news = adminNewsService.generateImage(id);
 
-    return ResponseEntity.ok(AdminNewsResponse.from(news));
+    return ResponseEntity.ok(toResponse(news));
   }
 
   @Operation(summary = "관리자 뉴스 목록 조회", description = "관리자용 뉴스 목록을 검색어·상태·카테고리별로 조회합니다.")
@@ -97,7 +110,7 @@ public class AdminNewsController {
       @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
     News news = adminNewsService.getNewsDetail(id);
 
-    return ResponseEntity.ok(AdminNewsResponse.from(news));
+    return ResponseEntity.ok(toResponse(news));
   }
 
   @Operation(summary = "뉴스 발행", description = "관리자용 초안 뉴스를 발행 상태로 변경합니다.")
@@ -106,7 +119,7 @@ public class AdminNewsController {
       @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
     News news = adminNewsService.publish(id);
 
-    return ResponseEntity.ok(AdminNewsResponse.from(news));
+    return ResponseEntity.ok(toResponse(news));
   }
 
   @Operation(summary = "뉴스 거절", description = "관리자용 초안 뉴스를 거절 상태로 변경합니다.")
@@ -115,7 +128,7 @@ public class AdminNewsController {
       @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
     News news = adminNewsService.reject(id);
 
-    return ResponseEntity.ok(AdminNewsResponse.from(news));
+    return ResponseEntity.ok(toResponse(news));
   }
 
   @Operation(summary = "뉴스 수정", description = "관리자용 뉴스 내용을 수정합니다.")
@@ -126,7 +139,7 @@ public class AdminNewsController {
       @RequestPart(value = "image", required = false) MultipartFile image) {
     News news = adminNewsService.update(id, request, image);
 
-    return ResponseEntity.ok(AdminNewsResponse.from(news));
+    return ResponseEntity.ok(toResponse(news));
   }
 
   @Operation(summary = "뉴스 삭제", description = "관리자용 뉴스를 삭제 상태로 변경합니다.")
@@ -136,5 +149,9 @@ public class AdminNewsController {
     adminNewsService.delete(id);
 
     return ResponseEntity.noContent().build();
+  }
+
+  private AdminNewsResponse toResponse(News news) {
+    return AdminNewsResponse.from(news, assetContentService.getRelatedAssets(news.getId()));
   }
 }
