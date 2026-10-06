@@ -1,0 +1,226 @@
+.shared-page {
+  max-width: 960px;
+}
+.shared-page button {
+  padding: 9px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  color: #182231;
+  cursor: pointer;
+  font: inherit;
+}
+.shared-page button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.shared-page button:focus-visible,
+.shared-page a:focus-visible {
+  outline: 2px solid #1255ca;
+  outline-offset: 3px;
+}
+.shared-boundary {
+  padding: 14px 0;
+  border-block: 1px solid #e5e7eb;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.shared-feedback {
+  padding: 12px;
+  background: #f5f7fa;
+  line-height: 1.6;
+}
+.shared-overview {
+  padding: 24px 0;
+}
+.shared-overview > p,
+.shared-panel > p,
+.shared-list > p {
+  color: #526071;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.shared-overview dl,
+.shared-holding dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0 0 16px;
+}
+.shared-page dt {
+  color: #526071;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.shared-page dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.shared-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 16px;
+}
+.shared-actions a {
+  font-size: 14px;
+}
+.shared-panel {
+  padding: 24px 0;
+  border-block: 1px solid #d1d5db;
+}
+.shared-page h2 {
+  font-size: 20px;
+  margin: 0 0 14px;
+}
+.shared-panel fieldset {
+  border: 0;
+  padding: 0;
+  margin: 16px 0;
+  min-width: 0;
+}
+.shared-panel legend {
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: #526071;
+}
+.shared-import-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.shared-import-row strong,
+.shared-import-row small {
+  display: block;
+  line-height: 1.8;
+}
+.shared-import-row small {
+  color: #526071;
+}
+.shared-confirm {
+  display: block;
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 16px 0;
+  padding: 12px;
+  background: #f5f7fa;
+}
+.shared-search {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+.shared-search label {
+  flex: 1;
+}
+.shared-edit-form fieldset {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.shared-edit-form label,
+.shared-search label {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.shared-page input:not([type='checkbox']),
+.shared-page textarea,
+.shared-page select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+  margin-top: 6px;
+  border: 1px solid #c9d0d8;
+  border-radius: 4px;
+  font: inherit;
+}
+.shared-page input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.shared-reason,
+.shared-visibility {
+  grid-column: 1 / -1;
+}
+.shared-search-results {
+  list-style: none;
+  padding: 0;
+}
+.shared-search-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-top: 8px;
+}
+.shared-list {
+  margin-top: 32px;
+}
+.shared-holding {
+  padding: 24px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.shared-decision {
+  padding: 20px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.shared-decision p {
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.shared-decision dl {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+.shared-decision summary {
+  cursor: pointer;
+  padding: 12px 0;
+}
+.shared-review {
+  border-left: 2px solid #d1d5db;
+  padding-left: 16px;
+  margin: 20px 0;
+}
+.shared-holding header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.shared-holding h3 {
+  font-size: 18px;
+  margin: 0 0 6px;
+}
+.shared-holding small {
+  color: #526071;
+  font-size: 13px;
+}
+.shared-holding dl {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.shared-reason-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+@media (max-width: 600px) {
+  .shared-overview dl,
+  .shared-holding dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .shared-edit-form fieldset {
+    grid-template-columns: 1fr;
+  }
+  .shared-actions a {
+    width: 100%;
+  }
+}
