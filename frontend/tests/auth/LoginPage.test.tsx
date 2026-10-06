@@ -20,8 +20,8 @@ afterEach(() => {
 });
 
 describe('로그인 화면', () => {
-  it('포트폴리오 Google 로그인 링크를 OAuth 엔드포인트에 연결한다', () => {
-    const view = renderLogin();
+  it('Google 로그인 링크를 OAuth 엔드포인트에 연결하고 복귀 경로를 저장한다', () => {
+    const view = renderLogin('/login?returnTo=%2Fleague');
     const link = view.getByRole('link', {
       name: 'Google로 시작하기',
     }) as HTMLAnchorElement;
@@ -32,22 +32,44 @@ describe('로그인 화면', () => {
     link.addEventListener('click', (event) => event.preventDefault());
     fireEvent.click(link);
 
-    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/');
+    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/league');
   });
 
-  it('관리자 로그인은 관리자 화면으로 돌아간다', () => {
-    const view = renderLogin('/login?returnTo=%2Fadmin');
+  it('외부 주소 형태의 복귀 경로는 저장하지 않는다', () => {
+    const view = renderLogin('/login?returnTo=%2F%2Fevil.example');
     const link = view.getByRole('link', { name: 'Google로 시작하기' });
     link.addEventListener('click', (event) => event.preventDefault());
+
     fireEvent.click(link);
 
-    expect(view.getByRole('heading', { name: 'DAYNOMY 관리자 로그인' })).toBeTruthy();
-    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/admin');
+    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/');
   });
 
   it('OAuth 실패를 사용자에게 안내한다', () => {
     const view = renderLogin('/login?error=oauth');
 
     expect(view.getByRole('alert').textContent).toContain('Google 로그인에 실패했습니다.');
+  });
+
+  it.each([
+    '/\\evil.example',
+    '/api/auth/google',
+    '/oauth2/authorization/google',
+    '/login?returnTo=/login',
+  ])('위험하거나 반복되는 복귀 경로 %s는 거부한다', (path) => {
+    const view = renderLogin(`/login?returnTo=${encodeURIComponent(path)}`);
+    const link = view.getByRole('link', { name: 'Google로 시작하기' });
+    link.addEventListener('click', (event) => event.preventDefault());
+    fireEvent.click(link);
+    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/');
+  });
+
+  it('투자자 상세의 쿼리와 상세 위치를 복귀 경로에 유지한다', () => {
+    const path = '/league/investor-1?week=2026-09-28#investment-details';
+    const view = renderLogin(`/login?returnTo=${encodeURIComponent(path)}`);
+    const link = view.getByRole('link', { name: 'Google로 시작하기' });
+    link.addEventListener('click', (event) => event.preventDefault());
+    fireEvent.click(link);
+    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe(path);
   });
 });

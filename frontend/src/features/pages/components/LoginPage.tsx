@@ -1,6 +1,7 @@
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import '../LoginPage.css';
 import { getApiUrl } from '../api';
+import { safeReturnPath } from '../../../auth/returnPath';
 
 function GoogleIcon() {
   return (
@@ -27,39 +28,27 @@ function GoogleIcon() {
 
 function LoginPage() {
   const [searchParams] = useSearchParams();
-  const location = useLocation();
   const oauthError = searchParams.get('error') === 'oauth';
   const errorMessage = oauthError ? 'Google 로그인에 실패했습니다.' : null;
-  const requestedReturnTo = searchParams.get('returnTo');
-  const isAdminLogin =
-    location.pathname.startsWith('/admin') || requestedReturnTo?.startsWith('/admin');
-  const returnTo =
-    requestedReturnTo?.startsWith('/') && !requestedReturnTo.startsWith('//')
-      ? requestedReturnTo
-      : isAdminLogin
-        ? '/admin'
-        : '/';
+  const requestedPath = searchParams.get('returnTo');
+  const returnPath = safeReturnPath(requestedPath);
 
   return (
     <main className="login-page">
-      <Link className="login-close" to={isAdminLogin ? '/' : '/news'} aria-label="닫기">
+      <Link className="login-close" to="/" aria-label="닫기">
         ×
       </Link>
       <section className="login-card">
         <div className="login-heading">
-          <h1>{isAdminLogin ? 'DAYNOMY 관리자 로그인' : 'DAYNOMY 로그인'}</h1>
-          <p>
-            {isAdminLogin
-              ? '관리자 계정으로 로그인해 뉴스 콘텐츠를 관리하세요'
-              : '로그인하고 내 포트폴리오를 관리하세요'}
-          </p>
+          <h1>DAYNOMY 로그인</h1>
+          <p>공유 포트폴리오와 돈 관리 기록을 내 계정에 보관하세요</p>
         </div>
 
         <a
           className="google-login-button"
           href={getApiUrl('/api/auth/google')}
           onClick={() => {
-            sessionStorage.setItem('daynomy:post-login-path', returnTo);
+            sessionStorage.setItem('daynomy:post-login-path', returnPath);
           }}
         >
           <GoogleIcon />
@@ -75,7 +64,8 @@ function LoginPage() {
         </div>
 
         <p className="login-policy">
-          계속하면 서비스 이용약관과 개인정보처리방침에 동의하게 됩니다.
+          계속하면 <Link to="/terms">서비스 이용약관</Link>과{' '}
+          <Link to="/privacy">개인정보처리방침</Link>에 동의하게 됩니다.
         </p>
       </section>
     </main>
