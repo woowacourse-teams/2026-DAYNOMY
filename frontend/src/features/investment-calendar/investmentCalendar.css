@@ -28,10 +28,14 @@
 }
 
 .investment-calendar-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
   margin-bottom: 22px;
 }
 
-.investment-calendar-heading > div {
+.investment-calendar-title-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -44,7 +48,7 @@
   letter-spacing: -0.03em;
 }
 
-.investment-calendar-heading p {
+.investment-calendar-heading-copy > p {
   margin: 7px 0 0;
   color: var(--calendar-muted);
   font-size: 15px;
@@ -57,6 +61,411 @@
   background: var(--calendar-blue-soft);
   font-size: 11px;
   font-weight: 700;
+}
+
+.investment-calendar-notification {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.investment-calendar-notification-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  background: #1f4f8f;
+  box-shadow: 0 7px 18px rgb(31 79 143 / 18%);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.investment-calendar-notification-button:hover {
+  background: #173f78;
+}
+
+.investment-calendar-notification svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.investment-calendar-notification-recommendation {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 5;
+  width: 300px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 34px rgb(15 23 42 / 16%);
+}
+
+.investment-calendar-notification-recommendation::before {
+  position: absolute;
+  top: -5px;
+  right: 24px;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  content: '';
+  transform: rotate(45deg);
+}
+
+.investment-calendar-notification-recommendation-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.investment-calendar-notification-recommendation-head > svg {
+  margin-top: 2px;
+  color: var(--calendar-blue);
+}
+
+.investment-calendar-notification-recommendation h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  letter-spacing: -0.02em;
+  word-break: keep-all;
+}
+
+.investment-calendar-notification-recommendation > p {
+  margin: 8px 0 14px 27px;
+  color: var(--calendar-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.investment-calendar-notification-popover-close,
+.investment-calendar-notification-close {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  color: var(--calendar-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.investment-calendar-notification-popover-close {
+  width: 28px;
+  height: 28px;
+  margin: -5px -6px 0 auto;
+}
+
+.investment-calendar-notification-recommendation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.investment-calendar-notification-recommendation-actions button {
+  min-height: 36px;
+  padding: 0 7px;
+  border: 0;
+  color: var(--calendar-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.investment-calendar-notification-recommendation-actions button:last-child {
+  padding: 0 13px;
+  border-radius: 9px;
+  color: #fff;
+  background: #1f4f8f;
+}
+
+.investment-calendar-notification-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 28px 18px;
+  background: rgb(17 24 39 / 38%);
+}
+
+.investment-calendar-notification-modal {
+  width: min(560px, 100%);
+  max-height: calc(100svh - 36px);
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgb(15 23 42 / 22%);
+}
+
+.investment-calendar-notification-modal > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px 18px;
+  border-bottom: 1px solid var(--calendar-line);
+}
+
+.investment-calendar-notification-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.investment-calendar-notification-modal-title h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.investment-calendar-notification-modal > header p {
+  margin: 7px 0 0 25px;
+  color: var(--calendar-muted);
+  font-size: 12px;
+}
+
+.investment-calendar-notification-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.investment-calendar-notification-body {
+  padding: 20px 26px 4px;
+}
+
+.investment-calendar-notification-email {
+  padding: 14px;
+  background: var(--calendar-blue-soft);
+}
+
+.investment-calendar-notification-email > label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.investment-calendar-notification-email > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.investment-calendar-notification-email input {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--calendar-line);
+  border-radius: 9px;
+  color: var(--calendar-text);
+  background: #fff;
+  font-size: 14px;
+}
+
+.investment-calendar-notification-email button {
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid var(--calendar-blue);
+  border-radius: 9px;
+  color: var(--calendar-blue);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.investment-calendar-notification-email button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.investment-calendar-notification-email > p {
+  margin: 8px 0 0;
+  color: var(--calendar-muted);
+  font-size: 12px;
+}
+
+.investment-calendar-notification-body fieldset {
+  margin: 22px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.investment-calendar-notification-body legend {
+  margin-bottom: 10px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.investment-calendar-notification-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.investment-calendar-notification-options label {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 11px;
+  border: 1px solid var(--calendar-line);
+  border-radius: 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.investment-calendar-notification-options label:has(input:checked) {
+  border-color: var(--calendar-blue);
+  background: var(--calendar-blue-soft);
+}
+
+.investment-calendar-notification input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--calendar-blue);
+}
+
+.investment-calendar-notification-kinds {
+  display: grid;
+}
+
+.investment-calendar-notification-kinds label {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid var(--calendar-line);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.investment-calendar-notification-kinds label:last-child {
+  border-bottom: 1px solid var(--calendar-line);
+}
+
+.investment-calendar-notification-kinds strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+
+.investment-calendar-notification-kinds span {
+  color: var(--calendar-muted);
+}
+
+.investment-calendar-notification-message {
+  margin: 14px 0 0;
+  color: #9b3030;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.investment-calendar-notification-modal > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 26px 24px;
+}
+
+.investment-calendar-notification-modal > footer > button,
+.investment-calendar-notification-modal > footer > div button {
+  min-height: 40px;
+  padding: 0 15px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.investment-calendar-notification-modal > footer > button {
+  padding-left: 0;
+  border: 0;
+  color: #b33a3a;
+  background: transparent;
+}
+
+.investment-calendar-notification-modal > footer > div {
+  display: flex;
+  gap: 8px;
+}
+
+.investment-calendar-notification-modal > footer > div button:first-child {
+  border: 1px solid var(--calendar-line);
+  color: var(--calendar-text);
+  background: #fff;
+}
+
+.investment-calendar-notification-modal > footer > div button:last-child,
+.investment-calendar-notification-state a {
+  border: 0;
+  color: #fff;
+  background: #1f4f8f;
+}
+
+.investment-calendar-notification-modal button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.investment-calendar-notification-state {
+  padding: 38px 26px 34px;
+  color: var(--calendar-muted);
+  text-align: center;
+  font-size: 13px;
+}
+
+.investment-calendar-notification-state h3 {
+  margin: 0 0 8px;
+  color: var(--calendar-text);
+  font-size: 17px;
+}
+
+.investment-calendar-notification-state p {
+  max-width: 38ch;
+  margin: 0 auto 20px;
+}
+
+.investment-calendar-notification-state a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 15px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.investment-calendar-notification-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 110;
+  padding: 12px 15px;
+  border-radius: 10px;
+  color: var(--calendar-text);
+  background: #fff;
+  box-shadow: 0 10px 30px rgb(15 23 42 / 18%);
+  font-size: 12px;
 }
 
 .investment-calendar-workspace {
@@ -564,8 +973,55 @@
     padding-top: 28px;
   }
 
+  .investment-calendar-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .investment-calendar-heading h1 {
     font-size: 28px;
+  }
+
+  .investment-calendar-notification-recommendation {
+    right: auto;
+    left: 0;
+    width: min(300px, calc(100vw - 24px));
+  }
+
+  .investment-calendar-notification-recommendation::before {
+    right: auto;
+    left: 24px;
+  }
+
+  .investment-calendar-notification-overlay {
+    align-items: start;
+    padding: 16px 10px;
+  }
+
+  .investment-calendar-notification-modal > header,
+  .investment-calendar-notification-body,
+  .investment-calendar-notification-modal > footer {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .investment-calendar-notification-email > div,
+  .investment-calendar-notification-options {
+    grid-template-columns: 1fr;
+  }
+
+  .investment-calendar-notification-modal > footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .investment-calendar-notification-modal > footer > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .investment-calendar-notification-modal > footer > button {
+    align-self: flex-start;
   }
 
   .investment-calendar-panel-head {

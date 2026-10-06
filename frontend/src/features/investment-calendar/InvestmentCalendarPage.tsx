@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../hooks/useLoginStatus';
 import { getInvestmentCalendar } from './api';
+import { InvestmentCalendarNotification } from './InvestmentCalendarNotification';
 import type {
   InvestmentCalendarEvent,
   InvestmentEventDirection,
@@ -295,6 +297,7 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
 }
 
 export function InvestmentCalendarPage() {
+  const { isLoggedIn, loading: authLoading } = useAuth();
   const initial = initialMonth();
   const [year, setYear] = useState(initial.year);
   const [month, setMonth] = useState(initial.month);
@@ -345,11 +348,14 @@ export function InvestmentCalendarPage() {
   return (
     <main className="investment-calendar-page">
       <header className="investment-calendar-heading">
-        <div>
-          <h1>투자 캘린더</h1>
-          {isDemo ? <span className="investment-calendar-demo-badge">데모 데이터</span> : null}
+        <div className="investment-calendar-heading-copy">
+          <div className="investment-calendar-title-row">
+            <h1>투자 캘린더</h1>
+            {isDemo ? <span className="investment-calendar-demo-badge">데모 데이터</span> : null}
+          </div>
+          <p>다가오는 발표 전, 내 자산이 과거에 어떻게 움직였는지 확인하세요.</p>
         </div>
-        <p>다가오는 발표 전, 내 자산이 과거에 어떻게 움직였는지 확인하세요.</p>
+        <InvestmentCalendarNotification isLoggedIn={isLoggedIn} authLoading={authLoading} />
       </header>
 
       <section className="investment-calendar-workspace" aria-label="투자 일정과 내 자산 영향">
