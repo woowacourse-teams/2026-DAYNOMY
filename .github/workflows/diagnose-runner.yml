@@ -1,0 +1,202 @@
+name: Diagnose deployment runner
+run-name: Diagnose ${{ inputs.target_environment }} runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Environment to diagnose
+        type: choice
+        required: true
+        default: development
+        options:
+          - development
+          - production
+      log_period:
+        description: Log period (UTC)
+        type: choice
+        required: true
+        default: last-hour
+        options:
+          - last-hour
+          - incident-2026-10-06
+
+permissions: {}
+
+jobs:
+  diagnose:
+    runs-on:
+      - self-hosted
+      - Linux
+      - ARM64
+      - ${{ inputs.target_environment == 'production' && 'frontend-prod' || 'frontend-dev' }}
+    timeout-minutes: 5
+    env:
+      DIAGNOSTIC_ENVIRONMENT: ${{ inputs.target_environment }}
+      DIAGNOSTIC_LOG_PERIOD: ${{ inputs.log_period }}
+    steps:
+      # No checkout, environment gate, secrets, deployment or server changes.
+      - name: Read server health, connectivity and incident logs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import collections
+          import datetime
+          import os
+          import pathlib
+          import re
+          import shutil
+          import subprocess
+          import sys
+
+          environment = os.environ.get("DIAGNOSTIC_ENVIRONMENT", "development")
+          if environment not in ("development", "production"):
+              sys.exit("Unsupported diagnostic environment")
+          backend_service = "daynomy" if environment == "production" else "daynomy-dev"
+
+          now = datetime.datetime.now(datetime.timezone.utc)
+          log_period = os.environ.get("DIAGNOSTIC_LOG_PERIOD", "last-hour")
+          if log_period == "last-hour":
+              incident_start = now - datetime.timedelta(hours=1)
+              incident_end = now
+          elif log_period == "incident-2026-10-06":
+              incident_start = datetime.datetime(2026, 10, 6, 6, tzinfo=datetime.timezone.utc)
+              incident_end = datetime.datetime(2026, 10, 6, 10, tzinfo=datetime.timezone.utc)
+          else:
+              sys.exit("Unsupported diagnostic log period")
+          INCIDENT_START = incident_start.strftime("%Y-%m-%d %H:%M:%S")
+          INCIDENT_END = incident_end.strftime("%Y-%m-%d %H:%M:%S")
+          PATTERNS = {
+              "out-of-memory": r"out of memory|oom-kill|oom_reaper|killed process",
+              "disk-full": r"no space left|disk full",
+              "dns": r"could not resolve|name resolution|EAI_AGAIN|ENOTFOUND",
+              "tls": r"certificate|SSL|TLS|secure channel",
+              "timeout": r"timed? ?out|timeout|TaskCanceledException",
+              "connection": r"connection (?:reset|refused)|network is unreachable|ECONNRESET",
+              "shutdown": r"shutdown signal|shutting down|SIGINT|SIGTERM|cancell?ed",
+              "artifact": r"artifact download failed|unable to download artifact|unable to download and extract",
+              "other-error": r"\b(?:error|exception|fatal)\b",
+          }
+
+          def classify(line):
+              for category, pattern in PATTERNS.items():
+                  if re.search(pattern, line, re.IGNORECASE):
+                      timestamp = re.search(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}", line)
+                      return category, timestamp.group() if timestamp else "unknown"
+              return None
+
+          def in_window(timestamp):
+              return INCIDENT_START <= timestamp.replace("T", " ") <= INCIDENT_END
+
+          # One runnable privacy/classification/time-window check: extract this block with --check.
+          assert classify("2026-10-06T09:18:22 ERROR Artifact download failed https://blob/?sig=PRIVATE") == ("artifact", "2026-10-06T09:18:22")
+          assert classify("2026-10-06 08:59:00 received shutdown signal") == ("shutdown", "2026-10-06 08:59:00")
+          assert classify("token=PRIVATE password=PRIVATE") is None
+          assert in_window(INCIDENT_START.replace(" ", "T"))
+          assert in_window(INCIDENT_END)
+          assert not in_window((incident_start - datetime.timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S"))
+          assert not in_window((incident_end + datetime.timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S"))
+          assert not in_window("unknown")
+          if "--check" in sys.argv:
+              print("Diagnostic classification/privacy/time-window check passed")
+              sys.exit(0)
+
+          def capture(args, timeout=10):
+              try:
+                  result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+                  return result.returncode, result.stdout
+              except subprocess.TimeoutExpired:
+                  return 124, ""
+              except OSError:
+                  return 127, ""
+
+          def summarize(source, lines):
+              events = collections.defaultdict(list)
+              for line in lines:
+                  event = classify(line)
+                  if event:
+                      category, timestamp = event
+                      if in_window(timestamp):
+                          events[category].append(timestamp.replace("T", " "))
+              for category, timestamps in sorted(events.items()):
+                  print(f"{source}: category={category} count={len(timestamps)} first={min(timestamps)} last={max(timestamps)}")
+              if not events:
+                  print(f"{source}: no classified events in inspected logs (not proof of healthy operation)")
+
+          print("Read-only diagnosis for", environment, "at", now.isoformat())
+          print("Current resources; log window (UTC):", INCIDENT_START, "through", INCIDENT_END)
+          print("load_average:", *os.getloadavg())
+          for mount in ("/", os.environ["RUNNER_TEMP"]):
+              scope = "root" if mount == "/" else "runner-temp"
+              try:
+                  disk = shutil.disk_usage(mount)
+                  print(f"disk: scope={scope} total_bytes={disk.total} free_bytes={disk.free}")
+              except OSError:
+                  print(f"disk: scope={scope} unavailable")
+          try:
+              memory = pathlib.Path("/proc/meminfo").read_text()
+          except OSError:
+              memory = ""
+              print("memory: unavailable")
+          for key in ("MemTotal", "MemAvailable", "SwapTotal", "SwapFree"):
+              value = re.search(rf"^{key}:\s+(\d+) kB$", memory, re.MULTILINE)
+              if value:
+                  print(f"memory: {key}_kB={value.group(1)}")
+
+          for service in ("docker", "nginx", backend_service):
+              code, output = capture(["systemctl", "show", service, "--property=ActiveState,SubState,Result,NRestarts"])
+              print(f"service: name={service} query_exit={code}")
+              for line in output.splitlines():
+                  if re.fullmatch(r"(?:ActiveState|SubState|Result|NRestarts)=[a-z0-9-]+", line):
+                      print(f"service: name={service} {line}")
+          code, output = capture(["docker", "version", "--format", "{{.Server.Version}}"])
+          version = output.strip()
+          if not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+(?:[-a-z0-9.]*)", version):
+              version = "unavailable"
+          print(f"docker: query_exit={code} version={version}")
+
+          # Anonymous HEAD probes establish reachability, not authenticated image/artifact downloads.
+          for host, path in (
+              ("api.github.com", "/"),
+              ("ghcr.io", "/v2/"),
+              ("results-receiver.actions.githubusercontent.com", "/"),
+              ("productionresultssa10.blob.core.windows.net", "/"),
+          ):
+              code, output = capture([
+                  "curl", "--silent", "--show-error", "--head", "--output", "/dev/null",
+                  "--connect-timeout", "3", "--max-time", "10",
+                  "--write-out", "%{http_code} %{time_namelookup} %{time_connect} %{time_appconnect} %{time_total}",
+                  f"https://{host}{path}",
+              ], timeout=12)
+              timings = output.strip()
+              if not re.fullmatch(r"\d{3}(?: \d+(?:\.\d+)?){4}", timings):
+                  timings = "unavailable"
+              print(f"network: host={host} curl_exit={code} http_dns_connect_tls_total={timings}")
+          print("HTTP 401/403/404 still demonstrate an HTTP response; curl exit 6=DNS, 7=connect, 28=timeout, 35/60=TLS.")
+
+          runner_logs = pathlib.Path(os.environ["RUNNER_TEMP"]).parent.parent / "_diag"
+          # Runner logs can begin before the selected period and continue across days.
+          files = sorted(runner_logs.glob("Runner_*.log")) + sorted(runner_logs.glob("Worker_*.log"))
+          print(f"runner-logs: candidate_files={len(files)}")
+          # ponytail: inspect at most 1 MiB per incident log; investigate full logs privately if truncated.
+          for index, log in enumerate(files):
+              try:
+                  with log.open("rb") as stream:
+                      size = stream.seek(0, 2)
+                      stream.seek(max(0, size - 1048576))
+                      lines = stream.read().decode("utf-8", errors="replace").splitlines()
+                  print(f"runner-log-{index}: truncated={size > 1048576}")
+                  summarize(f"runner-log-{index}", lines)
+              except OSError:
+                  print(f"runner-log-{index}: unavailable")
+
+          for source, selector in (("runner-journal", ["--unit=actions.runner*"]), ("kernel-journal", ["--kernel"])):
+              args = ["journalctl", *selector, "--since", f"{INCIDENT_START} UTC", "--until", f"{INCIDENT_END} UTC",
+                      "--lines", "2000", "--no-pager", "--output=short-iso", "--utc", "--quiet"]
+              code, output = capture(args)
+              # Only read journal entries; noninteractive sudo may be unavailable on this runner.
+              if code != 0 or not output.strip():
+                  code, output = capture(["sudo", "-n", *args])
+              print(f"{source}: query_exit={code} inspected_lines={len(output.splitlines())}")
+              summarize(source, output.splitlines())
+          PY
