@@ -231,7 +231,8 @@ function PortfolioAssetTrendChart({
     return points.filter((point) => point.baseDate >= cutoffDate);
   }, [latestAvailablePoint, period, points]);
   const width = 720;
-  const height = expanded ? 300 : 190;
+  const hasSinglePoint = visiblePoints.length === 1;
+  const height = expanded ? 300 : hasSinglePoint ? 100 : 190;
   const padding = { top: 14, right: 12, bottom: 8, left: 58 };
   const values = visiblePoints.flatMap((point) => [
     point.totalPurchaseAmount,
@@ -243,7 +244,6 @@ function PortfolioAssetTrendChart({
   const minimum = Math.max(0, rawMinimum - amountPadding);
   const maximum = rawMaximum + amountPadding;
   const range = maximum - minimum || 1;
-  const hasSinglePoint = visiblePoints.length === 1;
   const x = (index: number) =>
     hasSinglePoint
       ? padding.left

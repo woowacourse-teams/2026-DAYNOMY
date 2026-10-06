@@ -382,11 +382,10 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
 
-    expect(
-      await view.findByRole('img', {
-        name: /평가금액 750,000원, 매입원금 700,000원/,
-      }),
-    ).toBeTruthy();
+    const singlePointChart = await view.findByRole('img', {
+      name: /평가금액 750,000원, 매입원금 700,000원/,
+    });
+    expect(singlePointChart.getAttribute('viewBox')).toBe('0 0 720 100');
     expect(view.container.querySelectorAll('.portfolio-return-line')).toHaveLength(2);
     expect(
       view.container.querySelector('.portfolio-return-dashboard.is-compact.has-single-point'),
