@@ -116,6 +116,17 @@ external:
     connect-timeout: ${PUBLIC_DATA_CONNECT_TIMEOUT:3s}
     read-timeout: ${PUBLIC_DATA_READ_TIMEOUT:10s}
 
+  investment-calendar:
+    connect-timeout: ${INVESTMENT_CALENDAR_CONNECT_TIMEOUT:3s}
+    read-timeout: ${INVESTMENT_CALENDAR_READ_TIMEOUT:15s}
+    bls-base-url: ${BLS_BASE_URL:https://api.bls.gov/publicAPI/v2}
+    bls-schedule-url: ${BLS_SCHEDULE_URL:https://www.bls.gov/schedule/news_release/cpi.htm}
+    bok-base-url: ${BOK_BASE_URL:https://www.bok.or.kr}
+    ecos-base-url: ${ECOS_BASE_URL:https://ecos.bok.or.kr/api}
+    ecos-api-key: ${ECOS_API_KEY:}
+    dart-base-url: ${DART_BASE_URL:https://opendart.fss.or.kr/api}
+    dart-api-key: ${DART_API_KEY:}
+
 ai:
   openai:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
@@ -140,6 +151,13 @@ portfolio:
   snapshot:
     enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
     cron: ${PORTFOLIO_SNAPSHOT_CRON:0 0 15 * * MON-FRI}
+
+investment-calendar:
+  sync:
+    enabled: ${INVESTMENT_CALENDAR_SYNC_ENABLED:false}
+    cron: ${INVESTMENT_CALENDAR_SYNC_CRON:0 0 4 * * *}
+    history-years: ${INVESTMENT_CALENDAR_HISTORY_YEARS:5}
+    dart-lookback-days: ${INVESTMENT_CALENDAR_DART_LOOKBACK_DAYS:30}
 
 logging:
   structured:

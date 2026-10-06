@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Min;
 import java.time.YearMonth;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
+import org.grit.daynomy.investmentcalendar.domain.InvestmentCalendarScope;
 import org.grit.daynomy.investmentcalendar.dto.InvestmentCalendarResponse;
 import org.grit.daynomy.investmentcalendar.service.InvestmentCalendarService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,7 +32,8 @@ public class InvestmentCalendarController {
   public InvestmentCalendarResponse get(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
       @RequestParam @Min(2000) @Max(2100) int year,
-      @RequestParam @Min(1) @Max(12) int month) {
-    return investmentCalendarService.get(member.memberId(), YearMonth.of(year, month));
+      @RequestParam @Min(1) @Max(12) int month,
+      @RequestParam(defaultValue = "PORTFOLIO") InvestmentCalendarScope scope) {
+    return investmentCalendarService.get(member.memberId(), YearMonth.of(year, month), scope);
   }
 }

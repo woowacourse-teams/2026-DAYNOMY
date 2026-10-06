@@ -10,6 +10,7 @@ import java.util.List;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.investmentcalendar.domain.InvestmentCalendarScope;
 import org.grit.daynomy.investmentcalendar.dto.InvestmentCalendarResponse;
 import org.grit.daynomy.investmentcalendar.service.InvestmentCalendarService;
 import org.grit.daynomy.member.domain.MemberRole;
@@ -54,7 +55,9 @@ class InvestmentCalendarControllerTest {
 
   @Test
   void getsMonthlyCalendarForAuthenticatedMember() throws Exception {
-    given(investmentCalendarService.get(3L, java.time.YearMonth.of(2026, 10)))
+    given(
+            investmentCalendarService.get(
+                3L, java.time.YearMonth.of(2026, 10), InvestmentCalendarScope.PORTFOLIO))
         .willReturn(new InvestmentCalendarResponse(2026, 10, List.of()));
 
     mockMvc
@@ -65,7 +68,9 @@ class InvestmentCalendarControllerTest {
         .andExpect(jsonPath("$.month").value(10))
         .andExpect(jsonPath("$.events").isArray());
 
-    then(investmentCalendarService).should().get(3L, java.time.YearMonth.of(2026, 10));
+    then(investmentCalendarService)
+        .should()
+        .get(3L, java.time.YearMonth.of(2026, 10), InvestmentCalendarScope.PORTFOLIO);
   }
 
   @Test
@@ -74,5 +79,25 @@ class InvestmentCalendarControllerTest {
         .perform(
             get("/api/users/me/investment-calendar").param("year", "2026").param("month", "13"))
         .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void getsAllEventsWhenAllScopeIsRequested() throws Exception {
+    given(
+            investmentCalendarService.get(
+                3L, java.time.YearMonth.of(2026, 10), InvestmentCalendarScope.ALL))
+        .willReturn(new InvestmentCalendarResponse(2026, 10, List.of()));
+
+    mockMvc
+        .perform(
+            get("/api/users/me/investment-calendar")
+                .param("year", "2026")
+                .param("month", "10")
+                .param("scope", "ALL"))
+        .andExpect(status().isOk());
+
+    then(investmentCalendarService)
+        .should()
+        .get(3L, java.time.YearMonth.of(2026, 10), InvestmentCalendarScope.ALL);
   }
 }
