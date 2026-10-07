@@ -4003,3 +4003,40 @@
     padding: 30px 24px;
   }
 }
+
+/* Korean typography: keep headings intact without squeezing glyphs, and let prose wrap naturally. */
+.guide-page {
+  font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', var(--sans);
+  line-break: strict;
+}
+
+.guide-page :is(h1, h2, h3) {
+  letter-spacing: -0.025em;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+.guide-page p {
+  letter-spacing: -0.005em;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
+  word-break: normal;
+}
+
+.index-buying-story,
+.index-history > header .index-section-copy,
+.index-decision > header .index-section-copy,
+.index-cycle-takeaway {
+  max-width: 860px;
+}
+
+@media (max-width: 680px) {
+  .guide-page :is(h1, h2, h3) {
+    text-wrap: balance;
+  }
+
+  .guide-carousel-slide h1,
+  .guide-carousel-slide p {
+    max-width: 88%;
+  }
+}
