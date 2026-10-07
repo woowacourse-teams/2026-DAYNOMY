@@ -101,21 +101,17 @@ function AdminRoute({ children }: { children: ReactNode }) {
   return <AdminShell>{children}</AdminShell>;
 }
 
-function UserRoute({ children }: { children: ReactNode }) {
+function AuthenticatedRoute({ children }: { children: ReactNode }) {
   const { isLoggedIn, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
-    return <main className="league-page league-state" aria-busy="true" />;
+    return <main className="portfolio-page" aria-busy="true" />;
   }
 
   if (!isLoggedIn) {
-    return (
-      <Navigate
-        to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
-        replace
-      />
-    );
+    const returnTo = `${location.pathname}${location.search}`;
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
 
   return children;
@@ -155,7 +151,14 @@ export default function App() {
           <LeagueNavigation />
           <div className="app-content">
             <Routes>
-              <Route path="/" element={<PortfolioPage />} />
+              <Route
+                path="/"
+                element={
+                  <AuthenticatedRoute>
+                    <PortfolioPage />
+                  </AuthenticatedRoute>
+                }
+              />
               <Route path="/portfolio" element={<Navigate to="/" replace />} />
               <Route
                 path="/portfolio/records"
@@ -164,26 +167,26 @@ export default function App() {
               <Route
                 path="/league/portfolio"
                 element={
-                  <UserRoute>
+                  <AuthenticatedRoute>
                     <InvestmentRecordsPage />
-                  </UserRoute>
+                  </AuthenticatedRoute>
                 }
               />
               <Route
                 path="/portfolio/publication"
                 element={
-                  <UserRoute>
+                  <AuthenticatedRoute>
                     <PublicationSettingsPage />
-                  </UserRoute>
+                  </AuthenticatedRoute>
                 }
               />
               <Route path="/league" element={<LeaguePage />} />
               <Route
                 path="/league/following"
                 element={
-                  <UserRoute>
+                  <AuthenticatedRoute>
                     <FollowingPage />
-                  </UserRoute>
+                  </AuthenticatedRoute>
                 }
               />
               <Route path="/league/:publicId" element={<InvestorProfilePage />} />
@@ -191,9 +194,9 @@ export default function App() {
               <Route
                 path="/mypage"
                 element={
-                  <UserRoute>
+                  <AuthenticatedRoute>
                     <MyPage />
-                  </UserRoute>
+                  </AuthenticatedRoute>
                 }
               />
               <Route path="/news" element={<NewsListPage />} />
