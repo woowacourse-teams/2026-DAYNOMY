@@ -85,6 +85,22 @@ function AdminRoute({ children }: { children: ReactNode }) {
   return <AdminShell>{children}</AdminShell>;
 }
 
+function AuthenticatedRoute({ children }: { children: ReactNode }) {
+  const { isLoggedIn, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <main className="portfolio-page" aria-busy="true" />;
+  }
+
+  if (!isLoggedIn) {
+    const returnTo = `${location.pathname}${location.search}`;
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
+  }
+
+  return children;
+}
+
 function PostLoginRedirect() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -114,7 +130,14 @@ export default function App() {
           <AppHeader />
           <div className="app-content">
             <Routes>
-              <Route path="/" element={<PortfolioPage />} />
+              <Route
+                path="/"
+                element={
+                  <AuthenticatedRoute>
+                    <PortfolioPage />
+                  </AuthenticatedRoute>
+                }
+              />
               <Route path="/portfolio" element={<Navigate to="/" replace />} />
               <Route path="/news" element={<NewsListPage />} />
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
