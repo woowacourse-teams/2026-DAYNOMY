@@ -32,16 +32,21 @@ function LoginPage() {
   const errorMessage = oauthError ? 'Google 로그인에 실패했습니다.' : null;
   const requestedPath = searchParams.get('returnTo');
   const returnPath = safeReturnPath(requestedPath);
+  const isAdminLogin = /^\/admin(?:\/|\?|#|$)/.test(returnPath);
 
   return (
     <main className="login-page">
-      <Link className="login-close" to="/" aria-label="닫기">
+      <Link className="login-close" to={isAdminLogin ? '/' : '/news'} aria-label="닫기">
         ×
       </Link>
       <section className="login-card">
         <div className="login-heading">
-          <h1>DAYNOMY 로그인</h1>
-          <p>공유 포트폴리오와 돈 관리 기록을 내 계정에 보관하세요</p>
+          <h1>{isAdminLogin ? 'DAYNOMY 관리자 로그인' : 'DAYNOMY 로그인'}</h1>
+          <p>
+            {isAdminLogin
+              ? '관리자 계정으로 로그인해 뉴스 콘텐츠를 관리하세요'
+              : '로그인하고 내 포트폴리오를 관리하세요'}
+          </p>
         </div>
 
         <a
