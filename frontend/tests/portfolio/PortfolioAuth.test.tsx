@@ -28,8 +28,8 @@ describe('포트폴리오 로그인 접근', () => {
 
     const view = render(<App />);
 
-    expect(await view.findByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
-    expect(view.getByRole('heading', { name: '로그인해야 볼 수 있습니다' })).toBeTruthy();
+    expect(await view.findByRole('heading', { name: '로그인해야 볼 수 있습니다' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
     expect(view.getByRole('link', { name: '로그인' }).getAttribute('href')).toBe(
       '/login?returnTo=%2F',
     );
