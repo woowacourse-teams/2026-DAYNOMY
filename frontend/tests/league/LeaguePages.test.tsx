@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { InvestorProfilePage } from '../../src/features/league/InvestorProfilePage';
 import { LeaguePage } from '../../src/features/league/LeaguePage';
@@ -13,6 +13,7 @@ vi.mock('../../src/features/league/api', () => ({
   getLeagueWeeks: vi.fn(),
   getInvestorDetail: vi.fn(),
   getPublicInvestor: vi.fn(),
+  getDailyHistory: vi.fn(),
   getRankings: vi.fn(),
   unfollowInvestor: vi.fn(),
 }));
@@ -23,6 +24,7 @@ const ranking = {
   leagueType: 'WEEKLY_RETURN' as const,
   confirmed: true,
   totalCount: 1,
+  asOfDate: '2026-10-02',
   rankings: [
     {
       rank: 1,
@@ -63,12 +65,150 @@ const investor = {
   detailAvailable: true,
 };
 
+const daily = {
+  weekStart: '2026-09-28',
+  weekEnd: '2026-10-04',
+  asOfDate: '2026-09-28',
+  eligibleFrom: '2026-08-03',
+  confirmed: true,
+  weeklyReturnRate: 2.5,
+  days: [
+    {
+      baseDate: '2026-09-28',
+      dailyReturnRate: 2.5,
+      cumulativeReturnRate: 2.5,
+      status: 'CALCULATED' as const,
+      reason: null,
+    },
+  ],
+};
+
+beforeEach(() => {
+  vi.mocked(leagueApi.getLeagueWeeks).mockResolvedValue([
+    { weekStart: '2026-09-28', weekEnd: '2026-10-04', confirmed: true },
+    { weekStart: '2026-09-21', weekEnd: '2026-09-27', confirmed: true },
+  ]);
+  vi.mocked(leagueApi.getDailyHistory).mockResolvedValue(daily);
+});
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
 describe('투자 리그 화면', () => {
+  it('8주 그래프와 주차 선택에서 일별·주간 누적을 조회하고 누락일은 대기로 표시한다', async () => {
+    vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
+      ...investor,
+      detailAvailable: false,
+    });
+    vi.mocked(leagueApi.getDailyHistory)
+      .mockResolvedValueOnce(daily)
+      .mockResolvedValue({
+        ...daily,
+        weekStart: '2026-09-21',
+        weekEnd: '2026-09-27',
+        asOfDate: '2026-09-23',
+        weeklyReturnRate: null,
+        confirmed: false,
+        days: [
+          {
+            baseDate: '2026-09-21',
+            dailyReturnRate: 10,
+            cumulativeReturnRate: 10,
+            status: 'CALCULATED',
+            reason: null,
+          },
+          {
+            baseDate: '2026-09-22',
+            dailyReturnRate: null,
+            cumulativeReturnRate: null,
+            status: 'EXCLUDED',
+            reason: 'MISSING_PRICE',
+          },
+          {
+            baseDate: '2026-09-23',
+            dailyReturnRate: 5,
+            cumulativeReturnRate: null,
+            status: 'CALCULATED',
+            reason: null,
+          },
+        ],
+      });
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter initialEntries={['/league/investor-1']}>
+          <Routes>
+            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByText('주간 누적 +2.50%');
+    fireEvent.change(view.getByRole('combobox', { name: '조회 주차' }), {
+      target: { value: '2026-09-21' },
+    });
+    await view.findByText('주간 누적 집계 대기');
+    expect(leagueApi.getDailyHistory).toHaveBeenLastCalledWith(
+      'investor-1',
+      '2026-09-21',
+      expect.any(AbortSignal),
+    );
+    const table = within(view.getByRole('table'));
+    expect(table.getByText('종가 누락 · 집계 대기')).toBeTruthy();
+    expect(table.getByText('+5.00%')).toBeTruthy();
+    expect(table.getAllByText('—')).toHaveLength(3);
+    fireEvent.click(view.getByRole('button', { name: /2026-09-28 주간.*일별 기록 보기/ }));
+    await waitFor(() =>
+      expect(leagueApi.getDailyHistory).toHaveBeenLastCalledWith(
+        'investor-1',
+        '2026-09-28',
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
+  it('일별 조회 실패는 재시도하고 미집계 성과를 0%로 표시하지 않는다', async () => {
+    vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
+      ...investor,
+      detailAvailable: false,
+      history: [],
+      performance: {
+        weeklyReturnRate: null,
+        eightWeekReturnRate: null,
+        maxDrawdownRate: null,
+        volatilityRate: null,
+        maxHoldingWeight: null,
+      },
+    });
+    vi.mocked(leagueApi.getDailyHistory)
+      .mockRejectedValueOnce(new Error('연결 실패'))
+      .mockResolvedValueOnce({
+        ...daily,
+        asOfDate: null,
+        weeklyReturnRate: null,
+        days: [],
+        confirmed: false,
+      });
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter initialEntries={['/league/investor-1']}>
+          <Routes>
+            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByText('일별 수익률을 불러오지 못했습니다.');
+    expect(
+      within(view.getByRole('region', { name: '성과와 위험 지표' })).getAllByText('집계 대기'),
+    ).toHaveLength(5);
+    fireEvent.click(view.getByRole('button', { name: '일별 기록 다시 불러오기' }));
+    await view.findByText(
+      '이 주차에는 아직 수집된 거래일 종가가 없습니다. 휴장일은 기록하지 않아요.',
+    );
+    expect(leagueApi.getDailyHistory).toHaveBeenCalledTimes(2);
+  });
   it('동일 기준으로 계산된 순위와 위험 지표를 보여준다', async () => {
     vi.mocked(leagueApi.getLeagueWeeks).mockResolvedValue([
       { weekStart: '2026-09-28', weekEnd: '2026-10-02', confirmed: true },

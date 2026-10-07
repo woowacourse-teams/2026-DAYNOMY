@@ -1,5 +1,6 @@
 import { request, requestWithCsrf } from '../../api/client';
 import type {
+  DailyHistory,
   ExperienceLevel,
   FollowSummary,
   HoldingPeriod,
@@ -23,6 +24,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isNullableNumber(value: unknown): value is number | null {
+  return value === null || isNumber(value);
+}
+
+function isDate(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !Number.isNaN(Date.parse(value)) &&
+    new Date(value).toISOString().slice(0, 10) === value
+  );
 }
 
 const experienceLevels = new Set<ExperienceLevel>([
@@ -82,6 +96,7 @@ function isRankingResponse(value: unknown): value is RankingResponse {
     typeof value.weekEnd === 'string' &&
     leagueTypes.has(value.leagueType as LeagueType) &&
     typeof value.confirmed === 'boolean' &&
+    (value.asOfDate === null || isDate(value.asOfDate)) &&
     Number.isInteger(value.totalCount) &&
     Array.isArray(value.rankings) &&
     value.rankings.every(isRankingEntry)
@@ -98,11 +113,11 @@ function isPublicInvestor(value: unknown): value is PublicInvestor {
     typeof value.bio === 'string' &&
     experienceLevels.has(value.experienceLevel as ExperienceLevel) &&
     riskProfiles.has(value.riskProfile as RiskProfile) &&
-    isNumber(performance.weeklyReturnRate) &&
-    isNumber(performance.eightWeekReturnRate) &&
-    isNumber(performance.maxDrawdownRate) &&
-    isNumber(performance.volatilityRate) &&
-    isNumber(performance.maxHoldingWeight) &&
+    isNullableNumber(performance.weeklyReturnRate) &&
+    isNullableNumber(performance.eightWeekReturnRate) &&
+    isNullableNumber(performance.maxDrawdownRate) &&
+    isNullableNumber(performance.volatilityRate) &&
+    isNullableNumber(performance.maxHoldingWeight) &&
     (allocation === null ||
       (isRecord(allocation) &&
         isNumber(allocation.stockWeight) &&
@@ -231,6 +246,63 @@ export async function getPublicInvestor(publicId: string, signal?: AbortSignal) 
     signal,
   });
   if (!isPublicInvestor(response)) throw new Error('투자자 응답 형식이 올바르지 않습니다.');
+  return response;
+}
+
+function isDailyHistory(value: unknown): value is DailyHistory {
+  if (
+    !isRecord(value) ||
+    !isDate(value.weekStart) ||
+    !isDate(value.weekEnd) ||
+    Date.parse(value.weekEnd) - Date.parse(value.weekStart) !== 6 * 86400000 ||
+    new Date(value.weekStart).getUTCDay() !== 1 ||
+    !(value.asOfDate === null || isDate(value.asOfDate)) ||
+    !(value.eligibleFrom === null || isDate(value.eligibleFrom)) ||
+    typeof value.confirmed !== 'boolean' ||
+    !isNullableNumber(value.weeklyReturnRate) ||
+    !Array.isArray(value.days)
+  )
+    return false;
+  let previousDate = '';
+  let complete = true;
+  let asOfDate: string | null = null;
+  for (const day of value.days) {
+    if (
+      !isRecord(day) ||
+      !isDate(day.baseDate) ||
+      day.baseDate < value.weekStart ||
+      day.baseDate > value.weekEnd ||
+      day.baseDate <= previousDate ||
+      !isNullableNumber(day.dailyReturnRate) ||
+      !isNullableNumber(day.cumulativeReturnRate) ||
+      !(day.reason === null || typeof day.reason === 'string') ||
+      !['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(String(day.status))
+    )
+      return false;
+    previousDate = day.baseDate;
+    const calculated = day.status === 'CALCULATED';
+    if (calculated !== (day.dailyReturnRate !== null)) return false;
+    complete = complete && calculated;
+    if (complete !== (day.cumulativeReturnRate !== null)) return false;
+    if (calculated) asOfDate = day.baseDate;
+  }
+  const last = value.days.at(-1);
+  return (
+    value.asOfDate === asOfDate &&
+    value.weeklyReturnRate === (last?.cumulativeReturnRate ?? null) &&
+    (!value.confirmed || value.weeklyReturnRate !== null)
+  );
+}
+
+export async function getDailyHistory(publicId: string, weekStart?: string, signal?: AbortSignal) {
+  const query = weekStart ? `?${new URLSearchParams({ weekStart })}` : '';
+  const response = await request<unknown>(
+    `/api/league/investors/${encodeURIComponent(publicId)}/daily-history${query}`,
+    { signal },
+  );
+  if (!isDailyHistory(response) || (weekStart && response.weekStart !== weekStart)) {
+    throw new Error('일별 수익률 응답 형식이 올바르지 않습니다.');
+  }
   return response;
 }
 
