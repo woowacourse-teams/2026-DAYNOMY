@@ -44,19 +44,11 @@ public class SharedHoldingHistory extends BaseEntity {
   @Column(name = "average_purchase_price", nullable = false, precision = 19, scale = 2)
   private BigDecimal averagePurchasePrice;
 
-  @Column(nullable = false)
-  private boolean hidden;
-
-  @Column(nullable = false, length = 500)
-  private String reason;
-
   public SharedHoldingHistory(SharedHolding holding, ChangeType changeType) {
     portfolio = holding.getPortfolio();
     asset = holding.getAsset();
     quantity = holding.getQuantity();
     averagePurchasePrice = holding.getAveragePurchasePrice();
-    hidden = holding.isHidden();
-    reason = holding.getReason();
     this.changeType = changeType;
   }
 

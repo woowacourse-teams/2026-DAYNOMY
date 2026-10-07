@@ -8,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
-import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.portfolio.domain.Portfolio;
@@ -49,7 +48,7 @@ public class PortfolioSnapshotTransactionService {
       return false;
     }
 
-    List<HistoricalHolding> holdings = reconstructHoldings(portfolioId, baseDate);
+    List<PortfolioHoldingHistory> holdings = reconstructHoldings(portfolioId, baseDate);
     if (holdings.isEmpty()) {
       return false;
     }
@@ -60,17 +59,7 @@ public class PortfolioSnapshotTransactionService {
     }
 
     PortfolioDailySnapshot snapshot =
-        existing != null
-            ? existing
-            : new PortfolioDailySnapshot(
-                portfolio,
-                baseDate,
-                amounts.totalPurchase(),
-                amounts.totalEvaluation(),
-                amounts.totalProfitLoss(),
-                amounts.totalReturnRate(),
-                amounts.dailyProfitLoss(),
-                amounts.dailyReturnRate());
+        existing != null ? existing : new PortfolioDailySnapshot(portfolio, baseDate);
     snapshot.update(
         amounts.totalPurchase(),
         amounts.totalEvaluation(),
@@ -82,42 +71,39 @@ public class PortfolioSnapshotTransactionService {
     return true;
   }
 
-  private List<HistoricalHolding> reconstructHoldings(Long portfolioId, LocalDate baseDate) {
-    Map<Long, HistoricalHolding> holdings = new LinkedHashMap<>();
+  private List<PortfolioHoldingHistory> reconstructHoldings(Long portfolioId, LocalDate baseDate) {
+    Map<Long, PortfolioHoldingHistory> holdings = new LinkedHashMap<>();
     List<PortfolioHoldingHistory> histories =
-        historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAsc(
+        historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
             portfolioId, baseDate.plusDays(1).atStartOfDay(SEOUL).toInstant());
     for (PortfolioHoldingHistory history : histories) {
       Long assetId = history.getAsset().getId();
       if (history.getChangeType() == PortfolioHoldingChangeType.REMOVED) {
         holdings.remove(assetId);
       } else {
-        holdings.put(
-            assetId,
-            new HistoricalHolding(
-                history.getAsset(), history.getQuantity(), history.getAveragePurchasePrice()));
+        holdings.put(assetId, history);
       }
     }
     return List.copyOf(holdings.values());
   }
 
   private SnapshotAmounts calculateAmounts(
-      List<HistoricalHolding> holdings, LocalDate baseDate, LocalDate previousBaseDate) {
+      List<PortfolioHoldingHistory> holdings, LocalDate baseDate, LocalDate previousBaseDate) {
     BigDecimal purchase = BigDecimal.ZERO;
     BigDecimal evaluation = BigDecimal.ZERO;
     BigDecimal previousEvaluation = BigDecimal.ZERO;
 
-    for (HistoricalHolding holding : holdings) {
-      StockDailyPrice price = findPrice(holding.asset().getId(), baseDate);
+    for (PortfolioHoldingHistory holding : holdings) {
+      StockDailyPrice price = findPrice(holding.getAsset().getId(), baseDate);
       if (price == null) {
         return null;
       }
-      BigDecimal quantity = BigDecimal.valueOf(holding.quantity());
-      purchase = purchase.add(holding.averagePurchasePrice().multiply(quantity));
+      BigDecimal quantity = BigDecimal.valueOf(holding.getQuantity());
+      purchase = purchase.add(holding.getAveragePurchasePrice().multiply(quantity));
       evaluation = evaluation.add(price.getClosePrice().multiply(quantity));
 
       if (previousBaseDate != null) {
-        StockDailyPrice previousPrice = findPrice(holding.asset().getId(), previousBaseDate);
+        StockDailyPrice previousPrice = findPrice(holding.getAsset().getId(), previousBaseDate);
         if (previousPrice == null) {
           return null;
         }
@@ -169,8 +155,6 @@ public class PortfolioSnapshotTransactionService {
     }
     return scaled;
   }
-
-  private record HistoricalHolding(Asset asset, long quantity, BigDecimal averagePurchasePrice) {}
 
   private record SnapshotAmounts(
       BigDecimal totalPurchase,

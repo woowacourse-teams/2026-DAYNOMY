@@ -46,7 +46,7 @@ public class SharedHolding extends BaseEntity {
     change(quantity, price);
   }
 
-  public void change(long quantity, BigDecimal price) {
+  public boolean change(long quantity, BigDecimal price) {
     if (quantity < 1
         || quantity > 1_000_000_000L
         || price == null
@@ -55,8 +55,12 @@ public class SharedHolding extends BaseEntity {
         || price.scale() > 2) {
       throw new IllegalArgumentException("수량과 평균 매수가를 확인해 주세요.");
     }
+    if (this.quantity == quantity && price.compareTo(this.averagePurchasePrice) == 0) {
+      return false;
+    }
     this.quantity = quantity;
     this.averagePurchasePrice = price;
+    return true;
   }
 
   public void describe(boolean hidden, String reason) {

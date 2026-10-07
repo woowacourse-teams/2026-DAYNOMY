@@ -65,7 +65,7 @@ public class SharedPortfolioService {
                 portfolio, asset(input.assetId()), input.quantity(), input.averagePurchasePrice());
       } else {
         // 재가져오기로 숨김과 판단 근거를 덮어쓰지 않는다.
-        holding.change(input.quantity(), input.averagePurchasePrice());
+        if (!holding.change(input.quantity(), input.averagePurchasePrice())) continue;
       }
       holdingRepository.save(holding);
       historyRepository.save(new SharedHoldingHistory(holding, changeType));
@@ -82,7 +82,6 @@ public class SharedPortfolioService {
             .findByPortfolioIdAndAssetId(portfolio.getId(), assetId)
             .orElseThrow(() -> new BusinessException(LeagueErrorCode.SHARED_HOLDING_NOT_FOUND));
     holding.changeVisibility(request.hidden());
-    historyRepository.save(new SharedHoldingHistory(holding, ChangeType.UPDATED));
     return response(portfolio);
   }
 
