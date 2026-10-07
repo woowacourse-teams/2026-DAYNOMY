@@ -1,6 +1,7 @@
 package org.grit.daynomy.portfolio.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
@@ -11,7 +12,9 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
@@ -20,6 +23,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceStatus;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
+import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
@@ -142,6 +146,55 @@ class PortfolioSnapshotServiceTest {
     assertThat(response.currentPoint().totalEvaluationAmount()).isEqualByComparingTo("0.00");
     assertThat(response.currentPoint().totalReturnRate()).isEqualByComparingTo("0.00");
     then(calculationService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void performanceReturnsHistoricalSnapshotsWithoutTodayPointWhenStockPriceIsMissing() {
+    LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    LocalDate yesterday = today.minusDays(1);
+    Portfolio portfolio = portfolio(10L);
+    PortfolioHolding holding = holding(1L, 2L, "65000.00");
+    PortfolioDailySnapshot snapshot = mock(PortfolioDailySnapshot.class);
+    given(snapshot.getBaseDate()).willReturn(yesterday);
+    given(snapshot.getTotalPurchaseAmount()).willReturn(new BigDecimal("130000.00"));
+    given(snapshot.getTotalEvaluationAmount()).willReturn(new BigDecimal("140000.00"));
+    given(snapshot.getTotalProfitLoss()).willReturn(new BigDecimal("10000.00"));
+    given(snapshot.getTotalReturnRate()).willReturn(new BigDecimal("7.69"));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(
+            snapshotRepository.findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(
+                10L, yesterday, yesterday))
+        .willReturn(List.of(snapshot));
+    given(holdingRepository.findAllByPortfolioIdOrderById(10L)).willReturn(List.of(holding));
+    PortfolioCalculateRequest request =
+        new PortfolioCalculateRequest(
+            List.of(new PortfolioHoldingRequest(1L, 2L, new BigDecimal("65000.00"))));
+    given(calculationService.calculate(request))
+        .willThrow(new BusinessException(AssetErrorCode.STOCK_PRICE_NOT_FOUND));
+
+    var response = service.performance(1L, yesterday, today);
+
+    assertThat(response.points()).hasSize(1);
+    assertThat(response.currentPoint()).isNull();
+  }
+
+  @Test
+  void performancePropagatesUnexpectedCalculationBusinessException() {
+    LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    Portfolio portfolio = portfolio(10L);
+    PortfolioHolding holding = holding(1L, 2L, "65000.00");
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(holdingRepository.findAllByPortfolioIdOrderById(10L)).willReturn(List.of(holding));
+    PortfolioCalculateRequest request =
+        new PortfolioCalculateRequest(
+            List.of(new PortfolioHoldingRequest(1L, 2L, new BigDecimal("65000.00"))));
+    given(calculationService.calculate(request))
+        .willThrow(new BusinessException(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET));
+
+    assertThatThrownBy(() -> service.performance(1L, today, today))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
   }
 
   @Test
