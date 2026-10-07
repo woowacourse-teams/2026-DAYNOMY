@@ -109,21 +109,12 @@
   padding: 12px;
   background: #f5f7fa;
 }
-.shared-search {
-  display: flex;
-  align-items: end;
-  gap: 10px;
-}
-.shared-search label {
-  flex: 1;
-}
 .shared-edit-form fieldset {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
-.shared-edit-form label,
-.shared-search label {
+.shared-edit-form label {
   font-size: 14px;
   line-height: 1.6;
 }
@@ -145,19 +136,8 @@
   flex-shrink: 0;
   vertical-align: middle;
 }
-.shared-reason,
-.shared-visibility {
+.shared-reason {
   grid-column: 1 / -1;
-}
-.shared-search-results {
-  list-style: none;
-  padding: 0;
-}
-.shared-search-results button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  margin-top: 8px;
 }
 .shared-list {
   margin-top: 32px;
