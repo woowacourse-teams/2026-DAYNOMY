@@ -31,7 +31,6 @@ import org.grit.daynomy.league.domain.PortfolioDailyReturn;
 import org.grit.daynomy.league.domain.PortfolioTransaction;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedHoldingHistory;
-import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.dto.LeagueDto.AllocationResponse;
 import org.grit.daynomy.league.dto.LeagueDto.DailyHistoryResponse;
@@ -344,18 +343,22 @@ public class LeagueService {
       LocalDate previousDate,
       LocalDate baseDate,
       Map<Long, BigDecimal> contributions) {
-    List<HoldingAtClose> holdings = reconstructHoldings(portfolioId, baseDate);
+    List<SharedHoldingHistory> holdings =
+        SharedHoldingHistory.reconstructHoldings(
+            holdingHistoryRepository
+                .findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
+                    portfolioId, baseDate.atStartOfDay(SEOUL).toInstant()));
     Map<Long, PricePair> prices = new LinkedHashMap<>();
     BigDecimal total = BigDecimal.ZERO;
-    for (HoldingAtClose holding : holdings) {
-      StockDailyPrice previous = findPrice(holding.asset().getId(), previousDate);
-      StockDailyPrice current = findPrice(holding.asset().getId(), baseDate);
+    for (SharedHoldingHistory holding : holdings) {
+      StockDailyPrice previous = findPrice(holding.getAsset().getId(), previousDate);
+      StockDailyPrice current = findPrice(holding.getAsset().getId(), baseDate);
       if (previous == null || current == null) {
         continue;
       }
       BigDecimal evaluation =
-          previous.getClosePrice().multiply(BigDecimal.valueOf(holding.quantity()));
-      prices.put(holding.asset().getId(), new PricePair(previous, current, evaluation));
+          previous.getClosePrice().multiply(BigDecimal.valueOf(holding.getQuantity()));
+      prices.put(holding.getAsset().getId(), new PricePair(previous, current, evaluation));
       total = total.add(evaluation);
     }
     if (total.signum() == 0) {
@@ -372,28 +375,6 @@ public class LeagueService {
       contributions.merge(
           entry.getKey(), weight.multiply(assetReturn).multiply(HUNDRED), BigDecimal::add);
     }
-  }
-
-  private List<HoldingAtClose> reconstructHoldings(Long portfolioId, LocalDate baseDate) {
-    Map<Long, HoldingAtClose> holdings = new LinkedHashMap<>();
-    List<SharedHoldingHistory> histories =
-        holdingHistoryRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-            portfolioId, baseDate.atStartOfDay(SEOUL).toInstant());
-    for (SharedHoldingHistory history : histories) {
-      Long assetId = history.getAsset().getId();
-      if (history.getChangeType() == ChangeType.REMOVED) {
-        holdings.remove(assetId);
-      } else {
-        holdings.put(
-            assetId,
-            new HoldingAtClose(
-                history.getAsset(),
-                history.getQuantity(),
-                history.isHidden(),
-                history.getReason()));
-      }
-    }
-    return List.copyOf(holdings.values());
   }
 
   private StockDailyPrice findPrice(Long assetId, LocalDate baseDate) {
@@ -715,9 +696,6 @@ public class LeagueService {
       BigDecimal volatilityRate,
       BigDecimal maxHoldingWeight,
       int weeklyDays) {}
-
-  private record HoldingAtClose(
-      org.grit.daynomy.asset.domain.Asset asset, long quantity, boolean hidden, String reason) {}
 
   private record PricePair(
       StockDailyPrice previous, StockDailyPrice current, BigDecimal evaluation) {}
