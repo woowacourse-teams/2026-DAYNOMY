@@ -134,6 +134,56 @@ test('뉴스 목록에서 상세 본문을 읽고 목록으로 돌아온다', as
   await expect(page.getByRole('region', { name: '이슈 목록' })).toContainText(article.title);
 });
 
+test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 메뉴는 분리된다', async ({ page }) => {
+  await page.route('**/api/users/me', (route) =>
+    route.fulfill({
+      json: { id: 1, email: 'admin@example.invalid', nickname: '관리자', role: 'ADMIN' },
+    }),
+  );
+  await page.route('**/api/assets/1/contents', (route) =>
+    route.fulfill({
+      json: { assetId: 1, assetCode: '005930', assetName: '삼성전자', contents: [] },
+    }),
+  );
+  await page.route('**/api/league/weeks', (route) =>
+    route.fulfill({
+      json: { weeks: [{ weekStart: '2026-10-05', weekEnd: '2026-10-11', confirmed: false }] },
+    }),
+  );
+  await page.route('**/api/league/rankings**', (route) =>
+    route.fulfill({
+      json: {
+        weekStart: '2026-10-05',
+        weekEnd: '2026-10-11',
+        leagueType: 'WEEKLY_RETURN',
+        confirmed: false,
+        totalCount: 0,
+        asOfDate: null,
+        rankings: [],
+      },
+    }),
+  );
+
+  await page.goto('/stocks/1');
+  await expect(page.getByRole('heading', { name: '삼성전자', level: 1 })).toBeVisible();
+  await page
+    .getByRole('navigation', { name: '주요 메뉴' })
+    .getByRole('link', { name: '투자 리그' })
+    .click();
+  await expect(page).toHaveURL('/league');
+  await expect(page.getByRole('heading', { name: '이번 주 투자 리그' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toBeVisible();
+  await page.getByRole('link', { name: '마이페이지' }).click();
+  await expect(page).toHaveURL('/mypage');
+  await expect(page.getByRole('heading', { name: '마이페이지' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toBeVisible();
+
+  await page.goto('/admin/stock-contents');
+  await expect(page.getByRole('heading', { name: '종목 관련 링크' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '관리자 메뉴' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toHaveCount(0);
+});
+
 test('비회원도 공개 투자 리그에서 종목과 판단을 바로 확인한다', async ({ page }) => {
   await page.route('**/api/league/weeks', (route) =>
     route.fulfill({

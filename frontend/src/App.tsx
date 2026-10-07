@@ -23,8 +23,11 @@ import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
+import { AdminStockContentsPage } from './features/admin/AdminStockContentsPage';
 import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminShell } from './features/admin/components/AdminShell';
+import { StockContentPage } from './features/stock-content/StockContentPage';
+import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -45,6 +48,7 @@ function AppHeader() {
     location.pathname.startsWith('/portfolio') ||
     location.pathname.startsWith('/league') ||
     location.pathname === '/mypage' ||
+    location.pathname.startsWith('/stocks/') ||
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
     location.pathname.startsWith('/privacy') ||
@@ -198,6 +202,8 @@ export default function App() {
               <Route path="/search" element={<SearchPage />} />
               <Route path="/finance/*" element={<Navigate to="/" replace />} />
               <Route path="/stocks" element={<Navigate to="/" replace />} />
+              <Route path="/stocks/:assetId/card-preview" element={<CardDesignPreviewPage />} />
+              <Route path="/stocks/:assetId" element={<StockContentPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/about" element={<InfoPage page="about" />} />
               <Route path="/terms" element={<InfoPage page="terms" />} />
@@ -240,6 +246,14 @@ export default function App() {
                 element={
                   <AdminRoute>
                     <AdminStockSyncPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/stock-contents"
+                element={
+                  <AdminRoute>
+                    <AdminStockContentsPage />
                   </AdminRoute>
                 }
               />
