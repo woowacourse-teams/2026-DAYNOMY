@@ -12,6 +12,9 @@ import type {
   PortfolioImpactDirection,
   PortfolioImpactLevel,
   PortfolioAnalysisSource,
+  PortfolioPerformancePoint,
+  PortfolioPerformanceResponse,
+  SavedPortfolioResponse,
   StockMarket,
   StockPrice,
   StockSearchItem,
@@ -19,6 +22,14 @@ import type {
 
 const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE', 'NEUTRAL']);
 const IMPACT_LEVELS = new Set<PortfolioImpactLevel>(['HIGH', 'MEDIUM', 'LOW']);
+type PortfolioPerformanceApiPoint = Omit<PortfolioPerformancePoint, 'recordedAt' | 'source'>;
+type PortfolioPerformanceApiResponse = Omit<
+  PortfolioPerformanceResponse,
+  'points' | 'currentPoint'
+> & {
+  points: PortfolioPerformanceApiPoint[];
+  currentPoint: PortfolioPerformanceApiPoint;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -86,6 +97,36 @@ function isMarketAllocation(value: unknown): value is MarketAllocation {
     isMarket(value.market) &&
     hasNumber(value, 'evaluationAmount') &&
     hasNumber(value, 'weight')
+  );
+}
+
+function isSavedPortfolioHolding(value: unknown): value is PortfolioHoldingInput {
+  if (!isRecord(value)) return false;
+  const quantity = value.quantity;
+  const averagePurchasePrice = value.averagePurchasePrice;
+  return (
+    isStock(value) &&
+    typeof quantity === 'number' &&
+    Number.isSafeInteger(quantity) &&
+    quantity > 0 &&
+    typeof averagePurchasePrice === 'number' &&
+    Number.isFinite(averagePurchasePrice) &&
+    averagePurchasePrice > 0
+  );
+}
+
+function isPerformancePoint(
+  value: unknown,
+  current = false,
+): value is PortfolioPerformanceApiPoint {
+  return (
+    isRecord(value) &&
+    typeof value.baseDate === 'string' &&
+    (!current || value.priceBaseDate === null || typeof value.priceBaseDate === 'string') &&
+    hasNumber(value, 'totalPurchaseAmount') &&
+    hasNumber(value, 'totalEvaluationAmount') &&
+    hasNumber(value, 'totalProfitLoss') &&
+    hasNumber(value, 'totalReturnRate')
   );
 }
 
@@ -186,27 +227,6 @@ export async function getLatestStockPrice(assetId: number, signal?: AbortSignal)
   return response;
 }
 
-export async function getStockPrices(
-  assetIds: number[],
-  from: string,
-  to: string,
-  signal?: AbortSignal,
-) {
-  const query = new URLSearchParams({ from, to });
-  assetIds.forEach((assetId) => query.append('assetIds', String(assetId)));
-  const response = await request<unknown>(`/api/stocks/prices?${query.toString()}`, { signal });
-
-  if (
-    !isRecord(response) ||
-    !Array.isArray(response.prices) ||
-    !response.prices.every(isStockPrice)
-  ) {
-    throw new Error('기간별 종가 응답 형식이 올바르지 않습니다.');
-  }
-
-  return response.prices;
-}
-
 export async function calculatePortfolio(holdings: PortfolioHoldingInput[], signal?: AbortSignal) {
   const response = await requestWithCsrf<unknown>('/api/portfolio/calculate', {
     method: 'POST',
@@ -226,6 +246,94 @@ export async function calculatePortfolio(holdings: PortfolioHoldingInput[], sign
   }
 
   return response;
+}
+
+export async function getSavedPortfolio(signal?: AbortSignal) {
+  const response = await request<unknown>('/api/portfolio', { signal });
+
+  if (
+    !isRecord(response) ||
+    !Array.isArray(response.holdings) ||
+    !response.holdings.every(isSavedPortfolioHolding)
+  ) {
+    throw new Error('포트폴리오 응답 형식이 올바르지 않습니다.');
+  }
+
+  return response as SavedPortfolioResponse;
+}
+
+export async function addSavedPortfolioHolding(holding: PortfolioHoldingInput) {
+  const response = await requestWithCsrf<unknown>('/api/portfolio/holdings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      assetId: holding.assetId,
+      quantity: holding.quantity,
+      averagePurchasePrice: holding.averagePurchasePrice,
+    }),
+  });
+
+  if (!isSavedPortfolioHolding(response)) {
+    throw new Error('보유 자산 추가 응답 형식이 올바르지 않습니다.');
+  }
+  return response;
+}
+
+export async function updateSavedPortfolioHolding(holding: PortfolioHoldingInput) {
+  const response = await requestWithCsrf<unknown>(`/api/portfolio/holdings/${holding.assetId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      quantity: holding.quantity,
+      averagePurchasePrice: holding.averagePurchasePrice,
+    }),
+  });
+
+  if (!isSavedPortfolioHolding(response)) {
+    throw new Error('보유 자산 수정 응답 형식이 올바르지 않습니다.');
+  }
+  return response;
+}
+
+export function removeSavedPortfolioHolding(assetId: number) {
+  return requestWithCsrf<void>(`/api/portfolio/holdings/${assetId}`, { method: 'DELETE' });
+}
+
+export async function getPortfolioPerformance(from: string, to: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ from, to });
+  const response = await request<unknown>(`/api/portfolio/performance?${query.toString()}`, {
+    signal,
+  });
+
+  if (
+    !isRecord(response) ||
+    (response.status !== 'READY' && response.status !== 'INSUFFICIENT_DATA') ||
+    (response.reason !== null && response.reason !== 'SNAPSHOT_DATA_INSUFFICIENT') ||
+    (response.baseDate !== null && typeof response.baseDate !== 'string') ||
+    (response.previousBaseDate !== null && typeof response.previousBaseDate !== 'string') ||
+    !Array.isArray(response.points) ||
+    !response.points.every((point) => isPerformancePoint(point)) ||
+    !isPerformancePoint(response.currentPoint, true)
+  ) {
+    throw new Error('자산 추이 응답 형식이 올바르지 않습니다.');
+  }
+
+  const normalizePoint = (
+    point: PortfolioPerformanceApiPoint,
+    current: boolean,
+  ): PortfolioPerformancePoint => ({
+    ...point,
+    recordedAt: `${point.baseDate}T15:30:00.000Z`,
+    source: 'CLOSE',
+    priceBaseDate: current ? point.priceBaseDate : undefined,
+  });
+
+  const performance = response as unknown as PortfolioPerformanceApiResponse;
+  return {
+    ...performance,
+    points: performance.points.map((point) => normalizePoint(point, false)),
+    currentPoint: normalizePoint(performance.currentPoint, true),
+  };
 }
 
 export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortSignal) {
