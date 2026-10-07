@@ -2,6 +2,9 @@ package org.grit.daynomy.league.domain;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -55,5 +58,20 @@ public class SharedHoldingHistory extends BaseEntity {
     hidden = holding.isHidden();
     reason = holding.getReason();
     this.changeType = changeType;
+  }
+
+  /** 생성 시각·ID 오름차순 이력에서 종목별 마지막 보유 상태를 복원한다. */
+  public static List<SharedHoldingHistory> reconstructHoldings(
+      List<SharedHoldingHistory> histories) {
+    Map<Long, SharedHoldingHistory> holdings = new LinkedHashMap<>();
+    for (SharedHoldingHistory history : histories) {
+      Long assetId = history.getAsset().getId();
+      if (history.getChangeType() == ChangeType.REMOVED) {
+        holdings.remove(assetId);
+      } else {
+        holdings.put(assetId, history);
+      }
+    }
+    return List.copyOf(holdings.values());
   }
 }

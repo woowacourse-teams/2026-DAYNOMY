@@ -7,9 +7,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -18,7 +16,6 @@ import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.domain.PortfolioDailyReturn;
 import org.grit.daynomy.league.domain.SharedHoldingHistory;
-import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.repository.PortfolioDailyReturnRepository;
@@ -76,7 +73,10 @@ public class LeagueReturnService {
             .findByPortfolioIdAndBaseDateAndCalculationVersion(portfolio.getId(), baseDate, 1)
             .orElseGet(() -> new PortfolioDailyReturn(portfolio, baseDate));
     Instant calculatedAt = Instant.now();
-    List<HoldingAtClose> holdings = reconstructHoldings(portfolio.getId(), baseDate);
+    List<SharedHoldingHistory> holdings =
+        SharedHoldingHistory.reconstructHoldings(
+            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
+                portfolio.getId(), baseDate.atStartOfDay(SEOUL).toInstant()));
     if (holdings.isEmpty()) {
       dailyReturn.exclude("NO_HOLDINGS", calculatedAt);
       returnRepository.save(dailyReturn);
@@ -86,20 +86,20 @@ public class LeagueReturnService {
     BigDecimal startingAmount = BigDecimal.ZERO;
     BigDecimal endingAmount = BigDecimal.ZERO;
     BigDecimal largestPosition = BigDecimal.ZERO;
-    for (HoldingAtClose holding : holdings) {
-      if (!isSupported(holding.asset())) {
+    for (SharedHoldingHistory holding : holdings) {
+      if (!isSupported(holding.getAsset())) {
         dailyReturn.exclude("UNSUPPORTED_ASSET", calculatedAt);
         returnRepository.save(dailyReturn);
         return;
       }
-      StockDailyPrice previousPrice = findPrice(holding.asset().getId(), previousBaseDate);
-      StockDailyPrice currentPrice = findPrice(holding.asset().getId(), baseDate);
+      StockDailyPrice previousPrice = findPrice(holding.getAsset().getId(), previousBaseDate);
+      StockDailyPrice currentPrice = findPrice(holding.getAsset().getId(), baseDate);
       if (previousPrice == null || currentPrice == null) {
         dailyReturn.exclude("MISSING_PRICE", calculatedAt);
         returnRepository.save(dailyReturn);
         return;
       }
-      BigDecimal quantity = BigDecimal.valueOf(holding.quantity());
+      BigDecimal quantity = BigDecimal.valueOf(holding.getQuantity());
       BigDecimal startingPosition = previousPrice.getClosePrice().multiply(quantity);
       startingAmount = startingAmount.add(startingPosition);
       endingAmount = endingAmount.add(currentPrice.getClosePrice().multiply(quantity));
@@ -127,22 +127,6 @@ public class LeagueReturnService {
     returnRepository.save(dailyReturn);
   }
 
-  private List<HoldingAtClose> reconstructHoldings(Long portfolioId, LocalDate baseDate) {
-    Map<Long, HoldingAtClose> holdings = new LinkedHashMap<>();
-    List<SharedHoldingHistory> histories =
-        historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-            portfolioId, baseDate.atStartOfDay(SEOUL).toInstant());
-    for (SharedHoldingHistory history : histories) {
-      Long assetId = history.getAsset().getId();
-      if (history.getChangeType() == ChangeType.REMOVED) {
-        holdings.remove(assetId);
-      } else {
-        holdings.put(assetId, new HoldingAtClose(history.getAsset(), history.getQuantity()));
-      }
-    }
-    return List.copyOf(holdings.values());
-  }
-
   private StockDailyPrice findPrice(Long assetId, LocalDate baseDate) {
     return priceRepository.findByAssetIdAndBaseDate(assetId, baseDate).orElse(null);
   }
@@ -151,6 +135,4 @@ public class LeagueReturnService {
     return asset.isListed()
         && (asset.getCategory() == AssetCategory.STOCK || asset.getCategory() == AssetCategory.ETF);
   }
-
-  private record HoldingAtClose(Asset asset, long quantity) {}
 }
