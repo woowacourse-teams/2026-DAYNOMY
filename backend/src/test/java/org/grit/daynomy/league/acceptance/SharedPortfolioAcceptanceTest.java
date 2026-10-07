@@ -196,6 +196,53 @@ class SharedPortfolioAcceptanceTest {
     assertThat(preserved.getAveragePurchasePrice()).isEqualByComparingTo("70000");
   }
 
+  @ParameterizedTest
+  @ValueSource(
+      strings = {"SHARED_IMPORT_CONFLICT", "DUPLICATE_SHARED_ASSET", "INVALID_LEAGUE_ASSET"})
+  void failedBatchImportRollsBackEarlierHoldingsAndHistory(String errorCode) {
+    Member owner = member();
+    Asset existing = asset();
+    Asset added = asset();
+    String holding = "{\"assetId\":%d,\"quantity\":%d,\"averagePurchasePrice\":70000}";
+    client(owner)
+        .body(
+            "{\"holdings\":[%s],\"overwriteExisting\":false}"
+                .formatted(holding.formatted(existing.getId(), 10)))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    boolean overwrite = !errorCode.equals("SHARED_IMPORT_CONFLICT");
+    long failingAssetId = errorCode.equals("INVALID_LEAGUE_ASSET") ? Long.MAX_VALUE : added.getId();
+
+    client(owner)
+        .body(
+            "{\"holdings\":[%s,%s,%s],\"overwriteExisting\":%s}"
+                .formatted(
+                    holding.formatted(added.getId(), 5),
+                    holding.formatted(existing.getId(), 20),
+                    holding.formatted(failingAssetId, 1),
+                    overwrite))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(overwrite ? 400 : 409)
+        .body("code", equalTo(errorCode));
+
+    client(owner)
+        .get(SHARED)
+        .then()
+        .statusCode(200)
+        .body("holdings", hasSize(1))
+        .body("holdings[0].assetId", equalTo(existing.getId().intValue()))
+        .body("holdings[0].quantity", equalTo(10));
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id ="
+                    + " (SELECT id FROM shared_portfolios WHERE member_id = ?)",
+                Integer.class,
+                owner.getId()))
+        .isEqualTo(1);
+  }
+
   @Test
   void removedFinanceApisAreUnavailableAndAbsentFromOpenApi() {
     Member owner = member();
