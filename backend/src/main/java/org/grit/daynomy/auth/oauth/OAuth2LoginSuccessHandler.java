@@ -34,7 +34,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
       HttpServletRequest request, HttpServletResponse response, Authentication authentication)
       throws IOException {
 
-    MemberOAuth2Principal principal = (MemberOAuth2Principal) authentication.getPrincipal();
+    CustomOidcUser principal = (CustomOidcUser) authentication.getPrincipal();
     TokenPair tokenPair = tokenService.issue(principal.getMemberId());
 
     tokenCookieManager.addTokenCookies(response, tokenPair);

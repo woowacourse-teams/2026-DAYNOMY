@@ -20,21 +20,18 @@ public class CustomOidcUserService {
 
   public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
     OidcUser oidcUser = delegate.loadUser(userRequest);
-    GoogleOAuth2UserInfo userInfo = new GoogleOAuth2UserInfo(oidcUser.getAttributes());
-
-    validateUserInfo(userInfo);
-
-    Member member =
-        memberService.findOrCreateGoogleMember(
-            userInfo.providerId(), userInfo.email(), userInfo.name(), userInfo.profileImageUrl());
-
-    return new CustomOidcUser(member, oidcUser);
-  }
-
-  private void validateUserInfo(GoogleOAuth2UserInfo userInfo) {
-    if (!StringUtils.hasText(userInfo.providerId()) || !StringUtils.hasText(userInfo.email())) {
+    if (!StringUtils.hasText(oidcUser.getSubject()) || !StringUtils.hasText(oidcUser.getEmail())) {
       throw new OAuth2AuthenticationException(
           new OAuth2Error("invalid_google_user"), "Google 사용자 정보가 올바르지 않습니다.");
     }
+
+    Member member =
+        memberService.findOrCreateGoogleMember(
+            oidcUser.getSubject(),
+            oidcUser.getEmail(),
+            oidcUser.getFullName(),
+            oidcUser.getPicture());
+
+    return new CustomOidcUser(member, oidcUser);
   }
 }

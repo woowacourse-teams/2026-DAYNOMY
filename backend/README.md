@@ -1,5 +1,8 @@
 # DAYNOMY BACKEND
 
+Google 로그인은 OIDC 경로 하나를 사용한다. Spring의 `OidcUserService`가 조회·검증한
+사용자 정보를 회원 계정과 연결하고, 로그인 성공 시 기존 JWT 쿠키를 발급한다.
+
 ## 기술 스택
 
 | 항목 | 버전 |
