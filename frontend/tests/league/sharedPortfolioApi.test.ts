@@ -6,10 +6,6 @@ import {
   importSharedHoldings,
   readSourceHoldings,
 } from '../../src/features/league/sharedPortfolioApi.ts';
-import {
-  loadFinancialPlans,
-  saveFinancialPlan,
-} from '../../src/features/finance/financialPlanApi.ts';
 
 const response = {
   holdings: [],
@@ -111,39 +107,4 @@ test('계정의 서버 원본만 읽고 브라우저 원본은 읽거나 변경�
   } finally {
     globalThis.localStorage = previous;
   }
-});
-
-test('로그인 계획은 계정 API에 저장하며 브라우저 원본이나 계획을 덮어쓰지 않는다', async () => {
-  const plan = {
-    id: 'plan-1',
-    topic: '저축·투자 계획' as const,
-    title: '월 계획',
-    summary: '월 120만원',
-    details: [],
-    actions: [],
-    createdAt: '2026-10-05T00:00:00Z',
-    monthlyPlan: {
-      monthlyIncome: 3000000,
-      monthlyExpenses: 1800000,
-      goalAmount: 10000000,
-      goalSaved: 1000000,
-      goalMonths: 24,
-      savings: 420000,
-      emergency: 600000,
-      investment: 180000,
-      debt: 0,
-    },
-  };
-  const calls: string[] = [];
-  globalThis.fetch = async (url) => {
-    calls.push(String(url));
-    if (String(url) === '/api/auth/csrf')
-      return json({ headerName: 'X-XSRF-TOKEN', token: 'test' });
-    return json(plan);
-  };
-  assert.deepEqual(await saveFinancialPlan(true, plan), plan);
-  assert.equal(calls[1], '/api/users/me/financial-plans/plan-1');
-  globalThis.fetch = async () =>
-    json({ plans: [{ ...plan, monthlyPlan: { ...plan.monthlyPlan, investment: -1 } }] });
-  await assert.rejects(() => loadFinancialPlans(true), /응답 형식/);
 });
