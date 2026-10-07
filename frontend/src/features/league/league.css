@@ -208,7 +208,6 @@
 }
 
 .league-board ol,
-.league-timeline ol,
 .league-detail-decisions ol {
   margin: 0;
   padding: 0;
@@ -348,12 +347,10 @@
 }
 
 .league-settings-form > section,
-.league-record-form-card,
 .league-history-card,
 .league-allocation-card,
 .league-detail-holdings,
-.league-detail-decisions,
-.league-timeline {
+.league-detail-decisions {
   padding: 28px;
   border: 1px solid var(--league-line);
   border-radius: 8px;
@@ -361,8 +358,6 @@
 }
 
 .league-settings-form h2,
-.league-record-form-card h2,
-.league-timeline h2,
 .league-history-card h2,
 .league-allocation-card h2,
 .league-detail-holdings h2,
@@ -431,14 +426,12 @@
   gap: 16px;
 }
 
-.league-form-grid label,
-.league-stock-search label {
+.league-form-grid label {
   display: grid;
   gap: 7px;
 }
 
-.league-form-grid label > span,
-.league-stock-search label > span {
+.league-form-grid label > span {
   color: #565e6d;
   font-size: 14px;
   font-weight: 700;
@@ -446,9 +439,7 @@
 
 .league-form-grid input,
 .league-form-grid select,
-.league-form-grid textarea,
-.league-stock-search input,
-.league-review-form textarea {
+.league-form-grid textarea {
   box-sizing: border-box;
   width: 100%;
   min-height: 44px;
@@ -532,9 +523,7 @@
   gap: 18px;
 }
 
-.league-form-actions button,
-.league-submit-button,
-.league-review-form button:first-child {
+.league-form-actions button {
   min-height: 46px;
   padding: 0 22px;
   border: 0;
@@ -545,8 +534,7 @@
   cursor: pointer;
 }
 
-.league-form-actions button:disabled,
-.league-submit-button:disabled {
+.league-form-actions button:disabled {
   opacity: 0.48;
   cursor: not-allowed;
 }
@@ -560,112 +548,11 @@
   color: #b33a47;
 }
 
-.league-record-form-card {
-  margin-top: 28px;
-}
-
-.league-record-form {
-  display: grid;
-  margin-top: 22px;
-  gap: 20px;
-}
-
-.league-stock-search {
-  position: relative;
-}
-
-.league-stock-search > div {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.league-stock-search > div button {
-  min-width: 78px;
-  border: 0;
-  border-radius: 10px;
-  color: #fff;
-  background: #28244c;
-  cursor: pointer;
-}
-
-.league-stock-search ul {
-  margin: 12px 0 0;
-  padding: 8px;
-  border: 1px solid var(--league-line);
-  border-radius: 12px;
-  background: #fff;
-  list-style: none;
-}
-
-.league-stock-search li button {
-  display: flex;
-  width: 100%;
-  padding: 11px 12px;
-  align-items: center;
-  justify-content: space-between;
-  border: 0;
-  border-radius: 8px;
-  background: #fff;
-  text-align: left;
-}
-
-.league-stock-search li button:hover {
-  background: #f5f4ff;
-}
-
-.league-stock-search li span {
-  color: var(--league-muted);
-  font-size: 12px;
-}
-
-.league-selected-stock {
-  display: flex;
-  padding: 16px;
-  align-items: center;
-  gap: 12px;
-  border-radius: 12px;
-  background: #f5f4ff;
-}
-
-.league-selected-stock span {
-  color: var(--league-muted);
-  font-size: 12px;
-}
-
-.league-selected-stock button {
-  margin-left: auto;
-  border: 0;
-  color: var(--league-purple);
-  background: transparent;
-  cursor: pointer;
-}
-
-.league-suffix-input {
-  position: relative;
-}
-
-.league-suffix-input span {
-  position: absolute;
-  top: 13px;
-  right: 13px;
-  color: var(--league-muted);
-}
-
-.league-submit-button {
-  justify-self: start;
-}
-
 .league-inline-error {
   margin: 14px 0;
   font-size: 13px;
 }
 
-.league-timeline {
-  margin-top: 24px;
-}
-
-.league-timeline > header,
 .league-history-card > header,
 .league-detail-decisions > header {
   display: flex;
@@ -673,32 +560,27 @@
   justify-content: space-between;
 }
 
-.league-timeline > header span,
 .league-history-card header span,
 .league-detail-decisions header small {
   color: var(--league-muted);
   font-size: 12px;
 }
 
-.league-timeline > ol > li,
 .league-detail-decisions > ol > li {
   padding: 26px 0;
   border-bottom: 1px solid #eceef2;
 }
 
-.league-timeline > ol > li:last-child,
 .league-detail-decisions > ol > li:last-child {
   border-bottom: 0;
 }
 
-.league-timeline-title,
 .league-detail-decisions li > div {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.league-timeline-title > span,
 .league-detail-decisions li > div > span {
   padding: 4px 8px;
   border-radius: 6px;
@@ -709,24 +591,12 @@
   font-weight: 800;
 }
 
-.league-timeline-title > span.buy {
-  color: #b43d4a;
-  background: #fff0f2;
-}
-
-.league-timeline-title time,
 .league-detail-decisions time {
   margin-left: auto;
   color: var(--league-muted);
   font-size: 12px;
 }
 
-.league-timeline-title em {
-  color: #a36b12;
-  font-size: 11px;
-}
-
-.league-timeline dl,
 .league-detail-decisions dl {
   display: grid;
   margin: 18px 0 0;
@@ -734,27 +604,23 @@
   gap: 12px;
 }
 
-.league-timeline dl > div,
 .league-detail-decisions dl > div {
   padding: 14px;
   border-radius: 10px;
   background: #f8f9fb;
 }
 
-.league-timeline dt,
 .league-detail-decisions dt {
   color: var(--league-muted);
   font-size: 14px;
 }
 
-.league-timeline dd,
 .league-detail-decisions dd {
   margin: 7px 0 0;
   font-size: 15px;
   line-height: 1.6;
 }
 
-.league-timeline blockquote,
 .league-detail-decisions blockquote {
   margin: 14px 0 0;
   padding: 16px 18px;
@@ -762,38 +628,12 @@
   background: #f6f5ff;
 }
 
-.league-timeline blockquote p,
 .league-detail-decisions blockquote p {
   margin: 7px 0;
 }
 
-.league-timeline blockquote small,
 .league-detail-decisions blockquote small {
   color: var(--league-muted);
-}
-
-.league-review-open {
-  margin-top: 14px;
-  min-height: 44px;
-  padding: 8px 0;
-  border: 0;
-  color: var(--league-purple);
-  background: transparent;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.league-review-form {
-  display: grid;
-  margin-top: 16px;
-  gap: 9px;
-}
-
-.league-review-form label {
-  display: grid;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 600;
 }
 
 .league-person-action {
@@ -813,8 +653,7 @@
 
 .league-onboarding summary,
 .league-metric-help summary,
-.league-row-details summary,
-.league-record-details summary {
+.league-row-details summary {
   color: #48405c;
   font-size: 14px;
   font-weight: 700;
@@ -829,7 +668,6 @@
 }
 
 .league-onboarding a,
-.league-feedback a,
 .league-form-actions a {
   color: var(--league-purple);
   font-weight: 700;
@@ -863,119 +701,12 @@
   grid-template-columns: 1fr 1fr;
 }
 
-.league-record-details {
-  margin-top: 16px;
-}
-
-.league-record-page {
-  max-width: 900px;
-}
-
-.league-stepper {
-  display: flex;
-  margin: 0 0 28px;
-  padding: 0 0 20px;
-  gap: 24px;
-  border-bottom: 1px solid var(--league-line);
-  list-style: none;
-}
-
-.league-stepper li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #667085;
-  font-size: 14px;
-}
-
-.league-stepper li > span {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  place-items: center;
-  border-radius: 50%;
-  background: #eff0f4;
-}
-
-.league-stepper li[aria-current='step'] {
-  color: #4034b9;
-  font-weight: 700;
-}
-
-.league-stepper li[aria-current='step'] > span {
-  color: #fff;
-  background: var(--league-purple);
-}
-
-.league-wizard-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.league-wizard-actions > button:not(.league-submit-button) {
-  padding: 10px 16px;
-  border: 1px solid var(--league-line);
-  border-radius: 10px;
-  color: #4b5364;
-  background: #fff;
-  cursor: pointer;
-}
-
-.league-feedback,
-.league-trade-summary {
-  display: grid;
-  margin: 20px 0 0;
-  padding: 16px 20px;
-  gap: 6px;
-  border-radius: 12px;
-  color: #25564b;
-  background: #edf8f3;
-}
-
-.league-trade-summary {
-  margin: 0;
-  color: var(--league-ink);
-  background: #f8f9fc;
-}
-
-.league-trade-summary strong {
-  font-size: 20px;
-}
-
-.league-trade-summary small {
-  color: #667085;
-  font-size: 14px;
-}
-
 .league-preview-card .league-preview-status {
   min-height: 0;
   margin-bottom: 0;
   padding-top: 14px;
   border-top: 1px solid #5b547c;
   font-size: 14px;
-}
-
-.league-review-form textarea {
-  min-height: 68px;
-  resize: vertical;
-}
-
-.league-review-form > div {
-  display: flex;
-  gap: 8px;
-}
-
-.league-review-form button {
-  min-height: 38px;
-  padding: 0 14px;
-}
-
-.league-review-form button:last-child {
-  border: 1px solid var(--league-line);
-  border-radius: 9px;
-  background: #fff;
 }
 
 .league-back-link {
@@ -1337,7 +1068,6 @@
   .league-form-grid,
   .league-onboarding ol,
   .league-metric-help dl,
-  .league-timeline dl,
   .league-detail-decisions dl,
   .league-metric-cards,
   .league-follow-grid {
@@ -1380,21 +1110,6 @@
     flex-direction: column;
   }
 
-  .league-stepper {
-    gap: 12px;
-  }
-
-  .league-stepper li {
-    flex: 1;
-    flex-direction: column;
-    font-size: 13px;
-  }
-
-  .league-selected-stock,
-  .league-stock-search li button {
-    flex-wrap: wrap;
-  }
-
   .league-metric-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1402,25 +1117,14 @@
 
 @media (max-width: 460px) {
   .league-settings-form > section,
-  .league-record-form-card,
   .league-history-card,
   .league-allocation-card,
   .league-detail-holdings,
-  .league-detail-decisions,
-  .league-timeline {
+  .league-detail-decisions {
     padding: 21px;
   }
 
   .league-investor-header > div {
     flex-direction: column;
-  }
-
-  .league-timeline-title {
-    flex-wrap: wrap;
-  }
-
-  .league-timeline-title time {
-    width: 100%;
-    margin-left: 0;
   }
 }
