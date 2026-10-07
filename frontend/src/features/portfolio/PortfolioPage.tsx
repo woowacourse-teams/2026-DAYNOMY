@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { calculatePortfolio } from './api';
 import { PortfolioAnalysis } from './components/PortfolioAnalysis';
 import { PortfolioEditor } from './components/PortfolioEditor';
@@ -157,7 +157,7 @@ type PortfolioAssetTrendChartProps = {
   period: TrendPeriod;
   onPeriodChange: (period: TrendPeriod) => void;
   mode?: 'compact' | 'expanded';
-  onExpand?: () => void;
+  onExpand?: (trigger: HTMLButtonElement) => void;
 };
 
 const TREND_PERIODS = [
@@ -340,7 +340,7 @@ function PortfolioAssetTrendChart({
               type="button"
               className="portfolio-trend-expand"
               aria-label="자산 추이 크게 보기"
-              onClick={onExpand}
+              onClick={(event) => onExpand(event.currentTarget)}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M14 5h5v5M10 19H5v-5M19 5l-6 6M5 19l6-6" />
@@ -518,37 +518,43 @@ type PortfolioTrendDialogProps = Omit<PortfolioAssetTrendChartProps, 'mode' | 'o
 };
 
 function PortfolioTrendDialog({ onClose, ...chartProps }: PortfolioTrendDialogProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
   useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [onClose]);
+    dialogRef.current?.showModal();
+  }, []);
+
+  function closeDialog() {
+    dialogRef.current?.close();
+  }
 
   return (
-    <div className="portfolio-trend-dialog-backdrop" onMouseDown={onClose}>
-      <section
-        className="portfolio-trend-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="expanded-asset-trend-title"
-        onMouseDown={(event) => event.stopPropagation()}
+    <dialog
+      ref={dialogRef}
+      className="portfolio-trend-dialog"
+      aria-labelledby="expanded-asset-trend-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        closeDialog();
+      }}
+      onClose={onClose}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) closeDialog();
+      }}
+    >
+      <button
+        type="button"
+        className="portfolio-trend-dialog-close"
+        aria-label="자산 추이 상세 닫기"
+        autoFocus
+        onClick={closeDialog}
       >
-        <button
-          type="button"
-          className="portfolio-trend-dialog-close"
-          aria-label="자산 추이 상세 닫기"
-          autoFocus
-          onClick={onClose}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m6 6 12 12M18 6 6 18" />
-          </svg>
-        </button>
-        <PortfolioAssetTrendChart {...chartProps} mode="expanded" />
-      </section>
-    </div>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6 6 12 12M18 6 6 18" />
+        </svg>
+      </button>
+      <PortfolioAssetTrendChart {...chartProps} mode="expanded" />
+    </dialog>
   );
 }
 
@@ -590,6 +596,7 @@ export function PortfolioPage() {
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
   const performance = usePortfolioPerformance(trendPeriod, holdings);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
+  const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [expandedContentAssetId, setExpandedContentAssetId] = useState<number | null>(null);
   const [relatedContents, setRelatedContents] = useState<Record<number, StockRelatedContent[]>>({});
   const [relatedContentLoadingAssetId, setRelatedContentLoadingAssetId] = useState<number | null>(
@@ -864,7 +871,10 @@ export function PortfolioPage() {
                     amountsHidden={amountsHidden}
                     period={trendPeriod}
                     onPeriodChange={setTrendPeriod}
-                    onExpand={() => setTrendDialogOpen(true)}
+                    onExpand={(trigger) => {
+                      trendDialogTriggerRef.current = trigger;
+                      setTrendDialogOpen(true);
+                    }}
                   />
                   <section className="portfolio-composition" aria-labelledby="composition-title">
                     <div className="portfolio-dashboard-heading">
@@ -1051,7 +1061,10 @@ export function PortfolioPage() {
           amountsHidden={amountsHidden}
           period={trendPeriod}
           onPeriodChange={setTrendPeriod}
-          onClose={() => setTrendDialogOpen(false)}
+          onClose={() => {
+            setTrendDialogOpen(false);
+            trendDialogTriggerRef.current?.focus();
+          }}
         />
       ) : null}
 

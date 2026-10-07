@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
 import { toPortfolioAnalysisAssets } from '../../src/features/portfolio/portfolioAnalysisAssets';
 import type {
@@ -64,6 +64,23 @@ const calculation = {
 
 let savedHoldings: PortfolioHoldingInput[] = [];
 let savedPerformancePoints: PortfolioPerformancePoint[] = [];
+const originalShowModal = HTMLDialogElement.prototype.showModal;
+const originalClose = HTMLDialogElement.prototype.close;
+
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.setAttribute('open', '');
+  };
+  HTMLDialogElement.prototype.close = function close() {
+    this.removeAttribute('open');
+    this.dispatchEvent(new Event('close'));
+  };
+});
+
+afterAll(() => {
+  HTMLDialogElement.prototype.showModal = originalShowModal;
+  HTMLDialogElement.prototype.close = originalClose;
+});
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -523,9 +540,12 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(view.getByRole('combobox', { name: '자산 추이 기간' }), {
       target: { value: '5Y' },
     });
-    fireEvent.click(view.getByRole('button', { name: '자산 추이 크게 보기' }));
+    const expandButton = view.getByRole('button', { name: '자산 추이 크게 보기' });
+    expandButton.focus();
+    fireEvent.click(expandButton);
 
     const dialog = view.getByRole('dialog', { name: '자산 추이 상세' });
+    expect(dialog).toHaveProperty('open', true);
     expect(
       (
         within(dialog).getByRole('combobox', {
@@ -548,6 +568,19 @@ describe('포트폴리오 화면', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: '자산 추이 상세 닫기' }));
     expect(view.queryByRole('dialog', { name: '자산 추이 상세' })).toBeNull();
+    expect(document.activeElement).toBe(expandButton);
+
+    fireEvent.click(expandButton);
+    const escapeDialog = view.getByRole('dialog', { name: '자산 추이 상세' });
+    fireEvent(escapeDialog, new Event('cancel', { cancelable: true }));
+    expect(view.queryByRole('dialog', { name: '자산 추이 상세' })).toBeNull();
+    expect(document.activeElement).toBe(expandButton);
+
+    fireEvent.click(expandButton);
+    const backdropDialog = view.getByRole('dialog', { name: '자산 추이 상세' });
+    fireEvent.click(backdropDialog);
+    expect(view.queryByRole('dialog', { name: '자산 추이 상세' })).toBeNull();
+    expect(document.activeElement).toBe(expandButton);
   });
 
   it('민감한 금액을 한 번에 숨기고 다시 표시한다', async () => {
