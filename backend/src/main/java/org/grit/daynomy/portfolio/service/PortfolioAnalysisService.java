@@ -1,6 +1,7 @@
 package org.grit.daynomy.portfolio.service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -9,15 +10,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
-import org.grit.daynomy.news.domain.News;
-import org.grit.daynomy.news.domain.NewsStatus;
-import org.grit.daynomy.news.exception.NewsErrorCode;
-import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
+import org.grit.daynomy.portfolio.domain.PortfolioImpactSummary;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
@@ -27,19 +26,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class PortfolioAnalysisService {
 
-  private static final int MAX_ANALYZED_ASSET_COUNT = 3;
-
-  private final NewsRepository newsRepository;
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
 
-  public PortfolioAnalysisResponse analyze(Long newsId, PortfolioAnalysisRequest request) {
+  public PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
     validateDistinctAssets(request.assets());
     validateTotalWeight(request.assets());
-
-    News news =
-        newsRepository
-            .findByIdAndStatus(newsId, NewsStatus.PUBLISHED)
-            .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
 
     if (request.assets().isEmpty()) {
       return PortfolioAnalysisResponse.empty();
@@ -47,17 +38,32 @@ public class PortfolioAnalysisService {
 
     Map<String, BigDecimal> weightByAssetName = createWeightByAssetName(request.assets());
     List<PortfolioAnalysisTarget> targets = createTargets(request.assets());
-    PortfolioAnalysisResult result = portfolioAnalysisAiClient.analyze(news.getContent(), targets);
+    PortfolioAnalysisResult result = portfolioAnalysisAiClient.analyze(targets);
 
     List<PortfolioAssetImpactResponse> impacts =
         result.impacts().stream()
-            .limit(MAX_ANALYZED_ASSET_COUNT)
             .map(
                 impact ->
                     PortfolioAssetImpactResponse.of(
                         impact, weightByAssetName.get(impact.assetName())))
             .toList();
-    return PortfolioAnalysisResponse.of(request.assets().size(), impacts);
+    List<PortfolioAnalysisSourceResponse> sources =
+        result.sources().stream().map(PortfolioAnalysisSourceResponse::from).toList();
+    PortfolioImpactSummary impactSummary =
+        PortfolioImpactSummary.calculate(
+            impacts.stream()
+                .map(
+                    impact ->
+                        new PortfolioImpactSummary.AssetImpact(
+                            impact.weight(), impact.direction(), impact.impactLevel()))
+                .toList());
+    return PortfolioAnalysisResponse.of(
+        request.assets().size(),
+        impactSummary,
+        Instant.now(),
+        result.overallImpact(),
+        impacts,
+        sources);
   }
 
   private void validateDistinctAssets(List<PortfolioAssetRequest> portfolioAssets) {
@@ -96,7 +102,9 @@ public class PortfolioAnalysisService {
 
   private List<PortfolioAnalysisTarget> createTargets(List<PortfolioAssetRequest> portfolioAssets) {
     return portfolioAssets.stream()
-        .map(portfolioAsset -> new PortfolioAnalysisTarget(portfolioAsset.assetName()))
+        .map(
+            portfolioAsset ->
+                new PortfolioAnalysisTarget(portfolioAsset.assetName(), portfolioAsset.weight()))
         .toList();
   }
 }

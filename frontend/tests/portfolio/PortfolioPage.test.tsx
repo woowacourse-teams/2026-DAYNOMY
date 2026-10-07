@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
+import { toPortfolioAnalysisAssets } from '../../src/features/portfolio/portfolioAnalysisAssets';
 import { PORTFOLIO_STORAGE_KEY } from '../../src/features/portfolio/hooks/usePortfolioHoldings';
 import {
   PORTFOLIO_PERFORMANCE_STATE_STORAGE_KEY,
@@ -109,6 +110,50 @@ function mockPortfolioApi() {
         });
       if (url.endsWith('/api/auth/csrf'))
         return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      if (url.endsWith('/api/assets/1/contents'))
+        return jsonResponse({
+          assetId: 1,
+          assetCode: '005930',
+          assetName: '삼성전자',
+          contents: [
+            {
+              id: 10,
+              assetId: 1,
+              sourceType: 'YOUTUBE',
+              title: '삼성전자 분석 영상',
+              url: 'https://youtube.com/watch?v=abc',
+              imageUrl: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
+              createdAt: null,
+            },
+            {
+              id: 11,
+              assetId: 1,
+              sourceType: 'YOUTUBE',
+              title: '삼성전자 두 번째 분석 영상',
+              url: 'https://youtube.com/watch?v=def',
+              imageUrl: 'https://i.ytimg.com/vi/def/hqdefault.jpg',
+              createdAt: null,
+            },
+            {
+              id: 12,
+              assetId: 1,
+              sourceType: 'INTERNAL_NEWS',
+              title: '삼성전자 관련 이슈',
+              url: '/news/12',
+              imageUrl: null,
+              createdAt: null,
+            },
+            ...Array.from({ length: 8 }, (_, index) => ({
+              id: 20 + index,
+              assetId: 1,
+              sourceType: 'YOUTUBE',
+              title: `삼성전자 추가 콘텐츠 ${index + 1}`,
+              url: `https://youtube.com/watch?v=extra-${index + 1}`,
+              imageUrl: null,
+              createdAt: null,
+            })),
+          ],
+        });
       if (url.endsWith('/api/portfolio/calculate')) {
         const request = JSON.parse(String(init?.body)) as {
           holdings: Array<{ assetId: number; quantity: number; averagePurchasePrice: number }>;
@@ -147,10 +192,47 @@ afterEach(() => {
 });
 
 describe('포트폴리오 화면', () => {
+  it('반올림된 비중이 0인 자산을 분석 대상에서 제외한다', () => {
+    const zeroWeightHolding = {
+      ...calculation.holdings[0],
+      assetId: 2,
+      assetCode: '000150',
+      name: '두산',
+      evaluationAmount: 1,
+      weight: 0,
+    };
+
+    expect(
+      toPortfolioAnalysisAssets([{ ...calculation.holdings[0], weight: 99.99 }, zeroWeightHolding]),
+    ).toEqual([{ assetName: '삼성전자', weight: 100 }]);
+    expect(toPortfolioAnalysisAssets([zeroWeightHolding])).toEqual([]);
+  });
+
   it('저장된 자산이 없으면 추가 안내를 표시한다', async () => {
     const view = render(<PortfolioPage />);
     expect(await view.findByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeTruthy();
     expect(view.getByRole('button', { name: /자산 추가/ })).toBeTruthy();
+  });
+
+  it('보유 자산의 소식 버튼을 비활성화한다', async () => {
+    localStorage.setItem(
+      PORTFOLIO_STORAGE_KEY,
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+
+    const view = render(<PortfolioPage />);
+    await view.findAllByText('750,000원');
+    const relatedContentsButton = view.getByRole('button', { name: '소식' });
+    expect(relatedContentsButton).toHaveProperty('disabled', true);
+    fireEvent.click(relatedContentsButton);
+
+    expect(view.queryByRole('complementary', { name: '소식' })).toBeNull();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) => String(input).endsWith('/api/assets/1/contents')),
+    ).toBe(false);
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
@@ -191,6 +273,8 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '수익률 추적' })).toBeTruthy();
     expect(view.queryByRole('heading', { name: '포트폴리오 요약' })).toBeNull();
+    expect(view.getByRole('heading', { name: '포트폴리오 AI 분석' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '분석하기' })).toBeTruthy();
     expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
     expect(localStorage.getItem(PORTFOLIO_STORAGE_KEY)).toContain('005930');
   });

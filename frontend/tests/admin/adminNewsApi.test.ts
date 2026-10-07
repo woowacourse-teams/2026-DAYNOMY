@@ -7,6 +7,7 @@ import {
   isSupportedNewsImage,
   publishAdminNews,
   rejectAdminNews,
+  searchWikimediaImages,
 } from '../../src/features/admin/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -48,6 +49,32 @@ test('관리자 뉴스 목록 API에 상태·카테고리 필터와 1-based page
   assert.equal(new URL(calls[1], 'http://localhost').searchParams.get('q'), '금리 인상');
   assert.equal(page.items[0].status, 'DRAFT');
   assert.equal(page.totalElements, 31);
+});
+
+test('Wikimedia Commons 이미지 검색 API는 라이선스 메타데이터를 반환한다', async () => {
+  let requestedUrl = '';
+  globalThis.fetch = async (input) => {
+    requestedUrl = String(input);
+    return jsonResponse({
+      items: [
+        {
+          title: 'File:Seoul.jpg',
+          thumbnailUrl: 'https://upload.wikimedia.org/thumb.jpg',
+          sourceUrl: 'https://commons.wikimedia.org/wiki/File:Seoul.jpg',
+          author: 'Jane Doe',
+          license: 'CC BY 4.0',
+          licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+          width: 1200,
+          height: 800,
+        },
+      ],
+    });
+  };
+
+  const candidates = await searchWikimediaImages(' Seoul skyline ');
+
+  assert.equal(requestedUrl, '/api/admin/news/image-search?keyword=Seoul+skyline');
+  assert.equal(candidates[0]?.license, 'CC BY 4.0');
 });
 
 test('관리자 뉴스 등록 API는 CSRF 토큰과 JSON request multipart 파트를 함께 보낸다', async () => {

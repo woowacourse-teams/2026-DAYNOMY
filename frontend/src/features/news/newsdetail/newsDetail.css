@@ -139,6 +139,20 @@ body {
   object-position: center;
 }
 
+.news-image-credit {
+  margin-top: 8px;
+  color: #8b94a6;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.news-image-credit a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .section {
   margin-top: 72px;
 }

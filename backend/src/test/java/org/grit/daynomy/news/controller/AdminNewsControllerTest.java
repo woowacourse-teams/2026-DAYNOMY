@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.ImageSourceInfo;
 import org.grit.daynomy.news.domain.News;
@@ -28,8 +29,10 @@ import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
 import org.grit.daynomy.news.dto.ImageSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceResponse;
+import org.grit.daynomy.news.dto.WikimediaImageCandidateResponse;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.grit.daynomy.news.service.NewsGenerationService;
+import org.grit.daynomy.search.domain.NewsSearchSort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +62,33 @@ class AdminNewsControllerTest {
 
   @MockitoBean private NewsGenerationService newsGenerationService;
 
+  @MockitoBean private AssetContentService assetContentService;
+
+  @Test
+  @DisplayName("관리자 Wikimedia Commons 이미지 검색 API는 후보 목록을 반환한다")
+  void searchWikimediaImagesReturnsCandidates() throws Exception {
+    given(adminNewsService.searchWikimediaImages("Seoul"))
+        .willReturn(
+            java.util.List.of(
+                new WikimediaImageCandidateResponse(
+                    "File:Seoul.jpg",
+                    "https://upload.wikimedia.org/thumb.jpg",
+                    "https://commons.wikimedia.org/wiki/File:Seoul.jpg",
+                    "Jane Doe",
+                    "CC BY 4.0",
+                    "https://creativecommons.org/licenses/by/4.0/",
+                    1200,
+                    800)));
+
+    mockMvc
+        .perform(get("/api/admin/news/image-search").param("keyword", "Seoul"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].title").value("File:Seoul.jpg"))
+        .andExpect(jsonPath("$.items[0].license").value("CC BY 4.0"));
+
+    then(adminNewsService).should().searchWikimediaImages("Seoul");
+  }
+
   @Test
   @DisplayName("관리자 뉴스 등록 API는 초안 뉴스를 생성하고 201을 반환한다")
   void createNewsReturnsCreatedDraft() throws Exception {
@@ -67,7 +97,7 @@ class AdminNewsControllerTest {
     willReturn("뉴스 제목").given(news).getTitle();
     willReturn("뉴스 본문").given(news).getContent();
     willReturn("https://example.com/image.png").given(news).getImageUrl();
-    willReturn(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example"))
+    willReturn(new ImageSourceInfo("Unsplash", "https://unsplash.com/photos/example", "", "", ""))
         .given(news)
         .getImageSource();
     willReturn(
@@ -250,7 +280,7 @@ class AdminNewsControllerTest {
   @Test
   @DisplayName("관리자 뉴스 목록 조회 API는 페이지와 상태를 서비스에 전달한다")
   void getNewsPageReturnsAdminNews() throws Exception {
-    given(adminNewsService.getNewsPage(1, 15, NewsStatus.DRAFT, null, null))
+    given(adminNewsService.getNewsPage(1, 15, NewsStatus.DRAFT, null, null, NewsSearchSort.LATEST))
         .willReturn(
             new AdminNewsPageResponse(
                 java.util.List.of(
@@ -279,19 +309,24 @@ class AdminNewsControllerTest {
         .andExpect(jsonPath("$.page").value(1))
         .andExpect(jsonPath("$.totalElements").value(1));
 
-    then(adminNewsService).should().getNewsPage(1, 15, NewsStatus.DRAFT, null, null);
+    then(adminNewsService)
+        .should()
+        .getNewsPage(1, 15, NewsStatus.DRAFT, null, null, NewsSearchSort.LATEST);
   }
 
   @Test
   @DisplayName("관리자 뉴스 목록 API는 검색어와 필터를 서비스에 전달한다")
   void getNewsPagePassesSearchKeyword() throws Exception {
-    given(adminNewsService.getNewsPage(2, 10, NewsStatus.REJECTED, Category.STOCK, "금리"))
+    given(
+            adminNewsService.getNewsPage(
+                2, 10, NewsStatus.REJECTED, Category.STOCK, "금리 인하", NewsSearchSort.RELEVANCE))
         .willReturn(new AdminNewsPageResponse(java.util.List.of(), 2, 10, 2, 11, false));
 
     mockMvc
         .perform(
             get("/api/admin/news")
-                .param("q", "금리")
+                .param("q", "금리 인하")
+                .param("sort", "RELEVANCE")
                 .param("status", "REJECTED")
                 .param("category", "STOCK")
                 .param("page", "2")
@@ -300,7 +335,22 @@ class AdminNewsControllerTest {
         .andExpect(jsonPath("$.items").isEmpty())
         .andExpect(jsonPath("$.page").value(2));
 
-    then(adminNewsService).should().getNewsPage(2, 10, NewsStatus.REJECTED, Category.STOCK, "금리");
+    then(adminNewsService)
+        .should()
+        .getNewsPage(2, 10, NewsStatus.REJECTED, Category.STOCK, "금리 인하", NewsSearchSort.RELEVANCE);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 검색은 지원하지 않는 정렬을 공통 오류로 반환한다")
+  void getNewsPageRejectsInvalidSort() throws Exception {
+    mockMvc
+        .perform(get("/api/admin/news").param("q", "금리").param("sort", "POPULAR"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("sort"))
+        .andExpect(jsonPath("$.errors[0].reason").value("지원하지 않는 값입니다."));
+
+    verifyNoInteractions(adminNewsService);
   }
 
   @Test
@@ -392,7 +442,7 @@ class AdminNewsControllerTest {
     willReturn("수정 제목").given(news).getTitle();
     willReturn("수정 본문").given(news).getContent();
     willReturn("new-image.png").given(news).getImageUrl();
-    willReturn(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example"))
+    willReturn(new ImageSourceInfo("Pexels", "https://pexels.com/photo/example", "", "", ""))
         .given(news)
         .getImageSource();
     willReturn(Category.ETF).given(news).getCategory();

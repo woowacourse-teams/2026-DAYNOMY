@@ -5,6 +5,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.ImageSourceInfo;
@@ -20,11 +22,38 @@ public record AdminNewsCreateRequest(
         List<@NotNull NewsSourceRequest> sources,
     @Schema(description = "뉴스 카테고리", example = "STOCK") @NotNull(message = "카테고리는 필수입니다.")
         Category category,
-    @Schema(description = "뉴스 이미지 출처") @Valid ImageSourceRequest imageSource) {
+    @Schema(description = "뉴스 이미지 출처") @Valid ImageSourceRequest imageSource,
+    @Schema(description = "Wikimedia Commons 선택 이미지") @Valid
+        WikimediaImageSelectionRequest imageSelection,
+    @Schema(description = "관련 종목 ID 목록") @Size(max = 20, message = "관련 종목은 20개 이하로 선택해주세요.")
+        List<@NotNull @Positive Long> assetIds) {
+
+  public AdminNewsCreateRequest {
+    assetIds = assetIds == null ? List.of() : List.copyOf(assetIds);
+  }
 
   public AdminNewsCreateRequest(
       String title, String content, List<NewsSourceRequest> sources, Category category) {
-    this(title, content, sources, category, null);
+    this(title, content, sources, category, null, null, List.of());
+  }
+
+  public AdminNewsCreateRequest(
+      String title,
+      String content,
+      List<NewsSourceRequest> sources,
+      Category category,
+      ImageSourceRequest imageSource) {
+    this(title, content, sources, category, imageSource, null, List.of());
+  }
+
+  public AdminNewsCreateRequest(
+      String title,
+      String content,
+      List<NewsSourceRequest> sources,
+      Category category,
+      ImageSourceRequest imageSource,
+      WikimediaImageSelectionRequest imageSelection) {
+    this(title, content, sources, category, imageSource, imageSelection, List.of());
   }
 
   public List<NewsSourceInfo> sourceInfos() {

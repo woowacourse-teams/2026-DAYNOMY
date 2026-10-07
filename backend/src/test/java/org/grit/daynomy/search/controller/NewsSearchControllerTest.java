@@ -13,6 +13,7 @@ import java.util.List;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.dto.NewsListItemResponse;
+import org.grit.daynomy.search.domain.NewsSearchSort;
 import org.grit.daynomy.search.dto.NewsSearchResponse;
 import org.grit.daynomy.search.service.NewsSearchService;
 import org.junit.jupiter.api.DisplayName;
@@ -44,7 +45,9 @@ class NewsSearchControllerTest {
   @Test
   @DisplayName("뉴스 검색 API는 검색 조건을 서비스에 전달하고 페이지 응답을 반환한다")
   void searchNewsWithCategory() throws Exception {
-    given(newsSearchService.search(eq("금리"), eq(Category.ETF), eq(1), eq(20)))
+    given(
+            newsSearchService.search(
+                eq("금리"), eq(Category.ETF), eq(1), eq(20), eq(NewsSearchSort.LATEST)))
         .willReturn(
             new NewsSearchResponse(
                 List.of(
@@ -67,13 +70,13 @@ class NewsSearchControllerTest {
         .andExpect(jsonPath("$.page").value(1))
         .andExpect(jsonPath("$.size").value(20));
 
-    then(newsSearchService).should().search("금리", Category.ETF, 1, 20);
+    then(newsSearchService).should().search("금리", Category.ETF, 1, 20, NewsSearchSort.LATEST);
   }
 
   @Test
   @DisplayName("뉴스 검색 API는 검색 결과가 없으면 빈 페이지를 반환한다")
   void searchNewsReturnsEmptyPage() throws Exception {
-    given(newsSearchService.search(eq("금리"), eq(null), eq(1), eq(20)))
+    given(newsSearchService.search(eq("금리"), eq(null), eq(1), eq(20), eq(NewsSearchSort.LATEST)))
         .willReturn(new NewsSearchResponse(List.of(), 1, 20, 0, 0));
 
     mockMvc
@@ -83,7 +86,33 @@ class NewsSearchControllerTest {
         .andExpect(jsonPath("$.totalElements").value(0))
         .andExpect(jsonPath("$.totalPages").value(0));
 
-    then(newsSearchService).should().search("금리", null, 1, 20);
+    then(newsSearchService).should().search("금리", null, 1, 20, NewsSearchSort.LATEST);
+  }
+
+  @Test
+  @DisplayName("뉴스 검색 API는 관련도 정렬 조건을 서비스에 전달한다")
+  void searchNewsByRelevance() throws Exception {
+    given(newsSearchService.search("금리 인하", null, 1, 20, NewsSearchSort.RELEVANCE))
+        .willReturn(new NewsSearchResponse(List.of(), 1, 20, 0, 0));
+
+    mockMvc
+        .perform(get("/api/search/news").param("q", "금리 인하").param("sort", "RELEVANCE"))
+        .andExpect(status().isOk());
+
+    then(newsSearchService).should().search("금리 인하", null, 1, 20, NewsSearchSort.RELEVANCE);
+  }
+
+  @Test
+  @DisplayName("뉴스 검색 API는 지원하지 않는 정렬 조건을 공통 오류로 반환한다")
+  void searchNewsRejectsUnknownSort() throws Exception {
+    mockMvc
+        .perform(get("/api/search/news").param("q", "금리").param("sort", "POPULAR"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("sort"))
+        .andExpect(jsonPath("$.errors[0].reason").value("지원하지 않는 값입니다."));
+
+    verifyNoInteractions(newsSearchService);
   }
 
   @Test

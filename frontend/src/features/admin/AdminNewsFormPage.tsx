@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { ADMIN_NEWS_CATEGORIES, CATEGORY_LABELS } from './constants';
-import { createAdminNews, getAdminNewsDetail, isSupportedNewsImage, updateAdminNews } from './api';
-import type { AdminNewsFormValues } from './types';
+import {
+  createAdminNews,
+  getAdminNewsDetail,
+  isSupportedNewsImage,
+  searchWikimediaImages,
+  updateAdminNews,
+} from './api';
+import { searchStocks } from '../portfolio/api';
+import type { StockSearchItem } from '../portfolio/types';
+import type { AdminNewsFormValues, AdminWikimediaImageCandidate } from './types';
 import './admin.css';
 
 const initialValues: AdminNewsFormValues = {
@@ -11,6 +19,8 @@ const initialValues: AdminNewsFormValues = {
   content: '',
   sources: [{ name: '', url: '' }],
   category: '',
+  imageSelection: null,
+  assetIds: [],
 };
 
 type FormErrors = Partial<Record<'title' | 'content' | 'category' | 'sources' | 'image', string>>;
@@ -68,12 +78,37 @@ export function AdminNewsFormPage() {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [imageInputKey, setImageInputKey] = useState(0);
+  const [imageKeyword, setImageKeyword] = useState('');
+  const [imageCandidates, setImageCandidates] = useState<AdminWikimediaImageCandidate[]>([]);
+  const [selectedImageCandidate, setSelectedImageCandidate] =
+    useState<AdminWikimediaImageCandidate | null>(null);
+  const [imageSearchStatus, setImageSearchStatus] = useState<
+    'idle' | 'loading' | 'success' | 'error'
+  >('idle');
+  const [imageSearchError, setImageSearchError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [sourceErrors, setSourceErrors] = useState<SourceErrors>([]);
   const [loading, setLoading] = useState(isEditing);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [detailLoadError, setDetailLoadError] = useState<string | null>(null);
+  const [assetSearchKeyword, setAssetSearchKeyword] = useState('');
+  const [assetSearchResults, setAssetSearchResults] = useState<StockSearchItem[]>([]);
+  const [selectedAssets, setSelectedAssets] = useState<StockSearchItem[]>([]);
+  const [assetSearchLoading, setAssetSearchLoading] = useState(false);
+  const [assetSearchError, setAssetSearchError] = useState<string | null>(null);
+  const imageSearchRequestId = useRef(0);
+  const imageSearchController = useRef<AbortController | null>(null);
+  const assetSearchRequestId = useRef(0);
+  const assetSearchController = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      imageSearchController.current?.abort();
+      assetSearchController.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isEditing || editingId === null) return;
@@ -89,7 +124,10 @@ export function AdminNewsFormPage() {
           content: news.content,
           sources: news.sources.length > 0 ? news.sources : [{ name: '', url: '' }],
           category: news.category,
+          imageSelection: null,
+          assetIds: (news.relatedAssets ?? []).map((asset) => asset.assetId),
         });
+        setSelectedAssets(news.relatedAssets ?? []);
         setExistingImageUrl(news.imageUrl);
       })
       .catch((error) => {
@@ -116,13 +154,67 @@ export function AdminNewsFormPage() {
   }, [image]);
 
   const previewSource = useMemo(
-    () => imagePreview ?? existingImageUrl,
-    [existingImageUrl, imagePreview],
+    () => imagePreview ?? selectedImageCandidate?.thumbnailUrl ?? existingImageUrl,
+    [existingImageUrl, imagePreview, selectedImageCandidate],
   );
 
-  function updateField(field: Exclude<keyof AdminNewsFormValues, 'sources'>, value: string) {
+  function updateField(
+    field: Exclude<keyof AdminNewsFormValues, 'sources' | 'assetIds'>,
+    value: string,
+  ) {
     setValues((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
+  }
+
+  async function searchRelatedAssets() {
+    const keyword = assetSearchKeyword.trim();
+    const requestId = assetSearchRequestId.current + 1;
+    assetSearchRequestId.current = requestId;
+    assetSearchController.current?.abort();
+    assetSearchController.current = null;
+
+    if (!keyword) {
+      setAssetSearchError('종목명 또는 종목코드를 입력해 주세요.');
+      setAssetSearchResults([]);
+      setAssetSearchLoading(false);
+      return;
+    }
+
+    setAssetSearchLoading(true);
+    setAssetSearchError(null);
+    const controller = new AbortController();
+    assetSearchController.current = controller;
+    try {
+      const results = await searchStocks(keyword, controller.signal);
+      if (requestId !== assetSearchRequestId.current) return;
+      setAssetSearchResults(results);
+    } catch (error) {
+      if (controller.signal.aborted || requestId !== assetSearchRequestId.current) return;
+      setAssetSearchResults([]);
+      setAssetSearchError(getErrorMessage(error, '관련 종목을 검색하지 못했습니다.'));
+    } finally {
+      if (requestId === assetSearchRequestId.current) {
+        setAssetSearchLoading(false);
+        assetSearchController.current = null;
+      }
+    }
+  }
+
+  function addRelatedAsset(asset: StockSearchItem) {
+    if (selectedAssets.some((selected) => selected.assetId === asset.assetId)) return;
+    setSelectedAssets((current) => [...current, asset]);
+    setValues((current) => ({
+      ...current,
+      assetIds: [...(current.assetIds ?? []), asset.assetId],
+    }));
+  }
+
+  function removeRelatedAsset(assetId: number) {
+    setSelectedAssets((current) => current.filter((asset) => asset.assetId !== assetId));
+    setValues((current) => ({
+      ...current,
+      assetIds: (current.assetIds ?? []).filter((selectedId) => selectedId !== assetId),
+    }));
   }
 
   function updateSource(index: number, field: 'name' | 'url', value: string) {
@@ -159,8 +251,61 @@ export function AdminNewsFormPage() {
   }
 
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
-    const nextImage = event.target.files?.[0] ?? null;
+    const nextImage = event.target.files?.[0];
+    if (!nextImage) return;
+
     setImage(nextImage);
+    setSelectedImageCandidate(null);
+    setValues((current) => ({ ...current, imageSelection: null }));
+    setErrors((current) => ({ ...current, image: undefined }));
+  }
+
+  async function handleWikimediaSearch() {
+    const keyword = imageKeyword.trim();
+    const requestId = imageSearchRequestId.current + 1;
+    imageSearchRequestId.current = requestId;
+    imageSearchController.current?.abort();
+    imageSearchController.current = null;
+
+    if (keyword.length < 2) {
+      setImageSearchStatus('error');
+      setImageSearchError('검색어를 두 글자 이상 입력해 주세요.');
+      setImageCandidates([]);
+      return;
+    }
+
+    setImageSearchStatus('loading');
+    setImageSearchError(null);
+    const controller = new AbortController();
+    imageSearchController.current = controller;
+    try {
+      const candidates = await searchWikimediaImages(keyword, controller.signal);
+      if (requestId !== imageSearchRequestId.current) return;
+      setImageCandidates(candidates);
+      setImageSearchStatus('success');
+      if (candidates.length === 0) {
+        setImageSearchError('사용할 수 있는 이미지가 없습니다. 다른 검색어를 입력해 주세요.');
+      }
+    } catch (error) {
+      if (controller.signal.aborted || requestId !== imageSearchRequestId.current) return;
+      setImageCandidates([]);
+      setImageSearchStatus('error');
+      setImageSearchError(getErrorMessage(error, 'Wikimedia Commons 검색에 실패했습니다.'));
+    } finally {
+      if (requestId === imageSearchRequestId.current) {
+        imageSearchController.current = null;
+      }
+    }
+  }
+
+  function selectWikimediaImage(candidate: AdminWikimediaImageCandidate) {
+    setImage(null);
+    setImageInputKey((current) => current + 1);
+    setSelectedImageCandidate(candidate);
+    setValues((current) => ({
+      ...current,
+      imageSelection: { title: candidate.title },
+    }));
     setErrors((current) => ({ ...current, image: undefined }));
   }
 
@@ -309,6 +454,82 @@ export function AdminNewsFormPage() {
             ) : null}
           </label>
 
+          <fieldset className="admin-related-assets">
+            <legend>관련 종목</legend>
+            <p className="admin-field-hint">
+              발행 후 해당 종목의 정보 허브에 이 뉴스가 자동으로 표시됩니다.
+            </p>
+            <div className="admin-related-asset-search">
+              <label className="admin-field">
+                <span className="sr-only">관련 종목 검색</span>
+                <input
+                  value={assetSearchKeyword}
+                  onChange={(event) => setAssetSearchKeyword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void searchRelatedAssets();
+                    }
+                  }}
+                  placeholder="삼성전자 또는 005930"
+                />
+              </label>
+              <button
+                className="admin-secondary-button"
+                type="button"
+                onClick={() => void searchRelatedAssets()}
+                disabled={assetSearchLoading}
+              >
+                {assetSearchLoading ? '종목 검색 중…' : '종목 검색'}
+              </button>
+            </div>
+            {assetSearchError ? (
+              <small className="admin-field-error">{assetSearchError}</small>
+            ) : null}
+            {assetSearchResults.length > 0 ? (
+              <ul className="admin-related-asset-results">
+                {assetSearchResults.map((asset) => {
+                  const selected = selectedAssets.some(
+                    (selectedAsset) => selectedAsset.assetId === asset.assetId,
+                  );
+                  return (
+                    <li key={asset.assetId}>
+                      <button
+                        type="button"
+                        onClick={() => addRelatedAsset(asset)}
+                        disabled={selected || selectedAssets.length >= 20}
+                      >
+                        <strong>{asset.name}</strong>
+                        <span>
+                          {asset.assetCode} · {asset.market}
+                        </span>
+                        <em>{selected ? '선택됨' : '추가'}</em>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            {selectedAssets.length > 0 ? (
+              <ul className="admin-selected-assets" aria-label="선택한 관련 종목">
+                {selectedAssets.map((asset) => (
+                  <li key={asset.assetId}>
+                    <span>
+                      {asset.name} · {asset.assetCode}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeRelatedAsset(asset.assetId)}
+                      aria-label={`${asset.name} 관련 종목 선택 해제`}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </fieldset>
+
           <fieldset className="admin-sources">
             <legend>
               출처 <em>*</em>
@@ -394,6 +615,7 @@ export function AdminNewsFormPage() {
                 <span>이미지를 선택해 주세요</span>
               )}
               <input
+                key={imageInputKey}
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={handleImageChange}
@@ -402,6 +624,74 @@ export function AdminNewsFormPage() {
             <small className="admin-field-hint">JPG, PNG, WEBP · 최대 5MB</small>
             {errors.image ? <small className="admin-field-error">{errors.image}</small> : null}
           </div>
+
+          <section className="admin-image-search" aria-labelledby="wikimedia-image-search-title">
+            <div>
+              <strong id="wikimedia-image-search-title">Wikimedia Commons에서 찾기</strong>
+              <p>상업적 이용이 가능한 CC0·Public domain·CC BY 이미지만 검색합니다.</p>
+            </div>
+            <div className="admin-image-search-controls">
+              <label className="admin-field">
+                <span className="sr-only">이미지 검색어</span>
+                <input
+                  value={imageKeyword}
+                  onChange={(event) => setImageKeyword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void handleWikimediaSearch();
+                    }
+                  }}
+                  placeholder="예: Seoul skyline, semiconductor factory"
+                />
+              </label>
+              <button
+                className="admin-secondary-button"
+                type="button"
+                onClick={() => void handleWikimediaSearch()}
+                disabled={imageSearchStatus === 'loading'}
+              >
+                {imageSearchStatus === 'loading' ? '검색 중…' : '검색'}
+              </button>
+            </div>
+            {imageSearchStatus === 'loading' ? (
+              <p className="admin-field-hint" role="status">
+                이미지를 검색하고 있습니다.
+              </p>
+            ) : null}
+            {imageSearchError ? (
+              <p className="admin-field-error" role="alert">
+                {imageSearchError}
+              </p>
+            ) : null}
+            {imageCandidates.length > 0 ? (
+              <div className="admin-image-candidates" aria-label="Wikimedia Commons 검색 결과">
+                {imageCandidates.map((candidate) => (
+                  <button
+                    className={`admin-image-candidate${
+                      selectedImageCandidate?.title === candidate.title ? ' is-selected' : ''
+                    }`}
+                    type="button"
+                    key={candidate.title}
+                    aria-label={`Wikimedia 이미지 ${candidate.title} · ${
+                      candidate.author || '저작자 정보 없음'
+                    } · ${candidate.license}`}
+                    onClick={() => selectWikimediaImage(candidate)}
+                  >
+                    <img src={candidate.thumbnailUrl} alt="" />
+                    <span>{candidate.author || '저작자 정보 없음'}</span>
+                    <small>{candidate.license}</small>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {selectedImageCandidate ? (
+              <p className="admin-field-hint">
+                선택됨: {selectedImageCandidate.author || selectedImageCandidate.title} ·{' '}
+                {selectedImageCandidate.license}
+              </p>
+            ) : null}
+          </section>
 
           <div className="admin-form-actions">
             <Link className="admin-secondary-button" to="/admin/news">

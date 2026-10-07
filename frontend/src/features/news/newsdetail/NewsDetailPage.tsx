@@ -4,15 +4,9 @@ import defaultNewsImage from '../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
-import { calculatePortfolio } from '../../portfolio/api.ts';
-import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
-import { usePortfolioHoldings } from '../../portfolio/hooks/usePortfolioHoldings.ts';
-import type { PortfolioAsset } from '../../portfolio/types.ts';
-import type { MarketAnalysisState, NewsDetailPayload } from './types.ts';
+import type { MarketAnalysisState, NewsDetailPayload, NewsImageSource } from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
-
-type PortfolioAssetsStatus = 'loading' | 'ready' | 'error';
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -47,23 +41,37 @@ function formatDetailDate(value?: string) {
   return `${year}.${month}.${day}`;
 }
 
-function toPortfolioAssets(
-  holdings: Awaited<ReturnType<typeof calculatePortfolio>>['holdings'],
-): PortfolioAsset[] {
-  if (holdings.length === 0) return [];
+function NewsImageCredit({ imageSource }: { imageSource?: NewsImageSource }) {
+  if (!imageSource || imageSource.type === 'NONE') {
+    return null;
+  }
 
-  const assets = holdings.map(({ name, weight }) => ({ assetName: name, weight }));
-  const totalWeight = assets.reduce((sum, asset) => sum + asset.weight, 0);
-  const adjustmentIndex = assets.reduce(
-    (largestIndex, asset, index) =>
-      asset.weight > assets[largestIndex].weight ? index : largestIndex,
-    0,
-  );
+  if (imageSource.type === 'AI_GENERATED') {
+    return <p className="news-image-credit">AI로 생성된 이미지입니다.</p>;
+  }
 
-  return assets.map((asset, index) =>
-    index === adjustmentIndex
-      ? { ...asset, weight: Number((asset.weight + 100 - totalWeight).toFixed(2)) }
-      : asset,
+  if (!imageSource.name || !imageSource.url) {
+    return null;
+  }
+
+  return (
+    <p className="news-image-credit">
+      이미지:{' '}
+      <a href={imageSource.url} target="_blank" rel="noopener noreferrer">
+        {imageSource.name}
+      </a>
+      {imageSource.author ? ` · ${imageSource.author}` : null}
+      {imageSource.license ? ' · ' : null}
+      {imageSource.license ? (
+        imageSource.licenseUrl ? (
+          <a href={imageSource.licenseUrl} target="_blank" rel="noopener noreferrer">
+            {imageSource.license}
+          </a>
+        ) : (
+          imageSource.license
+        )
+      ) : null}
+    </p>
   );
 }
 
@@ -94,13 +102,8 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnal
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
   const navigate = useNavigate();
-  const { holdings } = usePortfolioHoldings();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
-  const [portfolioAssets, setPortfolioAssets] = useState<PortfolioAsset[]>([]);
-  const [portfolioAssetsStatus, setPortfolioAssetsStatus] = useState<PortfolioAssetsStatus>(
-    holdings.length > 0 ? 'loading' : 'ready',
-  );
   const goBack = () => {
     navigate('/news');
   };
@@ -128,33 +131,6 @@ export function NewsDetailPage() {
       ignore = true;
     };
   }, [newsId]);
-
-  useEffect(() => {
-    if (holdings.length === 0) {
-      setPortfolioAssets([]);
-      setPortfolioAssetsStatus('ready');
-      return;
-    }
-
-    const controller = new AbortController();
-    setPortfolioAssets([]);
-    setPortfolioAssetsStatus('loading');
-
-    calculatePortfolio(holdings, controller.signal)
-      .then((calculation) => {
-        setPortfolioAssets(toPortfolioAssets(calculation.holdings));
-        setPortfolioAssetsStatus('ready');
-      })
-      .catch(() => {
-        if (controller.signal.aborted) return;
-        setPortfolioAssets([]);
-        setPortfolioAssetsStatus('error');
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [holdings]);
 
   if (error) {
     return (
@@ -219,6 +195,7 @@ export function NewsDetailPage() {
         </time>
 
         <img className="news-image" src={imageUrl} alt="" />
+        <NewsImageCredit imageSource={news.imageSource} />
 
         <section className="body-section" aria-label="뉴스 본문">
           <div className="body-copy">
@@ -229,11 +206,6 @@ export function NewsDetailPage() {
         <div className="analysis-area">
           <div className="analysis-content">
             <DetailAnalysisSections marketAnalysis={marketAnalysis} />
-            <PortfolioAnalysis
-              newsId={newsId}
-              assets={portfolioAssets}
-              portfolioStatus={portfolioAssetsStatus}
-            />
           </div>
         </div>
       </article>
