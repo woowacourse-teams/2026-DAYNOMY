@@ -47,22 +47,17 @@ public class SharedPortfolioService {
   public PortfolioResponse importHoldings(Long memberId, ImportRequest request) {
     SharedPortfolio portfolio = getForUpdate(memberId);
     HashSet<Long> seen = new HashSet<>();
-    // 한 종목이라도 충돌하면 전체를 실패시켜 부분 가져오기를 방지한다.
+    // 중간에 검증이 실패해도 트랜잭션이 앞서 저장한 자산과 이력까지 롤백한다.
     for (HoldingInput input : request.holdings()) {
       if (!seen.add(input.assetId()))
         throw new BusinessException(LeagueErrorCode.DUPLICATE_SHARED_ASSET);
-      if (!request.overwriteExisting()
-          && holdingRepository
-              .findByPortfolioIdAndAssetId(portfolio.getId(), input.assetId())
-              .isPresent()) {
-        throw new BusinessException(LeagueErrorCode.SHARED_IMPORT_CONFLICT);
-      }
-    }
-    for (HoldingInput input : request.holdings()) {
       SharedHolding holding =
           holdingRepository
               .findByPortfolioIdAndAssetId(portfolio.getId(), input.assetId())
               .orElse(null);
+      if (holding != null && !request.overwriteExisting()) {
+        throw new BusinessException(LeagueErrorCode.SHARED_IMPORT_CONFLICT);
+      }
       ChangeType changeType = holding == null ? ChangeType.ADDED : ChangeType.UPDATED;
       if (holding == null) {
         holding =
