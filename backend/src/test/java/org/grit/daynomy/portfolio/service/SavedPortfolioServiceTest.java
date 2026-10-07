@@ -26,6 +26,9 @@ import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -67,25 +70,44 @@ class SavedPortfolioServiceTest {
         .isEqualTo(PortfolioHoldingChangeType.ADDED);
   }
 
-  @Test
-  void updateHoldingRecordsUpdatedHistory() {
+  @ParameterizedTest
+  @CsvSource({"5,10000", "3,11000", "5,11000"})
+  void updateHoldingRecordsUpdatedHistory(long quantity, String price) {
     Portfolio portfolio = mock(Portfolio.class);
     given(portfolio.getId()).willReturn(10L);
     Asset asset = asset();
-    PortfolioHolding holding = mock(PortfolioHolding.class);
-    given(holding.getAsset()).willReturn(asset);
-    given(holding.getQuantity()).willReturn(5L);
-    given(holding.getAveragePurchasePrice()).willReturn(new BigDecimal("11000"));
+    PortfolioHolding holding = new PortfolioHolding(portfolio, asset, 3L, new BigDecimal("10000"));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
 
-    service.update(1L, 2L, new SavedPortfolioHoldingUpdateRequest(5L, new BigDecimal("11000")));
+    service.update(1L, 2L, new SavedPortfolioHoldingUpdateRequest(quantity, new BigDecimal(price)));
 
     ArgumentCaptor<PortfolioHoldingHistory> historyCaptor =
         ArgumentCaptor.forClass(PortfolioHoldingHistory.class);
     then(historyRepository).should().save(historyCaptor.capture());
     assertThat(historyCaptor.getValue().getChangeType())
         .isEqualTo(PortfolioHoldingChangeType.UPDATED);
+    assertThat(historyCaptor.getValue().getQuantity()).isEqualTo(quantity);
+    assertThat(historyCaptor.getValue().getAveragePurchasePrice()).isEqualByComparingTo(price);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"10000", "10000.00"})
+  void unchangedHoldingDoesNotCreateHistory(String price) {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    PortfolioHolding holding =
+        new PortfolioHolding(portfolio, asset(), 3L, new BigDecimal("10000"));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
+
+    assertThat(
+            service
+                .update(1L, 2L, new SavedPortfolioHoldingUpdateRequest(3L, new BigDecimal(price)))
+                .quantity())
+        .isEqualTo(3L);
+
+    then(historyRepository).shouldHaveNoInteractions();
   }
 
   @Test
@@ -121,7 +143,7 @@ class SavedPortfolioServiceTest {
 
     then(historyRepository)
         .should()
-        .findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+        .findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDescIdDesc(
             10L,
             date.atStartOfDay(java.time.ZoneId.of("Asia/Seoul")).toInstant(),
             date.plusDays(1).atStartOfDay(java.time.ZoneId.of("Asia/Seoul")).toInstant());

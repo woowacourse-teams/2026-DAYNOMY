@@ -46,16 +46,11 @@ public class PortfolioHoldingHistory extends BaseEntity {
   @Column(name = "average_purchase_price", nullable = false, precision = 19, scale = 2)
   private BigDecimal averagePurchasePrice;
 
-  public PortfolioHoldingHistory(
-      Portfolio portfolio,
-      Asset asset,
-      PortfolioHoldingChangeType changeType,
-      long quantity,
-      BigDecimal averagePurchasePrice) {
-    this.portfolio = portfolio;
-    this.asset = asset;
+  public PortfolioHoldingHistory(PortfolioHolding holding, PortfolioHoldingChangeType changeType) {
+    this.portfolio = holding.getPortfolio();
+    this.asset = holding.getAsset();
     this.changeType = changeType;
-    this.quantity = quantity;
-    this.averagePurchasePrice = averagePurchasePrice;
+    this.quantity = holding.getQuantity();
+    this.averagePurchasePrice = holding.getAveragePurchasePrice();
   }
 }

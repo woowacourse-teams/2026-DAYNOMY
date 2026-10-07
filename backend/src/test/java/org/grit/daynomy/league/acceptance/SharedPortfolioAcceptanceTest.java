@@ -31,6 +31,7 @@ import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.member.service.MemberService;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
+import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,7 @@ class SharedPortfolioAcceptanceTest {
   @Autowired private StockDailyPriceRepository prices;
   @Autowired private PortfolioRepository originals;
   @Autowired private PortfolioHoldingRepository originalHoldings;
+  @Autowired private PortfolioHoldingHistoryRepository originalHistory;
   @Autowired private JwtTokenProvider tokens;
   @Autowired private TokenService tokenService;
   @Autowired private JdbcTemplate jdbc;
@@ -194,6 +196,81 @@ class SharedPortfolioAcceptanceTest {
         originalHoldings.findByPortfolioIdAndAssetId(original.getId(), asset.getId()).orElseThrow();
     assertThat(preserved.getQuantity()).isEqualTo(10);
     assertThat(preserved.getAveragePurchasePrice()).isEqualByComparingTo("70000");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id ="
+                    + " (SELECT id FROM shared_portfolios WHERE member_id = ?)",
+                Integer.class,
+                owner.getId()))
+        .isEqualTo(1);
+
+    client(owner)
+        .body(request.replace("false", "true").replace("70000", "70000.00"))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id ="
+                    + " (SELECT id FROM shared_portfolios WHERE member_id = ?)",
+                Integer.class,
+                owner.getId()))
+        .isEqualTo(1);
+
+    client(owner)
+        .body(request.replace("false", "true").replace("\"quantity\":10", "\"quantity\":20"))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200)
+        .body("holdings[0].quantity", equalTo(20));
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id ="
+                    + " (SELECT id FROM shared_portfolios WHERE member_id = ?)",
+                Integer.class,
+                owner.getId()))
+        .isEqualTo(2);
+    assertThat(
+            originalHoldings
+                .findByPortfolioIdAndAssetId(original.getId(), asset.getId())
+                .orElseThrow()
+                .getQuantity())
+        .isEqualTo(10);
+  }
+
+  @Test
+  void originalHistoriesUseIdToOrderChangesAtTheSameInstant() {
+    Member owner = member();
+    Asset asset = asset();
+    Portfolio original = originals.save(Portfolio.create(owner));
+    Instant changedAt = Instant.now();
+    for (long quantity : new long[] {1, 3, 5}) {
+      jdbc.update(
+          """
+          INSERT INTO portfolio_holding_histories
+            (portfolio_id,asset_id,change_type,quantity,average_purchase_price,created_at,updated_at)
+          VALUES (?,?,?,?,10000,?,?)
+          """,
+          original.getId(),
+          asset.getId(),
+          quantity == 1 ? "ADDED" : "UPDATED",
+          quantity,
+          java.sql.Timestamp.from(changedAt),
+          java.sql.Timestamp.from(changedAt));
+    }
+    assertThat(
+            originalHistory.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
+                original.getId(), changedAt.plusSeconds(1)))
+        .extracting(history -> history.getQuantity())
+        .containsExactly(1L, 3L, 5L);
+    LocalDate today = changedAt.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
+    client(owner)
+        .queryParam("from", today.toString())
+        .queryParam("to", today.toString())
+        .get("/api/portfolio/histories")
+        .then()
+        .statusCode(200)
+        .body("quantity", contains(5, 3, 1));
   }
 
   @ParameterizedTest

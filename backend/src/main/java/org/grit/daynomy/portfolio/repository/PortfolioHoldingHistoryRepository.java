@@ -9,9 +9,9 @@ public interface PortfolioHoldingHistoryRepository
     extends JpaRepository<PortfolioHoldingHistory, Long> {
 
   List<PortfolioHoldingHistory>
-      findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+      findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDescIdDesc(
           Long portfolioId, Instant from, Instant to);
 
-  List<PortfolioHoldingHistory> findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAsc(
+  List<PortfolioHoldingHistory> findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
       Long portfolioId, Instant to);
 }
