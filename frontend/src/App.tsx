@@ -196,7 +196,6 @@ export default function App() {
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />
               <Route path="/search" element={<SearchPage />} />
-              <Route path="/romi/*" element={<Navigate to="/" replace />} />
               <Route path="/finance/*" element={<Navigate to="/" replace />} />
               <Route path="/stocks" element={<Navigate to="/" replace />} />
               <Route path="/login" element={<LoginPage />} />

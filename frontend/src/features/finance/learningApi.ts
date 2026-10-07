@@ -1,5 +1,4 @@
 import { request, requestWithCsrf } from '../../api/client';
-import { readFinancialStorage } from './legacyStorage';
 import type {
   WeeklyCheckIn,
   LearningItemType,
@@ -114,7 +113,7 @@ function isMockTrade(value: unknown): value is SimulatedTrade {
 
 function readArray<T>(key: string, guard: (value: unknown) => value is T): T[] {
   try {
-    const value: unknown = JSON.parse(readFinancialStorage(key) ?? '[]');
+    const value: unknown = JSON.parse(localStorage.getItem(key) ?? '[]');
     return Array.isArray(value) ? value.filter(guard) : [];
   } catch {
     return [];

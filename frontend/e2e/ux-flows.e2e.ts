@@ -308,22 +308,20 @@ test('모바일: 삭제된 돈 관리의 기존 주소는 홈으로 이동하고
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.addInitScript(() =>
-    localStorage.setItem('daynomy:romi:consultations:v1', '보존할 기록'),
-  );
+  await page.addInitScript(() => localStorage.setItem('daynomy:financial-plans:v1', '보존할 기록'));
   for (const path of [
-    '/romi',
-    '/romi/romi1',
-    '/romi/romi2',
-    '/romi/romi3',
-    '/romi/romi3/first-account',
-    '/romi/romi4',
+    '/finance',
+    '/finance/deposits',
+    '/finance/investing',
+    '/finance/guide',
+    '/finance/guide/first-account',
+    '/finance/monthly-plan',
   ]) {
     await page.goto(path);
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('link', { name: '초보 돈 관리', exact: true })).toHaveCount(0);
     await expect(page.getByRole('navigation', { name: '초보 돈 관리 메뉴' })).toHaveCount(0);
-    expect(await page.evaluate(() => localStorage.getItem('daynomy:romi:consultations:v1'))).toBe(
+    expect(await page.evaluate(() => localStorage.getItem('daynomy:financial-plans:v1'))).toBe(
       '보존할 기록',
     );
   }

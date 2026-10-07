@@ -1,5 +1,3 @@
-import { readFinancialStorage } from './legacyStorage';
-
 export const CONSULTATIONS_STORAGE_KEY = 'daynomy:financial-plans:v1';
 export const ACCOUNT_STEPS_STORAGE_KEY = 'daynomy:account-steps:v1';
 
@@ -309,9 +307,7 @@ export function isConsultation(value: unknown): value is Consultation {
 
 export function loadConsultations(storage: Storage = localStorage): Consultation[] {
   try {
-    const value: unknown = JSON.parse(
-      readFinancialStorage(CONSULTATIONS_STORAGE_KEY, storage) ?? '[]',
-    );
+    const value: unknown = JSON.parse(storage.getItem(CONSULTATIONS_STORAGE_KEY) ?? '[]');
     return Array.isArray(value) ? value.filter(isConsultation) : [];
   } catch {
     return [];
@@ -353,9 +349,7 @@ export function toggleConsultationAction(
 
 export function loadAccountSteps(storage: Storage = localStorage): string[] {
   try {
-    const value: unknown = JSON.parse(
-      readFinancialStorage(ACCOUNT_STEPS_STORAGE_KEY, storage) ?? '[]',
-    );
+    const value: unknown = JSON.parse(storage.getItem(ACCOUNT_STEPS_STORAGE_KEY) ?? '[]');
     return Array.isArray(value) ? value.filter((step) => typeof step === 'string') : [];
   } catch {
     return [];
