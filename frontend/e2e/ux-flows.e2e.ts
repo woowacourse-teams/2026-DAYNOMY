@@ -60,7 +60,7 @@ for (const viewport of [
     await expect(page.getByRole('alert')).toContainText('로그아웃하지 못했습니다');
     await expect(page.getByRole('link', { name: '마이페이지' })).toBeVisible();
     await page.getByRole('button', { name: '로그아웃', exact: true }).click();
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL('/news');
     await expect(page.getByRole('link', { name: '로그인', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: '마이페이지' })).toHaveCount(0);
     await page.reload();
@@ -211,6 +211,10 @@ for (const viewport of [
       }),
     );
     const original = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
+    await page.route('**/api/users/me/portfolio', (route) => {
+      expect(route.request().method()).toBe('GET');
+      return route.fulfill({ json: { holdings: original } });
+    });
     await page.addInitScript((value) => {
       if (!localStorage.getItem('daynomy:portfolio-holdings:v1'))
         localStorage.setItem('daynomy:portfolio-holdings:v1', JSON.stringify(value));
@@ -304,7 +308,7 @@ test('모바일: 이름이 없는 기존 계정은 재로그인을 안내하고 
   await checkWidth(page);
 });
 
-test('모바일: 삭제된 돈 관리의 기존 주소는 홈으로 이동하고 저장 데이터는 보존한다', async ({
+test('모바일: 삭제된 돈 관리의 기존 주소는 홈 로그인으로 이동하고 저장 데이터는 보존한다', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -318,7 +322,8 @@ test('모바일: 삭제된 돈 관리의 기존 주소는 홈으로 이동하고
     '/finance/monthly-plan',
   ]) {
     await page.goto(path);
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL('/login?returnTo=%2F');
+    await expect(page.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeVisible();
     await expect(page.getByRole('link', { name: '초보 돈 관리', exact: true })).toHaveCount(0);
     await expect(page.getByRole('navigation', { name: '초보 돈 관리 메뉴' })).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('daynomy:financial-plans:v1'))).toBe(

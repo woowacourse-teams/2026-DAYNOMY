@@ -24,6 +24,8 @@ export type PortfolioHoldingInput = StockSearchItem & {
 
 export type PortfolioHoldingChangeType = 'ADDED' | 'UPDATED' | 'REMOVED';
 
+export type PortfolioTrendPeriod = 'YTD' | '1M' | '6M' | '1Y' | '5Y';
+
 export type PortfolioHoldingHistory = {
   changeType: PortfolioHoldingChangeType;
   occurredAt: string;
@@ -33,12 +35,27 @@ export type PortfolioHoldingHistory = {
 
 export type PortfolioPerformancePoint = {
   baseDate: string;
-  recordedAt: string;
-  source: 'CLOSE' | 'HOLDING_CHANGE';
   totalPurchaseAmount: number;
   totalEvaluationAmount: number;
   totalProfitLoss: number;
   totalReturnRate: number;
+  dailyProfitLoss: number | null;
+  dailyReturnRate: number | null;
+};
+
+export type PortfolioPerformanceStatus = 'READY' | 'INSUFFICIENT_DATA';
+export type PortfolioPerformanceUnavailableReason = 'SNAPSHOT_DATA_INSUFFICIENT';
+
+export type PortfolioPerformanceResponse = {
+  status: PortfolioPerformanceStatus;
+  reason: PortfolioPerformanceUnavailableReason | null;
+  baseDate: string | null;
+  previousBaseDate: string | null;
+  points: PortfolioPerformancePoint[];
+};
+
+export type SavedPortfolioResponse = {
+  holdings: PortfolioHoldingInput[];
 };
 
 export type PortfolioHoldingResult = PortfolioHoldingInput & {

@@ -77,7 +77,7 @@ test('관리자 로그인 시작 후 인증된 관리자 화면으로 이동한�
   );
 
   await page.goto('/admin/news');
-  await expect(page.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'DAYNOMY 관리자 로그인' })).toBeVisible();
   await page.getByRole('link', { name: 'Google로 시작하기' }).click();
 
   await expect(page).toHaveURL(/\/admin\/news$/);

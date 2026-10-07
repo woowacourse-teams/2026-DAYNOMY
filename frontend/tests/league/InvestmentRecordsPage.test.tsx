@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InvestmentRecordsPage } from '../../src/features/league/InvestmentRecordsPage';
 import * as api from '../../src/features/league/sharedPortfolioApi';
 import * as leagueApi from '../../src/features/league/api';
+import * as portfolioApi from '../../src/features/portfolio/api';
 
 vi.mock('../../src/features/league/sharedPortfolioApi', async (importOriginal) => ({
   ...(await importOriginal<typeof api>()),
@@ -16,6 +17,7 @@ vi.mock('../../src/features/league/api', async (importOriginal) => ({
   ...(await importOriginal<typeof leagueApi>()),
   getTransactions: vi.fn(),
 }));
+vi.mock('../../src/features/portfolio/api', () => ({ getSavedPortfolio: vi.fn() }));
 const stock = {
   assetId: 1,
   assetCode: '005930',
@@ -52,6 +54,9 @@ const storageKey = 'daynomy:portfolio-holdings:v1';
 beforeEach(() => {
   vi.mocked(leagueApi.getTransactions).mockResolvedValue([]);
   vi.mocked(api.getSharedPortfolio).mockResolvedValue(empty);
+  vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({
+    holdings: [{ ...stock, name: stock.assetName, quantity: 2, averagePurchasePrice: 70000 }],
+  });
   localStorage.setItem(
     storageKey,
     JSON.stringify([{ ...stock, name: stock.assetName, quantity: 2, averagePurchasePrice: 70000 }]),
@@ -76,7 +81,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     const original = localStorage.getItem(storageKey);
     const view = renderPage();
     fireEvent.click(await view.findByRole('button', { name: '내 포트폴리오에서 가져오기' }));
-    expect(view.getByText('원본: 2주 · 평균 70,000원')).toBeTruthy();
+    expect(await view.findByText('원본: 2주 · 평균 70,000원')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '1종목 가져오기' }));
     await waitFor(() =>
       expect(api.importSharedHoldings).toHaveBeenCalledWith(
@@ -86,6 +91,21 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     );
     expect(await view.findByRole('heading', { name: '공유용 자산 1개' })).toBeTruthy();
     expect(localStorage.getItem(storageKey)).toBe(original);
+  });
+
+  it('서버 원본 조회 실패를 빈 자산으로 숨기지 않고 다시 가져올 수 있다', async () => {
+    vi.mocked(portfolioApi.getSavedPortfolio)
+      .mockRejectedValueOnce(new Error('서버 원본 연결 실패'))
+      .mockResolvedValueOnce({
+        holdings: [{ ...stock, name: stock.assetName, quantity: 2, averagePurchasePrice: 70000 }],
+      });
+    const view = renderPage();
+    fireEvent.click(await view.findByRole('button', { name: '내 포트폴리오에서 가져오기' }));
+    expect(await view.findByRole('alert')).toHaveProperty('textContent', '서버 원본 연결 실패');
+    expect(view.queryByText('원본에 등록된 자산이 없어요.')).toBeNull();
+    expect(api.importSharedHoldings).not.toHaveBeenCalled();
+    fireEvent.click(view.getByRole('button', { name: '내 포트폴리오에서 가져오기' }));
+    expect(await view.findByText('원본: 2주 · 평균 70,000원')).toBeTruthy();
   });
 
   it('숨김 저장 실패 시 기존 표시 상태를 유지하고 재시도한다', async () => {
@@ -105,10 +125,10 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
   });
 
   it('직접 추가·편집·삭제 입력을 제공하지 않고 원본이 없으면 원본 입력을 안내한다', async () => {
-    localStorage.removeItem(storageKey);
+    vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({ holdings: [] });
     const view = renderPage();
     fireEvent.click(await view.findByRole('button', { name: '내 포트폴리오에서 가져오기' }));
-    expect(view.getByRole('link', { name: '포트폴리오 입력하기' })).toBeTruthy();
+    expect(await view.findByRole('link', { name: '포트폴리오 입력하기' })).toBeTruthy();
     expect(view.queryByRole('button', { name: '종목 직접 추가' })).toBeNull();
     expect(view.queryByLabelText('종목 검색')).toBeNull();
     expect(view.queryByLabelText('수량 (주)')).toBeNull();
@@ -124,7 +144,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     vi.mocked(api.importSharedHoldings).mockResolvedValue(portfolio);
     const view = renderPage();
     fireEvent.click(await view.findByRole('button', { name: '내 포트폴리오에서 가져오기' }));
-    fireEvent.click(view.getByRole('checkbox', { name: /삼성전자/ }));
+    fireEvent.click(await view.findByRole('checkbox', { name: /삼성전자/ }));
     expect(view.getByText('공유용: 3주 · 평균 70,000원')).toBeTruthy();
     expect(view.getByRole('button', { name: '1종목 가져오기' })).toHaveProperty('disabled', true);
     fireEvent.click(view.getByRole('checkbox', { name: /기존 1종목/ }));
@@ -178,7 +198,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     );
     const view = renderPage();
     fireEvent.click(await view.findByRole('button', { name: '내 포트폴리오에서 가져오기' }));
-    fireEvent.click(view.getByRole('checkbox', { name: /삼성전자/ }));
+    fireEvent.click(await view.findByRole('checkbox', { name: /삼성전자/ }));
     fireEvent.click(view.getByRole('checkbox', { name: /기존 1종목/ }));
     fireEvent.click(view.getByRole('button', { name: '1종목 가져오기' }));
     expect(view.getByRole('button', { name: '가져오는 중…' })).toHaveProperty('disabled', true);

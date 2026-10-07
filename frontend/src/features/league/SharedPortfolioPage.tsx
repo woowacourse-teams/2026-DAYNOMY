@@ -71,11 +71,13 @@ export function SharedPortfolioPage() {
       setBusy(false);
     }
   }
-  function openImport() {
+  async function openImport() {
+    if (busy || loading || !data) return;
+    setBusy(true);
     setError('');
     setMessage('');
     try {
-      const values = readSourceHoldings();
+      const values = await readSourceHoldings();
       setSource(values);
       setSelection(
         values
@@ -85,6 +87,8 @@ export function SharedPortfolioPage() {
       setOverwrite(false);
     } catch (caught) {
       setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
     }
   }
   const selected = (source ?? []).filter((h) => selection.includes(h.assetId));
@@ -139,7 +143,7 @@ export function SharedPortfolioPage() {
               <p>가격이 없는 종목이 있어 전체 평가금액과 수익률은 표시하지 않았어요.</p>
             )}
             <div className="shared-actions">
-              <button disabled={busy} onClick={openImport}>
+              <button disabled={busy} aria-busy={busy} onClick={() => void openImport()}>
                 내 포트폴리오에서 가져오기
               </button>
               <Link to="/portfolio/publication">공개 범위·리그 참여 설정 →</Link>
@@ -150,7 +154,7 @@ export function SharedPortfolioPage() {
               <h2 id="shared-import-title" ref={panelHeading} tabIndex={-1}>
                 가져올 자산 선택
               </h2>
-              <p>이 브라우저의 원본을 읽었습니다. 선택하지 않은 공유용 자산은 유지됩니다.</p>
+              <p>현재 계정의 원본을 읽었습니다. 선택하지 않은 공유용 자산은 유지됩니다.</p>
               {source.length === 0 ? (
                 <p>
                   원본에 등록된 자산이 없어요. <Link to="/">포트폴리오 입력하기</Link>

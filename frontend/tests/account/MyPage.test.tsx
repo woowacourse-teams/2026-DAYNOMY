@@ -30,7 +30,7 @@ function renderAccount() {
         <ServiceHeader />
         <Routes>
           <Route path="/mypage" element={<MyPage />} />
-          <Route path="/" element={<AuthStatus />} />
+          <Route path="/news" element={<AuthStatus />} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>,
@@ -228,7 +228,7 @@ describe('실제 인증을 사용하는 마이페이지', () => {
     expect(view.queryByText('로그아웃 완료')).toBeNull();
   });
 
-  it('보호된 실제 마이페이지에서도 로그아웃 후 로그인 화면으로 튕기지 않고 홈으로 이동한다', async () => {
+  it('보호된 실제 마이페이지에서 로그아웃하면 로그인 화면으로 튕기지 않고 공개 이슈로 이동한다', async () => {
     vi.stubEnv('DEV', false);
     vi.stubGlobal('scrollTo', vi.fn());
     window.history.replaceState({}, '', '/mypage');
@@ -247,7 +247,7 @@ describe('실제 인증을 사용하는 마이페이지', () => {
     await view.findByText(account.email);
     fireEvent.click(view.getByRole('button', { name: '로그아웃' }));
     await view.findByRole('link', { name: '로그인' });
-    await waitFor(() => expect(window.location.pathname).toBe('/'));
+    await waitFor(() => expect(window.location.pathname).toBe('/news'));
     expect(view.queryByRole('heading', { name: 'DAYNOMY 로그인' })).toBeNull();
   });
 

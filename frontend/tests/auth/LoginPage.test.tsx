@@ -45,6 +45,28 @@ describe('로그인 화면', () => {
     expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/');
   });
 
+  it('포트폴리오 Google 로그인 링크를 OAuth 엔드포인트에 연결한다', () => {
+    const view = renderLogin();
+    const link = view.getByRole('link', { name: 'Google로 시작하기' });
+    expect(link.getAttribute('href')).toBe(getApiUrl('/api/auth/google'));
+    expect(view.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeTruthy();
+    expect(view.getByRole('link', { name: '닫기' }).getAttribute('href')).toBe('/news');
+    link.addEventListener('click', (event) => event.preventDefault());
+    fireEvent.click(link);
+    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/');
+  });
+
+  it('관리자 로그인은 관리자 화면으로 돌아간다', () => {
+    const view = renderLogin('/login?returnTo=%2Fadmin');
+    const link = view.getByRole('link', { name: 'Google로 시작하기' });
+    link.addEventListener('click', (event) => event.preventDefault());
+    fireEvent.click(link);
+
+    expect(view.getByRole('heading', { name: 'DAYNOMY 관리자 로그인' })).toBeTruthy();
+    expect(view.getByRole('link', { name: '닫기' }).getAttribute('href')).toBe('/');
+    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/admin');
+  });
+
   it('OAuth 실패를 사용자에게 안내한다', () => {
     const view = renderLogin('/login?error=oauth');
 

@@ -64,8 +64,8 @@ test('잘못된 공유용 응답은 빈 자산이나 성공으로 바꾸지 않�
   await assert.rejects(() => getSharedPortfolio(), /응답을 확인할 수 없습니다/);
 });
 
-test('원본을 읽을 때 저장 쓰기는 호출하지 않고 손상된 데이터를 알린다', () => {
-  let raw = JSON.stringify([
+test('계정의 서버 원본만 읽고 브라우저 원본은 읽거나 변경하지 않는다', async () => {
+  const holdings = [
     {
       assetId: 1,
       name: '삼성전자',
@@ -75,20 +75,38 @@ test('원본을 읽을 때 저장 쓰기는 호출하지 않고 손상된 데이
       quantity: 2,
       averagePurchasePrice: 70000,
     },
-  ]);
+  ];
+  let reads = 0;
   let writes = 0;
+  const calls: { url: string; init?: RequestInit }[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return json({ holdings });
+  };
   const previous = globalThis.localStorage;
   globalThis.localStorage = {
-    getItem: () => raw,
+    getItem: () => {
+      reads += 1;
+      return '{다른 계정의 이전 원본}';
+    },
     setItem: () => {
       writes += 1;
     },
   } as unknown as Storage;
   try {
-    assert.equal(readSourceHoldings()[0]?.assetName, '삼성전자');
+    assert.equal((await readSourceHoldings())[0]?.assetName, '삼성전자');
+    assert.deepEqual(
+      calls.map((call) => call.url),
+      ['/api/users/me/portfolio'],
+    );
+    assert(calls.every((call) => !call.init?.method || call.init.method === 'GET'));
+    assert.equal(calls[0].init?.credentials, 'include');
+    assert.equal(reads, 0);
     assert.equal(writes, 0);
-    raw = '{broken';
-    assert.throws(readSourceHoldings);
+    globalThis.fetch = async () => json({ holdings: [{ ...holdings[0], quantity: -1 }] });
+    await assert.rejects(readSourceHoldings, /응답 형식/);
+    globalThis.fetch = async () => json({ holdings: [holdings[0], holdings[0]] });
+    await assert.rejects(readSourceHoldings, /중복 종목/);
     assert.equal(writes, 0);
   } finally {
     globalThis.localStorage = previous;

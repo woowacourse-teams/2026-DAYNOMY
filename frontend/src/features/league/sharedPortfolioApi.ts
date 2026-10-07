@@ -1,4 +1,5 @@
 import { request, requestWithCsrf } from '../../api/client';
+import { getSavedPortfolio } from '../portfolio/api';
 
 export type SourceHolding = {
   assetId: number;
@@ -84,16 +85,11 @@ function portfolio(value: unknown): SharedPortfolio {
   };
 }
 
-/** 원본 저장소를 읽기만 한다. 원본 Hook이나 저장 함수를 호출하지 않는다. */
-export function readSourceHoldings(): SourceHolding[] {
-  const raw = localStorage.getItem('daynomy:portfolio-holdings:v1');
-  if (!raw) return [];
-  const parsed: unknown = JSON.parse(raw);
-  if (!Array.isArray(parsed)) throw new Error('원본 포트폴리오 저장 형식을 확인해 주세요.');
-  const values = parsed.map((value: unknown) => {
-    const candidate = record(value)
-      ? { ...value, assetName: value.name, category: value.category ?? 'STOCK' }
-      : value;
+/** 현재 계정의 서버 원본을 읽기만 한다. 원본 저장·수정 API는 호출하지 않는다. */
+export async function readSourceHoldings(): Promise<SourceHolding[]> {
+  const { holdings } = await getSavedPortfolio();
+  const values = holdings.map((value) => {
+    const candidate = { ...value, assetName: value.name };
     if (!sourceHolding(candidate))
       throw new Error('원본 자산의 수량과 평균 매수가를 확인해 주세요.');
     return candidate;

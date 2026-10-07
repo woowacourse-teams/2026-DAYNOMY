@@ -74,7 +74,7 @@ export function MyPage() {
       // 인증 해제와 이동을 함께 반영해 보호 경로의 로그인 리다이렉트와 경합하지 않는다.
       startTransition(() => {
         clearSession?.();
-        navigate('/', { replace: true });
+        navigate('/news', { replace: true });
       });
     } catch {
       setError('로그아웃하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.');
