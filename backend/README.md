@@ -55,6 +55,15 @@ spring:
     show-sql: true
 ```
 
+금융 실험실에서 금융감독원 금융상품 한눈에의 실제 예금·적금 상품을 조회하려면
+발급받은 인증키를 백엔드 환경변수로 설정합니다.
+
+```bash
+export FINLIFE_API_KEY=<금융상품 통합비교공시 인증키>
+```
+
+인증키는 프론트엔드 환경변수나 API 응답에 넣지 않습니다.
+
 ---
 
 ## 빌드
@@ -104,4 +113,3 @@ java -jar build/libs/daynomy-0.0.1-SNAPSHOT.jar
 # 전체 테스트 실행
 ./gradlew test
 ```
-

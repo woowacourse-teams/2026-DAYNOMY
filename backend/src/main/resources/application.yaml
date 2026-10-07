@@ -121,6 +121,13 @@ external:
     connect-timeout: ${PUBLIC_DATA_CONNECT_TIMEOUT:3s}
     read-timeout: ${PUBLIC_DATA_READ_TIMEOUT:10s}
 
+  finlife:
+    api-key: ${FINLIFE_API_KEY:}
+    base-url: ${FINLIFE_BASE_URL:https://finlife.fss.or.kr/finlifeapi}
+    bank-group-code: ${FINLIFE_BANK_GROUP_CODE:020000}
+    connect-timeout: ${FINLIFE_CONNECT_TIMEOUT:3s}
+    read-timeout: ${FINLIFE_READ_TIMEOUT:30s}
+
 ai:
   openai:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
