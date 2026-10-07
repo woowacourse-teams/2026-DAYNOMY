@@ -197,41 +197,31 @@ class SharedPortfolioAcceptanceTest {
   }
 
   @Test
-  void plansPersistAcrossRequestsActionsCanBeSavedAndDeletionIsOwnerScoped() {
+  void removedFinanceApisAreUnavailableAndAbsentFromOpenApi() {
     Member owner = member();
-    String path = "/api/users/me/financial-plans/monthly-plan";
-    String plan =
-        """
-        {"topic":"저축·투자 계획","title":"24개월 계획","summary":"월 120만원 배분","details":["저축 42만원"],
-        "actions":[{"id":"saving","label":"자동이체 설정","completed":false}],
-        "monthlyPlan":{"monthlyIncome":3000000,"monthlyExpenses":1800000,"goalAmount":10000000,"goalSaved":1000000,
-        "goalMonths":24,"savings":420000,"emergency":600000,"investment":180000,"debt":0}}
-        """;
-    client(owner).body(plan).put(path).then().statusCode(200).body("id", equalTo("monthly-plan"));
-    client(owner)
-        .get("/api/users/me/financial-plans")
-        .then()
-        .statusCode(200)
-        .body("plans", hasSize(1))
-        .body("plans[0].monthlyPlan.savings", equalTo(420000));
-    client(owner)
-        .body(plan.replace("false", "true"))
-        .put(path)
-        .then()
-        .statusCode(200)
-        .body("actions[0].completed", equalTo(true));
-    client(member()).delete(path).then().statusCode(204);
-    client(owner)
-        .get("/api/users/me/financial-plans")
-        .then()
-        .statusCode(200)
-        .body("plans", hasSize(1));
-    client(owner).delete(path).then().statusCode(204);
-    client(owner)
-        .get("/api/users/me/financial-plans")
-        .then()
-        .statusCode(200)
-        .body("plans", hasSize(0));
+    for (String path :
+        new String[] {
+          "/api/users/me/learning/progress",
+          "/api/users/me/learning/check-ins",
+          "/api/users/me/learning/mock-trades",
+          "/api/users/me/financial-plans"
+        }) {
+      client(owner).get(path).then().statusCode(404);
+    }
+    Map<String, Object> paths =
+        given()
+            .port(port)
+            .get("/v3/api-docs")
+            .then()
+            .statusCode(200)
+            .extract()
+            .jsonPath()
+            .getMap("paths");
+    assertThat(paths.keySet())
+        .noneMatch(
+            path ->
+                path.startsWith("/api/users/me/learning")
+                    || path.startsWith("/api/users/me/financial-plans"));
   }
 
   @Test
@@ -492,6 +482,7 @@ class SharedPortfolioAcceptanceTest {
   @Test
   void realAccountCookiesLoadTheProfileAndLogoutRevokesRefreshWithoutDeletingSavedData() {
     Member owner = member();
+    Asset asset = asset();
     var pair = tokenService.issue(owner.getId());
     var csrf = given().port(port).get("/api/auth/csrf");
     given()
@@ -503,10 +494,14 @@ class SharedPortfolioAcceptanceTest {
         .body("id", equalTo(owner.getId().intValue()))
         .body("nickname", equalTo(owner.getNickname()));
     client(owner)
-        .body("{\"itemType\":\"MISSION\",\"completed\":true,\"bookmarked\":false}")
-        .put("/api/users/me/learning/progress/keep-after-logout")
+        .body(
+            """
+        {"assetId":%d,"quantity":10,"averagePurchasePrice":70000}
+        """
+                .formatted(asset.getId()))
+        .post("/api/users/me/portfolio/holdings")
         .then()
-        .statusCode(200);
+        .statusCode(201);
     var logout =
         given()
             .port(port)
@@ -527,10 +522,12 @@ class SharedPortfolioAcceptanceTest {
         .then()
         .statusCode(401);
     client(owner)
-        .get("/api/users/me/learning/progress")
+        .get("/api/users/me/portfolio")
         .then()
         .statusCode(200)
-        .body("progress.itemKey", hasItem("keep-after-logout"));
+        .body("holdings", hasSize(1))
+        .body("holdings[0].assetId", equalTo(asset.getId().intValue()))
+        .body("holdings[0].quantity", equalTo(10));
   }
 
   @Test
@@ -733,35 +730,6 @@ class SharedPortfolioAcceptanceTest {
     client(owner).body("{\"holdings\":[null]}").post(SHARED + "/import").then().statusCode(400);
     client(owner).body("{}").patch(SHARED + "/holdings/1/visibility").then().statusCode(400);
     client(owner).get(SHARED).then().statusCode(200).body("holdings", hasSize(0));
-  }
-
-  @Test
-  void guidePreparationAndWeeklyExecutionUseTheSameAccountWithoutTouchingPortfolio() {
-    Member owner = member();
-    client(owner)
-        .body("{\"itemType\":\"MISSION\",\"completed\":true,\"bookmarked\":false}")
-        .put("/api/users/me/learning/progress/account-goal")
-        .then()
-        .statusCode(200);
-    client(owner)
-        .get("/api/users/me/learning/progress")
-        .then()
-        .statusCode(200)
-        .body("progress[0].completed", equalTo(true));
-    client(owner)
-        .body(
-            """
-        {"targetSavings":100000,"targetInvestment":50000,"targetDebtPayment":0,"actualSavings":100000,"actualInvestment":0,"actualDebtPayment":0,"note":"첫 실행"}
-        """)
-        .put("/api/users/me/learning/check-ins/2026-10-05")
-        .then()
-        .statusCode(200);
-    client(owner)
-        .get("/api/users/me/learning/check-ins")
-        .then()
-        .statusCode(200)
-        .body("checkIns[0].actualSavings", equalTo(100000.0f));
-    assertThat(originals.findByMemberId(owner.getId())).isEmpty();
   }
 
   @Test
