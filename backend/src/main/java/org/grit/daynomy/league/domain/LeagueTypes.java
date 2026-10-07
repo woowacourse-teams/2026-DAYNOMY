@@ -34,4 +34,11 @@ public final class LeagueTypes {
     STABLE,
     BEGINNER
   }
+
+  public enum DailyReturnStatus {
+    CALCULATED,
+    PENDING,
+    EXCLUDED,
+    NOT_PARTICIPATING
+  }
 }

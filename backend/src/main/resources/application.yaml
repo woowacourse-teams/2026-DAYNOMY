@@ -126,7 +126,7 @@ stock:
   price:
     sync:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
-      cron: ${STOCK_PRICE_SYNC_CRON:0 30 14 * * MON-FRI}
+      cron: ${STOCK_PRICE_SYNC_CRON:0 30 14,16 * * MON-FRI}
 
 portfolio:
   snapshot:
@@ -136,7 +136,7 @@ portfolio:
 league:
   calculation:
     enabled: ${LEAGUE_CALCULATION_ENABLED:false}
-    cron: ${LEAGUE_CALCULATION_CRON:0 20 15 * * MON-FRI}
+    cron: ${LEAGUE_CALCULATION_CRON:0 20 17 * * MON-FRI}
 
 logging:
   structured:

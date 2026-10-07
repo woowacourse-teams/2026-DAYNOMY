@@ -417,6 +417,37 @@ class SharedPortfolioAcceptanceTest {
         .then()
         .statusCode(200)
         .body("rankings.publicId", hasItem(publicId));
+    String dailyHistory = "/api/league/investors/" + publicId + "/daily-history";
+    var daily = given().port(port).queryParam("weekStart", date.toString()).get(dailyHistory);
+    daily
+        .then()
+        .statusCode(200)
+        .header("Cache-Control", "no-store")
+        .body("weekStart", equalTo(date.toString()))
+        .body("weekEnd", equalTo(date.plusDays(6).toString()))
+        .body("asOfDate", equalTo(date.toString()))
+        .body("weeklyReturnRate", equalTo(10.0f))
+        .body("days.find { it.baseDate == '" + date + "' }.dailyReturnRate", equalTo(10.0f))
+        .body("days.find { it.baseDate == '" + date + "' }.cumulativeReturnRate", equalTo(10.0f))
+        .body("days.find { it.baseDate == '" + date + "' }.status", equalTo("CALCULATED"))
+        .body("$", not(hasKey("email")))
+        .body("$", not(hasKey("name")));
+    assertThat(daily.asString())
+        .doesNotContain(
+            "startingEvaluationAmount", "endingEvaluationAmount", "quantity", owner.getEmail());
+    given()
+        .port(port)
+        .queryParam("weekStart", date.minusWeeks(8).toString())
+        .get(dailyHistory)
+        .then()
+        .statusCode(400)
+        .body("code", equalTo("INVALID_LEAGUE_WEEK"));
+    given()
+        .port(port)
+        .queryParam("weekStart", "invalid-date")
+        .get(dailyHistory)
+        .then()
+        .statusCode(400);
     client(viewer)
         .get(detail)
         .then()
@@ -449,6 +480,7 @@ class SharedPortfolioAcceptanceTest {
         .statusCode(200);
     given().port(port).get("/api/league/investors/" + publicId).then().statusCode(404);
     given().port(port).get(detail).then().statusCode(404);
+    given().port(port).get(dailyHistory).then().statusCode(404);
     assertThat(
             originalHoldings
                 .findByPortfolioIdAndAssetId(original.getId(), asset.getId())
