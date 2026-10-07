@@ -41,16 +41,35 @@ export type RankingResponse = {
   confirmed: boolean;
   totalCount: number;
   rankings: RankingEntry[];
+  asOfDate: string | null;
 };
 
 export type LeagueWeek = { weekStart: string; weekEnd: string; confirmed: boolean };
 
 export type Performance = {
-  weeklyReturnRate: number;
-  eightWeekReturnRate: number;
-  maxDrawdownRate: number;
-  volatilityRate: number;
-  maxHoldingWeight: number;
+  weeklyReturnRate: number | null;
+  eightWeekReturnRate: number | null;
+  maxDrawdownRate: number | null;
+  volatilityRate: number | null;
+  maxHoldingWeight: number | null;
+};
+
+export type DailyReturnPoint = {
+  baseDate: string;
+  dailyReturnRate: number | null;
+  cumulativeReturnRate: number | null;
+  status: 'CALCULATED' | 'PENDING' | 'EXCLUDED' | 'NOT_PARTICIPATING';
+  reason: string | null;
+};
+
+export type DailyHistory = {
+  weekStart: string;
+  weekEnd: string;
+  asOfDate: string | null;
+  eligibleFrom: string | null;
+  confirmed: boolean;
+  weeklyReturnRate: number | null;
+  days: DailyReturnPoint[];
 };
 
 export type PublicInvestor = {

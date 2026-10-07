@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.util.List;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.grit.daynomy.league.domain.InvestorProfile;
+import org.grit.daynomy.league.domain.LeagueTypes.DailyReturnStatus;
 import org.grit.daynomy.league.domain.LeagueTypes.ExperienceLevel;
 import org.grit.daynomy.league.domain.LeagueTypes.HoldingPeriod;
 import org.grit.daynomy.league.domain.LeagueTypes.LeagueType;
@@ -165,7 +166,8 @@ public final class LeagueDto {
       LeagueType leagueType,
       boolean confirmed,
       int totalCount,
-      List<RankingEntryResponse> rankings) {}
+      List<RankingEntryResponse> rankings,
+      LocalDate asOfDate) {}
 
   public record AllocationResponse(BigDecimal stockWeight, BigDecimal etfWeight) {}
 
@@ -178,6 +180,22 @@ public final class LeagueDto {
 
   public record HistoryPointResponse(
       LocalDate weekStart, BigDecimal weeklyReturnRate, BigDecimal maxDrawdownRate) {}
+
+  public record DailyReturnPointResponse(
+      LocalDate baseDate,
+      BigDecimal dailyReturnRate,
+      BigDecimal cumulativeReturnRate,
+      DailyReturnStatus status,
+      String reason) {}
+
+  public record DailyHistoryResponse(
+      LocalDate weekStart,
+      LocalDate weekEnd,
+      LocalDate asOfDate,
+      LocalDate eligibleFrom,
+      boolean confirmed,
+      BigDecimal weeklyReturnRate,
+      List<DailyReturnPointResponse> days) {}
 
   public record PublicInvestorResponse(
       String publicId,

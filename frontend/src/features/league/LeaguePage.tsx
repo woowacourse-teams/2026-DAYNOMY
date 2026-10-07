@@ -66,6 +66,9 @@ export function LeaguePage() {
           <span className="league-eyebrow">성과를 비교하고 판단을 배우는 곳</span>
           <h1>이번 주 투자 리그</h1>
           <p>투자자를 선택해 성과와 위험을 확인하세요. 순위는 로그인 없이 볼 수 있어요.</p>
+          <p className="league-calculation-note">
+            거래일마다 종가로 갱신하고, 월요일~일요일의 누적 수익률로 비교해요.
+          </p>
         </div>
         <div className="league-hero-actions">
           {isLoggedIn ? (
@@ -124,12 +127,19 @@ export function LeaguePage() {
             {weeks.length === 0 ? <option value="">이번 주</option> : null}
             {weeks.map((week) => (
               <option key={week.weekStart} value={week.weekStart}>
-                {week.weekStart} {week.confirmed ? '확정' : '집계 중'}
+                {week.weekStart} ~ {week.weekEnd} {week.confirmed ? '지난 주' : '집계 중'}
               </option>
             ))}
           </select>
         </label>
       </section>
+
+      {!loading && !error && ranking ? (
+        <p className="league-calculation-note">
+          {ranking.asOfDate ? `${ranking.asOfDate} 종가 기준` : '이 주차의 종가 수집 대기'} · 주간
+          누적 수익률 · 종가 제공 시점에 따라 갱신이 늦어질 수 있어요.
+        </p>
+      ) : null}
 
       {loading ? (
         <p className="league-state" role="status">
@@ -187,7 +197,7 @@ export function LeaguePage() {
                   <strong className={entry.weeklyReturnRate >= 0 ? 'positive' : 'negative'}>
                     {formatRate(entry.weeklyReturnRate)}
                   </strong>
-                  <small>이번 주</small>
+                  <small>주간 누적</small>
                 </div>
                 <details className="league-row-details">
                   <summary>위험·기록 보기</summary>

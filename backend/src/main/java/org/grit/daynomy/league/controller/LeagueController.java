@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.league.domain.LeagueTypes.LeagueType;
+import org.grit.daynomy.league.dto.LeagueDto.DailyHistoryResponse;
 import org.grit.daynomy.league.dto.LeagueDto.InvestorDetailResponse;
 import org.grit.daynomy.league.dto.LeagueDto.PublicInvestorResponse;
 import org.grit.daynomy.league.dto.LeagueDto.RankingResponse;
@@ -67,5 +68,18 @@ public class LeagueController {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(leagueService.investorDetail(publicId));
+  }
+
+  @Operation(
+      summary = "공개 투자자의 일별·주간 누적 수익률 조회",
+      description = "최근 8주를 월요일~일요일(KST)로 구분합니다. 금액과 수량은 공개하지 않습니다.")
+  @GetMapping("/investors/{publicId}/daily-history")
+  public ResponseEntity<DailyHistoryResponse> dailyHistory(
+      @PathVariable String publicId,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+          LocalDate weekStart) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(leagueService.dailyHistory(publicId, weekStart));
   }
 }

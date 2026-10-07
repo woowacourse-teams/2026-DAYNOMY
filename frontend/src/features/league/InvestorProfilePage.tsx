@@ -4,6 +4,7 @@ import { trackEvent } from '../../analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { followInvestor, getInvestorDetail, getPublicInvestor, unfollowInvestor } from './api';
 import { experienceLabels, formatRate, holdingPeriodLabels, riskLabels } from './labels';
+import { DailyReturns } from './DailyReturns';
 import type { InvestorDetail, PublicInvestor } from './types';
 import './league.css';
 
@@ -19,6 +20,7 @@ export function InvestorProfilePage() {
   const [followSaving, setFollowSaving] = useState(false);
   const [retry, setRetry] = useState(0);
   const [detailError, setDetailError] = useState('');
+  const [weekStart, setWeekStart] = useState('');
 
   useEffect(() => {
     if (publicId) trackEvent('view_public_investor', { investor_id: publicId });
@@ -29,6 +31,7 @@ export function InvestorProfilePage() {
     setLoading(true);
     setError('');
     setInvestor(null);
+    setWeekStart('');
     setDetail(null);
     setDetailError('');
     setDetailLoading(false);
@@ -131,25 +134,51 @@ export function InvestorProfilePage() {
       <section className="league-metric-cards" aria-label="성과와 위험 지표">
         <article>
           <span>이번 주 수익률</span>
-          <strong className={investor.performance.weeklyReturnRate >= 0 ? 'positive' : 'negative'}>
-            {formatRate(investor.performance.weeklyReturnRate)}
+          <strong
+            className={
+              investor.performance.weeklyReturnRate === null
+                ? ''
+                : investor.performance.weeklyReturnRate >= 0
+                  ? 'positive'
+                  : 'negative'
+            }
+          >
+            {investor.performance.weeklyReturnRate === null
+              ? '집계 대기'
+              : formatRate(investor.performance.weeklyReturnRate)}
           </strong>
         </article>
         <article>
           <span>최근 8주 누적</span>
-          <strong>{formatRate(investor.performance.eightWeekReturnRate)}</strong>
+          <strong>
+            {investor.performance.eightWeekReturnRate === null
+              ? '집계 대기'
+              : formatRate(investor.performance.eightWeekReturnRate)}
+          </strong>
         </article>
         <article>
           <span>최대 하락률</span>
-          <strong>{formatRate(investor.performance.maxDrawdownRate, false)}</strong>
+          <strong>
+            {investor.performance.maxDrawdownRate === null
+              ? '집계 대기'
+              : formatRate(investor.performance.maxDrawdownRate, false)}
+          </strong>
         </article>
         <article>
           <span>변동성</span>
-          <strong>{investor.performance.volatilityRate.toFixed(2)}%</strong>
+          <strong>
+            {investor.performance.volatilityRate === null
+              ? '집계 대기'
+              : `${investor.performance.volatilityRate.toFixed(2)}%`}
+          </strong>
         </article>
         <article>
           <span>최대 종목 비중</span>
-          <strong>{investor.performance.maxHoldingWeight.toFixed(1)}%</strong>
+          <strong>
+            {investor.performance.maxHoldingWeight === null
+              ? '집계 대기'
+              : `${investor.performance.maxHoldingWeight.toFixed(1)}%`}
+          </strong>
         </article>
         <article>
           <span>판단 복기율</span>
@@ -160,14 +189,20 @@ export function InvestorProfilePage() {
       <section className="league-history-card">
         <header>
           <h2>8주 성과 흐름</h2>
-          <span>주간 수익률</span>
+          <span>주간 수익률 · 주차를 누르면 일별 기록이 나와요.</span>
         </header>
         {investor.history.length === 0 ? (
           <p>공개 이후 집계된 주간 기록이 아직 없습니다.</p>
         ) : (
-          <div className="league-history-chart" role="img" aria-label="최근 8주 주간 수익률">
+          <div className="league-history-chart" aria-label="최근 8주 주간 수익률">
             {investor.history.map((point) => (
-              <div key={point.weekStart}>
+              <button
+                type="button"
+                key={point.weekStart}
+                aria-label={`${point.weekStart} 주간 ${formatRate(point.weeklyReturnRate)} 일별 기록 보기`}
+                aria-pressed={weekStart === point.weekStart}
+                onClick={() => setWeekStart(point.weekStart)}
+              >
                 <span
                   className={point.weeklyReturnRate >= 0 ? 'positive' : 'negative'}
                   style={{
@@ -176,11 +211,13 @@ export function InvestorProfilePage() {
                   title={`${point.weekStart} ${formatRate(point.weeklyReturnRate)}`}
                 />
                 <small>{point.weekStart.slice(5)}</small>
-              </div>
+              </button>
             ))}
           </div>
         )}
       </section>
+
+      <DailyReturns publicId={publicId} weekStart={weekStart} onWeekChange={setWeekStart} />
 
       {investor.allocation ? (
         <section className="league-allocation-card">

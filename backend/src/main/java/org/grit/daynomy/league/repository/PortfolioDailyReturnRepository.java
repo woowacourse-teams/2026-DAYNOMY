@@ -12,4 +12,8 @@ public interface PortfolioDailyReturnRepository extends JpaRepository<PortfolioD
 
   List<PortfolioDailyReturn> findAllByPortfolioIdAndBaseDateBetweenAndEligibleTrueOrderByBaseDate(
       Long portfolioId, LocalDate from, LocalDate to);
+
+  List<PortfolioDailyReturn>
+      findAllByPortfolioIdAndBaseDateBetweenAndCalculationVersionOrderByBaseDate(
+          Long portfolioId, LocalDate from, LocalDate to, int calculationVersion);
 }

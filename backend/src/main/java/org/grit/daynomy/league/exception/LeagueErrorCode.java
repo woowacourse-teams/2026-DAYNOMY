@@ -8,6 +8,7 @@ public enum LeagueErrorCode implements ErrorCode {
   PROFILE_REQUIRED(HttpStatus.BAD_REQUEST, "공개 프로필을 먼저 만들어 주세요."),
   DUPLICATE_DISPLAY_NAME(HttpStatus.CONFLICT, "이미 사용 중인 공개 닉네임입니다."),
   INVALID_LEAGUE_ENROLLMENT(HttpStatus.BAD_REQUEST, "프로필 공개 후 리그에 참여할 수 있습니다."),
+  INVALID_LEAGUE_WEEK(HttpStatus.BAD_REQUEST, "최근 8주 안의 주차를 선택해 주세요."),
   INVALID_LEAGUE_ASSET(HttpStatus.BAD_REQUEST, "국내 상장 주식과 ETF만 거래할 수 있습니다."),
   TRANSACTION_NOT_FOUND(HttpStatus.NOT_FOUND, "투자 기록을 찾을 수 없습니다."),
   INVALID_TRANSACTION_TYPE(HttpStatus.BAD_REQUEST, "보유 판단은 판단 기록 API로 작성해 주세요."),

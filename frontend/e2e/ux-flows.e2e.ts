@@ -406,10 +406,47 @@ test('모바일: 공개 종목 상세와 8주 기록이 화면 밖으로 넘치�
       },
     }),
   );
+  await page.route('**/api/league/weeks', (route) =>
+    route.fulfill({
+      json: {
+        weeks: [
+          { weekStart: '2026-09-28', weekEnd: '2026-10-04', confirmed: true },
+          { weekStart: '2026-09-21', weekEnd: '2026-09-27', confirmed: true },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/league/investors/ux/daily-history**', (route) => {
+    const weekStart = new URL(route.request().url()).searchParams.get('weekStart') || '2026-09-28';
+    const missing = weekStart === '2026-09-21';
+    return route.fulfill({
+      json: {
+        weekStart,
+        weekEnd: missing ? '2026-09-27' : '2026-10-04',
+        asOfDate: missing ? null : '2026-09-28',
+        eligibleFrom: '2026-08-03',
+        confirmed: !missing,
+        weeklyReturnRate: missing ? null : 2.5,
+        days: [
+          {
+            baseDate: weekStart,
+            dailyReturnRate: missing ? null : 2.5,
+            cumulativeReturnRate: missing ? null : 2.5,
+            status: missing ? 'EXCLUDED' : 'CALCULATED',
+            reason: missing ? 'MISSING_PRICE' : null,
+          },
+        ],
+      },
+    });
+  });
   await page.goto('/league/ux');
   await expect(
     page.getByRole('heading', { name: '종목별 비중과 이번 주 수익 기여도' }),
   ).toBeVisible();
   await expect(page.getByText('+1.20% 기여')).toBeVisible();
+  await expect(page.getByRole('table')).toBeVisible();
+  await page.getByRole('combobox', { name: '조회 주차' }).selectOption('2026-09-21');
+  await expect(page.getByText('종가 누락 · 집계 대기')).toBeVisible();
+  await expect(page.getByText('주간 누적 집계 대기')).toBeVisible();
   await checkWidth(page);
 });

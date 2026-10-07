@@ -1066,12 +1066,87 @@
   border-bottom: 1px solid var(--league-line);
 }
 
-.league-history-chart > div {
+.league-history-chart > button {
   display: grid;
   height: 100%;
   grid-template-rows: 1fr 24px;
   justify-items: center;
   align-items: end;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.league-history-chart > button[aria-pressed='true'] {
+  outline: 2px solid var(--league-ink);
+  outline-offset: 3px;
+}
+
+.league-daily-history header {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.league-daily-history label,
+.league-daily-summary {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.league-daily-history select {
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid var(--league-line);
+  border-radius: 6px;
+  background: white;
+  font: inherit;
+}
+
+.league-daily-summary {
+  margin: 20px 0;
+}
+.league-daily-summary small {
+  color: var(--league-muted);
+}
+.league-daily-chart {
+  width: 100%;
+  max-height: 230px;
+  margin-bottom: 12px;
+}
+.league-daily-chart text {
+  fill: var(--league-muted);
+  font-size: 10px;
+}
+.league-chart-baseline {
+  stroke: var(--league-line);
+}
+.league-chart-line {
+  stroke: var(--league-ink);
+  stroke-width: 2;
+}
+.league-daily-chart circle {
+  fill: var(--league-ink);
+}
+.league-daily-table-wrap {
+  overflow-x: auto;
+}
+.league-daily-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.league-daily-table caption {
+  text-align: left;
+  margin-bottom: 12px;
+  color: var(--league-muted);
+}
+.league-daily-table th,
+.league-daily-table td {
+  padding: 12px 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--league-line);
 }
 
 .league-history-chart span {

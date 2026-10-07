@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { recordDecision, getInvestorDetail, getRankings } from '../../src/features/league/api.ts';
+import {
+  recordDecision,
+  getInvestorDetail,
+  getRankings,
+  getDailyHistory,
+} from '../../src/features/league/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -17,6 +22,7 @@ test('리그 순위 응답을 런타임에 검증한다', async () => {
       leagueType: 'WEEKLY_RETURN',
       confirmed: true,
       totalCount: 1,
+      asOfDate: '2026-10-02',
       rankings: [
         {
           rank: 1,
@@ -40,6 +46,65 @@ test('리그 순위 응답을 런타임에 검증한다', async () => {
 
   assert.equal(response.rankings[0]?.displayName, '차분한초보');
   assert.equal(response.rankings[0]?.weeklyReturnRate, 2.5);
+});
+
+test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 이후 누적값을 검증한다', async () => {
+  const valid = {
+    weekStart: '2026-09-28',
+    weekEnd: '2026-10-04',
+    asOfDate: '2026-09-30',
+    eligibleFrom: '2026-08-03',
+    confirmed: false,
+    weeklyReturnRate: null,
+    days: [
+      {
+        baseDate: '2026-09-28',
+        dailyReturnRate: 10,
+        cumulativeReturnRate: 10,
+        status: 'CALCULATED',
+        reason: null,
+      },
+      {
+        baseDate: '2026-09-29',
+        dailyReturnRate: null,
+        cumulativeReturnRate: null,
+        status: 'EXCLUDED',
+        reason: 'MISSING_PRICE',
+      },
+      {
+        baseDate: '2026-09-30',
+        dailyReturnRate: -10,
+        cumulativeReturnRate: null,
+        status: 'CALCULATED',
+        reason: null,
+      },
+    ],
+  };
+  globalThis.fetch = async (input) => {
+    assert.equal(
+      String(input),
+      '/api/league/investors/investor-1/daily-history?weekStart=2026-09-28',
+    );
+    return jsonResponse(valid);
+  };
+  assert.equal(
+    (await getDailyHistory('investor-1', valid.weekStart)).days[1].dailyReturnRate,
+    null,
+  );
+  for (const invalid of [
+    { ...valid, weekEnd: '2026-10-02' },
+    { ...valid, days: [...valid.days].reverse() },
+    { ...valid, days: [{ ...valid.days[0], baseDate: '2026-09-21' }] },
+    { ...valid, days: [valid.days[0], { ...valid.days[1], dailyReturnRate: 0 }, valid.days[2]] },
+    {
+      ...valid,
+      days: [valid.days[0], valid.days[1], { ...valid.days[2], cumulativeReturnRate: -1 }],
+    },
+    { ...valid, weeklyReturnRate: 0 },
+  ]) {
+    globalThis.fetch = async () => jsonResponse(invalid);
+    await assert.rejects(() => getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
+  }
 });
 
 test('공개 상세의 중첩된 판단 기록까지 런타임에 검증한다', async () => {
