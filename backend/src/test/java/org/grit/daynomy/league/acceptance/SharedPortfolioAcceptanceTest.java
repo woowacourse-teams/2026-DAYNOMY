@@ -817,7 +817,7 @@ class SharedPortfolioAcceptanceTest {
   }
 
   @Test
-  void featureNamingMigrationPreservesRecordsRelationsAndIdentitySequences() throws Exception {
+  void featureMigrationsPreserveRecordsRelationsAndIdentitySequencesOnRerun() throws Exception {
     String schema = "naming_" + UUID.randomUUID().toString().replace("-", "");
     Flyway.configure()
         .configuration(Map.of("flyway.postgresql.transactional.lock", "false"))
@@ -832,27 +832,27 @@ class SharedPortfolioAcceptanceTest {
                 POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
         var sql = connection.createStatement()) {
       connection.setSchema(schema);
-      // V26에 실제로 존재하는 이전 테이블명으로 기록을 만든 뒤 새 버전으로 이전한다.
+      // 기능명으로 생성한 테이블의 기록과 관계가 마이그레이션 재실행 후에도 유지된다.
       sql.execute(
           """
           INSERT INTO members(id,provider,provider_id,email,nickname,role,status,created_at,updated_at)
           VALUES(1,'GOOGLE','naming','naming@example.invalid','naming','USER','ACTIVE',NOW(),NOW());
           INSERT INTO assets(id,name,category,asset_code,listed,created_at,updated_at)
           VALUES(1,'이전 종목','STOCK','NAMING',true,NOW(),NOW());
-          INSERT INTO romi_progress(member_id,item_key,item_type,completed,bookmarked,created_at,updated_at)
+          INSERT INTO learning_progress(member_id,item_key,item_type,completed,bookmarked,created_at,updated_at)
           VALUES(1,'guide-first-account','GUIDE',true,true,NOW(),NOW());
-          INSERT INTO romi_weekly_check_ins(member_id,week_start,target_savings,target_investment,target_debt_payment,
+          INSERT INTO weekly_check_ins(member_id,week_start,target_savings,target_investment,target_debt_payment,
             actual_savings,actual_investment,actual_debt_payment,note,created_at,updated_at)
           VALUES(1,'2026-10-05',100,20,0,90,10,0,'기존 실천',NOW(),NOW());
-          INSERT INTO romi_mock_trades(member_id,asset_id,trade_type,quantity,price,reason,traded_on,created_at,updated_at)
+          INSERT INTO simulated_trades(member_id,asset_id,trade_type,quantity,price,reason,traded_on,created_at,updated_at)
           VALUES(1,1,'BUY',2,100,'이전 기록',CURRENT_DATE,NOW(),NOW());
-          INSERT INTO romi_plans(member_id,plan_key,content,created_at,updated_at)
+          INSERT INTO financial_plans(member_id,plan_key,content,created_at,updated_at)
           VALUES(1,'monthly-plan','{"title":"기존 계획"}',NOW(),NOW());
-          INSERT INTO shared_portfolios_romi(member_id,created_at,updated_at)
+          INSERT INTO shared_portfolios(member_id,created_at,updated_at)
           VALUES(1,NOW(),NOW());
-          INSERT INTO shared_holdings_romi(portfolio_id,asset_id,quantity,average_purchase_price,hidden,created_at,updated_at)
+          INSERT INTO shared_holdings(portfolio_id,asset_id,quantity,average_purchase_price,hidden,created_at,updated_at)
           VALUES(1,1,3,200,true,NOW(),NOW());
-          INSERT INTO shared_holding_histories_romi(portfolio_id,asset_id,change_type,quantity,average_purchase_price,created_at,updated_at)
+          INSERT INTO shared_holding_histories(portfolio_id,asset_id,change_type,quantity,average_purchase_price,created_at,updated_at)
           VALUES(1,1,'ADDED',3,200,NOW(),NOW());
           """);
       Flyway.configure()
@@ -944,13 +944,13 @@ class SharedPortfolioAcceptanceTest {
               """
           SELECT (SELECT COUNT(*) FROM pg_indexes WHERE schemaname=current_schema()
                     AND indexname IN ('idx_news_status_published_id','idx_news_created_id')) AS indexes,
-                 (SELECT COUNT(*) FROM flyway_schema_history WHERE script LIKE '%romi%') AS old_names,
+                 (SELECT COUNT(*) FROM flyway_schema_history WHERE success AND version::integer BETWEEN 22 AND 26) AS feature_migrations,
                  (SELECT MAX(version::integer) FROM flyway_schema_history WHERE success AND version IS NOT NULL) AS latest_version
           """)) {
         assertThat(result.next()).isTrue();
         assertThat(result.getInt("indexes")).isEqualTo(2);
-        assertThat(result.getInt("old_names")).isZero();
-        assertThat(result.getInt("latest_version")).isEqualTo(27);
+        assertThat(result.getInt("feature_migrations")).isEqualTo(5);
+        assertThat(result.getInt("latest_version")).isEqualTo(26);
       }
     }
   }
