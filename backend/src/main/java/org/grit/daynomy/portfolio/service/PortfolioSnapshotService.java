@@ -1,20 +1,28 @@
 package org.grit.daynomy.portfolio.service;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot;
+import org.grit.daynomy.portfolio.domain.PortfolioHolding;
+import org.grit.daynomy.portfolio.dto.PortfolioCalculateRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioCurrentPerformanceResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformancePointResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceStatus;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,13 +32,21 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PortfolioSnapshotService {
 
+  private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
   private final PortfolioRepository portfolioRepository;
+  private final PortfolioHoldingRepository holdingRepository;
   private final PortfolioDailySnapshotRepository snapshotRepository;
   private final StockDailyPriceRepository stockPriceRepository;
   private final PortfolioSnapshotTransactionService snapshotTransactionService;
+  private final PortfolioCalculationService calculationService;
 
   public int createLatestSnapshots() {
-    List<LocalDate> baseDates = stockPriceRepository.findDistinctBaseDatesOrderByBaseDate();
+    LocalDate today = LocalDate.now(SEOUL);
+    List<LocalDate> baseDates =
+        stockPriceRepository.findDistinctBaseDatesOrderByBaseDate().stream()
+            .filter(baseDate -> baseDate.isBefore(today))
+            .toList();
     if (baseDates.isEmpty()) {
       return 0;
     }
@@ -73,13 +89,16 @@ public class PortfolioSnapshotService {
     if (from.isAfter(to)) {
       throw new BusinessException(PortfolioErrorCode.INVALID_PORTFOLIO_PERIOD);
     }
+    LocalDate today = LocalDate.now(SEOUL);
+    Optional<Portfolio> portfolio = portfolioRepository.findByMemberId(memberId);
+    LocalDate historicalTo = to.isBefore(today) ? to : today.minusDays(1);
     List<PortfolioDailySnapshot> snapshots =
-        portfolioRepository
-            .findByMemberId(memberId)
+        portfolio
+            .filter(ignored -> !from.isAfter(historicalTo))
             .map(
-                portfolio ->
+                savedPortfolio ->
                     snapshotRepository.findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(
-                        portfolio.getId(), from, to))
+                        savedPortfolio.getId(), from, historicalTo))
             .orElseGet(List::of);
     PortfolioPerformanceStatus status =
         snapshots.size() >= 2
@@ -95,6 +114,37 @@ public class PortfolioSnapshotService {
             : PortfolioPerformanceUnavailableReason.SNAPSHOT_DATA_INSUFFICIENT,
         baseDate,
         previousBaseDate,
-        snapshots.stream().map(PortfolioPerformancePointResponse::from).toList());
+        snapshots.stream().map(PortfolioPerformancePointResponse::from).toList(),
+        currentPoint(portfolio.orElse(null), from, to, today));
+  }
+
+  private PortfolioCurrentPerformanceResponse currentPoint(
+      Portfolio portfolio, LocalDate from, LocalDate to, LocalDate today) {
+    if (portfolio == null || today.isBefore(from) || today.isAfter(to)) {
+      return null;
+    }
+    List<PortfolioHolding> holdings =
+        holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId());
+    if (holdings.isEmpty()) {
+      return PortfolioCurrentPerformanceResponse.empty(today);
+    }
+    PortfolioCalculateRequest request =
+        new PortfolioCalculateRequest(
+            holdings.stream()
+                .map(
+                    holding ->
+                        new PortfolioHoldingRequest(
+                            holding.getAsset().getId(),
+                            holding.getQuantity(),
+                            holding.getAveragePurchasePrice()))
+                .toList());
+    try {
+      return PortfolioCurrentPerformanceResponse.from(today, calculationService.calculate(request));
+    } catch (BusinessException exception) {
+      if (exception.errorCode() == AssetErrorCode.STOCK_PRICE_NOT_FOUND) {
+        return null;
+      }
+      throw exception;
+    }
   }
 }
