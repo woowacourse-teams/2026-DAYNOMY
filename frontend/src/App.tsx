@@ -20,6 +20,7 @@ import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import { StockContentPage } from './features/stock-content/StockContentPage';
 import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
+import { InvestmentCapacityPage } from './features/investment-capacity/InvestmentCapacityPage';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -38,6 +39,7 @@ function AppHeader() {
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/portfolio') ||
+    location.pathname.startsWith('/investment-capacity') ||
     location.pathname.startsWith('/stocks/') ||
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
@@ -116,6 +118,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<PortfolioPage />} />
               <Route path="/portfolio" element={<Navigate to="/" replace />} />
+              <Route path="/investment-capacity" element={<InvestmentCapacityPage />} />
               <Route path="/news" element={<NewsListPage />} />
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />

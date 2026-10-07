@@ -1,5 +1,6 @@
 .daynomy-header {
-  --header-side-padding: clamp(56px, 8vw, 160px);
+  --header-content-width: 1120px;
+  --header-side-padding: max(20px, calc((100% - var(--header-content-width)) / 2));
   position: relative;
   box-sizing: border-box;
   width: 100%;
@@ -37,10 +38,11 @@
   left: 50%;
   top: 22px;
   display: flex;
-  width: 114px;
+  width: 210px;
   height: 20px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 22px;
   transform: translateX(-50%);
 }
 
@@ -67,11 +69,15 @@
 }
 
 .daynomy-header .header-tab:first-child {
-  width: 28px;
+  width: 56px;
+}
+
+.daynomy-header .header-tab:nth-child(2) {
+  width: 42px;
 }
 
 .daynomy-header .header-tab:last-child {
-  width: 56px;
+  width: 28px;
 }
 
 .daynomy-header .header-tab:hover,
@@ -197,7 +203,7 @@
 
 @media (max-width: 900px) {
   .daynomy-header {
-    --header-side-padding: 32px;
+    --header-side-padding: 20px;
   }
 
   .daynomy-header .brand {
@@ -235,7 +241,8 @@
 
   .daynomy-header .header-tabs {
     position: static;
-    flex: 0 0 114px;
+    flex: 0 0 170px;
+    gap: 12px;
     transform: none;
   }
 
@@ -262,16 +269,21 @@
   }
 
   .daynomy-header .header-tabs {
-    width: 100px;
-    flex-basis: 100px;
+    width: 150px;
+    flex-basis: 150px;
+    gap: 8px;
   }
 
   .daynomy-header .header-tab:first-child {
-    width: 24px;
+    width: 50px;
+  }
+
+  .daynomy-header .header-tab:nth-child(2) {
+    width: 38px;
   }
 
   .daynomy-header .header-tab:last-child {
-    width: 50px;
+    width: 24px;
   }
 
   .daynomy-header .login-button {
