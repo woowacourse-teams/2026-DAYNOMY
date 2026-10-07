@@ -472,6 +472,37 @@
   font-size: 13px;
 }
 
+.portfolio-auth-required {
+  display: grid;
+  min-height: 420px;
+  place-content: center;
+  justify-items: center;
+  padding: 72px 20px;
+  border-top: 1px solid var(--portfolio-line);
+  border-bottom: 1px solid var(--portfolio-line);
+  text-align: center;
+}
+
+.portfolio-auth-required h2 {
+  color: #171821;
+  font-size: 22px;
+  line-height: 1.4;
+}
+
+.portfolio-auth-required p {
+  margin: 10px 0 26px;
+  color: var(--portfolio-muted);
+  font-size: 14px;
+}
+
+.portfolio-login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 104px;
+  text-decoration: none;
+}
+
 .portfolio-overview {
   display: flex;
   align-items: center;
