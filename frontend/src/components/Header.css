@@ -37,7 +37,7 @@
   left: 50%;
   top: 22px;
   display: flex;
-  width: 114px;
+  width: 176px;
   height: 20px;
   align-items: center;
   justify-content: space-between;
@@ -64,14 +64,6 @@
   letter-spacing: 0;
   text-decoration: none;
   white-space: nowrap;
-}
-
-.daynomy-header .header-tab:first-child {
-  width: 28px;
-}
-
-.daynomy-header .header-tab:last-child {
-  width: 56px;
 }
 
 .daynomy-header .header-tab:hover,
@@ -235,7 +227,7 @@
 
   .daynomy-header .header-tabs {
     position: static;
-    flex: 0 0 114px;
+    flex: 0 0 176px;
     transform: none;
   }
 
@@ -262,16 +254,8 @@
   }
 
   .daynomy-header .header-tabs {
-    width: 100px;
-    flex-basis: 100px;
-  }
-
-  .daynomy-header .header-tab:first-child {
-    width: 24px;
-  }
-
-  .daynomy-header .header-tab:last-child {
-    width: 50px;
+    width: 154px;
+    flex-basis: 154px;
   }
 
   .daynomy-header .login-button {

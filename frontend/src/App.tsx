@@ -20,6 +20,9 @@ import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import { StockContentPage } from './features/stock-content/StockContentPage';
 import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
+import { GuideListPage } from './features/guides/GuideListPage';
+import { GuideDetailPage } from './features/guides/GuideDetailPage';
+import { AccountOpeningGuidePage } from './features/guides/AccountOpeningGuidePage';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -38,6 +41,7 @@ function AppHeader() {
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/portfolio') ||
+    location.pathname.startsWith('/guides') ||
     location.pathname.startsWith('/stocks/') ||
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
@@ -120,6 +124,9 @@ export default function App() {
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />
               <Route path="/search" element={<SearchPage />} />
+              <Route path="/guides" element={<GuideListPage />} />
+              <Route path="/guides/account-opening" element={<AccountOpeningGuidePage />} />
+              <Route path="/guides/:guideId" element={<GuideDetailPage />} />
               <Route path="/stocks" element={<Navigate to="/" replace />} />
               <Route path="/stocks/:assetId/card-preview" element={<CardDesignPreviewPage />} />
               <Route path="/stocks/:assetId" element={<StockContentPage />} />
