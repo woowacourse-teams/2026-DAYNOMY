@@ -20,18 +20,28 @@ afterEach(() => {
 });
 
 describe('로그인 화면', () => {
-  it('관리자 Google 로그인 링크를 OAuth 엔드포인트에 연결한다', () => {
+  it('포트폴리오 Google 로그인 링크를 OAuth 엔드포인트에 연결한다', () => {
     const view = renderLogin();
     const link = view.getByRole('link', {
       name: 'Google로 시작하기',
     }) as HTMLAnchorElement;
 
     expect(link.getAttribute('href')).toBe(getApiUrl('/api/auth/google'));
-    expect(view.getByRole('heading', { name: 'DAYNOMY 관리자 로그인' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeTruthy();
 
     link.addEventListener('click', (event) => event.preventDefault());
     fireEvent.click(link);
 
+    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/');
+  });
+
+  it('관리자 로그인은 관리자 화면으로 돌아간다', () => {
+    const view = renderLogin('/login?returnTo=%2Fadmin');
+    const link = view.getByRole('link', { name: 'Google로 시작하기' });
+    link.addEventListener('click', (event) => event.preventDefault());
+    fireEvent.click(link);
+
+    expect(view.getByRole('heading', { name: 'DAYNOMY 관리자 로그인' })).toBeTruthy();
     expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/admin');
   });
 
