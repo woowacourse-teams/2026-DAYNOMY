@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Saved Portfolio", description = "로그인 회원의 포트폴리오와 수익률 추적 API")
 @RequiredArgsConstructor
-@RequestMapping("/api/users/me/portfolio")
+@RequestMapping("/api/portfolio")
 @RestController
 public class SavedPortfolioController {
 
@@ -73,7 +73,9 @@ public class SavedPortfolioController {
     return ResponseEntity.noContent().build();
   }
 
-  @Operation(summary = "기간별 포트폴리오 수익률 조회", description = "거래일별 매입금액 대비 평가손익의 누적수익률 스냅샷을 조회합니다.")
+  @Operation(
+      summary = "기간별 포트폴리오 수익률 조회",
+      description = "거래일별 매입금액과 평가금액 스냅샷을 조회합니다. 오늘 값은 현재 보유자산과 최근 종가로 계산하며 저장하지 않습니다.")
   @GetMapping("/performance")
   public PortfolioPerformanceResponse performance(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
