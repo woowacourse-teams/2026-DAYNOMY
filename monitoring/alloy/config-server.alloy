@@ -1,0 +1,75 @@
+loki.write "central" {
+  endpoint {
+    url = sys.env("LOKI_PUSH_URL")
+  }
+}
+
+loki.process "backend" {
+  stage.json {
+    expressions = {
+      level     = "level",
+      requestId = "requestId",
+      traceId   = "traceId",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level = "level",
+    }
+  }
+
+  stage.structured_metadata {
+    values = {
+      request_id = "requestId",
+      trace_id   = "traceId",
+    }
+  }
+
+  forward_to = [loki.write.central.receiver]
+}
+
+loki.source.journal "backend" {
+  matches = "_SYSTEMD_UNIT=" + sys.env("DAYNOMY_BACKEND_UNIT")
+  max_age = "24h"
+
+  labels = {
+    environment = sys.env("DAYNOMY_ENVIRONMENT"),
+    instance    = sys.env("DAYNOMY_INSTANCE"),
+    service     = "backend",
+  }
+
+  forward_to = [loki.process.backend.receiver]
+}
+
+local.file_match "nginx_access" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/var/log/nginx/access.log",
+    environment = sys.env("DAYNOMY_ENVIRONMENT"),
+    instance    = sys.env("DAYNOMY_INSTANCE"),
+    service     = "nginx",
+    log_type    = "access",
+  }]
+}
+
+loki.source.file "nginx_access" {
+  targets    = local.file_match.nginx_access.targets
+  forward_to = [loki.write.central.receiver]
+}
+
+local.file_match "nginx_error" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/var/log/nginx/error.log",
+    environment = sys.env("DAYNOMY_ENVIRONMENT"),
+    instance    = sys.env("DAYNOMY_INSTANCE"),
+    service     = "nginx",
+    log_type    = "error",
+  }]
+}
+
+loki.source.file "nginx_error" {
+  targets    = local.file_match.nginx_error.targets
+  forward_to = [loki.write.central.receiver]
+}
