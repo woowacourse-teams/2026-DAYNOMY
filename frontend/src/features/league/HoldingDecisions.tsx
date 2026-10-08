@@ -116,14 +116,7 @@ export function HoldingDecisions({ holdings }: { holdings: SharedHolding[] }) {
   return (
     <section className="shared-panel" aria-labelledby="holding-decisions-title">
       <h2 id="holding-decisions-title">판단과 복기</h2>
-      <p>
-        왜 보유하는지 기록하고, 나중에 결과를 돌아보세요. 기록만 추가하며 보유수량은 바꾸지
-        않습니다.
-      </p>
-      <p>
-        최초 판단은 수정하지 않습니다. 상세 공개에 동의한 기록은 누구나 바로 볼 수 있으며, 숨긴
-        종목의 판단과 복기는 공개하지 않습니다.
-      </p>
+      <p>보유한 이유를 남기고, 결과를 돌아보세요.</p>
       {loading ? (
         <p role="status">판단 기록을 불러오는 중입니다.</p>
       ) : loadError ? (
@@ -363,6 +356,13 @@ export function HoldingDecisions({ holdings }: { holdings: SharedHolding[] }) {
       )}
       {error ? <p role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
+      <details className="league-metric-more">
+        <summary>기록 공개 기준</summary>
+        <p className="league-calculation-note">
+          최초 판단과 보유수량은 변경되지 않습니다. 공개에 동의한 기록만 표시하며, 숨긴 종목의
+          판단과 복기는 공개하지 않습니다.
+        </p>
+      </details>
     </section>
   );
 }

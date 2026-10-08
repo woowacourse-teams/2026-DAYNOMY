@@ -197,6 +197,7 @@ for (const viewport of [
     await expect(page.getByText('성장 가정을 점검했습니다', { exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByText('성장 가정을 점검했습니다', { exact: true })).toBeVisible();
+    await page.getByText('자산 상세', { exact: true }).click();
     await expect(page.getByText('2주', { exact: true })).toBeVisible();
     await checkWidth(page);
   });
@@ -266,12 +267,14 @@ for (const viewport of [
     await expect(page.getByRole('button', { name: '종목 직접 추가' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '수정', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '공유용에서 삭제' })).toHaveCount(0);
+    await page.getByText('자산 상세', { exact: true }).click();
     await expect(page.getByText('10주', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: '숨기기', exact: true }).click();
     await expect(page.getByRole('button', { name: '숨김 해제' })).toBeVisible();
     await expect(page.getByText('+10.00%', { exact: true })).toHaveCount(2);
     await page.reload();
     await expect(page.getByRole('button', { name: '숨김 해제' })).toBeVisible();
+    await page.getByText('자산 상세', { exact: true }).click();
     await expect(page.getByText('10주', { exact: true })).toBeVisible();
     await checkWidth(page);
     await page.getByRole('button', { name: '숨김 해제' }).click();
@@ -363,6 +366,7 @@ test('모바일: 공개 범위가 미리 보이고 동의한 항목만 저장한
     route.fulfill({ json: { ...profile, ...route.request().postDataJSON() } }),
   );
   await page.goto('/portfolio/publication');
+  await page.getByText('공개 모습 미리보기', { exact: true }).click();
   await expect(page.getByText('현재 선택: 비공개')).toBeVisible();
   await expect(page.getByRole('checkbox', { name: /주간 리그 참여/ })).toBeDisabled();
   await page.getByRole('checkbox', { name: /프로필 공개/ }).check();
@@ -453,10 +457,9 @@ test('모바일: 공개 종목 상세와 8주 기록이 화면 밖으로 넘치�
     });
   });
   await page.goto('/league/ux');
-  await expect(
-    page.getByRole('heading', { name: '종목별 비중과 이번 주 수익 기여도' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: '공개 종목' })).toBeVisible();
   await expect(page.getByText('+1.20% 기여')).toBeVisible();
+  await page.getByText('일별 수익률 보기', { exact: true }).click();
   await expect(page.getByRole('table')).toBeVisible();
   await page.getByRole('combobox', { name: '조회 주차' }).selectOption('2026-09-21');
   await expect(page.getByText('종가 누락 · 집계 대기')).toBeVisible();

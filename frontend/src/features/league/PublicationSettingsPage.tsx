@@ -117,16 +117,15 @@ export function PublicationSettingsPage() {
     <main className="league-page league-settings-page">
       <header className="league-page-heading">
         <div>
-          <span>공개는 선택사항입니다</span>
-          <h1>리그 참여 설정</h1>
-          <p>마이페이지와 같은 닉네임을 사용합니다. 공개할 항목을 선택하고 저장하세요.</p>
+          <h1>공개 설정</h1>
+          <p>다른 사람에게 보여줄 항목을 선택하세요.</p>
         </div>
-        <Link to="/league">리그 미리 보기</Link>
+        <Link to="/league/portfolio">← 공유 자산 확인</Link>
       </header>
 
       <form className="league-settings-form" onSubmit={submit}>
         <section>
-          <h2>1. 공개 프로필 만들기</h2>
+          <h2>프로필</h2>
           <div className="league-form-grid">
             <label>
               <span>공개 닉네임</span>
@@ -180,20 +179,17 @@ export function PublicationSettingsPage() {
         </section>
 
         <section>
-          <h2>2. 공개 범위 선택하기</h2>
-          <p className="league-form-hint">
-            먼저 프로필 공개를 켜면 나머지 항목을 선택할 수 있어요. 실제 금액과 이름·이메일은 항상
-            비공개입니다.
-          </p>
+          <h2>공개 범위</h2>
+          <p className="league-form-hint">실제 금액·이름·이메일은 항상 비공개예요.</p>
           <div className="league-toggle-list">
             {[
-              ['profilePublic', '프로필 공개', '리그와 공개 상세에서 닉네임과 소개를 보여줍니다.'],
-              ['leagueEnabled', '주간 리그 참여', '다음 완전한 거래 주부터 수익률을 집계합니다.'],
-              ['allocationPublic', '자산군 비중 공개', '종목명 없이 주식과 ETF 비중만 보여줍니다.'],
+              ['profilePublic', '프로필 공개', '닉네임과 소개를 보여줍니다.'],
+              ['leagueEnabled', '주간 리그 참여', '다음 완전한 거래 주부터 참여합니다.'],
+              ['allocationPublic', '자산군 비중 공개', '주식·ETF 비중을 보여줍니다.'],
               [
                 'detailPublic',
                 '종목·판단 기록 공개',
-                '숨기지 않은 종목과 판단·복기를 누구나 바로 볼 수 있습니다. 금액·수량은 공개하지 않습니다.',
+                '숨기지 않은 종목·판단·복기를 공개합니다. 금액·수량은 비공개입니다.',
               ],
             ].map(([key, title, description]) => (
               <label key={key}>
@@ -214,23 +210,25 @@ export function PublicationSettingsPage() {
           </div>
         </section>
 
-        <aside className="league-preview-card">
-          <span>{publication.profilePublic ? '저장 후 공개될 프로필' : '현재 선택: 비공개'}</span>
-          <strong>{form.displayName || '공개 닉네임'}</strong>
-          <p>{form.bio || '투자 원칙을 소개해 주세요.'}</p>
-          <small>
-            {experienceLabels[form.experienceLevel]} · {riskLabels[form.riskProfile]} · 실제 금액
-            비공개
-          </small>
-          <p className="league-preview-status">
-            {!publication.profilePublic
-              ? '프로필을 공개하지 않으면 다른 사용자는 볼 수 없어요.'
-              : publication.leagueEnabled
-                ? '주간 리그 참여 켜짐 · 다음 완전한 거래 주부터 집계'
-                : '프로필만 공개 · 리그에는 참여하지 않음'}
-          </p>
-        </aside>
-
+        <details className="league-publication-preview">
+          <summary>공개 모습 미리보기</summary>
+          <aside className="league-preview-card">
+            <span>{publication.profilePublic ? '저장 후 공개될 프로필' : '현재 선택: 비공개'}</span>
+            <strong>{form.displayName || '공개 닉네임'}</strong>
+            <p>{form.bio || '투자 원칙을 소개해 주세요.'}</p>
+            <small>
+              {experienceLabels[form.experienceLevel]} · {riskLabels[form.riskProfile]} · 실제 금액
+              비공개
+            </small>
+            <p className="league-preview-status">
+              {!publication.profilePublic
+                ? '프로필을 공개하지 않으면 다른 사용자는 볼 수 없어요.'
+                : publication.leagueEnabled
+                  ? '주간 리그 참여 켜짐 · 다음 완전한 거래 주부터 집계'
+                  : '프로필만 공개 · 리그에는 참여하지 않음'}
+            </p>
+          </aside>
+        </details>
         <div className="league-form-actions">
           <button type="submit" disabled={saving || !form.displayName.trim()}>
             {saving ? '저장 중…' : profile ? '설정 저장' : '프로필 만들기'}

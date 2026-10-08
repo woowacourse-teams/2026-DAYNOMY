@@ -65,7 +65,10 @@ test('관리자 로그인 시작 후 인증된 관리자 화면으로 이동한�
   );
   await page.route('**/api/auth/google', (route) => {
     loggedIn = true;
-    return route.fulfill({ status: 302, headers: { location: 'http://127.0.0.1:4173/' } });
+    return route.fulfill({
+      status: 302,
+      headers: { location: 'http://127.0.0.1:4173/' },
+    });
   });
   await page.route('**/api/admin/news**', (route) =>
     route.fulfill({
@@ -171,7 +174,7 @@ test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 �
     .getByRole('link', { name: '투자 리그' })
     .click();
   await expect(page).toHaveURL('/league');
-  await expect(page.getByRole('heading', { name: '이번 주 투자 리그' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '투자 리그' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toBeVisible();
   await page.getByRole('link', { name: '마이페이지' }).click();
   await expect(page).toHaveURL('/mypage');
@@ -316,11 +319,12 @@ test('비회원도 공개 투자 리그에서 종목과 판단을 바로 확인�
   await expect(page.getByRole('heading', { name: '차분한초보', level: 1 })).toBeVisible();
   await expect(page.getByText('판단 근거: 공시를 확인한 보유 판단')).toBeVisible();
   await expect(page.getByText('당일 작성한 판단 근거')).toBeVisible();
+  await page.getByText('일별 수익률 보기', { exact: true }).click();
   await expect(page.getByRole('heading', { name: '일별 수익률 · 주간 누적' })).toBeVisible();
   await expect(page.getByText('주간 누적 -1.00%', { exact: true })).toBeVisible();
   await expect(page.getByRole('table')).toContainText('+10.00%');
   await page.getByRole('button', { name: /2026-09-28 주간.*일별 기록 보기/ }).click();
   await expect(page.getByRole('combobox', { name: '조회 주차' })).toHaveValue('2026-09-28');
   await expect(page.getByRole('link', { name: '멤버십 알아보기' })).toHaveCount(0);
-  await expect(page.getByText(/실제 투자금액은 공개하지 않습니다/)).toBeVisible();
+  await expect(page.getByText('금액 비공개', { exact: true })).toBeVisible();
 });

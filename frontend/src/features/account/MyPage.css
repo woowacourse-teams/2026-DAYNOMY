@@ -1,12 +1,13 @@
 .mypage {
   width: min(760px, calc(100% - 40px));
-  margin: 32px auto 80px;
+  margin: 24px auto 80px;
   color: #172031;
   line-height: 1.6;
 }
 
 .mypage h1 {
   font-size: 28px;
+  margin: 0;
 }
 
 .mypage h2 {
@@ -22,8 +23,8 @@
 }
 
 .mypage section {
-  margin-top: 24px;
-  padding: 24px 0;
+  margin-top: 20px;
+  padding: 20px 0;
   border-top: 1px solid #e7eaf0;
 }
 
@@ -31,7 +32,8 @@
   display: grid;
   grid-template-columns: 80px minmax(0, 1fr);
   gap: 16px;
-  margin-bottom: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f1f4;
 }
 
 .mypage dd {
@@ -84,23 +86,34 @@
 
 .mypage nav a {
   display: grid;
-  padding: 16px 0;
+  padding: 16px 32px 16px 0;
+  position: relative;
   gap: 4px;
   border-bottom: 1px solid #e7eaf0;
   color: inherit;
   text-decoration: none;
 }
+.mypage nav a::after {
+  content: '→';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #667085;
+}
+.mypage nav a:hover {
+  background: #f8f9fb;
+}
 
 .mypage nav a:hover strong {
   color: #5144d8;
-  text-decoration: underline;
 }
 
 .mypage button {
   min-height: 44px;
   padding: 10px 20px;
   border: 1px solid #d0d5dd;
-  border-radius: 4px;
+  border-radius: 6px;
   color: #344054;
   background: white;
   font: inherit;
@@ -120,4 +133,10 @@
 .mypage :focus-visible {
   outline: 2px solid #5144d8;
   outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .mypage {
+    width: calc(100% - 32px);
+  }
 }

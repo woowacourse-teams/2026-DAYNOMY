@@ -17,21 +17,17 @@ it('삭제한 돈 관리 화면에서는 더 이상 기능 메뉴를 표시하�
   expect(view.queryByRole('link', { name: /초보 가이드|저축·투자 계획/ })).toBeNull();
 });
 
-it('공유용 자산에서는 리그 메뉴로 연결하고 다른 화면에는 표시하지 않는다', () => {
+it('상세 화면에는 리그로 돌아가는 링크만 표시하고 첫 화면에는 보조 탭이 없다', () => {
   const view = render(
     <MemoryRouter initialEntries={['/league/portfolio']}>
       <LeagueNavigation />
     </MemoryRouter>,
   );
-  expect(view.getByRole('link', { name: /공유 포트폴리오/ }).getAttribute('aria-current')).toBe(
-    'page',
-  );
-  expect(view.getByRole('link', { name: /리그 참여 설정/ }).getAttribute('href')).toBe(
-    '/portfolio/publication',
-  );
+  expect(view.getAllByRole('link')).toHaveLength(1);
+  expect(view.getByRole('link', { name: '← 투자 리그' }).getAttribute('href')).toBe('/league');
   view.unmount();
   const news = render(
-    <MemoryRouter initialEntries={['/news']}>
+    <MemoryRouter initialEntries={['/league']}>
       <LeagueNavigation />
     </MemoryRouter>,
   );

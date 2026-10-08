@@ -99,14 +99,27 @@ export function SharedPortfolioPage() {
       <header className="league-hero">
         <div>
           <h1>공유 포트폴리오</h1>
-          <p>원본 포트폴리오에서 종목을 가져오고, 공개할 종목만 선택하세요.</p>
+          <p>공개할 종목을 고르고 투자 판단을 기록하세요.</p>
         </div>
-        <Link to="/">원본 포트폴리오 보기 →</Link>
+        <div className="league-hero-actions">
+          {!loading && data ? (
+            <button
+              className="shared-primary-button"
+              disabled={busy}
+              aria-busy={busy}
+              onClick={() => void openImport()}
+            >
+              내 포트폴리오에서 가져오기
+            </button>
+          ) : null}
+        </div>
       </header>
-      <p className="shared-boundary">
-        여기서는 원본을 불러오고 종목을 숨기거나 다시 보여줄 수 있어요. 수량과 매수가는 원본에서
-        수정한 뒤 다시 가져오세요.
-      </p>
+      <div className="shared-source-note">
+        <span>원본 포트폴리오는 바뀌지 않아요.</span>
+        <Link className="league-text-link" to="/">
+          원본 포트폴리오 →
+        </Link>
+      </div>
       {message && (
         <p role="status" className="shared-feedback">
           {message}
@@ -123,38 +136,33 @@ export function SharedPortfolioPage() {
         <button onClick={() => setRetry((n) => n + 1)}>다시 불러오기</button>
       ) : (
         <>
-          <section className="shared-overview" aria-label="공유용 자산 요약">
-            <dl>
-              <div>
-                <dt>등록 종목</dt>
-                <dd>{data.holdings.length}개</dd>
-              </div>
-              <div>
-                <dt>공유용 평가금액</dt>
-                <dd>{won(data.totalEvaluationAmount)}</dd>
-              </div>
-              <div>
-                <dt>공유 포트폴리오 수익률</dt>
-                <dd>{rate(data.totalReturnRate)}</dd>
-              </div>
-            </dl>
-            <p>입력한 평균 매수가 대비 종가 평가입니다. 리그 주간 수익률과는 기준이 다릅니다.</p>
-            {!data.pricesComplete && (
-              <p>가격이 없는 종목이 있어 전체 평가금액과 수익률은 표시하지 않았어요.</p>
-            )}
-            <div className="shared-actions">
-              <button disabled={busy} aria-busy={busy} onClick={() => void openImport()}>
-                내 포트폴리오에서 가져오기
-              </button>
-              <Link to="/portfolio/publication">공개 범위·리그 참여 설정 →</Link>
-            </div>
-          </section>
+          {data.holdings.length > 0 ? (
+            <section className="shared-overview" aria-label="공유용 자산 요약">
+              <dl>
+                <div>
+                  <dt>등록 종목</dt>
+                  <dd>{data.holdings.length}개</dd>
+                </div>
+                <div>
+                  <dt>공유용 평가금액</dt>
+                  <dd>{won(data.totalEvaluationAmount)}</dd>
+                </div>
+                <div>
+                  <dt>매수가 대비 수익률</dt>
+                  <dd>{rate(data.totalReturnRate)}</dd>
+                </div>
+              </dl>
+              {!data.pricesComplete && (
+                <p>가격이 없는 종목이 있어 전체 평가금액과 수익률은 표시하지 않았어요.</p>
+              )}
+            </section>
+          ) : null}
           {source && (
             <section className="shared-panel" aria-labelledby="shared-import-title">
               <h2 id="shared-import-title" ref={panelHeading} tabIndex={-1}>
                 가져올 자산 선택
               </h2>
-              <p>현재 계정의 원본을 읽었습니다. 선택하지 않은 공유용 자산은 유지됩니다.</p>
+              <p>가져올 종목을 선택하세요. 선택하지 않은 기존 자산은 유지돼요.</p>
               {source.length === 0 ? (
                 <p>
                   원본에 등록된 자산이 없어요. <Link to="/">포트폴리오 입력하기</Link>
@@ -209,6 +217,7 @@ export function SharedPortfolioPage() {
                     </label>
                   )}
                   <button
+                    className="shared-primary-button"
                     disabled={busy || selected.length === 0 || (conflicts.length > 0 && !overwrite)}
                     onClick={() =>
                       void mutate(
@@ -228,10 +237,7 @@ export function SharedPortfolioPage() {
           )}
           <section className="shared-list" aria-labelledby="shared-holdings-title">
             <h2 id="shared-holdings-title">공유용 자산 {data.holdings.length}개</h2>
-            <p>
-              공개에 동의한 종목과 판단은 누구나 바로 볼 수 있습니다. 숨김은 공개만 제한하며
-              계산에서 제외하지 않습니다.
-            </p>
+            {data.holdings.length > 0 ? <p>숨긴 종목도 수익률 계산에는 포함돼요.</p> : null}
             {data.holdings.length === 0 && (
               <p className="league-state">
                 아직 공유용 자산이 없어요. 위에서 원본 포트폴리오를 불러오세요.
@@ -244,53 +250,66 @@ export function SharedPortfolioPage() {
                     <h3>{h.assetName}</h3>
                     <small>
                       {h.category === 'ETF' ? 'ETF' : '주식'} · {h.assetCode} ·{' '}
-                      {h.hidden ? '종목 숨김' : '공개 설정에 따름'}
+                      {h.hidden ? '종목 숨김' : '공개 대상'}
                     </small>
                   </div>
-                  <strong>{rate(h.returnRate)}</strong>
+                  <div className="shared-holding-actions">
+                    <strong>{rate(h.returnRate)}</strong>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void mutate(
+                          () => changeSharedHoldingVisibility(h.assetId, !h.hidden),
+                          h.hidden
+                            ? '종목 숨김을 해제했어요. 공개 설정에 따라 표시됩니다.'
+                            : '종목과 판단 근거를 숨겼어요. 수익률 계산에는 계속 포함됩니다.',
+                        )
+                      }
+                    >
+                      {h.hidden ? '숨김 해제' : '숨기기'}
+                    </button>
+                  </div>
                 </header>
-                <dl>
-                  <div>
-                    <dt>보유수량</dt>
-                    <dd>{h.quantity.toLocaleString()}주</dd>
-                  </div>
-                  <div>
-                    <dt>평균 매수가</dt>
-                    <dd>{won(h.averagePurchasePrice)}</dd>
-                  </div>
-                  <div>
-                    <dt>평가금액</dt>
-                    <dd>{won(h.evaluationAmount)}</dd>
-                  </div>
-                  <div>
-                    <dt>종가 기준일</dt>
-                    <dd>{h.baseDate ?? '가격 없음'}</dd>
-                  </div>
-                </dl>
-                {h.reason && <p className="shared-reason-text">{h.reason}</p>}
-                <div className="shared-actions">
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void mutate(
-                        () => changeSharedHoldingVisibility(h.assetId, !h.hidden),
-                        h.hidden
-                          ? '종목 숨김을 해제했어요. 공개 설정에 따라 표시됩니다.'
-                          : '종목과 판단 근거를 숨겼어요. 수익률 계산에는 계속 포함됩니다.',
-                      )
-                    }
-                  >
-                    {h.hidden ? '숨김 해제' : '숨기기'}
-                  </button>
-                </div>
+                <details className="shared-holding-details">
+                  <summary>자산 상세</summary>
+                  <dl>
+                    <div>
+                      <dt>보유수량</dt>
+                      <dd>{h.quantity.toLocaleString()}주</dd>
+                    </div>
+                    <div>
+                      <dt>평균 매수가</dt>
+                      <dd>{won(h.averagePurchasePrice)}</dd>
+                    </div>
+                    <div>
+                      <dt>평가금액</dt>
+                      <dd>{won(h.evaluationAmount)}</dd>
+                    </div>
+                    <div>
+                      <dt>종가 기준일</dt>
+                      <dd>{h.baseDate ?? '가격 없음'}</dd>
+                    </div>
+                  </dl>
+                  {h.reason && <p className="shared-reason-text">{h.reason}</p>}
+                </details>
               </article>
             ))}
           </section>
+          <div className="shared-next-action">
+            <p>종목을 골랐다면 공개 범위를 설정하세요.</p>
+            <Link className="league-primary-link" to="/portfolio/publication">
+              공개 설정 →
+            </Link>
+          </div>
           <HoldingDecisions holdings={data.holdings} />
-          <p className="league-calculation-note">
-            자산 변경은 다음 거래일부터 리그 계산에 반영됩니다. 숨긴 종목도 계산에 포함되며, 과거
-            순위를 유리하게 다시 쓰지 않습니다. 실계좌 인증 수익률이 아닙니다.
-          </p>
+          <details className="league-metric-more">
+            <summary>공유 자산과 수익률 안내</summary>
+            <p className="league-calculation-note">
+              수량·매수가는 원본에서 수정한 뒤 다시 가져오세요. 위 수익률은 평균 매수가 대비 종가
+              평가로, 리그 주간 수익률과 다릅니다. 자산 변경은 다음 거래일부터 반영되며 과거 순위는
+              바뀌지 않습니다. 실제 계좌 인증 수익률은 아닙니다.
+            </p>
+          </details>
         </>
       )}
     </main>

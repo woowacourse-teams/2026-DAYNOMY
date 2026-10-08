@@ -97,6 +97,50 @@ afterEach(() => {
 });
 
 describe('투자 리그 화면', () => {
+  it.each([0, 1, 2, 8])(
+    '%i주 기록에 맞춰 빈 상태·요약·그래프를 표시하고 실제 기록만 선택한다',
+    async (count) => {
+      const history = Array.from({ length: count }, (_, index) => ({
+        weekStart: new Date(Date.UTC(2026, 7, 3 + index * 7)).toISOString().slice(0, 10),
+        weeklyReturnRate: index % 2 ? -1 : 2.5,
+        maxDrawdownRate: -1.1,
+      }));
+      vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
+        ...investor,
+        history,
+        detailAvailable: false,
+      });
+      const view = render(
+        <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+          <MemoryRouter initialEntries={['/league/investor-1']}>
+            <Routes>
+              <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>,
+      );
+      await view.findByRole('heading', { name: '주간 수익률' });
+      expect(view.queryAllByRole('button', { name: /주간.*일별 기록 보기/ })).toHaveLength(count);
+      expect(view.queryByLabelText('최근 8주 주간 수익률') !== null).toBe(count >= 2);
+      expect(view.getByText('일별 수익률 보기').closest('details')?.open).toBe(false);
+      if (count === 0) {
+        expect(view.getByText('아직 집계된 주간 기록이 없어요.')).toBeTruthy();
+      } else {
+        if (count === 1) expect(view.getByText('첫 주 기록')).toBeTruthy();
+        fireEvent.click(view.getAllByRole('button', { name: /주간.*일별 기록 보기/ })[0]);
+        await waitFor(() =>
+          expect(leagueApi.getDailyHistory).toHaveBeenLastCalledWith(
+            'investor-1',
+            history[0].weekStart,
+            expect.any(AbortSignal),
+          ),
+        );
+        expect(view.getByText('일별 수익률 보기').closest('details')?.open).toBe(true);
+        expect(view.queryByRole('img', { name: /주간 누적 수익률 그래프/ })).toBeNull();
+      }
+    },
+  );
+
   it('8주 그래프와 주차 선택에서 일별·주간 누적을 조회하고 누락일은 대기로 표시한다', async () => {
     vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
       ...investor,
@@ -144,6 +188,7 @@ describe('투자 리그 화면', () => {
         </MemoryRouter>
       </AuthContext.Provider>,
     );
+    fireEvent.click(await view.findByText('일별 수익률 보기'));
     await view.findByText('주간 누적 +2.50%');
     fireEvent.change(view.getByRole('combobox', { name: '조회 주차' }), {
       target: { value: '2026-09-21' },
@@ -199,6 +244,7 @@ describe('투자 리그 화면', () => {
         </MemoryRouter>
       </AuthContext.Provider>,
     );
+    fireEvent.click(await view.findByText('일별 수익률 보기'));
     await view.findByText('일별 수익률을 불러오지 못했습니다.');
     expect(
       within(view.getByRole('region', { name: '성과와 위험 지표' })).getAllByText('집계 대기'),
@@ -227,7 +273,29 @@ describe('투자 리그 화면', () => {
     expect(view.getByText('+2.50%')).toBeTruthy();
     expect(view.getByText('최대 하락')).toBeTruthy();
     expect(view.getByRole('link', { name: '로그인하고 참여하기' })).toBeTruthy();
-    expect(view.queryByRole('link', { name: '목데이터로 화면 보기' })).toBeNull();
+  });
+
+  it('내 자산 공유를 첫 행동으로 안내하고 순위 뒤에 참여 순서를 보여준다', async () => {
+    vi.mocked(leagueApi.getRankings).mockResolvedValue(ranking);
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'USER' }}>
+        <MemoryRouter>
+          <LeaguePage />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    const investorLink = await view.findByRole('link', { name: /차분한초보/ });
+    expect(view.getByRole('link', { name: '내 공유 관리' }).getAttribute('href')).toBe(
+      '/league/portfolio',
+    );
+    expect(view.getByRole('link', { name: '관심 투자자' }).getAttribute('href')).toBe(
+      '/league/following',
+    );
+    const guide = view.getByText('참여 방법').closest('details');
+    expect(guide?.open).toBe(false);
+    expect(investorLink.compareDocumentPosition(guide!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   it('비회원도 공개 종목을 바로 조회하고 결제 안내는 보이지 않는다', async () => {

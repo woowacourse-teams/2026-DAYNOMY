@@ -75,9 +75,6 @@ export function DailyReturns({
       <header>
         <div>
           <h2 id="daily-history-title">일별 수익률 · 주간 누적</h2>
-          <p className="league-calculation-note">
-            월요일~일요일(KST)로 구분하고, 거래일 종가가 들어오면 갱신해요.
-          </p>
         </div>
         <label>
           조회 주차
@@ -126,7 +123,7 @@ export function DailyReturns({
             <p>이 주차에는 아직 수집된 거래일 종가가 없습니다. 휴장일은 기록하지 않아요.</p>
           ) : (
             <>
-              {days.some((day) => day.cumulativeReturnRate !== null) ? (
+              {days.filter((day) => day.cumulativeReturnRate !== null).length >= 2 ? (
                 <svg
                   className="league-daily-chart"
                   viewBox="0 0 400 156"
@@ -168,7 +165,9 @@ export function DailyReturns({
               ) : null}
               <div className="league-daily-table-wrap">
                 <table className="league-daily-table">
-                  <caption>거래일별 수익률과 해당 주의 누적 수익률</caption>
+                  <caption className="league-sr-only">
+                    거래일별 수익률과 해당 주의 누적 수익률
+                  </caption>
                   <thead>
                     <tr>
                       <th scope="col">거래일</th>
@@ -202,10 +201,13 @@ export function DailyReturns({
               참여 시작 기준일: {history.eligibleFrom}. 참여 이전 기록은 계산하지 않아요.
             </p>
           ) : null}
-          <p className="league-calculation-note">
-            누락된 종가는 0%로 대체하지 않아요. 일별 수익률을 이어 계산하며, 새 주에는 누적이 다시
-            시작돼요.
-          </p>
+          <details className="league-metric-more">
+            <summary>집계 기준</summary>
+            <p className="league-calculation-note">
+              월요일~일요일(KST)의 거래일 종가로 계산합니다. 누락된 종가는 0%로 대체하지 않으며, 새
+              주에는 누적이 다시 시작됩니다.
+            </p>
+          </details>
         </>
       ) : null}
     </section>

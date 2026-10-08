@@ -119,16 +119,13 @@
 .league-feature-nav {
   display: flex;
   width: min(1120px, calc(100% - 40px));
-  margin: 12px auto 0;
-  gap: 24px;
-  border-bottom: 1px solid #e7e8ed;
-  overflow-x: auto;
+  margin: 4px auto 0;
 }
 
 .league-feature-nav a {
   display: block;
-  padding: 14px 0;
-  border-bottom: 2px solid transparent;
+  min-height: 44px;
+  padding: 10px 0;
   color: #505767;
   background: #fff;
   text-decoration: none;
@@ -137,17 +134,12 @@
   white-space: nowrap;
 }
 
-.league-feature-nav a.active {
-  border-bottom-color: #5144d8;
-  color: #171821;
-}
-
 .league-feature-nav a:hover {
   color: #171821;
 }
 
 .league-feature-nav a:focus-visible {
-  outline: 3px solid #a9a1ff;
+  outline: 2px solid #5144d8;
   outline-offset: 3px;
 }
 
@@ -201,12 +193,13 @@
   }
 
   .league-feature-nav {
-    width: calc(100% - 28px);
-    margin: 8px auto 0;
-    gap: 20px;
+    width: calc(100% - 32px);
+    margin: 0 auto;
+    gap: 18px;
   }
 
   .league-feature-nav a {
-    padding: 12px 0;
+    padding: 10px 0;
+    font-size: 13px;
   }
 }

@@ -91,6 +91,10 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     );
     expect(await view.findByRole('heading', { name: '공유용 자산 1개' })).toBeTruthy();
     expect(localStorage.getItem(storageKey)).toBe(original);
+    expect(view.queryByRole('list', { name: '포트폴리오 공유 순서' })).toBeNull();
+    expect(view.getByRole('link', { name: '공개 설정 →' }).getAttribute('href')).toBe(
+      '/portfolio/publication',
+    );
   });
 
   it('서버 원본 조회 실패를 빈 자산으로 숨기지 않고 다시 가져올 수 있다', async () => {

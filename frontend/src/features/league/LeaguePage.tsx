@@ -63,23 +63,17 @@ export function LeaguePage() {
     <main className="league-page">
       <section className="league-hero">
         <div>
-          <span className="league-eyebrow">성과를 비교하고 판단을 배우는 곳</span>
-          <h1>이번 주 투자 리그</h1>
-          <p>투자자를 선택해 성과와 위험을 확인하세요. 순위는 로그인 없이 볼 수 있어요.</p>
-          <p className="league-calculation-note">
-            거래일마다 종가로 갱신하고, 월요일~일요일의 누적 수익률로 비교해요.
-          </p>
+          <h1>투자 리그</h1>
+          <p>다른 투자자의 성과와 판단을 살펴보세요.</p>
         </div>
         <div className="league-hero-actions">
+          <Link className="league-text-link" to="/league/following">
+            관심 투자자
+          </Link>
           {isLoggedIn ? (
-            <>
-              <Link className="league-primary-link" to="/portfolio/publication">
-                참여 설정하기
-              </Link>
-              <Link className="league-secondary-link" to="/league/portfolio">
-                공유 자산 관리
-              </Link>
-            </>
+            <Link className="league-primary-link" to="/league/portfolio">
+              내 공유 관리
+            </Link>
           ) : (
             <Link className="league-primary-link" to="/login?returnTo=/league">
               로그인하고 참여하기
@@ -88,46 +82,28 @@ export function LeaguePage() {
         </div>
       </section>
 
-      <details className="league-onboarding">
-        <summary>처음 참여하나요? 참여 순서 보기</summary>
-        <ol>
-          <li>
-            <Link to="/league/portfolio">공유용 자산 준비</Link>
-            <p>원본 포트폴리오에서 원하는 종목만 가져오세요. 원본은 바뀌지 않아요.</p>
-          </li>
-          <li>
-            <Link to="/portfolio/publication">공개 범위 선택</Link>
-            <p>프로필 공개와 주간 리그 참여를 직접 켜세요.</p>
-          </li>
-          <li>
-            <Link to="/league/portfolio">투자 판단 남기기</Link>
-            <p>가져온 자산의 판단과 복기를 남겨요. 자산 변경은 다음 거래일부터 집계됩니다.</p>
-          </li>
-        </ol>
-        <p>실제 투자금액과 이메일은 공개하지 않습니다.</p>
-      </details>
-
       <section className="league-controls" aria-label="리그 조회 조건">
-        <div className="league-tabs" role="tablist" aria-label="리그 종류">
-          {leagueTypes.map((type) => (
-            <button
-              key={type}
-              type="button"
-              role="tab"
-              aria-selected={leagueType === type}
-              onClick={() => setLeagueType(type)}
-            >
-              {leagueLabels[type]}
-            </button>
-          ))}
-        </div>
+        <label>
+          <span>리그 종류</span>
+          <select
+            value={leagueType}
+            onChange={(event) => setLeagueType(event.target.value as LeagueType)}
+          >
+            {leagueTypes.map((type) => (
+              <option key={type} value={type}>
+                {leagueLabels[type]}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           <span>조회 주차</span>
           <select value={weekStart} onChange={(event) => setWeekStart(event.target.value)}>
             {weeks.length === 0 ? <option value="">이번 주</option> : null}
             {weeks.map((week) => (
               <option key={week.weekStart} value={week.weekStart}>
-                {week.weekStart} ~ {week.weekEnd} {week.confirmed ? '지난 주' : '집계 중'}
+                {week.weekStart.slice(5)} ~ {week.weekEnd.slice(5)}{' '}
+                {week.confirmed ? '' : '· 집계 중'}
               </option>
             ))}
           </select>
@@ -136,8 +112,7 @@ export function LeaguePage() {
 
       {!loading && !error && ranking ? (
         <p className="league-calculation-note">
-          {ranking.asOfDate ? `${ranking.asOfDate} 종가 기준` : '이 주차의 종가 수집 대기'} · 주간
-          누적 수익률 · 종가 제공 시점에 따라 갱신이 늦어질 수 있어요.
+          {ranking.asOfDate ? `${ranking.asOfDate} 종가 기준` : '종가 수집 대기'} · 주간 누적 수익률
         </p>
       ) : null}
 
@@ -165,11 +140,8 @@ export function LeaguePage() {
       {!loading && !error && ranking?.rankings.length === 0 ? (
         <section className="league-empty">
           <strong>아직 이 주차에 집계된 투자자가 없습니다</strong>
-          <p>공개 설정을 완료하면 다음 완전한 거래 주부터 리그에 참여할 수 있어요.</p>
-          <p>
-            공유 자산의 이전 종가 평가가 10만 원 이상이고 해당 거래일의 종가가 있어야 집계됩니다.
-          </p>
-          {isLoggedIn ? <Link to="/portfolio/publication">내 공개 설정 확인</Link> : null}
+          <p>다른 주차를 선택하거나 내 포트폴리오를 공유해 보세요.</p>
+          {isLoggedIn ? <Link to="/league/portfolio">공유 자산 준비하기</Link> : null}
         </section>
       ) : null}
 
@@ -177,10 +149,11 @@ export function LeaguePage() {
         <section className="league-board" aria-labelledby="league-board-title">
           <header>
             <div>
-              <span>{ranking.confirmed ? '확정된 기록' : '집계 중인 기록'}</span>
               <h2 id="league-board-title">{leagueLabels[ranking.leagueType]}</h2>
             </div>
-            <p>{ranking.totalCount}명이 같은 기준으로 비교되고 있어요.</p>
+            <p>
+              {ranking.totalCount}명 · {ranking.confirmed ? '집계 완료' : '집계 중'}
+            </p>
           </header>
           <ol>
             {ranking.rankings.map((entry) => (
@@ -191,16 +164,14 @@ export function LeaguePage() {
                   <small>
                     {experienceLabels[entry.experienceLevel]} · {riskLabels[entry.riskProfile]}
                   </small>
-                  <span className="league-person-action">성과·기록 보기 →</span>
                 </Link>
                 <div className="league-return">
                   <strong className={entry.weeklyReturnRate >= 0 ? 'positive' : 'negative'}>
                     {formatRate(entry.weeklyReturnRate)}
                   </strong>
-                  <small>주간 누적</small>
                 </div>
                 <details className="league-row-details">
-                  <summary>위험·기록 보기</summary>
+                  <summary>상세 지표</summary>
                   <dl className="league-risk-grid">
                     <div>
                       <dt>8주 누적</dt>
@@ -230,8 +201,30 @@ export function LeaguePage() {
         </section>
       ) : null}
 
+      <details className="league-onboarding">
+        <summary>참여 방법</summary>
+        <ol>
+          <li>
+            <Link to="/league/portfolio">자산 가져오기</Link>
+            <p>원본 포트폴리오에서 가져옵니다.</p>
+          </li>
+          <li>
+            <Link to="/league/portfolio">공개할 종목 선택</Link>
+            <p>공개하지 않을 종목은 숨깁니다.</p>
+          </li>
+          <li>
+            <Link to="/portfolio/publication">참여 설정하고 저장</Link>
+            <p>공개 범위와 리그 참여를 선택합니다.</p>
+          </li>
+        </ol>
+        <p>
+          다음 완전한 거래 주부터 참여합니다. 이전 종가 평가금액 10만 원 이상과 거래일 종가가
+          필요합니다. 숨긴 종목도 수익률에 포함되며, 실제 금액과 이메일은 공개하지 않습니다.
+        </p>
+      </details>
+
       <details className="league-metric-help">
-        <summary>수익률·위험 지표는 어떻게 읽나요?</summary>
+        <summary>수익률·위험 지표 안내</summary>
         <dl>
           <div>
             <dt>8주 누적</dt>
@@ -253,11 +246,7 @@ export function LeaguePage() {
       </details>
 
       <aside className="league-safety-note">
-        <strong>순위는 추천이 아닙니다</strong>
-        <p>
-          공유 포트폴리오 수익률은 사용자가 입력한 공유용 자산을 DAYNOMY가 종가로 계산한 기록이며,
-          실제 증권계좌 인증이나 미래 수익을 의미하지 않습니다.
-        </p>
+        <p>공유 자산으로 계산한 기록입니다. 실제 계좌 인증이나 미래 수익을 보장하지 않습니다.</p>
       </aside>
     </main>
   );

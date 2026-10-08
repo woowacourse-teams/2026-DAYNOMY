@@ -34,9 +34,8 @@ export function FollowingPage() {
     <main className="league-page league-following-page">
       <header className="league-page-heading">
         <div>
-          <span>매주 한 번 확인하는 기록</span>
-          <h1>팔로우한 투자자</h1>
-          <p>실시간 거래 알림 대신 이번 주 성과와 새 복기를 모아서 보여드립니다.</p>
+          <h1>관심 투자자</h1>
+          <p>팔로우한 투자자의 이번 주 성과와 새 복기예요.</p>
         </div>
         <Link to="/league">투자자 찾기</Link>
       </header>

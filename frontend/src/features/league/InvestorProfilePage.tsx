@@ -21,6 +21,7 @@ export function InvestorProfilePage() {
   const [retry, setRetry] = useState(0);
   const [detailError, setDetailError] = useState('');
   const [weekStart, setWeekStart] = useState('');
+  const [dailyOpen, setDailyOpen] = useState(false);
 
   useEffect(() => {
     if (publicId) trackEvent('view_public_investor', { investor_id: publicId });
@@ -32,6 +33,7 @@ export function InvestorProfilePage() {
     setError('');
     setInvestor(null);
     setWeekStart('');
+    setDailyOpen(false);
     setDetail(null);
     setDetailError('');
     setDetailLoading(false);
@@ -96,25 +98,23 @@ export function InvestorProfilePage() {
     );
   if (!investor) return null;
 
-  const historyRange = Math.max(
-    1,
-    ...investor.history.map((point) => Math.abs(point.weeklyReturnRate)),
-  );
+  const history = [...investor.history].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+  const historyRange = Math.max(1, ...history.map((point) => Math.abs(point.weeklyReturnRate)));
+  function showDaily(week: string) {
+    setWeekStart(week);
+    setDailyOpen(true);
+  }
 
   return (
     <main className="league-page league-investor-page">
-      <Link className="league-back-link" to="/league">
-        ← 투자 리그
-      </Link>
       <section className="league-investor-header">
         <div>
           <span className="league-avatar" aria-hidden="true">
             {investor.displayName.slice(0, 1)}
           </span>
           <div>
-            <span>공유 포트폴리오 · DAYNOMY 계산 기록</span>
             <h1>{investor.displayName}</h1>
-            <p>{investor.bio || '꾸준히 투자 판단을 기록하고 있습니다.'}</p>
+            {investor.bio ? <p>{investor.bio}</p> : null}
             <small>
               {experienceLabels[investor.experienceLevel]} · {riskLabels[investor.riskProfile]}
             </small>
@@ -132,102 +132,147 @@ export function InvestorProfilePage() {
       {error ? <p className="league-inline-error">{error}</p> : null}
 
       <section className="league-metric-cards" aria-label="성과와 위험 지표">
-        <article>
-          <span>이번 주 수익률</span>
-          <strong
-            className={
-              investor.performance.weeklyReturnRate === null
-                ? ''
-                : investor.performance.weeklyReturnRate >= 0
-                  ? 'positive'
-                  : 'negative'
-            }
-          >
-            {investor.performance.weeklyReturnRate === null
-              ? '집계 대기'
-              : formatRate(investor.performance.weeklyReturnRate)}
-          </strong>
-        </article>
-        <article>
-          <span>최근 8주 누적</span>
-          <strong>
-            {investor.performance.eightWeekReturnRate === null
-              ? '집계 대기'
-              : formatRate(investor.performance.eightWeekReturnRate)}
-          </strong>
-        </article>
-        <article>
-          <span>최대 하락률</span>
-          <strong>
-            {investor.performance.maxDrawdownRate === null
-              ? '집계 대기'
-              : formatRate(investor.performance.maxDrawdownRate, false)}
-          </strong>
-        </article>
-        <article>
-          <span>변동성</span>
-          <strong>
-            {investor.performance.volatilityRate === null
-              ? '집계 대기'
-              : `${investor.performance.volatilityRate.toFixed(2)}%`}
-          </strong>
-        </article>
-        <article>
-          <span>최대 종목 비중</span>
-          <strong>
-            {investor.performance.maxHoldingWeight === null
-              ? '집계 대기'
-              : `${investor.performance.maxHoldingWeight.toFixed(1)}%`}
-          </strong>
-        </article>
-        <article>
-          <span>판단 복기율</span>
-          <strong>{investor.reviewCompletionRate.toFixed(0)}%</strong>
-        </article>
+        <div className="league-primary-metrics">
+          <article>
+            <span>이번 주 수익률</span>
+            <strong
+              className={
+                investor.performance.weeklyReturnRate === null
+                  ? ''
+                  : investor.performance.weeklyReturnRate >= 0
+                    ? 'positive'
+                    : 'negative'
+              }
+            >
+              {investor.performance.weeklyReturnRate === null
+                ? '집계 대기'
+                : formatRate(investor.performance.weeklyReturnRate)}
+            </strong>
+          </article>
+          <article>
+            <span>최근 8주 누적</span>
+            <strong>
+              {investor.performance.eightWeekReturnRate === null
+                ? '집계 대기'
+                : formatRate(investor.performance.eightWeekReturnRate)}
+            </strong>
+          </article>
+          <article>
+            <span>최대 하락률</span>
+            <strong>
+              {investor.performance.maxDrawdownRate === null
+                ? '집계 대기'
+                : formatRate(investor.performance.maxDrawdownRate, false)}
+            </strong>
+          </article>
+        </div>
+        <details className="league-metric-more">
+          <summary>위험·기록 지표</summary>
+          <div className="league-secondary-metrics">
+            <article>
+              <span>변동성</span>
+              <strong>
+                {investor.performance.volatilityRate === null
+                  ? '집계 대기'
+                  : `${investor.performance.volatilityRate.toFixed(2)}%`}
+              </strong>
+            </article>
+            <article>
+              <span>최대 종목 비중</span>
+              <strong>
+                {investor.performance.maxHoldingWeight === null
+                  ? '집계 대기'
+                  : `${investor.performance.maxHoldingWeight.toFixed(1)}%`}
+              </strong>
+            </article>
+            <article>
+              <span>판단 복기율</span>
+              <strong>{investor.reviewCompletionRate.toFixed(0)}%</strong>
+            </article>
+          </div>
+        </details>
       </section>
 
       <section className="league-history-card">
         <header>
-          <h2>8주 성과 흐름</h2>
-          <span>주간 수익률 · 주차를 누르면 일별 기록이 나와요.</span>
+          <h2>주간 수익률</h2>
+          <span>최근 8주 중 {history.length}주 기록</span>
         </header>
-        {investor.history.length === 0 ? (
-          <p>공개 이후 집계된 주간 기록이 아직 없습니다.</p>
+        {history.length === 0 ? (
+          <p className="league-history-empty">아직 집계된 주간 기록이 없어요.</p>
+        ) : history.length === 1 ? (
+          <button
+            type="button"
+            className="league-history-single"
+            aria-label={`${history[0].weekStart} 주간 ${formatRate(history[0].weeklyReturnRate)} 일별 기록 보기`}
+            onClick={() => showDaily(history[0].weekStart)}
+          >
+            <span>
+              <small>첫 주 기록</small>
+              <time>{history[0].weekStart} 주</time>
+            </span>
+            <strong
+              className={
+                history[0].weeklyReturnRate > 0
+                  ? 'positive'
+                  : history[0].weeklyReturnRate < 0
+                    ? 'negative'
+                    : ''
+              }
+            >
+              {formatRate(history[0].weeklyReturnRate)}
+            </strong>
+            <span className="league-history-action">일별 보기 →</span>
+          </button>
         ) : (
-          <div className="league-history-chart" aria-label="최근 8주 주간 수익률">
-            {investor.history.map((point) => (
+          <div
+            className="league-history-chart"
+            aria-label="최근 8주 주간 수익률"
+            style={{ gridTemplateColumns: `repeat(${history.length}, minmax(0, 1fr))` }}
+          >
+            {history.map((point) => (
               <button
                 type="button"
                 key={point.weekStart}
                 aria-label={`${point.weekStart} 주간 ${formatRate(point.weeklyReturnRate)} 일별 기록 보기`}
                 aria-pressed={weekStart === point.weekStart}
-                onClick={() => setWeekStart(point.weekStart)}
+                onClick={() => showDaily(point.weekStart)}
               >
-                <span
-                  className={point.weeklyReturnRate >= 0 ? 'positive' : 'negative'}
-                  style={{
-                    height: `${18 + (Math.abs(point.weeklyReturnRate) / historyRange) * 82}%`,
-                  }}
-                  title={`${point.weekStart} ${formatRate(point.weeklyReturnRate)}`}
-                />
-                <small>{point.weekStart.slice(5)}</small>
+                <strong>{formatRate(point.weeklyReturnRate)}</strong>
+                <span className="league-week-track">
+                  <span
+                    className={`league-week-bar ${point.weeklyReturnRate < 0 ? 'negative' : 'positive'}`}
+                    style={{
+                      height: `${(Math.abs(point.weeklyReturnRate) / historyRange) * 50}%`,
+                      [point.weeklyReturnRate >= 0 ? 'bottom' : 'top']: '50%',
+                    }}
+                  />
+                </span>
+                <time>{point.weekStart.slice(5)}</time>
               </button>
             ))}
           </div>
         )}
       </section>
 
-      <DailyReturns publicId={publicId} weekStart={weekStart} onWeekChange={setWeekStart} />
+      <details
+        className="league-daily-disclosure"
+        open={dailyOpen}
+        onToggle={(event) => setDailyOpen(event.currentTarget.open)}
+      >
+        <summary>일별 수익률 보기</summary>
+        <DailyReturns publicId={publicId} weekStart={weekStart} onWeekChange={setWeekStart} />
+      </details>
 
       {investor.allocation ? (
         <section className="league-allocation-card">
           <div>
             <h2>자산군 비중</h2>
-            <p>실제 투자금액은 공개하지 않습니다.</p>
+            <small>금액 비공개</small>
           </div>
           <div className="league-allocation-bar" aria-label="주식과 ETF 비중">
-            <span style={{ width: `${investor.allocation.stockWeight}%` }}>주식</span>
-            <span style={{ width: `${investor.allocation.etfWeight}%` }}>ETF</span>
+            <span style={{ width: `${investor.allocation.stockWeight}%` }} />
+            <span style={{ width: `${investor.allocation.etfWeight}%` }} />
           </div>
           <dl>
             <div>
@@ -258,10 +303,9 @@ export function InvestorProfilePage() {
           <section className="league-detail-holdings" id="investment-details">
             <header>
               <div>
-                <span>공개 투자 기록 · {detail.asOfDate} 종가 기준</span>
-                <h2>종목별 비중과 이번 주 수익 기여도</h2>
+                <h2>공개 종목</h2>
               </div>
-              <small>누구나 볼 수 있는 공개 기록</small>
+              <small>{detail.asOfDate} 기준 · 비중 / 수익 기여도</small>
             </header>
             {detail.holdings.length === 0 ? (
               <p>해당 기준일에 공개 가능한 보유 종목이 없습니다.</p>
@@ -305,10 +349,9 @@ export function InvestorProfilePage() {
           <section className="league-detail-decisions">
             <header>
               <div>
-                <span>공개 투자 기록</span>
-                <h2>투자 판단과 결과 복기</h2>
+                <h2>판단과 복기</h2>
               </div>
-              <small>실시간 매매 신호가 아닙니다.</small>
+              <small>{detail.decisions.length}개 기록</small>
             </header>
             {detail.decisions.length === 0 ? <p>공개 가능한 판단 기록이 아직 없습니다.</p> : null}
             <ol>
@@ -326,20 +369,23 @@ export function InvestorProfilePage() {
                     <time>{decision.tradedOn}</time>
                   </div>
                   <p>{decision.reason}</p>
-                  <dl>
-                    <div>
-                      <dt>예상 기간</dt>
-                      <dd>{holdingPeriodLabels[decision.expectedHoldingPeriod]}</dd>
-                    </div>
-                    <div>
-                      <dt>기대한 변화</dt>
-                      <dd>{decision.expectedChange}</dd>
-                    </div>
-                    <div>
-                      <dt>무효 조건</dt>
-                      <dd>{decision.invalidationCondition}</dd>
-                    </div>
-                  </dl>
+                  <details className="league-decision-more">
+                    <summary>판단 자세히</summary>
+                    <dl>
+                      <div>
+                        <dt>예상 기간</dt>
+                        <dd>{holdingPeriodLabels[decision.expectedHoldingPeriod]}</dd>
+                      </div>
+                      <div>
+                        <dt>기대한 변화</dt>
+                        <dd>{decision.expectedChange}</dd>
+                      </div>
+                      <div>
+                        <dt>무효 조건</dt>
+                        <dd>{decision.invalidationCondition}</dd>
+                      </div>
+                    </dl>
+                  </details>
                   {decision.reviews.map((review) => (
                     <blockquote key={review.id}>
                       <strong>결과 복기</strong>
@@ -359,8 +405,7 @@ export function InvestorProfilePage() {
       ) : null}
 
       <aside className="league-safety-note">
-        <strong>이 기록을 그대로 따라 사지 마세요</strong>
-        <p>성과는 과거 종가로 계산한 값이며 수익을 보장하지 않습니다.</p>
+        <p>공유 자산으로 계산한 과거 성과입니다. 미래 수익을 보장하지 않습니다.</p>
       </aside>
     </main>
   );
