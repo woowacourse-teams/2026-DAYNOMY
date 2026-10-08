@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getPortfolioPerformance } from '../api';
 import type {
+  PortfolioCalculation,
   PortfolioHoldingInput,
   PortfolioPerformancePoint,
   PortfolioTrendPeriod,
@@ -32,6 +33,7 @@ function getPeriodStart(to: Date, period: PortfolioTrendPeriod) {
 export function usePortfolioPerformance(
   period: PortfolioTrendPeriod,
   holdings: PortfolioHoldingInput[],
+  calculation: PortfolioCalculation | null,
 ) {
   const [points, setPoints] = useState<PortfolioPerformancePoint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,12 +63,7 @@ export function usePortfolioPerformance(
     getPortfolioPerformance(formatDate(from), formatDate(to), controller.signal)
       .then((response) => {
         if (controller.signal.aborted) return;
-        setPoints(
-          [
-            ...response.points.filter((point) => point.baseDate !== response.currentPoint.baseDate),
-            response.currentPoint,
-          ].sort((left, right) => left.baseDate.localeCompare(right.baseDate)),
-        );
+        setPoints(response.points);
       })
       .catch((caughtError: unknown) => {
         if (controller.signal.aborted) return;
@@ -82,5 +79,11 @@ export function usePortfolioPerformance(
     return () => controller.abort();
   }, [holdingKey, holdings.length, period, retryCount]);
 
-  return { points, loading, error, retry: () => setRetryCount((count) => count + 1) };
+  const chartPoints = calculation
+    ? [...points.filter((point) => point.baseDate !== calculation.baseDate), calculation].sort(
+        (left, right) => left.baseDate.localeCompare(right.baseDate),
+      )
+    : points;
+
+  return { points: chartPoints, loading, error, retry: () => setRetryCount((count) => count + 1) };
 }

@@ -594,7 +594,7 @@ export function PortfolioPage() {
   const [amountsHidden, setAmountsHidden] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
-  const performance = usePortfolioPerformance(trendPeriod, holdings);
+  const performance = usePortfolioPerformance(trendPeriod, holdings, loading ? null : calculation);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [expandedContentAssetId, setExpandedContentAssetId] = useState<number | null>(null);
@@ -865,8 +865,8 @@ export function PortfolioPage() {
                 <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
                   <PortfolioAssetTrendChart
                     points={trendPoints}
-                    loading={performance.loading && !dashboardCalculation}
-                    error={dashboardCalculation ? '' : performance.error}
+                    loading={performance.loading}
+                    error={performance.error}
                     onRetry={performance.retry}
                     amountsHidden={amountsHidden}
                     period={trendPeriod}
@@ -1055,8 +1055,8 @@ export function PortfolioPage() {
       {trendDialogOpen ? (
         <PortfolioTrendDialog
           points={trendPoints}
-          loading={performance.loading && !calculation}
-          error={calculation ? '' : performance.error}
+          loading={performance.loading}
+          error={performance.error}
           onRetry={performance.retry}
           amountsHidden={amountsHidden}
           period={trendPeriod}

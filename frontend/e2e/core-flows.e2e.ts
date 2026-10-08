@@ -65,7 +65,10 @@ test('관리자 로그인 시작 후 인증된 관리자 화면으로 이동한�
   );
   await page.route('**/api/auth/google', (route) => {
     loggedIn = true;
-    return route.fulfill({ status: 302, headers: { location: '/' } });
+    return route.fulfill({
+      status: 302,
+      headers: { location: 'http://127.0.0.1:4173/' },
+    });
   });
   await page.route('**/api/admin/news**', (route) =>
     route.fulfill({
@@ -132,4 +135,196 @@ test('뉴스 목록에서 상세 본문을 읽고 목록으로 돌아온다', as
   await page.getByRole('button', { name: '전 페이지로 돌아가기' }).click();
   await expect(page).toHaveURL('/news');
   await expect(page.getByRole('region', { name: '이슈 목록' })).toContainText(article.title);
+});
+
+test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 메뉴는 분리된다', async ({ page }) => {
+  await page.route('**/api/users/me', (route) =>
+    route.fulfill({
+      json: { id: 1, email: 'admin@example.invalid', nickname: '관리자', role: 'ADMIN' },
+    }),
+  );
+  await page.route('**/api/assets/1/contents', (route) =>
+    route.fulfill({
+      json: { assetId: 1, assetCode: '005930', assetName: '삼성전자', contents: [] },
+    }),
+  );
+  await page.route('**/api/league/weeks', (route) =>
+    route.fulfill({
+      json: { weeks: [{ weekStart: '2026-10-05', weekEnd: '2026-10-11', confirmed: false }] },
+    }),
+  );
+  await page.route('**/api/league/rankings**', (route) =>
+    route.fulfill({
+      json: {
+        weekStart: '2026-10-05',
+        weekEnd: '2026-10-11',
+        leagueType: 'WEEKLY_RETURN',
+        confirmed: false,
+        totalCount: 0,
+        asOfDate: null,
+        rankings: [],
+      },
+    }),
+  );
+
+  await page.goto('/stocks/1');
+  await expect(page.getByRole('heading', { name: '삼성전자', level: 1 })).toBeVisible();
+  await page
+    .getByRole('navigation', { name: '주요 메뉴' })
+    .getByRole('link', { name: '투자 리그' })
+    .click();
+  await expect(page).toHaveURL('/league');
+  await expect(page.getByRole('heading', { name: '투자 리그' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toBeVisible();
+  await page.getByRole('link', { name: '마이페이지' }).click();
+  await expect(page).toHaveURL('/mypage');
+  await expect(page.getByRole('heading', { name: '마이페이지' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toBeVisible();
+
+  await page.goto('/admin/stock-contents');
+  await expect(page.getByRole('heading', { name: '종목 관련 링크' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '관리자 메뉴' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toHaveCount(0);
+});
+
+test('비회원도 공개 투자 리그에서 종목과 판단을 바로 확인한다', async ({ page }) => {
+  await page.route('**/api/league/weeks', (route) =>
+    route.fulfill({
+      json: {
+        weeks: [{ weekStart: '2026-09-28', weekEnd: '2026-10-04', confirmed: true }],
+      },
+    }),
+  );
+  await page.route('**/api/league/rankings**', (route) =>
+    route.fulfill({
+      json: {
+        weekStart: '2026-09-28',
+        weekEnd: '2026-10-04',
+        leagueType: 'WEEKLY_RETURN',
+        confirmed: true,
+        totalCount: 1,
+        asOfDate: '2026-10-02',
+        rankings: [
+          {
+            rank: 1,
+            publicId: 'investor-1',
+            displayName: '차분한초보',
+            experienceLevel: 'BEGINNER',
+            riskProfile: 'BALANCED',
+            weeklyReturnRate: 2.5,
+            eightWeekReturnRate: 4.2,
+            maxDrawdownRate: -1.1,
+            volatilityRate: 0.7,
+            maxHoldingWeight: 55,
+            decisionCount: 4,
+            reviewCompletionRate: 75,
+            followed: false,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/league/investors/investor-1', (route) =>
+    route.fulfill({
+      json: {
+        publicId: 'investor-1',
+        displayName: '차분한초보',
+        bio: '손실 조건부터 기록합니다.',
+        experienceLevel: 'BEGINNER',
+        riskProfile: 'BALANCED',
+        performance: {
+          weeklyReturnRate: 2.5,
+          eightWeekReturnRate: 4.2,
+          maxDrawdownRate: -1.1,
+          volatilityRate: 0.7,
+          maxHoldingWeight: 55,
+        },
+        allocation: { stockWeight: 60, etfWeight: 40 },
+        history: [{ weekStart: '2026-09-28', weeklyReturnRate: 2.5, maxDrawdownRate: -1.1 }],
+        decisionCount: 4,
+        reviewCompletionRate: 75,
+        followed: false,
+        detailAvailable: true,
+      },
+    }),
+  );
+
+  await page.route('**/api/league/investors/investor-1/details', (route) =>
+    route.fulfill({
+      json: {
+        publicId: 'investor-1',
+        asOfDate: '2026-10-06',
+        holdings: [
+          {
+            assetName: '삼성전자',
+            category: 'STOCK',
+            weight: 60,
+            weeklyContributionRate: 1.2,
+            reason: '공시를 확인한 보유 판단',
+          },
+        ],
+        decisions: [
+          {
+            transactionId: 1,
+            assetName: '삼성전자',
+            category: 'STOCK',
+            transactionType: 'HOLD',
+            tradedOn: '2026-10-06',
+            reason: '당일 작성한 판단 근거',
+            expectedHoldingPeriod: 'OVER_SIX_MONTHS',
+            expectedChange: '매출 성장',
+            invalidationCondition: '실적 악화',
+            maximumAcceptableLossRate: 10,
+            writtenAfterTrade: false,
+            reviews: [],
+          },
+        ],
+      },
+    }),
+  );
+
+  await page.route('**/api/league/investors/investor-1/daily-history**', (route) =>
+    route.fulfill({
+      json: {
+        weekStart: '2026-09-28',
+        weekEnd: '2026-10-04',
+        asOfDate: '2026-09-29',
+        eligibleFrom: '2026-08-03',
+        confirmed: true,
+        weeklyReturnRate: -1,
+        days: [
+          {
+            baseDate: '2026-09-28',
+            dailyReturnRate: 10,
+            cumulativeReturnRate: 10,
+            status: 'CALCULATED',
+            reason: null,
+          },
+          {
+            baseDate: '2026-09-29',
+            dailyReturnRate: -10,
+            cumulativeReturnRate: -1,
+            status: 'CALCULATED',
+            reason: null,
+          },
+        ],
+      },
+    }),
+  );
+
+  await page.goto('/league');
+  await expect(page.getByRole('link', { name: /차분한초보/ })).toBeVisible();
+  await page.getByRole('link', { name: /차분한초보/ }).click();
+
+  await expect(page.getByRole('heading', { name: '차분한초보', level: 1 })).toBeVisible();
+  await expect(page.getByText('판단 근거: 공시를 확인한 보유 판단')).toBeVisible();
+  await expect(page.getByText('당일 작성한 판단 근거')).toBeVisible();
+  await page.getByText('일별 수익률 보기', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: '일별 수익률 · 주간 누적' })).toBeVisible();
+  await expect(page.getByText('주간 누적 -1.00%', { exact: true })).toBeVisible();
+  await expect(page.getByRole('table')).toContainText('+10.00%');
+  await page.getByRole('button', { name: /2026-09-28 주간.*일별 기록 보기/ }).click();
+  await expect(page.getByRole('combobox', { name: '조회 주차' })).toHaveValue('2026-09-28');
+  await expect(page.getByRole('link', { name: '멤버십 알아보기' })).toHaveCount(0);
+  await expect(page.getByText('금액 비공개', { exact: true })).toBeVisible();
 });

@@ -38,7 +38,7 @@ const etf = {
   market: 'KOSPI',
 } as const;
 const calculation = {
-  baseDate: '2026-09-21',
+  baseDate: '2026-10-06',
   totalPurchaseAmount: 700000,
   totalEvaluationAmount: 750000,
   dailyProfitLoss: 10000,
@@ -48,7 +48,7 @@ const calculation = {
   holdings: [
     {
       ...stock,
-      baseDate: '2026-09-21',
+      baseDate: '2026-10-06',
       quantity: 10,
       averagePurchasePrice: 70000,
       closePrice: 75000,
@@ -95,10 +95,10 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
   if (url.endsWith('/api/auth/csrf')) {
     return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
   }
-  if (url.endsWith('/api/portfolio') && method === 'GET') {
+  if (url.endsWith('/api/users/me/portfolio') && method === 'GET') {
     return jsonResponse({ holdings: savedHoldings });
   }
-  if (url.endsWith('/api/portfolio/holdings') && method === 'POST') {
+  if (url.endsWith('/api/users/me/portfolio/holdings') && method === 'POST') {
     const body = JSON.parse(String(init?.body)) as {
       assetId: number;
       quantity: number;
@@ -116,7 +116,7 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
     savedHoldings = [...savedHoldings, holding];
     return jsonResponse(holding, 201);
   }
-  const holdingMatch = url.match(/\/api\/portfolio\/holdings\/(\d+)$/);
+  const holdingMatch = url.match(/\/api\/users\/me\/portfolio\/holdings\/(\d+)$/);
   if (holdingMatch && method === 'PATCH') {
     const assetId = Number(holdingMatch[1]);
     const body = JSON.parse(String(init?.body)) as {
@@ -134,7 +134,7 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
     savedHoldings = savedHoldings.filter((holding) => holding.assetId !== assetId);
     return new Response(null, { status: 204 });
   }
-  if (url.includes('/api/portfolio/performance?')) {
+  if (url.includes('/api/users/me/portfolio/performance?')) {
     const requestUrl = new URL(url, 'http://localhost');
     const from = requestUrl.searchParams.get('from') ?? '';
     const to = requestUrl.searchParams.get('to') ?? '';
@@ -149,8 +149,6 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
     const totalProfitLoss = totalEvaluationAmount - totalPurchaseAmount;
     const defaultPoints = [24, 25, 26, 27, 28, 29, 30].map((day, index) => ({
       baseDate: `2026-09-${day}`,
-      recordedAt: `2026-09-${day}T15:30:00.000Z`,
-      source: 'CLOSE' as const,
       totalPurchaseAmount,
       totalEvaluationAmount: totalEvaluationAmount - (6 - index) * 10000,
       totalProfitLoss: totalProfitLoss - (6 - index) * 10000,
@@ -158,27 +156,18 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
         totalPurchaseAmount === 0
           ? 0
           : ((totalProfitLoss - (6 - index) * 10000) / totalPurchaseAmount) * 100,
+      dailyProfitLoss: index === 0 ? null : 10000,
+      dailyReturnRate: index === 0 ? null : 1.35,
     }));
-    const points = (savedPerformancePoints.length > 0 ? savedPerformancePoints : defaultPoints)
-      .filter((point) => point.baseDate >= from && point.baseDate <= to)
-      .map(({ recordedAt: _recordedAt, source: _source, ...point }) => point);
+    const points = (
+      savedPerformancePoints.length > 0 ? savedPerformancePoints : defaultPoints
+    ).filter((point) => point.baseDate >= from && point.baseDate <= to);
     return jsonResponse({
-      status: points.length > 0 ? 'READY' : 'INSUFFICIENT_DATA',
-      reason: points.length > 0 ? null : 'SNAPSHOT_DATA_INSUFFICIENT',
+      status: points.length >= 2 ? 'READY' : 'INSUFFICIENT_DATA',
+      reason: points.length >= 2 ? null : 'SNAPSHOT_DATA_INSUFFICIENT',
       baseDate: points.at(-1)?.baseDate ?? null,
       previousBaseDate: points.at(-2)?.baseDate ?? null,
       points,
-      currentPoint: {
-        baseDate: '2026-10-06',
-        priceBaseDate: '2026-10-06',
-        totalPurchaseAmount,
-        totalEvaluationAmount,
-        totalProfitLoss,
-        totalReturnRate:
-          totalPurchaseAmount === 0 ? 0 : (totalProfitLoss / totalPurchaseAmount) * 100,
-        dailyProfitLoss: 10000,
-        dailyReturnRate: 1.35,
-      },
     });
   }
   return null;
@@ -249,14 +238,30 @@ function mockPortfolioApi() {
           holdings: Array<{ assetId: number; quantity: number; averagePurchasePrice: number }>;
         };
         const requestedHolding = request.holdings[0];
+        const quantity = requestedHolding.quantity;
+        const averagePurchasePrice = requestedHolding.averagePurchasePrice;
+        const totalPurchaseAmount = quantity * averagePurchasePrice;
+        const totalEvaluationAmount = quantity * calculation.holdings[0].closePrice;
+        const totalProfitLoss = totalEvaluationAmount - totalPurchaseAmount;
+        const totalReturnRate = (totalProfitLoss / totalPurchaseAmount) * 100;
         return jsonResponse({
           ...calculation,
+          totalPurchaseAmount,
+          totalEvaluationAmount,
+          totalProfitLoss,
+          totalReturnRate,
           holdings: calculation.holdings.map((holding) => ({
             ...holding,
-            quantity: requestedHolding?.quantity ?? holding.quantity,
-            averagePurchasePrice:
-              requestedHolding?.averagePurchasePrice ?? holding.averagePurchasePrice,
+            quantity,
+            averagePurchasePrice,
+            purchaseAmount: totalPurchaseAmount,
+            evaluationAmount: totalEvaluationAmount,
+            profitLoss: totalProfitLoss,
+            returnRate: totalReturnRate,
           })),
+          marketAllocations: [
+            { market: 'KOSPI', evaluationAmount: totalEvaluationAmount, weight: 100 },
+          ],
         });
       }
       const portfolioResponse = portfolioApiResponse(input, init);
@@ -267,6 +272,7 @@ function mockPortfolioApi() {
 }
 
 beforeEach(() => {
+  vi.setSystemTime(new Date(2026, 9, 7, 12));
   savedHoldings = [];
   savedPerformancePoints = [];
   vi.stubGlobal(
@@ -279,6 +285,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   localStorage.clear();
   window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
@@ -371,7 +378,7 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('heading', { name: '자산 추이' })).toBeTruthy();
     expect(
       await view.findByRole('img', {
-        name: /평가금액 760,000원, 매입원금 700,000원/,
+        name: /평가금액 750,000원, 매입원금 700,000원/,
       }),
     ).toBeTruthy();
     expect(
@@ -403,8 +410,8 @@ describe('포트폴리오 화면', () => {
     savedPerformancePoints = [
       {
         baseDate: '2026-08-10',
-        recordedAt: '2026-08-10T15:30:00.000Z',
-        source: 'CLOSE',
+        dailyProfitLoss: null,
+        dailyReturnRate: null,
         totalPurchaseAmount: 700000,
         totalEvaluationAmount: 720000,
         totalProfitLoss: 20000,
@@ -412,8 +419,8 @@ describe('포트폴리오 화면', () => {
       },
       {
         baseDate: '2026-09-29',
-        recordedAt: '2026-09-29T15:30:00.000Z',
-        source: 'CLOSE',
+        dailyProfitLoss: 10000,
+        dailyReturnRate: 1.35,
         totalPurchaseAmount: 700000,
         totalEvaluationAmount: 750000,
         totalProfitLoss: 50000,
@@ -426,7 +433,7 @@ describe('포트폴리오 화면', () => {
 
     expect(
       await view.findByRole('img', {
-        name: /평가금액 760,000원, 매입원금 700,000원/,
+        name: /평가금액 750,000원, 매입원금 700,000원/,
       }),
     ).toBeTruthy();
     expect(view.getByText('08.10')).toBeTruthy();
@@ -449,23 +456,13 @@ describe('포트폴리오 화면', () => {
     const mockedFetch = vi.mocked(fetch);
     const originalImplementation = mockedFetch.getMockImplementation();
     mockedFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('/api/portfolio/performance?')) {
+      if (String(input).includes('/api/users/me/portfolio/performance?')) {
         return jsonResponse({
           status: 'INSUFFICIENT_DATA',
           reason: 'SNAPSHOT_DATA_INSUFFICIENT',
           baseDate: null,
           previousBaseDate: null,
           points: [],
-          currentPoint: {
-            baseDate: '2026-10-06',
-            priceBaseDate: '2026-10-06',
-            totalPurchaseAmount: 700000,
-            totalEvaluationAmount: 750000,
-            totalProfitLoss: 50000,
-            totalReturnRate: 7.142857,
-            dailyProfitLoss: 10000,
-            dailyReturnRate: 1.35,
-          },
         });
       }
       return originalImplementation?.(input, init) ?? jsonResponse({}, 404);
@@ -490,13 +487,49 @@ describe('포트폴리오 화면', () => {
     expect(view.queryByText('표시할 추이가 없어요')).toBeNull();
   });
 
+  it('잘못된 서버 추이 응답은 오류로 표시하고 재시도하면 실제 계산 결과를 보여준다', async () => {
+    savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
+    mockPortfolioApi();
+    const mockedFetch = vi.mocked(fetch);
+    const originalImplementation = mockedFetch.getMockImplementation();
+    let performanceRequests = 0;
+    mockedFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/api/users/me/portfolio/performance?')) {
+        performanceRequests += 1;
+        if (performanceRequests === 1) {
+          return jsonResponse({
+            status: 'READY',
+            reason: null,
+            baseDate: calculation.baseDate,
+            previousBaseDate: null,
+            points: [{ ...calculation, totalEvaluationAmount: '750000' }],
+          });
+        }
+      }
+      return originalImplementation?.(input, init) ?? jsonResponse({}, 404);
+    });
+
+    const view = render(<PortfolioPage />);
+    const error = await view.findByRole('alert');
+    expect(error.textContent).toContain('자산 추이 응답 형식이 올바르지 않습니다.');
+    expect(view.queryByRole('img', { name: /포트폴리오 자산 추이/ })).toBeNull();
+    fireEvent.click(within(error).getByRole('button', { name: '다시 시도' }));
+
+    expect(
+      await view.findByRole('img', {
+        name: /평가금액 750,000원, 매입원금 700,000원/,
+      }),
+    ).toBeTruthy();
+    expect(performanceRequests).toBe(2);
+  });
+
   it('5년 기간을 선택하면 서버의 5년 자산 추이를 표시한다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     savedPerformancePoints = [
       {
         baseDate: '2021-10-07',
-        recordedAt: '2021-10-07T15:30:00.000Z',
-        source: 'CLOSE',
+        dailyProfitLoss: null,
+        dailyReturnRate: null,
         totalPurchaseAmount: 500000,
         totalEvaluationAmount: 520000,
         totalProfitLoss: 20000,
@@ -504,8 +537,8 @@ describe('포트폴리오 화면', () => {
       },
       {
         baseDate: '2026-09-30',
-        recordedAt: '2026-09-30T15:30:00.000Z',
-        source: 'CLOSE',
+        dailyProfitLoss: 10000,
+        dailyReturnRate: 1.35,
         totalPurchaseAmount: 700000,
         totalEvaluationAmount: 750000,
         totalProfitLoss: 50000,
@@ -517,7 +550,7 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage />);
 
     await view.findByRole('img', {
-      name: /평가금액 760,000원, 매입원금 700,000원/,
+      name: /평가금액 750,000원, 매입원금 700,000원/,
     });
     fireEvent.change(view.getByRole('combobox', { name: '자산 추이 기간' }), {
       target: { value: '5Y' },
@@ -532,7 +565,7 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage />);
 
     await view.findByRole('img', {
-      name: /평가금액 760,000원, 매입원금 700,000원/,
+      name: /평가금액 750,000원, 매입원금 700,000원/,
     });
     await waitFor(() =>
       expect(view.container.querySelectorAll('.portfolio-return-line').length).toBeGreaterThan(0),
@@ -557,7 +590,9 @@ describe('포트폴리오 화면', () => {
     expect(within(dialog).queryByText('최고 · 최저')).toBeNull();
     expect(within(dialog).queryByText('자산 변경 이력')).toBeNull();
     expect(within(dialog).queryByText('자산 구성')).toBeNull();
-    expect(within(dialog).getByRole('status').textContent).toContain('매입원금');
+    await waitFor(() =>
+      expect(within(dialog).getByRole('status').textContent).toContain('매입원금'),
+    );
     expect(within(dialog).getByRole('status').textContent).toContain('평가금액');
 
     fireEvent.keyDown(
@@ -855,7 +890,7 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage />);
 
     await view.findAllByText('750,000원');
-    await view.findByRole('img', { name: /평가금액 760,000원, 매입원금 700,000원/ });
+    await view.findByRole('img', { name: /평가금액 750,000원, 매입원금 700,000원/ });
     fireEvent.click(view.getByRole('button', { name: '수정' }));
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('보유수량'), { target: { value: '12' } });
@@ -867,7 +902,7 @@ describe('포트폴리오 화면', () => {
     await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
     expect(
       await view.findByRole('img', {
-        name: /평가금액 912,000원, 매입원금 720,000원/,
+        name: /평가금액 900,000원, 매입원금 720,000원/,
       }),
     ).toBeTruthy();
     expect(savedHoldings[0]).toEqual(expect.objectContaining({ quantity: 12 }));
@@ -884,7 +919,7 @@ describe('포트폴리오 화면', () => {
 
     expect(
       await view.findByRole('img', {
-        name: /평가금액 1,064,000원, 매입원금 1,120,000원/,
+        name: /평가금액 1,050,000원, 매입원금 1,120,000원/,
       }),
     ).toBeTruthy();
     expect(savedHoldings[0]).toEqual(
@@ -895,7 +930,8 @@ describe('포트폴리오 화면', () => {
         .mocked(fetch)
         .mock.calls.filter(
           ([input, init]) =>
-            String(input).endsWith('/api/portfolio/holdings/1') && init?.method === 'PATCH',
+            String(input).endsWith('/api/users/me/portfolio/holdings/1') &&
+            init?.method === 'PATCH',
         ),
     ).toHaveLength(2);
   });
