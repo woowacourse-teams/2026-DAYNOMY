@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Saved Portfolio", description = "로그인 회원의 포트폴리오와 수익률 추적 API")
 @RequiredArgsConstructor
-@RequestMapping("/api/portfolio")
+@RequestMapping({"/api/portfolio", "/api/users/me/portfolio"})
 @RestController
 public class SavedPortfolioController {
 
