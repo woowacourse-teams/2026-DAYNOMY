@@ -1,6 +1,7 @@
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import '../LoginPage.css';
 import { getApiUrl } from '../api';
+import { safeReturnPath } from '../../../auth/returnPath';
 
 function GoogleIcon() {
   return (
@@ -27,18 +28,11 @@ function GoogleIcon() {
 
 function LoginPage() {
   const [searchParams] = useSearchParams();
-  const location = useLocation();
   const oauthError = searchParams.get('error') === 'oauth';
   const errorMessage = oauthError ? 'Google 로그인에 실패했습니다.' : null;
-  const requestedReturnTo = searchParams.get('returnTo');
-  const isAdminLogin =
-    location.pathname.startsWith('/admin') || requestedReturnTo?.startsWith('/admin');
-  const returnTo =
-    requestedReturnTo?.startsWith('/') && !requestedReturnTo.startsWith('//')
-      ? requestedReturnTo
-      : isAdminLogin
-        ? '/admin'
-        : '/';
+  const requestedPath = searchParams.get('returnTo');
+  const returnPath = safeReturnPath(requestedPath);
+  const isAdminLogin = /^\/admin(?:\/|\?|#|$)/.test(returnPath);
 
   return (
     <main className="login-page">
@@ -59,7 +53,7 @@ function LoginPage() {
           className="google-login-button"
           href={getApiUrl('/api/auth/google')}
           onClick={() => {
-            sessionStorage.setItem('daynomy:post-login-path', returnTo);
+            sessionStorage.setItem('daynomy:post-login-path', returnPath);
           }}
         >
           <GoogleIcon />
@@ -75,7 +69,8 @@ function LoginPage() {
         </div>
 
         <p className="login-policy">
-          계속하면 서비스 이용약관과 개인정보처리방침에 동의하게 됩니다.
+          계속하면 <Link to="/terms">서비스 이용약관</Link>과{' '}
+          <Link to="/privacy">개인정보처리방침</Link>에 동의하게 됩니다.
         </p>
       </section>
     </main>

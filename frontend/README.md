@@ -58,6 +58,14 @@ npm run dev
 
 서버가 정상 기동되면 `http://localhost:5173`으로 접근할 수 있습니다.
 
+### 실제 계정과 API 연결
+
+- 로컬 백엔드는 `http://localhost:8080`, 프론트는 `http://localhost:5173`을 사용합니다. `localhost`와 `127.0.0.1`을 섞지 않습니다.
+- Google OAuth의 로컬 승인된 리디렉션 URI는 `http://localhost:8080/login/oauth2/code/google`입니다. Google 클라이언트 정보는 백엔드의 비공개 환경 설정에만 둡니다.
+- 백엔드는 `FRONTEND_BASE_URL=http://localhost:5173`, HTTP 로컬 실행에서는 `COOKIE_SECURE=false`를 사용합니다. Dev·Prod의 HTTPS 쿠키 정책은 변경하지 않습니다.
+- 프론트의 `VITE_API_BASE_URL`이 비어 있으면 Vite가 `/api`, `/oauth2`, `/login/oauth2`를 동일한 백엔드로 전달합니다. `http://localhost:8080`을 설정한 경우 직접 연결합니다.
+- 로그인 화면의 `Google로 시작하기`에서 기존 Google OAuth를 실행합니다. 로그인 후에는 검증된 서비스 내부 경로로 돌아갑니다.
+
 ---
 
 ## 테스트

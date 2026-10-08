@@ -267,6 +267,7 @@ function mockPortfolioApi() {
 }
 
 beforeEach(() => {
+  vi.setSystemTime(new Date(2026, 9, 7, 12));
   savedHoldings = [];
   savedPerformancePoints = [];
   vi.stubGlobal(
@@ -279,6 +280,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   localStorage.clear();
   window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
