@@ -57,24 +57,9 @@ public class PortfolioDailySnapshot extends BaseEntity {
   @Column(name = "daily_return_rate", precision = 10, scale = 2)
   private BigDecimal dailyReturnRate;
 
-  public PortfolioDailySnapshot(
-      Portfolio portfolio,
-      LocalDate baseDate,
-      BigDecimal totalPurchaseAmount,
-      BigDecimal totalEvaluationAmount,
-      BigDecimal totalProfitLoss,
-      BigDecimal totalReturnRate,
-      BigDecimal dailyProfitLoss,
-      BigDecimal dailyReturnRate) {
+  public PortfolioDailySnapshot(Portfolio portfolio, LocalDate baseDate) {
     this.portfolio = portfolio;
     this.baseDate = baseDate;
-    update(
-        totalPurchaseAmount,
-        totalEvaluationAmount,
-        totalProfitLoss,
-        totalReturnRate,
-        dailyProfitLoss,
-        dailyReturnRate);
   }
 
   public void update(

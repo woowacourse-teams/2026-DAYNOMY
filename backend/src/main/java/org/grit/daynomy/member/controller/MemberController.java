@@ -34,9 +34,7 @@ public class MemberController {
   @GetMapping("/me")
   public ResponseEntity<MemberResponse> getMe(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember authenticatedMember) {
-    Member member = memberService.getMember(authenticatedMember.memberId());
-
-    return ResponseEntity.ok(MemberResponse.from(member));
+    return ResponseEntity.ok(memberService.getProfile(authenticatedMember.memberId()));
   }
 
   @Operation(summary = "내 정보 수정", description = "로그인한 회원의 닉네임을 수정합니다.")

@@ -54,11 +54,16 @@ public class PortfolioHolding extends BaseEntity {
     change(quantity, averagePurchasePrice);
   }
 
-  public void change(long quantity, BigDecimal averagePurchasePrice) {
+  public boolean change(long quantity, BigDecimal averagePurchasePrice) {
     if (quantity <= 0 || averagePurchasePrice == null || averagePurchasePrice.signum() <= 0) {
       throw new IllegalArgumentException("보유 수량과 평균 매수가는 0보다 커야 합니다.");
     }
+    if (this.quantity == quantity
+        && averagePurchasePrice.compareTo(this.averagePurchasePrice) == 0) {
+      return false;
+    }
     this.quantity = quantity;
     this.averagePurchasePrice = averagePurchasePrice;
+    return true;
   }
 }

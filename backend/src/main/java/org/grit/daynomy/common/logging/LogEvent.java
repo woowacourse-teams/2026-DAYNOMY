@@ -21,6 +21,7 @@ public enum LogEvent {
   PORTFOLIO_ANALYSIS_FAILED("portfolio.analysis.failed", "포트폴리오 분석 실패"),
   PORTFOLIO_SNAPSHOT_COMPLETED("portfolio.snapshot.completed", "포트폴리오 일별 스냅샷 생성 완료"),
   PORTFOLIO_SNAPSHOT_FAILED("portfolio.snapshot.failed", "포트폴리오 일별 스냅샷 생성 실패"),
+  LEAGUE_CALCULATION_FAILED("league.calculation.failed", "투자 리그 일별 수익률 집계 실패"),
 
   MARKET_ANALYSIS_REQUESTED("market.analysis.requested", "시장 분석 요청"),
   MARKET_ANALYSIS_COMPLETED("market.analysis.completed", "시장 분석 완료"),
