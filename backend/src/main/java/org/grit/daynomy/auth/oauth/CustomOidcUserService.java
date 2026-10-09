@@ -15,41 +15,23 @@ import org.springframework.util.StringUtils;
 @Service
 public class CustomOidcUserService {
 
-  private static final int MAX_NICKNAME_LENGTH = 20;
-
   private final MemberService memberService;
   private final OidcUserService delegate = new OidcUserService();
 
   public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
     OidcUser oidcUser = delegate.loadUser(userRequest);
-    GoogleOAuth2UserInfo userInfo = new GoogleOAuth2UserInfo(oidcUser.getAttributes());
-
-    validateUserInfo(userInfo);
-
-    Member member =
-        memberService.findOrCreateGoogleMember(
-            userInfo.providerId(),
-            userInfo.email(),
-            createNickname(userInfo.name(), userInfo.email()),
-            userInfo.profileImageUrl());
-
-    return new CustomOidcUser(member, oidcUser);
-  }
-
-  private void validateUserInfo(GoogleOAuth2UserInfo userInfo) {
-    if (!StringUtils.hasText(userInfo.providerId()) || !StringUtils.hasText(userInfo.email())) {
+    if (!StringUtils.hasText(oidcUser.getSubject()) || !StringUtils.hasText(oidcUser.getEmail())) {
       throw new OAuth2AuthenticationException(
           new OAuth2Error("invalid_google_user"), "Google 사용자 정보가 올바르지 않습니다.");
     }
-  }
 
-  private String createNickname(String name, String email) {
-    String nickname = StringUtils.hasText(name) ? name : email.split("@")[0];
+    Member member =
+        memberService.findOrCreateGoogleMember(
+            oidcUser.getSubject(),
+            oidcUser.getEmail(),
+            oidcUser.getFullName(),
+            oidcUser.getPicture());
 
-    if (nickname.length() > MAX_NICKNAME_LENGTH) {
-      return nickname.substring(0, MAX_NICKNAME_LENGTH);
-    }
-
-    return nickname;
+    return new CustomOidcUser(member, oidcUser);
   }
 }
