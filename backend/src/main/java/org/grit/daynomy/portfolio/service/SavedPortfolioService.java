@@ -44,6 +44,7 @@ public class SavedPortfolioService {
   private final MemberRepository memberRepository;
   private final AssetRepository assetRepository;
   private final PortfolioLedgerCalculator ledgerCalculator;
+  private final PortfolioSnapshotTransactionService snapshotTransactionService;
 
   @Transactional(readOnly = true)
   public SavedPortfolioResponse get(Long memberId) {
@@ -174,6 +175,7 @@ public class SavedPortfolioService {
     PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
     SavedPortfolioHoldingResponse responseHolding =
         applyLedgerPosition(portfolio, asset, current, ledger);
+    snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), request.tradeDate());
     return new PortfolioTransactionResponse(
         history.getId(), responseHolding, ledger.realizedProfitLoss());
   }
@@ -183,6 +185,7 @@ public class SavedPortfolioService {
       Long memberId, Long transactionId, PortfolioTransactionUpdateRequest request) {
     Portfolio portfolio = getPortfolio(memberId);
     PortfolioHoldingHistory history = getTransaction(portfolio.getId(), transactionId);
+    LocalDate previousTradeDate = history.getEffectiveDate();
     history.updateTransaction(
         request.tradeDate(), request.quantity(), request.unitPrice(), request.fee(), request.tax());
     historyRepository.saveAndFlush(history);
@@ -195,6 +198,9 @@ public class SavedPortfolioService {
             .orElse(null);
     SavedPortfolioHoldingResponse responseHolding =
         applyLedgerPosition(portfolio, asset, current, ledger);
+    LocalDate refreshFrom =
+        previousTradeDate.isBefore(request.tradeDate()) ? previousTradeDate : request.tradeDate();
+    snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), refreshFrom);
     return new PortfolioTransactionResponse(
         history.getId(), responseHolding, ledger.realizedProfitLoss());
   }
@@ -214,6 +220,7 @@ public class SavedPortfolioService {
             .orElse(null);
     SavedPortfolioHoldingResponse responseHolding =
         applyLedgerPosition(portfolio, asset, current, ledger);
+    snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), history.getEffectiveDate());
     return new PortfolioTransactionResponse(
         transactionId, responseHolding, ledger.realizedProfitLoss());
   }

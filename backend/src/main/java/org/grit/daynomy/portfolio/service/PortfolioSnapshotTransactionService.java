@@ -36,6 +36,31 @@ public class PortfolioSnapshotTransactionService {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public boolean createSnapshot(Long portfolioId, LocalDate baseDate, LocalDate previousBaseDate) {
+    return upsertSnapshot(portfolioId, baseDate, previousBaseDate, false);
+  }
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void refreshSnapshotsFrom(Long portfolioId, LocalDate fromDate) {
+    LocalDate today = LocalDate.now(SEOUL);
+    List<LocalDate> baseDates =
+        stockPriceRepository.findDistinctBaseDatesOrderByBaseDate().stream()
+            .filter(baseDate -> baseDate.isBefore(today))
+            .toList();
+    for (int index = 0; index < baseDates.size(); index++) {
+      LocalDate baseDate = baseDates.get(index);
+      if (baseDate.isBefore(fromDate)) {
+        continue;
+      }
+      LocalDate previousBaseDate = index == 0 ? null : baseDates.get(index - 1);
+      upsertSnapshot(portfolioId, baseDate, previousBaseDate, true);
+    }
+  }
+
+  private boolean upsertSnapshot(
+      Long portfolioId,
+      LocalDate baseDate,
+      LocalDate previousBaseDate,
+      boolean overwriteHistorical) {
     Portfolio portfolio = portfolioRepository.findById(portfolioId).orElse(null);
     if (portfolio == null) {
       return false;
@@ -43,17 +68,19 @@ public class PortfolioSnapshotTransactionService {
 
     PortfolioDailySnapshot existing =
         snapshotRepository.findByPortfolioIdAndBaseDate(portfolioId, baseDate).orElse(null);
-    if (existing != null && baseDate.isBefore(LocalDate.now(SEOUL))) {
+    if (existing != null && baseDate.isBefore(LocalDate.now(SEOUL)) && !overwriteHistorical) {
       return false;
     }
 
     List<HistoricalHolding> holdings = reconstructHoldings(portfolioId, baseDate);
     if (holdings.isEmpty()) {
+      deleteExisting(existing, overwriteHistorical);
       return false;
     }
 
     SnapshotAmounts amounts = calculateAmounts(holdings, baseDate, previousBaseDate);
     if (amounts == null) {
+      deleteExisting(existing, overwriteHistorical);
       return false;
     }
 
@@ -78,6 +105,12 @@ public class PortfolioSnapshotTransactionService {
         amounts.dailyReturnRate());
     snapshotRepository.saveAndFlush(snapshot);
     return true;
+  }
+
+  private void deleteExisting(PortfolioDailySnapshot existing, boolean overwriteHistorical) {
+    if (existing != null && overwriteHistorical) {
+      snapshotRepository.delete(existing);
+    }
   }
 
   private List<HistoricalHolding> reconstructHoldings(Long portfolioId, LocalDate baseDate) {
