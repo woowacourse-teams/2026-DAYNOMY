@@ -1,14 +1,17 @@
 import { concentrationLabel } from '../../src/features/league/labels';
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { BrowserRouter, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { InvestorProfilePage } from '../../src/features/league/InvestorProfilePage';
 import { LeaguePage } from '../../src/features/league/LeaguePage';
 import { FollowingPage } from '../../src/features/league/FollowingPage';
 import * as leagueApi from '../../src/features/league/api';
+import { trackEvent } from '../../src/analytics';
+
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 
 vi.mock('../../src/features/league/api', () => ({
   followInvestor: vi.fn(),
@@ -112,6 +115,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
+  window.history.replaceState(null, '', '/');
   vi.clearAllMocks();
 });
 
@@ -514,7 +519,7 @@ describe('투자 리그 화면', () => {
 
     const view = render(
       <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
-        <MemoryRouter initialEntries={['/league/investor-1']}>
+        <MemoryRouter initialEntries={['/league/investor-1?week=2026-09-28#investment-details']}>
           <Routes>
             <Route path="/league/:publicId" element={<InvestorProfilePage />} />
           </Routes>
@@ -527,8 +532,66 @@ describe('투자 리그 화면', () => {
     expect(view.getByText('비중 집계 대기')).toBeTruthy();
     expect(view.getByText('기여도 집계 대기')).toBeTruthy();
     expect(view.queryByRole('link', { name: '멤버십 알아보기' })).toBeNull();
+    const loginHref = view.getByRole('link', { name: '로그인하고 팔로우' }).getAttribute('href')!;
+    expect(new URL(loginHref, window.location.origin).searchParams.get('returnTo')).toBe(
+      '/league/investor-1?week=2026-09-28#investment-details',
+    );
+    expect(view.getByRole('heading', { name: '자산군 비중' })).toBeTruthy();
     expect(leagueApi.getInvestorDetail).toHaveBeenCalledWith('investor-1', expect.any(AbortSignal));
   });
+
+  it.each(['ranking', 'following'])(
+    '%s에서 진입한 상세의 탭 이동은 조회 이벤트를 중복 전송하지 않는다',
+    async (source) => {
+      vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue(investor);
+      vi.mocked(leagueApi.getInvestorDetail).mockResolvedValue({
+        publicId: investor.publicId,
+        asOfDate: '2026-09-26',
+        holdings: [],
+        decisions: [],
+      });
+      window.history.replaceState(
+        { usr: { source, rankBucket: 'top_3' } },
+        '',
+        '/league/investor-1',
+      );
+      const pushState = window.history.pushState.bind(window.history);
+      // jsdom에서도 브라우저의 history state 직렬화로 생기는 새 객체를 재현한다.
+      vi.spyOn(window.history, 'pushState').mockImplementation((data, unused, url) => {
+        pushState(structuredClone(data), unused, url);
+      });
+      const view = render(
+        <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthContext.Provider>,
+      );
+      await view.findByRole('heading', { name: '차분한초보' });
+      expect(view.queryByRole('heading', { name: '자산군 비중' })).toBeNull();
+      fireEvent.click(view.getByRole('link', { name: '공개 종목' }));
+      expect(view.getByRole('heading', { name: '자산군 비중' })).toBeTruthy();
+      fireEvent.click(view.getByRole('link', { name: '투자 기록' }));
+      fireEvent.click(view.getByRole('link', { name: '성과' }));
+      expect(trackEvent).toHaveBeenCalledTimes(1);
+      expect(trackEvent).toHaveBeenCalledWith('view_investor_profile', {
+        source,
+        rank_bucket: 'top_3',
+      });
+
+      act(() => {
+        window.history.pushState({ usr: { source: 'direct' } }, '', '/league/investor-1');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+      expect(trackEvent).toHaveBeenCalledTimes(2);
+      expect(trackEvent).toHaveBeenLastCalledWith('view_investor_profile', {
+        source: 'direct',
+        rank_bucket: 'unknown',
+      });
+    },
+  );
 
   it('일반 회원도 서버가 공개한 판단과 기여도를 바로 보여준다', async () => {
     vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue(investor);
@@ -613,24 +676,31 @@ describe('투자 리그 화면', () => {
     await waitFor(() => expect(leagueApi.getInvestorDetail).toHaveBeenCalledTimes(2));
   });
 
-  it('상세 비공개 동의는 유지하고 종목·판단 API를 호출하지 않는다', async () => {
-    vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
-      ...investor,
-      detailAvailable: false,
-    });
-    const view = render(
-      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
-        <MemoryRouter initialEntries={['/league/investor-1#investment-decisions']}>
-          <Routes>
-            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
-          </Routes>
-        </MemoryRouter>
-      </AuthContext.Provider>,
-    );
-    expect(await view.findByText('종목·투자 기록 비공개')).toBeTruthy();
-    expect(view.getByRole('link', { name: '성과' }).getAttribute('aria-current')).toBe('page');
-    expect(view.queryByRole('link', { name: '투자 기록' })).toBeNull();
-    expect(leagueApi.getInvestorDetail).not.toHaveBeenCalled();
-    expect(view.queryByRole('link', { name: '멤버십 알아보기' })).toBeNull();
-  });
+  it.each([investor.allocation, null])(
+    '상세 비공개에서는 동의한 자산 비중만 표시하고 종목·판단 API를 호출하지 않는다 (%j)',
+    async (allocation) => {
+      vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
+        ...investor,
+        detailAvailable: false,
+        allocation,
+      });
+      const view = render(
+        <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+          <MemoryRouter initialEntries={['/league/investor-1#investment-decisions']}>
+            <Routes>
+              <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>,
+      );
+      expect(await view.findByText('종목·투자 기록 비공개')).toBeTruthy();
+      expect(view.getByRole('link', { name: '성과' }).getAttribute('aria-current')).toBe('page');
+      expect(view.queryByRole('link', { name: '투자 기록' })).toBeNull();
+      expect(leagueApi.getInvestorDetail).not.toHaveBeenCalled();
+      expect(view.queryByRole('link', { name: '멤버십 알아보기' })).toBeNull();
+      expect(view.queryByRole('heading', { name: '자산군 비중' }) !== null).toBe(
+        allocation !== null,
+      );
+    },
+  );
 });

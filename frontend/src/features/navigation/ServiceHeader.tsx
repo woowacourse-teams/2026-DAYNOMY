@@ -87,7 +87,7 @@ export function ServiceHeader() {
         {!loading && !isLoggedIn ? (
           <Link
             className="service-login-link"
-            to={`/login?returnTo=${encodeURIComponent(location.pathname)}`}
+            to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}${location.hash}`)}`}
           >
             로그인
           </Link>

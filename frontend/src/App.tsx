@@ -92,7 +92,7 @@ function AdminRoute({ children }: { children: ReactNode }) {
   if (!isLoggedIn) {
     return (
       <Navigate
-        to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
+        to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}${location.hash}`)}`}
         replace
       />
     );
@@ -118,7 +118,7 @@ function AuthenticatedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!isLoggedIn) {
-    const returnTo = `${location.pathname}${location.search}`;
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
     return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
 

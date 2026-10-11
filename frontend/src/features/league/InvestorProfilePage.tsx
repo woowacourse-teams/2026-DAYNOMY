@@ -19,7 +19,11 @@ import './league.css';
 
 export function InvestorProfilePage() {
   const { publicId = '' } = useParams();
-  const { hash, state } = useLocation();
+  const { pathname, search, hash, state } = useLocation();
+  const viewSource = ['ranking', 'following'].includes(state?.source) ? state.source : 'direct';
+  const viewRankBucket = ['top_3', 'top_10', 'other'].includes(state?.rankBucket)
+    ? state.rankBucket
+    : 'unknown';
   const { isLoggedIn } = useAuth();
   const [investor, setInvestor] = useState<PublicInvestor | null>(null);
   const [detail, setDetail] = useState<InvestorDetail | null>(null);
@@ -49,12 +53,10 @@ export function InvestorProfilePage() {
   useEffect(() => {
     if (publicId)
       trackEvent('view_investor_profile', {
-        source: ['ranking', 'following'].includes(state?.source) ? state.source : 'direct',
-        rank_bucket: ['top_3', 'top_10', 'other'].includes(state?.rankBucket)
-          ? state.rankBucket
-          : 'unknown',
+        source: viewSource,
+        rank_bucket: viewRankBucket,
       });
-  }, [publicId, state]);
+  }, [publicId, viewSource, viewRankBucket]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -168,7 +170,9 @@ export function InvestorProfilePage() {
             {investor.followed ? '팔로잉' : '팔로우'}
           </button>
         ) : (
-          <Link to={`/login?returnTo=/league/${investor.publicId}`}>로그인하고 팔로우</Link>
+          <Link to={`/login?returnTo=${encodeURIComponent(`${pathname}${search}${hash}`)}`}>
+            로그인하고 팔로우
+          </Link>
         )}
       </section>
 
@@ -414,7 +418,10 @@ export function InvestorProfilePage() {
       </div>
 
       {investor.allocation ? (
-        <section className="league-allocation-card" hidden={activeSection !== 'holdings'}>
+        <section
+          className="league-allocation-card"
+          hidden={activeSection !== (investor.detailAvailable ? 'holdings' : 'performance')}
+        >
           <div>
             <h2>자산군 비중</h2>
             <small>금액 비공개</small>
