@@ -19,7 +19,14 @@ public class MarketAnalysisService {
 
   @Transactional
   public void saveMarketAnalysis(News news, NewsMarketAnalysis marketAnalysis) {
-    newsMarketAnalysisRepository.save(new NewsMarketAnalysis(news, marketAnalysis.getSummary()));
+    newsMarketAnalysisRepository.save(
+        new NewsMarketAnalysis(
+            news,
+            marketAnalysis.getObservedFact(),
+            marketAnalysis.getInterpretation(),
+            marketAnalysis.getRisk(),
+            marketAnalysis.getWatchPoint(),
+            marketAnalysis.getLimitation()));
   }
 
   @Transactional
@@ -29,7 +36,7 @@ public class MarketAnalysisService {
             .findByNewsId(newsId)
             .orElseThrow(() -> new BusinessException(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND));
 
-    savedMarketAnalysis.updateSummary(marketAnalysis.getSummary());
+    savedMarketAnalysis.updateAnalysis(marketAnalysis);
   }
 
   public MarketAnalysisResponse getMarketAnalysis(Long newsId) {

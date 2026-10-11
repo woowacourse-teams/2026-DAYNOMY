@@ -48,12 +48,11 @@ class MarketAnalysisControllerTest {
     mockMvc
         .perform(get("/api/news/1/market-analysis"))
         .andExpect(status().isOk())
-        .andExpect(
-            jsonPath("$.summary").value("금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다."))
-        .andExpect(jsonPath("$.cause").doesNotExist())
-        .andExpect(jsonPath("$.importance").doesNotExist())
-        .andExpect(jsonPath("$.assets").doesNotExist())
-        .andExpect(jsonPath("$.scenarios").doesNotExist());
+        .andExpect(jsonPath("$.observedFact").value("기준금리가 인하됐습니다."))
+        .andExpect(jsonPath("$.interpretation").value("위험자산 선호가 높아질 수 있습니다."))
+        .andExpect(jsonPath("$.risk").value("물가가 다시 상승하면 해석이 달라질 수 있습니다."))
+        .andExpect(jsonPath("$.watchPoint").value("다음 소비자물가 발표를 확인해야 합니다."))
+        .andExpect(jsonPath("$.limitation").value("자산별 가격 데이터는 포함하지 않았습니다."));
 
     verify(marketAnalysisService).getMarketAnalysis(1L);
   }
@@ -86,6 +85,11 @@ class MarketAnalysisControllerTest {
   }
 
   private MarketAnalysisResponse createResponse() {
-    return new MarketAnalysisResponse("금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
+    return new MarketAnalysisResponse(
+        "기준금리가 인하됐습니다.",
+        "위험자산 선호가 높아질 수 있습니다.",
+        "물가가 다시 상승하면 해석이 달라질 수 있습니다.",
+        "다음 소비자물가 발표를 확인해야 합니다.",
+        "자산별 가격 데이터는 포함하지 않았습니다.");
   }
 }

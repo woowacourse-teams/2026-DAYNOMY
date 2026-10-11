@@ -34,20 +34,24 @@ class OpenAiMarketAnalysisClientTest {
         .andExpect(method(HttpMethod.POST))
         .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-api-key"))
         .andExpect(jsonPath("$.model").value("gpt-test"))
-        .andExpect(jsonPath("$.input[0].content").value(containsString("발생 원인과 이 이슈가 시장에서 중요한 이유")))
+        .andExpect(jsonPath("$.input[0].content").value(containsString("뉴스 본문에서 직접 확인할 수 있는 사실")))
+        .andExpect(
+            jsonPath("$.input[0].content").value(containsString("시장 전체의 확정적인 신호로 일반화하지 마세요")))
         .andExpect(jsonPath("$.input[1].content").value("뉴스 본문입니다."))
-        .andExpect(jsonPath("$.text.format.schema.properties.summary.type").value("string"))
-        .andExpect(jsonPath("$.text.format.schema.required[0]").value("summary"))
-        .andExpect(jsonPath("$.text.format.schema.properties.cause").doesNotExist())
-        .andExpect(jsonPath("$.text.format.schema.properties.importance").doesNotExist())
-        .andExpect(jsonPath("$.text.format.schema.properties.assets").doesNotExist())
-        .andExpect(jsonPath("$.text.format.schema.properties.scenarios").doesNotExist())
+        .andExpect(jsonPath("$.text.format.schema.properties.observedFact.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.interpretation.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.risk.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.watchPoint.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.limitation.type").value("string"))
         .andRespond(withSuccess(createResponse(), MediaType.APPLICATION_JSON));
 
     var analysis = client.analyze("뉴스 본문입니다.");
 
-    assertThat(analysis.getSummary())
-        .isEqualTo("금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
+    assertThat(analysis.getObservedFact()).isEqualTo("기준금리가 인하됐습니다.");
+    assertThat(analysis.getInterpretation()).isEqualTo("위험자산 선호가 높아질 수 있습니다.");
+    assertThat(analysis.getRisk()).isEqualTo("물가가 다시 상승하면 해석이 달라질 수 있습니다.");
+    assertThat(analysis.getWatchPoint()).isEqualTo("다음 소비자물가 발표를 확인해야 합니다.");
+    assertThat(analysis.getLimitation()).isEqualTo("자산별 가격 데이터는 포함하지 않았습니다.");
     server.verify();
   }
 
@@ -96,6 +100,24 @@ class OpenAiMarketAnalysisClientTest {
     server.verify();
   }
 
+  @Test
+  @DisplayName("시장 분석 필드가 비어 있으면 예외를 던진다")
+  void analyzeThrowsWhenAnalysisFieldIsBlank() {
+    RestClient.Builder restClientBuilder = RestClient.builder();
+    MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
+    OpenAiMarketAnalysisClient client =
+        new OpenAiMarketAnalysisClient(
+            restClientBuilder, "https://api.openai.test/v1", "test-api-key", "gpt-test");
+    server
+        .expect(requestTo("https://api.openai.test/v1/responses"))
+        .andRespond(withSuccess(createBlankFieldResponse(), MediaType.APPLICATION_JSON));
+
+    assertThatThrownBy(() -> client.analyze("뉴스 본문입니다."))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("OpenAI market analysis response must contain risk.");
+    server.verify();
+  }
+
   private String createResponse() {
     return """
         {
@@ -105,7 +127,7 @@ class OpenAiMarketAnalysisClientTest {
               "content": [
                 {
                   "type": "output_text",
-                  "text": "{\\"summary\\":\\"금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.\\"}"
+                  "text": "{\\"observedFact\\":\\"기준금리가 인하됐습니다.\\",\\"interpretation\\":\\"위험자산 선호가 높아질 수 있습니다.\\",\\"risk\\":\\"물가가 다시 상승하면 해석이 달라질 수 있습니다.\\",\\"watchPoint\\":\\"다음 소비자물가 발표를 확인해야 합니다.\\",\\"limitation\\":\\"자산별 가격 데이터는 포함하지 않았습니다.\\"}"
                 }
               ]
             }
@@ -123,6 +145,23 @@ class OpenAiMarketAnalysisClientTest {
                 {
                   "type": "output_text",
                   "text": "not-json"
+                }
+              ]
+            }
+          ]
+        }
+        """;
+  }
+
+  private String createBlankFieldResponse() {
+    return """
+        {
+          "output": [
+            {
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "{\\"observedFact\\":\\"사실\\",\\"interpretation\\":\\"해석\\",\\"risk\\":\\"\\",\\"watchPoint\\":\\"확인 지표\\",\\"limitation\\":\\"분석 한계\\"}"
                 }
               ]
             }

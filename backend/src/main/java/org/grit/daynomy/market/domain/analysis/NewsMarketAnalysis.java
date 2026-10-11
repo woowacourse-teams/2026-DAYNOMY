@@ -28,18 +28,70 @@ public class NewsMarketAnalysis extends BaseEntity {
   private News news;
 
   @Column(name = "summary", columnDefinition = "TEXT", nullable = false)
-  private String summary;
+  private String observedFact;
 
-  public NewsMarketAnalysis(String summary) {
-    this.summary = summary;
+  @Column(name = "interpretation", columnDefinition = "TEXT", nullable = false)
+  private String interpretation;
+
+  @Column(name = "risk", columnDefinition = "TEXT", nullable = false)
+  private String risk;
+
+  @Column(name = "watch_point", columnDefinition = "TEXT", nullable = false)
+  private String watchPoint;
+
+  @Column(name = "limitation", columnDefinition = "TEXT", nullable = false)
+  private String limitation;
+
+  public NewsMarketAnalysis(String observedFact) {
+    this.observedFact = observedFact;
+    this.interpretation = "";
+    this.risk = "";
+    this.watchPoint = "";
+    this.limitation = "";
   }
 
-  public NewsMarketAnalysis(News news, String summary) {
+  public NewsMarketAnalysis(
+      String observedFact,
+      String interpretation,
+      String risk,
+      String watchPoint,
+      String limitation) {
+    this.observedFact = observedFact;
+    this.interpretation = interpretation;
+    this.risk = risk;
+    this.watchPoint = watchPoint;
+    this.limitation = limitation;
+  }
+
+  public NewsMarketAnalysis(
+      News news,
+      String observedFact,
+      String interpretation,
+      String risk,
+      String watchPoint,
+      String limitation) {
     this.news = news;
-    this.summary = summary;
+    this.observedFact = observedFact;
+    this.interpretation = interpretation;
+    this.risk = risk;
+    this.watchPoint = watchPoint;
+    this.limitation = limitation;
   }
 
-  public void updateSummary(String summary) {
-    this.summary = summary;
+  public NewsMarketAnalysis(News news, String observedFact) {
+    this.news = news;
+    this.observedFact = observedFact;
+    this.interpretation = "";
+    this.risk = "";
+    this.watchPoint = "";
+    this.limitation = "";
+  }
+
+  public void updateAnalysis(NewsMarketAnalysis marketAnalysis) {
+    this.observedFact = marketAnalysis.observedFact;
+    this.interpretation = marketAnalysis.interpretation;
+    this.risk = marketAnalysis.risk;
+    this.watchPoint = marketAnalysis.watchPoint;
+    this.limitation = marketAnalysis.limitation;
   }
 }
