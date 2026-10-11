@@ -60,7 +60,9 @@ export function ScrollToTop() {
 function AppFooter() {
   const location = useLocation();
 
-  return location.pathname.startsWith('/admin') ? null : <Footer />;
+  return location.pathname === '/login' || location.pathname.startsWith('/admin') ? null : (
+    <Footer />
+  );
 }
 
 function AdminRoute({ children }: { children: ReactNode }) {

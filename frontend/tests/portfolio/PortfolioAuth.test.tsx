@@ -19,6 +19,19 @@ afterEach(() => {
 });
 
 describe('포트폴리오 로그인 접근', () => {
+  it('로그인 화면에는 푸터를 표시하지 않는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}, 401)),
+    );
+    window.history.replaceState(null, '', '/login?returnTo=%2F');
+
+    const view = render(<App />);
+
+    expect(await view.findByRole('heading', { name: 'DAYNOMY 로그인' })).toBeTruthy();
+    expect(view.queryByRole('contentinfo')).toBeNull();
+  });
+
   it('비로그인 사용자도 빈 포트폴리오 대시보드를 사용한다', async () => {
     vi.stubGlobal(
       'fetch',
