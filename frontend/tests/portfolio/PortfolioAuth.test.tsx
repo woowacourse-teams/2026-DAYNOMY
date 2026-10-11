@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe('포트폴리오 로그인 접근', () => {
-  it('비로그인 사용자에게 포트폴리오 화면에서 로그인 안내를 보여준다', async () => {
+  it('비로그인 사용자도 빈 포트폴리오 대시보드를 사용한다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse({}, 401)),
@@ -28,11 +28,9 @@ describe('포트폴리오 로그인 접근', () => {
 
     const view = render(<App />);
 
-    expect(await view.findByRole('heading', { name: '로그인해야 볼 수 있습니다' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: /자산 추가/ })).toBeTruthy();
     expect(view.getByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
-    expect(view.getByRole('link', { name: '로그인' }).getAttribute('href')).toBe(
-      '/login?returnTo=%2F',
-    );
+    expect(view.queryByText('로그인해야 볼 수 있습니다')).toBeNull();
     expect(window.location.pathname).toBe('/');
     expect(
       vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith('/api/portfolio')),
