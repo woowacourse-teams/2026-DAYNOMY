@@ -215,7 +215,7 @@ body {
   top: calc(100% + 28px);
   z-index: 10;
   display: none;
-  width: 360px;
+  width: min(380px, calc(100vw - 32px));
   padding: 20px 22px 22px;
   border: 0;
   border-radius: 0;
@@ -232,7 +232,7 @@ body {
 .keyword:focus .keyword-tooltip,
 .keyword:focus-within .keyword-tooltip {
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 
 .keyword-tooltip::before {
@@ -258,21 +258,38 @@ body {
   line-height: 17px;
 }
 
-.keyword-tooltip strong {
+.keyword-tooltip-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.keyword-tooltip-heading strong {
   color: #111827;
   font-size: 20px;
   font-weight: 900;
   line-height: 28px;
 }
 
-.keyword-tooltip span {
-  display: block;
+.keyword-tooltip-details {
+  display: grid;
 }
 
-.keyword-tooltip b {
-  display: block;
-  color: #111827;
+.keyword-tooltip-detail {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 1px solid #ece9f8;
+}
+
+.keyword-tooltip-detail b {
+  color: #5749b8;
   font-weight: 900;
+}
+
+.keyword-tooltip-detail span {
+  color: #374151;
 }
 
 .analysis-area {
@@ -293,33 +310,53 @@ body {
   line-height: 31px;
 }
 
-.market-summary-card {
+.market-analysis-card {
   display: grid;
-  gap: 14px;
   margin-top: 28px;
-  padding: 24px 28px;
+  padding: 8px 28px;
   border-radius: 14px;
   background: #f7f3ff;
   color: #374151;
-  list-style: none;
 }
 
-.market-summary-card li {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 18px;
+.market-analysis-item {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 20px;
+  padding: 18px 0;
+  border-top: 1px solid #ded8f2;
+}
+
+.market-analysis-item:first-child {
+  border-top: 0;
+}
+
+.market-analysis-item dt {
+  color: #6252c7;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 26px;
+}
+
+.market-analysis-item dd {
+  margin: 0;
+  color: #4b5563;
+  font-size: 16px;
   font-weight: 400;
-  line-height: 32px;
+  line-height: 26px;
 }
 
-.market-summary-card li::before {
-  flex: 0 0 auto;
-  content: '✓';
+.market-analysis-item-primary dd {
+  color: #252b3a;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 30px;
 }
 
 .market-analysis-message {
   margin-bottom: 0;
+  padding-top: 24px;
+  padding-bottom: 24px;
   font-size: 18px;
   line-height: 32px;
 }
@@ -387,5 +424,15 @@ body {
   .news-image {
     height: auto;
     aspect-ratio: 16 / 9;
+  }
+
+  .market-analysis-card {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .market-analysis-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }

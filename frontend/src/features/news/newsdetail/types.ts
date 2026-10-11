@@ -32,7 +32,9 @@ export type KeywordCategory = 'PERSON' | 'POLICY' | 'EVENT' | 'TERM' | 'TREND';
 export type KeywordResponse = {
   keyword: string;
   category: KeywordCategory;
-  points: string[];
+  definition: string;
+  context: string;
+  watchPoint: string;
 };
 
 export type KeywordsResponse = {
@@ -40,7 +42,11 @@ export type KeywordsResponse = {
 };
 
 export type MarketAnalysisResponse = {
-  summary: string;
+  observedFact: string;
+  interpretation: string;
+  risk: string;
+  watchPoint: string;
+  limitation: string;
 };
 
 export type MarketAnalysisState =
