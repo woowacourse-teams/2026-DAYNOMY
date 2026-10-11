@@ -100,6 +100,45 @@ class PortfolioSnapshotTransactionServiceTest {
   }
 
   @Test
+  void refreshSnapshotsFromOverwritesPastSnapshot() {
+    LocalDate previousDate = LocalDate.now().minusDays(2);
+    LocalDate baseDate = LocalDate.now().minusDays(1);
+    Portfolio portfolio = mock(Portfolio.class);
+    PortfolioDailySnapshot existing = mock(PortfolioDailySnapshot.class);
+    Asset asset = asset(2L);
+    StockDailyPrice currentPrice = price("12000");
+    StockDailyPrice previousPrice = price("11000");
+    PortfolioHoldingHistory history = history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000");
+    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+        .willReturn(List.of(previousDate, baseDate));
+    given(portfolioRepository.findById(10L)).willReturn(Optional.of(portfolio));
+    given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
+        .willReturn(Optional.of(existing));
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, baseDate))
+        .willReturn(List.of(history));
+    given(stockPriceRepository.findByAssetIdAndBaseDate(2L, baseDate))
+        .willReturn(Optional.of(currentPrice));
+    given(stockPriceRepository.findByAssetIdAndBaseDate(2L, previousDate))
+        .willReturn(Optional.of(previousPrice));
+
+    service.refreshSnapshotsFrom(10L, baseDate);
+
+    then(existing)
+        .should()
+        .update(
+            new BigDecimal("20000.00"),
+            new BigDecimal("24000.00"),
+            new BigDecimal("4000.00"),
+            new BigDecimal("20.00"),
+            new BigDecimal("2000.00"),
+            new BigDecimal("9.09"));
+    then(snapshotRepository).should().saveAndFlush(existing);
+  }
+
+  @Test
   void createSnapshotWaitsUntilPreviousClosingPriceIsAvailable() {
     LocalDate previousDate = LocalDate.of(2026, 9, 29);
     LocalDate baseDate = LocalDate.of(2026, 9, 30);
