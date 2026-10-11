@@ -20,6 +20,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingHistoryResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
@@ -171,22 +172,29 @@ public class SavedPortfolioService {
                 request.tax()));
 
     PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
-    PortfolioLedgerCalculator.Position position = ledger.positions().get(request.assetId());
-    SavedPortfolioHoldingResponse responseHolding = null;
-    if (position == null) {
-      if (current != null) {
-        holdingRepository.delete(current);
-      }
-    } else if (current == null) {
-      PortfolioHolding saved =
-          holdingRepository.save(
-              new PortfolioHolding(
-                  portfolio, asset, position.quantity(), position.averagePurchasePrice()));
-      responseHolding = SavedPortfolioHoldingResponse.from(saved);
-    } else {
-      current.change(position.quantity(), position.averagePurchasePrice());
-      responseHolding = SavedPortfolioHoldingResponse.from(current);
-    }
+    SavedPortfolioHoldingResponse responseHolding =
+        applyLedgerPosition(portfolio, asset, current, ledger);
+    return new PortfolioTransactionResponse(
+        history.getId(), responseHolding, ledger.realizedProfitLoss());
+  }
+
+  @Transactional
+  public PortfolioTransactionResponse updateTransaction(
+      Long memberId, Long transactionId, PortfolioTransactionUpdateRequest request) {
+    Portfolio portfolio = getPortfolio(memberId);
+    PortfolioHoldingHistory history = getTransaction(portfolio.getId(), transactionId);
+    history.updateTransaction(
+        request.tradeDate(), request.quantity(), request.unitPrice(), request.fee(), request.tax());
+    historyRepository.saveAndFlush(history);
+
+    PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
+    Asset asset = history.getAsset();
+    PortfolioHolding current =
+        holdingRepository
+            .findByPortfolioIdAndAssetId(portfolio.getId(), asset.getId())
+            .orElse(null);
+    SavedPortfolioHoldingResponse responseHolding =
+        applyLedgerPosition(portfolio, asset, current, ledger);
     return new PortfolioTransactionResponse(
         history.getId(), responseHolding, ledger.realizedProfitLoss());
   }
@@ -222,6 +230,37 @@ public class SavedPortfolioService {
     return holdingRepository
         .findByPortfolioIdAndAssetId(portfolioId, assetId)
         .orElseThrow(() -> new BusinessException(PortfolioErrorCode.PORTFOLIO_HOLDING_NOT_FOUND));
+  }
+
+  private PortfolioHoldingHistory getTransaction(Long portfolioId, Long transactionId) {
+    return historyRepository
+        .findByIdAndPortfolioId(transactionId, portfolioId)
+        .filter(PortfolioHoldingHistory::isTransaction)
+        .orElseThrow(
+            () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_TRANSACTION_NOT_FOUND));
+  }
+
+  private SavedPortfolioHoldingResponse applyLedgerPosition(
+      Portfolio portfolio,
+      Asset asset,
+      PortfolioHolding current,
+      PortfolioLedgerCalculator.LedgerResult ledger) {
+    PortfolioLedgerCalculator.Position position = ledger.positions().get(asset.getId());
+    if (position == null) {
+      if (current != null) {
+        holdingRepository.delete(current);
+      }
+      return null;
+    }
+    if (current == null) {
+      PortfolioHolding saved =
+          holdingRepository.save(
+              new PortfolioHolding(
+                  portfolio, asset, position.quantity(), position.averagePurchasePrice()));
+      return SavedPortfolioHoldingResponse.from(saved);
+    }
+    current.change(position.quantity(), position.averagePurchasePrice());
+    return SavedPortfolioHoldingResponse.from(current);
   }
 
   private PortfolioLedgerCalculator.LedgerResult replay(Long portfolioId) {
