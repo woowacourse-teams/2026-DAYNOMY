@@ -19,12 +19,13 @@ import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.domain.StockMarket;
-import org.grit.daynomy.asset.exception.AssetErrorCode;
+import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculateRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioPricingStatus;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,7 @@ import org.slf4j.LoggerFactory;
 class PortfolioCalculationServiceTest {
 
   @Mock private StockDailyPriceRepository stockDailyPriceRepository;
+  @Mock private AssetRepository assetRepository;
   @InjectMocks private PortfolioCalculationService calculationService;
 
   private final Logger logger = (Logger) LoggerFactory.getLogger(PortfolioCalculationService.class);
@@ -85,6 +87,7 @@ class PortfolioCalculationServiceTest {
     var response = calculationService.calculate(request);
 
     assertThat(response.baseDate()).isEqualTo(LocalDate.of(2026, 9, 17));
+    assertThat(response.pricingStatus()).isEqualTo(PortfolioPricingStatus.MIXED_DATES);
     assertThat(response.totalPurchaseAmount()).isEqualByComparingTo("1250000.00");
     assertThat(response.totalEvaluationAmount()).isEqualByComparingTo("1390000.00");
     assertThat(response.totalProfitLoss()).isEqualByComparingTo("140000.00");
@@ -162,17 +165,25 @@ class PortfolioCalculationServiceTest {
   }
 
   @Test
-  @DisplayName("종가가 없는 종목이 포함되면 포트폴리오 계산을 중단한다")
-  void rejectAssetWithoutPrice() {
+  @DisplayName("종가가 없는 종목은 가격 미확인 상태로 남기고 나머지 계산을 제공한다")
+  void keepAssetWithoutPriceAsUnpriced() {
+    Asset samsung = asset(1L, "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI);
     given(stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(1L)).willReturn(List.of());
+    given(assetRepository.findById(1L)).willReturn(java.util.Optional.of(samsung));
     PortfolioCalculateRequest request =
         new PortfolioCalculateRequest(
             List.of(new PortfolioHoldingRequest(1L, 10L, new BigDecimal("65000"))));
 
-    assertThatThrownBy(() -> calculationService.calculate(request))
-        .isInstanceOf(BusinessException.class)
-        .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(AssetErrorCode.STOCK_PRICE_NOT_FOUND);
+    var response = calculationService.calculate(request);
+
+    assertThat(response.pricingStatus()).isEqualTo(PortfolioPricingStatus.PARTIAL);
+    assertThat(response.pricedHoldingCount()).isZero();
+    assertThat(response.unpricedHoldingCount()).isEqualTo(1);
+    assertThat(response.totalPurchaseAmount()).isEqualByComparingTo("650000.00");
+    assertThat(response.totalProfitLoss()).isNull();
+    assertThat(response.totalReturnRate()).isNull();
+    assertThat(response.holdings().getFirst().priceAvailable()).isFalse();
+    assertThat(response.holdings().getFirst().closePrice()).isNull();
   }
 
   private Asset asset(
