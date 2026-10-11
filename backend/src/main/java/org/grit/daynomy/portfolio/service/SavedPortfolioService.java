@@ -199,6 +199,25 @@ public class SavedPortfolioService {
         history.getId(), responseHolding, ledger.realizedProfitLoss());
   }
 
+  @Transactional
+  public PortfolioTransactionResponse deleteTransaction(Long memberId, Long transactionId) {
+    Portfolio portfolio = getPortfolio(memberId);
+    PortfolioHoldingHistory history = getTransaction(portfolio.getId(), transactionId);
+    Asset asset = history.getAsset();
+    historyRepository.delete(history);
+    historyRepository.flush();
+
+    PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
+    PortfolioHolding current =
+        holdingRepository
+            .findByPortfolioIdAndAssetId(portfolio.getId(), asset.getId())
+            .orElse(null);
+    SavedPortfolioHoldingResponse responseHolding =
+        applyLedgerPosition(portfolio, asset, current, ledger);
+    return new PortfolioTransactionResponse(
+        transactionId, responseHolding, ledger.realizedProfitLoss());
+  }
+
   @Transactional(readOnly = true)
   public List<PortfolioHoldingHistoryResponse> histories(
       Long memberId, LocalDate from, LocalDate to) {
