@@ -16,10 +16,13 @@ import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.member.domain.MemberRole;
+import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 import org.grit.daynomy.portfolio.dto.PortfolioCurrentPerformanceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceStatus;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.service.PortfolioSnapshotService;
@@ -92,6 +95,43 @@ class SavedPortfolioControllerTest {
         .andExpect(jsonPath("$.quantity").value(10));
 
     then(savedPortfolioService).should().add(3L, request);
+  }
+
+  @Test
+  void transactionUsesAuthenticatedMemberAndReturnsRealizedProfitLoss() throws Exception {
+    var request =
+        new PortfolioTransactionRequest(
+            1L,
+            PortfolioTransactionType.SELL,
+            LocalDate.of(2026, 10, 7),
+            2L,
+            new BigDecimal("80000"),
+            new BigDecimal("100"),
+            new BigDecimal("200"));
+    given(savedPortfolioService.transact(3L, request))
+        .willReturn(new PortfolioTransactionResponse(null, new BigDecimal("19700.00")));
+
+    mockMvc
+        .perform(
+            post("/api/portfolio/transactions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "assetId": 1,
+                      "type": "SELL",
+                      "tradeDate": "2026-10-07",
+                      "quantity": 2,
+                      "unitPrice": 80000,
+                      "fee": 100,
+                      "tax": 200
+                    }
+                    """))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.holding").doesNotExist())
+        .andExpect(jsonPath("$.totalRealizedProfitLoss").value(19700.00));
+
+    then(savedPortfolioService).should().transact(3L, request);
   }
 
   @Test
