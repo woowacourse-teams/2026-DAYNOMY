@@ -12,6 +12,10 @@ import type {
   PortfolioImpactDirection,
   PortfolioImpactLevel,
   PortfolioAnalysisSource,
+  PortfolioComprehensiveAnalysis,
+  PortfolioConfirmedFact,
+  PortfolioMarketOpinion,
+  PortfolioRelatedVideo,
   PortfolioPerformancePoint,
   PortfolioPerformanceResponse,
   SavedPortfolioResponse,
@@ -151,6 +155,43 @@ function isPortfolioAnalysisSource(value: unknown): value is PortfolioAnalysisSo
   return isRecord(value) && typeof value.title === 'string' && typeof value.url === 'string';
 }
 
+function isPortfolioConfirmedFact(value: unknown): value is PortfolioConfirmedFact {
+  return (
+    isRecord(value) &&
+    typeof value.summary === 'string' &&
+    typeof value.evidenceSentence === 'string' &&
+    Array.isArray(value.sources) &&
+    value.sources.every(isPortfolioAnalysisSource)
+  );
+}
+
+function isPortfolioMarketOpinion(value: unknown): value is PortfolioMarketOpinion {
+  return isRecord(value) && typeof value.summary === 'string';
+}
+
+function isPortfolioComprehensiveAnalysis(value: unknown): value is PortfolioComprehensiveAnalysis {
+  return (
+    isRecord(value) &&
+    typeof value.summary === 'string' &&
+    Array.isArray(value.reasoningSteps) &&
+    value.reasoningSteps.every((step) => typeof step === 'string') &&
+    typeof value.portfolioImpact === 'string' &&
+    typeof value.counterScenario === 'string' &&
+    typeof value.nextIndicator === 'string'
+  );
+}
+
+function isPortfolioRelatedVideo(value: unknown): value is PortfolioRelatedVideo {
+  return (
+    isRecord(value) &&
+    typeof value.title === 'string' &&
+    typeof value.url === 'string' &&
+    typeof value.channelTitle === 'string' &&
+    typeof value.publishedAt === 'string' &&
+    typeof value.thumbnailUrl === 'string'
+  );
+}
+
 function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactResponse {
   if (!isRecord(value)) return false;
 
@@ -168,6 +209,11 @@ function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactRe
     typeof value.evidenceSentence === 'string' &&
     Array.isArray(value.sources) &&
     value.sources.every(isPortfolioAnalysisSource) &&
+    isPortfolioConfirmedFact(value.confirmedFact) &&
+    isPortfolioMarketOpinion(value.marketOpinion) &&
+    isPortfolioComprehensiveAnalysis(value.comprehensiveAnalysis) &&
+    Array.isArray(value.relatedVideos) &&
+    value.relatedVideos.every(isPortfolioRelatedVideo) &&
     Number.isInteger(value.rank)
   );
 }

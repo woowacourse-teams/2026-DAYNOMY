@@ -105,6 +105,32 @@ export type PortfolioAnalysisSource = {
   url: string;
 };
 
+export type PortfolioConfirmedFact = {
+  summary: string;
+  evidenceSentence: string;
+  sources: PortfolioAnalysisSource[];
+};
+
+export type PortfolioMarketOpinion = {
+  summary: string;
+};
+
+export type PortfolioComprehensiveAnalysis = {
+  summary: string;
+  reasoningSteps: string[];
+  portfolioImpact: string;
+  counterScenario: string;
+  nextIndicator: string;
+};
+
+export type PortfolioRelatedVideo = {
+  title: string;
+  url: string;
+  channelTitle: string;
+  publishedAt: string;
+  thumbnailUrl: string;
+};
+
 export type PortfolioAssetImpactResponse = {
   assetName: string;
   weight: number;
@@ -116,6 +142,10 @@ export type PortfolioAssetImpactResponse = {
   reason: string;
   evidenceSentence: string;
   sources: PortfolioAnalysisSource[];
+  confirmedFact: PortfolioConfirmedFact;
+  marketOpinion: PortfolioMarketOpinion;
+  comprehensiveAnalysis: PortfolioComprehensiveAnalysis;
+  relatedVideos: PortfolioRelatedVideo[];
   rank: number;
 };
 
