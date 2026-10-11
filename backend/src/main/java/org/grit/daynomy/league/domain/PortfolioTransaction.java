@@ -69,7 +69,7 @@ public class PortfolioTransaction extends BaseEntity {
   private String decisionReason;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "expected_holding_period", nullable = false, length = 30)
+  @Column(name = "expected_holding_period", length = 30)
   private HoldingPeriod expectedHoldingPeriod;
 
   @Column(name = "expected_change", nullable = false, length = 300)
@@ -78,7 +78,7 @@ public class PortfolioTransaction extends BaseEntity {
   @Column(name = "invalidation_condition", nullable = false, length = 300)
   private String invalidationCondition;
 
-  @Column(name = "maximum_acceptable_loss_rate", nullable = false, precision = 5, scale = 2)
+  @Column(name = "maximum_acceptable_loss_rate", precision = 5, scale = 2)
   private BigDecimal maximumAcceptableLossRate;
 
   @Column(name = "written_after_trade", nullable = false)
@@ -111,10 +111,11 @@ public class PortfolioTransaction extends BaseEntity {
     this.fee = requireNonNegative(fee);
     this.tradedOn = Objects.requireNonNull(tradedOn);
     this.decisionReason = requireText(decisionReason);
-    this.expectedHoldingPeriod = Objects.requireNonNull(expectedHoldingPeriod);
-    this.expectedChange = requireText(expectedChange);
-    this.invalidationCondition = requireText(invalidationCondition);
-    this.maximumAcceptableLossRate = requireRate(maximumAcceptableLossRate);
+    this.expectedHoldingPeriod = expectedHoldingPeriod;
+    this.expectedChange = optionalText(expectedChange);
+    this.invalidationCondition = optionalText(invalidationCondition);
+    this.maximumAcceptableLossRate =
+        maximumAcceptableLossRate == null ? null : requireRate(maximumAcceptableLossRate);
     this.writtenAfterTrade = writtenAfterTrade;
   }
 
@@ -133,9 +134,15 @@ public class PortfolioTransaction extends BaseEntity {
       BigDecimal lossRate) {
     return decisionReason.equals(reason.trim())
         && expectedHoldingPeriod == period
-        && expectedChange.equals(expected.trim())
-        && invalidationCondition.equals(invalidation.trim())
-        && maximumAcceptableLossRate.compareTo(lossRate) == 0;
+        && expectedChange.equals(optionalText(expected))
+        && invalidationCondition.equals(optionalText(invalidation))
+        && (maximumAcceptableLossRate == null
+            ? lossRate == null
+            : lossRate != null && maximumAcceptableLossRate.compareTo(lossRate) == 0);
+  }
+
+  private String optionalText(String value) {
+    return value == null ? "" : value.trim();
   }
 
   private long requirePositive(long value) {

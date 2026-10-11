@@ -83,6 +83,7 @@ public class MyLeagueController {
       @PathVariable Long transactionId,
       @Valid @RequestBody ReviewRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED)
+        .cacheControl(CacheControl.noStore())
         .body(transactionService.addReview(member.memberId(), transactionId, request));
   }
 

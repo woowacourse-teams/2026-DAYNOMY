@@ -1,5 +1,6 @@
 package org.grit.daynomy.league.domain;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -9,10 +10,14 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -26,6 +31,7 @@ import org.grit.daynomy.member.domain.Member;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(
     name = "public_investor_profiles",
     uniqueConstraints = {
@@ -77,6 +83,24 @@ public class InvestorProfile extends BaseEntity {
   @Column(name = "league_enabled_at")
   private Instant leagueEnabledAt;
 
+  @Column(name = "tracking_started_on")
+  private LocalDate trackingStartedOn;
+
+  @OneToMany(mappedBy = "profile", cascade = CascadeType.ALL)
+  private List<LeagueParticipation> participations = new ArrayList<>();
+
+  public void startTracking(LocalDate date) {
+    if (trackingStartedOn == null || date.isBefore(trackingStartedOn)) trackingStartedOn = date;
+  }
+
+  public LocalDate eligibleFrom() {
+    return participations.stream()
+        .filter(period -> period.getEndedAt() == null)
+        .map(LeagueParticipation::eligibleFrom)
+        .findFirst()
+        .orElse(null);
+  }
+
   private InvestorProfile(
       Member member,
       String displayName,
@@ -115,11 +139,14 @@ public class InvestorProfile extends BaseEntity {
       boolean allocationPublic,
       boolean detailPublic,
       Instant changedAt) {
-    if (leagueEnabled && (!profilePublic || !this.leagueEnabled)) {
-      leagueEnabledAt = changedAt;
-    }
-    if (!leagueEnabled) {
-      leagueEnabledAt = null;
+    boolean participating = profilePublic && leagueEnabled;
+    if (participating && !this.leagueEnabled) {
+      if (leagueEnabledAt == null) leagueEnabledAt = changedAt;
+      participations.add(new LeagueParticipation(this, changedAt));
+    } else if (!participating && this.leagueEnabled) {
+      participations.stream()
+          .filter(period -> period.getEndedAt() == null)
+          .forEach(period -> period.end(changedAt));
     }
     this.profilePublic = profilePublic;
     this.leagueEnabled = profilePublic && leagueEnabled;

@@ -53,8 +53,29 @@ public class PortfolioDailyReturn extends BaseEntity {
   @Column(name = "max_holding_weight", precision = 10, scale = 2)
   private BigDecimal maxHoldingWeight;
 
+  @Column(name = "current_holding_weight", precision = 10, scale = 2)
+  private BigDecimal currentHoldingWeight;
+
   @Column(nullable = false)
   private boolean eligible;
+
+  @Column(name = "tracking_baseline", nullable = false)
+  private boolean trackingBaseline;
+
+  @Column(name = "baseline_market_return_rate", precision = 10, scale = 4)
+  private BigDecimal baselineMarketReturnRate;
+
+  public BigDecimal rankingReturnRate() {
+    return trackingBaseline ? baselineMarketReturnRate : dailyReturnRate;
+  }
+
+  public void completeBaseline(
+      BigDecimal evaluation, BigDecimal maxWeight, BigDecimal marketRate, Instant calculatedAt) {
+    complete(
+        BigDecimal.ZERO.setScale(4), evaluation, evaluation, maxWeight, maxWeight, calculatedAt);
+    trackingBaseline = true;
+    baselineMarketReturnRate = marketRate;
+  }
 
   @Column(name = "ineligible_reason", length = 40)
   private String ineligibleReason;
@@ -66,8 +87,26 @@ public class PortfolioDailyReturn extends BaseEntity {
   private Instant calculatedAt;
 
   public PortfolioDailyReturn(SharedPortfolio portfolio, LocalDate baseDate) {
+    this(portfolio, baseDate, 1);
+  }
+
+  public PortfolioDailyReturn(SharedPortfolio portfolio, LocalDate baseDate, int version) {
     this.portfolio = Objects.requireNonNull(portfolio);
     this.baseDate = Objects.requireNonNull(baseDate);
+    this.calculationVersion = version;
+  }
+
+  public boolean sameCalculation(PortfolioDailyReturn other) {
+    return other != null
+        && eligible == other.eligible
+        && trackingBaseline == other.trackingBaseline
+        && Objects.equals(baselineMarketReturnRate, other.baselineMarketReturnRate)
+        && Objects.equals(dailyReturnRate, other.dailyReturnRate)
+        && Objects.equals(startingEvaluationAmount, other.startingEvaluationAmount)
+        && Objects.equals(endingEvaluationAmount, other.endingEvaluationAmount)
+        && Objects.equals(maxHoldingWeight, other.maxHoldingWeight)
+        && Objects.equals(currentHoldingWeight, other.currentHoldingWeight)
+        && Objects.equals(ineligibleReason, other.ineligibleReason);
   }
 
   public void complete(
@@ -75,12 +114,16 @@ public class PortfolioDailyReturn extends BaseEntity {
       BigDecimal startingEvaluationAmount,
       BigDecimal endingEvaluationAmount,
       BigDecimal maxHoldingWeight,
+      BigDecimal currentHoldingWeight,
       Instant calculatedAt) {
     this.dailyReturnRate = dailyReturnRate;
     this.startingEvaluationAmount = startingEvaluationAmount;
     this.endingEvaluationAmount = endingEvaluationAmount;
     this.maxHoldingWeight = maxHoldingWeight;
+    this.currentHoldingWeight = currentHoldingWeight;
     this.eligible = true;
+    this.trackingBaseline = false;
+    this.baselineMarketReturnRate = null;
     this.ineligibleReason = null;
     this.calculatedAt = calculatedAt;
   }
@@ -90,7 +133,10 @@ public class PortfolioDailyReturn extends BaseEntity {
     this.startingEvaluationAmount = null;
     this.endingEvaluationAmount = null;
     this.maxHoldingWeight = null;
+    this.currentHoldingWeight = null;
     this.eligible = false;
+    this.trackingBaseline = false;
+    this.baselineMarketReturnRate = null;
     this.ineligibleReason = reason;
     this.calculatedAt = calculatedAt;
   }

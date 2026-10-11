@@ -79,6 +79,17 @@ class SharedPortfolioAcceptanceTest {
   @Autowired private LeagueReturnService leagueReturns;
   private static final String SHARED = "/api/users/me/shared-portfolio";
 
+  @Test
+  void removedLeagueTypeIsRejected() {
+    given()
+        .port(port)
+        .queryParam("leagueType", "CONSISTENT")
+        .get("/api/league/rankings")
+        .then()
+        .statusCode(400)
+        .body("code", equalTo("INVALID_REQUEST"));
+  }
+
   private Member member() {
     String key = UUID.randomUUID().toString();
     return members.save(
@@ -97,14 +108,354 @@ class SharedPortfolioAcceptanceTest {
   }
 
   private RequestSpecification client(Member member) {
+    return client(member, MemberRole.USER);
+  }
+
+  private RequestSpecification client(Member member, MemberRole role) {
     var csrf = given().port(port).get("/api/auth/csrf");
     return given()
         .port(port)
         .contentType("application/json")
         .cookies(csrf.cookies())
-        .cookie(
-            "access_token", tokens.createTokenPair(member.getId(), MemberRole.USER).accessToken())
+        .cookie("access_token", tokens.createTokenPair(member.getId(), role).accessToken())
         .header(csrf.jsonPath().getString("headerName"), csrf.jsonPath().getString("token"));
+  }
+
+  @Test
+  void holidayWeekFinalizesAfterLastTradingDayAndKeepsVersionsAndCurrentConsent() {
+    Member owner = member();
+    Asset stock = asset();
+    client(owner)
+        .body(
+            Map.of(
+                "displayName",
+                "마감" + owner.getId(),
+                "bio",
+                "",
+                "experienceLevel",
+                "BEGINNER",
+                "riskProfile",
+                "BALANCED"))
+        .put("/api/users/me/investor-profile")
+        .then()
+        .statusCode(200);
+    client(owner)
+        .body(
+            """
+            {"holdings":[{"assetId":%d,"quantity":1,"averagePurchasePrice":100,
+            "decision":{"reason":"마감 검증용 보유 이유"}}],"overwriteExisting":false}
+            """
+                .formatted(stock.getId()))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    String publicId =
+        client(owner)
+            .body(
+                """
+                {"profilePublic":true,"leagueEnabled":true,"allocationPublic":false,"detailPublic":false}
+                """)
+            .put("/api/users/me/portfolio/publication")
+            .then()
+            .statusCode(200)
+            .extract()
+            .path("publicId");
+    // 2026 추석에는 목·금요일이 휴장하므로 수요일 종가가 주간 마감이다.
+    LocalDate week = LocalDate.of(2026, 9, 21);
+    LocalDate baseline = week.minusDays(3);
+    Instant enrolled = baseline.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+    jdbc.update(
+        "UPDATE public_investor_profiles SET league_enabled_at=? WHERE member_id=?",
+        java.sql.Timestamp.from(enrolled),
+        owner.getId());
+    jdbc.update(
+        "UPDATE league_participations SET started_at=? WHERE profile_id=(SELECT id FROM public_investor_profiles WHERE member_id=?)",
+        java.sql.Timestamp.from(enrolled),
+        owner.getId());
+    jdbc.update(
+        "UPDATE shared_holding_histories SET created_at=? WHERE portfolio_id=(SELECT id FROM shared_portfolios WHERE member_id=?)",
+        java.sql.Timestamp.from(enrolled.minusSeconds(1)),
+        owner.getId());
+    for (int offset : new int[] {-3, 0, 1, 2}) {
+      LocalDate date = week.plusDays(offset);
+      prices.save(new StockDailyPrice(stock, date, new BigDecimal(offset < 0 ? "100" : "110")));
+      jdbc.update(
+          "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
+          date);
+    }
+    // 같은 DB의 다른 참가자에게도 이 주차의 종가를 제공한다. 한 참가자의 누락도 확정을 막는다.
+    for (Asset fixture : assets.findAll()) {
+      if (fixture.getCategory() != org.grit.daynomy.asset.domain.AssetCategory.STOCK
+          && fixture.getCategory() != org.grit.daynomy.asset.domain.AssetCategory.ETF) continue;
+      for (int offset : new int[] {-3, 0, 1, 2}) {
+        LocalDate date = week.plusDays(offset);
+        if (prices.findByAssetIdAndBaseDate(fixture.getId(), date).isEmpty())
+          prices.save(new StockDailyPrice(fixture, date, new BigDecimal("100")));
+      }
+    }
+    // 전체 수집 완료 전에는 달력상 지난 주여도 확정하지 않는다.
+    jdbc.update(
+        "UPDATE market_trading_days SET collected_at=NULL WHERE base_date=?", week.plusDays(2));
+    leagueReturns.recalculate();
+    given()
+        .port(port)
+        .queryParam("weekStart", week.toString())
+        .get("/api/league/rankings")
+        .then()
+        .statusCode(200)
+        .body("confirmed", equalTo(false));
+    jdbc.update(
+        "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
+        week.plusDays(2));
+    client(owner, MemberRole.ADMIN).post("/api/admin/league/recalculate").then().statusCode(200);
+    int finalizedRank =
+        given()
+            .port(port)
+            .queryParam("weekStart", week.toString())
+            .get("/api/league/rankings")
+            .then()
+            .statusCode(200)
+            .header("Cache-Control", "no-store")
+            .body("confirmed", equalTo(true))
+            .body("asOfDate", equalTo(week.plusDays(2).toString()))
+            .body("calculationVersion", equalTo(1))
+            .body(
+                "rankings.find { it.publicId == '" + publicId + "' }.weeklyReturnRate",
+                equalTo(10.0f))
+            .extract()
+            .path("rankings.find { it.publicId == '" + publicId + "' }.rank");
+    given()
+        .port(port)
+        .get("/api/league/investors/" + publicId)
+        .then()
+        .statusCode(200)
+        .body("history.find { it.weekStart == '" + week + "' }.weeklyReturnRate", equalTo(10.0f))
+        .body("history.find { it.weekStart == '" + week + "' }.weeklyRank", equalTo(finalizedRank))
+        .body("history.find { it.weekStart == '" + week + "' }.confirmed", equalTo(true));
+    long unchangedDaily =
+        jdbc.queryForObject("SELECT COUNT(*) FROM portfolio_daily_returns", Long.class);
+    leagueReturns.recalculate();
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM portfolio_daily_returns", Long.class))
+        .isEqualTo(unchangedDaily);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM weekly_leaderboards WHERE week_start=? AND league_type='WEEKLY_RETURN'",
+                Integer.class,
+                week))
+        .isEqualTo(1);
+    var last = prices.findByAssetIdAndBaseDate(stock.getId(), week.plusDays(2)).orElseThrow();
+    last.synchronize(new BigDecimal("120"));
+    prices.save(last);
+    leagueReturns.recalculate();
+    given()
+        .port(port)
+        .queryParam("weekStart", week.toString())
+        .get("/api/league/rankings")
+        .then()
+        .statusCode(200)
+        .body("calculationVersion", equalTo(2))
+        .body("changeReason", equalTo("PRICE_RECALCULATION"))
+        .body(
+            "rankings.find { it.publicId == '" + publicId + "' }.weeklyReturnRate", equalTo(20.0f));
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM weekly_leaderboards WHERE week_start=? AND league_type='WEEKLY_RETURN'",
+                Integer.class,
+                week))
+        .isEqualTo(2);
+    client(owner)
+        .body(
+            "{\"profilePublic\":false,\"leagueEnabled\":false,\"allocationPublic\":false,\"detailPublic\":false}")
+        .put("/api/users/me/portfolio/publication")
+        .then()
+        .statusCode(200);
+    given()
+        .port(port)
+        .queryParam("weekStart", week.toString())
+        .get("/api/league/rankings")
+        .then()
+        .statusCode(200)
+        .body("rankings.publicId", not(hasItem(publicId)));
+    given().port(port).get("/api/league/investors/" + publicId).then().statusCode(404);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM weekly_leaderboards WHERE week_start=? AND league_type='WEEKLY_RETURN'",
+                Integer.class,
+                week))
+        .isEqualTo(2);
+  }
+
+  @Test
+  void reasonsAreRequiredForEnrollmentAndNewParticipatingHoldingsAndImportIsAtomic() {
+    var owner = member();
+    var first = asset();
+    var second = asset();
+    var third = asset();
+    client(owner)
+        .body(
+            Map.of(
+                "displayName",
+                owner.getNickname(),
+                "experienceLevel",
+                "BEGINNER",
+                "riskProfile",
+                "BALANCED",
+                "bio",
+                ""))
+        .put("/api/users/me/investor-profile")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200);
+    var participate =
+        Map.of(
+            "profilePublic",
+            true,
+            "leagueEnabled",
+            true,
+            "allocationPublic",
+            false,
+            "detailPublic",
+            false);
+    client(owner)
+        .body(participate)
+        .put("/api/users/me/portfolio/publication")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(400)
+        .body("code", equalTo("LEAGUE_HOLDINGS_REQUIRED"));
+    client(owner)
+        .body(
+            Map.of(
+                "overwriteExisting",
+                false,
+                "holdings",
+                java.util.List.of(
+                    Map.of(
+                        "assetId", first.getId(), "quantity", 2, "averagePurchasePrice", 70000))))
+        .post(SHARED + "/import")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200);
+    client(owner)
+        .body(Map.of("hidden", true))
+        .patch(SHARED + "/holdings/" + first.getId() + "/visibility")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200);
+    client(owner)
+        .body(participate)
+        .put("/api/users/me/portfolio/publication")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(400)
+        .body("code", equalTo("HOLDING_REASON_REQUIRED"));
+    client(owner)
+        .body(
+            Map.of(
+                "requestKey",
+                "reason-only",
+                "assetId",
+                first.getId(),
+                "decision",
+                Map.of("reason", "장기 성장 기대")))
+        .post("/api/users/me/portfolio/decisions")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(201)
+        .body("reason", equalTo("장기 성장 기대"))
+        .body("expectedHoldingPeriod", nullValue())
+        .body("maximumAcceptableLossRate", nullValue())
+        .body("expectedChange", equalTo(""));
+    client(owner)
+        .body(participate)
+        .put("/api/users/me/portfolio/publication")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200);
+    client(owner)
+        .body(
+            Map.of(
+                "overwriteExisting",
+                false,
+                "holdings",
+                java.util.List.of(
+                    Map.of(
+                        "assetId", second.getId(), "quantity", 1, "averagePurchasePrice", 10000))))
+        .post(SHARED + "/import")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(400)
+        .body("code", equalTo("HOLDING_REASON_REQUIRED"));
+    var valid =
+        Map.of(
+            "assetId",
+            second.getId(),
+            "quantity",
+            1,
+            "averagePurchasePrice",
+            10000,
+            "decision",
+            Map.of("reason", "분산 투자"));
+    var invalid = Map.of("assetId", third.getId(), "quantity", 1, "averagePurchasePrice", 10000);
+    client(owner)
+        .body(Map.of("holdings", java.util.List.of(valid, invalid), "overwriteExisting", false))
+        .post(SHARED + "/import")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(400);
+    client(owner)
+        .get(SHARED)
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200)
+        .body("holdings", hasSize(1));
+    client(owner)
+        .get("/api/users/me/portfolio/transactions")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200)
+        .body("transactions", hasSize(1));
+    client(owner)
+        .body(Map.of("holdings", java.util.List.of(valid), "overwriteExisting", false))
+        .post(SHARED + "/import")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200)
+        .body("holdings", hasSize(2));
+    client(owner)
+        .get("/api/users/me/portfolio/transactions")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200)
+        .body("transactions", hasSize(2))
+        .body("transactions[0].reason", equalTo("분산 투자"));
+    client(owner)
+        .body(Map.of("holdings", java.util.List.of(valid), "overwriteExisting", true))
+        .post(SHARED + "/import")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200);
+    client(owner)
+        .get("/api/users/me/portfolio/transactions")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(200)
+        .body("transactions", hasSize(2));
   }
 
   @Test
@@ -457,7 +808,8 @@ class SharedPortfolioAcceptanceTest {
         .get("/api/users/me/league/follows/summary")
         .then()
         .statusCode(200)
-        .body("investors.publicId", hasItem(publicId));
+        .body("investors.publicId", hasItem(publicId))
+        .body("investors[0].newReviewCount", equalTo(1));
     client(owner)
         .get("/api/users/me/league/follows/summary")
         .then()
@@ -485,6 +837,11 @@ class SharedPortfolioAcceptanceTest {
         .then()
         .statusCode(200);
     given().port(port).get(detail).then().statusCode(404);
+    client(viewer)
+        .get("/api/users/me/league/follows/summary")
+        .then()
+        .statusCode(200)
+        .body("investors[0].newReviewCount", equalTo(0));
     given()
         .port(port)
         .get("/api/league/investors/" + publicId)
@@ -500,6 +857,26 @@ class SharedPortfolioAcceptanceTest {
         .statusCode(200)
         .body("detailPublic", equalTo(true))
         .body("premiumDetailEnabled", nullValue());
+    client(owner)
+        .body("{\"hidden\":true}")
+        .patch(SHARED + "/holdings/" + asset.getId() + "/visibility")
+        .then()
+        .statusCode(200);
+    client(viewer)
+        .get("/api/users/me/league/follows/summary")
+        .then()
+        .statusCode(200)
+        .body("investors[0].newReviewCount", equalTo(0));
+    client(owner)
+        .body("{\"hidden\":false}")
+        .patch(SHARED + "/holdings/" + asset.getId() + "/visibility")
+        .then()
+        .statusCode(200);
+    client(viewer)
+        .get("/api/users/me/league/follows/summary")
+        .then()
+        .statusCode(200)
+        .body("investors[0].newReviewCount", equalTo(1));
 
     // 집계 검증용 과거 이력은 격리된 Testcontainers DB에서만 만든다.
     LocalDate date = LocalDate.now(ZoneId.of("Asia/Seoul")).minusWeeks(1).with(DayOfWeek.MONDAY);
@@ -521,8 +898,30 @@ class SharedPortfolioAcceptanceTest {
         "UPDATE investment_reviews SET created_at=? WHERE transaction_id=?",
         java.sql.Timestamp.from(past),
         id);
-    prices.save(new StockDailyPrice(asset, date.minusDays(1), new BigDecimal("70000")));
-    prices.save(new StockDailyPrice(asset, date, new BigDecimal("77000")));
+    jdbc.update(
+        "UPDATE league_participations SET started_at=? WHERE profile_id=(SELECT id FROM public_investor_profiles WHERE member_id=?)",
+        java.sql.Timestamp.from(past),
+        owner.getId());
+    LocalDate previous =
+        jdbc.queryForObject(
+            "SELECT MAX(base_date) FROM market_trading_days WHERE trading AND base_date < ?",
+            LocalDate.class,
+            date);
+    prices.save(new StockDailyPrice(asset, previous, new BigDecimal("70000")));
+    jdbc.update(
+        "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
+        previous);
+    for (LocalDate trading :
+        jdbc.queryForList(
+            "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
+            LocalDate.class,
+            date,
+            date.plusDays(6))) {
+      prices.save(new StockDailyPrice(asset, trading, new BigDecimal("77000")));
+      jdbc.update(
+          "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
+          trading);
+    }
     leagueReturns.recalculate();
     given()
         .port(port)
@@ -539,7 +938,7 @@ class SharedPortfolioAcceptanceTest {
         .header("Cache-Control", "no-store")
         .body("weekStart", equalTo(date.toString()))
         .body("weekEnd", equalTo(date.plusDays(6).toString()))
-        .body("asOfDate", equalTo(date.toString()))
+        .body("asOfDate", equalTo(date.plusDays(4).toString()))
         .body("weeklyReturnRate", equalTo(10.0f))
         .body("days.find { it.baseDate == '" + date + "' }.dailyReturnRate", equalTo(10.0f))
         .body("days.find { it.baseDate == '" + date + "' }.cumulativeReturnRate", equalTo(10.0f))
@@ -1074,7 +1473,7 @@ class SharedPortfolioAcceptanceTest {
         assertThat(result.next()).isTrue();
         assertThat(result.getInt("indexes")).isEqualTo(2);
         assertThat(result.getInt("feature_migrations")).isEqualTo(5);
-        assertThat(result.getInt("latest_version")).isEqualTo(26);
+        assertThat(result.getInt("latest_version")).isEqualTo(28);
       }
     }
   }

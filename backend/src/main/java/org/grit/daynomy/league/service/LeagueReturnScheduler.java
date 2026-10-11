@@ -18,8 +18,8 @@ public class LeagueReturnScheduler {
   private final LeagueReturnService leagueReturnService;
 
   @Scheduled(cron = "${league.calculation.cron}", zone = "Asia/Seoul")
-  public synchronized void calculateReturns() {
-    // ponytail: 기존 전체 재계산을 재사용한다. 이력이 커져 지연되면 최신 거래일 증분 집계로 전환한다.
+  public void calculateReturns() {
+    // shortcut: 전체 이력을 재계산한다. 이력 증가로 지연되면 최신 거래일 증분 집계로 전환한다.
     leagueReturnService.recalculate();
   }
 

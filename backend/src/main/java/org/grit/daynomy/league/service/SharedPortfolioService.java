@@ -4,6 +4,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -15,8 +18,11 @@ import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedHoldingHistory;
 import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
 import org.grit.daynomy.league.domain.SharedPortfolio;
+import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
 import org.grit.daynomy.league.dto.SharedPortfolioDto.*;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestorProfileRepository;
+import org.grit.daynomy.league.repository.PortfolioTransactionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
@@ -37,6 +43,9 @@ public class SharedPortfolioService {
   private final MemberRepository memberRepository;
   private final AssetRepository assetRepository;
   private final StockDailyPriceRepository priceRepository;
+  private final InvestorProfileRepository profileRepository;
+  private final PortfolioTransactionRepository transactionRepository;
+  private final PortfolioTransactionService transactionService;
 
   @Transactional(readOnly = true)
   public PortfolioResponse getMine(Long memberId) {
@@ -46,6 +55,16 @@ public class SharedPortfolioService {
   @Transactional
   public PortfolioResponse importHoldings(Long memberId, ImportRequest request) {
     SharedPortfolio portfolio = getForUpdate(memberId);
+    boolean participating =
+        profileRepository
+            .findByMemberId(memberId)
+            .map(profile -> profile.isLeagueEnabled())
+            .orElse(false);
+    Set<Long> recordedAssets =
+        transactionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId).stream()
+            .filter(record -> !record.getDecisionReason().isBlank())
+            .map(record -> record.getAsset().getId())
+            .collect(Collectors.toSet());
     HashSet<Long> seen = new HashSet<>();
     // 중간에 검증이 실패해도 트랜잭션이 앞서 저장한 자산과 이력까지 롤백한다.
     for (HoldingInput input : request.holdings()) {
@@ -58,17 +77,32 @@ public class SharedPortfolioService {
       if (holding != null && !request.overwriteExisting()) {
         throw new BusinessException(LeagueErrorCode.SHARED_IMPORT_CONFLICT);
       }
+      boolean needsReason =
+          !recordedAssets.contains(input.assetId())
+              && (holding == null || holding.getReason().isBlank());
+      if (participating && needsReason && input.decision() == null) {
+        throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
+      }
       ChangeType changeType = holding == null ? ChangeType.ADDED : ChangeType.UPDATED;
+      boolean changed = true;
       if (holding == null) {
         holding =
             new SharedHolding(
                 portfolio, asset(input.assetId()), input.quantity(), input.averagePurchasePrice());
       } else {
         // 재가져오기로 숨김과 판단 근거를 덮어쓰지 않는다.
-        if (!holding.change(input.quantity(), input.averagePurchasePrice())) continue;
+        changed = holding.change(input.quantity(), input.averagePurchasePrice());
       }
-      holdingRepository.save(holding);
-      historyRepository.save(new SharedHoldingHistory(holding, changeType));
+      if (changed) {
+        holdingRepository.save(holding);
+        historyRepository.save(new SharedHoldingHistory(holding, changeType));
+      }
+      if (needsReason && input.decision() != null) {
+        transactionService.recordDecision(
+            memberId,
+            new DecisionRecordRequest(
+                UUID.randomUUID().toString(), input.assetId(), input.decision()));
+      }
     }
     return response(portfolio);
   }

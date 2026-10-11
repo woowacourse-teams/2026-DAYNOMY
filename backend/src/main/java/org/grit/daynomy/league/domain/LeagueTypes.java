@@ -30,9 +30,16 @@ public final class LeagueTypes {
 
   public enum LeagueType {
     WEEKLY_RETURN,
-    CONSISTENT,
     STABLE,
     BEGINNER
+  }
+
+  public enum CollectionStatus {
+    CALENDAR_PENDING,
+    IN_PROGRESS,
+    COLLECTION_PENDING,
+    COMPLETE,
+    NO_TRADING_DAYS
   }
 
   public enum DailyReturnStatus {

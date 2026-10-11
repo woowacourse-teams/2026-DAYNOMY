@@ -43,23 +43,28 @@ public class LeagueController {
 
   @Operation(summary = "주간 투자 리그 조회")
   @GetMapping("/rankings")
-  public RankingResponse rankings(
+  public ResponseEntity<RankingResponse> rankings(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
           LocalDate weekStart,
       @RequestParam(defaultValue = "WEEKLY_RETURN") LeagueType leagueType,
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-    return leagueService.rankings(
-        member == null ? null : member.memberId(), weekStart, leagueType, page, size);
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(
+            leagueService.rankings(
+                member == null ? null : member.memberId(), weekStart, leagueType, page, size));
   }
 
   @Operation(summary = "공개 투자자 상세 조회")
   @GetMapping("/investors/{publicId}")
-  public PublicInvestorResponse investor(
+  public ResponseEntity<PublicInvestorResponse> investor(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
       @PathVariable String publicId) {
-    return leagueService.publicInvestor(member == null ? null : member.memberId(), publicId);
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(leagueService.publicInvestor(member == null ? null : member.memberId(), publicId));
   }
 
   @Operation(summary = "공개 종목·투자 판단·복기 조회", description = "로그인이나 구독 없이 공개된 상세 기록을 조회합니다.")

@@ -172,6 +172,42 @@ class PortfolioTransactionServiceTest {
         "장기 성장", HoldingPeriod.OVER_SIX_MONTHS, "매출 성장", "실적 역성장", new BigDecimal("10"));
   }
 
+  @Test
+  void reasonOnlyDecisionStoresNoInventedOptionalValuesAndCanBeRetried() {
+    Member member = mock(Member.class);
+    SharedPortfolio portfolio = SharedPortfolio.create(member);
+    SharedHolding holding = new SharedHolding(portfolio, asset(), 2, new BigDecimal("100.00"));
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(holdingRepository.findByPortfolioIdAndAssetId(null, 2L)).willReturn(Optional.of(holding));
+    given(transactionRepository.save(any(PortfolioTransaction.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    var input = new DecisionRequest(" 보유 이유 ", null, null, null, null);
+    var response = service.recordDecision(1L, new DecisionRecordRequest("reason-only", 2L, input));
+    assertThat(response.reason()).isEqualTo("보유 이유");
+    assertThat(response.expectedHoldingPeriod()).isNull();
+    assertThat(response.maximumAcceptableLossRate()).isNull();
+    assertThat(response.expectedChange()).isEmpty();
+    var saved =
+        new PortfolioTransaction(
+            portfolio,
+            holding.getAsset(),
+            "reason-only",
+            TransactionType.HOLD,
+            2,
+            BigDecimal.TEN,
+            BigDecimal.ZERO,
+            LocalDate.now(),
+            "보유 이유",
+            null,
+            "",
+            "",
+            null,
+            true);
+    assertThat(saved.matchesDecision(" 보유 이유 ", null, null, "", null)).isTrue();
+    assertThat(saved.matchesDecision("보유 이유", null, "", "", BigDecimal.ZERO)).isFalse();
+  }
+
   private PortfolioTransaction transaction(SharedPortfolio portfolio, TransactionType type) {
     return new PortfolioTransaction(
         portfolio,

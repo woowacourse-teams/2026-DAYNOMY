@@ -16,7 +16,8 @@ public final class SharedPortfolioDto {
           @DecimalMin(value = "0", inclusive = false)
           @DecimalMax("1000000000")
           @Digits(integer = 10, fraction = 2)
-          BigDecimal averagePurchasePrice) {}
+          BigDecimal averagePurchasePrice,
+      @Valid LeagueDto.DecisionRequest decision) {}
 
   public record ImportRequest(
       @NotEmpty @Size(max = 100) List<@NotNull @Valid HoldingInput> holdings,

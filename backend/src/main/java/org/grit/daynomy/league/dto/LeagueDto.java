@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.util.List;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.grit.daynomy.league.domain.InvestorProfile;
+import org.grit.daynomy.league.domain.LeagueTypes.CollectionStatus;
 import org.grit.daynomy.league.domain.LeagueTypes.DailyReturnStatus;
 import org.grit.daynomy.league.domain.LeagueTypes.ExperienceLevel;
 import org.grit.daynomy.league.domain.LeagueTypes.HoldingPeriod;
@@ -48,7 +49,9 @@ public final class LeagueDto {
       boolean leagueEnabled,
       boolean allocationPublic,
       boolean detailPublic,
-      Instant leagueEnabledAt) {
+      Instant leagueEnabledAt,
+      LocalDate trackingStartedOn,
+      LocalDate eligibleFrom) {
     public static ProfileResponse from(InvestorProfile profile) {
       return new ProfileResponse(
           profile.getPublicId(),
@@ -60,16 +63,18 @@ public final class LeagueDto {
           profile.isLeagueEnabled(),
           profile.isAllocationPublic(),
           profile.isDetailPublic(),
-          profile.getLeagueEnabledAt());
+          profile.getLeagueEnabledAt(),
+          profile.getTrackingStartedOn(),
+          profile.eligibleFrom());
     }
   }
 
   public record DecisionRequest(
       @NotBlank @Size(max = 500) String reason,
-      @NotNull HoldingPeriod expectedHoldingPeriod,
-      @NotBlank @Size(max = 300) String expectedChange,
-      @NotBlank @Size(max = 300) String invalidationCondition,
-      @NotNull @DecimalMin("0") @DecimalMax("100") @Digits(integer = 3, fraction = 2)
+      HoldingPeriod expectedHoldingPeriod,
+      @Size(max = 300) String expectedChange,
+      @Size(max = 300) String invalidationCondition,
+      @DecimalMin("0") @DecimalMax("100") @Digits(integer = 3, fraction = 2)
           BigDecimal maximumAcceptableLossRate) {}
 
   public record DecisionRecordRequest(
@@ -141,7 +146,11 @@ public final class LeagueDto {
 
   public record TransactionListResponse(List<TransactionResponse> transactions) {}
 
-  public record WeekResponse(LocalDate weekStart, LocalDate weekEnd, boolean confirmed) {}
+  public record WeekResponse(
+      LocalDate weekStart,
+      LocalDate weekEnd,
+      boolean confirmed,
+      CollectionStatus collectionStatus) {}
 
   public record WeeksResponse(List<WeekResponse> weeks) {}
 
@@ -158,7 +167,12 @@ public final class LeagueDto {
       BigDecimal maxHoldingWeight,
       int decisionCount,
       BigDecimal reviewCompletionRate,
-      boolean followed) {}
+      boolean followed,
+      String profileImageUrl,
+      BigDecimal cumulativeReturnRate,
+      LocalDate trackingStartedOn,
+      BigDecimal currentHoldingWeight,
+      int consecutiveRecordedWeeks) {}
 
   public record RankingResponse(
       LocalDate weekStart,
@@ -167,7 +181,11 @@ public final class LeagueDto {
       boolean confirmed,
       int totalCount,
       List<RankingEntryResponse> rankings,
-      LocalDate asOfDate) {}
+      LocalDate asOfDate,
+      Integer calculationVersion,
+      Instant finalizedAt,
+      String changeReason,
+      CollectionStatus collectionStatus) {}
 
   public record AllocationResponse(BigDecimal stockWeight, BigDecimal etfWeight) {}
 
@@ -176,10 +194,23 @@ public final class LeagueDto {
       BigDecimal eightWeekReturnRate,
       BigDecimal maxDrawdownRate,
       BigDecimal volatilityRate,
-      BigDecimal maxHoldingWeight) {}
+      BigDecimal maxHoldingWeight,
+      BigDecimal cumulativeReturnRate,
+      BigDecimal participationReturnRate,
+      LocalDate trackingStartedOn,
+      LocalDate eligibleFrom,
+      BigDecimal currentHoldingWeight,
+      int consecutiveRecordedWeeks,
+      Integer weeklyRank) {}
 
   public record HistoryPointResponse(
-      LocalDate weekStart, BigDecimal weeklyReturnRate, BigDecimal maxDrawdownRate) {}
+      LocalDate weekStart,
+      BigDecimal weeklyReturnRate,
+      BigDecimal maxDrawdownRate,
+      DailyReturnStatus status,
+      boolean confirmed,
+      CollectionStatus collectionStatus,
+      Integer weeklyRank) {}
 
   public record DailyReturnPointResponse(
       LocalDate baseDate,
@@ -195,7 +226,10 @@ public final class LeagueDto {
       LocalDate eligibleFrom,
       boolean confirmed,
       BigDecimal weeklyReturnRate,
-      List<DailyReturnPointResponse> days) {}
+      List<DailyReturnPointResponse> days,
+      LocalDate trackingStartedOn,
+      BigDecimal participationReturnRate,
+      CollectionStatus collectionStatus) {}
 
   public record PublicInvestorResponse(
       String publicId,
@@ -209,7 +243,8 @@ public final class LeagueDto {
       int decisionCount,
       BigDecimal reviewCompletionRate,
       boolean followed,
-      boolean detailAvailable) {}
+      boolean detailAvailable,
+      String profileImageUrl) {}
 
   public record PublicDecisionResponse(
       Long transactionId,
@@ -230,6 +265,7 @@ public final class LeagueDto {
       String category,
       BigDecimal weight,
       BigDecimal weeklyContributionRate,
+      BigDecimal returnRate,
       String reason) {}
 
   public record InvestorDetailResponse(
@@ -243,7 +279,10 @@ public final class LeagueDto {
       String displayName,
       Integer rank,
       BigDecimal weeklyReturnRate,
-      int newReviewCount) {}
+      int newReviewCount,
+      Integer previousRank,
+      Integer rankChange,
+      LocalDate comparisonWeekStart) {}
 
   public record FollowSummaryListResponse(List<FollowSummaryResponse> investors) {}
 }
