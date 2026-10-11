@@ -334,7 +334,10 @@ for (const width of [1440, 390]) {
     const after = await row.boundingBox();
     expect(after?.y).toBe(before?.y);
     expect(after?.height).toBe(before?.height);
-    const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    // clientWidth는 스크롤바가 숨겨져도 예약된 gutter를 포함한다.
+    const viewportWidth = await page.evaluate(
+      () => document.documentElement.getBoundingClientRect().width,
+    );
     const panel = (await dialog.boundingBox())!;
     expect(panel.width).toBeCloseTo(Math.min(440, viewportWidth - 12), 0);
     expect(panel.x + panel.width).toBeCloseTo(viewportWidth, 0);
