@@ -16,6 +16,7 @@ import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
+import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
@@ -24,6 +25,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioMarketAllocationResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioPricingStatus;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,7 @@ public class PortfolioCalculationService {
   private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
 
   private final StockDailyPriceRepository stockDailyPriceRepository;
+  private final AssetRepository assetRepository;
 
   @Transactional(readOnly = true)
   public PortfolioCalculationResponse calculate(PortfolioCalculateRequest request) {
@@ -56,9 +59,23 @@ public class PortfolioCalculationService {
     Set<LocalDate> currentPriceDates = new HashSet<>();
     Set<LocalDate> previousPriceDates = new HashSet<>();
     boolean allHoldingsHavePreviousPrice = true;
+    int unpricedHoldingCount = 0;
 
     for (PortfolioHoldingRequest holding : request.holdings()) {
       List<StockDailyPrice> prices = latestPrices(holding.assetId());
+      if (prices.isEmpty()) {
+        Asset asset =
+            assetRepository
+                .findById(holding.assetId())
+                .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
+        calculatedHoldings.add(calculateUnpricedHolding(holding, asset));
+        totalPurchaseAmount =
+            totalPurchaseAmount.add(
+                holding.averagePurchasePrice().multiply(BigDecimal.valueOf(holding.quantity())));
+        unpricedHoldingCount++;
+        allHoldingsHavePreviousPrice = false;
+        continue;
+      }
       StockDailyPrice price = prices.getFirst();
       CalculatedHolding calculated = calculateHolding(holding, price);
       calculatedHoldings.add(calculated);
@@ -80,11 +97,14 @@ public class PortfolioCalculationService {
 
     totalPurchaseAmount = money(totalPurchaseAmount);
     totalEvaluationAmount = money(totalEvaluationAmount);
-    BigDecimal totalProfitLoss = money(totalEvaluationAmount.subtract(totalPurchaseAmount));
+    boolean pricesComplete = unpricedHoldingCount == 0;
+    BigDecimal totalProfitLoss =
+        pricesComplete ? money(totalEvaluationAmount.subtract(totalPurchaseAmount)) : null;
     BigDecimal dailyProfitLoss = null;
     BigDecimal dailyReturnRate = null;
     boolean canCalculateDailyPerformance =
-        allHoldingsHavePreviousPrice
+        pricesComplete
+            && allHoldingsHavePreviousPrice
             && currentPriceDates.size() == 1
             && previousPriceDates.size() == 1;
     if (canCalculateDailyPerformance) {
@@ -96,12 +116,15 @@ public class PortfolioCalculationService {
     PortfolioCalculationResponse response =
         new PortfolioCalculationResponse(
             baseDate,
+            pricingStatus(unpricedHoldingCount, currentPriceDates),
+            calculatedHoldings.size() - unpricedHoldingCount,
+            unpricedHoldingCount,
             totalPurchaseAmount,
             totalEvaluationAmount,
             dailyProfitLoss,
             dailyReturnRate,
             totalProfitLoss,
-            percentage(totalProfitLoss, totalPurchaseAmount),
+            totalProfitLoss == null ? null : percentage(totalProfitLoss, totalPurchaseAmount),
             holdingResponses(calculatedHoldings, totalEvaluationAmount),
             marketAllocations(calculatedHoldings, totalEvaluationAmount));
 
@@ -126,12 +149,22 @@ public class PortfolioCalculationService {
   }
 
   private List<StockDailyPrice> latestPrices(Long assetId) {
-    List<StockDailyPrice> prices =
-        stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(assetId);
-    if (prices.isEmpty()) {
-      throw new BusinessException(AssetErrorCode.STOCK_PRICE_NOT_FOUND);
-    }
-    return prices;
+    return stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(assetId);
+  }
+
+  private CalculatedHolding calculateUnpricedHolding(PortfolioHoldingRequest holding, Asset asset) {
+    BigDecimal purchaseAmount =
+        money(holding.averagePurchasePrice().multiply(BigDecimal.valueOf(holding.quantity())));
+    return new CalculatedHolding(
+        asset,
+        null,
+        holding.quantity(),
+        money(holding.averagePurchasePrice()),
+        null,
+        purchaseAmount,
+        null,
+        null,
+        null);
   }
 
   private CalculatedHolding calculateHolding(
@@ -163,6 +196,7 @@ public class PortfolioCalculationService {
                     holding.asset().getName(),
                     holding.asset().getCategory(),
                     holding.asset().getMarket(),
+                    holding.closePrice() != null,
                     holding.baseDate(),
                     holding.quantity(),
                     holding.averagePurchasePrice(),
@@ -171,7 +205,9 @@ public class PortfolioCalculationService {
                     holding.evaluationAmount(),
                     holding.profitLoss(),
                     holding.returnRate(),
-                    percentage(holding.evaluationAmount(), totalEvaluationAmount)))
+                    holding.evaluationAmount() == null
+                        ? null
+                        : percentage(holding.evaluationAmount(), totalEvaluationAmount)))
         .toList();
   }
 
@@ -179,6 +215,9 @@ public class PortfolioCalculationService {
       List<CalculatedHolding> holdings, BigDecimal totalEvaluationAmount) {
     Map<StockMarket, BigDecimal> amountsByMarket = new EnumMap<>(StockMarket.class);
     for (CalculatedHolding holding : holdings) {
+      if (holding.evaluationAmount() == null) {
+        continue;
+      }
       amountsByMarket.merge(
           holding.asset().getMarket(), holding.evaluationAmount(), BigDecimal::add);
     }
@@ -191,6 +230,16 @@ public class PortfolioCalculationService {
                     money(entry.getValue()),
                     percentage(entry.getValue(), totalEvaluationAmount)))
         .toList();
+  }
+
+  private PortfolioPricingStatus pricingStatus(
+      int unpricedHoldingCount, Set<LocalDate> currentPriceDates) {
+    if (unpricedHoldingCount > 0) {
+      return PortfolioPricingStatus.PARTIAL;
+    }
+    return currentPriceDates.size() > 1
+        ? PortfolioPricingStatus.MIXED_DATES
+        : PortfolioPricingStatus.COMPLETE;
   }
 
   private BigDecimal money(BigDecimal value) {
