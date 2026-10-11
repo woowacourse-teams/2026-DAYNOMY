@@ -12,6 +12,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,6 +25,8 @@ import org.grit.daynomy.common.BaseEntity;
 @Entity
 @Table(name = "portfolio_holding_histories")
 public class PortfolioHoldingHistory extends BaseEntity {
+
+  private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,16 +50,60 @@ public class PortfolioHoldingHistory extends BaseEntity {
   @Column(name = "average_purchase_price", nullable = false, precision = 19, scale = 2)
   private BigDecimal averagePurchasePrice;
 
+  @Column(name = "effective_date", nullable = false)
+  private LocalDate effectiveDate;
+
+  @Column(name = "transaction_quantity")
+  private Long transactionQuantity;
+
+  @Column(name = "unit_price", precision = 19, scale = 2)
+  private BigDecimal unitPrice;
+
+  @Column(name = "fee", nullable = false, precision = 19, scale = 2)
+  private BigDecimal fee = BigDecimal.ZERO;
+
+  @Column(name = "tax", nullable = false, precision = 19, scale = 2)
+  private BigDecimal tax = BigDecimal.ZERO;
+
   public PortfolioHoldingHistory(
       Portfolio portfolio,
       Asset asset,
       PortfolioHoldingChangeType changeType,
       long quantity,
       BigDecimal averagePurchasePrice) {
+    this(
+        portfolio,
+        asset,
+        changeType,
+        quantity,
+        averagePurchasePrice,
+        LocalDate.now(SEOUL),
+        null,
+        null,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO);
+  }
+
+  public PortfolioHoldingHistory(
+      Portfolio portfolio,
+      Asset asset,
+      PortfolioHoldingChangeType changeType,
+      long quantity,
+      BigDecimal averagePurchasePrice,
+      LocalDate effectiveDate,
+      Long transactionQuantity,
+      BigDecimal unitPrice,
+      BigDecimal fee,
+      BigDecimal tax) {
     this.portfolio = portfolio;
     this.asset = asset;
     this.changeType = changeType;
     this.quantity = quantity;
     this.averagePurchasePrice = averagePurchasePrice;
+    this.effectiveDate = effectiveDate;
+    this.transactionQuantity = transactionQuantity;
+    this.unitPrice = unitPrice;
+    this.fee = fee;
+    this.tax = tax;
   }
 }
