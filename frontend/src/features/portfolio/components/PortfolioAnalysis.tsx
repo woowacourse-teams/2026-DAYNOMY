@@ -688,7 +688,7 @@ export function PortfolioAnalysis({ assets, isLoggedIn = true }: PortfolioAnalys
                 ? '다시 분석하기'
                 : isLoggedIn
                   ? '분석하기'
-                  : '무료로 1회 분석하기'}
+                  : '1회 분석 체험하기'}
           </button>
         ) : null}
       </div>

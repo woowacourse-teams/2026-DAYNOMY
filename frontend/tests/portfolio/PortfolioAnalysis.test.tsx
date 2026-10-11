@@ -81,7 +81,7 @@ describe('포트폴리오 분석 화면', () => {
     vi.stubGlobal('fetch', fetchMock);
     const firstView = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
 
-    fireEvent.click(firstView.getByRole('button', { name: '무료로 1회 분석하기' }));
+    fireEvent.click(firstView.getByRole('button', { name: '1회 분석 체험하기' }));
 
     expect(await firstView.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
     expect(
@@ -107,7 +107,7 @@ describe('포트폴리오 분석 화면', () => {
     vi.stubGlobal('fetch', fetchMock);
     const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
 
-    fireEvent.click(view.getByRole('button', { name: '무료로 1회 분석하기' }));
+    fireEvent.click(view.getByRole('button', { name: '1회 분석 체험하기' }));
     expect(await view.findByRole('alert')).toBeTruthy();
     expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY)).toBeNull();
 
@@ -132,7 +132,7 @@ describe('포트폴리오 분석 화면', () => {
     );
     const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
 
-    fireEvent.click(view.getByRole('button', { name: '무료로 1회 분석하기' }));
+    fireEvent.click(view.getByRole('button', { name: '1회 분석 체험하기' }));
 
     expect(await view.findByText('무료 분석 체험을 모두 사용했어요.')).toBeTruthy();
     expect(view.getByRole('link', { name: '로그인하고 다시 분석하기' })).toBeTruthy();
