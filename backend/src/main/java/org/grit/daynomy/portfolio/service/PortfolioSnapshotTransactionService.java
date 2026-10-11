@@ -4,16 +4,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot;
-import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
@@ -35,6 +32,7 @@ public class PortfolioSnapshotTransactionService {
   private final PortfolioHoldingHistoryRepository historyRepository;
   private final PortfolioDailySnapshotRepository snapshotRepository;
   private final StockDailyPriceRepository stockPriceRepository;
+  private final PortfolioLedgerCalculator ledgerCalculator;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public boolean createSnapshot(Long portfolioId, LocalDate baseDate, LocalDate previousBaseDate) {
@@ -83,22 +81,16 @@ public class PortfolioSnapshotTransactionService {
   }
 
   private List<HistoricalHolding> reconstructHoldings(Long portfolioId, LocalDate baseDate) {
-    Map<Long, HistoricalHolding> holdings = new LinkedHashMap<>();
     List<PortfolioHoldingHistory> histories =
-        historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAsc(
-            portfolioId, baseDate.plusDays(1).atStartOfDay(SEOUL).toInstant());
-    for (PortfolioHoldingHistory history : histories) {
-      Long assetId = history.getAsset().getId();
-      if (history.getChangeType() == PortfolioHoldingChangeType.REMOVED) {
-        holdings.remove(assetId);
-      } else {
-        holdings.put(
-            assetId,
-            new HistoricalHolding(
-                history.getAsset(), history.getQuantity(), history.getAveragePurchasePrice()));
-      }
-    }
-    return List.copyOf(holdings.values());
+        historyRepository
+            .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                portfolioId, baseDate);
+    return ledgerCalculator.replay(histories).positions().values().stream()
+        .map(
+            position ->
+                new HistoricalHolding(
+                    position.asset(), position.quantity(), position.averagePurchasePrice()))
+        .toList();
   }
 
   private SnapshotAmounts calculateAmounts(

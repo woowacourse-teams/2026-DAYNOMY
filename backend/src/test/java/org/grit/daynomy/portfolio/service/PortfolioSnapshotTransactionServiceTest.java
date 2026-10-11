@@ -1,7 +1,6 @@
 package org.grit.daynomy.portfolio.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -27,6 +26,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +36,7 @@ class PortfolioSnapshotTransactionServiceTest {
   @Mock private PortfolioHoldingHistoryRepository historyRepository;
   @Mock private PortfolioDailySnapshotRepository snapshotRepository;
   @Mock private StockDailyPriceRepository stockPriceRepository;
+  @Spy private PortfolioLedgerCalculator ledgerCalculator = new PortfolioLedgerCalculator();
   @InjectMocks private PortfolioSnapshotTransactionService service;
 
   @Test
@@ -57,8 +58,9 @@ class PortfolioSnapshotTransactionServiceTest {
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
         .willReturn(Optional.empty());
     given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAsc(
-                eq(10L), any()))
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    eq(10L), eq(baseDate)))
         .willReturn(histories);
     given(stockPriceRepository.findByAssetIdAndBaseDate(2L, baseDate))
         .willReturn(Optional.of(currentPrice));
@@ -110,8 +112,9 @@ class PortfolioSnapshotTransactionServiceTest {
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
         .willReturn(Optional.empty());
     given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAsc(
-                eq(10L), any()))
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    eq(10L), eq(baseDate)))
         .willReturn(List.of(addedHistory));
     given(stockPriceRepository.findByAssetIdAndBaseDate(2L, baseDate))
         .willReturn(Optional.of(currentPrice));
