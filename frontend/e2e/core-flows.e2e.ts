@@ -334,7 +334,10 @@ for (const width of [1440, 390]) {
     const after = await row.boundingBox();
     expect(after?.y).toBe(before?.y);
     expect(after?.height).toBe(before?.height);
-    expect((await dialog.boundingBox())?.x).toBeGreaterThanOrEqual(width - 440 - 1);
+    const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    const panel = (await dialog.boundingBox())!;
+    expect(panel.width).toBeCloseTo(Math.min(440, viewportWidth - 12), 0);
+    expect(panel.x + panel.width).toBeCloseTo(viewportWidth, 0);
     await expect(dialog.getByText('최대 하락률 · 8주', { exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
