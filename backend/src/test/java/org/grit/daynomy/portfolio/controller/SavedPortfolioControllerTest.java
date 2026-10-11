@@ -3,6 +3,7 @@ package org.grit.daynomy.portfolio.controller;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -23,6 +24,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioPerformanceStatus;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.service.PortfolioSnapshotService;
@@ -133,6 +135,39 @@ class SavedPortfolioControllerTest {
         .andExpect(jsonPath("$.totalRealizedProfitLoss").value(19700.00));
 
     then(savedPortfolioService).should().transact(3L, request);
+  }
+
+  @Test
+  void updateTransactionUsesAuthenticatedMember() throws Exception {
+    var request =
+        new PortfolioTransactionUpdateRequest(
+            LocalDate.of(2026, 10, 8),
+            3L,
+            new BigDecimal("81000"),
+            new BigDecimal("100"),
+            new BigDecimal("200"));
+    given(savedPortfolioService.updateTransaction(3L, 7L, request))
+        .willReturn(new PortfolioTransactionResponse(7L, null, new BigDecimal("25000.00")));
+
+    mockMvc
+        .perform(
+            patch("/api/portfolio/transactions/7")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "tradeDate": "2026-10-08",
+                      "quantity": 3,
+                      "unitPrice": 81000,
+                      "fee": 100,
+                      "tax": 200
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.transactionId").value(7))
+        .andExpect(jsonPath("$.totalRealizedProfitLoss").value(25000.00));
+
+    then(savedPortfolioService).should().updateTransaction(3L, 7L, request);
   }
 
   @Test
