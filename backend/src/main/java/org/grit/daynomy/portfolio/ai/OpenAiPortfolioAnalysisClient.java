@@ -43,6 +43,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - 영향이 큰 자산부터 정렬하세요.
             - assetName은 제공된 값을 그대로 사용하세요.
             - direction은 검색 결과에서 확인한 직접적인 영향만을 근거로 판단하세요.
+            - direction과 impactLevel은 공시, 기업 발표, 주요 언론에서 확인된 사실만으로 판단하세요.
+            - 전문가나 시장 참여자의 의견은 direction과 impactLevel 판단에 반영하지 마세요.
             - 자산의 실적, 수요, 경쟁력 또는 수급에 유리한 직접 영향이 명확하면 POSITIVE로 판단하세요.
             - 자산의 실적, 수요, 경쟁력 또는 수급에 불리한 직접 영향이 명확하면 NEGATIVE로 판단하세요.
             - 긍정 또는 부정 방향을 판단할 직접적인 근거가 부족하거나 긍정·부정 요인이 함께 존재하면 NEUTRAL로 판단하세요.
@@ -51,10 +53,17 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - 기업 전반이나 주요 실적·생산·수급에 미치는 영향이 크고 구체적이면 HIGH로 판단하세요. 영향 기간이 짧더라도 규모가 크면 HIGH를 유지하세요.
             - HIGH에 해당하지 않고 영향 규모가 작거나 일시적이라고 명시된 경우에는 LOW로 우선 판단하세요.
             - HIGH와 LOW에 해당하지 않으면서 직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.
-            - expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.
-            - issueSummary에는 자산과 관련된 오늘의 주요 이슈를 요약하세요.
+            - issueSummary에는 공시, 기업 발표, 주요 언론에서 확인된 사실만 작성하세요.
+            - marketOpinion에는 검색 결과에서 확인한 전문가와 시장의 주요 해석을 사실과 구분해 작성하세요.
+            - 확인 가능한 시장 의견이 없으면 시장 의견을 확인하지 못했다고 작성하세요.
+            - expectedReaction에는 확인된 사실을 바탕으로 한 종합 판단을 자연스러운 해요체로 작성하세요.
             - outlook에는 검색 결과를 근거로 향후 방향성을 작성하세요.
             - reason에는 판단 근거를 자연스러운 해요체로 작성하세요.
+            - reasoningSteps에는 자산의 관련 사업, 발생한 사건, 예상 영향을 각각 짧은 문구로 작성하세요.
+            - reasoningSteps는 정확히 3개를 반환하세요.
+            - portfolioImpact에는 사용자의 보유 비중을 반영한 포트폴리오 영향을 작성하세요.
+            - counterScenario에는 종합 판단과 다른 결과가 발생할 수 있는 조건을 작성하세요.
+            - nextIndicator에는 사용자가 다음으로 확인할 지표나 이슈를 작성하세요.
             - overallImpact는 투자 초보자도 쉽게 이해할 수 있도록 3~4문장으로 작성하세요.
             - overallImpact에는 포트폴리오에서 비중이 큰 자산과 주요 이슈를 먼저 설명하세요.
             - 긍정·부정 요인이 전체 포트폴리오에 어떻게 작용하는지 구체적으로 설명하세요.
@@ -240,6 +249,12 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     impactProperties.put("outlook", Map.of("type", "string"));
     impactProperties.put("reason", Map.of("type", "string"));
     impactProperties.put("evidenceSentence", Map.of("type", "string"));
+    impactProperties.put("marketOpinion", Map.of("type", "string"));
+    impactProperties.put(
+        "reasoningSteps", Map.of("type", "array", "items", Map.of("type", "string")));
+    impactProperties.put("portfolioImpact", Map.of("type", "string"));
+    impactProperties.put("counterScenario", Map.of("type", "string"));
+    impactProperties.put("nextIndicator", Map.of("type", "string"));
     impactProperties.put("sourceUrls", Map.of("type", "array", "items", Map.of("type", "string")));
 
     Map<String, Object> impactItem = new LinkedHashMap<>();
@@ -256,6 +271,11 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "outlook",
             "reason",
             "evidenceSentence",
+            "marketOpinion",
+            "reasoningSteps",
+            "portfolioImpact",
+            "counterScenario",
+            "nextIndicator",
             "sourceUrls"));
     impactItem.put("properties", impactProperties);
 
@@ -360,6 +380,11 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               requiredText(impactNode, "outlook"),
               requiredText(impactNode, "reason"),
               evidenceSentence,
+              requiredText(impactNode, "marketOpinion"),
+              requiredTextList(impactNode, "reasoningSteps", 3),
+              requiredText(impactNode, "portfolioImpact"),
+              requiredText(impactNode, "counterScenario"),
+              requiredText(impactNode, "nextIndicator"),
               sources));
     }
 
@@ -443,6 +468,22 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       throw analysisFailed();
     }
     return field.textValue();
+  }
+
+  private List<String> requiredTextList(JsonNode node, String fieldName, int expectedSize) {
+    JsonNode field = node.path(fieldName);
+    if (!field.isArray() || field.size() != expectedSize) {
+      throw analysisFailed();
+    }
+
+    List<String> values = new ArrayList<>();
+    for (JsonNode item : field) {
+      if (!item.isTextual() || item.textValue().isBlank()) {
+        throw analysisFailed();
+      }
+      values.add(item.textValue());
+    }
+    return List.copyOf(values);
   }
 
   private OutputContent extractOutputContent(String response) {
@@ -569,6 +610,11 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       String outlook,
       String reason,
       String evidenceSentence,
+      String marketOpinion,
+      List<String> reasoningSteps,
+      String portfolioImpact,
+      String counterScenario,
+      String nextIndicator,
       List<PortfolioAnalysisResult.Source> sources) {
 
     private PortfolioAnalysisResult.AssetImpactResult toResult(int sortOrder) {
@@ -581,6 +627,11 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
           outlook,
           reason,
           evidenceSentence,
+          marketOpinion,
+          reasoningSteps,
+          portfolioImpact,
+          counterScenario,
+          nextIndicator,
           sources,
           sortOrder);
     }

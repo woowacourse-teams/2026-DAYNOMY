@@ -22,6 +22,9 @@ import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioComprehensiveAnalysisResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioConfirmedFactResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioMarketOpinionResponse;
 import org.grit.daynomy.portfolio.service.PortfolioAnalysisService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -69,6 +72,17 @@ class PortfolioAnalysisControllerTest {
             "반도체 수요 증가가 예상됩니다.",
             "반도체 수요가 전년 대비 증가했습니다.",
             List.of(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news")),
+            new PortfolioConfirmedFactResponse(
+                "반도체 수요가 증가했어요.",
+                "반도체 수요가 전년 대비 증가했습니다.",
+                List.of(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"))),
+            new PortfolioMarketOpinionResponse("장기 수요는 긍정적으로 보고 있어요."),
+            new PortfolioComprehensiveAnalysisResponse(
+                "주가가 상승할 수 있습니다.",
+                List.of("반도체 사업", "수요 증가", "실적 개선 가능"),
+                "보유 비중이 커 전체 영향이 클 수 있어요.",
+                "수요가 감소하면 영향이 달라질 수 있어요.",
+                "메모리 가격을 확인해야 해요."),
             1);
     when(portfolioAnalysisService.analyze(request))
         .thenReturn(
@@ -112,6 +126,12 @@ class PortfolioAnalysisControllerTest {
         .andExpect(jsonPath("$.impacts[0].evidenceSentence").value("반도체 수요가 전년 대비 증가했습니다."))
         .andExpect(jsonPath("$.impacts[0].sources[0].title").value("한국거래소"))
         .andExpect(jsonPath("$.impacts[0].sources[0].url").value("https://example.com/news"))
+        .andExpect(jsonPath("$.impacts[0].confirmedFact.summary").value("반도체 수요가 증가했어요."))
+        .andExpect(jsonPath("$.impacts[0].marketOpinion.summary").value("장기 수요는 긍정적으로 보고 있어요."))
+        .andExpect(jsonPath("$.impacts[0].comprehensiveAnalysis.reasoningSteps[0]").value("반도체 사업"))
+        .andExpect(
+            jsonPath("$.impacts[0].comprehensiveAnalysis.counterScenario")
+                .value("수요가 감소하면 영향이 달라질 수 있어요."))
         .andExpect(jsonPath("$.impacts[0].rank").value(1))
         .andExpect(jsonPath("$.sources[0].title").value("한국거래소"))
         .andExpect(jsonPath("$.sources[0].url").value("https://example.com/news"));

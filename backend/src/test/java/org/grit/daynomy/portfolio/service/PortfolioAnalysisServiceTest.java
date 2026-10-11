@@ -55,6 +55,11 @@ class PortfolioAnalysisServiceTest {
                     "수요와 비용 추이를 함께 확인해야 해요.",
                     "긍정 또는 부정 영향을 판단할 근거가 충분하지 않습니다.",
                     "반도체 수요가 전년 대비 증가했습니다.",
+                    "장기 수요는 긍정적이지만 비용을 우려하는 의견도 있어요.",
+                    List.of("메모리 사업", "수요 증가", "실적 개선 가능"),
+                    "보유 비중이 22%라 전체 영향은 제한적일 수 있어요.",
+                    "비용이 증가하면 실적 개선이 제한될 수 있어요.",
+                    "메모리 가격을 확인해야 해요.",
                     List.of(
                         new PortfolioAnalysisResult.Source("한국거래소", "https://example.com/news")),
                     1)),
@@ -78,6 +83,11 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.impacts().get(0).issueSummary()).contains("반도체 수요");
     assertThat(response.impacts().get(0).outlook()).contains("추이");
     assertThat(response.impacts().get(0).evidenceSentence()).isEqualTo("반도체 수요가 전년 대비 증가했습니다.");
+    assertThat(response.impacts().get(0).confirmedFact().summary()).contains("반도체 수요");
+    assertThat(response.impacts().get(0).marketOpinion().summary()).contains("장기 수요");
+    assertThat(response.impacts().get(0).comprehensiveAnalysis().reasoningSteps())
+        .containsExactly("메모리 사업", "수요 증가", "실적 개선 가능");
+    assertThat(response.impacts().get(0).comprehensiveAnalysis().counterScenario()).contains("비용");
     assertThat(response.impacts().get(0).sources())
         .containsExactly(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"));
     assertThat(response.impacts().get(0).rank()).isEqualTo(1);
@@ -192,6 +202,11 @@ class PortfolioAnalysisServiceTest {
         "향후 방향성",
         "판단 근거",
         "판단에 사용한 검색 근거",
+        "시장 의견",
+        List.of("관련 사업", "이슈 발생", "예상 영향"),
+        "포트폴리오 영향",
+        "반대 시나리오",
+        "다음 확인 지표",
         List.of(new PortfolioAnalysisResult.Source("출처", "https://example.com")),
         sortOrder);
   }

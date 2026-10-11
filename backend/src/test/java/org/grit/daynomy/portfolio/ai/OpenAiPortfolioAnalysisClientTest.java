@@ -80,6 +80,11 @@ class OpenAiPortfolioAnalysisClientTest {
               "outlook": "수요 증가 여부를 지켜봐야 해요.",
               "reason": "신규 수요가 예상됩니다.",
               "evidenceSentence": "삼성전자의 신규 수요가 증가할 전망입니다.",
+              "marketOpinion": "장기 수요에는 긍정적인 의견이에요.",
+              "reasoningSteps": ["반도체 사업", "신규 수요 증가", "매출 증가 가능"],
+              "portfolioImpact": "보유 비중이 커 전체 영향이 클 수 있어요.",
+              "counterScenario": "수요가 줄면 영향이 달라질 수 있어요.",
+              "nextIndicator": "실제 주문 증가를 확인해야 해요.",
               "sourceUrls": ["https://example.com/semiconductor"]
             },
             {
@@ -91,6 +96,11 @@ class OpenAiPortfolioAnalysisClientTest {
               "outlook": "비용 부담의 지속 여부를 확인해야 해요.",
               "reason": "상반된 요인이 존재합니다.",
               "evidenceSentence": "SK하이닉스의 수요와 비용이 모두 증가했습니다.",
+              "marketOpinion": "수요와 비용에 대한 의견이 엇갈려요.",
+              "reasoningSteps": ["메모리 사업", "수요와 비용 증가", "영향 방향 불확실"],
+              "portfolioImpact": "보유 비중만큼 변동성이 커질 수 있어요.",
+              "counterScenario": "비용이 빠르게 줄면 긍정적일 수 있어요.",
+              "nextIndicator": "비용 추이를 확인해야 해요.",
               "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]
@@ -112,6 +122,12 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(result.impacts().getFirst().outlook()).contains("비용 부담");
     assertThat(result.impacts().getFirst().evidenceSentence())
         .isEqualTo("SK하이닉스의 수요와 비용이 모두 증가했습니다.");
+    assertThat(result.impacts().getFirst().marketOpinion()).contains("의견이 엇갈려요");
+    assertThat(result.impacts().getFirst().reasoningSteps())
+        .containsExactly("메모리 사업", "수요와 비용 증가", "영향 방향 불확실");
+    assertThat(result.impacts().getFirst().portfolioImpact()).contains("변동성");
+    assertThat(result.impacts().getFirst().counterScenario()).contains("비용");
+    assertThat(result.impacts().getFirst().nextIndicator()).contains("비용 추이");
     assertThat(result.impacts().getFirst().sources())
         .containsExactly(
             new PortfolioAnalysisResult.Source("반도체 산업 동향", "https://example.com/semiconductor"));
@@ -183,8 +199,13 @@ class OpenAiPortfolioAnalysisClientTest {
     String developerPrompt = requestBody.path("input").get(0).path("content").asText();
 
     assertThat(developerPrompt)
-        .contains("issueSummary에는 자산과 관련된 오늘의 주요 이슈를 요약하세요.")
-        .contains("expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.")
+        .contains("expectedReaction에는 확인된 사실을 바탕으로 한 종합 판단을 자연스러운 해요체로 작성하세요.")
+        .contains("issueSummary에는 공시, 기업 발표, 주요 언론에서 확인된 사실만 작성하세요.")
+        .contains("marketOpinion에는 검색 결과에서 확인한 전문가와 시장의 주요 해석을 사실과 구분해 작성하세요.")
+        .contains("reasoningSteps는 정확히 3개를 반환하세요.")
+        .contains("portfolioImpact에는 사용자의 보유 비중을 반영한 포트폴리오 영향을 작성하세요.")
+        .contains("counterScenario에는 종합 판단과 다른 결과가 발생할 수 있는 조건을 작성하세요.")
+        .contains("nextIndicator에는 사용자가 다음으로 확인할 지표나 이슈를 작성하세요.")
         .contains("outlook에는 검색 결과를 근거로 향후 방향성을 작성하세요.")
         .contains("overallImpact는 투자 초보자도 쉽게 이해할 수 있도록 3~4문장으로 작성하세요.")
         .contains("overallImpact에는 포트폴리오에서 비중이 큰 자산과 주요 이슈를 먼저 설명하세요.")
@@ -212,6 +233,9 @@ class OpenAiPortfolioAnalysisClientTest {
         .contains("자산의 실적, 수요, 경쟁력 또는 수급에 불리한 직접 영향이 명확하면 NEGATIVE로 판단하세요.")
         .contains("긍정·부정 요인이 함께 존재하면 NEUTRAL로 판단하세요.")
         .contains("시장 전반의 분위기나 일반적인 업황만으로 개별 자산의 방향을 추측하지 마세요.");
+    assertThat(developerPrompt)
+        .contains("direction과 impactLevel은 공시, 기업 발표, 주요 언론에서 확인된 사실만으로 판단하세요.")
+        .contains("전문가나 시장 참여자의 의견은 direction과 impactLevel 판단에 반영하지 마세요.");
   }
 
   @Test
@@ -251,6 +275,11 @@ class OpenAiPortfolioAnalysisClientTest {
               "outlook": "수요가 이어질 수 있어요.",
               "reason": "수요가 증가했습니다.",
               "evidenceSentence": "현대차 수요가 증가했습니다.",
+              "marketOpinion": "수요 증가를 긍정적으로 해석해요.",
+              "reasoningSteps": ["자동차 사업", "수요 증가", "매출 증가 가능"],
+              "portfolioImpact": "보유 비중만큼 영향을 받을 수 있어요.",
+              "counterScenario": "수요가 감소하면 영향이 달라질 수 있어요.",
+              "nextIndicator": "판매량을 확인해야 해요.",
               "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]
@@ -277,6 +306,11 @@ class OpenAiPortfolioAnalysisClientTest {
               "outlook": "수요가 이어질 수 있어요.",
               "reason": "수요가 증가했습니다.",
               "evidenceSentence": "   ",
+              "marketOpinion": "수요 증가를 긍정적으로 해석해요.",
+              "reasoningSteps": ["반도체 사업", "수요 증가", "매출 증가 가능"],
+              "portfolioImpact": "보유 비중만큼 영향을 받을 수 있어요.",
+              "counterScenario": "수요가 감소하면 영향이 달라질 수 있어요.",
+              "nextIndicator": "판매량을 확인해야 해요.",
               "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]
@@ -431,6 +465,11 @@ class OpenAiPortfolioAnalysisClientTest {
               "outlook": "추가 흐름을 확인해야 해요.",
               "reason": "직접적인 영향이 제한적이에요.",
               "evidenceSentence": "관련 검색 근거예요.",
+              "marketOpinion": "시장 의견이 엇갈려요.",
+              "reasoningSteps": ["관련 사업", "이슈 발생", "영향 제한"],
+              "portfolioImpact": "보유 비중만큼 제한적으로 영향을 받을 수 있어요.",
+              "counterScenario": "상황이 바뀌면 영향이 커질 수 있어요.",
+              "nextIndicator": "추가 흐름을 확인해야 해요.",
               "sourceUrls": ["https://example.com/semiconductor"]
             },
             {
@@ -442,6 +481,11 @@ class OpenAiPortfolioAnalysisClientTest {
               "outlook": "추가 흐름을 확인해야 해요.",
               "reason": "직접적인 영향이 제한적이에요.",
               "evidenceSentence": "관련 검색 근거예요.",
+              "marketOpinion": "시장 의견이 엇갈려요.",
+              "reasoningSteps": ["관련 사업", "이슈 발생", "영향 제한"],
+              "portfolioImpact": "보유 비중만큼 제한적으로 영향을 받을 수 있어요.",
+              "counterScenario": "상황이 바뀌면 영향이 커질 수 있어요.",
+              "nextIndicator": "추가 흐름을 확인해야 해요.",
               "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]

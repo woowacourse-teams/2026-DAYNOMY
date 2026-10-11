@@ -19,6 +19,10 @@ public record PortfolioAssetImpactResponse(
     @Schema(description = "판단에 사용한 웹 검색 근거", example = "반도체 수요가 전년 대비 증가했습니다.")
         String evidenceSentence,
     @Schema(description = "자산 분석에 사용된 웹 검색 출처") List<PortfolioAnalysisSourceResponse> sources,
+    @Schema(description = "공시·뉴스에서 확인한 사실") PortfolioConfirmedFactResponse confirmedFact,
+    @Schema(description = "확인된 사실과 구분되는 시장 의견") PortfolioMarketOpinionResponse marketOpinion,
+    @Schema(description = "사실과 보유 비중을 바탕으로 한 종합 분석")
+        PortfolioComprehensiveAnalysisResponse comprehensiveAnalysis,
     @Schema(description = "자산 영향도 순위", example = "1") int rank) {
 
   public PortfolioAssetImpactResponse {
@@ -38,6 +42,17 @@ public record PortfolioAssetImpactResponse(
         impact.reason(),
         impact.evidenceSentence(),
         impact.sources().stream().map(PortfolioAnalysisSourceResponse::from).toList(),
+        new PortfolioConfirmedFactResponse(
+            impact.issueSummary(),
+            impact.evidenceSentence(),
+            impact.sources().stream().map(PortfolioAnalysisSourceResponse::from).toList()),
+        new PortfolioMarketOpinionResponse(impact.marketOpinion()),
+        new PortfolioComprehensiveAnalysisResponse(
+            impact.expectedReaction(),
+            impact.reasoningSteps(),
+            impact.portfolioImpact(),
+            impact.counterScenario(),
+            impact.nextIndicator()),
         impact.sortOrder());
   }
 }

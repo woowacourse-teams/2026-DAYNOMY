@@ -21,10 +21,16 @@ public record PortfolioAnalysisResult(
       String outlook,
       String reason,
       String evidenceSentence,
+      String marketOpinion,
+      List<String> reasoningSteps,
+      String portfolioImpact,
+      String counterScenario,
+      String nextIndicator,
       List<Source> sources,
       int sortOrder) {
 
     public AssetImpactResult {
+      reasoningSteps = List.copyOf(reasoningSteps);
       sources = List.copyOf(sources);
     }
   }
