@@ -76,6 +76,14 @@ public class SavedPortfolioController {
     return savedPortfolioService.updateTransaction(member.memberId(), transactionId, request);
   }
 
+  @Operation(summary = "매수·매도 거래 삭제")
+  @DeleteMapping("/transactions/{transactionId}")
+  public PortfolioTransactionResponse deleteTransaction(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId) {
+    return savedPortfolioService.deleteTransaction(member.memberId(), transactionId);
+  }
+
   @Operation(summary = "보유자산 수정")
   @PatchMapping("/holdings/{assetId}")
   public SavedPortfolioHoldingResponse update(
