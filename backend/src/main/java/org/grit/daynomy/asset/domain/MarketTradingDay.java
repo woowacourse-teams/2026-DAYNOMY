@@ -37,4 +37,11 @@ public class MarketTradingDay {
     if (!trading || collectedAt.isBefore(closesAt())) return;
     this.collectedAt = collectedAt;
   }
+
+  public boolean reviseTrading(boolean trading) {
+    if (this.trading == trading) return false;
+    this.trading = trading;
+    this.collectedAt = null;
+    return true;
+  }
 }

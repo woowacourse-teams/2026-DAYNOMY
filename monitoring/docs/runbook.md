@@ -70,7 +70,7 @@ curl --fail http://127.0.0.1:8081/actuator/prometheus
 1. Grafana의 리그 대상·성공·실패와 일간 제외 사유를 확인한다. 참가자 실패와 자동 실행 오류를 구분한다.
 2. 같은 시각의 `LEAGUE_CALCULATION_FAILED` 로그에서 예외 종류와 DB·종가 수집 상태를 확인한다. 금액·판단 원문을 장애 기록에 복사하지 않는다.
 3. `MISSING_PRICE` 또는 `PRICE_COLLECTION_PENDING`이 증가하면 아래 달력·수집 상태를 확인하고 필요한 날짜를 최대 31일씩 관리자 종가 백필한다.
-4. 다음 종가 수집 이벤트 또는 예약 집계가 재시도한 뒤 실패 값이 0으로 복구됐는지 확인한다. 관리자 일간 재집계만 실행하면 주간 확정과 자동 실행 실패 값의 복구는 다음 자동 실행에서 확인한다.
+4. 다음 종가·달력 갱신 이벤트 또는 예약 집계가 재시도한 뒤 실패 값이 0으로 복구됐는지 확인한다. 관리자 재집계도 일간 성과 계산과 주간 확정을 함께 실행한다.
 
 ## LeagueCalendarMissing
 
@@ -83,7 +83,7 @@ LEFT JOIN market_trading_days calendar ON calendar.base_date = day::date
 WHERE calendar.base_date IS NULL;
 ```
 
-2. 공식 KRX 달력과 대조해 CSV를 준비한다. 연도 전체 등록에는 `--year`를 사용한다. [백엔드 달력 갱신 절차](../../backend/README.md#거래일-달력-갱신)에 따라 SQL을 검토하고 승인된 대상 DB에 적용한다.
+2. `MARKET_CALENDAR_SYNC_ENABLED`와 `market-calendar.sync.completed`·`market-calendar.sync.failed` 로그를 확인한다. 서버 시작 및 매일 06:05·18:05(서울)에 전년도·올해·다음 해의 발표된 KRX 달력을 갱신한다. 미발표 연도나 잘못된 응답을 평일 달력으로 대체하지 않는다. 공식 조회 장애나 범위 밖의 과거 날짜는 [수동 복구 절차](../../backend/README.md#거래일-달력-자동-갱신과-수동-복구)에 따라 CSV·SQL을 검토하고 승인된 대상 DB에 적용한다.
 3. 추가·변경된 거래일은 종가 백필하고 자동 재집계·확정 후 누락 지표의 복구를 확인한다. 기존 마이그레이션·가격·성과 이력을 수정·삭제하지 않는다.
 
 ## LeagueFinalizationDelayed

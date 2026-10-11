@@ -2,6 +2,7 @@ package org.grit.daynomy.league.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.asset.service.MarketCalendarSyncResult;
 import org.grit.daynomy.asset.service.StockPriceSyncResult;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -23,15 +24,14 @@ public class LeagueReturnScheduler {
     leagueReturnService.recalculate();
   }
 
-  @EventListener
-  public void pricesSynchronized(StockPriceSyncResult result) {
+  @EventListener({StockPriceSyncResult.class, MarketCalendarSyncResult.class})
+  public void recalculateAfterSync() {
     try {
       calculateReturns();
     } catch (RuntimeException exception) {
-      // 종가 저장은 이미 커밋됐다. 집계 실패는 별도로 기록하고 예약 집계에서 재시도한다.
+      // 원본 저장은 이미 커밋됐다. 집계 실패는 예약 집계에서 재시도한다.
       log.atError()
           .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_FAILED.code())
-          .addKeyValue("baseDate", result.baseDate())
           .addKeyValue("exception", exception.getClass().getSimpleName())
           .log(LogEvent.LEAGUE_CALCULATION_FAILED.message());
     }

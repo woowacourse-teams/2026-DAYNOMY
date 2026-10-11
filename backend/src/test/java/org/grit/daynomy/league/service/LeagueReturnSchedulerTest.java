@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.LocalDate;
+import org.grit.daynomy.asset.service.MarketCalendarSyncResult;
 import org.grit.daynomy.asset.service.StockPriceSyncResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -22,7 +23,7 @@ class LeagueReturnSchedulerTest {
         .when(service)
         .recalculate();
     var scheduler = new LeagueReturnScheduler(service);
-    scheduler.pricesSynchronized(new StockPriceSyncResult(LocalDate.now(), 2, 2, 0, 0));
+    scheduler.recalculateAfterSync();
     scheduler.calculateReturns();
     verify(service, times(2)).recalculate();
   }
@@ -38,7 +39,8 @@ class LeagueReturnSchedulerTest {
         .run(
             context -> {
               context.publishEvent(new StockPriceSyncResult(LocalDate.now(), 2, 2, 0, 0));
-              if (enabled) verify(service).recalculate();
+              context.publishEvent(new MarketCalendarSyncResult(1));
+              if (enabled) verify(service, times(2)).recalculate();
               else verifyNoInteractions(service);
             });
   }
