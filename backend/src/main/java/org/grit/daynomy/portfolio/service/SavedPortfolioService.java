@@ -1,5 +1,6 @@
 package org.grit.daynomy.portfolio.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -15,7 +16,10 @@ import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
+import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingHistoryResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
@@ -38,17 +42,21 @@ public class SavedPortfolioService {
   private final PortfolioHoldingHistoryRepository historyRepository;
   private final MemberRepository memberRepository;
   private final AssetRepository assetRepository;
+  private final PortfolioLedgerCalculator ledgerCalculator;
 
   @Transactional(readOnly = true)
   public SavedPortfolioResponse get(Long memberId) {
     return portfolioRepository
         .findByMemberId(memberId)
         .map(
-            portfolio ->
-                new SavedPortfolioResponse(
-                    holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId()).stream()
-                        .map(SavedPortfolioHoldingResponse::from)
-                        .toList()))
+            portfolio -> {
+              PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
+              return new SavedPortfolioResponse(
+                  holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId()).stream()
+                      .map(SavedPortfolioHoldingResponse::from)
+                      .toList(),
+                  ledger.realizedProfitLoss());
+            })
         .orElseGet(SavedPortfolioResponse::empty);
   }
 
@@ -75,9 +83,14 @@ public class SavedPortfolioService {
         new PortfolioHoldingHistory(
             portfolio,
             asset,
-            PortfolioHoldingChangeType.ADDED,
+            PortfolioHoldingChangeType.OPENING_BALANCE,
             holding.getQuantity(),
-            holding.getAveragePurchasePrice()));
+            holding.getAveragePurchasePrice(),
+            LocalDate.now(SEOUL),
+            null,
+            null,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO));
     return SavedPortfolioHoldingResponse.from(holding);
   }
 
@@ -91,9 +104,14 @@ public class SavedPortfolioService {
         new PortfolioHoldingHistory(
             portfolio,
             holding.getAsset(),
-            PortfolioHoldingChangeType.UPDATED,
+            PortfolioHoldingChangeType.ADJUSTED,
             holding.getQuantity(),
-            holding.getAveragePurchasePrice()));
+            holding.getAveragePurchasePrice(),
+            LocalDate.now(SEOUL),
+            null,
+            null,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO));
     return SavedPortfolioHoldingResponse.from(holding);
   }
 
@@ -107,8 +125,68 @@ public class SavedPortfolioService {
             holding.getAsset(),
             PortfolioHoldingChangeType.REMOVED,
             holding.getQuantity(),
-            holding.getAveragePurchasePrice()));
+            holding.getAveragePurchasePrice(),
+            LocalDate.now(SEOUL),
+            null,
+            null,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO));
     holdingRepository.delete(holding);
+  }
+
+  @Transactional
+  public PortfolioTransactionResponse transact(Long memberId, PortfolioTransactionRequest request) {
+    Member member =
+        memberRepository
+            .findByIdForUpdate(memberId)
+            .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+    Portfolio portfolio = getOrCreatePortfolio(member);
+    Asset asset =
+        assetRepository
+            .findById(request.assetId())
+            .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
+    PortfolioHolding current =
+        holdingRepository
+            .findByPortfolioIdAndAssetId(portfolio.getId(), request.assetId())
+            .orElse(null);
+    long currentQuantity = current == null ? 0 : current.getQuantity();
+    BigDecimal currentAverage =
+        current == null ? BigDecimal.ZERO.setScale(2) : current.getAveragePurchasePrice();
+    PortfolioHoldingChangeType changeType =
+        request.type() == PortfolioTransactionType.BUY
+            ? PortfolioHoldingChangeType.BUY
+            : PortfolioHoldingChangeType.SELL;
+    historyRepository.saveAndFlush(
+        new PortfolioHoldingHistory(
+            portfolio,
+            asset,
+            changeType,
+            currentQuantity,
+            currentAverage,
+            request.tradeDate(),
+            request.quantity(),
+            request.unitPrice(),
+            request.fee(),
+            request.tax()));
+
+    PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
+    PortfolioLedgerCalculator.Position position = ledger.positions().get(request.assetId());
+    SavedPortfolioHoldingResponse responseHolding = null;
+    if (position == null) {
+      if (current != null) {
+        holdingRepository.delete(current);
+      }
+    } else if (current == null) {
+      PortfolioHolding saved =
+          holdingRepository.save(
+              new PortfolioHolding(
+                  portfolio, asset, position.quantity(), position.averagePurchasePrice()));
+      responseHolding = SavedPortfolioHoldingResponse.from(saved);
+    } else {
+      current.change(position.quantity(), position.averagePurchasePrice());
+      responseHolding = SavedPortfolioHoldingResponse.from(current);
+    }
+    return new PortfolioTransactionResponse(responseHolding, ledger.realizedProfitLoss());
   }
 
   @Transactional(readOnly = true)
@@ -119,10 +197,8 @@ public class SavedPortfolioService {
     }
     Portfolio portfolio = getPortfolio(memberId);
     return historyRepository
-        .findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
-            portfolio.getId(),
-            from.atStartOfDay(SEOUL).toInstant(),
-            to.plusDays(1).atStartOfDay(SEOUL).toInstant())
+        .findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDesc(
+            portfolio.getId(), from, to)
         .stream()
         .map(PortfolioHoldingHistoryResponse::from)
         .toList();
@@ -144,5 +220,11 @@ public class SavedPortfolioService {
     return holdingRepository
         .findByPortfolioIdAndAssetId(portfolioId, assetId)
         .orElseThrow(() -> new BusinessException(PortfolioErrorCode.PORTFOLIO_HOLDING_NOT_FOUND));
+  }
+
+  private PortfolioLedgerCalculator.LedgerResult replay(Long portfolioId) {
+    return ledgerCalculator.replay(
+        historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(
+            portfolioId));
   }
 }
