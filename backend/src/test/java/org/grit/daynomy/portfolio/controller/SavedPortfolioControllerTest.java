@@ -172,6 +172,28 @@ class SavedPortfolioControllerTest {
   }
 
   @Test
+  void updateTransactionRejectsFutureTradeDate() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/portfolio/transactions/7")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "tradeDate": "2099-01-01",
+                      "quantity": 3,
+                      "unitPrice": 81000,
+                      "fee": 0,
+                      "tax": 0
+                    }
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+    then(savedPortfolioService).shouldHaveNoInteractions();
+  }
+
+  @Test
   void deleteTransactionUsesAuthenticatedMember() throws Exception {
     given(savedPortfolioService.deleteTransaction(3L, 7L))
         .willReturn(new PortfolioTransactionResponse(7L, null, BigDecimal.ZERO));
