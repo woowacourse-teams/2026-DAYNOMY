@@ -7,6 +7,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 
 public record PortfolioHoldingHistoryResponse(
+    Long historyId,
     Long assetId,
     String assetCode,
     String name,
@@ -22,6 +23,7 @@ public record PortfolioHoldingHistoryResponse(
 
   public static PortfolioHoldingHistoryResponse from(PortfolioHoldingHistory history) {
     return new PortfolioHoldingHistoryResponse(
+        history.getId(),
         history.getAsset().getId(),
         history.getAsset().getAssetCode(),
         history.getAsset().getName(),

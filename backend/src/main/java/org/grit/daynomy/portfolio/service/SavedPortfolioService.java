@@ -156,18 +156,19 @@ public class SavedPortfolioService {
         request.type() == PortfolioTransactionType.BUY
             ? PortfolioHoldingChangeType.BUY
             : PortfolioHoldingChangeType.SELL;
-    historyRepository.saveAndFlush(
-        new PortfolioHoldingHistory(
-            portfolio,
-            asset,
-            changeType,
-            currentQuantity,
-            currentAverage,
-            request.tradeDate(),
-            request.quantity(),
-            request.unitPrice(),
-            request.fee(),
-            request.tax()));
+    PortfolioHoldingHistory history =
+        historyRepository.saveAndFlush(
+            new PortfolioHoldingHistory(
+                portfolio,
+                asset,
+                changeType,
+                currentQuantity,
+                currentAverage,
+                request.tradeDate(),
+                request.quantity(),
+                request.unitPrice(),
+                request.fee(),
+                request.tax()));
 
     PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
     PortfolioLedgerCalculator.Position position = ledger.positions().get(request.assetId());
@@ -186,7 +187,8 @@ public class SavedPortfolioService {
       current.change(position.quantity(), position.averagePurchasePrice());
       responseHolding = SavedPortfolioHoldingResponse.from(current);
     }
-    return new PortfolioTransactionResponse(responseHolding, ledger.realizedProfitLoss());
+    return new PortfolioTransactionResponse(
+        history.getId(), responseHolding, ledger.realizedProfitLoss());
   }
 
   @Transactional(readOnly = true)

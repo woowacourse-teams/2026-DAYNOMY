@@ -3,4 +3,6 @@ package org.grit.daynomy.portfolio.dto;
 import java.math.BigDecimal;
 
 public record PortfolioTransactionResponse(
-    SavedPortfolioHoldingResponse holding, BigDecimal totalRealizedProfitLoss) {}
+    Long transactionId,
+    SavedPortfolioHoldingResponse holding,
+    BigDecimal totalRealizedProfitLoss) {}

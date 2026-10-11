@@ -130,6 +130,8 @@ class SavedPortfolioServiceTest {
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
     given(assetRepository.findById(2L)).willReturn(Optional.of(asset));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
+    given(historyRepository.saveAndFlush(any(PortfolioHoldingHistory.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
     given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
         .willReturn(List.of());
     given(ledgerCalculator.replay(List.of()))

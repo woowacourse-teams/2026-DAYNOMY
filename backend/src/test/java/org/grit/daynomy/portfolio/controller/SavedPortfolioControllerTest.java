@@ -109,7 +109,7 @@ class SavedPortfolioControllerTest {
             new BigDecimal("100"),
             new BigDecimal("200"));
     given(savedPortfolioService.transact(3L, request))
-        .willReturn(new PortfolioTransactionResponse(null, new BigDecimal("19700.00")));
+        .willReturn(new PortfolioTransactionResponse(7L, null, new BigDecimal("19700.00")));
 
     mockMvc
         .perform(
@@ -128,6 +128,7 @@ class SavedPortfolioControllerTest {
                     }
                     """))
         .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.transactionId").value(7))
         .andExpect(jsonPath("$.holding").doesNotExist())
         .andExpect(jsonPath("$.totalRealizedProfitLoss").value(19700.00));
 
