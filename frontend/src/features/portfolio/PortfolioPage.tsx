@@ -1050,7 +1050,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 </div>
               </div>
             </section>
-            <PortfolioAnalysis assets={analysisAssets} />
+            <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
           </div>
           {renderRelatedContentPanel()}
         </div>

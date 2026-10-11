@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { trackEvent } from '../../../analytics';
+import { ApiError } from '../../../api/client';
 import { analyzePortfolio, createPortfolioSnapshotKey } from '../api';
 import {
   clearPortfolioAnalysis,
+  hasGuestPortfolioAnalysisTrialBeenUsed,
   loadPortfolioAnalysis,
+  markGuestPortfolioAnalysisTrialUsed,
   savePortfolioAnalysis,
 } from '../portfolioAnalysisStorage';
 import type {
@@ -212,6 +215,15 @@ function PortfolioAnalysisError({ onRetry }: { onRetry: () => void }) {
       <button className="portfolio-analysis-retry-button" type="button" onClick={onRetry}>
         다시 시도
       </button>
+    </div>
+  );
+}
+
+function PortfolioAnalysisTrialExhausted() {
+  return (
+    <div className="portfolio-analysis-state portfolio-analysis-empty" role="status">
+      <strong>무료 분석 체험을 모두 사용했어요.</strong>
+      <p>로그인하면 포트폴리오 분석을 계속 이용할 수 있어요.</p>
     </div>
   );
 }
@@ -535,13 +547,17 @@ function PortfolioImpactDetail({
 
 type PortfolioAnalysisProps = {
   assets: PortfolioAsset[];
+  isLoggedIn?: boolean;
 };
 
-export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
+export function PortfolioAnalysis({ assets, isLoggedIn = true }: PortfolioAnalysisProps) {
   const [analysis, setAnalysis] = useState<PortfolioAnalysisResponse | null>(null);
   const [analyzedAssets, setAnalyzedAssets] = useState<PortfolioAsset[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [trialExhausted, setTrialExhausted] = useState(
+    () => !isLoggedIn && hasGuestPortfolioAnalysisTrialBeenUsed(),
+  );
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const portfolioSnapshotKey = createPortfolioSnapshotKey(assets);
@@ -549,7 +565,7 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
   useEffect(() => {
     if (assets.length === 0) {
       requestIdRef.current += 1;
-      clearPortfolioAnalysis();
+      if (isLoggedIn) clearPortfolioAnalysis();
       setAnalysis(null);
       setAnalyzedAssets(null);
       setError(null);
@@ -560,7 +576,7 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
     if (analysis || analyzedAssets) return;
 
     requestIdRef.current += 1;
-    const cachedAnalysis = loadPortfolioAnalysis();
+    const cachedAnalysis = loadPortfolioAnalysis(new Date(), isLoggedIn);
     setAnalysis(cachedAnalysis);
     setAnalyzedAssets(
       cachedAnalysis
@@ -568,9 +584,12 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
         : null,
     );
     setError(null);
+    setTrialExhausted(
+      !isLoggedIn && (cachedAnalysis !== null || hasGuestPortfolioAnalysisTrialBeenUsed()),
+    );
     setSelectedAssetName(null);
     setLoading(false);
-  }, [analysis, analyzedAssets, assets, portfolioSnapshotKey]);
+  }, [analysis, analyzedAssets, assets, isLoggedIn, portfolioSnapshotKey]);
 
   const analyze = () => {
     const snapshot = assets.map((asset) => ({ ...asset }));
@@ -589,11 +608,20 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
       .then((response) => {
         if (requestIdRef.current === requestId) {
           setAnalysis(response);
-          savePortfolioAnalysis(snapshot, response);
+          savePortfolioAnalysis(snapshot, response, new Date(), isLoggedIn);
+          if (!isLoggedIn) setTrialExhausted(true);
         }
       })
       .catch((caughtError) => {
         if (requestIdRef.current === requestId) {
+          if (
+            caughtError instanceof ApiError &&
+            caughtError.code === 'PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED'
+          ) {
+            markGuestPortfolioAnalysisTrialUsed();
+            setTrialExhausted(true);
+            return;
+          }
           setError(
             caughtError instanceof Error
               ? caughtError.message
@@ -643,14 +671,24 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
               : '오늘의 경제·금융·산업 이슈가 보유 자산에 미칠 영향을 확인해 보세요.'}
           </p>
         </div>
-        {!error ? (
+        {!isLoggedIn && trialExhausted ? (
+          <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
+            로그인하고 다시 분석하기
+          </a>
+        ) : !error ? (
           <button
             className="portfolio-analysis-button"
             type="button"
             disabled={!canAnalyze}
             onClick={analyze}
           >
-            {loading ? '분석 중' : analysis ? '다시 분석하기' : '분석하기'}
+            {loading
+              ? '분석 중'
+              : analysis
+                ? '다시 분석하기'
+                : isLoggedIn
+                  ? '분석하기'
+                  : '무료로 1회 분석하기'}
           </button>
         ) : null}
       </div>
@@ -661,6 +699,10 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
 
       {hasAnalysisTarget && !loading && error ? (
         <PortfolioAnalysisError onRetry={handleRetry} />
+      ) : null}
+
+      {hasAnalysisTarget && !loading && !error && trialExhausted && !analysis ? (
+        <PortfolioAnalysisTrialExhausted />
       ) : null}
 
       {hasAnalysisTarget && !loading && !error && analysis?.impacts.length === 0 ? (

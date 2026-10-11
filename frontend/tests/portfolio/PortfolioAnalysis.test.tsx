@@ -3,7 +3,11 @@
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioAnalysis } from '../../src/features/portfolio/components/PortfolioAnalysis';
-import { PORTFOLIO_ANALYSIS_STORAGE_KEY } from '../../src/features/portfolio/portfolioAnalysisStorage';
+import {
+  GUEST_PORTFOLIO_ANALYSIS_STORAGE_KEY,
+  GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY,
+  PORTFOLIO_ANALYSIS_STORAGE_KEY,
+} from '../../src/features/portfolio/portfolioAnalysisStorage';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -62,6 +66,7 @@ const analysisResponse = {
 
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -71,6 +76,69 @@ afterEach(() => {
 });
 
 describe('포트폴리오 분석 화면', () => {
+  it('비회원의 최초 분석 결과를 세션에 저장하고 이후 로그인을 안내한다', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(analysisResponse));
+    vi.stubGlobal('fetch', fetchMock);
+    const firstView = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
+
+    fireEvent.click(firstView.getByRole('button', { name: '무료로 1회 분석하기' }));
+
+    expect(await firstView.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
+    expect(
+      firstView.getByRole('link', { name: '로그인하고 다시 분석하기' }).getAttribute('href'),
+    ).toBe('/login?returnTo=%2F');
+    expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_STORAGE_KEY)).toContain(
+      analysisResponse.overallImpact,
+    );
+    expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY)).toBe('used');
+    expect(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
+    firstView.unmount();
+
+    const secondView = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
+    expect(await secondView.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('비회원 분석 실패 시 체험 완료로 기록하지 않고 재시도를 허용한다', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, 500))
+      .mockResolvedValueOnce(jsonResponse(analysisResponse));
+    vi.stubGlobal('fetch', fetchMock);
+    const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
+
+    fireEvent.click(view.getByRole('button', { name: '무료로 1회 분석하기' }));
+    expect(await view.findByRole('alert')).toBeTruthy();
+    expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY)).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    expect(await view.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('백엔드가 비회원 체험 소진을 반환하면 로그인 전환을 안내한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(
+          {
+            code: 'PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED',
+            message:
+              '비회원 포트폴리오 분석 체험을 이미 사용했습니다. 로그인 후 다시 이용해주세요.',
+          },
+          403,
+        ),
+      ),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
+
+    fireEvent.click(view.getByRole('button', { name: '무료로 1회 분석하기' }));
+
+    expect(await view.findByText('무료 분석 체험을 모두 사용했어요.')).toBeTruthy();
+    expect(view.getByRole('link', { name: '로그인하고 다시 분석하기' })).toBeTruthy();
+    expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY)).toBe('used');
+  });
+
   it('전체 보유 자산으로 분석하고 자산별 결과와 출처를 선택해 표시한다', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       jsonResponse(analysisResponse),

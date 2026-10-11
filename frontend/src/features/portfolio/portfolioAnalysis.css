@@ -104,7 +104,9 @@
 }
 
 .portfolio-analysis-button {
+  display: inline-flex;
   min-height: 40px;
+  align-items: center;
   flex: 0 0 auto;
   padding: 0 18px;
   border: 0;
@@ -114,6 +116,7 @@
   font: inherit;
   font-size: 14px;
   font-weight: 800;
+  text-decoration: none;
   cursor: pointer;
 }
 
