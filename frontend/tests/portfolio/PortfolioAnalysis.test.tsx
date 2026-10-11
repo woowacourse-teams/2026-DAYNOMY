@@ -172,9 +172,8 @@ describe('포트폴리오 분석 화면', () => {
     fireEvent.click(view.getByText('SK하이닉스').closest('button') as HTMLButtonElement);
     expect(view.getByRole('heading', { name: 'SK하이닉스' })).toBeTruthy();
     expect(view.getByText('단기 주가 변동성이 커질 수 있어요.')).toBeTruthy();
+    expect(view.getByText('현재 함께 볼 수 있는 관련 영상이 없어요.')).toBeTruthy();
 
-    const evidenceSummary = view.getByText('분석 출처 1개 보기');
-    fireEvent.click(evidenceSummary);
     const sourceLink = view.getByRole('link', { name: '메모리 시장 동향' });
     expect(sourceLink.getAttribute('href')).toBe('https://example.com/memory');
     expect(sourceLink.getAttribute('target')).toBe('_blank');
@@ -184,6 +183,34 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.getByRole('img', { name: '전체 포트폴리오, 긍정 영향' }).getAttribute('fill')).toBe(
       '#ef464d',
     );
+  });
+
+  it('자산별 분석 구분을 선택하고 관련 영상을 두 개씩 넘겨본다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(analysisResponse)),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} />);
+
+    fireEvent.click(view.getByRole('button', { name: '분석하기' }));
+    fireEvent.click((await view.findByText('삼성전자')).closest('button') as HTMLButtonElement);
+
+    expect(view.getByText('반도체 수요가 전년보다 증가했어요.')).toBeTruthy();
+    fireEvent.click(view.getByRole('tab', { name: '시장 의견' }));
+    expect(view.getByText('장기 수요를 긍정적으로 보는 의견이 있어요.')).toBeTruthy();
+
+    fireEvent.click(view.getByRole('tab', { name: '종합 분석' }));
+    expect(view.getByText('보유 비중이 높아 전체 영향이 클 수 있어요.')).toBeTruthy();
+    expect(view.getByText('수요가 감소하면 영향이 달라질 수 있어요.')).toBeTruthy();
+    expect(view.getByText('메모리 가격을 확인해야 해요.')).toBeTruthy();
+
+    expect(view.getByRole('link', { name: /반도체 시장 전망 1/ })).toBeTruthy();
+    expect(view.getByRole('link', { name: /반도체 시장 전망 2/ })).toBeTruthy();
+    expect(view.queryByRole('link', { name: /반도체 시장 전망 3/ })).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '다음 관련 영상 보기' }));
+    expect(view.getByRole('link', { name: /반도체 시장 전망 3/ })).toBeTruthy();
+    expect(view.queryByRole('link', { name: /반도체 시장 전망 1/ })).toBeNull();
   });
 
   it('가중 영향 점수의 산정 기준과 기여 점수를 안내한다', async () => {

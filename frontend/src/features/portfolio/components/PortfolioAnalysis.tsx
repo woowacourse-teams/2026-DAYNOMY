@@ -163,6 +163,29 @@ function ExternalLinkIcon() {
   );
 }
 
+function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={direction === 'right' ? 'is-right' : undefined}
+      viewBox="0 0 20 20"
+    >
+      <path d="m12.5 4.5-5 5.5 5 5.5" />
+    </svg>
+  );
+}
+
+function formatVideoDate(publishedAt: string) {
+  const date = new Date(publishedAt);
+  if (Number.isNaN(date.getTime())) return publishedAt;
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
 function PortfolioEmpty() {
   return (
     <div className="portfolio-analysis-state portfolio-analysis-empty">
@@ -480,6 +503,12 @@ function PortfolioImpactDetail({
   impact: PortfolioAssetImpactResponse;
   analyzedAssetCount: number;
 }) {
+  const [activeSection, setActiveSection] = useState<'fact' | 'opinion' | 'analysis'>('fact');
+  const [videoStartIndex, setVideoStartIndex] = useState(0);
+  const visibleVideos = impact.relatedVideos.slice(videoStartIndex, videoStartIndex + 2);
+  const canShowPreviousVideos = videoStartIndex > 0;
+  const canShowNextVideos = videoStartIndex + 2 < impact.relatedVideos.length;
+
   return (
     <article className={`portfolio-impact-detail ${impact.direction.toLowerCase()}`}>
       <div className="portfolio-detail-header">
@@ -496,39 +525,147 @@ function PortfolioImpactDetail({
         </div>
       </div>
 
-      <div className="portfolio-detail-copy">
-        <p>
-          <span>
-            {impact.issueSummary} 현재 보유 비중은 <strong>{`${impact.weight}%`}</strong>예요.
-          </span>{' '}
-          <span>{impact.expectedReaction}</span> <span>{impact.outlook}</span>{' '}
-          <span>{impact.reason}</span>
-        </p>
+      <p className="portfolio-impact-lead">{impact.comprehensiveAnalysis.summary}</p>
+
+      <div
+        className="portfolio-detail-tabs"
+        role="tablist"
+        aria-label={`${impact.assetName} 분석 구분`}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'fact'}
+          onClick={() => setActiveSection('fact')}
+        >
+          확인된 사실
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'opinion'}
+          onClick={() => setActiveSection('opinion')}
+        >
+          시장 의견
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'analysis'}
+          onClick={() => setActiveSection('analysis')}
+        >
+          종합 분석
+        </button>
       </div>
 
-      <details className="portfolio-evidence">
-        <summary>
-          <span className="portfolio-evidence-label is-closed">
-            {`분석 출처 ${impact.sources.length}개 보기`}
-          </span>
-          <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
-          <span className="portfolio-evidence-toggle-icon" aria-hidden="true" />
-        </summary>
-        {impact.sources.length > 0 ? (
-          <ul className="portfolio-evidence-sources">
-            {impact.sources.map((source) => (
-              <li key={source.url}>
-                <a href={source.url} target="_blank" rel="noopener noreferrer">
-                  {source.title}
-                  <ExternalLinkIcon />
+      <div className="portfolio-detail-tab-panel" role="tabpanel">
+        {activeSection === 'fact' ? (
+          <div className="portfolio-fact-panel">
+            <p>{impact.confirmedFact.summary}</p>
+            <small>{impact.confirmedFact.evidenceSentence}</small>
+            {impact.confirmedFact.sources.length > 0 ? (
+              <ul className="portfolio-evidence-sources">
+                {impact.confirmedFact.sources.map((source) => (
+                  <li key={source.url}>
+                    <a href={source.url} target="_blank" rel="noopener noreferrer">
+                      {source.title}
+                      <ExternalLinkIcon />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <small>직접 연결된 출처가 없어요.</small>
+            )}
+          </div>
+        ) : null}
+
+        {activeSection === 'opinion' ? (
+          <div className="portfolio-opinion-panel">
+            <p>{impact.marketOpinion.summary}</p>
+            <small>시장 의견은 참고 자료이며 영향 점수에는 반영되지 않아요.</small>
+          </div>
+        ) : null}
+
+        {activeSection === 'analysis' ? (
+          <div className="portfolio-comprehensive-panel">
+            <ol className="portfolio-reasoning-steps">
+              {impact.comprehensiveAnalysis.reasoningSteps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            <dl className="portfolio-analysis-points">
+              <div>
+                <dt>내 포트폴리오</dt>
+                <dd>{impact.comprehensiveAnalysis.portfolioImpact}</dd>
+              </div>
+              <div>
+                <dt>주의할 점</dt>
+                <dd>{impact.comprehensiveAnalysis.counterScenario}</dd>
+              </div>
+              <div>
+                <dt>다음 확인</dt>
+                <dd>{impact.comprehensiveAnalysis.nextIndicator}</dd>
+              </div>
+            </dl>
+          </div>
+        ) : null}
+      </div>
+
+      <section
+        className="portfolio-related-videos"
+        aria-labelledby={`related-videos-${impact.rank}`}
+      >
+        <div className="portfolio-related-videos-header">
+          <div>
+            <h4 id={`related-videos-${impact.rank}`}>함께 참고할 영상</h4>
+            <p>자산과 주요 이슈를 기준으로 찾았어요.</p>
+          </div>
+          {impact.relatedVideos.length > 2 ? (
+            <div className="portfolio-video-controls">
+              <button
+                type="button"
+                aria-label="이전 관련 영상 보기"
+                disabled={!canShowPreviousVideos}
+                onClick={() => setVideoStartIndex((current) => Math.max(0, current - 2))}
+              >
+                <ChevronIcon direction="left" />
+              </button>
+              <button
+                type="button"
+                aria-label="다음 관련 영상 보기"
+                disabled={!canShowNextVideos}
+                onClick={() => setVideoStartIndex((current) => current + 2)}
+              >
+                <ChevronIcon direction="right" />
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        {visibleVideos.length > 0 ? (
+          <ul className="portfolio-video-list">
+            {visibleVideos.map((video) => (
+              <li key={video.url}>
+                <a href={video.url} target="_blank" rel="noopener noreferrer">
+                  {video.thumbnailUrl ? (
+                    <img src={video.thumbnailUrl} alt="" loading="lazy" />
+                  ) : (
+                    <span className="portfolio-video-thumbnail-empty">썸네일 없음</span>
+                  )}
+                  <strong>{video.title}</strong>
+                  <span>{`${video.channelTitle} · ${formatVideoDate(video.publishedAt)}`}</span>
                 </a>
               </li>
             ))}
           </ul>
         ) : (
-          <p>직접 연결된 출처가 없어요.</p>
+          <p className="portfolio-video-empty">현재 함께 볼 수 있는 관련 영상이 없어요.</p>
         )}
-      </details>
+        <small className="portfolio-video-notice">
+          영상은 참고 자료이며 포트폴리오 영향 점수에는 반영되지 않아요.
+        </small>
+      </section>
     </article>
   );
 }
@@ -729,6 +866,7 @@ export function PortfolioAnalysis({ assets }: PortfolioAnalysisProps) {
 
             {selectedImpact ? (
               <PortfolioImpactDetail
+                key={selectedImpact.assetName}
                 impact={selectedImpact}
                 analyzedAssetCount={analysis.analyzedAssetCount}
               />
