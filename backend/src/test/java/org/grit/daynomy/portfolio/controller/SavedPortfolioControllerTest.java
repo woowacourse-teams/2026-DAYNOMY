@@ -2,6 +2,7 @@ package org.grit.daynomy.portfolio.controller;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -168,6 +169,20 @@ class SavedPortfolioControllerTest {
         .andExpect(jsonPath("$.totalRealizedProfitLoss").value(25000.00));
 
     then(savedPortfolioService).should().updateTransaction(3L, 7L, request);
+  }
+
+  @Test
+  void deleteTransactionUsesAuthenticatedMember() throws Exception {
+    given(savedPortfolioService.deleteTransaction(3L, 7L))
+        .willReturn(new PortfolioTransactionResponse(7L, null, BigDecimal.ZERO));
+
+    mockMvc
+        .perform(delete("/api/portfolio/transactions/7"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.transactionId").value(7))
+        .andExpect(jsonPath("$.totalRealizedProfitLoss").value(0));
+
+    then(savedPortfolioService).should().deleteTransaction(3L, 7L);
   }
 
   @Test
