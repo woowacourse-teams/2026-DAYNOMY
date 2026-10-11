@@ -464,7 +464,16 @@ class SharedPortfolioAcceptanceTest {
     Asset asset = asset();
     Portfolio original = originals.save(Portfolio.create(owner));
     originalHoldings.save(new PortfolioHolding(original, asset, 10, new BigDecimal("70000")));
-    prices.save(new StockDailyPrice(asset, LocalDate.now(), new BigDecimal("77000")));
+    LocalDate priceDate =
+        jdbc.queryForObject(
+            "SELECT MAX(base_date) FROM market_trading_days WHERE trading AND base_date <= ?",
+            LocalDate.class,
+            LocalDate.now(ZoneId.of("Asia/Seoul")));
+    jdbc.update(
+        "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
+        priceDate);
+    prices.save(new StockDailyPrice(asset, priceDate, new BigDecimal("77000")));
+    prices.save(new StockDailyPrice(asset, priceDate.plusDays(1), new BigDecimal("99000")));
     String request =
         """
         {"holdings":[{"assetId":%d,"quantity":10,"averagePurchasePrice":70000}],"overwriteExisting":false}
@@ -476,6 +485,7 @@ class SharedPortfolioAcceptanceTest {
         .then()
         .statusCode(200)
         .body("holdings[0].quantity", equalTo(10))
+        .body("holdings[0].baseDate", equalTo(priceDate.toString()))
         .body("totalReturnRate", equalTo(10.0f));
     client(owner)
         .body(request)

@@ -86,7 +86,11 @@ public class LeagueCalculationMetrics {
 
   public void profileSucceeded(Map<String, Integer> counts) {
     profiles.get("succeeded").incrementAndGet();
-    counts.forEach((reason, count) -> days.get(reason).addAndGet(count));
+    counts.forEach(
+        (reason, count) -> {
+          AtomicLong value = days.get(reason);
+          if (value != null) value.addAndGet(count);
+        });
   }
 
   public void profileFailed() {

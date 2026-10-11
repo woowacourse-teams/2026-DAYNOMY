@@ -536,14 +536,12 @@ public class LeagueService {
   }
 
   private DetailSnapshot detailSnapshot(Long portfolioId, LocalDate cutoff) {
-    List<LocalDate> dates =
+    LocalDate asOfDate =
         tradingDayRepository
-            .findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(cutoff)
-            .stream()
-            .filter(day -> day.getCollectedAt() != null)
+            .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
+                cutoff)
             .map(MarketTradingDay::getBaseDate)
-            .toList();
-    LocalDate asOfDate = dates.isEmpty() ? null : dates.getLast();
+            .orElse(null);
     Map<Long, BigDecimal> contributions =
         asOfDate == null ? null : weeklyContributions(portfolioId, asOfDate);
     List<SharedHolding> holdings = holdingRepository.findAllByPortfolioIdOrderById(portfolioId);

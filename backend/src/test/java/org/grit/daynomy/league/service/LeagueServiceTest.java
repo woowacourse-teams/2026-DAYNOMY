@@ -501,9 +501,10 @@ class LeagueServiceTest {
     var previousDay = tradingDay(previousDate);
     var currentDay = tradingDay(currentDate);
     given(
-            tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
-                any(LocalDate.class)))
-        .willReturn(List.of(previousDay, currentDay));
+            tradingDayRepository
+                .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
+                    any(LocalDate.class)))
+        .willReturn(Optional.of(currentDay));
     calendar(previousDate, List.of(previousDate, currentDate));
     var baseline = dailyReturn(portfolio, previousDate, "10");
     var currentReturn = dailyReturn(portfolio, currentDate, "-10");

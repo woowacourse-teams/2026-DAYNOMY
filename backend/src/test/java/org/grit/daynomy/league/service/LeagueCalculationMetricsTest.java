@@ -9,6 +9,36 @@ import org.junit.jupiter.api.Test;
 
 class LeagueCalculationMetricsTest {
   @Test
+  void ignoresUnknownReasonsWithoutFailingCommittedProfileMetrics() {
+    var registry = new SimpleMeterRegistry();
+    var metrics = new LeagueCalculationMetrics(registry);
+    metrics.resetProfiles(1);
+
+    metrics.profileSucceeded(Map.of("CALCULATED", 2, "UNKNOWN_REASON", 1));
+
+    assertThat(
+            registry
+                .get("daynomy.league.calculation.latest.profiles")
+                .tag("outcome", "succeeded")
+                .gauge()
+                .value())
+        .isEqualTo(1);
+    assertThat(
+            registry
+                .get("daynomy.league.calculation.latest.days")
+                .tag("reason", "CALCULATED")
+                .gauge()
+                .value())
+        .isEqualTo(2);
+    assertThat(
+            registry
+                .find("daynomy.league.calculation.latest.days")
+                .tag("reason", "UNKNOWN_REASON")
+                .gauge())
+        .isNull();
+  }
+
+  @Test
   void countsCommittedProfilesKeepsFailureHistoryAndResetsLatestSnapshots() {
     var registry = new SimpleMeterRegistry();
     var metrics = new LeagueCalculationMetrics(registry);

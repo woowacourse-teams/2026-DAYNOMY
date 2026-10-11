@@ -174,7 +174,7 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 1. 생성 SQL의 대상 DB·날짜·거래 여부·공식 출처를 검토하고 운영 적용 승인을 받는다. 도구는 DB에 연결하거나 SQL을 실행하지 않는다.
 2. 승인된 SQL을 적용한다. 거래 여부가 같으면 `collected_at`을 유지하고, 바뀌면 초기화해 종가 수집을 다시 확인한다. 가격·보유·성과·확정 이력은 삭제하지 않는다. 이미 적용된 Flyway 파일을 수정하거나 `repair`하지 않는다.
 3. 기존 관리자 `POST /api/admin/stocks/prices/backfill?from=YYYY-MM-DD&to=YYYY-MM-DD`로 필요한 종가와 직전 거래일을 수집한다. 한 요청은 최대 31일이다.
-4. 수집 완료 이벤트가 일간 재집계와 주간 확정을 실행한다. 직접 `POST /api/admin/league/recalculate`를 사용한 경우 이 API는 일간 계산만 수행하므로 다음 예약 집계의 주간 확정까지 확인한다.
+4. 수집 완료 이벤트가 일간 재집계와 주간 확정을 실행한다. 직접 `POST /api/admin/league/recalculate`를 호출해도 일간 계산과 주간 확정을 함께 수행한다.
 5. 해당 주 `collectionStatus`, `confirmed`, `asOfDate`, `calculationVersion`과 [리그 메트릭·경보](../monitoring/METRICS.md)를 확인한다. 마지막 거래일이 바뀐 재확정은 `CALENDAR_RECALCULATION`, 같은 기준일의 계산 변경은 `PRICE_RECALCULATION`으로 새 버전을 남긴다.
 
 ### 관심 투자자 순위 비교

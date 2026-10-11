@@ -24,6 +24,10 @@ public interface MarketTradingDayRepository extends JpaRepository<MarketTradingD
   Optional<MarketTradingDay> findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
       LocalDate date);
 
+  Optional<MarketTradingDay>
+      findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
+          LocalDate date);
+
   List<MarketTradingDay> findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
       LocalDate date);
 }
