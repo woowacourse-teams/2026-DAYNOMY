@@ -9,7 +9,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
+import org.grit.daynomy.external.youtube.YouTubeClient;
+import org.grit.daynomy.external.youtube.YouTubeVideoCandidate;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
@@ -31,6 +35,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class PortfolioAnalysisServiceTest {
 
   @Mock private PortfolioAnalysisAiClient portfolioAnalysisAiClient;
+
+  @Mock private YouTubeClient youtubeClient;
 
   @InjectMocks private PortfolioAnalysisService portfolioAnalysisService;
 
@@ -65,6 +71,8 @@ class PortfolioAnalysisServiceTest {
                     1)),
             List.of(new PortfolioAnalysisResult.Source("한국거래소", "https://example.com/news")));
     given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
+    given(youtubeClient.search("SK하이닉스 반도체 수요와 비용이 함께 증가했어요."))
+        .willReturn(IntStream.rangeClosed(1, 6).mapToObj(this::videoCandidate).toList());
 
     PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request);
 
@@ -88,6 +96,8 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.impacts().get(0).comprehensiveAnalysis().reasoningSteps())
         .containsExactly("메모리 사업", "수요 증가", "실적 개선 가능");
     assertThat(response.impacts().get(0).comprehensiveAnalysis().counterScenario()).contains("비용");
+    assertThat(response.impacts().get(0).relatedVideos()).hasSize(5);
+    assertThat(response.impacts().get(0).relatedVideos().getFirst().title()).isEqualTo("관련 영상 1");
     assertThat(response.impacts().get(0).sources())
         .containsExactly(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"));
     assertThat(response.impacts().get(0).rank()).isEqualTo(1);
@@ -95,6 +105,29 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.sources())
         .containsExactly(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"));
     verify(portfolioAnalysisAiClient).analyze(targets);
+    verify(youtubeClient).search("SK하이닉스 반도체 수요와 비용이 함께 증가했어요.");
+  }
+
+  @Test
+  @DisplayName("관련 영상 조회가 실패해도 사실 기반 분석 결과를 반환한다")
+  void analyzeReturnsResultWhenRelatedVideoSearchFails() {
+    PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
+    List<PortfolioAnalysisTarget> targets =
+        List.of(new PortfolioAnalysisTarget("삼성전자", new BigDecimal("100")));
+    given(portfolioAnalysisAiClient.analyze(targets))
+        .willReturn(
+            new PortfolioAnalysisResult(
+                "전체 영향",
+                List.of(impact("삼성전자", ImpactLevel.HIGH, 1)),
+                List.of(new PortfolioAnalysisResult.Source("출처", "https://example.com"))));
+    given(youtubeClient.search("삼성전자 관련 이슈 요약"))
+        .willThrow(new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED));
+
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request);
+
+    assertThat(response.impacts()).hasSize(1);
+    assertThat(response.impacts().getFirst().relatedVideos()).isEmpty();
+    assertThat(response.impacts().getFirst().confirmedFact().summary()).isEqualTo("관련 이슈 요약");
   }
 
   @Test
@@ -209,5 +242,14 @@ class PortfolioAnalysisServiceTest {
         "다음 확인 지표",
         List.of(new PortfolioAnalysisResult.Source("출처", "https://example.com")),
         sortOrder);
+  }
+
+  private YouTubeVideoCandidate videoCandidate(int index) {
+    return new YouTubeVideoCandidate(
+        "관련 영상 " + index,
+        "https://www.youtube.com/watch?v=video" + index,
+        "경제 채널",
+        "2026-10-11T00:00:00Z",
+        "https://example.com/thumbnail" + index + ".jpg");
   }
 }

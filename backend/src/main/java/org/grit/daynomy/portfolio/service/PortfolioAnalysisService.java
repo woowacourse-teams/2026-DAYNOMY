@@ -9,7 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
@@ -19,14 +21,19 @@ import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioRelatedVideoResponse;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class PortfolioAnalysisService {
 
+  private static final int RELATED_VIDEO_LIMIT = 5;
+
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
+  private final YouTubeClient youtubeClient;
 
   public PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
     validateDistinctAssets(request.assets());
@@ -45,7 +52,9 @@ public class PortfolioAnalysisService {
             .map(
                 impact ->
                     PortfolioAssetImpactResponse.of(
-                        impact, weightByAssetName.get(impact.assetName())))
+                        impact,
+                        weightByAssetName.get(impact.assetName()),
+                        findRelatedVideos(impact)))
             .toList();
     List<PortfolioAnalysisSourceResponse> sources =
         result.sources().stream().map(PortfolioAnalysisSourceResponse::from).toList();
@@ -106,5 +115,19 @@ public class PortfolioAnalysisService {
             portfolioAsset ->
                 new PortfolioAnalysisTarget(portfolioAsset.assetName(), portfolioAsset.weight()))
         .toList();
+  }
+
+  private List<PortfolioRelatedVideoResponse> findRelatedVideos(
+      PortfolioAnalysisResult.AssetImpactResult impact) {
+    String keyword = impact.assetName() + " " + impact.issueSummary();
+    try {
+      return youtubeClient.search(keyword).stream()
+          .limit(RELATED_VIDEO_LIMIT)
+          .map(PortfolioRelatedVideoResponse::from)
+          .toList();
+    } catch (BusinessException exception) {
+      log.warn("Portfolio related video search failed: {}", exception.errorCode());
+      return List.of();
+    }
   }
 }

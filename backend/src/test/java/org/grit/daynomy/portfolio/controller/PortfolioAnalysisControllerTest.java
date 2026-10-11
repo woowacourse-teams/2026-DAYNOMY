@@ -25,6 +25,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioComprehensiveAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioConfirmedFactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioMarketOpinionResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioRelatedVideoResponse;
 import org.grit.daynomy.portfolio.service.PortfolioAnalysisService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,6 +84,13 @@ class PortfolioAnalysisControllerTest {
                 "보유 비중이 커 전체 영향이 클 수 있어요.",
                 "수요가 감소하면 영향이 달라질 수 있어요.",
                 "메모리 가격을 확인해야 해요."),
+            List.of(
+                new PortfolioRelatedVideoResponse(
+                    "삼성전자 전망",
+                    "https://www.youtube.com/watch?v=abc123",
+                    "경제 채널",
+                    "2026-10-11T00:00:00Z",
+                    "https://example.com/thumbnail.jpg")),
             1);
     when(portfolioAnalysisService.analyze(request))
         .thenReturn(
@@ -132,6 +140,10 @@ class PortfolioAnalysisControllerTest {
         .andExpect(
             jsonPath("$.impacts[0].comprehensiveAnalysis.counterScenario")
                 .value("수요가 감소하면 영향이 달라질 수 있어요."))
+        .andExpect(jsonPath("$.impacts[0].relatedVideos[0].title").value("삼성전자 전망"))
+        .andExpect(
+            jsonPath("$.impacts[0].relatedVideos[0].url")
+                .value("https://www.youtube.com/watch?v=abc123"))
         .andExpect(jsonPath("$.impacts[0].rank").value(1))
         .andExpect(jsonPath("$.sources[0].title").value("한국거래소"))
         .andExpect(jsonPath("$.sources[0].url").value("https://example.com/news"));

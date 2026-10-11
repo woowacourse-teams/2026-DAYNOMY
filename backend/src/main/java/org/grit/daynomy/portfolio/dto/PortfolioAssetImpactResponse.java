@@ -23,14 +23,19 @@ public record PortfolioAssetImpactResponse(
     @Schema(description = "확인된 사실과 구분되는 시장 의견") PortfolioMarketOpinionResponse marketOpinion,
     @Schema(description = "사실과 보유 비중을 바탕으로 한 종합 분석")
         PortfolioComprehensiveAnalysisResponse comprehensiveAnalysis,
+    @Schema(description = "자산과 주요 이슈로 검색한 관련 YouTube 영상. 최대 5개")
+        List<PortfolioRelatedVideoResponse> relatedVideos,
     @Schema(description = "자산 영향도 순위", example = "1") int rank) {
 
   public PortfolioAssetImpactResponse {
     sources = List.copyOf(sources);
+    relatedVideos = List.copyOf(relatedVideos);
   }
 
   public static PortfolioAssetImpactResponse of(
-      PortfolioAnalysisResult.AssetImpactResult impact, BigDecimal weight) {
+      PortfolioAnalysisResult.AssetImpactResult impact,
+      BigDecimal weight,
+      List<PortfolioRelatedVideoResponse> relatedVideos) {
     return new PortfolioAssetImpactResponse(
         impact.assetName(),
         weight,
@@ -53,6 +58,7 @@ public record PortfolioAssetImpactResponse(
             impact.portfolioImpact(),
             impact.counterScenario(),
             impact.nextIndicator()),
+        relatedVideos,
         impact.sortOrder());
   }
 }
