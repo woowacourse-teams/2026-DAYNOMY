@@ -23,6 +23,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
@@ -163,6 +164,56 @@ class SavedPortfolioServiceTest {
     assertThat(historyCaptor.getValue().getTransactionQuantity()).isEqualTo(2L);
     assertThat(historyCaptor.getValue().getFee()).isEqualByComparingTo("100");
     assertThat(historyCaptor.getValue().getTax()).isEqualByComparingTo("200");
+  }
+
+  @Test
+  void updateTransactionRecalculatesHolding() {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    Asset asset = asset();
+    PortfolioHolding holding = mock(PortfolioHolding.class);
+    PortfolioHoldingHistory history =
+        new PortfolioHoldingHistory(
+            portfolio,
+            asset,
+            PortfolioHoldingChangeType.BUY,
+            0L,
+            BigDecimal.ZERO,
+            LocalDate.of(2026, 9, 30),
+            2L,
+            new BigDecimal("70000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(history));
+    given(historyRepository.saveAndFlush(history)).willReturn(history);
+    given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
+        .willReturn(List.of(history));
+    given(ledgerCalculator.replay(List.of(history)))
+        .willReturn(
+            new PortfolioLedgerCalculator.LedgerResult(
+                Map.of(
+                    2L,
+                    new PortfolioLedgerCalculator.Position(asset, 3L, new BigDecimal("81000.00"))),
+                BigDecimal.ZERO));
+    given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
+    given(holding.getAsset()).willReturn(asset);
+    given(holding.getQuantity()).willReturn(3L);
+    given(holding.getAveragePurchasePrice()).willReturn(new BigDecimal("81000.00"));
+    var request =
+        new PortfolioTransactionUpdateRequest(
+            LocalDate.of(2026, 10, 1),
+            3L,
+            new BigDecimal("81000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+
+    service.updateTransaction(1L, 7L, request);
+
+    assertThat(history.getEffectiveDate()).isEqualTo(LocalDate.of(2026, 10, 1));
+    assertThat(history.getTransactionQuantity()).isEqualTo(3L);
+    assertThat(history.getUnitPrice()).isEqualByComparingTo("81000");
+    then(holding).should().change(3L, new BigDecimal("81000.00"));
   }
 
   @Test
