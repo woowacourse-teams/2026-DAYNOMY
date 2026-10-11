@@ -217,6 +217,49 @@ class SavedPortfolioServiceTest {
   }
 
   @Test
+  void deleteTransactionRecalculatesHolding() {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    Asset asset = asset();
+    PortfolioHolding holding = mock(PortfolioHolding.class);
+    PortfolioHoldingHistory history =
+        new PortfolioHoldingHistory(
+            portfolio,
+            asset,
+            PortfolioHoldingChangeType.SELL,
+            5L,
+            new BigDecimal("70000"),
+            LocalDate.of(2026, 9, 30),
+            2L,
+            new BigDecimal("80000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(history));
+    given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
+        .willReturn(List.of());
+    given(ledgerCalculator.replay(List.of()))
+        .willReturn(
+            new PortfolioLedgerCalculator.LedgerResult(
+                Map.of(
+                    2L,
+                    new PortfolioLedgerCalculator.Position(asset, 5L, new BigDecimal("70000.00"))),
+                BigDecimal.ZERO));
+    given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
+    given(holding.getAsset()).willReturn(asset);
+    given(holding.getQuantity()).willReturn(5L);
+    given(holding.getAveragePurchasePrice()).willReturn(new BigDecimal("70000.00"));
+
+    var response = service.deleteTransaction(1L, 7L);
+
+    then(historyRepository).should().delete(history);
+    then(historyRepository).should().flush();
+    then(holding).should().change(5L, new BigDecimal("70000.00"));
+    assertThat(response.transactionId()).isEqualTo(7L);
+    assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("0");
+  }
+
+  @Test
   void historiesUsesExclusiveNextDayBoundary() {
     Portfolio portfolio = mock(Portfolio.class);
     given(portfolio.getId()).willReturn(10L);
