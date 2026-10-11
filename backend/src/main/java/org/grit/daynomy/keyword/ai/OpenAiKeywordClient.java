@@ -25,18 +25,24 @@ import org.springframework.web.client.RestClientException;
 public class OpenAiKeywordClient implements KeywordAiClient {
 
   private static final int MIN_KEYWORD_COUNT = 3;
+  private static final int MIN_KEYWORD_LENGTH = 2;
+  private static final int MAX_KEYWORD_LENGTH = 5;
 
   private static final String KEYWORD_EXTRACTION_PROMPT =
       """
-      뉴스 본문에서 투자자가 이해해야 할 핵심 키워드를 3개에서 5개 추출하세요.
-      keyword는 뉴스 본문에 연속으로 존재하는 핵심 명사구를 글자 그대로 복사하세요.
+      뉴스 본문에서 투자자가 이슈를 이해하는 데 필요한 핵심 키워드를 3개에서 5개 추출하세요.
+      keyword는 공백과 문장부호를 포함해 2글자 이상 5글자 이하로 작성하세요.
+      keyword는 뉴스 본문에 연속으로 존재하는 표현을 글자 그대로 복사하세요.
       keyword를 요약·변형·조합하거나, 단어·공백·문장부호·괄호 설명을 추가·삭제하지 마세요.
+      단순 수치, 조사까지 포함한 문장 조각, 다른 기사에서 재사용하기 어려운 긴 표현은 선택하지 마세요.
       동일한 keyword를 중복해서 반환하지 마세요.
-      각 키워드를 이해하는 데 필요한 서로 다른 분석 포인트를 정확히 3개 작성하세요.
-      각 포인트는 뉴스 본문 맥락에서 1문장으로 작성하세요.
+      definition은 키워드의 일반적인 뜻을 처음 접하는 사용자도 이해할 수 있게 1문장으로 작성하세요.
+      context는 해당 키워드가 이 기사에서 갖는 의미를 본문에 근거해 1문장으로 작성하세요.
+      watchPoint는 키워드를 해석할 때 주의할 점이나 이후 확인할 사항을 1문장으로 작성하세요.
+      definition, context, watchPoint가 같은 내용을 반복하지 않게 작성하세요.
       각 키워드는 다음 기준에 따라 하나의 카테고리로 분류하세요.
       %s
-      본문에 없는 내용을 추론해 만들지 마세요.
+      definition의 일반적인 용어 설명을 제외하고 본문에 없는 사실을 만들어 내지 마세요.
       """
           .formatted(KeywordCategory.DEFINITION);
 
@@ -160,15 +166,18 @@ public class OpenAiKeywordClient implements KeywordAiClient {
             KeywordCategory.DEFINITION,
             "enum",
             enumNames(KeywordCategory.values())));
-    keywordProperties.put("keyword", Map.of("type", "string"));
     keywordProperties.put(
-        "points",
-        Map.of("type", "array", "minItems", 3, "maxItems", 3, "items", Map.of("type", "string")));
+        "keyword",
+        Map.of("type", "string", "minLength", MIN_KEYWORD_LENGTH, "maxLength", MAX_KEYWORD_LENGTH));
+    keywordProperties.put("definition", Map.of("type", "string"));
+    keywordProperties.put("context", Map.of("type", "string"));
+    keywordProperties.put("watchPoint", Map.of("type", "string"));
 
     Map<String, Object> keywordItem = new LinkedHashMap<>();
     keywordItem.put("type", "object");
     keywordItem.put("additionalProperties", false);
-    keywordItem.put("required", List.of("category", "keyword", "points"));
+    keywordItem.put(
+        "required", List.of("category", "keyword", "definition", "context", "watchPoint"));
     keywordItem.put("properties", keywordProperties);
 
     Map<String, Object> properties = new LinkedHashMap<>();
@@ -209,6 +218,7 @@ public class OpenAiKeywordClient implements KeywordAiClient {
     List<NewsKeyword> validKeywords =
         keywords.stream()
             .filter(keyword -> !keyword.getKeyword().isBlank())
+            .filter(keyword -> isValidLength(keyword.getKeyword()))
             .filter(keyword -> newsContent.contains(keyword.getKeyword()))
             .filter(keyword -> distinctKeywords.add(keyword.getKeyword()))
             .toList();
@@ -221,18 +231,18 @@ public class OpenAiKeywordClient implements KeywordAiClient {
     return validKeywords;
   }
 
-  private NewsKeyword parseKeyword(JsonNode keywordNode) {
-    JsonNode pointsNode = keywordNode.path("points");
-    if (!pointsNode.isArray() || pointsNode.size() != 3) {
-      throw new IllegalStateException("OpenAI keyword response must contain exactly 3 points.");
-    }
+  private boolean isValidLength(String keyword) {
+    int length = keyword.codePointCount(0, keyword.length());
+    return length >= MIN_KEYWORD_LENGTH && length <= MAX_KEYWORD_LENGTH;
+  }
 
+  private NewsKeyword parseKeyword(JsonNode keywordNode) {
     return new NewsKeyword(
         KeywordCategory.valueOf(keywordNode.path("category").asText()),
         keywordNode.path("keyword").asText().trim(),
-        pointsNode.get(0).asText(),
-        pointsNode.get(1).asText(),
-        pointsNode.get(2).asText());
+        keywordNode.path("definition").asText(),
+        keywordNode.path("context").asText(),
+        keywordNode.path("watchPoint").asText());
   }
 
   private String extractOutputText(String response) {
