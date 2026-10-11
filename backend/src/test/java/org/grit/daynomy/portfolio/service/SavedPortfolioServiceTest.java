@@ -1,6 +1,7 @@
 package org.grit.daynomy.portfolio.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -15,6 +16,7 @@ import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.portfolio.domain.Portfolio;
@@ -26,6 +28,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
+import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
@@ -220,6 +223,61 @@ class SavedPortfolioServiceTest {
   }
 
   @Test
+  void updateTransactionRejectsTransactionFromAnotherPortfolio() {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.empty());
+    var request = transactionUpdateRequest(3L);
+
+    assertThatThrownBy(() -> service.updateTransaction(1L, 7L, request))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(PortfolioErrorCode.PORTFOLIO_TRANSACTION_NOT_FOUND);
+  }
+
+  @Test
+  void updateTransactionRejectsOpeningBalanceHistory() {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    PortfolioHoldingHistory openingBalance =
+        new PortfolioHoldingHistory(
+            portfolio,
+            mock(Asset.class),
+            PortfolioHoldingChangeType.OPENING_BALANCE,
+            3L,
+            new BigDecimal("70000"));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(historyRepository.findByIdAndPortfolioId(7L, 10L))
+        .willReturn(Optional.of(openingBalance));
+
+    assertThatThrownBy(() -> service.updateTransaction(1L, 7L, transactionUpdateRequest(3L)))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(PortfolioErrorCode.PORTFOLIO_TRANSACTION_NOT_FOUND);
+  }
+
+  @Test
+  void updateTransactionRejectsLedgerThatWouldOversell() {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    PortfolioHoldingHistory history = transactionHistory(portfolio, PortfolioHoldingChangeType.BUY);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(history));
+    given(historyRepository.saveAndFlush(history)).willReturn(history);
+    given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
+        .willReturn(List.of(history));
+    given(ledgerCalculator.replay(List.of(history)))
+        .willThrow(new BusinessException(PortfolioErrorCode.INSUFFICIENT_PORTFOLIO_QUANTITY));
+
+    assertThatThrownBy(() -> service.updateTransaction(1L, 7L, transactionUpdateRequest(1L)))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(PortfolioErrorCode.INSUFFICIENT_PORTFOLIO_QUANTITY);
+    then(snapshotTransactionService).shouldHaveNoInteractions();
+  }
+
+  @Test
   void deleteTransactionRecalculatesHolding() {
     Portfolio portfolio = mock(Portfolio.class);
     given(portfolio.getId()).willReturn(10L);
@@ -264,6 +322,25 @@ class SavedPortfolioServiceTest {
   }
 
   @Test
+  void deleteTransactionRejectsLedgerThatWouldOversell() {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    PortfolioHoldingHistory buy = transactionHistory(portfolio, PortfolioHoldingChangeType.BUY);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(buy));
+    given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
+        .willReturn(List.of());
+    given(ledgerCalculator.replay(List.of()))
+        .willThrow(new BusinessException(PortfolioErrorCode.INSUFFICIENT_PORTFOLIO_QUANTITY));
+
+    assertThatThrownBy(() -> service.deleteTransaction(1L, 7L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(PortfolioErrorCode.INSUFFICIENT_PORTFOLIO_QUANTITY);
+    then(snapshotTransactionService).shouldHaveNoInteractions();
+  }
+
+  @Test
   void historiesUsesExclusiveNextDayBoundary() {
     Portfolio portfolio = mock(Portfolio.class);
     given(portfolio.getId()).willReturn(10L);
@@ -286,5 +363,29 @@ class SavedPortfolioServiceTest {
     given(asset.getCategory()).willReturn(AssetCategory.STOCK);
     given(asset.getMarket()).willReturn(StockMarket.KOSPI);
     return asset;
+  }
+
+  private PortfolioTransactionUpdateRequest transactionUpdateRequest(long quantity) {
+    return new PortfolioTransactionUpdateRequest(
+        LocalDate.of(2026, 10, 1),
+        quantity,
+        new BigDecimal("81000"),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO);
+  }
+
+  private PortfolioHoldingHistory transactionHistory(
+      Portfolio portfolio, PortfolioHoldingChangeType changeType) {
+    return new PortfolioHoldingHistory(
+        portfolio,
+        mock(Asset.class),
+        changeType,
+        0L,
+        BigDecimal.ZERO,
+        LocalDate.of(2026, 9, 30),
+        2L,
+        new BigDecimal("70000"),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO);
   }
 }
