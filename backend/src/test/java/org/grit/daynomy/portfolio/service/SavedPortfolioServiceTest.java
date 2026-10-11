@@ -8,6 +8,8 @@ import static org.mockito.Mockito.mock;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -19,6 +21,8 @@ import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
+import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
@@ -39,6 +43,7 @@ class SavedPortfolioServiceTest {
   @Mock private PortfolioHoldingHistoryRepository historyRepository;
   @Mock private MemberRepository memberRepository;
   @Mock private AssetRepository assetRepository;
+  @Mock private PortfolioLedgerCalculator ledgerCalculator;
   @InjectMocks private SavedPortfolioService service;
 
   @Test
@@ -64,7 +69,7 @@ class SavedPortfolioServiceTest {
         ArgumentCaptor.forClass(PortfolioHoldingHistory.class);
     then(historyRepository).should().save(historyCaptor.capture());
     assertThat(historyCaptor.getValue().getChangeType())
-        .isEqualTo(PortfolioHoldingChangeType.ADDED);
+        .isEqualTo(PortfolioHoldingChangeType.OPENING_BALANCE);
   }
 
   @Test
@@ -85,7 +90,7 @@ class SavedPortfolioServiceTest {
         ArgumentCaptor.forClass(PortfolioHoldingHistory.class);
     then(historyRepository).should().save(historyCaptor.capture());
     assertThat(historyCaptor.getValue().getChangeType())
-        .isEqualTo(PortfolioHoldingChangeType.UPDATED);
+        .isEqualTo(PortfolioHoldingChangeType.ADJUSTED);
   }
 
   @Test
@@ -111,6 +116,54 @@ class SavedPortfolioServiceTest {
   }
 
   @Test
+  void sellTransactionUpdatesHoldingAndReturnsRealizedProfitLoss() {
+    Member member = mock(Member.class);
+    given(member.getId()).willReturn(1L);
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    Asset asset = asset();
+    PortfolioHolding holding = mock(PortfolioHolding.class);
+    given(holding.getAsset()).willReturn(asset);
+    given(holding.getQuantity()).willReturn(10L);
+    given(holding.getAveragePurchasePrice()).willReturn(new BigDecimal("70000"));
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(assetRepository.findById(2L)).willReturn(Optional.of(asset));
+    given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
+    given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
+        .willReturn(List.of());
+    given(ledgerCalculator.replay(List.of()))
+        .willReturn(
+            new PortfolioLedgerCalculator.LedgerResult(
+                Map.of(
+                    2L,
+                    new PortfolioLedgerCalculator.Position(asset, 8L, new BigDecimal("70000.00"))),
+                new BigDecimal("19700.00")));
+    var request =
+        new PortfolioTransactionRequest(
+            2L,
+            PortfolioTransactionType.SELL,
+            LocalDate.of(2026, 9, 30),
+            2L,
+            new BigDecimal("80000"),
+            new BigDecimal("100"),
+            new BigDecimal("200"));
+
+    var response = service.transact(1L, request);
+
+    then(holding).should().change(8L, new BigDecimal("70000.00"));
+    assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("19700.00");
+    ArgumentCaptor<PortfolioHoldingHistory> historyCaptor =
+        ArgumentCaptor.forClass(PortfolioHoldingHistory.class);
+    then(historyRepository).should().saveAndFlush(historyCaptor.capture());
+    assertThat(historyCaptor.getValue().getChangeType()).isEqualTo(PortfolioHoldingChangeType.SELL);
+    assertThat(historyCaptor.getValue().getEffectiveDate()).isEqualTo(LocalDate.of(2026, 9, 30));
+    assertThat(historyCaptor.getValue().getTransactionQuantity()).isEqualTo(2L);
+    assertThat(historyCaptor.getValue().getFee()).isEqualByComparingTo("100");
+    assertThat(historyCaptor.getValue().getTax()).isEqualByComparingTo("200");
+  }
+
+  @Test
   void historiesUsesExclusiveNextDayBoundary() {
     Portfolio portfolio = mock(Portfolio.class);
     given(portfolio.getId()).willReturn(10L);
@@ -121,10 +174,8 @@ class SavedPortfolioServiceTest {
 
     then(historyRepository)
         .should()
-        .findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
-            10L,
-            date.atStartOfDay(java.time.ZoneId.of("Asia/Seoul")).toInstant(),
-            date.plusDays(1).atStartOfDay(java.time.ZoneId.of("Asia/Seoul")).toInstant());
+        .findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDesc(
+            10L, date, date);
   }
 
   private Asset asset() {
