@@ -19,7 +19,7 @@ import { PortfolioPage } from './features/portfolio/PortfolioPage';
 import { LeaguePage } from './features/league/LeaguePage';
 import { InvestorProfilePage } from './features/league/InvestorProfilePage';
 import { PublicationSettingsPage } from './features/league/PublicationSettingsPage';
-import { InvestmentRecordsPage } from './features/league/InvestmentRecordsPage';
+import { SharedPortfolioPage } from './features/league/SharedPortfolioPage';
 import { FollowingPage } from './features/league/FollowingPage';
 import { MyPage } from './features/account/MyPage';
 import { trackPageView } from './analytics';
@@ -212,7 +212,7 @@ export default function App() {
                 path="/league/portfolio"
                 element={
                   <AuthenticatedRoute>
-                    <InvestmentRecordsPage />
+                    <SharedPortfolioPage />
                   </AuthenticatedRoute>
                 }
               />

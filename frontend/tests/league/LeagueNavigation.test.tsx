@@ -33,3 +33,12 @@ it('상세 화면에는 리그로 돌아가는 링크만 표시하고 첫 화면
   );
   expect(news.queryByRole('navigation')).toBeNull();
 });
+
+it('리그 설정에서 투자 리그로 바로 돌아간다', () => {
+  const view = render(
+    <MemoryRouter initialEntries={['/portfolio/publication']}>
+      <LeagueNavigation />
+    </MemoryRouter>,
+  );
+  expect(view.getByRole('link', { name: '← 투자 리그' }).getAttribute('href')).toBe('/league');
+});

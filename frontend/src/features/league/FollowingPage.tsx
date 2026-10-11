@@ -35,7 +35,6 @@ export function FollowingPage() {
       <header className="league-page-heading">
         <div>
           <h1>관심 투자자</h1>
-          <p>팔로우한 투자자의 이번 주 성과와 새 복기예요.</p>
         </div>
         <Link to="/league">투자자 찾기</Link>
       </header>
@@ -51,22 +50,34 @@ export function FollowingPage() {
       {!loading && !error && investors.length === 0 ? (
         <section className="league-empty">
           <strong>팔로우한 투자자가 없습니다</strong>
-          <p>리그에서 투자 과정을 계속 보고 싶은 사람을 팔로우해 보세요.</p>
           <Link to="/league">투자 리그 둘러보기</Link>
         </section>
       ) : null}
       <div className="league-follow-grid">
         {investors.map((investor) => (
-          <Link key={investor.publicId} to={`/league/${investor.publicId}`}>
+          <Link
+            key={investor.publicId}
+            to={`/league/${investor.publicId}`}
+            state={{ source: 'following' }}
+          >
             <span>{investor.rank ? `${investor.rank}위` : '집계 전'}</span>
-            <strong>{investor.displayName}</strong>
+            <div className="league-follow-person">
+              <strong>{investor.displayName}</strong>
+              <small>
+                {investor.rankChange == null
+                  ? '비교 기록 없음'
+                  : investor.rankChange === 0
+                    ? '지난주와 동일'
+                    : `지난주 대비 ${Math.abs(investor.rankChange)}위 ${investor.rankChange > 0 ? '상승' : '하락'}`}
+              </small>
+            </div>
             <p>
-              이번 주{' '}
+              이번 주 수익률{' '}
               {investor.weeklyReturnRate === null
                 ? '기록 없음'
                 : formatRate(investor.weeklyReturnRate)}
             </p>
-            <small>새 복기 {investor.newReviewCount}개</small>
+            <small>이번 주 복기 {investor.newReviewCount}개</small>
           </Link>
         ))}
       </div>

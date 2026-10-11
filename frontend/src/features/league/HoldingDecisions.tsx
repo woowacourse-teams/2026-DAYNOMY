@@ -1,21 +1,35 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createReview, getTransactions, recordDecision } from './api';
-import { holdingPeriodLabels } from './labels';
+import { holdingPeriodLabels, transactionLabels } from './labels';
 import type { SharedHolding } from './sharedPortfolioApi';
 import type { HoldingPeriod, InvestmentDecisionInput, InvestmentTransaction } from './types';
 
 const blankDecision = (): InvestmentDecisionInput => ({
   reason: '',
-  expectedHoldingPeriod: 'OVER_SIX_MONTHS',
+  expectedHoldingPeriod: null,
   expectedChange: '',
   invalidationCondition: '',
-  maximumAcceptableLossRate: 10,
+  maximumAcceptableLossRate: null,
 });
 const blankReview = () => ({ actualResult: '', differenceFromExpectation: '', nextAction: '' });
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
 
-export function HoldingDecisions({ holdings }: { holdings: SharedHolding[] }) {
+export function HoldingDecisions({
+  holdings,
+  portfolioBusy,
+  publicationStatus,
+  onVisibilityChange,
+  onRecordsChange,
+  refreshKey,
+}: {
+  holdings: SharedHolding[];
+  portfolioBusy: boolean;
+  publicationStatus: string;
+  onVisibilityChange: (assetId: number, hidden: boolean) => void;
+  onRecordsChange: (records: InvestmentTransaction[] | null) => void;
+  refreshKey: number;
+}) {
   const [records, setRecords] = useState<InvestmentTransaction[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -46,22 +60,25 @@ export function HoldingDecisions({ holdings }: { holdings: SharedHolding[] }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [retry]);
+  }, [retry, refreshKey]);
+  useEffect(() => {
+    onRecordsChange(loading || loadError ? null : records);
+  }, [records, loading, loadError, onRecordsChange]);
+  const locked = busy || portfolioBusy;
 
   async function saveDecision(event: FormEvent) {
     event.preventDefault();
-    if (busy || !records) return;
+    if (locked || !records) return;
     const holding = holdings.find((h) => h.assetId === Number(assetId));
     if (
       !holding ||
       !decision.reason.trim() ||
-      !decision.expectedChange.trim() ||
-      !decision.invalidationCondition.trim() ||
-      !Number.isFinite(decision.maximumAcceptableLossRate) ||
-      decision.maximumAcceptableLossRate < 0 ||
-      decision.maximumAcceptableLossRate > 100
+      (decision.maximumAcceptableLossRate !== null &&
+        (!Number.isFinite(decision.maximumAcceptableLossRate) ||
+          decision.maximumAcceptableLossRate < 0 ||
+          decision.maximumAcceptableLossRate > 100))
     ) {
-      setError('종목과 판단 내용을 모두 확인해 주세요. 허용 하락률은 0~100%입니다.');
+      setError('보유 이유를 작성해 주세요. 선택 입력한 허용 하락률은 0~100%입니다.');
       return;
     }
     if (!requestKey.current) requestKey.current = crypto.randomUUID();
@@ -78,7 +95,7 @@ export function HoldingDecisions({ holdings }: { holdings: SharedHolding[] }) {
       requestKey.current = '';
       setWriting(false);
       setDecision(blankDecision());
-      setMessage('판단을 기록했어요. 보유수량과 매수가는 변경하지 않았습니다.');
+      setMessage('저장했습니다.');
     } catch (caught) {
       setError(messageOf(caught));
     } finally {
@@ -88,7 +105,7 @@ export function HoldingDecisions({ holdings }: { holdings: SharedHolding[] }) {
 
   async function saveReview(event: FormEvent) {
     event.preventDefault();
-    if (busy || reviewId === null || !records) return;
+    if (locked || reviewId === null || !records) return;
     if (Object.values(review).some((value) => !value.trim())) {
       setError('결과와 달랐던 점, 다음 행동을 모두 작성해 주세요.');
       return;
@@ -113,256 +130,364 @@ export function HoldingDecisions({ holdings }: { holdings: SharedHolding[] }) {
     }
   }
 
+  function startDecision(id: number) {
+    setAssetId(String(id));
+    setDecision(blankDecision());
+    requestKey.current = '';
+    setWriting(true);
+    setReviewId(null);
+    setError('');
+    setMessage('');
+  }
+  const decisionForm = (
+    <form
+      className="shared-edit-form"
+      aria-label="종목 투자 기록 작성"
+      onSubmit={(event) => void saveDecision(event)}
+    >
+      <fieldset disabled={locked}>
+        <legend className="league-sr-only">보유 이유 작성</legend>
+        <label className="shared-reason">
+          보유하는 이유
+          <textarea
+            autoFocus
+            required
+            maxLength={500}
+            rows={3}
+            value={decision.reason}
+            placeholder="예: 실적이 좋아지고 있어 다음 분기까지 보유하려고 해요."
+            onChange={(event) => setDecision({ ...decision, reason: event.target.value })}
+          />
+        </label>
+      </fieldset>
+      <fieldset disabled={locked}>
+        <legend>추가 판단 정보 (선택)</legend>
+        <label className="shared-reason">
+          기대하는 변화
+          <textarea
+            maxLength={300}
+            rows={2}
+            value={decision.expectedChange}
+            placeholder="예: 다음 분기 매출과 영업이익이 늘어날 것으로 기대해요."
+            onChange={(event) => setDecision({ ...decision, expectedChange: event.target.value })}
+          />
+        </label>
+        <label className="shared-reason">
+          판단을 다시 확인할 조건
+          <textarea
+            maxLength={300}
+            rows={2}
+            value={decision.invalidationCondition}
+            placeholder="예: 영업이익이 줄어들면 다시 판단해요."
+            onChange={(event) =>
+              setDecision({ ...decision, invalidationCondition: event.target.value })
+            }
+          />
+        </label>
+        <fieldset className="shared-choice-options shared-reason">
+          <legend>예상 보유 기간</legend>
+          <label>
+            <input
+              type="radio"
+              name="holding-period"
+              checked={decision.expectedHoldingPeriod === null}
+              onChange={() => setDecision({ ...decision, expectedHoldingPeriod: null })}
+            />
+            <span>미정</span>
+          </label>
+          {Object.entries(holdingPeriodLabels).map(([value, label]) => (
+            <label key={value}>
+              <input
+                type="radio"
+                name="holding-period"
+                checked={decision.expectedHoldingPeriod === value}
+                onChange={() =>
+                  setDecision({ ...decision, expectedHoldingPeriod: value as HoldingPeriod })
+                }
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </fieldset>
+        <label>
+          허용 하락률 (%)
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={0.01}
+            value={decision.maximumAcceptableLossRate ?? ''}
+            placeholder="선택 입력 · 0~100"
+            onChange={(event) =>
+              setDecision({
+                ...decision,
+                maximumAcceptableLossRate:
+                  event.target.value === '' ? null : Number(event.target.value),
+              })
+            }
+          />
+        </label>
+      </fieldset>
+      {error ? (
+        <p role="alert" className="league-form-error">
+          {error}
+        </p>
+      ) : null}
+      <div className="shared-form-actions">
+        <button className="shared-primary-button" disabled={locked}>
+          {busy ? '저장 중…' : '보유 이유 저장'}
+        </button>
+        <button
+          type="button"
+          disabled={locked}
+          onClick={() => {
+            setWriting(false);
+            setError('');
+          }}
+        >
+          취소
+        </button>
+      </div>
+    </form>
+  );
+  function renderRecord(r: InvestmentTransaction) {
+    return (
+      <article className="shared-decision" key={r.id}>
+        <h4>
+          {r.assetName} · {transactionLabels[r.transactionType]}
+        </h4>
+        <small>
+          {r.tradedOn} 기록 ·{' '}
+          {holdings.some((h) => h.assetId === r.assetId && !h.hidden)
+            ? '공유 범위에 따름'
+            : '종목 숨김·삭제로 비공개'}
+        </small>
+        <p>{r.reason}</p>
+        {r.expectedHoldingPeriod ||
+        r.expectedChange ||
+        r.invalidationCondition ||
+        r.maximumAcceptableLossRate !== null ? (
+          <dl>
+            {r.expectedHoldingPeriod ? (
+              <div>
+                <dt>예상 보유 기간</dt>
+                <dd>{holdingPeriodLabels[r.expectedHoldingPeriod]}</dd>
+              </div>
+            ) : null}
+            {r.expectedChange ? (
+              <div>
+                <dt>기대 변화</dt>
+                <dd>{r.expectedChange}</dd>
+              </div>
+            ) : null}
+            {r.invalidationCondition ? (
+              <div>
+                <dt>재확인 조건</dt>
+                <dd>{r.invalidationCondition}</dd>
+              </div>
+            ) : null}
+            {r.maximumAcceptableLossRate !== null ? (
+              <div>
+                <dt>허용 하락률</dt>
+                <dd>{r.maximumAcceptableLossRate}%</dd>
+              </div>
+            ) : null}
+          </dl>
+        ) : null}
+        {r.reviews.map((item) => (
+          <div className="shared-review" key={item.id}>
+            <strong>결과 복기</strong>
+            <dl>
+              <div>
+                <dt>실제 결과</dt>
+                <dd>{item.actualResult}</dd>
+              </div>
+              <div>
+                <dt>예상과 달랐던 점</dt>
+                <dd>{item.differenceFromExpectation}</dd>
+              </div>
+              <div>
+                <dt>다음 행동</dt>
+                <dd>{item.nextAction}</dd>
+              </div>
+            </dl>
+          </div>
+        ))}
+        <button
+          type="button"
+          disabled={locked || writing || reviewId !== null}
+          onClick={() => {
+            setReviewId(r.id);
+            setReview(blankReview());
+            setWriting(false);
+            setError('');
+            setMessage('');
+          }}
+        >
+          결과 복기 추가
+        </button>
+        {reviewId === r.id ? (
+          <form className="shared-edit-form" onSubmit={(event) => void saveReview(event)}>
+            <fieldset disabled={locked}>
+              <legend>{r.assetName} 결과 복기 (선택)</legend>
+              <label className="shared-reason">
+                실제 결과
+                <textarea
+                  required
+                  maxLength={500}
+                  rows={3}
+                  value={review.actualResult}
+                  placeholder="예: 매출은 늘었지만 주가는 기대보다 적게 올랐어요."
+                  onChange={(event) => setReview({ ...review, actualResult: event.target.value })}
+                />
+              </label>
+              <label className="shared-reason">
+                예상과 달랐던 점
+                <textarea
+                  required
+                  maxLength={500}
+                  rows={3}
+                  value={review.differenceFromExpectation}
+                  placeholder="예: 비용 증가의 영향이 컸어요."
+                  onChange={(event) =>
+                    setReview({ ...review, differenceFromExpectation: event.target.value })
+                  }
+                />
+              </label>
+              <label className="shared-reason">
+                다음 행동
+                <textarea
+                  required
+                  maxLength={500}
+                  rows={3}
+                  value={review.nextAction}
+                  placeholder="예: 다음 실적에서 비용이 줄어드는지 확인해요."
+                  onChange={(event) => setReview({ ...review, nextAction: event.target.value })}
+                />
+              </label>
+            </fieldset>
+            {error ? (
+              <p role="alert" className="league-form-error">
+                {error}
+              </p>
+            ) : null}
+            <div className="shared-form-actions">
+              <button className="shared-primary-button" disabled={locked}>
+                {busy ? '저장 중…' : '복기 저장'}
+              </button>
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => {
+                  setReviewId(null);
+                  setError('');
+                }}
+              >
+                취소
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </article>
+    );
+  }
   return (
-    <section className="shared-panel" aria-labelledby="holding-decisions-title">
-      <h2 id="holding-decisions-title">판단과 복기</h2>
-      <p>보유한 이유를 남기고, 결과를 돌아보세요.</p>
+    <section aria-label="종목별 투자 기록">
       {loading ? (
-        <p role="status">판단 기록을 불러오는 중입니다.</p>
+        <p role="status">투자 기록을 불러오는 중이에요.</p>
       ) : loadError ? (
         <div role="alert">
           <p>{loadError}</p>
-          <button type="button" onClick={() => setRetry((v) => v + 1)}>
-            판단 기록 다시 불러오기
-          </button>
+          <button onClick={() => setRetry((value) => value + 1)}>판단 기록 다시 불러오기</button>
         </div>
-      ) : (
-        <>
-          <button
-            type="button"
-            disabled={busy || writing || reviewId !== null || holdings.length === 0}
-            onClick={() => {
-              setAssetId(String(holdings[0]?.assetId ?? ''));
-              setDecision(blankDecision());
-              requestKey.current = '';
-              setWriting(true);
-              setReviewId(null);
-              setError('');
-              setMessage('');
-            }}
-          >
-            보유 판단 남기기
-          </button>
-          {holdings.length === 0 ? <p>원본 포트폴리오에서 공유용 자산을 먼저 가져오세요.</p> : null}
-          {writing ? (
-            <form className="shared-edit-form" onSubmit={(event) => void saveDecision(event)}>
-              <fieldset disabled={busy}>
-                <legend>보유 판단 작성</legend>
-                <label>
-                  기록할 종목
-                  <select required value={assetId} onChange={(e) => setAssetId(e.target.value)}>
-                    {holdings.map((h) => (
-                      <option key={h.assetId} value={h.assetId}>
-                        {h.assetName}
-                        {h.hidden ? ' · 숨김' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  예상 보유 기간
-                  <select
-                    value={decision.expectedHoldingPeriod}
-                    onChange={(e) =>
-                      setDecision({
-                        ...decision,
-                        expectedHoldingPeriod: e.target.value as HoldingPeriod,
-                      })
-                    }
-                  >
-                    {Object.entries(holdingPeriodLabels).map(([key, value]) => (
-                      <option key={key} value={key}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="shared-reason">
-                  보유하는 이유
-                  <textarea
-                    required
-                    maxLength={500}
-                    rows={3}
-                    value={decision.reason}
-                    onChange={(e) => setDecision({ ...decision, reason: e.target.value })}
-                  />
-                </label>
-                <label>
-                  기대하는 변화
-                  <textarea
-                    required
-                    maxLength={300}
-                    rows={3}
-                    value={decision.expectedChange}
-                    onChange={(e) => setDecision({ ...decision, expectedChange: e.target.value })}
-                  />
-                </label>
-                <label>
-                  판단을 다시 확인할 조건
-                  <textarea
-                    required
-                    maxLength={300}
-                    rows={3}
-                    value={decision.invalidationCondition}
-                    onChange={(e) =>
-                      setDecision({ ...decision, invalidationCondition: e.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  허용 하락률 (%)
-                  <input
-                    required
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.01}
-                    value={decision.maximumAcceptableLossRate}
-                    onChange={(e) =>
-                      setDecision({
-                        ...decision,
-                        maximumAcceptableLossRate: Number(e.target.value),
-                      })
-                    }
-                  />
-                </label>
-              </fieldset>
-              <button disabled={busy}>{busy ? '저장 중…' : '판단 기록 저장'}</button>
-              <button type="button" disabled={busy} onClick={() => setWriting(false)}>
-                취소
-              </button>
-            </form>
-          ) : null}
-          {records?.length === 0 ? (
-            <p>아직 판단 기록이 없어요. 첫 보유 판단을 남겨 보세요.</p>
-          ) : null}
-          {records?.map((r) => {
-            const holding = holdings.find((h) => h.assetId === r.assetId);
-            return (
-              <article className="shared-decision" key={r.id}>
-                <h3>
-                  {r.assetName} ·{' '}
-                  {r.transactionType === 'HOLD'
-                    ? '보유 판단'
-                    : r.transactionType === 'BUY'
-                      ? '매수 판단'
-                      : '매도 판단'}
-                </h3>
+      ) : null}
+      {holdings.map((h) => {
+        const ownRecords = (records ?? []).filter((r) => r.assetId === h.assetId);
+        const completed = Boolean(h.reason.trim() || ownRecords.some((r) => r.reason.trim()));
+        return (
+          <article key={h.assetId} className="shared-holding">
+            <header>
+              <div>
+                <h3>{h.assetName}</h3>
                 <small>
-                  {r.tradedOn} 기록 ·{' '}
-                  {!holding || holding.hidden ? '종목 숨김·삭제로 비공개' : '공개 설정에 따름'}
+                  {h.category === 'ETF' ? 'ETF' : '주식'} · {h.assetCode} ·{' '}
+                  {h.hidden ? '공개 제외' : publicationStatus}
                 </small>
-                <p>{r.reason}</p>
-                <details>
-                  <summary>예상과 확인 조건</summary>
-                  <dl>
-                    <div>
-                      <dt>보유 기간</dt>
-                      <dd>{holdingPeriodLabels[r.expectedHoldingPeriod]}</dd>
-                    </div>
-                    <div>
-                      <dt>기대 변화</dt>
-                      <dd>{r.expectedChange}</dd>
-                    </div>
-                    <div>
-                      <dt>재확인 조건</dt>
-                      <dd>{r.invalidationCondition}</dd>
-                    </div>
-                    <div>
-                      <dt>허용 하락률</dt>
-                      <dd>{r.maximumAcceptableLossRate}%</dd>
-                    </div>
-                  </dl>
-                </details>
-                {r.reviews.map((item) => (
-                  <div className="shared-review" key={item.id}>
-                    <strong>결과 복기</strong>
-                    <dl>
-                      <div>
-                        <dt>실제 결과</dt>
-                        <dd>{item.actualResult}</dd>
-                      </div>
-                      <div>
-                        <dt>예상과 달랐던 점</dt>
-                        <dd>{item.differenceFromExpectation}</dd>
-                      </div>
-                      <div>
-                        <dt>다음 행동</dt>
-                        <dd>{item.nextAction}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setReviewId(r.id);
-                    setReview(blankReview());
-                    setWriting(false);
-                    setError('');
-                    setMessage('');
-                  }}
-                >
-                  결과 복기 추가
-                </button>
-                {reviewId === r.id ? (
-                  <form className="shared-edit-form" onSubmit={(event) => void saveReview(event)}>
-                    <fieldset disabled={busy}>
-                      <legend>{r.assetName} 결과 복기</legend>
-                      <label className="shared-reason">
-                        실제 결과
-                        <textarea
-                          required
-                          maxLength={500}
-                          rows={3}
-                          value={review.actualResult}
-                          onChange={(e) => setReview({ ...review, actualResult: e.target.value })}
-                        />
-                      </label>
-                      <label>
-                        예상과 달랐던 점
-                        <textarea
-                          required
-                          maxLength={500}
-                          rows={3}
-                          value={review.differenceFromExpectation}
-                          onChange={(e) =>
-                            setReview({ ...review, differenceFromExpectation: e.target.value })
-                          }
-                        />
-                      </label>
-                      <label>
-                        다음 행동
-                        <textarea
-                          required
-                          maxLength={500}
-                          rows={3}
-                          value={review.nextAction}
-                          onChange={(e) => setReview({ ...review, nextAction: e.target.value })}
-                        />
-                      </label>
-                    </fieldset>
-                    <button disabled={busy}>{busy ? '저장 중…' : '복기 저장'}</button>
-                    <button type="button" disabled={busy} onClick={() => setReviewId(null)}>
-                      취소
-                    </button>
-                  </form>
-                ) : null}
-              </article>
-            );
-          })}
-        </>
-      )}
-      {error ? <p role="alert">{error}</p> : null}
-      {message ? <p role="status">{message}</p> : null}
-      <details className="league-metric-more">
-        <summary>기록 공개 기준</summary>
-        <p className="league-calculation-note">
-          최초 판단과 보유수량은 변경되지 않습니다. 공개에 동의한 기록만 표시하며, 숨긴 종목의
-          판단과 복기는 공개하지 않습니다.
+              </div>
+              <label className="shared-visibility-choice">
+                <input
+                  type="checkbox"
+                  aria-label={`${h.assetName} 공개할 종목으로 선택`}
+                  disabled={locked}
+                  checked={!h.hidden}
+                  onChange={(event) => onVisibilityChange(h.assetId, !event.target.checked)}
+                />
+                <span>공개 허용</span>
+              </label>
+            </header>
+            <div
+              className="shared-holding-details"
+              aria-label={`${h.assetName} 보유 정보 · 비공개`}
+            >
+              <span className="shared-private-label">
+                나만 보기 · {h.baseDate ? `${h.baseDate} 종가` : '가격 없음'}
+              </span>
+              <dl>
+                <div>
+                  <dt>보유수량</dt>
+                  <dd>{h.quantity.toLocaleString()}주</dd>
+                </div>
+                <div>
+                  <dt>평균 매수가</dt>
+                  <dd>{h.averagePurchasePrice.toLocaleString()}원</dd>
+                </div>
+                <div>
+                  <dt>평가금액</dt>
+                  <dd>
+                    {h.evaluationAmount === null
+                      ? '가격 확인 중'
+                      : `${h.evaluationAmount.toLocaleString()}원`}
+                  </dd>
+                </div>
+                <div>
+                  <dt>매수가 대비 수익률</dt>
+                  <dd>
+                    {h.returnRate === null
+                      ? '집계 전'
+                      : `${h.returnRate > 0 ? '+' : ''}${h.returnRate.toFixed(2)}%`}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <div className="shared-reason-heading">
+              <strong className={completed ? 'shared-reason-complete' : 'shared-reason-required'}>
+                {completed ? '작성 완료' : '보유 이유 필수'}
+              </strong>
+              <button
+                type="button"
+                aria-label={`${h.assetName} ${completed ? '투자 기록 추가' : '보유 이유 작성'}`}
+                disabled={locked || loading || Boolean(loadError) || writing || reviewId !== null}
+                onClick={() => startDecision(h.assetId)}
+              >
+                {completed ? '투자 기록 추가' : '보유 이유 작성'}
+              </button>
+            </div>
+            {!ownRecords.length && h.reason ? (
+              <p className="shared-reason-text">{h.reason}</p>
+            ) : null}
+            {writing && assetId === String(h.assetId) ? decisionForm : null}
+            {ownRecords.map(renderRecord)}
+          </article>
+        );
+      })}
+      {(records ?? [])
+        .filter((r) => !holdings.some((h) => h.assetId === r.assetId))
+        .map(renderRecord)}
+      {message ? (
+        <p role="status" className="shared-feedback">
+          {message}
         </p>
-      </details>
+      ) : null}
     </section>
   );
 }

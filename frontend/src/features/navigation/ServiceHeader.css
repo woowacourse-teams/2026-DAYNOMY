@@ -3,13 +3,14 @@
   width: 100%;
   min-height: 64px;
   padding: 0 clamp(20px, 4vw, 64px);
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 28px;
   background: #fff;
 }
 
 .service-brand {
+  justify-self: start;
   color: #08162e;
   font-size: 22px;
   font-weight: 800;

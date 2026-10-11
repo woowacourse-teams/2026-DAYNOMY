@@ -57,7 +57,7 @@ describe('실제 인증을 사용하는 마이페이지', () => {
     expect(view.queryByRole('link', { name: '초보 돈 관리' })).toBeNull();
     expect(view.getByRole('link', { name: '마이페이지' }).getAttribute('href')).toBe('/mypage');
     expect(view.getByRole('link', { name: /내 포트폴리오/ }).getAttribute('href')).toBe('/');
-    expect(view.getByRole('link', { name: /공유 포트폴리오/ }).getAttribute('href')).toBe(
+    expect(view.getByRole('link', { name: /내 리그/ }).getAttribute('href')).toBe(
       '/league/portfolio',
     );
   });

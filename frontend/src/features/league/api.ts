@@ -1,4 +1,5 @@
 import { request, requestWithCsrf } from '../../api/client';
+import { trackEvent } from '../../analytics';
 import type {
   DailyHistory,
   ExperienceLevel,
@@ -39,13 +40,52 @@ function isDate(value: unknown): value is string {
   );
 }
 
+function optionalCollectionStatus(value: unknown) {
+  return (
+    value === undefined ||
+    [
+      'CALENDAR_PENDING',
+      'IN_PROGRESS',
+      'COLLECTION_PENDING',
+      'COMPLETE',
+      'NO_TRADING_DAYS',
+    ].includes(String(value))
+  );
+}
+
+function optionalNumber(value: unknown) {
+  return value === undefined || isNullableNumber(value);
+}
+function optionalDate(value: unknown) {
+  return value === undefined || value === null || isDate(value);
+}
+function optionalImage(value: unknown) {
+  return (
+    value === undefined ||
+    value === null ||
+    (typeof value === 'string' && /^https:\/\//.test(value))
+  );
+}
+function isPerformanceExtension(value: Record<string, unknown>) {
+  return (
+    optionalNumber(value.cumulativeReturnRate) &&
+    optionalNumber(value.participationReturnRate) &&
+    optionalDate(value.trackingStartedOn) &&
+    optionalDate(value.eligibleFrom) &&
+    optionalNumber(value.currentHoldingWeight) &&
+    (value.consecutiveRecordedWeeks === undefined ||
+      (Number.isInteger(value.consecutiveRecordedWeeks) &&
+        Number(value.consecutiveRecordedWeeks) >= 0))
+  );
+}
+
 const experienceLevels = new Set<ExperienceLevel>([
   'BEGINNER',
   'ONE_TO_THREE_YEARS',
   'OVER_THREE_YEARS',
 ]);
 const riskProfiles = new Set<RiskProfile>(['CONSERVATIVE', 'BALANCED', 'AGGRESSIVE']);
-const leagueTypes = new Set<LeagueType>(['WEEKLY_RETURN', 'CONSISTENT', 'STABLE', 'BEGINNER']);
+const leagueTypes = new Set<LeagueType>(['WEEKLY_RETURN', 'STABLE', 'BEGINNER']);
 const transactionTypes = new Set<TransactionType>(['BUY', 'SELL', 'HOLD']);
 const holdingPeriods = new Set<HoldingPeriod>([
   'UNDER_ONE_MONTH',
@@ -66,7 +106,9 @@ function isProfile(value: unknown): value is InvestorProfile {
     typeof value.leagueEnabled === 'boolean' &&
     typeof value.allocationPublic === 'boolean' &&
     typeof value.detailPublic === 'boolean' &&
-    (value.leagueEnabledAt === null || typeof value.leagueEnabledAt === 'string')
+    (value.leagueEnabledAt === null || typeof value.leagueEnabledAt === 'string') &&
+    optionalDate(value.trackingStartedOn) &&
+    optionalDate(value.eligibleFrom)
   );
 }
 
@@ -79,12 +121,14 @@ function isRankingEntry(value: unknown): value is RankingEntry {
     experienceLevels.has(value.experienceLevel as ExperienceLevel) &&
     riskProfiles.has(value.riskProfile as RiskProfile) &&
     isNumber(value.weeklyReturnRate) &&
-    isNumber(value.eightWeekReturnRate) &&
-    isNumber(value.maxDrawdownRate) &&
-    isNumber(value.volatilityRate) &&
-    isNumber(value.maxHoldingWeight) &&
+    isNullableNumber(value.eightWeekReturnRate) &&
+    isNullableNumber(value.maxDrawdownRate) &&
+    isNullableNumber(value.volatilityRate) &&
+    isNullableNumber(value.maxHoldingWeight) &&
     Number.isInteger(value.decisionCount) &&
     isNumber(value.reviewCompletionRate) &&
+    isPerformanceExtension(value) &&
+    optionalImage(value.profileImageUrl) &&
     typeof value.followed === 'boolean'
   );
 }
@@ -96,6 +140,14 @@ function isRankingResponse(value: unknown): value is RankingResponse {
     typeof value.weekEnd === 'string' &&
     leagueTypes.has(value.leagueType as LeagueType) &&
     typeof value.confirmed === 'boolean' &&
+    optionalCollectionStatus(value.collectionStatus) &&
+    optionalNumber(value.calculationVersion) &&
+    (value.finalizedAt === undefined ||
+      value.finalizedAt === null ||
+      typeof value.finalizedAt === 'string') &&
+    (value.changeReason === undefined ||
+      value.changeReason === null ||
+      typeof value.changeReason === 'string') &&
     (value.asOfDate === null || isDate(value.asOfDate)) &&
     Number.isInteger(value.totalCount) &&
     Array.isArray(value.rankings) &&
@@ -118,6 +170,11 @@ function isPublicInvestor(value: unknown): value is PublicInvestor {
     isNullableNumber(performance.maxDrawdownRate) &&
     isNullableNumber(performance.volatilityRate) &&
     isNullableNumber(performance.maxHoldingWeight) &&
+    isPerformanceExtension(performance) &&
+    (performance.weeklyRank === undefined ||
+      performance.weeklyRank === null ||
+      (Number.isInteger(performance.weeklyRank) && Number(performance.weeklyRank) > 0)) &&
+    optionalImage(value.profileImageUrl) &&
     (allocation === null ||
       (isRecord(allocation) &&
         isNumber(allocation.stockWeight) &&
@@ -127,11 +184,22 @@ function isPublicInvestor(value: unknown): value is PublicInvestor {
       (point) =>
         isRecord(point) &&
         typeof point.weekStart === 'string' &&
-        isNumber(point.weeklyReturnRate) &&
-        isNumber(point.maxDrawdownRate),
+        isNullableNumber(point.weeklyReturnRate) &&
+        isNullableNumber(point.maxDrawdownRate) &&
+        (point.status === undefined ||
+          ['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(
+            String(point.status),
+          )) &&
+        (point.confirmed === undefined || typeof point.confirmed === 'boolean') &&
+        optionalCollectionStatus(point.collectionStatus) &&
+        (point.weeklyRank === undefined ||
+          point.weeklyRank === null ||
+          (Number.isInteger(point.weeklyRank) && Number(point.weeklyRank) > 0)),
     ) &&
     Number.isInteger(value.decisionCount) &&
     isNumber(value.reviewCompletionRate) &&
+    isPerformanceExtension(value) &&
+    optionalImage(value.profileImageUrl) &&
     typeof value.followed === 'boolean' &&
     typeof value.detailAvailable === 'boolean'
   );
@@ -162,10 +230,11 @@ export function isTransaction(value: unknown): value is InvestmentTransaction {
     isNumber(value.fee) &&
     typeof value.tradedOn === 'string' &&
     typeof value.reason === 'string' &&
-    holdingPeriods.has(value.expectedHoldingPeriod as HoldingPeriod) &&
+    (value.expectedHoldingPeriod === null ||
+      holdingPeriods.has(value.expectedHoldingPeriod as HoldingPeriod)) &&
     typeof value.expectedChange === 'string' &&
     typeof value.invalidationCondition === 'string' &&
-    isNumber(value.maximumAcceptableLossRate) &&
+    isNullableNumber(value.maximumAcceptableLossRate) &&
     typeof value.writtenAfterTrade === 'boolean' &&
     Array.isArray(value.reviews) &&
     value.reviews.every(isReview)
@@ -181,10 +250,11 @@ function isPublicDecision(value: unknown): value is InvestorDetail['decisions'][
     transactionTypes.has(value.transactionType as TransactionType) &&
     typeof value.tradedOn === 'string' &&
     typeof value.reason === 'string' &&
-    holdingPeriods.has(value.expectedHoldingPeriod as HoldingPeriod) &&
+    (value.expectedHoldingPeriod === null ||
+      holdingPeriods.has(value.expectedHoldingPeriod as HoldingPeriod)) &&
     typeof value.expectedChange === 'string' &&
     typeof value.invalidationCondition === 'string' &&
-    isNumber(value.maximumAcceptableLossRate) &&
+    isNullableNumber(value.maximumAcceptableLossRate) &&
     typeof value.writtenAfterTrade === 'boolean' &&
     Array.isArray(value.reviews) &&
     value.reviews.every(isReview)
@@ -195,7 +265,7 @@ function isInvestorDetail(value: unknown): value is InvestorDetail {
   return (
     isRecord(value) &&
     typeof value.publicId === 'string' &&
-    typeof value.asOfDate === 'string' &&
+    (value.asOfDate === null || isDate(value.asOfDate)) &&
     Array.isArray(value.holdings) &&
     value.holdings.every(
       (holding) =>
@@ -204,6 +274,7 @@ function isInvestorDetail(value: unknown): value is InvestorDetail {
         typeof holding.category === 'string' &&
         (holding.weight === null || isNumber(holding.weight)) &&
         (holding.weeklyContributionRate === null || isNumber(holding.weeklyContributionRate)) &&
+        optionalNumber(holding.returnRate) &&
         (holding.reason === undefined || typeof holding.reason === 'string'),
     ) &&
     Array.isArray(value.decisions) &&
@@ -221,7 +292,8 @@ export async function getLeagueWeeks(signal?: AbortSignal) {
         isRecord(week) &&
         typeof week.weekStart === 'string' &&
         typeof week.weekEnd === 'string' &&
-        typeof week.confirmed === 'boolean',
+        typeof week.confirmed === 'boolean' &&
+        optionalCollectionStatus(week.collectionStatus),
     )
   ) {
     throw new Error('리그 주차 응답 형식이 올바르지 않습니다.');
@@ -233,8 +305,9 @@ export async function getRankings(
   leagueType: LeagueType,
   weekStart?: string,
   signal?: AbortSignal,
+  page = 0,
 ) {
-  const query = new URLSearchParams({ leagueType, size: '100' });
+  const query = new URLSearchParams({ leagueType, size: '20', page: String(page) });
   if (weekStart) query.set('weekStart', weekStart);
   const response = await request<unknown>(`/api/league/rankings?${query.toString()}`, { signal });
   if (!isRankingResponse(response)) throw new Error('리그 응답 형식이 올바르지 않습니다.');
@@ -260,11 +333,15 @@ function isDailyHistory(value: unknown): value is DailyHistory {
     !(value.eligibleFrom === null || isDate(value.eligibleFrom)) ||
     typeof value.confirmed !== 'boolean' ||
     !isNullableNumber(value.weeklyReturnRate) ||
+    !optionalCollectionStatus(value.collectionStatus) ||
+    !optionalNumber(value.participationReturnRate) ||
+    !optionalDate(value.trackingStartedOn) ||
     !Array.isArray(value.days)
   )
     return false;
   let previousDate = '';
   let complete = true;
+  let begun = false;
   let asOfDate: string | null = null;
   for (const day of value.days) {
     if (
@@ -282,14 +359,19 @@ function isDailyHistory(value: unknown): value is DailyHistory {
     previousDate = day.baseDate;
     const calculated = day.status === 'CALCULATED';
     if (calculated !== (day.dailyReturnRate !== null)) return false;
-    complete = complete && calculated;
-    if (complete !== (day.cumulativeReturnRate !== null)) return false;
+    if (calculated) begun = true;
+    if (!calculated && (begun || day.status !== 'NOT_PARTICIPATING')) complete = false;
+    if ((complete && calculated) !== (day.cumulativeReturnRate !== null)) return false;
     if (calculated) asOfDate = day.baseDate;
   }
   const last = value.days.at(-1);
   return (
     value.asOfDate === asOfDate &&
-    value.weeklyReturnRate === (last?.cumulativeReturnRate ?? null) &&
+    (value.participationReturnRate === undefined
+      ? value.weeklyReturnRate === (last?.cumulativeReturnRate ?? null)
+      : value.participationReturnRate === (last?.cumulativeReturnRate ?? null) &&
+        (value.weeklyReturnRate === null ||
+          value.weeklyReturnRate === value.participationReturnRate)) &&
     (!value.confirmed || value.weeklyReturnRate !== null)
   );
 }
@@ -300,7 +382,7 @@ export async function getDailyHistory(publicId: string, weekStart?: string, sign
     `/api/league/investors/${encodeURIComponent(publicId)}/daily-history${query}`,
     { signal },
   );
-  if (!isDailyHistory(response) || (weekStart && response.weekStart !== weekStart)) {
+  if (!isDailyHistory(response)) {
     throw new Error('일별 수익률 응답 형식이 올바르지 않습니다.');
   }
   return response;
@@ -366,6 +448,7 @@ export async function recordDecision(input: {
     body: JSON.stringify(input),
   });
   if (!isTransaction(response)) throw new Error('판단 기록 응답 형식이 올바르지 않습니다.');
+  trackEvent('save_investment_decision', { record_type: response.transactionType });
   return response;
 }
 
@@ -382,6 +465,7 @@ export async function createReview(
     },
   );
   if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
+  trackEvent('save_investment_review', { origin: 'shared_portfolio' });
   return response;
 }
 
@@ -407,9 +491,18 @@ export async function getFollowSummary(signal?: AbortSignal) {
         isRecord(item) &&
         typeof item.publicId === 'string' &&
         typeof item.displayName === 'string' &&
-        (item.rank === null || Number.isInteger(item.rank)) &&
+        (item.rank === null || (Number.isInteger(item.rank) && Number(item.rank) > 0)) &&
         (item.weeklyReturnRate === null || isNumber(item.weeklyReturnRate)) &&
-        Number.isInteger(item.newReviewCount),
+        Number.isInteger(item.newReviewCount) &&
+        Number(item.newReviewCount) >= 0 &&
+        (item.previousRank == null ||
+          (Number.isInteger(item.previousRank) && Number(item.previousRank) > 0)) &&
+        (item.rankChange == null ||
+          (Number.isInteger(item.rankChange) &&
+            typeof item.rank === 'number' &&
+            typeof item.previousRank === 'number' &&
+            item.rankChange === item.previousRank - item.rank)) &&
+        optionalDate(item.comparisonWeekStart),
     )
   ) {
     throw new Error('팔로우 요약 응답 형식이 올바르지 않습니다.');

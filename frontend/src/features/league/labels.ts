@@ -1,10 +1,22 @@
-import type { ExperienceLevel, HoldingPeriod, LeagueType, RiskProfile } from './types';
+import type {
+  CollectionStatus,
+  ExperienceLevel,
+  HoldingPeriod,
+  LeagueType,
+  RiskProfile,
+  TransactionType,
+} from './types';
 
 export const leagueLabels: Record<LeagueType, string> = {
-  WEEKLY_RETURN: '이번 주 수익률',
-  CONSISTENT: '꾸준한 투자',
+  WEEKLY_RETURN: '주간 수익률',
   STABLE: '안정형',
-  BEGINNER: '초보 리그',
+  BEGINNER: '초보리그',
+};
+
+export const leagueCriteria: Record<LeagueType, string> = {
+  WEEKLY_RETURN: '주간 수익률순',
+  STABLE: '주간 수익률 · 변동성 감점',
+  BEGINNER: '투자 경력 1년 미만 · 주간 수익률순',
 };
 
 export const experienceLabels: Record<ExperienceLevel, string> = {
@@ -14,9 +26,9 @@ export const experienceLabels: Record<ExperienceLevel, string> = {
 };
 
 export const riskLabels: Record<RiskProfile, string> = {
-  CONSERVATIVE: '안정형',
-  BALANCED: '균형형',
-  AGGRESSIVE: '적극형',
+  CONSERVATIVE: '보수형',
+  BALANCED: '중립형',
+  AGGRESSIVE: '공격형',
 };
 
 export const holdingPeriodLabels: Record<HoldingPeriod, string> = {
@@ -26,7 +38,26 @@ export const holdingPeriodLabels: Record<HoldingPeriod, string> = {
   OVER_SIX_MONTHS: '6개월 이상',
 };
 
-export function formatRate(value: number, signed = true) {
+export const transactionLabels: Record<TransactionType, string> = {
+  HOLD: '보유 기록',
+  BUY: '매수 기록',
+  SELL: '매도 기록',
+};
+
+export function formatRate(value: number | null | undefined, signed = true) {
+  if (value == null) return '데이터 부족';
   const sign = signed && value > 0 ? '+' : '';
   return `${sign}${value.toFixed(2)}%`;
+}
+
+export const collectionLabels: Record<CollectionStatus, string> = {
+  CALENDAR_PENDING: '거래일 확인 대기',
+  IN_PROGRESS: '집계 중',
+  COLLECTION_PENDING: '종가 수집 대기',
+  COMPLETE: '종가 수집 완료',
+  NO_TRADING_DAYS: '휴장 주',
+};
+
+export function concentrationLabel(value: number | null | undefined) {
+  return value == null ? '데이터 부족' : value < 30 ? '분산' : value < 50 ? '보통' : '집중 주의';
 }

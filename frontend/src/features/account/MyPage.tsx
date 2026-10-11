@@ -86,13 +86,13 @@ export function MyPage() {
     { to: '/', title: '내 포트폴리오', description: '입력한 원본 자산과 평가금액 확인' },
     {
       to: '/league/portfolio',
-      title: '공유 포트폴리오',
-      description: '원본 자산 불러오기와 공개 종목 숨김 설정',
+      title: '내 리그',
+      description: '종목 · 보유 이유 · 투자 기록',
     },
     {
       to: '/league/following',
       title: '팔로우한 투자자',
-      description: '이번 주 성과와 새 복기 확인',
+      description: '이번 주 수익률과 복기 확인',
     },
   ];
 
@@ -225,8 +225,8 @@ export function MyPage() {
         <h2 id="mypage-settings-title">설정</h2>
         <nav aria-label="계정·공개 설정">
           <Link to="/portfolio/publication">
-            <strong>리그 참여 설정</strong>
-            <span>공개 프로필과 공개 범위 관리</span>
+            <strong>리그 설정</strong>
+            <span>공개 범위 · 프로필 · 순위 참여</span>
           </Link>
         </nav>
       </section>

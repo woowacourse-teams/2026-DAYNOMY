@@ -5,6 +5,7 @@ import {
   getInvestorDetail,
   getRankings,
   getDailyHistory,
+  getFollowSummary,
 } from '../../src/features/league/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -13,6 +14,32 @@ function jsonResponse(body: unknown, status = 200): Response {
     headers: { 'content-type': 'application/json' },
   });
 }
+
+test('팔로우 비교는 지난 확정 순위의 차이를 검증하고 이전 응답도 읽는다', async () => {
+  const entry = {
+    publicId: 'investor-1',
+    displayName: '공개 닉네임',
+    rank: 8,
+    previousRank: 10,
+    rankChange: 2,
+    comparisonWeekStart: '2026-09-28',
+    weeklyReturnRate: 2,
+    newReviewCount: 1,
+  };
+  globalThis.fetch = async () => jsonResponse({ investors: [entry] });
+  assert.equal((await getFollowSummary())[0].rankChange, 2);
+  globalThis.fetch = async () => jsonResponse({ investors: [{ ...entry, rankChange: -2 }] });
+  await assert.rejects(getFollowSummary(), /응답 형식/);
+  globalThis.fetch = async () =>
+    jsonResponse({ investors: [{ ...entry, previousRank: null, rankChange: null }] });
+  assert.equal((await getFollowSummary())[0].rankChange, null);
+  const { previousRank, rankChange, comparisonWeekStart, ...legacy } = entry;
+  void previousRank;
+  void rankChange;
+  void comparisonWeekStart;
+  globalThis.fetch = async () => jsonResponse({ investors: [legacy] });
+  assert.equal((await getFollowSummary())[0].rankChange, undefined);
+});
 
 test('리그 순위 응답을 런타임에 검증한다', async () => {
   globalThis.fetch = async () =>
@@ -166,4 +193,45 @@ test('투자 판단 저장 요청에 CSRF 토큰과 멱등 키를 전송한다',
   assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
   assert.equal(JSON.parse(String(calls[1]?.init?.body)).requestKey, 'request-1');
   assert.equal(JSON.parse(String(calls[1]?.init?.body)).quantity, undefined);
+});
+
+test('주중 참여는 기준 종가부터 0%로 추적하고 공식 주간 순위와 구분한다', async () => {
+  globalThis.fetch = async () =>
+    jsonResponse({
+      weekStart: '2026-09-21',
+      weekEnd: '2026-09-27',
+      asOfDate: '2026-09-23',
+      eligibleFrom: '2026-09-28',
+      trackingStartedOn: '2026-09-22',
+      confirmed: false,
+      weeklyReturnRate: null,
+      participationReturnRate: 10,
+      days: [
+        {
+          baseDate: '2026-09-21',
+          dailyReturnRate: null,
+          cumulativeReturnRate: null,
+          status: 'NOT_PARTICIPATING',
+          reason: null,
+        },
+        {
+          baseDate: '2026-09-22',
+          dailyReturnRate: 0,
+          cumulativeReturnRate: 0,
+          status: 'CALCULATED',
+          reason: 'TRACKING_BASELINE',
+        },
+        {
+          baseDate: '2026-09-23',
+          dailyReturnRate: 10,
+          cumulativeReturnRate: 10,
+          status: 'CALCULATED',
+          reason: null,
+        },
+      ],
+    });
+  const response = await getDailyHistory('investor-1', '2026-09-23');
+  assert.equal(response.weekStart, '2026-09-21');
+  assert.equal(response.weeklyReturnRate, null);
+  assert.equal(response.participationReturnRate, 10);
 });

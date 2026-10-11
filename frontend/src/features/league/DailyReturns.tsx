@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { getDailyHistory, getLeagueWeeks } from './api';
-import { formatRate } from './labels';
+import { formatRate, collectionLabels } from './labels';
 import type { DailyHistory, DailyReturnPoint, LeagueWeek } from './types';
 
 function statusLabel(day: DailyReturnPoint) {
-  if (day.status === 'CALCULATED') return '집계 완료';
+  if (day.status === 'CALCULATED')
+    return day.reason === 'TRACKING_BASELINE' ? '성과 시작 종가 · 0%' : '집계 완료';
   if (day.status === 'NOT_PARTICIPATING') return '참여 전 / 미참여';
   if (day.status === 'PENDING') return '집계 대기';
   switch (day.reason) {
@@ -12,8 +13,8 @@ function statusLabel(day: DailyReturnPoint) {
       return '종가 누락 · 집계 대기';
     case 'NO_HOLDINGS':
       return '공유 자산 없음';
-    case 'MINIMUM_EVALUATION':
-      return '최소 평가금액 미달';
+    case 'PRICE_COLLECTION_PENDING':
+      return '종가 수집 대기';
     case 'UNSUPPORTED_ASSET':
       return '지원하지 않는 자산';
     default:
@@ -102,10 +103,15 @@ export function DailyReturns({
         </div>
       ) : history ? (
         <>
+          {history.participationReturnRate !== undefined && history.weeklyReturnRate === null ? (
+            <p>참여 후 주간 수익률 {formatRate(history.participationReturnRate)}</p>
+          ) : null}
           <p className="league-daily-summary">
             <span>
               {history.weekStart} ~ {history.weekEnd} ·{' '}
-              {history.confirmed ? '지난 주 집계 완료' : '집계 중'}
+              {history.confirmed
+                ? '주간 수익률 확정'
+                : collectionLabels[history.collectionStatus ?? 'IN_PROGRESS']}
             </span>
             <strong>
               주간 누적{' '}
@@ -113,14 +119,10 @@ export function DailyReturns({
                 ? '집계 대기'
                 : formatRate(history.weeklyReturnRate)}
             </strong>
-            <small>
-              {history.asOfDate
-                ? `${history.asOfDate} 종가까지 계산됨`
-                : '계산된 거래일이 아직 없습니다.'}
-            </small>
+            <small>{history.asOfDate ? `${history.asOfDate} 종가 기준` : '집계 대기'}</small>
           </p>
           {days.length === 0 ? (
-            <p>이 주차에는 아직 수집된 거래일 종가가 없습니다. 휴장일은 기록하지 않아요.</p>
+            <p>거래일 기록 없음</p>
           ) : (
             <>
               {days.filter((day) => day.cumulativeReturnRate !== null).length >= 2 ? (
@@ -197,17 +199,8 @@ export function DailyReturns({
             </>
           )}
           {days.some((day) => day.status === 'NOT_PARTICIPATING') && history.eligibleFrom ? (
-            <p className="league-calculation-note">
-              참여 시작 기준일: {history.eligibleFrom}. 참여 이전 기록은 계산하지 않아요.
-            </p>
+            <p className="league-calculation-note">공식 순위 시작일: {history.eligibleFrom}</p>
           ) : null}
-          <details className="league-metric-more">
-            <summary>집계 기준</summary>
-            <p className="league-calculation-note">
-              월요일~일요일(KST)의 거래일 종가로 계산합니다. 누락된 종가는 0%로 대체하지 않으며, 새
-              주에는 누적이 다시 시작됩니다.
-            </p>
-          </details>
         </>
       ) : null}
     </section>

@@ -1,5 +1,6 @@
 import { request, requestWithCsrf } from '../../api/client';
 import { getSavedPortfolio } from '../portfolio/api';
+import type { InvestmentDecisionInput } from './types';
 
 export type SourceHolding = {
   assetId: number;
@@ -102,7 +103,11 @@ const path = '/api/users/me/shared-portfolio';
 export async function getSharedPortfolio(signal?: AbortSignal) {
   return portfolio(await request<unknown>(path, { signal }));
 }
-export async function importSharedHoldings(holdings: SourceHolding[], overwriteExisting: boolean) {
+export async function importSharedHoldings(
+  holdings: SourceHolding[],
+  overwriteExisting: boolean,
+  decisions: Record<number, InvestmentDecisionInput> = {},
+) {
   return portfolio(
     await requestWithCsrf<unknown>(`${path}/import`, {
       method: 'POST',
@@ -112,6 +117,7 @@ export async function importSharedHoldings(holdings: SourceHolding[], overwriteE
           assetId,
           quantity,
           averagePurchasePrice,
+          ...(decisions[assetId] ? { decision: decisions[assetId] } : {}),
         })),
         overwriteExisting,
       }),

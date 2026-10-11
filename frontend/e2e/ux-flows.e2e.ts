@@ -155,6 +155,8 @@ for (const viewport of [
       const input = route.request().postDataJSON();
       expect(input.quantity).toBeUndefined();
       expect(input.requestKey).toBeTruthy();
+      expect(input.decision.expectedHoldingPeriod).toBeNull();
+      expect(input.decision.maximumAcceptableLossRate).toBeNull();
       const saved = {
         id: 1,
         assetId: 1,
@@ -180,24 +182,42 @@ for (const viewport of [
       return route.fulfill({ status: 201, json: saved });
     });
     await page.goto('/league/portfolio');
-    await page.getByRole('button', { name: '보유 판단 남기기' }).click();
+    await page.route('**/api/users/me/portfolio', (route) =>
+      route.fulfill({
+        json: { holdings: [{ ...stock, quantity: 2, averagePurchasePrice: 70000 }] },
+      }),
+    );
+    await expect(page.getByRole('region', { name: '내 자산 요약', exact: true })).toBeVisible();
+    await expect(page.getByText('2주', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '삼성전자 보유 이유 작성' }).click();
+    await expect(page.getByLabel('보유하는 이유', { exact: true })).toBeFocused();
+    await expect(page.getByRole('radio', { name: '미정', exact: true })).toBeChecked();
+    const decisionForm = page.getByRole('form', { name: '종목 투자 기록 작성' });
+    await expect(decisionForm).toHaveCSS('border-top-width', '0px');
+    for (const fieldset of await decisionForm.locator('fieldset').all()) {
+      await expect(fieldset).toHaveCSS('border-top-width', '0px');
+    }
     await page.getByLabel('보유하는 이유', { exact: true }).fill('실적을 확인했습니다');
-    await page.getByLabel('기대하는 변화', { exact: true }).fill('매출 성장');
-    await page.getByLabel('판단을 다시 확인할 조건', { exact: true }).fill('실적 악화');
-    await page.getByRole('button', { name: '판단 기록 저장' }).click();
-    await expect(page.getByRole('heading', { name: '삼성전자 · 보유 판단' })).toBeVisible();
+    await page.getByRole('button', { name: '내 포트폴리오에서 가져오기' }).click();
+    await expect(page.getByRole('heading', { name: '가져올 자산 선택' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '보유 이유 저장' })).toBeHidden();
+    await page.getByRole('button', { name: '취소', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: '보유하는 이유', exact: true })).toHaveValue(
+      '실적을 확인했습니다',
+    );
+    await page.getByRole('button', { name: '보유 이유 저장' }).click();
+    await expect(page.getByRole('heading', { name: '삼성전자 · 보유 기록' })).toBeVisible();
     await page.getByRole('button', { name: '결과 복기 추가' }).click();
     await page.getByLabel('실제 결과', { exact: true }).fill('성장 가정을 점검했습니다');
     await page.getByLabel('예상과 달랐던 점', { exact: true }).fill('변동성은 더 컸습니다');
     await page.getByLabel('다음 행동', { exact: true }).fill('다음 실적 확인');
     await page.getByRole('button', { name: '복기 저장' }).click();
     await expect(
-      page.getByRole('region', { name: '판단과 복기' }).getByRole('status'),
+      page.getByRole('region', { name: '종목별 투자 기록' }).getByRole('status'),
     ).toContainText('복기를 추가했어요');
     await expect(page.getByText('성장 가정을 점검했습니다', { exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByText('성장 가정을 점검했습니다', { exact: true })).toBeVisible();
-    await page.getByText('자산 상세', { exact: true }).click();
     await expect(page.getByText('2주', { exact: true })).toBeVisible();
     await checkWidth(page);
   });
@@ -221,6 +241,10 @@ for (const viewport of [
         localStorage.setItem('daynomy:portfolio-holdings:v1', JSON.stringify(value));
     }, original);
     let holdings: Array<Record<string, unknown>> = [];
+    let importedRecords: Array<Record<string, unknown>> = [];
+    await page.route('**/api/users/me/portfolio/transactions', (route) =>
+      route.fulfill({ json: { transactions: importedRecords } }),
+    );
     const response = () => ({
       holdings,
       totalPurchaseAmount: holdings.reduce(
@@ -236,6 +260,31 @@ for (const viewport of [
       const url = route.request().url();
       if (method === 'POST') {
         const input = route.request().postDataJSON();
+        importedRecords = input.holdings.map(
+          (
+            h: {
+              assetId: number;
+              quantity: number;
+              averagePurchasePrice: number;
+              decision: Record<string, unknown>;
+            },
+            index: number,
+          ) => ({
+            id: index + 1,
+            assetId: h.assetId,
+            assetCode: stock.assetCode,
+            assetName: stock.name,
+            category: stock.category,
+            transactionType: 'HOLD',
+            quantity: h.quantity,
+            unitPrice: h.averagePurchasePrice,
+            fee: 0,
+            tradedOn: '2026-10-09',
+            ...h.decision,
+            writtenAfterTrade: true,
+            reviews: [],
+          }),
+        );
         holdings = input.holdings.map((h: Record<string, unknown>) => ({
           ...h,
           assetCode: stock.assetCode,
@@ -261,25 +310,39 @@ for (const viewport of [
     });
     await page.goto('/portfolio/records');
     await expect(page).toHaveURL('/league/portfolio');
+    await expect(page.getByRole('link', { name: '리그 설정', exact: true })).toHaveAttribute(
+      'href',
+      '/portfolio/publication',
+    );
+    await expect(page.getByRole('heading', { name: '공개 설정', exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: '내 포트폴리오에서 가져오기' }).click();
+    await expect(page.getByRole('button', { name: '1종목 가져오기' })).toBeDisabled();
+    await page
+      .getByRole('textbox', { name: '삼성전자 보유 이유', exact: true })
+      .fill('실적 성장을 기대합니다');
     await page.getByRole('button', { name: '1종목 가져오기' }).click();
-    await expect(page.getByRole('heading', { name: '공유용 자산 1개' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '리그 종목 1개' })).toBeVisible();
+    await expect(page.getByText('실적 성장을 기대합니다', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '종목 직접 추가' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '수정', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '공유용에서 삭제' })).toHaveCount(0);
-    await page.getByText('자산 상세', { exact: true }).click();
     await expect(page.getByText('10주', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: '숨기기', exact: true }).click();
-    await expect(page.getByRole('button', { name: '숨김 해제' })).toBeVisible();
+    await page.getByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' }).click();
+    await expect(
+      page.getByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' }),
+    ).not.toBeChecked();
     await expect(page.getByText('+10.00%', { exact: true })).toHaveCount(2);
     await page.reload();
-    await expect(page.getByRole('button', { name: '숨김 해제' })).toBeVisible();
-    await page.getByText('자산 상세', { exact: true }).click();
+    await expect(
+      page.getByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' }),
+    ).not.toBeChecked();
     await expect(page.getByText('10주', { exact: true })).toBeVisible();
     await checkWidth(page);
-    await page.getByRole('button', { name: '숨김 해제' }).click();
-    await expect(page.getByRole('button', { name: '숨기기', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: '공유용 자산 1개' })).toBeVisible();
+    await page.getByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' }).click();
+    await expect(
+      page.getByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' }),
+    ).toBeChecked();
+    await expect(page.getByRole('heading', { name: '리그 종목 1개' })).toBeVisible();
     expect(
       await page.evaluate(() =>
         JSON.parse(localStorage.getItem('daynomy:portfolio-holdings:v1') ?? '[]'),
@@ -365,17 +428,56 @@ test('모바일: 공개 범위가 미리 보이고 동의한 항목만 저장한
   await page.route('**/api/users/me/portfolio/publication', (route) =>
     route.fulfill({ json: { ...profile, ...route.request().postDataJSON() } }),
   );
-  await page.goto('/portfolio/publication');
-  await page.getByText('공개 모습 미리보기', { exact: true }).click();
-  await expect(page.getByText('현재 선택: 비공개')).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: /주간 리그 참여/ })).toBeDisabled();
-  await page.getByRole('checkbox', { name: /프로필 공개/ }).check();
-  await page.getByRole('checkbox', { name: /주간 리그 참여/ }).check();
-  await expect(page.getByText(/주간 리그 참여 켜짐/)).toBeVisible();
-  await page.getByRole('button', { name: '설정 저장' }).click();
-  await expect(page.getByText('공개 설정을 저장했습니다.')).toBeVisible();
+  await page.route('**/api/users/me/shared-portfolio', (route) =>
+    route.fulfill({
+      json: {
+        holdings: [
+          {
+            ...stock,
+            assetName: stock.name,
+            quantity: 2,
+            averagePurchasePrice: 70000,
+            hidden: false,
+            reason: '장기 성장 기대',
+            baseDate: '2026-10-02',
+            closePrice: 77000,
+            evaluationAmount: 154000,
+            returnRate: 10,
+          },
+        ],
+        totalPurchaseAmount: 140000,
+        totalEvaluationAmount: 154000,
+        totalReturnRate: 10,
+        pricesComplete: true,
+      },
+    }),
+  );
+  await page.goto('/league');
+  await page.getByRole('link', { name: '리그 설정', exact: true }).click();
+  await expect(page).toHaveURL('/portfolio/publication');
+  await expect(page.getByRole('heading', { name: '리그 설정', exact: true })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /^나만 보기/ })).toBeChecked();
+  await expect(page.getByLabel('공개 닉네임', { exact: true })).toBeVisible();
+  await expect(page.getByRole('radio', { name: '투자 1년 미만' })).toBeChecked();
+  await expect(page.getByRole('radio', { name: '중립형' })).toBeChecked();
+  await expect(page.locator('main details')).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: '주식·ETF의 비중도 보여주기' })).toBeDisabled();
+  await expect(
+    page.getByRole('checkbox', { name: '주간 순위에 참여하기', exact: true }),
+  ).toBeEnabled();
+  await page.getByRole('checkbox', { name: '주간 순위에 참여하기', exact: true }).check();
+  await expect(page.getByRole('radio', { name: /^성과만 공유/ })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: '주식·ETF의 비중도 보여주기' })).toBeEnabled();
+  await page.getByRole('button', { name: '저장' }).click();
+  await expect(page.getByText(/저장했습니다\./)).toBeVisible();
   await expect(page.getByRole('link', { name: '주간 순위 보기 →' })).toBeVisible();
   await checkWidth(page);
+  await page.getByRole('link', { name: '내 리그', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '내 리그', exact: true })).toBeVisible();
+  await expect(page.getByRole('radio')).toHaveCount(0);
+  await page.getByRole('link', { name: '리그 설정', exact: true }).click();
+  await page.getByRole('link', { name: '← 투자 리그' }).click();
+  await expect(page).toHaveURL('/league');
 });
 
 test('모바일: 공개 종목 상세와 8주 기록이 화면 밖으로 넘치지 않는다', async ({ page }) => {
@@ -456,10 +558,14 @@ test('모바일: 공개 종목 상세와 8주 기록이 화면 밖으로 넘치�
       },
     });
   });
-  await page.goto('/league/ux');
+  await page.goto('/league/ux#investment-details');
   await expect(page.getByRole('heading', { name: '공개 종목' })).toBeVisible();
   await expect(page.getByText('+1.20% 기여')).toBeVisible();
-  await page.getByText('일별 수익률 보기', { exact: true }).click();
+  await page
+    .getByRole('navigation', { name: '투자자 상세 탐색' })
+    .getByRole('link', { name: '성과', exact: true })
+    .click();
+  await page.getByRole('button', { name: '일별', exact: true }).click();
   await expect(page.getByRole('table')).toBeVisible();
   await page.getByRole('combobox', { name: '조회 주차' }).selectOption('2026-09-21');
   await expect(page.getByText('종가 누락 · 집계 대기')).toBeVisible();
