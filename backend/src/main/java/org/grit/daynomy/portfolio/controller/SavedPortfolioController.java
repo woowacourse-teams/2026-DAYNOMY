@@ -12,6 +12,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioHoldingHistoryResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
@@ -64,6 +65,15 @@ public class SavedPortfolioController {
       @Valid @RequestBody PortfolioTransactionRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(savedPortfolioService.transact(member.memberId(), request));
+  }
+
+  @Operation(summary = "매수·매도 거래 수정")
+  @PatchMapping("/transactions/{transactionId}")
+  public PortfolioTransactionResponse updateTransaction(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId,
+      @Valid @RequestBody PortfolioTransactionUpdateRequest request) {
+    return savedPortfolioService.updateTransaction(member.memberId(), transactionId, request);
   }
 
   @Operation(summary = "보유자산 수정")
