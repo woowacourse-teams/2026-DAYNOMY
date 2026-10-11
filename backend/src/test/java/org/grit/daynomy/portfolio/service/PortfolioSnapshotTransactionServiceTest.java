@@ -139,6 +139,39 @@ class PortfolioSnapshotTransactionServiceTest {
   }
 
   @Test
+  void refreshSnapshotsFromRemovesStaleSnapshotsAcrossAffectedDates() {
+    LocalDate beforeDate = LocalDate.now().minusDays(3);
+    LocalDate fromDate = LocalDate.now().minusDays(2);
+    LocalDate afterDate = LocalDate.now().minusDays(1);
+    Portfolio portfolio = mock(Portfolio.class);
+    PortfolioDailySnapshot fromSnapshot = mock(PortfolioDailySnapshot.class);
+    PortfolioDailySnapshot afterSnapshot = mock(PortfolioDailySnapshot.class);
+    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+        .willReturn(List.of(beforeDate, fromDate, afterDate));
+    given(portfolioRepository.findById(10L)).willReturn(Optional.of(portfolio));
+    given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, fromDate))
+        .willReturn(Optional.of(fromSnapshot));
+    given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, afterDate))
+        .willReturn(Optional.of(afterSnapshot));
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, fromDate))
+        .willReturn(List.of());
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, afterDate))
+        .willReturn(List.of());
+
+    service.refreshSnapshotsFrom(10L, fromDate);
+
+    then(snapshotRepository).should(never()).findByPortfolioIdAndBaseDate(10L, beforeDate);
+    then(snapshotRepository).should().delete(fromSnapshot);
+    then(snapshotRepository).should().delete(afterSnapshot);
+  }
+
+  @Test
   void createSnapshotWaitsUntilPreviousClosingPriceIsAvailable() {
     LocalDate previousDate = LocalDate.of(2026, 9, 29);
     LocalDate baseDate = LocalDate.of(2026, 9, 30);
