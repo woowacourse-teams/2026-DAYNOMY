@@ -106,4 +106,25 @@ public class PortfolioHoldingHistory extends BaseEntity {
     this.fee = fee;
     this.tax = tax;
   }
+
+  public boolean isTransaction() {
+    return changeType == PortfolioHoldingChangeType.BUY
+        || changeType == PortfolioHoldingChangeType.SELL;
+  }
+
+  public void updateTransaction(
+      LocalDate tradeDate,
+      long transactionQuantity,
+      BigDecimal unitPrice,
+      BigDecimal fee,
+      BigDecimal tax) {
+    if (!isTransaction()) {
+      throw new IllegalStateException("매수·매도 거래만 수정할 수 있습니다.");
+    }
+    this.effectiveDate = tradeDate;
+    this.transactionQuantity = transactionQuantity;
+    this.unitPrice = unitPrice;
+    this.fee = fee;
+    this.tax = tax;
+  }
 }
