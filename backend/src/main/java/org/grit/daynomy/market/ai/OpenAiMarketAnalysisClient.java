@@ -20,9 +20,11 @@ import org.springframework.web.client.RestClientException;
 @Component
 public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
 
+  private static final int MAX_ANALYSIS_TEXT_LENGTH = 80;
+
   private static final String MARKET_ANALYSIS_PROMPT =
       """
-      사용자가 뉴스 이슈의 시장 영향을 이해할 수 있도록 다음 다섯 항목을 각각 1문장으로 작성하세요.
+      사용자가 뉴스 이슈의 시장 영향을 이해할 수 있도록 다음 다섯 항목을 각각 80자 이내의 1문장으로 작성하세요.
       observedFact는 뉴스 본문에서 직접 확인할 수 있는 사실만 작성하세요.
       interpretation은 observedFact로 설명할 수 있는 범위까지만 해석하세요.
       한 기업이나 한 사건의 결과를 산업 또는 시장 전체의 확정적인 신호로 일반화하지 마세요.
@@ -142,7 +144,8 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
   }
 
   private Map<String, Object> createMarketAnalysisSchema() {
-    Map<String, Object> textProperty = Map.of("type", "string", "minLength", 1);
+    Map<String, Object> textProperty =
+        Map.of("type", "string", "minLength", 1, "maxLength", MAX_ANALYSIS_TEXT_LENGTH);
     return Map.of(
         "type",
         "object",
@@ -180,6 +183,14 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     if (value.isBlank()) {
       throw new IllegalStateException(
           "OpenAI market analysis response must contain " + fieldName + ".");
+    }
+    if (value.codePointCount(0, value.length()) > MAX_ANALYSIS_TEXT_LENGTH) {
+      throw new IllegalStateException(
+          "OpenAI market analysis response must contain "
+              + fieldName
+              + " within "
+              + MAX_ANALYSIS_TEXT_LENGTH
+              + " characters.");
     }
     return value;
   }

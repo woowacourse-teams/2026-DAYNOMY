@@ -37,12 +37,18 @@ class OpenAiMarketAnalysisClientTest {
         .andExpect(jsonPath("$.input[0].content").value(containsString("뉴스 본문에서 직접 확인할 수 있는 사실")))
         .andExpect(
             jsonPath("$.input[0].content").value(containsString("시장 전체의 확정적인 신호로 일반화하지 마세요")))
+        .andExpect(jsonPath("$.input[0].content").value(containsString("각각 80자 이내의 1문장")))
         .andExpect(jsonPath("$.input[1].content").value("뉴스 본문입니다."))
         .andExpect(jsonPath("$.text.format.schema.properties.observedFact.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.observedFact.maxLength").value(80))
         .andExpect(jsonPath("$.text.format.schema.properties.interpretation.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.interpretation.maxLength").value(80))
         .andExpect(jsonPath("$.text.format.schema.properties.risk.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.risk.maxLength").value(80))
         .andExpect(jsonPath("$.text.format.schema.properties.watchPoint.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.watchPoint.maxLength").value(80))
         .andExpect(jsonPath("$.text.format.schema.properties.limitation.type").value("string"))
+        .andExpect(jsonPath("$.text.format.schema.properties.limitation.maxLength").value(80))
         .andRespond(withSuccess(createResponse(), MediaType.APPLICATION_JSON));
 
     var analysis = client.analyze("뉴스 본문입니다.");
@@ -118,6 +124,25 @@ class OpenAiMarketAnalysisClientTest {
     server.verify();
   }
 
+  @Test
+  @DisplayName("시장 분석 필드가 80자를 초과하면 예외를 던진다")
+  void analyzeThrowsWhenAnalysisFieldExceedsMaximumLength() {
+    RestClient.Builder restClientBuilder = RestClient.builder();
+    MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
+    OpenAiMarketAnalysisClient client =
+        new OpenAiMarketAnalysisClient(
+            restClientBuilder, "https://api.openai.test/v1", "test-api-key", "gpt-test");
+    server
+        .expect(requestTo("https://api.openai.test/v1/responses"))
+        .andRespond(withSuccess(createTooLongFieldResponse(), MediaType.APPLICATION_JSON));
+
+    assertThatThrownBy(() -> client.analyze("뉴스 본문입니다."))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "OpenAI market analysis response must contain interpretation within 80 characters.");
+    server.verify();
+  }
+
   private String createResponse() {
     return """
         {
@@ -168,5 +193,23 @@ class OpenAiMarketAnalysisClientTest {
           ]
         }
         """;
+  }
+
+  private String createTooLongFieldResponse() {
+    return """
+        {
+          "output": [
+            {
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "{\\\"observedFact\\\":\\\"사실\\\",\\\"interpretation\\\":\\\"%s\\\",\\\"risk\\\":\\\"위험\\\",\\\"watchPoint\\\":\\\"확인 지표\\\",\\\"limitation\\\":\\\"분석 한계\\\"}"
+                }
+              ]
+            }
+          ]
+        }
+        """
+        .formatted("가".repeat(81));
   }
 }
