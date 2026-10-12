@@ -18,6 +18,17 @@ class PortfolioAnalysisCheckTest {
           Portfolio.create(Member.createGoogleMember("test", "test@example.invalid", "테스트", null)));
 
   @Test
+  void recheckIsRequiredAtTwentyFourHoursButDoesNotEraseSuccessfulCheck() {
+    check.recordSuccess(first, PortfolioAnalysisCheck.Outcome.UPDATED);
+    assertThat(check.requiresRecheck(first.plusSeconds(86399))).isFalse();
+    assertThat(check.requiresRecheck(first.plusSeconds(86400))).isTrue();
+    check.recordSuccess(first.plusSeconds(86401), PortfolioAnalysisCheck.Outcome.UNCONFIRMED);
+    assertThat(check.requiresRecheck(first.plusSeconds(86402))).isTrue();
+    check.recordSuccess(first.plusSeconds(86403), PortfolioAnalysisCheck.Outcome.UNCHANGED);
+    assertThat(check.requiresRecheck(first.plusSeconds(86404))).isFalse();
+  }
+
+  @Test
   void activeRequestCannotBeReplacedAndOnlyOwnerCanFinish() {
     UUID token = UUID.randomUUID();
     assertThat(check.begin(token, first, Duration.ofMinutes(5))).isTrue();

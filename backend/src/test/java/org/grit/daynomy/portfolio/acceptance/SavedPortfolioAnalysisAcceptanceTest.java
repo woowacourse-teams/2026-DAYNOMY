@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -386,6 +387,185 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .body("analysis.overallScore", nullValue())
         .body("analysis.impacts[0].evidenceStatus", equalTo("INSUFFICIENT"))
         .body("analysis.impacts[0].direction", nullValue());
+  }
+
+  @Test
+  void refreshWithSameFactPreservesOriginalJudgmentAndCreationTime() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    var first = client(member).post(API);
+    long id = first.jsonPath().getLong("analysisId");
+    String analyzedAt = first.jsonPath().getString("analysis.analyzedAt");
+    when(ai.refresh(anyList(), anyString()))
+        .thenAnswer(
+            invocation ->
+                refreshed(
+                    invocation.getArgument(0),
+                    LocalDate.of(2026, 9, 25),
+                    "https://example.invalid/reprint",
+                    "영업이익이 감소했어요."));
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("analysisId", equalTo((int) id))
+        .body("analysis.analyzedAt", equalTo(analyzedAt))
+        .body("analysis.impacts[0].direction", equalTo("NEGATIVE"));
+    client(member).get(API + "/history").then().statusCode(200).body("size()", equalTo(1));
+    verify(ai).refresh(anyList(), anyString());
+  }
+
+  @Test
+  void datedNewEvidenceCreatesLinkedRevisionAndIsolatesHistory() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    long oldId = client(member).post(API).jsonPath().getLong("analysisId");
+    when(ai.refresh(anyList(), anyString()))
+        .thenAnswer(
+            invocation ->
+                refreshed(
+                    invocation.getArgument(0),
+                    LocalDate.of(2026, 10, 1),
+                    "https://example.invalid/new",
+                    "새 계약을 체결했어요."));
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("analysis.impacts[0].direction", equalTo("POSITIVE"));
+    var history = client(member).get(API + "/history");
+    history
+        .then()
+        .statusCode(200)
+        .body("size()", equalTo(2))
+        .body("[0].previousAnalysisId", equalTo((int) oldId))
+        .body("[1].analysis.impacts[0].direction", equalTo("NEGATIVE"));
+    assertThat(history.jsonPath().getString("[0].changeReason")).contains("삼성전자", "새 계약");
+    client(member()).get(API + "/history").then().statusCode(200).body("size()", equalTo(0));
+    given().port(port).get(API + "/history").then().statusCode(401);
+  }
+
+  @Test
+  void refreshWithoutConfirmedEvidenceKeepsResultAndRequiresRecheck() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    long id = client(member).post(API).jsonPath().getLong("analysisId");
+    when(ai.refresh(anyList(), anyString()))
+        .thenReturn(
+            new PortfolioAnalysisResult(
+                "근거를 확인하지 못했어요.",
+                List.of(
+                    new PortfolioAnalysisResult.AssetImpactResult(
+                        "삼성전자",
+                        null,
+                        null,
+                        "근거를 확인하지 못했어요.",
+                        "",
+                        "",
+                        "근거가 부족해요.",
+                        "근거가 부족해요.",
+                        List.of(),
+                        1)),
+                List.of()));
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("status", equalTo("RECHECK_REQUIRED"))
+        .body("analysisId", equalTo((int) id));
+    client(member).get(API).then().statusCode(200).body("status", equalTo("RECHECK_REQUIRED"));
+    client(member).get(API + "/history").then().body("size()", equalTo(1));
+  }
+
+  @Test
+  void expiredCheckNeedsRefreshAndFailurePreservesPreviousSuccessfulTime() {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    successfulAi();
+    long id = client(member).post(API).jsonPath().getLong("analysisId");
+    jdbc.update(
+        "update portfolio_analysis_checks set last_succeeded_at = now() - interval '25 hours' where portfolio_id = ?",
+        portfolio.getId());
+    var stored = client(member).get(API);
+    stored.then().statusCode(200).body("status", equalTo("RECHECK_REQUIRED"));
+    String lastSucceededAt = stored.jsonPath().getString("lastSucceededAt");
+    when(ai.refresh(anyList(), anyString()))
+        .thenThrow(new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED));
+    client(member).post(API + "/refresh").then().statusCode(502);
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("status", equalTo("FAILED"))
+        .body("lastSucceededAt", equalTo(lastSucceededAt))
+        .body("analysisId", equalTo((int) id));
+    doAnswer(invocation -> result(invocation.getArgument(0)))
+        .when(ai)
+        .refresh(anyList(), anyString());
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("status", equalTo("READY"))
+        .body("analysisId", equalTo((int) id));
+  }
+
+  @Test
+  void concurrentRefreshRunsOnceAndSearchDoesNotHoldTransaction() throws Exception {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    var started = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    when(ai.refresh(anyList(), anyString()))
+        .thenAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              started.countDown();
+              assertThat(release.await(20, TimeUnit.SECONDS)).isTrue();
+              return result(invocation.getArgument(0));
+            });
+    RequestSpecification first = client(member);
+    try (var executor = Executors.newSingleThreadExecutor()) {
+      var pending = executor.submit(() -> first.post(API + "/refresh"));
+      try {
+        assertThat(started.await(15, TimeUnit.SECONDS)).isTrue();
+        client(member).get(API).then().statusCode(200).body("status", equalTo("PROCESSING"));
+        client(member).post(API + "/refresh").then().statusCode(409);
+      } finally {
+        release.countDown();
+      }
+      pending.get(20, TimeUnit.SECONDS).then().statusCode(200);
+    }
+    verify(ai).refresh(anyList(), anyString());
+    client(member).get(API + "/history").then().body("size()", equalTo(1));
+  }
+
+  private PortfolioAnalysisResult refreshed(
+      List<PortfolioAnalysisTarget> targets, LocalDate occurredOn, String url, String fact) {
+    var source = new PortfolioAnalysisResult.Source("공식 발표", url, occurredOn, occurredOn, fact);
+    var impacts =
+        targets.stream()
+            .map(
+                target ->
+                    new PortfolioAnalysisResult.AssetImpactResult(
+                        target.assetName(),
+                        ImpactDirection.POSITIVE,
+                        ImpactLevel.HIGH,
+                        fact,
+                        "실적 개선을 기대할 수 있어요.",
+                        "다음 실적을 확인해 보세요.",
+                        fact,
+                        fact,
+                        List.of(source),
+                        1))
+            .toList();
+    return new PortfolioAnalysisResult("새 발표가 있어요.", impacts, List.of(source));
   }
 
   private void successfulAi() {

@@ -14,6 +14,9 @@ public interface PortfolioAnalysisRepository extends JpaRepository<PortfolioAnal
 
   Optional<PortfolioAnalysis> findByIdAndPortfolioMemberId(Long id, Long memberId);
 
+  java.util.List<PortfolioAnalysis> findAllByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(
+      Long memberId, org.springframework.data.domain.Pageable pageable);
+
   @Modifying
   @Query(
       value =

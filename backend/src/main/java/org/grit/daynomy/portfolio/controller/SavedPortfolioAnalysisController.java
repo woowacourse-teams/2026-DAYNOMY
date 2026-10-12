@@ -22,12 +22,32 @@ public class SavedPortfolioAnalysisController {
   private final SavedPortfolioAnalysisService service;
 
   @Operation(
+      summary = "내 포트폴리오 분석 변경 이력 조회",
+      description =
+          "본인의 최근 분석 이력 최대 10개를 최신순으로 반환합니다. 삭제된 오래된 이력을 가리키는 previousAnalysisId는 null입니다.")
+  @GetMapping("/history")
+  public java.util.List<org.grit.daynomy.portfolio.dto.PortfolioAnalysisHistoryResponse> history(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
+    return service.history(member.memberId());
+  }
+
+  @Operation(
       summary = "내 포트폴리오 저장 분석 조회",
       description = "AI를 호출하지 않습니다. 자산 변경·진행 중·최근 실패 상태에서도 이전 분석을 반환합니다.")
   @GetMapping
   public SavedPortfolioAnalysisResponse get(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
     return service.get(member.memberId());
+  }
+
+  @Operation(
+      summary = "내 포트폴리오 새 근거 확인",
+      description =
+          "실제 웹 검색을 실행합니다. 동일 근거이면 기존 분석과 생성 시각을 유지하고 최근 확인 시각만 갱신합니다. 새 사건으로 확인하기 어려우면 RECHECK_REQUIRED, 검색 실패 시 오류를 반환하며 이전 분석을 보존합니다. 동시 요청은 409입니다.")
+  @PostMapping("/refresh")
+  public SavedPortfolioAnalysisResponse refresh(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
+    return service.refresh(member.memberId());
   }
 
   @Operation(

@@ -150,6 +150,7 @@ class PortfolioAnalysisControllerTest {
             new SavedPortfolioAnalysisResponse(
                 SavedPortfolioAnalysisResponse.Status.EMPTY,
                 null,
+                null,
                 false,
                 null,
                 null,

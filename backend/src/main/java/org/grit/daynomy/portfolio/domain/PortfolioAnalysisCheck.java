@@ -41,6 +41,29 @@ public class PortfolioAnalysisCheck {
   @Column(name = "failure_code", length = 100)
   private String failureCode;
 
+  public enum Outcome {
+    UPDATED,
+    UNCHANGED,
+    UNCONFIRMED
+  }
+
+  @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+  @Column(name = "last_outcome", length = 30)
+  private Outcome lastOutcome;
+
+  public boolean requiresRecheck(Instant now) {
+    return lastOutcome == Outcome.UNCONFIRMED
+        || lastSucceededAt == null
+        || !now.isBefore(lastSucceededAt.plus(Duration.ofHours(24)));
+  }
+
+  public void recordSuccess(Instant checkedAt, Outcome outcome) {
+    if (lastSucceededAt == null || checkedAt.isAfter(lastSucceededAt)) {
+      recordSuccess(checkedAt);
+      lastOutcome = Objects.requireNonNull(outcome);
+    }
+  }
+
   @Column(name = "request_token")
   private UUID requestToken;
 

@@ -533,6 +533,18 @@ class OpenAiPortfolioAnalysisClientTest {
         .allSatisfy(impact -> assertThat(impact.expectedReaction()).isEqualTo("중립적인 반응이 예상돼요."));
   }
 
+  @Test
+  void refreshSendsPreviousEvidenceAsDataAndStillRequiresWebSearch() throws Exception {
+    enqueueOutput(validOutput());
+    String previous = "[{\"assetName\":\"삼성전자\",\"sources\":[]}]";
+    client.refresh(targets(), previous);
+    var request = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(request.path("tool_choice").asText()).isEqualTo("required");
+    assertThat(request.path("input").get(2).path("content").asText()).contains("재보도", "검증 대상 데이터");
+    assertThat(request.path("input").get(3).path("role").asText()).isEqualTo("user");
+    assertThat(request.path("input").get(3).path("content").asText()).isEqualTo(previous);
+  }
+
   private PortfolioAnalysisResult.Source source(String title, String url) {
     return new PortfolioAnalysisResult.Source(title, url, null, null, "확인된 사업 변화예요.");
   }

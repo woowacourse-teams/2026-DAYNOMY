@@ -76,8 +76,39 @@ public class SavedPortfolioAnalysisTransactionService {
         .orElseGet(SavedPortfolioAnalysisResponse::empty);
   }
 
+  @Transactional(readOnly = true)
+  public List<org.grit.daynomy.portfolio.dto.PortfolioAnalysisHistoryResponse> history(
+      Long memberId) {
+    return analyses
+        .findAllByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(
+            memberId, org.springframework.data.domain.PageRequest.of(0, RETAINED_ANALYSES))
+        .stream()
+        .map(
+            analysis ->
+                new org.grit.daynomy.portfolio.dto.PortfolioAnalysisHistoryResponse(
+                    analysis.getId(),
+                    analysis.getPreviousAnalysisId(),
+                    analysis.getAnalyzedAt(),
+                    analysis.getChangeReason(),
+                    PortfolioAnalysisResponse.from(
+                        analysis,
+                        evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
+                            analysis.getId(), memberId))))
+        .toList();
+  }
+
   @Transactional
   public PreparedAnalysis prepare(Long memberId, PortfolioAnalysisRequest request) {
+    return prepare(memberId, request, false);
+  }
+
+  @Transactional
+  public PreparedAnalysis prepareRefresh(Long memberId) {
+    return prepare(memberId, null, true);
+  }
+
+  private PreparedAnalysis prepare(
+      Long memberId, PortfolioAnalysisRequest request, boolean refresh) {
     Portfolio portfolio = lockedPortfolio(memberId);
     List<PortfolioAssetRequest> assets = currentAssets(portfolio);
     if (assets.isEmpty()) {
@@ -93,17 +124,34 @@ public class SavedPortfolioAnalysisTransactionService {
             .findById(portfolio.getId())
             .orElseGet(() -> checks.save(new PortfolioAnalysisCheck(portfolio)));
     Instant now = Instant.now();
-    if (previous != null
+    if (check.isProcessing(now)) {
+      throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_IN_PROGRESS);
+    }
+    if (!refresh
+        && previous != null
         && matches(previous, assets)
         && ANALYSIS_VERSION.equals(previous.getAnalysisVersion())
         && model.equals(previous.getModel())) {
-      return new PreparedAnalysis(response(memberId, previous, check, assets, now), null, assets);
+      return new PreparedAnalysis(
+          response(memberId, previous, check, assets, now), null, assets, null);
     }
     UUID token = UUID.randomUUID();
     if (!check.begin(token, now, REQUEST_TIMEOUT)) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_IN_PROGRESS);
     }
-    return new PreparedAnalysis(null, token, assets);
+    return new PreparedAnalysis(
+        null,
+        token,
+        assets,
+        previous != null
+                && matches(previous, assets)
+                && ANALYSIS_VERSION.equals(previous.getAnalysisVersion())
+                && model.equals(previous.getModel())
+            ? PortfolioAnalysisResponse.from(
+                previous,
+                evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
+                    previous.getId(), memberId))
+            : null);
   }
 
   @Transactional
@@ -124,6 +172,24 @@ public class SavedPortfolioAnalysisTransactionService {
     PortfolioAnalysis previous = latest(memberId);
     String reason =
         previous == null ? "최초 분석" : matches(previous, assets) ? "분석 기준 변경" : "보유 자산 또는 비중 변경";
+    if (previous != null
+        && matches(previous, assets)
+        && ANALYSIS_VERSION.equals(previous.getAnalysisVersion())
+        && model.equals(previous.getModel())) {
+      var old =
+          PortfolioAnalysisResponse.from(
+              previous,
+              evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
+                  previous.getId(), memberId));
+      var revision = PortfolioAnalysisRefresh.compare(old, result);
+      if (revision.outcome() != PortfolioAnalysisCheck.Outcome.UPDATED) {
+        check.recordSuccess(now, revision.outcome());
+        check.finish(token);
+        return response(memberId, previous, check, assets, now);
+      }
+      result = revision.analysis();
+      reason = revision.reason();
+    }
     PortfolioAnalysis analysis =
         analyses.save(
             PortfolioAnalysis.create(
@@ -171,7 +237,7 @@ public class SavedPortfolioAnalysisTransactionService {
                         source.occurredOn(),
                         source.excerpt())));
     evidence.saveAll(savedEvidence);
-    check.recordSuccess(now);
+    check.recordSuccess(now, PortfolioAnalysisCheck.Outcome.UPDATED);
     check.finish(token);
     analyses.flush();
     analyses.deleteOlderAnalyses(portfolio.getId(), RETAINED_ANALYSES);
@@ -278,6 +344,9 @@ public class SavedPortfolioAnalysisTransactionService {
     Instant failedAt = check == null ? null : check.getLastFailedAt();
     Status status =
         analysis == null ? Status.EMPTY : same ? Status.READY : Status.PORTFOLIO_CHANGED;
+    if (analysis != null && same && (check == null || check.requiresRecheck(now))) {
+      status = Status.RECHECK_REQUIRED;
+    }
     if (failedAt != null && (succeededAt == null || failedAt.isAfter(succeededAt))) {
       status = Status.FAILED;
     }
@@ -286,6 +355,7 @@ public class SavedPortfolioAnalysisTransactionService {
     }
     return new SavedPortfolioAnalysisResponse(
         status,
+        check == null || check.getLastOutcome() == null ? null : check.getLastOutcome().name(),
         analysis == null ? null : analysis.getId(),
         same,
         succeededAt,
@@ -301,5 +371,8 @@ public class SavedPortfolioAnalysisTransactionService {
   }
 
   public record PreparedAnalysis(
-      SavedPortfolioAnalysisResponse saved, UUID token, List<PortfolioAssetRequest> assets) {}
+      SavedPortfolioAnalysisResponse saved,
+      UUID token,
+      List<PortfolioAssetRequest> assets,
+      PortfolioAnalysisResponse previous) {}
 }
