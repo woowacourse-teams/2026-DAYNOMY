@@ -25,9 +25,11 @@ import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
 import { AdminStockContentsPage } from './features/admin/AdminStockContentsPage';
 import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
+import { AdminFeedbackPage } from './features/admin/AdminFeedbackPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import { StockContentPage } from './features/stock-content/StockContentPage';
 import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
+import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -68,7 +70,12 @@ export function ScrollToTop() {
 function AppFooter() {
   const location = useLocation();
 
-  return location.pathname.startsWith('/admin') ? null : <Footer />;
+  return location.pathname.startsWith('/admin') ? null : (
+    <>
+      <FeedbackWidget />
+      <Footer />
+    </>
+  );
 }
 
 function AdminRoute({ children }: { children: ReactNode }) {
@@ -208,6 +215,14 @@ export default function App() {
                 element={
                   <AdminRoute>
                     <AdminNewsFormPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/feedbacks"
+                element={
+                  <AdminRoute>
+                    <AdminFeedbackPage />
                   </AdminRoute>
                 }
               />
