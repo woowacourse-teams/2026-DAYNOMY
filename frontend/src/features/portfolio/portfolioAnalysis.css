@@ -61,7 +61,7 @@
 }
 
 .portfolio-score-guide summary:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 2px;
 }
 
@@ -111,7 +111,7 @@
   padding: 0 18px;
   border: 0;
   border-radius: 10px;
-  background: #151a2a;
+  background: var(--portfolio-accent, #326bd5);
   color: #fff;
   font: inherit;
   font-size: 14px;
@@ -121,17 +121,17 @@
 }
 
 .portfolio-analysis-button:hover:not(:disabled) {
-  background: #5144d8;
+  background: var(--portfolio-accent, #326bd5);
 }
 
 .portfolio-analysis-button:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 2px;
 }
 
 .portfolio-analysis-button:disabled {
-  background: #e4e7ec;
-  color: #98a2b3;
+  background: #e8effb;
+  color: #6d84ad;
   cursor: not-allowed;
 }
 
@@ -168,7 +168,7 @@
   width: 32px;
   height: 32px;
   border: 3px solid #dce6f2;
-  border-top-color: #5144d8;
+  border-top-color: var(--portfolio-accent, #326bd5);
   border-radius: 50%;
   animation: portfolio-analysis-spin 800ms linear infinite;
 }
@@ -183,7 +183,7 @@
   padding: 0 18px;
   border: 0;
   border-radius: 10px;
-  background: #151a2a;
+  background: var(--portfolio-accent, #326bd5);
   color: #fff;
   font: inherit;
   font-size: 14px;
@@ -192,11 +192,11 @@
 }
 
 .portfolio-analysis-retry-button:hover {
-  background: #5144d8;
+  background: var(--portfolio-accent, #326bd5);
 }
 
 .portfolio-analysis-retry-button:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 2px;
 }
 
@@ -313,7 +313,7 @@
 }
 
 .portfolio-donut-center:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 4px;
 }
 
@@ -409,7 +409,7 @@ button.portfolio-asset-row:hover {
 }
 
 button.portfolio-asset-row:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 1px;
 }
 
@@ -577,12 +577,8 @@ button.portfolio-asset-row:focus-visible {
   font-size: 18px;
   line-height: 32px;
   text-align: left;
+  font-weight: 400;
   word-break: normal;
-}
-
-.portfolio-detail-copy strong {
-  color: #151a2a;
-  font-weight: 900;
 }
 
 .portfolio-detail-time {
@@ -615,7 +611,7 @@ button.portfolio-asset-row:focus-visible {
 
 .portfolio-evidence summary:focus-visible {
   border-radius: 4px;
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 3px;
 }
 
@@ -777,4 +773,31 @@ button.portfolio-asset-row:focus-visible {
   font-size: 14px;
   line-height: 1.7;
   overflow-wrap: anywhere;
+}
+
+.portfolio-analysis-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 20px;
+  margin: -14px 0 18px;
+  color: #68778d;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.portfolio-analysis-meta:empty {
+  display: none;
+}
+
+.portfolio-analysis-meta p {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
+.portfolio-analysis-checked-at {
+  font-variant-numeric: tabular-nums;
 }

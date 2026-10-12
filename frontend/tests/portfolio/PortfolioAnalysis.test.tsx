@@ -230,7 +230,7 @@ describe('포트폴리오 분석 화면', () => {
     expect(copy.querySelectorAll('p')).toHaveLength(3);
     expect(copy.querySelector('a')).toBeNull();
     expect(copy.textContent).not.toContain('[1]');
-    expect(copy.querySelector('strong')?.textContent).toBe('새 실적이 발표됐어요.');
+    expect(copy.querySelector('strong')).toBeNull();
     const list = view.getByRole('list', { name: '포트폴리오 보유 자산' });
     expect(list.textContent).not.toMatch(/%|긍정|중립|부정/);
     fireEvent.click(view.getByText('분석 출처 모두 보기'));

@@ -441,19 +441,7 @@ function plainAnalysisText(text: string) {
 function AnalysisParagraph({ text }: { text: string }) {
   const copy = plainAnalysisText(text);
   if (!copy) return null;
-  const firstSentence = copy.match(/^.*?[.](?=\s|$)/)?.[0];
-  return (
-    <p>
-      {firstSentence ? (
-        <>
-          <strong>{firstSentence}</strong>
-          {copy.slice(firstSentence.length)}
-        </>
-      ) : (
-        copy
-      )}
-    </p>
-  );
+  return <p>{copy}</p>;
 }
 
 function AnalysisSources({ sources }: { sources: PortfolioAnalysisSource[] }) {
@@ -667,33 +655,35 @@ function PortfolioAnalysisContent({ assets, isLoggedIn = true }: PortfolioAnalys
         ) : null}
       </div>
 
-      {portfolioChanged ? (
-        <p role="status">자산 구성이 바뀌었어요. 아래는 분석 당시 자산과 비중이에요.</p>
-      ) : null}
-      {analysis && loading ? <p role="status">기존 분석을 유지하며 확인하고 있어요.</p> : null}
-      {!loading && saved?.status === 'PROCESSING' ? (
-        <p role="status">다른 요청에서 분석 중이에요. 잠시 후 진행 상태를 확인해 주세요.</p>
-      ) : null}
-      {!loading && saved?.status === 'RECHECK_REQUIRED' ? (
-        <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
-      ) : null}
-      {!loading && saved?.status === 'READY' && saved.lastCheckOutcome === 'UNCHANGED' ? (
-        <p role="status">주요 변화가 없어 기존 분석을 유지했어요.</p>
-      ) : null}
-      {!loading &&
-      saved?.status === 'READY' &&
-      saved.lastCheckOutcome === 'UPDATED' &&
-      saved.changeReason ? (
-        <p role="status">{saved.changeReason}</p>
-      ) : null}
-      {saved?.lastSucceededAt ? (
-        <p>
-          최근 확인 성공:{' '}
-          <time dateTime={saved.lastSucceededAt}>
-            {formatAnalyzedAt(saved.lastSucceededAt)?.replace(' 분석 기준', '')}
-          </time>
-        </p>
-      ) : null}
+      <div className="portfolio-analysis-meta">
+        {portfolioChanged ? (
+          <p role="status">자산 구성이 바뀌었어요. 아래는 분석 당시 자산과 비중이에요.</p>
+        ) : null}
+        {analysis && loading ? <p role="status">기존 분석을 유지하며 확인하고 있어요.</p> : null}
+        {!loading && saved?.status === 'PROCESSING' ? (
+          <p role="status">다른 요청에서 분석 중이에요. 잠시 후 진행 상태를 확인해 주세요.</p>
+        ) : null}
+        {!loading && saved?.status === 'RECHECK_REQUIRED' ? (
+          <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
+        ) : null}
+        {!loading && saved?.status === 'READY' && saved.lastCheckOutcome === 'UNCHANGED' ? (
+          <p role="status">주요 변화가 없어 기존 분석을 유지했어요.</p>
+        ) : null}
+        {!loading &&
+        saved?.status === 'READY' &&
+        saved.lastCheckOutcome === 'UPDATED' &&
+        saved.changeReason ? (
+          <p role="status">{saved.changeReason}</p>
+        ) : null}
+        {saved?.lastSucceededAt ? (
+          <p className="portfolio-analysis-checked-at">
+            최근 확인:{' '}
+            <time dateTime={saved.lastSucceededAt}>
+              {formatAnalyzedAt(saved.lastSucceededAt)?.replace(' 분석 기준', '')}
+            </time>
+          </p>
+        ) : null}
+      </div>
       {!hasAnalysisTarget && !loading && !error ? <PortfolioEmpty /> : null}
 
       {hasAnalysisTarget && loading && !hasAnalysis ? <PortfolioAnalysisLoading /> : null}
