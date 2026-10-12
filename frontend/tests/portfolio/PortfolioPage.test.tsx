@@ -267,6 +267,7 @@ function mockPortfolioApi() {
 }
 
 beforeEach(() => {
+  vi.setSystemTime(new Date(2026, 9, 7, 12));
   savedHoldings = [];
   savedPerformancePoints = [];
   vi.stubGlobal(
@@ -279,9 +280,11 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   localStorage.clear();
   window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('포트폴리오 화면', () => {
@@ -491,6 +494,8 @@ describe('포트폴리오 화면', () => {
   });
 
   it('5년 기간을 선택하면 서버의 5년 자산 추이를 표시한다', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-06T12:00:00'));
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     savedPerformancePoints = [
       {

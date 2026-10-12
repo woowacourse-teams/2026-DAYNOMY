@@ -1,0 +1,20 @@
+loki.write "central" {
+  endpoint {
+    url = sys.env("LOKI_PUSH_URL")
+  }
+}
+
+local.file_match "postgres" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/var/log/postgresql/*.log",
+    environment = sys.env("DAYNOMY_ENVIRONMENT"),
+    instance    = sys.env("DAYNOMY_INSTANCE"),
+    service     = "postgres",
+  }]
+}
+
+loki.source.file "postgres" {
+  targets    = local.file_match.postgres.targets
+  forward_to = [loki.write.central.receiver]
+}

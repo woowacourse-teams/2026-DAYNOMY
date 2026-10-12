@@ -12,7 +12,9 @@ public enum PortfolioErrorCode implements ErrorCode {
   INVALID_PORTFOLIO_TRADE_DATE(HttpStatus.BAD_REQUEST, "거래일은 해당 종목의 마지막 보유 수량 등록·조정일보다 이를 수 없습니다."),
   DUPLICATE_PORTFOLIO_ASSET(HttpStatus.BAD_REQUEST, "포트폴리오에 중복된 종목이 있습니다."),
   INSUFFICIENT_PORTFOLIO_QUANTITY(HttpStatus.BAD_REQUEST, "매도 수량이 해당 시점의 보유 수량보다 많습니다."),
-  INVALID_PORTFOLIO_WEIGHT_TOTAL(HttpStatus.BAD_REQUEST, "포트폴리오 보유 비중의 합은 100이어야 합니다.");
+  INVALID_PORTFOLIO_WEIGHT_TOTAL(HttpStatus.BAD_REQUEST, "포트폴리오 보유 비중의 합은 100이어야 합니다."),
+  PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED(
+      HttpStatus.FORBIDDEN, "비회원 포트폴리오 분석 체험을 이미 사용했습니다. 로그인 후 다시 이용해주세요.");
 
   private final HttpStatus status;
   private final String message;

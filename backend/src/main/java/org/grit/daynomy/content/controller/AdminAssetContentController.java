@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
+import org.grit.daynomy.content.dto.SocialPostSearchResponse;
 import org.grit.daynomy.content.dto.YouTubeSearchResponse;
 import org.grit.daynomy.content.service.AssetContentService;
 import org.springframework.http.HttpStatus;
@@ -53,6 +54,14 @@ public class AdminAssetContentController {
       @PathVariable @Positive Long assetId,
       @RequestParam @jakarta.validation.constraints.Size(min = 2, max = 100) String keyword) {
     return ResponseEntity.ok(assetContentService.searchYouTube(assetId, keyword.strip()));
+  }
+
+  @Operation(summary = "Threads·X 게시물 검색")
+  @GetMapping("/social-search")
+  public ResponseEntity<SocialPostSearchResponse> searchSocialPosts(
+      @PathVariable @Positive Long assetId,
+      @RequestParam @jakarta.validation.constraints.Size(min = 2, max = 100) String keyword) {
+    return ResponseEntity.ok(assetContentService.searchSocialPosts(assetId, keyword.strip()));
   }
 
   @Operation(summary = "종목 관련 자료 삭제")
