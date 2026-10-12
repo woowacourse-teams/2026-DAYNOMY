@@ -199,9 +199,6 @@
   grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
   gap: 24px;
 }
-.portfolio-page .portfolio-dashboard-grid.is-guest {
-  grid-template-columns: minmax(0, 1fr);
-}
 .portfolio-page .portfolio-return-dashboard,
 .portfolio-page .portfolio-composition {
   border: 1px solid #e9edf3;
@@ -209,6 +206,43 @@
   padding: 22px;
   background: #fff;
   box-shadow: none;
+}
+.portfolio-page .portfolio-trend-lock-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #f1f4f8;
+}
+.portfolio-page .portfolio-trend-locked {
+  display: grid;
+  min-height: 260px;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 24px 16px;
+  border-radius: 10px;
+  background: #f8fafc;
+  text-align: center;
+  text-wrap: balance;
+}
+.portfolio-page .portfolio-trend-locked > svg {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 4px;
+  fill: none;
+  stroke: #718096;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.portfolio-page .portfolio-trend-locked strong {
+  color: #35455f;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.portfolio-page .portfolio-trend-locked p {
+  color: #718096;
+  font-size: 13px;
+  line-height: 1.7;
 }
 .portfolio-page .portfolio-analysis {
   margin-bottom: 28px;
