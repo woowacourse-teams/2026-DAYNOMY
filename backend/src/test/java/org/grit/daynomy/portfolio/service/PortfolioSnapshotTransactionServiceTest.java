@@ -55,7 +55,7 @@ class PortfolioSnapshotTransactionServiceTest {
             history(retainedAsset, PortfolioHoldingChangeType.UPDATED, 2L, "10000"),
             history(removedAsset, PortfolioHoldingChangeType.ADDED, 3L, "5000"),
             history(removedAsset, PortfolioHoldingChangeType.REMOVED, 3L, "5000"));
-    given(portfolioRepository.findById(10L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
         .willReturn(Optional.empty());
     given(
@@ -85,19 +85,61 @@ class PortfolioSnapshotTransactionServiceTest {
   }
 
   @Test
-  void createSnapshotDoesNotOverwritePastSnapshot() {
+  void createSnapshotRemovesPastSnapshotWhenClosingPriceIsMissing() {
     LocalDate baseDate = LocalDate.now().minusDays(1);
     Portfolio portfolio = mock(Portfolio.class);
     PortfolioDailySnapshot existing = mock(PortfolioDailySnapshot.class);
-    given(portfolioRepository.findById(10L)).willReturn(Optional.of(portfolio));
+    Asset asset = asset(2L);
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
         .willReturn(Optional.of(existing));
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, baseDate))
+        .willReturn(List.of(history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000")));
 
-    boolean created = service.createSnapshot(10L, baseDate, baseDate.minusDays(1));
+    assertThat(service.createSnapshot(10L, baseDate, baseDate.minusDays(1))).isFalse();
 
-    assertThat(created).isFalse();
-    then(historyRepository).shouldHaveNoInteractions();
+    then(snapshotRepository).should().delete(existing);
     then(snapshotRepository).should(never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void createSnapshotDoesNotWriteAgainWhenAmountsAreUnchanged() {
+    LocalDate baseDate = LocalDate.now().minusDays(1);
+    Portfolio portfolio = mock(Portfolio.class);
+    Asset asset = asset(2L);
+    PortfolioDailySnapshot existing = new PortfolioDailySnapshot(portfolio, baseDate);
+    existing.update(
+        new BigDecimal("20000.00"),
+        new BigDecimal("24000.00"),
+        new BigDecimal("4000.00"),
+        new BigDecimal("20.00"),
+        null,
+        null);
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
+    given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
+        .willReturn(Optional.of(existing));
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, baseDate))
+        .willReturn(List.of(history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000")));
+    StockDailyPrice currentPrice = price("12000");
+    given(stockPriceRepository.findByAssetIdAndBaseDate(2L, baseDate))
+        .willReturn(Optional.of(currentPrice));
+
+    assertThat(service.createSnapshot(10L, baseDate, null)).isFalse();
+
+    then(snapshotRepository).should(never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void createSnapshotDoesNotPersistTodayOrFuture() {
+    assertThat(service.createSnapshot(10L, LocalDate.now().plusDays(1), null)).isFalse();
+    then(portfolioRepository).shouldHaveNoInteractions();
+    then(snapshotRepository).shouldHaveNoInteractions();
   }
 
   @Test
@@ -105,14 +147,14 @@ class PortfolioSnapshotTransactionServiceTest {
     LocalDate previousDate = LocalDate.now().minusDays(2);
     LocalDate baseDate = LocalDate.now().minusDays(1);
     Portfolio portfolio = mock(Portfolio.class);
-    PortfolioDailySnapshot existing = mock(PortfolioDailySnapshot.class);
+    PortfolioDailySnapshot existing = new PortfolioDailySnapshot(portfolio, baseDate);
     Asset asset = asset(2L);
     StockDailyPrice currentPrice = price("12000");
     StockDailyPrice previousPrice = price("11000");
     PortfolioHoldingHistory history = history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000");
     given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
         .willReturn(List.of(previousDate, baseDate));
-    given(portfolioRepository.findById(10L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
         .willReturn(Optional.of(existing));
     given(
@@ -127,15 +169,9 @@ class PortfolioSnapshotTransactionServiceTest {
 
     service.refreshSnapshotsFrom(10L, baseDate);
 
-    then(existing)
-        .should()
-        .update(
-            new BigDecimal("20000.00"),
-            new BigDecimal("24000.00"),
-            new BigDecimal("4000.00"),
-            new BigDecimal("20.00"),
-            new BigDecimal("2000.00"),
-            new BigDecimal("9.09"));
+    assertThat(existing.getTotalPurchaseAmount()).isEqualByComparingTo("20000.00");
+    assertThat(existing.getTotalEvaluationAmount()).isEqualByComparingTo("24000.00");
+    assertThat(existing.getDailyReturnRate()).isEqualByComparingTo("9.09");
     then(snapshotRepository).should().saveAndFlush(existing);
   }
 
@@ -149,7 +185,7 @@ class PortfolioSnapshotTransactionServiceTest {
     PortfolioDailySnapshot afterSnapshot = mock(PortfolioDailySnapshot.class);
     given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
         .willReturn(List.of(beforeDate, fromDate, afterDate));
-    given(portfolioRepository.findById(10L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, fromDate))
         .willReturn(Optional.of(fromSnapshot));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, afterDate))
@@ -181,7 +217,7 @@ class PortfolioSnapshotTransactionServiceTest {
     StockDailyPrice currentPrice = price("12000");
     PortfolioHoldingHistory addedHistory =
         history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000");
-    given(portfolioRepository.findById(10L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
         .willReturn(Optional.empty());
     given(
