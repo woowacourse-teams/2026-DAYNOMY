@@ -1,3 +1,4 @@
+import { trackEvent, type AnalyticsParams } from '../../analytics';
 import { useEffect, useRef } from 'react';
 import { platformLabel, type FeaturedPersonPost } from './types';
 
@@ -14,7 +15,9 @@ function ArrowUpRightIcon() {
 
 export function SocialPostEmbed({
   post,
+  analytics,
 }: {
+  analytics?: AnalyticsParams;
   post: Pick<FeaturedPersonPost, 'sourceType' | 'title' | 'url'>;
 }) {
   const rootRef = useRef<HTMLElement>(null);
@@ -58,18 +61,40 @@ export function SocialPostEmbed({
           data-text-post-permalink={post.url}
           data-text-post-version="0"
         >
-          <a href={post.url} target="_blank" rel="noreferrer">
+          <a
+            onClick={() => {
+              if (analytics) trackEvent('click_content_original', analytics);
+            }}
+            href={post.url}
+            target="_blank"
+            rel="noreferrer"
+          >
             {post.title}
           </a>
         </blockquote>
       ) : (
         <blockquote className="twitter-tweet" data-dnt="true">
-          <a href={post.url} target="_blank" rel="noreferrer">
+          <a
+            onClick={() => {
+              if (analytics) trackEvent('click_content_original', analytics);
+            }}
+            href={post.url}
+            target="_blank"
+            rel="noreferrer"
+          >
             {post.title}
           </a>
         </blockquote>
       )}
-      <a className="people-social-fallback" href={post.url} target="_blank" rel="noreferrer">
+      <a
+        onClick={() => {
+          if (analytics) trackEvent('click_content_original', analytics);
+        }}
+        className="people-social-fallback"
+        href={post.url}
+        target="_blank"
+        rel="noreferrer"
+      >
         <span>{platformLabel(post.sourceType)}에서 원문 보기</span>
         <ArrowUpRightIcon />
       </a>
