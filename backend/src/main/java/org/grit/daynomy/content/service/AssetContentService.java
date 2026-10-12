@@ -12,10 +12,13 @@ import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
+import org.grit.daynomy.content.dto.SocialPostResponse;
+import org.grit.daynomy.content.dto.SocialPostSearchResponse;
 import org.grit.daynomy.content.dto.YouTubeSearchResponse;
 import org.grit.daynomy.content.dto.YouTubeVideoResponse;
 import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
+import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.news.domain.News;
 import org.hibernate.exception.ConstraintViolationException;
@@ -34,6 +37,7 @@ public class AssetContentService {
   private final AssetRepository assetRepository;
   private final AssetContentRepository contentRepository;
   private final YouTubeClient youtubeClient;
+  private final OpenAiSocialPostSearchClient socialPostSearchClient;
 
   public AssetContentsResponse getContents(Long assetId) {
     Asset asset = getAsset(assetId);
@@ -55,6 +59,12 @@ public class AssetContentService {
     getAsset(assetId);
     return new YouTubeSearchResponse(
         youtubeClient.search(keyword).stream().map(YouTubeVideoResponse::from).toList());
+  }
+
+  public SocialPostSearchResponse searchSocialPosts(Long assetId, String keyword) {
+    getAsset(assetId);
+    return new SocialPostSearchResponse(
+        socialPostSearchClient.search(keyword).stream().map(SocialPostResponse::from).toList());
   }
 
   @Transactional
