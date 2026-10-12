@@ -130,6 +130,8 @@ class PortfolioSnapshotServiceTest {
     assertThat(response.currentPoint().priceBaseDate()).isEqualTo(priceBaseDate);
     assertThat(response.currentPoint().totalPurchaseAmount()).isEqualByComparingTo("130000.00");
     assertThat(response.currentPoint().totalEvaluationAmount()).isEqualByComparingTo("140000.00");
+    assertThat(response.currentPoint().dailyProfitLoss()).isNull();
+    assertThat(response.currentPoint().dailyReturnRate()).isNull();
     then(calculationService).should().calculate(request);
     then(snapshotTransactionService).shouldHaveNoInteractions();
   }

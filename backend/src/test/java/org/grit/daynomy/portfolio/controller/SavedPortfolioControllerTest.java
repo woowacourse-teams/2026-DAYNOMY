@@ -1,5 +1,6 @@
 package org.grit.daynomy.portfolio.controller;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -240,8 +241,8 @@ class SavedPortfolioControllerTest {
             new BigDecimal("70000.00"),
             new BigDecimal("5000.00"),
             new BigDecimal("7.69"),
-            new BigDecimal("1000.00"),
-            new BigDecimal("1.45"));
+            null,
+            null);
     given(snapshotService.performance(3L, LocalDate.of(2026, 10, 1), today))
         .willReturn(
             new PortfolioPerformanceResponse(
@@ -261,7 +262,9 @@ class SavedPortfolioControllerTest {
         .andExpect(jsonPath("$.currentPoint.baseDate").value("2026-10-07"))
         .andExpect(jsonPath("$.currentPoint.priceBaseDate").value("2026-10-06"))
         .andExpect(jsonPath("$.currentPoint.totalEvaluationAmount").value(70000.00))
-        .andExpect(jsonPath("$.currentPoint.totalReturnRate").value(7.69));
+        .andExpect(jsonPath("$.currentPoint.totalReturnRate").value(7.69))
+        .andExpect(jsonPath("$.currentPoint.dailyProfitLoss").value(nullValue()))
+        .andExpect(jsonPath("$.currentPoint.dailyReturnRate").value(nullValue()));
 
     then(snapshotService)
         .should()
