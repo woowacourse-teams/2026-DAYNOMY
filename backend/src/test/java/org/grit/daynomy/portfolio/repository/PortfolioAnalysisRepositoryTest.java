@@ -56,6 +56,36 @@ class PortfolioAnalysisRepositoryTest {
   @Autowired private PortfolioAnalysisCheckRepository checks;
 
   @Test
+  @DisplayName("나노초 정밀도 입력도 저장 전후 분석·확인·만료 시각이 일치한다")
+  void timestampsRemainIdenticalAfterDatabaseRoundTrip() {
+    Portfolio portfolio = portfolio();
+    Instant precise = Instant.parse("2026-10-12T07:00:00.123456789Z");
+    PortfolioAnalysis analysis = save(portfolio, null, precise, "최초 분석");
+    PortfolioAnalysisCheck check = checks.save(new PortfolioAnalysisCheck(portfolio));
+    check.recordSuccess(precise);
+    check.recordFailure(precise.plusSeconds(1), "EXTERNAL_API_ERROR");
+    check.begin(UUID.randomUUID(), precise, java.time.Duration.ofMinutes(5));
+    List<Instant> before =
+        List.of(
+            analysis.getAnalyzedAt(),
+            check.getLastSucceededAt(),
+            check.getLastFailedAt(),
+            check.getRequestExpiresAt());
+    entityManager.flush();
+    entityManager.clear();
+
+    PortfolioAnalysis restoredAnalysis = analyses.findById(analysis.getId()).orElseThrow();
+    PortfolioAnalysisCheck restored = checks.findById(portfolio.getId()).orElseThrow();
+    assertThat(
+            List.of(
+                restoredAnalysis.getAnalyzedAt(),
+                restored.getLastSucceededAt(),
+                restored.getLastFailedAt(),
+                restored.getRequestExpiresAt()))
+        .containsExactlyElementsOf(before);
+  }
+
+  @Test
   @DisplayName("분석 당시 자산과 결과를 JSON 문자열이 아닌 JSONB 객체로 보존한다")
   void roundTripsSnapshotAsJsonbObject() {
     Portfolio portfolio = portfolio();

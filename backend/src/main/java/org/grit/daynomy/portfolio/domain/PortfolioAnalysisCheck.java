@@ -10,6 +10,7 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -58,6 +59,7 @@ public class PortfolioAnalysisCheck {
   }
 
   public void recordSuccess(Instant checkedAt, Outcome outcome) {
+    checkedAt = Objects.requireNonNull(checkedAt).truncatedTo(ChronoUnit.MICROS);
     if (lastSucceededAt == null || checkedAt.isAfter(lastSucceededAt)) {
       recordSuccess(checkedAt);
       lastOutcome = Objects.requireNonNull(outcome);
@@ -83,7 +85,7 @@ public class PortfolioAnalysisCheck {
       return false;
     }
     requestToken = Objects.requireNonNull(token);
-    requestExpiresAt = now.plus(timeout);
+    requestExpiresAt = now.plus(timeout).truncatedTo(ChronoUnit.MICROS);
     return true;
   }
 
@@ -99,14 +101,14 @@ public class PortfolioAnalysisCheck {
   }
 
   public void recordSuccess(Instant checkedAt) {
-    Objects.requireNonNull(checkedAt);
+    checkedAt = Objects.requireNonNull(checkedAt).truncatedTo(ChronoUnit.MICROS);
     if (lastSucceededAt == null || checkedAt.isAfter(lastSucceededAt)) {
       lastSucceededAt = checkedAt;
     }
   }
 
   public void recordFailure(Instant failedAt, String errorCode) {
-    Objects.requireNonNull(failedAt);
+    failedAt = Objects.requireNonNull(failedAt).truncatedTo(ChronoUnit.MICROS);
     if (errorCode == null || !errorCode.matches("[A-Z][A-Z0-9_]{0,99}")) {
       throw new IllegalArgumentException("실패 원인은 예외 메시지가 아닌 오류 코드로 저장해야 합니다.");
     }

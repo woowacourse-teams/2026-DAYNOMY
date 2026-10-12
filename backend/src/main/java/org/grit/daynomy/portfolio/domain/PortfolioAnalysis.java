@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -63,6 +64,7 @@ public class PortfolioAnalysis extends BaseEntity {
       Instant analyzedAt,
       String changeReason) {
     this.portfolio = Objects.requireNonNull(portfolio);
+    analyzedAt = Objects.requireNonNull(analyzedAt).truncatedTo(ChronoUnit.MICROS);
     if (previous != null) {
       if (previous.getId() == null
           || !Objects.equals(portfolio.getId(), previous.getPortfolio().getId())) {
