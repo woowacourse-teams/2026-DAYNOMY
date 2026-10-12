@@ -1,13 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import {
-  BrowserRouter,
-  Link,
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-} from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
 import { InfoPage } from './features/pages/components/InfoPage';
@@ -83,7 +75,7 @@ export function ScrollToTop() {
 function AppFooter() {
   const location = useLocation();
 
-  return location.pathname.startsWith('/admin') ? null : (
+  return location.pathname === '/login' || location.pathname.startsWith('/admin') ? null : (
     <>
       <FeedbackWidget />
       <Footer />
@@ -135,7 +127,7 @@ function AuthenticatedRoute({ children }: { children: ReactNode }) {
   return children;
 }
 
-function PortfolioRoute({ children }: { children: ReactNode }) {
+function PortfolioRoute() {
   const { isLoggedIn, loading } = useAuth();
 
   if (loading) {
@@ -148,27 +140,7 @@ function PortfolioRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!isLoggedIn) {
-    return (
-      <main className="portfolio-page">
-        <div className="portfolio-page-title">
-          <h1>내 포트폴리오</h1>
-        </div>
-        <section className="portfolio-auth-required" aria-labelledby="portfolio-login-title">
-          <h2 id="portfolio-login-title">로그인해야 볼 수 있습니다</h2>
-          <p>로그인하고 내 포트폴리오를 확인해보세요.</p>
-          <Link
-            className="portfolio-primary-button portfolio-login-button"
-            to="/login?returnTo=%2F"
-          >
-            로그인
-          </Link>
-        </section>
-      </main>
-    );
-  }
-
-  return children;
+  return <PortfolioPage isLoggedIn={isLoggedIn} />;
 }
 
 function PostLoginRedirect() {
@@ -205,14 +177,7 @@ export default function App() {
           <LeagueNavigation />
           <div className="app-content">
             <Routes>
-              <Route
-                path="/"
-                element={
-                  <PortfolioRoute>
-                    <PortfolioPage />
-                  </PortfolioRoute>
-                }
-              />
+              <Route path="/" element={<PortfolioRoute />} />
               <Route path="/portfolio" element={<Navigate to="/" replace />} />
               <Route
                 path="/portfolio/records"

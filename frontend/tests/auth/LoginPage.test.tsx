@@ -28,6 +28,7 @@ describe('로그인 화면', () => {
 
     expect(link.getAttribute('href')).toBe(getApiUrl('/api/auth/google'));
     expect(view.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeTruthy();
+    expect(view.getByRole('link', { name: '닫기' }).getAttribute('href')).toBe('/');
 
     link.addEventListener('click', (event) => event.preventDefault());
     fireEvent.click(link);
@@ -50,7 +51,7 @@ describe('로그인 화면', () => {
     const link = view.getByRole('link', { name: 'Google로 시작하기' });
     expect(link.getAttribute('href')).toBe(getApiUrl('/api/auth/google'));
     expect(view.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeTruthy();
-    expect(view.getByRole('link', { name: '닫기' }).getAttribute('href')).toBe('/news');
+    expect(view.getByRole('link', { name: '닫기' }).getAttribute('href')).toBe('/');
     link.addEventListener('click', (event) => event.preventDefault());
     fireEvent.click(link);
     expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/');

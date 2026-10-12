@@ -374,7 +374,7 @@ test('모바일: 이름이 없는 기존 계정은 재로그인을 안내하고 
   await checkWidth(page);
 });
 
-test('모바일: 삭제된 돈 관리의 기존 주소는 홈 로그인 안내로 이동하고 저장 데이터는 보존한다', async ({
+test('모바일: 삭제된 돈 관리의 기존 주소는 비회원 포트폴리오로 이동하고 저장 데이터는 보존한다', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -390,8 +390,8 @@ test('모바일: 삭제된 돈 관리의 기존 주소는 홈 로그인 안내�
     await page.goto(path);
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('heading', { name: '내 포트폴리오' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: '로그인해야 볼 수 있습니다' })).toBeVisible();
-    await expect(page.getByRole('main').getByRole('link', { name: '로그인' })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: /자산 추가/ })).toBeVisible();
+    await expect(page.getByRole('banner').getByRole('link', { name: '로그인' })).toHaveAttribute(
       'href',
       '/login?returnTo=%2F',
     );
@@ -402,7 +402,7 @@ test('모바일: 삭제된 돈 관리의 기존 주소는 홈 로그인 안내�
     );
   }
   await checkWidth(page);
-  await page.getByRole('main').getByRole('link', { name: '로그인' }).click();
+  await page.getByRole('banner').getByRole('link', { name: '로그인' }).click();
   await expect(page).toHaveURL('/login?returnTo=%2F');
   await expect(page.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeVisible();
 });
