@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import defaultNewsImage from '../../assets/default-news-real-estate.webp';
+import { usePortfolioHoldings } from '../portfolio/hooks/usePortfolioHoldings';
 import { getStockRelatedContents } from './api';
 import {
   STOCK_CONTENT_SOURCE_LABELS,
@@ -9,7 +10,18 @@ import {
 } from './types';
 import './stock-content.css';
 
-const SOURCE_ORDER: StockRelatedContentSource[] = ['INTERNAL_NEWS', 'YOUTUBE', 'THREADS', 'OTHER'];
+type ContentFilter = 'ALL' | StockRelatedContentSource;
+
+const SOURCE_FILTERS: { value: ContentFilter; label: string }[] = [
+  { value: 'ALL', label: '전체' },
+  { value: 'INTERNAL_NEWS', label: 'DAYNOMY' },
+  { value: 'YOUTUBE', label: 'YouTube' },
+  { value: 'THREADS', label: 'Threads' },
+  { value: 'X', label: 'X' },
+];
+
+const X_EMBED_SCRIPT_ID = 'daynomy-x-embed-script';
+const THREADS_EMBED_SCRIPT_ID = 'daynomy-threads-embed-script';
 
 function ArrowLeftIcon() {
   return (
@@ -103,11 +115,39 @@ function YouTubeThumbnail({ content }: { content: StockRelatedContent }) {
   );
 }
 
-function groupContents(contents: StockRelatedContent[]) {
-  return SOURCE_ORDER.map((sourceType) => ({
-    sourceType,
-    contents: contents.filter((content) => content.sourceType === sourceType),
-  })).filter((group) => group.contents.length > 0);
+function SocialPostEmbed({ content }: { content: StockRelatedContent }) {
+  const isThreads = content.sourceType === 'THREADS';
+
+  return (
+    <article className="stock-content-social-embed">
+      {isThreads ? (
+        <blockquote
+          className="text-post-media"
+          data-text-post-permalink={content.url}
+          data-text-post-version="0"
+        >
+          <a href={content.url} target="_blank" rel="noreferrer">
+            {content.title}
+          </a>
+        </blockquote>
+      ) : (
+        <blockquote className="twitter-tweet" data-dnt="true">
+          <a href={content.url} target="_blank" rel="noreferrer">
+            {content.title}
+          </a>
+        </blockquote>
+      )}
+      <a
+        className="stock-content-social-fallback"
+        href={content.url}
+        target="_blank"
+        rel="noreferrer"
+      >
+        <span>{STOCK_CONTENT_SOURCE_LABELS[content.sourceType]}에서 원문 보기</span>
+        <ArrowUpRightIcon />
+      </a>
+    </article>
+  );
 }
 
 function getYouTubeEmbedUrl(rawUrl: string) {
@@ -117,12 +157,15 @@ function getYouTubeEmbedUrl(rawUrl: string) {
 
 export function StockContentPage() {
   const { assetId: assetIdParam } = useParams();
+  const navigate = useNavigate();
   const assetId = Number(assetIdParam);
+  const { holdings, loading: holdingsLoading } = usePortfolioHoldings();
   const [response, setResponse] = useState<Awaited<
     ReturnType<typeof getStockRelatedContents>
   > | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedSource, setSelectedSource] = useState<ContentFilter>('ALL');
   const [activeVideoId, setActiveVideoId] = useState<number | null>(null);
   const activeVideoTriggerRef = useRef<HTMLButtonElement | null>(null);
   const modalDialogRef = useRef<HTMLElement | null>(null);
@@ -138,6 +181,7 @@ export function StockContentPage() {
     const controller = new AbortController();
     setLoading(true);
     setError('');
+    setSelectedSource('ALL');
     setActiveVideoId(null);
     getStockRelatedContents(assetId, controller.signal)
       .then((nextResponse) => {
@@ -157,6 +201,40 @@ export function StockContentPage() {
 
     return () => controller.abort();
   }, [assetId]);
+
+  useEffect(() => {
+    const socialContents = (response?.contents ?? []).filter(
+      (content) => selectedSource === 'ALL' || content.sourceType === selectedSource,
+    );
+    if (socialContents.some((content) => content.sourceType === 'X')) {
+      const renderXEmbeds = () => {
+        const xWindow = window as typeof window & {
+          twttr?: { widgets?: { load: (element?: HTMLElement) => void } };
+        };
+        xWindow.twttr?.widgets?.load(document.querySelector('.stock-content-page') ?? undefined);
+      };
+      const existingScript = document.getElementById(X_EMBED_SCRIPT_ID) as HTMLScriptElement | null;
+      if (existingScript) {
+        renderXEmbeds();
+      } else {
+        const script = document.createElement('script');
+        script.id = X_EMBED_SCRIPT_ID;
+        script.src = 'https://platform.x.com/widgets.js';
+        script.async = true;
+        script.addEventListener('load', renderXEmbeds, { once: true });
+        document.body.append(script);
+      }
+    }
+
+    if (socialContents.some((content) => content.sourceType === 'THREADS')) {
+      document.getElementById(THREADS_EMBED_SCRIPT_ID)?.remove();
+      const script = document.createElement('script');
+      script.id = THREADS_EMBED_SCRIPT_ID;
+      script.src = 'https://www.threads.com/embed.js';
+      script.async = true;
+      document.body.append(script);
+    }
+  }, [response, selectedSource]);
 
   useEffect(() => {
     if (activeVideoId === null) return;
@@ -207,8 +285,30 @@ export function StockContentPage() {
     };
   }, [activeVideoId]);
 
-  const groups = useMemo(() => groupContents(response?.contents ?? []), [response]);
+  const sourceFilters = useMemo(() => {
+    const contents = response?.contents ?? [];
+    const filters = SOURCE_FILTERS.map((filter) => ({
+      ...filter,
+      count:
+        filter.value === 'ALL'
+          ? contents.length
+          : contents.filter((content) => content.sourceType === filter.value).length,
+    }));
+    const otherCount = contents.filter((content) => content.sourceType === 'OTHER').length;
+    return otherCount > 0
+      ? [...filters, { value: 'OTHER' as const, label: '기타', count: otherCount }]
+      : filters;
+  }, [response]);
+  const visibleContents = useMemo(
+    () =>
+      (response?.contents ?? []).filter(
+        (content) => selectedSource === 'ALL' || content.sourceType === selectedSource,
+      ),
+    [response, selectedSource],
+  );
   const contentCount = response?.contents.length ?? 0;
+  const selectedSourceLabel =
+    sourceFilters.find((filter) => filter.value === selectedSource)?.label ?? '전체';
   const activeVideo = useMemo(
     () =>
       response?.contents.find(
@@ -257,134 +357,188 @@ export function StockContentPage() {
         ) : null}
 
         {!loading && !error && response ? (
-          <>
-            <header className="stock-content-heading">
-              <div className="stock-content-title-row">
-                <h1>{response.assetName}</h1>
-                <span className="stock-content-code">{response.assetCode}</span>
-              </div>
-              <p>관련 이슈와 시장 자료를 한 곳에서 확인하세요.</p>
-              <div className="stock-content-summary" aria-label="자료 요약">
-                <strong>{contentCount}</strong>
-                <span>개의 관련 자료</span>
-              </div>
-            </header>
-
-            {groups.length === 0 ? (
-              <section className="stock-content-empty">
-                <span className="stock-content-empty-mark">—</span>
-                <strong>아직 등록된 관련 자료가 없습니다.</strong>
-                <p>새로운 이슈와 영상을 등록하면 이곳에서 확인할 수 있어요.</p>
-              </section>
-            ) : (
-              <div className="stock-content-groups">
-                {groups.map((group) => {
-                  const isVideoGroup = group.sourceType === 'YOUTUBE';
-                  const isNewsGroup = group.sourceType === 'INTERNAL_NEWS';
-
-                  return (
-                    <section
-                      className={
-                        isVideoGroup
-                          ? 'stock-content-group stock-content-group--videos'
-                          : 'stock-content-group'
-                      }
-                      key={group.sourceType}
-                      aria-labelledby={`source-${group.sourceType}`}
-                    >
-                      <div className="stock-content-section-heading">
-                        <div>
-                          <h2 id={`source-${group.sourceType}`}>
-                            {STOCK_CONTENT_SOURCE_LABELS[group.sourceType]}
-                          </h2>
-                          <span>
-                            {isVideoGroup ? '관련 영상' : '관련 링크'} · {group.contents.length}개
-                          </span>
-                        </div>
-                        <span
-                          className="stock-content-count"
-                          aria-label={`${group.contents.length}개`}
-                        >
-                          {group.contents.length}
-                        </span>
-                      </div>
-                      <ul
+          <div
+            className={
+              holdingsLoading || holdings.length > 0
+                ? 'stock-content-layout'
+                : 'stock-content-layout stock-content-layout--without-sidebar'
+            }
+          >
+            {holdingsLoading || holdings.length > 0 ? (
+              <aside className="stock-content-assets" aria-label="내 포트폴리오 종목">
+                <div className="stock-content-assets-heading">
+                  <strong>내 포트폴리오</strong>
+                  {!holdingsLoading ? <span>{holdings.length}</span> : null}
+                </div>
+                {holdingsLoading ? (
+                  <div className="stock-content-assets-loading" aria-label="보유 종목 불러오는 중">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                ) : (
+                  <nav className="stock-content-asset-list" aria-label="종목 선택">
+                    {holdings.map((holding) => (
+                      <Link
                         className={
-                          isVideoGroup
-                            ? 'stock-content-list stock-content-list--videos'
-                            : isNewsGroup
-                              ? 'stock-content-list stock-content-list--news'
-                              : 'stock-content-list'
+                          holding.assetId === assetId
+                            ? 'stock-content-asset is-active'
+                            : 'stock-content-asset'
                         }
+                        to={`/stocks/${holding.assetId}`}
+                        aria-current={holding.assetId === assetId ? 'page' : undefined}
+                        key={holding.assetId}
                       >
-                        {group.contents.map((content) => (
-                          <li key={content.id}>
-                            {isVideoGroup && getYouTubeEmbedUrl(content.url) ? (
-                              <article className="stock-content-video">
-                                <div className="stock-content-video-frame">
-                                  <button
-                                    className="stock-content-video-preview"
-                                    type="button"
-                                    aria-label={`${content.title} 크게 재생`}
-                                    onClick={(event) => {
-                                      activeVideoTriggerRef.current = event.currentTarget;
-                                      setActiveVideoId(content.id);
-                                    }}
-                                  >
-                                    <YouTubeThumbnail content={content} />
-                                    <span className="stock-content-video-play" aria-hidden="true">
-                                      <PlayIcon />
-                                    </span>
-                                  </button>
-                                </div>
-                                <div className="stock-content-video-caption">
-                                  <strong>{content.title}</strong>
-                                  <a href={content.url} target="_blank" rel="noreferrer">
-                                    <span>YouTube에서 보기</span>
-                                    <ArrowUpRightIcon />
-                                  </a>
-                                </div>
-                              </article>
-                            ) : isNewsGroup ? (
-                              <a
-                                className="stock-content-news-card"
-                                href={content.url}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                <ContentThumbnail imageUrl={content.imageUrl} />
-                                <span className="stock-content-news-card-copy">
-                                  <span>DAYNOMY 이슈</span>
-                                  <strong>{content.title}</strong>
-                                </span>
-                                <ArrowUpRightIcon />
-                              </a>
-                            ) : (
-                              <a
-                                className="stock-content-link-card"
-                                href={content.url}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                <span className="stock-content-link-card-icon" aria-hidden="true">
-                                  <ArrowUpRightIcon />
-                                </span>
-                                <span className="stock-content-link-card-copy">
-                                  <strong>{content.title}</strong>
-                                  <span>{content.url}</span>
-                                </span>
-                                <ArrowUpRightIcon />
-                              </a>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  );
-                })}
+                        <span className="stock-content-asset-mark" aria-hidden="true">
+                          {holding.name.slice(0, 1)}
+                        </span>
+                        <span className="stock-content-asset-copy">
+                          <strong>{holding.name}</strong>
+                          <small>
+                            {holding.assetCode} · {holding.market}
+                          </small>
+                        </span>
+                      </Link>
+                    ))}
+                  </nav>
+                )}
+              </aside>
+            ) : null}
+
+            <section className="stock-content-main" aria-labelledby="stock-content-title">
+              {holdings.length > 0 ? (
+                <label className="stock-content-mobile-select">
+                  <span>종목 선택</span>
+                  <select
+                    value={assetId}
+                    onChange={(event) => navigate(`/stocks/${event.currentTarget.value}`)}
+                  >
+                    {holdings.map((holding) => (
+                      <option value={holding.assetId} key={holding.assetId}>
+                        {holding.name} · {holding.assetCode}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <header className="stock-content-heading">
+                <div className="stock-content-title-row">
+                  <h1 id="stock-content-title">{response.assetName} 소식</h1>
+                  <span className="stock-content-code">{response.assetCode}</span>
+                </div>
+                <p>이슈부터 영상과 SNS 반응까지 한 곳에서 확인하세요.</p>
+                <div className="stock-content-summary" aria-label="자료 요약">
+                  <strong>{contentCount}</strong>
+                  <span>개의 관련 자료</span>
+                </div>
+              </header>
+
+              <div className="stock-content-source-tabs" aria-label="소식 출처">
+                {sourceFilters.map((filter) => (
+                  <button
+                    className={
+                      selectedSource === filter.value
+                        ? 'stock-content-source-tab is-active'
+                        : 'stock-content-source-tab'
+                    }
+                    type="button"
+                    aria-label={`${filter.label} ${filter.count}개`}
+                    aria-pressed={selectedSource === filter.value}
+                    onClick={() => setSelectedSource(filter.value)}
+                    key={filter.value}
+                  >
+                    <span>{filter.label}</span>
+                    <small>{filter.count}</small>
+                  </button>
+                ))}
               </div>
-            )}
-          </>
+
+              {visibleContents.length === 0 ? (
+                <section className="stock-content-empty">
+                  <span className="stock-content-empty-mark">—</span>
+                  <strong>
+                    {selectedSource === 'ALL'
+                      ? '아직 등록된 관련 자료가 없습니다.'
+                      : `아직 등록된 ${selectedSourceLabel} 소식이 없습니다.`}
+                  </strong>
+                  <p>새로운 소식이 등록되면 이곳에서 확인할 수 있어요.</p>
+                </section>
+              ) : (
+                <ul className="stock-content-feed" aria-label={`${selectedSourceLabel} 소식 목록`}>
+                  {visibleContents.map((content) => {
+                    const isVideo = content.sourceType === 'YOUTUBE';
+                    const isNews = content.sourceType === 'INTERNAL_NEWS';
+                    const isSocial = content.sourceType === 'THREADS' || content.sourceType === 'X';
+
+                    return (
+                      <li key={content.id}>
+                        {isVideo && getYouTubeEmbedUrl(content.url) ? (
+                          <article className="stock-content-video">
+                            <div className="stock-content-video-frame">
+                              <button
+                                className="stock-content-video-preview"
+                                type="button"
+                                aria-label={`${content.title} 크게 재생`}
+                                onClick={(event) => {
+                                  activeVideoTriggerRef.current = event.currentTarget;
+                                  setActiveVideoId(content.id);
+                                }}
+                              >
+                                <YouTubeThumbnail content={content} />
+                                <span className="stock-content-video-play" aria-hidden="true">
+                                  <PlayIcon />
+                                </span>
+                              </button>
+                            </div>
+                            <div className="stock-content-video-caption">
+                              <strong>{content.title}</strong>
+                              <a href={content.url} target="_blank" rel="noreferrer">
+                                <span>YouTube에서 보기</span>
+                                <ArrowUpRightIcon />
+                              </a>
+                            </div>
+                          </article>
+                        ) : isNews ? (
+                          <a
+                            className="stock-content-news-card"
+                            href={content.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ContentThumbnail imageUrl={content.imageUrl} />
+                            <span className="stock-content-news-card-copy">
+                              <span>DAYNOMY 이슈</span>
+                              <strong>{content.title}</strong>
+                            </span>
+                            <ArrowUpRightIcon />
+                          </a>
+                        ) : isSocial ? (
+                          <SocialPostEmbed content={content} />
+                        ) : (
+                          <a
+                            className="stock-content-link-card"
+                            href={content.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <span className="stock-content-link-card-icon" aria-hidden="true">
+                              <ArrowUpRightIcon />
+                            </span>
+                            <span className="stock-content-link-card-copy">
+                              <strong>{content.title}</strong>
+                              <span>{content.url}</span>
+                            </span>
+                            <ArrowUpRightIcon />
+                          </a>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </div>
         ) : null}
       </div>
 
