@@ -42,11 +42,8 @@ export type KeywordsResponse = {
 };
 
 export type MarketAnalysisResponse = {
-  observedFact: string;
-  interpretation: string;
   risk: string;
   watchPoint: string;
-  limitation: string;
 };
 
 export type MarketAnalysisState =

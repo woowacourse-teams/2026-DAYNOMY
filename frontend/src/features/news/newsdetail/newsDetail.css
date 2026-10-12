@@ -185,11 +185,15 @@ body {
 }
 
 .keyword {
-  position: relative;
+  border: 0;
   border-radius: 2px;
+  padding: 0;
   background: transparent;
-  color: #7338f2;
+  color: #2463b5;
+  font: inherit;
   font-weight: 900;
+  text-align: inherit;
+  overflow-wrap: anywhere;
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
@@ -197,62 +201,44 @@ body {
 }
 
 .keyword:hover,
-.keyword:focus,
-.keyword:focus-within {
-  background: #fde68a;
-  color: #111827;
+.keyword[aria-expanded='true'] {
+  background: #eaf2fc;
   text-decoration: none;
 }
 
-.keyword:focus {
-  outline: 2px solid #5141c9;
+.keyword:focus-visible {
+  outline: 2px solid #2463b5;
   outline-offset: 2px;
 }
 
 .keyword-tooltip {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 28px);
+  position: fixed;
   z-index: 10;
-  display: none;
+  display: grid;
+  gap: 16px;
+  box-sizing: border-box;
   width: min(380px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   padding: 20px 22px 22px;
-  border: 0;
-  border-radius: 0;
   background: #fff;
   box-shadow: 0 18px 40px rgba(17, 24, 39, 0.16);
   color: #111827;
   font-size: 13px;
   font-weight: 400;
   line-height: 20px;
+  text-align: left;
+  overflow-wrap: anywhere;
   white-space: normal;
-}
-
-.keyword:hover .keyword-tooltip,
-.keyword:focus .keyword-tooltip,
-.keyword:focus-within .keyword-tooltip {
-  display: grid;
-  gap: 16px;
-}
-
-.keyword-tooltip::before {
-  position: absolute;
-  top: -10px;
-  left: 26px;
-  width: 0;
-  height: 0;
-  border-right: 10px solid transparent;
-  border-bottom: 10px solid #ffffff;
-  border-left: 10px solid transparent;
-  content: '';
 }
 
 .keyword-tooltip-badge {
   width: fit-content;
+  flex-shrink: 0;
   padding: 3px 12px;
   border-radius: 999px;
-  background: #fde68a;
-  color: #92400e;
+  background: #eaf2fc;
+  color: #2463b5;
   font-size: 11px;
   font-weight: 900;
   line-height: 17px;
@@ -265,6 +251,7 @@ body {
 }
 
 .keyword-tooltip-heading strong {
+  min-width: 0;
   color: #111827;
   font-size: 20px;
   font-weight: 900;
@@ -280,11 +267,11 @@ body {
   grid-template-columns: 70px minmax(0, 1fr);
   gap: 10px;
   padding: 11px 0;
-  border-top: 1px solid #ece9f8;
+  border-top: 1px solid #dce7f5;
 }
 
 .keyword-tooltip-detail b {
-  color: #5749b8;
+  color: #2463b5;
   font-weight: 900;
 }
 
@@ -315,7 +302,7 @@ body {
   margin-top: 28px;
   padding: 8px 28px;
   border-radius: 14px;
-  background: #f7f3ff;
+  background: #f2f6fc;
   color: #374151;
 }
 
@@ -324,7 +311,7 @@ body {
   grid-template-columns: 112px minmax(0, 1fr);
   gap: 20px;
   padding: 18px 0;
-  border-top: 1px solid #ded8f2;
+  border-top: 1px solid #dce7f5;
 }
 
 .market-analysis-item:first-child {
@@ -332,7 +319,7 @@ body {
 }
 
 .market-analysis-item dt {
-  color: #6252c7;
+  color: #2463b5;
   font-size: 14px;
   font-weight: 900;
   line-height: 26px;
@@ -344,13 +331,6 @@ body {
   font-size: 16px;
   font-weight: 400;
   line-height: 26px;
-}
-
-.market-analysis-item-primary dd {
-  color: #252b3a;
-  font-size: 18px;
-  font-weight: 650;
-  line-height: 30px;
 }
 
 .market-analysis-message {

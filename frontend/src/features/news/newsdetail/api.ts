@@ -86,14 +86,7 @@ function isKeywordsResponse(value: unknown): value is KeywordsResponse {
 }
 
 function isMarketAnalysisResponse(value: unknown): value is MarketAnalysisResponse {
-  return (
-    isRecord(value) &&
-    isString(value.observedFact) &&
-    isString(value.interpretation) &&
-    isString(value.risk) &&
-    isString(value.watchPoint) &&
-    isString(value.limitation)
-  );
+  return isRecord(value) && isString(value.risk) && isString(value.watchPoint);
 }
 
 async function getJson<T>(path: string, isValid: (value: unknown) => value is T): Promise<T> {
@@ -115,7 +108,7 @@ function getMarketAnalysisState(
   result: PromiseSettledResult<MarketAnalysisResponse>,
 ): MarketAnalysisState {
   if (result.status === 'fulfilled') {
-    return Object.values(result.value).some((value) => value.trim())
+    return [result.value.risk, result.value.watchPoint].some((value) => value.trim())
       ? { status: 'success', data: result.value }
       : { status: 'empty' };
   }
