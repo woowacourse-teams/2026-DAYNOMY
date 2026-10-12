@@ -52,7 +52,8 @@ describe('포트폴리오 로그인 접근', () => {
             role: 'USER',
           });
         }
-        if (url.endsWith('/api/portfolio')) return jsonResponse({ holdings: [] });
+        if (url.endsWith('/api/portfolio'))
+          return jsonResponse({ holdings: [], totalRealizedProfitLoss: 0 });
         return jsonResponse({}, 404);
       }),
     );

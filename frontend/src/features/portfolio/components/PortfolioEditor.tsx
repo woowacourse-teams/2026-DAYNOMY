@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PortfolioDialog } from './PortfolioDialog';
 import { getLatestStockPrice, searchStocks } from '../api';
 import type { AssetCategory, PortfolioHoldingInput, StockSearchItem } from '../types';
 
@@ -15,11 +16,14 @@ function getCategoryLabel(category: AssetCategory) {
 }
 
 function normalizePriceInput(value: string) {
-  return value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  return value.replace(/,/g, '');
 }
 
 function formatPriceInput(value: string) {
-  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const [integer, fraction] = value.split('.');
+  return (
+    integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction !== undefined ? `.${fraction}` : '')
+  );
 }
 
 type PortfolioEditorProps = {
@@ -90,7 +94,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
     getLatestStockPrice(selectedStock.assetId, controller.signal)
       .then((price) => {
         if (controller.signal.aborted) return;
-        setAveragePrice((currentPrice) => currentPrice || String(Math.round(price.closePrice)));
+        setAveragePrice((currentPrice) => currentPrice || String(price.closePrice));
       })
       .catch(() => {
         if (controller.signal.aborted) return;
@@ -105,13 +109,17 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
 
   const quantityNumber = Number(quantity);
   const averagePriceNumber = Number(averagePrice);
-  const canAdjustAveragePrice = Number.isFinite(averagePriceNumber) && averagePriceNumber > 0;
+  const canAdjustAveragePrice =
+    Number.isFinite(averagePriceNumber) &&
+    averagePriceNumber >= 0.01 &&
+    /^\d{1,15}(\.\d{1,2})?$/.test(averagePrice);
   const canSave =
     selectedStock !== null &&
     Number.isSafeInteger(quantityNumber) &&
     quantityNumber > 0 &&
     Number.isFinite(averagePriceNumber) &&
-    averagePriceNumber > 0;
+    averagePriceNumber >= 0.01 &&
+    /^\d{1,15}(\.\d{1,2})?$/.test(averagePrice);
   const filteredResults = results.filter(
     (stock) => categoryFilter === 'ALL' || stock.category === categoryFilter,
   );
@@ -138,7 +146,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
 
   function adjustAveragePrice(amount: number) {
     if (!canAdjustAveragePrice) return;
-    const nextPrice = Math.max(1, averagePriceNumber + amount);
+    const nextPrice = Math.max(0.01, Math.round((averagePriceNumber + amount) * 100) / 100);
     setAveragePrice(String(nextPrice));
   }
 
@@ -151,14 +159,13 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
   const isDetailsStep = holding !== undefined || selectedStock !== null;
 
   return (
-    <div className="portfolio-dialog-backdrop" onMouseDown={onClose}>
-      <section
-        className="portfolio-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="portfolio-dialog-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <PortfolioDialog
+      titleId="portfolio-dialog-title"
+      onClose={onClose}
+      busy={saveLoading}
+      className="portfolio-holding-sheet"
+    >
+      <section className="portfolio-dialog">
         <form className={isDetailsStep ? 'is-details-step' : 'is-search-step'} onSubmit={submit}>
           <div className="portfolio-dialog-title">
             <div>
@@ -175,10 +182,14 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                 </button>
               ) : null}
               <div>
-                <h2 id="portfolio-dialog-title">{holding ? '자산 수정' : '자산 추가'}</h2>
+                <h2 id="portfolio-dialog-title">
+                  {holding ? '보유정보 정정' : '기존 보유자산 등록'}
+                </h2>
                 <p>
                   {isDetailsStep
-                    ? '보유 정보를 입력해 주세요.'
+                    ? holding
+                      ? '현재 보유 수량과 평균 매입가를 정정합니다. 매수·매도로 기록되지 않아요.'
+                      : '오늘 기준 시작 잔고를 등록합니다. 과거 매수일을 반영하려면 거래 기록을 이용하세요.'
                     : '포트폴리오에 담을 국내 주식과 ETF를 찾아보세요.'}
                 </p>
               </div>
@@ -187,6 +198,7 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
               type="button"
               className="portfolio-dialog-close"
               aria-label="닫기"
+              disabled={saveLoading}
               onClick={onClose}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -352,8 +364,8 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
                   <input
                     id="average-price-input"
                     type="text"
-                    inputMode="numeric"
-                    pattern="[0-9,]*"
+                    inputMode="decimal"
+                    pattern="[0-9,]+(\.[0-9]{1,2})?"
                     placeholder="0"
                     value={formatPriceInput(averagePrice)}
                     onChange={(event) => setAveragePrice(normalizePriceInput(event.target.value))}
@@ -406,6 +418,6 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
           ) : null}
         </form>
       </section>
-    </div>
+    </PortfolioDialog>
   );
 }

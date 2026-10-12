@@ -38,6 +38,9 @@ const etf = {
   market: 'KOSPI',
 } as const;
 const calculation = {
+  pricingStatus: 'COMPLETE',
+  pricedHoldingCount: 1,
+  unpricedHoldingCount: 0,
   baseDate: '2026-09-21',
   totalPurchaseAmount: 700000,
   totalEvaluationAmount: 750000,
@@ -48,6 +51,7 @@ const calculation = {
   holdings: [
     {
       ...stock,
+      priceAvailable: true,
       baseDate: '2026-09-21',
       quantity: 10,
       averagePurchasePrice: 70000,
@@ -96,7 +100,7 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
     return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
   }
   if (url.endsWith('/api/portfolio') && method === 'GET') {
-    return jsonResponse({ holdings: savedHoldings });
+    return jsonResponse({ holdings: savedHoldings, totalRealizedProfitLoss: 0 });
   }
   if (url.endsWith('/api/portfolio/holdings') && method === 'POST') {
     const body = JSON.parse(String(init?.body)) as {
@@ -159,7 +163,13 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
           ? 0
           : ((totalProfitLoss - (6 - index) * 10000) / totalPurchaseAmount) * 100,
     }));
-    const points = (savedPerformancePoints.length > 0 ? savedPerformancePoints : defaultPoints)
+    const points = (
+      savedPerformancePoints.length > 0
+        ? savedPerformancePoints
+        : savedHoldings.length
+          ? defaultPoints
+          : []
+    )
       .filter((point) => point.baseDate >= from && point.baseDate <= to)
       .map(({ recordedAt: _recordedAt, source: _source, ...point }) => point);
     return jsonResponse({
@@ -168,17 +178,19 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
       baseDate: points.at(-1)?.baseDate ?? null,
       previousBaseDate: points.at(-2)?.baseDate ?? null,
       points,
-      currentPoint: {
-        baseDate: '2026-10-06',
-        priceBaseDate: '2026-10-06',
-        totalPurchaseAmount,
-        totalEvaluationAmount,
-        totalProfitLoss,
-        totalReturnRate:
-          totalPurchaseAmount === 0 ? 0 : (totalProfitLoss / totalPurchaseAmount) * 100,
-        dailyProfitLoss: 10000,
-        dailyReturnRate: 1.35,
-      },
+      currentPoint: savedHoldings.length
+        ? {
+            baseDate: '2026-10-06',
+            priceBaseDate: '2026-10-06',
+            totalPurchaseAmount,
+            totalEvaluationAmount,
+            totalProfitLoss,
+            totalReturnRate:
+              totalPurchaseAmount === 0 ? 0 : (totalProfitLoss / totalPurchaseAmount) * 100,
+            dailyProfitLoss: 10000,
+            dailyReturnRate: 1.35,
+          }
+        : null,
     });
   }
   return null;
@@ -267,6 +279,8 @@ function mockPortfolioApi() {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-06T06:00:00Z'));
   savedHoldings = [];
   savedPerformancePoints = [];
   vi.stubGlobal(
@@ -282,6 +296,7 @@ afterEach(() => {
   localStorage.clear();
   window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('포트폴리오 화면', () => {
@@ -305,34 +320,37 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage />);
     expect(await view.findByRole('button', { name: '자산 분석 접기' })).toBeTruthy();
     expect(view.queryByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeNull();
-    expect(view.getByRole('button', { name: /자산 추가/ })).toBeTruthy();
-    expect(view.getAllByText('표시할 자산이 없습니다').length).toBeGreaterThanOrEqual(3);
+    expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy();
     expect(view.queryByText('표시할 자산이 없어요')).toBeNull();
     const summary = within(view.getByLabelText('자산 요약'));
-    expect(summary.getByText('보유 자산').parentElement?.textContent).toContain('0개');
+    expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy();
     expect(
       summary.getByText('전체 자산 평가금액').parentElement?.parentElement?.textContent,
     ).toContain('0원');
-    expect(view.queryByRole('combobox', { name: '자산 추이 기간' })).toBeNull();
+    expect(view.getByRole('combobox', { name: '자산 추이 기간' })).toBeTruthy();
 
     fireEvent.click(view.getByRole('button', { name: '자산 추이 크게 보기' }));
     const dialog = view.getByRole('dialog', { name: '자산 추이 상세' });
-    expect(within(dialog).getByText('표시할 자산이 없습니다')).toBeTruthy();
+    expect(within(dialog).getByText('선택한 기간에 표시할 추이가 없어요')).toBeTruthy();
     expect(within(dialog).getByRole('combobox', { name: '자산 추이 기간' })).toBeTruthy();
     expect(within(dialog).getByLabelText('자산 추이 범례')).toBeTruthy();
   });
 
-  it('보유 자산의 소식 버튼을 비활성화한다', async () => {
+  it('종목을 누르면 보유 상세 패널에서 종목 정보로 이동할 수 있다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     mockPortfolioApi();
 
     const view = render(<PortfolioPage />);
     await view.findAllByText('750,000원');
-    const relatedContentsButton = view.getByRole('button', { name: '소식' });
-    expect(relatedContentsButton).toHaveProperty('disabled', true);
-    fireEvent.click(relatedContentsButton);
-
-    expect(view.queryByRole('complementary', { name: '소식' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+    const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
+    expect(
+      within(detail)
+        .getByRole('link', { name: /종목 정보 보기/ })
+        .getAttribute('href'),
+    ).toBe('/stocks/1');
+    expect(view.queryByText('관리')).toBeNull();
     expect(
       vi
         .mocked(fetch)
@@ -343,7 +361,13 @@ describe('포트폴리오 화면', () => {
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
     mockPortfolioApi();
     const view = render(<PortfolioPage />);
-    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
+    await waitFor(() =>
+      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
@@ -366,7 +390,7 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
     expect(view.getByRole('img', { name: '주식 100.00%, ETF 0.00%' })).toBeTruthy();
     expect(view.queryByText('시장 구성')).toBeNull();
-    expect(view.queryByText('KOSPI')).toBeNull();
+    expect(view.getByText('KOSPI · 100.00%')).toBeTruthy();
     expect(view.queryByText('KOSDAQ')).toBeNull();
     expect(view.getByRole('heading', { name: '자산 추이' })).toBeTruthy();
     expect(
@@ -557,7 +581,9 @@ describe('포트폴리오 화면', () => {
     expect(within(dialog).queryByText('최고 · 최저')).toBeNull();
     expect(within(dialog).queryByText('자산 변경 이력')).toBeNull();
     expect(within(dialog).queryByText('자산 구성')).toBeNull();
-    expect(within(dialog).getByRole('status').textContent).toContain('매입원금');
+    await waitFor(() =>
+      expect(within(dialog).getByRole('status').textContent).toContain('매입원금'),
+    );
     expect(within(dialog).getByRole('status').textContent).toContain('평가금액');
 
     fireEvent.keyDown(
@@ -610,6 +636,7 @@ describe('포트폴리오 화면', () => {
         calculation.holdings[0],
         {
           ...etf,
+          priceAvailable: true,
           baseDate: '2026-09-21',
           quantity: 30,
           averagePurchasePrice: 30000,
@@ -676,7 +703,13 @@ describe('포트폴리오 화면', () => {
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
+    await waitFor(() =>
+      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '주식' } });
@@ -716,7 +749,13 @@ describe('포트폴리오 화면', () => {
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
+    await waitFor(() =>
+      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '주식' } });
@@ -754,7 +793,13 @@ describe('포트폴리오 화면', () => {
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
+    await waitFor(() =>
+      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'KODEX' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /KODEX 200/ }));
@@ -780,7 +825,13 @@ describe('포트폴리오 화면', () => {
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
+    await waitFor(() =>
+      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
 
     const dialog = view.getByRole('dialog');
     const searchInput = within(dialog).getByRole('searchbox');
@@ -818,7 +869,13 @@ describe('포트폴리오 화면', () => {
     );
 
     const view = render(<PortfolioPage />);
-    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
+    await waitFor(() =>
+      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
@@ -856,15 +913,17 @@ describe('포트폴리오 화면', () => {
 
     await view.findAllByText('750,000원');
     await view.findByRole('img', { name: /평가금액 760,000원, 매입원금 700,000원/ });
-    fireEvent.click(view.getByRole('button', { name: '수정' }));
-    const dialog = view.getByRole('dialog');
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+    fireEvent.click(view.getByText('보유정보 편집'));
+    fireEvent.click(view.getByRole('button', { name: '보유정보 정정' }));
+    const dialog = view.getByRole('dialog', { name: '보유정보 정정' });
     fireEvent.change(within(dialog).getByLabelText('보유수량'), { target: { value: '12' } });
     fireEvent.change(within(dialog).getByLabelText('평균 매수가'), {
       target: { value: '60,000' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '수정하기' }));
 
-    await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(view.queryByRole('dialog', { name: '보유정보 정정' })).toBeNull());
     expect(
       await view.findByRole('img', {
         name: /평가금액 912,000원, 매입원금 720,000원/,
@@ -872,8 +931,8 @@ describe('포트폴리오 화면', () => {
     ).toBeTruthy();
     expect(savedHoldings[0]).toEqual(expect.objectContaining({ quantity: 12 }));
 
-    fireEvent.click(view.getByRole('button', { name: '수정' }));
-    const secondDialog = view.getByRole('dialog');
+    fireEvent.click(view.getByRole('button', { name: '보유정보 정정' }));
+    const secondDialog = view.getByRole('dialog', { name: '보유정보 정정' });
     fireEvent.change(within(secondDialog).getByLabelText('보유수량'), {
       target: { value: '14' },
     });
@@ -906,10 +965,15 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage />);
 
     expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
-    fireEvent.click(view.getByRole('button', { name: '삭제' }));
-    await waitFor(() =>
-      expect(view.getAllByText('표시할 자산이 없습니다').length).toBeGreaterThanOrEqual(3),
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+    fireEvent.click(view.getByText('보유정보 편집'));
+    fireEvent.click(view.getByRole('button', { name: '보유자산 제거' }));
+    fireEvent.click(
+      within(view.getByRole('dialog', { name: '보유자산 제거' })).getByRole('button', {
+        name: '보유자산 제거',
+      }),
     );
+    await waitFor(() => expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy());
     expect(savedHoldings).toEqual([]);
   });
 });

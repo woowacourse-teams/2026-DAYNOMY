@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getPortfolioPerformance } from '../api';
+import { todayInSeoul } from '../transactionForm';
 import type {
   PortfolioHoldingInput,
   PortfolioPerformancePoint,
@@ -32,6 +33,7 @@ function getPeriodStart(to: Date, period: PortfolioTrendPeriod) {
 export function usePortfolioPerformance(
   period: PortfolioTrendPeriod,
   holdings: PortfolioHoldingInput[],
+  revision = 0,
 ) {
   const [points, setPoints] = useState<PortfolioPerformancePoint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,15 +47,8 @@ export function usePortfolioPerformance(
     .join('|');
 
   useEffect(() => {
-    if (holdings.length === 0) {
-      setPoints([]);
-      setLoading(false);
-      setError('');
-      return;
-    }
-
     const controller = new AbortController();
-    const to = new Date();
+    const to = new Date(`${todayInSeoul()}T12:00:00`);
     const from = getPeriodStart(to, period);
     setLoading(true);
     setError('');
@@ -63,8 +58,10 @@ export function usePortfolioPerformance(
         if (controller.signal.aborted) return;
         setPoints(
           [
-            ...response.points.filter((point) => point.baseDate !== response.currentPoint.baseDate),
-            response.currentPoint,
+            ...response.points.filter(
+              (point) => point.baseDate !== response.currentPoint?.baseDate,
+            ),
+            ...(response.currentPoint ? [response.currentPoint] : []),
           ].sort((left, right) => left.baseDate.localeCompare(right.baseDate)),
         );
       })
@@ -80,7 +77,7 @@ export function usePortfolioPerformance(
       });
 
     return () => controller.abort();
-  }, [holdingKey, holdings.length, period, retryCount]);
+  }, [holdingKey, holdings.length, period, retryCount, revision]);
 
   return { points, loading, error, retry: () => setRetryCount((count) => count + 1) };
 }
