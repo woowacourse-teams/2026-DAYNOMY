@@ -24,6 +24,23 @@ afterEach(() => {
 });
 
 describe('GA4 수집 경계', () => {
+  it('투자자 식별자는 페이지 URL과 이벤트에서 제거한다', async () => {
+    const { trackEvent, trackPageView } = await import('../../src/analytics');
+    for (const path of [
+      '/league/private-investor-id',
+      '/league/private-investor-id/',
+      '/LEAGUE/private-investor-id///',
+    ]) {
+      window.history.replaceState({}, '', path);
+      trackPageView(path);
+      trackEvent('view_investor_profile', { source: 'ranking', rank_bucket: 'top_3' });
+    }
+    expect(JSON.stringify(commands())).not.toContain('private-investor-id');
+    expect(
+      commands().find(([kind, name]) => kind === 'event' && name === 'view_investor_profile')?.[2],
+    ).toMatchObject({ page_path: '/league/investor', source: 'ranking' });
+  });
+
   it('검색 URL과 referrer의 쿼리를 초기화 및 이벤트에 싣지 않는다', async () => {
     const keyword = 'private-search-term';
     window.history.replaceState({}, '', `/search?q=${keyword}&category=ALL`);

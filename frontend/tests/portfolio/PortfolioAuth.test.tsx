@@ -46,7 +46,9 @@ describe('포트폴리오 로그인 접근', () => {
     expect(view.queryByText('로그인해야 볼 수 있습니다')).toBeNull();
     expect(window.location.pathname).toBe('/');
     expect(
-      vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith('/api/portfolio')),
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) => String(input).endsWith('/api/users/me/portfolio')),
     ).toBe(false);
   });
 
@@ -63,7 +65,7 @@ describe('포트폴리오 로그인 접근', () => {
             role: 'USER',
           });
         }
-        if (url.endsWith('/api/portfolio')) return jsonResponse({ holdings: [] });
+        if (url.endsWith('/api/users/me/portfolio')) return jsonResponse({ holdings: [] });
         return jsonResponse({}, 404);
       }),
     );
@@ -74,8 +76,27 @@ describe('포트폴리오 로그인 접근', () => {
     expect(await view.findByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
     await waitFor(() => {
       expect(
-        vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith('/api/portfolio')),
+        vi
+          .mocked(fetch)
+          .mock.calls.some(([input]) => String(input).endsWith('/api/users/me/portfolio')),
       ).toBe(true);
     });
   });
+
+  it.each(['/league/portfolio?week=2026-09-28#holdings', '/admin/news?page=2#draft'])(
+    '비로그인 사용자가 %s에 접근하면 로그인 후 돌아올 전체 경로를 보존한다',
+    async (path) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => jsonResponse({}, 401)),
+      );
+      window.history.replaceState(null, '', path);
+
+      const view = render(<App />);
+
+      expect(await view.findByRole('heading', { name: /DAYNOMY (관리자 )?로그인/ })).toBeTruthy();
+      expect(window.location.pathname).toBe('/login');
+      expect(new URLSearchParams(window.location.search).get('returnTo')).toBe(path);
+    },
+  );
 });
