@@ -1,0 +1,39 @@
+groups:
+  - name: daynomy-league
+    rules:
+      - alert: LeagueCalculationFailed
+        expr: |
+          max by (environment, instance, service) (
+            daynomy_league_calculation_latest_profiles{environment="prod", outcome="failed"}
+            or daynomy_league_calculation_latest_run_failed{environment="prod"}
+          ) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: '운영 투자 리그 집계 실패'
+          description: '{{ $labels.instance }}의 최근 집계에 실패한 참가자 또는 배치 오류가 있습니다. 재시도 성공 여부와 실패 로그를 확인합니다.'
+
+      - alert: LeagueCalendarMissing
+        expr: |
+          max by (environment, instance, service) (
+            daynomy_league_calendar_missing_days{environment="prod"}
+          ) > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: '운영 투자 리그 거래일 달력 누락'
+          description: '{{ $labels.instance }}에서 공식 참여 주차의 거래일 달력이 누락됐습니다. 공식 달력을 확인하고 등록합니다.'
+
+      - alert: LeagueFinalizationDelayed
+        expr: |
+          max by (environment, instance, service) (
+            daynomy_league_finalization_delay_seconds{environment="prod"}
+          ) > 7200
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: '운영 투자 리그 주간 확정 지연'
+          description: '{{ $labels.instance }}에서 마지막 실제 거래일 장 마감 후 2시간 넘게 확정이 지연됐습니다. 종가 수집과 참가자 계산 상태를 확인합니다.'

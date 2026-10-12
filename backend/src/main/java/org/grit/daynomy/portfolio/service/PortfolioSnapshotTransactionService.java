@@ -85,17 +85,7 @@ public class PortfolioSnapshotTransactionService {
     }
 
     PortfolioDailySnapshot snapshot =
-        existing != null
-            ? existing
-            : new PortfolioDailySnapshot(
-                portfolio,
-                baseDate,
-                amounts.totalPurchase(),
-                amounts.totalEvaluation(),
-                amounts.totalProfitLoss(),
-                amounts.totalReturnRate(),
-                amounts.dailyProfitLoss(),
-                amounts.dailyReturnRate());
+        existing != null ? existing : new PortfolioDailySnapshot(portfolio, baseDate);
     snapshot.update(
         amounts.totalPurchase(),
         amounts.totalEvaluation(),

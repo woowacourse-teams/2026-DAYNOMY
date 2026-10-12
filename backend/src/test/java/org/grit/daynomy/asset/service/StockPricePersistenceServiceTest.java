@@ -27,6 +27,7 @@ class StockPricePersistenceServiceTest {
 
   @Mock private AssetRepository assetRepository;
   @Mock private StockDailyPriceRepository stockDailyPriceRepository;
+  @Mock private org.grit.daynomy.asset.repository.MarketTradingDayRepository tradingDayRepository;
   @InjectMocks private StockPricePersistenceService persistenceService;
 
   @Test

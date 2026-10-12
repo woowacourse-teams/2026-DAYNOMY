@@ -82,17 +82,7 @@ public class SavedPortfolioService {
             new PortfolioHolding(
                 portfolio, asset, request.quantity(), request.averagePurchasePrice()));
     historyRepository.save(
-        new PortfolioHoldingHistory(
-            portfolio,
-            asset,
-            PortfolioHoldingChangeType.OPENING_BALANCE,
-            holding.getQuantity(),
-            holding.getAveragePurchasePrice(),
-            LocalDate.now(SEOUL),
-            null,
-            null,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO));
+        new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.OPENING_BALANCE));
     return SavedPortfolioHoldingResponse.from(holding);
   }
 
@@ -101,19 +91,10 @@ public class SavedPortfolioService {
       Long memberId, Long assetId, SavedPortfolioHoldingUpdateRequest request) {
     Portfolio portfolio = getPortfolio(memberId);
     PortfolioHolding holding = getHolding(portfolio.getId(), assetId);
-    holding.change(request.quantity(), request.averagePurchasePrice());
-    historyRepository.save(
-        new PortfolioHoldingHistory(
-            portfolio,
-            holding.getAsset(),
-            PortfolioHoldingChangeType.ADJUSTED,
-            holding.getQuantity(),
-            holding.getAveragePurchasePrice(),
-            LocalDate.now(SEOUL),
-            null,
-            null,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO));
+    if (holding.change(request.quantity(), request.averagePurchasePrice())) {
+      historyRepository.save(
+          new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.ADJUSTED));
+    }
     return SavedPortfolioHoldingResponse.from(holding);
   }
 
@@ -122,17 +103,7 @@ public class SavedPortfolioService {
     Portfolio portfolio = getPortfolio(memberId);
     PortfolioHolding holding = getHolding(portfolio.getId(), assetId);
     historyRepository.save(
-        new PortfolioHoldingHistory(
-            portfolio,
-            holding.getAsset(),
-            PortfolioHoldingChangeType.REMOVED,
-            holding.getQuantity(),
-            holding.getAveragePurchasePrice(),
-            LocalDate.now(SEOUL),
-            null,
-            null,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO));
+        new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.REMOVED));
     holdingRepository.delete(holding);
   }
 
@@ -235,7 +206,7 @@ public class SavedPortfolioService {
     }
     Portfolio portfolio = getPortfolio(memberId);
     return historyRepository
-        .findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDesc(
+        .findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDescIdDesc(
             portfolio.getId(), from, to)
         .stream()
         .map(PortfolioHoldingHistoryResponse::from)

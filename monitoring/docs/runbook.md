@@ -65,6 +65,54 @@ curl --fail http://127.0.0.1:8081/actuator/prometheus
 2. 애플리케이션 로그, Docker 데이터, PostgreSQL 데이터 증가량을 확인한다.
 3. 삭제 대상을 정확히 확인하지 않은 상태에서 재귀 삭제 명령을 실행하지 않는다.
 
+## LeagueCalculationFailed
+
+1. Grafana의 리그 대상·성공·실패와 일간 제외 사유를 확인한다. 참가자 실패와 자동 실행 오류를 구분한다.
+2. 같은 시각의 `LEAGUE_CALCULATION_FAILED` 로그에서 예외 종류와 DB·종가 수집 상태를 확인한다. 금액·판단 원문을 장애 기록에 복사하지 않는다.
+3. `MISSING_PRICE` 또는 `PRICE_COLLECTION_PENDING`이 증가하면 아래 달력·수집 상태를 확인하고 필요한 날짜를 최대 31일씩 관리자 종가 백필한다.
+4. 다음 종가·달력 갱신 이벤트 또는 예약 집계가 재시도한 뒤 실패 값이 0으로 복구됐는지 확인한다. 관리자 재집계도 일간 성과 계산과 주간 확정을 함께 실행한다.
+
+## LeagueCalendarMissing
+
+1. 참여 기간부터 현재 주까지 `market_trading_days`가 주말·휴장일을 포함해 하루 한 행씩 있는지 확인한다. 아래 조회의 날짜 범위는 필요한 기간으로 바꾼다.
+
+```sql
+SELECT day::date AS missing_date
+FROM generate_series(DATE '2026-10-01', DATE '2026-10-31', INTERVAL '1 day') AS day
+LEFT JOIN market_trading_days calendar ON calendar.base_date = day::date
+WHERE calendar.base_date IS NULL;
+```
+
+2. `MARKET_CALENDAR_SYNC_ENABLED`와 `market-calendar.sync.completed`·`market-calendar.sync.failed` 로그를 확인한다. 서버 시작 및 매일 06:05·18:05(서울)에 전년도·올해·다음 해의 발표된 KRX 달력을 갱신한다. 미발표 연도나 잘못된 응답을 평일 달력으로 대체하지 않는다. 공식 조회 장애나 범위 밖의 과거 날짜는 [수동 복구 절차](../../backend/README.md#거래일-달력-자동-갱신과-수동-복구)에 따라 CSV·SQL을 검토하고 승인된 대상 DB에 적용한다.
+3. 추가·변경된 거래일은 종가 백필하고 자동 재집계·확정 후 누락 지표의 복구를 확인한다. 기존 마이그레이션·가격·성과 이력을 수정·삭제하지 않는다.
+
+## LeagueFinalizationDelayed
+
+1. 해당 주 달력이 완전하고 마지막 실제 거래일이 올바른지 확인한다. 달력 자체가 누락된 경우 `LeagueCalendarMissing`부터 해결한다.
+
+```sql
+SELECT base_date, trading, collected_at
+FROM market_trading_days
+WHERE base_date BETWEEN DATE '2026-10-05' AND DATE '2026-10-11'
+ORDER BY base_date;
+```
+
+2. 거래일의 `collected_at`이 없으면 필요한 기간과 직전 거래일의 종가를 백필한다. 가격 행이 일부 있다는 이유로 수집 완료 값을 수동으로 채우지 않는다.
+3. 수집이 끝났다면 최신 일간 결과의 미완료 사유를 집계한다. 금액·계정 정보를 조회할 필요는 없다.
+
+```sql
+WITH latest AS (
+  SELECT DISTINCT ON (portfolio_id, base_date) eligible, ineligible_reason
+  FROM portfolio_daily_returns
+  WHERE base_date BETWEEN DATE '2026-10-05' AND DATE '2026-10-11'
+  ORDER BY portfolio_id, base_date, calculation_version DESC
+)
+SELECT eligible, ineligible_reason, COUNT(*)
+FROM latest GROUP BY eligible, ineligible_reason;
+```
+
+4. 자동 집계 뒤 해당 주 API의 `confirmed`, `asOfDate`, `calculationVersion`과 지연 값 0을 확인한다. 가격 정정은 `PRICE_RECALCULATION`, 마지막 거래일 변경은 `CALENDAR_RECALCULATION`으로 이전 버전을 보존해야 한다.
+
 ## 점검·배포 중 Silence
 
 예정된 dev 중단이나 점검은 Alertmanager에서 해당 환경과 시간에 맞는 Silence를 먼저

@@ -12,7 +12,7 @@ public interface PortfolioHoldingHistoryRepository
   Optional<PortfolioHoldingHistory> findByIdAndPortfolioId(Long id, Long portfolioId);
 
   List<PortfolioHoldingHistory>
-      findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDesc(
+      findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDescIdDesc(
           Long portfolioId, LocalDate from, LocalDate to);
 
   List<PortfolioHoldingHistory>

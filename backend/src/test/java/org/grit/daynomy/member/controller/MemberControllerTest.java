@@ -17,6 +17,7 @@ import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.auth.token.TokenCookieManager;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.member.controller.dto.MemberResponse;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.member.exception.MemberErrorCode;
@@ -25,6 +26,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -75,17 +78,19 @@ class MemberControllerTest {
   @DisplayName("인증 회원의 정보를 응답 DTO로 반환한다")
   void getMeReturnsAuthenticatedMember() throws Exception {
     Member member = createMember(3L, "member@example.com", "daynomy");
-    when(memberService.getMember(3L)).thenReturn(member);
+    MemberResponse response = MemberResponse.from(member);
+    when(memberService.getProfile(3L)).thenReturn(response);
 
     mockMvc
         .perform(get("/api/users/me"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(3))
         .andExpect(jsonPath("$.email").value("member@example.com"))
+        .andExpect(jsonPath("$.name").value("Google 이름"))
         .andExpect(jsonPath("$.nickname").value("daynomy"))
         .andExpect(jsonPath("$.role").value("USER"));
 
-    verify(memberService).getMember(3L);
+    verify(memberService).getProfile(3L);
   }
 
   @Test
@@ -121,10 +126,49 @@ class MemberControllerTest {
     verifyNoInteractions(memberService);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"{}", "{\"nickname\":null}", "{\"nickname\":\"123456789012345678901\"}"})
+  void updateMeRejectsMissingOrOversizedNickname(String body) throws Exception {
+    mockMvc
+        .perform(patch("/api/users/me").contentType(MediaType.APPLICATION_JSON).content(body))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errors[0].field").value("nickname"));
+    verifyNoInteractions(memberService);
+  }
+
+  @Test
+  void updateMeValidatesLengthAfterRemovingSurroundingWhitespace() throws Exception {
+    String nickname = "12345678901234567890";
+    Member member = createMember(3L, "member@example.com", nickname);
+    when(memberService.updateNickname(3L, nickname)).thenReturn(member);
+    mockMvc
+        .perform(
+            patch("/api/users/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nickname\":\"  " + nickname + "  \"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.nickname").value(nickname));
+    verify(memberService).updateNickname(3L, nickname);
+  }
+
+  @Test
+  void updateMeReportsDuplicateNicknameWithConflictCode() throws Exception {
+    when(memberService.updateNickname(3L, "중복닉네임"))
+        .thenThrow(new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS));
+    mockMvc
+        .perform(
+            patch("/api/users/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nickname\":\"중복닉네임\"}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("NICKNAME_ALREADY_EXISTS"))
+        .andExpect(jsonPath("$.message").value("이미 사용 중인 닉네임입니다."));
+  }
+
   @Test
   @DisplayName("회원 조회 중 회원을 찾지 못하면 에러 응답을 반환한다")
   void getMeReturnsNotFoundWhenMemberIsMissing() throws Exception {
-    when(memberService.getMember(3L))
+    when(memberService.getProfile(3L))
         .thenThrow(new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
 
     mockMvc
@@ -147,6 +191,7 @@ class MemberControllerTest {
     Member member = org.mockito.Mockito.mock(Member.class);
     when(member.getId()).thenReturn(memberId);
     when(member.getEmail()).thenReturn(email);
+    when(member.getGoogleName()).thenReturn("Google 이름");
     when(member.getNickname()).thenReturn(nickname);
     when(member.getRole()).thenReturn(MemberRole.USER);
     return member;

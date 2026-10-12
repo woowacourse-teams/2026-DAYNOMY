@@ -65,6 +65,15 @@ public class PortfolioHoldingHistory extends BaseEntity {
   @Column(name = "tax", nullable = false, precision = 19, scale = 2)
   private BigDecimal tax = BigDecimal.ZERO;
 
+  public PortfolioHoldingHistory(PortfolioHolding holding, PortfolioHoldingChangeType changeType) {
+    this(
+        holding.getPortfolio(),
+        holding.getAsset(),
+        changeType,
+        holding.getQuantity(),
+        holding.getAveragePurchasePrice());
+  }
+
   public PortfolioHoldingHistory(
       Portfolio portfolio,
       Asset asset,

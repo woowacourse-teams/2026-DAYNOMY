@@ -16,6 +16,7 @@ import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot;
+import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
@@ -207,14 +208,9 @@ class PortfolioSnapshotTransactionServiceTest {
 
   private PortfolioHoldingHistory history(
       Asset asset, PortfolioHoldingChangeType type, long quantity, String averagePrice) {
-    PortfolioHoldingHistory history = mock(PortfolioHoldingHistory.class);
-    given(history.getAsset()).willReturn(asset);
-    given(history.getChangeType()).willReturn(type);
-    if (type != PortfolioHoldingChangeType.REMOVED) {
-      given(history.getQuantity()).willReturn(quantity);
-      given(history.getAveragePurchasePrice()).willReturn(new BigDecimal(averagePrice));
-    }
-    return history;
+    return new PortfolioHoldingHistory(
+        new PortfolioHolding(mock(Portfolio.class), asset, quantity, new BigDecimal(averagePrice)),
+        type);
   }
 
   private StockDailyPrice price(String closePrice) {
