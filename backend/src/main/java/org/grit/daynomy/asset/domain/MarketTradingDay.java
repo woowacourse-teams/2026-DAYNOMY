@@ -1,0 +1,47 @@
+package org.grit.daynomy.asset.domain;
+
+import jakarta.persistence.*;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Entity
+@Table(name = "market_trading_days")
+public class MarketTradingDay {
+  @Id
+  @Column(name = "base_date")
+  private LocalDate baseDate;
+
+  @Column(nullable = false)
+  private boolean trading;
+
+  @Column(name = "collected_at")
+  private Instant collectedAt;
+
+  public MarketTradingDay(LocalDate baseDate, boolean trading) {
+    this.baseDate = baseDate;
+    this.trading = trading;
+  }
+
+  public Instant closesAt() {
+    return baseDate.atTime(LocalTime.of(15, 30)).atZone(ZoneId.of("Asia/Seoul")).toInstant();
+  }
+
+  public void collected(Instant collectedAt) {
+    if (!trading || collectedAt.isBefore(closesAt())) return;
+    this.collectedAt = collectedAt;
+  }
+
+  public boolean reviseTrading(boolean trading) {
+    if (this.trading == trading) return false;
+    this.trading = trading;
+    this.collectedAt = null;
+    return true;
+  }
+}
