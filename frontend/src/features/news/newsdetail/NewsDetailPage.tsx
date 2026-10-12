@@ -16,13 +16,9 @@ import { trackEvent } from '../../../analytics';
 const MARKET_ANALYSIS_ITEMS: ReadonlyArray<{
   key: keyof MarketAnalysisResponse;
   label: string;
-  primary: boolean;
 }> = [
-  { key: 'observedFact', label: '확인된 사실', primary: true },
-  { key: 'interpretation', label: '해석', primary: true },
-  { key: 'risk', label: '위험', primary: false },
-  { key: 'watchPoint', label: '확인할 지표', primary: false },
-  { key: 'limitation', label: '분석 한계', primary: false },
+  { key: 'risk', label: '위험' },
+  { key: 'watchPoint', label: '확인할 지표' },
 ];
 
 function getNewsIdFromUrl() {
@@ -96,11 +92,8 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnal
       <h2 id="detail-market-title">시장 분석</h2>
       {marketAnalysis.status === 'success' ? (
         <dl className="market-analysis-card">
-          {analysisItems.map(({ key, label, primary }) => (
-            <div
-              className={`market-analysis-item${primary ? ' market-analysis-item-primary' : ''}`}
-              key={key}
-            >
+          {analysisItems.map(({ key, label }) => (
+            <div className="market-analysis-item" key={key}>
               <dt>{label}</dt>
               <dd>{marketAnalysis.data[key]}</dd>
             </div>
