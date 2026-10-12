@@ -1436,7 +1436,7 @@ class SharedPortfolioAcceptanceTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"19", "21"})
+  @ValueSource(strings = {"19", "21", "24"})
   void deployedVersionsUpgradeWithoutChangingExistingStockContent(String version) throws Exception {
     String schema = "upgrade_" + UUID.randomUUID().toString().replace("-", "");
     Flyway.configure()
@@ -1477,13 +1477,13 @@ class SharedPortfolioAcceptanceTest {
               """
           SELECT (SELECT COUNT(*) FROM pg_indexes WHERE schemaname=current_schema()
                     AND indexname IN ('idx_news_status_published_id','idx_news_created_id')) AS indexes,
-                 (SELECT COUNT(*) FROM flyway_schema_history WHERE success AND version::integer BETWEEN 22 AND 26) AS feature_migrations,
+                 (SELECT COUNT(*) FROM flyway_schema_history WHERE success AND version::integer BETWEEN 26 AND 30) AS feature_migrations,
                  (SELECT MAX(version::integer) FROM flyway_schema_history WHERE success AND version IS NOT NULL) AS latest_version
           """)) {
         assertThat(result.next()).isTrue();
         assertThat(result.getInt("indexes")).isEqualTo(2);
         assertThat(result.getInt("feature_migrations")).isEqualTo(5);
-        assertThat(result.getInt("latest_version")).isEqualTo(28);
+        assertThat(result.getInt("latest_version")).isEqualTo(32);
       }
     }
   }
