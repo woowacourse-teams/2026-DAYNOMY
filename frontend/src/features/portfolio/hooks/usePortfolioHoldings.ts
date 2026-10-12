@@ -8,6 +8,10 @@ import {
   updatePortfolioTransaction,
   deletePortfolioTransaction,
 } from '../api';
+import {
+  loadGuestPortfolioHoldings,
+  saveGuestPortfolioHoldings,
+} from '../portfolioHoldingsStorage';
 import type {
   PortfolioHoldingInput,
   PortfolioTransactionRequest,
@@ -15,7 +19,7 @@ import type {
   PortfolioTransactionResponse,
 } from '../types';
 
-export function usePortfolioHoldings() {
+export function usePortfolioHoldings(isLoggedIn = true) {
   const [holdings, setHoldings] = useState<PortfolioHoldingInput[]>([]);
   const [totalRealizedProfitLoss, setTotalRealizedProfitLoss] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -23,60 +27,111 @@ export function usePortfolioHoldings() {
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [revision, setRevision] = useState(0);
-  const retry = useCallback(() => setRetryCount((count) => count + 1), []);
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      setHoldings(loadGuestPortfolioHoldings());
+      setTotalRealizedProfitLoss(0);
+      setLoading(false);
+      setError('');
+      return;
+    }
+
     const controller = new AbortController();
     setLoading(true);
     setError('');
+
     getSavedPortfolio(controller.signal)
       .then((response) => {
-        if (controller.signal.aborted) return;
-        setHoldings(response.holdings);
-        setTotalRealizedProfitLoss(response.totalRealizedProfitLoss);
+        if (!controller.signal.aborted) {
+          setHoldings(response.holdings);
+          setTotalRealizedProfitLoss(response.totalRealizedProfitLoss);
+        }
       })
       .catch((caughtError: unknown) => {
-        if (!controller.signal.aborted)
-          setError(
-            caughtError instanceof Error
-              ? caughtError.message
-              : '포트폴리오를 불러오지 못했습니다.',
-          );
+        if (controller.signal.aborted) return;
+        setError(
+          caughtError instanceof Error ? caughtError.message : '포트폴리오를 불러오지 못했습니다.',
+        );
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-    return () => controller.abort();
-  }, [retryCount]);
 
-  async function saveHolding(next: PortfolioHoldingInput) {
-    setSaving(true);
-    try {
-      const exists = holdings.some((holding) => holding.assetId === next.assetId);
-      const saved = exists
-        ? await updateSavedPortfolioHolding(next)
-        : await addSavedPortfolioHolding(next);
-      setHoldings((current) =>
-        exists
-          ? current.map((holding) => (holding.assetId === saved.assetId ? saved : holding))
-          : [...current, saved],
-      );
-      setRevision((value) => value + 1);
-    } finally {
-      setSaving(false);
-    }
-  }
-  async function removeHolding(assetId: number) {
-    setSaving(true);
-    try {
-      await removeSavedPortfolioHolding(assetId);
-      setHoldings((current) => current.filter((holding) => holding.assetId !== assetId));
-      setRevision((value) => value + 1);
-    } finally {
-      setSaving(false);
-    }
-  }
+    return () => controller.abort();
+  }, [isLoggedIn, retryCount]);
+
+  const saveHolding = useCallback(
+    async (nextHolding: PortfolioHoldingInput) => {
+      setSaving(true);
+      setError('');
+      try {
+        const exists = holdings.some((holding) => holding.assetId === nextHolding.assetId);
+        if (!isLoggedIn) {
+          const nextHoldings = exists
+            ? holdings.map((holding) =>
+                holding.assetId === nextHolding.assetId ? nextHolding : holding,
+              )
+            : [...holdings, nextHolding];
+          saveGuestPortfolioHoldings(nextHoldings);
+          setHoldings(nextHoldings);
+          setRevision((value) => value + 1);
+          return;
+        }
+
+        const savedHolding = exists
+          ? await updateSavedPortfolioHolding(nextHolding)
+          : await addSavedPortfolioHolding(nextHolding);
+        setHoldings((current) =>
+          exists
+            ? current.map((holding) =>
+                holding.assetId === savedHolding.assetId ? savedHolding : holding,
+              )
+            : [...current, savedHolding],
+        );
+        setRevision((value) => value + 1);
+      } catch (caughtError) {
+        setError(
+          caughtError instanceof Error ? caughtError.message : '보유 자산을 저장하지 못했습니다.',
+        );
+        throw caughtError;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [holdings, isLoggedIn],
+  );
+
+  const removeHolding = useCallback(
+    async (assetId: number) => {
+      setSaving(true);
+      setError('');
+      try {
+        if (!isLoggedIn) {
+          const nextHoldings = holdings.filter((holding) => holding.assetId !== assetId);
+          saveGuestPortfolioHoldings(nextHoldings);
+          setHoldings(nextHoldings);
+          setRevision((value) => value + 1);
+          return;
+        }
+
+        await removeSavedPortfolioHolding(assetId);
+        setHoldings((current) => current.filter((holding) => holding.assetId !== assetId));
+        setRevision((value) => value + 1);
+      } catch (caughtError) {
+        setError(
+          caughtError instanceof Error ? caughtError.message : '보유 자산을 삭제하지 못했습니다.',
+        );
+        throw caughtError;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [holdings, isLoggedIn],
+  );
+
   async function transact(assetId: number, operation: () => Promise<PortfolioTransactionResponse>) {
+    if (!isLoggedIn) throw new Error('로그인 후 거래를 기록할 수 있어요.');
     setSaving(true);
     try {
       const response = await operation();
@@ -93,6 +148,7 @@ export function usePortfolioHoldings() {
       setSaving(false);
     }
   }
+
   return {
     holdings,
     totalRealizedProfitLoss,
@@ -100,7 +156,7 @@ export function usePortfolioHoldings() {
     loading,
     saving,
     error,
-    retry,
+    retry: () => setRetryCount((count) => count + 1),
     saveHolding,
     removeHolding,
     createTransaction: (body: PortfolioTransactionRequest) =>

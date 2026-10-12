@@ -584,7 +584,11 @@ function compareHoldings(
   return secondValue - firstValue;
 }
 
-export function PortfolioPage() {
+type PortfolioPageProps = {
+  isLoggedIn?: boolean;
+};
+
+export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const {
     holdings,
     loading: holdingsLoading,
@@ -598,7 +602,7 @@ export function PortfolioPage() {
     createTransaction,
     updateTransaction,
     deleteTransaction,
-  } = usePortfolioHoldings();
+  } = usePortfolioHoldings(isLoggedIn);
   const [calculation, setCalculation] = useState<PortfolioCalculation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -620,7 +624,7 @@ export function PortfolioPage() {
   const [amountsHidden, setAmountsHidden] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
-  const performance = usePortfolioPerformance(trendPeriod, holdings, revision);
+  const performance = usePortfolioPerformance(trendPeriod, holdings, revision, isLoggedIn);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
@@ -722,7 +726,7 @@ export function PortfolioPage() {
             type="button"
             className="portfolio-primary-button"
             disabled={holdingsLoading || !!holdingsError}
-            onClick={() => setTransactionEditor({})}
+            onClick={() => (isLoggedIn ? setTransactionEditor({}) : setEditor({}))}
           >
             <span aria-hidden="true">＋</span> 자산 추가
           </button>
@@ -804,13 +808,15 @@ export function PortfolioPage() {
                   {formatPercent(dashboardCalculation.totalReturnRate, true)}
                 </small>
               </div>
-              <div>
-                <dt>누적 실현손익</dt>
-                <dd className={profitClass(totalRealizedProfitLoss)}>
-                  {displayWon(totalRealizedProfitLoss, true)}
-                </dd>
-                <small>매도로 확정된 손익</small>
-              </div>
+              {isLoggedIn && (
+                <div>
+                  <dt>누적 실현손익</dt>
+                  <dd className={profitClass(totalRealizedProfitLoss)}>
+                    {displayWon(totalRealizedProfitLoss, true)}
+                  </dd>
+                  <small>매도로 확정된 손익</small>
+                </div>
+              )}
             </dl>
             <div className="portfolio-price-status" role="status">
               {dashboardCalculation.pricingStatus === 'PARTIAL' ? (
@@ -829,7 +835,9 @@ export function PortfolioPage() {
                   <span className="portfolio-status-dot" />
                   {dashboardCalculation.baseDate
                     ? `${dashboardCalculation.baseDate.replaceAll('-', '.')} 종가 기준`
-                    : '보유자산을 등록하거나 거래를 기록해 시작하세요.'}
+                    : isLoggedIn
+                      ? '보유자산을 등록하거나 거래를 기록해 시작하세요.'
+                      : '보유자산을 등록해 시작하세요.'}
                 </p>
               )}
             </div>
@@ -889,23 +897,25 @@ export function PortfolioPage() {
               ) : null}
             </section>
 
-            <div className="portfolio-ledger-tabs" role="group" aria-label="포트폴리오 내역 보기">
-              <button
-                type="button"
-                aria-pressed={activeTab === 'holdings'}
-                onClick={() => setActiveTab('holdings')}
-              >
-                보유 자산 <span>{holdings.length}</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={activeTab === 'history'}
-                onClick={() => setActiveTab('history')}
-              >
-                거래·변경 내역
-              </button>
-            </div>
-            {activeTab === 'history' ? (
+            {isLoggedIn && (
+              <div className="portfolio-ledger-tabs" role="group" aria-label="포트폴리오 내역 보기">
+                <button
+                  type="button"
+                  aria-pressed={activeTab === 'holdings'}
+                  onClick={() => setActiveTab('holdings')}
+                >
+                  보유 자산 <span>{holdings.length}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={activeTab === 'history'}
+                  onClick={() => setActiveTab('history')}
+                >
+                  거래·변경 내역
+                </button>
+              </div>
+            )}
+            {isLoggedIn && activeTab === 'history' ? (
               <PortfolioHistory
                 revision={revision}
                 amountsHidden={amountsHidden}
@@ -1056,12 +1066,16 @@ export function PortfolioPage() {
                   ＋
                 </span>
                 <h3>새로운 자산 기록을 시작해 보세요</h3>
-                <p>보유자산이 없어도 이전 거래 내역과 실현손익은 남아 있어요.</p>
+                <p>
+                  {isLoggedIn
+                    ? '보유자산이 없어도 이전 거래 내역과 실현손익은 남아 있어요.'
+                    : '관심 있는 자산을 추가해 평가금액을 확인해 보세요.'}
+                </p>
                 <button
                   className="portfolio-secondary-button"
-                  onClick={() => setTransactionEditor({})}
+                  onClick={() => (isLoggedIn ? setTransactionEditor({}) : setEditor({}))}
                 >
-                  첫 거래 기록하기
+                  {isLoggedIn ? '첫 거래 기록하기' : '첫 자산 추가하기'}
                 </button>
               </div>
             )}
@@ -1070,7 +1084,7 @@ export function PortfolioPage() {
                 전체 자산의 시세가 확인되면 포트폴리오 영향 분석을 이용할 수 있어요.
               </p>
             ) : (
-              <PortfolioAnalysis assets={analysisAssets} />
+              <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
             )}
           </div>
         </div>
@@ -1130,6 +1144,7 @@ export function PortfolioPage() {
                   (item) => item.assetId === selectedStock.assetId,
                 )}
                 revision={revision}
+                isLoggedIn={isLoggedIn}
                 amountsHidden={amountsHidden}
                 busy={holdingsSaving || loading}
                 onClose={() => setSelectedStock(null)}
@@ -1199,7 +1214,7 @@ export function PortfolioPage() {
               ) : (
                 <p>
                   보유 목록에서 제거합니다. 매도로 처리되지 않으며 실현손익이 발생하지 않습니다.
-                  기존 거래 기록은 유지됩니다.
+                  {isLoggedIn ? '기존 거래 기록은 유지됩니다.' : '브라우저 세션에서 제거됩니다.'}
                 </p>
               )}
             </PortfolioConfirmDialog>
@@ -1209,7 +1224,7 @@ export function PortfolioPage() {
             <PortfolioEditor
               holding={editor.holding}
               onRecordTransaction={
-                !editor.holding
+                isLoggedIn && !editor.holding
                   ? () => {
                       setEditor(null);
                       setTransactionEditor({});

@@ -15,6 +15,7 @@ type Props = {
   holding?: PortfolioHoldingInput;
   valuation?: PortfolioHoldingResult;
   revision: number;
+  isLoggedIn: boolean;
   amountsHidden: boolean;
   busy: boolean;
   onClose: () => void;
@@ -50,6 +51,7 @@ export function PortfolioHoldingDetail({
   holding,
   valuation,
   revision,
+  isLoggedIn,
   amountsHidden,
   busy,
   onClose,
@@ -246,40 +248,44 @@ export function PortfolioHoldingDetail({
             </a>
           ) : null}
         </aside>
-        <section
-          className="portfolio-detail-transactions"
-          aria-labelledby="holding-transactions-title"
-        >
-          <h3 id="holding-transactions-title">거래 내역</h3>
-          <p>내역을 펼쳐 거래를 수정하거나 삭제할 수 있어요.</p>
-          <PortfolioHistory
-            assetId={stock.assetId}
-            revision={revision}
-            amountsHidden={amountsHidden}
-            onEdit={onEditTransaction}
-            onDelete={onDeleteTransaction}
-            onCreate={() => onTrade('BUY')}
-          />
-        </section>
+        {isLoggedIn && (
+          <section
+            className="portfolio-detail-transactions"
+            aria-labelledby="holding-transactions-title"
+          >
+            <h3 id="holding-transactions-title">거래 내역</h3>
+            <p>내역을 펼쳐 거래를 수정하거나 삭제할 수 있어요.</p>
+            <PortfolioHistory
+              assetId={stock.assetId}
+              revision={revision}
+              amountsHidden={amountsHidden}
+              onEdit={onEditTransaction}
+              onDelete={onDeleteTransaction}
+              onCreate={() => onTrade('BUY')}
+            />
+          </section>
+        )}
       </div>
-      <footer className="portfolio-detail-footer">
-        <button
-          type="button"
-          className="portfolio-secondary-button"
-          disabled={busy || !holding}
-          onClick={() => onTrade('SELL')}
-        >
-          매도
-        </button>
-        <button
-          type="button"
-          className="portfolio-primary-button"
-          disabled={busy}
-          onClick={() => onTrade('BUY')}
-        >
-          매수
-        </button>
-      </footer>
+      {isLoggedIn && (
+        <footer className="portfolio-detail-footer">
+          <button
+            type="button"
+            className="portfolio-secondary-button"
+            disabled={busy || !holding}
+            onClick={() => onTrade('SELL')}
+          >
+            매도
+          </button>
+          <button
+            type="button"
+            className="portfolio-primary-button"
+            disabled={busy}
+            onClick={() => onTrade('BUY')}
+          >
+            매수
+          </button>
+        </footer>
+      )}
     </>
   );
 }
