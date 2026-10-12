@@ -3,7 +3,9 @@ package org.grit.daynomy.portfolio.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 import org.grit.daynomy.member.domain.Member;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,6 +16,29 @@ class PortfolioAnalysisCheckTest {
   private final PortfolioAnalysisCheck check =
       new PortfolioAnalysisCheck(
           Portfolio.create(Member.createGoogleMember("test", "test@example.invalid", "테스트", null)));
+
+  @Test
+  void activeRequestCannotBeReplacedAndOnlyOwnerCanFinish() {
+    UUID token = UUID.randomUUID();
+    assertThat(check.begin(token, first, Duration.ofMinutes(5))).isTrue();
+    assertThat(check.begin(UUID.randomUUID(), first.plusSeconds(1), Duration.ofMinutes(5)))
+        .isFalse();
+    check.finish(UUID.randomUUID());
+    assertThat(check.ownsRequest(token, first.plusSeconds(1))).isTrue();
+    check.finish(token);
+    assertThat(check.isProcessing(first.plusSeconds(1))).isFalse();
+  }
+
+  @Test
+  void expiredRequestCanBeReplacedAndOldWorkerCannotFinishNewRequest() {
+    UUID old = UUID.randomUUID();
+    UUID current = UUID.randomUUID();
+    check.begin(old, first, Duration.ofMinutes(5));
+    assertThat(check.ownsRequest(old, first.plusSeconds(300))).isFalse();
+    assertThat(check.begin(current, first.plusSeconds(300), Duration.ofMinutes(5))).isTrue();
+    check.finish(old);
+    assertThat(check.ownsRequest(current, first.plusSeconds(301))).isTrue();
+  }
 
   @Test
   @DisplayName("검색 실패를 최근 확인 성공으로 기록하지 않는다")

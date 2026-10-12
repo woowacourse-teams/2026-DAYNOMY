@@ -176,6 +176,38 @@ class PortfolioAnalysisRepositoryTest {
         .hasSize(1);
   }
 
+  @Test
+  void retentionKeepsLatestTenAndDoesNotDeleteAnotherMembersHistory() {
+    Portfolio owner = portfolio();
+    Portfolio other = portfolio();
+    PortfolioAnalysis otherAnalysis = save(other, null, ANALYZED_AT, "최초 분석");
+    saveEvidence(otherAnalysis);
+    var revisions = new java.util.ArrayList<PortfolioAnalysis>();
+    PortfolioAnalysis previous = null;
+    for (int index = 0; index < 12; index++) {
+      previous = save(owner, previous, ANALYZED_AT.plusSeconds(index), "분석 변경");
+      revisions.add(previous);
+      saveEvidence(previous);
+    }
+    entityManager.flush();
+    analyses.deleteOlderAnalyses(owner.getId(), 10);
+    entityManager.clear();
+
+    assertThat(analyses.count()).isEqualTo(11);
+    assertThat(evidence.count()).isEqualTo(11);
+    assertThat(analyses.findById(revisions.get(0).getId())).isEmpty();
+    assertThat(analyses.findById(revisions.get(1).getId())).isEmpty();
+    assertThat(analyses.findById(revisions.get(2).getId()).orElseThrow().getPreviousAnalysisId())
+        .isNull();
+    assertThat(analyses.findById(otherAnalysis.getId())).isPresent();
+    assertThat(
+            analyses
+                .findFirstByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(owner.getMember().getId())
+                .orElseThrow()
+                .getId())
+        .isEqualTo(previous.getId());
+  }
+
   private Portfolio portfolio() {
     String key = UUID.randomUUID().toString();
     Member member =

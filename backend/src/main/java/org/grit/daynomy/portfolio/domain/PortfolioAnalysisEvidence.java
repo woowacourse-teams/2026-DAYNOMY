@@ -28,7 +28,8 @@ public class PortfolioAnalysisEvidence {
   @JoinColumn(name = "analysis_id", nullable = false, updatable = false)
   private PortfolioAnalysis analysis;
 
-  @Column(name = "asset_name", nullable = false, updatable = false, length = 100)
+  // null은 특정 종목에 연결되지 않은 전체 분석 출처를 뜻한다.
+  @Column(name = "asset_name", updatable = false, length = 100)
   private String assetName;
 
   @Column(nullable = false, updatable = false, columnDefinition = "text")

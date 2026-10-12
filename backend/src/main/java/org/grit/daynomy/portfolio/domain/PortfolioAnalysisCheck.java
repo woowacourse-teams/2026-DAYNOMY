@@ -8,8 +8,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -39,8 +41,38 @@ public class PortfolioAnalysisCheck {
   @Column(name = "failure_code", length = 100)
   private String failureCode;
 
+  @Column(name = "request_token")
+  private UUID requestToken;
+
+  @Column(name = "request_expires_at")
+  private Instant requestExpiresAt;
+
   public PortfolioAnalysisCheck(Portfolio portfolio) {
     this.portfolio = Objects.requireNonNull(portfolio);
+  }
+
+  public boolean isProcessing(Instant now) {
+    return requestToken != null && requestExpiresAt.isAfter(now);
+  }
+
+  public boolean begin(UUID token, Instant now, Duration timeout) {
+    if (isProcessing(now)) {
+      return false;
+    }
+    requestToken = Objects.requireNonNull(token);
+    requestExpiresAt = now.plus(timeout);
+    return true;
+  }
+
+  public boolean ownsRequest(UUID token, Instant now) {
+    return token != null && token.equals(requestToken) && isProcessing(now);
+  }
+
+  public void finish(UUID token) {
+    if (token != null && token.equals(requestToken)) {
+      requestToken = null;
+      requestExpiresAt = null;
+    }
   }
 
   public void recordSuccess(Instant checkedAt) {

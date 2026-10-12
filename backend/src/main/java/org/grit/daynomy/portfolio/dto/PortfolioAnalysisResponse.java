@@ -4,7 +4,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
+import org.grit.daynomy.portfolio.domain.PortfolioAnalysis;
+import org.grit.daynomy.portfolio.domain.PortfolioAnalysisEvidence;
+import org.grit.daynomy.portfolio.domain.PortfolioAnalysisSnapshot;
 import org.grit.daynomy.portfolio.domain.PortfolioImpactSummary;
 
 public record PortfolioAnalysisResponse(
@@ -26,6 +32,73 @@ public record PortfolioAnalysisResponse(
   public PortfolioAnalysisResponse {
     impacts = List.copyOf(impacts);
     sources = List.copyOf(sources);
+  }
+
+  public PortfolioAnalysisSnapshot toSnapshot(List<PortfolioAssetRequest> assets) {
+    return new PortfolioAnalysisSnapshot(
+        assets.stream()
+            .map(asset -> new PortfolioAnalysisSnapshot.Asset(asset.assetName(), asset.weight()))
+            .toList(),
+        new PortfolioImpactSummary(
+            overallDirection, overallScore, positiveImpactScore, negativeImpactScore),
+        overallImpact,
+        impacts.stream()
+            .map(
+                impact ->
+                    new PortfolioAnalysisSnapshot.AssetImpact(
+                        impact.assetName(),
+                        impact.direction(),
+                        impact.impactLevel(),
+                        impact.issueSummary(),
+                        impact.expectedReaction(),
+                        impact.outlook(),
+                        impact.reason(),
+                        impact.evidenceSentence(),
+                        impact.rank()))
+            .toList());
+  }
+
+  public static PortfolioAnalysisResponse from(
+      PortfolioAnalysis analysis, List<PortfolioAnalysisEvidence> evidence) {
+    PortfolioAnalysisSnapshot snapshot = analysis.getSnapshot();
+    Map<String, PortfolioAnalysisSnapshot.Asset> assets =
+        snapshot.assets().stream()
+            .collect(
+                Collectors.toMap(PortfolioAnalysisSnapshot.Asset::assetName, Function.identity()));
+    List<PortfolioAssetImpactResponse> impacts =
+        snapshot.impacts().stream()
+            .map(
+                impact ->
+                    new PortfolioAssetImpactResponse(
+                        impact.assetName(),
+                        assets.get(impact.assetName()).weight(),
+                        impact.direction(),
+                        impact.impactLevel(),
+                        impact.issueSummary(),
+                        impact.expectedReaction(),
+                        impact.outlook(),
+                        impact.reason(),
+                        impact.evidenceSentence(),
+                        evidence.stream()
+                            .filter(source -> impact.assetName().equals(source.getAssetName()))
+                            .map(
+                                source ->
+                                    new PortfolioAnalysisSourceResponse(
+                                        source.getTitle(), source.getUrl()))
+                            .distinct()
+                            .toList(),
+                        impact.rank()))
+            .toList();
+    return of(
+        snapshot.assets().size(),
+        snapshot.summary(),
+        analysis.getAnalyzedAt(),
+        snapshot.overallImpact(),
+        impacts,
+        evidence.stream()
+            .map(source -> new PortfolioAnalysisSourceResponse(source.getTitle(), source.getUrl()))
+            .distinct()
+            .toList());
   }
 
   public static PortfolioAnalysisResponse of(

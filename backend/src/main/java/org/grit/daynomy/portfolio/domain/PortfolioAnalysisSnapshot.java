@@ -1,7 +1,9 @@
 package org.grit.daynomy.portfolio.domain;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 
@@ -15,6 +17,25 @@ public record PortfolioAnalysisSnapshot(
   public PortfolioAnalysisSnapshot {
     assets = List.copyOf(assets);
     impacts = List.copyOf(impacts);
+  }
+
+  public boolean hasSameAssets(List<Asset> other) {
+    return sameAssets(assets, other);
+  }
+
+  public static boolean sameAssets(List<Asset> left, List<Asset> right) {
+    return normalized(left).equals(normalized(right));
+  }
+
+  private static List<Asset> normalized(List<Asset> assets) {
+    return assets.stream()
+        .map(
+            asset ->
+                new Asset(
+                    asset.assetName().strip().toLowerCase(Locale.ROOT),
+                    asset.weight().stripTrailingZeros()))
+        .sorted(Comparator.comparing(Asset::assetName))
+        .toList();
   }
 
   public record Asset(String assetName, BigDecimal weight) {}
