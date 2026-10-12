@@ -82,3 +82,46 @@ it('일부 종목 조회가 실패해도 성공한 소식은 유지하고 재시
   await waitFor(() => expect(view.queryByRole('alert')).toBeNull());
   expect(view.getByText('공통 소식')).toBeTruthy();
 });
+
+it.each([
+  ['2026-10-12T10:00:00Z', '2026-10-14T01:00:00Z'],
+  ['2026-10-14T01:00:00Z', '2026-10-12T10:00:00Z'],
+  [null, '2026-10-14T01:00:00Z'],
+])(
+  '중복 소식은 조회 순서와 무관하게 최신 등록일로 표시하고 정렬한다 (%s, %s)',
+  async (first, second) => {
+    vi.mocked(getStockRelatedContents).mockImplementation(async (id) => ({
+      assetId: id,
+      assetCode: String(id),
+      assetName: `종목${id}`,
+      contents: [
+        { ...content, assetId: id, createdAt: id === 1 ? first : second },
+        ...(id === 1
+          ? [
+              {
+                ...content,
+                id: 3,
+                title: '중간 소식',
+                url: 'https://x.com/test/status/3',
+                createdAt: '2026-10-13T01:00:00Z',
+              },
+            ]
+          : []),
+      ],
+    }));
+    const view = render(
+      <PortfolioNews
+        holdings={[
+          { assetId: 1, name: '종목1' },
+          { assetId: 2, name: '종목2' },
+        ]}
+      />,
+    );
+    await view.findByText('공통 소식');
+    const links = view.container.querySelectorAll('.portfolio-news-list a');
+    expect(links).toHaveLength(2);
+    expect(links[0].textContent).toContain('공통 소식');
+    expect(links[0].querySelector('time')?.getAttribute('datetime')).toBe('2026-10-14T01:00:00Z');
+    expect(links[0].textContent).toContain('종목1 · 종목2');
+  },
+);

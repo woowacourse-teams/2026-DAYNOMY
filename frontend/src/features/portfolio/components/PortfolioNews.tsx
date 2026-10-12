@@ -42,6 +42,11 @@ export function PortfolioNews({ holdings }: { holdings: { assetId: number; name:
           for (const content of result.value.contents) {
             const existing = unique.get(content.url);
             if (existing) {
+              if (
+                (Date.parse(content.createdAt ?? '') || 0) >
+                (Date.parse(existing.createdAt ?? '') || 0)
+              )
+                existing.createdAt = content.createdAt;
               if (!existing.assets.includes(result.value.assetName))
                 existing.assets.push(result.value.assetName);
             } else unique.set(content.url, { ...content, assets: [result.value.assetName] });
