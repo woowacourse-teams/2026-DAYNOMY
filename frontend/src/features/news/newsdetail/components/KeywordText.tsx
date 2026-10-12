@@ -81,8 +81,9 @@ function Keyword({ keyword }: { keyword: KeywordResponse }) {
         if (event.pointerType !== 'touch') show();
       }}
       onPointerLeave={(event) => {
+        if (event.pointerType === 'touch') return;
         pointerInside.current = false;
-        if (event.pointerType !== 'touch') scheduleClose();
+        scheduleClose();
       }}
       onBlur={(event) => {
         if (
