@@ -65,6 +65,10 @@ export function FeedbackWidget() {
       setSubmitted(true);
       trackEvent('submit_feedback');
     } catch (error) {
+      trackEvent('feedback_submit_failed', {
+        error_type: error instanceof ApiError ? 'http' : 'network_or_unknown',
+        status_code: error instanceof ApiError ? error.status : undefined,
+      });
       setErrorMessage(getErrorMessage(error));
     } finally {
       setSubmitting(false);
