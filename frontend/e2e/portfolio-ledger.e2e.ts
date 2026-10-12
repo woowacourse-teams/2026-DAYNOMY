@@ -155,6 +155,21 @@ for (const viewport of [
             totalReturnRate: 5.68,
           },
         });
+      if (path === '/api/assets/1/contents')
+        return fulfill({
+          assetId: 1,
+          assetCode: '005930',
+          assetName: '삼성전자',
+          contents: Array.from({ length: 10 }, (_, index) => ({
+            id: index + 1,
+            assetId: 1,
+            sourceType: 'INTERNAL_NEWS',
+            title: `삼성전자 반도체 시장과 실적 전망 관련 소식 ${index + 1}`,
+            url: `/news/${index + 1}`,
+            imageUrl: '/daynomy-favicon.png',
+            createdAt: null,
+          })),
+        });
       if (path === '/api/portfolio/histories') return fulfill(history);
       if (path === '/api/stocks') return fulfill({ stocks });
       if (path === '/api/portfolio/transactions' && route.request().method() === 'POST') {
@@ -192,6 +207,25 @@ for (const viewport of [
       path: testInfo.outputPath('portfolio.png'),
       fullPage: true,
     });
+    for (const width of [320, 390, 620, 621, 768, 1000, 1024, 1100, 1440]) {
+      await page.setViewportSize({ width, height: 600 });
+      expect(
+        await page.evaluate(() => {
+          const dashboard = document.querySelector('.portfolio-dashboard-grid')!;
+          const graph = dashboard.getBoundingClientRect();
+          return (
+            document.documentElement.scrollWidth <= innerWidth &&
+            dashboard.scrollWidth <= dashboard.clientWidth &&
+            graph.right <= innerWidth &&
+            [...document.querySelectorAll('.portfolio-overview dd')].every(
+              (amount) => amount.scrollWidth <= amount.clientWidth + 1,
+            )
+          );
+        }),
+        `포트폴리오 본문이 ${width}px에서 잘리지 않아야 합니다.`,
+      ).toBe(true);
+    }
+    await page.setViewportSize(viewport);
     const holdingTrigger = page.getByRole('button', { name: '삼성전자 보유 상세' });
     await holdingTrigger.click();
     const detail = page.getByRole('dialog', { name: '삼성전자 보유 상세' });
@@ -206,6 +240,45 @@ for (const viewport of [
     expect(await detail.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
       true,
     );
+    const newsPanel = detail.getByRole('complementary', { name: '소식' });
+    await expect(newsPanel.getByRole('link')).toHaveCount(11);
+    for (const width of [320, 390, 620, 621, 768, 1000, 1440, 390]) {
+      await page.setViewportSize({ width, height: 600 });
+      expect(
+        await detail.evaluate((element) => {
+          const scroll = element.querySelector('.portfolio-detail-scroll')!;
+          const footer = element.querySelector('.portfolio-detail-footer')!.getBoundingClientRect();
+          return (
+            element.scrollWidth <= element.clientWidth &&
+            scroll.scrollWidth <= scroll.clientWidth &&
+            footer.top >= 0 &&
+            footer.bottom <= innerHeight
+          );
+        }),
+        `종목 상세가 ${width}px에서 넘치지 않아야 합니다.`,
+      ).toBe(true);
+      expect(
+        await newsPanel.evaluate((element) =>
+          [...element.querySelectorAll('.portfolio-related-content-card')].every((card) => {
+            const box = card.getBoundingClientRect();
+            return [
+              ...card.querySelectorAll('img, strong, small, .portfolio-related-content-title'),
+            ].every((item) => {
+              const rect = item.getBoundingClientRect();
+              return (
+                rect.left >= box.left &&
+                rect.right <= box.right + 1 &&
+                item.scrollWidth <= item.clientWidth + 1
+              );
+            });
+          }),
+        ),
+        `소식 카드가 ${width}px에서 잘리지 않아야 합니다.`,
+      ).toBe(true);
+      await newsPanel.getByRole('link', { name: '전체 소식 보기' }).scrollIntoViewIfNeeded();
+      await expect(newsPanel.getByRole('link', { name: '전체 소식 보기' })).toBeInViewport();
+    }
+    await page.setViewportSize(viewport);
     await detail.getByRole('button', { name: '매수', exact: true }).click();
     const nestedEditor = page.getByRole('dialog', { name: '거래 기록' });
     await expect(nestedEditor).toBeVisible();
