@@ -11,6 +11,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -531,7 +532,7 @@ class SharedPortfolioAcceptanceTest {
         .body("{\"transactionType\":\"BUY\",\"assetId\":" + asset.getId() + "}")
         .post("/api/users/me/portfolio/transactions")
         .then()
-        .statusCode(405);
+        .statusCode(400);
     client(owner)
         .get(SHARED)
         .then()
@@ -605,26 +606,28 @@ class SharedPortfolioAcceptanceTest {
     Asset asset = asset();
     Portfolio original = originals.save(Portfolio.create(owner));
     Instant changedAt = Instant.now();
+    LocalDate today = changedAt.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
     for (long quantity : new long[] {1, 3, 5}) {
       jdbc.update(
           """
           INSERT INTO portfolio_holding_histories
-            (portfolio_id,asset_id,change_type,quantity,average_purchase_price,created_at,updated_at)
-          VALUES (?,?,?,?,10000,?,?)
+            (portfolio_id,asset_id,change_type,quantity,average_purchase_price,effective_date,created_at,updated_at)
+          VALUES (?,?,?,?,10000,?,?,?)
           """,
           original.getId(),
           asset.getId(),
           quantity == 1 ? "ADDED" : "UPDATED",
           quantity,
+          today,
           java.sql.Timestamp.from(changedAt),
           java.sql.Timestamp.from(changedAt));
     }
     assertThat(
-            originalHistory.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                original.getId(), changedAt.plusSeconds(1)))
+            originalHistory
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    original.getId(), today))
         .extracting(history -> history.getQuantity())
         .containsExactly(1L, 3L, 5L);
-    LocalDate today = changedAt.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
     client(owner)
         .queryParam("from", today.toString())
         .queryParam("to", today.toString())
@@ -921,12 +924,13 @@ class SharedPortfolioAcceptanceTest {
     jdbc.update(
         "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
         previous);
-    for (LocalDate trading :
+    List<LocalDate> tradingDays =
         jdbc.queryForList(
             "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
             LocalDate.class,
             date,
-            date.plusDays(6))) {
+            date.plusDays(6));
+    for (LocalDate trading : tradingDays) {
       prices.save(new StockDailyPrice(asset, trading, new BigDecimal("77000")));
       jdbc.update(
           "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
@@ -948,11 +952,17 @@ class SharedPortfolioAcceptanceTest {
         .header("Cache-Control", "no-store")
         .body("weekStart", equalTo(date.toString()))
         .body("weekEnd", equalTo(date.plusDays(6).toString()))
-        .body("asOfDate", equalTo(date.plusDays(4).toString()))
+        .body("asOfDate", equalTo(tradingDays.getLast().toString()))
         .body("weeklyReturnRate", equalTo(10.0f))
-        .body("days.find { it.baseDate == '" + date + "' }.dailyReturnRate", equalTo(10.0f))
-        .body("days.find { it.baseDate == '" + date + "' }.cumulativeReturnRate", equalTo(10.0f))
-        .body("days.find { it.baseDate == '" + date + "' }.status", equalTo("CALCULATED"))
+        .body(
+            "days.find { it.baseDate == '" + tradingDays.getFirst() + "' }.dailyReturnRate",
+            equalTo(10.0f))
+        .body(
+            "days.find { it.baseDate == '" + tradingDays.getFirst() + "' }.cumulativeReturnRate",
+            equalTo(10.0f))
+        .body(
+            "days.find { it.baseDate == '" + tradingDays.getFirst() + "' }.status",
+            equalTo("CALCULATED"))
         .body("$", not(hasKey("email")))
         .body("$", not(hasKey("name")));
     assertThat(daily.asString())
@@ -1274,7 +1284,7 @@ class SharedPortfolioAcceptanceTest {
         .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
         .schemas(schema)
         .defaultSchema(schema)
-        .target("23")
+        .target("27")
         .load()
         .migrate();
     try (var connection =
@@ -1357,7 +1367,7 @@ class SharedPortfolioAcceptanceTest {
         .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
         .schemas(schema)
         .defaultSchema(schema)
-        .target("26")
+        .target("30")
         .load()
         .migrate();
     try (var connection =
@@ -1477,13 +1487,13 @@ class SharedPortfolioAcceptanceTest {
               """
           SELECT (SELECT COUNT(*) FROM pg_indexes WHERE schemaname=current_schema()
                     AND indexname IN ('idx_news_status_published_id','idx_news_created_id')) AS indexes,
-                 (SELECT COUNT(*) FROM flyway_schema_history WHERE success AND version::integer BETWEEN 22 AND 26) AS feature_migrations,
+                 (SELECT COUNT(*) FROM flyway_schema_history WHERE success AND version::integer BETWEEN 26 AND 30) AS feature_migrations,
                  (SELECT MAX(version::integer) FROM flyway_schema_history WHERE success AND version IS NOT NULL) AS latest_version
           """)) {
         assertThat(result.next()).isTrue();
         assertThat(result.getInt("indexes")).isEqualTo(2);
         assertThat(result.getInt("feature_migrations")).isEqualTo(5);
-        assertThat(result.getInt("latest_version")).isEqualTo(28);
+        assertThat(result.getInt("latest_version")).isEqualTo(33);
       }
     }
   }
