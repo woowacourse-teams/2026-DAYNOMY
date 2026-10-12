@@ -1,5 +1,6 @@
 import { request, requestWithCsrf } from '../../api/client';
 import type {
+  StockRelatedContent,
   StockRelatedContentRequest,
   StockRelatedContentSource,
   StockRelatedContentsResponse,
@@ -34,7 +35,7 @@ function isSafeContentUrl(value: unknown): value is string {
   }
 }
 
-function isRelatedContent(value: unknown) {
+export function isRelatedContent(value: unknown): value is StockRelatedContent {
   return (
     isRecord(value) &&
     typeof value.id === 'number' &&

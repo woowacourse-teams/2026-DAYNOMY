@@ -4,28 +4,28 @@
   bottom: clamp(18px, 3vw, 40px);
   z-index: 20;
   display: inline-flex;
-  min-height: 52px;
+  min-height: 44px;
   align-items: center;
-  gap: 9px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 14px;
+  gap: 7px;
+  padding: 0 16px;
+  border: 1px solid #4169c9;
+  border-radius: 24px;
   color: #ffffff;
-  background: #4339c0;
-  box-shadow: 0 12px 28px rgb(50 42 152 / 28%);
+  background: #4169c9;
+  box-shadow: 0 2px 8px rgb(16 24 40 / 8%);
   font: inherit;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   transition:
     background-color 160ms ease,
     box-shadow 160ms ease,
-    transform 160ms ease;
+    border-color 160ms ease;
 }
 
 .feedback-trigger svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -34,9 +34,9 @@
 }
 
 .feedback-trigger:hover {
-  background: #5144d8;
-  box-shadow: 0 15px 34px rgb(50 42 152 / 34%);
-  transform: translateY(-2px);
+  border-color: #3456ac;
+  background: #3456ac;
+  box-shadow: 0 3px 10px rgb(16 24 40 / 10%);
 }
 
 .feedback-trigger:focus-visible,
@@ -140,7 +140,7 @@
   font: inherit;
   font-size: 15px;
   line-height: 1.65;
-  caret-color: #5144d8;
+  caret-color: #4169c9;
   transition:
     border-color 150ms ease,
     box-shadow 150ms ease;
@@ -151,7 +151,7 @@
 }
 
 .feedback-form textarea:focus {
-  border-color: #5144d8;
+  border-color: #4169c9;
   box-shadow: 0 0 0 3px var(--focus);
 }
 
@@ -185,7 +185,7 @@
   border: 0;
   border-radius: 10px;
   color: #ffffff;
-  background: #5144d8;
+  background: #4169c9;
   font: inherit;
   font-size: 14px;
   font-weight: 900;
@@ -194,7 +194,7 @@
 
 .feedback-submit:hover:not(:disabled),
 .feedback-success button:hover {
-  background: #4339c0;
+  background: #3456ac;
 }
 
 .feedback-submit:disabled,
@@ -230,7 +230,7 @@
 
 @media (max-width: 520px) {
   .feedback-trigger {
-    width: 52px;
+    width: 44px;
     justify-content: center;
     padding: 0;
   }
