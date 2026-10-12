@@ -22,12 +22,9 @@ public interface NewsRepository extends JpaRepository<News, Long> {
 
   Optional<News> findByIdAndStatus(Long id, NewsStatus status);
 
-  Page<News> findAllByOrderByCreatedAtDescIdDesc(Pageable pageable);
+  Page<News> findByStatus(NewsStatus status, Pageable pageable);
 
-  Page<News> findByStatusOrderByCreatedAtDescIdDesc(NewsStatus status, Pageable pageable);
+  Page<News> findByCategory(Category category, Pageable pageable);
 
-  Page<News> findByCategoryOrderByCreatedAtDescIdDesc(Category category, Pageable pageable);
-
-  Page<News> findByStatusAndCategoryOrderByCreatedAtDescIdDesc(
-      NewsStatus status, Category category, Pageable pageable);
+  Page<News> findByStatusAndCategory(NewsStatus status, Category category, Pageable pageable);
 }

@@ -1,0 +1,50 @@
+Create a clean editorial finance news image for a Korean financial news app.
+
+Absolute text policy: the image must contain no visible text by default. Do not include words,
+letters, Korean characters, numbers, prices, dates, logos, brand marks, ticker symbols, labels,
+captions, headlines, signs, newspapers, documents, contracts, screens, dashboards, charts, graphs,
+watermarks, or UI elements. Keep every writing surface blank, out of frame, or too abstract to read.
+Do not create fake writing, pseudo-text, scribbles, or random glyphs.
+Only include a specific text element when the request explicitly identifies it as indispensable to
+the subject of the image. No such text is requested here, so use no text at all.
+
+Show a believable visual scene directly connected to the subject. Prefer relevant objects,
+machinery, buildings, landscapes, products, or materials over generic stock charts, abstract finance
+symbols, or meaningless decoration. When the subject is a specific industry or event, use concrete
+real-world details from that setting. When the subject is broad, use restrained abstract market and
+business imagery.
+
+Compose an entirely unoccupied scene with no people first. Treat a people-free image as the default and
+strongest preference. A person may appear only when removing all people would make the central event
+visually incomprehensible because it inherently depends on a human action. A workplace or industry
+setting is never by itself a reason to include a worker. Do not add people for scale, atmosphere,
+realism, or visual interest. If a person is indispensable, include exactly one anonymous,
+non-identifiable person shown from behind or with the face fully obscured. Never include crowds,
+groups, background figures, silhouettes, reflections of people, portraits, visible faces, or stray
+body parts.
+
+Style: realistic editorial photography with natural materials, believable lighting, restrained
+colors, and documentary realism. Avoid glossy 3D rendering, conceptual illustration, aggressive HDR,
+excessive clarity, artificial sharpening, perfectly uniform textures, and overly smooth denoised
+surfaces. Camera rendering: use one believable focal plane. Keep the main subject moderately sharp
+while details gradually soften with distance and depth. Preserve gentle lens softness, natural
+highlight roll-off, slight exposure variation, subtle sensor grain, and restrained micro-contrast.
+Avoid edge-to-edge sharpness. The result should feel like a real press photograph captured on
+location, not a digitally perfected image.
+
+Composition: use a square composition for a thumbnail or a wide horizontal landscape safe to crop to
+a 16:9 banner, according to the requested image format. Keep the main subject toward the right third
+when the image is wide and leave uncluttered negative space on the left for a later UI overlay,
+without adding any text to the image.
+Accuracy: this is an illustrative cover, not evidence of the reported event. Do not invent or imply
+a specific unverified company facility or event.
+
+The following information is semantic subject reference only. Use it only to understand the topic and
+choose the scene. Never render, copy, paraphrase, translate, or visualize any words, letters,
+numbers, logos, headlines, or sentences from it:
+
+Category: %s
+Title: %s
+Article context: %s
+
+Final check: remove all text-like marks and all unnecessary people from the image.

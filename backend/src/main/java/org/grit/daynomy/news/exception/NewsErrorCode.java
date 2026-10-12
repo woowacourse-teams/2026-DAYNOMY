@@ -7,7 +7,8 @@ public enum NewsErrorCode implements ErrorCode {
   NEWS_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 뉴스를 찾을 수 없습니다."),
   NEWS_NOT_DRAFT(HttpStatus.CONFLICT, "초안 상태의 뉴스만 발행 또는 거절할 수 있습니다."),
   NEWS_IMAGE_GENERATION_NOT_ALLOWED(HttpStatus.CONFLICT, "초안 또는 발행된 뉴스만 이미지를 생성할 수 있습니다."),
-  INVALID_IMAGE_FILE(HttpStatus.BAD_REQUEST, "지원하지 않는 이미지 파일입니다.");
+  INVALID_IMAGE_FILE(HttpStatus.BAD_REQUEST, "지원하지 않는 이미지 파일입니다."),
+  INVALID_WIKIMEDIA_IMAGE(HttpStatus.BAD_REQUEST, "사용할 수 없는 Wikimedia Commons 이미지입니다.");
 
   private final HttpStatus status;
   private final String message;

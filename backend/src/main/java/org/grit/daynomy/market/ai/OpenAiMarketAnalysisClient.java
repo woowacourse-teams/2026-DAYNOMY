@@ -20,11 +20,19 @@ import org.springframework.web.client.RestClientException;
 @Component
 public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
 
+  private static final int MAX_ANALYSIS_TEXT_LENGTH = 80;
+
   private static final String MARKET_ANALYSIS_PROMPT =
       """
-      뉴스 본문을 바탕으로 시장 분석 요약을 작성하세요.
-      발생 원인과 이 이슈가 시장에서 중요한 이유를 자연스럽게 연결해 하나의 내용으로 2~4문장 안에 설명하세요.
-      본문에 없는 사실을 단정하지 말고, 불확실한 내용은 불확실하다고 명시하세요.
+      사용자가 뉴스 이슈의 시장 영향을 이해할 수 있도록 다음 다섯 항목을 각각 80자 이내의 1문장으로 작성하세요.
+      observedFact는 뉴스 본문에서 직접 확인할 수 있는 사실만 작성하세요.
+      interpretation은 observedFact로 설명할 수 있는 범위까지만 해석하세요.
+      한 기업이나 한 사건의 결과를 산업 또는 시장 전체의 확정적인 신호로 일반화하지 마세요.
+      근거가 부족하면 interpretation에 단정하기 어렵다는 점을 명시하세요.
+      risk는 현재 해석이 달라질 수 있는 구체적인 위험 요인을 작성하세요.
+      watchPoint는 사용자가 이후 확인해야 할 지표나 사건을 작성하세요.
+      limitation은 기사 본문만으로 확인할 수 없는 정보와 분석 범위를 작성하세요.
+      다섯 항목이 같은 내용을 반복하지 않게 작성하고, 본문에 없는 사실이나 수치를 만들어 내지 마세요.
       """;
 
   private final ObjectMapper objectMapper;
@@ -136,26 +144,55 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
   }
 
   private Map<String, Object> createMarketAnalysisSchema() {
+    Map<String, Object> textProperty =
+        Map.of("type", "string", "minLength", 1, "maxLength", MAX_ANALYSIS_TEXT_LENGTH);
     return Map.of(
         "type",
         "object",
         "additionalProperties",
         false,
         "required",
-        List.of("summary"),
+        List.of("observedFact", "interpretation", "risk", "watchPoint", "limitation"),
         "properties",
-        Map.of("summary", Map.of("type", "string")));
+        Map.of(
+            "observedFact", textProperty,
+            "interpretation", textProperty,
+            "risk", textProperty,
+            "watchPoint", textProperty,
+            "limitation", textProperty));
   }
 
   private NewsMarketAnalysis parseMarketAnalysis(String response) {
     String outputText = extractOutputText(response);
     try {
       JsonNode root = objectMapper.readTree(outputText);
-      return new NewsMarketAnalysis(root.path("summary").asText());
+      return new NewsMarketAnalysis(
+          requiredText(root, "observedFact"),
+          requiredText(root, "interpretation"),
+          requiredText(root, "risk"),
+          requiredText(root, "watchPoint"),
+          requiredText(root, "limitation"));
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException(
           "Failed to parse OpenAI market analysis response.", exception);
     }
+  }
+
+  private String requiredText(JsonNode root, String fieldName) {
+    String value = root.path(fieldName).asText().trim();
+    if (value.isBlank()) {
+      throw new IllegalStateException(
+          "OpenAI market analysis response must contain " + fieldName + ".");
+    }
+    if (value.codePointCount(0, value.length()) > MAX_ANALYSIS_TEXT_LENGTH) {
+      throw new IllegalStateException(
+          "OpenAI market analysis response must contain "
+              + fieldName
+              + " within "
+              + MAX_ANALYSIS_TEXT_LENGTH
+              + " characters.");
+    }
+    return value;
   }
 
   private String extractOutputText(String response) {

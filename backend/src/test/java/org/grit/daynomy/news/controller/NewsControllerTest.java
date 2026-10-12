@@ -13,6 +13,7 @@ import java.util.List;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.ImageSourceType;
 import org.grit.daynomy.news.dto.ImageSourceResponse;
 import org.grit.daynomy.news.dto.NewsDetailResponse;
 import org.grit.daynomy.news.dto.NewsListItemResponse;
@@ -194,7 +195,13 @@ class NewsControllerTest {
                 "detail news",
                 "content",
                 "image.png",
-                new ImageSourceResponse("Unsplash", "https://unsplash.com/photos/example"),
+                new ImageSourceResponse(
+                    "Unsplash",
+                    "https://unsplash.com/photos/example",
+                    "",
+                    "",
+                    "",
+                    ImageSourceType.MANUAL),
                 List.of(new NewsSourceResponse("DART", "https://example.com/1")),
                 Category.STOCK,
                 Instant.parse("2026-08-17T10:00:00Z")));

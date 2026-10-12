@@ -14,6 +14,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.grit.daynomy.common.response.ErrorResponse;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.search.domain.NewsSearchSort;
 import org.grit.daynomy.search.dto.NewsSearchResponse;
 import org.grit.daynomy.search.service.NewsSearchService;
 import org.springframework.validation.annotation.Validated;
@@ -34,7 +35,13 @@ public class NewsSearchController {
     this.newsSearchService = newsSearchService;
   }
 
-  @Operation(summary = "뉴스 검색", description = "제목·본문에서 키워드를 검색하고 카테고리와 페이지 조건을 적용합니다.")
+  @Operation(
+      summary = "뉴스 검색",
+      description =
+          "공백으로 구분한 모든 단어가 제목 또는 본문에 포함된 발행 뉴스를 검색합니다. "
+              + "반복 공백·중복 단어·영문 대소문자를 정규화하며 %, _, !는 일반 문자로 처리합니다. "
+              + "기본 최신순 또는 제목에 일치하는 단어 수를 우선하는 관련도순으로 정렬합니다. "
+              + "동점은 발행일·ID 내림차순으로 정렬합니다.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -42,7 +49,7 @@ public class NewsSearchController {
         content = @Content(schema = @Schema(implementation = NewsSearchResponse.class))),
     @ApiResponse(
         responseCode = "400",
-        description = "검색어·카테고리·페이지 조건 오류",
+        description = "검색어·카테고리·페이지·정렬 조건 오류",
         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   })
   @GetMapping
@@ -63,7 +70,10 @@ public class NewsSearchController {
           @RequestParam(defaultValue = "20")
           @Min(value = 1, message = "페이지 크기는 1 이상이어야 합니다.")
           @Max(value = 100, message = "페이지 크기는 100 이하여야 합니다.")
-          int size) {
-    return newsSearchService.search(keyword, category, page, size);
+          int size,
+      @Parameter(description = "정렬 방식. LATEST(최신순), RELEVANCE(제목 일치 우선)", example = "LATEST")
+          @RequestParam(defaultValue = "LATEST")
+          NewsSearchSort sort) {
+    return newsSearchService.search(keyword, category, page, size, sort);
   }
 }

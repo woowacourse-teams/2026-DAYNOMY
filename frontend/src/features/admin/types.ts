@@ -1,9 +1,36 @@
 import type { Category } from '../news/newslist/types';
+import type { StockSearchItem } from '../portfolio/types';
 
 export type AdminNewsStatus = 'DRAFT' | 'PUBLISHED' | 'REJECTED' | 'DELETED';
 export type AdminNewsSource = {
   name: string;
   url: string;
+};
+
+export type AdminNewsImageSource = {
+  name: string;
+  url: string;
+  author: string;
+  license: string;
+  licenseUrl: string;
+  type: AdminNewsImageSourceType;
+};
+
+export type AdminNewsImageSourceType = 'NONE' | 'AI_GENERATED' | 'WIKIMEDIA' | 'MANUAL';
+
+export type AdminWikimediaImageSelection = {
+  title: string;
+};
+
+export type AdminWikimediaImageCandidate = {
+  title: string;
+  thumbnailUrl: string;
+  sourceUrl: string;
+  author: string;
+  license: string;
+  licenseUrl: string;
+  width: number;
+  height: number;
 };
 
 export type AdminNewsListItemResponse = {
@@ -31,10 +58,12 @@ export type AdminNewsResponse = {
   title: string;
   content: string;
   imageUrl: string | null;
+  imageSource?: AdminNewsImageSource;
   sources: AdminNewsSource[];
   category: Category;
   publishedAt: string | null;
   status: AdminNewsStatus;
+  relatedAssets?: StockSearchItem[];
 };
 
 export type AdminNewsFormValues = {
@@ -42,6 +71,8 @@ export type AdminNewsFormValues = {
   content: string;
   sources: AdminNewsSource[];
   category: Category | '';
+  imageSelection?: AdminWikimediaImageSelection | null;
+  assetIds?: number[];
 };
 
 export type AdminNewsFilterStatus = AdminNewsStatus | 'ALL';

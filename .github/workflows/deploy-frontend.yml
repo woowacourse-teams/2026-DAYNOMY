@@ -26,6 +26,7 @@ jobs:
       contents: read
       packages: write
     outputs:
+      image_name: ${{ steps.image.outputs.name }}
       image_tag: ${{ steps.release.outputs.image_tag }}
       release_version: ${{ steps.release.outputs.release_version }}
 
@@ -234,31 +235,53 @@ jobs:
       packages: read
     timeout-minutes: 30
 
+    defaults:
+      run:
+        shell: bash
+
     env:
       DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
       DEPLOY_URL: ${{ github.ref == 'refs/heads/main' && 'https://daynomy.com' || 'https://dev.daynomy.com' }}
+      DEPLOY_VERSION: ${{ needs.build-and-publish.outputs.image_tag }}
+      FRONTEND_IMAGE: ${{ needs.build-and-publish.outputs.image_name }}:${{ needs.build-and-publish.outputs.image_tag }}
+      COMPOSE_FILE: ${{ github.workspace }}/frontend/compose.yml
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Deploy frontend
+      - name: Log in to GHCR
+        id: login
+        timeout-minutes: 2
         env:
           GHCR_TOKEN: ${{ github.token }}
-          DEPLOY_VERSION: ${{ needs.build-and-publish.outputs.image_tag }}
         run: |
-          set -Eeuo pipefail
-
-          export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-frontend:$DEPLOY_VERSION"
-          export COMPOSE_FILE="$GITHUB_WORKSPACE/frontend/compose.yml"
-
+          echo 'Starting GHCR login'
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          echo 'GHCR login completed'
 
+      - name: Download frontend image
+        id: pull
+        timeout-minutes: 5
+        run: |
+          echo "Starting frontend image download: $FRONTEND_IMAGE"
           docker pull "$FRONTEND_IMAGE"
+          echo 'Frontend image download completed'
+
+      - name: Deploy frontend
+        id: deployment
+        run: |
+          echo 'Starting frontend deployment'
           bash frontend/scripts/deploy-frontend.sh
+          echo 'Frontend deployment completed'
+
+      - name: Log out of GHCR
+        if: ${{ always() }}
+        timeout-minutes: 1
+        run: docker logout ghcr.io >/dev/null 2>&1 || true
 
       - name: Verify API and OAuth routing
+        id: routing
         run: |
           set -Eeuo pipefail
           report_result() {
@@ -299,6 +322,25 @@ jobs:
             echo "Expected OAuth redirect, got HTTP $oauth_status"
             exit 1
           fi
+
+      - name: Summarize deployment stages
+        if: ${{ always() }}
+        env:
+          LOGIN_RESULT: ${{ steps.login.outcome }}
+          PULL_RESULT: ${{ steps.pull.outcome }}
+          DEPLOYMENT_RESULT: ${{ steps.deployment.outcome }}
+          ROUTING_RESULT: ${{ steps.routing.outcome }}
+        run: |
+          printf 'GHCR login: %s\nImage download: %s\nFrontend deployment: %s\nAPI/OAuth routing: %s\n' \
+            "$LOGIN_RESULT" "$PULL_RESULT" "$DEPLOYMENT_RESULT" "$ROUTING_RESULT"
+          {
+            printf '\n### Frontend CD stages\n\n'
+            printf '| Stage | Result |\n| --- | --- |\n'
+            printf '| GHCR login (2 min limit) | %s |\n' "$LOGIN_RESULT"
+            printf '| Image download (5 min limit) | %s |\n' "$PULL_RESULT"
+            printf '| Frontend deployment | %s |\n' "$DEPLOYMENT_RESULT"
+            printf '| API/OAuth routing | %s |\n' "$ROUTING_RESULT"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   tag-release:
     if: needs.build-and-publish.outputs.release_version != ''

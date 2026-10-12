@@ -8,20 +8,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.news.exception.NewsErrorCode;
+import org.grit.daynomy.member.domain.MemberRole;
+import org.grit.daynomy.portfolio.domain.PortfolioImpactSummary;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
+import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.service.PortfolioAnalysisService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +37,10 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.test.context.TestSecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,14 +54,21 @@ import org.springframework.test.web.servlet.MockMvc;
             classes = JwtAuthenticationFilter.class))
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
+@EnableWebSecurity
 class PortfolioAnalysisControllerTest {
 
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private PortfolioAnalysisService portfolioAnalysisService;
 
+  @AfterEach
+  void clearAuthentication() {
+    SecurityContextHolder.clearContext();
+    TestSecurityContextHolder.clearContext();
+  }
+
   @Test
-  @DisplayName("요청으로 전달한 포트폴리오의 뉴스 분석 결과를 반환한다")
+  @DisplayName("요청으로 전달한 전체 포트폴리오의 분석 결과를 반환한다")
   void analyzePortfolioReturnsAnalysis() throws Exception {
     PortfolioAnalysisRequest request =
         new PortfolioAnalysisRequest(
@@ -62,16 +79,30 @@ class PortfolioAnalysisControllerTest {
             new BigDecimal("100"),
             ImpactDirection.POSITIVE,
             ImpactLevel.HIGH,
+            "반도체 수요가 증가했어요.",
             "주가가 상승할 수 있습니다.",
+            "수요 증가가 이어질 수 있어요.",
             "반도체 수요 증가가 예상됩니다.",
             "반도체 수요가 전년 대비 증가했습니다.",
+            List.of(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news")),
             1);
-    when(portfolioAnalysisService.analyze(1L, request))
-        .thenReturn(PortfolioAnalysisResponse.of(1, List.of(impact)));
+    when(portfolioAnalysisService.analyze(request, false))
+        .thenReturn(
+            PortfolioAnalysisResponse.of(
+                1,
+                new PortfolioImpactSummary(
+                    ImpactDirection.POSITIVE,
+                    new BigDecimal("100.00"),
+                    new BigDecimal("100.00"),
+                    new BigDecimal("0.00")),
+                Instant.parse("2026-10-05T08:00:00Z"),
+                "반도체 비중이 높아 긍정적인 영향이 예상돼요.",
+                List.of(impact),
+                List.of(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"))));
 
     mockMvc
         .perform(
-            post("/api/news/1/portfolio-analysis")
+            post("/api/portfolio/analysis")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -80,16 +111,74 @@ class PortfolioAnalysisControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.totalAssetCount").value(1))
         .andExpect(jsonPath("$.analyzedAssetCount").value(1))
+        .andExpect(jsonPath("$.overallDirection").value("POSITIVE"))
+        .andExpect(jsonPath("$.overallScore").value(100.00))
+        .andExpect(jsonPath("$.positiveImpactScore").value(100.00))
+        .andExpect(jsonPath("$.negativeImpactScore").value(0.00))
+        .andExpect(jsonPath("$.analyzedAt").value("2026-10-05T08:00:00Z"))
+        .andExpect(jsonPath("$.overallImpact").value("반도체 비중이 높아 긍정적인 영향이 예상돼요."))
         .andExpect(jsonPath("$.impacts[0].assetName").value("삼성전자"))
         .andExpect(jsonPath("$.impacts[0].weight").value(100))
         .andExpect(jsonPath("$.impacts[0].direction").value("POSITIVE"))
         .andExpect(jsonPath("$.impacts[0].impactLevel").value("HIGH"))
-        .andExpect(jsonPath("$.impacts[0].summary").value("주가가 상승할 수 있습니다."))
+        .andExpect(jsonPath("$.impacts[0].issueSummary").value("반도체 수요가 증가했어요."))
+        .andExpect(jsonPath("$.impacts[0].expectedReaction").value("주가가 상승할 수 있습니다."))
+        .andExpect(jsonPath("$.impacts[0].outlook").value("수요 증가가 이어질 수 있어요."))
         .andExpect(jsonPath("$.impacts[0].reason").value("반도체 수요 증가가 예상됩니다."))
         .andExpect(jsonPath("$.impacts[0].evidenceSentence").value("반도체 수요가 전년 대비 증가했습니다."))
-        .andExpect(jsonPath("$.impacts[0].rank").value(1));
+        .andExpect(jsonPath("$.impacts[0].sources[0].title").value("한국거래소"))
+        .andExpect(jsonPath("$.impacts[0].sources[0].url").value("https://example.com/news"))
+        .andExpect(jsonPath("$.impacts[0].rank").value(1))
+        .andExpect(jsonPath("$.sources[0].title").value("한국거래소"))
+        .andExpect(jsonPath("$.sources[0].url").value("https://example.com/news"));
 
-    verify(portfolioAnalysisService).analyze(1L, request);
+    verify(portfolioAnalysisService).analyze(request, false);
+  }
+
+  @Test
+  @DisplayName("로그인 사용자는 체험 제한 없이 포트폴리오 분석을 요청한다")
+  void authenticatedMemberAnalyzesPortfolioWithoutTrialLimit() throws Exception {
+    PortfolioAnalysisRequest request = new PortfolioAnalysisRequest(List.of());
+    AuthenticatedMember member = new AuthenticatedMember(1L, MemberRole.USER);
+    var authentication = new UsernamePasswordAuthenticationToken(member, null, List.of());
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+    when(portfolioAnalysisService.analyze(request, true))
+        .thenReturn(PortfolioAnalysisResponse.empty());
+
+    mockMvc
+        .perform(
+            post("/api/portfolio/analysis")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"assets":[]}
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalAssetCount").value(0));
+
+    verify(portfolioAnalysisService).analyze(request, true);
+  }
+
+  @Test
+  @DisplayName("비회원 분석 체험을 사용한 경우 403 에러를 반환한다")
+  void exhaustedGuestTrialReturnsForbidden() throws Exception {
+    PortfolioAnalysisRequest request =
+        new PortfolioAnalysisRequest(
+            List.of(new PortfolioAssetRequest("삼성전자", new BigDecimal("100"))));
+    when(portfolioAnalysisService.analyze(request, false))
+        .thenThrow(new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED));
+
+    mockMvc
+        .perform(
+            post("/api/portfolio/analysis")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"assets":[{"assetName":"삼성전자","weight":100}]}
+                    """))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED"))
+        .andExpect(jsonPath("$.message").value("비회원 포트폴리오 분석 체험을 이미 사용했습니다. 로그인 후 다시 이용해주세요."));
   }
 
   @Test
@@ -99,7 +188,7 @@ class PortfolioAnalysisControllerTest {
 
     mockMvc
         .perform(
-            post("/api/news/1/portfolio-analysis")
+            post("/api/portfolio/analysis")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -123,7 +212,7 @@ class PortfolioAnalysisControllerTest {
 
     mockMvc
         .perform(
-            post("/api/news/1/portfolio-analysis")
+            post("/api/portfolio/analysis")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"assets\":[%s]}".formatted(assets)))
         .andExpect(status().isBadRequest())
@@ -131,45 +220,5 @@ class PortfolioAnalysisControllerTest {
         .andExpect(jsonPath("$.errors[0].field").value("assets"));
 
     verifyNoInteractions(portfolioAnalysisService);
-  }
-
-  @Test
-  @DisplayName("뉴스 ID가 숫자가 아니면 요청을 거부한다")
-  void analyzePortfolioRejectsInvalidNewsIdType() throws Exception {
-    mockMvc
-        .perform(
-            post("/api/news/not-a-number/portfolio-analysis")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {"assets":[]}
-                    """))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
-        .andExpect(jsonPath("$.errors[0].field").value("newsId"));
-
-    verifyNoInteractions(portfolioAnalysisService);
-  }
-
-  @Test
-  @DisplayName("뉴스가 없으면 에러 응답을 반환한다")
-  void analyzePortfolioReturnsNotFoundWhenNewsIsMissing() throws Exception {
-    PortfolioAnalysisRequest request = new PortfolioAnalysisRequest(List.of());
-    when(portfolioAnalysisService.analyze(999L, request))
-        .thenThrow(new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
-
-    mockMvc
-        .perform(
-            post("/api/news/999/portfolio-analysis")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                    {"assets":[]}
-                    """))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.code").value("NEWS_NOT_FOUND"))
-        .andExpect(jsonPath("$.message").value("해당 뉴스를 찾을 수 없습니다."));
-
-    verify(portfolioAnalysisService).analyze(999L, request);
   }
 }

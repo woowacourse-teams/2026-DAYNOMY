@@ -21,6 +21,7 @@ public enum LogEvent {
   PORTFOLIO_ANALYSIS_FAILED("portfolio.analysis.failed", "포트폴리오 분석 실패"),
   PORTFOLIO_SNAPSHOT_COMPLETED("portfolio.snapshot.completed", "포트폴리오 일별 스냅샷 생성 완료"),
   PORTFOLIO_SNAPSHOT_FAILED("portfolio.snapshot.failed", "포트폴리오 일별 스냅샷 생성 실패"),
+  LEAGUE_CALCULATION_FAILED("league.calculation.failed", "투자 리그 일별 수익률 집계 실패"),
 
   MARKET_ANALYSIS_REQUESTED("market.analysis.requested", "시장 분석 요청"),
   MARKET_ANALYSIS_COMPLETED("market.analysis.completed", "시장 분석 완료"),
@@ -40,6 +41,8 @@ public enum LogEvent {
   STOCK_PRICE_SYNC_COMPLETED("stock-price.sync.completed", "종가 동기화 완료"),
   STOCK_PRICE_SYNC_SKIPPED("stock-price.sync.skipped", "종가 동기화 스킵"),
   STOCK_PRICE_SYNC_FAILED("stock-price.sync.failed", "종가 동기화 실패"),
+  MARKET_CALENDAR_SYNC_COMPLETED("market-calendar.sync.completed", "거래일 달력 동기화 완료"),
+  MARKET_CALENDAR_SYNC_FAILED("market-calendar.sync.failed", "거래일 달력 동기화 실패"),
 
   AI_NEWS_GENERATION_REQUESTED("ai.news_generation.requested", "OpenAI 뉴스 생성 요청"),
   AI_NEWS_GENERATION_COMPLETED("ai.news_generation.completed", "OpenAI 뉴스 생성 완료"),

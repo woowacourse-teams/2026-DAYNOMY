@@ -1,17 +1,24 @@
 package org.grit.daynomy.portfolio.repository;
 
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PortfolioHoldingHistoryRepository
     extends JpaRepository<PortfolioHoldingHistory, Long> {
 
-  List<PortfolioHoldingHistory>
-      findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
-          Long portfolioId, Instant from, Instant to);
+  Optional<PortfolioHoldingHistory> findByIdAndPortfolioId(Long id, Long portfolioId);
 
-  List<PortfolioHoldingHistory> findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAsc(
-      Long portfolioId, Instant to);
+  List<PortfolioHoldingHistory>
+      findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDescIdDesc(
+          Long portfolioId, LocalDate from, LocalDate to);
+
+  List<PortfolioHoldingHistory>
+      findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+          Long portfolioId, LocalDate to);
+
+  List<PortfolioHoldingHistory> findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(
+      Long portfolioId);
 }

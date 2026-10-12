@@ -4,6 +4,8 @@ import type {
   MarketAnalysisState,
   NewsDetailPayload,
   NewsDetailResponse,
+  NewsImageSource,
+  NewsImageSourceType,
 } from './types.ts';
 import { isCategory } from '../newslist/types.ts';
 
@@ -20,6 +22,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
 function isNewsDetailResponse(value: unknown): value is NewsDetailResponse {
   return (
     isRecord(value) &&
@@ -32,11 +38,30 @@ function isNewsDetailResponse(value: unknown): value is NewsDetailResponse {
     (value.imageUrl === undefined ||
       value.imageUrl === null ||
       typeof value.imageUrl === 'string') &&
+    (value.imageSource === undefined || isNewsImageSource(value.imageSource)) &&
     Array.isArray(value.sources) &&
     value.sources.every(
       (source: unknown) =>
         isRecord(source) && typeof source.name === 'string' && typeof source.url === 'string',
     )
+  );
+}
+
+function isNewsImageSource(value: unknown): value is NewsImageSource {
+  return (
+    isRecord(value) &&
+    typeof value.name === 'string' &&
+    typeof value.url === 'string' &&
+    typeof value.author === 'string' &&
+    typeof value.license === 'string' &&
+    typeof value.licenseUrl === 'string' &&
+    isNewsImageSourceType(value.type)
+  );
+}
+
+function isNewsImageSourceType(value: unknown): value is NewsImageSourceType {
+  return (
+    value === 'NONE' || value === 'AI_GENERATED' || value === 'WIKIMEDIA' || value === 'MANUAL'
   );
 }
 
@@ -53,14 +78,22 @@ function isKeywordsResponse(value: unknown): value is KeywordsResponse {
           keyword.category === 'EVENT' ||
           keyword.category === 'TERM' ||
           keyword.category === 'TREND') &&
-        Array.isArray(keyword.points) &&
-        keyword.points.every((point: unknown) => typeof point === 'string'),
+        isString(keyword.definition) &&
+        isString(keyword.context) &&
+        isString(keyword.watchPoint),
     )
   );
 }
 
 function isMarketAnalysisResponse(value: unknown): value is MarketAnalysisResponse {
-  return isRecord(value) && typeof value.summary === 'string';
+  return (
+    isRecord(value) &&
+    isString(value.observedFact) &&
+    isString(value.interpretation) &&
+    isString(value.risk) &&
+    isString(value.watchPoint) &&
+    isString(value.limitation)
+  );
 }
 
 async function getJson<T>(path: string, isValid: (value: unknown) => value is T): Promise<T> {
@@ -82,7 +115,7 @@ function getMarketAnalysisState(
   result: PromiseSettledResult<MarketAnalysisResponse>,
 ): MarketAnalysisState {
   if (result.status === 'fulfilled') {
-    return result.value.summary.trim()
+    return Object.values(result.value).some((value) => value.trim())
       ? { status: 'success', data: result.value }
       : { status: 'empty' };
   }

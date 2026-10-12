@@ -86,6 +86,66 @@ class NewsSearchAcceptanceTest {
         .body("totalElements", equalTo(1));
   }
 
+  @Test
+  @DisplayName("다중 단어 뉴스 검색은 관련도순과 기본 최신순으로 페이지를 반환한다")
+  void searchNewsByAllTermsAndRelevance() {
+    News titleMatch =
+        newsRepository.save(
+            News.createPublished(
+                "기준금리 추가 인하",
+                "일반 본문",
+                null,
+                List.of(),
+                Category.ETF,
+                Instant.parse("2026-08-17T09:00:00Z")));
+    News bodyMatch =
+        newsRepository.save(
+            News.createPublished(
+                "시장 전망",
+                "기준금리 추가 인하",
+                null,
+                List.of(),
+                Category.ETF,
+                Instant.parse("2026-08-17T10:00:00Z")));
+    newsRepository.save(
+        News.createPublished(
+            "기준금리 동결",
+            "일반 본문",
+            null,
+            List.of(),
+            Category.ETF,
+            Instant.parse("2026-08-17T11:00:00Z")));
+    newsRepository.save(News.createDraft("금리 인하 초안", "본문", null, List.of(), Category.ETF));
+
+    given()
+        .port(port)
+        .queryParam("q", "  금리  인하 금리  ")
+        .queryParam("category", "ETF")
+        .queryParam("sort", "RELEVANCE")
+        .queryParam("size", 1)
+        .when()
+        .get("/api/search/news")
+        .then()
+        .statusCode(200)
+        .body("content", hasSize(1))
+        .body("content[0].id", equalTo(titleMatch.getId().intValue()))
+        .body("page", equalTo(1))
+        .body("size", equalTo(1))
+        .body("totalElements", equalTo(2))
+        .body("totalPages", equalTo(2));
+
+    given()
+        .port(port)
+        .queryParam("q", "금리 인하")
+        .queryParam("category", "ETF")
+        .when()
+        .get("/api/search/news")
+        .then()
+        .statusCode(200)
+        .body("content", hasSize(2))
+        .body("content[0].id", equalTo(bodyMatch.getId().intValue()));
+  }
+
   private News createNews(String title, String externalId, Category category, Instant publishedAt) {
     return News.createPublished(
         title,

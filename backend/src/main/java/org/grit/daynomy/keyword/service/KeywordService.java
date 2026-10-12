@@ -32,9 +32,9 @@ public class KeywordService {
                         news,
                         keyword.getCategory(),
                         keyword.getKeyword(),
-                        keyword.getPoint1(),
-                        keyword.getPoint2(),
-                        keyword.getPoint3()))
+                        keyword.getDefinition(),
+                        keyword.getContext(),
+                        keyword.getWatchPoint()))
             .toList());
   }
 

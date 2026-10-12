@@ -20,7 +20,6 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 @Component
 public class S3ImageStorage {
 
-  private static final String OBJECT_PREFIX = "daynomy";
   private static final String CACHE_CONTROL = "public, max-age=31536000, immutable";
 
   private final S3Client s3Client;
@@ -111,7 +110,20 @@ public class S3ImageStorage {
   }
 
   private String fullObjectKey(String relativeKey) {
-    return "%s/%s".formatted(OBJECT_PREFIX, relativeFileName(relativeKey));
+    return "%s/%s".formatted(objectPrefix(), relativeFileName(relativeKey));
+  }
+
+  private String objectPrefix() {
+    String objectPrefix = s3Properties.objectPrefix();
+    if (objectPrefix == null
+        || objectPrefix.isBlank()
+        || objectPrefix.startsWith("/")
+        || objectPrefix.endsWith("/")
+        || objectPrefix.contains("\\")
+        || objectPrefix.contains("//")) {
+      throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
+    }
+    return objectPrefix;
   }
 
   private String relativeFileName(String relativeKey) {

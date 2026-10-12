@@ -9,7 +9,6 @@ import { NewsDetailPage } from '../../src/features/news/newsdetail/NewsDetailPag
 import { NewsListPage } from '../../src/features/news/newslist/NewsListPage';
 import { ArticleCard } from '../../src/features/news/newslist/components/ArticleCard';
 import type { NewsListItem } from '../../src/features/news/newslist/types';
-import { PORTFOLIO_STORAGE_KEY } from '../../src/features/portfolio/hooks/usePortfolioHoldings';
 
 const article = {
   id: 7,
@@ -250,6 +249,14 @@ describe('뉴스 탐색 화면', () => {
           return jsonResponse({
             ...article,
             content: '금리 동결이 금융시장에 미치는 영향입니다.',
+            imageSource: {
+              name: '',
+              url: '',
+              author: '',
+              license: '',
+              licenseUrl: '',
+              type: 'AI_GENERATED',
+            },
             sources: [
               { name: '한국은행', url: 'https://example.com/news/7' },
               { name: 'DART', url: 'https://example.com/news/7/dart' },
@@ -262,15 +269,20 @@ describe('뉴스 탐색 화면', () => {
               {
                 category: 'POLICY',
                 keyword: '금리 동결',
-                points: ['기준금리 동결은 정책 방향을 보여줍니다.', '시장 변화를 확인해야 합니다.'],
+                definition: '기준금리를 현재 수준으로 유지하는 결정입니다.',
+                context: '이번 기사에서는 통화정책 방향을 보여주는 결정입니다.',
+                watchPoint: '다음 물가와 금리 발표를 확인해야 합니다.',
               },
             ],
           });
         }
         if (url === '/api/news/7/market-analysis') {
           return jsonResponse({
-            summary:
-              '금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다. 기준금리 변화는 대출과 채권 수익률에 연결됩니다.',
+            observedFact: '한국은행이 기준금리를 현재 수준으로 유지했습니다.',
+            interpretation: '금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.',
+            risk: '물가가 다시 상승하면 금리 전망이 달라질 수 있습니다.',
+            watchPoint: '다음 소비자물가와 기준금리 발표를 확인해야 합니다.',
+            limitation: '기사만으로는 자산별 가격 변화를 확인하기 어렵습니다.',
           });
         }
 
@@ -281,16 +293,28 @@ describe('뉴스 탐색 화면', () => {
     const view = renderPage(<NewsDetailPage />);
 
     expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
+    expect(view.getByText('AI로 생성된 이미지입니다.')).toBeTruthy();
     expect(view.queryByRole('heading', { name: '핵심 요약' })).toBeNull();
     expect(view.queryByText('기준금리가 유지되고 있습니다.')).toBeNull();
     expect(view.queryByText('채권 시장의 관망세가 이어지고 있습니다.')).toBeNull();
     expect(view.queryByText('추가 지표를 확인해야 합니다.')).toBeNull();
     expect(view.container.querySelector('mark.keyword')?.textContent).toContain('금리 동결');
-    expect(view.getByText('기준금리 동결은 정책 방향을 보여줍니다.')).toBeTruthy();
+    expect(view.getByText('뜻')).toBeTruthy();
+    expect(view.getByText('기사 맥락')).toBeTruthy();
+    expect(view.getByText('확인할 점')).toBeTruthy();
+    expect(view.getByText('기준금리를 현재 수준으로 유지하는 결정입니다.')).toBeTruthy();
+    expect(view.getByText('이번 기사에서는 통화정책 방향을 보여주는 결정입니다.')).toBeTruthy();
+    expect(view.getByText('다음 물가와 금리 발표를 확인해야 합니다.')).toBeTruthy();
+    expect(view.getByText('확인된 사실')).toBeTruthy();
+    expect(view.getByText('해석')).toBeTruthy();
+    expect(view.getByText('위험')).toBeTruthy();
+    expect(view.getByText('확인할 지표')).toBeTruthy();
+    expect(view.getByText('분석 한계')).toBeTruthy();
+    expect(view.getByText('한국은행이 기준금리를 현재 수준으로 유지했습니다.')).toBeTruthy();
     expect(view.getByText('금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.')).toBeTruthy();
-    expect(view.getByText('기준금리 변화는 대출과 채권 수익률에 연결됩니다.')).toBeTruthy();
-    expect(view.container.querySelectorAll('.market-summary-card')).toHaveLength(1);
-    expect(view.container.querySelectorAll('.market-summary-card li')).toHaveLength(2);
+    expect(view.container.querySelectorAll('.market-analysis-card')).toHaveLength(1);
+    expect(view.container.querySelectorAll('.market-analysis-item')).toHaveLength(5);
+    expect(view.container.querySelectorAll('.market-analysis-item-primary')).toHaveLength(2);
     expect(view.queryByRole('heading', { name: '발생 원인' })).toBeNull();
     expect(view.queryByRole('heading', { name: /가장 영향 가능성이 높은 자산/ })).toBeNull();
     expect(view.queryByRole('heading', { name: /시나리오/ })).toBeNull();
@@ -324,12 +348,16 @@ describe('뉴스 탐색 화면', () => {
               {
                 category: 'POLICY',
                 keyword: '금리 동결',
-                points: ['금리 정책을 설명합니다.'],
+                definition: '기준금리를 유지하는 결정입니다.',
+                context: '기사의 통화정책 방향을 설명합니다.',
+                watchPoint: '다음 금리 발표를 확인해야 합니다.',
               },
               {
                 category: 'TREND',
                 keyword: '채권시장',
-                points: ['채권시장 흐름을 설명합니다.'],
+                definition: '채권을 거래하는 시장입니다.',
+                context: '금리 동결의 영향을 받는 시장으로 언급됩니다.',
+                watchPoint: '채권 수익률 변화를 확인해야 합니다.',
               },
             ],
           });
@@ -349,34 +377,46 @@ describe('뉴스 탐색 화면', () => {
     expect(highlightedKeywords).toEqual(['금리 동결', '채권시장']);
   });
 
-  it('현재 포트폴리오의 종목명과 보유 비중으로 뉴스 영향을 분석한다', async () => {
+  it('뉴스 이미지 출처명과 저작자를 함께 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
-    localStorage.setItem(
-      PORTFOLIO_STORAGE_KEY,
-      JSON.stringify([
-        {
-          assetId: 1,
-          assetCode: '005930',
-          name: '삼성전자',
-          market: 'KOSPI',
-          quantity: 10,
-          averagePurchasePrice: 70000,
-        },
-        {
-          assetId: 2,
-          assetCode: '000660',
-          name: 'SK하이닉스',
-          market: 'KOSPI',
-          quantity: 2,
-          averagePurchasePrice: 180000,
-        },
-      ]),
-    );
-
-    let analysisRequestBody: unknown;
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = getPath(input);
+        if (url === '/api/news/7') {
+          return jsonResponse({
+            ...article,
+            content: 'Wikimedia 이미지 출처를 확인하는 뉴스 본문입니다.',
+            imageUrl: 'https://upload.wikimedia.org/wikimedia.jpg',
+            imageSource: {
+              name: 'Wikimedia Commons',
+              url: 'https://commons.wikimedia.org/wiki/File:Seoul.jpg',
+              author: 'Jane Doe',
+              license: 'CC BY 4.0',
+              licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+              type: 'WIKIMEDIA',
+            },
+            sources: [],
+          });
+        }
+        if (url === '/api/news/7/keywords') return jsonResponse({ keywords: [] });
+        if (url === '/api/news/7/market-analysis') return jsonResponse({}, 404);
+        return jsonResponse({}, 500);
+      }),
+    );
+
+    const view = renderPage(<NewsDetailPage />);
+
+    expect(await view.findByRole('link', { name: 'Wikimedia Commons' })).toBeTruthy();
+    expect(view.container.querySelector('.news-image-credit')?.textContent).toContain('Jane Doe');
+    expect(view.getByRole('link', { name: 'CC BY 4.0' })).toBeTruthy();
+  });
+
+  it('뉴스 상세에서는 포트폴리오 분석 기능을 표시하지 않는다', async () => {
+    window.history.replaceState(null, '', '/news/7');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
         const url = getPath(input);
 
         if (url === '/api/news/7') {
@@ -388,60 +428,13 @@ describe('뉴스 탐색 화면', () => {
         }
         if (url === '/api/news/7/keywords') return jsonResponse({ keywords: [] });
         if (url === '/api/news/7/market-analysis') {
-          return jsonResponse({ summary: '반도체 시장의 변화를 확인해야 합니다.' });
-        }
-        if (url === '/api/auth/csrf') {
-          return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
-        }
-        if (url === '/api/portfolio/calculate') {
           return jsonResponse({
-            baseDate: '2026-09-22',
-            totalPurchaseAmount: 1060000,
-            totalEvaluationAmount: 1200000,
-            dailyProfitLoss: null,
-            dailyReturnRate: null,
-            totalProfitLoss: 140000,
-            totalReturnRate: 13.21,
-            holdings: [
-              {
-                assetId: 1,
-                assetCode: '005930',
-                name: '삼성전자',
-                category: 'STOCK',
-                market: 'KOSPI',
-                baseDate: '2026-09-22',
-                quantity: 10,
-                averagePurchasePrice: 70000,
-                closePrice: 80000,
-                purchaseAmount: 700000,
-                evaluationAmount: 800000,
-                profitLoss: 100000,
-                returnRate: 14.29,
-                weight: 66.67,
-              },
-              {
-                assetId: 2,
-                assetCode: '000660',
-                name: 'SK하이닉스',
-                category: 'STOCK',
-                market: 'KOSPI',
-                baseDate: '2026-09-22',
-                quantity: 2,
-                averagePurchasePrice: 180000,
-                closePrice: 200000,
-                purchaseAmount: 360000,
-                evaluationAmount: 400000,
-                profitLoss: 40000,
-                returnRate: 11.11,
-                weight: 33.34,
-              },
-            ],
-            marketAllocations: [{ market: 'KOSPI', evaluationAmount: 1200000, weight: 100 }],
+            observedFact: '반도체 기업의 실적이 발표됐습니다.',
+            interpretation: '수요 회복 여부를 판단할 근거로 볼 수 있습니다.',
+            risk: '기업 한 곳의 실적을 시장 전체로 일반화하기 어렵습니다.',
+            watchPoint: '다음 분기 매출과 재고를 확인해야 합니다.',
+            limitation: '다른 기업의 실적은 기사에 포함되지 않았습니다.',
           });
-        }
-        if (url === '/api/news/7/portfolio-analysis') {
-          analysisRequestBody = JSON.parse(String(init?.body));
-          return jsonResponse({ totalAssetCount: 2, analyzedAssetCount: 0, impacts: [] });
         }
 
         return jsonResponse({}, 500);
@@ -449,17 +442,8 @@ describe('뉴스 탐색 화면', () => {
     );
 
     const view = renderPage(<NewsDetailPage />);
-    const analyzeButton = await view.findByRole('button', { name: '포트폴리오 분석하기' });
-    await waitFor(() => expect(analyzeButton.hasAttribute('disabled')).toBe(false));
-    fireEvent.click(analyzeButton);
-
-    expect(await view.findByText('이 뉴스와 직접 관련된 보유 자산이 없어요.')).toBeTruthy();
-    expect(analysisRequestBody).toEqual({
-      assets: [
-        { assetName: '삼성전자', weight: 66.66 },
-        { assetName: 'SK하이닉스', weight: 33.34 },
-      ],
-    });
+    expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
+    expect(view.queryByRole('button', { name: /포트폴리오 분석/ })).toBeNull();
   });
 
   it('뉴스 상세 API 실패 시 목데이터 대신 오류 안내를 표시한다', async () => {
@@ -572,10 +556,24 @@ describe('뉴스 탐색 화면', () => {
         }
         if (url === '/api/news/7/keywords') {
           return jsonResponse({
-            keywords: [{ category: 'INVALID', keyword: '정상', points: ['설명'] }],
+            keywords: [
+              {
+                category: 'INVALID',
+                keyword: '정상',
+                definition: '뜻',
+                context: '기사 맥락',
+                watchPoint: '확인할 점',
+              },
+            ],
           });
         }
-        return jsonResponse({ summary: 42 });
+        return jsonResponse({
+          observedFact: 42,
+          interpretation: '해석',
+          risk: '위험',
+          watchPoint: '확인할 지표',
+          limitation: '분석 한계',
+        });
       }),
     );
 

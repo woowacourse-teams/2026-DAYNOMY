@@ -6,6 +6,9 @@ import java.util.List;
 
 public record PortfolioCalculationResponse(
     LocalDate baseDate,
+    PortfolioPricingStatus pricingStatus,
+    int pricedHoldingCount,
+    int unpricedHoldingCount,
     BigDecimal totalPurchaseAmount,
     BigDecimal totalEvaluationAmount,
     BigDecimal dailyProfitLoss,

@@ -14,6 +14,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -74,14 +75,12 @@ class NewsRepositoryTest {
             java.time.Instant.parse("2026-08-17T10:00:00Z")));
     entityManager.flush();
 
-    var pageable = PageRequest.of(0, 10);
-    var allNews = newsRepository.findAllByOrderByCreatedAtDescIdDesc(pageable);
-    var drafts = newsRepository.findByStatusOrderByCreatedAtDescIdDesc(NewsStatus.DRAFT, pageable);
-    var stockNews =
-        newsRepository.findByCategoryOrderByCreatedAtDescIdDesc(Category.STOCK, pageable);
+    var pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+    var allNews = newsRepository.findAll(pageable);
+    var drafts = newsRepository.findByStatus(NewsStatus.DRAFT, pageable);
+    var stockNews = newsRepository.findByCategory(Category.STOCK, pageable);
     var draftStockNews =
-        newsRepository.findByStatusAndCategoryOrderByCreatedAtDescIdDesc(
-            NewsStatus.DRAFT, Category.STOCK, pageable);
+        newsRepository.findByStatusAndCategory(NewsStatus.DRAFT, Category.STOCK, pageable);
 
     assertThat(allNews.getContent())
         .extracting(News::getTitle)

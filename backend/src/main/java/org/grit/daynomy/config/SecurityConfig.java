@@ -3,11 +3,10 @@ package org.grit.daynomy.config;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.handler.RestAccessDeniedHandler;
 import org.grit.daynomy.auth.handler.RestAuthenticationEntryPoint;
-import org.grit.daynomy.auth.oauth.CustomOAuth2UserService;
 import org.grit.daynomy.auth.oauth.CustomOidcUserService;
-import org.grit.daynomy.auth.oauth.OAuth2LoginFailureHandler;
 import org.grit.daynomy.auth.oauth.OAuth2LoginSuccessHandler;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,17 +20,17 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @RequiredArgsConstructor
 @Configuration
 public class SecurityConfig {
-  private final CustomOAuth2UserService customOAuth2UserService;
   private final CustomOidcUserService customOidcUserService;
   private final OAuth2LoginSuccessHandler successHandler;
-  private final OAuth2LoginFailureHandler failureHandler;
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
   private final RestAuthenticationEntryPoint authenticationEntryPoint;
   private final RestAccessDeniedHandler accessDeniedHandler;
   private final CorsConfigurationSource corsConfigurationSource;
 
   @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+  public SecurityFilterChain securityFilterChain(
+      HttpSecurity http, @Value("${app.oauth2.failure-redirect-uri}") String failureRedirectUri)
+      throws Exception {
     CsrfTokenRequestAttributeHandler csrfHandler = new CsrfTokenRequestAttributeHandler();
 
     http.cors(cors -> cors.configurationSource(corsConfigurationSource))
@@ -41,7 +40,7 @@ public class SecurityConfig {
         .csrf(
             csrf ->
                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                    .ignoringRequestMatchers("/api/news/*/portfolio-analysis")
+                    .ignoringRequestMatchers("/api/portfolio/analysis")
                     .csrfTokenRequestHandler(csrfHandler))
         .exceptionHandling(
             exception ->
@@ -60,6 +59,10 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/api/admin/**")
                     .hasRole("ADMIN")
+                    .requestMatchers("/api/portfolio/analysis", "/api/portfolio/calculate")
+                    .permitAll()
+                    .requestMatchers("/api/portfolio", "/api/portfolio/**")
+                    .authenticated()
                     .requestMatchers("/api/users/**")
                     .authenticated()
                     .anyRequest()
@@ -68,12 +71,11 @@ public class SecurityConfig {
             oauth2 ->
                 oauth2
                     .userInfoEndpoint(
-                        userInfo ->
-                            userInfo
-                                .userService(customOAuth2UserService)
-                                .oidcUserService(customOidcUserService::loadUser))
+                        userInfo -> userInfo.oidcUserService(customOidcUserService::loadUser))
                     .successHandler(successHandler)
-                    .failureHandler(failureHandler))
+                    .failureHandler(
+                        (request, response, exception) ->
+                            response.sendRedirect(failureRedirectUri)))
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
