@@ -1,3 +1,5 @@
+import { trackEvent, type AnalyticsParams } from '../../../analytics';
+import { feedProperties } from './analytics';
 import { useId, useRef, useState } from 'react';
 import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
@@ -7,7 +9,7 @@ import { feedDate, isToday, sourceLabel, youtubeId, type FeedItem } from './feed
 
 type ReadingItem = Exclude<FeedItem, { source: 'DAYNOMY' }>;
 
-function InlinePost({ item }: { item: ReadingItem }) {
+function InlinePost({ item, analytics }: { item: ReadingItem; analytics: AnalyticsParams }) {
   const post = 'post' in item ? item.post : item.content;
   const video = post.sourceType === 'YOUTUBE' ? youtubeId(post.url) : null;
   return (
@@ -25,25 +27,39 @@ function InlinePost({ item }: { item: ReadingItem }) {
           ) : (
             <p>이 영상은 YouTube에서 확인해 주세요.</p>
           )}
-          <a className="issue-video-link" href={post.url} target="_blank" rel="noreferrer">
+          <a
+            onClick={() => trackEvent('click_content_original', analytics)}
+            className="issue-video-link"
+            href={post.url}
+            target="_blank"
+            rel="noreferrer"
+          >
             YouTube에서 원문 보기 ↗
           </a>
         </>
       ) : (
-        <SocialPostEmbed post={{ ...post, sourceType: post.sourceType }} />
+        <SocialPostEmbed analytics={analytics} post={{ ...post, sourceType: post.sourceType }} />
       )}
     </div>
   );
 }
 
-export function IssueFeed({ items }: { items: FeedItem[] }) {
+export function IssueFeed({
+  items,
+  surface = 'news_home',
+  offset = 0,
+}: {
+  items: FeedItem[];
+  surface?: string;
+  offset?: number;
+}) {
   const [selected, setSelected] = useState<ReadingItem | null>(null);
   const id = useId();
   const triggers = useRef(new Map<string, HTMLButtonElement>());
   return (
     <>
       <ul className="issue-feed">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <li key={item.key}>
             <article className="issue-feed-row">
               <span
@@ -68,6 +84,13 @@ export function IssueFeed({ items }: { items: FeedItem[] }) {
                 <span className="issue-source">{sourceLabel(item.source)}</span>
                 {'person' in item && (
                   <Link
+                    onClick={() =>
+                      trackEvent('click_person_preview', {
+                        surface,
+                        person_id: item.person.id,
+                        position: offset + index + 1,
+                      })
+                    }
                     to={`/people?person=${item.person.id}${isToday(item.date) ? '' : '&view=all'}`}
                   >
                     {item.person.name}
@@ -76,7 +99,13 @@ export function IssueFeed({ items }: { items: FeedItem[] }) {
                 <time dateTime={item.date ?? undefined}>{feedDate(item.date)}</time>
               </div>
               {item.source === 'DAYNOMY' ? (
-                <Link className="issue-row-title" to={`/news/${item.article.id}`}>
+                <Link
+                  onClick={() =>
+                    trackEvent('click_content', feedProperties(item, surface, offset + index + 1))
+                  }
+                  className="issue-row-title"
+                  to={`/news/${item.article.id}`}
+                >
                   <h3>{item.title}</h3>
                   <span aria-hidden="true">↗</span>
                 </Link>
@@ -91,7 +120,14 @@ export function IssueFeed({ items }: { items: FeedItem[] }) {
                   type="button"
                   aria-expanded={selected?.key === item.key}
                   aria-controls={`${id}-${item.key}`}
-                  onClick={() => setSelected(selected?.key === item.key ? null : item)}
+                  onClick={() => {
+                    if (selected?.key !== item.key)
+                      trackEvent(
+                        'expand_content',
+                        feedProperties(item, surface, offset + index + 1),
+                      );
+                    setSelected(selected?.key === item.key ? null : item);
+                  }}
                 >
                   <span className="issue-post-title">{item.title}</span>
                   <span className="issue-expand-label">
@@ -113,7 +149,10 @@ export function IssueFeed({ items }: { items: FeedItem[] }) {
                 >
                   {selected?.key === item.key && (
                     <>
-                      <InlinePost item={item} />
+                      <InlinePost
+                        item={item}
+                        analytics={feedProperties(item, surface, offset + index + 1)}
+                      />
                       <button
                         className="issue-inline-close"
                         onClick={() => {
