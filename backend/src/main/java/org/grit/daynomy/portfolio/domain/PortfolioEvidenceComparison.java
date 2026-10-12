@@ -15,7 +15,11 @@ public final class PortfolioEvidenceComparison {
     UNCONFIRMED
   }
 
-  public record Fact(String url, LocalDate occurredOn, String excerpt) {}
+  public record Fact(String url, LocalDate occurredOn, String excerpt, String factQuote) {
+    public Fact(String url, LocalDate occurredOn, String excerpt) {
+      this(url, occurredOn, excerpt, null);
+    }
+  }
 
   public static Result compare(List<Fact> previous, List<Fact> current) {
     if (current.isEmpty()) {
@@ -54,12 +58,20 @@ public final class PortfolioEvidenceComparison {
   private static boolean sameFact(Fact left, Fact right) {
     if (!Objects.equals(left.occurredOn(), right.occurredOn())
         || normalized(left.excerpt()).isEmpty()
-        || !normalized(left.excerpt()).equals(normalized(right.excerpt()))) {
+        || !sameText(left, right)) {
       return false;
     }
     // 사건일이 확인된 같은 사실의 재보도는 URL이 달라도 새 사건이 아니다.
     return left.occurredOn() != null
         || normalizedUrl(left.url()).equals(normalizedUrl(right.url()));
+  }
+
+  private static boolean sameText(Fact left, Fact right) {
+    // 요약 문체가 바뀌어도 원문 사실은 동일하게 비교한다. 양쪽에 발췌가 있으면 이를 우선한다.
+    if (!normalized(left.factQuote()).isEmpty() && !normalized(right.factQuote()).isEmpty()) {
+      return normalized(left.factQuote()).equals(normalized(right.factQuote()));
+    }
+    return normalized(left.excerpt()).equals(normalized(right.excerpt()));
   }
 
   private static String normalized(String value) {

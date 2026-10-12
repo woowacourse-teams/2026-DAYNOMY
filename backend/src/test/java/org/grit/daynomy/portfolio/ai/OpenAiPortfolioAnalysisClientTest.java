@@ -107,6 +107,8 @@ class OpenAiPortfolioAnalysisClientTest {
         .containsExactly(1, 2);
     assertThat(result.impacts().getFirst().direction()).isEqualTo(ImpactDirection.NEUTRAL);
     assertThat(result.impacts().getFirst().impactLevel()).isEqualTo(ImpactLevel.HIGH);
+    assertThat(result.impacts().getFirst().sources().getFirst().factQuote())
+        .isEqualTo("Operating profit increased by 10%.");
     assertThat(result.overallImpact()).contains("반도체 비중");
     assertThat(result.impacts().getFirst().issueSummary()).contains("수요와 비용");
     assertThat(result.impacts().getFirst().outlook()).contains("비용 부담");
@@ -617,8 +619,42 @@ class OpenAiPortfolioAnalysisClientTest {
         .isEmpty();
   }
 
+  @Test
+  void indexSourceTriggersOneOriginalDocumentSearch() throws Exception {
+    String index = "https://example.com/newsroom/";
+    enqueueOutputWithSearchSources(
+        validOutput().replace("https://example.com/semiconductor", index), index);
+    enqueueOutputWithSearchSources(validOutput(), "https://example.com/semiconductor");
+
+    assertThat(client.analyze(targets()).impacts()).hasSize(2);
+    server.takeRequest();
+    assertThat(server.takeRequest().getBody().readUtf8()).contains("앞선 응답이 목록 페이지");
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void repeatedIndexSourceFailsWithoutUnboundedRetries() throws Exception {
+    String index = "https://example.com/newsroom/";
+    for (int i = 0; i < 2; i++) {
+      enqueueOutputWithSearchSources(
+          validOutput().replace("https://example.com/semiconductor", index), index);
+    }
+    assertThatThrownBy(() -> client.analyze(targets())).isInstanceOf(BusinessException.class);
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void documentIdentifiedByQueryIsAccepted() throws Exception {
+    String url = "https://example.com/news?id=123";
+    enqueueOutputWithSearchSources(
+        validOutput().replace("https://example.com/semiconductor", url), url);
+    assertThat(client.analyze(targets()).impacts()).hasSize(2);
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
   private PortfolioAnalysisResult.Source source(String title, String url) {
-    return new PortfolioAnalysisResult.Source(title, url, null, null, "확인된 사업 변화예요.");
+    return new PortfolioAnalysisResult.Source(
+        title, url, null, null, "확인된 사업 변화예요.", "Operating profit increased by 10%.");
   }
 
   private String withEvidence(String json) throws JsonProcessingException {
@@ -634,7 +670,8 @@ class OpenAiPortfolioAnalysisClientTest {
             .put("url", url.asText())
             .putNull("publishedOn")
             .putNull("occurredOn")
-            .put("excerpt", "확인된 사업 변화예요.");
+            .put("excerpt", "확인된 사업 변화예요.")
+            .put("factQuote", "Operating profit increased by 10%.");
       }
     }
     return objectMapper.writeValueAsString(root);

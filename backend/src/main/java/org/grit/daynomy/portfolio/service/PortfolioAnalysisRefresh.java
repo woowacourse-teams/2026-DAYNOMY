@@ -116,7 +116,9 @@ final class PortfolioAnalysisRefresh {
 
   private static List<Fact> facts(PortfolioAssetImpactResponse impact) {
     return impact.sources().stream()
-        .map(source -> new Fact(source.url(), source.occurredOn(), source.excerpt()))
+        .map(
+            source ->
+                new Fact(source.url(), source.occurredOn(), source.excerpt(), source.factQuote()))
         .toList();
   }
 

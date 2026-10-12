@@ -73,12 +73,18 @@ public class PortfolioAnalysisService {
                                           .map(
                                               source ->
                                                   Map.of(
-                                                      "url", source.url(),
+                                                      "url",
+                                                      source.url(),
                                                       "occurredOn",
-                                                          source.occurredOn() == null
-                                                              ? ""
-                                                              : source.occurredOn().toString(),
-                                                      "excerpt", source.excerpt()))
+                                                      source.occurredOn() == null
+                                                          ? ""
+                                                          : source.occurredOn().toString(),
+                                                      "excerpt",
+                                                      source.excerpt(),
+                                                      "factQuote",
+                                                      source.factQuote() == null
+                                                          ? ""
+                                                          : source.factQuote()))
                                           .toList()))
                       .toList());
       return response(

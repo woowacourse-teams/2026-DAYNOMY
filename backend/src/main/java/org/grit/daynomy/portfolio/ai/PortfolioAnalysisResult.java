@@ -31,7 +31,17 @@ public record PortfolioAnalysisResult(
   }
 
   public record Source(
-      String title, String url, LocalDate publishedOn, LocalDate occurredOn, String excerpt) {
+      String title,
+      String url,
+      LocalDate publishedOn,
+      LocalDate occurredOn,
+      String excerpt,
+      String factQuote) {
+    public Source(
+        String title, String url, LocalDate publishedOn, LocalDate occurredOn, String excerpt) {
+      this(title, url, publishedOn, occurredOn, excerpt, null);
+    }
+
     public Source(String title, String url) {
       this(title, url, null, null, "");
     }

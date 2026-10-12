@@ -48,6 +48,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - 제공된 모든 자산을 impacts 결과에 한 번씩 포함하세요.
             - 각 자산과 관련성이 높고 신뢰할 수 있는 최신 검색 결과를 근거로 사용하세요.
             - 검색 결과에서 확인한 출처를 반드시 인용하세요.
+            - factQuote에는 판단을 뒷받침하는 원문의 완결된 사실 문장 하나를 언어·수치·부정 표현을 바꾸지 않고 그대로 발췌하세요. 요약하거나 번역하지 마세요. 이 필드는 해요체 규칙에서 제외해요. 이전과 같은 사실이면 원문을 다시 확인한 뒤 이전 factQuote를 그대로 유지하세요.
             - 회사 홈페이지·뉴스 목록·카테고리·위키를 최종 판단 출처로 쓰지 말고 구체적인 발표문·공시·기사 원문을 추가로 찾아 확인하세요.
             - publishedOn은 문서가 실제 게시된 날이고 occurredOn은 이미 발생한 발표·사건의 날입니다. 예정된 미래 행사일을 두 필드에 넣지 마세요. 예를 들어 10월 13일 확인한 '10월 29일 실적 발표 예정'의 10월 29일은 outlook에만 쓰고, 일정 공지일이 확인되지 않으면 두 날짜는 null로 두세요.
             - 실적 발표 일정이 있다는 사실이나 보도가 존재한다는 사실만으로 POSITIVE를 부여하지 마세요. 실적·수요·비용 등에 어떤 유리한 사실이 확인됐는지 근거가 있어야 합니다.
@@ -83,7 +84,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - evidenceSentence에는 해당 자산의 direction과 impactLevel 판단을 뒷받침하는 검색 근거를 한 문장으로 작성하세요.
             - sourceUrls에는 해당 자산의 판단에 직접 사용한 인용 출처 URL만 포함하세요.
             - 직접·산업 자료와 유효한 과거 근거까지 찾고도 근거가 부족하면 direction과 impactLevel을 null, sourceUrls와 evidence를 빈 배열로 반환하세요. issueSummary에는 짧은 안내만 쓰고 expectedReaction과 outlook은 빈 문자열로 두세요.
-            - 각 종목의 evidence에는 sourceUrls별 url, publishedOn, occurredOn, excerpt를 포함하세요. 날짜는 확인된 YYYY-MM-DD 또는 null이며 추측하지 마세요. excerpt는 해당 출처에서 확인한 핵심 사실이고 본인의 전망을 넣지 마세요.
+            - 각 종목의 evidence에는 sourceUrls별 url, publishedOn, occurredOn, excerpt, factQuote를 포함하세요. 날짜는 확인된 YYYY-MM-DD 또는 null이며 추측하지 마세요. excerpt는 해당 출처에서 확인한 핵심 사실이고 본인의 전망을 넣지 마세요.
             - 모든 종목의 근거가 부족하면 overallImpact도 짧은 안내 한 문장으로 끝내고 세 문단을 억지로 채우지 마세요.
             - 본문에 URL·출처 번호를 넣지 마세요. 출처는 sourceUrls와 evidence로만 제공하세요.
             - 검색 결과에서 확인할 수 없는 사실을 단정하지 마세요.
@@ -145,7 +146,35 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
               .retrieve()
               .body(String.class);
 
-      PortfolioAnalysisResult result = parseAnalysis(response, targets);
+      PortfolioAnalysisResult result;
+      try {
+        result = parseAnalysis(response, targets);
+      } catch (IndexSourceException exception) {
+        // 목록 페이지를 근거로 삼은 경우에만 한 번 더 원문을 확보한다.
+        Map<String, Object> retry = new LinkedHashMap<>(createRequest(targets, previousEvidence));
+        var input = new ArrayList<>(createInput(targets, previousEvidence));
+        input.add(
+            Map.of(
+                "role",
+                "developer",
+                "content",
+                "앞선 응답이 목록 페이지를 판단 근거로 사용해 거절됐습니다. 각 종목의 개별 발표문·공시·기사 원문을 추가 검색하고 원문의 사실 문장을 factQuote에 발췌하세요. 목록 URL은 sourceUrls에 넣지 마세요. 원문 근거를 확보하지 못하면 해당 종목은 근거 부족으로 반환하세요."));
+        retry.put("input", input);
+        String corrected =
+            restClient
+                .post()
+                .uri("/responses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .headers(headers -> headers.setBearerAuth(apiKey))
+                .body(retry)
+                .retrieve()
+                .body(String.class);
+        try {
+          result = parseAnalysis(corrected, targets);
+        } catch (IndexSourceException invalidAgain) {
+          throw analysisFailed();
+        }
+      }
       log.atInfo()
           .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_COMPLETED.code())
           .addKeyValue("api", "OpenAI")
@@ -294,7 +323,17 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     impactProperties.put("expectedReaction", Map.of("type", "string"));
     impactProperties.put("outlook", Map.of("type", "string"));
     impactProperties.put("reason", Map.of("type", "string"));
-    impactProperties.put("evidenceSentence", Map.of("type", "string"));
+    impactProperties.put(
+        "evidenceSentence",
+        model.startsWith("ft:")
+            ? Map.of("type", "string", "description", "판단 근거의 한국어 해요체 요약. 원문 인용은 factQuote에만 작성")
+            : Map.of(
+                "type",
+                "string",
+                "description",
+                "판단 근거의 한국어 해요체 요약. 원문 인용은 factQuote에만 작성",
+                "pattern",
+                "^[\\s\\S]*요\\.$"));
     impactProperties.put("sourceUrls", Map.of("type", "array", "items", Map.of("type", "string")));
 
     impactProperties.put(
@@ -309,13 +348,14 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
                 "additionalProperties",
                 false,
                 "required",
-                List.of("url", "publishedOn", "occurredOn", "excerpt"),
+                List.of("url", "publishedOn", "occurredOn", "excerpt", "factQuote"),
                 "properties",
                 Map.of(
                     "url", Map.of("type", "string"),
                     "publishedOn", dateSchema(),
                     "occurredOn", dateSchema(),
-                    "excerpt", Map.of("type", "string")))));
+                    "excerpt", Map.of("type", "string"),
+                    "factQuote", Map.of("type", "string")))));
 
     Map<String, Object> impactItem = new LinkedHashMap<>();
     impactItem.put("type", "object");
@@ -512,7 +552,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
                   source.url(),
                   evidenceDate(fact, "publishedOn"),
                   evidenceDate(fact, "occurredOn"),
-                  prose(fact, "excerpt"));
+                  prose(fact, "excerpt"),
+                  requiredText(fact, "factQuote"));
             })
         .toList();
   }
@@ -547,6 +588,9 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       PortfolioAnalysisResult.Source source = sourceByUrl.get(normalizeSourceUrl(sourceUrl));
       if (source == null) {
         continue;
+      }
+      if (isIndexSource(source.url())) {
+        throw new IndexSourceException();
       }
       assetSourceByUrl.putIfAbsent(source.url(), source);
     }
@@ -728,6 +772,30 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       sourceByUrl.putIfAbsent(url, new PortfolioAnalysisResult.Source(title, url));
     }
     return List.copyOf(sourceByUrl.values());
+  }
+
+  private static final class IndexSourceException extends RuntimeException {}
+
+  private boolean isIndexSource(String url) {
+    URI uri = URI.create(url);
+    String path =
+        uri.getPath() == null ? "" : uri.getPath().toLowerCase(Locale.ROOT).replaceAll("/+$", "");
+    String host = uri.getHost();
+    if (host != null && (host.equals("wikipedia.org") || host.endsWith(".wikipedia.org"))) {
+      return true;
+    }
+    // 쿼리의 문서 식별자로 개별 공시를 제공하는 사이트는 허용한다.
+    String query = uri.getQuery();
+    if (query != null
+        && Arrays.stream(query.split("&"))
+            .anyMatch(part -> part.matches("(?i)(id|articleId|newsId|seq|no|idx|rcpNo)=[^&]+"))) {
+      return false;
+    }
+    return path.isEmpty()
+        || path.matches(
+            ".*/(all|news|newsroom|investor|investors|events|notices|iractivity|category|categories|tag|tags)")
+        || path.contains("/tag/")
+        || path.contains("/category/");
   }
 
   private boolean isHttpUrl(String url) {

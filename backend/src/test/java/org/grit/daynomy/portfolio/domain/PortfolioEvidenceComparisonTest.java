@@ -13,6 +13,36 @@ class PortfolioEvidenceComparisonTest {
       new Fact("https://example.invalid/old", LocalDate.of(2026, 9, 25), "영업이익이 감소했어요.");
 
   @Test
+  void unchangedQuotePreservesJudgmentDespiteParaphrasedSummary() {
+    var old =
+        new Fact(
+            original.url(),
+            original.occurredOn(),
+            "영업이익이 줄었어요.",
+            "Operating profit decreased by 10%.");
+    var current =
+        new Fact(
+            original.url(),
+            original.occurredOn(),
+            "영업이익이 10% 감소했어요.",
+            "Operating profit decreased by 10%.");
+    assertThat(PortfolioEvidenceComparison.compare(List.of(old), List.of(current)))
+        .isEqualTo(Result.SAME);
+  }
+
+  @Test
+  void changedQuoteIsNotHiddenByUnchangedSummary() {
+    var old =
+        new Fact(
+            original.url(), original.occurredOn(), original.excerpt(), "Profit decreased by 10%.");
+    var corrected =
+        new Fact(
+            original.url(), original.occurredOn(), original.excerpt(), "Profit increased by 10%.");
+    assertThat(PortfolioEvidenceComparison.compare(List.of(old), List.of(corrected)))
+        .isEqualTo(Result.UNCONFIRMED);
+  }
+
+  @Test
   void reprintedFactDoesNotBecomeNewEvidence() {
     assertThat(
             PortfolioEvidenceComparison.compare(
