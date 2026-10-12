@@ -86,6 +86,7 @@ for (const viewport of [
         occurredAt: `${today}T01:30:00Z`,
       },
     ];
+    let largeChart = false;
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.route('**/api/**', async (route) => {
@@ -136,7 +137,15 @@ for (const viewport of [
           reason: null,
           baseDate: points.at(-1)!.baseDate,
           previousBaseDate: points.at(-2)!.baseDate,
-          points,
+          points: largeChart
+            ? points.map((point) => ({
+                ...point,
+                totalPurchaseAmount: 123456789012,
+                totalEvaluationAmount: 98765432109876,
+                totalProfitLoss: 98641975320864,
+                totalReturnRate: 79876.123,
+              }))
+            : points,
           currentPoint: {
             baseDate: today,
             priceBaseDate: today,
@@ -258,6 +267,39 @@ for (const viewport of [
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
     await expect(trigger).toBeFocused();
+    largeChart = true;
+    await page.reload();
+    const chart = page.getByLabel('자산 추이 그래프. 좌우 방향키로 날짜를 이동할 수 있습니다.');
+    await chart.focus();
+    for (const [key, count] of [
+      ['ArrowLeft', 1],
+      ['ArrowLeft', 45],
+      ['ArrowRight', 22],
+    ] as const) {
+      for (let index = 0; index < count; index++) await chart.press(key);
+      const tooltip = page.locator('.portfolio-return-tooltip');
+      await expect(tooltip).toBeVisible();
+      expect(
+        await tooltip.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          return (
+            [...element.querySelectorAll('dd, small')].every((value) => {
+              const rect = value.getBoundingClientRect();
+              return (
+                rect.left >= box.left && rect.right <= box.right + 1 && rect.bottom <= box.bottom
+              );
+            }) &&
+            element.scrollWidth <= element.clientWidth &&
+            box.left >= 0 &&
+            box.right <= innerWidth
+          );
+        }),
+      ).toBe(true);
+    }
+    await page.screenshot({
+      path: testInfo.outputPath('large-chart-tooltip.png'),
+      animations: 'disabled',
+    });
     expect(errors).toEqual([]);
   });
 }

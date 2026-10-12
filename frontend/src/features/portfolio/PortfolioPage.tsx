@@ -279,14 +279,6 @@ function PortfolioAssetTrendChart({
       : Math.min(hoveredIndex, visiblePoints.length - 1);
   const activePoint = activeIndex === null ? null : visiblePoints[activeIndex];
   const activeX = activeIndex === null ? null : x(activeIndex);
-  const tooltipAlignment =
-    activeX === null
-      ? ''
-      : activeX > width * 0.72
-        ? ' align-right'
-        : activeX < width * 0.28
-          ? ' align-left'
-          : '';
   const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
   const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
   const dateLabels = Array.from(
@@ -487,9 +479,9 @@ function PortfolioAssetTrendChart({
             </svg>
             {activePoint && activeX !== null ? (
               <div
-                className={`portfolio-return-tooltip${tooltipAlignment}`}
+                className="portfolio-return-tooltip"
                 style={{
-                  left: `${(activeX / width) * 100}%`,
+                  left: `clamp(min(158px, 50%), ${(activeX / width) * 100}%, max(calc(100% - 158px), 50%))`,
                   top: `${(y(activePoint.totalEvaluationAmount) / height) * 100}%`,
                 }}
                 role="status"
