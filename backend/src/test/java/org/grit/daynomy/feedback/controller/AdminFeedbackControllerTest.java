@@ -80,7 +80,8 @@ class AdminFeedbackControllerTest {
         .perform(
             patch("/api/admin/feedbacks/1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""
+                .content(
+                    """
                     {"status":"RESOLVED"}
                     """))
         .andExpect(status().isOk())

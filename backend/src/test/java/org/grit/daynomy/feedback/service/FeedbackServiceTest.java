@@ -46,8 +46,7 @@ class FeedbackServiceTest {
     given(feedbackRepository.findById(1L)).willReturn(Optional.of(feedback));
 
     var response =
-        feedbackService.updateStatus(
-            1L, new FeedbackStatusUpdateRequest(FeedbackStatus.RESOLVED));
+        feedbackService.updateStatus(1L, new FeedbackStatusUpdateRequest(FeedbackStatus.RESOLVED));
 
     assertThat(feedback.getStatus()).isEqualTo(FeedbackStatus.RESOLVED);
     assertThat(response.status()).isEqualTo(FeedbackStatus.RESOLVED);

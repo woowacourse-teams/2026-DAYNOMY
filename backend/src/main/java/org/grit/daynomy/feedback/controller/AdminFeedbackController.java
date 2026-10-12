@@ -35,8 +35,7 @@ public class AdminFeedbackController {
   @Operation(summary = "피드백 목록 조회")
   @GetMapping
   public ResponseEntity<AdminFeedbackPageResponse> getFeedbacks(
-      @RequestParam(defaultValue = "1") @Min(value = 1, message = "페이지 번호는 1 이상이어야 합니다.")
-          int page,
+      @RequestParam(defaultValue = "1") @Min(value = 1, message = "페이지 번호는 1 이상이어야 합니다.") int page,
       @RequestParam(defaultValue = "15")
           @Min(value = 1, message = "페이지 크기는 1 이상이어야 합니다.")
           @Max(value = 100, message = "페이지 크기는 100 이하여야 합니다.")
