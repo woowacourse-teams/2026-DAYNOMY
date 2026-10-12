@@ -42,6 +42,7 @@ export function ServiceHeader() {
       to: '/news',
       active: location.pathname.startsWith('/news') || location.pathname.startsWith('/search'),
     },
+    { label: '인물', to: '/people', active: location.pathname.startsWith('/people') },
     {
       label: '투자 리그',
       to: '/league',

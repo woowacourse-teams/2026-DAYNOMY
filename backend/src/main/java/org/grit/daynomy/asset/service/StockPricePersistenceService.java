@@ -26,6 +26,7 @@ public class StockPricePersistenceService {
 
   private final AssetRepository assetRepository;
   private final StockDailyPriceRepository stockDailyPriceRepository;
+  private final org.grit.daynomy.asset.repository.MarketTradingDayRepository tradingDayRepository;
 
   @Transactional
   public StockPriceSyncResult synchronize(LocalDate baseDate, List<StockPriceEntry> entries) {
@@ -66,6 +67,10 @@ public class StockPricePersistenceService {
     }
 
     stockDailyPriceRepository.saveAll(pricesToSave);
+    // 수집 성공은 가격 저장과 함께 커밋한다. 달력상 휴장일을 빈 응답으로 추정하지 않는다.
+    tradingDayRepository
+        .findByIdForUpdate(baseDate)
+        .ifPresent(day -> day.collected(java.time.Instant.now()));
     return new StockPriceSyncResult(
         baseDate, entries.size(), createdCount, updatedCount, skippedCount);
   }
