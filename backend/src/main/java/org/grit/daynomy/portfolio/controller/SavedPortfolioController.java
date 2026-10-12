@@ -58,7 +58,7 @@ public class SavedPortfolioController {
         .body(savedPortfolioService.add(member.memberId(), request));
   }
 
-  @Operation(summary = "매수·매도 거래 등록")
+  @Operation(summary = "매수·매도 거래 등록", description = "거래일은 해당 종목의 마지막 보유 수량 등록·조정일 이후(당일 포함)여야 합니다.")
   @PostMapping("/transactions")
   public ResponseEntity<PortfolioTransactionResponse> transact(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
@@ -67,7 +67,7 @@ public class SavedPortfolioController {
         .body(savedPortfolioService.transact(member.memberId(), request));
   }
 
-  @Operation(summary = "매수·매도 거래 수정")
+  @Operation(summary = "매수·매도 거래 수정", description = "거래일은 해당 종목의 마지막 보유 수량 등록·조정일 이후(당일 포함)여야 합니다.")
   @PatchMapping("/transactions/{transactionId}")
   public PortfolioTransactionResponse updateTransaction(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,

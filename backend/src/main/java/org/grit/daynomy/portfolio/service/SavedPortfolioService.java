@@ -147,6 +147,7 @@ public class SavedPortfolioService {
         assetRepository
             .findById(request.assetId())
             .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
+    validateTradeDate(portfolio.getId(), asset.getId(), request.tradeDate());
     PortfolioHolding current =
         holdingRepository
             .findByPortfolioIdAndAssetId(portfolio.getId(), request.assetId())
@@ -185,6 +186,7 @@ public class SavedPortfolioService {
       Long memberId, Long transactionId, PortfolioTransactionUpdateRequest request) {
     Portfolio portfolio = getPortfolio(memberId);
     PortfolioHoldingHistory history = getTransaction(portfolio.getId(), transactionId);
+    validateTradeDate(portfolio.getId(), history.getAsset().getId(), request.tradeDate());
     LocalDate previousTradeDate = history.getEffectiveDate();
     history.updateTransaction(
         request.tradeDate(), request.quantity(), request.unitPrice(), request.fee(), request.tax());
@@ -287,6 +289,18 @@ public class SavedPortfolioService {
     }
     current.change(position.quantity(), position.averagePurchasePrice());
     return SavedPortfolioHoldingResponse.from(current);
+  }
+
+  private void validateTradeDate(Long portfolioId, Long assetId, LocalDate tradeDate) {
+    boolean hasLaterBalance =
+        historyRepository
+            .findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId)
+            .stream()
+            .filter(history -> history.getAsset().getId().equals(assetId))
+            .anyMatch(history -> history.isBalanceAfter(tradeDate));
+    if (hasLaterBalance) {
+      throw new BusinessException(PortfolioErrorCode.INVALID_PORTFOLIO_TRADE_DATE);
+    }
   }
 
   private PortfolioLedgerCalculator.LedgerResult replay(Long portfolioId) {

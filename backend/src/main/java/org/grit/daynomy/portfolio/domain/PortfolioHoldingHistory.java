@@ -112,6 +112,13 @@ public class PortfolioHoldingHistory extends BaseEntity {
         || changeType == PortfolioHoldingChangeType.SELL;
   }
 
+  public boolean isBalanceAfter(LocalDate tradeDate) {
+    return switch (changeType) {
+      case OPENING_BALANCE, ADJUSTED, ADDED, UPDATED -> effectiveDate.isAfter(tradeDate);
+      default -> false;
+    };
+  }
+
   public void updateTransaction(
       LocalDate tradeDate,
       long transactionQuantity,

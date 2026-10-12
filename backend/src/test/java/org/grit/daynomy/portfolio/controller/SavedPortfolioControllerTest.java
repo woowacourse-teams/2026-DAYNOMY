@@ -1,5 +1,7 @@
 package org.grit.daynomy.portfolio.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -16,6 +18,7 @@ import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
@@ -28,6 +31,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
+import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.service.PortfolioSnapshotService;
 import org.grit.daynomy.portfolio.service.SavedPortfolioService;
 import org.junit.jupiter.api.AfterEach;
@@ -136,6 +140,24 @@ class SavedPortfolioControllerTest {
         .andExpect(jsonPath("$.totalRealizedProfitLoss").value(19700.00));
 
     then(savedPortfolioService).should().transact(3L, request);
+  }
+
+  @Test
+  void transactionBeforeBalanceReturnsBadRequest() throws Exception {
+    given(savedPortfolioService.transact(eq(3L), any()))
+        .willThrow(new BusinessException(PortfolioErrorCode.INVALID_PORTFOLIO_TRADE_DATE));
+
+    mockMvc
+        .perform(
+            post("/api/portfolio/transactions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"assetId":1,"type":"BUY","tradeDate":"2026-09-30",
+                     "quantity":5,"unitPrice":10000,"fee":0,"tax":0}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_PORTFOLIO_TRADE_DATE"));
   }
 
   @Test
