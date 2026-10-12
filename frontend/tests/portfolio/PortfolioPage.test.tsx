@@ -278,6 +278,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   localStorage.clear();
   window.history.replaceState(null, '', '/');
@@ -491,6 +492,8 @@ describe('포트폴리오 화면', () => {
   });
 
   it('5년 기간을 선택하면 서버의 5년 자산 추이를 표시한다', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-06T00:00:00Z'));
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     savedPerformancePoints = [
       {
