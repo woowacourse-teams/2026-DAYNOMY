@@ -32,6 +32,7 @@ function getPeriodStart(to: Date, period: PortfolioTrendPeriod) {
 export function usePortfolioPerformance(
   period: PortfolioTrendPeriod,
   holdings: PortfolioHoldingInput[],
+  enabled = true,
 ) {
   const [points, setPoints] = useState<PortfolioPerformancePoint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,7 +46,7 @@ export function usePortfolioPerformance(
     .join('|');
 
   useEffect(() => {
-    if (holdings.length === 0) {
+    if (!enabled || holdings.length === 0) {
       setPoints([]);
       setLoading(false);
       setError('');
@@ -80,7 +81,7 @@ export function usePortfolioPerformance(
       });
 
     return () => controller.abort();
-  }, [holdingKey, holdings.length, period, retryCount]);
+  }, [enabled, holdingKey, holdings.length, period, retryCount]);
 
   return { points, loading, error, retry: () => setRetryCount((count) => count + 1) };
 }

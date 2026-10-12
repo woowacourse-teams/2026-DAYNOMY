@@ -1,0 +1,224 @@
+package org.grit.daynomy.person.service;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.content.domain.ContentSourceType;
+import org.grit.daynomy.content.dto.SocialPostResponse;
+import org.grit.daynomy.content.dto.SocialPostSearchResponse;
+import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
+import org.grit.daynomy.person.domain.FeaturedPerson;
+import org.grit.daynomy.person.domain.FeaturedPersonPost;
+import org.grit.daynomy.person.dto.FeaturedPeopleResponse;
+import org.grit.daynomy.person.dto.FeaturedPersonPostRequest;
+import org.grit.daynomy.person.dto.FeaturedPersonPostResponse;
+import org.grit.daynomy.person.dto.FeaturedPersonRequest;
+import org.grit.daynomy.person.dto.FeaturedPersonResponse;
+import org.grit.daynomy.person.exception.FeaturedPersonErrorCode;
+import org.grit.daynomy.person.repository.FeaturedPersonPostRepository;
+import org.grit.daynomy.person.repository.FeaturedPersonRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Transactional(readOnly = true)
+@RequiredArgsConstructor
+@Service
+public class FeaturedPersonService {
+
+  private final FeaturedPersonRepository personRepository;
+  private final FeaturedPersonPostRepository postRepository;
+  private final OpenAiSocialPostSearchClient socialPostSearchClient;
+
+  public FeaturedPeopleResponse getPeople() {
+    Map<Long, List<FeaturedPersonPost>> postsByPersonId =
+        postRepository.findAllByOrderByCreatedAtDescIdDesc().stream()
+            .collect(Collectors.groupingBy(post -> post.getPerson().getId()));
+    return new FeaturedPeopleResponse(
+        personRepository.findAllByOrderByCreatedAtAscIdAsc().stream()
+            .map(
+                person ->
+                    FeaturedPersonResponse.from(
+                        person, postsByPersonId.getOrDefault(person.getId(), List.of())))
+            .toList());
+  }
+
+  public SocialPostSearchResponse searchPosts(Long personId) {
+    FeaturedPerson person = getPerson(personId);
+    String searchTarget =
+        Stream.of(person.getName(), person.getXProfileUrl(), person.getThreadsProfileUrl())
+            .filter(value -> value != null && !value.isBlank())
+            .collect(Collectors.joining(" "));
+    return new SocialPostSearchResponse(
+        socialPostSearchClient.search(searchTarget).stream()
+            .map(SocialPostResponse::from)
+            .toList());
+  }
+
+  @Transactional
+  public FeaturedPersonResponse createPerson(FeaturedPersonRequest request) {
+    String name = request.name().strip();
+    if (personRepository.existsByName(name)) {
+      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_ALREADY_EXISTS);
+    }
+    FeaturedPerson person =
+        FeaturedPerson.create(
+            name,
+            normalizeProfileUrl(request.xProfileUrl(), this::isXProfile),
+            normalizeProfileUrl(request.threadsProfileUrl(), this::isThreadsProfile));
+    return FeaturedPersonResponse.from(personRepository.saveAndFlush(person), List.of());
+  }
+
+  @Transactional
+  public FeaturedPersonResponse updatePerson(Long personId, FeaturedPersonRequest request) {
+    FeaturedPerson person = getPerson(personId);
+    String name = request.name().strip();
+    if (personRepository.existsByNameAndIdNot(name, personId)) {
+      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_ALREADY_EXISTS);
+    }
+    person.update(
+        name,
+        normalizeProfileUrl(request.xProfileUrl(), this::isXProfile),
+        normalizeProfileUrl(request.threadsProfileUrl(), this::isThreadsProfile));
+    return FeaturedPersonResponse.from(person, postsFor(personId));
+  }
+
+  @Transactional
+  public void deletePerson(Long personId) {
+    personRepository.delete(getPerson(personId));
+  }
+
+  @Transactional
+  public FeaturedPersonPostResponse createPost(Long personId, FeaturedPersonPostRequest request) {
+    FeaturedPerson person = getPerson(personId);
+    ContentSourceType sourceType = request.sourceType();
+    String url = normalizePostUrl(request.url(), sourceType);
+    if (postRepository.existsByPersonIdAndUrl(personId, url)) {
+      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_POST_ALREADY_EXISTS);
+    }
+    String title = stripToNull(request.title());
+    if (title == null) {
+      title =
+          person.getName() + " " + (sourceType == ContentSourceType.X ? "X" : "Threads") + " 게시물";
+    }
+    FeaturedPersonPost post = FeaturedPersonPost.create(person, sourceType, title, url);
+    return FeaturedPersonPostResponse.from(postRepository.saveAndFlush(post));
+  }
+
+  @Transactional
+  public void deletePost(Long personId, Long postId) {
+    getPerson(personId);
+    FeaturedPersonPost post =
+        postRepository
+            .findByIdAndPersonId(postId, personId)
+            .orElseThrow(
+                () ->
+                    new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_POST_NOT_FOUND));
+    postRepository.delete(post);
+  }
+
+  private FeaturedPerson getPerson(Long personId) {
+    return personRepository
+        .findById(personId)
+        .orElseThrow(
+            () -> new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_NOT_FOUND));
+  }
+
+  private List<FeaturedPersonPost> postsFor(Long personId) {
+    return postRepository.findAllByOrderByCreatedAtDescIdDesc().stream()
+        .filter(post -> personId.equals(post.getPerson().getId()))
+        .toList();
+  }
+
+  private String normalizeProfileUrl(String value, Predicate<URI> validator) {
+    String stripped = stripToNull(value);
+    if (stripped == null) return null;
+    URI uri = parseHttpsUri(stripped);
+    if (!validator.test(uri)) {
+      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
+    }
+    return normalize(uri);
+  }
+
+  private String normalizePostUrl(String value, ContentSourceType sourceType) {
+    if (sourceType != ContentSourceType.X && sourceType != ContentSourceType.THREADS) {
+      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
+    }
+    URI uri = parseHttpsUri(value.strip());
+    boolean valid = sourceType == ContentSourceType.X ? isXPost(uri) : isThreadsPost(uri);
+    if (!valid) {
+      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
+    }
+    return normalize(uri);
+  }
+
+  private URI parseHttpsUri(String value) {
+    try {
+      URI uri = URI.create(value);
+      if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) {
+        throw new IllegalArgumentException();
+      }
+      return uri;
+    } catch (IllegalArgumentException exception) {
+      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
+    }
+  }
+
+  private String normalize(URI uri) {
+    try {
+      String path =
+          uri.getPath().endsWith("/")
+              ? uri.getPath().substring(0, uri.getPath().length() - 1)
+              : uri.getPath();
+      return new URI("https", null, uri.getHost().toLowerCase(Locale.ROOT), -1, path, null, null)
+          .toString();
+    } catch (URISyntaxException exception) {
+      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
+    }
+  }
+
+  private boolean isXProfile(URI uri) {
+    return isXHost(uri) && uri.getPath().matches("/[^/]+/?");
+  }
+
+  private boolean isThreadsProfile(URI uri) {
+    return isThreadsHost(uri) && uri.getPath().matches("/@[^/]+/?");
+  }
+
+  private boolean isXPost(URI uri) {
+    return isXHost(uri) && uri.getPath().matches("/[^/]+/status/\\d+/?");
+  }
+
+  private boolean isThreadsPost(URI uri) {
+    return isThreadsHost(uri)
+        && (uri.getPath().matches("/@[^/]+/post/[^/]+/?") || uri.getPath().matches("/t/[^/]+/?"));
+  }
+
+  private boolean isXHost(URI uri) {
+    String host = uri.getHost().toLowerCase(Locale.ROOT);
+    return host.equals("x.com")
+        || host.equals("www.x.com")
+        || host.equals("twitter.com")
+        || host.equals("www.twitter.com");
+  }
+
+  private boolean isThreadsHost(URI uri) {
+    String host = uri.getHost().toLowerCase(Locale.ROOT);
+    return host.equals("threads.net")
+        || host.equals("www.threads.net")
+        || host.equals("threads.com")
+        || host.equals("www.threads.com");
+  }
+
+  private String stripToNull(String value) {
+    if (value == null) return null;
+    String stripped = value.strip();
+    return stripped.isEmpty() ? null : stripped;
+  }
+}

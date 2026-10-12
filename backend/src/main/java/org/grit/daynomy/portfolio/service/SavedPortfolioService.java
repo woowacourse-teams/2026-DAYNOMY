@@ -71,13 +71,7 @@ public class SavedPortfolioService {
         holdingRepository.save(
             new PortfolioHolding(
                 portfolio, asset, request.quantity(), request.averagePurchasePrice()));
-    historyRepository.save(
-        new PortfolioHoldingHistory(
-            portfolio,
-            asset,
-            PortfolioHoldingChangeType.ADDED,
-            holding.getQuantity(),
-            holding.getAveragePurchasePrice()));
+    historyRepository.save(new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.ADDED));
     return SavedPortfolioHoldingResponse.from(holding);
   }
 
@@ -86,14 +80,10 @@ public class SavedPortfolioService {
       Long memberId, Long assetId, SavedPortfolioHoldingUpdateRequest request) {
     Portfolio portfolio = getPortfolio(memberId);
     PortfolioHolding holding = getHolding(portfolio.getId(), assetId);
-    holding.change(request.quantity(), request.averagePurchasePrice());
-    historyRepository.save(
-        new PortfolioHoldingHistory(
-            portfolio,
-            holding.getAsset(),
-            PortfolioHoldingChangeType.UPDATED,
-            holding.getQuantity(),
-            holding.getAveragePurchasePrice()));
+    if (holding.change(request.quantity(), request.averagePurchasePrice())) {
+      historyRepository.save(
+          new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.UPDATED));
+    }
     return SavedPortfolioHoldingResponse.from(holding);
   }
 
@@ -102,12 +92,7 @@ public class SavedPortfolioService {
     Portfolio portfolio = getPortfolio(memberId);
     PortfolioHolding holding = getHolding(portfolio.getId(), assetId);
     historyRepository.save(
-        new PortfolioHoldingHistory(
-            portfolio,
-            holding.getAsset(),
-            PortfolioHoldingChangeType.REMOVED,
-            holding.getQuantity(),
-            holding.getAveragePurchasePrice()));
+        new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.REMOVED));
     holdingRepository.delete(holding);
   }
 
@@ -119,7 +104,7 @@ public class SavedPortfolioService {
     }
     Portfolio portfolio = getPortfolio(memberId);
     return historyRepository
-        .findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+        .findAllByPortfolioIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDescIdDesc(
             portfolio.getId(),
             from.atStartOfDay(SEOUL).toInstant(),
             to.plusDays(1).atStartOfDay(SEOUL).toInstant())

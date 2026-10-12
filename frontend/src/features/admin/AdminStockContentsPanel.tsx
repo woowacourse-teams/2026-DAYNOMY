@@ -6,22 +6,25 @@ import {
   createAdminStockRelatedContent,
   deleteAdminStockRelatedContent,
   getAdminStockRelatedContents,
+  searchAdminSocialPosts,
   searchAdminYouTubeVideos,
 } from '../stock-content/api';
 import {
   STOCK_CONTENT_SOURCE_LABELS,
   type StockRelatedContentSource,
   type StockRelatedContentsResponse,
+  type SocialPostSearchItem,
   type YouTubeSearchItem,
 } from '../stock-content/types';
 
-const SOURCE_TYPES: StockRelatedContentSource[] = ['YOUTUBE', 'THREADS', 'OTHER'];
+const SOURCE_TYPES: StockRelatedContentSource[] = ['YOUTUBE', 'THREADS', 'X', 'OTHER'];
 type ContentFilter = 'ALL' | StockRelatedContentSource;
 
 const CONTENT_FILTERS: { value: ContentFilter; label: string }[] = [
   { value: 'ALL', label: '전체' },
   { value: 'YOUTUBE', label: 'YouTube' },
   { value: 'THREADS', label: 'Threads' },
+  { value: 'X', label: 'X' },
   { value: 'INTERNAL_NEWS', label: 'DAYNOMY 이슈' },
   { value: 'OTHER', label: '기타' },
 ];
@@ -37,24 +40,31 @@ export function AdminStockContentsPanel() {
   const [contents, setContents] = useState<StockRelatedContentsResponse | null>(null);
   const [contentFilter, setContentFilter] = useState<ContentFilter>('ALL');
   const [youtubeResults, setYoutubeResults] = useState<YouTubeSearchItem[]>([]);
+  const [socialResults, setSocialResults] = useState<SocialPostSearchItem[]>([]);
+  const [socialSearched, setSocialSearched] = useState(false);
   const [sourceType, setSourceType] = useState<StockRelatedContentSource>('YOUTUBE');
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [youtubeLoading, setYoutubeLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [youtubeError, setYoutubeError] = useState('');
+  const [socialError, setSocialError] = useState('');
   const selectedStockRef = useRef<StockSearchItem | null>(null);
   const contentsRequestIdRef = useRef(0);
   const contentsControllerRef = useRef<AbortController | null>(null);
   const youtubeRequestIdRef = useRef(0);
   const youtubeControllerRef = useRef<AbortController | null>(null);
+  const socialRequestIdRef = useRef(0);
+  const socialControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
       contentsControllerRef.current?.abort();
       youtubeControllerRef.current?.abort();
+      socialControllerRef.current?.abort();
     };
   }, []);
 
@@ -85,12 +95,19 @@ export function AdminStockContentsPanel() {
     youtubeRequestIdRef.current += 1;
     youtubeControllerRef.current?.abort();
     youtubeControllerRef.current = null;
+    socialRequestIdRef.current += 1;
+    socialControllerRef.current?.abort();
+    socialControllerRef.current = null;
     setSelectedStock(stock);
     setContents(null);
     setContentFilter('ALL');
     setYoutubeResults([]);
     setYoutubeLoading(false);
     setYoutubeError('');
+    setSocialResults([]);
+    setSocialSearched(false);
+    setSocialLoading(false);
+    setSocialError('');
     setLoading(true);
     setError('');
     contentsControllerRef.current?.abort();
@@ -220,6 +237,74 @@ export function AdminStockContentsPanel() {
     }
   }
 
+  async function searchSocialPosts() {
+    const stock = selectedStockRef.current;
+    if (!stock || socialLoading) return;
+
+    const requestId = socialRequestIdRef.current + 1;
+    socialRequestIdRef.current = requestId;
+    const assetId = stock.assetId;
+    setSocialLoading(true);
+    setSocialSearched(false);
+    setSocialError('');
+    socialControllerRef.current?.abort();
+    const controller = new AbortController();
+    socialControllerRef.current = controller;
+    try {
+      const results = await searchAdminSocialPosts(assetId, stock.name, controller.signal);
+      if (
+        requestId !== socialRequestIdRef.current ||
+        selectedStockRef.current?.assetId !== assetId
+      ) {
+        return;
+      }
+      setSocialResults(results);
+      setSocialSearched(true);
+    } catch (caughtError) {
+      if (
+        controller.signal.aborted ||
+        requestId !== socialRequestIdRef.current ||
+        selectedStockRef.current?.assetId !== assetId
+      ) {
+        return;
+      }
+      setSocialResults([]);
+      setSocialSearched(true);
+      setSocialError(getErrorMessage(caughtError, 'Threads·X 게시물을 검색하지 못했습니다.'));
+    } finally {
+      if (requestId === socialRequestIdRef.current) {
+        setSocialLoading(false);
+        socialControllerRef.current = null;
+      }
+    }
+  }
+
+  async function saveSocialPost(post: SocialPostSearchItem) {
+    const stock = selectedStockRef.current;
+    if (!stock || saving) return;
+
+    const assetId = stock.assetId;
+    const contentTitle =
+      post.title.trim() || `${STOCK_CONTENT_SOURCE_LABELS[post.sourceType]} 게시물`;
+    setSaving(true);
+    setError('');
+    try {
+      if (selectedStockRef.current?.assetId !== assetId) return;
+      await createAdminStockRelatedContent(assetId, {
+        sourceType: post.sourceType,
+        title: contentTitle,
+        url: post.url,
+      });
+      if (selectedStockRef.current?.assetId !== assetId) return;
+      setSocialResults((current) => current.filter((item) => item.url !== post.url));
+      await reloadContents(assetId);
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError, 'Threads·X 게시물을 등록하지 못했습니다.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const stock = selectedStockRef.current;
@@ -282,7 +367,7 @@ export function AdminStockContentsPanel() {
         <div>
           <p className="admin-kicker">종목 정보 허브</p>
           <h2 id="related-content-title">종목 관련 링크</h2>
-          <p>종목별 YouTube, Threads와 DAYNOMY 뉴스의 제목·URL을 관리합니다.</p>
+          <p>종목별 YouTube, Threads, X와 DAYNOMY 뉴스의 제목·URL을 관리합니다.</p>
         </div>
       </div>
 
@@ -368,6 +453,52 @@ export function AdminStockContentsPanel() {
                   </li>
                 ))}
               </ul>
+            ) : null}
+          </section>
+          <section className="admin-youtube-search" aria-labelledby="social-search-title">
+            <div className="admin-youtube-heading">
+              <div>
+                <strong id="social-search-title">Threads·X 게시물 검색</strong>
+                <p>AI 웹 검색으로 찾은 공개 게시물 URL을 확인한 뒤 등록할 수 있습니다.</p>
+              </div>
+              <button
+                type="button"
+                className="admin-secondary-button"
+                onClick={() => void searchSocialPosts()}
+                disabled={socialLoading}
+              >
+                {socialLoading ? '검색 중…' : 'Threads·X 검색'}
+              </button>
+            </div>
+            {socialError ? <small className="admin-field-error">{socialError}</small> : null}
+            {socialResults.length > 0 ? (
+              <ul className="admin-social-results">
+                {socialResults.map((post) => (
+                  <li key={post.url}>
+                    <div>
+                      <span>
+                        {STOCK_CONTENT_SOURCE_LABELS[post.sourceType]}
+                        {post.publishedDate ? ` · ${post.publishedDate}` : ''}
+                      </span>
+                      <strong>{post.title}</strong>
+                      <a href={post.url} target="_blank" rel="noreferrer">
+                        원문 보기
+                      </a>
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-secondary-button"
+                      onClick={() => void saveSocialPost(post)}
+                      disabled={saving}
+                    >
+                      등록
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {socialSearched && !socialError && socialResults.length === 0 ? (
+              <small className="admin-field-hint">검색 결과가 없습니다.</small>
             ) : null}
           </section>
           <form className="admin-related-form" onSubmit={submit}>
