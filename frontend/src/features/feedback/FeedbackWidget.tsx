@@ -124,7 +124,11 @@ export function FeedbackWidget() {
               <div className="feedback-dialog-heading">
                 <div>
                   <h2 id="feedback-title">DAYNOMY에 의견 보내기</h2>
-                  <p>불편한 점이나 필요한 기능을 자유롭게 알려주세요.</p>
+                  <p>
+                    불편한 점이나 필요한 기능을 자유롭게 알려주세요.
+                    <br />
+                    소중한 의견 감사합니다.
+                  </p>
                 </div>
                 <button
                   type="button"
