@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { trackEvent } from '../../analytics';
+import { useContentView } from '../news/issue/analytics';
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useFeaturedPeople } from './useFeaturedPeople';
 import { createFeed } from '../news/issue/feed';
@@ -10,17 +12,31 @@ import '../news/issue/issue.css';
 export function PeoplePage() {
   const { people, loading, error, retry } = useFeaturedPeople();
   const [params, setParams] = useSearchParams();
-  const [page, setPage] = useState(1);
   const selectedId = params.get('person');
 
-  useEffect(() => {
-    setPage(1);
-  }, [selectedId]);
+  const [pagination, setPagination] = useState({ person: selectedId, page: 1 });
+  // Reset before committing a view so a URL change cannot report the previous person's page.
+  if (pagination.person !== selectedId) setPagination({ person: selectedId, page: 1 });
+  const page = pagination.person === selectedId ? pagination.page : 1;
+  const setPage = (next: number) => setPagination({ person: selectedId, page: next });
   const selected = people.find((person) => String(person.id) === selectedId);
   const matchingPeople = people.filter((person) => !selectedId || String(person.id) === selectedId);
   const items = createFeed([], matchingPeople);
   const totalPages = Math.max(1, Math.ceil(items.length / 12));
   const currentPage = Math.min(page, totalPages);
+
+  useContentView(!loading && !error, 'view_content_list', {
+    surface: 'people',
+    person_id: selected?.id ?? 'all',
+    selection_valid: !selectedId || !!selected,
+    result_count: items.length,
+    page_number: currentPage,
+  });
+  useContentView(
+    !loading && !error && !items.length && (!selectedId || !!selected),
+    'view_content_empty',
+    { surface: 'people', reason: 'no_content' },
+  );
 
   return (
     <main className="issue-page issue-people-page">
@@ -60,11 +76,17 @@ export function PeoplePage() {
             key={person.id}
             aria-pressed={(selectedId ?? '') === person.id}
             onClick={() => {
+              if ((selectedId ?? '') === person.id) return;
+              trackEvent('select_featured_person', {
+                surface: 'people',
+                person_id: person.id || 'all',
+                trigger: 'button',
+              });
               const next = new URLSearchParams(params);
               if (person.id) next.set('person', person.id);
               else next.delete('person');
               setParams(next);
-              setPage(1);
+              setPagination({ person: person.id || null, page: 1 });
             }}
           >
             {person.name}
@@ -77,7 +99,15 @@ export function PeoplePage() {
         </p>
       ) : error ? (
         <p className="issue-state" role="alert">
-          {error} <button onClick={retry}>다시 시도</button>
+          {error}{' '}
+          <button
+            onClick={() => {
+              trackEvent('retry_content_load', { surface: 'people', area: 'people' });
+              retry();
+            }}
+          >
+            다시 시도
+          </button>
         </p>
       ) : (
         <>
@@ -87,6 +117,8 @@ export function PeoplePage() {
             </p>
           ) : items.length ? (
             <IssueFeed
+              surface="people"
+              offset={(currentPage - 1) * 12}
               key={`${selectedId}-${currentPage}`}
               items={items.slice((currentPage - 1) * 12, currentPage * 12)}
             />
@@ -94,7 +126,12 @@ export function PeoplePage() {
             <p className="issue-state">아직 등록된 게시물이 없습니다.</p>
           )}
           {items.length > 0 && (
-            <IssuePagination page={currentPage} totalPages={totalPages} onChange={setPage} />
+            <IssuePagination
+              analytics={{ surface: 'people', person_id: selected?.id ?? 'all' }}
+              page={currentPage}
+              totalPages={totalPages}
+              onChange={setPage}
+            />
           )}
         </>
       )}
