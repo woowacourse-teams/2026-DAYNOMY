@@ -76,10 +76,10 @@ class OpenAiPortfolioAnalysisClientTest {
               "direction": "POSITIVE",
               "impactLevel": "LOW",
               "issueSummary": "신규 수요가 증가할 전망이에요.",
-              "expectedReaction": "장기적으로 긍정적일 수 있습니다.",
+              "expectedReaction": "장기적으로 긍정적일 수 있어요.",
               "outlook": "수요 증가 여부를 지켜봐야 해요.",
-              "reason": "신규 수요가 예상됩니다.",
-              "evidenceSentence": "삼성전자의 신규 수요가 증가할 전망입니다.",
+              "reason": "신규 수요가 예상돼요.",
+              "evidenceSentence": "삼성전자의 신규 수요가 증가할 전망이에요.",
               "sourceUrls": ["https://example.com/semiconductor"]
             },
             {
@@ -87,10 +87,10 @@ class OpenAiPortfolioAnalysisClientTest {
               "direction": "NEUTRAL",
               "impactLevel": "HIGH",
               "issueSummary": "수요와 비용이 함께 증가했어요.",
-              "expectedReaction": "방향은 불분명합니다.",
+              "expectedReaction": "방향은 불분명해요.",
               "outlook": "비용 부담의 지속 여부를 확인해야 해요.",
-              "reason": "상반된 요인이 존재합니다.",
-              "evidenceSentence": "SK하이닉스의 수요와 비용이 모두 증가했습니다.",
+              "reason": "상반된 요인이 있어요.",
+              "evidenceSentence": "SK하이닉스의 수요와 비용이 모두 증가했어요.",
               "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]
@@ -111,13 +111,11 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(result.impacts().getFirst().issueSummary()).contains("수요와 비용");
     assertThat(result.impacts().getFirst().outlook()).contains("비용 부담");
     assertThat(result.impacts().getFirst().evidenceSentence())
-        .isEqualTo("SK하이닉스의 수요와 비용이 모두 증가했습니다.");
+        .isEqualTo("SK하이닉스의 수요와 비용이 모두 증가했어요.");
     assertThat(result.impacts().getFirst().sources())
-        .containsExactly(
-            new PortfolioAnalysisResult.Source("반도체 산업 동향", "https://example.com/semiconductor"));
+        .containsExactly(source("반도체 산업 동향", "https://example.com/semiconductor"));
     assertThat(result.sources())
-        .containsExactly(
-            new PortfolioAnalysisResult.Source("반도체 산업 동향", "https://example.com/semiconductor"));
+        .containsExactly(source("반도체 산업 동향", "https://example.com/semiconductor"));
 
     ILoggingEvent completedLog = appender.list.getLast();
     assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
@@ -183,10 +181,10 @@ class OpenAiPortfolioAnalysisClientTest {
     String developerPrompt = requestBody.path("input").get(0).path("content").asText();
 
     assertThat(developerPrompt)
-        .contains("issueSummary에는 자산과 관련된 오늘의 주요 이슈를 요약하세요.")
-        .contains("expectedReaction에는 예상되는 자산 반응을 자연스러운 해요체로 작성하세요.")
-        .contains("outlook에는 검색 결과를 근거로 향후 방향성을 작성하세요.")
-        .contains("overallImpact는 투자 초보자도 쉽게 이해할 수 있도록 3~4문장으로 작성하세요.")
+        .contains("issueSummary에는 확인된 사건·발표 날짜와 보유 종목의 관계를 짧게 설명하세요.")
+        .contains("expectedReaction에는 유리한 점과 불리한 점·불확실성을 함께 설명하세요.")
+        .contains("outlook에는 다음에 확인할 구체적인 발표나 지표와 확인할 이유를 쓰세요.")
+        .contains("overallImpact는 사건과 자산의 관계 → 기대 효과와 불확실성 → 다음 확인 사항 순서로 짧은 세 문단을 작성하세요.")
         .contains("overallImpact에는 포트폴리오에서 비중이 큰 자산과 주요 이슈를 먼저 설명하세요.")
         .contains("긍정·부정 요인이 전체 포트폴리오에 어떻게 작용하는지 구체적으로 설명하세요.")
         .contains("전체 포트폴리오의 최종 긍정·중립·부정 방향은 서버가 계산하므로 overallImpact에서 최종 방향을 단정하지 마세요.")
@@ -210,7 +208,7 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(developerPrompt)
         .contains("자산의 실적, 수요, 경쟁력 또는 수급에 유리한 직접 영향이 명확하면 POSITIVE로 판단하세요.")
         .contains("자산의 실적, 수요, 경쟁력 또는 수급에 불리한 직접 영향이 명확하면 NEGATIVE로 판단하세요.")
-        .contains("긍정·부정 요인이 함께 존재하면 NEUTRAL로 판단하세요.")
+        .contains("근거가 있으며 영향이 상쇄되거나 방향이 뚜렷하지 않을 때만 NEUTRAL로 판단하세요.")
         .contains("시장 전반의 분위기나 일반적인 업황만으로 개별 자산의 방향을 추측하지 마세요.");
   }
 
@@ -247,10 +245,10 @@ class OpenAiPortfolioAnalysisClientTest {
               "direction": "POSITIVE",
               "impactLevel": "HIGH",
               "issueSummary": "수요가 증가했어요.",
-              "expectedReaction": "긍정적입니다.",
+              "expectedReaction": "긍정적이에요.",
               "outlook": "수요가 이어질 수 있어요.",
-              "reason": "수요가 증가했습니다.",
-              "evidenceSentence": "현대차 수요가 증가했습니다.",
+              "reason": "수요가 증가했어요.",
+              "evidenceSentence": "현대차 수요가 증가했어요.",
               "sourceUrls": ["https://example.com/semiconductor"]
             }
           ]
@@ -273,9 +271,9 @@ class OpenAiPortfolioAnalysisClientTest {
               "direction": "POSITIVE",
               "impactLevel": "HIGH",
               "issueSummary": "수요가 증가했어요.",
-              "expectedReaction": "긍정적입니다.",
+              "expectedReaction": "긍정적이에요.",
               "outlook": "수요가 이어질 수 있어요.",
-              "reason": "수요가 증가했습니다.",
+              "reason": "수요가 증가했어요.",
               "evidenceSentence": "   ",
               "sourceUrls": ["https://example.com/semiconductor"]
             }
@@ -317,9 +315,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .allSatisfy(
             impact ->
                 assertThat(impact.sources())
-                    .containsExactly(
-                        new PortfolioAnalysisResult.Source(
-                            "반도체 산업 동향", "https://example.com/semiconductor")));
+                    .containsExactly(source("반도체 산업 동향", "https://example.com/semiconductor")));
   }
 
   @Test
@@ -336,8 +332,7 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(result.impacts())
         .allSatisfy(
             impact ->
-                assertThat(impact.sources())
-                    .containsExactly(new PortfolioAnalysisResult.Source("반도체 산업 동향", citationUrl)));
+                assertThat(impact.sources()).containsExactly(source("반도체 산업 동향", citationUrl)));
   }
 
   @Test
@@ -352,21 +347,32 @@ class OpenAiPortfolioAnalysisClientTest {
 
     PortfolioAnalysisResult result = client.analyze(targets());
 
-    PortfolioAnalysisResult.Source expectedSource =
-        new PortfolioAnalysisResult.Source("웹 검색 사용 출처", searchSourceUrl);
+    PortfolioAnalysisResult.Source expectedSource = source("웹 검색 사용 출처", searchSourceUrl);
     assertThat(result.impacts())
         .allSatisfy(impact -> assertThat(impact.sources()).containsExactly(expectedSource));
     assertThat(result.sources()).containsExactly(expectedSource);
   }
 
   @Test
-  @DisplayName("출처가 없는 자산은 중립이며 영향 수준이 낮을 때만 허용한다")
-  void analyzeAllowsNeutralLowAssetWithoutSource() throws Exception {
-    enqueueOutput(validOutput().replace("[\"https://example.com/semiconductor\"]", "[]"));
+  @DisplayName("근거 부족 자산의 방향과 영향 수준은 중립이 아닌 null이다")
+  void analyzeDistinguishesInsufficientEvidenceFromNeutral() throws Exception {
+    enqueueOutput(
+        validOutput()
+            .replace("[\"https://example.com/semiconductor\"]", "[]")
+            .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
+            .replace("\"impactLevel\": \"LOW\"", "\"impactLevel\": null"));
 
     PortfolioAnalysisResult result = client.analyze(targets());
 
     assertThat(result.impacts()).allSatisfy(impact -> assertThat(impact.sources()).isEmpty());
+    assertThat(result.impacts())
+        .allSatisfy(
+            impact -> {
+              assertThat(impact.direction()).isNull();
+              assertThat(impact.impactLevel()).isNull();
+              assertThat(impact.expectedReaction()).isEmpty();
+              assertThat(impact.outlook()).isEmpty();
+            });
     assertThat(result.sources())
         .containsExactly(
             new PortfolioAnalysisResult.Source("반도체 산업 동향", "https://example.com/semiconductor"));
@@ -417,6 +423,139 @@ class OpenAiPortfolioAnalysisClientTest {
         new PortfolioAnalysisTarget("SK하이닉스", new java.math.BigDecimal("40")));
   }
 
+  @Test
+  void preservesPublicationAndEventDatesSeparately() throws Exception {
+    var output = objectMapper.readTree(withEvidence(validOutput()));
+    for (JsonNode impact : output.path("impacts")) {
+      ((com.fasterxml.jackson.databind.node.ObjectNode) impact.path("evidence").get(0))
+          .put("publishedOn", "2026-09-29")
+          .put("occurredOn", "2026-09-25");
+    }
+    enqueueOutput(objectMapper.writeValueAsString(output));
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .allSatisfy(
+            impact -> {
+              assertThat(impact.sources().getFirst().publishedOn())
+                  .isEqualTo(java.time.LocalDate.of(2026, 9, 29));
+              assertThat(impact.sources().getFirst().occurredOn())
+                  .isEqualTo(java.time.LocalDate.of(2026, 9, 25));
+              assertThat(impact.sources().getFirst().excerpt()).isEqualTo("확인된 사업 변화예요.");
+            });
+  }
+
+  @Test
+  void rejectsImpossibleOrFutureEvidenceDates() throws Exception {
+    for (String invalid : List.of("2026-02-30", "2999-01-01", "어제")) {
+      var output = objectMapper.readTree(withEvidence(validOutput()));
+      ((com.fasterxml.jackson.databind.node.ObjectNode)
+              output.path("impacts").get(0).path("evidence").get(0))
+          .put("occurredOn", invalid);
+      enqueueOutput(objectMapper.writeValueAsString(output));
+      assertAnalysisFailed(() -> client.analyze(targets()));
+    }
+  }
+
+  @Test
+  void rejectsCitedUrlWithoutExtractedEvidence() throws Exception {
+    var output = objectMapper.readTree(withEvidence(validOutput()));
+    ((com.fasterxml.jackson.databind.node.ObjectNode) output.path("impacts").get(0))
+        .putArray("evidence");
+    enqueueOutput(objectMapper.writeValueAsString(output));
+    assertAnalysisFailed(() -> client.analyze(targets()));
+  }
+
+  @Test
+  void completedSearchWithNoEvidenceIsNotSearchFailure() throws Exception {
+    enqueueOutputWithoutAnnotations(
+        validOutput()
+            .replace("[\"https://example.com/semiconductor\"]", "[]")
+            .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
+            .replace("\"impactLevel\": \"LOW\"", "\"impactLevel\": null"));
+    var result = client.analyze(targets());
+    assertThat(result.sources()).isEmpty();
+    assertThat(result.impacts())
+        .hasSize(2)
+        .allSatisfy(impact -> assertThat(impact.direction()).isNull());
+  }
+
+  @Test
+  void failedSearchCannotBeAcceptedAsInsufficientEvidence() throws Exception {
+    String response =
+        objectMapper.writeValueAsString(
+            Map.of(
+                "output",
+                List.of(
+                    Map.of("type", "web_search_call", "status", "failed"),
+                    Map.of(
+                        "content",
+                        List.of(
+                            Map.of(
+                                "type",
+                                "output_text",
+                                "text",
+                                withEvidence(validOutput()),
+                                "annotations",
+                                List.of(
+                                    Map.of(
+                                        "type",
+                                        "url_citation",
+                                        "title",
+                                        "출처",
+                                        "url",
+                                        "https://example.com/semiconductor"))))))));
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .setHeader("Content-Type", "application/json")
+            .setBody(response));
+    assertAnalysisFailed(() -> client.analyze(targets()));
+  }
+
+  @Test
+  void acceptsNegativeEvidenceWithoutForcingNeutralOrPositive() throws Exception {
+    enqueueOutput(
+        validOutput().replace("\"direction\": \"NEUTRAL\"", "\"direction\": \"NEGATIVE\""));
+    assertThat(client.analyze(targets()).impacts())
+        .allSatisfy(impact -> assertThat(impact.direction()).isEqualTo(ImpactDirection.NEGATIVE));
+  }
+
+  @Test
+  void rejectsMixedToneInGeneratedProse() throws Exception {
+    enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
+    assertAnalysisFailed(() -> client.analyze(targets()));
+  }
+
+  @Test
+  void completesMissingPeriodInGeneratedProse() throws Exception {
+    enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "중립적인 반응이 예상돼요"));
+    assertThat(client.analyze(targets()).impacts())
+        .allSatisfy(impact -> assertThat(impact.expectedReaction()).isEqualTo("중립적인 반응이 예상돼요."));
+  }
+
+  private PortfolioAnalysisResult.Source source(String title, String url) {
+    return new PortfolioAnalysisResult.Source(title, url, null, null, "확인된 사업 변화예요.");
+  }
+
+  private String withEvidence(String json) throws JsonProcessingException {
+    JsonNode root = objectMapper.readTree(json);
+    for (JsonNode impact : root.path("impacts")) {
+      if (impact.has("evidence")) {
+        continue;
+      }
+      var facts = ((com.fasterxml.jackson.databind.node.ObjectNode) impact).putArray("evidence");
+      for (JsonNode url : impact.path("sourceUrls")) {
+        facts
+            .addObject()
+            .put("url", url.asText())
+            .putNull("publishedOn")
+            .putNull("occurredOn")
+            .put("excerpt", "확인된 사업 변화예요.");
+      }
+    }
+    return objectMapper.writeValueAsString(root);
+  }
+
   private String validOutput() {
     return """
         {
@@ -459,6 +598,7 @@ class OpenAiPortfolioAnalysisClientTest {
             Map.of(
                 "output",
                 List.of(
+                    Map.of("type", "web_search_call", "status", "completed"),
                     Map.of(
                         "content",
                         List.of(
@@ -466,7 +606,7 @@ class OpenAiPortfolioAnalysisClientTest {
                                 "type",
                                 "output_text",
                                 "text",
-                                outputText,
+                                withEvidence(outputText),
                                 "annotations",
                                 List.of(
                                     Map.of(
@@ -493,6 +633,8 @@ class OpenAiPortfolioAnalysisClientTest {
                     Map.of(
                         "type",
                         "web_search_call",
+                        "status",
+                        "completed",
                         "action",
                         Map.of(
                             "type",
@@ -509,7 +651,7 @@ class OpenAiPortfolioAnalysisClientTest {
                                 "type",
                                 "output_text",
                                 "text",
-                                outputText,
+                                withEvidence(outputText),
                                 "annotations",
                                 List.of()))))));
     server.enqueue(
@@ -525,6 +667,7 @@ class OpenAiPortfolioAnalysisClientTest {
             Map.of(
                 "output",
                 List.of(
+                    Map.of("type", "web_search_call", "status", "completed"),
                     Map.of(
                         "content",
                         List.of(
@@ -532,7 +675,7 @@ class OpenAiPortfolioAnalysisClientTest {
                                 "type",
                                 "output_text",
                                 "text",
-                                outputText,
+                                withEvidence(outputText),
                                 "annotations",
                                 List.of()))))));
     server.enqueue(

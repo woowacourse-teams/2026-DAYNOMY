@@ -123,6 +123,8 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .body("analysis.analyzedAt", equalTo(analyzedAt))
         .body("analysis.sources[0].url", equalTo("https://example.invalid/evidence"))
         .body("analysis.sources.size()", equalTo(2))
+        .body("analysis.impacts[0].sources[0].publishedOn", equalTo("2026-09-29"))
+        .body("analysis.impacts[0].sources[0].occurredOn", equalTo("2026-09-25"))
         .body("analysis.impacts[0].sources.size()", equalTo(1));
     client(member)
         .post(API)
@@ -351,12 +353,53 @@ class SavedPortfolioAnalysisAcceptanceTest {
     verifyNoInteractions(ai);
   }
 
+  @Test
+  void persistsInsufficientEvidenceWithoutNeutralScoreAndReportsCoverage() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    when(ai.analyze(anyList()))
+        .thenReturn(
+            new PortfolioAnalysisResult(
+                "판단 근거를 찾지 못했어요.",
+                List.of(
+                    new PortfolioAnalysisResult.AssetImpactResult(
+                        "삼성전자",
+                        null,
+                        null,
+                        "판단 근거를 찾지 못했어요.",
+                        "",
+                        "",
+                        "근거 부족",
+                        "근거 부족",
+                        List.of(),
+                        1)),
+                List.of()));
+    client(member).post(API).then().statusCode(200);
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("analysis.coverage", equalTo("INSUFFICIENT"))
+        .body("analysis.analyzedAssetCount", equalTo(0))
+        .body("analysis.analyzedWeight", equalTo(0))
+        .body("analysis.overallDirection", nullValue())
+        .body("analysis.overallScore", nullValue())
+        .body("analysis.impacts[0].evidenceStatus", equalTo("INSUFFICIENT"))
+        .body("analysis.impacts[0].direction", nullValue());
+  }
+
   private void successfulAi() {
     doAnswer(invocation -> result(invocation.getArgument(0))).when(ai).analyze(anyList());
   }
 
   private PortfolioAnalysisResult result(List<PortfolioAnalysisTarget> targets) {
-    var source = new PortfolioAnalysisResult.Source("실적 발표", "https://example.invalid/evidence");
+    var source =
+        new PortfolioAnalysisResult.Source(
+            "실적 발표",
+            "https://example.invalid/evidence",
+            LocalDate.of(2026, 9, 29),
+            LocalDate.of(2026, 9, 25),
+            "영업이익이 감소했어요.");
     List<PortfolioAnalysisResult.AssetImpactResult> impacts = new java.util.ArrayList<>();
     for (int index = 0; index < targets.size(); index++) {
       impacts.add(

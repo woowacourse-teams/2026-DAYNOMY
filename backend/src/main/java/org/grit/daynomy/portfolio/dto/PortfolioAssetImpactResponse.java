@@ -10,8 +10,8 @@ import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 public record PortfolioAssetImpactResponse(
     @Schema(description = "자산 이름", example = "삼성전자") String assetName,
     @Schema(description = "전체 포트폴리오에서 자산이 차지하는 비중", example = "30") BigDecimal weight,
-    @Schema(description = "영향 방향", example = "POSITIVE") ImpactDirection direction,
-    @Schema(description = "영향 수준", example = "HIGH") ImpactLevel impactLevel,
+    @Schema(description = "영향 방향. 근거 부족이면 null", example = "POSITIVE") ImpactDirection direction,
+    @Schema(description = "영향 수준. 근거 부족이면 null", example = "HIGH") ImpactLevel impactLevel,
     @Schema(description = "자산과 관련된 주요 이슈 요약") String issueSummary,
     @Schema(description = "예상되는 시장 반응") String expectedReaction,
     @Schema(description = "향후 방향성") String outlook,
@@ -23,6 +23,12 @@ public record PortfolioAssetImpactResponse(
 
   public PortfolioAssetImpactResponse {
     sources = List.copyOf(sources);
+  }
+
+  @com.fasterxml.jackson.annotation.JsonProperty
+  @Schema(description = "SUPPORTED: 근거 확보, INSUFFICIENT: 판단 근거 부족")
+  public String evidenceStatus() {
+    return direction == null ? "INSUFFICIENT" : "SUPPORTED";
   }
 
   public static PortfolioAssetImpactResponse of(

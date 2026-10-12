@@ -32,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SavedPortfolioAnalysisTransactionService {
 
-  private static final String ANALYSIS_VERSION = "portfolio-v1";
+  private static final String ANALYSIS_VERSION = "portfolio-v2";
   private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
   private static final int RETAINED_ANALYSES = 10;
 
@@ -149,9 +149,9 @@ public class SavedPortfolioAnalysisTransactionService {
                                     impact.assetName(),
                                     source.title(),
                                     source.url(),
-                                    null,
-                                    null,
-                                    impact.evidenceSentence()))));
+                                    source.publishedOn(),
+                                    source.occurredOn(),
+                                    source.excerpt()))));
     var assetSourceUrls =
         savedEvidence.stream()
             .map(PortfolioAnalysisEvidence::getUrl)
@@ -167,9 +167,9 @@ public class SavedPortfolioAnalysisTransactionService {
                         null,
                         source.title(),
                         source.url(),
-                        null,
-                        null,
-                        result.overallImpact())));
+                        source.publishedOn(),
+                        source.occurredOn(),
+                        source.excerpt())));
     evidence.saveAll(savedEvidence);
     check.recordSuccess(now);
     check.finish(token);
