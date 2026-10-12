@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useFeaturedPeople } from './useFeaturedPeople';
 import { createFeed } from '../news/issue/feed';
@@ -12,6 +12,10 @@ export function PeoplePage() {
   const [params, setParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const selectedId = params.get('person');
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedId]);
   const selected = people.find((person) => String(person.id) === selectedId);
   const matchingPeople = people.filter((person) => !selectedId || String(person.id) === selectedId);
   const items = createFeed([], matchingPeople);

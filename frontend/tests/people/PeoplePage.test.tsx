@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter, useNavigate } from 'react-router-dom';
 import { PeoplePage } from '../../src/features/people/PeoplePage';
 
 function jsonResponse(body: unknown) {
@@ -136,4 +136,51 @@ describe('인물의 글 화면', () => {
     expect(view.getByRole('link', { name: '← 소식 홈' }).getAttribute('href')).toBe('/news');
     expect(view.getByRole('button', { name: '1페이지' })).toBeTruthy();
   });
+});
+
+function PersonUrlNavigation() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <Link to="/people?person=2">다른 인물 URL로 이동</Link>
+      <button onClick={() => navigate(-1)}>뒤로 가기</button>
+    </>
+  );
+}
+
+it('URL로 인물을 변경하거나 뒤로 가면 해당 인물의 첫 페이지를 보여준다', async () => {
+  vi.mocked(fetch).mockImplementation(async () =>
+    jsonResponse({
+      people: [1, 2].map((id) => ({
+        id,
+        name: `인물${id}`,
+        xProfileUrl: null,
+        threadsProfileUrl: null,
+        createdAt: null,
+        posts: Array.from({ length: 30 }, (_, index) => ({
+          id: id * 100 + index,
+          sourceType: 'X',
+          title: `인물${id} 글${index + 1}`,
+          url: `https://x.com/person${id}/status/${index + 1}`,
+          createdAt: new Date(Date.parse('2026-10-12T09:00:00Z') + index * 1000).toISOString(),
+        })),
+      })),
+    }),
+  );
+  const view = render(
+    <MemoryRouter initialEntries={['/people?person=1']}>
+      <PersonUrlNavigation />
+      <PeoplePage />
+    </MemoryRouter>,
+  );
+  await view.findByRole('button', { name: '3페이지' });
+  fireEvent.click(view.getByRole('button', { name: '3페이지' }));
+  expect(view.getByRole('button', { name: '3페이지' }).getAttribute('aria-current')).toBe('page');
+  fireEvent.click(view.getByRole('link', { name: '다른 인물 URL로 이동' }));
+  expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
+  expect(view.getByText('인물2 글30', { exact: true })).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '2페이지' }));
+  fireEvent.click(view.getByRole('button', { name: '뒤로 가기' }));
+  expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
+  expect(view.getByText('인물1 글30', { exact: true })).toBeTruthy();
 });
