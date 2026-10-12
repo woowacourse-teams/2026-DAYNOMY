@@ -3,6 +3,7 @@ package org.grit.daynomy.keyword.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,7 +27,7 @@ public class OpenAiKeywordClient implements KeywordAiClient {
 
   private static final int MAX_KEYWORD_COUNT = 6;
   private static final int MIN_KEYWORD_LENGTH = 2;
-  private static final int MAX_KEYWORD_LENGTH = 40;
+  private static final int MAX_KEYWORD_LENGTH = 15;
   private static final int MAX_EXPLANATION_LENGTH = 200;
 
   private static final String KEYWORD_EXTRACTION_PROMPT =
@@ -38,9 +39,10 @@ public class OpenAiKeywordClient implements KeywordAiClient {
       단순 주최·참석 기관명보다 사건을 이해하는 데 필요한 개념을 우선하세요.
       다만 기관의 결정이나 역할 자체가 핵심이면 기관명도 선정하세요. 고유명사를 일괄 제외하지 마세요.
       키워드는 최대 6개이며, 필요한 개념이 적으면 1~2개 또는 빈 배열도 허용해요. 최소 개수를 채우지 마세요.
-      keyword는 공백과 문장부호를 포함해 2글자 이상 40글자 이하로 작성하세요.
+      keyword는 공백과 문장부호를 포함해 2글자 이상 15글자 이하로 작성하세요.
       keyword는 뉴스 본문에 연속으로 존재하는 완전한 개념 표현을 글자 그대로 복사하세요.
       keyword를 요약·변형·조합하거나, 길이를 줄이려고 개념을 잘라내지 마세요.
+      15글자 이내의 완전한 개념 표현이 본문에 없으면 해당 후보는 제외하세요.
       단순 수치나 조사까지 포함한 문장 조각은 선택하지 마세요.
       동일한 keyword나 같은 뜻의 표현을 중복해서 반환하지 마세요.
       evidence는 해당 개념의 중요성과 context의 근거가 되는 본문 문장 또는 연속된 구절을 그대로 복사하세요.
@@ -235,11 +237,22 @@ public class OpenAiKeywordClient implements KeywordAiClient {
         throw new IllegalStateException("OpenAI keyword response exceeds the keyword limit.");
       }
       Set<String> distinctKeywords = new HashSet<>();
-      return keywordsNode
-          .valueStream()
-          .map(node -> parseKeyword(node, newsContent))
-          .filter(keyword -> distinctKeywords.add(keyword.getKeyword()))
-          .toList();
+      List<NewsKeyword> keywords = new ArrayList<>();
+      for (JsonNode node : keywordsNode) {
+        NewsKeyword keyword;
+        try {
+          keyword = parseKeyword(node, newsContent);
+        } catch (IllegalStateException | IllegalArgumentException exception) {
+          continue;
+        }
+        if (distinctKeywords.add(keyword.getKeyword())) {
+          keywords.add(keyword);
+        }
+      }
+      if (!keywordsNode.isEmpty() && keywords.isEmpty()) {
+        throw new IllegalStateException("OpenAI keyword response contains no valid keywords.");
+      }
+      return List.copyOf(keywords);
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException("Failed to parse OpenAI keyword response.", exception);
     }

@@ -78,7 +78,7 @@ class OpenAiKeywordClientTest {
     assertThat(
             body.at("/text/format/schema/properties/keywords/items/properties/keyword/maxLength")
                 .asInt())
-        .isEqualTo(40);
+        .isEqualTo(15);
   }
 
   @Test
@@ -124,12 +124,12 @@ class OpenAiKeywordClientTest {
         "longDefinition",
         "invalidCategory"
       })
-  @DisplayName("본문에 없거나 근거·설명이 불완전한 결과를 거부한다")
+  @DisplayName("잘못된 키워드만 제외하고 전부 잘못된 경우 실패한다")
   void rejectsInvalidKeywords(String failure) throws Exception {
     Map<String, Object> item = keyword("외환시장", "외환시장 제도 개선과 코스닥 경쟁력을 다룬다.");
     switch (failure) {
       case "absent" -> item.put("keyword", "공모가");
-      case "tooLong" -> item.put("keyword", "가".repeat(41));
+      case "tooLong" -> item.put("keyword", "가".repeat(16));
       case "tooShort" -> item.put("keyword", "가");
       case "fakeEvidence" -> item.put("evidence", "외환시장 개선으로 투자금이 유입됐다.");
       case "unrelatedEvidence" -> item.put("evidence", "상장기업 IR 프로그램과 투자자 미팅이 포함됐다.");
@@ -142,7 +142,27 @@ class OpenAiKeywordClientTest {
     }
     respond(List.of(item));
     assertThatThrownBy(() -> client.extractKeywords(CONTENT))
-        .isInstanceOfAny(IllegalStateException.class, IllegalArgumentException.class);
+        .isInstanceOf(IllegalStateException.class);
+    respond(
+        List.of(
+            keyword("IR", "상장기업 IR 프로그램과 투자자 미팅이 포함됐다."),
+            item,
+            keyword("코스닥", "외환시장 제도 개선과 코스닥 경쟁력을 다룬다.")));
+    assertThat(client.extractKeywords(CONTENT))
+        .extracting(NewsKeyword::getKeyword)
+        .containsExactly("IR", "코스닥");
+  }
+
+  @Test
+  @DisplayName("15자 키워드는 유지하고 16자 키워드는 자르지 않고 제외한다")
+  void enforcesKeywordLengthWithoutTruncation() throws Exception {
+    String accepted = "가".repeat(15);
+    String rejected = "나".repeat(16);
+    String content = accepted + "와 " + rejected + "에 관한 기사다.";
+    respond(List.of(keyword(accepted, content), keyword(rejected, content)));
+    assertThat(client.extractKeywords(content))
+        .extracting(NewsKeyword::getKeyword)
+        .containsExactly(accepted);
   }
 
   @Test
