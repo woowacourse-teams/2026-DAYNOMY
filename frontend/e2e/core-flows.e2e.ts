@@ -18,6 +18,10 @@ const newsPage = {
 };
 
 async function mockNewsApi(page: Page) {
+  await page.route('**/api/people', (route) => route.fulfill({ json: { people: [] } }));
+  await page.route('**/api/contents?**', (route) =>
+    route.fulfill({ json: { items: [], page: 1, totalPages: 0 } }),
+  );
   await page.route('**/api/news**', (route) => {
     const path = new URL(route.request().url()).pathname;
 
@@ -119,12 +123,13 @@ test('검색어 입력에서 뉴스 결과와 상세 화면까지 이동한다',
   await expect(page.getByRole('heading', { name: article.title, level: 1 })).toBeVisible();
 });
 
-test('뉴스 목록에서 상세 본문을 읽고 목록으로 돌아온다', async ({ page }) => {
+test('오늘의 이슈에서 상세 본문을 읽고 소식 홈으로 돌아온다', async ({ page }) => {
+  await page.clock.setFixedTime(new Date(article.publishedAt));
   await mockNewsApi(page);
 
   await page.goto('/news');
   await page
-    .getByRole('region', { name: '이슈 목록' })
+    .getByRole('region', { name: '오늘의 이슈' })
     .getByRole('link', { name: /기준금리 동결 가능성 확대/ })
     .click();
 
@@ -134,7 +139,7 @@ test('뉴스 목록에서 상세 본문을 읽고 목록으로 돌아온다', as
   );
   await page.getByRole('button', { name: '전 페이지로 돌아가기' }).click();
   await expect(page).toHaveURL('/news');
-  await expect(page.getByRole('region', { name: '이슈 목록' })).toContainText(article.title);
+  await expect(page.getByRole('region', { name: '오늘의 이슈' })).toContainText(article.title);
 });
 
 test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 메뉴는 분리된다', async ({ page }) => {
