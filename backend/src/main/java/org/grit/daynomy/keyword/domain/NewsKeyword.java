@@ -37,35 +37,39 @@ public class NewsKeyword extends BaseEntity {
   private String keyword;
 
   @Column(name = "point1", columnDefinition = "TEXT", nullable = false)
-  private String point1;
+  private String definition;
 
   @Column(name = "point2", columnDefinition = "TEXT", nullable = false)
-  private String point2;
+  private String context;
 
   @Column(name = "point3", columnDefinition = "TEXT", nullable = false)
-  private String point3;
+  private String watchPoint;
 
   public NewsKeyword(
-      KeywordCategory category, String keyword, String point1, String point2, String point3) {
+      KeywordCategory category,
+      String keyword,
+      String definition,
+      String context,
+      String watchPoint) {
     this.category = category;
     this.keyword = keyword;
-    this.point1 = point1;
-    this.point2 = point2;
-    this.point3 = point3;
+    this.definition = definition;
+    this.context = context;
+    this.watchPoint = watchPoint;
   }
 
   public NewsKeyword(
       News news,
       KeywordCategory category,
       String keyword,
-      String point1,
-      String point2,
-      String point3) {
+      String definition,
+      String context,
+      String watchPoint) {
     this.news = news;
     this.category = category;
     this.keyword = keyword;
-    this.point1 = point1;
-    this.point2 = point2;
-    this.point3 = point3;
+    this.definition = definition;
+    this.context = context;
+    this.watchPoint = watchPoint;
   }
 }

@@ -33,13 +33,12 @@ class OpenAiKeywordClientTest {
         .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-api-key"))
         .andExpect(jsonPath("$.model").value("gpt-test"))
         .andExpect(jsonPath("$.input[0].content").value(containsString(KeywordCategory.DEFINITION)))
-        .andExpect(
-            jsonPath("$.input[0].content")
-                .value(containsString("뉴스 본문에 연속으로 존재하는 핵심 명사구를 글자 그대로 복사")))
+        .andExpect(jsonPath("$.input[0].content").value(containsString("2글자 이상 5글자 이하")))
         .andExpect(jsonPath("$.input[0].content").value(containsString("keyword를 요약·변형·조합")))
         .andExpect(
             jsonPath("$.input[0].content").value(containsString("동일한 keyword를 중복해서 반환하지 마세요.")))
-        .andExpect(jsonPath("$.input[1].content").value("금리 인하와 부동산 규제, 채권시장을 설명하는 뉴스 본문입니다."))
+        .andExpect(jsonPath("$.input[0].content").value(containsString("definition은 키워드의 일반적인 뜻")))
+        .andExpect(jsonPath("$.input[1].content").value("금리 인하와 기준금리, 채권시장을 설명하는 뉴스 본문입니다."))
         .andExpect(
             jsonPath("$.text.format.schema.properties.keywords.items.properties.category.type")
                 .value("string"))
@@ -52,33 +51,42 @@ class OpenAiKeywordClientTest {
                 .value(KeywordCategory.DEFINITION))
         .andExpect(jsonPath("$.text.format.schema.properties.keywords.minItems").value(3))
         .andExpect(
-            jsonPath("$.text.format.schema.properties.keywords.items.properties.points.minItems")
-                .value(3))
+            jsonPath("$.text.format.schema.properties.keywords.items.properties.keyword.minLength")
+                .value(2))
         .andExpect(
-            jsonPath("$.text.format.schema.properties.keywords.items.properties.points.maxItems")
-                .value(3))
+            jsonPath("$.text.format.schema.properties.keywords.items.properties.keyword.maxLength")
+                .value(5))
+        .andExpect(
+            jsonPath("$.text.format.schema.properties.keywords.items.properties.definition.type")
+                .value("string"))
+        .andExpect(
+            jsonPath("$.text.format.schema.properties.keywords.items.properties.context.type")
+                .value("string"))
+        .andExpect(
+            jsonPath("$.text.format.schema.properties.keywords.items.properties.watchPoint.type")
+                .value("string"))
         .andRespond(
             withSuccess(
                 createResponse(
                     keyword("POLICY", "금리 인하"),
-                    keyword("POLICY", "부동산 규제"),
+                    keyword("POLICY", "기준금리"),
                     keyword("TREND", "채권시장")),
                 MediaType.APPLICATION_JSON));
 
-    var keywords = client.extractKeywords("금리 인하와 부동산 규제, 채권시장을 설명하는 뉴스 본문입니다.");
+    var keywords = client.extractKeywords("금리 인하와 기준금리, 채권시장을 설명하는 뉴스 본문입니다.");
 
     assertThat(keywords).hasSize(3);
     assertThat(keywords.get(0).getCategory()).isEqualTo(KeywordCategory.POLICY);
     assertThat(keywords.get(0).getKeyword()).isEqualTo("금리 인하");
-    assertThat(keywords.get(0).getPoint1()).isEqualTo("첫 번째 분석 포인트");
-    assertThat(keywords.get(0).getPoint2()).isEqualTo("두 번째 분석 포인트");
-    assertThat(keywords.get(0).getPoint3()).isEqualTo("세 번째 분석 포인트");
-    assertThat(keywords.get(1).getKeyword()).isEqualTo("부동산 규제");
+    assertThat(keywords.get(0).getDefinition()).isEqualTo("키워드의 쉬운 뜻");
+    assertThat(keywords.get(0).getContext()).isEqualTo("기사에서 키워드가 갖는 의미");
+    assertThat(keywords.get(0).getWatchPoint()).isEqualTo("추가로 확인할 사항");
+    assertThat(keywords.get(1).getKeyword()).isEqualTo("기준금리");
     server.verify();
   }
 
   @Test
-  @DisplayName("키워드의 공백을 제거하고 본문에 없는 키워드와 중복 키워드를 제외한다")
+  @DisplayName("공백 제거 후 길이, 본문 포함 여부와 중복 조건을 만족하지 않는 키워드를 제외한다")
   void extractKeywordsFiltersInvalidAndDuplicateKeywords() {
     RestClient.Builder restClientBuilder = RestClient.builder();
     MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
@@ -91,15 +99,15 @@ class OpenAiKeywordClientTest {
                     keyword("POLICY", " 금리 인하 "),
                     keyword("POLICY", "금리 인하"),
                     keyword("POLICY", "기준금리 인하"),
-                    keyword("POLICY", "부동산 규제"),
-                    keyword("TREND", "채권시장")),
+                    keyword("TREND", "채권시장"),
+                    keyword("TERM", "공모가")),
                 MediaType.APPLICATION_JSON));
 
-    var keywords = client.extractKeywords("금리 인하와 부동산 규제, 채권시장을 설명합니다.");
+    var keywords = client.extractKeywords("금리 인하와 기준금리 인하, 채권시장과 공모가를 설명합니다.");
 
     assertThat(keywords)
         .extracting(NewsKeyword::getKeyword)
-        .containsExactly("금리 인하", "부동산 규제", "채권시장");
+        .containsExactly("금리 인하", "채권시장", "공모가");
     server.verify();
   }
 
@@ -143,7 +151,7 @@ class OpenAiKeywordClientTest {
 
   private String keyword(String category, String keyword) {
     return """
-        {"category":"%s","keyword":"%s","points":["첫 번째 분석 포인트","두 번째 분석 포인트","세 번째 분석 포인트"]}
+        {"category":"%s","keyword":"%s","definition":"키워드의 쉬운 뜻","context":"기사에서 키워드가 갖는 의미","watchPoint":"추가로 확인할 사항"}
         """
         .formatted(category, keyword)
         .strip();
