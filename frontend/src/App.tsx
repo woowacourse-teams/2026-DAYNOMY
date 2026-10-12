@@ -25,7 +25,9 @@ import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
 import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
 import { AdminStockContentsPage } from './features/admin/AdminStockContentsPage';
 import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
+import { AdminPeoplePage } from './features/admin/AdminPeoplePage';
 import { AdminShell } from './features/admin/components/AdminShell';
+import { PeoplePage } from './features/people/PeoplePage';
 import { StockContentPage } from './features/stock-content/StockContentPage';
 import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
 import './App.css';
@@ -47,6 +49,7 @@ function AppHeader() {
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/portfolio') ||
     location.pathname.startsWith('/stocks/') ||
+    location.pathname.startsWith('/people') ||
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
     location.pathname.startsWith('/privacy') ||
@@ -174,6 +177,7 @@ export default function App() {
               <Route path="/stocks" element={<Navigate to="/" replace />} />
               <Route path="/stocks/:assetId/card-preview" element={<CardDesignPreviewPage />} />
               <Route path="/stocks/:assetId" element={<StockContentPage />} />
+              <Route path="/people" element={<PeoplePage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/about" element={<InfoPage page="about" />} />
               <Route path="/terms" element={<InfoPage page="terms" />} />
@@ -224,6 +228,14 @@ export default function App() {
                 element={
                   <AdminRoute>
                     <AdminStockContentsPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/people"
+                element={
+                  <AdminRoute>
+                    <AdminPeoplePage />
                   </AdminRoute>
                 }
               />
