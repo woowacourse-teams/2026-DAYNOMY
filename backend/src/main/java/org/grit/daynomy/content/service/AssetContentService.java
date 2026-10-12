@@ -9,9 +9,11 @@ import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.AssetContent;
+import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
+import org.grit.daynomy.content.dto.ContentPageResponse;
 import org.grit.daynomy.content.dto.SocialPostResponse;
 import org.grit.daynomy.content.dto.SocialPostSearchResponse;
 import org.grit.daynomy.content.dto.YouTubeSearchResponse;
@@ -23,6 +25,8 @@ import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.news.domain.News;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +42,15 @@ public class AssetContentService {
   private final AssetContentRepository contentRepository;
   private final YouTubeClient youtubeClient;
   private final OpenAiSocialPostSearchClient socialPostSearchClient;
+
+  public ContentPageResponse getPublicContents(int page, int size) {
+    return ContentPageResponse.from(
+        contentRepository
+            .findAllBySourceTypeInAndNewsIsNull(
+                List.of(ContentSourceType.YOUTUBE, ContentSourceType.THREADS, ContentSourceType.X),
+                PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")))
+            .map(AssetContentResponse::from));
+  }
 
   public AssetContentsResponse getContents(Long assetId) {
     Asset asset = getAsset(assetId);
