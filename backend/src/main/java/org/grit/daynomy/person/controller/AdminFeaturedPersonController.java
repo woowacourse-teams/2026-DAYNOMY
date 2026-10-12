@@ -50,8 +50,7 @@ public class AdminFeaturedPersonController {
   @Operation(summary = "주요 인물 수정")
   @PutMapping("/{personId}")
   public ResponseEntity<FeaturedPersonResponse> updatePerson(
-      @PathVariable @Positive Long personId,
-      @Valid @RequestBody FeaturedPersonRequest request) {
+      @PathVariable @Positive Long personId, @Valid @RequestBody FeaturedPersonRequest request) {
     return ResponseEntity.ok(featuredPersonService.updatePerson(personId, request));
   }
 

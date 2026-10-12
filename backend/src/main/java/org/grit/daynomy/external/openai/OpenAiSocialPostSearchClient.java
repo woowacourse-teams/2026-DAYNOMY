@@ -44,10 +44,7 @@ public class OpenAiSocialPostSearchClient {
     requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
     this.restClient =
-        RestClient.builder()
-            .baseUrl(properties.baseUrl())
-            .requestFactory(requestFactory)
-            .build();
+        RestClient.builder().baseUrl(properties.baseUrl()).requestFactory(requestFactory).build();
   }
 
   public List<SocialPostCandidate> search(String keyword) {
@@ -83,11 +80,7 @@ public class OpenAiSocialPostSearchClient {
         properties.socialSearchModel(),
         "tools",
         List.of(
-            Map.of(
-                "type",
-                "web_search",
-                "filters",
-                Map.of("allowed_domains", ALLOWED_DOMAINS))),
+            Map.of("type", "web_search", "filters", Map.of("allowed_domains", ALLOWED_DOMAINS))),
         "tool_choice",
         "required",
         "include",
@@ -95,7 +88,11 @@ public class OpenAiSocialPostSearchClient {
         "input",
         "Find up to 10 public Threads and X posts directly related to this search target: "
             + keyword
-            + ". The target may be a person, company, topic, or include official profile URLs. Search both platforms and prioritize posts from the supplied profile URLs when present. Do not return profiles, search pages, or home pages. For each post, return publishedDate as YYYY-MM-DD only when the date is clearly confirmed; otherwise return an empty string. Never guess a date.",
+            + ". The target may be a person, company, topic, or include official profile URLs."
+            + " Search both platforms and prioritize posts from the supplied profile URLs when"
+            + " present. Do not return profiles, search pages, or home pages. For each post, return"
+            + " publishedDate as YYYY-MM-DD only when the date is clearly confirmed; otherwise"
+            + " return an empty string. Never guess a date.",
         "text",
         Map.of("format", responseFormat()));
   }

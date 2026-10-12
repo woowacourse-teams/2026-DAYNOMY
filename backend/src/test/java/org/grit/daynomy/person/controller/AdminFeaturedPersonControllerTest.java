@@ -70,7 +70,9 @@ class AdminFeaturedPersonControllerTest {
         .andExpect(jsonPath("$.sourceType").value("X"))
         .andExpect(jsonPath("$.title").value("일론 머스크 X 게시물"));
 
-    then(featuredPersonService).should().createPost(any(Long.class), any(FeaturedPersonPostRequest.class));
+    then(featuredPersonService)
+        .should()
+        .createPost(any(Long.class), any(FeaturedPersonPostRequest.class));
   }
 
   @Test

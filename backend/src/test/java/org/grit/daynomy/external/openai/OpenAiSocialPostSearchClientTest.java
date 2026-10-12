@@ -47,16 +47,11 @@ class OpenAiSocialPostSearchClientTest {
                         "  삼성전자   실적 전망  ",
                         "url",
                         "https://www.threads.net/@investor/post/ABC?utm_source=test"),
-                    Map.of(
-                        "title", "", "url", "https://x.com/market/status/12345?s=20"),
-                    Map.of(
-                        "title", "삼성전자 반도체", "url", "https://www.threads.com/t/DEF/"),
+                    Map.of("title", "", "url", "https://x.com/market/status/12345?s=20"),
+                    Map.of("title", "삼성전자 반도체", "url", "https://www.threads.com/t/DEF/"),
                     Map.of("title", "프로필", "url", "https://x.com/market"),
                     Map.of(
-                        "title",
-                        "허용되지 않은 도메인",
-                        "url",
-                        "https://example.com/market/status/12345")),
+                        "title", "허용되지 않은 도메인", "url", "https://example.com/market/status/12345")),
                 List.of(
                     Map.of(
                         "title",
@@ -97,8 +92,7 @@ class OpenAiSocialPostSearchClientTest {
             SocialPostCandidate.Platform.X,
             SocialPostCandidate.Platform.THREADS);
     assertThat(candidates.get(0).title()).isEqualTo("삼성전자 실적 전망");
-    assertThat(candidates.get(0).url())
-        .isEqualTo("https://www.threads.net/@investor/post/ABC");
+    assertThat(candidates.get(0).url()).isEqualTo("https://www.threads.net/@investor/post/ABC");
     assertThat(candidates.get(0).publishedDate()).isEqualTo(today.toString());
     assertThat(candidates.get(1).url()).isEqualTo("https://x.com/market/status/12345");
     assertThat(candidates.get(1).title()).isEqualTo("삼성전자 수급");
@@ -121,8 +115,7 @@ class OpenAiSocialPostSearchClientTest {
         .doesNotContain(today.toString(), oldDate.toString());
     assertThat(requestBody.path("text").path("format").path("name").asText())
         .isEqualTo("social_post_search");
-    JsonNode domains =
-        requestBody.path("tools").get(0).path("filters").path("allowed_domains");
+    JsonNode domains = requestBody.path("tools").get(0).path("filters").path("allowed_domains");
     assertThat(domains.get(0).asText()).isEqualTo("threads.net");
     assertThat(domains.get(1).asText()).isEqualTo("threads.com");
     assertThat(domains.get(2).asText()).isEqualTo("x.com");
@@ -170,15 +163,14 @@ class OpenAiSocialPostSearchClientTest {
     return new MockResponse().setHeader("Content-Type", "application/json").setBody(body);
   }
 
-  private String searchResponse(
-      List<Map<String, String>> sources, List<Map<String, String>> items) throws Exception {
+  private String searchResponse(List<Map<String, String>> sources, List<Map<String, String>> items)
+      throws Exception {
     String outputText = objectMapper.writeValueAsString(Map.of("items", items));
     return objectMapper.writeValueAsString(
         Map.of(
             "output",
             List.of(
-                Map.of(
-                    "type", "web_search_call", "action", Map.of("sources", sources)),
+                Map.of("type", "web_search_call", "action", Map.of("sources", sources)),
                 Map.of(
                     "type",
                     "message",

@@ -35,13 +35,6 @@ public record OpenAiProperties(
       String economyNewsModel,
       Duration connectTimeout,
       Duration readTimeout) {
-    this(
-        apiKey,
-        baseUrl,
-        imageModel,
-        economyNewsModel,
-        "gpt-5-mini",
-        connectTimeout,
-        readTimeout);
+    this(apiKey, baseUrl, imageModel, economyNewsModel, "gpt-5-mini", connectTimeout, readTimeout);
   }
 }

@@ -39,8 +39,7 @@ public class FeaturedPerson extends BaseEntity {
     this.threadsProfileUrl = threadsProfileUrl;
   }
 
-  public static FeaturedPerson create(
-      String name, String xProfileUrl, String threadsProfileUrl) {
+  public static FeaturedPerson create(String name, String xProfileUrl, String threadsProfileUrl) {
     return new FeaturedPerson(name, xProfileUrl, threadsProfileUrl);
   }
 

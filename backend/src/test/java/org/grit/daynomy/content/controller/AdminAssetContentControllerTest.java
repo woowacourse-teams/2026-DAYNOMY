@@ -75,10 +75,7 @@ class AdminAssetContentControllerTest {
                         "https://www.threads.net/@investor/post/123",
                         "2026-10-11"),
                     new SocialPostResponse(
-                        ContentSourceType.X,
-                        "삼성전자 수급",
-                        "https://x.com/investor/status/456",
-                        ""))));
+                        ContentSourceType.X, "삼성전자 수급", "https://x.com/investor/status/456", ""))));
 
     mockMvc
         .perform(
@@ -87,9 +84,7 @@ class AdminAssetContentControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].sourceType").value("THREADS"))
         .andExpect(jsonPath("$.items[0].title").value("삼성전자 실적 전망"))
-        .andExpect(
-            jsonPath("$.items[0].url")
-                .value("https://www.threads.net/@investor/post/123"))
+        .andExpect(jsonPath("$.items[0].url").value("https://www.threads.net/@investor/post/123"))
         .andExpect(jsonPath("$.items[0].publishedDate").value("2026-10-11"))
         .andExpect(jsonPath("$.items[1].sourceType").value("X"));
 

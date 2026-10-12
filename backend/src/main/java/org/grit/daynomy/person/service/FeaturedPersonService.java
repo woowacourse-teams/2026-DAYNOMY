@@ -95,8 +95,7 @@ public class FeaturedPersonService {
   }
 
   @Transactional
-  public FeaturedPersonPostResponse createPost(
-      Long personId, FeaturedPersonPostRequest request) {
+  public FeaturedPersonPostResponse createPost(Long personId, FeaturedPersonPostRequest request) {
     FeaturedPerson person = getPerson(personId);
     ContentSourceType sourceType = request.sourceType();
     String url = normalizePostUrl(request.url(), sourceType);
@@ -105,7 +104,8 @@ public class FeaturedPersonService {
     }
     String title = stripToNull(request.title());
     if (title == null) {
-      title = person.getName() + " " + (sourceType == ContentSourceType.X ? "X" : "Threads") + " 게시물";
+      title =
+          person.getName() + " " + (sourceType == ContentSourceType.X ? "X" : "Threads") + " 게시물";
     }
     FeaturedPersonPost post = FeaturedPersonPost.create(person, sourceType, title, url);
     return FeaturedPersonPostResponse.from(postRepository.saveAndFlush(post));
@@ -119,8 +119,7 @@ public class FeaturedPersonService {
             .findByIdAndPersonId(postId, personId)
             .orElseThrow(
                 () ->
-                    new BusinessException(
-                        FeaturedPersonErrorCode.FEATURED_PERSON_POST_NOT_FOUND));
+                    new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_POST_NOT_FOUND));
     postRepository.delete(post);
   }
 
@@ -198,8 +197,7 @@ public class FeaturedPersonService {
 
   private boolean isThreadsPost(URI uri) {
     return isThreadsHost(uri)
-        && (uri.getPath().matches("/@[^/]+/post/[^/]+/?")
-            || uri.getPath().matches("/t/[^/]+/?"));
+        && (uri.getPath().matches("/@[^/]+/post/[^/]+/?") || uri.getPath().matches("/t/[^/]+/?"));
   }
 
   private boolean isXHost(URI uri) {

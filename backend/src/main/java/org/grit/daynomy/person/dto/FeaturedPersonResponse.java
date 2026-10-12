@@ -13,8 +13,7 @@ public record FeaturedPersonResponse(
     Instant createdAt,
     List<FeaturedPersonPostResponse> posts) {
 
-  public static FeaturedPersonResponse from(
-      FeaturedPerson person, List<FeaturedPersonPost> posts) {
+  public static FeaturedPersonResponse from(FeaturedPerson person, List<FeaturedPersonPost> posts) {
     return new FeaturedPersonResponse(
         person.getId(),
         person.getName(),
