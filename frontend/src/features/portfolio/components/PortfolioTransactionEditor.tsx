@@ -12,13 +12,13 @@ import type {
   PortfolioTransactionType,
   StockSearchItem,
 } from '../types';
-import { PortfolioDialog } from './PortfolioDialog';
 
 type Props = {
   stock?: StockSearchItem;
   type?: PortfolioTransactionType;
   transaction?: PortfolioHoldingHistory;
   onClose: () => void;
+  onOpeningBalance?: () => void;
   onSave: (request: PortfolioTransactionRequest) => Promise<void>;
 };
 export function PortfolioTransactionEditor({
@@ -26,6 +26,7 @@ export function PortfolioTransactionEditor({
   type = 'BUY',
   transaction,
   onClose,
+  onOpeningBalance,
   onSave,
 }: Props) {
   const [selected, setSelected] = useState<Pick<
@@ -114,7 +115,7 @@ export function PortfolioTransactionEditor({
     }
   }
   return (
-    <PortfolioDialog titleId="transaction-title" onClose={onClose} busy={saving}>
+    <>
       <form onSubmit={submit} noValidate>
         <header className="portfolio-sheet-heading">
           <div>
@@ -139,6 +140,14 @@ export function PortfolioTransactionEditor({
         <fieldset disabled={saving} className="portfolio-sheet-fields">
           {!selected ? (
             <>
+              {onOpeningBalance && (
+                <div className="portfolio-registration-choice">
+                  <p>매수·매도한 날짜와 금액을 기록하세요.</p>
+                  <button type="button" onClick={onOpeningBalance}>
+                    거래일을 모르면 현재 보유분으로 등록
+                  </button>
+                </div>
+              )}
               <label className="portfolio-ledger-field">
                 종목 검색
                 <input
@@ -319,6 +328,6 @@ export function PortfolioTransactionEditor({
           </footer>
         )}
       </form>
-    </PortfolioDialog>
+    </>
   );
 }

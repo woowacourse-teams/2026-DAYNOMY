@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { PortfolioDialog } from './PortfolioDialog';
 import { getLatestStockPrice, searchStocks } from '../api';
 import type { AssetCategory, PortfolioHoldingInput, StockSearchItem } from '../types';
 
@@ -30,10 +29,17 @@ type PortfolioEditorProps = {
   holding?: PortfolioHoldingInput;
   savedAssetIds: number[];
   onClose: () => void;
+  onRecordTransaction?: () => void;
   onSave: (holding: PortfolioHoldingInput) => Promise<void>;
 };
 
-export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: PortfolioEditorProps) {
+export function PortfolioEditor({
+  holding,
+  savedAssetIds,
+  onClose,
+  onSave,
+  onRecordTransaction,
+}: PortfolioEditorProps) {
   const [keyword, setKeyword] = useState('');
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(holding ?? null);
   const [quantity, setQuantity] = useState(holding ? String(holding.quantity) : '');
@@ -159,14 +165,16 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
   const isDetailsStep = holding !== undefined || selectedStock !== null;
 
   return (
-    <PortfolioDialog
-      titleId="portfolio-dialog-title"
-      onClose={onClose}
-      busy={saveLoading}
-      className="portfolio-holding-sheet"
-    >
+    <>
       <section className="portfolio-dialog">
         <form className={isDetailsStep ? 'is-details-step' : 'is-search-step'} onSubmit={submit}>
+          {!holding && !selectedStock && onRecordTransaction && (
+            <div className="portfolio-registration-choice">
+              <button type="button" onClick={onRecordTransaction}>
+                ← 거래 기록으로 돌아가기
+              </button>
+            </div>
+          )}
           <div className="portfolio-dialog-title">
             <div>
               {!holding && selectedStock ? (
@@ -418,6 +426,6 @@ export function PortfolioEditor({ holding, savedAssetIds, onClose, onSave }: Por
           ) : null}
         </form>
       </section>
-    </PortfolioDialog>
+    </>
   );
 }

@@ -320,7 +320,7 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage />);
     expect(await view.findByRole('button', { name: '자산 분석 접기' })).toBeTruthy();
     expect(view.queryByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeNull();
-    expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '자산 추가' })).toBeTruthy();
     expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy();
     expect(view.queryByText('표시할 자산이 없어요')).toBeNull();
     const summary = within(view.getByLabelText('자산 요약'));
@@ -362,12 +362,11 @@ describe('포트폴리오 화면', () => {
     mockPortfolioApi();
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
-        'disabled',
-        false,
-      ),
+      expect(view.getByRole('button', { name: '자산 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
+    fireEvent.click(view.getByRole('button', { name: '자산 추가' }));
+    expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
@@ -458,7 +457,7 @@ describe('포트폴리오 화면', () => {
       target: { value: '1M' },
     });
     expect(
-      (view.getByRole('combobox', { name: '자산 추이 기간' }) as HTMLSelectElement).value,
+      ((await view.findByRole('combobox', { name: '자산 추이 기간' })) as HTMLSelectElement).value,
     ).toBe('1M');
     expect(view.queryByText('08.10')).toBeNull();
     expect(view.queryByText(/최근 1개월.*거래일 종가 기준/)).toBeNull();
@@ -704,12 +703,11 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
-        'disabled',
-        false,
-      ),
+      expect(view.getByRole('button', { name: '자산 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
+    fireEvent.click(view.getByRole('button', { name: '자산 추가' }));
+    expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '주식' } });
@@ -750,12 +748,11 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
-        'disabled',
-        false,
-      ),
+      expect(view.getByRole('button', { name: '자산 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
+    fireEvent.click(view.getByRole('button', { name: '자산 추가' }));
+    expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '주식' } });
@@ -794,12 +791,11 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
-        'disabled',
-        false,
-      ),
+      expect(view.getByRole('button', { name: '자산 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
+    fireEvent.click(view.getByRole('button', { name: '자산 추가' }));
+    expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }));
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'KODEX' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /KODEX 200/ }));
@@ -826,12 +822,11 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
-        'disabled',
-        false,
-      ),
+      expect(view.getByRole('button', { name: '자산 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
+    fireEvent.click(view.getByRole('button', { name: '자산 추가' }));
+    expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }));
 
     const dialog = view.getByRole('dialog');
     const searchInput = within(dialog).getByRole('searchbox');
@@ -870,12 +865,11 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '기존 보유자산 등록' })).toHaveProperty(
-        'disabled',
-        false,
-      ),
+      expect(view.getByRole('button', { name: '자산 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '기존 보유자산 등록' }));
+    fireEvent.click(view.getByRole('button', { name: '자산 추가' }));
+    expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
+    fireEvent.click(view.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });

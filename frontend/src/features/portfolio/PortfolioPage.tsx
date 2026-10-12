@@ -17,6 +17,7 @@ import './portfolio.css';
 import './portfolioLedger.css';
 import { PortfolioTransactionEditor } from './components/PortfolioTransactionEditor';
 import { PortfolioHistory } from './components/PortfolioHistory';
+import { PortfolioDialog } from './components/PortfolioDialog';
 import { PortfolioHoldingDetail } from './components/PortfolioHoldingDetail';
 import { PortfolioConfirmDialog } from './components/PortfolioConfirmDialog';
 import type { PortfolioHoldingHistory, PortfolioTransactionType, StockSearchItem } from './types';
@@ -728,19 +729,11 @@ export function PortfolioPage() {
         <div className="portfolio-page-actions">
           <button
             type="button"
-            className="portfolio-secondary-button"
-            disabled={holdingsLoading || !!holdingsError}
-            onClick={() => setEditor({})}
-          >
-            기존 보유자산 등록
-          </button>
-          <button
-            type="button"
             className="portfolio-primary-button"
             disabled={holdingsLoading || !!holdingsError}
             onClick={() => setTransactionEditor({})}
           >
-            <span aria-hidden="true">＋</span> 거래 기록
+            <span aria-hidden="true">＋</span> 자산 추가
           </button>
         </div>
       </header>
@@ -1108,85 +1101,137 @@ export function PortfolioPage() {
         />
       ) : null}
 
-      {selectedStock && (
-        <PortfolioHoldingDetail
-          stock={selectedStock}
-          holding={holdings.find((item) => item.assetId === selectedStock.assetId)}
-          valuation={dashboardCalculation?.holdings.find(
-            (item) => item.assetId === selectedStock.assetId,
-          )}
-          revision={revision}
-          amountsHidden={amountsHidden}
-          busy={holdingsSaving || loading}
-          onClose={() => setSelectedStock(null)}
-          onTrade={(type) => setTransactionEditor({ stock: selectedStock, type })}
-          onAdjust={(holding) => setEditor({ holding })}
-          onRemove={(holding) => setRemoving({ holding })}
-          onEditTransaction={(transaction) => setTransactionEditor({ transaction })}
-          onDeleteTransaction={(transaction) => setRemoving({ transaction })}
-        />
-      )}
-
-      {transactionEditor && (
-        <PortfolioTransactionEditor
-          {...transactionEditor}
-          onClose={() => setTransactionEditor(null)}
-          onSave={async (request) => {
-            const transaction = transactionEditor.transaction;
-            if (transaction) {
-              const { assetId: _assetId, type: _type, ...update } = request;
-              await updateTransaction(transaction.historyId, transaction.assetId, update);
-            } else await createTransaction(request);
-            setTransactionEditor(null);
-            setNotice(
-              transaction ? '거래를 수정하고 자산을 다시 계산했어요.' : '거래를 기록했어요.',
-            );
+      {(selectedStock || transactionEditor || editor || removing) && (
+        <PortfolioDialog
+          titleId={
+            removing
+              ? 'portfolio-confirm-title'
+              : editor
+                ? 'portfolio-dialog-title'
+                : transactionEditor
+                  ? 'transaction-title'
+                  : 'holding-detail-title'
+          }
+          busy={holdingsSaving}
+          onClose={() => {
+            if (removing) setRemoving(null);
+            else if (editor) setEditor(null);
+            else if (transactionEditor) setTransactionEditor(null);
+            else setSelectedStock(null);
           }}
-        />
-      )}
-      {removing && (
-        <PortfolioConfirmDialog
-          title={removing.transaction ? '거래 삭제' : '보유자산 제거'}
-          onClose={() => setRemoving(null)}
-          onConfirm={async () => {
-            if (removing.transaction)
-              await deleteTransaction(removing.transaction.historyId, removing.transaction.assetId);
-            else if (removing.holding) await removeHolding(removing.holding.assetId);
-            setRemoving(null);
-            setNotice('삭제 내용을 반영했어요.');
-          }}
+          className={
+            selectedStock && !transactionEditor && !editor && !removing
+              ? 'portfolio-holding-detail'
+              : editor
+                ? 'portfolio-holding-sheet'
+                : ''
+          }
         >
-          <strong>{removing.transaction?.name ?? removing.holding?.name}</strong>
-          {removing.transaction ? (
-            <>
-              <p>
-                {removing.transaction.effectiveDate} ·{' '}
-                {removing.transaction.changeType === 'BUY' ? '매수' : '매도'} ·{' '}
-                {removing.transaction.transactionQuantity}주 ·{' '}
-                {displayWon(removing.transaction.unitPrice)}
-              </p>
-              <p>
-                이 거래를 삭제하면 이후 보유 수량, 평균 매입가, 실현손익과 자산 추이가 다시
-                계산됩니다.
-              </p>
-            </>
-          ) : (
-            <p>
-              보유 목록에서 제거합니다. 매도로 처리되지 않으며 실현손익이 발생하지 않습니다. 기존
-              거래 기록은 유지됩니다.
-            </p>
+          {selectedStock && (
+            <div
+              className="portfolio-detail-view"
+              hidden={!!(transactionEditor || editor || removing)}
+            >
+              <PortfolioHoldingDetail
+                stock={selectedStock}
+                holding={holdings.find((item) => item.assetId === selectedStock.assetId)}
+                valuation={dashboardCalculation?.holdings.find(
+                  (item) => item.assetId === selectedStock.assetId,
+                )}
+                revision={revision}
+                amountsHidden={amountsHidden}
+                busy={holdingsSaving || loading}
+                onClose={() => setSelectedStock(null)}
+                onTrade={(type) => setTransactionEditor({ stock: selectedStock, type })}
+                onAdjust={(holding) => setEditor({ holding })}
+                onRemove={(holding) => setRemoving({ holding })}
+                onEditTransaction={(transaction) => setTransactionEditor({ transaction })}
+                onDeleteTransaction={(transaction) => setRemoving({ transaction })}
+              />
+            </div>
           )}
-        </PortfolioConfirmDialog>
-      )}
 
-      {editor ? (
-        <PortfolioEditor
-          holding={editor.holding}
-          savedAssetIds={holdings.map((holding) => holding.assetId)}
-          onClose={() => setEditor(null)}
-          onSave={save}
-        />
-      ) : null}
+          {transactionEditor && (
+            <PortfolioTransactionEditor
+              {...transactionEditor}
+              onOpeningBalance={
+                !selectedStock && !transactionEditor.transaction
+                  ? () => {
+                      setTransactionEditor(null);
+                      setEditor({});
+                    }
+                  : undefined
+              }
+              onClose={() => setTransactionEditor(null)}
+              onSave={async (request) => {
+                const transaction = transactionEditor.transaction;
+                if (transaction) {
+                  const { assetId: _assetId, type: _type, ...update } = request;
+                  await updateTransaction(transaction.historyId, transaction.assetId, update);
+                } else await createTransaction(request);
+                setTransactionEditor(null);
+                setNotice(
+                  transaction ? '거래를 수정하고 자산을 다시 계산했어요.' : '거래를 기록했어요.',
+                );
+              }}
+            />
+          )}
+          {removing && (
+            <PortfolioConfirmDialog
+              title={removing.transaction ? '거래 삭제' : '보유자산 제거'}
+              onClose={() => setRemoving(null)}
+              onConfirm={async () => {
+                if (removing.transaction)
+                  await deleteTransaction(
+                    removing.transaction.historyId,
+                    removing.transaction.assetId,
+                  );
+                else if (removing.holding) await removeHolding(removing.holding.assetId);
+                setRemoving(null);
+                setNotice('삭제 내용을 반영했어요.');
+              }}
+            >
+              <strong>{removing.transaction?.name ?? removing.holding?.name}</strong>
+              {removing.transaction ? (
+                <>
+                  <p>
+                    {removing.transaction.effectiveDate} ·{' '}
+                    {removing.transaction.changeType === 'BUY' ? '매수' : '매도'} ·{' '}
+                    {removing.transaction.transactionQuantity}주 ·{' '}
+                    {displayWon(removing.transaction.unitPrice)}
+                  </p>
+                  <p>
+                    이 거래를 삭제하면 이후 보유 수량, 평균 매입가, 실현손익과 자산 추이가 다시
+                    계산됩니다.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  보유 목록에서 제거합니다. 매도로 처리되지 않으며 실현손익이 발생하지 않습니다.
+                  기존 거래 기록은 유지됩니다.
+                </p>
+              )}
+            </PortfolioConfirmDialog>
+          )}
+
+          {editor ? (
+            <PortfolioEditor
+              holding={editor.holding}
+              onRecordTransaction={
+                !editor.holding
+                  ? () => {
+                      setEditor(null);
+                      setTransactionEditor({});
+                    }
+                  : undefined
+              }
+              savedAssetIds={holdings.map((holding) => holding.assetId)}
+              onClose={() => setEditor(null)}
+              onSave={save}
+            />
+          ) : null}
+        </PortfolioDialog>
+      )}
     </main>
   );
 }

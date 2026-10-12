@@ -200,8 +200,12 @@ for (const viewport of [
     await detail.getByRole('button', { name: '매수', exact: true }).click();
     const nestedEditor = page.getByRole('dialog', { name: '거래 기록' });
     await expect(nestedEditor).toBeVisible();
+    await expect(page.locator('dialog[open]')).toHaveCount(1);
+    await expect(detail).toHaveCount(0);
     await expect(nestedEditor.getByRole('searchbox')).toHaveCount(0);
-    await expect(nestedEditor.getByText('삼성전자')).toBeVisible();
+    await expect(
+      nestedEditor.locator('.portfolio-trade-stock').getByText('삼성전자'),
+    ).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(nestedEditor).toHaveCount(0);
     await expect(detail).toBeVisible();
@@ -209,8 +213,16 @@ for (const viewport of [
     await page.keyboard.press('Escape');
     await expect(detail).toHaveCount(0);
     await expect(holdingTrigger).toBeFocused();
-    const trigger = page.getByRole('button', { name: '거래 기록', exact: true });
+    const trigger = page.getByRole('button', { name: '자산 추가', exact: true });
     await trigger.click();
+    await expect(page.getByRole('button', { name: '기존 보유자산 등록', exact: true })).toHaveCount(
+      0,
+    );
+    await page.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }).click();
+    await expect(page.locator('dialog[open]')).toHaveCount(1);
+    await expect(page.getByRole('dialog', { name: '기존 보유자산 등록' })).toBeVisible();
+    await page.getByRole('button', { name: '거래 기록으로 돌아가기' }).click();
+    await expect(page.locator('dialog[open]')).toHaveCount(1);
     const dialog = page.getByRole('dialog', { name: '거래 기록' });
     await expect(dialog).toBeVisible();
     await dialog.getByRole('searchbox').fill('삼성');

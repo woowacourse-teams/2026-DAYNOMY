@@ -200,7 +200,7 @@ function performanceRequests() {
 describe('거래 원장 화면', () => {
   it('검색한 기존 종목에 추가 매수하고 비용을 API에 전달한다', async () => {
     const view = await ready();
-    fireEvent.click(view.getByRole('button', { name: '거래 기록' }));
+    fireEvent.click(view.getByRole('button', { name: '자산 추가' }));
     const dialog = view.getByRole('dialog', { name: '거래 기록' });
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));
@@ -322,6 +322,9 @@ describe('거래 원장 화면', () => {
     fireEvent.click(within(detail).getByText('2026.10.01'));
     fireEvent.click(within(detail).getByRole('button', { name: '거래 수정' }));
     const editor = view.getByRole('dialog', { name: '거래 수정' });
+    expect(editor).toBe(detail);
+    expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
+    expect(view.queryByRole('dialog', { name: '삼성전자 보유 상세' })).toBeNull();
     fireEvent.change(within(editor).getByLabelText('거래일'), { target: { value: '2026-09-30' } });
     fireEvent.click(within(editor).getByRole('button', { name: '변경 사항 저장' }));
     await waitFor(() => expect(view.queryByRole('dialog', { name: '거래 수정' })).toBeNull());
@@ -329,6 +332,19 @@ describe('거래 원장 화면', () => {
     expect(document.body.style.overflow).toBe('hidden');
     fireEvent.click(within(detail).getByRole('button', { name: '보유 상세 닫기' }));
     expect(document.body.style.overflow).not.toBe('hidden');
+  });
+  it('매수·매도 입력을 같은 패널에서 전환하고 취소하면 상세로 돌아온다', async () => {
+    const view = await ready();
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+    const panel = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
+    for (const name of ['매수', '매도']) {
+      fireEvent.click(within(panel).getByRole('button', { name }));
+      expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
+      expect(view.getByRole('dialog', { name: '거래 기록' })).toBe(panel);
+      expect(within(panel).getByRole('button', { name: `${name} 기록하기` })).toBeTruthy();
+      fireEvent.click(within(panel).getByRole('button', { name: '취소' }));
+      expect(view.getByRole('dialog', { name: '삼성전자 보유 상세' })).toBe(panel);
+    }
   });
   it('추이 오류를 자산 계산 성공으로 숨기지 않고 해당 영역에서 재시도한다', async () => {
     failedPerformance = true;

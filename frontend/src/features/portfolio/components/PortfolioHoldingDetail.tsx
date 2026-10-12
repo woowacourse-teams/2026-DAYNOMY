@@ -1,4 +1,3 @@
-import { PortfolioDialog } from './PortfolioDialog';
 import { PortfolioHistory } from './PortfolioHistory';
 import type {
   PortfolioHoldingHistory,
@@ -47,11 +46,7 @@ export function PortfolioHoldingDetail({
   const profitClass =
     profit == null ? '' : profit > 0 ? 'portfolio-gain' : profit < 0 ? 'portfolio-loss' : '';
   return (
-    <PortfolioDialog
-      titleId="holding-detail-title"
-      onClose={onClose}
-      className="portfolio-holding-detail"
-    >
+    <>
       <header className="portfolio-holding-detail-heading">
         <span className="portfolio-detail-monogram" aria-hidden="true">
           {stock.name.slice(0, 1)}
@@ -179,6 +174,6 @@ export function PortfolioHoldingDetail({
           매수
         </button>
       </footer>
-    </PortfolioDialog>
+    </>
   );
 }

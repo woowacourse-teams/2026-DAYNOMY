@@ -15,6 +15,7 @@ export function PortfolioDialog({
   className = '',
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  const viewFocus = useRef(new Map<string, HTMLElement>());
   useEffect(() => {
     const dialog = ref.current;
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -27,12 +28,31 @@ export function PortfolioDialog({
       if (trigger?.isConnected) trigger.focus();
     };
   }, []);
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    dialog.scrollTop = 0;
+    const previous = viewFocus.current.get(titleId);
+    const target =
+      previous?.isConnected && !previous.closest('[hidden]')
+        ? previous
+        : Array.from(
+            dialog.querySelectorAll<HTMLElement>(
+              '[autofocus], button:not(:disabled), input, select',
+            ),
+          ).find((element) => !element.closest('[hidden]'));
+    target?.focus();
+  }, [titleId]);
   return (
     <dialog
       ref={ref}
       className={`portfolio-sheet ${className}`}
       aria-labelledby={titleId}
       aria-busy={busy}
+      onFocusCapture={(event) => {
+        if (event.target instanceof HTMLElement && event.target !== event.currentTarget)
+          viewFocus.current.set(titleId, event.target);
+      }}
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) onClose();

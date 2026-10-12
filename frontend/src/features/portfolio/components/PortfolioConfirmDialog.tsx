@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from 'react';
-import { PortfolioDialog } from './PortfolioDialog';
 
 export function PortfolioConfirmDialog({
   title,
@@ -29,12 +28,7 @@ export function PortfolioConfirmDialog({
     }
   }
   return (
-    <PortfolioDialog
-      titleId="portfolio-confirm-title"
-      onClose={onClose}
-      busy={busy}
-      className="portfolio-confirm"
-    >
+    <>
       <header className="portfolio-sheet-heading">
         <h2 id="portfolio-confirm-title">{title}</h2>
         <button
@@ -72,6 +66,6 @@ export function PortfolioConfirmDialog({
           {busy ? '처리 중…' : title}
         </button>
       </footer>
-    </PortfolioDialog>
+    </>
   );
 }
