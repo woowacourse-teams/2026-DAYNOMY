@@ -58,6 +58,7 @@ export function loadPortfolioAnalysis(
   now = new Date(),
   isLoggedIn = true,
 ): PortfolioAnalysisResponse | null {
+  if (isLoggedIn) return null;
   try {
     const saved = getAnalysisStorage(isLoggedIn).getItem(getAnalysisStorageKey(isLoggedIn));
     if (!saved) return null;
@@ -78,6 +79,7 @@ export function savePortfolioAnalysis(
   now = new Date(),
   isLoggedIn = true,
 ) {
+  if (isLoggedIn) return;
   const stored: StoredPortfolioAnalysis = {
     date: formatLocalDate(now),
     portfolioSnapshotKey: createPortfolioSnapshotKey(assets),

@@ -129,7 +129,7 @@ function AuthenticatedRoute({ children }: { children: ReactNode }) {
 }
 
 function PortfolioRoute() {
-  const { isLoggedIn, loading } = useAuth();
+  const { memberId, isLoggedIn, loading } = useAuth();
 
   if (loading) {
     return (
@@ -141,7 +141,9 @@ function PortfolioRoute() {
     );
   }
 
-  return <PortfolioPage isLoggedIn={isLoggedIn} />;
+  return (
+    <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
+  );
 }
 
 function PostLoginRedirect() {

@@ -100,6 +100,19 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
   if (url.endsWith('/api/auth/csrf')) {
     return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
   }
+  if (url.endsWith('/api/users/me/portfolio/analysis') && method === 'GET') {
+    return jsonResponse({
+      status: 'EMPTY',
+      lastCheckOutcome: null,
+      analysisId: null,
+      matchesCurrentPortfolio: false,
+      lastSucceededAt: null,
+      lastFailedAt: null,
+      failureCode: null,
+      changeReason: null,
+      analysis: null,
+    });
+  }
   if (url.endsWith('/api/users/me/portfolio') && method === 'GET') {
     return jsonResponse({ holdings: savedHoldings, totalRealizedProfitLoss: 0 });
   }

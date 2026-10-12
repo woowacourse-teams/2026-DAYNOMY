@@ -4,6 +4,7 @@ export type MemberRole = 'USER' | 'ADMIN';
 
 export type AuthContextValue = {
   isLoggedIn: boolean;
+  memberId?: number | null;
   loading: boolean;
   role: MemberRole | null;
   nickname?: string | null;
