@@ -152,6 +152,7 @@ export function PortfolioTransactionEditor({
                 종목 검색
                 <input
                   autoFocus
+                  data-autofocus
                   type="search"
                   placeholder="종목명 또는 종목코드"
                   value={keyword}
@@ -229,6 +230,7 @@ export function PortfolioTransactionEditor({
                 거래일
                 <input
                   autoFocus
+                  data-autofocus
                   type="date"
                   required
                   max={todayInSeoul()}

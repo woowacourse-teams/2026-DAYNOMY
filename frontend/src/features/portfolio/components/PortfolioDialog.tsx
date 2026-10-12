@@ -21,7 +21,6 @@ export function PortfolioDialog({
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    dialog?.showModal();
     return () => {
       dialog?.close();
       document.body.style.overflow = overflow;
@@ -33,14 +32,18 @@ export function PortfolioDialog({
     if (!dialog) return;
     dialog.scrollTop = 0;
     const previous = viewFocus.current.get(titleId);
+    if (!dialog.open) dialog.showModal();
+    const controls = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'button, a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => !element.matches(':disabled') && element.getClientRects().length > 0);
     const target =
-      previous?.isConnected && !previous.closest('[hidden]')
+      previous && controls.includes(previous)
         ? previous
-        : Array.from(
-            dialog.querySelectorAll<HTMLElement>(
-              '[autofocus], button:not(:disabled), input, select',
-            ),
-          ).find((element) => !element.closest('[hidden]'));
+        : (controls.find((element) => element.hasAttribute('data-autofocus')) ??
+          controls.find((element) => element === document.activeElement) ??
+          controls[0]);
     target?.focus();
   }, [titleId]);
   return (

@@ -1130,11 +1130,13 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             else setSelectedStock(null);
           }}
           className={
-            selectedStock && !transactionEditor && !editor && !removing
-              ? 'portfolio-holding-detail'
-              : editor
-                ? 'portfolio-holding-sheet'
-                : ''
+            removing
+              ? 'portfolio-confirm'
+              : selectedStock && !transactionEditor && !editor
+                ? 'portfolio-holding-detail'
+                : editor
+                  ? 'portfolio-holding-sheet'
+                  : ''
           }
         >
           {selectedStock && (

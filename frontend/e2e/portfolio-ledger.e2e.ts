@@ -311,6 +311,7 @@ for (const viewport of [
     await detail.getByRole('button', { name: '매수', exact: true }).click();
     const nestedEditor = page.getByRole('dialog', { name: '거래 기록' });
     await expect(nestedEditor).toBeVisible();
+    await expect(nestedEditor.getByLabel('거래일', { exact: true })).toBeFocused();
     await expect(page.locator('dialog[open]')).toHaveCount(1);
     await expect(detail).toHaveCount(0);
     await expect(nestedEditor.getByRole('searchbox')).toHaveCount(0);
@@ -326,18 +327,25 @@ for (const viewport of [
     await expect(holdingTrigger).toBeFocused();
     const trigger = page.getByRole('button', { name: '자산 추가', exact: true });
     await trigger.click();
+    await expect(
+      page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
+    ).toBeFocused();
     await expect(page.getByRole('button', { name: '기존 보유자산 등록', exact: true })).toHaveCount(
       0,
     );
     await page.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }).click();
     await expect(page.locator('dialog[open]')).toHaveCount(1);
     await expect(page.getByRole('dialog', { name: '기존 보유자산 등록' })).toBeVisible();
+    await expect(
+      page.getByRole('dialog', { name: '기존 보유자산 등록' }).getByRole('searchbox'),
+    ).toBeFocused();
     await page.getByRole('button', { name: '거래 기록으로 돌아가기' }).click();
     await expect(page.locator('dialog[open]')).toHaveCount(1);
     const dialog = page.getByRole('dialog', { name: '거래 기록' });
     await expect(dialog).toBeVisible();
     await dialog.getByRole('searchbox').fill('삼성');
     await dialog.getByRole('button', { name: /삼성전자/ }).click();
+    await expect(dialog.getByLabel('거래일', { exact: true })).toBeFocused();
     await dialog.getByLabel('수량 (주)').fill('5');
     await dialog.getByLabel('거래 단가 (원)').fill('75200');
     await page.screenshot({
@@ -362,6 +370,23 @@ for (const viewport of [
     await page.getByRole('button', { name: '거래 삭제' }).last().click();
     const confirm = page.getByRole('dialog', { name: '거래 삭제' });
     await expect(confirm).toBeVisible();
+    await expect(confirm.getByRole('button', { name: '닫기' })).toBeFocused();
+    expect(
+      await confirm.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return (
+          box.width <= 460 &&
+          element.scrollWidth <= element.clientWidth &&
+          box.height < innerHeight &&
+          Math.abs(
+            box.left + box.width / 2 - document.documentElement.getBoundingClientRect().width / 2,
+          ) <= 1 &&
+          Math.abs(box.top + box.height / 2 - innerHeight / 2) <= 1
+        );
+      }),
+      '삭제 확인창은 화면 중앙에 작게 표시되어야 합니다.',
+    ).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('delete-confirm.png') });
     await confirm.getByRole('button', { name: '거래 삭제' }).click();
     await expect(confirm).toHaveCount(0);
     await expect(page.locator('.portfolio-history-row')).toHaveCount(1);

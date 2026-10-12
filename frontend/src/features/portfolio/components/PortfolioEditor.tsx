@@ -253,6 +253,7 @@ export function PortfolioEditor({
                 <span className="sr-only">종목 검색</span>
                 <input
                   autoFocus
+                  data-autofocus
                   type="search"
                   value={keyword}
                   placeholder="종목명 또는 종목코드를 검색하세요"
