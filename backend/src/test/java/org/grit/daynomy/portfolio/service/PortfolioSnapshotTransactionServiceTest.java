@@ -1,7 +1,6 @@
 package org.grit.daynomy.portfolio.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -28,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +37,7 @@ class PortfolioSnapshotTransactionServiceTest {
   @Mock private PortfolioHoldingHistoryRepository historyRepository;
   @Mock private PortfolioDailySnapshotRepository snapshotRepository;
   @Mock private StockDailyPriceRepository stockPriceRepository;
+  @Spy private PortfolioLedgerCalculator ledgerCalculator = new PortfolioLedgerCalculator();
   @InjectMocks private PortfolioSnapshotTransactionService service;
 
   @Test
@@ -58,8 +59,9 @@ class PortfolioSnapshotTransactionServiceTest {
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
         .willReturn(Optional.empty());
     given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                eq(10L), any()))
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    eq(10L), eq(baseDate)))
         .willReturn(histories);
     given(stockPriceRepository.findByAssetIdAndBaseDate(2L, baseDate))
         .willReturn(Optional.of(currentPrice));
@@ -99,6 +101,78 @@ class PortfolioSnapshotTransactionServiceTest {
   }
 
   @Test
+  void refreshSnapshotsFromOverwritesPastSnapshot() {
+    LocalDate previousDate = LocalDate.now().minusDays(2);
+    LocalDate baseDate = LocalDate.now().minusDays(1);
+    Portfolio portfolio = mock(Portfolio.class);
+    PortfolioDailySnapshot existing = mock(PortfolioDailySnapshot.class);
+    Asset asset = asset(2L);
+    StockDailyPrice currentPrice = price("12000");
+    StockDailyPrice previousPrice = price("11000");
+    PortfolioHoldingHistory history = history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000");
+    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+        .willReturn(List.of(previousDate, baseDate));
+    given(portfolioRepository.findById(10L)).willReturn(Optional.of(portfolio));
+    given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
+        .willReturn(Optional.of(existing));
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, baseDate))
+        .willReturn(List.of(history));
+    given(stockPriceRepository.findByAssetIdAndBaseDate(2L, baseDate))
+        .willReturn(Optional.of(currentPrice));
+    given(stockPriceRepository.findByAssetIdAndBaseDate(2L, previousDate))
+        .willReturn(Optional.of(previousPrice));
+
+    service.refreshSnapshotsFrom(10L, baseDate);
+
+    then(existing)
+        .should()
+        .update(
+            new BigDecimal("20000.00"),
+            new BigDecimal("24000.00"),
+            new BigDecimal("4000.00"),
+            new BigDecimal("20.00"),
+            new BigDecimal("2000.00"),
+            new BigDecimal("9.09"));
+    then(snapshotRepository).should().saveAndFlush(existing);
+  }
+
+  @Test
+  void refreshSnapshotsFromRemovesStaleSnapshotsAcrossAffectedDates() {
+    LocalDate beforeDate = LocalDate.now().minusDays(3);
+    LocalDate fromDate = LocalDate.now().minusDays(2);
+    LocalDate afterDate = LocalDate.now().minusDays(1);
+    Portfolio portfolio = mock(Portfolio.class);
+    PortfolioDailySnapshot fromSnapshot = mock(PortfolioDailySnapshot.class);
+    PortfolioDailySnapshot afterSnapshot = mock(PortfolioDailySnapshot.class);
+    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+        .willReturn(List.of(beforeDate, fromDate, afterDate));
+    given(portfolioRepository.findById(10L)).willReturn(Optional.of(portfolio));
+    given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, fromDate))
+        .willReturn(Optional.of(fromSnapshot));
+    given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, afterDate))
+        .willReturn(Optional.of(afterSnapshot));
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, fromDate))
+        .willReturn(List.of());
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, afterDate))
+        .willReturn(List.of());
+
+    service.refreshSnapshotsFrom(10L, fromDate);
+
+    then(snapshotRepository).should(never()).findByPortfolioIdAndBaseDate(10L, beforeDate);
+    then(snapshotRepository).should().delete(fromSnapshot);
+    then(snapshotRepository).should().delete(afterSnapshot);
+  }
+
+  @Test
   void createSnapshotWaitsUntilPreviousClosingPriceIsAvailable() {
     LocalDate previousDate = LocalDate.of(2026, 9, 29);
     LocalDate baseDate = LocalDate.of(2026, 9, 30);
@@ -111,8 +185,9 @@ class PortfolioSnapshotTransactionServiceTest {
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
         .willReturn(Optional.empty());
     given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                eq(10L), any()))
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    eq(10L), eq(baseDate)))
         .willReturn(List.of(addedHistory));
     given(stockPriceRepository.findByAssetIdAndBaseDate(2L, baseDate))
         .willReturn(Optional.of(currentPrice));

@@ -12,7 +12,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
-import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.portfolio.domain.Portfolio;
@@ -23,6 +22,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceStatus;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
+import org.grit.daynomy.portfolio.dto.PortfolioPricingStatus;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
@@ -111,6 +111,9 @@ class PortfolioSnapshotServiceTest {
         .willReturn(
             new PortfolioCalculationResponse(
                 priceBaseDate,
+                PortfolioPricingStatus.COMPLETE,
+                1,
+                0,
                 new BigDecimal("130000.00"),
                 new BigDecimal("140000.00"),
                 new BigDecimal("2000.00"),
@@ -127,6 +130,8 @@ class PortfolioSnapshotServiceTest {
     assertThat(response.currentPoint().priceBaseDate()).isEqualTo(priceBaseDate);
     assertThat(response.currentPoint().totalPurchaseAmount()).isEqualByComparingTo("130000.00");
     assertThat(response.currentPoint().totalEvaluationAmount()).isEqualByComparingTo("140000.00");
+    assertThat(response.currentPoint().dailyProfitLoss()).isNull();
+    assertThat(response.currentPoint().dailyReturnRate()).isNull();
     then(calculationService).should().calculate(request);
     then(snapshotTransactionService).shouldHaveNoInteractions();
   }
@@ -149,7 +154,7 @@ class PortfolioSnapshotServiceTest {
   }
 
   @Test
-  void performanceReturnsHistoricalSnapshotsWithoutTodayPointWhenStockPriceIsMissing() {
+  void performanceReturnsHistoricalSnapshotsWithoutTodayPointWhenPricingIsPartial() {
     LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
     LocalDate yesterday = today.minusDays(1);
     Portfolio portfolio = portfolio(10L);
@@ -170,7 +175,20 @@ class PortfolioSnapshotServiceTest {
         new PortfolioCalculateRequest(
             List.of(new PortfolioHoldingRequest(1L, 2L, new BigDecimal("65000.00"))));
     given(calculationService.calculate(request))
-        .willThrow(new BusinessException(AssetErrorCode.STOCK_PRICE_NOT_FOUND));
+        .willReturn(
+            new PortfolioCalculationResponse(
+                null,
+                PortfolioPricingStatus.PARTIAL,
+                0,
+                1,
+                new BigDecimal("130000.00"),
+                BigDecimal.ZERO.setScale(2),
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                List.of()));
 
     var response = service.performance(1L, yesterday, today);
 

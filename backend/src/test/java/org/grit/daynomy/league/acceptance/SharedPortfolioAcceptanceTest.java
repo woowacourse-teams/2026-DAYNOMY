@@ -532,7 +532,7 @@ class SharedPortfolioAcceptanceTest {
         .body("{\"transactionType\":\"BUY\",\"assetId\":" + asset.getId() + "}")
         .post("/api/users/me/portfolio/transactions")
         .then()
-        .statusCode(405);
+        .statusCode(400);
     client(owner)
         .get(SHARED)
         .then()
@@ -606,26 +606,28 @@ class SharedPortfolioAcceptanceTest {
     Asset asset = asset();
     Portfolio original = originals.save(Portfolio.create(owner));
     Instant changedAt = Instant.now();
+    LocalDate today = changedAt.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
     for (long quantity : new long[] {1, 3, 5}) {
       jdbc.update(
           """
           INSERT INTO portfolio_holding_histories
-            (portfolio_id,asset_id,change_type,quantity,average_purchase_price,created_at,updated_at)
-          VALUES (?,?,?,?,10000,?,?)
+            (portfolio_id,asset_id,change_type,quantity,average_purchase_price,effective_date,created_at,updated_at)
+          VALUES (?,?,?,?,10000,?,?,?)
           """,
           original.getId(),
           asset.getId(),
           quantity == 1 ? "ADDED" : "UPDATED",
           quantity,
+          today,
           java.sql.Timestamp.from(changedAt),
           java.sql.Timestamp.from(changedAt));
     }
     assertThat(
-            originalHistory.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                original.getId(), changedAt.plusSeconds(1)))
+            originalHistory
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    original.getId(), today))
         .extracting(history -> history.getQuantity())
         .containsExactly(1L, 3L, 5L);
-    LocalDate today = changedAt.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
     client(owner)
         .queryParam("from", today.toString())
         .queryParam("to", today.toString())
@@ -922,13 +924,13 @@ class SharedPortfolioAcceptanceTest {
     jdbc.update(
         "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
         previous);
-    List<LocalDate> tradingDates =
+    List<LocalDate> tradingDays =
         jdbc.queryForList(
             "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
             LocalDate.class,
             date,
             date.plusDays(6));
-    for (LocalDate trading : tradingDates) {
+    for (LocalDate trading : tradingDays) {
       prices.save(new StockDailyPrice(asset, trading, new BigDecimal("77000")));
       jdbc.update(
           "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
@@ -950,16 +952,16 @@ class SharedPortfolioAcceptanceTest {
         .header("Cache-Control", "no-store")
         .body("weekStart", equalTo(date.toString()))
         .body("weekEnd", equalTo(date.plusDays(6).toString()))
-        .body("asOfDate", equalTo(tradingDates.getLast().toString()))
+        .body("asOfDate", equalTo(tradingDays.getLast().toString()))
         .body("weeklyReturnRate", equalTo(10.0f))
         .body(
-            "days.find { it.baseDate == '" + tradingDates.getFirst() + "' }.dailyReturnRate",
+            "days.find { it.baseDate == '" + tradingDays.getFirst() + "' }.dailyReturnRate",
             equalTo(10.0f))
         .body(
-            "days.find { it.baseDate == '" + tradingDates.getFirst() + "' }.cumulativeReturnRate",
+            "days.find { it.baseDate == '" + tradingDays.getFirst() + "' }.cumulativeReturnRate",
             equalTo(10.0f))
         .body(
-            "days.find { it.baseDate == '" + tradingDates.getFirst() + "' }.status",
+            "days.find { it.baseDate == '" + tradingDays.getFirst() + "' }.status",
             equalTo("CALCULATED"))
         .body("$", not(hasKey("email")))
         .body("$", not(hasKey("name")));
@@ -1491,7 +1493,7 @@ class SharedPortfolioAcceptanceTest {
         assertThat(result.next()).isTrue();
         assertThat(result.getInt("indexes")).isEqualTo(2);
         assertThat(result.getInt("feature_migrations")).isEqualTo(5);
-        assertThat(result.getInt("latest_version")).isEqualTo(32);
+        assertThat(result.getInt("latest_version")).isEqualTo(33);
       }
     }
   }

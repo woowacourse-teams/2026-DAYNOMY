@@ -407,11 +407,18 @@ class LeagueServiceTest {
     given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
         .willReturn(List.of(profile));
     var performance = service.publicInvestor(null, "investor-1").performance();
+    Integer expectedRank =
+        values.stream().anyMatch(value -> !value.getBaseDate().isBefore(currentWeek)) ? 1 : null;
+    assertThat(performance.weeklyRank()).isEqualTo(expectedRank);
     assertThat(performance.currentHoldingWeight()).isEqualByComparingTo("75");
     assertThat(performance.maxHoldingWeight()).isEqualByComparingTo("75");
     assertThat(performance.cumulativeReturnRate()).isGreaterThan(performance.eightWeekReturnRate());
     assertThat(performance.volatilityRate()).isEqualByComparingTo("0.00");
-    assertThat(performance.consecutiveRecordedWeeks()).isGreaterThan(8);
+    if (expectedRank == null) {
+      assertThat(performance.consecutiveRecordedWeeks()).isZero();
+    } else {
+      assertThat(performance.consecutiveRecordedWeeks()).isGreaterThan(8);
+    }
     values.get(values.size() - 8).exclude("MISSING_PRICE", Instant.now());
     var missing = service.publicInvestor(null, "investor-1").performance();
     assertThat(missing.cumulativeReturnRate()).isNull();

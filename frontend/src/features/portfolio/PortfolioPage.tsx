@@ -592,7 +592,11 @@ function compareHoldings(
   return (second[key] as number) - (first[key] as number);
 }
 
-export function PortfolioPage() {
+type PortfolioPageProps = {
+  isLoggedIn?: boolean;
+};
+
+export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const {
     holdings,
     loading: holdingsLoading,
@@ -601,7 +605,7 @@ export function PortfolioPage() {
     retry: retryHoldings,
     saveHolding,
     removeHolding,
-  } = usePortfolioHoldings();
+  } = usePortfolioHoldings(isLoggedIn);
   const [calculation, setCalculation] = useState<PortfolioCalculation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -612,7 +616,7 @@ export function PortfolioPage() {
   const [amountsHidden, setAmountsHidden] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
-  const performance = usePortfolioPerformance(trendPeriod, holdings);
+  const performance = usePortfolioPerformance(trendPeriod, holdings, isLoggedIn);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [expandedContentAssetId, setExpandedContentAssetId] = useState<number | null>(null);
@@ -1084,7 +1088,7 @@ export function PortfolioPage() {
                 </div>
               </div>
             </section>
-            <PortfolioAnalysis assets={analysisAssets} />
+            <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
           </div>
           {renderRelatedContentPanel()}
         </div>
