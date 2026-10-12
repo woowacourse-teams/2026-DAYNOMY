@@ -1,0 +1,125 @@
+package org.grit.daynomy.person.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.mock;
+
+import java.util.List;
+import java.util.Optional;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.content.domain.ContentSourceType;
+import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
+import org.grit.daynomy.external.openai.SocialPostCandidate;
+import org.grit.daynomy.person.domain.FeaturedPerson;
+import org.grit.daynomy.person.domain.FeaturedPersonPost;
+import org.grit.daynomy.person.dto.FeaturedPersonPostRequest;
+import org.grit.daynomy.person.dto.FeaturedPersonRequest;
+import org.grit.daynomy.person.exception.FeaturedPersonErrorCode;
+import org.grit.daynomy.person.repository.FeaturedPersonPostRepository;
+import org.grit.daynomy.person.repository.FeaturedPersonRepository;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class FeaturedPersonServiceTest {
+
+  @Mock private FeaturedPersonRepository personRepository;
+  @Mock private FeaturedPersonPostRepository postRepository;
+  @Mock private OpenAiSocialPostSearchClient socialPostSearchClient;
+  @InjectMocks private FeaturedPersonService featuredPersonService;
+
+  @Test
+  @DisplayName("주요 인물 등록은 공식 프로필 URL을 정규화한다")
+  void createPersonNormalizesProfileUrls() {
+    given(personRepository.existsByName("일론 머스크")).willReturn(false);
+    given(personRepository.saveAndFlush(any(FeaturedPerson.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    var response =
+        featuredPersonService.createPerson(
+            new FeaturedPersonRequest(
+                " 일론 머스크 ",
+                "https://X.com/elonmusk/?lang=ko",
+                "https://www.threads.net/@elonmusk/"));
+
+    assertThat(response.name()).isEqualTo("일론 머스크");
+    assertThat(response.xProfileUrl()).isEqualTo("https://x.com/elonmusk");
+    assertThat(response.threadsProfileUrl()).isEqualTo("https://www.threads.net/@elonmusk");
+  }
+
+  @Test
+  @DisplayName("주요 인물 게시물 검색은 이름과 등록된 프로필 URL을 사용한다")
+  void searchPostsUsesPersonAndProfileUrls() {
+    FeaturedPerson person = mock(FeaturedPerson.class);
+    given(person.getName()).willReturn("일론 머스크");
+    given(person.getXProfileUrl()).willReturn("https://x.com/elonmusk");
+    given(person.getThreadsProfileUrl()).willReturn("https://www.threads.net/@elonmusk");
+    given(personRepository.findById(1L)).willReturn(Optional.of(person));
+    given(
+            socialPostSearchClient.search(
+                "일론 머스크 https://x.com/elonmusk https://www.threads.net/@elonmusk"))
+        .willReturn(
+            List.of(
+                new SocialPostCandidate(
+                    SocialPostCandidate.Platform.X,
+                    "일론 머스크 게시물",
+                    "https://x.com/elonmusk/status/12345",
+                    "")));
+
+    var response = featuredPersonService.searchPosts(1L);
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().getFirst().sourceType()).isEqualTo(ContentSourceType.X);
+    then(socialPostSearchClient)
+        .should()
+        .search("일론 머스크 https://x.com/elonmusk https://www.threads.net/@elonmusk");
+  }
+
+  @Test
+  @DisplayName("게시물 등록은 빈 제목을 인물과 플랫폼 이름으로 채운다")
+  void createPostUsesDefaultTitle() {
+    FeaturedPerson person = mock(FeaturedPerson.class);
+    given(person.getName()).willReturn("일론 머스크");
+    given(personRepository.findById(1L)).willReturn(Optional.of(person));
+    given(postRepository.existsByPersonIdAndUrl(1L, "https://x.com/elonmusk/status/12345"))
+        .willReturn(false);
+    given(postRepository.saveAndFlush(any(FeaturedPersonPost.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    var response =
+        featuredPersonService.createPost(
+            1L,
+            new FeaturedPersonPostRequest(
+                ContentSourceType.X, " ", "https://x.com/elonmusk/status/12345?ref=home"));
+
+    assertThat(response.title()).isEqualTo("일론 머스크 X 게시물");
+    assertThat(response.url()).isEqualTo("https://x.com/elonmusk/status/12345");
+  }
+
+  @Test
+  @DisplayName("선택한 플랫폼과 게시물 URL이 다르면 등록을 거부한다")
+  void createPostRejectsMismatchedPlatformUrl() {
+    given(personRepository.findById(1L)).willReturn(Optional.of(mock(FeaturedPerson.class)));
+
+    assertThatThrownBy(
+            () ->
+                featuredPersonService.createPost(
+                    1L,
+                    new FeaturedPersonPostRequest(
+                        ContentSourceType.THREADS,
+                        null,
+                        "https://x.com/elonmusk/status/12345")))
+        .isInstanceOf(BusinessException.class)
+        .extracting(error -> ((BusinessException) error).errorCode())
+        .isEqualTo(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
+
+    then(postRepository).shouldHaveNoInteractions();
+  }
+}
