@@ -217,7 +217,8 @@ public class SavedPortfolioAnalysisTransactionService {
                                     source.url(),
                                     source.publishedOn(),
                                     source.occurredOn(),
-                                    source.excerpt()))));
+                                    source.excerpt(),
+                                    source.factQuote()))));
     var assetSourceUrls =
         savedEvidence.stream()
             .map(PortfolioAnalysisEvidence::getUrl)
@@ -235,7 +236,8 @@ public class SavedPortfolioAnalysisTransactionService {
                         source.url(),
                         source.publishedOn(),
                         source.occurredOn(),
-                        source.excerpt())));
+                        source.excerpt(),
+                        source.factQuote())));
     evidence.saveAll(savedEvidence);
     check.recordSuccess(now, PortfolioAnalysisCheck.Outcome.UPDATED);
     check.finish(token);

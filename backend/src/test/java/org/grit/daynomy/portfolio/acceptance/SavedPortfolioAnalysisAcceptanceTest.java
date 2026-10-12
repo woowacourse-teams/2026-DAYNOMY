@@ -546,6 +546,110 @@ class SavedPortfolioAnalysisAcceptanceTest {
     client(member).get(API + "/history").then().body("size()", equalTo(1));
   }
 
+  @Test
+  void restoresQuotesAndKeepsJudgmentWhenOnlySummaryChanges() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    when(ai.analyze(anyList()))
+        .thenAnswer(
+            invocation ->
+                quotedResult(invocation.getArgument(0), "기존 요약이에요.", "Operating profit fell 10%."));
+    long id = client(member).post(API).jsonPath().getLong("analysisId");
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("analysis.impacts[0].sources[0].factQuote", equalTo("Operating profit fell 10%."))
+        .body(
+            "analysis.sources.find { it.url == 'https://example.invalid/overall' }.factQuote",
+            equalTo("Industry demand declined."));
+    when(ai.refresh(anyList(), anyString()))
+        .thenAnswer(
+            invocation -> {
+              assertThat((String) invocation.getArgument(1)).contains("Operating profit fell 10%.");
+              return quotedResult(
+                  invocation.getArgument(0), "표현만 달라진 요약이에요.", "Operating profit fell 10%.");
+            });
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("analysisId", equalTo((int) id))
+        .body("status", equalTo("READY"))
+        .body("lastCheckOutcome", equalTo("UNCHANGED"));
+  }
+
+  @Test
+  void correctedQuoteWithSameSummaryRequiresRecheckAfterDatabaseRestore() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    when(ai.analyze(anyList()))
+        .thenAnswer(
+            invocation ->
+                quotedResult(
+                    invocation.getArgument(0), "이익이 감소했어요.", "Operating profit fell 10%."));
+    long id = client(member).post(API).jsonPath().getLong("analysisId");
+    when(ai.refresh(anyList(), anyString()))
+        .thenAnswer(
+            invocation ->
+                quotedResult(
+                    invocation.getArgument(0), "이익이 감소했어요.", "Operating profit fell 20%."));
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("analysisId", equalTo((int) id))
+        .body("status", equalTo("RECHECK_REQUIRED"))
+        .body("lastCheckOutcome", equalTo("UNCONFIRMED"));
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("status", equalTo("RECHECK_REQUIRED"))
+        .body("analysis.impacts[0].sources[0].factQuote", equalTo("Operating profit fell 10%."));
+  }
+
+  private PortfolioAnalysisResult quotedResult(
+      List<PortfolioAnalysisTarget> targets, String excerpt, String quote) {
+    var source =
+        new PortfolioAnalysisResult.Source(
+            "실적 발표",
+            "https://example.invalid/evidence",
+            LocalDate.of(2026, 9, 25),
+            LocalDate.of(2026, 9, 25),
+            excerpt,
+            quote);
+    var original = result(targets);
+    var impacts =
+        original.impacts().stream()
+            .map(
+                impact ->
+                    new PortfolioAnalysisResult.AssetImpactResult(
+                        impact.assetName(),
+                        impact.direction(),
+                        impact.impactLevel(),
+                        impact.issueSummary(),
+                        impact.expectedReaction(),
+                        impact.outlook(),
+                        impact.reason(),
+                        impact.evidenceSentence(),
+                        List.of(source),
+                        impact.sortOrder()))
+            .toList();
+    return new PortfolioAnalysisResult(
+        original.overallImpact(),
+        impacts,
+        List.of(
+            source,
+            new PortfolioAnalysisResult.Source(
+                "산업 발표",
+                "https://example.invalid/overall",
+                LocalDate.of(2026, 9, 25),
+                LocalDate.of(2026, 9, 25),
+                "산업 수요가 줄었어요.",
+                "Industry demand declined.")));
+  }
+
   private PortfolioAnalysisResult refreshed(
       List<PortfolioAnalysisTarget> targets, LocalDate occurredOn, String url, String fact) {
     var source = new PortfolioAnalysisResult.Source("공식 발표", url, occurredOn, occurredOn, fact);

@@ -262,7 +262,8 @@ class PortfolioAnalysisRepositoryTest {
             "https://example.invalid/earnings",
             LocalDate.of(2026, 10, 12),
             LocalDate.of(2026, 10, 9),
-            "영업이익이 감소했어요."));
+            "영업이익이 감소했어요.",
+            null));
   }
 
   private PortfolioAnalysisSnapshot snapshot() {

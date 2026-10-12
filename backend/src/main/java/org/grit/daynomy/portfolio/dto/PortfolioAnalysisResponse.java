@@ -106,7 +106,8 @@ public record PortfolioAnalysisResponse(
                                         source.getUrl(),
                                         source.getPublishedOn(),
                                         source.getOccurredOn(),
-                                        source.getExcerpt()))
+                                        source.getExcerpt(),
+                                        source.getFactQuote()))
                             .distinct()
                             .toList(),
                         impact.rank()))
@@ -125,7 +126,8 @@ public record PortfolioAnalysisResponse(
                         source.getUrl(),
                         source.getPublishedOn(),
                         source.getOccurredOn(),
-                        source.getExcerpt()))
+                        source.getExcerpt(),
+                        source.getFactQuote()))
             .collect(
                 Collectors.toMap(
                     PortfolioAnalysisSourceResponse::url,

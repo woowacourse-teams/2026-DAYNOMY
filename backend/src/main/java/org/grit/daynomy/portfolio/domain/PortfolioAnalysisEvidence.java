@@ -47,6 +47,9 @@ public class PortfolioAnalysisEvidence {
   @Column(nullable = false, updatable = false, columnDefinition = "text")
   private String excerpt;
 
+  @Column(name = "fact_quote", updatable = false, columnDefinition = "text")
+  private String factQuote;
+
   public PortfolioAnalysisEvidence(
       PortfolioAnalysis analysis,
       String assetName,
@@ -54,7 +57,8 @@ public class PortfolioAnalysisEvidence {
       String url,
       LocalDate publishedOn,
       LocalDate occurredOn,
-      String excerpt) {
+      String excerpt,
+      String factQuote) {
     this.analysis = analysis;
     this.assetName = assetName;
     this.title = title;
@@ -62,5 +66,6 @@ public class PortfolioAnalysisEvidence {
     this.publishedOn = publishedOn;
     this.occurredOn = occurredOn;
     this.excerpt = excerpt;
+    this.factQuote = factQuote;
   }
 }
