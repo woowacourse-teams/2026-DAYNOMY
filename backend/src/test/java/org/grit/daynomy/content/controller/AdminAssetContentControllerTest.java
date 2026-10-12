@@ -9,6 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.List;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.content.domain.ContentSourceType;
+import org.grit.daynomy.content.dto.SocialPostResponse;
+import org.grit.daynomy.content.dto.SocialPostSearchResponse;
 import org.grit.daynomy.content.dto.YouTubeSearchResponse;
 import org.grit.daynomy.content.dto.YouTubeVideoResponse;
 import org.grit.daynomy.content.service.AssetContentService;
@@ -58,5 +61,33 @@ class AdminAssetContentControllerTest {
         .andExpect(jsonPath("$.items[0].channelTitle").value("DAYNOMY"));
 
     then(assetContentService).should().searchYouTube(1L, "삼성전자 005930");
+  }
+
+  @Test
+  void searchSocialPostsReturnsCandidates() throws Exception {
+    given(assetContentService.searchSocialPosts(1L, "삼성전자"))
+        .willReturn(
+            new SocialPostSearchResponse(
+                List.of(
+                    new SocialPostResponse(
+                        ContentSourceType.THREADS,
+                        "삼성전자 실적 전망",
+                        "https://www.threads.net/@investor/post/123",
+                        "2026-10-11"),
+                    new SocialPostResponse(
+                        ContentSourceType.X, "삼성전자 수급", "https://x.com/investor/status/456", ""))));
+
+    mockMvc
+        .perform(
+            get("/api/admin/assets/{assetId}/contents/social-search", 1L)
+                .queryParam("keyword", " 삼성전자 "))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].sourceType").value("THREADS"))
+        .andExpect(jsonPath("$.items[0].title").value("삼성전자 실적 전망"))
+        .andExpect(jsonPath("$.items[0].url").value("https://www.threads.net/@investor/post/123"))
+        .andExpect(jsonPath("$.items[0].publishedDate").value("2026-10-11"))
+        .andExpect(jsonPath("$.items[1].sourceType").value("X"));
+
+    then(assetContentService).should().searchSocialPosts(1L, "삼성전자");
   }
 }
