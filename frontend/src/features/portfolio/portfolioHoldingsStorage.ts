@@ -19,6 +19,7 @@ function isPortfolioHolding(value: unknown): value is PortfolioHoldingInput {
     isRecord(value) &&
     typeof value.assetId === 'number' &&
     Number.isSafeInteger(value.assetId) &&
+    value.assetId > 0 &&
     typeof value.assetCode === 'string' &&
     typeof value.name === 'string' &&
     isAssetCategory(value.category) &&
@@ -46,7 +47,11 @@ export function loadGuestPortfolioHoldings(): PortfolioHoldingInput[] {
     if (!saved) return [];
 
     const parsed: unknown = JSON.parse(saved);
-    if (!Array.isArray(parsed) || !parsed.every(isPortfolioHolding)) {
+    if (
+      !Array.isArray(parsed) ||
+      !parsed.every(isPortfolioHolding) ||
+      new Set(parsed.map((holding) => holding.assetId)).size !== parsed.length
+    ) {
       clearInvalidStoredHoldings();
       return [];
     }
@@ -58,5 +63,11 @@ export function loadGuestPortfolioHoldings(): PortfolioHoldingInput[] {
 }
 
 export function saveGuestPortfolioHoldings(holdings: PortfolioHoldingInput[]) {
-  sessionStorage.setItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY, JSON.stringify(holdings));
+  try {
+    sessionStorage.setItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY, JSON.stringify(holdings));
+  } catch {
+    throw new Error(
+      '현재 탭에 보유정보를 임시 보관하지 못했어요. 브라우저 저장 설정을 확인해 주세요.',
+    );
+  }
 }

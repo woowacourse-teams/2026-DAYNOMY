@@ -190,6 +190,9 @@
   grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
   gap: 24px;
 }
+.portfolio-page .portfolio-dashboard-grid.is-guest {
+  grid-template-columns: minmax(0, 1fr);
+}
 .portfolio-page .portfolio-return-dashboard,
 .portfolio-page .portfolio-composition {
   border: 1px solid #e9edf3;

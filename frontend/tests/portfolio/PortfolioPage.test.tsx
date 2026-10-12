@@ -303,6 +303,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.useRealTimers();
   localStorage.clear();
   sessionStorage.clear();
@@ -321,6 +322,14 @@ describe('포트폴리오 화면', () => {
 
     expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
     expect(view.getByText('삼성전자')).toBeTruthy();
+    expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '1회 분석 체험하기' })).toBeTruthy();
+    expect(view.getByText('비회원 포트폴리오는 현재 탭에만 임시 보관돼요.')).toBeTruthy();
+    expect(view.queryByRole('heading', { name: '자산 추이' })).toBeNull();
+    expect(view.queryByRole('combobox', { name: '자산 추이 기간' })).toBeNull();
+    expect(view.queryByRole('button', { name: '자산 추이 크게 보기' })).toBeNull();
+    expect(view.queryByRole('button', { name: '거래 내역' })).toBeNull();
+    expect(view.queryByText('누적 실현손익')).toBeNull();
     expect(
       vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith('/api/portfolio')),
     ).toBe(false);
@@ -383,6 +392,100 @@ describe('포트폴리오 화면', () => {
         ),
     ).toBe(false);
   });
+
+  it('비회원 보유정보를 정정하고 다시 진입해도 서버 저장 없이 복원한다', async () => {
+    const guestHolding = { ...stock, quantity: 10, averagePurchasePrice: 70000 };
+    sessionStorage.setItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY, JSON.stringify([guestHolding]));
+    mockPortfolioApi();
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findAllByText('750,000원');
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+    const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
+    fireEvent.click(within(detail).getByText('보유정보 편집'));
+    fireEvent.click(within(detail).getByRole('button', { name: '보유정보 정정' }));
+    const editor = view.getByRole('dialog', { name: '보유정보 정정' });
+    expect(within(editor).queryByText(/거래 기록을 이용하세요/)).toBeNull();
+    fireEvent.change(within(editor).getByLabelText('보유수량'), { target: { value: '12' } });
+    fireEvent.change(within(editor).getByLabelText('평균 매수가'), { target: { value: '65,000' } });
+    fireEvent.click(within(editor).getByRole('button', { name: '수정하기' }));
+    await waitFor(() => {
+      expect(JSON.parse(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)!)).toEqual([
+        { ...guestHolding, quantity: 12, averagePurchasePrice: 65000 },
+      ]);
+    });
+    view.unmount();
+    const restored = render(<PortfolioPage isLoggedIn={false} />);
+    expect(await restored.findByText('12주')).toBeTruthy();
+    expect(restored.getByText('65,000원')).toBeTruthy();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) =>
+          /\/api\/portfolio(?:$|\/(?:holdings|histories|transactions|performance))/.test(
+            String(input),
+          ),
+        ),
+    ).toBe(false);
+  });
+
+  it('브라우저 임시 저장에 실패하면 기존 보유정보와 수정 입력을 유지하고 재시도한다', async () => {
+    const guestHolding = { ...stock, quantity: 10, averagePurchasePrice: 70000 };
+    const original = JSON.stringify([guestHolding]);
+    sessionStorage.setItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY, original);
+    mockPortfolioApi();
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findAllByText('750,000원');
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+    const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
+    fireEvent.click(within(detail).getByText('보유정보 편집'));
+    fireEvent.click(within(detail).getByRole('button', { name: '보유정보 정정' }));
+    const editor = view.getByRole('dialog', { name: '보유정보 정정' });
+    fireEvent.change(within(editor).getByLabelText('보유수량'), { target: { value: '12' } });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+      throw new DOMException('Storage full', 'QuotaExceededError');
+    });
+    fireEvent.click(within(editor).getByRole('button', { name: '수정하기' }));
+    expect(await within(editor).findByRole('alert')).toHaveProperty(
+      'textContent',
+      '현재 탭에 보유정보를 임시 보관하지 못했어요. 브라우저 저장 설정을 확인해 주세요.',
+    );
+    expect(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)).toBe(original);
+    expect((within(editor).getByLabelText('보유수량') as HTMLInputElement).value).toBe('12');
+    fireEvent.click(within(editor).getByRole('button', { name: '수정하기' }));
+    await waitFor(() => {
+      expect(JSON.parse(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)!)).toEqual([
+        { ...guestHolding, quantity: 12 },
+      ]);
+    });
+  });
+
+  it.each([
+    ['잘못된 JSON', '{broken'],
+    [
+      '유효하지 않은 수량',
+      JSON.stringify([{ ...stock, quantity: 0, averagePurchasePrice: 70000 }]),
+    ],
+    [
+      '유효하지 않은 종목 ID',
+      JSON.stringify([{ ...stock, assetId: 0, quantity: 10, averagePurchasePrice: 70000 }]),
+    ],
+    [
+      '중복 종목',
+      JSON.stringify(Array(2).fill({ ...stock, quantity: 10, averagePurchasePrice: 70000 })),
+    ],
+  ])(
+    '%s 임시 데이터는 제거하고 비회원이 다시 입력할 수 있게 한다',
+    async (_description, stored) => {
+      sessionStorage.setItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY, stored);
+      mockPortfolioApi();
+      const view = render(<PortfolioPage isLoggedIn={false} />);
+      expect(await view.findByRole('button', { name: '첫 자산 추가하기' })).toBeTruthy();
+      expect(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)).toBeNull();
+      expect(
+        vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes('/api/portfolio')),
+      ).toBe(false);
+    },
+  );
 
   it('반올림된 비중이 0인 자산을 분석 대상에서 제외한다', () => {
     const zeroWeightHolding = {

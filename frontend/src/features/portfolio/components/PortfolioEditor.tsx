@@ -26,6 +26,7 @@ function formatPriceInput(value: string) {
 }
 
 type PortfolioEditorProps = {
+  isLoggedIn?: boolean;
   holding?: PortfolioHoldingInput;
   savedAssetIds: number[];
   onClose: () => void;
@@ -34,6 +35,7 @@ type PortfolioEditorProps = {
 };
 
 export function PortfolioEditor({
+  isLoggedIn = true,
   holding,
   savedAssetIds,
   onClose,
@@ -195,9 +197,11 @@ export function PortfolioEditor({
                 </h2>
                 <p>
                   {isDetailsStep
-                    ? holding
-                      ? '현재 보유 수량과 평균 매입가를 정정합니다. 매수·매도로 기록되지 않아요.'
-                      : '오늘 기준 시작 잔고를 등록합니다. 과거 매수일을 반영하려면 거래 기록을 이용하세요.'
+                    ? !isLoggedIn
+                      ? '보유 수량과 평균 매입가를 입력하세요. 현재 탭에만 임시 보관돼요.'
+                      : holding
+                        ? '현재 보유 수량과 평균 매입가를 정정합니다. 매수·매도로 기록되지 않아요.'
+                        : '오늘 기준 시작 잔고를 등록합니다. 과거 매수일을 반영하려면 거래 기록을 이용하세요.'
                     : '포트폴리오에 담을 국내 주식과 ETF를 찾아보세요.'}
                 </p>
               </div>

@@ -705,7 +705,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   async function save(nextHolding: PortfolioHoldingInput) {
     await saveHolding(nextHolding);
     setEditor(null);
-    setNotice('보유정보를 저장했어요.');
+    setNotice(isLoggedIn ? '보유정보를 저장했어요.' : '보유정보를 현재 탭에 임시 보관했어요.');
   }
 
   function displayWon(value: number | null, signed = false) {
@@ -733,7 +733,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
         </div>
       </header>
       <p className="portfolio-save-notice" role="status">
-        {notice}
+        {notice || (!isLoggedIn ? '비회원 포트폴리오는 현재 탭에만 임시 보관돼요.' : '')}
       </p>
 
       {holdingsLoading || loading ? (
@@ -863,20 +863,25 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 </button>
               </div>
               {analysisExpanded ? (
-                <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
-                  <PortfolioAssetTrendChart
-                    points={trendPoints}
-                    loading={performance.loading}
-                    error={performance.error}
-                    onRetry={performance.retry}
-                    amountsHidden={amountsHidden}
-                    period={trendPeriod}
-                    onPeriodChange={setTrendPeriod}
-                    onExpand={(trigger) => {
-                      trendDialogTriggerRef.current = trigger;
-                      setTrendDialogOpen(true);
-                    }}
-                  />
+                <div
+                  id="portfolio-analysis-content"
+                  className={`portfolio-dashboard-grid${isLoggedIn ? '' : ' is-guest'}`}
+                >
+                  {isLoggedIn && (
+                    <PortfolioAssetTrendChart
+                      points={trendPoints}
+                      loading={performance.loading}
+                      error={performance.error}
+                      onRetry={performance.retry}
+                      amountsHidden={amountsHidden}
+                      period={trendPeriod}
+                      onPeriodChange={setTrendPeriod}
+                      onExpand={(trigger) => {
+                        trendDialogTriggerRef.current = trigger;
+                        setTrendDialogOpen(true);
+                      }}
+                    />
+                  )}
                   <section className="portfolio-composition" aria-labelledby="composition-title">
                     <div className="portfolio-dashboard-heading">
                       <h2 id="composition-title">자산 구성</h2>
@@ -1090,7 +1095,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
         </div>
       ) : null}
 
-      {trendDialogOpen ? (
+      {isLoggedIn && trendDialogOpen ? (
         <PortfolioTrendDialog
           points={trendPoints}
           loading={performance.loading}
@@ -1222,6 +1227,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
 
           {editor ? (
             <PortfolioEditor
+              isLoggedIn={isLoggedIn}
               holding={editor.holding}
               onRecordTransaction={
                 isLoggedIn && !editor.holding
