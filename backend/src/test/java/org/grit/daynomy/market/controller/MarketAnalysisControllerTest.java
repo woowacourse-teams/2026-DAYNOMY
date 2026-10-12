@@ -48,6 +48,7 @@ class MarketAnalysisControllerTest {
     mockMvc
         .perform(get("/api/news/1/market-analysis"))
         .andExpect(status().isOk())
+        .andExpect(jsonPath("$.summary").value("기준금리가 인하됐습니다. 위험자산 선호가 높아질 수 있습니다."))
         .andExpect(jsonPath("$.observedFact").value("기준금리가 인하됐습니다."))
         .andExpect(jsonPath("$.interpretation").value("위험자산 선호가 높아질 수 있습니다."))
         .andExpect(jsonPath("$.risk").value("물가가 다시 상승하면 해석이 달라질 수 있습니다."))
@@ -86,6 +87,7 @@ class MarketAnalysisControllerTest {
 
   private MarketAnalysisResponse createResponse() {
     return new MarketAnalysisResponse(
+        "기준금리가 인하됐습니다. 위험자산 선호가 높아질 수 있습니다.",
         "기준금리가 인하됐습니다.",
         "위험자산 선호가 높아질 수 있습니다.",
         "물가가 다시 상승하면 해석이 달라질 수 있습니다.",

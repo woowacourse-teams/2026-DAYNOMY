@@ -62,6 +62,8 @@ class KeywordControllerTest {
     assertThat(body.at("/keywords")).hasSize(2);
     assertThat(body.at("/keywords/0/category").asText()).isEqualTo("POLICY");
     assertThat(body.at("/keywords/0/keyword").asText()).isEqualTo("금리 인하");
+    assertThat(body.at("/keywords/0/points")).hasSize(3);
+    assertThat(body.at("/keywords/0/points/0").asText()).isEqualTo("키워드의 쉬운 뜻");
     assertThat(body.at("/keywords/0/definition").asText()).isEqualTo("키워드의 쉬운 뜻");
     assertThat(body.at("/keywords/0/context").asText()).isEqualTo("기사에서 키워드가 갖는 의미");
     assertThat(body.at("/keywords/0/watchPoint").asText()).isEqualTo("추가로 확인할 사항");

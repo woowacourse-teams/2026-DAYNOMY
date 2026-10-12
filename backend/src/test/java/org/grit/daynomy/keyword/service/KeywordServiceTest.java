@@ -105,6 +105,8 @@ class KeywordServiceTest {
     assertThat(response.keywords()).hasSize(2);
     assertThat(response.keywords().get(0).category()).isEqualTo(KeywordCategory.POLICY);
     assertThat(response.keywords().get(0).keyword()).isEqualTo("금리 인하");
+    assertThat(response.keywords().get(0).points())
+        .containsExactly("키워드의 쉬운 뜻", "기사에서 키워드가 갖는 의미", "추가로 확인할 사항");
     assertThat(response.keywords().get(0).definition()).isEqualTo("키워드의 쉬운 뜻");
     assertThat(response.keywords().get(0).context()).isEqualTo("기사에서 키워드가 갖는 의미");
     assertThat(response.keywords().get(0).watchPoint()).isEqualTo("추가로 확인할 사항");

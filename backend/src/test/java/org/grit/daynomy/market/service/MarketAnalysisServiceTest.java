@@ -89,6 +89,7 @@ class MarketAnalysisServiceTest {
 
     var response = marketAnalysisService.getMarketAnalysis(1L);
 
+    assertThat(response.summary()).isEqualTo("기준금리가 인하됐습니다. 위험자산 선호가 높아질 수 있습니다.");
     assertThat(response.observedFact()).isEqualTo("기준금리가 인하됐습니다.");
     assertThat(response.interpretation()).isEqualTo("위험자산 선호가 높아질 수 있습니다.");
     assertThat(response.risk()).isEqualTo("물가가 다시 상승하면 해석이 달라질 수 있습니다.");
