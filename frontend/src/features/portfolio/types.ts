@@ -60,13 +60,12 @@ export type PortfolioHoldingHistory = {
 
 export type PortfolioPerformancePoint = {
   baseDate: string;
-  priceBaseDate?: string | null;
-  recordedAt: string;
-  source: 'CLOSE' | 'HOLDING_CHANGE';
   totalPurchaseAmount: number;
   totalEvaluationAmount: number;
   totalProfitLoss: number;
   totalReturnRate: number;
+  dailyProfitLoss: number | null;
+  dailyReturnRate: number | null;
 };
 
 export type PortfolioPerformanceStatus = 'READY' | 'INSUFFICIENT_DATA';
@@ -78,7 +77,7 @@ export type PortfolioPerformanceResponse = {
   baseDate: string | null;
   previousBaseDate: string | null;
   points: PortfolioPerformancePoint[];
-  currentPoint: PortfolioPerformancePoint | null;
+  currentPoint: (PortfolioPerformancePoint & { priceBaseDate: string | null }) | null;
 };
 
 export type SavedPortfolioResponse = {

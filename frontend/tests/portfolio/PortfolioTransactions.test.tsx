@@ -37,6 +37,8 @@ const historical = {
   totalEvaluationAmount: 750000,
   totalProfitLoss: 50000,
   totalReturnRate: 7.14,
+  dailyProfitLoss: null,
+  dailyReturnRate: null,
 };
 let holdings: PortfolioHoldingInput[];
 let histories: PortfolioHoldingHistory[];
@@ -80,11 +82,11 @@ beforeEach(() => {
         method = init?.method ?? 'GET';
       if (url.endsWith('/api/auth/csrf'))
         return json({ token: 'test', headerName: 'X-CSRF-TOKEN' });
-      if (url.endsWith('/api/portfolio'))
+      if (url.endsWith('/api/users/me/portfolio'))
         return json({ holdings, totalRealizedProfitLoss: realized });
       if (url.includes('/api/stocks?')) return json({ stocks: [stock] });
       if (url.includes('/api/portfolio/histories?')) return json(histories);
-      if (url.includes('/api/portfolio/performance?'))
+      if (url.includes('/api/users/me/portfolio/performance?'))
         return failedPerformance
           ? json({ message: '추이 조회 실패' }, 503)
           : json({

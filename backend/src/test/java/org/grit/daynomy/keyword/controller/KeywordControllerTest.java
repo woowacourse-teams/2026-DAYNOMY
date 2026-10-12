@@ -53,7 +53,7 @@ class KeywordControllerTest {
   void findNewsKeywordsReturnsKeywords() throws Exception {
     News news = newsRepository.save(createNews());
     newsKeywordRepository.save(createKeyword(news, "금리 인하"));
-    newsKeywordRepository.save(createKeyword(news, "부동산 규제"));
+    newsKeywordRepository.save(createKeyword(news, "기준금리"));
 
     HttpResponse<String> response = get("/api/news/" + news.getId() + "/keywords");
     JsonNode body = objectMapper.readTree(response.body());
@@ -63,7 +63,10 @@ class KeywordControllerTest {
     assertThat(body.at("/keywords/0/category").asText()).isEqualTo("POLICY");
     assertThat(body.at("/keywords/0/keyword").asText()).isEqualTo("금리 인하");
     assertThat(body.at("/keywords/0/points")).hasSize(3);
-    assertThat(body.at("/keywords/0/points/0").asText()).isEqualTo("첫 번째 분석 포인트");
+    assertThat(body.at("/keywords/0/points/0").asText()).isEqualTo("키워드의 쉬운 뜻");
+    assertThat(body.at("/keywords/0/definition").asText()).isEqualTo("키워드의 쉬운 뜻");
+    assertThat(body.at("/keywords/0/context").asText()).isEqualTo("기사에서 키워드가 갖는 의미");
+    assertThat(body.at("/keywords/0/watchPoint").asText()).isEqualTo("추가로 확인할 사항");
   }
 
   @Test
@@ -112,7 +115,7 @@ class KeywordControllerTest {
 
   private NewsKeyword createKeyword(News news, String keyword) {
     return new NewsKeyword(
-        news, KeywordCategory.POLICY, keyword, "첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
+        news, KeywordCategory.POLICY, keyword, "키워드의 쉬운 뜻", "기사에서 키워드가 갖는 의미", "추가로 확인할 사항");
   }
 
   private News createNews() {

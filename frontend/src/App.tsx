@@ -8,10 +8,17 @@ import { NewsListPage } from './features/news/newslist/NewsListPage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
 import SearchPage from './features/search/SearchPage';
 import { PortfolioPage } from './features/portfolio/PortfolioPage';
+import { LeaguePage } from './features/league/LeaguePage';
+import { InvestorProfilePage } from './features/league/InvestorProfilePage';
+import { PublicationSettingsPage } from './features/league/PublicationSettingsPage';
+import { SharedPortfolioPage } from './features/league/SharedPortfolioPage';
+import { FollowingPage } from './features/league/FollowingPage';
+import { MyPage } from './features/account/MyPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { safeReturnPath } from './auth/returnPath';
-import { Header } from './components/Header';
+import { ServiceHeader } from './features/navigation/ServiceHeader';
+import { LeagueNavigation } from './features/league/LeagueNavigation';
 import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
@@ -43,6 +50,8 @@ function AppHeader() {
     location.pathname.startsWith('/news') ||
     location.pathname.startsWith('/search') ||
     location.pathname.startsWith('/portfolio') ||
+    location.pathname.startsWith('/league') ||
+    location.pathname === '/mypage' ||
     location.pathname.startsWith('/stocks/') ||
     location.pathname.startsWith('/people') ||
     location.pathname.startsWith('/about') ||
@@ -50,7 +59,7 @@ function AppHeader() {
     location.pathname.startsWith('/privacy') ||
     location.pathname.startsWith('/standard');
 
-  return showHeader ? <Header /> : null;
+  return showHeader ? <ServiceHeader /> : null;
 }
 
 export function ScrollToTop() {
@@ -85,7 +94,7 @@ function AdminRoute({ children }: { children: ReactNode }) {
   if (!isLoggedIn) {
     return (
       <Navigate
-        to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
+        to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}${location.hash}`)}`}
         replace
       />
     );
@@ -100,6 +109,22 @@ function AdminRoute({ children }: { children: ReactNode }) {
   }
 
   return <AdminShell>{children}</AdminShell>;
+}
+
+function AuthenticatedRoute({ children }: { children: ReactNode }) {
+  const { isLoggedIn, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <main className="portfolio-page" aria-busy="true" />;
+  }
+
+  if (!isLoggedIn) {
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
+  }
+
+  return children;
 }
 
 function PortfolioRoute() {
@@ -149,14 +174,55 @@ export default function App() {
         <PostLoginRedirect />
         <div className="app-shell">
           <AppHeader />
+          <LeagueNavigation />
           <div className="app-content">
             <Routes>
               <Route path="/" element={<PortfolioRoute />} />
               <Route path="/portfolio" element={<Navigate to="/" replace />} />
+              <Route
+                path="/portfolio/records"
+                element={<Navigate to="/league/portfolio" replace />}
+              />
+              <Route
+                path="/league/portfolio"
+                element={
+                  <AuthenticatedRoute>
+                    <SharedPortfolioPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="/portfolio/publication"
+                element={
+                  <AuthenticatedRoute>
+                    <PublicationSettingsPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route path="/league" element={<LeaguePage />} />
+              <Route
+                path="/league/following"
+                element={
+                  <AuthenticatedRoute>
+                    <FollowingPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+              <Route path="/membership" element={<Navigate to="/league" replace />} />
+              <Route
+                path="/mypage"
+                element={
+                  <AuthenticatedRoute>
+                    <MyPage />
+                  </AuthenticatedRoute>
+                }
+              />
               <Route path="/news" element={<NewsListPage />} />
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />
               <Route path="/search" element={<SearchPage />} />
+              <Route path="/finance/*" element={<Navigate to="/" replace />} />
               <Route path="/stocks" element={<Navigate to="/" replace />} />
               <Route path="/stocks/:assetId/card-preview" element={<CardDesignPreviewPage />} />
               <Route path="/stocks/:assetId" element={<StockContentPage />} />

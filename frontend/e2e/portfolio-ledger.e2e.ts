@@ -64,6 +64,8 @@ const points = Array.from({ length: 45 }, (_, index) => {
     totalEvaluationAmount,
     totalProfitLoss: totalEvaluationAmount - totalPurchaseAmount,
     totalReturnRate: 5.68,
+    dailyProfitLoss: null,
+    dailyReturnRate: null,
   };
 });
 
@@ -103,7 +105,7 @@ for (const viewport of [
         });
       if (path === '/api/auth/csrf')
         return fulfill({ token: 'preview', headerName: 'X-CSRF-TOKEN' });
-      if (path === '/api/portfolio')
+      if (path === '/api/users/me/portfolio')
         return fulfill({ holdings: stocks, totalRealizedProfitLoss: 483250 });
       if (path === '/api/portfolio/calculate')
         return fulfill({
@@ -131,7 +133,7 @@ for (const viewport of [
             { market: 'KOSPI', evaluationAmount: sum('closePrice'), weight: 100 },
           ],
         });
-      if (path === '/api/portfolio/performance')
+      if (path === '/api/users/me/portfolio/performance')
         return fulfill({
           status: 'READY',
           reason: null,
@@ -153,6 +155,8 @@ for (const viewport of [
             totalEvaluationAmount: sum('closePrice'),
             totalProfitLoss: sum('closePrice') - sum('averagePurchasePrice'),
             totalReturnRate: 5.68,
+            dailyProfitLoss: null,
+            dailyReturnRate: null,
           },
         });
       if (path === '/api/assets/1/contents')

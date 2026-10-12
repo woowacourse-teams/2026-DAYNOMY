@@ -4,12 +4,24 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 
 public record MarketAnalysisResponse(
-    @Schema(
-            description = "발생 원인과 이슈가 중요한 이유를 통합한 시장 분석 요약",
-            example = "금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격과 투자 심리에 영향을 줍니다.")
-        String summary) {
+    @Schema(description = "기존 클라이언트 호환을 위한 시장 분석 요약") String summary,
+    @Schema(description = "뉴스 본문에서 직접 확인되는 사실") String observedFact,
+    @Schema(description = "확인된 사실을 바탕으로 한 제한적인 시장 해석") String interpretation,
+    @Schema(description = "해석이 달라질 수 있는 위험 요인") String risk,
+    @Schema(description = "이후 확인해야 할 지표나 사건") String watchPoint,
+    @Schema(description = "분석에 포함되지 않은 정보와 해석 범위") String limitation) {
 
   public static MarketAnalysisResponse from(NewsMarketAnalysis marketAnalysis) {
-    return new MarketAnalysisResponse(marketAnalysis.getSummary());
+    return new MarketAnalysisResponse(
+        marketAnalysis.getSummary(),
+        valueOrEmpty(marketAnalysis.getObservedFact()),
+        valueOrEmpty(marketAnalysis.getInterpretation()),
+        valueOrEmpty(marketAnalysis.getRisk()),
+        valueOrEmpty(marketAnalysis.getWatchPoint()),
+        valueOrEmpty(marketAnalysis.getLimitation()));
+  }
+
+  private static String valueOrEmpty(String value) {
+    return value == null ? "" : value;
   }
 }

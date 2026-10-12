@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingHistoryResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
@@ -53,6 +56,32 @@ public class SavedPortfolioController {
       @Valid @RequestBody SavedPortfolioHoldingCreateRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(savedPortfolioService.add(member.memberId(), request));
+  }
+
+  @Operation(summary = "매수·매도 거래 등록", description = "거래일은 해당 종목의 마지막 보유 수량 등록·조정일 이후(당일 포함)여야 합니다.")
+  @PostMapping("/transactions")
+  public ResponseEntity<PortfolioTransactionResponse> transact(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody PortfolioTransactionRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(savedPortfolioService.transact(member.memberId(), request));
+  }
+
+  @Operation(summary = "매수·매도 거래 수정", description = "거래일은 해당 종목의 마지막 보유 수량 등록·조정일 이후(당일 포함)여야 합니다.")
+  @PatchMapping("/transactions/{transactionId}")
+  public PortfolioTransactionResponse updateTransaction(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId,
+      @Valid @RequestBody PortfolioTransactionUpdateRequest request) {
+    return savedPortfolioService.updateTransaction(member.memberId(), transactionId, request);
+  }
+
+  @Operation(summary = "매수·매도 거래 삭제")
+  @DeleteMapping("/transactions/{transactionId}")
+  public PortfolioTransactionResponse deleteTransaction(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId) {
+    return savedPortfolioService.deleteTransaction(member.memberId(), transactionId);
   }
 
   @Operation(summary = "보유자산 수정")
