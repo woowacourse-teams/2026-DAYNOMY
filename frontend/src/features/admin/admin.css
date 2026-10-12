@@ -165,6 +165,8 @@
 .admin-back-link:focus-visible,
 .admin-news-title:focus-visible,
 .admin-row-actions button:focus-visible,
+.admin-feedback-content:focus-visible,
+.admin-feedback-dialog button:focus-visible,
 .admin-pagination button:focus-visible,
 .admin-alert button:focus-visible {
   outline: 3px solid var(--focus);
@@ -1050,6 +1052,140 @@
   color: #737b8c;
   background: #f0f1f4;
 }
+.admin-status-pending {
+  color: #a45b00;
+  background: #fff5df;
+}
+.admin-status-resolved {
+  color: #087443;
+  background: #eaf8f0;
+}
+
+.admin-feedback-summary {
+  margin-top: 42px;
+  color: #737b8c;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-feedback-summary strong {
+  color: #111827;
+  font-weight: 900;
+}
+
+.admin-feedback-content {
+  display: -webkit-box;
+  max-width: 640px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  color: #111827;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.admin-feedback-content:hover {
+  color: #5144d8;
+}
+
+.admin-feedback-path {
+  max-width: 220px;
+  overflow: hidden;
+  color: #737b8c !important;
+  font-size: 12px !important;
+  text-overflow: ellipsis;
+}
+
+.admin-feedback-dialog {
+  width: min(620px, calc(100% - 32px));
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  color: #111827;
+  background: #ffffff;
+  box-shadow: 0 28px 72px rgb(17 24 39 / 24%);
+}
+
+.admin-feedback-dialog::backdrop {
+  background: rgb(17 24 39 / 48%);
+}
+
+.admin-feedback-dialog > div {
+  padding: 28px;
+}
+
+.admin-feedback-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.admin-feedback-dialog-heading h2 {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.admin-feedback-dialog-heading button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: #6b7280;
+  background: #f3f4f8;
+  font:
+    300 28px/1 system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+
+.admin-feedback-dialog dl {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0 0;
+}
+
+.admin-feedback-dialog dl > div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-feedback-dialog dt {
+  color: #737b8c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-feedback-dialog dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-feedback-dialog > div > p {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #eef0f5;
+  color: #242936;
+  font-size: 15px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
 
 .admin-row-actions {
   display: inline-flex;
@@ -1499,9 +1635,15 @@
   }
   .admin-header {
     min-height: 68px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 0;
   }
   .admin-navigation {
+    width: 100%;
     gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 4px;
   }
   .admin-navigation a {
     font-size: 12px;
@@ -1609,6 +1751,10 @@
     width: auto;
   }
   .admin-news-title {
+    max-width: 100%;
+  }
+
+  .admin-feedback-content {
     max-width: 100%;
   }
 }

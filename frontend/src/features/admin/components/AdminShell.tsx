@@ -12,6 +12,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </Link>
         <nav className="admin-navigation" aria-label="관리자 메뉴">
           <NavLink to="/admin/news">뉴스 관리</NavLink>
+          <NavLink to="/admin/feedbacks">피드백</NavLink>
           <NavLink to="/admin/stocks">자산 데이터</NavLink>
           <NavLink to="/admin/stock-contents">종목 연결</NavLink>
           <NavLink to="/admin/people">주요 인물</NavLink>
