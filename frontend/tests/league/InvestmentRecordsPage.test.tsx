@@ -60,6 +60,7 @@ beforeEach(() => {
   vi.mocked(api.getSharedPortfolio).mockResolvedValue(empty);
   vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({
     holdings: [{ ...stock, name: stock.assetName, quantity: 2, averagePurchasePrice: 70000 }],
+    totalRealizedProfitLoss: 0,
   });
   localStorage.setItem(
     storageKey,
@@ -130,6 +131,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       .mockRejectedValueOnce(new Error('서버 원본 연결 실패'))
       .mockResolvedValueOnce({
         holdings: [{ ...stock, name: stock.assetName, quantity: 2, averagePurchasePrice: 70000 }],
+        totalRealizedProfitLoss: 0,
       });
     const view = renderPage();
     fireEvent.click(await importButton(view));
@@ -158,7 +160,10 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
   });
 
   it('직접 추가·편집·삭제 입력을 제공하지 않고 원본이 없으면 원본 입력을 안내한다', async () => {
-    vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({ holdings: [] });
+    vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({
+      holdings: [],
+      totalRealizedProfitLoss: 0,
+    });
     const view = renderPage();
     fireEvent.click(await importButton(view));
     expect(await view.findByRole('link', { name: '포트폴리오 입력하기' })).toBeTruthy();

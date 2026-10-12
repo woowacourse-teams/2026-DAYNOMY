@@ -2412,7 +2412,7 @@
 .portfolio-return-tooltip {
   position: absolute;
   z-index: 2;
-  width: 214px;
+  width: min(300px, calc(100% - 16px));
   padding: 14px 16px;
   border: 1px solid #dce4ed;
   border-radius: 12px;
@@ -2478,17 +2478,22 @@
 
 .portfolio-return-tooltip dd {
   display: flex;
+  flex-direction: column;
   min-width: 0;
-  align-items: baseline;
+  align-items: flex-end;
   gap: 6px;
   margin: 0;
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .portfolio-return-tooltip dd small {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 11px;
   font-weight: 650;
 }
@@ -2773,13 +2778,6 @@
   min-width: 0;
 }
 
-.portfolio-dashboard-layout.has-related-content {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 340px);
-  gap: 20px;
-  align-items: start;
-}
-
 .portfolio-dashboard-main {
   min-width: 0;
 }
@@ -3011,10 +3009,6 @@
 }
 
 @media (max-width: 620px) {
-  .portfolio-dashboard-layout.has-related-content {
-    grid-template-columns: 1fr;
-  }
-
   .portfolio-related-content-panel {
     position: static;
     max-height: none;
@@ -3059,7 +3053,7 @@
   }
 
   .portfolio-return-dashboard.is-expanded .portfolio-return-tooltip {
-    width: min(214px, calc(100% - 24px));
+    width: min(300px, calc(100% - 16px));
   }
 
   .portfolio-dashboard-grid {

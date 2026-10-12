@@ -30,6 +30,7 @@ beforeEach(() => {
 
       if (url.endsWith('/api/users/me/portfolio')) {
         return jsonResponse({
+          totalRealizedProfitLoss: 0,
           holdings: [
             {
               assetId: 1,

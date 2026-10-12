@@ -184,7 +184,10 @@ for (const viewport of [
     await page.goto('/league/portfolio');
     await page.route('**/api/users/me/portfolio', (route) =>
       route.fulfill({
-        json: { holdings: [{ ...stock, quantity: 2, averagePurchasePrice: 70000 }] },
+        json: {
+          holdings: [{ ...stock, quantity: 2, averagePurchasePrice: 70000 }],
+          totalRealizedProfitLoss: 0,
+        },
       }),
     );
     await expect(page.getByRole('region', { name: '내 자산 요약', exact: true })).toBeVisible();
@@ -234,7 +237,7 @@ for (const viewport of [
     const original = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     await page.route('**/api/users/me/portfolio', (route) => {
       expect(route.request().method()).toBe('GET');
-      return route.fulfill({ json: { holdings: original } });
+      return route.fulfill({ json: { holdings: original, totalRealizedProfitLoss: 0 } });
     });
     await page.addInitScript((value) => {
       if (!localStorage.getItem('daynomy:portfolio-holdings:v1'))
@@ -390,7 +393,7 @@ test('모바일: 삭제된 돈 관리의 기존 주소는 비회원 포트폴리
     await page.goto(path);
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('heading', { name: '내 포트폴리오' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /자산 추가/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: '자산 추가', exact: true })).toBeVisible();
     await expect(page.getByRole('banner').getByRole('link', { name: '로그인' })).toHaveAttribute(
       'href',
       '/login?returnTo=%2F',

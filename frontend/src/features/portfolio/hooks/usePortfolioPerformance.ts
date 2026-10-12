@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getPortfolioPerformance } from '../api';
+import { todayInSeoul } from '../transactionForm';
 import type {
-  PortfolioCalculation,
   PortfolioHoldingInput,
   PortfolioPerformancePoint,
   PortfolioTrendPeriod,
@@ -33,7 +33,7 @@ function getPeriodStart(to: Date, period: PortfolioTrendPeriod) {
 export function usePortfolioPerformance(
   period: PortfolioTrendPeriod,
   holdings: PortfolioHoldingInput[],
-  calculation: PortfolioCalculation | null,
+  revision = 0,
   enabled = true,
 ) {
   const [points, setPoints] = useState<PortfolioPerformancePoint[]>([]);
@@ -48,7 +48,7 @@ export function usePortfolioPerformance(
     .join('|');
 
   useEffect(() => {
-    if (!enabled || holdings.length === 0) {
+    if (!enabled) {
       setPoints([]);
       setLoading(false);
       setError('');
@@ -56,7 +56,7 @@ export function usePortfolioPerformance(
     }
 
     const controller = new AbortController();
-    const to = new Date();
+    const to = new Date(`${todayInSeoul()}T12:00:00`);
     const from = getPeriodStart(to, period);
     setLoading(true);
     setError('');
@@ -64,7 +64,14 @@ export function usePortfolioPerformance(
     getPortfolioPerformance(formatDate(from), formatDate(to), controller.signal)
       .then((response) => {
         if (controller.signal.aborted) return;
-        setPoints(response.points);
+        setPoints(
+          [
+            ...response.points.filter(
+              (point) => point.baseDate !== response.currentPoint?.baseDate,
+            ),
+            ...(response.currentPoint ? [response.currentPoint] : []),
+          ].sort((left, right) => left.baseDate.localeCompare(right.baseDate)),
+        );
       })
       .catch((caughtError: unknown) => {
         if (controller.signal.aborted) return;
@@ -78,13 +85,7 @@ export function usePortfolioPerformance(
       });
 
     return () => controller.abort();
-  }, [enabled, holdingKey, holdings.length, period, retryCount]);
+  }, [enabled, holdingKey, holdings.length, period, retryCount, revision]);
 
-  const chartPoints = calculation
-    ? [...points.filter((point) => point.baseDate !== calculation.baseDate), calculation].sort(
-        (left, right) => left.baseDate.localeCompare(right.baseDate),
-      )
-    : points;
-
-  return { points: chartPoints, loading, error, retry: () => setRetryCount((count) => count + 1) };
+  return { points, loading, error, retry: () => setRetryCount((count) => count + 1) };
 }

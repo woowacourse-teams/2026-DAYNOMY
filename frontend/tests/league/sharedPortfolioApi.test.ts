@@ -77,7 +77,7 @@ test('계정의 서버 원본만 읽고 브라우저 원본은 읽거나 변경�
   const calls: { url: string; init?: RequestInit }[] = [];
   globalThis.fetch = async (url, init) => {
     calls.push({ url: String(url), init });
-    return json({ holdings });
+    return json({ holdings, totalRealizedProfitLoss: 0 });
   };
   const previous = globalThis.localStorage;
   globalThis.localStorage = {
@@ -99,9 +99,11 @@ test('계정의 서버 원본만 읽고 브라우저 원본은 읽거나 변경�
     assert.equal(calls[0].init?.credentials, 'include');
     assert.equal(reads, 0);
     assert.equal(writes, 0);
-    globalThis.fetch = async () => json({ holdings: [{ ...holdings[0], quantity: -1 }] });
+    globalThis.fetch = async () =>
+      json({ holdings: [{ ...holdings[0], quantity: -1 }], totalRealizedProfitLoss: 0 });
     await assert.rejects(readSourceHoldings, /응답 형식/);
-    globalThis.fetch = async () => json({ holdings: [holdings[0], holdings[0]] });
+    globalThis.fetch = async () =>
+      json({ holdings: [holdings[0], holdings[0]], totalRealizedProfitLoss: 0 });
     await assert.rejects(readSourceHoldings, /중복 종목/);
     assert.equal(writes, 0);
   } finally {
