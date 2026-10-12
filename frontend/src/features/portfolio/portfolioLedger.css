@@ -1,8 +1,9 @@
 /* Portfolio ledger: balances, holdings, and dated transactions share one workspace. */
 .portfolio-page {
   --portfolio-accent: #326bd5;
-  --portfolio-side-padding: clamp(20px, 4vw, 64px);
-  width: min(100%, 1440px);
+  --portfolio-side-padding: clamp(32px, 8vw, 128px);
+  width: calc(100% - 32px);
+  padding-inline: var(--portfolio-side-padding);
   padding-bottom: 64px;
   color: #253047;
 }
@@ -1347,4 +1348,202 @@
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
   }
+}
+
+.portfolio-page .portfolio-dashboard-layout.has-news {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 20%);
+  gap: 24px;
+  align-items: start;
+}
+.portfolio-news {
+  position: sticky;
+  top: 24px;
+  min-width: 0;
+  padding-left: 20px;
+  border-left: 1px solid #e5e9ee;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.portfolio-news-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.portfolio-news-heading h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.03em;
+}
+.portfolio-news-heading > span,
+.portfolio-news-description,
+.portfolio-news-meta,
+.portfolio-news-assets {
+  font-size: 12px;
+  color: #606b7a;
+}
+.portfolio-news-description {
+  margin: 8px 0 16px;
+}
+.portfolio-news-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.portfolio-news-list li {
+  border-bottom: 1px solid #e5e9ee;
+}
+.portfolio-news-list a {
+  display: block;
+  padding: 20px 0;
+  color: inherit;
+  text-decoration: none;
+}
+.portfolio-news-list a:hover strong {
+  color: #394fc4;
+}
+.portfolio-news-list a:focus-visible {
+  outline: 2px solid #394fc4;
+  outline-offset: -2px;
+}
+.portfolio-news-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.portfolio-news-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.portfolio-news-copy strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.portfolio-news-copy img {
+  width: 72px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.portfolio-news-assets {
+  display: block;
+  margin-top: 12px;
+}
+.portfolio-news-state {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #606b7a;
+  padding: 24px 0;
+}
+.portfolio-news-state button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+@media (max-width: 720px) {
+  .portfolio-page .portfolio-dashboard-layout.has-news {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .portfolio-news {
+    position: static;
+    max-height: none;
+    padding: 24px 0 0;
+    border-left: 0;
+    border-top: 1px solid #e5e9ee;
+  }
+}
+
+@media (max-width: 600px) {
+  .portfolio-page {
+    width: calc(100% - 24px);
+    padding-inline: 24px;
+  }
+}
+
+.portfolio-news-source {
+  font-weight: 650;
+  color: #253047;
+}
+.portfolio-news-source::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #253047;
+  vertical-align: middle;
+}
+.portfolio-news-source.source-youtube::before {
+  background: #d92828;
+}
+.portfolio-news-source.source-internal_news::before {
+  background: #326bd5;
+}
+.portfolio-news-account {
+  display: block;
+  color: #606b7a;
+  font-size: 12px;
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+.portfolio-news-copy strong {
+  -webkit-line-clamp: 4;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.portfolio-news-meta time {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.portfolio-news-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+}
+.portfolio-news-bottom .portfolio-news-assets {
+  margin: 0;
+  font-weight: 600;
+  color: #435779;
+}
+.portfolio-news-open {
+  font-size: 11px;
+  color: #606b7a;
+}
+.portfolio-news-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  margin-top: 16px;
+  padding: 0 12px;
+  border: 1px solid #e5e9ee;
+  border-radius: 4px;
+  text-decoration: none;
+  color: #253047;
+  font-size: 13px;
+}
+.portfolio-news-more:hover {
+  background: #f6f8fb;
+}
+.portfolio-news-more:focus-visible {
+  outline: 2px solid #326bd5;
+  outline-offset: 2px;
 }

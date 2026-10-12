@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../../src/auth/AuthProvider';
 import { useAuth } from '../../src/hooks/useLoginStatus';
 import { ServiceHeader } from '../../src/features/navigation/ServiceHeader';
@@ -36,6 +36,14 @@ function renderAccount() {
     </MemoryRouter>,
   );
 }
+beforeEach(() => {
+  vi.stubGlobal('matchMedia', () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+});
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
