@@ -565,7 +565,7 @@ export function PortfolioAnalysis({ assets, isLoggedIn = true }: PortfolioAnalys
   useEffect(() => {
     if (assets.length === 0) {
       requestIdRef.current += 1;
-      if (isLoggedIn) clearPortfolioAnalysis();
+      clearPortfolioAnalysis(isLoggedIn);
       setAnalysis(null);
       setAnalyzedAssets(null);
       setError(null);

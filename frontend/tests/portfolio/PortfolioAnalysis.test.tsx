@@ -274,6 +274,18 @@ describe('포트폴리오 분석 화면', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('비회원이 모든 자산을 삭제하면 저장된 분석 결과만 제거한다', async () => {
+    sessionStorage.setItem(GUEST_PORTFOLIO_ANALYSIS_STORAGE_KEY, 'cached-analysis');
+    sessionStorage.setItem(GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY, 'used');
+
+    render(<PortfolioAnalysis assets={[]} isLoggedIn={false} />);
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
+    });
+    expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY)).toBe('used');
+  });
+
   it('보유 자산이 추가되어도 기존 결과를 유지하고 다시 분석할 때 갱신한다', async () => {
     const changedAssets = [...assets, { assetName: '현대차', weight: 10 }];
     const refreshedResponse = {
