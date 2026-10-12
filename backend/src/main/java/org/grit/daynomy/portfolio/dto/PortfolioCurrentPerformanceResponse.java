@@ -22,8 +22,8 @@ public record PortfolioCurrentPerformanceResponse(
         calculation.totalEvaluationAmount(),
         calculation.totalProfitLoss(),
         calculation.totalReturnRate(),
-        calculation.dailyProfitLoss(),
-        calculation.dailyReturnRate());
+        null,
+        null);
   }
 
   public static PortfolioCurrentPerformanceResponse empty(LocalDate baseDate) {

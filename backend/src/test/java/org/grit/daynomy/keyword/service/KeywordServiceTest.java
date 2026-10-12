@@ -43,7 +43,7 @@ class KeywordServiceTest {
   @DisplayName("뉴스와 키워드 목록을 받아 키워드를 저장한다")
   void saveKeywordsStoresNewsKeywords() {
     News news = createNews();
-    List<NewsKeyword> keywords = List.of(createKeyword("금리 인하"), createKeyword("부동산 규제"));
+    List<NewsKeyword> keywords = List.of(createKeyword("금리 인하"), createKeyword("기준금리"));
 
     keywordService.saveKeywords(news, keywords);
 
@@ -58,10 +58,10 @@ class KeywordServiceTest {
                   assertThat(savedKeywords.get(0).getNews()).isSameAs(news);
                   assertThat(savedKeywords.get(0).getCategory()).isEqualTo(KeywordCategory.POLICY);
                   assertThat(savedKeywords.get(0).getKeyword()).isEqualTo("금리 인하");
-                  assertThat(savedKeywords.get(0).getPoint1()).isEqualTo("첫 번째 분석 포인트");
-                  assertThat(savedKeywords.get(0).getPoint2()).isEqualTo("두 번째 분석 포인트");
-                  assertThat(savedKeywords.get(0).getPoint3()).isEqualTo("세 번째 분석 포인트");
-                  assertThat(savedKeywords.get(1).getKeyword()).isEqualTo("부동산 규제");
+                  assertThat(savedKeywords.get(0).getDefinition()).isEqualTo("키워드의 쉬운 뜻");
+                  assertThat(savedKeywords.get(0).getContext()).isEqualTo("기사에서 키워드가 갖는 의미");
+                  assertThat(savedKeywords.get(0).getWatchPoint()).isEqualTo("추가로 확인할 사항");
+                  assertThat(savedKeywords.get(1).getKeyword()).isEqualTo("기준금리");
                   return true;
                 }));
   }
@@ -98,7 +98,7 @@ class KeywordServiceTest {
     News news = createNews();
     given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(Optional.of(news));
     given(newsKeywordRepository.findByNewsIdOrderByIdAsc(1L))
-        .willReturn(List.of(createSavedKeyword(news, "금리 인하"), createSavedKeyword(news, "부동산 규제")));
+        .willReturn(List.of(createSavedKeyword(news, "금리 인하"), createSavedKeyword(news, "기준금리")));
 
     var response = keywordService.getKeywords(1L);
 
@@ -106,7 +106,10 @@ class KeywordServiceTest {
     assertThat(response.keywords().get(0).category()).isEqualTo(KeywordCategory.POLICY);
     assertThat(response.keywords().get(0).keyword()).isEqualTo("금리 인하");
     assertThat(response.keywords().get(0).points())
-        .containsExactly("첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
+        .containsExactly("키워드의 쉬운 뜻", "기사에서 키워드가 갖는 의미", "추가로 확인할 사항");
+    assertThat(response.keywords().get(0).definition()).isEqualTo("키워드의 쉬운 뜻");
+    assertThat(response.keywords().get(0).context()).isEqualTo("기사에서 키워드가 갖는 의미");
+    assertThat(response.keywords().get(0).watchPoint()).isEqualTo("추가로 확인할 사항");
     verify(newsKeywordRepository).findByNewsIdOrderByIdAsc(1L);
   }
 
@@ -137,12 +140,12 @@ class KeywordServiceTest {
 
   private NewsKeyword createKeyword(String keyword) {
     return new NewsKeyword(
-        KeywordCategory.POLICY, keyword, "첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
+        KeywordCategory.POLICY, keyword, "키워드의 쉬운 뜻", "기사에서 키워드가 갖는 의미", "추가로 확인할 사항");
   }
 
   private NewsKeyword createSavedKeyword(News news, String keyword) {
     return new NewsKeyword(
-        news, KeywordCategory.POLICY, keyword, "첫 번째 분석 포인트", "두 번째 분석 포인트", "세 번째 분석 포인트");
+        news, KeywordCategory.POLICY, keyword, "키워드의 쉬운 뜻", "기사에서 키워드가 갖는 의미", "추가로 확인할 사항");
   }
 
   private News createNews() {

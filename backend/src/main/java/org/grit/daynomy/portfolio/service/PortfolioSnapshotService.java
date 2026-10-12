@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
@@ -20,6 +19,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioPerformancePointResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceStatus;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
+import org.grit.daynomy.portfolio.dto.PortfolioPricingStatus;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
@@ -138,13 +138,10 @@ public class PortfolioSnapshotService {
                             holding.getQuantity(),
                             holding.getAveragePurchasePrice()))
                 .toList());
-    try {
-      return PortfolioCurrentPerformanceResponse.from(today, calculationService.calculate(request));
-    } catch (BusinessException exception) {
-      if (exception.errorCode() == AssetErrorCode.STOCK_PRICE_NOT_FOUND) {
-        return null;
-      }
-      throw exception;
+    var calculation = calculationService.calculate(request);
+    if (calculation.pricingStatus() != PortfolioPricingStatus.COMPLETE) {
+      return null;
     }
+    return PortfolioCurrentPerformanceResponse.from(today, calculation);
   }
 }

@@ -7,20 +7,24 @@ declare global {
   }
 }
 
-const measurementId = import.meta.env.GA_MEASUREMENT_ID;
+const measurementId = import.meta.env?.GA_MEASUREMENT_ID;
 let initialized = false;
 let lastPageLocation = '';
 let currentPageReferrer = '';
 
 function isPublicPage(pathname: string) {
-  const section = pathname.split('/')[1];
+  const section = pathname.split('/')[1]?.toLowerCase();
   return section !== 'login' && section !== 'admin';
 }
 
 function cleanUrl(value: string) {
   if (!value) return '';
   const url = new URL(value, window.location.origin);
-  return `${url.origin}${url.pathname}`;
+  const path = url.pathname.replace(
+    /^\/league\/(?!(?:following|portfolio)\/*$)[^/]+\/*$/i,
+    '/league/investor',
+  );
+  return `${url.origin}${path}`;
 }
 
 function canTrack() {
@@ -58,7 +62,6 @@ export function trackPageView(path: string) {
     return;
   }
   initAnalytics();
-  const pathname = new URL(path, window.location.origin).pathname;
   const pageLocation = cleanUrl(path);
   if (pageLocation === lastPageLocation) return;
   const pageReferrer = lastPageLocation || cleanUrl(document.referrer);
@@ -71,7 +74,7 @@ export function trackPageView(path: string) {
     page_referrer: pageReferrer,
   });
   window.gtag?.('event', 'page_view', {
-    page_path: pathname,
+    page_path: new URL(pageLocation).pathname,
     page_location: pageLocation,
     page_referrer: pageReferrer,
   });
@@ -82,7 +85,7 @@ export function trackEvent(name: string, params: AnalyticsParams = {}) {
   initAnalytics();
   window.gtag?.('event', name, {
     ...params,
-    page_path: window.location.pathname,
+    page_path: new URL(cleanUrl(window.location.href)).pathname,
     page_location: cleanUrl(window.location.href),
     page_referrer: currentPageReferrer || cleanUrl(document.referrer),
   });

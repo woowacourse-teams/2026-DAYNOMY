@@ -48,8 +48,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Answers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -196,7 +198,7 @@ class LeagueServiceTest {
 
   @Test
   void dailyHistoryCompoundsReturnsAndResetsAtEachMondayWithoutWeekendPoints() {
-    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
     SharedPortfolio portfolio = dailyProfile(week.minusWeeks(1));
     var monday = dailyReturn(portfolio, week, "10");
     var tuesday = dailyReturn(portfolio, week.plusDays(1), "-10");
@@ -282,7 +284,7 @@ class LeagueServiceTest {
 
   @Test
   void participationStartsNextMondayAndMissingPricesDoNotInventDates() {
-    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
     dailyProfile(week);
     calendar(week, List.of(week));
 
@@ -332,7 +334,10 @@ class LeagueServiceTest {
   }
 
   @Test
-  void wholeCumulativeIncludesOlderWeeksAndMissingDaysAreNeverDroppedFromRisk() {
+  void wholeCumulativeIncludesOlderWeeksAndMissingDaysAreNeverDroppedFromRisk(
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates) {
+    LocalDate today = LocalDate.of(2026, 10, 8);
+    dates.when(() -> LocalDate.now(ZoneId.of("Asia/Seoul"))).thenReturn(today);
     LocalDate currentWeek = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
     LocalDate started = currentWeek.minusWeeks(10);
     SharedPortfolio portfolio = dailyProfile(started.minusWeeks(1));
@@ -402,12 +407,18 @@ class LeagueServiceTest {
     given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
         .willReturn(List.of(profile));
     var performance = service.publicInvestor(null, "investor-1").performance();
-    assertThat(performance.weeklyRank()).isEqualTo(1);
+    Integer expectedRank =
+        values.stream().anyMatch(value -> !value.getBaseDate().isBefore(currentWeek)) ? 1 : null;
+    assertThat(performance.weeklyRank()).isEqualTo(expectedRank);
     assertThat(performance.currentHoldingWeight()).isEqualByComparingTo("75");
     assertThat(performance.maxHoldingWeight()).isEqualByComparingTo("75");
     assertThat(performance.cumulativeReturnRate()).isGreaterThan(performance.eightWeekReturnRate());
     assertThat(performance.volatilityRate()).isEqualByComparingTo("0.00");
-    assertThat(performance.consecutiveRecordedWeeks()).isGreaterThan(8);
+    if (expectedRank == null) {
+      assertThat(performance.consecutiveRecordedWeeks()).isZero();
+    } else {
+      assertThat(performance.consecutiveRecordedWeeks()).isGreaterThan(8);
+    }
     values.get(values.size() - 8).exclude("MISSING_PRICE", Instant.now());
     var missing = service.publicInvestor(null, "investor-1").performance();
     assertThat(missing.cumulativeReturnRate()).isNull();
