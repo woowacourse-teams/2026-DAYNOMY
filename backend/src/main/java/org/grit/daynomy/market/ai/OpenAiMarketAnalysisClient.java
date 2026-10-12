@@ -5,7 +5,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.MatchResult;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
@@ -21,6 +25,12 @@ import org.springframework.web.client.RestClientException;
 public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
 
   private static final int MAX_ANALYSIS_TEXT_LENGTH = 240;
+  private static final Pattern NUMERIC_FACT =
+      Pattern.compile(
+          "[0-9]{4}[-./][0-9]{1,2}[-./][0-9]{1,2}"
+              + "|(?:[0-9]{4}\\s*년\\s*)?[0-9]{1,2}\\s*월\\s*[0-9]{1,2}\\s*일"
+              + "|[+-]?[0-9]+(?:,[0-9]{3})*(?:\\.[0-9]+)?\\s*"
+              + "(?:%p|%|퍼센트포인트|퍼센트|bp|조\\s*원|억\\s*원|만\\s*원|천\\s*원|원|달러|배|명|건|개월|개|년|월|일)?");
 
   private static final String MARKET_ANALYSIS_PROMPT =
       """
@@ -41,6 +51,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       원문의 단어만 바꾼 재서술에 그치지 말고, 기사에 근거한 위험 조건과 확인 대상·이유를 초보자가 이해하도록 설명하세요.
       설명을 새롭게 쓰려고 없는 사실이나 위험을 추가하지 마세요.
       본문에 없는 수치·일정·정책·성과를 만들어 내지 마세요. 이후 확인할 제안을 이미 확인된 사실처럼 쓰지 마세요.
+      구체적인 수치와 날짜는 원문의 단위와 표기를 유지하고, 계산하거나 환산한 값을 추가하지 마세요.
       본문 속 주장·전망과 확인된 사실, 논의·확정·시행·실제 효과를 구분하세요.
       한 기업이나 한 사건의 결과를 산업 또는 시장 전체의 확정적인 신호로 일반화하지 마세요.
       매수·매도 권유나 확정적 가격 전망을 제공하지 마세요.
@@ -187,7 +198,15 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       JsonNode root = objectMapper.readTree(outputText);
       validateEvidence(root, "riskEvidence", newsContent);
       validateEvidence(root, "watchPointEvidence", newsContent);
-      return new NewsMarketAnalysis(requiredText(root, "risk"), requiredText(root, "watchPoint"));
+      String risk = requiredText(root, "risk");
+      String watchPoint = requiredText(root, "watchPoint");
+      Set<String> sourceFacts = numericFacts(newsContent);
+      if (!sourceFacts.containsAll(numericFacts(risk))
+          || !sourceFacts.containsAll(numericFacts(watchPoint))) {
+        throw new IllegalStateException(
+            "OpenAI market analysis contains unsupported numbers or dates.");
+      }
+      return new NewsMarketAnalysis(risk, watchPoint);
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException(
           "Failed to parse OpenAI market analysis response.", exception);
@@ -209,7 +228,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
               + MAX_ANALYSIS_TEXT_LENGTH
               + " characters.");
     }
-    String[] sentences = value.split("(?<=[.!?])\\s*(?=[가-힣])");
+    String[] sentences = value.split("(?<=[가-힣][.!?])\\s*");
     if (value.contains("\n")
         || value.contains("\r")
         || value.contains("**")
@@ -227,6 +246,15 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       }
     }
     return value;
+  }
+
+  private Set<String> numericFacts(String text) {
+    return NUMERIC_FACT
+        .matcher(text)
+        .results()
+        .map(MatchResult::group)
+        .map(value -> value.replaceAll("[,\\s]", ""))
+        .collect(Collectors.toSet());
   }
 
   private void validateEvidence(JsonNode root, String fieldName, String newsContent) {

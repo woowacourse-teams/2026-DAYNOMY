@@ -116,6 +116,55 @@ class OpenAiMarketAnalysisClientTest {
     assertThat(client.analyze(content).getRisk()).contains("3.5%");
   }
 
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "금리가 내렸습니다. CPI는 올랐어요.",
+        "금리가 내렸습니다. 3.5% 수준이에요.",
+        "금리가 내렸어요. CPI는 올랐어요. 추이를 확인하세요.",
+        "금리가 내렸어요.CPI는 올랐어요.추이를 확인하세요.",
+        "금리가 내렸어요. 3.5% 수준이에요. 추이를 확인하세요."
+      })
+  @DisplayName("영문·숫자로 시작하는 후속 문장에도 문체와 문장 수를 검증한다")
+  void validatesSentencesStartingWithLatinOrNumber(String risk) throws Exception {
+    var analysis = validAnalysis();
+    analysis.put("risk", risk);
+    respond(analysis);
+    assertThatThrownBy(() -> client.analyze(CONTENT + " 금리는 3.5%다."))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"risk", "watchPoint"})
+  @DisplayName("실제 근거를 인용해도 본문에 없는 수치·단위·날짜는 거부한다")
+  void rejectsUnsupportedNumericFacts(String field) throws Exception {
+    String content =
+        CONTENT
+            + " 상승률은 10%이고 금액은 1,000원이다."
+            + " 일정은 2026년 10월 12일과 2026년 11월 15일이다."
+            + " 발표일은 2026-10-12이다.";
+    for (String fact :
+        List.of("1%", "-10%", "10%p", "1000달러", "20%", "2026년 10월 15일", "2026-10-15")) {
+      var analysis = validAnalysis();
+      analysis.put(field, fact + "인지 확인하세요.");
+      respond(analysis);
+      assertThatThrownBy(() -> client.analyze(content)).isInstanceOf(IllegalStateException.class);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2026.10.12", "2026-10-12", "2026년 10월 12일"})
+  @DisplayName("원문의 날짜와 쉼표·공백만 다른 수치는 허용한다")
+  void acceptsSupportedDateAndFormattedNumber(String date) throws Exception {
+    var analysis = validAnalysis();
+    analysis.put("risk", "비용이 1000원인지 확인하세요. CPI 추이를 확인하세요.");
+    analysis.put("watchPoint", date + " 발표를 확인하세요.");
+    respond(analysis);
+    var result = client.analyze(CONTENT + " 비용은 1,000 원이다. " + date + " 발표 예정이다.");
+    assertThat(result.getRisk()).contains("1000원");
+    assertThat(result.getWatchPoint()).contains(date);
+  }
+
   @Test
   @DisplayName("근거가 부족한 기사에서 구체적인 위험을 만들어 내지 않은 응답을 허용한다")
   void acceptsExplicitInsufficientEvidence() throws Exception {
