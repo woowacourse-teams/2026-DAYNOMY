@@ -11,6 +11,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -921,12 +922,13 @@ class SharedPortfolioAcceptanceTest {
     jdbc.update(
         "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
         previous);
-    for (LocalDate trading :
+    List<LocalDate> tradingDates =
         jdbc.queryForList(
             "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
             LocalDate.class,
             date,
-            date.plusDays(6))) {
+            date.plusDays(6));
+    for (LocalDate trading : tradingDates) {
       prices.save(new StockDailyPrice(asset, trading, new BigDecimal("77000")));
       jdbc.update(
           "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
@@ -948,11 +950,17 @@ class SharedPortfolioAcceptanceTest {
         .header("Cache-Control", "no-store")
         .body("weekStart", equalTo(date.toString()))
         .body("weekEnd", equalTo(date.plusDays(6).toString()))
-        .body("asOfDate", equalTo(date.plusDays(4).toString()))
+        .body("asOfDate", equalTo(tradingDates.getLast().toString()))
         .body("weeklyReturnRate", equalTo(10.0f))
-        .body("days.find { it.baseDate == '" + date + "' }.dailyReturnRate", equalTo(10.0f))
-        .body("days.find { it.baseDate == '" + date + "' }.cumulativeReturnRate", equalTo(10.0f))
-        .body("days.find { it.baseDate == '" + date + "' }.status", equalTo("CALCULATED"))
+        .body(
+            "days.find { it.baseDate == '" + tradingDates.getFirst() + "' }.dailyReturnRate",
+            equalTo(10.0f))
+        .body(
+            "days.find { it.baseDate == '" + tradingDates.getFirst() + "' }.cumulativeReturnRate",
+            equalTo(10.0f))
+        .body(
+            "days.find { it.baseDate == '" + tradingDates.getFirst() + "' }.status",
+            equalTo("CALCULATED"))
         .body("$", not(hasKey("email")))
         .body("$", not(hasKey("name")));
     assertThat(daily.asString())
@@ -1274,7 +1282,7 @@ class SharedPortfolioAcceptanceTest {
         .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
         .schemas(schema)
         .defaultSchema(schema)
-        .target("23")
+        .target("27")
         .load()
         .migrate();
     try (var connection =
@@ -1357,7 +1365,7 @@ class SharedPortfolioAcceptanceTest {
         .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
         .schemas(schema)
         .defaultSchema(schema)
-        .target("26")
+        .target("30")
         .load()
         .migrate();
     try (var connection =

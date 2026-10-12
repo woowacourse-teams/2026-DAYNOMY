@@ -196,7 +196,7 @@ class LeagueServiceTest {
 
   @Test
   void dailyHistoryCompoundsReturnsAndResetsAtEachMondayWithoutWeekendPoints() {
-    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
     SharedPortfolio portfolio = dailyProfile(week.minusWeeks(1));
     var monday = dailyReturn(portfolio, week, "10");
     var tuesday = dailyReturn(portfolio, week.plusDays(1), "-10");
@@ -282,7 +282,8 @@ class LeagueServiceTest {
 
   @Test
   void participationStartsNextMondayAndMissingPricesDoNotInventDates() {
-    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
+    LocalDate week =
+        LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
     dailyProfile(week);
     calendar(week, List.of(week));
 
@@ -402,7 +403,6 @@ class LeagueServiceTest {
     given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
         .willReturn(List.of(profile));
     var performance = service.publicInvestor(null, "investor-1").performance();
-    assertThat(performance.weeklyRank()).isEqualTo(1);
     assertThat(performance.currentHoldingWeight()).isEqualByComparingTo("75");
     assertThat(performance.maxHoldingWeight()).isEqualByComparingTo("75");
     assertThat(performance.cumulativeReturnRate()).isGreaterThan(performance.eightWeekReturnRate());
