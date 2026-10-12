@@ -229,6 +229,31 @@ for (const viewport of [
         `포트폴리오 본문이 ${width}px에서 잘리지 않아야 합니다.`,
       ).toBe(true);
     }
+    await page.setViewportSize({ width: 1440, height: 1050 });
+    for (const [mainWidth, compositionWidth] of [
+      [760, '100%'],
+      [1200, '280px'],
+    ] as const) {
+      const constrainedDashboard = await page.addStyleTag({
+        content: `.portfolio-dashboard-main { width: ${mainWidth}px; max-width: 100%; } .portfolio-composition { width: ${compositionWidth}; max-width: 100%; }`,
+      });
+      const composition = page.locator('.portfolio-composition');
+      expect(
+        await composition.evaluate((element) => {
+          const content = element.querySelector('.portfolio-composition-content')!;
+          const box = content.getBoundingClientRect();
+          return (
+            content.scrollWidth <= content.clientWidth + 1 &&
+            [...element.querySelectorAll('.portfolio-donut-wrap, dt, dd')].every((item) => {
+              const rect = item.getBoundingClientRect();
+              return rect.left >= box.left && rect.right <= box.right + 1;
+            })
+          );
+        }),
+        '창이 넓어도 본문 공간이 좁아지면 자산 구성의 차트와 비율이 카드 안에 있어야 합니다.',
+      ).toBe(true);
+      await constrainedDashboard.evaluate((element) => element.parentNode?.removeChild(element));
+    }
     await page.setViewportSize(viewport);
     const holdingTrigger = page.getByRole('button', { name: '삼성전자 보유 상세' });
     await holdingTrigger.click();

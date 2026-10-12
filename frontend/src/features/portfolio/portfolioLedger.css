@@ -191,6 +191,9 @@
 .portfolio-status-dot.is-pending {
   background: #bd8737;
 }
+.portfolio-page .portfolio-dashboard-main {
+  container: portfolio-dashboard / inline-size;
+}
 .portfolio-page .portfolio-dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
@@ -209,6 +212,10 @@
 }
 .portfolio-page .portfolio-analysis {
   margin-bottom: 28px;
+}
+.portfolio-page .portfolio-composition {
+  container: portfolio-composition / inline-size;
+  min-width: 0;
 }
 .portfolio-page .portfolio-composition-content {
   grid-template-columns: 136px minmax(70px, 1fr);
@@ -1328,4 +1335,16 @@
   font-size: 12px;
   text-align: left;
   cursor: pointer;
+}
+
+@container portfolio-dashboard (max-width: 1000px) {
+  .portfolio-page .portfolio-dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container portfolio-composition (max-width: 300px) {
+  .portfolio-page .portfolio-composition-content {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
 }
