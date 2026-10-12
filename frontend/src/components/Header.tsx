@@ -17,6 +17,7 @@ export function Header() {
   const isNewsPage =
     location.pathname.startsWith('/news') || location.pathname.startsWith('/search');
   const isPortfolioPage = location.pathname === '/' || location.pathname.startsWith('/portfolio');
+  const isGuidePage = location.pathname.startsWith('/guides');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -53,6 +54,9 @@ export function Header() {
         </Link>
         <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/news">
           이슈
+        </Link>
+        <Link className={isGuidePage ? 'header-tab active' : 'header-tab'} to="/guides">
+          가이드
         </Link>
       </nav>
       <div className="header-actions">
