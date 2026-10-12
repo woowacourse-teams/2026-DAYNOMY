@@ -1446,7 +1446,7 @@ class SharedPortfolioAcceptanceTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"19", "21"})
+  @ValueSource(strings = {"19", "21", "24"})
   void deployedVersionsUpgradeWithoutChangingExistingStockContent(String version) throws Exception {
     String schema = "upgrade_" + UUID.randomUUID().toString().replace("-", "");
     Flyway.configure()

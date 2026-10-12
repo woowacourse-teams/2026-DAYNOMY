@@ -48,8 +48,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Answers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -332,7 +334,10 @@ class LeagueServiceTest {
   }
 
   @Test
-  void wholeCumulativeIncludesOlderWeeksAndMissingDaysAreNeverDroppedFromRisk() {
+  void wholeCumulativeIncludesOlderWeeksAndMissingDaysAreNeverDroppedFromRisk(
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates) {
+    LocalDate today = LocalDate.of(2026, 10, 8);
+    dates.when(() -> LocalDate.now(ZoneId.of("Asia/Seoul"))).thenReturn(today);
     LocalDate currentWeek = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
     LocalDate started = currentWeek.minusWeeks(10);
     SharedPortfolio portfolio = dailyProfile(started.minusWeeks(1));
