@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
 import type {
   PortfolioAsset,
+  PortfolioAnalysisSource,
   PortfolioAnalysisResponse,
   PortfolioAssetImpactResponse,
   PortfolioImpactDirection,
@@ -373,7 +374,7 @@ function PortfolioAssetList({
           />
           <span className="portfolio-asset-name">전체 포트폴리오</span>
           <span className={`portfolio-asset-analysis ${directionClass(overallDirection)}`}>
-            {`전체 분석 · ${impactLabel(overallDirection)}`}
+            전체 분석
           </span>
           <strong>{formatImpactScore(overallScore)}</strong>
         </button>
@@ -399,11 +400,8 @@ function PortfolioAssetList({
               <span
                 className={`portfolio-asset-analysis${impact ? ` ${directionClass(impact.direction)}` : ''}`}
               >
-                {impact
-                  ? `TOP ${impact.rank} · ${impactLabel(impact.direction)}`
-                  : '분석 결과 없음'}
+                {impact ? `TOP ${impact.rank}` : '분석 결과 없음'}
               </span>
-              <strong>{`${asset.weight}%`}</strong>
             </>
           );
 
@@ -426,6 +424,76 @@ function PortfolioAssetList({
         })}
       </ul>
     </div>
+  );
+}
+
+// 링크와 인용 표시는 출처 영역에서 제공하고 본문은 텍스트로만 읽게 한다.
+function plainAnalysisText(text: string) {
+  return text
+    .replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1')
+    .replace(/https?:\/\/[^\s<>]+/g, '')
+    .replace(/\[\d+(?:\s*[,–-]\s*\d+)*\]/g, '')
+    .replace(/【[^】]*】/g, '')
+    .replace(/\*\*/g, '')
+    .trim();
+}
+
+function AnalysisParagraph({ text }: { text: string }) {
+  const copy = plainAnalysisText(text);
+  if (!copy) return null;
+  const firstSentence = copy.match(/^.*?[.](?=\s|$)/)?.[0];
+  return (
+    <p>
+      {firstSentence ? (
+        <>
+          <strong>{firstSentence}</strong>
+          {copy.slice(firstSentence.length)}
+        </>
+      ) : (
+        copy
+      )}
+    </p>
+  );
+}
+
+function AnalysisSources({ sources }: { sources: PortfolioAnalysisSource[] }) {
+  return (
+    <details className="portfolio-evidence">
+      <summary>
+        <span className="portfolio-evidence-label is-closed">분석 출처 모두 보기</span>
+        <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
+        <span className="portfolio-evidence-toggle-icon" aria-hidden="true" />
+      </summary>
+      {sources.length ? (
+        <ul className="portfolio-evidence-sources">
+          {sources.map((source) => (
+            <li key={source.url}>
+              <a href={source.url} target="_blank" rel="noopener noreferrer">
+                {source.title}
+                <ExternalLinkIcon />
+              </a>
+              <div className="portfolio-source-dates">
+                {source.publishedOn ? (
+                  <span>
+                    발행일 <time dateTime={source.publishedOn}>{source.publishedOn}</time>
+                  </span>
+                ) : (
+                  <span>발행일 미확인</span>
+                )}
+                {source.occurredOn && source.occurredOn !== source.publishedOn ? (
+                  <span>
+                    사건일 <time dateTime={source.occurredOn}>{source.occurredOn}</time>
+                  </span>
+                ) : null}
+              </div>
+              {source.excerpt ? <p>{source.excerpt}</p> : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>연결된 출처가 없어요.</p>
+      )}
+    </details>
   );
 }
 
@@ -455,7 +523,12 @@ function PortfolioOverallImpactDetail({
       </div>
 
       <div className="portfolio-detail-copy">
-        <p>{analysis.overallImpact}</p>
+        {analysis.overallImpact
+          .split(/\n\s*\n/)
+          .filter(Boolean)
+          .map((paragraph, index) => (
+            <AnalysisParagraph key={index} text={paragraph} />
+          ))}
       </div>
 
       {analyzedAtLabel ? (
@@ -464,29 +537,7 @@ function PortfolioOverallImpactDetail({
         </time>
       ) : null}
 
-      <details className="portfolio-evidence">
-        <summary>
-          <span className="portfolio-evidence-label is-closed">
-            {`분석 출처 ${analysis.sources.length}개 보기`}
-          </span>
-          <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
-          <span className="portfolio-evidence-toggle-icon" aria-hidden="true" />
-        </summary>
-        {analysis.sources.length > 0 ? (
-          <ul className="portfolio-evidence-sources">
-            {analysis.sources.map((source) => (
-              <li key={source.url}>
-                <a href={source.url} target="_blank" rel="noopener noreferrer">
-                  {source.title}
-                  <ExternalLinkIcon />
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>직접 연결된 출처가 없어요.</p>
-        )}
-      </details>
+      <AnalysisSources sources={analysis.sources} />
     </article>
   );
 }
@@ -518,39 +569,15 @@ function PortfolioImpactDetail({
         {impact.direction === null ? (
           <p>판단할 근거가 충분하지 않아요.</p>
         ) : (
-          <p>
-            <span>
-              {impact.issueSummary} 현재 보유 비중은 <strong>{`${impact.weight}%`}</strong>예요.
-            </span>{' '}
-            <span>{impact.expectedReaction}</span> <span>{impact.outlook}</span>{' '}
-            <span>{impact.reason}</span>
-          </p>
+          <>
+            <AnalysisParagraph text={impact.issueSummary} />
+            <AnalysisParagraph text={impact.expectedReaction} />
+            <AnalysisParagraph text={impact.outlook} />
+          </>
         )}
       </div>
 
-      <details className="portfolio-evidence">
-        <summary>
-          <span className="portfolio-evidence-label is-closed">
-            {`분석 출처 ${impact.sources.length}개 보기`}
-          </span>
-          <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
-          <span className="portfolio-evidence-toggle-icon" aria-hidden="true" />
-        </summary>
-        {impact.sources.length > 0 ? (
-          <ul className="portfolio-evidence-sources">
-            {impact.sources.map((source) => (
-              <li key={source.url}>
-                <a href={source.url} target="_blank" rel="noopener noreferrer">
-                  {source.title}
-                  <ExternalLinkIcon />
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>직접 연결된 출처가 없어요.</p>
-        )}
-      </details>
+      <AnalysisSources sources={impact.sources} />
     </article>
   );
 }
@@ -690,7 +717,11 @@ function PortfolioAnalysisContent({ assets, isLoggedIn = true }: PortfolioAnalys
               <summary>영향 점수 산정 기준</summary>
               <p>
                 보유 비중과 자산별 영향 방향·수준을 합산한 -100~100 지표예요. 예상 수익률이나 상승
-                확률은 아닙니다.
+                확률은 아니에요.
+              </p>
+              <p>
+                최근 자료를 우선 확인하고, 여전히 유효한 과거 발표는 날짜를 밝혀 배경 근거로
+                활용해요. 근거가 부족한 종목은 중립으로 간주하지 않고 영향 점수 산정에서 제외해요.
               </p>
               <dl>
                 <div>
@@ -712,13 +743,6 @@ function PortfolioAnalysisContent({ assets, isLoggedIn = true }: PortfolioAnalys
             <div className="portfolio-analysis-overview">
               <div className="portfolio-analysis-overview-heading">
                 <h3>내 포트폴리오</h3>
-                <span
-                  className={directionClass(
-                    selectedImpact ? selectedImpact.direction : analysis.overallDirection,
-                  )}
-                >
-                  {`${directionLabel(selectedImpact ? selectedImpact.direction : analysis.overallDirection)} 영향`}
-                </span>
               </div>
 
               <PortfolioDonut

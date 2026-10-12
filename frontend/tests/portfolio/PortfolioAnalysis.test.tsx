@@ -191,7 +191,7 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.getByRole('heading', { name: 'SK하이닉스' })).toBeTruthy();
     expect(view.getByText('단기 주가 변동성이 커질 수 있어요.')).toBeTruthy();
 
-    const evidenceSummary = view.getByText('분석 출처 1개 보기');
+    const evidenceSummary = view.getByText('분석 출처 모두 보기');
     fireEvent.click(evidenceSummary);
     const sourceLink = view.getByRole('link', { name: '메모리 시장 동향' });
     expect(sourceLink.getAttribute('href')).toBe('https://example.com/memory');
@@ -204,6 +204,46 @@ describe('포트폴리오 분석 화면', () => {
     );
   });
 
+  it('본문은 세 문단으로 읽고 출처의 날짜와 근거는 하단에서 확인한다', async () => {
+    const source = {
+      title: '기업 실적 발표',
+      url: 'https://example.com/results',
+      publishedOn: '2026-10-06',
+      occurredOn: '2026-10-05',
+      excerpt: '매출 증가를 발표했어요.',
+    };
+    const response = {
+      ...analysisResponse,
+      overallImpact:
+        '새 실적이 발표됐어요.[1]\n\n이익 개선을 기대해요. 규모는 미확정이에요.\n\n다음 발표를 확인해요.',
+      sources: [source],
+      impacts: analysisResponse.impacts.map((impact) => ({ ...impact, sources: [source] })),
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(response)),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
+    fireEvent.click(view.getByRole('button', { name: '1회 분석 체험하기' }));
+    await view.findByRole('heading', { name: '전체 포트폴리오' });
+    const copy = view.container.querySelector('.portfolio-detail-copy')!;
+    expect(copy.querySelectorAll('p')).toHaveLength(3);
+    expect(copy.querySelector('a')).toBeNull();
+    expect(copy.textContent).not.toContain('[1]');
+    expect(copy.querySelector('strong')?.textContent).toBe('새 실적이 발표됐어요.');
+    const list = view.getByRole('list', { name: '포트폴리오 보유 자산' });
+    expect(list.textContent).not.toMatch(/%|긍정|중립|부정/);
+    fireEvent.click(view.getByText('분석 출처 모두 보기'));
+    expect(view.getByRole('link', { name: '기업 실적 발표' }).getAttribute('href')).toBe(
+      source.url,
+    );
+    expect(view.getByText('2026-10-06')).toBeTruthy();
+    expect(view.getByText('2026-10-05')).toBeTruthy();
+    expect(view.getByText(source.excerpt)).toBeTruthy();
+    fireEvent.click(view.getByText('삼성전자').closest('button')!);
+    expect(view.container.querySelectorAll('.portfolio-detail-copy p')).toHaveLength(3);
+  });
+
   it('가중 영향 점수의 산정 기준과 기여 점수를 안내한다', async () => {
     vi.stubGlobal(
       'fetch',
@@ -214,7 +254,7 @@ describe('포트폴리오 분석 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '1회 분석 체험하기' }));
     fireEvent.click(await view.findByText('영향 점수 산정 기준'));
 
-    expect(view.getByText(/예상 수익률이나 상승 확률은 아닙니다/)).toBeTruthy();
+    expect(view.getByText(/예상 수익률이나 상승 확률은 아니에요/)).toBeTruthy();
     expect(view.getByText('+60.00점')).toBeTruthy();
     expect(view.getByText('−9.00점')).toBeTruthy();
   });
