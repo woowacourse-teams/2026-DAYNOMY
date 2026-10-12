@@ -350,3 +350,58 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 - 거래 등록·수정·삭제 성공 시 보유자산·실현손익·계산 결과·내역·추이를 갱신합니다. 수량이 같고 거래일만 바뀌어도 추이를 다시 조회합니다.
 - 시세 누락(`PARTIAL`)은 부분 평가금액과 계산 불가 손익을 구분합니다. 기준일 혼재(`MIXED_DATES`)는 일간 손익을 표시하지 않습니다. 추이 응답의 `currentPoint: null`을 허용합니다.
 - 거래 화면 브라우저 검증: `npm run build && npx playwright test e2e/portfolio-ledger.e2e.ts`. 계약에 맞춘 API 모의 응답으로 데스크톱·모바일 흐름을 검사하며 실제 백엔드 연결 검증과는 구분합니다.
+
+### 소식 행동 분석 (GA4 / PostHog)
+
+`trackEvent`는 설정된 공급자 양쪽에 같은 이벤트·속성을 보냅니다. GA4만,
+PostHog만, 둘 모두 사용할 수 있습니다. 페이지 조회만 GA4 `page_view`,
+PostHog `$pageview`로 매핑합니다. 각 환경의 공개 프로젝트 토큰
+`VITE_POSTHOG_KEY`와 수집 호스트 `VITE_POSTHOG_HOST`를 함께 설정해야 PostHog이
+활성화됩니다. 호스트는 프로젝트 설정의 값을 사용하며 개인 API 키를 넣지 않습니다.
+배포 workflow는 같은 이름의 GitHub Environment Variables를 빌드에 전달합니다.
+값이 없는 환경에서는 PostHog SDK를 로드하지 않습니다.
+
+| 이벤트                   | 발생 시점                                                   | 주요 속성                                                         |
+| ------------------------ | ----------------------------------------------------------- | ----------------------------------------------------------------- |
+| `click_news_navigation`  | 헤더 소식 메뉴 클릭                                         | surface                                                           |
+| `view_content_list`      | 소식 홈·전체·인물 목록 로딩 완료 및 선택 상태 변경          | surface, source_type/person_id, result_count, page_number, status |
+| `view_content`           | 오늘의 이슈 카드가 화면에 50% 이상 보임                     | surface, content_id, content_type, source_type, position          |
+| `click_content`          | 기사 또는 보유 자산 소식 클릭                               | surface, content_id, content_type, source_type, position          |
+| `click_person_preview`   | 인물 미리보기·피드 인물 링크 클릭                           | surface, person_id, position                                      |
+| `click_content_more`     | 인물·전체 콘텐츠 더 보기 (빈 상태 링크 포함)                | surface, destination                                              |
+| `filter_content_source`  | 출처 필터/탭 변경                                           | surface, previous_source, source_type, result_count               |
+| `expand_content`         | 소식·인물 피드의 외부 글/영상 펼치기                        | surface, content_id, content_type, source_type, position          |
+| `click_content_original` | 직접 제공한 외부 원문 링크 클릭                             | surface, content_id, content_type, source_type, position          |
+| `change_content_page`    | 이전·다음·번호로 페이지 변경                                | surface, previous_page, page_number, source_type/person_id        |
+| `select_featured_person` | 인물 메뉴 선택                                              | surface, person_id, trigger                                       |
+| `view_portfolio_news`    | 로딩 완료된 보유 자산 소식 패널의 제목 영역이 50% 이상 보임 | surface, status, result_count                                     |
+| `view_stock_contents`    | 종목 소식 로딩 완료·출처 변경                               | surface, source_type, result_count                                |
+| `open_content_video`     | 종목 소식 YouTube 모달 열기                                 | surface, content_id, content_type, source_type, position          |
+| `content_load_result`    | 소식 요청 완료 (취소 제외)                                  | surface, area, status, result_count, duration_ms, attempt         |
+| `view_content_empty`     | 로딩 성공 후 빈 상태 표시                                   | surface, reason, source_type                                      |
+| `retry_content_load`     | 다시 시도 버튼 클릭                                         | surface, area, attempt (있는 경우)                                |
+| `feedback_submit_failed` | 피드백 API 제출 실패                                        | error_type, status_code (HTTP 오류만)                             |
+| `click_search_open`      | 버튼 또는 `/` 단축키로 검색 열기                            | trigger: button/keyboard                                          |
+
+- 기존 `click_feedback_open`, `submit_feedback`, 뉴스 상세 등 이벤트도 양쪽으로 전송합니다.
+- `surface`: news_home, news_contents, people, today_story, person_preview,
+  portfolio_news, stock_contents 등 실제 발생 영역. 내부 기사의 source_type은 DAYNOMY로 통일합니다.
+- `content_id`는 뉴스/인물 글/외부 콘텐츠의 종류를 포함한 ID입니다. 링크 URL·제목·본문을 보내지 않습니다.
+- `person_id`는 서비스가 공개한 주요 인물 ID이며 로그인 이용자의 식별자가 아닙니다.
+- 보유 종목 ID·목록·이름·금액·수량은 이벤트 속성에 넣지 않습니다. 종목 상세 경로는 기존 page_path에 포함됩니다.
+- 직접 인물 URL로 진입한 경우 `view_content_list`에 선택 상태를 기록합니다. 사용자 클릭인 `select_featured_person`과 구분합니다.
+- `content_load_result`의 status는 success/partial_error/error입니다. 포트폴리오는 종목 요청을 합쳐 한 번 기록하고, 소식 홈은 news/people/external 영역별로 기록합니다. attempt는 최초 0부터 시작합니다.
+- 노출 이벤트는 컴포넌트가 유지되는 동안 동일 기사/보유 자산 구성에 한 번만 기록합니다. 숨겨진 탭·화면 밖은 제외하며 IntersectionObserver 미지원 환경에서는 노출을 추정하지 않습니다.
+- 모달 열기·글 펼치기는 실제 영상 재생이 아닙니다. 외부 플랫폼 iframe 내부 행동은 수집하지 않습니다.
+- `/login`, `/admin` 진입 후 현재 문서에서는 두 공급자의 새 이벤트를 중지합니다. URL 쿼리·fragment와 투자 리그 공개 사용자 ID 정제를 유지합니다.
+- PostHog은 명시적 이벤트만 사용합니다. 자동 클릭/페이지 조회/페이지 이탈/오류 수집, 세션 녹화, 설문, 프로필 생성은 끄고 SDK 기본 속성도 허용 목록으로 제한합니다.
+- PostHog 활성화 전 프로젝트 지역·보관 기간·수집 거부 방법을 운영 설정과 개인정보 안내에 맞춰 확정합니다. 이 변경은 외부 프로젝트를 생성하거나 운영 토큰을 설정하지 않습니다.
+
+GA4에는 필요한 surface/source_type/content_type/status/reason/trigger 등의 이벤트 범위
+맞춤 측정기준과 result_count/duration_ms 맞춤 측정항목을 등록합니다. 개별 콘텐츠 ID는
+필요한 분석에만 사용합니다. PostHog에서는 동일 이벤트로 소식 방문 → 클릭/펼치기 →
+원문 이동, 패널 노출 → 클릭, 피드백 열기 → 제출 성공 퍼널을 구성할 수 있습니다.
+
+검증: 두 공급자 각각 단독 설정/동시 설정/미설정, 관리자 제외, URL 정제,
+반복 렌더·자동 순환 노출 중복, 필터·인물·페이지 이동, 부분 실패·재시도와
+피드백 실패를 확인합니다. 운영 실제 수신은 GA4 DebugView와 PostHog의 이벤트 화면에서 확인합니다.
