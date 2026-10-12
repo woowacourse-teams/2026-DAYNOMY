@@ -863,11 +863,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 </button>
               </div>
               {analysisExpanded ? (
-                <div
-                  id="portfolio-analysis-content"
-                  className={`portfolio-dashboard-grid${isLoggedIn ? '' : ' is-guest'}`}
-                >
-                  {isLoggedIn && (
+                <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
+                  {isLoggedIn ? (
                     <PortfolioAssetTrendChart
                       points={trendPoints}
                       loading={performance.loading}
@@ -881,6 +878,30 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                         setTrendDialogOpen(true);
                       }}
                     />
+                  ) : (
+                    <section
+                      className="portfolio-return-dashboard is-compact"
+                      aria-labelledby="asset-trend-title"
+                    >
+                      <div className="portfolio-dashboard-heading">
+                        <h2 id="asset-trend-title">자산 추이</h2>
+                        <span className="portfolio-trend-lock-badge">잠금</span>
+                      </div>
+                      <div className="portfolio-trend-locked">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <rect x="5" y="10" width="14" height="11" rx="2" />
+                          <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
+                        </svg>
+                        <strong>로그인 후 자산 추이를 확인할 수 있어요</strong>
+                        <p>거래 기록에 따른 자산의 변화를 확인해 보세요.</p>
+                        <a
+                          className="portfolio-primary-button portfolio-login-button"
+                          href="/login?returnTo=%2F"
+                        >
+                          로그인하기
+                        </a>
+                      </div>
+                    </section>
                   )}
                   <section className="portfolio-composition" aria-labelledby="composition-title">
                     <div className="portfolio-dashboard-heading">

@@ -339,7 +339,13 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
     expect(view.getByRole('button', { name: '1회 분석 체험하기' })).toBeTruthy();
     expect(view.getByText('비회원 포트폴리오는 현재 탭에만 임시 보관돼요.')).toBeTruthy();
-    expect(view.queryByRole('heading', { name: '자산 추이' })).toBeNull();
+    const trend = view.getByRole('region', { name: '자산 추이' });
+    expect(within(trend).getByText('잠금')).toBeTruthy();
+    expect(within(trend).getByText('로그인 후 자산 추이를 확인할 수 있어요')).toBeTruthy();
+    expect(within(trend).getByRole('link', { name: '로그인하기' }).getAttribute('href')).toBe(
+      '/login?returnTo=%2F',
+    );
+    expect(within(trend).queryByRole('img', { name: /포트폴리오 자산 추이/ })).toBeNull();
     expect(view.queryByRole('combobox', { name: '자산 추이 기간' })).toBeNull();
     expect(view.queryByRole('button', { name: '자산 추이 크게 보기' })).toBeNull();
     expect(view.queryByRole('button', { name: '거래 내역' })).toBeNull();
