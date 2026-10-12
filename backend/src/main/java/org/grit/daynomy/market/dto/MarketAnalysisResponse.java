@@ -13,11 +13,15 @@ public record MarketAnalysisResponse(
 
   public static MarketAnalysisResponse from(NewsMarketAnalysis marketAnalysis) {
     return new MarketAnalysisResponse(
-        marketAnalysis.getObservedFact() + " " + marketAnalysis.getInterpretation(),
-        marketAnalysis.getObservedFact(),
-        marketAnalysis.getInterpretation(),
-        marketAnalysis.getRisk(),
-        marketAnalysis.getWatchPoint(),
-        marketAnalysis.getLimitation());
+        marketAnalysis.getSummary(),
+        valueOrEmpty(marketAnalysis.getObservedFact()),
+        valueOrEmpty(marketAnalysis.getInterpretation()),
+        valueOrEmpty(marketAnalysis.getRisk()),
+        valueOrEmpty(marketAnalysis.getWatchPoint()),
+        valueOrEmpty(marketAnalysis.getLimitation()));
+  }
+
+  private static String valueOrEmpty(String value) {
+    return value == null ? "" : value;
   }
 }

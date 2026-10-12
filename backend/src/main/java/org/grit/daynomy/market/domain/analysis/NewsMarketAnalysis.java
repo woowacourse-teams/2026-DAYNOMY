@@ -28,26 +28,25 @@ public class NewsMarketAnalysis extends BaseEntity {
   private News news;
 
   @Column(name = "summary", columnDefinition = "TEXT", nullable = false)
+  private String summary;
+
+  @Column(name = "observed_fact", columnDefinition = "TEXT")
   private String observedFact;
 
-  @Column(name = "interpretation", columnDefinition = "TEXT", nullable = false)
+  @Column(name = "interpretation", columnDefinition = "TEXT")
   private String interpretation;
 
-  @Column(name = "risk", columnDefinition = "TEXT", nullable = false)
+  @Column(name = "risk", columnDefinition = "TEXT")
   private String risk;
 
-  @Column(name = "watch_point", columnDefinition = "TEXT", nullable = false)
+  @Column(name = "watch_point", columnDefinition = "TEXT")
   private String watchPoint;
 
-  @Column(name = "limitation", columnDefinition = "TEXT", nullable = false)
+  @Column(name = "limitation", columnDefinition = "TEXT")
   private String limitation;
 
-  public NewsMarketAnalysis(String observedFact) {
-    this.observedFact = observedFact;
-    this.interpretation = "";
-    this.risk = "";
-    this.watchPoint = "";
-    this.limitation = "";
+  public NewsMarketAnalysis(String summary) {
+    this.summary = summary;
   }
 
   public NewsMarketAnalysis(
@@ -56,6 +55,7 @@ public class NewsMarketAnalysis extends BaseEntity {
       String risk,
       String watchPoint,
       String limitation) {
+    this.summary = summarize(observedFact, interpretation);
     this.observedFact = observedFact;
     this.interpretation = interpretation;
     this.risk = risk;
@@ -71,6 +71,7 @@ public class NewsMarketAnalysis extends BaseEntity {
       String watchPoint,
       String limitation) {
     this.news = news;
+    this.summary = summarize(observedFact, interpretation);
     this.observedFact = observedFact;
     this.interpretation = interpretation;
     this.risk = risk;
@@ -78,20 +79,21 @@ public class NewsMarketAnalysis extends BaseEntity {
     this.limitation = limitation;
   }
 
-  public NewsMarketAnalysis(News news, String observedFact) {
+  public NewsMarketAnalysis(News news, String summary) {
     this.news = news;
-    this.observedFact = observedFact;
-    this.interpretation = "";
-    this.risk = "";
-    this.watchPoint = "";
-    this.limitation = "";
+    this.summary = summary;
   }
 
   public void updateAnalysis(NewsMarketAnalysis marketAnalysis) {
+    this.summary = marketAnalysis.summary;
     this.observedFact = marketAnalysis.observedFact;
     this.interpretation = marketAnalysis.interpretation;
     this.risk = marketAnalysis.risk;
     this.watchPoint = marketAnalysis.watchPoint;
     this.limitation = marketAnalysis.limitation;
+  }
+
+  private static String summarize(String observedFact, String interpretation) {
+    return observedFact + " " + interpretation;
   }
 }
