@@ -12,17 +12,22 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
+import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.portfolio.domain.PortfolioImpactSummary;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
+import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.service.PortfolioAnalysisService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +37,10 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.test.context.TestSecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -45,11 +54,18 @@ import org.springframework.test.web.servlet.MockMvc;
             classes = JwtAuthenticationFilter.class))
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
+@EnableWebSecurity
 class PortfolioAnalysisControllerTest {
 
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private PortfolioAnalysisService portfolioAnalysisService;
+
+  @AfterEach
+  void clearAuthentication() {
+    SecurityContextHolder.clearContext();
+    TestSecurityContextHolder.clearContext();
+  }
 
   @Test
   @DisplayName("요청으로 전달한 전체 포트폴리오의 분석 결과를 반환한다")
@@ -70,7 +86,7 @@ class PortfolioAnalysisControllerTest {
             "반도체 수요가 전년 대비 증가했습니다.",
             List.of(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news")),
             1);
-    when(portfolioAnalysisService.analyze(request))
+    when(portfolioAnalysisService.analyze(request, false))
         .thenReturn(
             PortfolioAnalysisResponse.of(
                 1,
@@ -116,7 +132,53 @@ class PortfolioAnalysisControllerTest {
         .andExpect(jsonPath("$.sources[0].title").value("한국거래소"))
         .andExpect(jsonPath("$.sources[0].url").value("https://example.com/news"));
 
-    verify(portfolioAnalysisService).analyze(request);
+    verify(portfolioAnalysisService).analyze(request, false);
+  }
+
+  @Test
+  @DisplayName("로그인 사용자는 체험 제한 없이 포트폴리오 분석을 요청한다")
+  void authenticatedMemberAnalyzesPortfolioWithoutTrialLimit() throws Exception {
+    PortfolioAnalysisRequest request = new PortfolioAnalysisRequest(List.of());
+    AuthenticatedMember member = new AuthenticatedMember(1L, MemberRole.USER);
+    var authentication = new UsernamePasswordAuthenticationToken(member, null, List.of());
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+    when(portfolioAnalysisService.analyze(request, true))
+        .thenReturn(PortfolioAnalysisResponse.empty());
+
+    mockMvc
+        .perform(
+            post("/api/portfolio/analysis")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"assets":[]}
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalAssetCount").value(0));
+
+    verify(portfolioAnalysisService).analyze(request, true);
+  }
+
+  @Test
+  @DisplayName("비회원 분석 체험을 사용한 경우 403 에러를 반환한다")
+  void exhaustedGuestTrialReturnsForbidden() throws Exception {
+    PortfolioAnalysisRequest request =
+        new PortfolioAnalysisRequest(
+            List.of(new PortfolioAssetRequest("삼성전자", new BigDecimal("100"))));
+    when(portfolioAnalysisService.analyze(request, false))
+        .thenThrow(new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED));
+
+    mockMvc
+        .perform(
+            post("/api/portfolio/analysis")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"assets":[{"assetName":"삼성전자","weight":100}]}
+                    """))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED"))
+        .andExpect(jsonPath("$.message").value("비회원 포트폴리오 분석 체험을 이미 사용했습니다. 로그인 후 다시 이용해주세요."));
   }
 
   @Test

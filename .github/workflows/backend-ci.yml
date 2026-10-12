@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'backend/**'
+      - 'monitoring/**'
       - '.github/workflows/backend-ci.yml'
 
 permissions:
@@ -43,6 +44,15 @@ jobs:
 
       - name: Run Spotless Check
         run: ./gradlew spotlessCheck
+
+      - name: Validate Market Calendar Tool
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: Validate Monitoring Rules
+        working-directory: monitoring/prometheus
+        run: |
+          docker run --rm --entrypoint /bin/promtool -v "$PWD:/rules:ro" -w /rules prom/prometheus:v3.5.0 check rules rules/application.yml rules/infrastructure.yml rules/league.yml
+          docker run --rm --entrypoint /bin/promtool -v "$PWD:/rules:ro" -w /rules prom/prometheus:v3.5.0 test rules tests/league.test.yml
 
       - name: Run Tests and Build Project
         run: ./gradlew clean build

@@ -25,12 +25,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioAnalysisServiceTest {
 
   @Mock private PortfolioAnalysisAiClient portfolioAnalysisAiClient;
+  @Spy private GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
   @InjectMocks private PortfolioAnalysisService portfolioAnalysisService;
 
@@ -61,7 +63,7 @@ class PortfolioAnalysisServiceTest {
             List.of(new PortfolioAnalysisResult.Source("한국거래소", "https://example.com/news")));
     given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
 
-    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request);
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request, true);
 
     assertThat(response.totalAssetCount()).isEqualTo(2);
     assertThat(response.analyzedAssetCount()).isEqualTo(1);
@@ -110,7 +112,7 @@ class PortfolioAnalysisServiceTest {
             List.of(new PortfolioAnalysisResult.Source("출처", "https://example.com")));
     given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
 
-    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request);
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request, true);
 
     assertThat(response.totalAssetCount()).isEqualTo(4);
     assertThat(response.analyzedAssetCount()).isEqualTo(4);
@@ -123,7 +125,7 @@ class PortfolioAnalysisServiceTest {
   @Test
   @DisplayName("포트폴리오가 비어 있으면 AI를 호출하지 않고 빈 분석 결과를 반환한다")
   void analyzeReturnsEmptyResponseWhenPortfolioIsEmpty() {
-    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request());
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request(), false);
 
     assertThat(response.totalAssetCount()).isZero();
     assertThat(response.analyzedAssetCount()).isZero();
@@ -143,8 +145,8 @@ class PortfolioAnalysisServiceTest {
     given(portfolioAnalysisAiClient.analyze(targets))
         .willReturn(new PortfolioAnalysisResult("분석 결과", List.of(), List.of()));
 
-    portfolioAnalysisService.analyze(request);
-    portfolioAnalysisService.analyze(request);
+    portfolioAnalysisService.analyze(request, true);
+    portfolioAnalysisService.analyze(request, true);
 
     verify(portfolioAnalysisAiClient, times(2)).analyze(targets);
   }
@@ -154,7 +156,7 @@ class PortfolioAnalysisServiceTest {
   void analyzeThrowsWhenPortfolioAssetIsDuplicated() {
     PortfolioAnalysisRequest request = request(asset(" NAVER ", "50"), asset("naver", "50"));
 
-    assertThatThrownBy(() -> portfolioAnalysisService.analyze(request))
+    assertThatThrownBy(() -> portfolioAnalysisService.analyze(request, true))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
@@ -166,11 +168,48 @@ class PortfolioAnalysisServiceTest {
   void analyzeThrowsWhenTotalWeightIsNotOneHundred() {
     PortfolioAnalysisRequest request = request(asset("삼성전자", "60"), asset("현대차", "30"));
 
-    assertThatThrownBy(() -> portfolioAnalysisService.analyze(request))
+    assertThatThrownBy(() -> portfolioAnalysisService.analyze(request, true))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(PortfolioErrorCode.INVALID_PORTFOLIO_WEIGHT_TOTAL);
     verifyNoInteractions(portfolioAnalysisAiClient);
+  }
+
+  @Test
+  @DisplayName("비회원은 포트폴리오 분석을 한 번만 성공할 수 있다")
+  void guestCanAnalyzePortfolioOnlyOnce() {
+    PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
+    List<PortfolioAnalysisTarget> targets =
+        List.of(new PortfolioAnalysisTarget("삼성전자", new BigDecimal("100")));
+    given(portfolioAnalysisAiClient.analyze(targets))
+        .willReturn(new PortfolioAnalysisResult("분석 결과", List.of(), List.of()));
+
+    portfolioAnalysisService.analyze(request, false);
+
+    assertThatThrownBy(() -> portfolioAnalysisService.analyze(request, false))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(PortfolioErrorCode.PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED);
+    verify(portfolioAnalysisAiClient).analyze(targets);
+  }
+
+  @Test
+  @DisplayName("비회원 분석이 실패하면 체험 기회를 소진하지 않는다")
+  void guestCanRetryWhenPortfolioAnalysisFails() {
+    PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
+    List<PortfolioAnalysisTarget> targets =
+        List.of(new PortfolioAnalysisTarget("삼성전자", new BigDecimal("100")));
+    given(portfolioAnalysisAiClient.analyze(targets))
+        .willThrow(new IllegalStateException("분석 실패"))
+        .willReturn(new PortfolioAnalysisResult("분석 결과", List.of(), List.of()));
+
+    assertThatThrownBy(() -> portfolioAnalysisService.analyze(request, false))
+        .isInstanceOf(IllegalStateException.class);
+
+    PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request, false);
+
+    assertThat(response.overallImpact()).isEqualTo("분석 결과");
+    verify(portfolioAnalysisAiClient, times(2)).analyze(targets);
   }
 
   private PortfolioAnalysisRequest request(PortfolioAssetRequest... assets) {

@@ -1,4 +1,4 @@
-export type StockRelatedContentSource = 'YOUTUBE' | 'THREADS' | 'INTERNAL_NEWS' | 'OTHER';
+export type StockRelatedContentSource = 'YOUTUBE' | 'THREADS' | 'X' | 'INTERNAL_NEWS' | 'OTHER';
 
 export type StockRelatedContent = {
   id: number;
@@ -25,6 +25,13 @@ export type YouTubeSearchItem = {
   thumbnailUrl: string;
 };
 
+export type SocialPostSearchItem = {
+  sourceType: 'THREADS' | 'X';
+  title: string;
+  url: string;
+  publishedDate: string;
+};
+
 export type StockRelatedContentRequest = {
   sourceType: StockRelatedContentSource;
   title: string;
@@ -35,6 +42,7 @@ export type StockRelatedContentRequest = {
 export const STOCK_CONTENT_SOURCE_LABELS: Record<StockRelatedContentSource, string> = {
   YOUTUBE: 'YouTube',
   THREADS: 'Threads',
+  X: 'X',
   INTERNAL_NEWS: 'DAYNOMY 이슈',
   OTHER: '기타',
 };

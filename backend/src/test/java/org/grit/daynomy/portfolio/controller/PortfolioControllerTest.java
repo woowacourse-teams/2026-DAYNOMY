@@ -19,6 +19,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioMarketAllocationResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioPricingStatus;
 import org.grit.daynomy.portfolio.service.PortfolioCalculationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -139,6 +140,9 @@ class PortfolioControllerTest {
   private PortfolioCalculationResponse response() {
     return new PortfolioCalculationResponse(
         LocalDate.of(2026, 9, 18),
+        PortfolioPricingStatus.COMPLETE,
+        1,
+        0,
         new BigDecimal("650000.00"),
         new BigDecimal("820000.00"),
         new BigDecimal("20000.00"),
@@ -152,6 +156,7 @@ class PortfolioControllerTest {
                 "삼성전자",
                 AssetCategory.STOCK,
                 StockMarket.KOSPI,
+                true,
                 LocalDate.of(2026, 9, 18),
                 10L,
                 new BigDecimal("65000.00"),

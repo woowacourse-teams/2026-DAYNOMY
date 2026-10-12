@@ -1,0 +1,83 @@
+rule_files:
+  - ../rules/league.yml
+evaluation_interval: 1m
+tests:
+  - name: participant-failure-recovers-after-successful-retry
+    interval: 1m
+    input_series:
+      - series: 'daynomy_league_calculation_latest_profiles{environment="prod",instance="test-backend",service="backend",outcome="failed"}'
+        values: '1+0x6 0+0x10'
+      - series: 'daynomy_league_calculation_latest_run_failed{environment="prod",instance="test-backend",service="backend"}'
+        values: '0+0x17'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: LeagueCalculationFailed
+        exp_alerts:
+          - exp_labels:
+              environment: prod
+              instance: test-backend
+              service: backend
+              severity: warning
+            exp_annotations:
+              summary: '운영 투자 리그 집계 실패'
+              description: 'test-backend의 최근 집계에 실패한 참가자 또는 배치 오류가 있습니다. 재시도 성공 여부와 실패 로그를 확인합니다.'
+      - eval_time: 8m
+        alertname: LeagueCalculationFailed
+        exp_alerts: []
+  - name: only-elapsed-trading-close-can-trigger-finalization-delay
+    interval: 1m
+    input_series:
+      - series: 'daynomy_league_finalization_delay_seconds{environment="prod",instance="test-backend",service="backend"}'
+        values: '0+60x180'
+    alert_rule_test:
+      - eval_time: 120m
+        alertname: LeagueFinalizationDelayed
+        exp_alerts: []
+      - eval_time: 131m
+        alertname: LeagueFinalizationDelayed
+        exp_alerts:
+          - exp_labels:
+              environment: prod
+              instance: test-backend
+              service: backend
+              severity: warning
+            exp_annotations:
+              summary: '운영 투자 리그 주간 확정 지연'
+              description: 'test-backend에서 마지막 실제 거래일 장 마감 후 2시간 넘게 확정이 지연됐습니다. 종가 수집과 참가자 계산 상태를 확인합니다.'
+  - name: closed-or-unparticipating-weeks-do-not-page
+    interval: 1m
+    input_series:
+      - series: 'daynomy_league_finalization_delay_seconds{environment="prod",instance="test-backend",service="backend"}'
+        values: '0+0x180'
+      - series: 'daynomy_league_calendar_missing_days{environment="prod",instance="test-backend",service="backend"}'
+        values: '0+0x180'
+    alert_rule_test:
+      - eval_time: 180m
+        alertname: LeagueFinalizationDelayed
+        exp_alerts: []
+      - eval_time: 180m
+        alertname: LeagueCalendarMissing
+        exp_alerts: []
+  - name: missing-calendar-needs-one-hour-and-resolves-on-registration
+    interval: 1m
+    input_series:
+      - series: 'daynomy_league_calendar_missing_days{environment="prod",instance="test-backend",service="backend"}'
+        values: '7+0x60 0+0x10'
+    alert_rule_test:
+      - eval_time: 59m
+        alertname: LeagueCalendarMissing
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: LeagueCalendarMissing
+        exp_alerts:
+          - exp_labels:
+              environment: prod
+              instance: test-backend
+              service: backend
+              severity: warning
+            exp_annotations:
+              summary: '운영 투자 리그 거래일 달력 누락'
+              description: 'test-backend에서 공식 참여 주차의 거래일 달력이 누락됐습니다. 공식 달력을 확인하고 등록합니다.'
+      - eval_time: 62m
+        alertname: LeagueCalendarMissing
+        exp_alerts: []

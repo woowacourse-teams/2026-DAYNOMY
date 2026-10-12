@@ -65,6 +65,24 @@ function formatTrendDate(value: string) {
   return `${year}년 ${month}월 ${day}일`;
 }
 
+function getSocialAccount(content: StockRelatedContent) {
+  if (content.sourceType !== 'THREADS' && content.sourceType !== 'X') return null;
+
+  try {
+    const account = new URL(content.url).pathname.split('/').filter(Boolean)[0];
+    if (!account) return null;
+    return account.startsWith('@') ? account : `@${account}`;
+  } catch {
+    return null;
+  }
+}
+
+function getRelatedContentPreview(content: StockRelatedContent) {
+  const title = content.title.trim();
+  if (title !== 'X 게시물' && title !== 'Threads 게시물') return title;
+  return '게시물 내용을 원문에서 확인하세요.';
+}
+
 function profitClass(value: number) {
   return value > 0 ? 'portfolio-gain' : value < 0 ? 'portfolio-loss' : '';
 }
@@ -574,7 +592,11 @@ function compareHoldings(
   return (second[key] as number) - (first[key] as number);
 }
 
-export function PortfolioPage() {
+type PortfolioPageProps = {
+  isLoggedIn?: boolean;
+};
+
+export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const {
     holdings,
     loading: holdingsLoading,
@@ -583,7 +605,7 @@ export function PortfolioPage() {
     retry: retryHoldings,
     saveHolding,
     removeHolding,
-  } = usePortfolioHoldings();
+  } = usePortfolioHoldings(isLoggedIn);
   const [calculation, setCalculation] = useState<PortfolioCalculation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -594,7 +616,7 @@ export function PortfolioPage() {
   const [amountsHidden, setAmountsHidden] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
-  const performance = usePortfolioPerformance(trendPeriod, holdings);
+  const performance = usePortfolioPerformance(trendPeriod, holdings, isLoggedIn);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [expandedContentAssetId, setExpandedContentAssetId] = useState<number | null>(null);
@@ -714,26 +736,47 @@ export function PortfolioPage() {
         ) : null}
         {contents.length > 0 ? (
           <ul>
-            {visibleContents.map((content) => (
-              <li key={content.id}>
-                {content.imageUrl ? <img src={content.imageUrl} alt="" loading="lazy" /> : null}
-                <div>
-                  <span>{STOCK_CONTENT_SOURCE_LABELS[content.sourceType]}</span>
+            {visibleContents.map((content) => {
+              const sourceLabel = STOCK_CONTENT_SOURCE_LABELS[content.sourceType];
+              const account = getSocialAccount(content);
+              const opensInNewTab = content.sourceType !== 'INTERNAL_NEWS';
+
+              return (
+                <li key={content.id}>
                   <a
+                    className="portfolio-related-content-card"
                     href={content.url}
-                    target={content.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}
-                    rel={content.sourceType === 'INTERNAL_NEWS' ? undefined : 'noreferrer'}
+                    target={opensInNewTab ? '_blank' : undefined}
+                    rel={opensInNewTab ? 'noreferrer' : undefined}
                   >
-                    {content.title}
+                    {content.imageUrl ? (
+                      <img src={content.imageUrl} alt="" loading="lazy" />
+                    ) : (
+                      <span className="portfolio-related-content-source-icon" aria-hidden="true">
+                        {sourceLabel}
+                      </span>
+                    )}
+                    <span className="portfolio-related-content-copy">
+                      <span className="portfolio-related-content-meta">
+                        <strong>{sourceLabel}</strong>
+                        {account ? <small>{account}</small> : null}
+                      </span>
+                      <span className="portfolio-related-content-title">
+                        {getRelatedContentPreview(content)}
+                      </span>
+                      <small className="portfolio-related-content-action">
+                        {opensInNewTab ? '원문 보기 ↗' : '소식 보기'}
+                      </small>
+                    </span>
                   </a>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         ) : null}
-        {contents.length > RELATED_CONTENT_PREVIEW_COUNT ? (
+        {contents.length > 0 ? (
           <a className="portfolio-related-content-more" href={`/stocks/${expandedHolding.assetId}`}>
-            더보기
+            전체 소식 보기
           </a>
         ) : null}
       </aside>
@@ -998,7 +1041,6 @@ export function PortfolioPage() {
                               <div className="portfolio-row-actions">
                                 <button
                                   type="button"
-                                  disabled
                                   aria-expanded={expandedContentAssetId === holding.assetId}
                                   onClick={() => void toggleRelatedContents(holding.assetId)}
                                 >
@@ -1046,7 +1088,7 @@ export function PortfolioPage() {
                 </div>
               </div>
             </section>
-            <PortfolioAnalysis assets={analysisAssets} />
+            <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
           </div>
           {renderRelatedContentPanel()}
         </div>

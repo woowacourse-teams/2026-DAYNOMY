@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-libra
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
 import { toPortfolioAnalysisAssets } from '../../src/features/portfolio/portfolioAnalysisAssets';
+import { GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY } from '../../src/features/portfolio/portfolioHoldingsStorage';
 import type {
   PortfolioHoldingInput,
   PortfolioPerformancePoint,
@@ -233,6 +234,15 @@ function mockPortfolioApi() {
               imageUrl: null,
               createdAt: null,
             },
+            {
+              id: 13,
+              assetId: 1,
+              sourceType: 'X',
+              title: 'X 게시물',
+              url: 'https://x.com/market/status/12345',
+              imageUrl: null,
+              createdAt: null,
+            },
             ...Array.from({ length: 8 }, (_, index) => ({
               id: 20 + index,
               assetId: 1,
@@ -267,6 +277,7 @@ function mockPortfolioApi() {
 }
 
 beforeEach(() => {
+  vi.setSystemTime(new Date(2026, 9, 7, 12));
   savedHoldings = [];
   savedPerformancePoints = [];
   vi.stubGlobal(
@@ -279,12 +290,60 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   localStorage.clear();
+  sessionStorage.clear();
   window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('포트폴리오 화면', () => {
+  it('비회원 포트폴리오를 세션에서 복원하고 회원 전용 API를 호출하지 않는다', async () => {
+    const guestHolding = { ...stock, quantity: 10, averagePurchasePrice: 70000 };
+    sessionStorage.setItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY, JSON.stringify([guestHolding]));
+    mockPortfolioApi();
+
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+
+    expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
+    expect(view.getByText('삼성전자')).toBeTruthy();
+    expect(
+      vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith('/api/portfolio')),
+    ).toBe(false);
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) => String(input).includes('/api/portfolio/performance?')),
+    ).toBe(false);
+  });
+
+  it('비회원이 추가한 자산을 브라우저 세션에 저장한다', async () => {
+    mockPortfolioApi();
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+    fireEvent.click(await view.findByRole('button', { name: /자산 추가/ }));
+
+    const dialog = view.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
+    fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));
+    fireEvent.change(within(dialog).getByLabelText('보유수량'), { target: { value: '10' } });
+    fireEvent.change(within(dialog).getByLabelText('평균 매수가'), {
+      target: { value: '70,000' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)).toBe(
+        JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+      );
+    });
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) => String(input).endsWith('/api/portfolio/holdings')),
+    ).toBe(false);
+  });
+
   it('반올림된 비중이 0인 자산을 분석 대상에서 제외한다', () => {
     const zeroWeightHolding = {
       ...calculation.holdings[0],
@@ -322,22 +381,28 @@ describe('포트폴리오 화면', () => {
     expect(within(dialog).getByLabelText('자산 추이 범례')).toBeTruthy();
   });
 
-  it('보유 자산의 소식 버튼을 비활성화한다', async () => {
+  it('보유 자산의 소식 버튼으로 관련 콘텐츠를 표시한다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     mockPortfolioApi();
 
     const view = render(<PortfolioPage />);
     await view.findAllByText('750,000원');
     const relatedContentsButton = view.getByRole('button', { name: '소식' });
-    expect(relatedContentsButton).toHaveProperty('disabled', true);
+    expect(relatedContentsButton).toHaveProperty('disabled', false);
     fireEvent.click(relatedContentsButton);
 
-    expect(view.queryByRole('complementary', { name: '소식' })).toBeNull();
+    expect(await view.findByRole('complementary', { name: '소식' })).toBeTruthy();
+    expect(view.getByText('삼성전자 분석 영상')).toBeTruthy();
+    expect(view.getByText('@market')).toBeTruthy();
+    expect(view.getByText('게시물 내용을 원문에서 확인하세요.')).toBeTruthy();
+    expect(view.getByRole('link', { name: '전체 소식 보기' }).getAttribute('href')).toBe(
+      '/stocks/1',
+    );
     expect(
       vi
         .mocked(fetch)
         .mock.calls.some(([input]) => String(input).endsWith('/api/assets/1/contents')),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
@@ -491,11 +556,13 @@ describe('포트폴리오 화면', () => {
   });
 
   it('5년 기간을 선택하면 서버의 5년 자산 추이를 표시한다', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-06T12:00:00'));
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     savedPerformancePoints = [
       {
-        baseDate: '2021-10-07',
-        recordedAt: '2021-10-07T15:30:00.000Z',
+        baseDate: '2021-10-12',
+        recordedAt: '2021-10-12T15:30:00.000Z',
         source: 'CLOSE',
         totalPurchaseAmount: 500000,
         totalEvaluationAmount: 520000,

@@ -14,6 +14,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.grit.daynomy.common.BaseEntity;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.member.exception.MemberErrorCode;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -41,6 +43,9 @@ public class Member extends BaseEntity {
 
   @Column(name = "email", nullable = false, length = 255)
   private String email;
+
+  @Column(name = "google_name", length = 255)
+  private String googleName;
 
   @Column(name = "nickname", nullable = false, length = 20)
   private String nickname;
@@ -80,7 +85,22 @@ public class Member extends BaseEntity {
   }
 
   public void updateNickname(String nickname) {
-    this.nickname = nickname;
+    this.nickname = normalizeNickname(nickname);
+  }
+
+  public void updateGoogleName(String name) {
+    if (name != null && !name.isBlank()) {
+      String normalized = name.strip();
+      this.googleName = normalized.substring(0, Math.min(normalized.length(), 255));
+    }
+  }
+
+  public static String normalizeNickname(String nickname) {
+    String normalized = nickname == null ? "" : nickname.strip();
+    if (normalized.isEmpty() || normalized.length() > 20) {
+      throw new BusinessException(MemberErrorCode.INVALID_NICKNAME);
+    }
+    return normalized;
   }
 
   public void withdraw() {
