@@ -3,6 +3,7 @@ import type {
   StockRelatedContentRequest,
   StockRelatedContentSource,
   StockRelatedContentsResponse,
+  SocialPostSearchItem,
   YouTubeSearchItem,
 } from './types';
 
@@ -12,7 +13,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isSource(value: unknown): value is StockRelatedContentSource {
   return (
-    value === 'YOUTUBE' || value === 'THREADS' || value === 'INTERNAL_NEWS' || value === 'OTHER'
+    value === 'YOUTUBE' ||
+    value === 'THREADS' ||
+    value === 'X' ||
+    value === 'INTERNAL_NEWS' ||
+    value === 'OTHER'
   );
 }
 
@@ -68,6 +73,20 @@ function isYouTubeSearchResponse(value: unknown): value is { items: YouTubeSearc
   return isRecord(value) && Array.isArray(value.items) && value.items.every(isYouTubeSearchItem);
 }
 
+function isSocialPostSearchItem(value: unknown): value is SocialPostSearchItem {
+  return (
+    isRecord(value) &&
+    (value.sourceType === 'THREADS' || value.sourceType === 'X') &&
+    typeof value.title === 'string' &&
+    isSafeContentUrl(value.url) &&
+    typeof value.publishedDate === 'string'
+  );
+}
+
+function isSocialPostSearchResponse(value: unknown): value is { items: SocialPostSearchItem[] } {
+  return isRecord(value) && Array.isArray(value.items) && value.items.every(isSocialPostSearchItem);
+}
+
 function assertContentsResponse(value: unknown) {
   if (!isContentsResponse(value)) {
     throw new Error('종목 관련 자료 API 응답 형식이 올바르지 않습니다.');
@@ -97,6 +116,22 @@ export async function searchAdminYouTubeVideos(
   );
   if (!isYouTubeSearchResponse(response)) {
     throw new Error('YouTube 검색 API 응답 형식이 올바르지 않습니다.');
+  }
+  return response.items;
+}
+
+export async function searchAdminSocialPosts(
+  assetId: number,
+  keyword: string,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({ keyword });
+  const response = await request<unknown>(
+    `/api/admin/assets/${assetId}/contents/social-search?${params.toString()}`,
+    { signal },
+  );
+  if (!isSocialPostSearchResponse(response)) {
+    throw new Error('Threads·X 검색 API 응답 형식이 올바르지 않습니다.');
   }
   return response.items;
 }

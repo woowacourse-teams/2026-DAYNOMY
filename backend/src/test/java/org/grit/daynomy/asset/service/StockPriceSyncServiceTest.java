@@ -2,8 +2,11 @@ package org.grit.daynomy.asset.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -37,6 +40,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class StockPriceSyncServiceTest {
@@ -45,6 +49,7 @@ class StockPriceSyncServiceTest {
   @Mock private PublicDataEtfPriceClient etfPriceClient;
   @Mock private StockPricePersistenceService persistenceService;
   @Mock private StockPriceSyncMetrics syncMetrics;
+  @Mock private ApplicationEventPublisher eventPublisher;
   @InjectMocks private StockPriceSyncService syncService;
 
   private final Logger logger = (Logger) LoggerFactory.getLogger(StockPriceSyncService.class);
@@ -95,6 +100,10 @@ class StockPriceSyncServiceTest {
     StockPriceSyncResult result = syncService.synchronize(today);
 
     assertThat(result.receivedCount()).isEqualTo(4);
+    var order = inOrder(persistenceService, eventPublisher);
+    order.verify(persistenceService).synchronize(eq(previousBaseDate), anyList());
+    order.verify(persistenceService).synchronize(eq(baseDate), anyList());
+    order.verify(eventPublisher).publishEvent(result);
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<StockPriceEntry>> entriesCaptor = ArgumentCaptor.forClass(List.class);
     then(persistenceService)
@@ -141,6 +150,7 @@ class StockPriceSyncServiceTest {
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
     then(persistenceService).shouldHaveNoInteractions();
+    then(eventPublisher).shouldHaveNoInteractions();
 
     ILoggingEvent failedLog = logFor(LogEvent.STOCK_PRICE_SYNC_FAILED);
     assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
@@ -210,6 +220,7 @@ class StockPriceSyncServiceTest {
         .containsEntry("exception", IllegalStateException.class.getSimpleName())
         .containsKey("durationMs");
     assertThat(failedLog.getFormattedMessage()).doesNotContain("database failure");
+    then(eventPublisher).shouldHaveNoInteractions();
   }
 
   @Test
@@ -264,6 +275,11 @@ class StockPriceSyncServiceTest {
         .should()
         .synchronize(org.mockito.ArgumentMatchers.eq(from), org.mockito.ArgumentMatchers.anyList());
     then(syncMetrics).should().recordSuccess(org.mockito.ArgumentMatchers.any());
+    var order = inOrder(persistenceService, eventPublisher);
+    order.verify(persistenceService).synchronize(eq(from), anyList());
+    order
+        .verify(eventPublisher)
+        .publishEvent(org.mockito.ArgumentMatchers.any(StockPriceSyncResult.class));
   }
 
   private void stubEmptyDay(LocalDate date) {

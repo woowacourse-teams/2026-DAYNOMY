@@ -19,6 +19,8 @@ import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
+import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
+import org.grit.daynomy.external.openai.SocialPostCandidate;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.external.youtube.YouTubeVideoCandidate;
 import org.grit.daynomy.news.domain.News;
@@ -38,6 +40,7 @@ class AssetContentServiceTest {
   @Mock private AssetRepository assetRepository;
   @Mock private AssetContentRepository contentRepository;
   @Mock private YouTubeClient youtubeClient;
+  @Mock private OpenAiSocialPostSearchClient socialPostSearchClient;
   @InjectMocks private AssetContentService assetContentService;
 
   @Test
@@ -100,6 +103,29 @@ class AssetContentServiceTest {
     assertThat(response.items().getFirst().title()).isEqualTo("삼성전자 분석");
     assertThat(response.items().getFirst().url()).isEqualTo("https://www.youtube.com/watch?v=abc");
     then(youtubeClient).should().search("삼성전자 005930");
+  }
+
+  @Test
+  @DisplayName("Threads·X 검색은 종목을 확인한 뒤 검색 결과를 반환한다")
+  void searchSocialPosts() {
+    Asset asset = mock(Asset.class);
+    given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
+    given(socialPostSearchClient.search("삼성전자"))
+        .willReturn(
+            List.of(
+                new SocialPostCandidate(
+                    SocialPostCandidate.Platform.THREADS,
+                    "삼성전자 실적 전망",
+                    "https://www.threads.net/@investor/post/123",
+                    "2026-10-11")));
+
+    var response = assetContentService.searchSocialPosts(1L, "삼성전자");
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().getFirst().title()).isEqualTo("삼성전자 실적 전망");
+    assertThat(response.items().getFirst().sourceType()).isEqualTo(ContentSourceType.THREADS);
+    assertThat(response.items().getFirst().publishedDate()).isEqualTo("2026-10-11");
+    then(socialPostSearchClient).should().search("삼성전자");
   }
 
   @Test

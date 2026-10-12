@@ -245,6 +245,15 @@ function mockPortfolioApi() {
               imageUrl: null,
               createdAt: null,
             },
+            {
+              id: 13,
+              assetId: 1,
+              sourceType: 'X',
+              title: 'X 게시물',
+              url: 'https://x.com/market/status/12345',
+              imageUrl: null,
+              createdAt: null,
+            },
             ...Array.from({ length: 8 }, (_, index) => ({
               id: 20 + index,
               assetId: 1,
@@ -293,6 +302,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   localStorage.clear();
   window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
@@ -351,11 +361,29 @@ describe('포트폴리오 화면', () => {
         .getAttribute('href'),
     ).toBe('/stocks/1');
     expect(view.queryByText('관리')).toBeNull();
+  });
+
+  it('보유 상세 패널에서 종목 관련 소식을 표시한다', async () => {
+    savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
+    mockPortfolioApi();
+
+    const view = render(<PortfolioPage />);
+    await view.findAllByText('750,000원');
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+    const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
+    const news = await within(detail).findByRole('complementary', { name: '소식' });
+
+    expect(await within(news).findByText('삼성전자 분석 영상')).toBeTruthy();
+    expect(within(news).getByText('@market')).toBeTruthy();
+    expect(within(news).getByText('게시물 내용을 원문에서 확인하세요.')).toBeTruthy();
+    expect(within(news).getByRole('link', { name: '전체 소식 보기' }).getAttribute('href')).toBe(
+      '/stocks/1',
+    );
     expect(
       vi
         .mocked(fetch)
         .mock.calls.some(([input]) => String(input).endsWith('/api/assets/1/contents')),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
@@ -514,6 +542,8 @@ describe('포트폴리오 화면', () => {
   });
 
   it('5년 기간을 선택하면 서버의 5년 자산 추이를 표시한다', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-06T12:00:00'));
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     savedPerformancePoints = [
       {

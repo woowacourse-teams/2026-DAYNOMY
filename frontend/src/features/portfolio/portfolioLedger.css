@@ -1113,6 +1113,16 @@
   padding-top: 26px;
   margin-top: 26px;
 }
+.portfolio-holding-detail .portfolio-related-content-panel {
+  position: static;
+  max-height: none;
+  overflow: visible;
+  margin-top: 26px;
+}
+.portfolio-holding-detail .portfolio-related-content-heading,
+.portfolio-holding-detail .portfolio-related-content-more {
+  position: static;
+}
 .portfolio-detail-transactions h3 {
   font-size: 18px;
   margin: 0 0 8px;

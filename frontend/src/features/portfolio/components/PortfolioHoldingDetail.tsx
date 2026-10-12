@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+import { getStockRelatedContents } from '../../stock-content/api';
+import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../../stock-content/types';
 import { PortfolioHistory } from './PortfolioHistory';
 import type {
   PortfolioHoldingHistory,
@@ -22,6 +25,26 @@ type Props = {
   onDeleteTransaction: (transaction: PortfolioHoldingHistory) => void;
 };
 
+const RELATED_CONTENT_PREVIEW_COUNT = 10;
+
+function getSocialAccount(content: StockRelatedContent) {
+  if (content.sourceType !== 'THREADS' && content.sourceType !== 'X') return null;
+
+  try {
+    const account = new URL(content.url).pathname.split('/').filter(Boolean)[0];
+    if (!account) return null;
+    return account.startsWith('@') ? account : `@${account}`;
+  } catch {
+    return null;
+  }
+}
+
+function getRelatedContentPreview(content: StockRelatedContent) {
+  const title = content.title.trim();
+  if (title !== 'X 게시물' && title !== 'Threads 게시물') return title;
+  return '게시물 내용을 원문에서 확인하세요.';
+}
+
 export function PortfolioHoldingDetail({
   stock,
   holding,
@@ -36,6 +59,33 @@ export function PortfolioHoldingDetail({
   onEditTransaction,
   onDeleteTransaction,
 }: Props) {
+  const [relatedContents, setRelatedContents] = useState<StockRelatedContent[]>([]);
+  const [relatedContentLoading, setRelatedContentLoading] = useState(true);
+  const [relatedContentError, setRelatedContentError] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setRelatedContents([]);
+    setRelatedContentLoading(true);
+    setRelatedContentError('');
+    getStockRelatedContents(stock.assetId, controller.signal)
+      .then((response) => {
+        if (!controller.signal.aborted) setRelatedContents(response.contents);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setRelatedContentError(
+            error instanceof Error ? error.message : '소식을 불러오지 못했습니다.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setRelatedContentLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [stock.assetId]);
+
   const won = (value: number | null | undefined, signed = false) => {
     if (amountsHidden) return '••••••원';
     if (value == null) return '—';
@@ -140,6 +190,62 @@ export function PortfolioHoldingDetail({
             )}
           </div>
         </section>
+        <aside className="portfolio-related-content-panel" aria-label="소식">
+          <div className="portfolio-related-content-heading">
+            <strong>소식</strong>
+            {relatedContents.length > 0 ? <span>{relatedContents.length}건</span> : null}
+          </div>
+          {relatedContentLoading ? <p role="status">소식을 불러오는 중입니다.</p> : null}
+          {relatedContentError ? <p role="alert">{relatedContentError}</p> : null}
+          {!relatedContentLoading && !relatedContentError && relatedContents.length === 0 ? (
+            <p>등록된 소식이 없습니다.</p>
+          ) : null}
+          {relatedContents.length > 0 ? (
+            <ul>
+              {relatedContents.slice(0, RELATED_CONTENT_PREVIEW_COUNT).map((content) => {
+                const sourceLabel = STOCK_CONTENT_SOURCE_LABELS[content.sourceType];
+                const account = getSocialAccount(content);
+                const opensInNewTab = content.sourceType !== 'INTERNAL_NEWS';
+
+                return (
+                  <li key={content.id}>
+                    <a
+                      className="portfolio-related-content-card"
+                      href={content.url}
+                      target={opensInNewTab ? '_blank' : undefined}
+                      rel={opensInNewTab ? 'noreferrer' : undefined}
+                    >
+                      {content.imageUrl ? (
+                        <img src={content.imageUrl} alt="" loading="lazy" />
+                      ) : (
+                        <span className="portfolio-related-content-source-icon" aria-hidden="true">
+                          {sourceLabel}
+                        </span>
+                      )}
+                      <span className="portfolio-related-content-copy">
+                        <span className="portfolio-related-content-meta">
+                          <strong>{sourceLabel}</strong>
+                          {account ? <small>{account}</small> : null}
+                        </span>
+                        <span className="portfolio-related-content-title">
+                          {getRelatedContentPreview(content)}
+                        </span>
+                        <small className="portfolio-related-content-action">
+                          {opensInNewTab ? '원문 보기 ↗' : '소식 보기'}
+                        </small>
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+          {relatedContents.length > 0 ? (
+            <a className="portfolio-related-content-more" href={`/stocks/${stock.assetId}`}>
+              전체 소식 보기
+            </a>
+          ) : null}
+        </aside>
         <section
           className="portfolio-detail-transactions"
           aria-labelledby="holding-transactions-title"
