@@ -234,6 +234,15 @@ function mockPortfolioApi() {
               imageUrl: null,
               createdAt: null,
             },
+            {
+              id: 13,
+              assetId: 1,
+              sourceType: 'X',
+              title: 'X 게시물',
+              url: 'https://x.com/market/status/12345',
+              imageUrl: null,
+              createdAt: null,
+            },
             ...Array.from({ length: 8 }, (_, index) => ({
               id: 20 + index,
               assetId: 1,
@@ -268,6 +277,7 @@ function mockPortfolioApi() {
 }
 
 beforeEach(() => {
+  vi.setSystemTime(new Date(2026, 9, 7, 12));
   savedHoldings = [];
   savedPerformancePoints = [];
   vi.stubGlobal(
@@ -280,6 +290,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   localStorage.clear();
   sessionStorage.clear();
   window.history.replaceState(null, '', '/');
@@ -370,22 +381,28 @@ describe('포트폴리오 화면', () => {
     expect(within(dialog).getByLabelText('자산 추이 범례')).toBeTruthy();
   });
 
-  it('보유 자산의 소식 버튼을 비활성화한다', async () => {
+  it('보유 자산의 소식 버튼으로 관련 콘텐츠를 표시한다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     mockPortfolioApi();
 
     const view = render(<PortfolioPage />);
     await view.findAllByText('750,000원');
     const relatedContentsButton = view.getByRole('button', { name: '소식' });
-    expect(relatedContentsButton).toHaveProperty('disabled', true);
+    expect(relatedContentsButton).toHaveProperty('disabled', false);
     fireEvent.click(relatedContentsButton);
 
-    expect(view.queryByRole('complementary', { name: '소식' })).toBeNull();
+    expect(await view.findByRole('complementary', { name: '소식' })).toBeTruthy();
+    expect(view.getByText('삼성전자 분석 영상')).toBeTruthy();
+    expect(view.getByText('@market')).toBeTruthy();
+    expect(view.getByText('게시물 내용을 원문에서 확인하세요.')).toBeTruthy();
+    expect(view.getByRole('link', { name: '전체 소식 보기' }).getAttribute('href')).toBe(
+      '/stocks/1',
+    );
     expect(
       vi
         .mocked(fetch)
         .mock.calls.some(([input]) => String(input).endsWith('/api/assets/1/contents')),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {

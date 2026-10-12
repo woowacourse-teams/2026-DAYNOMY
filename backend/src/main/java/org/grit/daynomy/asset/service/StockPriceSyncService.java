@@ -26,6 +26,7 @@ import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataEtfPriceResponse;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceItem;
 import org.grit.daynomy.external.publicdata.dto.PublicDataStockPriceResponse;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -43,17 +44,20 @@ public class StockPriceSyncService {
   private final PublicDataEtfPriceClient etfPriceClient;
   private final StockPricePersistenceService persistenceService;
   private final StockPriceSyncMetrics syncMetrics;
+  private final ApplicationEventPublisher eventPublisher;
   private final AtomicBoolean running = new AtomicBoolean(false);
 
   public StockPriceSyncService(
       PublicDataStockPriceClient stockPriceClient,
       PublicDataEtfPriceClient etfPriceClient,
       StockPricePersistenceService persistenceService,
-      StockPriceSyncMetrics syncMetrics) {
+      StockPriceSyncMetrics syncMetrics,
+      ApplicationEventPublisher eventPublisher) {
     this.stockPriceClient = stockPriceClient;
     this.etfPriceClient = etfPriceClient;
     this.persistenceService = persistenceService;
     this.syncMetrics = syncMetrics;
+    this.eventPublisher = eventPublisher;
   }
 
   public StockPriceSyncResult synchronize() {
@@ -94,6 +98,8 @@ public class StockPriceSyncService {
           .addKeyValue("skippedCount", result.skippedCount())
           .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.STOCK_PRICE_SYNC_COMPLETED.message());
+      // 각 날짜의 저장 트랜잭션이 커밋된 뒤에만 후속 집계를 실행한다.
+      eventPublisher.publishEvent(result);
       return result;
     } catch (BusinessException exception) {
       log.atError()
@@ -146,6 +152,7 @@ public class StockPriceSyncService {
       }
       if (latest != null) {
         syncMetrics.recordSuccess(latest);
+        eventPublisher.publishEvent(latest);
       }
       return new StockPriceBackfillResult(
           from, to, synchronizedDates, received, created, updated, skipped);

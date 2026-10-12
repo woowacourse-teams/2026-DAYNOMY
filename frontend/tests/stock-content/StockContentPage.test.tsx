@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { StockContentPage } from '../../src/features/stock-content/StockContentPage';
@@ -25,8 +25,44 @@ function renderPage() {
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      jsonResponse({
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/portfolio')) {
+        return jsonResponse({
+          holdings: [
+            {
+              assetId: 1,
+              assetCode: '005930',
+              name: '삼성전자',
+              category: 'STOCK',
+              market: 'KOSPI',
+              quantity: 10,
+              averagePurchasePrice: 70000,
+            },
+            {
+              assetId: 2,
+              assetCode: '000660',
+              name: 'SK하이닉스',
+              category: 'STOCK',
+              market: 'KOSPI',
+              quantity: 5,
+              averagePurchasePrice: 150000,
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith('/api/assets/2/contents')) {
+        return jsonResponse({
+          assetId: 2,
+          assetCode: '000660',
+          assetName: 'SK하이닉스',
+          contents: [],
+        });
+      }
+
+      return jsonResponse({
         assetId: 1,
         assetCode: '005930',
         assetName: '삼성전자',
@@ -67,18 +103,69 @@ beforeEach(() => {
             imageUrl: null,
             createdAt: null,
           },
+          {
+            id: 13,
+            assetId: 1,
+            sourceType: 'THREADS',
+            title: '삼성전자 Threads 게시물',
+            url: 'https://www.threads.net/@investor/post/ABC',
+            imageUrl: null,
+            createdAt: null,
+          },
+          {
+            id: 14,
+            assetId: 1,
+            sourceType: 'X',
+            title: '삼성전자 X 게시물',
+            url: 'https://x.com/investor/status/12345',
+            imageUrl: null,
+            createdAt: null,
+          },
         ],
-      }),
-    ),
+      });
+    }),
   );
 });
 
 afterEach(() => {
   cleanup();
+  document.getElementById('daynomy-threads-embed-script')?.remove();
+  document.getElementById('daynomy-x-embed-script')?.remove();
+  delete (window as typeof window & { twttr?: unknown }).twttr;
   vi.unstubAllGlobals();
 });
 
 describe('종목 관련 자료 화면의 YouTube 임베드', () => {
+  it('보유 종목을 사이드바에 표시하고 다른 종목 소식으로 이동한다', async () => {
+    const view = renderPage();
+
+    const sidebar = await view.findByLabelText('내 포트폴리오 종목');
+    const samsungLink = within(sidebar).getByRole('link', { name: /삼성전자/ });
+    expect(samsungLink.getAttribute('aria-current')).toBe('page');
+
+    fireEvent.click(within(sidebar).getByRole('link', { name: /SK하이닉스/ }));
+
+    expect(await view.findByRole('heading', { name: 'SK하이닉스 소식' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'YouTube 0개' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Threads 0개' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'X 0개' })).toBeTruthy();
+    expect(view.getByText('아직 등록된 관련 자료가 없습니다.')).toBeTruthy();
+  });
+
+  it('모든 출처를 탭으로 노출하고 선택한 출처만 표시한다', async () => {
+    const view = renderPage();
+
+    await view.findByRole('heading', { name: '삼성전자 소식' });
+    expect(view.getByRole('button', { name: 'YouTube 3개' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Threads 1개' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'X 1개' })).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: 'X 1개' }));
+
+    expect(view.getByText('삼성전자 X 게시물')).toBeTruthy();
+    expect(view.queryByText('삼성전자 관련 DAYNOMY 이슈')).toBeNull();
+  });
+
   it('DAYNOMY 이슈는 응답 이미지 URL을 썸네일로 표시한다', async () => {
     const view = renderPage();
 
@@ -86,7 +173,7 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
     const thumbnail = view.container.querySelector('.stock-content-news-thumbnail');
 
     expect(thumbnail?.getAttribute('src')).toBe('https://example.com/news-thumbnail.jpg');
-    expect(view.getAllByText('DAYNOMY 이슈')).toHaveLength(2);
+    expect(view.getByText('DAYNOMY 이슈')).toBeTruthy();
   });
 
   it('재생 버튼을 누르면 선택한 영상만 큰 모달에서 재생한다', async () => {
@@ -123,5 +210,55 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
     expect(
       view.getByRole('link', { name: /https:\/\/example.com\/video/ }).getAttribute('href'),
     ).toBe('https://example.com/video');
+  });
+
+  it('Threads와 X 링크를 공식 위젯 마크업과 원문 링크로 표시한다', async () => {
+    const view = renderPage();
+
+    await view.findByText('삼성전자 Threads 게시물');
+    const threadsEmbed = view.container.querySelector('blockquote.text-post-media');
+    const xEmbed = view.container.querySelector('blockquote.twitter-tweet');
+
+    expect(threadsEmbed?.getAttribute('data-text-post-permalink')).toBe(
+      'https://www.threads.net/@investor/post/ABC',
+    );
+    expect(xEmbed?.querySelector('a')?.getAttribute('href')).toBe(
+      'https://x.com/investor/status/12345',
+    );
+    expect(document.getElementById('daynomy-threads-embed-script')?.getAttribute('src')).toBe(
+      'https://www.threads.com/embed.js',
+    );
+    expect(document.getElementById('daynomy-x-embed-script')?.getAttribute('src')).toBe(
+      'https://platform.x.com/widgets.js',
+    );
+    expect(view.getByRole('link', { name: 'Threads에서 원문 보기' })).toBeTruthy();
+    expect(view.getByRole('link', { name: 'X에서 원문 보기' })).toBeTruthy();
+  });
+
+  it('X와 Threads 필터로 전환하면 해당 임베드를 다시 초기화한다', async () => {
+    const loadXEmbeds = vi.fn();
+    (window as typeof window & { twttr?: { widgets: { load: typeof loadXEmbeds } } }).twttr = {
+      widgets: { load: loadXEmbeds },
+    };
+    const view = renderPage();
+
+    await view.findByRole('heading', { name: '삼성전자 소식' });
+    const initialThreadsScript = document.getElementById('daynomy-threads-embed-script');
+    expect(initialThreadsScript).toBeTruthy();
+    loadXEmbeds.mockClear();
+
+    fireEvent.click(view.getByRole('button', { name: 'X 1개' }));
+
+    expect(view.container.querySelector('blockquote.twitter-tweet')).toBeTruthy();
+    expect(loadXEmbeds).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(view.getByRole('button', { name: 'Threads 1개' }));
+
+    expect(view.container.querySelector('blockquote.text-post-media')).toBeTruthy();
+    await waitFor(() => {
+      expect(document.getElementById('daynomy-threads-embed-script')).not.toBe(
+        initialThreadsScript,
+      );
+    });
   });
 });
