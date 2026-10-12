@@ -711,7 +711,7 @@ class SharedPortfolioAcceptanceTest {
         .body("{\"transactionType\":\"BUY\",\"assetId\":" + asset.getId() + "}")
         .post("/api/users/me/portfolio/transactions")
         .then()
-        .statusCode(405);
+        .statusCode(400);
     client(owner)
         .get(SHARED)
         .then()
@@ -785,26 +785,28 @@ class SharedPortfolioAcceptanceTest {
     Asset asset = asset();
     Portfolio original = originals.save(Portfolio.create(owner));
     Instant changedAt = Instant.now();
+    LocalDate today = changedAt.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
     for (long quantity : new long[] {1, 3, 5}) {
       jdbc.update(
           """
           INSERT INTO portfolio_holding_histories
-            (portfolio_id,asset_id,change_type,quantity,average_purchase_price,created_at,updated_at)
-          VALUES (?,?,?,?,10000,?,?)
+            (portfolio_id,asset_id,change_type,quantity,average_purchase_price,effective_date,created_at,updated_at)
+          VALUES (?,?,?,?,10000,?,?,?)
           """,
           original.getId(),
           asset.getId(),
           quantity == 1 ? "ADDED" : "UPDATED",
           quantity,
+          today,
           java.sql.Timestamp.from(changedAt),
           java.sql.Timestamp.from(changedAt));
     }
     assertThat(
-            originalHistory.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                original.getId(), changedAt.plusSeconds(1)))
+            originalHistory
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    original.getId(), today))
         .extracting(history -> history.getQuantity())
         .containsExactly(1L, 3L, 5L);
-    LocalDate today = changedAt.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
     client(owner)
         .queryParam("from", today.toString())
         .queryParam("to", today.toString())
@@ -1461,7 +1463,7 @@ class SharedPortfolioAcceptanceTest {
         .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
         .schemas(schema)
         .defaultSchema(schema)
-        .target("23")
+        .target("27")
         .load()
         .migrate();
     try (var connection =
@@ -1544,7 +1546,7 @@ class SharedPortfolioAcceptanceTest {
         .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
         .schemas(schema)
         .defaultSchema(schema)
-        .target("26")
+        .target("30")
         .load()
         .migrate();
     try (var connection =
@@ -1623,7 +1625,7 @@ class SharedPortfolioAcceptanceTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"19", "21"})
+  @ValueSource(strings = {"19", "21", "24"})
   void deployedVersionsUpgradeWithoutChangingExistingStockContent(String version) throws Exception {
     String schema = "upgrade_" + UUID.randomUUID().toString().replace("-", "");
     Flyway.configure()
@@ -1664,13 +1666,13 @@ class SharedPortfolioAcceptanceTest {
               """
           SELECT (SELECT COUNT(*) FROM pg_indexes WHERE schemaname=current_schema()
                     AND indexname IN ('idx_news_status_published_id','idx_news_created_id')) AS indexes,
-                 (SELECT COUNT(*) FROM flyway_schema_history WHERE success AND version::integer BETWEEN 22 AND 26) AS feature_migrations,
+                 (SELECT COUNT(*) FROM flyway_schema_history WHERE success AND version::integer BETWEEN 26 AND 30) AS feature_migrations,
                  (SELECT MAX(version::integer) FROM flyway_schema_history WHERE success AND version IS NOT NULL) AS latest_version
           """)) {
         assertThat(result.next()).isTrue();
         assertThat(result.getInt("indexes")).isEqualTo(2);
         assertThat(result.getInt("feature_migrations")).isEqualTo(5);
-        assertThat(result.getInt("latest_version")).isEqualTo(28);
+        assertThat(result.getInt("latest_version")).isEqualTo(34);
       }
     }
   }

@@ -22,26 +22,50 @@ export type PortfolioHoldingInput = StockSearchItem & {
   averagePurchasePrice: number;
 };
 
-export type PortfolioHoldingChangeType = 'ADDED' | 'UPDATED' | 'REMOVED';
-
+export type PortfolioHoldingChangeType =
+  'ADDED' | 'UPDATED' | 'REMOVED' | 'OPENING_BALANCE' | 'ADJUSTED' | 'BUY' | 'SELL';
 export type PortfolioTrendPeriod = 'YTD' | '1M' | '6M' | '1Y' | '5Y';
-
-export type PortfolioHoldingHistory = {
-  changeType: PortfolioHoldingChangeType;
-  occurredAt: string;
-  previousHolding: PortfolioHoldingInput | null;
+export type PortfolioTransactionType = 'BUY' | 'SELL';
+export type PortfolioTransactionUpdateRequest = {
+  tradeDate: string;
+  quantity: number;
+  unitPrice: number;
+  fee: number;
+  tax: number;
+};
+export type PortfolioTransactionRequest = PortfolioTransactionUpdateRequest & {
+  assetId: number;
+  type: PortfolioTransactionType;
+};
+export type PortfolioTransactionResponse = {
+  transactionId: number;
   holding: PortfolioHoldingInput | null;
+  totalRealizedProfitLoss: number;
+};
+export type PortfolioHoldingHistory = {
+  historyId: number;
+  assetId: number;
+  assetCode: string;
+  name: string;
+  changeType: PortfolioHoldingChangeType;
+  quantity: number;
+  averagePurchasePrice: number;
+  effectiveDate: string;
+  transactionQuantity: number | null;
+  unitPrice: number | null;
+  fee: number;
+  tax: number;
+  occurredAt: string;
 };
 
 export type PortfolioPerformancePoint = {
   baseDate: string;
-  priceBaseDate?: string | null;
-  recordedAt: string;
-  source: 'CLOSE' | 'HOLDING_CHANGE';
   totalPurchaseAmount: number;
   totalEvaluationAmount: number;
   totalProfitLoss: number;
   totalReturnRate: number;
+  dailyProfitLoss: number | null;
+  dailyReturnRate: number | null;
 };
 
 export type PortfolioPerformanceStatus = 'READY' | 'INSUFFICIENT_DATA';
@@ -53,21 +77,23 @@ export type PortfolioPerformanceResponse = {
   baseDate: string | null;
   previousBaseDate: string | null;
   points: PortfolioPerformancePoint[];
-  currentPoint: PortfolioPerformancePoint;
+  currentPoint: (PortfolioPerformancePoint & { priceBaseDate: string | null }) | null;
 };
 
 export type SavedPortfolioResponse = {
   holdings: PortfolioHoldingInput[];
+  totalRealizedProfitLoss: number;
 };
 
 export type PortfolioHoldingResult = PortfolioHoldingInput & {
-  baseDate: string;
-  closePrice: number;
+  priceAvailable: boolean;
+  baseDate: string | null;
+  closePrice: number | null;
   purchaseAmount: number;
-  evaluationAmount: number;
-  profitLoss: number;
-  returnRate: number;
-  weight: number;
+  evaluationAmount: number | null;
+  profitLoss: number | null;
+  returnRate: number | null;
+  weight: number | null;
 };
 
 export type MarketAllocation = {
@@ -76,14 +102,19 @@ export type MarketAllocation = {
   weight: number;
 };
 
+export type PortfolioPricingStatus = 'COMPLETE' | 'MIXED_DATES' | 'PARTIAL';
+
 export type PortfolioCalculation = {
-  baseDate: string;
+  baseDate: string | null;
+  pricingStatus: PortfolioPricingStatus;
+  pricedHoldingCount: number;
+  unpricedHoldingCount: number;
   totalPurchaseAmount: number;
   totalEvaluationAmount: number;
   dailyProfitLoss: number | null;
   dailyReturnRate: number | null;
-  totalProfitLoss: number;
-  totalReturnRate: number;
+  totalProfitLoss: number | null;
+  totalReturnRate: number | null;
   holdings: PortfolioHoldingResult[];
   marketAllocations: MarketAllocation[];
 };

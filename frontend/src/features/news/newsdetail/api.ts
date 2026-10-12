@@ -22,6 +22,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
 function isNewsDetailResponse(value: unknown): value is NewsDetailResponse {
   return (
     isRecord(value) &&
@@ -74,14 +78,15 @@ function isKeywordsResponse(value: unknown): value is KeywordsResponse {
           keyword.category === 'EVENT' ||
           keyword.category === 'TERM' ||
           keyword.category === 'TREND') &&
-        Array.isArray(keyword.points) &&
-        keyword.points.every((point: unknown) => typeof point === 'string'),
+        isString(keyword.definition) &&
+        isString(keyword.context) &&
+        isString(keyword.watchPoint),
     )
   );
 }
 
 function isMarketAnalysisResponse(value: unknown): value is MarketAnalysisResponse {
-  return isRecord(value) && typeof value.summary === 'string';
+  return isRecord(value) && isString(value.risk) && isString(value.watchPoint);
 }
 
 async function getJson<T>(path: string, isValid: (value: unknown) => value is T): Promise<T> {
@@ -103,7 +108,7 @@ function getMarketAnalysisState(
   result: PromiseSettledResult<MarketAnalysisResponse>,
 ): MarketAnalysisState {
   if (result.status === 'fulfilled') {
-    return result.value.summary.trim()
+    return [result.value.risk, result.value.watchPoint].some((value) => value.trim())
       ? { status: 'success', data: result.value }
       : { status: 'empty' };
   }

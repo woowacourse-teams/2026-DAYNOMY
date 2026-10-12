@@ -269,15 +269,17 @@ describe('뉴스 탐색 화면', () => {
               {
                 category: 'POLICY',
                 keyword: '금리 동결',
-                points: ['기준금리 동결은 정책 방향을 보여줍니다.', '시장 변화를 확인해야 합니다.'],
+                definition: '기준금리를 현재 수준으로 유지하는 결정입니다.',
+                context: '이번 기사에서는 통화정책 방향을 보여주는 결정입니다.',
+                watchPoint: '다음 물가와 금리 발표를 확인해야 합니다.',
               },
             ],
           });
         }
         if (url === '/api/news/7/market-analysis') {
           return jsonResponse({
-            summary:
-              '금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다. 기준금리 변화는 대출과 채권 수익률에 연결됩니다.',
+            risk: '물가가 다시 상승하면 금리 전망이 달라질 수 있어요.',
+            watchPoint: '다음 소비자물가와 기준금리 발표를 확인하세요.',
           });
         }
 
@@ -293,12 +295,30 @@ describe('뉴스 탐색 화면', () => {
     expect(view.queryByText('기준금리가 유지되고 있습니다.')).toBeNull();
     expect(view.queryByText('채권 시장의 관망세가 이어지고 있습니다.')).toBeNull();
     expect(view.queryByText('추가 지표를 확인해야 합니다.')).toBeNull();
-    expect(view.container.querySelector('mark.keyword')?.textContent).toContain('금리 동결');
-    expect(view.getByText('기준금리 동결은 정책 방향을 보여줍니다.')).toBeTruthy();
-    expect(view.getByText('금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.')).toBeTruthy();
-    expect(view.getByText('기준금리 변화는 대출과 채권 수익률에 연결됩니다.')).toBeTruthy();
-    expect(view.container.querySelectorAll('.market-summary-card')).toHaveLength(1);
-    expect(view.container.querySelectorAll('.market-summary-card li')).toHaveLength(2);
+    expect(view.container.querySelector('button.keyword')?.textContent).toContain('금리 동결');
+    fireEvent.pointerEnter(view.getByRole('button', { name: '금리 동결' }));
+    expect(view.getByText('뜻')).toBeTruthy();
+    expect(view.getByText('기사 맥락')).toBeTruthy();
+    expect(view.getByText('확인할 점')).toBeTruthy();
+    expect(view.getByText('기준금리를 현재 수준으로 유지하는 결정입니다.')).toBeTruthy();
+    expect(view.getByText('이번 기사에서는 통화정책 방향을 보여주는 결정입니다.')).toBeTruthy();
+    expect(view.getByText('다음 물가와 금리 발표를 확인해야 합니다.')).toBeTruthy();
+    expect(view.queryByText('확인된 사실')).toBeNull();
+    expect(view.queryByText('해석')).toBeNull();
+    expect(view.getByText('물가가 다시 상승하면 금리 전망이 달라질 수 있어요.')).toBeTruthy();
+    expect(view.getByText('다음 소비자물가와 기준금리 발표를 확인하세요.')).toBeTruthy();
+    expect(view.getByText('위험')).toBeTruthy();
+    expect(view.getByText('확인할 지표')).toBeTruthy();
+    expect(view.queryByText('분석 한계')).toBeNull();
+    expect(view.queryByText('한국은행이 기준금리를 현재 수준으로 유지했습니다.')).toBeNull();
+    expect(view.queryByText('금리 흐름이 채권 시장의 관망세에 영향을 주고 있습니다.')).toBeNull();
+    expect(view.container.querySelectorAll('.market-analysis-card')).toHaveLength(1);
+    expect(view.container.querySelectorAll('.market-analysis-item')).toHaveLength(2);
+    expect(
+      view.container.querySelectorAll(
+        '.market-analysis-card dd strong, .market-analysis-card dd b',
+      ),
+    ).toHaveLength(0);
     expect(view.queryByRole('heading', { name: '발생 원인' })).toBeNull();
     expect(view.queryByRole('heading', { name: /가장 영향 가능성이 높은 자산/ })).toBeNull();
     expect(view.queryByRole('heading', { name: /시나리오/ })).toBeNull();
@@ -332,12 +352,16 @@ describe('뉴스 탐색 화면', () => {
               {
                 category: 'POLICY',
                 keyword: '금리 동결',
-                points: ['금리 정책을 설명합니다.'],
+                definition: '기준금리를 유지하는 결정입니다.',
+                context: '기사의 통화정책 방향을 설명합니다.',
+                watchPoint: '다음 금리 발표를 확인해야 합니다.',
               },
               {
                 category: 'TREND',
                 keyword: '채권시장',
-                points: ['채권시장 흐름을 설명합니다.'],
+                definition: '채권을 거래하는 시장입니다.',
+                context: '금리 동결의 영향을 받는 시장으로 언급됩니다.',
+                watchPoint: '채권 수익률 변화를 확인해야 합니다.',
               },
             ],
           });
@@ -352,7 +376,7 @@ describe('뉴스 탐색 화면', () => {
 
     expect(await view.findByRole('heading', { name: article.title })).toBeTruthy();
     const highlightedKeywords = Array.from(
-      view.container.querySelectorAll<HTMLElement>('mark.keyword'),
+      view.container.querySelectorAll<HTMLElement>('button.keyword'),
     ).map((keyword) => keyword.firstChild?.textContent);
     expect(highlightedKeywords).toEqual(['금리 동결', '채권시장']);
   });
@@ -408,7 +432,10 @@ describe('뉴스 탐색 화면', () => {
         }
         if (url === '/api/news/7/keywords') return jsonResponse({ keywords: [] });
         if (url === '/api/news/7/market-analysis') {
-          return jsonResponse({ summary: '반도체 시장의 변화를 확인해야 합니다.' });
+          return jsonResponse({
+            risk: '기업 한 곳의 실적을 시장 전체로 일반화하기 어렵습니다.',
+            watchPoint: '다음 분기 매출과 재고를 확인해야 합니다.',
+          });
         }
 
         return jsonResponse({}, 500);
@@ -519,6 +546,31 @@ describe('뉴스 탐색 화면', () => {
     expect(view.queryByRole('status')).toBeNull();
   });
 
+  it.each([
+    { risk: '', watchPoint: '  ' },
+    { risk: '', watchPoint: '', summary: '이전 요약', observedFact: 42 },
+  ])(
+    '표시할 두 항목이 비어 있으면 이전 필드와 무관하게 미제공 상태를 표시한다',
+    async (analysis) => {
+      window.history.replaceState(null, '', '/news/7');
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: RequestInfo | URL) => {
+          const url = getPath(input);
+          if (url === '/api/news/7')
+            return jsonResponse({ ...article, content: '뉴스 본문', sources: [] });
+          if (url === '/api/news/7/keywords') return jsonResponse({ keywords: [] });
+          return jsonResponse(analysis);
+        }),
+      );
+      const view = renderPage(<NewsDetailPage />);
+      expect(await view.findByText('뉴스 본문')).toBeTruthy();
+      expect(view.getByRole('status').textContent).toContain('아직 제공된 시장 분석이 없습니다.');
+      expect(view.queryByRole('alert')).toBeNull();
+      expect(view.container.querySelector('.keyword')).toBeNull();
+    },
+  );
+
   it('시장 분석·키워드 응답 형식이 잘못돼도 뉴스 본문을 표시한다', async () => {
     window.history.replaceState(null, '', '/news/7');
     vi.stubGlobal(
@@ -530,10 +582,21 @@ describe('뉴스 탐색 화면', () => {
         }
         if (url === '/api/news/7/keywords') {
           return jsonResponse({
-            keywords: [{ category: 'INVALID', keyword: '정상', points: ['설명'] }],
+            keywords: [
+              {
+                category: 'INVALID',
+                keyword: '정상',
+                definition: '뜻',
+                context: '기사 맥락',
+                watchPoint: '확인할 점',
+              },
+            ],
           });
         }
-        return jsonResponse({ summary: 42 });
+        return jsonResponse({
+          risk: 42,
+          watchPoint: '확인할 지표',
+        });
       }),
     );
 
@@ -541,6 +604,6 @@ describe('뉴스 탐색 화면', () => {
 
     expect(await view.findByText('정상 뉴스 본문')).toBeTruthy();
     expect(view.getByRole('alert').textContent).toContain('시장 분석을 불러오지 못했습니다.');
-    expect(view.container.querySelector('mark.keyword')).toBeNull();
+    expect(view.container.querySelector('button.keyword')).toBeNull();
   });
 });

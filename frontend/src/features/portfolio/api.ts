@@ -1,5 +1,9 @@
-import { request, requestWithCsrf } from '../../api/client';
+import { ApiError, request, requestWithCsrf } from '../../api/client';
 import type {
+  PortfolioHoldingHistory,
+  PortfolioTransactionRequest,
+  PortfolioTransactionUpdateRequest,
+  PortfolioTransactionResponse,
   AssetCategory,
   MarketAllocation,
   PortfolioAnalysisRequest,
@@ -22,14 +26,6 @@ import type {
 
 const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE', 'NEUTRAL']);
 const IMPACT_LEVELS = new Set<PortfolioImpactLevel>(['HIGH', 'MEDIUM', 'LOW']);
-type PortfolioPerformanceApiPoint = Omit<PortfolioPerformancePoint, 'recordedAt' | 'source'>;
-type PortfolioPerformanceApiResponse = Omit<
-  PortfolioPerformanceResponse,
-  'points' | 'currentPoint'
-> & {
-  points: PortfolioPerformanceApiPoint[];
-  currentPoint: PortfolioPerformanceApiPoint;
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -76,18 +72,20 @@ function hasNullableNumber(value: Record<string, unknown>, key: string) {
 function isHoldingResult(value: unknown): value is PortfolioHoldingResult {
   if (!isRecord(value)) return false;
   const record = value;
-
+  if (!isStock(value) || typeof record.priceAvailable !== 'boolean') return false;
   return (
-    isStock(value) &&
-    typeof record.baseDate === 'string' &&
-    hasNumber(record, 'quantity') &&
-    hasNumber(record, 'averagePurchasePrice') &&
-    hasNumber(record, 'closePrice') &&
-    hasNumber(record, 'purchaseAmount') &&
-    hasNumber(record, 'evaluationAmount') &&
-    hasNumber(record, 'profitLoss') &&
-    hasNumber(record, 'returnRate') &&
-    hasNumber(record, 'weight')
+    hasNumber(value, 'quantity') &&
+    hasNumber(value, 'averagePurchasePrice') &&
+    hasNumber(value, 'purchaseAmount') &&
+    (record.priceAvailable
+      ? typeof record.baseDate === 'string' &&
+        ['closePrice', 'evaluationAmount', 'profitLoss', 'returnRate', 'weight'].every((key) =>
+          hasNumber(value, key),
+        )
+      : record.baseDate === null &&
+        ['closePrice', 'evaluationAmount', 'profitLoss', 'returnRate', 'weight'].every(
+          (key) => record[key] === null,
+        ))
   );
 }
 
@@ -115,31 +113,42 @@ function isSavedPortfolioHolding(value: unknown): value is PortfolioHoldingInput
   );
 }
 
-function isPerformancePoint(
-  value: unknown,
-  current = false,
-): value is PortfolioPerformanceApiPoint {
+function isPerformancePoint(value: unknown): value is PortfolioPerformancePoint {
   return (
     isRecord(value) &&
     typeof value.baseDate === 'string' &&
-    (!current || value.priceBaseDate === null || typeof value.priceBaseDate === 'string') &&
     hasNumber(value, 'totalPurchaseAmount') &&
     hasNumber(value, 'totalEvaluationAmount') &&
     hasNumber(value, 'totalProfitLoss') &&
-    hasNumber(value, 'totalReturnRate')
+    hasNumber(value, 'totalReturnRate') &&
+    hasNullableNumber(value, 'dailyProfitLoss') &&
+    hasNullableNumber(value, 'dailyReturnRate')
+  );
+}
+
+function isCurrentPerformancePoint(
+  value: unknown,
+): value is NonNullable<PortfolioPerformanceResponse['currentPoint']> {
+  return (
+    isPerformancePoint(value) &&
+    'priceBaseDate' in value &&
+    (value.priceBaseDate === null || typeof value.priceBaseDate === 'string')
   );
 }
 
 function isPortfolioCalculation(value: unknown): value is PortfolioCalculation {
   return (
     isRecord(value) &&
-    typeof value.baseDate === 'string' &&
+    (value.baseDate === null || typeof value.baseDate === 'string') &&
+    ['COMPLETE', 'MIXED_DATES', 'PARTIAL'].includes(String(value.pricingStatus)) &&
+    Number.isInteger(value.pricedHoldingCount) &&
+    Number.isInteger(value.unpricedHoldingCount) &&
     hasNumber(value, 'totalPurchaseAmount') &&
     hasNumber(value, 'totalEvaluationAmount') &&
     hasNullableNumber(value, 'dailyProfitLoss') &&
     hasNullableNumber(value, 'dailyReturnRate') &&
-    hasNumber(value, 'totalProfitLoss') &&
-    hasNumber(value, 'totalReturnRate') &&
+    hasNullableNumber(value, 'totalProfitLoss') &&
+    hasNullableNumber(value, 'totalReturnRate') &&
     Array.isArray(value.holdings) &&
     value.holdings.every(isHoldingResult) &&
     Array.isArray(value.marketAllocations) &&
@@ -249,12 +258,13 @@ export async function calculatePortfolio(holdings: PortfolioHoldingInput[], sign
 }
 
 export async function getSavedPortfolio(signal?: AbortSignal) {
-  const response = await request<unknown>('/api/portfolio', { signal });
+  const response = await request<unknown>('/api/users/me/portfolio', { signal });
 
   if (
     !isRecord(response) ||
     !Array.isArray(response.holdings) ||
-    !response.holdings.every(isSavedPortfolioHolding)
+    !response.holdings.every(isSavedPortfolioHolding) ||
+    !hasNumber(response, 'totalRealizedProfitLoss')
   ) {
     throw new Error('포트폴리오 응답 형식이 올바르지 않습니다.');
   }
@@ -263,7 +273,7 @@ export async function getSavedPortfolio(signal?: AbortSignal) {
 }
 
 export async function addSavedPortfolioHolding(holding: PortfolioHoldingInput) {
-  const response = await requestWithCsrf<unknown>('/api/portfolio/holdings', {
+  const response = await requestWithCsrf<unknown>('/api/users/me/portfolio/holdings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -280,14 +290,17 @@ export async function addSavedPortfolioHolding(holding: PortfolioHoldingInput) {
 }
 
 export async function updateSavedPortfolioHolding(holding: PortfolioHoldingInput) {
-  const response = await requestWithCsrf<unknown>(`/api/portfolio/holdings/${holding.assetId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      quantity: holding.quantity,
-      averagePurchasePrice: holding.averagePurchasePrice,
-    }),
-  });
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/holdings/${holding.assetId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quantity: holding.quantity,
+        averagePurchasePrice: holding.averagePurchasePrice,
+      }),
+    },
+  );
 
   if (!isSavedPortfolioHolding(response)) {
     throw new Error('보유 자산 수정 응답 형식이 올바르지 않습니다.');
@@ -296,14 +309,17 @@ export async function updateSavedPortfolioHolding(holding: PortfolioHoldingInput
 }
 
 export function removeSavedPortfolioHolding(assetId: number) {
-  return requestWithCsrf<void>(`/api/portfolio/holdings/${assetId}`, { method: 'DELETE' });
+  return requestWithCsrf<void>(`/api/users/me/portfolio/holdings/${assetId}`, { method: 'DELETE' });
 }
 
 export async function getPortfolioPerformance(from: string, to: string, signal?: AbortSignal) {
   const query = new URLSearchParams({ from, to });
-  const response = await request<unknown>(`/api/portfolio/performance?${query.toString()}`, {
-    signal,
-  });
+  const response = await request<unknown>(
+    `/api/users/me/portfolio/performance?${query.toString()}`,
+    {
+      signal,
+    },
+  );
 
   if (
     !isRecord(response) ||
@@ -312,28 +328,13 @@ export async function getPortfolioPerformance(from: string, to: string, signal?:
     (response.baseDate !== null && typeof response.baseDate !== 'string') ||
     (response.previousBaseDate !== null && typeof response.previousBaseDate !== 'string') ||
     !Array.isArray(response.points) ||
-    !response.points.every((point) => isPerformancePoint(point)) ||
-    !isPerformancePoint(response.currentPoint, true)
+    !response.points.every(isPerformancePoint) ||
+    (response.currentPoint !== null && !isCurrentPerformancePoint(response.currentPoint))
   ) {
     throw new Error('자산 추이 응답 형식이 올바르지 않습니다.');
   }
 
-  const normalizePoint = (
-    point: PortfolioPerformanceApiPoint,
-    current: boolean,
-  ): PortfolioPerformancePoint => ({
-    ...point,
-    recordedAt: `${point.baseDate}T15:30:00.000Z`,
-    source: 'CLOSE',
-    priceBaseDate: current ? point.priceBaseDate : undefined,
-  });
-
-  const performance = response as unknown as PortfolioPerformanceApiResponse;
-  return {
-    ...performance,
-    points: performance.points.map((point) => normalizePoint(point, false)),
-    currentPoint: normalizePoint(performance.currentPoint, true),
-  };
+  return response as PortfolioPerformanceResponse;
 }
 
 export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortSignal) {
@@ -350,4 +351,84 @@ export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortS
   }
 
   return response;
+}
+
+const HISTORY_TYPES = new Set([
+  'ADDED',
+  'UPDATED',
+  'REMOVED',
+  'OPENING_BALANCE',
+  'ADJUSTED',
+  'BUY',
+  'SELL',
+]);
+function isHistory(value: unknown): value is PortfolioHoldingHistory {
+  if (!isRecord(value)) return false;
+  const transaction = value.changeType === 'BUY' || value.changeType === 'SELL';
+  return (
+    Number.isSafeInteger(value.historyId) &&
+    Number.isSafeInteger(value.assetId) &&
+    typeof value.assetCode === 'string' &&
+    typeof value.name === 'string' &&
+    HISTORY_TYPES.has(String(value.changeType)) &&
+    hasNumber(value, 'quantity') &&
+    hasNumber(value, 'averagePurchasePrice') &&
+    typeof value.effectiveDate === 'string' &&
+    typeof value.occurredAt === 'string' &&
+    hasNumber(value, 'fee') &&
+    hasNumber(value, 'tax') &&
+    (transaction
+      ? Number.isSafeInteger(value.transactionQuantity) &&
+        Number(value.transactionQuantity) > 0 &&
+        hasNumber(value, 'unitPrice')
+      : hasNullableNumber(value, 'transactionQuantity') && hasNullableNumber(value, 'unitPrice'))
+  );
+}
+
+export async function getPortfolioHistories(from: string, to: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ from, to });
+  let response: unknown;
+  try {
+    response = await request<unknown>(`/api/portfolio/histories?${query}`, { signal });
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'PORTFOLIO_NOT_FOUND') return [];
+    throw error;
+  }
+  if (!Array.isArray(response) || !response.every(isHistory)) {
+    throw new Error('거래 내역 응답 형식이 올바르지 않습니다.');
+  }
+  return response;
+}
+
+async function mutateTransaction(
+  path: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  body?: PortfolioTransactionRequest | PortfolioTransactionUpdateRequest,
+) {
+  const response = await requestWithCsrf<unknown>(path, {
+    method,
+    ...(body
+      ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      : {}),
+  });
+  if (
+    !isRecord(response) ||
+    !Number.isSafeInteger(response.transactionId) ||
+    (response.holding !== null && !isSavedPortfolioHolding(response.holding)) ||
+    !hasNumber(response, 'totalRealizedProfitLoss')
+  ) {
+    throw new Error(
+      '거래 처리 결과를 확인하지 못했습니다. 내역을 새로 확인한 뒤 다시 시도해 주세요.',
+    );
+  }
+  return response as PortfolioTransactionResponse;
+}
+export function createPortfolioTransaction(body: PortfolioTransactionRequest) {
+  return mutateTransaction('/api/portfolio/transactions', 'POST', body);
+}
+export function updatePortfolioTransaction(id: number, body: PortfolioTransactionUpdateRequest) {
+  return mutateTransaction(`/api/portfolio/transactions/${id}`, 'PATCH', body);
+}
+export function deletePortfolioTransaction(id: number) {
+  return mutateTransaction(`/api/portfolio/transactions/${id}`, 'DELETE');
 }

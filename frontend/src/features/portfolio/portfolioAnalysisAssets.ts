@@ -2,8 +2,8 @@ import type { PortfolioAsset, PortfolioHoldingResult } from './types';
 
 export function toPortfolioAnalysisAssets(holdings: PortfolioHoldingResult[]): PortfolioAsset[] {
   const assets = holdings
-    .filter(({ weight }) => weight > 0)
-    .map(({ name, weight }) => ({ assetName: name, weight }));
+    .filter(({ weight }) => weight !== null && weight > 0)
+    .map(({ name, weight }) => ({ assetName: name, weight: weight ?? 0 }));
   if (assets.length === 0) return [];
 
   const totalWeight = assets.reduce((sum, asset) => sum + asset.weight, 0);

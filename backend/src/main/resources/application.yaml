@@ -102,6 +102,7 @@ external:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     image-model: ${OPENAI_IMAGE_MODEL:gpt-image-1-mini}
     economy-news-model: ${OPENAI_ECONOMY_NEWS_MODEL:gpt-5.5}
+    social-search-model: ${OPENAI_SOCIAL_SEARCH_MODEL:gpt-5-mini}
     connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
     read-timeout: ${OPENAI_READ_TIMEOUT:120s}
 
@@ -152,7 +153,7 @@ stock:
 portfolio:
   snapshot:
     enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
-    cron: ${PORTFOLIO_SNAPSHOT_CRON:0 0 15 * * MON-FRI}
+    cron: ${PORTFOLIO_SNAPSHOT_CRON:0 30 7 * * TUE-SAT}
 
 league:
   calculation:

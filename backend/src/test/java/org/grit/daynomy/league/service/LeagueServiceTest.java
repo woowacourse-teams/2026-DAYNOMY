@@ -304,7 +304,7 @@ class LeagueServiceTest {
 
   @Test
   void dailyHistoryCompoundsReturnsAndResetsAtEachMondayWithoutWeekendPoints() {
-    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
     SharedPortfolio portfolio = dailyProfile(week.minusWeeks(1));
     var monday = dailyReturn(portfolio, week, "10");
     var tuesday = dailyReturn(portfolio, week.plusDays(1), "-10");
@@ -517,12 +517,18 @@ class LeagueServiceTest {
     given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
         .willReturn(List.of(profile));
     var performance = service.publicInvestor(null, "investor-1").performance();
-    assertThat(performance.weeklyRank()).isEqualTo(1);
+    Integer expectedRank =
+        values.stream().anyMatch(value -> !value.getBaseDate().isBefore(currentWeek)) ? 1 : null;
+    assertThat(performance.weeklyRank()).isEqualTo(expectedRank);
     assertThat(performance.currentHoldingWeight()).isEqualByComparingTo("75");
     assertThat(performance.maxHoldingWeight()).isEqualByComparingTo("75");
     assertThat(performance.eightWeekReturnRate()).isPositive();
     assertThat(performance.volatilityRate()).isEqualByComparingTo("0.00");
-    assertThat(performance.consecutiveRecordedWeeks()).isGreaterThan(8);
+    if (expectedRank == null) {
+      assertThat(performance.consecutiveRecordedWeeks()).isZero();
+    } else {
+      assertThat(performance.consecutiveRecordedWeeks()).isGreaterThan(8);
+    }
     values.get(values.size() - 8).exclude("MISSING_PRICE", Instant.now());
     var missing = service.publicInvestor(null, "investor-1").performance();
     assertThat(missing.eightWeekReturnRate()).isNull();

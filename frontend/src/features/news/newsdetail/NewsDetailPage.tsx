@@ -4,9 +4,22 @@ import defaultNewsImage from '../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
-import type { MarketAnalysisState, NewsDetailPayload, NewsImageSource } from './types.ts';
+import type {
+  MarketAnalysisResponse,
+  MarketAnalysisState,
+  NewsDetailPayload,
+  NewsImageSource,
+} from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
+
+const MARKET_ANALYSIS_ITEMS: ReadonlyArray<{
+  key: keyof MarketAnalysisResponse;
+  label: string;
+}> = [
+  { key: 'risk', label: '위험' },
+  { key: 'watchPoint', label: '확인할 지표' },
+];
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -14,13 +27,6 @@ function getNewsIdFromUrl() {
 
 function getContentParagraphs(content: string | string[]) {
   return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
-}
-
-function getMarketSummaryItems(summary: string) {
-  return summary
-    .split(/\r?\n|(?<=[.!?。！？])\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 function formatDetailDate(value?: string) {
@@ -76,18 +82,26 @@ function NewsImageCredit({ imageSource }: { imageSource?: NewsImageSource }) {
 }
 
 function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnalysisState }) {
+  const analysisItems =
+    marketAnalysis.status === 'success'
+      ? MARKET_ANALYSIS_ITEMS.filter(({ key }) => marketAnalysis.data[key].trim())
+      : [];
+
   return (
     <section className="detail-market" aria-labelledby="detail-market-title">
       <h2 id="detail-market-title">시장 분석</h2>
       {marketAnalysis.status === 'success' ? (
-        <ul className="market-summary-card">
-          {getMarketSummaryItems(marketAnalysis.data.summary).map((item, index) => (
-            <li key={`${item}-${index}`}>{item}</li>
+        <dl className="market-analysis-card">
+          {analysisItems.map(({ key, label }) => (
+            <div className="market-analysis-item" key={key}>
+              <dt>{label}</dt>
+              <dd>{marketAnalysis.data[key]}</dd>
+            </div>
           ))}
-        </ul>
+        </dl>
       ) : (
         <p
-          className="market-summary-card market-analysis-message"
+          className="market-analysis-card market-analysis-message"
           role={marketAnalysis.status === 'error' ? 'alert' : 'status'}
         >
           {marketAnalysis.status === 'empty'

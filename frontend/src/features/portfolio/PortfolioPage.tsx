@@ -5,8 +5,6 @@ import { PortfolioEditor } from './components/PortfolioEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
 import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
 import { toPortfolioAnalysisAssets } from './portfolioAnalysisAssets';
-import { getStockRelatedContents } from '../stock-content/api';
-import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../stock-content/types';
 import type {
   AssetCategory,
   PortfolioCalculation,
@@ -16,6 +14,13 @@ import type {
   PortfolioTrendPeriod,
 } from './types';
 import './portfolio.css';
+import './portfolioLedger.css';
+import { PortfolioTransactionEditor } from './components/PortfolioTransactionEditor';
+import { PortfolioHistory } from './components/PortfolioHistory';
+import { PortfolioDialog } from './components/PortfolioDialog';
+import { PortfolioHoldingDetail } from './components/PortfolioHoldingDetail';
+import { PortfolioConfirmDialog } from './components/PortfolioConfirmDialog';
+import type { PortfolioHoldingHistory, PortfolioTransactionType, StockSearchItem } from './types';
 
 const numberFormatter = new Intl.NumberFormat('ko-KR');
 const percentFormatter = new Intl.NumberFormat('ko-KR', {
@@ -27,9 +32,11 @@ const compactWonFormatter = new Intl.NumberFormat('ko-KR', {
   maximumFractionDigits: 1,
 });
 const HIDDEN_AMOUNT = '••••••원';
-const RELATED_CONTENT_PREVIEW_COUNT = 10;
 const EMPTY_PORTFOLIO_CALCULATION: PortfolioCalculation = {
-  baseDate: '',
+  baseDate: null,
+  pricingStatus: 'COMPLETE',
+  pricedHoldingCount: 0,
+  unpricedHoldingCount: 0,
   totalPurchaseAmount: 0,
   totalEvaluationAmount: 0,
   dailyProfitLoss: null,
@@ -42,7 +49,8 @@ const EMPTY_PORTFOLIO_CALCULATION: PortfolioCalculation = {
 
 type PortfolioSort = 'DEFAULT' | 'EVALUATION' | 'PROFIT' | 'RETURN' | 'WEIGHT';
 
-function formatWon(value: number) {
+function formatWon(value: number | null) {
+  if (value === null) return '—';
   return `${numberFormatter.format(Math.round(value))}원`;
 }
 
@@ -51,7 +59,8 @@ function formatSignedWon(value: number) {
   return `${sign}${numberFormatter.format(Math.abs(Math.round(value)))}원`;
 }
 
-function formatPercent(value: number, signed = false) {
+function formatPercent(value: number | null, signed = false) {
+  if (value === null) return '—';
   const sign = signed && value > 0 ? '+' : value < 0 ? '−' : '';
   return `${sign}${percentFormatter.format(Math.abs(value))}%`;
 }
@@ -65,7 +74,8 @@ function formatTrendDate(value: string) {
   return `${year}년 ${month}월 ${day}일`;
 }
 
-function profitClass(value: number) {
+function profitClass(value: number | null) {
+  if (value === null) return '';
   return value > 0 ? 'portfolio-gain' : value < 0 ? 'portfolio-loss' : '';
 }
 
@@ -76,7 +86,7 @@ function getCategoryLabel(category: AssetCategory) {
 function getCategoryWeight(calculation: PortfolioCalculation, category: AssetCategory) {
   const evaluationAmount = calculation.holdings
     .filter((holding) => holding.category === category)
-    .reduce((sum, holding) => sum + holding.evaluationAmount, 0);
+    .reduce((sum, holding) => sum + (holding.evaluationAmount ?? 0), 0);
   if (calculation.totalEvaluationAmount === 0) return 0;
   return (evaluationAmount / calculation.totalEvaluationAmount) * 100;
 }
@@ -143,6 +153,13 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
             );
           })}
         </dl>
+        <div className="portfolio-market-allocation" aria-label="시장별 자산 비중">
+          {calculation.marketAllocations.map((allocation) => (
+            <span key={allocation.market}>
+              {allocation.market} · {formatPercent(allocation.weight)}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -253,7 +270,7 @@ function PortfolioAssetTrendChart({
       ? `${padding.left},${y(minimum)} ${evaluationLinePoints.join(' ')} ${width - padding.right},${y(minimum)}`
       : '';
   const latest = visiblePoints.at(-1);
-  const trendColor = '#f04452';
+  const trendColor = '#3975df';
   const activeIndex =
     hoveredIndex === null
       ? expanded
@@ -262,14 +279,6 @@ function PortfolioAssetTrendChart({
       : Math.min(hoveredIndex, visiblePoints.length - 1);
   const activePoint = activeIndex === null ? null : visiblePoints[activeIndex];
   const activeX = activeIndex === null ? null : x(activeIndex);
-  const tooltipAlignment =
-    activeX === null
-      ? ''
-      : activeX > width * 0.72
-        ? ' align-right'
-        : activeX < width * 0.28
-          ? ' align-left'
-          : '';
   const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
   const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
   const dateLabels = Array.from(
@@ -310,31 +319,27 @@ function PortfolioAssetTrendChart({
           <h2 id={titleId}>{expanded ? '자산 추이 상세' : '자산 추이'}</h2>
         </div>
         <div className="portfolio-trend-controls">
-          {points.length > 0 || expanded ? (
-            <>
-              <label className="portfolio-trend-period-select">
-                <span className="portfolio-visually-hidden">자산 추이 기간</span>
-                <select
-                  aria-label="자산 추이 기간"
-                  value={period}
-                  onChange={(event) => onPeriodChange(event.currentTarget.value as TrendPeriod)}
-                >
-                  {TREND_PERIODS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="m4 6 4 4 4-4" />
-                </svg>
-              </label>
-              <div className="portfolio-trend-legend" aria-label="자산 추이 범례">
-                <span className="evaluation">자산</span>
-                <span className="principal">원금</span>
-              </div>
-            </>
-          ) : null}
+          <label className="portfolio-trend-period-select">
+            <span className="portfolio-visually-hidden">자산 추이 기간</span>
+            <select
+              aria-label="자산 추이 기간"
+              value={period}
+              onChange={(event) => onPeriodChange(event.currentTarget.value as TrendPeriod)}
+            >
+              {TREND_PERIODS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="m4 6 4 4 4-4" />
+            </svg>
+          </label>
+          <div className="portfolio-trend-legend" aria-label="자산 추이 범례">
+            <span className="evaluation">자산</span>
+            <span className="principal">매입금액</span>
+          </div>
           {!expanded && onExpand ? (
             <button
               type="button"
@@ -364,7 +369,8 @@ function PortfolioAssetTrendChart({
       ) : null}
       {!loading && !error && points.length === 0 ? (
         <div className="portfolio-tracking-state is-empty" role="status">
-          <strong>표시할 자산이 없습니다</strong>
+          <strong>선택한 기간에 표시할 추이가 없어요</strong>
+          <p>기간을 바꾸거나 거래를 기록해 주세요. 가격 데이터가 준비되면 추이가 표시됩니다.</p>
         </div>
       ) : null}
       {!loading && !error && visiblePoints.length >= 1 && latest ? (
@@ -473,9 +479,9 @@ function PortfolioAssetTrendChart({
             </svg>
             {activePoint && activeX !== null ? (
               <div
-                className={`portfolio-return-tooltip${tooltipAlignment}`}
+                className="portfolio-return-tooltip"
                 style={{
-                  left: `${(activeX / width) * 100}%`,
+                  left: `clamp(min(158px, 50%), ${(activeX / width) * 100}%, max(calc(100% - 158px), 50%))`,
                   top: `${(y(activePoint.totalEvaluationAmount) / height) * 100}%`,
                 }}
                 role="status"
@@ -571,10 +577,18 @@ function compareHoldings(
   };
   if (sort === 'DEFAULT') return 0;
   const key = sortValue[sort];
-  return (second[key] as number) - (first[key] as number);
+  const firstValue = first[key] as number | null;
+  const secondValue = second[key] as number | null;
+  if (firstValue === null) return secondValue === null ? 0 : 1;
+  if (secondValue === null) return -1;
+  return secondValue - firstValue;
 }
 
-export function PortfolioPage() {
+type PortfolioPageProps = {
+  isLoggedIn?: boolean;
+};
+
+export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const {
     holdings,
     loading: holdingsLoading,
@@ -583,26 +597,37 @@ export function PortfolioPage() {
     retry: retryHoldings,
     saveHolding,
     removeHolding,
-  } = usePortfolioHoldings();
+    totalRealizedProfitLoss,
+    revision,
+    createTransaction,
+    updateTransaction,
+    deleteTransaction,
+  } = usePortfolioHoldings(isLoggedIn);
   const [calculation, setCalculation] = useState<PortfolioCalculation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [editor, setEditor] = useState<{ holding?: PortfolioHoldingInput } | null>(null);
+  const [activeTab, setActiveTab] = useState<'holdings' | 'history'>('holdings');
+  const [transactionEditor, setTransactionEditor] = useState<{
+    stock?: StockSearchItem;
+    type?: PortfolioTransactionType;
+    transaction?: PortfolioHoldingHistory;
+  } | null>(null);
+  const [removing, setRemoving] = useState<{
+    holding?: PortfolioHoldingInput;
+    transaction?: PortfolioHoldingHistory;
+  } | null>(null);
+  const [notice, setNotice] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | AssetCategory>('ALL');
   const [sort, setSort] = useState<PortfolioSort>('DEFAULT');
   const [amountsHidden, setAmountsHidden] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
-  const performance = usePortfolioPerformance(trendPeriod, holdings);
+  const performance = usePortfolioPerformance(trendPeriod, holdings, revision, isLoggedIn);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const [expandedContentAssetId, setExpandedContentAssetId] = useState<number | null>(null);
-  const [relatedContents, setRelatedContents] = useState<Record<number, StockRelatedContent[]>>({});
-  const [relatedContentLoadingAssetId, setRelatedContentLoadingAssetId] = useState<number | null>(
-    null,
-  );
-  const [relatedContentErrors, setRelatedContentErrors] = useState<Record<number, string>>({});
+  const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
 
   useEffect(() => {
     if (holdingsLoading) return;
@@ -617,7 +642,9 @@ export function PortfolioPage() {
     setLoading(true);
     setError('');
     calculatePortfolio(holdings, controller.signal)
-      .then(setCalculation)
+      .then((response) => {
+        if (!controller.signal.aborted) setCalculation(response);
+      })
       .catch((caughtError: unknown) => {
         if (controller.signal.aborted) return;
         setCalculation(null);
@@ -632,11 +659,35 @@ export function PortfolioPage() {
     return () => controller.abort();
   }, [holdings, holdingsLoading, retryCount]);
 
-  const dashboardCalculation =
-    calculation ??
-    (!holdingsLoading && !holdingsError && holdings.length === 0
-      ? EMPTY_PORTFOLIO_CALCULATION
-      : null);
+  const dashboardCalculation = useMemo<PortfolioCalculation | null>(
+    () =>
+      calculation ??
+      (!holdingsLoading && !holdingsError
+        ? {
+            ...EMPTY_PORTFOLIO_CALCULATION,
+            pricingStatus: holdings.length ? ('PARTIAL' as const) : ('COMPLETE' as const),
+            unpricedHoldingCount: holdings.length,
+            totalPurchaseAmount: holdings.reduce(
+              (sum, holding) => sum + holding.quantity * holding.averagePurchasePrice,
+              0,
+            ),
+            totalProfitLoss: holdings.length ? null : 0,
+            totalReturnRate: holdings.length ? null : 0,
+            holdings: holdings.map((holding) => ({
+              ...holding,
+              priceAvailable: false,
+              baseDate: null,
+              closePrice: null,
+              purchaseAmount: holding.quantity * holding.averagePurchasePrice,
+              evaluationAmount: null,
+              profitLoss: null,
+              returnRate: null,
+              weight: null,
+            })),
+          }
+        : null),
+    [calculation, holdingsLoading, holdingsError, holdings],
+  );
 
   const visibleHoldings = useMemo(() => {
     const filtered =
@@ -649,102 +700,41 @@ export function PortfolioPage() {
     () => toPortfolioAnalysisAssets(calculation?.holdings ?? []),
     [calculation],
   );
-  const expandedHolding = dashboardCalculation?.holdings.find(
-    (holding) => holding.assetId === expandedContentAssetId,
-  );
-  const trendPoints = holdings.length === 0 ? [] : performance.points;
+  const trendPoints = performance.points;
 
   async function save(nextHolding: PortfolioHoldingInput) {
     await saveHolding(nextHolding);
     setEditor(null);
+    setNotice(isLoggedIn ? '보유정보를 저장했어요.' : '보유정보를 현재 탭에 임시 보관했어요.');
   }
 
-  async function toggleRelatedContents(assetId: number) {
-    if (expandedContentAssetId === assetId) {
-      setExpandedContentAssetId(null);
-      return;
-    }
-
-    setExpandedContentAssetId(assetId);
-    if (Object.prototype.hasOwnProperty.call(relatedContents, assetId)) return;
-
-    setRelatedContentLoadingAssetId(assetId);
-    setRelatedContentErrors((current) => ({ ...current, [assetId]: '' }));
-    try {
-      const response = await getStockRelatedContents(assetId);
-      setRelatedContents((current) => ({ ...current, [assetId]: response.contents }));
-    } catch (caughtError) {
-      setRelatedContentErrors((current) => ({
-        ...current,
-        [assetId]:
-          caughtError instanceof Error ? caughtError.message : '소식을 불러오지 못했습니다.',
-      }));
-    } finally {
-      setRelatedContentLoadingAssetId((current) => (current === assetId ? null : current));
-    }
-  }
-
-  function displayWon(value: number, signed = false) {
+  function displayWon(value: number | null, signed = false) {
     if (amountsHidden) return HIDDEN_AMOUNT;
+    if (value === null) return '—';
     return signed ? formatSignedWon(value) : formatWon(value);
-  }
-
-  function renderRelatedContentPanel() {
-    if (!expandedHolding) return null;
-
-    const contents = relatedContents[expandedHolding.assetId] ?? [];
-    const visibleContents = contents.slice(0, RELATED_CONTENT_PREVIEW_COUNT);
-
-    return (
-      <aside className="portfolio-related-content-panel" aria-labelledby="related-content-title">
-        <div className="portfolio-related-content-heading">
-          <strong id="related-content-title">소식</strong>
-          {contents.length > 0 ? <span>{contents.length}건</span> : null}
-        </div>
-        {relatedContentLoadingAssetId === expandedHolding.assetId ? (
-          <p role="status">소식을 불러오는 중입니다.</p>
-        ) : null}
-        {relatedContentErrors[expandedHolding.assetId] ? (
-          <p role="alert">{relatedContentErrors[expandedHolding.assetId]}</p>
-        ) : null}
-        {relatedContentLoadingAssetId !== expandedHolding.assetId &&
-        !relatedContentErrors[expandedHolding.assetId] &&
-        (relatedContents[expandedHolding.assetId] ?? []).length === 0 ? (
-          <p>등록된 소식이 없습니다.</p>
-        ) : null}
-        {contents.length > 0 ? (
-          <ul>
-            {visibleContents.map((content) => (
-              <li key={content.id}>
-                {content.imageUrl ? <img src={content.imageUrl} alt="" loading="lazy" /> : null}
-                <div>
-                  <span>{STOCK_CONTENT_SOURCE_LABELS[content.sourceType]}</span>
-                  <a
-                    href={content.url}
-                    target={content.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}
-                    rel={content.sourceType === 'INTERNAL_NEWS' ? undefined : 'noreferrer'}
-                  >
-                    {content.title}
-                  </a>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {contents.length > RELATED_CONTENT_PREVIEW_COUNT ? (
-          <a className="portfolio-related-content-more" href={`/stocks/${expandedHolding.assetId}`}>
-            더보기
-          </a>
-        ) : null}
-      </aside>
-    );
   }
 
   return (
     <main className="portfolio-page">
-      <div className="portfolio-page-title">
-        <h1>내 포트폴리오</h1>
-      </div>
+      <header className="portfolio-page-title">
+        <div>
+          <span className="portfolio-eyebrow">MY PORTFOLIO</span>
+          <h1>내 포트폴리오</h1>
+        </div>
+        <div className="portfolio-page-actions">
+          <button
+            type="button"
+            className="portfolio-primary-button"
+            disabled={holdingsLoading || !!holdingsError}
+            onClick={() => (isLoggedIn ? setTransactionEditor({}) : setEditor({}))}
+          >
+            <span aria-hidden="true">＋</span> 자산 추가
+          </button>
+        </div>
+      </header>
+      <p className="portfolio-save-notice" role="status">
+        {notice || (!isLoggedIn ? '비회원 포트폴리오는 현재 탭에만 임시 보관돼요.' : '')}
+      </p>
 
       {holdingsLoading || loading ? (
         <p className="portfolio-state" aria-live="polite">
@@ -765,57 +755,52 @@ export function PortfolioPage() {
         </section>
       ) : null}
 
-      {!holdingsLoading && !loading && !holdingsError && dashboardCalculation ? (
-        <div
-          className={`portfolio-dashboard-layout${expandedHolding ? ' has-related-content' : ''}`}
-        >
+      {!holdingsLoading &&
+      (!loading || calculation !== null) &&
+      !holdingsError &&
+      dashboardCalculation ? (
+        <div aria-busy={loading} className="portfolio-dashboard-layout">
           <div className="portfolio-dashboard-main">
             <dl className="portfolio-overview" aria-label="자산 요약">
               <div className="portfolio-summary-total">
                 <div className="portfolio-balance-label">
-                  <dt>전체 자산 평가금액</dt>
+                  <dt>
+                    {dashboardCalculation.pricingStatus === 'PARTIAL'
+                      ? '시세 확인된 자산 평가금액'
+                      : '전체 자산 평가금액'}
+                  </dt>
                   <button
                     type="button"
                     className="portfolio-privacy-button"
                     aria-pressed={amountsHidden}
                     onClick={() => setAmountsHidden((hidden) => !hidden)}
                   >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
-                      <circle cx="12" cy="12" r="2.75" />
-                    </svg>
                     {amountsHidden ? '금액 보기' : '금액 숨기기'}
                   </button>
                 </div>
                 <dd className="portfolio-balance-value">
-                  {displayWon(dashboardCalculation.totalEvaluationAmount)}
-                </dd>
-                <dd className="portfolio-daily-performance">
-                  <span>오늘 손익</span>
-                  {dashboardCalculation.dailyProfitLoss !== null &&
-                  dashboardCalculation.dailyReturnRate !== null ? (
-                    <strong className={profitClass(dashboardCalculation.dailyProfitLoss)}>
-                      {displayWon(dashboardCalculation.dailyProfitLoss, true)}
-                      <small>{formatPercent(dashboardCalculation.dailyReturnRate, true)}</small>
-                    </strong>
-                  ) : (
-                    <strong
-                      className="portfolio-pending-daily"
-                      aria-label={
-                        dashboardCalculation.holdings.length === 0 ? '표시할 자산 없음' : undefined
-                      }
-                    >
-                      {dashboardCalculation.holdings.length === 0 ? '-' : '계산 준비 중'}
-                    </strong>
+                  {displayWon(
+                    dashboardCalculation.pricingStatus === 'PARTIAL' &&
+                      dashboardCalculation.pricedHoldingCount === 0
+                      ? null
+                      : dashboardCalculation.totalEvaluationAmount,
                   )}
                 </dd>
+                <dd className="portfolio-daily-performance">
+                  <span>최근 거래일 손익</span>
+                  <strong className={profitClass(dashboardCalculation.dailyProfitLoss)}>
+                    {displayWon(dashboardCalculation.dailyProfitLoss, true)}{' '}
+                    <small>{formatPercent(dashboardCalculation.dailyReturnRate, true)}</small>
+                  </strong>
+                </dd>
               </div>
               <div>
-                <dt>투자원금</dt>
+                <dt>보유자산 매입금액</dt>
                 <dd>{displayWon(dashboardCalculation.totalPurchaseAmount)}</dd>
+                <small>현재 보유 수량 기준</small>
               </div>
               <div>
-                <dt>누적 손익</dt>
+                <dt>평가손익</dt>
                 <dd className={profitClass(dashboardCalculation.totalProfitLoss)}>
                   {displayWon(dashboardCalculation.totalProfitLoss, true)}
                 </dd>
@@ -823,23 +808,39 @@ export function PortfolioPage() {
                   {formatPercent(dashboardCalculation.totalReturnRate, true)}
                 </small>
               </div>
-              <div>
-                <dt>보유 자산</dt>
-                <dd>{dashboardCalculation.holdings.length}개</dd>
-                <small>
-                  주식{' '}
-                  {
-                    dashboardCalculation.holdings.filter((holding) => holding.category === 'STOCK')
-                      .length
-                  }{' '}
-                  · ETF{' '}
-                  {
-                    dashboardCalculation.holdings.filter((holding) => holding.category === 'ETF')
-                      .length
-                  }
-                </small>
-              </div>
+              {isLoggedIn && (
+                <div>
+                  <dt>누적 실현손익</dt>
+                  <dd className={profitClass(totalRealizedProfitLoss)}>
+                    {displayWon(totalRealizedProfitLoss, true)}
+                  </dd>
+                  <small>매도로 확정된 손익</small>
+                </div>
+              )}
             </dl>
+            <div className="portfolio-price-status" role="status">
+              {dashboardCalculation.pricingStatus === 'PARTIAL' ? (
+                <p>
+                  <span className="portfolio-status-dot is-pending" />
+                  {dashboardCalculation.unpricedHoldingCount}개 종목의 시세를 확인하지 못했어요.
+                  평가금액과 비중은 시세가 있는 자산만 반영하며, 전체 손익은 표시하지 않아요.
+                </p>
+              ) : dashboardCalculation.pricingStatus === 'MIXED_DATES' ? (
+                <p>
+                  <span className="portfolio-status-dot is-pending" />
+                  종목별 가격 기준일이 달라요. 최근 거래일 손익은 표시하지 않아요.
+                </p>
+              ) : (
+                <p>
+                  <span className="portfolio-status-dot" />
+                  {dashboardCalculation.baseDate
+                    ? `${dashboardCalculation.baseDate.replaceAll('-', '.')} 종가 기준`
+                    : isLoggedIn
+                      ? '보유자산을 등록하거나 거래를 기록해 시작하세요.'
+                      : '보유자산을 등록해 시작하세요.'}
+                </p>
+              )}
+            </div>
 
             <section className="portfolio-analysis" aria-labelledby="portfolio-analysis-title">
               <div className="portfolio-analysis-toolbar">
@@ -862,201 +863,243 @@ export function PortfolioPage() {
                 </button>
               </div>
               {analysisExpanded ? (
-                <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
-                  <PortfolioAssetTrendChart
-                    points={trendPoints}
-                    loading={performance.loading && !dashboardCalculation}
-                    error={dashboardCalculation ? '' : performance.error}
-                    onRetry={performance.retry}
-                    amountsHidden={amountsHidden}
-                    period={trendPeriod}
-                    onPeriodChange={setTrendPeriod}
-                    onExpand={(trigger) => {
-                      trendDialogTriggerRef.current = trigger;
-                      setTrendDialogOpen(true);
-                    }}
-                  />
+                <div
+                  id="portfolio-analysis-content"
+                  className={`portfolio-dashboard-grid${isLoggedIn ? '' : ' is-guest'}`}
+                >
+                  {isLoggedIn && (
+                    <PortfolioAssetTrendChart
+                      points={trendPoints}
+                      loading={performance.loading}
+                      error={performance.error}
+                      onRetry={performance.retry}
+                      amountsHidden={amountsHidden}
+                      period={trendPeriod}
+                      onPeriodChange={setTrendPeriod}
+                      onExpand={(trigger) => {
+                        trendDialogTriggerRef.current = trigger;
+                        setTrendDialogOpen(true);
+                      }}
+                    />
+                  )}
                   <section className="portfolio-composition" aria-labelledby="composition-title">
                     <div className="portfolio-dashboard-heading">
                       <h2 id="composition-title">자산 구성</h2>
                     </div>
-                    {dashboardCalculation.holdings.length === 0 ? (
+                    {dashboardCalculation.holdings.length === 0 ||
+                    dashboardCalculation.pricedHoldingCount === 0 ? (
                       <p className="portfolio-module-empty">표시할 자산이 없습니다</p>
                     ) : (
-                      <CompositionChart calculation={dashboardCalculation} />
+                      <>
+                        <CompositionChart calculation={dashboardCalculation} />
+                        {dashboardCalculation.pricingStatus === 'PARTIAL' && (
+                          <p className="portfolio-field-note">시세 확인된 자산 기준</p>
+                        )}
+                      </>
                     )}
                   </section>
                 </div>
               ) : null}
             </section>
 
-            <section className="portfolio-holdings" aria-labelledby="holdings-title">
-              <div className="portfolio-section-title">
-                <h2 id="holdings-title">
-                  보유 자산 <span>{dashboardCalculation.holdings.length}</span>
-                </h2>
-                <div className="portfolio-holdings-actions">
-                  <label className="portfolio-sort-control">
-                    <span className="sr-only">정렬 기준</span>
-                    <select
-                      aria-label="보유 자산 정렬"
-                      value={sort}
-                      onChange={(event) => setSort(event.target.value as PortfolioSort)}
-                    >
-                      <option value="DEFAULT">기본 순서</option>
-                      <option value="EVALUATION">평가금액 높은 순</option>
-                      <option value="PROFIT">손익 높은 순</option>
-                      <option value="RETURN">수익률 높은 순</option>
-                      <option value="WEIGHT">비중 높은 순</option>
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    className="portfolio-primary-button"
-                    onClick={() => setEditor({})}
-                  >
-                    <svg viewBox="0 0 20 20" aria-hidden="true">
-                      <path d="M10 4.5v11M4.5 10h11" />
-                    </svg>
-                    자산 추가
-                  </button>
-                </div>
+            {isLoggedIn && (
+              <div className="portfolio-ledger-tabs" role="group" aria-label="포트폴리오 내역 보기">
+                <button
+                  type="button"
+                  aria-pressed={activeTab === 'holdings'}
+                  onClick={() => setActiveTab('holdings')}
+                >
+                  보유 자산 <span>{holdings.length}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={activeTab === 'history'}
+                  onClick={() => setActiveTab('history')}
+                >
+                  거래·변경 내역
+                </button>
               </div>
-              <div className="portfolio-holdings-layout">
-                <div className="portfolio-holdings-table-column">
-                  <div className="portfolio-holdings-toolbar">
-                    <div className="portfolio-filters" role="group" aria-label="자산 유형">
-                      {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
-                        <button
-                          key={category}
-                          type="button"
-                          aria-pressed={categoryFilter === category}
-                          onClick={() => setCategoryFilter(category)}
-                        >
-                          {category === 'ALL' ? '전체' : getCategoryLabel(category)}
-                        </button>
-                      ))}
+            )}
+            {isLoggedIn && activeTab === 'history' ? (
+              <PortfolioHistory
+                revision={revision}
+                amountsHidden={amountsHidden}
+                onCreate={() => setTransactionEditor({})}
+                onEdit={(transaction) => setTransactionEditor({ transaction })}
+                onDelete={(transaction) => setRemoving({ transaction })}
+              />
+            ) : (
+              <section className="portfolio-holdings" aria-labelledby="holdings-title">
+                <div className="portfolio-section-title">
+                  <h2 id="holdings-title">
+                    보유 자산 <span>{dashboardCalculation.holdings.length}</span>
+                  </h2>
+                  <div className="portfolio-holdings-actions">
+                    <label className="portfolio-sort-control">
+                      <span className="sr-only">정렬 기준</span>
+                      <select
+                        aria-label="보유 자산 정렬"
+                        value={sort}
+                        onChange={(event) => setSort(event.target.value as PortfolioSort)}
+                      >
+                        <option value="DEFAULT">기본 순서</option>
+                        <option value="EVALUATION">평가금액 높은 순</option>
+                        <option value="PROFIT">손익 높은 순</option>
+                        <option value="RETURN">수익률 높은 순</option>
+                        <option value="WEIGHT">비중 높은 순</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+                <div className="portfolio-holdings-layout">
+                  <div className="portfolio-holdings-table-column">
+                    <div className="portfolio-holdings-toolbar">
+                      <div className="portfolio-filters" role="group" aria-label="자산 유형">
+                        {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
+                          <button
+                            key={category}
+                            type="button"
+                            aria-pressed={categoryFilter === category}
+                            onClick={() => setCategoryFilter(category)}
+                          >
+                            {category === 'ALL' ? '전체' : getCategoryLabel(category)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div
+                      className="portfolio-table-wrap"
+                      tabIndex={0}
+                      role="region"
+                      aria-label="보유 자산 표, 좁은 화면에서 가로 스크롤"
+                    >
+                      <table>
+                        <thead>
+                          <tr>
+                            <th scope="col">종목</th>
+                            <th scope="col">보유수량</th>
+                            <th scope="col">평균 매수가</th>
+                            <th scope="col">최근 종가</th>
+                            <th scope="col">평가금액</th>
+                            <th scope="col">손익 · 수익률</th>
+                            <th scope="col">비중</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleHoldings.map((holding) => (
+                            <tr
+                              key={holding.assetId}
+                              className="portfolio-holding-row"
+                              onClick={() => setSelectedStock(holding)}
+                            >
+                              <td>
+                                <div className="portfolio-asset">
+                                  <span className="portfolio-monogram">
+                                    {holding.name.slice(0, 1)}
+                                  </span>
+                                  <div>
+                                    <button
+                                      type="button"
+                                      className="portfolio-asset-link portfolio-asset-trigger"
+                                      aria-label={`${holding.name} 보유 상세`}
+                                      aria-haspopup="dialog"
+                                      onClick={() => setSelectedStock(holding)}
+                                    >
+                                      {holding.name}
+                                      <span aria-hidden="true"> ›</span>
+                                    </button>
+                                    <small>
+                                      {getCategoryLabel(holding.category)} · {holding.assetCode} ·{' '}
+                                      {holding.market}
+                                    </small>
+                                  </div>
+                                </div>
+                              </td>
+                              <td data-label="보유수량">
+                                {numberFormatter.format(holding.quantity)}주
+                              </td>
+                              <td data-label="평균 매수가">
+                                {displayWon(holding.averagePurchasePrice)}
+                              </td>
+                              <td data-label="최근 종가">
+                                <span>{formatWon(holding.closePrice)}</span>
+                                <small className="portfolio-price-date">
+                                  {holding.priceAvailable
+                                    ? holding.baseDate?.replaceAll('-', '.')
+                                    : '시세 없음'}
+                                </small>
+                              </td>
+                              <td data-label="평가금액" className="portfolio-value">
+                                {displayWon(holding.evaluationAmount)}
+                              </td>
+                              <td
+                                data-label="손익 · 수익률"
+                                className={`portfolio-profit-cell ${profitClass(holding.profitLoss)}`}
+                              >
+                                <strong>{displayWon(holding.profitLoss, true)}</strong>
+                                <small>{formatPercent(holding.returnRate, true)}</small>
+                              </td>
+                              <td data-label="비중">{formatPercent(holding.weight)}</td>
+                            </tr>
+                          ))}
+                          {visibleHoldings.length === 0 ? (
+                            <tr>
+                              <td className="portfolio-no-results" colSpan={7}>
+                                {dashboardCalculation.holdings.length === 0
+                                  ? '표시할 자산이 없습니다'
+                                  : '선택한 유형의 보유 자산이 없습니다.'}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="portfolio-table-note">
+                      <span className="sr-only" role="status">
+                        {categoryFilter === 'ALL' ? '전체' : getCategoryLabel(categoryFilter)}{' '}
+                        {visibleHoldings.length}개 자산 표시 중
+                      </span>
+                      <span>매수 비용은 평균 매입가에, 매도 비용은 실현손익에 반영됩니다.</span>
                     </div>
                   </div>
-                  <div
-                    className="portfolio-table-wrap"
-                    tabIndex={0}
-                    role="region"
-                    aria-label="보유 자산 표, 좁은 화면에서 가로 스크롤"
-                  >
-                    <table>
-                      <thead>
-                        <tr>
-                          <th scope="col">종목</th>
-                          <th scope="col">보유수량</th>
-                          <th scope="col">평균 매수가</th>
-                          <th scope="col">현재가</th>
-                          <th scope="col">평가금액</th>
-                          <th scope="col">손익 · 수익률</th>
-                          <th scope="col">비중</th>
-                          <th scope="col">
-                            <span className="sr-only">관리</span>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visibleHoldings.map((holding) => (
-                          <tr key={holding.assetId}>
-                            <td>
-                              <div className="portfolio-asset">
-                                <span className="portfolio-monogram">
-                                  {holding.name.slice(0, 1)}
-                                </span>
-                                <div>
-                                  <a
-                                    className="portfolio-asset-link"
-                                    href={`/stocks/${holding.assetId}`}
-                                  >
-                                    {holding.name}
-                                  </a>
-                                  <small>
-                                    {getCategoryLabel(holding.category)} · {holding.assetCode} ·{' '}
-                                    {holding.market}
-                                  </small>
-                                </div>
-                              </div>
-                            </td>
-                            <td>{numberFormatter.format(holding.quantity)}주</td>
-                            <td>{displayWon(holding.averagePurchasePrice)}</td>
-                            <td>{formatWon(holding.closePrice)}</td>
-                            <td className="portfolio-value">
-                              {displayWon(holding.evaluationAmount)}
-                            </td>
-                            <td
-                              className={`portfolio-profit-cell ${profitClass(holding.profitLoss)}`}
-                            >
-                              <strong>{displayWon(holding.profitLoss, true)}</strong>
-                              <small>{formatPercent(holding.returnRate, true)}</small>
-                            </td>
-                            <td>{formatPercent(holding.weight)}</td>
-                            <td>
-                              <div className="portfolio-row-actions">
-                                <button
-                                  type="button"
-                                  disabled
-                                  aria-expanded={expandedContentAssetId === holding.assetId}
-                                  onClick={() => void toggleRelatedContents(holding.assetId)}
-                                >
-                                  {expandedContentAssetId === holding.assetId
-                                    ? '소식 닫기'
-                                    : '소식'}
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={holdingsSaving}
-                                  onClick={() => setEditor({ holding })}
-                                >
-                                  수정
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={holdingsSaving}
-                                  onClick={() => void removeHolding(holding.assetId)}
-                                >
-                                  삭제
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                        {visibleHoldings.length === 0 ? (
-                          <tr>
-                            <td className="portfolio-no-results" colSpan={8}>
-                              {dashboardCalculation.holdings.length === 0
-                                ? '표시할 자산이 없습니다'
-                                : '선택한 유형의 보유 자산이 없습니다.'}
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="portfolio-table-note">
-                    <span className="sr-only" role="status">
-                      {categoryFilter === 'ALL' ? '전체' : getCategoryLabel(categoryFilter)}{' '}
-                      {visibleHoldings.length}개 자산 표시 중
-                    </span>
-                    <span>수수료·세금 미반영</span>
-                  </div>
                 </div>
+              </section>
+            )}
+            {holdings.length === 0 && activeTab === 'holdings' && (
+              <div className="portfolio-ledger-empty">
+                <span className="portfolio-empty-mark" aria-hidden="true">
+                  ＋
+                </span>
+                <h3>새로운 자산 기록을 시작해 보세요</h3>
+                <p>
+                  {isLoggedIn
+                    ? '보유자산이 없어도 이전 거래 내역과 실현손익은 남아 있어요.'
+                    : '관심 있는 자산을 추가해 평가금액을 확인해 보세요.'}
+                </p>
+                <button
+                  className="portfolio-secondary-button"
+                  onClick={() => (isLoggedIn ? setTransactionEditor({}) : setEditor({}))}
+                >
+                  {isLoggedIn ? '첫 거래 기록하기' : '첫 자산 추가하기'}
+                </button>
               </div>
-            </section>
-            <PortfolioAnalysis assets={analysisAssets} />
+            )}
+            {dashboardCalculation.pricingStatus === 'PARTIAL' ? (
+              <p className="portfolio-field-note">
+                전체 자산의 시세가 확인되면 포트폴리오 영향 분석을 이용할 수 있어요.
+              </p>
+            ) : (
+              <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
+            )}
           </div>
-          {renderRelatedContentPanel()}
         </div>
       ) : null}
 
-      {trendDialogOpen ? (
+      {isLoggedIn && trendDialogOpen ? (
         <PortfolioTrendDialog
           points={trendPoints}
-          loading={performance.loading && !calculation}
-          error={calculation ? '' : performance.error}
+          loading={performance.loading}
+          error={performance.error}
           onRetry={performance.retry}
           amountsHidden={amountsHidden}
           period={trendPeriod}
@@ -1068,14 +1111,141 @@ export function PortfolioPage() {
         />
       ) : null}
 
-      {editor ? (
-        <PortfolioEditor
-          holding={editor.holding}
-          savedAssetIds={holdings.map((holding) => holding.assetId)}
-          onClose={() => setEditor(null)}
-          onSave={save}
-        />
-      ) : null}
+      {(selectedStock || transactionEditor || editor || removing) && (
+        <PortfolioDialog
+          titleId={
+            removing
+              ? 'portfolio-confirm-title'
+              : editor
+                ? 'portfolio-dialog-title'
+                : transactionEditor
+                  ? 'transaction-title'
+                  : 'holding-detail-title'
+          }
+          busy={holdingsSaving}
+          onClose={() => {
+            if (removing) setRemoving(null);
+            else if (editor) setEditor(null);
+            else if (transactionEditor) setTransactionEditor(null);
+            else setSelectedStock(null);
+          }}
+          className={
+            removing
+              ? 'portfolio-confirm'
+              : selectedStock && !transactionEditor && !editor
+                ? 'portfolio-holding-detail'
+                : editor
+                  ? 'portfolio-holding-sheet'
+                  : ''
+          }
+        >
+          {selectedStock && (
+            <div
+              className="portfolio-detail-view"
+              hidden={!!(transactionEditor || editor || removing)}
+            >
+              <PortfolioHoldingDetail
+                stock={selectedStock}
+                holding={holdings.find((item) => item.assetId === selectedStock.assetId)}
+                valuation={dashboardCalculation?.holdings.find(
+                  (item) => item.assetId === selectedStock.assetId,
+                )}
+                revision={revision}
+                isLoggedIn={isLoggedIn}
+                amountsHidden={amountsHidden}
+                busy={holdingsSaving || loading}
+                onClose={() => setSelectedStock(null)}
+                onTrade={(type) => setTransactionEditor({ stock: selectedStock, type })}
+                onAdjust={(holding) => setEditor({ holding })}
+                onRemove={(holding) => setRemoving({ holding })}
+                onEditTransaction={(transaction) => setTransactionEditor({ transaction })}
+                onDeleteTransaction={(transaction) => setRemoving({ transaction })}
+              />
+            </div>
+          )}
+
+          {transactionEditor && (
+            <PortfolioTransactionEditor
+              {...transactionEditor}
+              onOpeningBalance={
+                !selectedStock && !transactionEditor.transaction
+                  ? () => {
+                      setTransactionEditor(null);
+                      setEditor({});
+                    }
+                  : undefined
+              }
+              onClose={() => setTransactionEditor(null)}
+              onSave={async (request) => {
+                const transaction = transactionEditor.transaction;
+                if (transaction) {
+                  const { assetId: _assetId, type: _type, ...update } = request;
+                  await updateTransaction(transaction.historyId, transaction.assetId, update);
+                } else await createTransaction(request);
+                setTransactionEditor(null);
+                setNotice(
+                  transaction ? '거래를 수정하고 자산을 다시 계산했어요.' : '거래를 기록했어요.',
+                );
+              }}
+            />
+          )}
+          {removing && (
+            <PortfolioConfirmDialog
+              title={removing.transaction ? '거래 삭제' : '보유자산 제거'}
+              onClose={() => setRemoving(null)}
+              onConfirm={async () => {
+                if (removing.transaction)
+                  await deleteTransaction(
+                    removing.transaction.historyId,
+                    removing.transaction.assetId,
+                  );
+                else if (removing.holding) await removeHolding(removing.holding.assetId);
+                setRemoving(null);
+                setNotice('삭제 내용을 반영했어요.');
+              }}
+            >
+              <strong>{removing.transaction?.name ?? removing.holding?.name}</strong>
+              {removing.transaction ? (
+                <>
+                  <p>
+                    {removing.transaction.effectiveDate} ·{' '}
+                    {removing.transaction.changeType === 'BUY' ? '매수' : '매도'} ·{' '}
+                    {removing.transaction.transactionQuantity}주 ·{' '}
+                    {displayWon(removing.transaction.unitPrice)}
+                  </p>
+                  <p>
+                    이 거래를 삭제하면 이후 보유 수량, 평균 매입가, 실현손익과 자산 추이가 다시
+                    계산됩니다.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  보유 목록에서 제거합니다. 매도로 처리되지 않으며 실현손익이 발생하지 않습니다.
+                  {isLoggedIn ? '기존 거래 기록은 유지됩니다.' : '브라우저 세션에서 제거됩니다.'}
+                </p>
+              )}
+            </PortfolioConfirmDialog>
+          )}
+
+          {editor ? (
+            <PortfolioEditor
+              isLoggedIn={isLoggedIn}
+              holding={editor.holding}
+              onRecordTransaction={
+                isLoggedIn && !editor.holding
+                  ? () => {
+                      setEditor(null);
+                      setTransactionEditor({});
+                    }
+                  : undefined
+              }
+              savedAssetIds={holdings.map((holding) => holding.assetId)}
+              onClose={() => setEditor(null)}
+              onSave={save}
+            />
+          ) : null}
+        </PortfolioDialog>
+      )}
     </main>
   );
 }
