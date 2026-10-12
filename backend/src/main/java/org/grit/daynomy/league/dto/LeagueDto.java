@@ -169,7 +169,6 @@ public final class LeagueDto {
       BigDecimal reviewCompletionRate,
       boolean followed,
       String profileImageUrl,
-      BigDecimal cumulativeReturnRate,
       LocalDate trackingStartedOn,
       BigDecimal currentHoldingWeight,
       int consecutiveRecordedWeeks) {}
@@ -195,8 +194,6 @@ public final class LeagueDto {
       BigDecimal maxDrawdownRate,
       BigDecimal volatilityRate,
       BigDecimal maxHoldingWeight,
-      BigDecimal cumulativeReturnRate,
-      BigDecimal participationReturnRate,
       LocalDate trackingStartedOn,
       LocalDate eligibleFrom,
       BigDecimal currentHoldingWeight,
@@ -228,7 +225,6 @@ public final class LeagueDto {
       BigDecimal weeklyReturnRate,
       List<DailyReturnPointResponse> days,
       LocalDate trackingStartedOn,
-      BigDecimal participationReturnRate,
       CollectionStatus collectionStatus) {}
 
   public record PublicInvestorResponse(

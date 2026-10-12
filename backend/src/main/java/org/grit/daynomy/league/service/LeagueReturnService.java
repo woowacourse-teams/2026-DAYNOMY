@@ -138,16 +138,17 @@ public class LeagueReturnService {
     List<SharedHoldingHistory> holdings =
         SharedHoldingHistory.reconstructHoldings(
             historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                portfolio.getId(), baseDate.atStartOfDay(SEOUL).toInstant()));
+                portfolio.getId(),
+                baseline ? day.closesAt().plusNanos(1) : baseDate.atStartOfDay(SEOUL).toInstant()));
     if (holdings.isEmpty()) return exclude(result, previousResult, "NO_HOLDINGS", calculatedAt);
     MarketTradingDay previousDay =
-        tradingDayRepository
-            .findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(baseDate)
-            .orElse(null);
+        baseline
+            ? null
+            : tradingDayRepository
+                .findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(baseDate)
+                .orElse(null);
     if (!baseline && (previousDay == null || previousDay.getCollectedAt() == null))
       return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
-    BigDecimal marketStart = BigDecimal.ZERO;
-    boolean marketComplete = previousDay != null && previousDay.getCollectedAt() != null;
     BigDecimal start = BigDecimal.ZERO;
     BigDecimal end = BigDecimal.ZERO;
     BigDecimal largest = BigDecimal.ZERO;
@@ -159,15 +160,11 @@ public class LeagueReturnService {
               && asset.getCategory() != AssetCategory.ETF))
         return exclude(result, previousResult, "UNSUPPORTED_ASSET", calculatedAt);
       StockDailyPrice current = findPrice(asset.getId(), baseDate);
-      StockDailyPrice marketPrevious =
-          marketComplete ? findPrice(asset.getId(), previousDay.getBaseDate()) : null;
-      if (marketPrevious == null) marketComplete = false;
-      StockDailyPrice previous = baseline ? current : marketPrevious;
+      StockDailyPrice previous =
+          baseline ? current : findPrice(asset.getId(), previousDay.getBaseDate());
       if (previous == null || current == null)
         return exclude(result, previousResult, "MISSING_PRICE", calculatedAt);
       BigDecimal quantity = BigDecimal.valueOf(holding.getQuantity());
-      if (marketPrevious != null)
-        marketStart = marketStart.add(marketPrevious.getClosePrice().multiply(quantity));
       BigDecimal position = previous.getClosePrice().multiply(quantity);
       start = start.add(position);
       end = end.add(current.getClosePrice().multiply(quantity));
@@ -177,15 +174,7 @@ public class LeagueReturnService {
     if (start.signum() <= 0) return exclude(result, previousResult, "NO_HOLDINGS", calculatedAt);
     BigDecimal weight = largest.multiply(HUNDRED).divide(start, 2, RoundingMode.HALF_UP);
     if (baseline)
-      result.completeBaseline(
-          end.setScale(2, RoundingMode.HALF_UP),
-          weight,
-          marketComplete && marketStart.signum() > 0
-              ? end.subtract(marketStart)
-                  .multiply(HUNDRED)
-                  .divide(marketStart, 4, RoundingMode.HALF_UP)
-              : null,
-          calculatedAt);
+      result.completeBaseline(end.setScale(2, RoundingMode.HALF_UP), weight, calculatedAt);
     else
       result.complete(
           end.subtract(start).multiply(HUNDRED).divide(start, 4, RoundingMode.HALF_UP),

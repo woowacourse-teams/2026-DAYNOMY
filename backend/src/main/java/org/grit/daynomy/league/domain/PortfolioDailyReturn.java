@@ -62,19 +62,14 @@ public class PortfolioDailyReturn extends BaseEntity {
   @Column(name = "tracking_baseline", nullable = false)
   private boolean trackingBaseline;
 
+  // 기존 집계 버전의 시장 수익률 메타데이터를 보존한다.
   @Column(name = "baseline_market_return_rate", precision = 10, scale = 4)
   private BigDecimal baselineMarketReturnRate;
 
-  public BigDecimal rankingReturnRate() {
-    return trackingBaseline ? baselineMarketReturnRate : dailyReturnRate;
-  }
-
-  public void completeBaseline(
-      BigDecimal evaluation, BigDecimal maxWeight, BigDecimal marketRate, Instant calculatedAt) {
+  public void completeBaseline(BigDecimal evaluation, BigDecimal maxWeight, Instant calculatedAt) {
     complete(
         BigDecimal.ZERO.setScale(4), evaluation, evaluation, maxWeight, maxWeight, calculatedAt);
     trackingBaseline = true;
-    baselineMarketReturnRate = marketRate;
   }
 
   @Column(name = "ineligible_reason", length = 40)

@@ -127,7 +127,44 @@ class LeagueReturnServiceTest {
     assertThat(results.getAllValues().getLast().getDailyReturnRate()).isEqualByComparingTo("10");
     var profile = profileRepository.findByIdForUpdate(1L).orElseThrow();
     assertThat(profile.getTrackingStartedOn()).isEqualTo(monday);
-    assertThat(profile.eligibleFrom()).isEqualTo(monday.plusWeeks(1));
+    assertThat(profile.eligibleFrom()).isEqualTo(monday);
+    then(historyRepository)
+        .should()
+        .findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
+            2L, first.closesAt().plusNanos(1));
+  }
+
+  @Test
+  void enrollmentAfterCloseStartsAtTheNextTradingClose() {
+    LocalDate monday = LocalDate.of(2026, 9, 21);
+    SharedPortfolio portfolio = profile(1L, monday);
+    var profile = profileRepository.findByIdForUpdate(1L).orElseThrow();
+    Instant enrolled = monday.atTime(16, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant();
+    ReflectionTestUtils.setField(profile, "leagueEnabledAt", enrolled);
+    ReflectionTestUtils.setField(profile.getParticipations().getFirst(), "startedAt", enrolled);
+    Asset asset = stock();
+    var history =
+        new SharedHoldingHistory(
+            new SharedHolding(portfolio, asset, 1, new BigDecimal("100")),
+            SharedHoldingHistory.ChangeType.ADDED);
+    given(
+            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
+                eq(2L), any(Instant.class)))
+        .willReturn(List.of(history));
+    var tuesday = day(monday.plusDays(1), true);
+    given(
+            tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
+                any(LocalDate.class)))
+        .willReturn(List.of(day(monday, true), tuesday));
+    price(asset, tuesday.getBaseDate(), "110");
+
+    assertThat(service.recalculate()).isEqualTo(1);
+    var result = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should().save(result.capture());
+    assertThat(result.getValue().getBaseDate()).isEqualTo(tuesday.getBaseDate());
+    assertThat(result.getValue().getDailyReturnRate()).isZero();
+    assertThat(profile.getTrackingStartedOn()).isEqualTo(tuesday.getBaseDate());
+    assertThat(profile.eligibleFrom()).isEqualTo(tuesday.getBaseDate());
   }
 
   @Test
@@ -174,7 +211,6 @@ class LeagueReturnServiceTest {
     given(profileRepository.findByIdForUpdate(9L))
         .willThrow(new IllegalStateException("test failure"));
     SharedPortfolio portfolio = profile(1L, LocalDate.of(2026, 9, 20));
-    org.mockito.Mockito.reset(tradingDayRepository);
     var valid = profileRepository.findByIdForUpdate(1L).orElseThrow();
     given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(failed, valid));
     given(
@@ -201,10 +237,6 @@ class LeagueReturnServiceTest {
     ReflectionTestUtils.setField(profile, "id", id);
     profile.changePublication(
         true, true, false, false, enrolled.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant());
-    given(
-            tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
-                any(LocalDate.class)))
-        .willReturn(Optional.empty());
     given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
     given(profileRepository.findByIdForUpdate(id)).willReturn(Optional.of(profile));
     var portfolio = mock(SharedPortfolio.class);

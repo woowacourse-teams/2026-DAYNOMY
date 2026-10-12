@@ -11,6 +11,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -79,6 +80,85 @@ class SharedPortfolioAcceptanceTest {
   @Autowired private LeagueReturnService leagueReturns;
   private static final String SHARED = "/api/users/me/shared-portfolio";
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void removalPreservesOriginalAndRecordsAndEndsParticipationOnlyForLastHolding(boolean last) {
+    Member owner = member();
+    Asset first = asset();
+    Asset second = asset();
+    Portfolio original = originals.save(Portfolio.create(owner));
+    originalHoldings.save(new PortfolioHolding(original, first, 2, new BigDecimal("100")));
+    for (Asset selected : last ? List.of(first) : List.of(first, second)) {
+      client(owner)
+          .body(
+              """
+          {"holdings":[{"assetId":%d,"quantity":2,"averagePurchasePrice":100,
+          "decision":{"reason":"장기 성장 기대"}}],"overwriteExisting":false}
+          """
+                  .formatted(selected.getId()))
+          .post(SHARED + "/import")
+          .then()
+          .statusCode(200);
+    }
+    client(owner)
+        .body(
+            Map.of(
+                "displayName",
+                "삭제" + owner.getId(),
+                "bio",
+                "",
+                "experienceLevel",
+                "BEGINNER",
+                "riskProfile",
+                "BALANCED"))
+        .put("/api/users/me/investor-profile")
+        .then()
+        .statusCode(200);
+    client(owner)
+        .body(
+            """
+        {"profilePublic":true,"leagueEnabled":true,"allocationPublic":true,"detailPublic":true}
+        """)
+        .put("/api/users/me/portfolio/publication")
+        .then()
+        .statusCode(200);
+    String target = SHARED + "/holdings/" + first.getId();
+    given().port(port).delete(target).then().statusCode(anyOf(is(401), is(403)));
+    client(member()).delete(target).then().statusCode(404);
+    client(owner).get(SHARED).then().statusCode(200).body("holdings", hasSize(last ? 1 : 2));
+    client(owner)
+        .delete(target)
+        .then()
+        .statusCode(200)
+        .header("Cache-Control", "no-store")
+        .body("holdings", hasSize(last ? 0 : 1));
+    client(owner).delete(target).then().statusCode(404);
+    client(owner)
+        .get("/api/users/me/investor-profile")
+        .then()
+        .statusCode(200)
+        .body("leagueEnabled", equalTo(!last))
+        .body("profilePublic", equalTo(!last));
+    assertThat(originalHoldings.findAllByPortfolioIdOrderById(original.getId())).hasSize(1);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holding_histories h JOIN shared_portfolios p ON p.id=h.portfolio_id WHERE p.member_id=? AND h.change_type='REMOVED'",
+                Integer.class,
+                owner.getId()))
+        .isEqualTo(1);
+    client(owner)
+        .get("/api/users/me/portfolio/transactions")
+        .then()
+        .statusCode(200)
+        .body("transactions", hasSize(last ? 1 : 2));
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM league_participations lp JOIN public_investor_profiles p ON p.id=lp.profile_id WHERE p.member_id=? AND lp.ended_at IS NULL",
+                Integer.class,
+                owner.getId()))
+        .isEqualTo(last ? 0 : 1);
+  }
+
   @Test
   void removedLeagueTypeIsRejected() {
     given()
@@ -88,6 +168,106 @@ class SharedPortfolioAcceptanceTest {
         .then()
         .statusCode(400)
         .body("code", equalTo("INVALID_REQUEST"));
+  }
+
+  @Test
+  void newParticipantWithSameDayImportedHoldingsAppearsInThatWeeksRankingsAtZero() {
+    Member owner = member();
+    Asset asset = asset();
+    client(owner)
+        .body(
+            """
+        {"holdings":[{"assetId":%d,"quantity":1,"averagePurchasePrice":100,
+        "decision":{"reason":"실적 성장 기대"}}],"overwriteExisting":false}
+        """
+                .formatted(asset.getId()))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    String publicId =
+        client(owner)
+            .body(
+                Map.of(
+                    "displayName",
+                    "신규" + owner.getId(),
+                    "bio",
+                    "",
+                    "experienceLevel",
+                    "BEGINNER",
+                    "riskProfile",
+                    "BALANCED"))
+            .put("/api/users/me/investor-profile")
+            .then()
+            .statusCode(200)
+            .extract()
+            .path("publicId");
+    client(owner)
+        .body(
+            """
+        {"profilePublic":true,"leagueEnabled":true,"allocationPublic":true,"detailPublic":true}
+        """)
+        .put("/api/users/me/portfolio/publication")
+        .then()
+        .statusCode(200);
+
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
+    List<LocalDate> trading =
+        jdbc.queryForList(
+            "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
+            LocalDate.class,
+            week,
+            week.plusDays(6));
+    LocalDate enrolled = trading.get(trading.size() / 2);
+    Instant enrolledAt = enrolled.atTime(10, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant();
+    jdbc.update(
+        "UPDATE public_investor_profiles SET league_enabled_at=? WHERE member_id=?",
+        java.sql.Timestamp.from(enrolledAt),
+        owner.getId());
+    jdbc.update(
+        "UPDATE league_participations SET started_at=? WHERE profile_id=(SELECT id FROM public_investor_profiles WHERE member_id=?)",
+        java.sql.Timestamp.from(enrolledAt),
+        owner.getId());
+    jdbc.update(
+        "UPDATE shared_holding_histories SET created_at=? WHERE portfolio_id=(SELECT id FROM shared_portfolios WHERE member_id=?)",
+        java.sql.Timestamp.from(enrolledAt),
+        owner.getId());
+    for (LocalDate date : trading) {
+      if (!date.isBefore(enrolled))
+        prices.save(new StockDailyPrice(asset, date, new BigDecimal("100")));
+      jdbc.update(
+          "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
+          date);
+    }
+    leagueReturns.recalculate();
+
+    given()
+        .port(port)
+        .queryParam("weekStart", week.toString())
+        .get("/api/league/rankings")
+        .then()
+        .statusCode(200)
+        .body(
+            "rankings.find { it.publicId == '" + publicId + "' }.weeklyReturnRate", equalTo(0.0f));
+    given()
+        .port(port)
+        .queryParam("weekStart", week.toString())
+        .get("/api/league/investors/" + publicId + "/daily-history")
+        .then()
+        .statusCode(200)
+        .body("eligibleFrom", equalTo(enrolled.toString()))
+        .body("trackingStartedOn", equalTo(enrolled.toString()))
+        .body("weeklyReturnRate", equalTo(0.0f))
+        .body("days.find { it.baseDate == '" + enrolled + "' }.dailyReturnRate", equalTo(0.0f))
+        .body(
+            "days.find { it.baseDate == '" + enrolled + "' }.reason", equalTo("TRACKING_BASELINE"))
+        .body("$", not(hasKey("participationReturnRate")));
+    given()
+        .port(port)
+        .get("/api/league/investors/" + publicId)
+        .then()
+        .statusCode(200)
+        .body("performance", not(hasKey("cumulativeReturnRate")))
+        .body("performance", not(hasKey("participationReturnRate")));
   }
 
   private Member member() {
@@ -525,8 +705,8 @@ class SharedPortfolioAcceptanceTest {
         .body("{\"quantity\":2,\"averagePurchasePrice\":75000,\"hidden\":false,\"reason\":\"\"}")
         .put(SHARED + "/holdings/" + asset.getId())
         .then()
-        .statusCode(404);
-    client(owner).delete(SHARED + "/holdings/" + asset.getId()).then().statusCode(404);
+        .statusCode(405);
+    client(other).delete(SHARED + "/holdings/" + asset.getId()).then().statusCode(404);
     client(owner)
         .body("{\"transactionType\":\"BUY\",\"assetId\":" + asset.getId() + "}")
         .post("/api/users/me/portfolio/transactions")
@@ -921,12 +1101,13 @@ class SharedPortfolioAcceptanceTest {
     jdbc.update(
         "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
         previous);
-    for (LocalDate trading :
+    List<LocalDate> tradingDays =
         jdbc.queryForList(
             "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
             LocalDate.class,
             date,
-            date.plusDays(6))) {
+            date.plusDays(6));
+    for (LocalDate trading : tradingDays) {
       prices.save(new StockDailyPrice(asset, trading, new BigDecimal("77000")));
       jdbc.update(
           "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
@@ -948,11 +1129,17 @@ class SharedPortfolioAcceptanceTest {
         .header("Cache-Control", "no-store")
         .body("weekStart", equalTo(date.toString()))
         .body("weekEnd", equalTo(date.plusDays(6).toString()))
-        .body("asOfDate", equalTo(date.plusDays(4).toString()))
+        .body("asOfDate", equalTo(tradingDays.getLast().toString()))
         .body("weeklyReturnRate", equalTo(10.0f))
-        .body("days.find { it.baseDate == '" + date + "' }.dailyReturnRate", equalTo(10.0f))
-        .body("days.find { it.baseDate == '" + date + "' }.cumulativeReturnRate", equalTo(10.0f))
-        .body("days.find { it.baseDate == '" + date + "' }.status", equalTo("CALCULATED"))
+        .body(
+            "days.find { it.baseDate == '" + tradingDays.getFirst() + "' }.dailyReturnRate",
+            equalTo(10.0f))
+        .body(
+            "days.find { it.baseDate == '" + tradingDays.getFirst() + "' }.cumulativeReturnRate",
+            equalTo(10.0f))
+        .body(
+            "days.find { it.baseDate == '" + tradingDays.getFirst() + "' }.status",
+            equalTo("CALCULATED"))
         .body("$", not(hasKey("email")))
         .body("$", not(hasKey("name")));
     assertThat(daily.asString())
