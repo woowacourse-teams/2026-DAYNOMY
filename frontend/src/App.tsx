@@ -62,8 +62,7 @@ export function ScrollToTop() {
 function AppFooter() {
   const location = useLocation();
 
-    return location.pathname === '/login' ||
-    location.pathname.startsWith('/admin') ? null : (
+  return location.pathname === '/login' || location.pathname.startsWith('/admin') ? null : (
     <>
       <FeedbackWidget />
       <Footer />
