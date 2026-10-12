@@ -354,6 +354,19 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
+  @DisplayName("검색 목록에 없어도 웹 도구가 직접 열어 본 페이지는 근거로 연결한다")
+  void analyzeUsesOpenedPageAsEvidence() throws Exception {
+    String url = "https://example.com/semiconductor";
+    enqueueOutputWithSearchAction(validOutput(), Map.of("type", "open_page", "url", url));
+
+    PortfolioAnalysisResult result = client.analyze(targets());
+
+    assertThat(result.impacts())
+        .allSatisfy(
+            impact -> assertThat(impact.sources()).containsExactly(source("example.com", url)));
+  }
+
+  @Test
   @DisplayName("근거 부족 자산의 방향과 영향 수준은 중립이 아닌 null이다")
   void analyzeDistinguishesInsufficientEvidenceFromNeutral() throws Exception {
     enqueueOutput(
@@ -446,7 +459,7 @@ class OpenAiPortfolioAnalysisClientTest {
 
   @Test
   void rejectsImpossibleOrFutureEvidenceDates() throws Exception {
-    for (String invalid : List.of("2026-02-30", "2999-01-01", "어제")) {
+    for (String invalid : List.of("2026-02-30", "2999-01-01", "어제", "2026-08-xx")) {
       var output = objectMapper.readTree(withEvidence(validOutput()));
       ((com.fasterxml.jackson.databind.node.ObjectNode)
               output.path("impacts").get(0).path("evidence").get(0))
@@ -545,6 +558,65 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(request.path("input").get(3).path("content").asText()).isEqualTo(previous);
   }
 
+  @Test
+  void constrainsEvidenceDatesAndRequestsOriginalAnnouncements() throws Exception {
+    enqueueOutput(validOutput());
+    client.analyze(targets());
+    var body = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    var properties =
+        body.path("text")
+            .path("format")
+            .path("schema")
+            .path("properties")
+            .path("impacts")
+            .path("items")
+            .path("anyOf")
+            .get(0)
+            .path("properties")
+            .path("evidence")
+            .path("items")
+            .path("properties");
+    assertThat(properties.path("occurredOn").path("pattern").asText())
+        .isEqualTo("^[0-9]{4}-[0-9]{2}-[0-9]{2}$");
+    assertThat(properties.path("publishedOn").path("pattern").asText())
+        .isEqualTo("^[0-9]{4}-[0-9]{2}-[0-9]{2}$");
+    assertThat(body.path("input").get(0).path("content").asText())
+        .contains("원문을 추가로", "날짜 전체를 null", "확정된 매출·이익 개선으로 바꾸지");
+  }
+
+  @Test
+  void supportedAndInsufficientSchemasCannotMixEmptyExplanationWithNeutralJudgment()
+      throws Exception {
+    enqueueOutput(validOutput());
+    client.analyze(targets());
+    var body = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    var variants =
+        body.path("text")
+            .path("format")
+            .path("schema")
+            .path("properties")
+            .path("impacts")
+            .path("items")
+            .path("anyOf");
+    assertThat(variants.size()).isEqualTo(2);
+    assertThat(
+            variants.get(0).path("properties").path("expectedReaction").path("minLength").asInt())
+        .isEqualTo(1);
+    assertThat(variants.get(0).path("properties").path("outlook").path("minLength").asInt())
+        .isEqualTo(1);
+    assertThat(variants.get(1).path("properties").path("direction").path("type").asText())
+        .isEqualTo("null");
+    assertThat(
+            variants
+                .get(1)
+                .path("properties")
+                .path("expectedReaction")
+                .path("enum")
+                .get(0)
+                .asText())
+        .isEmpty();
+  }
+
   private PortfolioAnalysisResult.Source source(String title, String url) {
     return new PortfolioAnalysisResult.Source(title, url, null, null, "확인된 사업 변화예요.");
   }
@@ -637,23 +709,23 @@ class OpenAiPortfolioAnalysisClientTest {
 
   private void enqueueOutputWithSearchSources(String outputText, String sourceUrl)
       throws JsonProcessingException {
+    enqueueOutputWithSearchAction(
+        outputText,
+        Map.of(
+            "type",
+            "search",
+            "sources",
+            List.of(Map.of("type", "url", "title", "웹 검색 사용 출처", "url", sourceUrl))));
+  }
+
+  private void enqueueOutputWithSearchAction(String outputText, Map<String, Object> action)
+      throws JsonProcessingException {
     String response =
         objectMapper.writeValueAsString(
             Map.of(
                 "output",
                 List.of(
-                    Map.of(
-                        "type",
-                        "web_search_call",
-                        "status",
-                        "completed",
-                        "action",
-                        Map.of(
-                            "type",
-                            "search",
-                            "sources",
-                            List.of(
-                                Map.of("type", "url", "title", "웹 검색 사용 출처", "url", sourceUrl)))),
+                    Map.of("type", "web_search_call", "status", "completed", "action", action),
                     Map.of(
                         "type",
                         "message",

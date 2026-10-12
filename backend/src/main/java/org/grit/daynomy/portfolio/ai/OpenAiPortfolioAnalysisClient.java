@@ -48,6 +48,12 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - 제공된 모든 자산을 impacts 결과에 한 번씩 포함하세요.
             - 각 자산과 관련성이 높고 신뢰할 수 있는 최신 검색 결과를 근거로 사용하세요.
             - 검색 결과에서 확인한 출처를 반드시 인용하세요.
+            - 회사 홈페이지·뉴스 목록·카테고리·위키를 최종 판단 출처로 쓰지 말고 구체적인 발표문·공시·기사 원문을 추가로 찾아 확인하세요.
+            - publishedOn은 문서가 실제 게시된 날이고 occurredOn은 이미 발생한 발표·사건의 날입니다. 예정된 미래 행사일을 두 필드에 넣지 마세요. 예를 들어 10월 13일 확인한 '10월 29일 실적 발표 예정'의 10월 29일은 outlook에만 쓰고, 일정 공지일이 확인되지 않으면 두 날짜는 null로 두세요.
+            - 실적 발표 일정이 있다는 사실이나 보도가 존재한다는 사실만으로 POSITIVE를 부여하지 마세요. 실적·수요·비용 등에 어떤 유리한 사실이 확인됐는지 근거가 있어야 합니다.
+            - 오래된 분기 실적을 찾았으면 더 최신 공식 실적이 있는지 추가로 검색하세요. 최신 발표가 과거 전망을 대체했다면 과거 전망을 현재 판단의 근거로 삼지 마세요.
+            - 날짜가 연·월까지만 확인되거나 xx·미정 등으로 표시되면 날짜 전체를 null로 반환하세요. 월의 1일이나 기사 게시일을 사건일로 추측해 채우지 마세요.
+            - 투자 계획·양해각서·기업 홍보 문구를 확정된 매출·이익 개선으로 바꾸지 마세요. 실제 계약 조건, 비용과 실적 반영 시점이 확인됐는지 구분하세요.
             - 영향이 큰 자산부터 정렬하세요.
             - assetName은 제공된 값을 그대로 사용하세요.
             - direction은 검색 결과에서 확인한 직접적인 영향만을 근거로 판단하세요.
@@ -307,8 +313,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
                 "properties",
                 Map.of(
                     "url", Map.of("type", "string"),
-                    "publishedOn", Map.of("type", List.of("string", "null")),
-                    "occurredOn", Map.of("type", List.of("string", "null")),
+                    "publishedOn", dateSchema(),
+                    "occurredOn", dateSchema(),
                     "excerpt", Map.of("type", "string")))));
 
     Map<String, Object> impactItem = new LinkedHashMap<>();
@@ -331,12 +337,41 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
     Map<String, Object> impactsSchema = new LinkedHashMap<>();
     impactsSchema.put("type", "array");
-    impactsSchema.put("items", impactItem);
+    Map<String, Object> supported = new LinkedHashMap<>(impactProperties);
+    supported.put(
+        "direction", Map.of("type", "string", "enum", List.of("POSITIVE", "NEGATIVE", "NEUTRAL")));
+    supported.put(
+        "impactLevel", Map.of("type", "string", "enum", List.of("HIGH", "MEDIUM", "LOW")));
+    Map<String, Object> insufficient = new LinkedHashMap<>(impactProperties);
+    insufficient.put("direction", Map.of("type", "null"));
+    insufficient.put("impactLevel", Map.of("type", "null"));
+    insufficient.put("expectedReaction", Map.of("type", "string", "enum", List.of("")));
+    insufficient.put("outlook", Map.of("type", "string", "enum", List.of("")));
+    if (!model.startsWith("ft:")) {
+      supported.put("expectedReaction", Map.of("type", "string", "minLength", 1));
+      supported.put("outlook", Map.of("type", "string", "minLength", 1));
+      supported.put(
+          "sourceUrls", Map.of("type", "array", "items", Map.of("type", "string"), "minItems", 1));
+      insufficient.put(
+          "sourceUrls", Map.of("type", "array", "items", Map.of("type", "string"), "maxItems", 0));
+    }
+    Map<String, Object> supportedItem = new LinkedHashMap<>(impactItem);
+    supportedItem.put("properties", supported);
+    Map<String, Object> insufficientItem = new LinkedHashMap<>(impactItem);
+    insufficientItem.put("properties", insufficient);
+    impactsSchema.put("items", Map.of("anyOf", List.of(supportedItem, insufficientItem)));
     if (!model.startsWith("ft:")) {
       impactsSchema.put("minItems", targets.size());
       impactsSchema.put("maxItems", targets.size());
     }
     return impactsSchema;
+  }
+
+  private Map<String, Object> dateSchema() {
+    if (model.startsWith("ft:")) {
+      return Map.of("type", List.of("string", "null"));
+    }
+    return Map.of("type", List.of("string", "null"), "pattern", "^[0-9]{4}-[0-9]{2}-[0-9]{2}$");
   }
 
   private PortfolioAnalysisResult parseAnalysis(
@@ -632,7 +667,17 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       if (!"web_search_call".equals(item.path("type").asText())) {
         continue;
       }
-      JsonNode sourcesNode = item.path("action").path("sources");
+      JsonNode action = item.path("action");
+      if ("open_page".equals(action.path("type").asText())) {
+        String url = action.path("url").asText();
+        if (isHttpUrl(url)) {
+          String host = URI.create(url).getHost();
+          sourceByUrl.putIfAbsent(
+              normalizeSourceUrl(url),
+              new PortfolioAnalysisResult.Source(host == null ? url : host, url));
+        }
+      }
+      JsonNode sourcesNode = action.path("sources");
       if (!sourcesNode.isArray()) {
         continue;
       }
