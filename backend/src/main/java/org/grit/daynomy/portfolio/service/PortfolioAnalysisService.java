@@ -34,8 +34,10 @@ public class PortfolioAnalysisService {
 
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
   private final YouTubeClient youtubeClient;
+  private final GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
-  public PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
+  public PortfolioAnalysisResponse analyze(
+      PortfolioAnalysisRequest request, boolean authenticatedMember) {
     validateDistinctAssets(request.assets());
     validateTotalWeight(request.assets());
 
@@ -43,6 +45,14 @@ public class PortfolioAnalysisService {
       return PortfolioAnalysisResponse.empty();
     }
 
+    if (!authenticatedMember) {
+      return guestPortfolioAnalysisTrial.use(() -> analyze(request));
+    }
+
+    return analyze(request);
+  }
+
+  private PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
     Map<String, BigDecimal> weightByAssetName = createWeightByAssetName(request.assets());
     List<PortfolioAnalysisTarget> targets = createTargets(request.assets());
     PortfolioAnalysisResult result = portfolioAnalysisAiClient.analyze(targets);
