@@ -45,6 +45,17 @@ public class NewsMarketAnalysis extends BaseEntity {
   @Column(name = "limitation", columnDefinition = "TEXT")
   private String limitation;
 
+  public NewsMarketAnalysis(String risk, String watchPoint) {
+    this.summary = risk + " " + watchPoint;
+    this.risk = risk;
+    this.watchPoint = watchPoint;
+  }
+
+  public NewsMarketAnalysis(News news, String risk, String watchPoint) {
+    this(risk, watchPoint);
+    this.news = news;
+  }
+
   public NewsMarketAnalysis(String summary) {
     this.summary = summary;
   }

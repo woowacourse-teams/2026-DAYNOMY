@@ -5,6 +5,8 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
@@ -36,69 +38,68 @@ public class PortfolioSnapshotTransactionService {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public boolean createSnapshot(Long portfolioId, LocalDate baseDate, LocalDate previousBaseDate) {
-    return upsertSnapshot(portfolioId, baseDate, previousBaseDate, false);
+    return upsertSnapshot(portfolioId, baseDate, previousBaseDate);
   }
 
   @Transactional(propagation = Propagation.MANDATORY)
   public void refreshSnapshotsFrom(Long portfolioId, LocalDate fromDate) {
     LocalDate today = LocalDate.now(SEOUL);
-    List<LocalDate> baseDates =
-        stockPriceRepository.findDistinctBaseDatesOrderByBaseDate().stream()
-            .filter(baseDate -> baseDate.isBefore(today))
-            .toList();
-    for (int index = 0; index < baseDates.size(); index++) {
-      LocalDate baseDate = baseDates.get(index);
+    NavigableSet<LocalDate> priceDates =
+        new TreeSet<>(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate());
+    NavigableSet<LocalDate> candidateDates = new TreeSet<>(priceDates);
+    candidateDates.addAll(snapshotRepository.findDistinctBaseDatesOrderByBaseDate());
+    List<LocalDate> baseDates = candidateDates.headSet(today, false).stream().toList();
+    for (LocalDate baseDate : baseDates) {
       if (baseDate.isBefore(fromDate)) {
         continue;
       }
-      LocalDate previousBaseDate = index == 0 ? null : baseDates.get(index - 1);
-      upsertSnapshot(portfolioId, baseDate, previousBaseDate, true);
+      LocalDate previousBaseDate = priceDates.lower(baseDate);
+      upsertSnapshot(portfolioId, baseDate, previousBaseDate);
     }
   }
 
-  private boolean upsertSnapshot(
-      Long portfolioId,
-      LocalDate baseDate,
-      LocalDate previousBaseDate,
-      boolean overwriteHistorical) {
-    Portfolio portfolio = portfolioRepository.findById(portfolioId).orElse(null);
+  private boolean upsertSnapshot(Long portfolioId, LocalDate baseDate, LocalDate previousBaseDate) {
+    if (!baseDate.isBefore(LocalDate.now(SEOUL))) {
+      return false;
+    }
+    Portfolio portfolio = portfolioRepository.findByIdForUpdate(portfolioId).orElse(null);
     if (portfolio == null) {
       return false;
     }
 
     PortfolioDailySnapshot existing =
         snapshotRepository.findByPortfolioIdAndBaseDate(portfolioId, baseDate).orElse(null);
-    if (existing != null && baseDate.isBefore(LocalDate.now(SEOUL)) && !overwriteHistorical) {
-      return false;
-    }
-
     List<HistoricalHolding> holdings = reconstructHoldings(portfolioId, baseDate);
     if (holdings.isEmpty()) {
-      deleteExisting(existing, overwriteHistorical);
+      deleteExisting(existing);
       return false;
     }
 
     SnapshotAmounts amounts = calculateAmounts(holdings, baseDate, previousBaseDate);
     if (amounts == null) {
-      deleteExisting(existing, overwriteHistorical);
+      deleteExisting(existing);
       return false;
     }
 
     PortfolioDailySnapshot snapshot =
         existing != null ? existing : new PortfolioDailySnapshot(portfolio, baseDate);
-    snapshot.update(
-        amounts.totalPurchase(),
-        amounts.totalEvaluation(),
-        amounts.totalProfitLoss(),
-        amounts.totalReturnRate(),
-        amounts.dailyProfitLoss(),
-        amounts.dailyReturnRate());
+    boolean changed =
+        snapshot.update(
+            amounts.totalPurchase(),
+            amounts.totalEvaluation(),
+            amounts.totalProfitLoss(),
+            amounts.totalReturnRate(),
+            amounts.dailyProfitLoss(),
+            amounts.dailyReturnRate());
+    if (!changed) {
+      return false;
+    }
     snapshotRepository.saveAndFlush(snapshot);
     return true;
   }
 
-  private void deleteExisting(PortfolioDailySnapshot existing, boolean overwriteHistorical) {
-    if (existing != null && overwriteHistorical) {
+  private void deleteExisting(PortfolioDailySnapshot existing) {
+    if (existing != null) {
       snapshotRepository.delete(existing);
     }
   }
