@@ -38,11 +38,13 @@ export function ServiceHeader() {
   const tabs = [
     { label: '포트폴리오', to: '/', active: location.pathname === '/' },
     {
-      label: '이슈',
+      label: '소식',
       to: '/news',
-      active: location.pathname.startsWith('/news') || location.pathname.startsWith('/search'),
+      active:
+        location.pathname.startsWith('/news') ||
+        location.pathname.startsWith('/search') ||
+        location.pathname.startsWith('/people'),
     },
-    { label: '인물', to: '/people', active: location.pathname.startsWith('/people') },
     {
       label: '투자 리그',
       to: '/league',

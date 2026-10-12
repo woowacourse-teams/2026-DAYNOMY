@@ -15,9 +15,10 @@ function SearchIcon() {
 export function Header() {
   const location = useLocation();
   const isNewsPage =
-    location.pathname.startsWith('/news') || location.pathname.startsWith('/search');
+    location.pathname.startsWith('/news') ||
+    location.pathname.startsWith('/search') ||
+    location.pathname.startsWith('/people');
   const isPortfolioPage = location.pathname === '/' || location.pathname.startsWith('/portfolio');
-  const isPeoplePage = location.pathname.startsWith('/people');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -53,10 +54,7 @@ export function Header() {
           포트폴리오
         </Link>
         <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/news">
-          이슈
-        </Link>
-        <Link className={isPeoplePage ? 'header-tab active' : 'header-tab'} to="/people">
-          인물
+          소식
         </Link>
       </nav>
       <div className="header-actions">

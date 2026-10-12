@@ -1,3 +1,4 @@
+import { PortfolioNews } from './components/PortfolioNews';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { calculatePortfolio } from './api';
 import { PortfolioAnalysis } from './components/PortfolioAnalysis';
@@ -32,6 +33,7 @@ const compactWonFormatter = new Intl.NumberFormat('ko-KR', {
   maximumFractionDigits: 1,
 });
 const HIDDEN_AMOUNT = '••••••원';
+const SHOW_PORTFOLIO_NEWS = true;
 const EMPTY_PORTFOLIO_CALCULATION: PortfolioCalculation = {
   baseDate: null,
   pricingStatus: 'COMPLETE',
@@ -759,7 +761,10 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       (!loading || calculation !== null) &&
       !holdingsError &&
       dashboardCalculation ? (
-        <div aria-busy={loading} className="portfolio-dashboard-layout">
+        <div
+          aria-busy={loading}
+          className={`portfolio-dashboard-layout${SHOW_PORTFOLIO_NEWS ? ' has-news' : ''}`}
+        >
           <div className="portfolio-dashboard-main">
             <dl className="portfolio-overview" aria-label="자산 요약">
               <div className="portfolio-summary-total">
@@ -1092,6 +1097,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
             )}
           </div>
+          {SHOW_PORTFOLIO_NEWS && <PortfolioNews holdings={dashboardCalculation.holdings} />}
         </div>
       ) : null}
 
