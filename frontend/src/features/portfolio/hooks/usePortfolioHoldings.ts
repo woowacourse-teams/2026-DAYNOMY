@@ -5,9 +5,13 @@ import {
   removeSavedPortfolioHolding,
   updateSavedPortfolioHolding,
 } from '../api';
+import {
+  loadGuestPortfolioHoldings,
+  saveGuestPortfolioHoldings,
+} from '../portfolioHoldingsStorage';
 import type { PortfolioHoldingInput } from '../types';
 
-export function usePortfolioHoldings() {
+export function usePortfolioHoldings(isLoggedIn = true) {
   const [holdings, setHoldings] = useState<PortfolioHoldingInput[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -15,6 +19,13 @@ export function usePortfolioHoldings() {
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      setHoldings(loadGuestPortfolioHoldings());
+      setLoading(false);
+      setError('');
+      return;
+    }
+
     const controller = new AbortController();
     setLoading(true);
     setError('');
@@ -34,7 +45,7 @@ export function usePortfolioHoldings() {
       });
 
     return () => controller.abort();
-  }, [retryCount]);
+  }, [isLoggedIn, retryCount]);
 
   const saveHolding = useCallback(
     async (nextHolding: PortfolioHoldingInput) => {
@@ -42,6 +53,17 @@ export function usePortfolioHoldings() {
       setError('');
       try {
         const exists = holdings.some((holding) => holding.assetId === nextHolding.assetId);
+        if (!isLoggedIn) {
+          const nextHoldings = exists
+            ? holdings.map((holding) =>
+                holding.assetId === nextHolding.assetId ? nextHolding : holding,
+              )
+            : [...holdings, nextHolding];
+          saveGuestPortfolioHoldings(nextHoldings);
+          setHoldings(nextHoldings);
+          return;
+        }
+
         const savedHolding = exists
           ? await updateSavedPortfolioHolding(nextHolding)
           : await addSavedPortfolioHolding(nextHolding);
@@ -61,24 +83,34 @@ export function usePortfolioHoldings() {
         setSaving(false);
       }
     },
-    [holdings],
+    [holdings, isLoggedIn],
   );
 
-  const removeHolding = useCallback(async (assetId: number) => {
-    setSaving(true);
-    setError('');
-    try {
-      await removeSavedPortfolioHolding(assetId);
-      setHoldings((current) => current.filter((holding) => holding.assetId !== assetId));
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : '보유 자산을 삭제하지 못했습니다.',
-      );
-      throw caughtError;
-    } finally {
-      setSaving(false);
-    }
-  }, []);
+  const removeHolding = useCallback(
+    async (assetId: number) => {
+      setSaving(true);
+      setError('');
+      try {
+        if (!isLoggedIn) {
+          const nextHoldings = holdings.filter((holding) => holding.assetId !== assetId);
+          saveGuestPortfolioHoldings(nextHoldings);
+          setHoldings(nextHoldings);
+          return;
+        }
+
+        await removeSavedPortfolioHolding(assetId);
+        setHoldings((current) => current.filter((holding) => holding.assetId !== assetId));
+      } catch (caughtError) {
+        setError(
+          caughtError instanceof Error ? caughtError.message : '보유 자산을 삭제하지 못했습니다.',
+        );
+        throw caughtError;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [holdings, isLoggedIn],
+  );
 
   return {
     holdings,

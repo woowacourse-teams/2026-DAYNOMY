@@ -36,7 +36,7 @@ function LoginPage() {
 
   return (
     <main className="login-page">
-      <Link className="login-close" to={isAdminLogin ? '/' : '/news'} aria-label="닫기">
+      <Link className="login-close" to="/" aria-label="닫기">
         ×
       </Link>
       <section className="login-card">
