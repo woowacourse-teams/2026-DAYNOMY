@@ -44,14 +44,24 @@ function highlightKeywords(
       <mark className="keyword" key={`${match.keyword}-${index}`} tabIndex={0}>
         {match.keyword}
         <span className="keyword-tooltip" role="tooltip">
-          <span className="keyword-tooltip-badge">{keywordCategoryLabels[match.category]}</span>
-          <strong>{match.keyword}</strong>
-          {match.points.map((point, index) => (
-            <span key={point}>
-              <b>{`POINT ${index + 1}`}</b>
-              {point}
+          <span className="keyword-tooltip-heading">
+            <span className="keyword-tooltip-badge">{keywordCategoryLabels[match.category]}</span>
+            <strong>{match.keyword}</strong>
+          </span>
+          <span className="keyword-tooltip-details">
+            <span className="keyword-tooltip-detail">
+              <b>뜻</b>
+              <span>{match.definition}</span>
             </span>
-          ))}
+            <span className="keyword-tooltip-detail">
+              <b>기사 맥락</b>
+              <span>{match.context}</span>
+            </span>
+            <span className="keyword-tooltip-detail">
+              <b>확인할 점</b>
+              <span>{match.watchPoint}</span>
+            </span>
+          </span>
         </span>
       </mark>,
     );

@@ -294,6 +294,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.useRealTimers();
   localStorage.clear();
