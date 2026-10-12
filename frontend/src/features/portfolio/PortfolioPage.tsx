@@ -716,7 +716,6 @@ export function PortfolioPage() {
         <div>
           <span className="portfolio-eyebrow">MY PORTFOLIO</span>
           <h1>내 포트폴리오</h1>
-          <p>기록한 거래에서 시작하는 나의 자산 흐름</p>
         </div>
         <div className="portfolio-page-actions">
           <button
