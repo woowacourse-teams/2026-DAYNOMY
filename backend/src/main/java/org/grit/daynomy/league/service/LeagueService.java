@@ -361,13 +361,21 @@ public class LeagueService {
     boolean complete = true;
     boolean begun = false;
     LocalDate asOf = null;
+    LocalDate calculationEnd = calculationEnd(weekStart);
     for (LocalDate date : tradingDates(weekStart)) {
       PortfolioDailyReturn value = values.get(date);
       DailyReturnStatus status;
       String reason = null;
+      boolean afterCalculationEnd = calculationEnd == null || date.isAfter(calculationEnd);
       if (!participates(profile, date) || date.isBefore(start)) {
         status = DailyReturnStatus.NOT_PARTICIPATING;
-        if (begun) complete = false;
+        if (begun && !afterCalculationEnd) complete = false;
+      } else if (afterCalculationEnd) {
+        status =
+            value != null && !value.isEligible()
+                ? DailyReturnStatus.EXCLUDED
+                : DailyReturnStatus.PENDING;
+        if (status == DailyReturnStatus.EXCLUDED) reason = value.getIneligibleReason();
       } else if (value != null && value.isEligible()) {
         status = DailyReturnStatus.CALCULATED;
         if (value.isTrackingBaseline()) reason = "TRACKING_BASELINE";
@@ -438,6 +446,10 @@ public class LeagueService {
         .map(MarketTradingDay::getBaseDate)
         .max(LocalDate::compareTo)
         .orElse(null);
+  }
+
+  private LocalDate calculationEnd(LocalDate week) {
+    return week.equals(normalizeWeek(null)) ? asOfDate(week) : week.plusDays(6);
   }
 
   private boolean participates(InvestorProfile profile, LocalDate date) {
@@ -763,6 +775,9 @@ public class LeagueService {
 
   private Metric calculateMetric(
       InvestorProfile profile, List<PortfolioDailyReturn> values, LocalDate week) {
+    LocalDate end = calculationEnd(week);
+    if (end == null) return new Metric(null, null, null, null, null, 0, null, 0);
+    values = values.stream().filter(value -> !value.getBaseDate().isAfter(end)).toList();
     Map<LocalDate, PortfolioDailyReturn> byDate =
         values.stream()
             .collect(
@@ -771,7 +786,7 @@ public class LeagueService {
     List<PortfolioDailyReturn> weekly =
         values.stream().filter(value -> !value.getBaseDate().isBefore(start)).toList();
     BigDecimal weeklyRate =
-        participatesInWeek(profile, week) && complete(profile, byDate, start, week.plusDays(6))
+        participatesInWeek(profile, week) && complete(profile, byDate, start, end)
             ? chainedReturn(weekly)
             : null;
     LocalDate started = profile.getTrackingStartedOn();
@@ -779,11 +794,11 @@ public class LeagueService {
         started != null && started.isAfter(week.minusWeeks(7)) ? started : week.minusWeeks(7);
     List<PortfolioDailyReturn> recent =
         values.stream().filter(v -> !v.getBaseDate().isBefore(recentStart)).toList();
-    boolean recentComplete = complete(profile, byDate, recentStart, week.plusDays(6));
+    boolean recentComplete = complete(profile, byDate, recentStart, end);
     BigDecimal eightWeek = recentComplete ? chainedReturn(recent) : null;
     BigDecimal drawdown = recentComplete && recent.size() >= 2 ? maxDrawdown(recent) : null;
     List<LocalDate> expected =
-        calendar(recentStart, week.plusDays(6)).stream()
+        calendar(recentStart, end).stream()
             .filter(MarketTradingDay::isTrading)
             .filter(day -> !day.closesAt().isAfter(Instant.now()))
             .map(MarketTradingDay::getBaseDate)
@@ -817,7 +832,10 @@ public class LeagueService {
         recordedWeek = recordedWeek.minusWeeks(1)) {
       if (!participatesInWeek(profile, recordedWeek)
           || !complete(
-              profile, byDate, weeklyStart(profile, recordedWeek), recordedWeek.plusDays(6))) break;
+              profile,
+              byDate,
+              weeklyStart(profile, recordedWeek),
+              recordedWeek.equals(week) ? end : recordedWeek.plusDays(6))) break;
       consecutive++;
     }
     return new Metric(

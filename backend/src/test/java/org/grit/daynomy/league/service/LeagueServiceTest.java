@@ -303,6 +303,83 @@ class LeagueServiceTest {
   }
 
   @Test
+  void pendingLatestCloseKeepsTheLastRankButAnEarlierGapDoesNot(
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {
+    ZoneId seoul = ZoneId.of("Asia/Seoul");
+    LocalDate week = LocalDate.of(2026, 9, 21);
+    LocalDate wednesday = week.plusDays(2);
+    LocalDate thursday = week.plusDays(3);
+    LocalDate friday = week.plusDays(4);
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(thursday);
+    Instant thursdayClose = thursday.atTime(18, 0).atZone(seoul).toInstant();
+    instants.when(Instant::now).thenReturn(thursdayClose);
+    SharedPortfolio portfolio = dailyProfile(week);
+    InvestorProfile profile =
+        profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
+    given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
+        .willReturn(List.of(profile));
+    List<LocalDate> collected = new ArrayList<>(List.of(week, week.plusDays(1), wednesday));
+    given(
+            tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+                any(LocalDate.class), any(LocalDate.class)))
+        .willAnswer(
+            call -> {
+              LocalDate from = call.getArgument(0);
+              LocalDate to = call.getArgument(1);
+              return from.datesUntil(to.plusDays(1))
+                  .map(
+                      date -> {
+                        var day = new MarketTradingDay(date, date.getDayOfWeek().getValue() < 6);
+                        if (collected.contains(date)) day.collected(Instant.now());
+                        return day;
+                      })
+                  .toList();
+            });
+    var baseline = new PortfolioDailyReturn(portfolio, week);
+    baseline.completeBaseline(new BigDecimal("100"), new BigDecimal("100"), Instant.now());
+    var pending = new PortfolioDailyReturn(portfolio, thursday);
+    pending.exclude("PRICE_COLLECTION_PENDING", Instant.now());
+    List<PortfolioDailyReturn> values =
+        new ArrayList<>(
+            List.of(
+                baseline,
+                dailyReturn(portfolio, week.plusDays(1), "10"),
+                dailyReturn(portfolio, wednesday, "10"),
+                pending));
+    given(
+            returnRepository.findLatestByPortfolioIdAndBaseDateBetween(
+                eq(3L), any(LocalDate.class), any(LocalDate.class)))
+        .willAnswer(
+            call ->
+                values.stream()
+                    .filter(
+                        value ->
+                            !value.getBaseDate().isBefore(call.getArgument(1, LocalDate.class)))
+                    .filter(
+                        value -> !value.getBaseDate().isAfter(call.getArgument(2, LocalDate.class)))
+                    .toList());
+
+    var ranking = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
+    assertThat(ranking.asOfDate()).isEqualTo(wednesday);
+    assertThat(ranking.rankings()).hasSize(1);
+    assertThat(ranking.rankings().getFirst().weeklyReturnRate()).isEqualByComparingTo("21");
+    var history = service.dailyHistory("investor-1", week);
+    assertThat(history.asOfDate()).isEqualTo(wednesday);
+    assertThat(history.weeklyReturnRate()).isEqualByComparingTo("21");
+    assertThat(history.days().getLast().status()).isEqualTo(LeagueTypes.DailyReturnStatus.EXCLUDED);
+
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(friday);
+    Instant fridayClose = friday.atTime(18, 0).atZone(seoul).toInstant();
+    instants.when(Instant::now).thenReturn(fridayClose);
+    collected.add(friday);
+    values.add(dailyReturn(portfolio, friday, "5"));
+    assertThat(service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20).rankings())
+        .isEmpty();
+    assertThat(service.dailyHistory("investor-1", week).weeklyReturnRate()).isNull();
+  }
+
+  @Test
   void dailyHistoryCompoundsReturnsAndResetsAtEachMondayWithoutWeekendPoints() {
     LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
     SharedPortfolio portfolio = dailyProfile(week.minusWeeks(1));
