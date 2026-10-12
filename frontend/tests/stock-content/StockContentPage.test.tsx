@@ -28,7 +28,7 @@ beforeEach(() => {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
 
-      if (url.endsWith('/api/portfolio')) {
+      if (url.endsWith('/api/users/me/portfolio')) {
         return jsonResponse({
           holdings: [
             {

@@ -1,0 +1,142 @@
+.mypage {
+  width: min(760px, calc(100% - 40px));
+  margin: 24px auto 80px;
+  color: #172031;
+  line-height: 1.6;
+}
+
+.mypage h1 {
+  font-size: 28px;
+  margin: 0;
+}
+
+.mypage h2 {
+  margin-bottom: 16px;
+  font-size: 18px;
+}
+
+.mypage header p,
+.mypage-note,
+.mypage nav span {
+  color: #667085;
+  font-size: 14px;
+}
+
+.mypage section {
+  margin-top: 20px;
+  padding: 20px 0;
+  border-top: 1px solid #e7eaf0;
+}
+
+.mypage dl > div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f1f4;
+}
+
+.mypage dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mypage-visibility,
+.mypage dd > small {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.mypage-nickname-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.mypage-nickname-actions span {
+  overflow-wrap: anywhere;
+}
+
+.mypage-nickname-form {
+  display: grid;
+  gap: 8px;
+}
+
+.mypage-nickname-form input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 360px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 4px;
+  font: inherit;
+}
+
+.mypage-nickname-form input[aria-invalid='true'] {
+  border-color: #b42318;
+}
+
+.mypage-nickname-form p {
+  margin: 0;
+}
+
+.mypage nav a {
+  display: grid;
+  padding: 16px 32px 16px 0;
+  position: relative;
+  gap: 4px;
+  border-bottom: 1px solid #e7eaf0;
+  color: inherit;
+  text-decoration: none;
+}
+.mypage nav a::after {
+  content: '→';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #667085;
+}
+.mypage nav a:hover {
+  background: #f8f9fb;
+}
+
+.mypage nav a:hover strong {
+  color: #5144d8;
+}
+
+.mypage button {
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  color: #344054;
+  background: white;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mypage button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.mypage [role='alert'] {
+  margin-bottom: 16px;
+  color: #b42318;
+}
+
+.mypage :focus-visible {
+  outline: 2px solid #5144d8;
+  outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .mypage {
+    width: calc(100% - 32px);
+  }
+}

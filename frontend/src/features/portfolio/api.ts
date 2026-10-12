@@ -22,14 +22,6 @@ import type {
 
 const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE', 'NEUTRAL']);
 const IMPACT_LEVELS = new Set<PortfolioImpactLevel>(['HIGH', 'MEDIUM', 'LOW']);
-type PortfolioPerformanceApiPoint = Omit<PortfolioPerformancePoint, 'recordedAt' | 'source'>;
-type PortfolioPerformanceApiResponse = Omit<
-  PortfolioPerformanceResponse,
-  'points' | 'currentPoint'
-> & {
-  points: PortfolioPerformanceApiPoint[];
-  currentPoint: PortfolioPerformanceApiPoint;
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -115,18 +107,16 @@ function isSavedPortfolioHolding(value: unknown): value is PortfolioHoldingInput
   );
 }
 
-function isPerformancePoint(
-  value: unknown,
-  current = false,
-): value is PortfolioPerformanceApiPoint {
+function isPerformancePoint(value: unknown): value is PortfolioPerformancePoint {
   return (
     isRecord(value) &&
     typeof value.baseDate === 'string' &&
-    (!current || value.priceBaseDate === null || typeof value.priceBaseDate === 'string') &&
     hasNumber(value, 'totalPurchaseAmount') &&
     hasNumber(value, 'totalEvaluationAmount') &&
     hasNumber(value, 'totalProfitLoss') &&
-    hasNumber(value, 'totalReturnRate')
+    hasNumber(value, 'totalReturnRate') &&
+    hasNullableNumber(value, 'dailyProfitLoss') &&
+    hasNullableNumber(value, 'dailyReturnRate')
   );
 }
 
@@ -249,7 +239,7 @@ export async function calculatePortfolio(holdings: PortfolioHoldingInput[], sign
 }
 
 export async function getSavedPortfolio(signal?: AbortSignal) {
-  const response = await request<unknown>('/api/portfolio', { signal });
+  const response = await request<unknown>('/api/users/me/portfolio', { signal });
 
   if (
     !isRecord(response) ||
@@ -263,7 +253,7 @@ export async function getSavedPortfolio(signal?: AbortSignal) {
 }
 
 export async function addSavedPortfolioHolding(holding: PortfolioHoldingInput) {
-  const response = await requestWithCsrf<unknown>('/api/portfolio/holdings', {
+  const response = await requestWithCsrf<unknown>('/api/users/me/portfolio/holdings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -280,14 +270,17 @@ export async function addSavedPortfolioHolding(holding: PortfolioHoldingInput) {
 }
 
 export async function updateSavedPortfolioHolding(holding: PortfolioHoldingInput) {
-  const response = await requestWithCsrf<unknown>(`/api/portfolio/holdings/${holding.assetId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      quantity: holding.quantity,
-      averagePurchasePrice: holding.averagePurchasePrice,
-    }),
-  });
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/holdings/${holding.assetId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quantity: holding.quantity,
+        averagePurchasePrice: holding.averagePurchasePrice,
+      }),
+    },
+  );
 
   if (!isSavedPortfolioHolding(response)) {
     throw new Error('보유 자산 수정 응답 형식이 올바르지 않습니다.');
@@ -296,14 +289,17 @@ export async function updateSavedPortfolioHolding(holding: PortfolioHoldingInput
 }
 
 export function removeSavedPortfolioHolding(assetId: number) {
-  return requestWithCsrf<void>(`/api/portfolio/holdings/${assetId}`, { method: 'DELETE' });
+  return requestWithCsrf<void>(`/api/users/me/portfolio/holdings/${assetId}`, { method: 'DELETE' });
 }
 
 export async function getPortfolioPerformance(from: string, to: string, signal?: AbortSignal) {
   const query = new URLSearchParams({ from, to });
-  const response = await request<unknown>(`/api/portfolio/performance?${query.toString()}`, {
-    signal,
-  });
+  const response = await request<unknown>(
+    `/api/users/me/portfolio/performance?${query.toString()}`,
+    {
+      signal,
+    },
+  );
 
   if (
     !isRecord(response) ||
@@ -312,28 +308,12 @@ export async function getPortfolioPerformance(from: string, to: string, signal?:
     (response.baseDate !== null && typeof response.baseDate !== 'string') ||
     (response.previousBaseDate !== null && typeof response.previousBaseDate !== 'string') ||
     !Array.isArray(response.points) ||
-    !response.points.every((point) => isPerformancePoint(point)) ||
-    !isPerformancePoint(response.currentPoint, true)
+    !response.points.every(isPerformancePoint)
   ) {
     throw new Error('자산 추이 응답 형식이 올바르지 않습니다.');
   }
 
-  const normalizePoint = (
-    point: PortfolioPerformanceApiPoint,
-    current: boolean,
-  ): PortfolioPerformancePoint => ({
-    ...point,
-    recordedAt: `${point.baseDate}T15:30:00.000Z`,
-    source: 'CLOSE',
-    priceBaseDate: current ? point.priceBaseDate : undefined,
-  });
-
-  const performance = response as unknown as PortfolioPerformanceApiResponse;
-  return {
-    ...performance,
-    points: performance.points.map((point) => normalizePoint(point, false)),
-    currentPoint: normalizePoint(performance.currentPoint, true),
-  };
+  return response as PortfolioPerformanceResponse;
 }
 
 export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortSignal) {
