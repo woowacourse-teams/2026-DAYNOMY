@@ -25,8 +25,10 @@ import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
+import org.grit.daynomy.portfolio.dto.SavedPortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.service.PortfolioAnalysisService;
+import org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,6 +62,7 @@ class PortfolioAnalysisControllerTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private PortfolioAnalysisService portfolioAnalysisService;
+  @MockitoBean private SavedPortfolioAnalysisService savedPortfolioAnalysisService;
 
   @AfterEach
   void clearAuthentication() {
@@ -142,8 +145,18 @@ class PortfolioAnalysisControllerTest {
     AuthenticatedMember member = new AuthenticatedMember(1L, MemberRole.USER);
     var authentication = new UsernamePasswordAuthenticationToken(member, null, List.of());
     SecurityContextHolder.getContext().setAuthentication(authentication);
-    when(portfolioAnalysisService.analyze(request, true))
-        .thenReturn(PortfolioAnalysisResponse.empty());
+    when(savedPortfolioAnalysisService.analyze(1L, request))
+        .thenReturn(
+            new SavedPortfolioAnalysisResponse(
+                SavedPortfolioAnalysisResponse.Status.EMPTY,
+                null,
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                PortfolioAnalysisResponse.empty()));
 
     mockMvc
         .perform(
@@ -156,7 +169,8 @@ class PortfolioAnalysisControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.totalAssetCount").value(0));
 
-    verify(portfolioAnalysisService).analyze(request, true);
+    verify(savedPortfolioAnalysisService).analyze(1L, request);
+    verifyNoInteractions(portfolioAnalysisService);
   }
 
   @Test

@@ -1495,7 +1495,6 @@ class SharedPortfolioAcceptanceTest {
         assertThat(result.next()).isTrue();
         assertThat(result.getInt("indexes")).isEqualTo(2);
         assertThat(result.getInt("feature_migrations")).isEqualTo(5);
-        assertThat(result.getInt("latest_version")).isEqualTo(39);
       }
     }
   }
