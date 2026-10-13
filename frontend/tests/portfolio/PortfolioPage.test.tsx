@@ -1141,6 +1141,62 @@ describe('포트폴리오 화면', () => {
     expect(view.getByText('2026.10')).toBeTruthy();
   });
 
+  it('기본·상세 그래프에서 거래 없는 날짜도 툴팁으로 확인하고 선택 날짜는 유지한다', async () => {
+    savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
+    mockPortfolioApi();
+    vi.stubGlobal('PointerEvent', MouseEvent);
+    const view = render(<PortfolioPage />);
+    const compact = await view.findByRole('img', { name: /평가금액 750,000원/ });
+    const mockBounds = (chart: Element) =>
+      vi.spyOn(chart, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 720,
+        bottom: 300,
+        width: 720,
+        height: 300,
+        toJSON: () => ({}),
+      });
+    mockBounds(compact);
+    fireEvent.pointerMove(compact, { clientX: 58 });
+    expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
+      '2026년 9월 24일',
+    );
+    fireEvent.pointerMove(compact, { clientX: 708 });
+    expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
+      '2026년 10월 6일',
+    );
+    fireEvent.pointerLeave(compact);
+    expect(view.container.querySelector('.portfolio-return-tooltip')).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '자산 추이 크게 보기' }));
+    const dialog = view.getByRole('dialog', { name: '자산 추이 상세' });
+    const chart = within(dialog).getByRole('img', { name: /포트폴리오 자산 추이/ });
+    mockBounds(chart);
+    const date = within(dialog).getByLabelText('자산 추이 조회 날짜');
+    fireEvent.change(date, { target: { value: '2026-09-30' } });
+    fireEvent.change(date, { target: { value: '2026-10-06' } });
+    // 거래 없는 날짜를 연속으로 이동해도 선택한 하단 조회 날짜는 바뀌지 않는다.
+    for (let day = 24; day <= 30; day++) {
+      fireEvent.pointerMove(chart, { clientX: 58 + ((day - 24) / 12) * 650 });
+      const tooltip = within(dialog).getByRole('tooltip');
+      expect(tooltip.querySelector('time')?.dateTime).toBe(`2026-09-${day}`);
+      expect(tooltip.textContent).toContain(`${690 + (day - 24) * 10},000원`);
+      expect(date).toHaveProperty('value', '2026-10-06');
+      expect(dialog.querySelector('.portfolio-trend-date-values')?.textContent).toContain(
+        '750,000원',
+      );
+    }
+    fireEvent.pointerLeave(chart);
+    expect(within(dialog).queryByRole('tooltip')).toBeNull();
+    expect(date).toHaveProperty('value', '2026-10-06');
+    fireEvent.keyDown(chart.parentElement!, { key: 'ArrowLeft' });
+    expect(within(dialog).getByRole('tooltip').querySelector('time')?.dateTime).toBe('2026-09-30');
+    expect(date).toHaveProperty('value', '2026-09-30');
+  });
+
   it('자산 추이 그래프를 상세 화면으로 확장하고 닫는다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     mockPortfolioApi();

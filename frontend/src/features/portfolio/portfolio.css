@@ -2535,8 +2535,10 @@
 
 .portfolio-trend-dialog {
   width: min(1040px, 100%);
+  height: min(960px, calc(100svh - 56px));
   max-height: calc(100svh - 56px);
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 0;
   border: 0;
   border-radius: 18px;
@@ -2830,6 +2832,7 @@
 @media (max-width: 620px) {
   .portfolio-trend-dialog {
     width: 100%;
+    height: 100svh;
     max-height: 100svh;
     margin: 0;
     border-radius: 0;
