@@ -150,15 +150,24 @@ for (const viewport of [
     const panelBox = (await newsPanel.boundingBox())!;
     if (viewport.name === 'desktop') {
       expect(panelBox.x).toBeGreaterThanOrEqual(mainWithNews.x + mainWithNews.width);
-      expect(Math.abs(panelBox.y - mainWithNews.y)).toBeLessThanOrEqual(1);
+      expect(panelBox.y - mainWithNews.y).toBeGreaterThanOrEqual(32);
+      expect(panelBox.y - mainWithNews.y).toBeLessThanOrEqual(33);
     } else {
       expect(panelBox.y).toBeGreaterThanOrEqual(mainWithNews.y + mainWithNews.height);
     }
+    await newsPanel.evaluate(async (panel) => {
+      await Promise.all(panel.getAnimations().map((animation) => animation.finished));
+    });
     await page.screenshot({ path: testInfo.outputPath('news-sidebar-expanded.png') });
     await newsPanel.getByRole('button', { name: '소식 접기' }).click();
     await expect(newsPanel).toBeHidden();
     await expect(newsTab).toHaveAttribute('aria-expanded', 'false');
     await expect(newsTab).toBeFocused();
+    await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
+      await Promise.all(
+        layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
+      );
+    });
     const mainWithoutNews = (await page.locator('.portfolio-dashboard-main').boundingBox())!;
     if (viewport.name === 'desktop')
       expect(mainWithoutNews.width).toBeGreaterThan(mainWithNews.width);
@@ -186,11 +195,21 @@ for (const viewport of [
       await page.setViewportSize({ width, height: 700 });
       await newsTab.click();
       await expect(newsPanel).toBeVisible();
+      await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
+        await Promise.all(
+          layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
+        );
+      });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
       await newsTab.click();
       await expect(newsPanel).toBeHidden();
+      await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
+        await Promise.all(
+          layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
+        );
+      });
       expect(
         await page.evaluate(
           () =>
@@ -505,15 +524,24 @@ for (const viewport of [
     const panelBox = (await newsPanel.boundingBox())!;
     if (viewport.name === 'desktop') {
       expect(panelBox.x).toBeGreaterThanOrEqual(mainWithNews.x + mainWithNews.width);
-      expect(Math.abs(panelBox.y - mainWithNews.y)).toBeLessThanOrEqual(1);
+      expect(panelBox.y - mainWithNews.y).toBeGreaterThanOrEqual(32);
+      expect(panelBox.y - mainWithNews.y).toBeLessThanOrEqual(33);
     } else {
       expect(panelBox.y).toBeGreaterThanOrEqual(mainWithNews.y + mainWithNews.height);
     }
+    await newsPanel.evaluate(async (panel) => {
+      await Promise.all(panel.getAnimations().map((animation) => animation.finished));
+    });
     await page.screenshot({ path: testInfo.outputPath('news-sidebar-expanded.png') });
     await newsPanel.getByRole('button', { name: '소식 접기' }).click();
     await expect(newsPanel).toBeHidden();
     await expect(newsTab).toHaveAttribute('aria-expanded', 'false');
     await expect(newsTab).toBeFocused();
+    await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
+      await Promise.all(
+        layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
+      );
+    });
     const mainWithoutNews = (await page.locator('.portfolio-dashboard-main').boundingBox())!;
     if (viewport.name === 'desktop')
       expect(mainWithoutNews.width).toBeGreaterThan(mainWithNews.width);
