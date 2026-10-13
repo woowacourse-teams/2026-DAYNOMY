@@ -2,22 +2,9 @@ import type {
   CollectionStatus,
   ExperienceLevel,
   HoldingPeriod,
-  LeagueType,
   RiskProfile,
   TransactionType,
 } from './types';
-
-export const leagueLabels: Record<LeagueType, string> = {
-  WEEKLY_RETURN: '주간 수익률',
-  STABLE: '안정형',
-  BEGINNER: '초보리그',
-};
-
-export const leagueCriteria: Record<LeagueType, string> = {
-  WEEKLY_RETURN: '주간 수익률순',
-  STABLE: '주간 수익률 · 변동성 감점',
-  BEGINNER: '투자 경력 1년 미만 · 주간 수익률순',
-};
 
 export const experienceLabels: Record<ExperienceLevel, string> = {
   BEGINNER: '투자 1년 미만',
