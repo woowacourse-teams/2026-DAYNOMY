@@ -49,6 +49,7 @@ function isPerson(value: unknown): value is FeaturedPerson {
     typeof value.name === 'string' &&
     isOptionalString(value.xProfileUrl) &&
     isOptionalString(value.threadsProfileUrl) &&
+    (value.youtubeProfileUrl === undefined || isOptionalString(value.youtubeProfileUrl)) &&
     (value.profileImageUrl === undefined || isOptionalString(value.profileImageUrl)) &&
     isOptionalString(value.createdAt) &&
     Array.isArray(value.posts) &&

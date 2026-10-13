@@ -13,6 +13,7 @@ export type FeaturedPerson = {
   name: string;
   xProfileUrl: string | null;
   threadsProfileUrl: string | null;
+  youtubeProfileUrl: string | null;
   profileImageUrl: string | null;
   createdAt: string | null;
   posts: FeaturedPersonPost[];
@@ -26,6 +27,7 @@ export type FeaturedPersonRequest = {
   name: string;
   xProfileUrl: string | null;
   threadsProfileUrl: string | null;
+  youtubeProfileUrl: string | null;
   profileImageSelection?: { title: string } | null;
 };
 

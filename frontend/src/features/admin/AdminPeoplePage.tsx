@@ -64,9 +64,11 @@ export function AdminPeoplePage() {
   const [newName, setNewName] = useState('');
   const [newXProfileUrl, setNewXProfileUrl] = useState('');
   const [newThreadsProfileUrl, setNewThreadsProfileUrl] = useState('');
+  const [newYoutubeProfileUrl, setNewYoutubeProfileUrl] = useState('');
   const [editName, setEditName] = useState('');
   const [editXProfileUrl, setEditXProfileUrl] = useState('');
   const [editThreadsProfileUrl, setEditThreadsProfileUrl] = useState('');
+  const [editYoutubeProfileUrl, setEditYoutubeProfileUrl] = useState('');
   const [imageKeyword, setImageKeyword] = useState('');
   const [imageCandidates, setImageCandidates] = useState<AdminWikimediaImageCandidate[]>([]);
   const [selectedImage, setSelectedImage] = useState<AdminWikimediaImageCandidate | null>(null);
@@ -111,6 +113,7 @@ export function AdminPeoplePage() {
     setEditName(selectedPerson.name);
     setEditXProfileUrl(selectedPerson.xProfileUrl ?? '');
     setEditThreadsProfileUrl(selectedPerson.threadsProfileUrl ?? '');
+    setEditYoutubeProfileUrl(selectedPerson.youtubeProfileUrl ?? '');
     setSelectedImage(null);
     setImageCandidates([]);
     setImageKeyword(selectedPerson.name);
@@ -133,12 +136,14 @@ export function AdminPeoplePage() {
         name: newName.trim(),
         xProfileUrl: emptyToNull(newXProfileUrl),
         threadsProfileUrl: emptyToNull(newThreadsProfileUrl),
+        youtubeProfileUrl: emptyToNull(newYoutubeProfileUrl),
       });
       setPeople((current) => [...current, person]);
       setSelectedPersonId(person.id);
       setNewName('');
       setNewXProfileUrl('');
       setNewThreadsProfileUrl('');
+      setNewYoutubeProfileUrl('');
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, '주요 인물을 등록하지 못했습니다.'));
     } finally {
@@ -156,6 +161,7 @@ export function AdminPeoplePage() {
         name: editName.trim(),
         xProfileUrl: emptyToNull(editXProfileUrl),
         threadsProfileUrl: emptyToNull(editThreadsProfileUrl),
+        youtubeProfileUrl: emptyToNull(editYoutubeProfileUrl),
         profileImageSelection: selectedImage ? { title: selectedImage.title } : null,
       });
       setPeople((current) => current.map((item) => (item.id === person.id ? person : item)));
@@ -315,6 +321,15 @@ export function AdminPeoplePage() {
             onChange={(event) => setNewThreadsProfileUrl(event.target.value)}
           />
         </label>
+        <label className="admin-field">
+          <span>YouTube 채널 URL</span>
+          <input
+            type="url"
+            value={newYoutubeProfileUrl}
+            placeholder="https://www.youtube.com/@channel"
+            onChange={(event) => setNewYoutubeProfileUrl(event.target.value)}
+          />
+        </label>
         <button className="admin-primary-button" type="submit" disabled={saving || !newName.trim()}>
           인물 추가
         </button>
@@ -374,6 +389,16 @@ export function AdminPeoplePage() {
                         Threads 프로필 열기 ↗
                       </a>
                     ) : null}
+                    {selectedPerson.youtubeProfileUrl ? (
+                      <a
+                        className="admin-secondary-button"
+                        href={selectedPerson.youtubeProfileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        YouTube 채널 열기 ↗
+                      </a>
+                    ) : null}
                   </div>
                 </div>
                 <div className="admin-person-profile-fields">
@@ -399,6 +424,15 @@ export function AdminPeoplePage() {
                       type="url"
                       value={editThreadsProfileUrl}
                       onChange={(event) => setEditThreadsProfileUrl(event.target.value)}
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>YouTube 채널 URL</span>
+                    <input
+                      type="url"
+                      value={editYoutubeProfileUrl}
+                      placeholder="https://www.youtube.com/@channel"
+                      onChange={(event) => setEditYoutubeProfileUrl(event.target.value)}
                     />
                   </label>
                   <div className="admin-person-image-picker">
