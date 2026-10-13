@@ -1,5 +1,6 @@
 package org.grit.daynomy.person.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -12,4 +13,5 @@ public record FeaturedPersonRequest(
         String xProfileUrl,
     @Size(max = 2000, message = "Threads 프로필 URL은 2000자 이하여야 합니다.")
         @Pattern(regexp = "https?://\\S+", message = "올바른 Threads 프로필 URL을 입력해주세요.")
-        String threadsProfileUrl) {}
+        String threadsProfileUrl,
+    @Valid FeaturedPersonImageSelectionRequest profileImageSelection) {}

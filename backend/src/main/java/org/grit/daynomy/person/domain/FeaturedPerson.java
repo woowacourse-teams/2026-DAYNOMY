@@ -33,19 +33,36 @@ public class FeaturedPerson extends BaseEntity {
   @Column(name = "threads_profile_url", columnDefinition = "TEXT")
   private String threadsProfileUrl;
 
-  private FeaturedPerson(String name, String xProfileUrl, String threadsProfileUrl) {
+  @Column(name = "profile_image_url", columnDefinition = "TEXT")
+  private String profileImageUrl;
+
+  private FeaturedPerson(
+      String name,
+      String xProfileUrl,
+      String threadsProfileUrl,
+      String profileImageUrl) {
     this.name = name;
     this.xProfileUrl = xProfileUrl;
     this.threadsProfileUrl = threadsProfileUrl;
+    this.profileImageUrl = profileImageUrl;
   }
 
-  public static FeaturedPerson create(String name, String xProfileUrl, String threadsProfileUrl) {
-    return new FeaturedPerson(name, xProfileUrl, threadsProfileUrl);
+  public static FeaturedPerson create(
+      String name,
+      String xProfileUrl,
+      String threadsProfileUrl,
+      String profileImageUrl) {
+    return new FeaturedPerson(name, xProfileUrl, threadsProfileUrl, profileImageUrl);
   }
 
-  public void update(String name, String xProfileUrl, String threadsProfileUrl) {
+  public void update(
+      String name,
+      String xProfileUrl,
+      String threadsProfileUrl,
+      String profileImageUrl) {
     this.name = name;
     this.xProfileUrl = xProfileUrl;
     this.threadsProfileUrl = threadsProfileUrl;
+    this.profileImageUrl = profileImageUrl;
   }
 }
