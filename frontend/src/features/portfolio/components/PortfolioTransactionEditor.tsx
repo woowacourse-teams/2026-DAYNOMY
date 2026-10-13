@@ -8,6 +8,7 @@ import {
   type TransactionFields,
 } from '../transactionForm';
 import type {
+  AssetCategory,
   PortfolioHoldingHistory,
   PortfolioTransactionRequest,
   PortfolioTransactionType,
@@ -20,7 +21,6 @@ type Props = {
   transaction?: PortfolioHoldingHistory;
   onClose: () => void;
   onDelete?: () => void;
-  onOpeningBalance?: () => void;
   onSave: (request: PortfolioTransactionRequest, stock?: StockSearchItem) => Promise<void>;
 };
 export function PortfolioTransactionEditor({
@@ -29,7 +29,6 @@ export function PortfolioTransactionEditor({
   transaction,
   onClose,
   onDelete,
-  onOpeningBalance,
   onSave,
 }: Props) {
   const [selected, setSelected] = useState<StockSearchItem | PortfolioHoldingHistory | null>(
@@ -50,6 +49,7 @@ export function PortfolioTransactionEditor({
   const [priceError, setPriceError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<StockSearchItem[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<'ALL' | AssetCategory>('ALL');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [searchRetry, setSearchRetry] = useState(0);
@@ -113,6 +113,9 @@ export function PortfolioTransactionEditor({
     return () => controller.abort();
   }, [selected, transaction]);
   const invalid = validateTransaction(fields);
+  const filteredResults = results.filter(
+    (item) => categoryFilter === 'ALL' || item.category === categoryFilter,
+  );
   const gross = Number(fields.quantity) * Number(fields.unitPrice);
   const costs = Number(fields.fee) + Number(fields.tax);
   const amount = transactionType === 'BUY' ? gross + costs : gross - costs;
@@ -177,14 +180,6 @@ export function PortfolioTransactionEditor({
         <fieldset disabled={saving} className="portfolio-sheet-fields">
           {!selected ? (
             <>
-              {onOpeningBalance && (
-                <div className="portfolio-registration-choice">
-                  <p>매수·매도한 날짜와 금액을 기록하세요.</p>
-                  <button type="button" onClick={onOpeningBalance}>
-                    거래일을 모르면 현재 보유분으로 등록
-                  </button>
-                </div>
-              )}
               <label className="portfolio-ledger-field">
                 종목 검색
                 <input
@@ -196,6 +191,18 @@ export function PortfolioTransactionEditor({
                   onChange={(event) => setKeyword(event.target.value)}
                 />
               </label>
+              <div className="portfolio-market-tabs" role="group" aria-label="자산 유형 필터">
+                {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    aria-pressed={categoryFilter === category}
+                    onClick={() => setCategoryFilter(category)}
+                  >
+                    {category === 'ALL' ? '전체' : category === 'STOCK' ? '주식' : 'ETF'}
+                  </button>
+                ))}
+              </div>
               <div className="portfolio-stock-results" aria-live="polite">
                 {searchLoading ? (
                   <p role="status">종목을 검색하고 있어요.</p>
@@ -206,9 +213,9 @@ export function PortfolioTransactionEditor({
                       다시 검색
                     </button>
                   </div>
-                ) : results.length ? (
+                ) : filteredResults.length ? (
                   <ul>
-                    {results.map((item) => (
+                    {filteredResults.map((item) => (
                       <li key={item.assetId}>
                         <button
                           type="button"

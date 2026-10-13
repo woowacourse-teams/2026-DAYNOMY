@@ -148,10 +148,7 @@ export function PortfolioHoldingDetail({
                 : '시세를 확인할 수 없어 평가금액과 손익을 표시하지 않았어요.'}
           </p>
         </section>
-        <section
-          className="portfolio-detail-transactions"
-          aria-labelledby="holding-transactions-title"
-        >
+        <section className="portfolio-detail-transactions">
           <h3 id="holding-transactions-title">거래 내역</h3>
           <PortfolioHistory
             assetId={stock.assetId}

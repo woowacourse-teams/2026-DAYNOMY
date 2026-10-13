@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import {
-  addSavedPortfolioHolding,
   getSavedPortfolio,
   removeSavedPortfolioHolding,
   updateSavedPortfolioHolding,
@@ -92,6 +91,7 @@ export function usePortfolioHoldings(isLoggedIn = true) {
       setError('');
       try {
         const exists = holdings.some((holding) => holding.assetId === nextHolding.assetId);
+        if (!exists) throw new Error('정정할 보유자산이 없습니다. 매수 거래로 등록해 주세요.');
         if (!isLoggedIn) {
           if (guestLedger) {
             commitGuestLedger({
@@ -103,26 +103,20 @@ export function usePortfolioHoldings(isLoggedIn = true) {
             });
             return;
           }
-          const nextHoldings = exists
-            ? holdings.map((holding) =>
-                holding.assetId === nextHolding.assetId ? nextHolding : holding,
-              )
-            : [...holdings, nextHolding];
+          const nextHoldings = holdings.map((holding) =>
+            holding.assetId === nextHolding.assetId ? nextHolding : holding,
+          );
           saveGuestPortfolioHoldings(nextHoldings);
           setHoldings(nextHoldings);
           setRevision((value) => value + 1);
           return;
         }
 
-        const savedHolding = exists
-          ? await updateSavedPortfolioHolding(nextHolding)
-          : await addSavedPortfolioHolding(nextHolding);
+        const savedHolding = await updateSavedPortfolioHolding(nextHolding);
         setHoldings((current) =>
-          exists
-            ? current.map((holding) =>
-                holding.assetId === savedHolding.assetId ? savedHolding : holding,
-              )
-            : [...current, savedHolding],
+          current.map((holding) =>
+            holding.assetId === savedHolding.assetId ? savedHolding : holding,
+          ),
         );
         setRevision((value) => value + 1);
       } catch (caughtError) {
