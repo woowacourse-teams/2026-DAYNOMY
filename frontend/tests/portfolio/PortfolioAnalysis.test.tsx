@@ -736,19 +736,24 @@ describe('포트폴리오 분석 이벤트', () => {
 
   it('결과의 실제 노출과 자산 선택·출처 열기를 집계한다', async () => {
     let intersect!: IntersectionObserverCallback;
+    const observe = vi.fn();
     vi.stubGlobal(
       'IntersectionObserver',
       class {
         constructor(callback: IntersectionObserverCallback) {
           intersect = callback;
         }
-        observe() {}
+        observe = observe;
         disconnect() {}
       },
     );
     memberFetch(() => saved());
     const view = render(<PortfolioAnalysis assets={assets} />);
     await view.findByText(analysisResponse.overallImpact);
+    // 결과 렌더링 이후 실제 관찰 대상 등록까지 기다린다.
+    await waitFor(() =>
+      expect(observe).toHaveBeenCalledWith(view.container.querySelector('.portfolio-score-panel')),
+    );
     expect(trackEvent).not.toHaveBeenCalled();
     act(() =>
       intersect(

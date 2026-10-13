@@ -77,13 +77,14 @@ it('각 분석 요청의 완료 시점에 별도로 기록하고 취소 이후�
 
 it('StrictMode에서 유효한 요청만 집계하고 시장 분석 실제 노출은 한 번만 기록한다', async () => {
   let intersect!: IntersectionObserverCallback;
+  const observe = vi.fn();
   vi.stubGlobal(
     'IntersectionObserver',
     class {
       constructor(callback: IntersectionObserverCallback) {
         intersect = callback;
       }
-      observe() {}
+      observe = observe;
       disconnect() {}
     },
   );
@@ -104,6 +105,10 @@ it('StrictMode에서 유효한 요청만 집계하고 시장 분석 실제 노�
     </StrictMode>,
   );
   await view.findByText('지표');
+  // DOM 표시만으로 useEffect의 관찰자 등록 완료를 보장할 수 없다.
+  await waitFor(() =>
+    expect(observe).toHaveBeenCalledWith(view.getByRole('heading', { name: '시장 분석' })),
+  );
   const calls = () => vi.mocked(trackEvent).mock.calls;
   expect(calls().filter(([name]) => name === 'content_load_result')).toHaveLength(2);
   expect(calls().filter(([name]) => name === 'view_market_analysis')).toHaveLength(0);
