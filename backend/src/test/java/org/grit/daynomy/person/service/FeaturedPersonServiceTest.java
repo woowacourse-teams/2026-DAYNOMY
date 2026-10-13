@@ -122,7 +122,10 @@ class FeaturedPersonServiceTest {
                 featuredPersonService.createPost(
                     1L,
                     new FeaturedPersonPostRequest(
-                        ContentSourceType.THREADS, null, "https://x.com/elonmusk/status/12345", null)))
+                        ContentSourceType.THREADS,
+                        null,
+                        "https://x.com/elonmusk/status/12345",
+                        null)))
         .isInstanceOf(BusinessException.class)
         .extracting(error -> ((BusinessException) error).errorCode())
         .isEqualTo(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);

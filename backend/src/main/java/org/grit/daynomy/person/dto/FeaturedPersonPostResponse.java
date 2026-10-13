@@ -5,7 +5,12 @@ import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.person.domain.FeaturedPersonPost;
 
 public record FeaturedPersonPostResponse(
-    Long id, ContentSourceType sourceType, String title, String url, Instant publishedAt, Instant createdAt) {
+    Long id,
+    ContentSourceType sourceType,
+    String title,
+    String url,
+    Instant publishedAt,
+    Instant createdAt) {
 
   public static FeaturedPersonPostResponse from(FeaturedPersonPost post) {
     return new FeaturedPersonPostResponse(
