@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
 import type {
@@ -46,6 +46,7 @@ let realized: number;
 let pricing: 'COMPLETE' | 'PARTIAL' | 'MIXED_DATES';
 let rejectMutation: boolean;
 let failedPerformance: boolean;
+let performancePoint: typeof historical;
 const originalShow = HTMLDialogElement.prototype.showModal;
 const originalClose = HTMLDialogElement.prototype.close;
 beforeAll(() => {
@@ -75,6 +76,7 @@ beforeEach(() => {
   pricing = 'COMPLETE';
   rejectMutation = false;
   failedPerformance = false;
+  performancePoint = { ...historical };
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -92,9 +94,9 @@ beforeEach(() => {
           : json({
               status: 'INSUFFICIENT_DATA',
               reason: 'SNAPSHOT_DATA_INSUFFICIENT',
-              baseDate: historical.baseDate,
+              baseDate: performancePoint.baseDate,
               previousBaseDate: null,
-              points: [historical],
+              points: [performancePoint],
               currentPoint: null,
             });
       if (url.endsWith('/api/portfolio/calculate')) {
@@ -180,6 +182,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 async function ready() {
@@ -228,7 +231,7 @@ describe('거래 원장 화면', () => {
     });
     expect(new Headers(init?.headers).get('X-CSRF-TOKEN')).toBe('test');
   });
-  it('거래일만 수정해도 추이와 내역을 갱신하며 종목·거래 구분은 고정한다', async () => {
+  it('보유수량이 그대로인 과거 거래일 수정 후 재계산된 추이와 내역을 표시한다', async () => {
     const view = await ready();
     fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
     await view.findByRole('button', { name: '거래 수정' });
@@ -238,10 +241,21 @@ describe('거래 원장 화면', () => {
     expect(within(dialog).getByRole('button', { name: '매수' })).toHaveProperty('disabled', true);
     expect(within(dialog).queryByRole('searchbox')).toBeNull();
     const before = performanceRequests();
+    performancePoint = {
+      ...historical,
+      totalPurchaseAmount: 650000,
+      totalEvaluationAmount: 780000,
+      totalProfitLoss: 130000,
+      totalReturnRate: 20,
+    };
     fireEvent.change(within(dialog).getByLabelText('거래일'), { target: { value: '2026-09-30' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '변경 사항 저장' }));
     await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(performanceRequests()).toBeGreaterThan(before));
+    expect(
+      await view.findByRole('img', { name: /평가금액 780,000원, 매입원금 650,000원/ }),
+    ).toBeTruthy();
+    expect(view.queryByRole('img', { name: /평가금액 750,000원/ })).toBeNull();
     expect(await view.findByText('2026.09.30')).toBeTruthy();
     expect(view.getByLabelText('시작일')).toHaveProperty('value', '2026-09-01');
     const [, init] = vi
@@ -266,9 +280,19 @@ describe('거래 원장 화면', () => {
     );
     expect(histories).toHaveLength(1);
     rejectMutation = false;
+    performancePoint = {
+      ...historical,
+      totalPurchaseAmount: 600000,
+      totalEvaluationAmount: 720000,
+      totalProfitLoss: 120000,
+      totalReturnRate: 20,
+    };
     fireEvent.click(within(dialog).getByRole('button', { name: '거래 삭제' }));
     await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
     expect(await view.findByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
+    expect(
+      await view.findByRole('img', { name: /평가금액 720,000원, 매입원금 600,000원/ }),
+    ).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '보유 자산 1' }));
     expect(await view.findByText('10주')).toBeTruthy();
   });
@@ -348,6 +372,94 @@ describe('거래 원장 화면', () => {
       expect(view.getByRole('dialog', { name: '삼성전자 보유 상세' })).toBe(panel);
     }
   });
+  it('수량 변경 없이 백엔드에서 갱신된 스냅샷을 새로고침해 확대 그래프에도 표시한다', async () => {
+    const view = await ready();
+    await view.findByRole('img', { name: /평가금액 750,000원/ });
+    performancePoint = {
+      ...historical,
+      totalEvaluationAmount: 840000,
+      totalProfitLoss: 140000,
+      totalReturnRate: 20,
+    };
+    fireEvent.click(view.getByRole('button', { name: '자산 추이 새로고침' }));
+    expect(await view.findByRole('img', { name: /평가금액 840,000원/ })).toBeTruthy();
+    const [, init] = vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => String(url).includes('/performance?'))
+      .at(-1)!;
+    expect(init?.cache).toBe('no-store');
+    fireEvent.click(view.getByRole('button', { name: '자산 추이 크게 보기' }));
+    const expanded = view.getByRole('dialog', { name: '자산 추이 상세' });
+    expect(within(expanded).getByRole('img', { name: /평가금액 840,000원/ })).toBeTruthy();
+    performancePoint = {
+      ...historical,
+      totalEvaluationAmount: 910000,
+      totalProfitLoss: 210000,
+      totalReturnRate: 30,
+    };
+    fireEvent.click(within(expanded).getByRole('button', { name: '자산 추이 새로고침' }));
+    expect(await within(expanded).findByRole('img', { name: /평가금액 910,000원/ })).toBeTruthy();
+  });
+
+  it('재조회가 겹쳐도 늦게 도착한 이전 응답으로 최신 그래프를 덮어쓰지 않는다', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const view = await ready();
+    await view.findByRole('img', { name: /평가금액 750,000원/ });
+    let resolvePrevious!: (response: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolvePrevious = resolve;
+        }),
+    );
+    const before = performanceRequests();
+    fireEvent.click(view.getByRole('button', { name: '자산 추이 새로고침' }));
+    await waitFor(() => expect(performanceRequests()).toBeGreaterThan(before));
+    performancePoint = {
+      ...historical,
+      totalEvaluationAmount: 770000,
+      totalProfitLoss: 70000,
+      totalReturnRate: 10,
+    };
+    fireEvent(document, new Event('visibilitychange'));
+    await view.findByRole('img', { name: /평가금액 770,000원/ });
+    await act(async () =>
+      resolvePrevious(
+        json({
+          status: 'INSUFFICIENT_DATA',
+          reason: 'SNAPSHOT_DATA_INSUFFICIENT',
+          baseDate: historical.baseDate,
+          previousBaseDate: null,
+          points: [historical],
+          currentPoint: null,
+        }),
+      ),
+    );
+    expect(view.getByRole('img', { name: /평가금액 770,000원/ })).toBeTruthy();
+    expect(view.queryByRole('img', { name: /평가금액 750,000원/ })).toBeNull();
+  });
+
+  it('숨긴 탭으로는 요청하지 않고 복귀하면 재계산된 스냅샷을 조회한다', async () => {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get');
+    visibility.mockReturnValue('visible');
+    const view = await ready();
+    await view.findByRole('img', { name: /평가금액 750,000원/ });
+    const before = performanceRequests();
+    visibility.mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(performanceRequests()).toBe(before);
+    performancePoint = {
+      ...historical,
+      totalEvaluationAmount: 770000,
+      totalProfitLoss: 70000,
+      totalReturnRate: 10,
+    };
+    visibility.mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(await view.findByRole('img', { name: /평가금액 770,000원/ })).toBeTruthy();
+    expect(performanceRequests()).toBeGreaterThan(before);
+  });
+
   it('추이 오류를 자산 계산 성공으로 숨기지 않고 해당 영역에서 재시도한다', async () => {
     failedPerformance = true;
     const view = await ready();

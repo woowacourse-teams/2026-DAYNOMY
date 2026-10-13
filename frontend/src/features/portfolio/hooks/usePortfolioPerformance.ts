@@ -48,6 +48,17 @@ export function usePortfolioPerformance(
     .join('|');
 
   useEffect(() => {
+    if (!enabled) return;
+
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') setRetryCount((count) => count + 1);
+    }
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, [enabled]);
+
+  useEffect(() => {
     if (!enabled) {
       setPoints([]);
       setLoading(false);

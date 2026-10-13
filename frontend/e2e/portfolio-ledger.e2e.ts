@@ -73,6 +73,165 @@ for (const viewport of [
   { name: 'desktop', width: 1440, height: 1050 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
+  test(`비회원 잠금 안내와 종목 상세 진입: ${viewport.name}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    const guestHolding = {
+      assetId: stocks[0].assetId,
+      assetCode: stocks[0].assetCode,
+      name: stocks[0].name,
+      category: stocks[0].category,
+      market: stocks[0].market,
+      quantity: 10,
+      averagePurchasePrice: 70000,
+    };
+    await page.addInitScript((holding) => {
+      sessionStorage.setItem('daynomy:guest-portfolio-holdings:v1', JSON.stringify([holding]));
+    }, guestHolding);
+    const memberRequests: string[] = [];
+    await page.route('**/api/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const fulfill = (body: unknown, status = 200) =>
+        route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+      if (/users\/me\/portfolio|portfolio\/(histories|transactions)/.test(path)) {
+        memberRequests.push(path);
+        return fulfill({}, 401);
+      }
+      if (path === '/api/auth/csrf')
+        return fulfill({ token: 'preview', headerName: 'X-CSRF-TOKEN' });
+      if (path === '/api/portfolio/calculate')
+        return fulfill({
+          baseDate: today,
+          pricingStatus: 'COMPLETE',
+          pricedHoldingCount: 1,
+          unpricedHoldingCount: 0,
+          totalPurchaseAmount: 700000,
+          totalEvaluationAmount: 752000,
+          dailyProfitLoss: null,
+          dailyReturnRate: null,
+          totalProfitLoss: 52000,
+          totalReturnRate: 7.43,
+          holdings: [
+            {
+              ...guestHolding,
+              priceAvailable: true,
+              baseDate: today,
+              closePrice: 75200,
+              purchaseAmount: 700000,
+              evaluationAmount: 752000,
+              profitLoss: 52000,
+              returnRate: 7.43,
+              weight: 100,
+            },
+          ],
+          marketAllocations: [{ market: 'KOSPI', evaluationAmount: 752000, weight: 100 }],
+        });
+      return fulfill({}, 401);
+    });
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: '삼성전자 보유 상세' })).toBeVisible();
+    const summary = page.getByLabel('자산 요약');
+    await expect(summary.getByText('누적 실현손익', { exact: true })).toBeVisible();
+    await expect(summary.getByText('로그인 후 확인할 수 있어요', { exact: true })).toBeVisible();
+    const trend = page.getByRole('region', { name: '자산 추이', exact: true });
+    await expect(trend.getByText('잠금', { exact: true })).toBeVisible();
+    await expect(trend.getByText('로그인 후 자산 추이를 확인할 수 있어요')).toBeVisible();
+    await expect(trend.getByRole('link', { name: '로그인하기' })).toHaveAttribute(
+      'href',
+      '/login?returnTo=%2F',
+    );
+    await expect(trend.getByRole('img')).toHaveCount(0);
+    await expect(trend.getByRole('button', { name: '자산 추이 새로고침' })).toHaveCount(0);
+    for (const width of [320, 390, 620, 768, 1000, 1440]) {
+      await page.setViewportSize({ width, height: 700 });
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <= innerWidth &&
+            [
+              ...document.querySelectorAll(
+                '.portfolio-overview dd, .portfolio-trend-locked, .portfolio-composition, .portfolio-holdings',
+              ),
+            ].every((element) => element.scrollWidth <= element.clientWidth + 1),
+        ),
+        `비회원 포트폴리오가 ${width}px에서 잘리지 않아야 합니다.`,
+      ).toBe(true);
+      const headerSize = await page.locator('.service-header').evaluate((header) => {
+        const box = header.getBoundingClientRect();
+        return {
+          height: box.height,
+          overflow: header.scrollWidth > header.clientWidth,
+          itemsFit: [
+            ...header.querySelectorAll(
+              '.service-brand, .service-header-tab, .service-header-actions',
+            ),
+          ].every((item) => {
+            const bounds = item.getBoundingClientRect();
+            return (
+              bounds.top >= box.top &&
+              bounds.bottom <= box.bottom + 1 &&
+              bounds.left >= box.left &&
+              bounds.right <= box.right + 1
+            );
+          }),
+        };
+      });
+      expect(headerSize.height).toBe(64);
+      expect(headerSize.overflow).toBe(false);
+      expect(headerSize.itemsFit).toBe(true);
+    }
+    await page.setViewportSize(viewport);
+    await page.screenshot({ path: testInfo.outputPath('guest-portfolio.png'), fullPage: true });
+    await page.screenshot({
+      path: testInfo.outputPath('guest-notice.png'),
+      clip: { x: 0, y: 0, width: viewport.width, height: 340 },
+    });
+    await page
+      .locator('.service-header')
+      .screenshot({ path: testInfo.outputPath('guest-header.png') });
+    await page.getByRole('button', { name: '거래·변경 내역' }).click();
+    const history = page.getByRole('region', { name: '거래·변경 내역', exact: true });
+    await expect(history.getByText('로그인 후 거래 내역을 확인할 수 있어요')).toBeVisible();
+    await expect(history.getByRole('link', { name: '로그인하기' })).toHaveAttribute(
+      'href',
+      '/login?returnTo=%2F',
+    );
+    await history.screenshot({ path: testInfo.outputPath('guest-history.png') });
+    await page.getByRole('button', { name: /^보유 자산/ }).click();
+    const holdingTrigger = page.getByRole('button', { name: '삼성전자 보유 상세' });
+    await holdingTrigger.click();
+    const detail = page.getByRole('dialog', { name: '삼성전자 보유 상세' });
+    await expect(detail).toBeVisible();
+    await expect(detail.getByRole('complementary', { name: '소식' })).toHaveCount(0);
+    await expect(detail.getByRole('link', { name: /종목 정보 보기/ })).toHaveAttribute(
+      'href',
+      '/stocks/1',
+    );
+    await expect(detail.getByRole('button', { name: '매수', exact: true })).toHaveCount(0);
+    await expect(detail.getByRole('heading', { name: '거래 내역', exact: true })).toBeVisible();
+    await expect(detail.getByText('로그인 후 거래 내역을 확인할 수 있어요')).toBeVisible();
+    await expect(detail.getByRole('link', { name: '로그인하기' })).toHaveAttribute(
+      'href',
+      '/login?returnTo=%2F',
+    );
+    await detail.screenshot({ path: testInfo.outputPath('guest-detail.png') });
+    await page.screenshot({
+      path: testInfo.outputPath('guest-detail-centered.png'),
+      animations: 'disabled',
+    });
+    expect(
+      await detail.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return (
+          Math.abs(bounds.left - (innerWidth - bounds.width) / 2) <= 1 &&
+          Math.abs(bounds.top - (innerHeight - bounds.height) / 2) <= 1
+        );
+      }),
+    ).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(holdingTrigger).toBeFocused();
+    expect(memberRequests).toEqual([]);
+  });
+
   test(`포트폴리오 거래 화면과 키보드 접근성: ${viewport.name}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     let history = [
@@ -159,21 +318,6 @@ for (const viewport of [
             dailyReturnRate: null,
           },
         });
-      if (path === '/api/assets/1/contents')
-        return fulfill({
-          assetId: 1,
-          assetCode: '005930',
-          assetName: '삼성전자',
-          contents: Array.from({ length: 10 }, (_, index) => ({
-            id: index + 1,
-            assetId: 1,
-            sourceType: 'INTERNAL_NEWS',
-            title: `삼성전자 반도체 시장과 실적 전망 관련 소식 ${index + 1}`,
-            url: `/news/${index + 1}`,
-            imageUrl: '/daynomy-favicon.png',
-            createdAt: null,
-          })),
-        });
       if (path === '/api/portfolio/histories') return fulfill(history);
       if (path === '/api/stocks') return fulfill({ stocks });
       if (path === '/api/portfolio/transactions' && route.request().method() === 'POST') {
@@ -204,6 +348,37 @@ for (const viewport of [
       page.getByText(`${sum('closePrice').toLocaleString('ko-KR')}원`).first(),
     ).toBeVisible();
     await expect(page.getByRole('img', { name: /포트폴리오 자산 추이/ })).toBeVisible();
+    const navigation = page.getByRole('navigation', { name: '주요 메뉴' });
+    const selectedMenu = navigation.getByRole('link', { name: '포트폴리오', exact: true });
+    expect(
+      await selectedMenu.evaluate((element) => getComputedStyle(element).borderBottomWidth),
+    ).toBe('0px');
+    expect(await selectedMenu.evaluate((element) => getComputedStyle(element).fontWeight)).toBe(
+      '700',
+    );
+    expect(
+      await selectedMenu.evaluate((element) => getComputedStyle(element).fontFamily),
+    ).toContain('Noto Sans KR');
+    const otherMenu = navigation.getByRole('link', { name: '이슈', exact: true });
+    expect(await otherMenu.evaluate((element) => getComputedStyle(element).fontWeight)).toBe('600');
+    await expect(page.getByRole('link', { name: '마이페이지', exact: true })).toHaveAttribute(
+      'href',
+      '/mypage',
+    );
+    const compactChart = page.locator('.portfolio-return-dashboard.is-compact');
+    expect(
+      await compactChart
+        .locator('.evaluation.is-gain')
+        .first()
+        .evaluate((element) => getComputedStyle(element).stroke),
+    ).toBe('rgb(217, 73, 89)');
+    expect(
+      await compactChart
+        .locator('.evaluation.is-loss')
+        .first()
+        .evaluate((element) => getComputedStyle(element).stroke),
+    ).toBe('rgb(49, 116, 205)');
+
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -211,6 +386,7 @@ for (const viewport of [
       path: testInfo.outputPath('portfolio.png'),
       fullPage: true,
     });
+    await page.locator('.service-header').screenshot({ path: testInfo.outputPath('header.png') });
     for (const width of [320, 390, 620, 621, 768, 1000, 1024, 1100, 1440]) {
       await page.setViewportSize({ width, height: 600 });
       expect(
@@ -220,6 +396,11 @@ for (const viewport of [
           return (
             document.documentElement.scrollWidth <= innerWidth &&
             dashboard.scrollWidth <= dashboard.clientWidth &&
+            [
+              ...document.querySelectorAll(
+                '.portfolio-trend-controls, .portfolio-composition, .portfolio-holdings',
+              ),
+            ].every((element) => element.scrollWidth <= element.clientWidth + 1) &&
             graph.right <= innerWidth &&
             [...document.querySelectorAll('.portfolio-overview dd')].every(
               (amount) => amount.scrollWidth <= amount.clientWidth + 1,
@@ -228,6 +409,29 @@ for (const viewport of [
         }),
         `포트폴리오 본문이 ${width}px에서 잘리지 않아야 합니다.`,
       ).toBe(true);
+      const headerSize = await page.locator('.service-header').evaluate((header) => {
+        const box = header.getBoundingClientRect();
+        return {
+          height: box.height,
+          overflow: header.scrollWidth > header.clientWidth,
+          itemsFit: [
+            ...header.querySelectorAll(
+              '.service-brand, .service-header-tab, .service-header-actions',
+            ),
+          ].every((item) => {
+            const bounds = item.getBoundingClientRect();
+            return (
+              bounds.top >= box.top &&
+              bounds.bottom <= box.bottom + 1 &&
+              bounds.left >= box.left &&
+              bounds.right <= box.right + 1
+            );
+          }),
+        };
+      });
+      expect(headerSize.height).toBe(64);
+      expect(headerSize.overflow).toBe(false);
+      expect(headerSize.itemsFit).toBe(true);
     }
     await page.setViewportSize({ width: 1440, height: 1050 });
     for (const [mainWidth, compositionWidth] of [
@@ -256,7 +460,24 @@ for (const viewport of [
     }
     await page.setViewportSize(viewport);
     const holdingTrigger = page.getByRole('button', { name: '삼성전자 보유 상세' });
-    await holdingTrigger.click();
+    const holdingsRegion = page.getByRole('region', { name: '보유 자산', exact: true });
+    await expect(holdingsRegion.getByRole('heading')).toHaveCount(0);
+    const holdingRow = page.locator('.portfolio-holding-row').first();
+    await holdingRow.hover();
+    expect(await holdingRow.evaluate((element) => getComputedStyle(element).cursor)).toBe(
+      'pointer',
+    );
+    expect(
+      await holdingTrigger.evaluate((element) => getComputedStyle(element).textDecorationLine),
+    ).toBe('none');
+    const triggerStyle = await holdingTrigger.evaluate((element) => {
+      const text = getComputedStyle(element);
+      const arrow = getComputedStyle(element.querySelector('svg')!);
+      return { display: text.display, color: text.color, arrowColor: arrow.stroke };
+    });
+    expect(triggerStyle.display).toBe('inline-flex');
+    expect(triggerStyle.arrowColor).toBe(triggerStyle.color);
+    await holdingRow.locator('td').nth(1).click();
     const detail = page.getByRole('dialog', { name: '삼성전자 보유 상세' });
     await expect(detail).toBeVisible();
     await expect(detail.getByRole('heading', { name: '거래 내역' })).toBeVisible();
@@ -269,15 +490,17 @@ for (const viewport of [
     expect(await detail.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
       true,
     );
-    const newsPanel = detail.getByRole('complementary', { name: '소식' });
-    await expect(newsPanel.getByRole('link')).toHaveCount(11);
+    await expect(detail.getByRole('complementary', { name: '소식' })).toHaveCount(0);
     for (const width of [320, 390, 620, 621, 768, 1000, 1440, 390]) {
       await page.setViewportSize({ width, height: 600 });
       expect(
         await detail.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
           const scroll = element.querySelector('.portfolio-detail-scroll')!;
           const footer = element.querySelector('.portfolio-detail-footer')!.getBoundingClientRect();
           return (
+            Math.abs(bounds.left - (innerWidth - bounds.width) / 2) <= 1 &&
+            Math.abs(bounds.top - (innerHeight - bounds.height) / 2) <= 1 &&
             element.scrollWidth <= element.clientWidth &&
             scroll.scrollWidth <= scroll.clientWidth &&
             footer.top >= 0 &&
@@ -286,26 +509,6 @@ for (const viewport of [
         }),
         `종목 상세가 ${width}px에서 넘치지 않아야 합니다.`,
       ).toBe(true);
-      expect(
-        await newsPanel.evaluate((element) =>
-          [...element.querySelectorAll('.portfolio-related-content-card')].every((card) => {
-            const box = card.getBoundingClientRect();
-            return [
-              ...card.querySelectorAll('img, strong, small, .portfolio-related-content-title'),
-            ].every((item) => {
-              const rect = item.getBoundingClientRect();
-              return (
-                rect.left >= box.left &&
-                rect.right <= box.right + 1 &&
-                item.scrollWidth <= item.clientWidth + 1
-              );
-            });
-          }),
-        ),
-        `소식 카드가 ${width}px에서 잘리지 않아야 합니다.`,
-      ).toBe(true);
-      await newsPanel.getByRole('link', { name: '전체 소식 보기' }).scrollIntoViewIfNeeded();
-      await expect(newsPanel.getByRole('link', { name: '전체 소식 보기' })).toBeInViewport();
     }
     await page.setViewportSize(viewport);
     await detail.getByRole('button', { name: '매수', exact: true }).click();
@@ -324,6 +527,14 @@ for (const viewport of [
     await expect(detail.getByRole('button', { name: '매수', exact: true })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(detail).toHaveCount(0);
+    await expect(holdingTrigger).toBeFocused();
+    await holdingTrigger.press('Enter');
+    await expect(detail).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(holdingTrigger).toBeFocused();
+    await holdingTrigger.press('Space');
+    await expect(detail).toBeVisible();
+    await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
     const trigger = page.getByRole('button', { name: '자산 추가', exact: true });
     await trigger.click();

@@ -61,7 +61,7 @@
 }
 
 .portfolio-score-guide summary:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--button-primary);
   outline-offset: 2px;
 }
 
@@ -111,7 +111,7 @@
   padding: 0 18px;
   border: 0;
   border-radius: 10px;
-  background: #151a2a;
+  background: var(--button-primary);
   color: #fff;
   font: inherit;
   font-size: 14px;
@@ -121,11 +121,11 @@
 }
 
 .portfolio-analysis-button:hover:not(:disabled) {
-  background: #5144d8;
+  background: var(--button-primary-hover);
 }
 
 .portfolio-analysis-button:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--button-primary);
   outline-offset: 2px;
 }
 
@@ -183,7 +183,7 @@
   padding: 0 18px;
   border: 0;
   border-radius: 10px;
-  background: #151a2a;
+  background: var(--button-primary);
   color: #fff;
   font: inherit;
   font-size: 14px;
@@ -192,11 +192,11 @@
 }
 
 .portfolio-analysis-retry-button:hover {
-  background: #5144d8;
+  background: var(--button-primary-hover);
 }
 
 .portfolio-analysis-retry-button:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--button-primary);
   outline-offset: 2px;
 }
 
@@ -318,7 +318,7 @@
 }
 
 .portfolio-donut-center:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--button-primary);
   outline-offset: 4px;
 }
 
@@ -410,7 +410,7 @@ button.portfolio-asset-row:hover {
 }
 
 button.portfolio-asset-row:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--button-primary);
   outline-offset: 1px;
 }
 
@@ -617,7 +617,7 @@ button.portfolio-asset-row:focus-visible {
 
 .portfolio-evidence summary:focus-visible {
   border-radius: 4px;
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--button-primary);
   outline-offset: 3px;
 }
 

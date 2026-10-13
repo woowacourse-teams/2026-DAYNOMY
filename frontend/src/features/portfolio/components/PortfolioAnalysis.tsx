@@ -667,8 +667,8 @@ export function PortfolioAnalysis({ assets, isLoggedIn = true }: PortfolioAnalys
           </h2>
           <p>
             {analysis
-              ? `오늘의 주요 이슈가 보유 자산 ${analysis.analyzedAssetCount}개에 미칠 영향을 분석했어요.`
-              : '오늘의 경제·금융·산업 이슈가 보유 자산에 미칠 영향을 확인해 보세요.'}
+              ? `보유 종목 ${analysis.analyzedAssetCount}개 분석 완료`
+              : '보유 종목에 영향을 주는 오늘의 이슈'}
           </p>
         </div>
         {!isLoggedIn && trialExhausted ? (

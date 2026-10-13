@@ -11,8 +11,8 @@
   border: 0;
   border-radius: 14px;
   color: #ffffff;
-  background: #4339c0;
-  box-shadow: 0 12px 28px rgb(50 42 152 / 28%);
+  background: var(--button-primary);
+  box-shadow: 0 12px 28px rgb(50 107 213 / 28%);
   font: inherit;
   font-size: 14px;
   font-weight: 800;
@@ -34,8 +34,8 @@
 }
 
 .feedback-trigger:hover {
-  background: #5144d8;
-  box-shadow: 0 15px 34px rgb(50 42 152 / 34%);
+  background: var(--button-primary-hover);
+  box-shadow: 0 15px 34px rgb(50 107 213 / 34%);
   transform: translateY(-2px);
 }
 
@@ -43,7 +43,7 @@
 .feedback-close:focus-visible,
 .feedback-submit:focus-visible,
 .feedback-success button:focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 3px solid var(--button-primary);
   outline-offset: 3px;
 }
 
@@ -185,7 +185,7 @@
   border: 0;
   border-radius: 10px;
   color: #ffffff;
-  background: #5144d8;
+  background: var(--button-primary);
   font: inherit;
   font-size: 14px;
   font-weight: 900;
@@ -194,7 +194,7 @@
 
 .feedback-submit:hover:not(:disabled),
 .feedback-success button:hover {
-  background: #4339c0;
+  background: var(--button-primary-hover);
 }
 
 .feedback-submit:disabled,

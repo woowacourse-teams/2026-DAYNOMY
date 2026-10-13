@@ -9,6 +9,8 @@
   --text-muted: #6f7481;
   --border: #e4e7ef;
   --accent: #5144d8;
+  --button-primary: #326bd5;
+  --button-primary-hover: #2459b9;
   --focus: rgba(81, 68, 216, 0.24);
   --sans:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
