@@ -82,30 +82,45 @@ export function PortfolioHistory({
       : value === null
         ? '—'
         : `${value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`;
-  return (
-    <section className="portfolio-history" aria-label="거래·변경 내역">
-      <div className="portfolio-history-toolbar">
-        <div className="portfolio-history-dates">
-          <label>
-            시작일
-            <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-          </label>
-          <span aria-hidden="true">—</span>
-          <label>
-            종료일
-            <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-          </label>
-        </div>
-        <label className="portfolio-history-filter">
-          내역 유형
-          <select value={filter} onChange={(event) => setFilter(event.target.value)}>
-            <option value="ALL">전체 내역</option>
-            <option value="BUY">매수</option>
-            <option value="SELL">매도</option>
-            <option value="BALANCE">보유정보 변경</option>
-          </select>
+  const filters = (
+    <div className="portfolio-history-toolbar">
+      <div className="portfolio-history-dates">
+        <label>
+          시작일
+          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+        </label>
+        <span aria-hidden="true">—</span>
+        <label>
+          종료일
+          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
         </label>
       </div>
+      <label className="portfolio-history-filter">
+        내역 유형
+        <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+          <option value="ALL">전체 내역</option>
+          <option value="BUY">매수</option>
+          <option value="SELL">매도</option>
+          <option value="BALANCE">보유정보 변경</option>
+        </select>
+      </label>
+    </div>
+  );
+  return (
+    <section className="portfolio-history" aria-label="거래·변경 내역">
+      {assetId === undefined ? (
+        filters
+      ) : (
+        <details className="portfolio-history-filters">
+          <summary>
+            조회 조건
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </summary>
+          {filters}
+        </details>
+      )}
       {!validPeriod ? (
         <p role="alert" className="portfolio-form-error">
           시작일과 종료일을 확인해 주세요. 시작일은 종료일보다 늦을 수 없어요.
@@ -144,7 +159,14 @@ export function PortfolioHistory({
               <details className="portfolio-history-row" key={item.historyId}>
                 <summary>
                   <time dateTime={item.effectiveDate}>
-                    {item.effectiveDate.replaceAll('-', '.')}
+                    <span>{item.effectiveDate.replaceAll('-', '.')}</span>
+                    {assetId !== undefined && (
+                      <small>
+                        {transaction
+                          ? `${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`
+                          : '보유정보 변경'}
+                      </small>
+                    )}
                   </time>
                   <span className={`portfolio-history-type type-${item.changeType.toLowerCase()}`}>
                     {LABELS[item.changeType]}

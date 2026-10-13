@@ -54,13 +54,39 @@ export function PortfolioHoldingDetail({
           {stock.name.slice(0, 1)}
         </span>
         <div>
-          <h2 id="holding-detail-title">
-            {stock.name} <span className="sr-only">보유 상세</span>
+          <h2 id="holding-detail-title" aria-label={`${stock.name} 보유 상세`}>
+            <a href={`/stocks/${stock.assetId}`} aria-label={`${stock.name} 종목 정보 보기`}>
+              {stock.name}
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 5 7 7-7 7" />
+              </svg>
+            </a>
+            <span className="sr-only">보유 상세</span>
           </h2>
           <p>
             {stock.assetCode} · {stock.category === 'ETF' ? 'ETF' : '주식'} · {stock.market}
           </p>
         </div>
+        {holding && (
+          <details className="portfolio-detail-settings">
+            <summary aria-label="보유정보 편집">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="5" cy="12" r="1.5" />
+                <circle cx="12" cy="12" r="1.5" />
+                <circle cx="19" cy="12" r="1.5" />
+              </svg>
+              <span className="sr-only">보유정보 편집</span>
+            </summary>
+            <div>
+              <button type="button" disabled={busy} onClick={() => onAdjust(holding)}>
+                보유정보 정정
+              </button>
+              <button type="button" disabled={busy} onClick={() => onRemove(holding)}>
+                보유자산 제거
+              </button>
+            </div>
+          </details>
+        )}
         <button
           type="button"
           className="portfolio-icon-button"
@@ -123,24 +149,6 @@ export function PortfolioHoldingDetail({
                 ? `${valuation.baseDate?.replaceAll('-', '.')} 종가 기준`
                 : '시세를 확인할 수 없어 평가금액과 손익을 표시하지 않았어요.'}
           </p>
-          <div className="portfolio-detail-tools">
-            <a href={`/stocks/${stock.assetId}`}>
-              종목 정보 보기 <span aria-hidden="true">↗</span>
-            </a>
-            {holding && (
-              <details className="portfolio-detail-settings">
-                <summary>보유정보 편집</summary>
-                <div>
-                  <button type="button" disabled={busy} onClick={() => onAdjust(holding)}>
-                    보유정보 정정
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => onRemove(holding)}>
-                    보유자산 제거
-                  </button>
-                </div>
-              </details>
-            )}
-          </div>
         </section>
         <section
           className="portfolio-detail-transactions"

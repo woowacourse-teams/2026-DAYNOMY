@@ -566,6 +566,20 @@ for (const viewport of [
     await expect(detail).toBeVisible();
     await expect(detail.getByRole('heading', { name: '거래 내역' })).toBeVisible();
     await expect(detail.locator('.portfolio-history-row')).toHaveCount(1);
+    const filters = detail.locator('.portfolio-history-filters');
+    await expect(filters).not.toHaveAttribute('open');
+    await filters.locator('summary').click();
+    await expect(detail.getByLabel('시작일')).toBeVisible();
+    await detail.getByLabel('내역 유형').selectOption('SELL');
+    await expect(detail.locator('.portfolio-history-row')).toHaveCount(0);
+    await detail.getByLabel('내역 유형').selectOption('ALL');
+    await expect(detail.locator('.portfolio-history-row')).toHaveCount(1);
+    await filters.locator('summary').click();
+    await detail.locator('summary[aria-label="보유정보 편집"]').click();
+    await expect(detail.getByRole('button', { name: '보유정보 정정' })).toBeVisible();
+    await expect(detail.getByRole('button', { name: '보유자산 제거' })).toBeVisible();
+    await detail.locator('summary[aria-label="보유정보 편집"]').click();
+
     await page.screenshot({
       path: testInfo.outputPath('holding-detail.png'),
       animations: 'disabled',
