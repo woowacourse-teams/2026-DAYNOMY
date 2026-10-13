@@ -346,16 +346,17 @@ function PortfolioAssetTrendChart({
   });
   const latest = visiblePoints.at(-1);
   const activeIndex =
-    selectedTradeDate !== null
-      ? visiblePoints.findIndex((point) => point.baseDate === selectedTradeDate)
-      : hoveredIndex === null
-        ? expanded
+    hoveredIndex === null
+      ? selectedTradeDate !== null
+        ? visiblePoints.findIndex((point) => point.baseDate === selectedTradeDate)
+        : expanded
           ? visiblePoints.length - 1
           : null
-        : Math.min(hoveredIndex, visiblePoints.length - 1);
+      : Math.min(hoveredIndex, visiblePoints.length - 1);
   const activePoint = activeIndex === null || activeIndex < 0 ? null : visiblePoints[activeIndex];
   const activeX = activePoint && activeIndex !== null ? x(activeIndex) : null;
   const detailDate = selectedTradeDate ?? activePoint?.baseDate ?? latest?.baseDate;
+  const detailPoint = visiblePoints.find((point) => point.baseDate === detailDate);
   const selectedHistories = detailDate ? (historiesByDate.get(detailDate) ?? []) : [];
   const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
   const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
@@ -368,7 +369,7 @@ function PortfolioAssetTrendChart({
   );
 
   function selectNearestPoint(clientX: number, chart: SVGSVGElement, clearSelection = false) {
-    if (visiblePoints.length === 0 || (selectedTradeDate !== null && !clearSelection)) return;
+    if (visiblePoints.length === 0) return;
     const bounds = chart.getBoundingClientRect();
     const chartX = ((clientX - bounds.left) / bounds.width) * width;
     const index = visiblePoints.reduce(
@@ -376,7 +377,7 @@ function PortfolioAssetTrendChart({
         Math.abs(x(candidate) - chartX) < Math.abs(x(nearest) - chartX) ? candidate : nearest,
       0,
     );
-    setSelectedTradeDate(null);
+    if (clearSelection) setSelectedTradeDate(null);
     setHoveredIndex(index);
   }
 
@@ -654,6 +655,7 @@ function PortfolioAssetTrendChart({
                       aria-hidden="true"
                       onClick={(event) => {
                         event.stopPropagation();
+                        setHoveredIndex(visiblePoints.indexOf(point));
                         setSelectedTradeDate(point.baseDate);
                       }}
                     >
@@ -674,15 +676,15 @@ function PortfolioAssetTrendChart({
                     </g>
                   ))}
               </svg>
-              {!expanded && activePoint && activeX !== null ? (
+              {hoveredIndex !== null && activePoint && activeX !== null ? (
                 <div
                   className="portfolio-return-tooltip"
                   style={{
                     left: `clamp(min(158px, 50%), ${(activeX / width) * 100}%, max(calc(100% - 158px), 50%))`,
                     top: `max(140px, ${(y(pointValue(activePoint)) / height) * 100}%)`,
                   }}
-                  role="status"
-                  aria-live="polite"
+                  role={expanded ? 'tooltip' : 'status'}
+                  aria-live={expanded ? 'off' : 'polite'}
                 >
                   <time dateTime={activePoint.baseDate}>
                     {formatTrendDate(activePoint.baseDate)}
@@ -750,7 +752,10 @@ function PortfolioAssetTrendChart({
                 value={detailDate ?? ''}
                 min={cutoffDate}
                 max={todayInSeoul()}
-                onChange={(event) => setSelectedTradeDate(event.target.value || null)}
+                onChange={(event) => {
+                  setHoveredIndex(null);
+                  setSelectedTradeDate(event.target.value || null);
+                }}
               />
             </label>
           </div>
@@ -758,30 +763,30 @@ function PortfolioAssetTrendChart({
             {!loading && !error && detailDate && (
               <span className="portfolio-visually-hidden">{formatTrendDate(detailDate)}</span>
             )}
-            {!loading && !error && activePoint ? (
+            {!loading && !error && detailPoint ? (
               <dl className="portfolio-trend-date-values">
                 <div>
                   <dt>매입원금</dt>
                   <dd>
-                    {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalPurchaseAmount)}
+                    {amountsHidden ? HIDDEN_AMOUNT : formatWon(detailPoint.totalPurchaseAmount)}
                   </dd>
                 </div>
                 <div>
                   <dt>평가금액</dt>
                   <dd>
-                    {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalEvaluationAmount)}
+                    {amountsHidden ? HIDDEN_AMOUNT : formatWon(detailPoint.totalEvaluationAmount)}
                   </dd>
                 </div>
                 <div>
                   <dt>평가손익</dt>
-                  <dd className={profitClass(activePoint.totalProfitLoss)}>
-                    {amountsHidden ? HIDDEN_AMOUNT : formatSignedWon(activePoint.totalProfitLoss)}
+                  <dd className={profitClass(detailPoint.totalProfitLoss)}>
+                    {amountsHidden ? HIDDEN_AMOUNT : formatSignedWon(detailPoint.totalProfitLoss)}
                   </dd>
                 </div>
                 <div>
                   <dt>평가수익률</dt>
-                  <dd className={profitClass(activePoint.totalProfitLoss)}>
-                    {amountsHidden ? '•••%' : formatPercent(activePoint.totalReturnRate, true)}
+                  <dd className={profitClass(detailPoint.totalProfitLoss)}>
+                    {amountsHidden ? '•••%' : formatPercent(detailPoint.totalReturnRate, true)}
                   </dd>
                 </div>
               </dl>

@@ -818,6 +818,10 @@ for (const viewport of [
     const tradeMarker = trendDetail.locator('.portfolio-trend-trade-marker').first();
     await tradeMarker.click();
     await expect(trendDetail.getByLabel('자산 추이 조회 날짜')).toHaveValue(today);
+    await expect(trendDetail.getByRole('tooltip').locator('time')).toHaveAttribute(
+      'datetime',
+      today,
+    );
     const markerPoint = await tradeMarker
       .locator('circle')
       .last()
@@ -826,6 +830,30 @@ for (const viewport of [
       .locator('.portfolio-return-active-point .evaluation')
       .evaluate((point) => ({ x: point.getAttribute('cx'), y: point.getAttribute('cy') }));
     expect(markerPoint).toEqual(activePoint);
+    const trendSvg = trendDetail.locator('.portfolio-return-chart');
+    const chartBox = (await trendSvg.boundingBox())!;
+    const chartWidth = await trendSvg.evaluate(
+      (svg) => (svg as SVGSVGElement).viewBox.baseVal.width,
+    );
+    for (const point of [points[0], points[20], points[44]]) {
+      const dateRatio =
+        (Date.parse(point.baseDate) - Date.parse(points[0].baseDate)) /
+        (Date.parse(today) - Date.parse(points[0].baseDate));
+      await page.mouse.move(
+        chartBox.x + ((58 + dateRatio * (chartWidth - 70)) / chartWidth) * chartBox.width,
+        chartBox.y + chartBox.height / 2,
+      );
+      const tooltip = trendDetail.getByRole('tooltip');
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip.locator('time')).toHaveAttribute('datetime', point.baseDate);
+      await expect(trendDetail.getByLabel('자산 추이 조회 날짜')).toHaveValue(today);
+      await expect(trendDetail.locator('.portfolio-trend-date-values')).toContainText(
+        `${sum('closePrice').toLocaleString('ko-KR')}원`,
+      );
+    }
+    await trendDetail.screenshot({ path: testInfo.outputPath('asset-trend-date-tooltip.png') });
+    await page.mouse.move(chartBox.x, chartBox.y - 10);
+    await expect(trendDetail.getByRole('tooltip')).toHaveCount(0);
     await expect(trendDetail.getByText(/평가금액은 종가 기준/)).toHaveCount(0);
     await expect(trendDetail.getByText('이 날짜의 매수·매도 내역이 없어요.')).toHaveCount(0);
     await expect(trendDetail.getByLabel('거래일 바로 보기')).toHaveCount(0);
