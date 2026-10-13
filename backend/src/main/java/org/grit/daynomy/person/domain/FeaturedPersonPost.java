@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -47,16 +48,28 @@ public class FeaturedPersonPost extends BaseEntity {
   @Column(name = "url", nullable = false, columnDefinition = "TEXT")
   private String url;
 
+  @Column(name = "published_at")
+  private Instant publishedAt;
+
   private FeaturedPersonPost(
-      FeaturedPerson person, ContentSourceType sourceType, String title, String url) {
+      FeaturedPerson person,
+      ContentSourceType sourceType,
+      String title,
+      String url,
+      Instant publishedAt) {
     this.person = person;
     this.sourceType = sourceType;
     this.title = title;
     this.url = url;
+    this.publishedAt = publishedAt;
   }
 
   public static FeaturedPersonPost create(
-      FeaturedPerson person, ContentSourceType sourceType, String title, String url) {
-    return new FeaturedPersonPost(person, sourceType, title, url);
+      FeaturedPerson person,
+      ContentSourceType sourceType,
+      String title,
+      String url,
+      Instant publishedAt) {
+    return new FeaturedPersonPost(person, sourceType, title, url, publishedAt);
   }
 }

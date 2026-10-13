@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.time.Instant;
 import org.grit.daynomy.content.domain.ContentSourceType;
 
 public record FeaturedPersonPostRequest(
@@ -12,4 +13,5 @@ public record FeaturedPersonPostRequest(
     @NotBlank(message = "게시물 URL을 입력해주세요.")
         @Size(max = 2000, message = "게시물 URL은 2000자 이하여야 합니다.")
         @Pattern(regexp = "https?://\\S+", message = "올바른 게시물 URL을 입력해주세요.")
-        String url) {}
+        String url,
+    Instant publishedAt) {}
