@@ -2,8 +2,8 @@
 .portfolio-page {
   --portfolio-accent: #326bd5;
   --portfolio-side-padding: var(--page-side-padding);
-  width: 100%;
-  padding-bottom: 64px;
+  width: var(--page-content-width);
+  padding: 52px 0 88px;
   color: #253047;
 }
 .portfolio-canvas {
@@ -11,10 +11,10 @@
 }
 .portfolio-page .portfolio-page-title {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  margin: 42px 0 20px;
+  margin: 0 0 24px;
   height: auto;
 }
 .portfolio-page-title > div:first-child {
@@ -25,7 +25,7 @@
   min-width: 0;
 }
 .portfolio-page .portfolio-page-title h1 {
-  margin: 9px 0;
+  margin: 0;
   font-size: var(--page-title-size);
   font-weight: var(--page-title-weight);
   letter-spacing: var(--page-title-letter-spacing);
@@ -1005,7 +1005,7 @@
   .portfolio-page .portfolio-page-title {
     flex-direction: column;
     align-items: stretch;
-    margin-top: 26px;
+    margin-top: 0;
     gap: 20px;
   }
   .portfolio-page .portfolio-page-title h1 {
@@ -2292,19 +2292,20 @@
   }
 }
 
-/* Scale one desktop canvas; smaller screens retain the responsive layout. */
+@media (max-width: 720px) {
+  .portfolio-page {
+    padding: 28px 0 56px;
+  }
+}
+
+/* Keep the desktop body layout within the shared page width; titles stay unscaled. */
 @media (min-width: 1024px) {
   .portfolio-page {
-    --portfolio-side-padding: 57.6px;
-    width: 100%;
     max-width: none;
-    padding: 0;
   }
   .portfolio-canvas {
     display: block;
-    width: 1440px;
-    margin-inline: auto;
-    padding: 0 var(--portfolio-side-padding) 64px;
+    width: max(1324.8px, 100%);
     zoom: var(--portfolio-desktop-scale, 1);
   }
   .portfolio-page .portfolio-overview .portfolio-balance-value {

@@ -592,16 +592,17 @@ for (const viewport of [
         );
         const table = main.querySelector('.portfolio-table-wrap table')!;
         const row = main.querySelector('.portfolio-holding-row')!;
-        const canvas = main.closest('.portfolio-canvas')!.getBoundingClientRect();
+        const canvas = main.closest('.portfolio-canvas')!;
+        const scale = canvas.getBoundingClientRect().width / canvas.clientWidth;
         const donut = main.querySelector('.portfolio-donut-wrap')!.getBoundingClientRect();
         const breakdown = main
           .querySelector('.portfolio-composition-breakdown')!
           .getBoundingClientRect();
         return {
           compositionFits:
-            (donut.width / canvas.width) * 1440 >= 135 &&
+            donut.width / scale >= 135 &&
             Math.abs(donut.width - donut.height) < 1 &&
-            breakdown.left >= donut.right + (12 * canvas.width) / 1440 &&
+            breakdown.left >= donut.right + 12 * scale &&
             [...main.querySelectorAll('.portfolio-category-list > div > div')].every(
               (item) => item.scrollWidth <= item.clientWidth + 1,
             ),
@@ -650,12 +651,17 @@ for (const viewport of [
           ];
         });
       });
-      if (!desktopProportions) desktopProportions = proportions;
-      for (const [index, value] of proportions.entries()) {
-        expect(
-          value,
-          `${size.width}px에서도 카드와 도넛의 배치·비율을 유지해야 합니다.`,
-        ).toBeCloseTo(desktopProportions[index], 2);
+      const bodyWidth = await page
+        .locator('.portfolio-canvas')
+        .evaluate((canvas) => canvas.clientWidth);
+      if (bodyWidth <= 1325) {
+        if (!desktopProportions) desktopProportions = proportions;
+        for (const [index, value] of proportions.entries()) {
+          expect(
+            value,
+            `${size.width}px에서도 카드와 도넛의 배치·비율을 유지해야 합니다.`,
+          ).toBeCloseTo(desktopProportions[index], 2);
+        }
       }
       if (size.width === 1024) {
         await page.getByRole('button', { name: '자산 추이 크게 보기', exact: true }).click();

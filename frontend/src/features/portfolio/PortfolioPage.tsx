@@ -35,7 +35,7 @@ const compactWonFormatter = new Intl.NumberFormat('ko-KR', {
   maximumFractionDigits: 1,
 });
 const HIDDEN_AMOUNT = '••••••원';
-const DESKTOP_CANVAS_WIDTH = 1440;
+const DESKTOP_CANVAS_WIDTH = 1324.8;
 const EMPTY_PORTFOLIO_CALCULATION: PortfolioCalculation = {
   baseDate: null,
   pricingStatus: 'COMPLETE',
@@ -1145,42 +1145,42 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       ref={pageRef}
       style={{ '--portfolio-desktop-scale': desktopScale } as CSSProperties}
     >
+      <header className="portfolio-page-title">
+        <div>
+          <h1>내 포트폴리오</h1>
+          {!isLoggedIn && (
+            <p className="portfolio-save-notice is-guest" role="status">
+              {notice || '비회원 자산은 이 탭에만 임시 저장돼요.'}
+            </p>
+          )}
+        </div>
+        <div className="portfolio-page-actions">
+          <button
+            type="button"
+            className="portfolio-secondary-button portfolio-news-tab"
+            ref={newsButtonRef}
+            aria-controls="portfolio-news-panel"
+            aria-expanded={newsOpen}
+            title={newsOpen ? '소식 접기' : '소식 펼치기'}
+            disabled={holdingsLoading || !!holdingsError}
+            onClick={() => setNewsOpen((open) => !open)}
+          >
+            소식
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="portfolio-primary-button"
+            disabled={holdingsLoading || !!holdingsError}
+            onClick={() => openAdd('header')}
+          >
+            <span aria-hidden="true">＋</span> 자산 추가
+          </button>
+        </div>
+      </header>
       <div className="portfolio-canvas">
-        <header className="portfolio-page-title">
-          <div>
-            <h1>내 포트폴리오</h1>
-            {!isLoggedIn && (
-              <p className="portfolio-save-notice is-guest" role="status">
-                {notice || '비회원 자산은 이 탭에만 임시 저장돼요.'}
-              </p>
-            )}
-          </div>
-          <div className="portfolio-page-actions">
-            <button
-              type="button"
-              className="portfolio-secondary-button portfolio-news-tab"
-              ref={newsButtonRef}
-              aria-controls="portfolio-news-panel"
-              aria-expanded={newsOpen}
-              title={newsOpen ? '소식 접기' : '소식 펼치기'}
-              disabled={holdingsLoading || !!holdingsError}
-              onClick={() => setNewsOpen((open) => !open)}
-            >
-              소식
-              <svg aria-hidden="true" viewBox="0 0 24 24">
-                <path d="m9 6 6 6-6 6" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="portfolio-primary-button"
-              disabled={holdingsLoading || !!holdingsError}
-              onClick={() => openAdd('header')}
-            >
-              <span aria-hidden="true">＋</span> 자산 추가
-            </button>
-          </div>
-        </header>
         {isLoggedIn && notice && (
           <p className="portfolio-save-notice" role="status">
             {notice}
