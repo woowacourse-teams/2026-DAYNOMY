@@ -258,7 +258,8 @@ public class FeaturedPersonService {
       case X -> "X";
       case THREADS -> "Threads";
       case YOUTUBE -> "YouTube";
-      default -> throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
+      default ->
+          throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
     };
   }
 

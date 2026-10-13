@@ -14,11 +14,11 @@ import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
 import org.grit.daynomy.external.openai.SocialPostCandidate;
 import org.grit.daynomy.external.s3.S3ImageStorage;
-import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
-import org.grit.daynomy.person.dto.FeaturedPersonImageSelectionRequest;
+import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.person.domain.FeaturedPerson;
 import org.grit.daynomy.person.domain.FeaturedPersonPost;
+import org.grit.daynomy.person.dto.FeaturedPersonImageSelectionRequest;
 import org.grit.daynomy.person.dto.FeaturedPersonPostRequest;
 import org.grit.daynomy.person.dto.FeaturedPersonRequest;
 import org.grit.daynomy.person.exception.FeaturedPersonErrorCode;
@@ -173,7 +173,8 @@ class FeaturedPersonServiceTest {
                 "image/jpeg",
                 "jpg"));
     given(s3ImageStorage.upload(any(), any(), any()))
-        .willReturn(new S3ImageStorage.StoredImage("elon.jpg", "https://images.example.com/elon.jpg"));
+        .willReturn(
+            new S3ImageStorage.StoredImage("elon.jpg", "https://images.example.com/elon.jpg"));
 
     var response =
         featuredPersonService.createPerson(

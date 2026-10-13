@@ -58,7 +58,8 @@ public class FeaturedPerson extends BaseEntity {
       String threadsProfileUrl,
       String youtubeProfileUrl,
       String profileImageUrl) {
-    return new FeaturedPerson(name, xProfileUrl, threadsProfileUrl, youtubeProfileUrl, profileImageUrl);
+    return new FeaturedPerson(
+        name, xProfileUrl, threadsProfileUrl, youtubeProfileUrl, profileImageUrl);
   }
 
   public void update(
