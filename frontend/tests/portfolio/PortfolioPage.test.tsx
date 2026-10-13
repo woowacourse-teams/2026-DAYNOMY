@@ -2,6 +2,8 @@
 
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { StrictMode } from 'react';
+import { trackPortfolioEvent } from '../../src/features/portfolio/analytics';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
 import { toPortfolioAnalysisAssets } from '../../src/features/portfolio/portfolioAnalysisAssets';
 import { GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY } from '../../src/features/portfolio/portfolioHoldingsStorage';
@@ -9,6 +11,11 @@ import type {
   PortfolioHoldingInput,
   PortfolioPerformancePoint,
 } from '../../src/features/portfolio/types';
+
+vi.mock('../../src/features/portfolio/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/features/portfolio/analytics')>()),
+  trackPortfolioEvent: vi.fn(),
+}));
 
 const stock = {
   assetId: 1,
@@ -97,8 +104,35 @@ function jsonResponse(body: unknown, status = 200) {
 function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input);
   const method = init?.method ?? 'GET';
+  const contentsMatch = url.match(/\/api\/assets\/(\d+)\/contents$/);
+  if (contentsMatch) {
+    const asset = [stock, secondStock, kosdaqStock, etf].find(
+      (candidate) => candidate.assetId === Number(contentsMatch[1]),
+    );
+    if (!asset) return jsonResponse({}, 404);
+    return jsonResponse({
+      assetId: asset.assetId,
+      assetCode: asset.assetCode,
+      assetName: asset.name,
+      contents: [],
+    });
+  }
+  if (url.includes('/api/portfolio/histories?')) return jsonResponse([]);
   if (url.endsWith('/api/auth/csrf')) {
     return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+  }
+  if (url.endsWith('/api/users/me/portfolio/analysis') && method === 'GET') {
+    return jsonResponse({
+      status: 'EMPTY',
+      lastCheckOutcome: null,
+      analysisId: null,
+      matchesCurrentPortfolio: false,
+      lastSucceededAt: null,
+      lastFailedAt: null,
+      failureCode: null,
+      changeReason: null,
+      analysis: null,
+    });
   }
   if (url.endsWith('/api/users/me/portfolio') && method === 'GET') {
     return jsonResponse({ holdings: savedHoldings, totalRealizedProfitLoss: 0 });
@@ -211,59 +245,6 @@ function mockPortfolioApi() {
         });
       if (url.endsWith('/api/auth/csrf'))
         return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
-      if (url.endsWith('/api/assets/1/contents'))
-        return jsonResponse({
-          assetId: 1,
-          assetCode: '005930',
-          assetName: '삼성전자',
-          contents: [
-            {
-              id: 10,
-              assetId: 1,
-              sourceType: 'YOUTUBE',
-              title: '삼성전자 분석 영상',
-              url: 'https://youtube.com/watch?v=abc',
-              imageUrl: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
-              createdAt: null,
-            },
-            {
-              id: 11,
-              assetId: 1,
-              sourceType: 'YOUTUBE',
-              title: '삼성전자 두 번째 분석 영상',
-              url: 'https://youtube.com/watch?v=def',
-              imageUrl: 'https://i.ytimg.com/vi/def/hqdefault.jpg',
-              createdAt: null,
-            },
-            {
-              id: 12,
-              assetId: 1,
-              sourceType: 'INTERNAL_NEWS',
-              title: '삼성전자 관련 이슈',
-              url: '/news/12',
-              imageUrl: null,
-              createdAt: null,
-            },
-            {
-              id: 13,
-              assetId: 1,
-              sourceType: 'X',
-              title: 'X 게시물',
-              url: 'https://x.com/market/status/12345',
-              imageUrl: null,
-              createdAt: null,
-            },
-            ...Array.from({ length: 8 }, (_, index) => ({
-              id: 20 + index,
-              assetId: 1,
-              sourceType: 'YOUTUBE',
-              title: `삼성전자 추가 콘텐츠 ${index + 1}`,
-              url: `https://youtube.com/watch?v=extra-${index + 1}`,
-              imageUrl: null,
-              createdAt: null,
-            })),
-          ],
-        });
       if (url.endsWith('/api/portfolio/calculate')) {
         const request = JSON.parse(String(init?.body)) as {
           holdings: Array<{ assetId: number; quantity: number; averagePurchasePrice: number }>;
@@ -303,6 +284,7 @@ function mockPortfolioApi() {
 }
 
 beforeEach(() => {
+  vi.mocked(trackPortfolioEvent).mockClear();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-06T06:00:00Z'));
   savedHoldings = [];
@@ -327,6 +309,102 @@ afterEach(() => {
 });
 
 describe('포트폴리오 화면', () => {
+  it('StrictMode에서도 진입은 한 번 수집하고 실제 계산 완료 전에는 loaded를 보내지 않는다', async () => {
+    let finishHoldings!: () => void;
+    let finishCalculation!: () => void;
+    const holdingsReady = new Promise<void>((resolve) => {
+      finishHoldings = resolve;
+    });
+    const calculationReady = new Promise<void>((resolve) => {
+      finishCalculation = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/users/me/portfolio')) {
+          await holdingsReady;
+          return jsonResponse({
+            holdings: [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }],
+            totalRealizedProfitLoss: 0,
+          });
+        }
+        if (url.endsWith('/api/portfolio/calculate')) {
+          await calculationReady;
+          return jsonResponse(calculation);
+        }
+        if (url.includes('/performance?')) return jsonResponse({ points: [], currentPoint: null });
+        if (url.endsWith('/api/auth/csrf'))
+          return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+        return jsonResponse({});
+      }),
+    );
+    const view = render(
+      <StrictMode>
+        <PortfolioPage />
+      </StrictMode>,
+    );
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_viewed'),
+    ).toHaveLength(1);
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_loaded'),
+    ).toHaveLength(0);
+    await act(async () => finishHoldings());
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(([input]) => String(input).endsWith('/api/portfolio/calculate')),
+      ).toBe(true),
+    );
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_loaded'),
+    ).toHaveLength(0);
+    await act(async () => finishCalculation());
+    await view.findAllByText('750,000원');
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_dashboard_loaded', {
+      is_logged_in: true,
+      has_holdings: true,
+      pricing_status: 'COMPLETE',
+    });
+    fireEvent.click(view.getByRole('button', { name: '금액 숨기기' }));
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_loaded'),
+    ).toHaveLength(1);
+  });
+
+  it('이탈 후 취소된 조회 실패를 대시보드 실패로 집계하지 않는다', async () => {
+    let rejectHoldings!: (error: Error) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith('/api/users/me/portfolio')) {
+          return new Promise<Response>((_resolve, reject) => {
+            rejectHoldings = reject;
+          });
+        }
+        return jsonResponse({ points: [], currentPoint: null });
+      }),
+    );
+    const view = render(<PortfolioPage />);
+    view.unmount();
+    await act(async () => rejectHoldings(new DOMException('Aborted', 'AbortError')));
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_load_failed'),
+    ).toHaveLength(0);
+  });
+
   it('비회원 포트폴리오를 세션에서 복원하고 회원 전용 API를 호출하지 않는다', async () => {
     const guestHolding = { ...stock, quantity: 10, averagePurchasePrice: 70000 };
     sessionStorage.setItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY, JSON.stringify([guestHolding]));
@@ -335,19 +413,78 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage isLoggedIn={false} />);
 
     expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
-    expect(view.getByText('삼성전자')).toBeTruthy();
+    expect(view.getByRole('button', { name: '삼성전자 보유 상세' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
     expect(view.getByRole('button', { name: '1회 분석 체험하기' })).toBeTruthy();
-    expect(view.getByText('비회원 포트폴리오는 현재 탭에만 임시 보관돼요.')).toBeTruthy();
-    expect(view.queryByRole('heading', { name: '자산 추이' })).toBeNull();
+    expect(view.getByText('비회원 자산은 이 탭에만 임시 저장돼요.')).toBeTruthy();
+    const trend = view.getByRole('region', { name: '자산 추이' });
+    expect(within(trend).getByText('잠금')).toBeTruthy();
+    expect(within(trend).getByText('로그인 후 자산 추이를 확인할 수 있어요')).toBeTruthy();
+    expect(within(trend).getByRole('link', { name: '로그인하기' }).getAttribute('href')).toBe(
+      '/login?returnTo=%2F',
+    );
+    expect(within(trend).queryByRole('img', { name: /포트폴리오 자산 추이/ })).toBeNull();
     expect(view.queryByRole('combobox', { name: '자산 추이 기간' })).toBeNull();
     expect(view.queryByRole('button', { name: '자산 추이 크게 보기' })).toBeNull();
-    expect(view.queryByRole('button', { name: '거래 내역' })).toBeNull();
-    expect(view.queryByText('누적 실현손익')).toBeNull();
+    expect(view.queryByRole('button', { name: '자산 추이 새로고침' })).toBeNull();
+    fireEvent(document, new Event('visibilitychange'));
+    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+    const history = within(view.getByRole('region', { name: '거래·변경 내역' }));
+    expect(history.getByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
+    expect(history.getByRole('button', { name: '거래 기록' })).toBeTruthy();
+    const summary = within(view.getByLabelText('자산 요약'));
+    expect(summary.getByText('누적 실현손익')).toBeTruthy();
+    expect(summary.getByText('로그인 후 확인할 수 있어요')).toBeTruthy();
+    expect(summary.getByText('현재 보유 수량 기준')).toBeTruthy();
+    expect(summary.getByText('매도로 확정된 손익')).toBeTruthy();
     expect(
       vi
         .mocked(fetch)
         .mock.calls.some(([input]) => String(input).includes('/api/users/me/portfolio')),
+    ).toBe(false);
+  });
+
+  it('비회원도 상세에서 매수·매도를 기록하고 새로 진입하면 임시 거래 내역을 복원한다', async () => {
+    sessionStorage.setItem(
+      GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY,
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findAllByText('750,000원');
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+    const detail = within(view.getByRole('dialog', { name: '삼성전자 보유 상세' }));
+    fireEvent.click(detail.getByRole('button', { name: '매수' }));
+    let editor = within(view.getByRole('dialog', { name: '거래 기록' }));
+    fireEvent.change(editor.getByLabelText('수량 (주)'), { target: { value: '2' } });
+    fireEvent.change(editor.getByLabelText('거래 단가 (원)'), { target: { value: '76000' } });
+    fireEvent.click(editor.getByRole('button', { name: '매수 기록하기' }));
+    await waitFor(() => expect(view.queryByRole('dialog', { name: '거래 기록' })).toBeNull());
+    expect(detail.getByText('12주')).toBeTruthy();
+    expect(detail.getAllByText('152,000원').length).toBeGreaterThan(0);
+    fireEvent.click(detail.getByRole('button', { name: '매도' }));
+    editor = within(view.getByRole('dialog', { name: '거래 기록' }));
+    fireEvent.change(editor.getByLabelText('수량 (주)'), { target: { value: '3' } });
+    fireEvent.change(editor.getByLabelText('거래 단가 (원)'), { target: { value: '78000' } });
+    fireEvent.click(editor.getByRole('button', { name: '매도 기록하기' }));
+    await waitFor(() => expect(view.queryByRole('dialog', { name: '거래 기록' })).toBeNull());
+    expect(detail.getByText('9주')).toBeTruthy();
+    view.unmount();
+    const restored = render(<PortfolioPage isLoggedIn={false} />);
+    await restored.findByRole('button', { name: '삼성전자 보유 상세' });
+    fireEvent.click(restored.getByRole('button', { name: '거래·변경 내역' }));
+    const history = within(restored.getByRole('region', { name: '거래·변경 내역' }));
+    expect((await history.findAllByText('152,000원')).length).toBeGreaterThan(0);
+    expect(history.getAllByText('234,000원').length).toBeGreaterThan(0);
+    fireEvent.change(history.getByLabelText('내역 유형'), { target: { value: 'SELL' } });
+    expect(history.queryByText('152,000원')).toBeNull();
+    expect(history.getAllByText('234,000원').length).toBeGreaterThan(0);
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) =>
+          /users\/me\/portfolio|portfolio\/(histories|transactions)/.test(String(input)),
+        ),
     ).toBe(false);
   });
 
@@ -375,6 +512,22 @@ describe('포트폴리오 화면', () => {
         .mocked(fetch)
         .mock.calls.some(([input]) => String(input).includes('/api/users/me/portfolio')),
     ).toBe(false);
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_editor_opened', {
+      mode: 'holding_create',
+      entry_point: 'header',
+      is_logged_in: false,
+    });
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_stock_selected', {
+      category: 'STOCK',
+      market: 'KOSPI',
+      mode: 'holding_create',
+    });
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_save_succeeded', {
+      operation: 'holding_create',
+      storage: 'temporary',
+    });
+    const sent = JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls);
+    expect(sent).not.toMatch(/삼성|005930|quantity|averagePurchasePrice|70000/);
   });
 
   it('비회원은 상세 패널에서 거래 API 없이 보유자산을 제거한다', async () => {
@@ -386,8 +539,10 @@ describe('포트폴리오 화면', () => {
     await view.findAllByText('750,000원');
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
-    expect(within(detail).queryByRole('button', { name: '매도' })).toBeNull();
-    expect(within(detail).queryByText('거래 내역')).toBeNull();
+    expect(within(detail).getByRole('button', { name: '매도' })).toBeTruthy();
+    expect(within(detail).getByRole('button', { name: '매수' })).toBeTruthy();
+    expect(within(detail).getByRole('heading', { name: '거래 내역' })).toBeTruthy();
+    expect(within(detail).getByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
     fireEvent.click(within(detail).getByText('보유정보 편집'));
     fireEvent.click(within(detail).getByRole('button', { name: '보유자산 제거' }));
     fireEvent.click(view.getByRole('button', { name: '보유자산 제거' }));
@@ -462,12 +617,32 @@ describe('포트폴리오 화면', () => {
     );
     expect(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)).toBe(original);
     expect((within(editor).getByLabelText('보유수량') as HTMLInputElement).value).toBe('12');
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_save_failed', {
+      operation: 'holding_update',
+      storage: 'temporary',
+      error_type: 'network_or_unknown',
+    });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_save_succeeded'),
+    ).toHaveLength(0);
     fireEvent.click(within(editor).getByRole('button', { name: '수정하기' }));
     await waitFor(() => {
       expect(JSON.parse(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)!)).toEqual([
         { ...guestHolding, quantity: 12 },
       ]);
     });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_save_submitted'),
+    ).toHaveLength(2);
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_save_succeeded'),
+    ).toHaveLength(1);
   });
 
   it.each([
@@ -522,6 +697,8 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy();
     expect(view.queryByText('표시할 자산이 없어요')).toBeNull();
     const summary = within(view.getByLabelText('자산 요약'));
+    expect(summary.getByText('현재 보유 수량 기준')).toBeTruthy();
+    expect(summary.getByText('매도로 확정된 손익')).toBeTruthy();
     expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy();
     expect(
       summary.getByText('전체 자산 평가금액').parentElement?.parentElement?.textContent,
@@ -544,6 +721,11 @@ describe('포트폴리오 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
     expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_holding_detail_opened'),
+    ).toHaveLength(1);
+    expect(
       within(detail)
         .getByRole('link', { name: /종목 정보 보기/ })
         .getAttribute('href'),
@@ -551,27 +733,73 @@ describe('포트폴리오 화면', () => {
     expect(view.queryByText('관리')).toBeNull();
   });
 
-  it('보유 상세 패널에서 종목 관련 소식을 표시한다', async () => {
+  it('소식은 본문 옆에 표시하고 접고 펼쳐도 다시 조회하지 않으며 보유 상세와 분리한다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     mockPortfolioApi();
 
     const view = render(<PortfolioPage />);
     await view.findAllByText('750,000원');
+    const newsPanel = view.getByRole('complementary', { name: '보유 자산 소식' });
+    const newsTab = view.getByRole('button', { name: /^소식$/ });
+    expect(newsTab.getAttribute('aria-expanded')).toBe('true');
+    expect(newsTab.getAttribute('aria-controls')).toBe(newsPanel.id);
+    expect(view.queryByRole('dialog', { name: '보유 자산 소식' })).toBeNull();
+    await within(newsPanel).findByText('보유 자산에 등록된 소식이 없습니다.');
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([input]) => String(input).endsWith('/api/assets/1/contents')),
+    ).toHaveLength(1);
+    fireEvent.click(within(newsPanel).getByRole('button', { name: '소식 접기' }));
+    expect(view.queryByRole('complementary', { name: '보유 자산 소식' })).toBeNull();
+    expect(newsTab.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(newsTab);
+    fireEvent.click(newsTab);
+    expect(view.getByRole('complementary', { name: '보유 자산 소식' })).toBe(newsPanel);
+    expect(newsTab.getAttribute('aria-expanded')).toBe('true');
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([input]) => String(input).endsWith('/api/assets/1/contents')),
+    ).toHaveLength(1);
+    fireEvent.click(newsTab);
+    vi.mocked(fetch).mockClear();
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
-    const news = await within(detail).findByRole('complementary', { name: '소식' });
-
-    expect(await within(news).findByText('삼성전자 분석 영상')).toBeTruthy();
-    expect(within(news).getByText('@market')).toBeTruthy();
-    expect(within(news).getByText('게시물 내용을 원문에서 확인하세요.')).toBeTruthy();
-    expect(within(news).getByRole('link', { name: '전체 소식 보기' }).getAttribute('href')).toBe(
-      '/stocks/1',
-    );
+    expect(within(detail).queryByRole('complementary', { name: '소식' })).toBeNull();
+    expect(within(detail).getByRole('link', { name: /종목 정보 보기/ })).toBeTruthy();
+    expect(within(detail).getByRole('heading', { name: '거래 내역' })).toBeTruthy();
+    await within(detail).findByText('이 기간에 표시할 내역이 없어요');
     expect(
       vi
         .mocked(fetch)
         .mock.calls.some(([input]) => String(input).endsWith('/api/assets/1/contents')),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('비회원 소식은 배경을 잠그지 않고 버튼으로 접고 펼친다', async () => {
+    sessionStorage.setItem(
+      'daynomy:guest-portfolio-holdings:v1',
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findAllByText('750,000원');
+    const tab = view.getByRole('button', { name: /^소식$/ });
+    await within(view.getByRole('complementary', { name: '보유 자산 소식' })).findByText(
+      '보유 자산에 등록된 소식이 없습니다.',
+    );
+    expect(document.body.style.overflow).not.toBe('hidden');
+    fireEvent.click(view.getByRole('button', { name: '자산 분석 접기' }));
+    expect(view.getByRole('complementary', { name: '보유 자산 소식' })).toBeTruthy();
+    tab.focus();
+    fireEvent.click(tab);
+    expect(view.queryByRole('complementary', { name: '보유 자산 소식' })).toBeNull();
+    expect(tab.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(tab);
+    fireEvent.click(tab);
+    expect(view.getByRole('complementary', { name: '보유 자산 소식' })).toBeTruthy();
+    expect(tab.getAttribute('aria-expanded')).toBe('true');
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
@@ -680,6 +908,97 @@ describe('포트폴리오 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '자산 추이 크게 보기' }));
     const trendDialog = view.getByRole('dialog', { name: '자산 추이 상세' });
     expect(within(trendDialog).queryByText(/최근 1개월.*거래일 종가 기준/)).toBeNull();
+  });
+
+  it('날짜별 매입금액을 기준으로 상승·하락·동일 구간을 나누고 교차 지점에서 색을 연결한다', async () => {
+    savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
+    const points = [
+      [700000, 650000],
+      [720000, 800000],
+      [750000, 700000],
+      [800000, 800000],
+      [800000, 800000],
+    ].map(([totalPurchaseAmount, totalEvaluationAmount], index) => ({
+      baseDate: `2026-10-0${index + 1}`,
+      totalPurchaseAmount,
+      totalEvaluationAmount,
+      totalProfitLoss: totalEvaluationAmount - totalPurchaseAmount,
+      totalReturnRate: ((totalEvaluationAmount - totalPurchaseAmount) / totalPurchaseAmount) * 100,
+      dailyProfitLoss: null,
+      dailyReturnRate: null,
+    }));
+    mockPortfolioApi();
+    const mockedFetch = vi.mocked(fetch);
+    const originalImplementation = mockedFetch.getMockImplementation();
+    mockedFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/api/users/me/portfolio/performance?')) {
+        return jsonResponse({
+          status: 'READY',
+          reason: null,
+          baseDate: points.at(-1)!.baseDate,
+          previousBaseDate: points.at(-2)!.baseDate,
+          points,
+          currentPoint: null,
+        });
+      }
+      return originalImplementation?.(input, init) ?? jsonResponse({}, 404);
+    });
+    const view = render(<PortfolioPage />);
+    const chart = await view.findByRole('img', { name: /평가금액 800,000원, 매입원금 800,000원/ });
+    const lines = [
+      ...chart.querySelectorAll<SVGPolylineElement>('.portfolio-return-line.evaluation'),
+    ];
+    expect(lines.map((line) => line.style.stroke)).toEqual([
+      'var(--portfolio-trend-loss)',
+      'var(--portfolio-trend-gain)',
+      'var(--portfolio-trend-gain)',
+      'var(--portfolio-trend-loss)',
+      'var(--portfolio-trend-loss)',
+      'var(--portfolio-trend-neutral)',
+    ]);
+    const coordinates = (line: Element) =>
+      line
+        .getAttribute('points')!
+        .split(' ')
+        .map((pair) => pair.split(',').map(Number));
+    expect(coordinates(lines[0])[1]).toEqual(coordinates(lines[1])[0]);
+    expect(coordinates(lines[2])[1]).toEqual(coordinates(lines[3])[0]);
+    expect(coordinates(lines[0])[1][0]).toBeCloseTo(120.5);
+    expect(coordinates(lines[2])[1][0]).toBeCloseTo(320.5);
+    const purchaseLine = chart.querySelector('.principal')!;
+    const purchaseCoordinates = coordinates(purchaseLine);
+    expect(coordinates(lines[0])[1][1]).toBeCloseTo(
+      purchaseCoordinates[0][1] +
+        (purchaseCoordinates[1][1] - purchaseCoordinates[0][1]) * (5 / 13),
+    );
+    expect(chart.querySelectorAll('.portfolio-return-area.is-gain')).toHaveLength(2);
+    expect(chart.querySelectorAll('.portfolio-return-area.is-loss')).toHaveLength(3);
+    expect(chart.querySelector('.portfolio-return-area.is-neutral')).toBeNull();
+
+    const wrapper = view.getByLabelText(
+      '자산 추이 그래프. 좌우 방향키로 날짜를 이동할 수 있습니다.',
+    );
+    for (let index = 0; index < 3; index++) fireEvent.keyDown(wrapper, { key: 'ArrowLeft' });
+    expect(
+      chart.querySelector<SVGCircleElement>('.portfolio-return-point.evaluation')!.style.fill,
+    ).toBe('var(--portfolio-trend-gain)');
+    fireEvent.keyDown(wrapper, { key: 'ArrowLeft' });
+    expect(
+      chart.querySelector<SVGCircleElement>('.portfolio-return-point.evaluation')!.style.fill,
+    ).toBe('var(--portfolio-trend-loss)');
+
+    fireEvent.click(view.getByRole('button', { name: '자산 추이 크게 보기' }));
+    const expanded = within(view.getByRole('dialog', { name: '자산 추이 상세' })).getByRole('img', {
+      name: /포트폴리오 자산 추이/,
+    });
+    expect(
+      [...expanded.querySelectorAll<SVGPolylineElement>('.portfolio-return-line.evaluation')].map(
+        (line) => line.style.stroke,
+      ),
+    ).toEqual(lines.map((line) => line.style.stroke));
+    expect(
+      expanded.querySelector<SVGCircleElement>('.portfolio-return-point.evaluation')!.style.fill,
+    ).toBe('var(--portfolio-trend-neutral)');
   });
 
   it('기간별 종가 기록이 없어도 현재 계산 결과로 자산 추이를 표시한다', async () => {
@@ -931,6 +1250,20 @@ describe('포트폴리오 화면', () => {
     rows = within(table).getAllByRole('row');
     expect(within(rows[1]).getByText('삼성전자')).toBeTruthy();
     expect(within(table).queryByText('KODEX 200')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '주식' }));
+    fireEvent.change(view.getByRole('combobox', { name: '보유 자산 정렬' }), {
+      target: { value: 'EVALUATION' },
+    });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_filter_changed'),
+    ).toEqual([['portfolio_filter_changed', { category: 'STOCK' }]]);
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_sort_changed'),
+    ).toEqual([['portfolio_sort_changed', { sort: 'EVALUATION' }]]);
   });
 
   it('종목을 다시 선택하면 이전 종목의 늦은 종가 응답을 무시한다', async () => {

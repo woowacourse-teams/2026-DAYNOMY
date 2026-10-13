@@ -12,8 +12,10 @@ import { PortfolioPage } from './features/portfolio/PortfolioPage';
 import { LeaguePage } from './features/league/LeaguePage';
 import { InvestorProfilePage } from './features/league/InvestorProfilePage';
 import { PublicationSettingsPage } from './features/league/PublicationSettingsPage';
+import { LeagueProfilePage } from './features/league/LeagueProfilePage';
 import { SharedPortfolioPage } from './features/league/SharedPortfolioPage';
 import { FollowingPage } from './features/league/FollowingPage';
+import { InvestmentReviewsPage } from './features/league/InvestmentReviewsPage';
 import { MyPage } from './features/account/MyPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
@@ -129,7 +131,7 @@ function AuthenticatedRoute({ children }: { children: ReactNode }) {
 }
 
 function PortfolioRoute() {
-  const { isLoggedIn, loading } = useAuth();
+  const { memberId, isLoggedIn, loading } = useAuth();
 
   if (loading) {
     return (
@@ -141,7 +143,9 @@ function PortfolioRoute() {
     );
   }
 
-  return <PortfolioPage isLoggedIn={isLoggedIn} />;
+  return (
+    <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
+  );
 }
 
 function PostLoginRedirect() {
@@ -185,6 +189,14 @@ export default function App() {
                 element={<Navigate to="/league/portfolio" replace />}
               />
               <Route
+                path="/league/profile"
+                element={
+                  <AuthenticatedRoute>
+                    <LeagueProfilePage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
                 path="/league/portfolio"
                 element={
                   <AuthenticatedRoute>
@@ -206,6 +218,14 @@ export default function App() {
                 element={
                   <AuthenticatedRoute>
                     <FollowingPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="/league/reviews"
+                element={
+                  <AuthenticatedRoute>
+                    <InvestmentReviewsPage />
                   </AuthenticatedRoute>
                 }
               />

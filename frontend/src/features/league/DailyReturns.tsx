@@ -3,6 +3,13 @@ import { getDailyHistory, getLeagueWeeks } from './api';
 import { formatRate, collectionLabels } from './labels';
 import type { DailyHistory, DailyReturnPoint, LeagueWeek } from './types';
 
+const dayFormatter = new Intl.DateTimeFormat('ko-KR', {
+  month: 'numeric',
+  day: 'numeric',
+  weekday: 'short',
+  timeZone: 'UTC',
+});
+
 function statusLabel(day: DailyReturnPoint) {
   if (day.status === 'CALCULATED')
     return day.reason === 'TRACKING_BASELINE' ? '성과 시작 종가 · 0%' : '집계 완료';
@@ -42,14 +49,18 @@ export function DailyReturns({
     setLoading(true);
     setError('');
     setHistory(null);
-    Promise.all([
-      getLeagueWeeks(controller.signal),
-      getDailyHistory(publicId, weekStart || undefined, controller.signal),
-    ])
-      .then(([availableWeeks, value]) => {
+    getLeagueWeeks(controller.signal)
+      .then(async (availableWeeks) => {
         if (controller.signal.aborted) return;
-        setWeeks(availableWeeks);
-        setHistory(value);
+        const recentWeeks = [...availableWeeks]
+          .sort((a, b) => b.weekStart.localeCompare(a.weekStart))
+          .slice(0, 3);
+        setWeeks(recentWeeks);
+        const selectedWeek = recentWeeks.some((week) => week.weekStart === weekStart)
+          ? weekStart
+          : recentWeeks[0]?.weekStart;
+        const value = await getDailyHistory(publicId, selectedWeek, controller.signal);
+        if (!controller.signal.aborted) setHistory(value);
       })
       .catch(() => {
         if (!controller.signal.aborted) setError('일별 수익률을 불러오지 못했습니다.');
@@ -61,6 +72,15 @@ export function DailyReturns({
   }, [publicId, weekStart, retry]);
 
   const days = history?.days ?? [];
+  const hasReturns = days.some((day) => day.dailyReturnRate !== null);
+  const emptyDetail =
+    days.length > 0
+      ? days.every((day) => day.status === 'NOT_PARTICIPATING')
+        ? '이 주에는 참여 기록이 없어요.'
+        : [...new Set(days.map(statusLabel))].join(', ')
+      : history?.collectionStatus
+        ? collectionLabels[history.collectionStatus]
+        : '거래일 기록 없음';
   const rates = days.map((day) => day.cumulativeReturnRate ?? 0);
   const min = Math.min(0, ...rates);
   const max = Math.max(0, ...rates);
@@ -74,19 +94,23 @@ export function DailyReturns({
       aria-labelledby="daily-history-title"
     >
       <header>
-        <div>
-          <h2 id="daily-history-title">일별 수익률 · 주간 누적</h2>
-        </div>
+        <h2 id="daily-history-title">일별 수익률</h2>
         <label>
-          조회 주차
+          <span className="league-sr-only">조회 주차</span>
           <select
-            value={weekStart || history?.weekStart || ''}
+            value={
+              weeks.some((week) => week.weekStart === weekStart)
+                ? weekStart
+                : weeks[0]?.weekStart || ''
+            }
+            disabled={weeks.length === 0}
             onChange={(event) => onWeekChange(event.target.value)}
           >
-            {weeks.length === 0 ? <option value={weekStart}>이번 주</option> : null}
-            {weeks.map((week) => (
+            {weeks.length === 0 ? <option value="">이번 주</option> : null}
+            {weeks.map((week, index) => (
               <option key={week.weekStart} value={week.weekStart}>
-                {week.weekStart} ~ {week.weekEnd}
+                {['이번 주', '지난주', '지지난주'][index]} · {week.weekStart.slice(5)} ~{' '}
+                {week.weekEnd.slice(5)}
               </option>
             ))}
           </select>
@@ -103,28 +127,23 @@ export function DailyReturns({
         </div>
       ) : history ? (
         <>
-          {history.participationReturnRate !== undefined && history.weeklyReturnRate === null ? (
-            <p>참여 후 주간 수익률 {formatRate(history.participationReturnRate)}</p>
-          ) : null}
-          <p className="league-daily-summary">
-            <span>
-              {history.weekStart} ~ {history.weekEnd} ·{' '}
-              {history.confirmed
-                ? '주간 수익률 확정'
-                : collectionLabels[history.collectionStatus ?? 'IN_PROGRESS']}
-            </span>
-            <strong>
-              주간 누적{' '}
-              {history.weeklyReturnRate === null
-                ? '집계 대기'
-                : formatRate(history.weeklyReturnRate)}
-            </strong>
-            <small>{history.asOfDate ? `${history.asOfDate} 종가 기준` : '집계 대기'}</small>
-          </p>
-          {days.length === 0 ? (
-            <p>거래일 기록 없음</p>
+          {!hasReturns ? (
+            <div className="league-daily-empty">
+              <p>아직 집계된 수익률이 없어요.</p>
+              <small>{emptyDetail}</small>
+            </div>
           ) : (
             <>
+              {history.weeklyReturnRate !== null ? (
+                <p className="league-daily-summary">
+                  <strong>주간 누적 {formatRate(history.weeklyReturnRate)}</strong>
+                  {history.asOfDate ? (
+                    <small>
+                      {history.asOfDate} 종가 기준{history.confirmed ? ' · 확정' : ''}
+                    </small>
+                  ) : null}
+                </p>
+              ) : null}
               {days.filter((day) => day.cumulativeReturnRate !== null).length >= 2 ? (
                 <svg
                   className="league-daily-chart"
@@ -172,16 +191,22 @@ export function DailyReturns({
                   </caption>
                   <thead>
                     <tr>
-                      <th scope="col">거래일</th>
-                      <th scope="col">일별</th>
+                      <th scope="col">날짜</th>
+                      <th scope="col">하루 수익률</th>
                       <th scope="col">주간 누적</th>
-                      <th scope="col">상태</th>
                     </tr>
                   </thead>
                   <tbody>
                     {days.map((day) => (
                       <tr key={day.baseDate}>
-                        <th scope="row">{day.baseDate.slice(5)}</th>
+                        <th scope="row">
+                          <time dateTime={day.baseDate}>
+                            {dayFormatter.format(new Date(day.baseDate))}
+                          </time>
+                          {day.status !== 'CALCULATED' || day.reason === 'TRACKING_BASELINE' ? (
+                            <small>{statusLabel(day)}</small>
+                          ) : null}
+                        </th>
                         <td>
                           {day.dailyReturnRate === null ? '—' : formatRate(day.dailyReturnRate)}
                         </td>
@@ -190,7 +215,6 @@ export function DailyReturns({
                             ? '—'
                             : formatRate(day.cumulativeReturnRate)}
                         </td>
-                        <td>{statusLabel(day)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -198,9 +222,6 @@ export function DailyReturns({
               </div>
             </>
           )}
-          {days.some((day) => day.status === 'NOT_PARTICIPATING') && history.eligibleFrom ? (
-            <p className="league-calculation-note">공식 순위 시작일: {history.eligibleFrom}</p>
-          ) : null}
         </>
       ) : null}
     </section>

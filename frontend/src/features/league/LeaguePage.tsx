@@ -9,18 +9,13 @@ import {
   concentrationLabel,
   experienceLabels,
   formatRate,
-  leagueCriteria,
-  leagueLabels,
   riskLabels,
 } from './labels';
-import type { LeagueType, LeagueWeek, RankingEntry, RankingResponse } from './types';
+import type { LeagueWeek, RankingEntry, RankingResponse } from './types';
 import './league.css';
-
-const leagueTypes: LeagueType[] = ['WEEKLY_RETURN', 'STABLE', 'BEGINNER'];
 
 export function LeaguePage() {
   const { isLoggedIn } = useAuth();
-  const [leagueType, setLeagueType] = useState<LeagueType>('WEEKLY_RETURN');
   const [weeks, setWeeks] = useState<LeagueWeek[]>([]);
   const [weekStart, setWeekStart] = useState('');
   const [ranking, setRanking] = useState<RankingResponse | null>(null);
@@ -49,8 +44,15 @@ export function LeaguePage() {
     getLeagueWeeks(controller.signal)
       .then((availableWeeks) => {
         if (controller.signal.aborted) return;
-        setWeeks(availableWeeks);
-        setWeekStart((current) => current || availableWeeks[0]?.weekStart || '');
+        const recentWeeks = [...availableWeeks]
+          .sort((a, b) => b.weekStart.localeCompare(a.weekStart))
+          .slice(0, 3);
+        setWeeks(recentWeeks);
+        setWeekStart((current) =>
+          recentWeeks.some((week) => week.weekStart === current)
+            ? current
+            : recentWeeks[0]?.weekStart || '',
+        );
       })
       .catch(() => {
         if (!controller.signal.aborted)
@@ -63,7 +65,7 @@ export function LeaguePage() {
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    getRankings(leagueType, weekStart || undefined, controller.signal, page)
+    getRankings('WEEKLY_RETURN', weekStart || undefined, controller.signal, page)
       .then((value) => {
         if (!controller.signal.aborted) setRanking(value);
       })
@@ -76,57 +78,31 @@ export function LeaguePage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [leagueType, retry, weekStart, page]);
+  }, [retry, weekStart, page]);
 
   return (
     <main className="league-page">
-      <section className="league-hero">
-        <div>
-          <h1>투자 리그</h1>
-        </div>
-        <div className="league-hero-actions">
-          <Link className="league-text-link" to="/league/following">
-            관심 투자자
-          </Link>
-          {isLoggedIn ? (
-            <>
-              <Link className="league-primary-link" to="/league/portfolio">
-                내 리그
-              </Link>
-              <Link className="league-secondary-link" to="/portfolio/publication">
-                리그 설정
-              </Link>
-            </>
-          ) : (
-            <Link className="league-primary-link" to="/login?returnTo=/league">
-              로그인하고 참여하기
+      <header className="league-hero">
+        <h1>주간 리그</h1>
+        {isLoggedIn ? (
+          <div className="league-hero-actions">
+            <Link className="league-primary-link" to="/league/portfolio">
+              종목 관리
             </Link>
-          )}
-        </div>
-      </section>
-
-      <section className="league-controls" aria-label="리그 조회 조건">
-        <fieldset className="league-type-options">
-          <legend className="league-sr-only">리그 종류</legend>
-          <div>
-            {leagueTypes.map((type) => (
-              <label key={type}>
-                <input
-                  type="radio"
-                  name="league-type"
-                  value={type}
-                  checked={leagueType === type}
-                  onChange={() => {
-                    setLeagueType(type);
-                    setPage(0);
-                    trackEvent('change_league_filter', { filter_type: type });
-                  }}
-                />
-                <span>{leagueLabels[type]}</span>
-              </label>
-            ))}
+            <Link className="league-text-link" to="/league/profile">
+              내 프로필
+            </Link>
+            <Link className="league-text-link" to="/league/following">
+              팔로잉
+            </Link>
           </div>
-        </fieldset>
+        ) : (
+          <Link className="league-primary-link" to="/login?returnTo=/league/profile">
+            로그인하고 참여하기
+          </Link>
+        )}
+      </header>
+      <section className="league-controls" aria-label="리그 조회 조건">
         <label className="league-week-filter">
           <span>조회 주차</span>
           <select
@@ -142,10 +118,10 @@ export function LeaguePage() {
             }}
           >
             {weeks.length === 0 ? <option value="">이번 주</option> : null}
-            {weeks.map((week) => (
+            {weeks.map((week, index) => (
               <option key={week.weekStart} value={week.weekStart}>
-                {week.weekStart.slice(5)} ~ {week.weekEnd.slice(5)}{' '}
-                {week.confirmed ? '' : '· 집계 중'}
+                {['이번 주', '지난주', '지지난주'][index]} · {week.weekStart.slice(5)} ~{' '}
+                {week.weekEnd.slice(5)}
               </option>
             ))}
           </select>
@@ -154,8 +130,9 @@ export function LeaguePage() {
 
       {!loading && !error && ranking ? (
         <p className="league-calculation-note">
-          {ranking.asOfDate ? `${ranking.asOfDate} 종가 기준` : '종가 수집 대기'} ·{' '}
-          {leagueCriteria[ranking.leagueType]}
+          {ranking.asOfDate ? `${ranking.asOfDate} 종가 기준` : '종가 수집 대기'} · 주간 수익률순
+          <br />
+          종가 기준의 가상 성과로, 실제 투자 수익률과 다를 수 있습니다.
         </p>
       ) : null}
 
@@ -183,7 +160,6 @@ export function LeaguePage() {
       {!loading && !error && ranking?.rankings.length === 0 ? (
         <section className="league-empty">
           <strong>아직 이 주차에 집계된 투자자가 없습니다</strong>
-          {isLoggedIn ? <Link to="/league/portfolio">종목 가져오기</Link> : null}
         </section>
       ) : null}
 
@@ -191,7 +167,7 @@ export function LeaguePage() {
         <section className="league-board" aria-labelledby="league-board-title">
           <header>
             <div>
-              <h2 id="league-board-title">{leagueLabels[ranking.leagueType]}</h2>
+              <h2 id="league-board-title">주간 순위</h2>
             </div>
             <p>
               {ranking.totalCount}명 ·{' '}
@@ -223,7 +199,6 @@ export function LeaguePage() {
                   <strong className={entry.weeklyReturnRate >= 0 ? 'positive' : 'negative'}>
                     {formatRate(entry.weeklyReturnRate)}
                   </strong>
-                  <small>8주 수익률 {formatRate(entry.eightWeekReturnRate)}</small>
                 </div>
                 <div className="league-row-actions">
                   <button
@@ -238,14 +213,14 @@ export function LeaguePage() {
                   </button>
                   <Link
                     className="league-row-records"
-                    to={`/league/${entry.publicId}#investment-decisions`}
-                    aria-label={`${entry.displayName} 투자 기록`}
+                    to={`/league/${entry.publicId}`}
+                    aria-label={`${entry.displayName} 공개 프로필 보기`}
                     state={{
                       source: 'ranking',
                       rankBucket: entry.rank <= 3 ? 'top_3' : entry.rank <= 10 ? 'top_10' : 'other',
                     }}
                   >
-                    투자 기록 <span aria-hidden="true">→</span>
+                    프로필 보기 <span aria-hidden="true">→</span>
                   </Link>
                 </div>
               </li>
@@ -271,11 +246,6 @@ export function LeaguePage() {
                 다음
               </button>
             </nav>
-          ) : null}
-          {ranking.finalizedAt ? (
-            <p className="league-calculation-note">
-              최종 확정 · 계산 버전 {ranking.calculationVersion}
-            </p>
           ) : null}
         </section>
       ) : null}
@@ -322,10 +292,6 @@ export function LeaguePage() {
             <section className="league-metrics-group" aria-label="성과 요약">
               <h3>성과</h3>
               <dl className="league-risk-grid">
-                <div>
-                  <dt>전체 누적 수익률</dt>
-                  <dd>{formatRate(selectedEntry.cumulativeReturnRate)}</dd>
-                </div>
                 <div>
                   <dt>연속 성과 기록</dt>
                   <dd>
@@ -390,23 +356,7 @@ export function LeaguePage() {
                 }}
                 onClick={() => metricsDialog.current?.close()}
               >
-                성과 보기
-              </Link>
-              <Link
-                className="league-secondary-link"
-                to={`/league/${selectedEntry.publicId}#investment-decisions`}
-                state={{
-                  source: 'ranking',
-                  rankBucket:
-                    selectedEntry.rank <= 3
-                      ? 'top_3'
-                      : selectedEntry.rank <= 10
-                        ? 'top_10'
-                        : 'other',
-                }}
-                onClick={() => metricsDialog.current?.close()}
-              >
-                투자 기록
+                공개 프로필 보기
               </Link>
             </footer>
           </div>

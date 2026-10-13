@@ -1,3 +1,4 @@
+import { getPublishedDate } from './publishedDate';
 import { request, requestWithCsrf } from '../../api/client';
 import type {
   StockRelatedContent,
@@ -44,7 +45,10 @@ export function isRelatedContent(value: unknown): value is StockRelatedContent {
     typeof value.title === 'string' &&
     isSafeContentUrl(value.url) &&
     (value.imageUrl === null || typeof value.imageUrl === 'string') &&
-    (value.createdAt === null || typeof value.createdAt === 'string')
+    (value.createdAt === null || typeof value.createdAt === 'string') &&
+    (value.publishedDate == null ||
+      (typeof value.publishedDate === 'string' &&
+        getPublishedDate(value.publishedDate) === value.publishedDate))
   );
 }
 

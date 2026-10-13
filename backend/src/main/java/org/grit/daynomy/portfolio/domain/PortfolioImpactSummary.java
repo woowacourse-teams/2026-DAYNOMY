@@ -19,7 +19,12 @@ public record PortfolioImpactSummary(
     BigDecimal positiveScore = BigDecimal.ZERO;
     BigDecimal negativeScore = BigDecimal.ZERO;
 
+    boolean complete = !impacts.isEmpty();
     for (AssetImpact impact : impacts) {
+      if (impact.direction() == null || impact.impactLevel() == null) {
+        complete = false;
+        continue;
+      }
       BigDecimal contribution = impact.weight().multiply(levelWeight(impact.impactLevel()));
       if (impact.direction() == ImpactDirection.POSITIVE) {
         positiveScore = positiveScore.add(contribution);
@@ -33,7 +38,10 @@ public record PortfolioImpactSummary(
     BigDecimal roundedNegativeScore = rounded(negativeScore);
 
     return new PortfolioImpactSummary(
-        directionOf(score), score, roundedPositiveScore, roundedNegativeScore);
+        complete ? directionOf(score) : null,
+        complete ? score : null,
+        roundedPositiveScore,
+        roundedNegativeScore);
   }
 
   private static BigDecimal levelWeight(ImpactLevel impactLevel) {

@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { analyzePortfolio } from '../../src/features/portfolio/api';
+import {
+  analyzePortfolio,
+  getSavedPortfolioAnalysis,
+  updateSavedPortfolioAnalysis,
+} from '../../src/features/portfolio/api';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -85,5 +89,71 @@ describe('포트폴리오 대시보드 분석 API', () => {
     await expect(analyzePortfolio([{ assetName: '삼성전자', weight: 100 }])).rejects.toThrow(
       '포트폴리오 분석 API 응답 형식이 올바르지 않습니다.',
     );
+  });
+});
+
+describe('회원 저장 분석 API', () => {
+  const empty = {
+    status: 'EMPTY',
+    lastCheckOutcome: null,
+    analysisId: null,
+    matchesCurrentPortfolio: false,
+    lastSucceededAt: null,
+    lastFailedAt: null,
+    failureCode: null,
+    changeReason: null,
+    analysis: null,
+  };
+
+  it('갱신 요청은 CSRF를 포함하고 클라이언트 자산을 보내지 않는다', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).endsWith('/csrf')
+        ? jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'test-token' })
+        : jsonResponse(empty),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await updateSavedPortfolioAnalysis(true);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      expect.stringContaining('/api/users/me/portfolio/analysis/refresh'),
+      expect.objectContaining({ method: 'POST', headers: expect.any(Headers) }),
+    );
+    const init = vi.mocked(fetch).mock.calls.at(-1)?.[1];
+    expect(new Headers(init?.headers).get('X-CSRF-TOKEN')).toBe('test-token');
+    expect(init?.body).toBeUndefined();
+  });
+
+  it.each(['UNKNOWN', null, undefined])(
+    '알 수 없는 상태 %s를 정상 결과로 표시하지 않는다',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => jsonResponse({ ...empty, status })),
+      );
+      await expect(getSavedPortfolioAnalysis()).rejects.toThrow('저장된 분석 응답 형식');
+    },
+  );
+
+  it('부분 분석에서 null 방향과 점수를 그대로 보존한다', async () => {
+    const response = {
+      ...empty,
+      status: 'READY',
+      analysisId: 1,
+      analysis: {
+        ...analysisResponse,
+        overallDirection: null,
+        overallScore: null,
+        coverage: 'PARTIAL',
+        analyzedWeight: 60,
+        impacts: [
+          analysisResponse.impacts[0],
+          { ...analysisResponse.impacts[1], direction: null, impactLevel: null },
+        ],
+      },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(response)),
+    );
+    await expect(getSavedPortfolioAnalysis()).resolves.toEqual(response);
   });
 });

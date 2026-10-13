@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -27,6 +29,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.mocked(trackEvent).mockClear();
   vi.restoreAllMocks();
 });
 
@@ -64,4 +67,28 @@ describe('피드백 위젯', () => {
     await waitFor(() => expect(view.getByRole('alert').textContent).toContain('입력해 주세요'));
     expect(createFeedback).not.toHaveBeenCalled();
   });
+});
+
+it('제출 실패는 상태만 기록하고 본문은 분석 도구로 보내지 않으며 재시도 성공을 기록한다', async () => {
+  vi.mocked(createFeedback)
+    .mockRejectedValueOnce(new Error('private-error'))
+    .mockResolvedValueOnce(undefined);
+  const view = render(
+    <MemoryRouter>
+      <FeedbackWidget />
+    </MemoryRouter>,
+  );
+  fireEvent.click(view.getByRole('button', { name: '피드백 보내기' }));
+  const input = view.getByLabelText('피드백 내용');
+  fireEvent.change(input, { target: { value: 'private-feedback' } });
+  fireEvent.submit(input.closest('form')!);
+  await view.findByRole('alert');
+  expect(trackEvent).toHaveBeenCalledWith('feedback_submit_failed', {
+    error_type: 'network_or_unknown',
+    status_code: undefined,
+  });
+  expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('private-');
+  fireEvent.submit(input.closest('form')!);
+  await view.findByRole('heading', { name: '의견을 보내주셔서 감사합니다' });
+  expect(trackEvent).toHaveBeenCalledWith('submit_feedback');
 });

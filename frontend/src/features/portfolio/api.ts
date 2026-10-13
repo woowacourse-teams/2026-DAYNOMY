@@ -19,6 +19,7 @@ import type {
   PortfolioPerformancePoint,
   PortfolioPerformanceResponse,
   SavedPortfolioResponse,
+  SavedPortfolioAnalysisResponse,
   StockMarket,
   StockPrice,
   StockSearchItem,
@@ -157,7 +158,16 @@ function isPortfolioCalculation(value: unknown): value is PortfolioCalculation {
 }
 
 function isPortfolioAnalysisSource(value: unknown): value is PortfolioAnalysisSource {
-  return isRecord(value) && typeof value.title === 'string' && typeof value.url === 'string';
+  return (
+    isRecord(value) &&
+    typeof value.title === 'string' &&
+    typeof value.url === 'string' &&
+    /^https?:\/\//i.test(value.url) &&
+    ['publishedOn', 'occurredOn', 'factQuote'].every(
+      (key) => value[key] == null || typeof value[key] === 'string',
+    ) &&
+    (value.excerpt === undefined || typeof value.excerpt === 'string')
+  );
 }
 
 function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactResponse {
@@ -166,10 +176,13 @@ function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactRe
   return (
     typeof value.assetName === 'string' &&
     hasNumber(value, 'weight') &&
-    typeof value.direction === 'string' &&
-    IMPACT_DIRECTIONS.has(value.direction as PortfolioImpactDirection) &&
-    typeof value.impactLevel === 'string' &&
-    IMPACT_LEVELS.has(value.impactLevel as PortfolioImpactLevel) &&
+    (value.direction === null ||
+      (typeof value.direction === 'string' &&
+        IMPACT_DIRECTIONS.has(value.direction as PortfolioImpactDirection))) &&
+    (value.impactLevel === null ||
+      (typeof value.impactLevel === 'string' &&
+        IMPACT_LEVELS.has(value.impactLevel as PortfolioImpactLevel))) &&
+    (value.direction === null) === (value.impactLevel === null) &&
     typeof value.issueSummary === 'string' &&
     typeof value.expectedReaction === 'string' &&
     typeof value.outlook === 'string' &&
@@ -186,9 +199,13 @@ export function isPortfolioAnalysisResponse(value: unknown): value is PortfolioA
     isRecord(value) &&
     Number.isInteger(value.totalAssetCount) &&
     Number.isInteger(value.analyzedAssetCount) &&
-    typeof value.overallDirection === 'string' &&
-    IMPACT_DIRECTIONS.has(value.overallDirection as PortfolioImpactDirection) &&
-    hasNumber(value, 'overallScore') &&
+    (value.overallDirection === null ||
+      (typeof value.overallDirection === 'string' &&
+        IMPACT_DIRECTIONS.has(value.overallDirection as PortfolioImpactDirection))) &&
+    hasNullableNumber(value, 'overallScore') &&
+    (value.coverage === undefined ||
+      ['COMPLETE', 'PARTIAL', 'INSUFFICIENT'].includes(String(value.coverage))) &&
+    (value.analyzedWeight === undefined || hasNumber(value, 'analyzedWeight')) &&
     hasNumber(value, 'positiveImpactScore') &&
     hasNumber(value, 'negativeImpactScore') &&
     (value.analyzedAt === null || typeof value.analyzedAt === 'string') &&
@@ -318,6 +335,7 @@ export async function getPortfolioPerformance(from: string, to: string, signal?:
     `/api/users/me/portfolio/performance?${query.toString()}`,
     {
       signal,
+      cache: 'no-store',
     },
   );
 
@@ -431,4 +449,38 @@ export function updatePortfolioTransaction(id: number, body: PortfolioTransactio
 }
 export function deletePortfolioTransaction(id: number) {
   return mutateTransaction(`/api/portfolio/transactions/${id}`, 'DELETE');
+}
+
+function isSavedPortfolioAnalysis(value: unknown): value is SavedPortfolioAnalysisResponse {
+  return (
+    isRecord(value) &&
+    ['EMPTY', 'READY', 'PORTFOLIO_CHANGED', 'PROCESSING', 'RECHECK_REQUIRED', 'FAILED'].includes(
+      String(value.status),
+    ) &&
+    (value.lastCheckOutcome === null ||
+      ['UPDATED', 'UNCHANGED', 'UNCONFIRMED'].includes(String(value.lastCheckOutcome))) &&
+    (value.analysisId === null || Number.isSafeInteger(value.analysisId)) &&
+    typeof value.matchesCurrentPortfolio === 'boolean' &&
+    ['lastSucceededAt', 'lastFailedAt', 'failureCode', 'changeReason'].every(
+      (key) => value[key] === null || typeof value[key] === 'string',
+    ) &&
+    (value.analysis === null || isPortfolioAnalysisResponse(value.analysis))
+  );
+}
+
+export async function getSavedPortfolioAnalysis(signal?: AbortSignal) {
+  const response = await request<unknown>('/api/users/me/portfolio/analysis', { signal });
+  if (!isSavedPortfolioAnalysis(response))
+    throw new Error('저장된 분석 응답 형식이 올바르지 않아요.');
+  return response;
+}
+
+export async function updateSavedPortfolioAnalysis(refresh: boolean, signal?: AbortSignal) {
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/analysis${refresh ? '/refresh' : ''}`,
+    { method: 'POST', signal },
+  );
+  if (!isSavedPortfolioAnalysis(response))
+    throw new Error('분석 갱신 응답 형식이 올바르지 않아요.');
+  return response;
 }

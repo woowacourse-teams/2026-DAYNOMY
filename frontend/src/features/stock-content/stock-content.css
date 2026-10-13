@@ -1172,3 +1172,10 @@
     transition: none;
   }
 }
+
+.stock-content-published-date {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+}

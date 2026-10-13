@@ -120,7 +120,7 @@ describe('관리자 종목 연결 화면', () => {
               sourceType: 'X',
               title: '삼성전자 수급',
               url: 'https://x.com/investor/status/456',
-              publishedDate: '',
+              publishedDate: '2020-04-05',
             },
           ],
         });
@@ -133,6 +133,7 @@ describe('관리자 종목 연결 화면', () => {
       if (url.endsWith('/api/admin/assets/1/contents') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body)) as Record<string, unknown>;
         expect(body).toMatchObject({
+          publishedDate: '2020-04-05',
           sourceType: 'X',
           title: '삼성전자 수급',
           url: 'https://x.com/investor/status/456',

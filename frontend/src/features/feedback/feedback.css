@@ -8,10 +8,10 @@
   align-items: center;
   gap: 7px;
   padding: 0 16px;
-  border: 1px solid #4169c9;
+  border: 1px solid var(--button-primary);
   border-radius: 24px;
   color: #ffffff;
-  background: #4169c9;
+  background: var(--button-primary);
   box-shadow: 0 2px 8px rgb(16 24 40 / 8%);
   font: inherit;
   font-size: 14px;
@@ -34,8 +34,8 @@
 }
 
 .feedback-trigger:hover {
-  border-color: #3456ac;
-  background: #3456ac;
+  border-color: var(--button-primary-hover);
+  background: var(--button-primary-hover);
   box-shadow: 0 3px 10px rgb(16 24 40 / 10%);
 }
 
@@ -43,7 +43,7 @@
 .feedback-close:focus-visible,
 .feedback-submit:focus-visible,
 .feedback-success button:focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 3px solid var(--button-primary);
   outline-offset: 3px;
 }
 
@@ -185,7 +185,7 @@
   border: 0;
   border-radius: 10px;
   color: #ffffff;
-  background: #4169c9;
+  background: var(--button-primary);
   font: inherit;
   font-size: 14px;
   font-weight: 900;
@@ -194,7 +194,7 @@
 
 .feedback-submit:hover:not(:disabled),
 .feedback-success button:hover {
-  background: #3456ac;
+  background: var(--button-primary-hover);
 }
 
 .feedback-submit:disabled,
