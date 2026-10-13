@@ -2140,7 +2140,7 @@
 
 .portfolio-trend-period-select select {
   min-width: 88px;
-  height: 36px;
+  height: 44px;
   padding: 0 30px 0 12px;
   appearance: none;
   border: 1px solid #e1e5eb;
@@ -2174,8 +2174,8 @@
 .portfolio-trend-expand,
 .portfolio-trend-dialog-close {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   flex: none;
   place-items: center;
   border: 0;
@@ -2249,7 +2249,6 @@
   background: #98a2b3;
 }
 
-.portfolio-return-dashboard:has(.portfolio-tracking-state.is-empty),
 .portfolio-composition:has(.portfolio-module-empty) {
   grid-template-rows: auto minmax(210px, 1fr);
 }
@@ -2338,10 +2337,6 @@
   height: 218px;
 }
 
-.portfolio-return-dashboard.is-compact.has-single-point .portfolio-return-chart {
-  height: 168px;
-}
-
 .portfolio-return-dashboard.is-expanded {
   padding: 30px 32px 32px;
   border: 0;
@@ -2366,8 +2361,8 @@
 }
 
 .portfolio-return-guide text {
-  fill: #a3acb9;
-  font-size: 9px;
+  fill: #63738a;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2787,7 +2782,7 @@
   min-width: 0;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1023px) {
   .portfolio-page {
     --portfolio-side-padding: var(--page-side-padding);
     padding: 0 var(--portfolio-side-padding) 42px;

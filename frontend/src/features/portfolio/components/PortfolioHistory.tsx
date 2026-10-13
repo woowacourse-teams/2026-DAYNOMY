@@ -19,7 +19,6 @@ export function PortfolioHistory({
   assetId,
   amountsHidden,
   onEdit,
-  onDelete,
   onCreate,
 }: {
   revision: number;
@@ -27,7 +26,6 @@ export function PortfolioHistory({
   assetId?: number;
   amountsHidden: boolean;
   onEdit: (history: PortfolioHoldingHistory) => void;
-  onDelete: (history: PortfolioHoldingHistory) => void;
   onCreate: () => void;
 }) {
   const today = todayInSeoul();
@@ -41,11 +39,7 @@ export function PortfolioHistory({
   const validPeriod = !!from && !!to && from <= to;
   useEffect(() => {
     if (localHistories !== undefined) {
-      setHistories(
-        [...localHistories].sort(
-          (a, b) => b.effectiveDate.localeCompare(a.effectiveDate) || b.historyId - a.historyId,
-        ),
-      );
+      setHistories(localHistories);
       setLoading(false);
       setError('');
       return;
@@ -72,16 +66,23 @@ export function PortfolioHistory({
       });
     return () => controller.abort();
   }, [from, to, revision, retry, validPeriod, localHistories]);
-  const visible = histories.filter(
-    (item) =>
-      item.effectiveDate >= from &&
-      item.effectiveDate <= to &&
-      (assetId === undefined || item.assetId === assetId) &&
-      (filter === 'ALL' ||
-        (filter === 'BALANCE'
-          ? item.changeType !== 'BUY' && item.changeType !== 'SELL'
-          : item.changeType === filter)),
-  );
+  const visible = histories
+    .filter(
+      (item) =>
+        item.effectiveDate >= from &&
+        item.effectiveDate <= to &&
+        (assetId === undefined || item.assetId === assetId) &&
+        (filter === 'ALL' ||
+          (filter === 'BALANCE'
+            ? item.changeType !== 'BUY' && item.changeType !== 'SELL'
+            : item.changeType === filter)),
+    )
+    .sort(
+      (a, b) =>
+        b.effectiveDate.localeCompare(a.effectiveDate) ||
+        Date.parse(b.occurredAt) - Date.parse(a.occurredAt) ||
+        b.historyId - a.historyId,
+    );
   const won = (value: number | null) =>
     amountsHidden
       ? '••••••원'
@@ -101,6 +102,9 @@ export function PortfolioHistory({
   }
   const filters = (
     <div className="portfolio-history-toolbar">
+      {assetId === undefined && (
+        <p className="portfolio-history-order">전체 종목 · 거래일 최신순</p>
+      )}
       <div className="portfolio-history-dates">
         <label>
           시작일
@@ -140,7 +144,10 @@ export function PortfolioHistory({
     </div>
   );
   return (
-    <section className="portfolio-history" aria-label="거래·변경 내역">
+    <section
+      className={`portfolio-history${assetId === undefined ? ' portfolio-history-dashboard' : ''}`}
+      aria-label="거래·변경 내역"
+    >
       {assetId === undefined ? (
         filters
       ) : (
@@ -191,75 +198,77 @@ export function PortfolioHistory({
               transaction && item.transactionQuantity !== null && item.unitPrice !== null
                 ? item.transactionQuantity * item.unitPrice
                 : null;
-            return (
-              <details className="portfolio-history-row" key={item.historyId}>
-                <summary>
-                  <time dateTime={item.effectiveDate}>
-                    <span>{item.effectiveDate.replaceAll('-', '.')}</span>
-                    {assetId !== undefined && (
-                      <small>
-                        {transaction
-                          ? `${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`
-                          : '보유정보 변경'}
-                      </small>
-                    )}
+            const content = (
+              <>
+                {assetId === undefined && (
+                  <time className="portfolio-history-date" dateTime={item.effectiveDate}>
+                    {item.effectiveDate.replaceAll('-', '.')}
                   </time>
-                  <span className={`portfolio-history-type type-${item.changeType.toLowerCase()}`}>
-                    {LABELS[item.changeType]}
-                  </span>
-                  <span className="portfolio-history-name">
-                    <strong>{item.name}</strong>
-                    <small>{item.assetCode}</small>
-                  </span>
-                  <span className="portfolio-history-amount">
-                    <strong>
-                      {gross !== null
-                        ? won(gross)
-                        : amountsHidden
-                          ? '•••주'
-                          : `${item.quantity.toLocaleString('ko-KR')}주`}
-                    </strong>
+                )}
+                <span className={`portfolio-history-type type-${item.changeType.toLowerCase()}`}>
+                  {LABELS[item.changeType]}
+                </span>
+                <span className="portfolio-history-description">
+                  {assetId === undefined && (
+                    <span className="portfolio-history-name">
+                      <strong>{item.name}</strong>
+                      <small>{item.assetCode}</small>
+                    </span>
+                  )}
+                  {assetId !== undefined && (
+                    <time dateTime={item.effectiveDate}>
+                      {item.effectiveDate.replaceAll('-', '.')}
+                    </time>
+                  )}
+                  {assetId !== undefined && (
                     <small>
                       {transaction
                         ? `${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`
                         : '보유정보 변경'}
                     </small>
-                  </span>
-                  <span className="portfolio-history-chevron" aria-hidden="true">
-                    ⌄
-                  </span>
-                </summary>
+                  )}
+                </span>
+                <span className="portfolio-history-amount">
+                  <strong>
+                    {gross !== null
+                      ? won(gross)
+                      : amountsHidden
+                        ? '•••주'
+                        : `${item.quantity.toLocaleString('ko-KR')}주`}
+                  </strong>
+                  {assetId === undefined && (
+                    <small>
+                      {transaction
+                        ? `${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`
+                        : `평균 매입가 ${won(item.averagePurchasePrice)}`}
+                    </small>
+                  )}
+                </span>
+              </>
+            );
+            return transaction ? (
+              <button
+                type="button"
+                className="portfolio-history-row portfolio-history-edit"
+                key={item.historyId}
+                aria-haspopup="dialog"
+                onClick={() => onEdit(item)}
+              >
+                {content}
+              </button>
+            ) : assetId === undefined ? (
+              <div className="portfolio-history-row portfolio-history-balance" key={item.historyId}>
+                {content}
+              </div>
+            ) : (
+              <details className="portfolio-history-row" key={item.historyId}>
+                <summary>{content}</summary>
                 <div className="portfolio-history-detail">
                   <dl>
-                    {transaction ? (
-                      <>
-                        <div>
-                          <dt>수수료</dt>
-                          <dd>{won(item.fee)}</dd>
-                        </div>
-                        <div>
-                          <dt>세금</dt>
-                          <dd>{won(item.tax)}</dd>
-                        </div>
-                        <div>
-                          <dt>{item.changeType === 'BUY' ? '총 매수 지출액' : '총 매도 수령액'}</dt>
-                          <dd>
-                            {won(
-                              gross === null
-                                ? null
-                                : item.changeType === 'BUY'
-                                  ? gross + item.fee + item.tax
-                                  : gross - item.fee - item.tax,
-                            )}
-                          </dd>
-                        </div>
-                      </>
-                    ) : (
-                      <div>
-                        <dt>평균 매입가</dt>
-                        <dd>{won(item.averagePurchasePrice)}</dd>
-                      </div>
-                    )}
+                    <div>
+                      <dt>평균 매입가</dt>
+                      <dd>{won(item.averagePurchasePrice)}</dd>
+                    </div>
                     <div>
                       <dt>기록 시각</dt>
                       <dd>
@@ -269,16 +278,9 @@ export function PortfolioHistory({
                       </dd>
                     </div>
                   </dl>
-                  {transaction ? (
-                    <div className="portfolio-history-actions">
-                      <button onClick={() => onEdit(item)}>거래 수정</button>
-                      <button onClick={() => onDelete(item)}>거래 삭제</button>
-                    </div>
-                  ) : (
-                    <p className="portfolio-field-note">
-                      보유정보 변경 기록입니다. 매수·매도 거래와 구분해 표시합니다.
-                    </p>
-                  )}
+                  <p className="portfolio-field-note">
+                    보유정보 변경 기록입니다. 매수·매도 거래와 구분해 표시합니다.
+                  </p>
                 </div>
               </details>
             );

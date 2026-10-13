@@ -19,6 +19,7 @@ type Props = {
   type?: PortfolioTransactionType;
   transaction?: PortfolioHoldingHistory;
   onClose: () => void;
+  onDelete?: () => void;
   onOpeningBalance?: () => void;
   onSave: (request: PortfolioTransactionRequest, stock?: StockSearchItem) => Promise<void>;
 };
@@ -27,6 +28,7 @@ export function PortfolioTransactionEditor({
   type = 'BUY',
   transaction,
   onClose,
+  onDelete,
   onOpeningBalance,
   onSave,
 }: Props) {
@@ -151,16 +153,16 @@ export function PortfolioTransactionEditor({
   }
   return (
     <>
-      <form onSubmit={submit} noValidate>
+      <form
+        onSubmit={submit}
+        noValidate
+        className={transaction ? 'portfolio-edit-form' : undefined}
+      >
         <header className="portfolio-sheet-heading">
           <div>
-            <span className="portfolio-eyebrow">내 포트폴리오</span>
+            {!transaction && <span className="portfolio-eyebrow">내 포트폴리오</span>}
             <h2 id="transaction-title">{transaction ? '거래 수정' : '거래 기록'}</h2>
-            <p>
-              {transaction
-                ? '기록한 거래의 상세 정보를 정정하세요.'
-                : '매수와 매도를 기록하고 자산의 흐름을 확인하세요.'}
-            </p>
+            {!transaction && <p>매수와 매도를 기록하고 자산의 흐름을 확인하세요.</p>}
           </div>
           <button
             type="button"
@@ -262,40 +264,46 @@ export function PortfolioTransactionEditor({
                   </button>
                 )}
               </div>
-              <div className="portfolio-trade-types" role="group" aria-label="거래 구분">
-                {(['BUY', 'SELL'] as const).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    disabled={!!transaction}
-                    aria-pressed={transactionType === value}
-                    onClick={() => setTransactionType(value)}
-                  >
-                    {value === 'BUY' ? '매수' : '매도'}
-                  </button>
-                ))}
-              </div>
-              {transaction && (
-                <p className="portfolio-field-note">종목과 매수·매도 구분은 변경할 수 없어요.</p>
+              {transaction ? (
+                <span className={`portfolio-edit-type type-${transactionType.toLowerCase()}`}>
+                  {transactionType === 'BUY' ? '매수' : '매도'} 거래
+                </span>
+              ) : (
+                <div className="portfolio-trade-types" role="group" aria-label="거래 구분">
+                  {(['BUY', 'SELL'] as const).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={transactionType === value}
+                      onClick={() => setTransactionType(value)}
+                    >
+                      {value === 'BUY' ? '매수' : '매도'}
+                    </button>
+                  ))}
+                </div>
               )}
-              <label className="portfolio-ledger-field">
-                거래일
-                <input
-                  autoFocus
-                  data-autofocus
-                  type="date"
-                  required
-                  max={todayInSeoul()}
-                  value={fields.tradeDate}
-                  onChange={(event) => change('tradeDate', event.target.value)}
-                />
-              </label>
-              <div className="portfolio-two-fields">
+              {!transaction && (
+                <label className="portfolio-ledger-field">
+                  거래일
+                  <input
+                    autoFocus={!transaction}
+                    data-autofocus={!transaction || undefined}
+                    type="date"
+                    required
+                    max={todayInSeoul()}
+                    value={fields.tradeDate}
+                    onChange={(event) => change('tradeDate', event.target.value)}
+                  />
+                </label>
+              )}
+              <div className={transaction ? 'portfolio-edit-values' : 'portfolio-two-fields'}>
                 <label className="portfolio-ledger-field">
                   수량 (주)
                   <input
                     type="text"
                     inputMode="numeric"
+                    autoFocus={!!transaction}
+                    data-autofocus={transaction ? true : undefined}
                     placeholder="0"
                     value={fields.quantity}
                     onChange={(event) => change('quantity', event.target.value)}
@@ -313,6 +321,20 @@ export function PortfolioTransactionEditor({
                   />
                 </label>
               </div>
+              {transaction && (
+                <label className="portfolio-ledger-field">
+                  거래일
+                  <input
+                    autoFocus={!transaction}
+                    data-autofocus={!transaction || undefined}
+                    type="date"
+                    required
+                    max={todayInSeoul()}
+                    value={fields.tradeDate}
+                    onChange={(event) => change('tradeDate', event.target.value)}
+                  />
+                </label>
+              )}
               {(priceLoading || priceError) && (
                 <p className="portfolio-field-note" role="status">
                   {priceLoading ? '최근 종가를 불러오고 있어요.' : priceError}
@@ -370,19 +392,32 @@ export function PortfolioTransactionEditor({
         )}
         {selected && (
           <footer className="portfolio-sheet-footer">
-            <button
-              type="button"
-              className="portfolio-secondary-button"
-              disabled={saving}
-              onClick={onClose}
-            >
-              취소
-            </button>
+            {transaction ? (
+              onDelete && (
+                <button
+                  type="button"
+                  className="portfolio-edit-delete"
+                  disabled={saving}
+                  onClick={onDelete}
+                >
+                  거래 삭제
+                </button>
+              )
+            ) : (
+              <button
+                type="button"
+                className="portfolio-secondary-button"
+                disabled={saving}
+                onClick={onClose}
+              >
+                취소
+              </button>
+            )}
             <button type="submit" className="portfolio-primary-button" disabled={saving}>
               {saving
                 ? '저장 중…'
                 : transaction
-                  ? '변경 사항 저장'
+                  ? '수정하기'
                   : `${transactionType === 'BUY' ? '매수' : '매도'} 기록하기`}
             </button>
           </footer>

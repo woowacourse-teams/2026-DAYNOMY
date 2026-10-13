@@ -20,7 +20,6 @@ type Props = {
   onAdjust: (holding: PortfolioHoldingInput) => void;
   onRemove: (holding: PortfolioHoldingInput) => void;
   onEditTransaction: (transaction: PortfolioHoldingHistory) => void;
-  onDeleteTransaction: (transaction: PortfolioHoldingHistory) => void;
 };
 
 export function PortfolioHoldingDetail({
@@ -36,7 +35,6 @@ export function PortfolioHoldingDetail({
   onAdjust,
   onRemove,
   onEditTransaction,
-  onDeleteTransaction,
 }: Props) {
   const won = (value: number | null | undefined, signed = false) => {
     if (amountsHidden) return '••••••원';
@@ -161,7 +159,6 @@ export function PortfolioHoldingDetail({
             localHistories={localHistories}
             amountsHidden={amountsHidden}
             onEdit={onEditTransaction}
-            onDelete={onDeleteTransaction}
             onCreate={() => onTrade('BUY')}
           />
         </section>
