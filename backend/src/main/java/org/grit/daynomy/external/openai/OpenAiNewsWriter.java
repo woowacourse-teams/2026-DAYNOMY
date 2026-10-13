@@ -28,6 +28,7 @@ public class OpenAiNewsWriter {
   private static final int MAX_CONTENT_LENGTH = 1_800;
   private static final int MIN_CONTENT_PARAGRAPHS = 5;
   private static final int MAX_CONTENT_PARAGRAPHS = 9;
+  private static final int MAX_OUTPUT_TOKENS = 12_000;
   private static final String PROMPT = OpenAiPromptLoader.load("prompts/news-writer.txt");
   private static final String RETRY_INSTRUCTION =
       """
@@ -108,6 +109,8 @@ public class OpenAiNewsWriter {
             Map.of(
                 "model",
                 openAiProperties.economyNewsModel(),
+                "max_output_tokens",
+                MAX_OUTPUT_TOKENS,
                 "input",
                 instruction,
                 "text",
@@ -206,7 +209,9 @@ public class OpenAiNewsWriter {
         || contentLength < MIN_CONTENT_LENGTH
         || contentLength > MAX_CONTENT_LENGTH) {
       throw new IllegalArgumentException(
-          "Content length must be between "
+          "Content length was "
+              + contentLength
+              + "; expected between "
               + MIN_CONTENT_LENGTH
               + " and "
               + MAX_CONTENT_LENGTH

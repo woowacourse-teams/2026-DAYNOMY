@@ -65,6 +65,8 @@ class OpenAiNewsGeneratorTest {
         .contains("해라체")
         .contains("시장 분석, 투자 의견")
         .contains("조사 자료 묶음");
+    assertThat(new ObjectMapper().readTree(writerRequest).path("max_output_tokens").asInt())
+        .isEqualTo(12_000);
     assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
