@@ -2,6 +2,8 @@
 
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { StrictMode } from 'react';
+import { trackPortfolioEvent } from '../../src/features/portfolio/analytics';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
 import { toPortfolioAnalysisAssets } from '../../src/features/portfolio/portfolioAnalysisAssets';
 import { GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY } from '../../src/features/portfolio/portfolioHoldingsStorage';
@@ -9,6 +11,11 @@ import type {
   PortfolioHoldingInput,
   PortfolioPerformancePoint,
 } from '../../src/features/portfolio/types';
+
+vi.mock('../../src/features/portfolio/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/features/portfolio/analytics')>()),
+  trackPortfolioEvent: vi.fn(),
+}));
 
 const stock = {
   assetId: 1,
@@ -303,6 +310,7 @@ function mockPortfolioApi() {
 }
 
 beforeEach(() => {
+  vi.mocked(trackPortfolioEvent).mockClear();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-06T06:00:00Z'));
   savedHoldings = [];
@@ -327,6 +335,102 @@ afterEach(() => {
 });
 
 describe('포트폴리오 화면', () => {
+  it('StrictMode에서도 진입은 한 번 수집하고 실제 계산 완료 전에는 loaded를 보내지 않는다', async () => {
+    let finishHoldings!: () => void;
+    let finishCalculation!: () => void;
+    const holdingsReady = new Promise<void>((resolve) => {
+      finishHoldings = resolve;
+    });
+    const calculationReady = new Promise<void>((resolve) => {
+      finishCalculation = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/users/me/portfolio')) {
+          await holdingsReady;
+          return jsonResponse({
+            holdings: [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }],
+            totalRealizedProfitLoss: 0,
+          });
+        }
+        if (url.endsWith('/api/portfolio/calculate')) {
+          await calculationReady;
+          return jsonResponse(calculation);
+        }
+        if (url.includes('/performance?')) return jsonResponse({ points: [], currentPoint: null });
+        if (url.endsWith('/api/auth/csrf'))
+          return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+        return jsonResponse({});
+      }),
+    );
+    const view = render(
+      <StrictMode>
+        <PortfolioPage />
+      </StrictMode>,
+    );
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_viewed'),
+    ).toHaveLength(1);
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_loaded'),
+    ).toHaveLength(0);
+    await act(async () => finishHoldings());
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(([input]) => String(input).endsWith('/api/portfolio/calculate')),
+      ).toBe(true),
+    );
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_loaded'),
+    ).toHaveLength(0);
+    await act(async () => finishCalculation());
+    await view.findAllByText('750,000원');
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_dashboard_loaded', {
+      is_logged_in: true,
+      has_holdings: true,
+      pricing_status: 'COMPLETE',
+    });
+    fireEvent.click(view.getByRole('button', { name: '금액 숨기기' }));
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_loaded'),
+    ).toHaveLength(1);
+  });
+
+  it('이탈 후 취소된 조회 실패를 대시보드 실패로 집계하지 않는다', async () => {
+    let rejectHoldings!: (error: Error) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith('/api/users/me/portfolio')) {
+          return new Promise<Response>((_resolve, reject) => {
+            rejectHoldings = reject;
+          });
+        }
+        return jsonResponse({ points: [], currentPoint: null });
+      }),
+    );
+    const view = render(<PortfolioPage />);
+    view.unmount();
+    await act(async () => rejectHoldings(new DOMException('Aborted', 'AbortError')));
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_dashboard_load_failed'),
+    ).toHaveLength(0);
+  });
+
   it('비회원 포트폴리오를 세션에서 복원하고 회원 전용 API를 호출하지 않는다', async () => {
     const guestHolding = { ...stock, quantity: 10, averagePurchasePrice: 70000 };
     sessionStorage.setItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY, JSON.stringify([guestHolding]));
@@ -375,6 +479,22 @@ describe('포트폴리오 화면', () => {
         .mocked(fetch)
         .mock.calls.some(([input]) => String(input).includes('/api/users/me/portfolio')),
     ).toBe(false);
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_editor_opened', {
+      mode: 'holding_create',
+      entry_point: 'header',
+      is_logged_in: false,
+    });
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_stock_selected', {
+      category: 'STOCK',
+      market: 'KOSPI',
+      mode: 'holding_create',
+    });
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_save_succeeded', {
+      operation: 'holding_create',
+      storage: 'temporary',
+    });
+    const sent = JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls);
+    expect(sent).not.toMatch(/삼성|005930|quantity|averagePurchasePrice|70000/);
   });
 
   it('비회원은 상세 패널에서 거래 API 없이 보유자산을 제거한다', async () => {
@@ -462,12 +582,32 @@ describe('포트폴리오 화면', () => {
     );
     expect(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)).toBe(original);
     expect((within(editor).getByLabelText('보유수량') as HTMLInputElement).value).toBe('12');
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_save_failed', {
+      operation: 'holding_update',
+      storage: 'temporary',
+      error_type: 'network_or_unknown',
+    });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_save_succeeded'),
+    ).toHaveLength(0);
     fireEvent.click(within(editor).getByRole('button', { name: '수정하기' }));
     await waitFor(() => {
       expect(JSON.parse(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)!)).toEqual([
         { ...guestHolding, quantity: 12 },
       ]);
     });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_save_submitted'),
+    ).toHaveLength(2);
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_save_succeeded'),
+    ).toHaveLength(1);
   });
 
   it.each([
@@ -543,6 +683,11 @@ describe('포트폴리오 화면', () => {
     await view.findAllByText('750,000원');
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_holding_detail_opened'),
+    ).toHaveLength(1);
     expect(
       within(detail)
         .getByRole('link', { name: /종목 정보 보기/ })
@@ -931,6 +1076,20 @@ describe('포트폴리오 화면', () => {
     rows = within(table).getAllByRole('row');
     expect(within(rows[1]).getByText('삼성전자')).toBeTruthy();
     expect(within(table).queryByText('KODEX 200')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '주식' }));
+    fireEvent.change(view.getByRole('combobox', { name: '보유 자산 정렬' }), {
+      target: { value: 'EVALUATION' },
+    });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_filter_changed'),
+    ).toEqual([['portfolio_filter_changed', { category: 'STOCK' }]]);
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_sort_changed'),
+    ).toEqual([['portfolio_sort_changed', { sort: 'EVALUATION' }]]);
   });
 
   it('종목을 다시 선택하면 이전 종목의 늦은 종가 응답을 무시한다', async () => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import {
   addSavedPortfolioHolding,
   getSavedPortfolio,
@@ -50,6 +51,10 @@ export function usePortfolioHoldings(isLoggedIn = true) {
       })
       .catch((caughtError: unknown) => {
         if (controller.signal.aborted) return;
+        trackPortfolioEvent('portfolio_dashboard_load_failed', {
+          stage: 'holdings',
+          error_type: portfolioErrorType(caughtError),
+        });
         setError(
           caughtError instanceof Error ? caughtError.message : '포트폴리오를 불러오지 못했습니다.',
         );
