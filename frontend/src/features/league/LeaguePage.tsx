@@ -133,6 +133,8 @@ export function LeaguePage() {
           {ranking.asOfDate ? `${ranking.asOfDate} 종가 기준` : '종가 수집 대기'} · 주간 수익률순
           <br />
           종가 기준의 가상 성과로, 실제 투자 수익률과 다를 수 있습니다.
+          <br />
+          공공데이터 종가는 다음 영업일 오후 1시 이후 제공됩니다.
         </p>
       ) : null}
 
