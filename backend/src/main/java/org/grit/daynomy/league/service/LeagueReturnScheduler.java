@@ -24,14 +24,16 @@ public class LeagueReturnScheduler {
   @Scheduled(cron = "${league.calculation.cron}", zone = "Asia/Seoul")
   public synchronized void calculateReturns() {
     if (pendingFullRecalculation) {
-      leagueReturnService.recalculate();
-      pendingFullRecalculation = false;
-      pendingPriceFrom = null;
+      if (recalculateAfterSync(leagueReturnService::recalculate)) {
+        pendingFullRecalculation = false;
+        pendingPriceFrom = null;
+      }
     } else if (pendingPriceFrom != null) {
-      leagueReturnService.recalculateFrom(pendingPriceFrom);
-      pendingPriceFrom = null;
+      if (recalculateAfterSync(() -> leagueReturnService.recalculateFrom(pendingPriceFrom))) {
+        pendingPriceFrom = null;
+      }
     } else {
-      leagueReturnService.recalculatePending();
+      recalculateAfterSync(leagueReturnService::recalculatePending);
     }
   }
 
@@ -59,7 +61,7 @@ public class LeagueReturnScheduler {
       calculation.run();
       return true;
     } catch (RuntimeException exception) {
-      // 원본 저장은 이미 커밋됐다. 집계 실패는 예약 집계에서 재시도한다.
+      // 집계 실패는 다음 예약 실행에서 재시도한다.
       log.atError()
           .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_FAILED.code())
           .addKeyValue("exception", exception.getClass().getSimpleName())

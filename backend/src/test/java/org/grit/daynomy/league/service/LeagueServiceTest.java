@@ -57,6 +57,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class LeagueServiceTest {
@@ -107,6 +109,44 @@ class LeagueServiceTest {
         .should(times(1))
         .findAllByBaseDateBetweenOrderByBaseDate(current, current.plusDays(6));
     then(calculationMetrics).should().finalizationState(21, 0, null);
+  }
+
+  @Test
+  void rolledBackFinalizationRescansOlderWeeksOnNextRun() {
+    LocalDate current = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
+    LocalDate older = current.minusWeeks(1);
+    InvestorProfile profile =
+        InvestorProfile.create(
+            mock(Member.class),
+            "공개 별명",
+            "",
+            LeagueTypes.ExperienceLevel.BEGINNER,
+            LeagueTypes.RiskProfile.BALANCED);
+    profile.changePublication(
+        true,
+        true,
+        false,
+        false,
+        older.minusWeeks(1).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant());
+    given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
+
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      service.finalizeWeeks();
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(
+              synchronization ->
+                  synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+    clearInvocations(tradingDayRepository);
+
+    service.finalizeWeeks(current);
+
+    then(tradingDayRepository)
+        .should()
+        .findAllByBaseDateBetweenOrderByBaseDate(older, older.plusDays(6));
   }
 
   @Test

@@ -70,6 +70,8 @@ import org.grit.daynomy.member.exception.MemberErrorCode;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @RequiredArgsConstructor
 @Service
@@ -200,6 +202,19 @@ public class LeagueService {
 
   @Transactional
   public synchronized void finalizeWeeks(LocalDate from) {
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+              if (status != STATUS_COMMITTED) {
+                synchronized (LeagueService.this) {
+                  finalizationStatesInitialized = false;
+                }
+              }
+            }
+          });
+    }
     finalizationCalendarCache.set(new HashMap<>());
     try {
       finalizeWeeksWithCache(from);

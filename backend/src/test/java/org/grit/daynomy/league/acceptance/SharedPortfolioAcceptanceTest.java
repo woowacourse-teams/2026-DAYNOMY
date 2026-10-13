@@ -211,6 +211,15 @@ class SharedPortfolioAcceptanceTest {
         .statusCode(200);
 
     LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
+    jdbc.update(
+        """
+        INSERT INTO market_trading_days(base_date, trading)
+        SELECT d::date, EXTRACT(ISODOW FROM d) < 6
+        FROM generate_series(?::date, ?::date, INTERVAL '1 day') AS d
+        ON CONFLICT (base_date) DO NOTHING
+        """,
+        java.sql.Date.valueOf(week),
+        java.sql.Date.valueOf(week.plusDays(6)));
     List<LocalDate> trading =
         jdbc.queryForList(
             "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
