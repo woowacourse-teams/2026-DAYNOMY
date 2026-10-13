@@ -90,7 +90,8 @@ class SavedPortfolioAnalysisAcceptanceTest {
   @org.junit.jupiter.api.BeforeEach
   void narrativeStub() {
     when(narrative.summarize(org.mockito.ArgumentMatchers.any()))
-        .thenReturn("확인된 발표를 반영했어요.\n\n실적과 비용을 함께 살펴봐야 해요.\n\n다음 실적 발표를 확인해 보세요.");
+        .thenReturn(
+            "현재 보유한 종목의 비중을 확인했어요.\n\n실적과 비용이 전체 자산에 미치는 영향을 함께 살펴봐야 해요.\n\n비중이 큰 종목의 다음 실적 발표를 확인해 보세요.");
   }
 
   @Autowired private MemberRepository members;

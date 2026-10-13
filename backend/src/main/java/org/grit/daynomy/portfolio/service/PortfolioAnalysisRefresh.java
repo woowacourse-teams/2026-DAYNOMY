@@ -57,7 +57,7 @@ final class PortfolioAnalysisRefresh {
     }
     boolean repairSummary =
         previous.analyzedAssetCount() > 0
-            && !validSummary(previous.overallImpact())
+            && !validSummary(previous)
             && candidate.analyzedAssetCount() > 0;
     if (reasons.isEmpty() && !repairSummary) {
       return new Revision(insufficient ? Outcome.UNCONFIRMED : Outcome.UNCHANGED, previous, "");
@@ -164,10 +164,15 @@ final class PortfolioAnalysisRefresh {
     }
   }
 
-  private static boolean validSummary(String text) {
+  private static boolean validSummary(PortfolioAnalysisResponse analysis) {
     try {
-      org.grit.daynomy.portfolio.ai.PortfolioAnalysisProse.normalize(text);
-      return !text.contains(":") && text.split("\\R\\s*\\R").length == 3;
+      String[] paragraphs = analysis.overallImpact().split("\\R\\s*\\R");
+      if (paragraphs.length != 3 || !paragraphs[0].startsWith("현재 보유한 ")) return false;
+      for (String text : paragraphs) {
+        org.grit.daynomy.portfolio.ai.PortfolioAnalysisProse.normalize(text);
+        if (text.contains(":")) return false;
+      }
+      return true;
     } catch (IllegalArgumentException exception) {
       return false;
     }

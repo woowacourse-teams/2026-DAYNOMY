@@ -17,6 +17,21 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisRefreshTest {
   @Test
+  void preservesPortfolioSynthesisAndRepairsPerAssetSummaryWithSameEvidence() {
+    var base =
+        response(
+            impact("삼성전자", false, ImpactDirection.POSITIVE),
+            impact("SK하이닉스", false, ImpactDirection.POSITIVE));
+    var valid =
+        base.withOverallImpact(
+            "현재 보유한 두 종목의 비중이 같아요.\n\n두 종목의 실적 변화가 함께 영향을 줄 수 있어요.\n\n주요 사업의 수요를 확인해야 해요.");
+    assertThat(PortfolioAnalysisRefresh.compare(valid, base).outcome())
+        .isEqualTo(Outcome.UNCHANGED);
+    var mixed = base.withOverallImpact("삼성전자와 SK하이닉스의 발표를 확인했어요.\n\n실적 개선을 기대해요.\n\n다음 발표를 확인해요.");
+    assertThat(PortfolioAnalysisRefresh.compare(mixed, base).outcome()).isEqualTo(Outcome.UPDATED);
+  }
+
+  @Test
   void changesOnlyAssetWithNewEvidenceAndRebuildsSummaryFromPreservedJudgments() {
     var old =
         response(

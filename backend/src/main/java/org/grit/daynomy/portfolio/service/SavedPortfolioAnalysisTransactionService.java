@@ -32,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SavedPortfolioAnalysisTransactionService {
 
-  private static final String ANALYSIS_VERSION = "portfolio-v3";
+  private static final String ANALYSIS_VERSION = "portfolio-v5";
   private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
   private static final int RETAINED_ANALYSES = 10;
 
@@ -375,7 +375,8 @@ public class SavedPortfolioAnalysisTransactionService {
         analysis == null ? Status.EMPTY : same ? Status.READY : Status.PORTFOLIO_CHANGED;
     if (analysis != null
         && same
-        && (check == null
+        && (!ANALYSIS_VERSION.equals(analysis.getAnalysisVersion())
+            || check == null
             || check.requiresRecheck(now)
             || analysis.getSnapshot().impacts().stream()
                 .noneMatch(impact -> impact.direction() != null))) {
