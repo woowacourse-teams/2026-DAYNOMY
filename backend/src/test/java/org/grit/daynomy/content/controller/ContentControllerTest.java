@@ -48,6 +48,7 @@ class ContentControllerTest {
                         "시장 소식",
                         "https://youtu.be/abcdefghijk",
                         null,
+                        null,
                         null)),
                 2,
                 12,
