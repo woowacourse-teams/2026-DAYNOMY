@@ -110,6 +110,8 @@ Actuator에서는 아래 Prometheus 이름으로 조회한다. 라벨은 고정�
 | `daynomy_league_calculation_last_completed_epoch_seconds` | 최근 자동 집계·확정 실행 완료 시각. 참가자 개별 실패 여부는 별도 지표로 확인 |
 | `daynomy_league_calculation_profile_failures_total` / `daynomy_league_calculation_run_failures_total` | 참가자·자동 실행의 누적 실패 횟수 |
 | `daynomy_league_calculation_duration_seconds_count` / `_sum` / `_max` | 자동 집계·확정 실행 횟수와 소요 시간 |
+| `daynomy_league_finalization_duration_seconds{mode="full\|incremental"}` | 전체 또는 변경 주차부터의 주간 확정 소요 시간 |
+| `daynomy_league_finalization_latest_weeks_scanned` | 최근 주간 확정에서 확인한 주차 수 |
 | `daynomy_league_calendar_missing_days` | 공식 참여자가 있는 주차의 미등록 달력 날짜 수 |
 | `daynomy_league_finalization_pending_weeks` | 마지막 실제 거래일 장 마감 후 수집·계산을 기다리는 주차 수 |
 | `daynomy_league_finalization_delay_seconds` | 가장 오래된 미확정 주의 마지막 장 마감부터 경과한 초. 미확정 주가 없으면 0 |

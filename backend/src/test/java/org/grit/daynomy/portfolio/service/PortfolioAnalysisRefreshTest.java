@@ -80,6 +80,25 @@ class PortfolioAnalysisRefreshTest {
         .satisfies(i -> assertThat(i.direction()).isNull());
   }
 
+  @Test
+  void preservesOldEvidenceWhileUpdatingOtherVerifiedAsset() {
+    var old =
+        response(
+            impact("삼성전자", false, ImpactDirection.NEGATIVE),
+            impact("SK하이닉스", false, ImpactDirection.NEGATIVE));
+    var candidate =
+        response(insufficient("삼성전자"), impact("SK하이닉스", true, ImpactDirection.POSITIVE));
+    var revision = PortfolioAnalysisRefresh.compare(old, candidate);
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().impacts())
+        .filteredOn(i -> i.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.sources()).isEqualTo(old.impacts().getFirst().sources()));
+    assertThat(revision.analysis().overallScore()).isEqualByComparingTo("0");
+    assertThat(revision.analysis().analyzedAssetCount()).isEqualTo(2);
+    assertThat(revision.analysis().overallImpact()).doesNotContain("검증되지 않은 전체 설명");
+  }
+
   private PortfolioAssetImpactResponse insufficient(String name) {
     return new PortfolioAssetImpactResponse(
         name,

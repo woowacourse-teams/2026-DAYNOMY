@@ -47,6 +47,8 @@ class LeagueCalculationMetricsTest {
     metrics.profileSucceeded(Map.of("CALCULATED", 3, "MISSING_PRICE", 1));
     metrics.profileFailed();
     metrics.finalizationState(2, 1, Instant.now().minusSeconds(10800));
+    metrics.finalizationMeasured(System.nanoTime(), 12, true);
+    metrics.finalizationMeasured(System.nanoTime(), 1, false);
     metrics.finishRun(started, true);
     assertThat(
             registry
@@ -65,6 +67,22 @@ class LeagueCalculationMetricsTest {
     assertThat(registry.get("daynomy.league.finalization.delay.seconds").gauge().value())
         .isGreaterThanOrEqualTo(10800);
     assertThat(registry.get("daynomy.league.calculation.duration").timer().count()).isEqualTo(1);
+    assertThat(registry.get("daynomy.league.finalization.latest.weeks.scanned").gauge().value())
+        .isEqualTo(1);
+    assertThat(
+            registry
+                .get("daynomy.league.finalization.duration")
+                .tag("mode", "full")
+                .timer()
+                .count())
+        .isEqualTo(1);
+    assertThat(
+            registry
+                .get("daynomy.league.finalization.duration")
+                .tag("mode", "incremental")
+                .timer()
+                .count())
+        .isEqualTo(1);
     metrics.resetProfiles(0);
     metrics.finalizationState(0, 0, null);
     assertThat(

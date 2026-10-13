@@ -35,7 +35,7 @@ public class LeagueController {
 
   private final LeagueService leagueService;
 
-  @Operation(summary = "리그 주차 조회")
+  @Operation(summary = "리그 주차 조회", description = "이번 주부터 최근 3주를 최신순으로 반환합니다. 주차는 KST 월요일 기준입니다.")
   @GetMapping("/weeks")
   public WeeksResponse weeks() {
     return leagueService.weeks();
