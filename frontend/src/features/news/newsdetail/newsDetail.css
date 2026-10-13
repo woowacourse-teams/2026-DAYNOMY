@@ -20,14 +20,14 @@ body {
 }
 
 .loading {
-  width: min(100%, 860px);
+  width: var(--page-content-width);
   margin: 0 auto;
-  padding: 48px 16px;
+  padding: 48px 0;
 }
 
 .news-detail {
   position: relative;
-  width: min(100% - 128px, 920px);
+  width: var(--page-content-width);
   margin: 0 auto;
   padding: 88px 0 96px;
   background: #fff;
@@ -391,7 +391,7 @@ body {
 
 @media (max-width: 520px) {
   .news-detail {
-    width: min(100% - 32px, 920px);
+    width: var(--page-content-width);
     padding-top: 72px;
     padding-bottom: 32px;
   }

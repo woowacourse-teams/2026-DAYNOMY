@@ -1,8 +1,8 @@
 /* Portfolio ledger: balances, holdings, and dated transactions share one workspace. */
 .portfolio-page {
   --portfolio-accent: #326bd5;
-  --portfolio-side-padding: clamp(20px, 4vw, 64px);
-  width: min(100%, 1440px);
+  --portfolio-side-padding: var(--page-side-padding);
+  width: 100%;
   padding-bottom: 64px;
   color: #253047;
 }
@@ -23,9 +23,10 @@
 }
 .portfolio-page .portfolio-page-title h1 {
   margin: 9px 0;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.045em;
+  font-size: var(--page-title-size);
+  font-weight: var(--page-title-weight);
+  letter-spacing: var(--page-title-letter-spacing);
+  line-height: var(--page-title-line-height);
 }
 .portfolio-page-title p {
   color: #778296;
@@ -990,7 +991,7 @@
     gap: 20px;
   }
   .portfolio-page .portfolio-page-title h1 {
-    font-size: 25px;
+    font-size: var(--page-title-size);
   }
   .portfolio-page-title .portfolio-page-actions {
     gap: 8px;
@@ -1640,8 +1641,37 @@
 }
 
 @container portfolio-dashboard (max-width: 1000px) {
-  .portfolio-page .portfolio-dashboard-grid {
-    grid-template-columns: minmax(0, 1fr);
+  @media (max-width: 1023px) {
+    .portfolio-page .portfolio-dashboard-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .portfolio-page .portfolio-dashboard-grid {
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .portfolio-page .portfolio-dashboard-grid > section {
+      padding: 16px;
+    }
+
+    .portfolio-page .portfolio-return-dashboard.is-compact .portfolio-dashboard-heading {
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .portfolio-page .portfolio-return-dashboard.is-compact .portfolio-trend-controls {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .portfolio-page .portfolio-composition-content {
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+      gap: 12px;
+    }
   }
 }
 @container portfolio-composition (max-width: 300px) {
