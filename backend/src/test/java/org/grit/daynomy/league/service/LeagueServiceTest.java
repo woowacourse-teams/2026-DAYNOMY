@@ -6,8 +6,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -70,7 +74,40 @@ class LeagueServiceTest {
   @Mock private MarketTradingDayRepository tradingDayRepository;
   @Mock private WeeklyLeaderboardRepository leaderboardRepository;
   @Mock private LeagueCalculationMetrics calculationMetrics;
+  @Mock private EntityManager entityManager;
   @InjectMocks private LeagueService service;
+
+  @Test
+  void incrementalFinalizationSkipsOlderWeeksAndKeepsTheirPendingMetrics() {
+    LocalDate current = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
+    LocalDate older = current.minusWeeks(1);
+    InvestorProfile profile =
+        InvestorProfile.create(
+            mock(Member.class),
+            "공개 별명",
+            "",
+            LeagueTypes.ExperienceLevel.BEGINNER,
+            LeagueTypes.RiskProfile.BALANCED);
+    profile.changePublication(
+        true,
+        true,
+        false,
+        false,
+        older.minusWeeks(1).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant());
+    given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
+
+    service.finalizeWeeks();
+    clearInvocations(tradingDayRepository, calculationMetrics);
+    service.finalizeWeeks(current);
+
+    then(tradingDayRepository)
+        .should(never())
+        .findAllByBaseDateBetweenOrderByBaseDate(older, older.plusDays(6));
+    then(tradingDayRepository)
+        .should(times(1))
+        .findAllByBaseDateBetweenOrderByBaseDate(current, current.plusDays(6));
+    then(calculationMetrics).should().finalizationState(14, 0, null);
+  }
 
   @Test
   void followComparisonUsesPreviousFinalRankAndNeverInventsMissingOrWithdrawnRanks() {
