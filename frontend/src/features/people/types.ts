@@ -1,4 +1,4 @@
-export type SocialPlatform = 'THREADS' | 'X';
+export type SocialPlatform = 'THREADS' | 'X' | 'YOUTUBE';
 
 export type FeaturedPersonPost = {
   id: number;
@@ -13,6 +13,8 @@ export type FeaturedPerson = {
   name: string;
   xProfileUrl: string | null;
   threadsProfileUrl: string | null;
+  youtubeProfileUrl: string | null;
+  profileImageUrl: string | null;
   createdAt: string | null;
   posts: FeaturedPersonPost[];
 };
@@ -25,6 +27,8 @@ export type FeaturedPersonRequest = {
   name: string;
   xProfileUrl: string | null;
   threadsProfileUrl: string | null;
+  youtubeProfileUrl: string | null;
+  profileImageSelection?: { title: string } | null;
 };
 
 export type FeaturedPersonPostRequest = {
@@ -41,5 +45,5 @@ export type SocialPostSearchItem = {
 };
 
 export function platformLabel(platform: SocialPlatform) {
-  return platform === 'X' ? 'X' : 'Threads';
+  return platform === 'X' ? 'X' : platform === 'THREADS' ? 'Threads' : 'YouTube';
 }

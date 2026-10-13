@@ -1,3 +1,4 @@
+import { getSampleNews, SAMPLE_NEWS_ID, showSampleNews } from '../issue/sampleNews';
 import type {
   KeywordsResponse,
   MarketAnalysisResponse,
@@ -89,8 +90,12 @@ function isMarketAnalysisResponse(value: unknown): value is MarketAnalysisRespon
   return isRecord(value) && isString(value.risk) && isString(value.watchPoint);
 }
 
-async function getJson<T>(path: string, isValid: (value: unknown) => value is T): Promise<T> {
-  const response = await fetch(path);
+async function getJson<T>(
+  path: string,
+  isValid: (value: unknown) => value is T,
+  signal?: AbortSignal,
+): Promise<T> {
+  const response = await fetch(path, { signal });
 
   if (!response.ok) {
     throw new ApiError(response.status, response.statusText);
@@ -118,11 +123,44 @@ function getMarketAnalysisState(
     : { status: 'error' };
 }
 
-export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> {
-  const news = await getJson(`/api/news/${newsId}`, isNewsDetailResponse);
+export async function getNewsDetail(
+  newsId: string,
+  signal?: AbortSignal,
+  onAnalysisLoad?: (area: string, startedAt: number, status: string, count: number) => void,
+): Promise<NewsDetailPayload> {
+  if (showSampleNews && newsId === SAMPLE_NEWS_ID) return getSampleNews();
+
+  const news = await getJson(`/api/news/${newsId}`, isNewsDetailResponse, signal);
+  async function loadAnalysis<T>(
+    area: string,
+    validator: (value: unknown) => value is T,
+    count: (value: T) => number,
+  ) {
+    const startedAt = performance.now();
+    try {
+      const result = await getJson(`/api/news/${newsId}/${area}`, validator, signal);
+      const resultCount = count(result);
+      if (!signal?.aborted)
+        onAnalysisLoad?.(area, startedAt, resultCount ? 'success' : 'empty', resultCount);
+      return result;
+    } catch (error) {
+      if (!signal?.aborted)
+        onAnalysisLoad?.(
+          area,
+          startedAt,
+          error instanceof ApiError && error.status === 404 ? 'empty' : 'error',
+          0,
+        );
+      throw error;
+    }
+  }
   const [marketAnalysis, keywords] = await Promise.allSettled([
-    getJson(`/api/news/${newsId}/market-analysis`, isMarketAnalysisResponse),
-    getJson(`/api/news/${newsId}/keywords`, isKeywordsResponse),
+    loadAnalysis(
+      'market-analysis',
+      isMarketAnalysisResponse,
+      (value) => [value.risk, value.watchPoint].filter((text) => text.trim()).length,
+    ),
+    loadAnalysis('keywords', isKeywordsResponse, (value) => value.keywords.length),
   ]);
 
   return {

@@ -1,12 +1,12 @@
 .service-header {
   display: grid;
-  width: min(100%, 1440px);
+  width: 100%;
   margin: 0 auto;
   height: 64px;
   min-height: 64px;
   max-height: 64px;
   flex: 0 0 64px;
-  padding: 0 clamp(20px, 2vw, 40px);
+  padding: 0 var(--page-side-padding);
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 28px;
@@ -146,10 +146,8 @@
 
 .league-feature-nav {
   display: flex;
-  gap: 24px;
   width: min(1120px, calc(100% - 40px));
   margin: 4px auto 0;
-  border-bottom: 1px solid #e7eaf0;
 }
 
 .league-feature-nav a {
@@ -162,12 +160,6 @@
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
-  border-bottom: 2px solid transparent;
-}
-
-.league-feature-nav a[aria-current='page'] {
-  color: #5144d8;
-  border-bottom-color: currentColor;
 }
 
 .league-feature-nav a:hover {
@@ -181,7 +173,7 @@
 
 @media (max-width: 1100px) {
   .service-header {
-    padding: 0 24px;
+    padding: 0 var(--page-side-padding);
     gap: 18px;
   }
 
@@ -202,7 +194,7 @@
 
 @media (max-width: 760px) {
   .service-header {
-    padding: 0 18px;
+    padding: 0 var(--page-side-padding);
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 12px;
   }
@@ -240,7 +232,7 @@
 
 @media (max-width: 620px) {
   .service-header {
-    padding: 4px 16px;
+    padding: 4px var(--page-side-padding);
     grid-template-columns: 1fr auto;
     grid-template-rows: 32px 20px;
     gap: 4px 12px;

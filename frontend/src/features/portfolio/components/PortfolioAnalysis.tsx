@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { trackEvent } from '../../../analytics';
+import { useContentImpression } from '../../news/issue/analytics';
+import { useMemo, useRef, useState } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
 import type {
   PortfolioAsset,
@@ -444,9 +446,25 @@ function AnalysisParagraph({ text }: { text: string }) {
   return <p>{copy}</p>;
 }
 
-function AnalysisSources({ sources }: { sources: PortfolioAnalysisSource[] }) {
+function AnalysisSources({
+  sources,
+  scope,
+}: {
+  sources: PortfolioAnalysisSource[];
+  scope: 'overall' | 'asset';
+}) {
   return (
-    <details className="portfolio-evidence">
+    <details
+      className="portfolio-evidence"
+      onToggle={(event) => {
+        if (event.currentTarget.open)
+          trackEvent('expand_portfolio_analysis_sources', {
+            surface: 'portfolio_analysis',
+            scope,
+            source_count: sources.length,
+          });
+      }}
+    >
       <summary>
         <span className="portfolio-evidence-label is-closed">분석 출처 모두 보기</span>
         <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
@@ -525,7 +543,7 @@ function PortfolioOverallImpactDetail({
         </time>
       ) : null}
 
-      <AnalysisSources sources={analysis.sources} />
+      <AnalysisSources scope="overall" sources={analysis.sources} />
     </article>
   );
 }
@@ -569,7 +587,7 @@ function PortfolioImpactDetail({
         )}
       </div>
 
-      <AnalysisSources sources={impact.sources} />
+      <AnalysisSources scope="asset" sources={impact.sources} />
     </article>
   );
 }
@@ -616,6 +634,30 @@ function PortfolioAnalysisContent({
   };
 
   const hasAnalysis = Boolean(analysis && sortedImpacts.length > 0);
+  const resultRef = useRef<HTMLDivElement>(null);
+  useContentImpression(
+    resultRef,
+    String(saved?.analysisId ?? analysis?.analyzedAt ?? 'result'),
+    'view_portfolio_analysis',
+    {
+      surface: 'portfolio_analysis',
+      user_type: isLoggedIn ? 'member' : 'guest',
+      analyzed_asset_count: analysis?.analyzedAssetCount,
+    },
+    hasAnalysis,
+  );
+  const selectAsset = (assetName: string | null, surface: string) => {
+    if (assetName === selectedAssetName) return;
+    setSelectedAssetName(assetName);
+    trackEvent('select_portfolio_analysis_asset', {
+      surface,
+      scope: assetName === null ? 'overall' : 'asset',
+      position:
+        assetName === null
+          ? undefined
+          : sortedImpacts.find((impact) => impact.assetName === assetName)?.rank,
+    });
+  };
   const displayAssets = analysis
     ? analysis.impacts.map(({ assetName, weight }) => ({ assetName, weight }))
     : assets;
@@ -720,7 +762,7 @@ function PortfolioAnalysisContent({
 
       {hasAnalysisTarget && analysis && sortedImpacts.length > 0 ? (
         <>
-          <div className="portfolio-score-panel">
+          <div ref={resultRef} className="portfolio-score-panel">
             <details className="portfolio-score-guide">
               <summary>영향 점수 산정 기준</summary>
               <p>
@@ -758,8 +800,8 @@ function PortfolioAnalysisContent({
                 impactByAssetName={impactByAssetName}
                 selectedImpact={selectedImpact}
                 overallDirection={analysis.overallDirection}
-                onSelect={setSelectedAssetName}
-                onSelectOverall={() => setSelectedAssetName(null)}
+                onSelect={(name) => selectAsset(name, 'portfolio_analysis_chart')}
+                onSelectOverall={() => selectAsset(null, 'portfolio_analysis_chart')}
               />
               <PortfolioAssetList
                 assets={displayAssets}
@@ -767,8 +809,8 @@ function PortfolioAnalysisContent({
                 selectedImpact={selectedImpact}
                 overallDirection={analysis.overallDirection}
                 overallScore={analysis.overallScore}
-                onSelect={setSelectedAssetName}
-                onSelectOverall={() => setSelectedAssetName(null)}
+                onSelect={(name) => selectAsset(name, 'portfolio_analysis_list')}
+                onSelectOverall={() => selectAsset(null, 'portfolio_analysis_list')}
               />
               <p className="portfolio-weight-caption">
                 {selectedImpact

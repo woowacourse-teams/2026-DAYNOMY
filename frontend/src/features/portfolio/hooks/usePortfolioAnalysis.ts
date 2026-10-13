@@ -122,17 +122,36 @@ export function usePortfolioAnalysis(
     active.current = controller;
     setLoading(true);
     setError(null);
-    trackEvent('start_portfolio_analysis');
+    const startedAt = performance.now();
+    const properties = {
+      action: isLoggedIn && analysis && !portfolioChanged ? 'refresh' : 'analyze',
+      user_type: isLoggedIn ? 'member' : 'guest',
+      asset_count: assets.length,
+    };
+    const recordResult = (status: string, outcome?: string | null) => {
+      if (controller.signal.aborted) return;
+      trackEvent('portfolio_analysis_result', {
+        ...properties,
+        status,
+        last_check_outcome: outcome ?? undefined,
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+    };
+    trackEvent('start_portfolio_analysis', properties);
     try {
       if (isLoggedIn) {
         const response = await updateSavedPortfolioAnalysis(
           Boolean(analysis && !portfolioChanged),
           controller.signal,
         );
-        if (!controller.signal.aborted) accept(response);
+        if (!controller.signal.aborted) {
+          accept(response);
+          recordResult(response.status, response.lastCheckOutcome);
+        }
       } else {
         const response = await analyzePortfolio(assets, controller.signal);
         if (!controller.signal.aborted) {
+          recordResult(response.impacts.length ? 'READY' : 'EMPTY');
           setAnalysis(response);
           savePortfolioAnalysis(assets, response, new Date(), false, holdingsKey);
           setTrialExhausted(true);
@@ -145,9 +164,11 @@ export function usePortfolioAnalysis(
         caught instanceof ApiError &&
         caught.code === 'PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED'
       ) {
+        recordResult('TRIAL_EXHAUSTED');
         markGuestPortfolioAnalysisTrialUsed();
         setTrialExhausted(true);
       } else if (isLoggedIn && caught instanceof ApiError && caught.status === 409) {
+        recordResult('CONFLICT');
         // 다른 탭의 실행 여부와 자산 변경 상태를 서버에서 다시 확인한다.
         try {
           const response = await getSavedPortfolioAnalysis(controller.signal);
@@ -170,12 +191,14 @@ export function usePortfolioAnalysis(
                   response.lastSucceededAt !== saved?.lastSucceededAt))
             ) {
               accept(response);
+              recordResult(response.status, response.lastCheckOutcome);
               return;
             }
           } catch {
             if (controller.signal.aborted) return;
           }
         }
+        recordResult('ERROR');
         setError(
           analysis && !portfolioChanged
             ? '새 소식을 확인하지 못했어요. 이전 분석을 유지하고 있어요.'

@@ -103,5 +103,10 @@ export function usePortfolioPerformance(
     return () => controller.abort();
   }, [enabled, holdingKey, holdings.length, period, retryCount, revision]);
 
-  return { points, loading, error, retry: () => setRetryCount((count) => count + 1) };
+  return {
+    points,
+    loading,
+    error,
+    retry: () => setRetryCount((count) => count + 1),
+  };
 }

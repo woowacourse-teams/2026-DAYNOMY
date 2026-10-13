@@ -1,3 +1,4 @@
+import { trackEvent } from '../../../../analytics';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { KeywordCategory, KeywordResponse } from '../types.ts';
 
@@ -9,7 +10,7 @@ const keywordCategoryLabels: Record<KeywordCategory, string> = {
   TREND: '흐름',
 };
 
-function Keyword({ keyword }: { keyword: KeywordResponse }) {
+function Keyword({ keyword, newsId }: { keyword: KeywordResponse; newsId?: string }) {
   const [open, setOpen] = useState(false);
   const tooltipId = useId();
   const containerRef = useRef<HTMLSpanElement>(null);
@@ -18,14 +19,29 @@ function Keyword({ keyword }: { keyword: KeywordResponse }) {
   const pointerInside = useRef(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  function show() {
+  const opened = useRef(false);
+
+  function close() {
+    opened.current = false;
+    setOpen(false);
+  }
+
+  function show(trigger: 'hover' | 'focus' | 'click') {
     clearTimeout(closeTimer.current);
+    if (!opened.current && newsId && /^\d+$/.test(newsId)) {
+      trackEvent('open_keyword_analysis', {
+        news_id: newsId,
+        keyword_category: keyword.category,
+        trigger,
+      });
+    }
+    opened.current = true;
     setOpen(true);
   }
 
   function scheduleClose() {
     clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setOpen(false), 180);
+    closeTimer.current = setTimeout(close, 180);
   }
 
   useEffect(() => () => clearTimeout(closeTimer.current), []);
@@ -33,10 +49,10 @@ function Keyword({ keyword }: { keyword: KeywordResponse }) {
   useEffect(() => {
     if (!open) return;
     function dismissOutside(event: PointerEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!containerRef.current?.contains(event.target as Node)) close();
     }
     function dismissOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') close();
     }
     document.addEventListener('pointerdown', dismissOutside);
     document.addEventListener('keydown', dismissOnEscape);
@@ -78,7 +94,7 @@ function Keyword({ keyword }: { keyword: KeywordResponse }) {
       }}
       onPointerEnter={(event) => {
         pointerInside.current = true;
-        if (event.pointerType !== 'touch') show();
+        if (event.pointerType !== 'touch') show('hover');
       }}
       onPointerLeave={(event) => {
         if (event.pointerType === 'touch') return;
@@ -90,7 +106,7 @@ function Keyword({ keyword }: { keyword: KeywordResponse }) {
           !event.currentTarget.contains(event.relatedTarget) &&
           (event.relatedTarget !== null || !pointerInside.current)
         )
-          setOpen(false);
+          close();
       }}
     >
       <button
@@ -99,8 +115,8 @@ function Keyword({ keyword }: { keyword: KeywordResponse }) {
         className="keyword"
         aria-expanded={open}
         aria-describedby={open ? tooltipId : undefined}
-        onFocus={show}
-        onClick={show}
+        onFocus={() => show('focus')}
+        onClick={() => show('click')}
       >
         {keyword.keyword}
       </button>
@@ -134,6 +150,7 @@ function highlightKeywords(
   text: string,
   keywords: KeywordResponse[],
   highlightedKeywords: Set<string>,
+  newsId?: string,
 ) {
   const matches = keywords
     .filter(
@@ -161,7 +178,7 @@ function highlightKeywords(
       continue;
     }
 
-    parts.push(<Keyword key={`${match.keyword}-${index}`} keyword={match} />);
+    parts.push(<Keyword key={`${match.keyword}-${index}`} keyword={match} newsId={newsId} />);
     highlightedKeywords.add(match.keyword);
     index += match.keyword.length;
   }
@@ -172,7 +189,9 @@ function highlightKeywords(
 export function KeywordText({
   paragraphs,
   keywords,
+  newsId,
 }: {
+  newsId?: string;
   paragraphs: string[];
   keywords: KeywordResponse[];
 }) {
@@ -182,7 +201,7 @@ export function KeywordText({
     <>
       {paragraphs.map((paragraph, index) => (
         <p key={`${index}-${paragraph}`}>
-          {highlightKeywords(paragraph, keywords, highlightedKeywords)}
+          {highlightKeywords(paragraph, keywords, highlightedKeywords, newsId)}
         </p>
       ))}
     </>

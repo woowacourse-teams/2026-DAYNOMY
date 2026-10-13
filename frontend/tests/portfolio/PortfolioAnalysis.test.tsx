@@ -9,6 +9,9 @@ import {
   PORTFOLIO_ANALYSIS_STORAGE_KEY,
 } from '../../src/features/portfolio/portfolioAnalysisStorage';
 
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -71,6 +74,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -637,3 +641,142 @@ function memberFetch(respond: (url: string, init?: RequestInit) => unknown) {
   vi.stubGlobal('fetch', mock);
   return mock;
 }
+
+describe('포트폴리오 분석 이벤트', () => {
+  it.each([
+    ['READY', 'READY'],
+    ['PROCESSING', 'PROCESSING'],
+    ['RECHECK_REQUIRED', 'RECHECK_REQUIRED'],
+    ['FAILED', 'ERROR'],
+  ])('504 이후 서버 상태 %s를 복구하면 결과를 %s로 한 번 기록한다', async (status, expected) => {
+    let reads = 0;
+    memberFetch((_url, init) => {
+      if (init?.method === 'POST') return jsonResponse({}, 504);
+      return reads++ === 0
+        ? saved({ analysis: null, status: 'EMPTY', analysisId: null })
+        : saved({ status });
+    });
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
+    await waitFor(() =>
+      expect(trackEvent).toHaveBeenCalledWith(
+        'portfolio_analysis_result',
+        expect.objectContaining({ status: expected }),
+      ),
+    );
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_result'),
+    ).toHaveLength(1);
+    if (expected !== 'ERROR') expect(view.queryByRole('alert')).toBeNull();
+  });
+
+  it.each(['READY', 'PROCESSING', 'RECHECK_REQUIRED', 'FAILED'])(
+    '복원은 시작으로 세지 않고 갱신 결과 %s를 그대로 기록한다',
+    async (status) => {
+      memberFetch((url) =>
+        saved(url.endsWith('/refresh') ? { status, lastCheckOutcome: 'UNCHANGED' } : {}),
+      );
+      const view = render(<PortfolioAnalysis assets={assets} />);
+      const button = await view.findByRole('button', { name: '새 소식 확인' });
+      expect(trackEvent).not.toHaveBeenCalled();
+      fireEvent.click(button);
+      await waitFor(() =>
+        expect(trackEvent).toHaveBeenCalledWith(
+          'portfolio_analysis_result',
+          expect.objectContaining({
+            status,
+            last_check_outcome: 'UNCHANGED',
+            action: 'refresh',
+            duration_ms: expect.any(Number),
+          }),
+        ),
+      );
+      expect(
+        vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'start_portfolio_analysis'),
+      ).toHaveLength(1);
+      expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('삼성전자');
+    },
+  );
+
+  it('409 이후 상태 복원은 하나의 CONFLICT 결과로 집계한다', async () => {
+    memberFetch((url) => (url.endsWith('/refresh') ? jsonResponse({}, 409) : saved()));
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    fireEvent.click(await view.findByRole('button', { name: '새 소식 확인' }));
+    await waitFor(() =>
+      expect(trackEvent).toHaveBeenCalledWith(
+        'portfolio_analysis_result',
+        expect.objectContaining({ status: 'CONFLICT' }),
+      ),
+    );
+    await view.findByRole('button', { name: '새 소식 확인' });
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_result'),
+    ).toHaveLength(1);
+  });
+
+  it('화면 이탈로 취소된 분석은 결과로 집계하지 않는다', async () => {
+    let resolve!: (response: Response) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((done) => {
+            resolve = done;
+          }),
+      ),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
+    fireEvent.click(view.getByRole('button', { name: '1회 분석 체험하기' }));
+    view.unmount();
+    await act(async () => resolve(jsonResponse(analysisResponse)));
+    expect(vi.mocked(trackEvent).mock.calls.map(([name]) => name)).toEqual([
+      'start_portfolio_analysis',
+    ]);
+  });
+
+  it('결과의 실제 노출과 자산 선택·출처 열기를 집계한다', async () => {
+    let intersect!: IntersectionObserverCallback;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          intersect = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    memberFetch(() => saved());
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    await view.findByText(analysisResponse.overallImpact);
+    expect(trackEvent).not.toHaveBeenCalled();
+    act(() =>
+      intersect(
+        [{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      ),
+    );
+    act(() =>
+      intersect(
+        [{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      ),
+    );
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'view_portfolio_analysis'),
+    ).toHaveLength(1);
+    const assetButton = view.getByText('삼성전자').closest('button')!;
+    fireEvent.click(assetButton);
+    expect(trackEvent).toHaveBeenCalledWith(
+      'select_portfolio_analysis_asset',
+      expect.objectContaining({ scope: 'asset', position: 1 }),
+    );
+    const details = view.container.querySelector<HTMLDetailsElement>('.portfolio-evidence')!;
+    details.open = true;
+    fireEvent(details, new Event('toggle'));
+    expect(trackEvent).toHaveBeenCalledWith(
+      'expand_portfolio_analysis_sources',
+      expect.objectContaining({ scope: 'asset', source_count: 1 }),
+    );
+  });
+});

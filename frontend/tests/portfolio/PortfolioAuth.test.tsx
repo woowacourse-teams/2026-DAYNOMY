@@ -84,20 +84,51 @@ describe('포트폴리오 로그인 접근', () => {
     });
   });
 
-  it.each(['/league/portfolio?week=2026-09-28#holdings', '/admin/news?page=2#draft'])(
-    '비로그인 사용자가 %s에 접근하면 로그인 후 돌아올 전체 경로를 보존한다',
-    async (path) => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () => jsonResponse({}, 401)),
-      );
-      window.history.replaceState(null, '', path);
+  it('비로그인 사용자가 관리자 화면에 접근하면 로그인 후 돌아올 전체 경로를 보존한다', async () => {
+    const path = '/admin/news?page=2#draft';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}, 401)),
+    );
+    window.history.replaceState(null, '', path);
 
-      const view = render(<App />);
+    const view = render(<App />);
 
-      expect(await view.findByRole('heading', { name: /DAYNOMY (관리자 )?로그인/ })).toBeTruthy();
-      expect(window.location.pathname).toBe('/login');
-      expect(new URLSearchParams(window.location.search).get('returnTo')).toBe(path);
-    },
-  );
+    expect(await view.findByRole('heading', { name: /DAYNOMY (관리자 )?로그인/ })).toBeTruthy();
+    expect(window.location.pathname).toBe('/login');
+    expect(new URLSearchParams(window.location.search).get('returnTo')).toBe(path);
+  });
+
+  it.each([
+    ['/league', '/league'],
+    ['/league/portfolio?week=2026-09-28#holdings', '/league/portfolio'],
+    ['/league/investor-1', '/league/investor-1'],
+    ['/portfolio/publication?join=true', '/portfolio/publication'],
+    ['/portfolio/records', '/league/portfolio'],
+    ['/membership', '/league'],
+  ])('%s에서 실제 리그 화면 대신 준비 중 안내를 보여준다', async (path, target) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}, 401)),
+    );
+    window.history.replaceState(null, '', path);
+
+    const view = render(<App />);
+
+    expect(await view.findByRole('heading', { name: '투자 리그를 준비하고 있어요' })).toBeTruthy();
+    expect(window.location.pathname).toBe(target);
+    expect(view.getByRole('link', { name: '내 포트폴리오로 돌아가기' }).getAttribute('href')).toBe(
+      '/',
+    );
+    expect(view.queryByRole('link', { name: '← 주간 리그' })).toBeNull();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) =>
+          /\/api\/(league|users\/me\/(shared-portfolio|portfolio\/publication|investor-profile))/.test(
+            String(input),
+          ),
+        ),
+    ).toBe(false);
+  });
 });

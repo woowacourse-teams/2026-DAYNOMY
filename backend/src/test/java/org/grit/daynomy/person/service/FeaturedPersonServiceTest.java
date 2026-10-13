@@ -13,8 +13,12 @@ import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
 import org.grit.daynomy.external.openai.SocialPostCandidate;
+import org.grit.daynomy.external.s3.S3ImageStorage;
+import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
+import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.person.domain.FeaturedPerson;
 import org.grit.daynomy.person.domain.FeaturedPersonPost;
+import org.grit.daynomy.person.dto.FeaturedPersonImageSelectionRequest;
 import org.grit.daynomy.person.dto.FeaturedPersonPostRequest;
 import org.grit.daynomy.person.dto.FeaturedPersonRequest;
 import org.grit.daynomy.person.exception.FeaturedPersonErrorCode;
@@ -33,6 +37,8 @@ class FeaturedPersonServiceTest {
   @Mock private FeaturedPersonRepository personRepository;
   @Mock private FeaturedPersonPostRepository postRepository;
   @Mock private OpenAiSocialPostSearchClient socialPostSearchClient;
+  @Mock private WikimediaImageClient wikimediaImageClient;
+  @Mock private S3ImageStorage s3ImageStorage;
   @InjectMocks private FeaturedPersonService featuredPersonService;
 
   @Test
@@ -47,11 +53,14 @@ class FeaturedPersonServiceTest {
             new FeaturedPersonRequest(
                 " 일론 머스크 ",
                 "https://X.com/elonmusk/?lang=ko",
-                "https://www.threads.net/@elonmusk/"));
+                "https://www.threads.net/@elonmusk/",
+                "https://www.youtube.com/@Tesla/",
+                null));
 
     assertThat(response.name()).isEqualTo("일론 머스크");
     assertThat(response.xProfileUrl()).isEqualTo("https://x.com/elonmusk");
     assertThat(response.threadsProfileUrl()).isEqualTo("https://www.threads.net/@elonmusk");
+    assertThat(response.youtubeProfileUrl()).isEqualTo("https://www.youtube.com/@Tesla");
   }
 
   @Test
@@ -119,5 +128,64 @@ class FeaturedPersonServiceTest {
         .isEqualTo(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
 
     then(postRepository).shouldHaveNoInteractions();
+  }
+
+  @Test
+  @DisplayName("YouTube 영상 URL을 등록하고 기본 제목을 채운다")
+  void createPostAcceptsYouTubeVideo() {
+    FeaturedPerson person = mock(FeaturedPerson.class);
+    given(person.getName()).willReturn("일론 머스크");
+    given(personRepository.findById(1L)).willReturn(Optional.of(person));
+    given(postRepository.existsByPersonIdAndUrl(1L, "https://youtu.be/dQw4w9WgXcQ"))
+        .willReturn(false);
+    given(postRepository.saveAndFlush(any(FeaturedPersonPost.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    var response =
+        featuredPersonService.createPost(
+            1L,
+            new FeaturedPersonPostRequest(
+                ContentSourceType.YOUTUBE, null, "https://youtu.be/dQw4w9WgXcQ?t=1"));
+
+    assertThat(response.title()).isEqualTo("일론 머스크 YouTube 게시물");
+    assertThat(response.url()).isEqualTo("https://youtu.be/dQw4w9WgXcQ");
+  }
+
+  @Test
+  @DisplayName("Wikimedia Commons 프로필 이미지는 내려받아 S3에 저장한다")
+  void createPersonStoresSelectedWikimediaImage() {
+    given(personRepository.existsByName("일론 머스크")).willReturn(false);
+    given(personRepository.saveAndFlush(any(FeaturedPerson.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    given(wikimediaImageClient.download("File:Elon Musk.jpg"))
+        .willReturn(
+            new WikimediaImageClient.ImportedImage(
+                new WikimediaImageCandidate(
+                    "File:Elon Musk.jpg",
+                    "https://thumb.example.com/elon.jpg",
+                    "",
+                    "",
+                    "",
+                    "",
+                    100,
+                    100),
+                new byte[] {1, 2, 3},
+                "image/jpeg",
+                "jpg"));
+    given(s3ImageStorage.upload(any(), any(), any()))
+        .willReturn(
+            new S3ImageStorage.StoredImage("elon.jpg", "https://images.example.com/elon.jpg"));
+
+    var response =
+        featuredPersonService.createPerson(
+            new FeaturedPersonRequest(
+                "일론 머스크",
+                null,
+                null,
+                null,
+                new FeaturedPersonImageSelectionRequest("File:Elon Musk.jpg")));
+
+    assertThat(response.profileImageUrl()).isEqualTo("https://images.example.com/elon.jpg");
+    then(wikimediaImageClient).should().download("File:Elon Musk.jpg");
   }
 }

@@ -1,12 +1,15 @@
 import { trackEvent } from '../../../analytics';
+import xMark from '../../../assets/platform-x.svg';
+import threadsMark from '../../../assets/platform-threads.svg';
 import { trackLoadResult, useContentView } from './analytics';
 import { IssuePagination } from './IssuePagination';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
 import { IssueStories } from './IssueStories';
+import { getSampleNews, SAMPLE_NEWS_ID, showSampleNews } from './sampleNews';
 import type { NewsListItem } from '../newslist/types';
-import { createFeed, isToday, sourceLabel, timestamp, type FeedItem } from './feed';
+import { createFeed, feedDate, isToday, sourceLabel, timestamp, type FeedItem } from './feed';
 import { getContentsThroughToday } from './contents';
 import type { ExternalContent } from './feed';
 import { getNewsThroughToday } from './todayNews';
@@ -89,6 +92,7 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
     .filter((entry) => entry.post)
     .sort((a, b) => timestamp(b.post.createdAt) - timestamp(a.post.createdAt))
     .slice(0, 2);
+  const sampleNews = showSampleNews ? getSampleNews().news : null;
   const settled = !loading && !contentsLoading && !people.loading;
   const failedAreas = [error, contentsError, people.error].filter(Boolean).length;
   const listStatus = failedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
@@ -136,7 +140,19 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
       )}
       {!fullFeed && (
         <div className="issue-briefing">
-          <IssueStories news={news} loading={loading} error={error} onRetry={retry} />
+          <IssueStories
+            news={
+              sampleNews
+                ? [
+                    { ...sampleNews, id: SAMPLE_NEWS_ID, imageUrl: sampleNews.imageUrl ?? null },
+                    ...news,
+                  ]
+                : news
+            }
+            loading={sampleNews ? false : loading}
+            error={sampleNews ? '' : error}
+            onRetry={retry}
+          />
           <section className="issue-people" aria-labelledby="issue-people-heading">
             <div className="issue-section-heading">
               <h2 id="issue-people-heading">주목받는 인물의 글</h2>
@@ -148,9 +164,9 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
                   })
                 }
                 to="/people"
-                aria-label="주목받는 인물의 글 더 보기"
+                aria-label="주목받는 인물의 글 전체 보기"
               >
-                더 보기 ↗
+                전체 보기
               </Link>
             </div>
             {people.loading ? (
@@ -175,14 +191,44 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
                     to={`/people?person=${person.id}${isToday(post.createdAt) ? '' : '&view=all'}`}
                     key={person.id}
                   >
-                    <div>
+                    <span className="issue-person-avatar" aria-hidden="true">
+                      {person.profileImageUrl ? (
+                        <img src={person.profileImageUrl} alt="" />
+                      ) : (
+                        <svg viewBox="0 0 48 48" fill="none">
+                          <circle cx="24" cy="18" r="8" fill="currentColor" />
+                          <path d="M9 43v-4a15 15 0 0 1 30 0v4" fill="currentColor" />
+                        </svg>
+                      )}
+                    </span>
+                    <div className="issue-person-content">
                       <div className="issue-meta">
                         <strong>{person.name}</strong>
-                        <span>{sourceLabel(post.sourceType)}</span>
+                        <span className="issue-person-platform">
+                          {post.sourceType === 'YOUTUBE' ? (
+                            <svg viewBox="0 0 28 20" aria-label="YouTube">
+                              <path
+                                fill="#f03"
+                                d="M27.4 3.1A3.5 3.5 0 0 0 24.9.6C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5C5.3 20 14 20s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"
+                              />
+                              <path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3z" />
+                            </svg>
+                          ) : (
+                            <img
+                              src={post.sourceType === 'X' ? xMark : threadsMark}
+                              alt={post.sourceType === 'X' ? 'X' : ''}
+                            />
+                          )}
+                          {post.sourceType !== 'X' && sourceLabel(post.sourceType)}
+                        </span>
                       </div>
                       <div className="issue-person-title">
                         <h3>{post.title}</h3>
-                        <span aria-hidden="true">↗</span>
+                      </div>
+                      <div className="issue-person-footer">
+                        <span>
+                          {post.createdAt ? `${feedDate(post.createdAt)} 등록` : '등록일 미제공'}
+                        </span>
                       </div>
                     </div>
                   </Link>
@@ -198,33 +244,40 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
         <div className="issue-section-heading issue-feed-heading">
           <h2 id="issue-feed-heading">{fullFeed ? '콘텐츠 목록' : '오늘 올라온 글'}</h2>
           <div className="issue-feed-controls">
-            <label>
-              <span className="sr-only">콘텐츠 출처</span>
-              <select
-                value={source}
-                onChange={(event) => {
-                  if (event.target.value === source) return;
-                  trackEvent('filter_content_source', {
-                    surface,
-                    previous_source: source,
-                    source_type: event.target.value,
-                    result_count: createFeed(news, people.people, contents).filter(
-                      (item) =>
-                        (event.target.value === 'ALL' || item.source === event.target.value) &&
-                        (fullFeed || isToday(item.date)),
-                    ).length,
-                  });
-                  setSource(event.target.value as typeof source);
-                  setPage(1);
-                }}
-              >
-                <option value="ALL">모든 출처</option>
-                <option value="DAYNOMY">데이노미</option>
-                <option value="X">X</option>
-                <option value="THREADS">Threads</option>
-                <option value="YOUTUBE">YouTube</option>
-              </select>
-            </label>
+            <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
+              {(
+                [
+                  ['ALL', '전체'],
+                  ['DAYNOMY', 'DAYNOMY Issue'],
+                  ['X', 'X'],
+                  ['THREADS', 'Threads'],
+                  ['YOUTUBE', 'YouTube'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={source === value}
+                  onClick={() => {
+                    if (value === source) return;
+                    trackEvent('filter_content_source', {
+                      surface,
+                      previous_source: source,
+                      source_type: value,
+                      result_count: createFeed(news, people.people, contents).filter(
+                        (item) =>
+                          (value === 'ALL' || item.source === value) &&
+                          (fullFeed || isToday(item.date)),
+                      ).length,
+                    });
+                    setSource(value);
+                    setPage(1);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <span>최신순</span>
           </div>
         </div>

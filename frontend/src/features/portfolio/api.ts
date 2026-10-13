@@ -289,23 +289,6 @@ export async function getSavedPortfolio(signal?: AbortSignal) {
   return response as SavedPortfolioResponse;
 }
 
-export async function addSavedPortfolioHolding(holding: PortfolioHoldingInput) {
-  const response = await requestWithCsrf<unknown>('/api/users/me/portfolio/holdings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      assetId: holding.assetId,
-      quantity: holding.quantity,
-      averagePurchasePrice: holding.averagePurchasePrice,
-    }),
-  });
-
-  if (!isSavedPortfolioHolding(response)) {
-    throw new Error('보유 자산 추가 응답 형식이 올바르지 않습니다.');
-  }
-  return response;
-}
-
 export async function updateSavedPortfolioHolding(holding: PortfolioHoldingInput) {
   const response = await requestWithCsrf<unknown>(
     `/api/users/me/portfolio/holdings/${holding.assetId}`,

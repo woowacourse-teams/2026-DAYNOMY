@@ -64,6 +64,11 @@ export function PeoplePage() {
                 Threads 프로필 ↗
               </a>
             )}
+            {selected.youtubeProfileUrl && (
+              <a href={selected.youtubeProfileUrl} target="_blank" rel="noreferrer">
+                YouTube 채널 ↗
+              </a>
+            )}
           </div>
         )}
       </header>

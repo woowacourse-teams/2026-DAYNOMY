@@ -93,7 +93,7 @@ describe('이슈 홈과 더보기', () => {
     expect(view.queryByRole('link', { name: '오늘의 이슈 더 보기' })).toBeNull();
     expect(view.container.querySelector('.issue-story-card')?.getAttribute('href')).toBe('/news/7');
     expect(
-      view.getByRole('link', { name: '주목받는 인물의 글 더 보기' }).getAttribute('href'),
+      view.getByRole('link', { name: '주목받는 인물의 글 전체 보기' }).getAttribute('href'),
     ).toBe('/people');
     expect(view.getByRole('link', { name: /전체 콘텐츠 더 보기/ }).getAttribute('href')).toBe(
       '/news/contents',
@@ -102,9 +102,9 @@ describe('이슈 홈과 더보기', () => {
       '/people?person=1',
     );
     expect(view.container.querySelector('blockquote')).toBeNull();
-    fireEvent.change(view.getByRole('combobox', { name: '콘텐츠 출처' }), {
-      target: { value: 'THREADS' },
-    });
+    fireEvent.click(view.getByRole('button', { name: 'Threads' }));
+    expect(view.getByRole('button', { name: 'Threads', pressed: true })).toBeTruthy();
+    expect(view.getByRole('button', { name: '전체', pressed: false })).toBeTruthy();
     expect(view.queryByRole('button', { name: /첫 번째 인물 글/ })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: /두 번째 인물 글/ }));
     expect(view.container.querySelector('blockquote.text-post-media')).toBeTruthy();
@@ -342,9 +342,7 @@ it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 �
   fireEvent.click(view.getByRole('button', { name: '이전 페이지' }));
   expect(view.getByRole('link', { name: '페이지 기사 0' })).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '2페이지' }));
-  fireEvent.change(view.getByRole('combobox', { name: '콘텐츠 출처' }), {
-    target: { value: 'DAYNOMY' },
-  });
+  fireEvent.click(view.getByRole('button', { name: 'DAYNOMY Issue' }));
   expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
 });
 
@@ -356,9 +354,7 @@ it('출처별 빈 결과를 기록하고 같은 필터의 반복 선택은 중�
     </MemoryRouter>,
   );
   await view.findByRole('button', { name: /첫 번째 인물 글/ });
-  fireEvent.change(view.getByRole('combobox', { name: '콘텐츠 출처' }), {
-    target: { value: 'YOUTUBE' },
-  });
+  fireEvent.click(view.getByRole('button', { name: 'YouTube' }));
   expect(trackEvent).toHaveBeenCalledWith('filter_content_source', {
     surface: 'news_contents',
     previous_source: 'ALL',
@@ -371,8 +367,6 @@ it('출처별 빈 결과를 기록하고 같은 필터의 반복 선택은 중�
     reason: 'filter_empty',
   });
   const count = vi.mocked(trackEvent).mock.calls.length;
-  fireEvent.change(view.getByRole('combobox', { name: '콘텐츠 출처' }), {
-    target: { value: 'YOUTUBE' },
-  });
+  fireEvent.click(view.getByRole('button', { name: 'YouTube' }));
   expect(vi.mocked(trackEvent).mock.calls).toHaveLength(count);
 });

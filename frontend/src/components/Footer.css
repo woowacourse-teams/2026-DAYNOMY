@@ -1,12 +1,12 @@
 .daynomy-footer {
   display: flex;
   flex-wrap: wrap;
-  width: calc(100% - 32px);
+  width: calc(100% - 2 * var(--page-outer-gap));
   min-height: 238px;
   margin: 16px auto 0;
   align-items: center;
   justify-content: space-between;
-  padding: 64px clamp(32px, 8vw, 128px);
+  padding: 64px var(--page-inner-padding);
   background: #ffffff;
 }
 
@@ -75,12 +75,11 @@ a.footer-link:focus-visible {
 
 @media (max-width: 600px) {
   .daynomy-footer {
-    width: calc(100% - 24px);
     min-height: 0;
     align-items: flex-start;
     flex-direction: column;
     gap: 28px;
-    padding: 40px 24px;
+    padding: 40px var(--page-inner-padding);
   }
 
   .footer-description {
