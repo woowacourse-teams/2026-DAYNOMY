@@ -39,7 +39,9 @@ final class PortfolioAnalysisRefresh {
       }
       var comparison = PortfolioEvidenceComparison.compare(facts(old), facts(current));
       if (comparison == PortfolioEvidenceComparison.Result.UNCONFIRMED) {
-        return new Revision(Outcome.UNCONFIRMED, previous, "");
+        insufficient = true;
+        merged.add(old);
+        continue;
       }
       if (comparison == PortfolioEvidenceComparison.Result.SAME) {
         merged.add(old);

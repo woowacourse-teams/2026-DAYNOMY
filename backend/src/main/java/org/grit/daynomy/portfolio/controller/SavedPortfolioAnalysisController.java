@@ -43,7 +43,7 @@ public class SavedPortfolioAnalysisController {
   @Operation(
       summary = "내 포트폴리오 새 근거 확인",
       description =
-          "실제 웹 검색을 실행합니다. 유효한 동일 근거이면 기존 분석과 생성 시각을 유지하고 최근 확인 시각만 갱신합니다. 이전·현재 모두 근거가 없거나 새 사건으로 확인하기 어려우면 RECHECK_REQUIRED, 검색 실패 시 오류를 반환하며 이전 분석을 보존합니다. 동시 요청은 409입니다.")
+          "실제 웹 검색을 실행합니다. 문체·출처 오류는 최대 한 번 교정하며, 일부 종목의 검증 실패 시 유효한 종목과 기존 근거를 보존합니다. 유효한 동일 근거이면 기존 분석과 생성 시각을 유지하고 최근 확인 시각만 갱신합니다. 이전·현재 모두 근거가 없거나 새 사건으로 확인하기 어려우면 RECHECK_REQUIRED, 검색 실패 시 오류를 반환하며 이전 분석을 보존합니다. 동시 요청은 409입니다.")
   @PostMapping("/refresh")
   public SavedPortfolioAnalysisResponse refresh(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {

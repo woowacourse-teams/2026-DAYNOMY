@@ -397,14 +397,22 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  @DisplayName("출처가 없는 자산이 중립 또는 낮은 영향이 아니면 분석 실패로 처리한다")
-  void analyzeRejectsDirectionalAssetWithoutSource() throws Exception {
-    enqueueOutput(
-        validOutput()
-            .replaceFirst("\"direction\": \"NEUTRAL\"", "\"direction\": \"POSITIVE\"")
-            .replaceFirst("\\[\"https://example\\.com/semiconductor\"\\]", "[]"));
-
-    assertAnalysisFailed(() -> client.analyze(targets()));
+  @DisplayName("교정 후에도 문체가 잘못된 종목만 제외하고 정상 종목은 유지한다")
+  void retainsValidAssetAfterFailedCorrection() throws Exception {
+    String broken = validOutput().replaceFirst("관련 검색 근거예요.", "English original sentence.. 해요.");
+    enqueueOutput(broken);
+    enqueueOutput(broken);
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isNull());
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("SK하이닉스"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEUTRAL));
+    assertThat(result.overallImpact()).doesNotContain("삼성전자", "English");
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -485,7 +493,22 @@ class OpenAiPortfolioAnalysisClientTest {
     ((com.fasterxml.jackson.databind.node.ObjectNode) output.path("impacts").get(0))
         .putArray("evidence");
     enqueueOutput(objectMapper.writeValueAsString(output));
-    assertAnalysisFailed(() -> client.analyze(targets()));
+    enqueueOutput(objectMapper.writeValueAsString(output));
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(
+            i -> {
+              assertThat(i.direction()).isNull();
+              assertThat(i.sources()).isEmpty();
+            });
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("SK하이닉스"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isNotNull());
+    assertThat(result.overallImpact()).doesNotContain("삼성전자");
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -546,6 +569,7 @@ class OpenAiPortfolioAnalysisClientTest {
 
   @Test
   void rejectsMixedToneInGeneratedProse() throws Exception {
+    enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
     enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
     assertAnalysisFailed(() -> client.analyze(targets()));
   }
@@ -659,6 +683,96 @@ class OpenAiPortfolioAnalysisClientTest {
         validOutput().replace("https://example.com/semiconductor", url), url);
     assertThat(client.analyze(targets()).impacts()).hasSize(2);
     assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  @Test
+  void correctsEnglishEvidenceSentenceOnce() throws Exception {
+    enqueueOutput(
+        validOutput()
+            .replace(
+                "관련 검색 근거예요.",
+                "Samsung Electronics today announced its earnings guidance for the third quarter of 2026.. 해요."));
+    enqueueOutput(validOutput());
+    assertThat(client.analyze(targets()).impacts())
+        .allSatisfy(i -> assertThat(i.direction()).isNotNull());
+    server.takeRequest();
+    String request = server.takeRequest().getBody().readUtf8();
+    assertThat(request).contains("INVALID_PROSE:evidenceSentence", "factQuote");
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void correctsMismatchedEvidenceUrlWithoutInventingSource() throws Exception {
+    String broken =
+        withEvidence(validOutput())
+            .replace(
+                "\"url\":\"https://example.com/semiconductor\"",
+                "\"url\":\"https://example.com/unrelated\"");
+    enqueueOutput(broken);
+    enqueueOutput(validOutput());
+    assertThat(client.analyze(targets()).impacts())
+        .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
+    server.takeRequest();
+    assertThat(server.takeRequest().getBody().readUtf8()).contains("MISSING_SOURCE_EVIDENCE");
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void doesNotPublishAllInvalidCorrection() throws Exception {
+    String broken = validOutput().replace("관련 검색 근거예요.", "English original.. 해요.");
+    enqueueOutput(broken);
+    enqueueOutput(broken);
+    assertAnalysisFailed(() -> client.analyze(targets()));
+    assertThat(keyValues(appender.list.getLast()))
+        .containsEntry("validationReason", "CORRECTION_EXHAUSTED");
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void correctionDoesNotChangePreviouslyVerifiedAsset() throws Exception {
+    enqueueOutput(validOutput().replaceFirst("관련 검색 근거예요.", "English original.. 해요."));
+    enqueueOutput(validOutput().replace("NEUTRAL", "POSITIVE"));
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.POSITIVE));
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("SK하이닉스"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEUTRAL));
+    assertThat(result.impacts())
+        .extracting(PortfolioAnalysisResult.AssetImpactResult::sortOrder)
+        .containsExactly(1, 2);
+  }
+
+  @Test
+  void indexThenProseFailureStillMakesOnlyTwoCalls() throws Exception {
+    String index = "https://example.com/newsroom/";
+    enqueueOutputWithSearchSources(
+        validOutput().replace("https://example.com/semiconductor", index), index);
+    enqueueOutput(validOutput().replace("관련 검색 근거예요.", "English original.. 해요."));
+    assertAnalysisFailed(() -> client.analyze(targets()));
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void directionalAssetWithoutSourceIsExcludedAfterOneCorrection() throws Exception {
+    var output = objectMapper.readTree(validOutput());
+    ((com.fasterxml.jackson.databind.node.ObjectNode) output.path("impacts").get(0))
+        .putArray("sourceUrls");
+    enqueueOutput(objectMapper.writeValueAsString(output));
+    enqueueOutput(objectMapper.writeValueAsString(output));
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isNull());
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("SK하이닉스"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isNotNull());
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   private PortfolioAnalysisResult.Source source(String title, String url) {
