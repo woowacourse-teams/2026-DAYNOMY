@@ -26,14 +26,24 @@ export function ServiceHeader() {
         target instanceof HTMLElement &&
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
-      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || isEditing) return;
+      if (
+        event.key !== '/' ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.repeat ||
+        searchOpen ||
+        isEditing
+      )
+        return;
       event.preventDefault();
+      trackEvent('click_search_open', { trigger: 'keyboard' });
       setSearchOpen(true);
     }
 
     document.addEventListener('keydown', openSearch);
     return () => document.removeEventListener('keydown', openSearch);
-  }, []);
+  }, [searchOpen]);
 
   const tabs = [
     { label: '포트폴리오', to: '/', active: location.pathname === '/' },
@@ -64,6 +74,10 @@ export function ServiceHeader() {
             key={tab.to}
             className={tab.active ? 'service-header-tab active' : 'service-header-tab'}
             to={tab.to}
+            onClick={() => {
+              if (tab.to === '/news')
+                trackEvent('click_news_navigation', { surface: 'service_header' });
+            }}
             aria-current={tab.active ? 'page' : undefined}
           >
             {tab.label}
@@ -79,7 +93,7 @@ export function ServiceHeader() {
           aria-haspopup="dialog"
           aria-expanded={searchOpen}
           onClick={() => {
-            trackEvent('click_search_open');
+            trackEvent('click_search_open', { trigger: 'button' });
             setSearchOpen(true);
           }}
         >

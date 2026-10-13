@@ -1,3 +1,5 @@
+import { trackEvent } from '../../../analytics';
+import { trackLoadResult, useContentView } from './analytics';
 import { IssuePagination } from './IssuePagination';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -13,7 +15,8 @@ import '../../people/people.css';
 import './issue.css';
 
 export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
-  const people = useFeaturedPeople();
+  const surface = fullFeed ? 'news_contents' : 'news_home';
+  const people = useFeaturedPeople(surface);
   const [contents, setContents] = useState<ExternalContent[]>([]);
   const [contentsLoading, setContentsLoading] = useState(true);
   const [contentsError, setContentsError] = useState('');
@@ -25,6 +28,7 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
   const [source, setSource] = useState<'ALL' | FeedItem['source']>('ALL');
 
   useEffect(() => {
+    const startedAt = performance.now();
     let ignore = false;
     setLoading(true);
     setError('');
@@ -32,9 +36,13 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
       .then((result) => {
         if (ignore) return;
         setNews(result.content);
+        trackLoadResult(surface, 'news', startedAt, 'success', result.content.length, attempt);
       })
       .catch(() => {
-        if (!ignore) setError('데이노미 이슈를 불러오지 못했습니다.');
+        if (!ignore) {
+          setError('데이노미 이슈를 불러오지 못했습니다.');
+          trackLoadResult(surface, 'news', startedAt, 'error', 0, attempt);
+        }
       })
       .finally(() => {
         if (!ignore) setLoading(false);
@@ -42,9 +50,10 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
     return () => {
       ignore = true;
     };
-  }, [attempt, fullFeed]);
+  }, [attempt, fullFeed, surface]);
 
   useEffect(() => {
+    const startedAt = performance.now();
     const controller = new AbortController();
     setContentsLoading(true);
     setContentsError('');
@@ -52,16 +61,19 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
       .then((result) => {
         if (controller.signal.aborted) return;
         setContents(result.items);
+        trackLoadResult(surface, 'external', startedAt, 'success', result.items.length, attempt);
       })
       .catch(() => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
           setContentsError('YouTube·Threads·X 자료를 불러오지 못했습니다.');
+          trackLoadResult(surface, 'external', startedAt, 'error', 0, attempt);
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setContentsLoading(false);
       });
     return () => controller.abort();
-  }, [attempt, fullFeed]);
+  }, [attempt, fullFeed, surface]);
 
   // shortcut: full archive is merged client-side; use a unified paginated API when the archive grows.
   const items = createFeed(news, people.people, contents).filter(
@@ -77,7 +89,32 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
     .filter((entry) => entry.post)
     .sort((a, b) => timestamp(b.post.createdAt) - timestamp(a.post.createdAt))
     .slice(0, 2);
+  const settled = !loading && !contentsLoading && !people.loading;
+  const failedAreas = [error, contentsError, people.error].filter(Boolean).length;
+  const listStatus = failedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
+  useContentView(settled, 'view_content_list', {
+    surface,
+    source_type: source,
+    result_count: items.length,
+    page_number: currentPage,
+    status: listStatus,
+  });
+  useContentView(settled && listStatus === 'ready' && !items.length, 'view_content_empty', {
+    surface,
+    source_type: source,
+    reason: source !== 'ALL' ? 'filter_empty' : fullFeed ? 'no_content' : 'no_today_content',
+  });
+  useContentView(
+    !people.loading && !people.error && !featured.length && !fullFeed,
+    'view_content_empty',
+    { surface: 'person_preview', reason: 'no_content' },
+  );
+  const retryPeople = () => {
+    trackEvent('retry_content_load', { surface, area: 'people' });
+    people.retry();
+  };
   const retry = () => {
+    trackEvent('retry_content_load', { surface, area: 'all', attempt: attempt + 1 });
     setAttempt((value) => value + 1);
     people.retry();
   };
@@ -103,7 +140,16 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
           <section className="issue-people" aria-labelledby="issue-people-heading">
             <div className="issue-section-heading">
               <h2 id="issue-people-heading">주목받는 인물의 글</h2>
-              <Link to="/people" aria-label="주목받는 인물의 글 더 보기">
+              <Link
+                onClick={() =>
+                  trackEvent('click_content_more', {
+                    surface: 'person_preview',
+                    destination: 'people',
+                  })
+                }
+                to="/people"
+                aria-label="주목받는 인물의 글 더 보기"
+              >
                 더 보기 ↗
               </Link>
             </div>
@@ -113,12 +159,19 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
               </p>
             ) : people.error ? (
               <p className="issue-state" role="alert">
-                {people.error} <button onClick={people.retry}>다시 시도</button>
+                {people.error} <button onClick={retryPeople}>다시 시도</button>
               </p>
             ) : featured.length ? (
               <div className="issue-people-preview">
-                {featured.map(({ person, post }) => (
+                {featured.map(({ person, post }, index) => (
                   <Link
+                    onClick={() =>
+                      trackEvent('click_person_preview', {
+                        surface: 'person_preview',
+                        person_id: person.id,
+                        position: index + 1,
+                      })
+                    }
                     to={`/people?person=${person.id}${isToday(post.createdAt) ? '' : '&view=all'}`}
                     key={person.id}
                   >
@@ -150,6 +203,17 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
               <select
                 value={source}
                 onChange={(event) => {
+                  if (event.target.value === source) return;
+                  trackEvent('filter_content_source', {
+                    surface,
+                    previous_source: source,
+                    source_type: event.target.value,
+                    result_count: createFeed(news, people.people, contents).filter(
+                      (item) =>
+                        (event.target.value === 'ALL' || item.source === event.target.value) &&
+                        (fullFeed || isToday(item.date)),
+                    ).length,
+                  });
                   setSource(event.target.value as typeof source);
                   setPage(1);
                 }}
@@ -176,7 +240,7 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
         )}
         {fullFeed && people.error && (
           <p className="issue-state" role="alert">
-            {people.error} <button onClick={people.retry}>다시 시도</button>
+            {people.error} <button onClick={retryPeople}>다시 시도</button>
           </p>
         )}
         {loading || people.loading || contentsLoading ? (
@@ -196,11 +260,19 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
           )
         )}
         <IssueFeed
+          surface={surface}
+          offset={fullFeed ? (currentPage - 1) * 12 : 0}
           key={`${source}-${currentPage}`}
           items={fullFeed ? items.slice((currentPage - 1) * 12, currentPage * 12) : items}
         />
         {!fullFeed && (
-          <Link className="issue-more" to="/news/contents">
+          <Link
+            onClick={() =>
+              trackEvent('click_content_more', { surface, destination: 'news_contents' })
+            }
+            className="issue-more"
+            to="/news/contents"
+          >
             전체 콘텐츠 더 보기 <span aria-hidden="true">↓</span>
           </Link>
         )}
@@ -212,7 +284,12 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
           !contentsError &&
           !people.error &&
           items.length > 0 && (
-            <IssuePagination page={currentPage} totalPages={totalPages} onChange={setPage} />
+            <IssuePagination
+              analytics={{ surface, source_type: source }}
+              page={currentPage}
+              totalPages={totalPages}
+              onChange={setPage}
+            />
           )}
       </section>
     </main>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import { getPortfolioPerformance } from '../api';
 import { todayInSeoul } from '../transactionForm';
 import type {
@@ -75,6 +76,10 @@ export function usePortfolioPerformance(
       })
       .catch((caughtError: unknown) => {
         if (controller.signal.aborted) return;
+        trackPortfolioEvent('portfolio_dashboard_load_failed', {
+          stage: 'chart',
+          error_type: portfolioErrorType(caughtError),
+        });
         setPoints([]);
         setError(
           caughtError instanceof Error ? caughtError.message : '자산 추이를 불러오지 못했습니다.',

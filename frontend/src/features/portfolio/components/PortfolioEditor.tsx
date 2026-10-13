@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getLatestStockPrice, searchStocks } from '../api';
+import { trackPortfolioEvent } from '../analytics';
 import type { AssetCategory, PortfolioHoldingInput, StockSearchItem } from '../types';
 
 type CategoryFilter = 'ALL' | AssetCategory;
@@ -312,7 +313,14 @@ export function PortfolioEditor({
                         <button
                           type="button"
                           disabled={alreadySaved}
-                          onClick={() => setSelectedStock(stock)}
+                          onClick={() => {
+                            trackPortfolioEvent('portfolio_stock_selected', {
+                              category: stock.category,
+                              market: stock.market,
+                              mode: 'holding_create',
+                            });
+                            setSelectedStock(stock);
+                          }}
                         >
                           <span className="portfolio-search-monogram" aria-hidden="true">
                             {stock.name.slice(0, 1)}

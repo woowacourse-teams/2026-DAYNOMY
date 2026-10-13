@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import { getPortfolioHistories } from '../api';
 import { todayInSeoul } from '../transactionForm';
 import type { PortfolioHoldingChangeType, PortfolioHoldingHistory } from '../types';
@@ -46,8 +47,13 @@ export function PortfolioHistory({
         if (!controller.signal.aborted) setHistories(items);
       })
       .catch((caught: unknown) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
+          trackPortfolioEvent('portfolio_dashboard_load_failed', {
+            stage: 'history',
+            error_type: portfolioErrorType(caught),
+          });
           setError(caught instanceof Error ? caught.message : '내역을 불러오지 못했습니다.');
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -68,23 +74,51 @@ export function PortfolioHistory({
       : value === null
         ? '—'
         : `${value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`;
+
+  function changeRange(nextFrom: string, nextTo: string) {
+    if (nextFrom === from && nextTo === to) return;
+    if (nextFrom && nextTo && nextFrom <= nextTo) {
+      const days = (Date.parse(nextTo) - Date.parse(nextFrom)) / 86400000 + 1;
+      if (Number.isFinite(days)) {
+        trackPortfolioEvent('portfolio_history_range_changed', { range_days: days });
+      }
+    }
+    setFrom(nextFrom);
+    setTo(nextTo);
+  }
   return (
     <section className="portfolio-history" aria-label="거래·변경 내역">
       <div className="portfolio-history-toolbar">
         <div className="portfolio-history-dates">
           <label>
             시작일
-            <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+            <input
+              type="date"
+              value={from}
+              onChange={(event) => changeRange(event.target.value, to)}
+            />
           </label>
           <span aria-hidden="true">—</span>
           <label>
             종료일
-            <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+            <input
+              type="date"
+              value={to}
+              onChange={(event) => changeRange(from, event.target.value)}
+            />
           </label>
         </div>
         <label className="portfolio-history-filter">
           내역 유형
-          <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+          <select
+            value={filter}
+            onChange={(event) => {
+              const next = event.target.value as 'ALL' | 'BUY' | 'SELL' | 'BALANCE';
+              if (next === filter) return;
+              trackPortfolioEvent('portfolio_history_filter_changed', { filter: next });
+              setFilter(next);
+            }}
+          >
             <option value="ALL">전체 내역</option>
             <option value="BUY">매수</option>
             <option value="SELL">매도</option>
@@ -105,7 +139,10 @@ export function PortfolioHistory({
           <p>{error}</p>
           <button
             className="portfolio-secondary-button"
-            onClick={() => setRetry((value) => value + 1)}
+            onClick={() => {
+              trackPortfolioEvent('portfolio_retry_clicked', { target: 'history' });
+              setRetry((value) => value + 1);
+            }}
           >
             다시 시도
           </button>
