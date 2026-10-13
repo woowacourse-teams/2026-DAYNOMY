@@ -14,6 +14,7 @@ const LABELS: Record<PortfolioHoldingChangeType, string> = {
 };
 export function PortfolioHistory({
   revision,
+  localHistories,
   assetId,
   amountsHidden,
   onEdit,
@@ -21,6 +22,7 @@ export function PortfolioHistory({
   onCreate,
 }: {
   revision: number;
+  localHistories?: PortfolioHoldingHistory[];
   assetId?: number;
   amountsHidden: boolean;
   onEdit: (history: PortfolioHoldingHistory) => void;
@@ -37,6 +39,16 @@ export function PortfolioHistory({
   const [retry, setRetry] = useState(0);
   const validPeriod = !!from && !!to && from <= to;
   useEffect(() => {
+    if (localHistories !== undefined) {
+      setHistories(
+        [...localHistories].sort(
+          (a, b) => b.effectiveDate.localeCompare(a.effectiveDate) || b.historyId - a.historyId,
+        ),
+      );
+      setLoading(false);
+      setError('');
+      return;
+    }
     if (!validPeriod) return;
     const controller = new AbortController();
     setLoading(true);
@@ -53,9 +65,11 @@ export function PortfolioHistory({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [from, to, revision, retry, validPeriod]);
+  }, [from, to, revision, retry, validPeriod, localHistories]);
   const visible = histories.filter(
     (item) =>
+      item.effectiveDate >= from &&
+      item.effectiveDate <= to &&
       (assetId === undefined || item.assetId === assetId) &&
       (filter === 'ALL' ||
         (filter === 'BALANCE'

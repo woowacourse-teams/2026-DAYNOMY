@@ -19,7 +19,7 @@ type Props = {
   transaction?: PortfolioHoldingHistory;
   onClose: () => void;
   onOpeningBalance?: () => void;
-  onSave: (request: PortfolioTransactionRequest) => Promise<void>;
+  onSave: (request: PortfolioTransactionRequest, stock?: StockSearchItem) => Promise<void>;
 };
 export function PortfolioTransactionEditor({
   stock,
@@ -29,10 +29,9 @@ export function PortfolioTransactionEditor({
   onOpeningBalance,
   onSave,
 }: Props) {
-  const [selected, setSelected] = useState<Pick<
-    StockSearchItem,
-    'assetId' | 'assetCode' | 'name'
-  > | null>(transaction ?? stock ?? null);
+  const [selected, setSelected] = useState<StockSearchItem | PortfolioHoldingHistory | null>(
+    transaction ?? stock ?? null,
+  );
   const [transactionType, setTransactionType] = useState<PortfolioTransactionType>(
     transaction?.changeType === 'SELL' ? 'SELL' : type,
   );
@@ -99,11 +98,14 @@ export function PortfolioTransactionEditor({
     setSaving(true);
     setError('');
     try {
-      await onSave({
-        ...toTransactionRequest(fields),
-        assetId: selected.assetId,
-        type: transactionType,
-      });
+      await onSave(
+        {
+          ...toTransactionRequest(fields),
+          assetId: selected.assetId,
+          type: transactionType,
+        },
+        'category' in selected ? selected : undefined,
+      );
     } catch (caught) {
       setError(
         caught instanceof Error

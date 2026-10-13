@@ -299,10 +299,8 @@ describe('포트폴리오 화면', () => {
     fireEvent(document, new Event('visibilitychange'));
     fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
     const history = within(view.getByRole('region', { name: '거래·변경 내역' }));
-    expect(history.getByText('로그인 후 거래 내역을 확인할 수 있어요')).toBeTruthy();
-    expect(history.getByRole('link', { name: '로그인하기' }).getAttribute('href')).toBe(
-      '/login?returnTo=%2F',
-    );
+    expect(history.getByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
+    expect(history.getByRole('button', { name: '거래 기록' })).toBeTruthy();
     const summary = within(view.getByLabelText('자산 요약'));
     expect(summary.getByText('누적 실현손익')).toBeTruthy();
     expect(summary.getByText('로그인 후 확인할 수 있어요')).toBeTruthy();
@@ -310,6 +308,50 @@ describe('포트폴리오 화면', () => {
       vi
         .mocked(fetch)
         .mock.calls.some(([input]) => String(input).includes('/api/users/me/portfolio')),
+    ).toBe(false);
+  });
+
+  it('비회원도 상세에서 매수·매도를 기록하고 새로 진입하면 임시 거래 내역을 복원한다', async () => {
+    sessionStorage.setItem(
+      GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY,
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findAllByText('750,000원');
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+    const detail = within(view.getByRole('dialog', { name: '삼성전자 보유 상세' }));
+    fireEvent.click(detail.getByRole('button', { name: '매수' }));
+    let editor = within(view.getByRole('dialog', { name: '거래 기록' }));
+    fireEvent.change(editor.getByLabelText('수량 (주)'), { target: { value: '2' } });
+    fireEvent.change(editor.getByLabelText('거래 단가 (원)'), { target: { value: '76000' } });
+    fireEvent.click(editor.getByRole('button', { name: '매수 기록하기' }));
+    await waitFor(() => expect(view.queryByRole('dialog', { name: '거래 기록' })).toBeNull());
+    expect(detail.getByText('12주')).toBeTruthy();
+    expect(detail.getAllByText('152,000원').length).toBeGreaterThan(0);
+    fireEvent.click(detail.getByRole('button', { name: '매도' }));
+    editor = within(view.getByRole('dialog', { name: '거래 기록' }));
+    fireEvent.change(editor.getByLabelText('수량 (주)'), { target: { value: '3' } });
+    fireEvent.change(editor.getByLabelText('거래 단가 (원)'), { target: { value: '78000' } });
+    fireEvent.click(editor.getByRole('button', { name: '매도 기록하기' }));
+    await waitFor(() => expect(view.queryByRole('dialog', { name: '거래 기록' })).toBeNull());
+    expect(detail.getByText('9주')).toBeTruthy();
+    view.unmount();
+    const restored = render(<PortfolioPage isLoggedIn={false} />);
+    await restored.findByRole('button', { name: '삼성전자 보유 상세' });
+    fireEvent.click(restored.getByRole('button', { name: '거래·변경 내역' }));
+    const history = within(restored.getByRole('region', { name: '거래·변경 내역' }));
+    expect((await history.findAllByText('152,000원')).length).toBeGreaterThan(0);
+    expect(history.getAllByText('234,000원').length).toBeGreaterThan(0);
+    fireEvent.change(history.getByLabelText('내역 유형'), { target: { value: 'SELL' } });
+    expect(history.queryByText('152,000원')).toBeNull();
+    expect(history.getAllByText('234,000원').length).toBeGreaterThan(0);
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) =>
+          /users\/me\/portfolio|portfolio\/(histories|transactions)/.test(String(input)),
+        ),
     ).toBe(false);
   });
 
@@ -348,12 +390,10 @@ describe('포트폴리오 화면', () => {
     await view.findAllByText('750,000원');
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
-    expect(within(detail).queryByRole('button', { name: '매도' })).toBeNull();
+    expect(within(detail).getByRole('button', { name: '매도' })).toBeTruthy();
+    expect(within(detail).getByRole('button', { name: '매수' })).toBeTruthy();
     expect(within(detail).getByRole('heading', { name: '거래 내역' })).toBeTruthy();
-    expect(within(detail).getByText('로그인 후 거래 내역을 확인할 수 있어요')).toBeTruthy();
-    expect(within(detail).getByRole('link', { name: '로그인하기' }).getAttribute('href')).toBe(
-      '/login?returnTo=%2F',
-    );
+    expect(within(detail).getByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
     fireEvent.click(within(detail).getByText('보유정보 편집'));
     fireEvent.click(within(detail).getByRole('button', { name: '보유자산 제거' }));
     fireEvent.click(view.getByRole('button', { name: '보유자산 제거' }));

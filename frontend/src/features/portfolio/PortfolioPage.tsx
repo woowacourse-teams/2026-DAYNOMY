@@ -636,6 +636,7 @@ type PortfolioPageProps = {
 export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const {
     holdings,
+    guestHistories,
     loading: holdingsLoading,
     saving: holdingsSaving,
     error: holdingsError,
@@ -989,25 +990,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               </button>
             </div>
             {activeTab === 'history' ? (
-              isLoggedIn ? (
-                <PortfolioHistory
-                  revision={revision}
-                  amountsHidden={amountsHidden}
-                  onCreate={() => setTransactionEditor({})}
-                  onEdit={(transaction) => setTransactionEditor({ transaction })}
-                  onDelete={(transaction) => setRemoving({ transaction })}
-                />
-              ) : (
-                <section className="portfolio-history-locked" aria-label="거래·변경 내역">
-                  <p>로그인 후 거래 내역을 확인할 수 있어요</p>
-                  <a
-                    className="portfolio-primary-button portfolio-login-button"
-                    href="/login?returnTo=%2F"
-                  >
-                    로그인하기
-                  </a>
-                </section>
-              )
+              <PortfolioHistory
+                revision={revision}
+                localHistories={isLoggedIn ? undefined : guestHistories}
+                amountsHidden={amountsHidden}
+                onCreate={() => setTransactionEditor({})}
+                onEdit={(transaction) => setTransactionEditor({ transaction })}
+                onDelete={(transaction) => setRemoving({ transaction })}
+              />
             ) : (
               <section className="portfolio-holdings" aria-label="보유 자산">
                 <div className="portfolio-holdings-layout">
@@ -1230,7 +1220,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   (item) => item.assetId === selectedStock.assetId,
                 )}
                 revision={revision}
-                isLoggedIn={isLoggedIn}
+                localHistories={isLoggedIn ? undefined : guestHistories}
                 amountsHidden={amountsHidden}
                 busy={holdingsSaving || loading}
                 onClose={() => setSelectedStock(null)}
@@ -1255,12 +1245,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   : undefined
               }
               onClose={() => setTransactionEditor(null)}
-              onSave={async (request) => {
+              onSave={async (request, stock) => {
                 const transaction = transactionEditor.transaction;
                 if (transaction) {
                   const { assetId: _assetId, type: _type, ...update } = request;
                   await updateTransaction(transaction.historyId, transaction.assetId, update);
-                } else await createTransaction(request);
+                } else await createTransaction(request, stock);
                 setTransactionEditor(null);
                 setNotice(
                   transaction ? '거래를 수정하고 자산을 다시 계산했어요.' : '거래를 기록했어요.',
