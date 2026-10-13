@@ -2,15 +2,8 @@ import { useEffect, useState } from 'react';
 import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import { getPortfolioHistories } from '../api';
 import { todayInSeoul } from '../transactionForm';
-import type { PortfolioHoldingChangeType, PortfolioHoldingHistory } from '../types';
+import type { PortfolioHoldingHistory } from '../types';
 
-const LABELS: Partial<Record<PortfolioHoldingChangeType, string>> = {
-  BUY: '매수',
-  SELL: '매도',
-  ADJUSTED: '보유정보 정정',
-  UPDATED: '보유정보 정정',
-  REMOVED: '보유자산 제거',
-};
 export function PortfolioHistory({
   revision,
   localHistories,
@@ -67,15 +60,11 @@ export function PortfolioHistory({
   const visible = histories
     .filter(
       (item) =>
-        item.changeType !== 'OPENING_BALANCE' &&
-        item.changeType !== 'ADDED' &&
+        (item.changeType === 'BUY' || item.changeType === 'SELL') &&
         item.effectiveDate >= from &&
         item.effectiveDate <= to &&
         (assetId === undefined || item.assetId === assetId) &&
-        (filter === 'ALL' ||
-          (filter === 'BALANCE'
-            ? item.changeType !== 'BUY' && item.changeType !== 'SELL'
-            : item.changeType === filter)),
+        (filter === 'ALL' || item.changeType === filter),
     )
     .sort(
       (a, b) =>
@@ -129,7 +118,7 @@ export function PortfolioHistory({
         <select
           value={filter}
           onChange={(event) => {
-            const next = event.target.value as 'ALL' | 'BUY' | 'SELL' | 'BALANCE';
+            const next = event.target.value as 'ALL' | 'BUY' | 'SELL';
             if (next === filter) return;
             trackPortfolioEvent('portfolio_history_filter_changed', { filter: next });
             setFilter(next);
@@ -138,7 +127,6 @@ export function PortfolioHistory({
           <option value="ALL">전체 내역</option>
           <option value="BUY">매수</option>
           <option value="SELL">매도</option>
-          <option value="BALANCE">보유정보 변경</option>
         </select>
       </label>
     </div>
@@ -146,7 +134,7 @@ export function PortfolioHistory({
   return (
     <section
       className={`portfolio-history${assetId === undefined ? ' portfolio-history-dashboard' : ''}`}
-      aria-label="거래·변경 내역"
+      aria-label="거래 내역"
     >
       {assetId === undefined ? (
         filters
@@ -193,9 +181,8 @@ export function PortfolioHistory({
       ) : (
         <div className="portfolio-history-list">
           {visible.map((item) => {
-            const transaction = item.changeType === 'BUY' || item.changeType === 'SELL';
             const gross =
-              transaction && item.transactionQuantity !== null && item.unitPrice !== null
+              item.transactionQuantity !== null && item.unitPrice !== null
                 ? item.transactionQuantity * item.unitPrice
                 : null;
             const content = (
@@ -206,7 +193,7 @@ export function PortfolioHistory({
                   </time>
                 )}
                 <span className={`portfolio-history-type type-${item.changeType.toLowerCase()}`}>
-                  {LABELS[item.changeType]}
+                  {item.changeType === 'BUY' ? '매수' : '매도'}
                 </span>
                 <span className="portfolio-history-description">
                   {assetId === undefined && (
@@ -222,31 +209,21 @@ export function PortfolioHistory({
                   )}
                   {assetId !== undefined && (
                     <small>
-                      {transaction
-                        ? `${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`
-                        : '보유정보 변경'}
+                      {`${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`}
                     </small>
                   )}
                 </span>
                 <span className="portfolio-history-amount">
-                  <strong>
-                    {gross !== null
-                      ? won(gross)
-                      : amountsHidden
-                        ? '•••주'
-                        : `${item.quantity.toLocaleString('ko-KR')}주`}
-                  </strong>
+                  <strong>{won(gross)}</strong>
                   {assetId === undefined && (
                     <small>
-                      {transaction
-                        ? `${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`
-                        : `평균 매입가 ${won(item.averagePurchasePrice)}`}
+                      {`${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`}
                     </small>
                   )}
                 </span>
               </>
             );
-            return transaction ? (
+            return (
               <button
                 type="button"
                 className="portfolio-history-row portfolio-history-edit"
@@ -256,33 +233,6 @@ export function PortfolioHistory({
               >
                 {content}
               </button>
-            ) : assetId === undefined ? (
-              <div className="portfolio-history-row portfolio-history-balance" key={item.historyId}>
-                {content}
-              </div>
-            ) : (
-              <details className="portfolio-history-row" key={item.historyId}>
-                <summary>{content}</summary>
-                <div className="portfolio-history-detail">
-                  <dl>
-                    <div>
-                      <dt>평균 매입가</dt>
-                      <dd>{won(item.averagePurchasePrice)}</dd>
-                    </div>
-                    <div>
-                      <dt>기록 시각</dt>
-                      <dd>
-                        {new Date(item.occurredAt).toLocaleString('ko-KR', {
-                          timeZone: 'Asia/Seoul',
-                        })}
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className="portfolio-field-note">
-                    보유정보 변경 기록입니다. 매수·매도 거래와 구분해 표시합니다.
-                  </p>
-                </div>
-              </details>
             );
           })}
         </div>

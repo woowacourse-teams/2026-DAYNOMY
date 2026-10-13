@@ -274,8 +274,8 @@ for (const viewport of [
     await page
       .locator('.service-header')
       .screenshot({ path: testInfo.outputPath('guest-header.png') });
-    await page.getByRole('button', { name: '거래·변경 내역' }).click();
-    const history = page.getByRole('region', { name: '거래·변경 내역', exact: true });
+    await page.getByRole('button', { name: '거래 내역' }).click();
+    const history = page.getByRole('region', { name: '거래 내역', exact: true });
     await expect(history.getByText('이 기간에 표시할 내역이 없어요')).toBeVisible();
     await history.screenshot({ path: testInfo.outputPath('guest-history.png') });
     await page.getByRole('button', { name: /^보유 자산/ }).click();
@@ -292,7 +292,7 @@ for (const viewport of [
     await expect(detail.getByRole('button', { name: '매도', exact: true })).toBeVisible();
     await expect(detail.getByRole('heading', { name: '거래 내역', exact: true })).toBeVisible();
     await expect(detail.getByText('이 기간에 표시할 내역이 없어요')).toBeVisible();
-    await detail.getByRole('region', { name: '거래·변경 내역', exact: true }).screenshot({
+    await detail.getByRole('region', { name: '거래 내역', exact: true }).screenshot({
       path: testInfo.outputPath('guest-history-refined.png'),
       animations: 'disabled',
     });
@@ -341,7 +341,7 @@ for (const viewport of [
     await expect(holdingTrigger).toBeFocused();
     const assetTrigger = page.getByRole('button', { name: '자산 추가', exact: true });
     await assetTrigger.click();
-    const assetEditor = page.getByRole('dialog', { name: '기존 보유자산 등록' });
+    const assetEditor = page.getByRole('dialog', { name: '거래 기록' });
     await expect(assetEditor).toBeVisible();
     await expect(assetEditor.getByRole('searchbox')).toBeFocused();
     expect(
@@ -361,7 +361,7 @@ for (const viewport of [
     await page.keyboard.press('Escape');
     await expect(assetTrigger).toBeFocused();
     await page.reload();
-    await page.getByRole('button', { name: '거래·변경 내역' }).click();
+    await page.getByRole('button', { name: '거래 내역' }).click();
     await expect(
       history.locator('.portfolio-history-amount').getByText('152,000원', { exact: true }),
     ).toBeVisible();
@@ -1042,16 +1042,12 @@ for (const viewport of [
     await expect(
       page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
     ).toBeFocused();
-    await expect(page.getByRole('button', { name: '기존 보유자산 등록', exact: true })).toHaveCount(
-      0,
-    );
-    await page.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }).click();
-    await expect(page.locator('dialog[open]')).toHaveCount(1);
-    await expect(page.getByRole('dialog', { name: '기존 보유자산 등록' })).toBeVisible();
     await expect(
-      page.getByRole('dialog', { name: '기존 보유자산 등록' }).getByRole('searchbox'),
-    ).toBeFocused();
-    await page.getByRole('button', { name: '거래 기록으로 돌아가기' }).click();
+      page.getByRole('heading', { name: '기존 보유자산 등록', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' }),
+    ).toHaveCount(0);
     await expect(page.locator('dialog[open]')).toHaveCount(1);
     const dialog = page.getByRole('dialog', { name: '거래 기록' });
     await expect(dialog).toBeVisible();
@@ -1098,7 +1094,7 @@ for (const viewport of [
     }
     await dialog.getByRole('button', { name: '매수 기록하기' }).click();
     await expect(dialog).toHaveCount(0);
-    await page.getByRole('button', { name: '거래·변경 내역' }).click();
+    await page.getByRole('button', { name: '거래 내역' }).click();
     await expect(page.locator('.portfolio-history-row')).toHaveCount(2);
     await page.screenshot({
       path: testInfo.outputPath('history.png'),

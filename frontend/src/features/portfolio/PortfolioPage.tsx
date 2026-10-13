@@ -922,7 +922,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
-  const [editor, setEditor] = useState<{ holding?: PortfolioHoldingInput } | null>(null);
+  const [editor, setEditor] = useState<{ holding: PortfolioHoldingInput } | null>(null);
   const [activeTab, setActiveTab] = useState<'holdings' | 'history'>('holdings');
   const [transactionEditor, setTransactionEditor] = useState<{
     stock?: StockSearchItem;
@@ -1060,11 +1060,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   ]);
 
   function openHoldingEditor(
-    holding: PortfolioHoldingInput | undefined,
+    holding: PortfolioHoldingInput,
     entryPoint: 'header' | 'empty_state' | 'holding_detail' | 'editor_switch',
   ) {
     trackPortfolioEvent('portfolio_editor_opened', {
-      mode: holding ? 'holding_update' : 'holding_create',
+      mode: 'holding_update',
       entry_point: entryPoint,
       is_logged_in: isLoggedIn,
     });
@@ -1084,8 +1084,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   }
 
   function openAdd(entryPoint: 'header' | 'empty_state') {
-    if (isLoggedIn) openTransactionEditor({}, entryPoint);
-    else openHoldingEditor(undefined, entryPoint);
+    openTransactionEditor({}, entryPoint);
   }
 
   function openHoldingDetail(holding: PortfolioHoldingResult) {
@@ -1114,9 +1113,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   }
 
   async function save(nextHolding: PortfolioHoldingInput) {
-    const operation = holdings.some((holding) => holding.assetId === nextHolding.assetId)
-      ? 'holding_update'
-      : 'holding_create';
+    const operation = 'holding_update';
     const properties = { operation, storage: isLoggedIn ? 'server' : 'temporary' } as const;
     trackPortfolioEvent('portfolio_save_submitted', properties);
     try {
@@ -1410,7 +1407,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   aria-pressed={activeTab === 'history'}
                   onClick={() => changeTab('history')}
                 >
-                  거래·변경 내역
+                  거래 내역
                 </button>
               </div>
               {activeTab === 'history' ? (
@@ -1688,14 +1685,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             <div hidden={!!removing}>
               <PortfolioTransactionEditor
                 {...transactionEditor}
-                onOpeningBalance={
-                  !selectedStock && !transactionEditor.transaction
-                    ? () => {
-                        setTransactionEditor(null);
-                        openHoldingEditor(undefined, 'editor_switch');
-                      }
-                    : undefined
-                }
                 onClose={() => setTransactionEditor(null)}
                 onDelete={
                   transactionEditor.transaction
@@ -1789,15 +1778,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             <PortfolioEditor
               isLoggedIn={isLoggedIn}
               holding={editor.holding}
-              onRecordTransaction={
-                isLoggedIn && !editor.holding
-                  ? () => {
-                      setEditor(null);
-                      openTransactionEditor({}, 'editor_switch');
-                    }
-                  : undefined
-              }
-              savedAssetIds={holdings.map((holding) => holding.assetId)}
               onClose={() => setEditor(null)}
               onSave={save}
             />
