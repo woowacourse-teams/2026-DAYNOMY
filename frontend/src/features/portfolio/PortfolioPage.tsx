@@ -1207,7 +1207,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 ? 'portfolio-holding-detail'
                 : editor
                   ? 'portfolio-holding-sheet'
-                  : ''
+                  : transactionEditor
+                    ? 'portfolio-transaction-sheet'
+                    : ''
           }
         >
           {selectedStock && (

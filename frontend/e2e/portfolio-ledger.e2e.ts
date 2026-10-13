@@ -674,6 +674,18 @@ for (const viewport of [
     await expect(dialog.getByLabel('거래 단가 (원)')).toHaveValue('75200');
     await dialog.getByLabel('수량 (주)').fill('5');
     await dialog.getByLabel('거래 단가 (원)').fill('75200');
+    await expect(dialog).toHaveCSS('scrollbar-width', 'none');
+    const originalViewport = page.viewportSize()!;
+    await page.setViewportSize({ width: originalViewport.width, height: 600 });
+    await dialog.getByText('수수료·세금', { exact: false }).click();
+    await dialog.getByLabel('세금 (원)', { exact: true }).fill('0');
+    const submitTrade = dialog.getByRole('button', { name: '매수 기록하기' });
+    await submitTrade.scrollIntoViewIfNeeded();
+    await expect(submitTrade).toBeInViewport();
+    expect(await dialog.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await dialog.getByText('수수료·세금', { exact: false }).click();
+    await page.setViewportSize(originalViewport);
+    await dialog.getByLabel('거래일', { exact: true }).focus();
     await page.screenshot({
       path: testInfo.outputPath('transaction.png'),
       fullPage: true,

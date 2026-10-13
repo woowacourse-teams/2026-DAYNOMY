@@ -620,6 +620,22 @@
   box-shadow: 0 24px 70px rgb(24 42 66 / 18%);
   overflow-y: auto;
 }
+.portfolio-transaction-sheet {
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.portfolio-transaction-sheet::-webkit-scrollbar {
+  display: none;
+}
+.portfolio-transaction-sheet .portfolio-sheet-content {
+  padding: 28px;
+}
+.portfolio-transaction-sheet .portfolio-sheet-heading {
+  margin-bottom: 24px;
+}
+.portfolio-transaction-sheet .portfolio-ledger-field {
+  margin-bottom: 18px;
+}
 .portfolio-sheet::backdrop {
   background: rgb(22 36 57 / 35%);
   backdrop-filter: blur(3px);
@@ -738,10 +754,10 @@
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 18px;
+  padding: 14px 16px;
   background: #f7f9fc;
-  border-radius: 12px;
-  margin-bottom: 24px;
+  border-radius: 10px;
+  margin-bottom: 20px;
 }
 .portfolio-trade-stock button {
   margin-left: auto;
@@ -788,8 +804,8 @@
   margin-left: 8px;
 }
 .portfolio-trade-total {
-  padding: 22px;
-  border-radius: 12px;
+  padding: 16px;
+  border-radius: 10px;
   background: #f4f7fd;
   margin: 8px 0 16px;
 }
@@ -1089,7 +1105,8 @@
     margin: 0;
     border-radius: 0;
   }
-  .portfolio-sheet-content {
+  .portfolio-sheet-content,
+  .portfolio-transaction-sheet .portfolio-sheet-content {
     padding: 24px 20px;
   }
   .portfolio-sheet-heading h2 {
@@ -1267,6 +1284,10 @@
   min-height: 0;
   padding: 8px 32px 28px;
   overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.portfolio-detail-scroll::-webkit-scrollbar {
+  display: none;
 }
 .portfolio-detail-caption {
   font-size: 13px;
