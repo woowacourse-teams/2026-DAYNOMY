@@ -16,7 +16,15 @@ function accountName(item: StockRelatedContent) {
 
 type NewsItem = StockRelatedContent & { assets: string[] };
 
-export function PortfolioNews({ holdings }: { holdings: { assetId: number; name: string }[] }) {
+export function PortfolioNews({
+  holdings,
+  hidden = false,
+  onClose,
+}: {
+  holdings: { assetId: number; name: string }[];
+  hidden?: boolean;
+  onClose?: () => void;
+}) {
   const assetKey = JSON.stringify(
     [...new Set(holdings.map((holding) => holding.assetId))].sort((a, b) => a - b),
   );
@@ -94,18 +102,37 @@ export function PortfolioNews({ holdings }: { holdings: { assetId: number; name:
     assetKey,
     'view_portfolio_news',
     { surface: 'portfolio_news', status, result_count: items.length },
-    settled,
+    settled && !hidden,
   );
-  useContentView(settled && status === 'empty', 'view_content_empty', {
+  useContentView(settled && !hidden && status === 'empty', 'view_content_empty', {
     surface: 'portfolio_news',
     reason: holdings.length ? 'no_linked_content' : 'no_holdings',
   });
 
   return (
-    <aside className="portfolio-news" aria-labelledby="portfolio-news-title">
+    <aside
+      id="portfolio-news-panel"
+      className="portfolio-news"
+      aria-labelledby="portfolio-news-title"
+      hidden={hidden}
+    >
       <div ref={panelRef} className="portfolio-news-heading">
         <h2 id="portfolio-news-title">보유 자산 소식</h2>
-        <span>최신순</span>
+        <div className="portfolio-news-heading-actions">
+          <span>최신순</span>
+          {onClose && (
+            <button
+              type="button"
+              className="portfolio-news-close"
+              aria-label="소식 접기"
+              onClick={onClose}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="m9 6 6 6-6 6" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
       <p className="portfolio-news-description">보유 종목과 연결된 뉴스와 이야기</p>
       {loading && (

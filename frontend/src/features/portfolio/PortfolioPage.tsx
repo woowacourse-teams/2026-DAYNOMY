@@ -1,5 +1,5 @@
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { PortfolioNews } from './components/PortfolioNews';
-import { useEffect, useMemo, useRef, useState } from 'react';
 import { calculatePortfolio } from './api';
 import { portfolioErrorType, trackPortfolioEvent } from './analytics';
 import { PortfolioAnalysis } from './components/PortfolioAnalysis';
@@ -34,7 +34,6 @@ const compactWonFormatter = new Intl.NumberFormat('ko-KR', {
   maximumFractionDigits: 1,
 });
 const HIDDEN_AMOUNT = '••••••원';
-const SHOW_PORTFOLIO_NEWS = true;
 const EMPTY_PORTFOLIO_CALCULATION: PortfolioCalculation = {
   baseDate: null,
   pricingStatus: 'COMPLETE',
@@ -80,6 +79,10 @@ function formatTrendDate(value: string) {
 function profitClass(value: number | null) {
   if (value === null) return '';
   return value > 0 ? 'portfolio-gain' : value < 0 ? 'portfolio-loss' : '';
+}
+
+function trendTone(difference: number) {
+  return difference > 0 ? 'gain' : difference < 0 ? 'loss' : 'neutral';
 }
 
 function getCategoryLabel(category: AssetCategory) {
@@ -226,9 +229,6 @@ function PortfolioAssetTrendChart({
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const expanded = mode === 'expanded';
   const titleId = expanded ? 'expanded-asset-trend-title' : 'asset-trend-title';
-  const gradientId = expanded
-    ? 'expanded-portfolio-return-area-gradient'
-    : 'portfolio-return-area-gradient';
   const latestAvailablePoint = points.at(-1);
   const visiblePoints = useMemo(() => {
     if (!latestAvailablePoint) return [];
@@ -256,24 +256,32 @@ function PortfolioAssetTrendChart({
         (index / (visiblePoints.length - 1)) * (width - padding.left - padding.right);
   const y = (value: number) =>
     padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
-  const evaluationPoints = visiblePoints.map(
-    (point, index) => `${x(index)},${y(point.totalEvaluationAmount)}`,
-  );
-  const purchasePoints = visiblePoints.map(
-    (point, index) => `${x(index)},${y(point.totalPurchaseAmount)}`,
-  );
-  const evaluationLinePoints = hasSinglePoint
-    ? [`${padding.left},${y(visiblePoints[0].totalEvaluationAmount)}`]
-    : evaluationPoints;
-  const purchaseLinePoints = hasSinglePoint
-    ? [`${padding.left},${y(visiblePoints[0].totalPurchaseAmount)}`]
-    : purchasePoints;
-  const areaPoints =
-    visiblePoints.length > 1
-      ? `${padding.left},${y(minimum)} ${evaluationLinePoints.join(' ')} ${width - padding.right},${y(minimum)}`
-      : '';
+  const chartPoints = visiblePoints.map((point, index) => ({
+    x: x(index),
+    evaluationY: y(point.totalEvaluationAmount),
+    purchaseY: y(point.totalPurchaseAmount),
+    difference: point.totalEvaluationAmount - point.totalPurchaseAmount,
+  }));
+  const purchaseLinePoints = chartPoints.map((point) => `${point.x},${point.purchaseY}`);
+  const segments = chartPoints.slice(1).flatMap((to, index) => {
+    const from = chartPoints[index];
+    if (from.difference * to.difference < 0) {
+      const ratio = from.difference / (from.difference - to.difference);
+      const crossingY = from.evaluationY + (to.evaluationY - from.evaluationY) * ratio;
+      const crossing = {
+        x: from.x + (to.x - from.x) * ratio,
+        evaluationY: crossingY,
+        purchaseY: crossingY,
+        difference: 0,
+      };
+      return [
+        { from, to: crossing, tone: trendTone(from.difference) },
+        { from: crossing, to, tone: trendTone(to.difference) },
+      ];
+    }
+    return [{ from, to, tone: trendTone(from.difference || to.difference) }];
+  });
   const latest = visiblePoints.at(-1);
-  const trendColor = '#3975df';
   const activeIndex =
     hoveredIndex === null
       ? expanded
@@ -340,9 +348,23 @@ function PortfolioAssetTrendChart({
             </svg>
           </label>
           <div className="portfolio-trend-legend" aria-label="자산 추이 범례">
-            <span className="evaluation">자산</span>
+            <span className="evaluation" title="매입금액보다 높으면 빨강, 낮으면 파랑">
+              자산
+            </span>
             <span className="principal">매입금액</span>
           </div>
+          <button
+            type="button"
+            className="portfolio-trend-expand portfolio-trend-refresh"
+            aria-label="자산 추이 새로고침"
+            title="자산 추이 새로고침"
+            disabled={loading}
+            onClick={onRetry}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7" />
+            </svg>
+          </button>
           {!expanded && onExpand ? (
             <button
               type="button"
@@ -407,12 +429,6 @@ function PortfolioAssetTrendChart({
               onPointerMove={(event) => selectNearestPoint(event.clientX, event.currentTarget)}
               onPointerLeave={() => setHoveredIndex(null)}
             >
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={trendColor} stopOpacity="0.12" />
-                  <stop offset="100%" stopColor={trendColor} stopOpacity="0" />
-                </linearGradient>
-              </defs>
               {guideValues.map((value) => (
                 <g key={value} className="portfolio-return-guide">
                   <line x1={padding.left} y1={y(value)} x2={width - padding.right} y2={y(value)} />
@@ -423,17 +439,32 @@ function PortfolioAssetTrendChart({
               ))}
               {visiblePoints.length >= 1 ? (
                 <>
-                  {areaPoints ? (
-                    <polygon
-                      className="portfolio-return-area"
-                      points={areaPoints}
-                      fill={`url(#${gradientId})`}
+                  {segments.map(({ from, to, tone }, index) => (
+                    <g key={index}>
+                      {tone !== 'neutral' ? (
+                        <polygon
+                          className={`portfolio-return-area is-${tone}`}
+                          points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY} ${to.x},${to.purchaseY} ${from.x},${from.purchaseY}`}
+                          fill={`var(--portfolio-trend-${tone})`}
+                          fillOpacity="0.1"
+                        />
+                      ) : null}
+                      <polyline
+                        className={`portfolio-return-line evaluation is-${tone}`}
+                        points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY}`}
+                        style={{ stroke: `var(--portfolio-trend-${tone})` }}
+                      />
+                    </g>
+                  ))}
+                  {hasSinglePoint ? (
+                    <polyline
+                      className="portfolio-return-line evaluation"
+                      points={`${chartPoints[0].x},${chartPoints[0].evaluationY}`}
+                      style={{
+                        stroke: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
+                      }}
                     />
                   ) : null}
-                  <polyline
-                    className="portfolio-return-line evaluation"
-                    points={evaluationLinePoints.join(' ')}
-                  />
                   <polyline
                     className="portfolio-return-line principal"
                     points={purchaseLinePoints.join(' ')}
@@ -448,6 +479,9 @@ function PortfolioAssetTrendChart({
                       />
                       <circle
                         className="portfolio-return-point evaluation"
+                        style={{
+                          fill: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
+                        }}
                         cx={padding.left}
                         cy={y(visiblePoints[0].totalEvaluationAmount)}
                         r="4.5"
@@ -467,6 +501,9 @@ function PortfolioAssetTrendChart({
                   />
                   <circle
                     className="portfolio-return-point evaluation"
+                    style={{
+                      fill: `var(--portfolio-trend-${trendTone(activePoint.totalProfitLoss)})`,
+                    }}
                     cx={activeX}
                     cy={y(activePoint.totalEvaluationAmount)}
                     r="4.5"
@@ -498,7 +535,14 @@ function PortfolioAssetTrendChart({
                       {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalPurchaseAmount)}
                     </dd>
                   </div>
-                  <div className="evaluation">
+                  <div
+                    className="evaluation"
+                    style={
+                      {
+                        '--portfolio-trend-accent': `var(--portfolio-trend-${trendTone(activePoint.totalProfitLoss)})`,
+                      } as CSSProperties
+                    }
+                  >
                     <dt>평가금액</dt>
                     <dd>
                       {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalEvaluationAmount)}
@@ -594,6 +638,7 @@ type PortfolioPageProps = {
 export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const {
     holdings,
+    guestHistories,
     loading: holdingsLoading,
     saving: holdingsSaving,
     error: holdingsError,
@@ -628,6 +673,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
   const performance = usePortfolioPerformance(trendPeriod, holdings, revision, isLoggedIn);
+  const [newsOpen, setNewsOpen] = useState(true);
+  const newsButtonRef = useRef<HTMLButtonElement>(null);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
@@ -829,10 +876,29 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     <main className="portfolio-page">
       <header className="portfolio-page-title">
         <div>
-          <span className="portfolio-eyebrow">MY PORTFOLIO</span>
           <h1>내 포트폴리오</h1>
+          {!isLoggedIn && (
+            <p className="portfolio-save-notice is-guest" role="status">
+              {notice || '비회원 자산은 이 탭에만 임시 저장돼요.'}
+            </p>
+          )}
         </div>
         <div className="portfolio-page-actions">
+          <button
+            type="button"
+            className="portfolio-secondary-button portfolio-news-tab"
+            ref={newsButtonRef}
+            aria-controls="portfolio-news-panel"
+            aria-expanded={newsOpen}
+            title={newsOpen ? '소식 접기' : '소식 펼치기'}
+            disabled={holdingsLoading || !!holdingsError}
+            onClick={() => setNewsOpen((open) => !open)}
+          >
+            소식
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
           <button
             type="button"
             className="portfolio-primary-button"
@@ -843,9 +909,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           </button>
         </div>
       </header>
-      <p className="portfolio-save-notice" role="status">
-        {notice || (!isLoggedIn ? '비회원 포트폴리오는 현재 탭에만 임시 보관돼요.' : '')}
-      </p>
+      {isLoggedIn && notice && (
+        <p className="portfolio-save-notice" role="status">
+          {notice}
+        </p>
+      )}
 
       {holdingsLoading || loading ? (
         <p className="portfolio-state" aria-live="polite">
@@ -876,7 +944,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       dashboardCalculation ? (
         <div
           aria-busy={loading}
-          className={`portfolio-dashboard-layout${SHOW_PORTFOLIO_NEWS ? ' has-news' : ''}`}
+          className={`portfolio-dashboard-layout${newsOpen ? ' has-news' : ''}`}
         >
           <div className="portfolio-dashboard-main">
             <dl className="portfolio-overview" aria-label="자산 요약">
@@ -931,15 +999,17 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   {formatPercent(dashboardCalculation.totalReturnRate, true)}
                 </small>
               </div>
-              {isLoggedIn && (
-                <div>
-                  <dt>누적 실현손익</dt>
+              <div>
+                <dt>누적 실현손익</dt>
+                {isLoggedIn ? (
                   <dd className={profitClass(totalRealizedProfitLoss)}>
                     {displayWon(totalRealizedProfitLoss, true)}
                   </dd>
-                  <small>매도로 확정된 손익</small>
-                </div>
-              )}
+                ) : (
+                  <dd className="portfolio-summary-locked">로그인 후 확인할 수 있어요</dd>
+                )}
+                <small>매도로 확정된 손익</small>
+              </div>
             </dl>
             <div className="portfolio-price-status" role="status">
               {dashboardCalculation.pricingStatus === 'PARTIAL' ? (
@@ -983,7 +1053,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     자산 분석
                   </span>
                   <span className="portfolio-analysis-action">
-                    {analysisExpanded ? '접기' : '펼치기'}
                     <svg viewBox="0 0 16 16" aria-hidden="true">
                       <path d="m4 6 4 4 4-4" />
                     </svg>
@@ -991,11 +1060,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 </button>
               </div>
               {analysisExpanded ? (
-                <div
-                  id="portfolio-analysis-content"
-                  className={`portfolio-dashboard-grid${isLoggedIn ? '' : ' is-guest'}`}
-                >
-                  {isLoggedIn && (
+                <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
+                  {isLoggedIn ? (
                     <PortfolioAssetTrendChart
                       points={trendPoints}
                       loading={performance.loading}
@@ -1010,6 +1076,29 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                         setTrendDialogOpen(true);
                       }}
                     />
+                  ) : (
+                    <section
+                      className="portfolio-return-dashboard is-compact"
+                      aria-labelledby="asset-trend-title"
+                    >
+                      <div className="portfolio-dashboard-heading">
+                        <h2 id="asset-trend-title">자산 추이</h2>
+                        <span className="portfolio-trend-lock-badge">잠금</span>
+                      </div>
+                      <div className="portfolio-trend-locked">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <rect x="5" y="10" width="14" height="11" rx="2" />
+                          <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
+                        </svg>
+                        <strong>로그인 후 자산 추이를 확인할 수 있어요</strong>
+                        <a
+                          className="portfolio-primary-button portfolio-login-button"
+                          href="/login?returnTo=%2F"
+                        >
+                          로그인하기
+                        </a>
+                      </div>
+                    </section>
                   )}
                   <section className="portfolio-composition" aria-labelledby="composition-title">
                     <div className="portfolio-dashboard-heading">
@@ -1031,60 +1120,33 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               ) : null}
             </section>
 
-            {isLoggedIn && (
-              <div className="portfolio-ledger-tabs" role="group" aria-label="포트폴리오 내역 보기">
-                <button
-                  type="button"
-                  aria-pressed={activeTab === 'holdings'}
-                  onClick={() => changeTab('holdings')}
-                >
-                  보유 자산 <span>{holdings.length}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={activeTab === 'history'}
-                  onClick={() => changeTab('history')}
-                >
-                  거래·변경 내역
-                </button>
-              </div>
-            )}
-            {isLoggedIn && activeTab === 'history' ? (
+            <div className="portfolio-ledger-tabs" role="group" aria-label="포트폴리오 내역 보기">
+              <button
+                type="button"
+                aria-pressed={activeTab === 'holdings'}
+                onClick={() => changeTab('holdings')}
+              >
+                보유 자산 <span>{holdings.length}</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeTab === 'history'}
+                onClick={() => changeTab('history')}
+              >
+                거래·변경 내역
+              </button>
+            </div>
+            {activeTab === 'history' ? (
               <PortfolioHistory
                 revision={revision}
+                localHistories={isLoggedIn ? undefined : guestHistories}
                 amountsHidden={amountsHidden}
                 onCreate={() => openTransactionEditor({}, 'history')}
                 onEdit={(transaction) => openTransactionEditor({ transaction }, 'history')}
                 onDelete={(transaction) => setRemoving({ transaction })}
               />
             ) : (
-              <section className="portfolio-holdings" aria-labelledby="holdings-title">
-                <div className="portfolio-section-title">
-                  <h2 id="holdings-title">
-                    보유 자산 <span>{dashboardCalculation.holdings.length}</span>
-                  </h2>
-                  <div className="portfolio-holdings-actions">
-                    <label className="portfolio-sort-control">
-                      <span className="sr-only">정렬 기준</span>
-                      <select
-                        aria-label="보유 자산 정렬"
-                        value={sort}
-                        onChange={(event) => {
-                          const next = event.target.value as PortfolioSort;
-                          if (next === sort) return;
-                          trackPortfolioEvent('portfolio_sort_changed', { sort: next });
-                          setSort(next);
-                        }}
-                      >
-                        <option value="DEFAULT">기본 순서</option>
-                        <option value="EVALUATION">평가금액 높은 순</option>
-                        <option value="PROFIT">손익 높은 순</option>
-                        <option value="RETURN">수익률 높은 순</option>
-                        <option value="WEIGHT">비중 높은 순</option>
-                      </select>
-                    </label>
-                  </div>
-                </div>
+              <section className="portfolio-holdings" aria-label="보유 자산">
                 <div className="portfolio-holdings-layout">
                   <div className="portfolio-holdings-table-column">
                     <div className="portfolio-holdings-toolbar">
@@ -1103,6 +1165,27 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                             {category === 'ALL' ? '전체' : getCategoryLabel(category)}
                           </button>
                         ))}
+                      </div>
+                      <div className="portfolio-holdings-actions">
+                        <label className="portfolio-sort-control">
+                          <span className="sr-only">정렬 기준</span>
+                          <select
+                            aria-label="보유 자산 정렬"
+                            value={sort}
+                            onChange={(event) => {
+                              const next = event.target.value as PortfolioSort;
+                              if (next === sort) return;
+                              trackPortfolioEvent('portfolio_sort_changed', { sort: next });
+                              setSort(next);
+                            }}
+                          >
+                            <option value="DEFAULT">기본 순서</option>
+                            <option value="EVALUATION">평가금액 높은 순</option>
+                            <option value="PROFIT">손익 높은 순</option>
+                            <option value="RETURN">수익률 높은 순</option>
+                            <option value="WEIGHT">비중 높은 순</option>
+                          </select>
+                        </label>
                       </div>
                     </div>
                     <div
@@ -1128,7 +1211,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                             <tr
                               key={holding.assetId}
                               className="portfolio-holding-row"
-                              onClick={() => openHoldingDetail(holding)}
+                              onClick={(event) => {
+                                event.currentTarget
+                                  .querySelector<HTMLButtonElement>('.portfolio-asset-trigger')
+                                  ?.focus();
+                                openHoldingDetail(holding);
+                              }}
                             >
                               <td>
                                 <div className="portfolio-asset">
@@ -1147,7 +1235,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                                       }}
                                     >
                                       {holding.name}
-                                      <span aria-hidden="true"> ›</span>
+                                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="m6 4 4 4-4 4" />
+                                      </svg>
                                     </button>
                                     <small>
                                       {getCategoryLabel(holding.category)} · {holding.assetCode} ·{' '}
@@ -1195,13 +1285,10 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                         </tbody>
                       </table>
                     </div>
-                    <div className="portfolio-table-note">
-                      <span className="sr-only" role="status">
-                        {categoryFilter === 'ALL' ? '전체' : getCategoryLabel(categoryFilter)}{' '}
-                        {visibleHoldings.length}개 자산 표시 중
-                      </span>
-                      <span>매수 비용은 평균 매입가에, 매도 비용은 실현손익에 반영됩니다.</span>
-                    </div>
+                    <span className="sr-only" role="status">
+                      {categoryFilter === 'ALL' ? '전체' : getCategoryLabel(categoryFilter)}{' '}
+                      {visibleHoldings.length}개 자산 표시 중
+                    </span>
                   </div>
                 </div>
               </section>
@@ -1233,7 +1320,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
             )}
           </div>
-          {SHOW_PORTFOLIO_NEWS && <PortfolioNews holdings={dashboardCalculation.holdings} />}
+          <PortfolioNews
+            holdings={holdings}
+            hidden={!newsOpen}
+            onClose={() => {
+              setNewsOpen(false);
+              newsButtonRef.current?.focus();
+            }}
+          />
         </div>
       ) : null}
 
@@ -1278,7 +1372,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 ? 'portfolio-holding-detail'
                 : editor
                   ? 'portfolio-holding-sheet'
-                  : ''
+                  : transactionEditor
+                    ? 'portfolio-transaction-sheet'
+                    : ''
           }
         >
           {selectedStock && (
@@ -1293,7 +1389,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   (item) => item.assetId === selectedStock.assetId,
                 )}
                 revision={revision}
-                isLoggedIn={isLoggedIn}
+                localHistories={isLoggedIn ? undefined : guestHistories}
                 amountsHidden={amountsHidden}
                 busy={holdingsSaving || loading}
                 onClose={() => setSelectedStock(null)}
@@ -1322,11 +1418,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   : undefined
               }
               onClose={() => setTransactionEditor(null)}
-              onSave={async (request) => {
+              onSave={async (request, stock) => {
                 const transaction = transactionEditor.transaction;
                 const properties = {
                   operation: transaction ? 'transaction_update' : 'transaction_create',
-                  storage: 'server',
+                  storage: isLoggedIn ? 'server' : 'temporary',
                   transaction_type: request.type,
                 } as const;
                 trackPortfolioEvent('portfolio_save_submitted', properties);
@@ -1334,7 +1430,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   if (transaction) {
                     const { assetId: _assetId, type: _type, ...update } = request;
                     await updateTransaction(transaction.historyId, transaction.assetId, update);
-                  } else await createTransaction(request);
+                  } else await createTransaction(request, stock);
                   trackPortfolioEvent('portfolio_save_succeeded', properties);
                   setTransactionEditor(null);
                   setNotice(

@@ -15,6 +15,7 @@ const LABELS: Record<PortfolioHoldingChangeType, string> = {
 };
 export function PortfolioHistory({
   revision,
+  localHistories,
   assetId,
   amountsHidden,
   onEdit,
@@ -22,6 +23,7 @@ export function PortfolioHistory({
   onCreate,
 }: {
   revision: number;
+  localHistories?: PortfolioHoldingHistory[];
   assetId?: number;
   amountsHidden: boolean;
   onEdit: (history: PortfolioHoldingHistory) => void;
@@ -38,6 +40,16 @@ export function PortfolioHistory({
   const [retry, setRetry] = useState(0);
   const validPeriod = !!from && !!to && from <= to;
   useEffect(() => {
+    if (localHistories !== undefined) {
+      setHistories(
+        [...localHistories].sort(
+          (a, b) => b.effectiveDate.localeCompare(a.effectiveDate) || b.historyId - a.historyId,
+        ),
+      );
+      setLoading(false);
+      setError('');
+      return;
+    }
     if (!validPeriod) return;
     const controller = new AbortController();
     setLoading(true);
@@ -59,9 +71,11 @@ export function PortfolioHistory({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [from, to, revision, retry, validPeriod]);
+  }, [from, to, revision, retry, validPeriod, localHistories]);
   const visible = histories.filter(
     (item) =>
+      item.effectiveDate >= from &&
+      item.effectiveDate <= to &&
       (assetId === undefined || item.assetId === assetId) &&
       (filter === 'ALL' ||
         (filter === 'BALANCE'
@@ -74,7 +88,6 @@ export function PortfolioHistory({
       : value === null
         ? '—'
         : `${value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`;
-
   function changeRange(nextFrom: string, nextTo: string) {
     if (nextFrom === from && nextTo === to) return;
     if (nextFrom && nextTo && nextFrom <= nextTo) {
@@ -86,46 +99,61 @@ export function PortfolioHistory({
     setFrom(nextFrom);
     setTo(nextTo);
   }
-  return (
-    <section className="portfolio-history" aria-label="거래·변경 내역">
-      <div className="portfolio-history-toolbar">
-        <div className="portfolio-history-dates">
-          <label>
-            시작일
-            <input
-              type="date"
-              value={from}
-              onChange={(event) => changeRange(event.target.value, to)}
-            />
-          </label>
-          <span aria-hidden="true">—</span>
-          <label>
-            종료일
-            <input
-              type="date"
-              value={to}
-              onChange={(event) => changeRange(from, event.target.value)}
-            />
-          </label>
-        </div>
-        <label className="portfolio-history-filter">
-          내역 유형
-          <select
-            value={filter}
-            onChange={(event) => {
-              const next = event.target.value as 'ALL' | 'BUY' | 'SELL' | 'BALANCE';
-              if (next === filter) return;
-              trackPortfolioEvent('portfolio_history_filter_changed', { filter: next });
-              setFilter(next);
-            }}
-          >
-            <option value="ALL">전체 내역</option>
-            <option value="BUY">매수</option>
-            <option value="SELL">매도</option>
-            <option value="BALANCE">보유정보 변경</option>
-          </select>
+  const filters = (
+    <div className="portfolio-history-toolbar">
+      <div className="portfolio-history-dates">
+        <label>
+          시작일
+          <input
+            type="date"
+            value={from}
+            onChange={(event) => changeRange(event.target.value, to)}
+          />
+        </label>
+        <span aria-hidden="true">—</span>
+        <label>
+          종료일
+          <input
+            type="date"
+            value={to}
+            onChange={(event) => changeRange(from, event.target.value)}
+          />
         </label>
       </div>
+      <label className="portfolio-history-filter">
+        내역 유형
+        <select
+          value={filter}
+          onChange={(event) => {
+            const next = event.target.value as 'ALL' | 'BUY' | 'SELL' | 'BALANCE';
+            if (next === filter) return;
+            trackPortfolioEvent('portfolio_history_filter_changed', { filter: next });
+            setFilter(next);
+          }}
+        >
+          <option value="ALL">전체 내역</option>
+          <option value="BUY">매수</option>
+          <option value="SELL">매도</option>
+          <option value="BALANCE">보유정보 변경</option>
+        </select>
+      </label>
+    </div>
+  );
+  return (
+    <section className="portfolio-history" aria-label="거래·변경 내역">
+      {assetId === undefined ? (
+        filters
+      ) : (
+        <details className="portfolio-history-filters">
+          <summary>
+            조회 조건
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </summary>
+          {filters}
+        </details>
+      )}
       {!validPeriod ? (
         <p role="alert" className="portfolio-form-error">
           시작일과 종료일을 확인해 주세요. 시작일은 종료일보다 늦을 수 없어요.
@@ -148,10 +176,7 @@ export function PortfolioHistory({
           </button>
         </div>
       ) : !visible.length ? (
-        <div className="portfolio-ledger-empty">
-          <span className="portfolio-empty-mark" aria-hidden="true">
-            ↔
-          </span>
+        <div className="portfolio-ledger-empty portfolio-history-empty">
           <h3>이 기간에 표시할 내역이 없어요</h3>
           <p>조회 기간을 바꾸거나 매수·매도 거래를 기록해 보세요.</p>
           <button className="portfolio-secondary-button" onClick={onCreate}>
@@ -170,7 +195,14 @@ export function PortfolioHistory({
               <details className="portfolio-history-row" key={item.historyId}>
                 <summary>
                   <time dateTime={item.effectiveDate}>
-                    {item.effectiveDate.replaceAll('-', '.')}
+                    <span>{item.effectiveDate.replaceAll('-', '.')}</span>
+                    {assetId !== undefined && (
+                      <small>
+                        {transaction
+                          ? `${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`
+                          : '보유정보 변경'}
+                      </small>
+                    )}
                   </time>
                   <span className={`portfolio-history-type type-${item.changeType.toLowerCase()}`}>
                     {LABELS[item.changeType]}
