@@ -15,9 +15,10 @@ function SearchIcon() {
 export function Header() {
   const location = useLocation();
   const isNewsPage =
-    location.pathname.startsWith('/news') || location.pathname.startsWith('/search');
+    location.pathname.startsWith('/news') ||
+    location.pathname.startsWith('/search') ||
+    location.pathname.startsWith('/people');
   const isPortfolioPage = location.pathname === '/' || location.pathname.startsWith('/portfolio');
-  const isPeoplePage = location.pathname.startsWith('/people');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -28,15 +29,25 @@ export function Header() {
         target instanceof HTMLElement &&
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
-      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || isEditing) return;
+      if (
+        event.key !== '/' ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.repeat ||
+        searchOpen ||
+        isEditing
+      )
+        return;
 
       event.preventDefault();
+      trackEvent('click_search_open', { trigger: 'keyboard' });
       setSearchOpen(true);
     }
 
     document.addEventListener('keydown', openSearch);
     return () => document.removeEventListener('keydown', openSearch);
-  }, []);
+  }, [searchOpen]);
 
   function closeSearch(restoreFocus: boolean) {
     setSearchOpen(false);
@@ -52,11 +63,12 @@ export function Header() {
         <Link className={isPortfolioPage ? 'header-tab active' : 'header-tab'} to="/">
           포트폴리오
         </Link>
-        <Link className={isNewsPage ? 'header-tab active' : 'header-tab'} to="/news">
-          이슈
-        </Link>
-        <Link className={isPeoplePage ? 'header-tab active' : 'header-tab'} to="/people">
-          인물
+        <Link
+          className={isNewsPage ? 'header-tab active' : 'header-tab'}
+          to="/news"
+          onClick={() => trackEvent('click_news_navigation', { surface: 'header' })}
+        >
+          소식
         </Link>
       </nav>
       <div className="header-actions">
@@ -68,7 +80,7 @@ export function Header() {
           aria-haspopup="dialog"
           aria-expanded={searchOpen}
           onClick={() => {
-            trackEvent('click_search_open');
+            trackEvent('click_search_open', { trigger: 'button' });
             setSearchOpen(true);
           }}
         >

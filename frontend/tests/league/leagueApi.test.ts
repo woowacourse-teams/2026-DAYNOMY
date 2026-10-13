@@ -45,7 +45,7 @@ test('리그 순위 응답을 런타임에 검증한다', async () => {
   globalThis.fetch = async () =>
     jsonResponse({
       weekStart: '2026-09-28',
-      weekEnd: '2026-10-02',
+      weekEnd: '2026-10-04',
       leagueType: 'WEEKLY_RETURN',
       confirmed: true,
       totalCount: 1,
@@ -195,17 +195,16 @@ test('투자 판단 저장 요청에 CSRF 토큰과 멱등 키를 전송한다',
   assert.equal(JSON.parse(String(calls[1]?.init?.body)).quantity, undefined);
 });
 
-test('주중 참여는 기준 종가부터 0%로 추적하고 공식 주간 순위와 구분한다', async () => {
+test('주중 참여는 기준 종가부터 0%로 이번 주 누적 순위에 반영한다', async () => {
   globalThis.fetch = async () =>
     jsonResponse({
       weekStart: '2026-09-21',
       weekEnd: '2026-09-27',
       asOfDate: '2026-09-23',
-      eligibleFrom: '2026-09-28',
+      eligibleFrom: '2026-09-22',
       trackingStartedOn: '2026-09-22',
       confirmed: false,
-      weeklyReturnRate: null,
-      participationReturnRate: 10,
+      weeklyReturnRate: 10,
       days: [
         {
           baseDate: '2026-09-21',
@@ -232,6 +231,5 @@ test('주중 참여는 기준 종가부터 0%로 추적하고 공식 주간 순�
     });
   const response = await getDailyHistory('investor-1', '2026-09-23');
   assert.equal(response.weekStart, '2026-09-21');
-  assert.equal(response.weeklyReturnRate, null);
-  assert.equal(response.participationReturnRate, 10);
+  assert.equal(response.weeklyReturnRate, 10);
 });

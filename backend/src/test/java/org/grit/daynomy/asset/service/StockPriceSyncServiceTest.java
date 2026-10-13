@@ -103,7 +103,7 @@ class StockPriceSyncServiceTest {
     var order = inOrder(persistenceService, eventPublisher);
     order.verify(persistenceService).synchronize(eq(previousBaseDate), anyList());
     order.verify(persistenceService).synchronize(eq(baseDate), anyList());
-    order.verify(eventPublisher).publishEvent(result);
+    order.verify(eventPublisher).publishEvent(result.withEarliestBaseDate(previousBaseDate));
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<StockPriceEntry>> entriesCaptor = ArgumentCaptor.forClass(List.class);
     then(persistenceService)
@@ -263,23 +263,24 @@ class StockPriceSyncServiceTest {
     LocalDate from = LocalDate.of(2026, 9, 18);
     LocalDate to = LocalDate.of(2026, 9, 20);
     stubCompleteSnapshot(from);
-    stubEmptyDay(from.plusDays(1));
+    stubCompleteSnapshot(from.plusDays(1));
     stubEmptyDay(to);
     stubPersistenceResult();
 
     StockPriceBackfillResult result = syncService.backfill(from, to);
 
-    assertThat(result.synchronizedDateCount()).isEqualTo(1);
-    assertThat(result.createdCount()).isEqualTo(2);
+    assertThat(result.synchronizedDateCount()).isEqualTo(2);
+    assertThat(result.createdCount()).isEqualTo(4);
     then(persistenceService)
         .should()
         .synchronize(org.mockito.ArgumentMatchers.eq(from), org.mockito.ArgumentMatchers.anyList());
     then(syncMetrics).should().recordSuccess(org.mockito.ArgumentMatchers.any());
     var order = inOrder(persistenceService, eventPublisher);
     order.verify(persistenceService).synchronize(eq(from), anyList());
+    order.verify(persistenceService).synchronize(eq(from.plusDays(1)), anyList());
     order
         .verify(eventPublisher)
-        .publishEvent(org.mockito.ArgumentMatchers.any(StockPriceSyncResult.class));
+        .publishEvent(new StockPriceSyncResult(from.plusDays(1), 2, 2, 0, 0, from));
   }
 
   private void stubEmptyDay(LocalDate date) {

@@ -13,7 +13,12 @@ public record PortfolioAssetRequest(
     @NotNull(message = "보유 비중은 필수입니다.")
         @DecimalMin(value = "0", inclusive = false, message = "보유 비중은 0보다 커야 합니다.")
         @DecimalMax(value = "100", message = "보유 비중은 100 이하여야 합니다.")
-        BigDecimal weight) {
+        BigDecimal weight,
+    @jakarta.validation.constraints.Positive(message = "수량은 0보다 커야 합니다.") Long quantity) {
+
+  public PortfolioAssetRequest(String assetName, BigDecimal weight) {
+    this(assetName, weight, null);
+  }
 
   public PortfolioAssetRequest {
     assetName = assetName == null ? null : assetName.strip();

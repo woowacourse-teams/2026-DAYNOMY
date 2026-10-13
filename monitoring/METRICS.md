@@ -99,20 +99,25 @@ monitoring EC2 자체 장애 감시는 현재 범위에서 제외한다.
 
 ## 투자 리그 집계
 
+v1.1.1 프론트엔드의 투자 리그 ‘준비 중’ 화면은 백엔드의 종가 수집·리그 집계와
+메트릭 수집을 중지하지 않는다. 아래 지표와 경보는 서버의 집계 활성화 설정을 따른다.
+
 `league.calculation.enabled=true`에서 종가 수집 이벤트와 예약 집계가 지표를 갱신한다.
 Actuator에서는 아래 Prometheus 이름으로 조회한다. 라벨은 고정된 `outcome`·`reason`과 기존 환경·서비스·인스턴스만 사용하며 투자자 ID·닉네임·종목·금액은 포함하지 않는다.
 
-| 지표 | 의미 |
-|---|---|
-| `daynomy_league_calculation_latest_profiles{outcome="target\|succeeded\|failed"}` | 최근 재집계 대상 수와 참가자별 트랜잭션 성공·실패 수 |
-| `daynomy_league_calculation_latest_days{reason="..."}` | 성공한 참가자의 최근 재집계 일수. `CALCULATED`, `NO_HOLDINGS`, `UNSUPPORTED_ASSET`, `MISSING_PRICE`, `PRICE_COLLECTION_PENDING`별 구분 |
-| `daynomy_league_calculation_latest_run_failed` | 최근 자동 집계·확정 실행 실패는 1, 완료는 0 |
-| `daynomy_league_calculation_last_completed_epoch_seconds` | 최근 자동 집계·확정 실행 완료 시각. 참가자 개별 실패 여부는 별도 지표로 확인 |
-| `daynomy_league_calculation_profile_failures_total` / `daynomy_league_calculation_run_failures_total` | 참가자·자동 실행의 누적 실패 횟수 |
-| `daynomy_league_calculation_duration_seconds_count` / `_sum` / `_max` | 자동 집계·확정 실행 횟수와 소요 시간 |
-| `daynomy_league_calendar_missing_days` | 공식 참여자가 있는 주차의 미등록 달력 날짜 수 |
-| `daynomy_league_finalization_pending_weeks` | 마지막 실제 거래일 장 마감 후 수집·계산을 기다리는 주차 수 |
-| `daynomy_league_finalization_delay_seconds` | 가장 오래된 미확정 주의 마지막 장 마감부터 경과한 초. 미확정 주가 없으면 0 |
+| 지표                                                                                                  | 의미                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `daynomy_league_calculation_latest_profiles{outcome="target\|succeeded\|failed"}`                     | 최근 재집계 대상 수와 참가자별 트랜잭션 성공·실패 수                                                                                   |
+| `daynomy_league_calculation_latest_days{reason="..."}`                                                | 성공한 참가자의 최근 재집계 일수. `CALCULATED`, `NO_HOLDINGS`, `UNSUPPORTED_ASSET`, `MISSING_PRICE`, `PRICE_COLLECTION_PENDING`별 구분 |
+| `daynomy_league_calculation_latest_run_failed`                                                        | 최근 자동 집계·확정 실행 실패는 1, 완료는 0                                                                                            |
+| `daynomy_league_calculation_last_completed_epoch_seconds`                                             | 최근 자동 집계·확정 실행 완료 시각. 참가자 개별 실패 여부는 별도 지표로 확인                                                           |
+| `daynomy_league_calculation_profile_failures_total` / `daynomy_league_calculation_run_failures_total` | 참가자·자동 실행의 누적 실패 횟수                                                                                                      |
+| `daynomy_league_calculation_duration_seconds_count` / `_sum` / `_max`                                 | 자동 집계·확정 실행 횟수와 소요 시간                                                                                                   |
+| `daynomy_league_finalization_duration_seconds{mode="full\|incremental"}`                              | 전체 또는 변경 주차부터의 주간 확정 소요 시간                                                                                          |
+| `daynomy_league_finalization_latest_weeks_scanned`                                                    | 최근 주간 확정에서 확인한 주차 수                                                                                                      |
+| `daynomy_league_calendar_missing_days`                                                                | 공식 참여자가 있는 주차의 미등록 달력 날짜 수                                                                                          |
+| `daynomy_league_finalization_pending_weeks`                                                           | 마지막 실제 거래일 장 마감 후 수집·계산을 기다리는 주차 수                                                                             |
+| `daynomy_league_finalization_delay_seconds`                                                           | 가장 오래된 미확정 주의 마지막 장 마감부터 경과한 초. 미확정 주가 없으면 0                                                             |
 
 일수는 같은 결과를 재검증한 날도 포함하는 최근 실행의 처리량이며 새 DB 행 수가 아니다. 참가자 트랜잭션이 롤백된 일수는 제외한다. 지표는 프로세스 재시작 때 초기화되며 다음 자동 실행에서 다시 채워진다. 수집이 끝난 과거 주차의 동일 입력 재시도는 확정 버전을 늘리지 않는다.
 

@@ -9,6 +9,7 @@ export const GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY =
 type StoredPortfolioAnalysis = {
   date: string;
   portfolioSnapshotKey: string;
+  holdingsKey?: string;
   analysis: PortfolioAnalysisResponse;
 };
 
@@ -57,7 +58,9 @@ export function markGuestPortfolioAnalysisTrialUsed() {
 export function loadPortfolioAnalysis(
   now = new Date(),
   isLoggedIn = true,
+  holdingsKey?: string,
 ): PortfolioAnalysisResponse | null {
+  if (isLoggedIn) return null;
   try {
     const saved = getAnalysisStorage(isLoggedIn).getItem(getAnalysisStorageKey(isLoggedIn));
     if (!saved) return null;
@@ -66,6 +69,7 @@ export function loadPortfolioAnalysis(
     if (!isStoredPortfolioAnalysis(parsed)) return null;
     if (parsed.date !== formatLocalDate(now)) return null;
 
+    if (holdingsKey !== undefined && parsed.holdingsKey !== holdingsKey) return null;
     return parsed.analysis;
   } catch {
     return null;
@@ -77,10 +81,13 @@ export function savePortfolioAnalysis(
   analysis: PortfolioAnalysisResponse,
   now = new Date(),
   isLoggedIn = true,
+  holdingsKey?: string,
 ) {
+  if (isLoggedIn) return;
   const stored: StoredPortfolioAnalysis = {
     date: formatLocalDate(now),
     portfolioSnapshotKey: createPortfolioSnapshotKey(assets),
+    holdingsKey,
     analysis,
   };
 

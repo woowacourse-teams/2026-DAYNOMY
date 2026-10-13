@@ -1,5 +1,7 @@
+import { getPublishedDate } from './publishedDate';
 import { request, requestWithCsrf } from '../../api/client';
 import type {
+  StockRelatedContent,
   StockRelatedContentRequest,
   StockRelatedContentSource,
   StockRelatedContentsResponse,
@@ -34,7 +36,7 @@ function isSafeContentUrl(value: unknown): value is string {
   }
 }
 
-function isRelatedContent(value: unknown) {
+export function isRelatedContent(value: unknown): value is StockRelatedContent {
   return (
     isRecord(value) &&
     typeof value.id === 'number' &&
@@ -43,7 +45,10 @@ function isRelatedContent(value: unknown) {
     typeof value.title === 'string' &&
     isSafeContentUrl(value.url) &&
     (value.imageUrl === null || typeof value.imageUrl === 'string') &&
-    (value.createdAt === null || typeof value.createdAt === 'string')
+    (value.createdAt === null || typeof value.createdAt === 'string') &&
+    (value.publishedDate == null ||
+      (typeof value.publishedDate === 'string' &&
+        getPublishedDate(value.publishedDate) === value.publishedDate))
   );
 }
 

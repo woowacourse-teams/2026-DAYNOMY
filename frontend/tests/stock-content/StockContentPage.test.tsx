@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -81,6 +83,7 @@ beforeEach(() => {
             id: 10,
             assetId: 1,
             sourceType: 'YOUTUBE',
+            publishedDate: '2020-04-05',
             title: '삼성전자 분석 영상',
             url: 'https://youtube.com/watch?v=abc',
             imageUrl: null,
@@ -130,6 +133,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.mocked(trackEvent).mockClear();
   document.getElementById('daynomy-threads-embed-script')?.remove();
   document.getElementById('daynomy-x-embed-script')?.remove();
   delete (window as typeof window & { twttr?: unknown }).twttr;
@@ -137,6 +141,13 @@ afterEach(() => {
 });
 
 describe('종목 관련 자료 화면의 YouTube 임베드', () => {
+  it('제목과 별도로 확인된 원문 게시일만 표시한다', async () => {
+    const view = renderPage();
+    const date = await view.findByText('게시일 2020.04.05');
+    expect(date.getAttribute('datetime')).toBe('2020-04-05');
+    expect(view.getByText('삼성전자 분석 영상')).toBeTruthy();
+    expect(view.container.querySelectorAll('time')).toHaveLength(1);
+  });
   it('보유 종목을 사이드바에 표시하고 다른 종목 소식으로 이동한다', async () => {
     const view = renderPage();
 
@@ -162,6 +173,12 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
     expect(view.getByRole('button', { name: 'X 1개' })).toBeTruthy();
 
     fireEvent.click(view.getByRole('button', { name: 'X 1개' }));
+    expect(trackEvent).toHaveBeenCalledWith('filter_content_source', {
+      surface: 'stock_contents',
+      previous_source: 'ALL',
+      source_type: 'X',
+      result_count: 1,
+    });
 
     expect(view.getByText('삼성전자 X 게시물')).toBeTruthy();
     expect(view.queryByText('삼성전자 관련 DAYNOMY 이슈')).toBeNull();
@@ -184,6 +201,11 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
 
     const trigger = await view.findByRole('button', { name: '삼성전자 분석 영상 크게 재생' });
     fireEvent.click(trigger);
+    expect(trackEvent).toHaveBeenCalledWith(
+      'open_content_video',
+      expect.objectContaining({ surface: 'stock_contents', source_type: 'YOUTUBE' }),
+    );
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('삼성전자');
 
     expect(view.getByRole('dialog')).toBeTruthy();
     const closeButton = view.getByRole('button', { name: '영상 닫기' });

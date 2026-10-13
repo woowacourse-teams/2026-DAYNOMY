@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
 import java.util.List;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
@@ -54,7 +55,8 @@ class AssetContentControllerTest {
                         "삼성전자 분석",
                         "https://youtu.be/example",
                         "https://i.ytimg.com/example.jpg",
-                        null))));
+                        null,
+                        LocalDate.of(2020, 4, 5)))));
 
     mockMvc
         .perform(get("/api/assets/{assetId}/contents", 1L))
@@ -63,6 +65,7 @@ class AssetContentControllerTest {
         .andExpect(jsonPath("$.contents[0].assetId").value(1))
         .andExpect(jsonPath("$.contents[0].sourceType").value("YOUTUBE"))
         .andExpect(jsonPath("$.contents[0].title").value("삼성전자 분석"))
+        .andExpect(jsonPath("$.contents[0].publishedDate").value("2020-04-05"))
         .andExpect(jsonPath("$.contents[0].url").value("https://youtu.be/example"))
         .andExpect(jsonPath("$.contents[0].imageUrl").value("https://i.ytimg.com/example.jpg"));
 

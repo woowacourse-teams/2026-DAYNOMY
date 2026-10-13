@@ -134,13 +134,17 @@ export type PortfolioImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type PortfolioAnalysisSource = {
   title: string;
   url: string;
+  publishedOn?: string | null;
+  occurredOn?: string | null;
+  excerpt?: string;
+  factQuote?: string | null;
 };
 
 export type PortfolioAssetImpactResponse = {
   assetName: string;
   weight: number;
-  direction: PortfolioImpactDirection;
-  impactLevel: PortfolioImpactLevel;
+  direction: PortfolioImpactDirection | null;
+  impactLevel: PortfolioImpactLevel | null;
   issueSummary: string;
   expectedReaction: string;
   outlook: string;
@@ -151,14 +155,28 @@ export type PortfolioAssetImpactResponse = {
 };
 
 export type PortfolioAnalysisResponse = {
+  coverage?: 'COMPLETE' | 'PARTIAL' | 'INSUFFICIENT';
+  analyzedWeight?: number;
   totalAssetCount: number;
   analyzedAssetCount: number;
-  overallDirection: PortfolioImpactDirection;
-  overallScore: number;
+  overallDirection: PortfolioImpactDirection | null;
+  overallScore: number | null;
   positiveImpactScore: number;
   negativeImpactScore: number;
   analyzedAt: string | null;
   overallImpact: string;
   impacts: PortfolioAssetImpactResponse[];
   sources: PortfolioAnalysisSource[];
+};
+
+export type SavedPortfolioAnalysisResponse = {
+  status: 'EMPTY' | 'READY' | 'PORTFOLIO_CHANGED' | 'PROCESSING' | 'RECHECK_REQUIRED' | 'FAILED';
+  lastCheckOutcome: 'UPDATED' | 'UNCHANGED' | 'UNCONFIRMED' | null;
+  analysisId: number | null;
+  matchesCurrentPortfolio: boolean;
+  lastSucceededAt: string | null;
+  lastFailedAt: string | null;
+  failureCode: string | null;
+  changeReason: string | null;
+  analysis: PortfolioAnalysisResponse | null;
 };

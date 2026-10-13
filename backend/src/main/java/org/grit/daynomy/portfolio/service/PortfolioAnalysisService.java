@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 public class PortfolioAnalysisService {
 
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
+  private final org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
   private final GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
   public PortfolioAnalysisResponse analyze(
@@ -46,9 +47,67 @@ public class PortfolioAnalysisService {
   }
 
   private PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
+    var result =
+        response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
+    return result.withOverallImpact(narrative.summarize(result));
+  }
+
+  public PortfolioAnalysisResponse refresh(
+      PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous) {
+    validateDistinctAssets(request.assets());
+    validateTotalWeight(request.assets());
+    try {
+      // 날짜는 명시적인 ISO 문자열로 보내고 포트폴리오 소유자 정보는 보내지 않는다.
+      String context =
+          new com.fasterxml.jackson.databind.ObjectMapper()
+              .writeValueAsString(
+                  previous.impacts().stream()
+                      .map(
+                          impact ->
+                              Map.of(
+                                  "assetName", impact.assetName(),
+                                  "direction",
+                                      impact.direction() == null
+                                          ? "INSUFFICIENT"
+                                          : impact.direction().name(),
+                                  "issueSummary", impact.issueSummary(),
+                                  "sources",
+                                      impact.sources().stream()
+                                          .map(
+                                              source ->
+                                                  Map.of(
+                                                      "url",
+                                                      source.url(),
+                                                      "occurredOn",
+                                                      source.occurredOn() == null
+                                                          ? ""
+                                                          : source.occurredOn().toString(),
+                                                      "excerpt",
+                                                      source.excerpt(),
+                                                      "factQuote",
+                                                      source.factQuote() == null
+                                                          ? ""
+                                                          : source.factQuote()))
+                                          .toList()))
+                      .toList());
+      var candidate =
+          response(
+              request, portfolioAnalysisAiClient.refresh(createTargets(request.assets()), context));
+      var revision = PortfolioAnalysisRefresh.compare(previous, candidate);
+      if (revision.outcome()
+          != org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED) {
+        return candidate;
+      }
+      var merged = revision.analysis();
+      return merged.withOverallImpact(narrative.summarize(merged));
+    } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+      throw new IllegalStateException("이전 분석 근거를 변환하지 못했습니다.");
+    }
+  }
+
+  private PortfolioAnalysisResponse response(
+      PortfolioAnalysisRequest request, PortfolioAnalysisResult result) {
     Map<String, BigDecimal> weightByAssetName = createWeightByAssetName(request.assets());
-    List<PortfolioAnalysisTarget> targets = createTargets(request.assets());
-    PortfolioAnalysisResult result = portfolioAnalysisAiClient.analyze(targets);
 
     List<PortfolioAssetImpactResponse> impacts =
         result.impacts().stream()

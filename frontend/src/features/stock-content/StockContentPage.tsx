@@ -1,3 +1,5 @@
+import { trackEvent, type AnalyticsParams } from '../../analytics';
+import { trackLoadResult, useContentView } from '../news/issue/analytics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import defaultNewsImage from '../../assets/default-news-real-estate.webp';
@@ -115,7 +117,13 @@ function YouTubeThumbnail({ content }: { content: StockRelatedContent }) {
   );
 }
 
-function SocialPostEmbed({ content }: { content: StockRelatedContent }) {
+function SocialPostEmbed({
+  content,
+  analytics,
+}: {
+  content: StockRelatedContent;
+  analytics: AnalyticsParams;
+}) {
   const isThreads = content.sourceType === 'THREADS';
 
   return (
@@ -126,18 +134,29 @@ function SocialPostEmbed({ content }: { content: StockRelatedContent }) {
           data-text-post-permalink={content.url}
           data-text-post-version="0"
         >
-          <a href={content.url} target="_blank" rel="noreferrer">
+          <a
+            onClick={() => trackEvent('click_content_original', analytics)}
+            href={content.url}
+            target="_blank"
+            rel="noreferrer"
+          >
             {content.title}
           </a>
         </blockquote>
       ) : (
         <blockquote className="twitter-tweet" data-dnt="true">
-          <a href={content.url} target="_blank" rel="noreferrer">
+          <a
+            onClick={() => trackEvent('click_content_original', analytics)}
+            href={content.url}
+            target="_blank"
+            rel="noreferrer"
+          >
             {content.title}
           </a>
         </blockquote>
       )}
       <a
+        onClick={() => trackEvent('click_content_original', analytics)}
         className="stock-content-social-fallback"
         href={content.url}
         target="_blank"
@@ -178,6 +197,7 @@ export function StockContentPage() {
       return;
     }
 
+    const startedAt = performance.now();
     const controller = new AbortController();
     setLoading(true);
     setError('');
@@ -185,10 +205,21 @@ export function StockContentPage() {
     setActiveVideoId(null);
     getStockRelatedContents(assetId, controller.signal)
       .then((nextResponse) => {
-        if (!controller.signal.aborted) setResponse(nextResponse);
+        if (!controller.signal.aborted) {
+          setResponse(nextResponse);
+          trackLoadResult(
+            'stock_contents',
+            'all',
+            startedAt,
+            'success',
+            nextResponse.contents.length,
+            0,
+          );
+        }
       })
       .catch((caughtError) => {
         if (!controller.signal.aborted) {
+          trackLoadResult('stock_contents', 'all', startedAt, 'error', 0, 0);
           setResponse(null);
           setError(
             caughtError instanceof Error ? caughtError.message : '관련 자료를 불러오지 못했습니다.',
@@ -320,6 +351,18 @@ export function StockContentPage() {
     [activeVideoId, response],
   );
 
+  const settled = !loading && !error && response?.assetId === assetId;
+  useContentView(settled, 'view_stock_contents', {
+    surface: 'stock_contents',
+    source_type: selectedSource === 'INTERNAL_NEWS' ? 'DAYNOMY' : selectedSource,
+    result_count: visibleContents.length,
+  });
+  useContentView(settled && !visibleContents.length, 'view_content_empty', {
+    surface: 'stock_contents',
+    reason: selectedSource === 'ALL' ? 'no_linked_content' : 'filter_empty',
+    source_type: selectedSource === 'INTERNAL_NEWS' ? 'DAYNOMY' : selectedSource,
+  });
+
   return (
     <main className="stock-content-page">
       <div className="stock-content-container">
@@ -445,7 +488,17 @@ export function StockContentPage() {
                     type="button"
                     aria-label={`${filter.label} ${filter.count}개`}
                     aria-pressed={selectedSource === filter.value}
-                    onClick={() => setSelectedSource(filter.value)}
+                    onClick={() => {
+                      if (filter.value === selectedSource) return;
+                      trackEvent('filter_content_source', {
+                        surface: 'stock_contents',
+                        previous_source:
+                          selectedSource === 'INTERNAL_NEWS' ? 'DAYNOMY' : selectedSource,
+                        source_type: filter.value === 'INTERNAL_NEWS' ? 'DAYNOMY' : filter.value,
+                        result_count: filter.count,
+                      });
+                      setSelectedSource(filter.value);
+                    }}
                     key={filter.value}
                   >
                     <span>{filter.label}</span>
@@ -466,7 +519,15 @@ export function StockContentPage() {
                 </section>
               ) : (
                 <ul className="stock-content-feed" aria-label={`${selectedSourceLabel} 소식 목록`}>
-                  {visibleContents.map((content) => {
+                  {visibleContents.map((content, index) => {
+                    const analytics = {
+                      surface: 'stock_contents',
+                      content_id: `content-${content.id}`,
+                      content_type: content.sourceType === 'INTERNAL_NEWS' ? 'news' : 'external',
+                      source_type:
+                        content.sourceType === 'INTERNAL_NEWS' ? 'DAYNOMY' : content.sourceType,
+                      position: index + 1,
+                    };
                     const isVideo = content.sourceType === 'YOUTUBE';
                     const isNews = content.sourceType === 'INTERNAL_NEWS';
                     const isSocial = content.sourceType === 'THREADS' || content.sourceType === 'X';
@@ -481,6 +542,7 @@ export function StockContentPage() {
                                 type="button"
                                 aria-label={`${content.title} 크게 재생`}
                                 onClick={(event) => {
+                                  trackEvent('open_content_video', analytics);
                                   activeVideoTriggerRef.current = event.currentTarget;
                                   setActiveVideoId(content.id);
                                 }}
@@ -493,7 +555,12 @@ export function StockContentPage() {
                             </div>
                             <div className="stock-content-video-caption">
                               <strong>{content.title}</strong>
-                              <a href={content.url} target="_blank" rel="noreferrer">
+                              <a
+                                onClick={() => trackEvent('click_content_original', analytics)}
+                                href={content.url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
                                 <span>YouTube에서 보기</span>
                                 <ArrowUpRightIcon />
                               </a>
@@ -501,6 +568,7 @@ export function StockContentPage() {
                           </article>
                         ) : isNews ? (
                           <a
+                            onClick={() => trackEvent('click_content', analytics)}
                             className="stock-content-news-card"
                             href={content.url}
                             target="_blank"
@@ -514,9 +582,10 @@ export function StockContentPage() {
                             <ArrowUpRightIcon />
                           </a>
                         ) : isSocial ? (
-                          <SocialPostEmbed content={content} />
+                          <SocialPostEmbed content={content} analytics={analytics} />
                         ) : (
                           <a
+                            onClick={() => trackEvent('click_content_original', analytics)}
                             className="stock-content-link-card"
                             href={content.url}
                             target="_blank"
@@ -532,6 +601,14 @@ export function StockContentPage() {
                             <ArrowUpRightIcon />
                           </a>
                         )}
+                        {content.publishedDate ? (
+                          <time
+                            className="stock-content-published-date"
+                            dateTime={content.publishedDate}
+                          >
+                            게시일 {content.publishedDate.replaceAll('-', '.')}
+                          </time>
+                        ) : null}
                       </li>
                     );
                   })}

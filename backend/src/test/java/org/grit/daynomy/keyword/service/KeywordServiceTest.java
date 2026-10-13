@@ -15,7 +15,6 @@ import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
-import org.grit.daynomy.keyword.exception.KeywordErrorCode;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -126,16 +125,13 @@ class KeywordServiceTest {
   }
 
   @Test
-  @DisplayName("키워드가 없으면 도메인 예외를 던진다")
-  void findKeywordsThrowsWhenKeywordsMissing() {
+  @DisplayName("설명이 필요한 키워드가 없는 발행 뉴스는 빈 목록을 반환한다")
+  void findKeywordsReturnsEmptyWhenNoConceptNeedsExplanation() {
     given(newsRepository.findByIdAndStatus(1L, NewsStatus.PUBLISHED))
         .willReturn(Optional.of(createNews()));
     given(newsKeywordRepository.findByNewsIdOrderByIdAsc(1L)).willReturn(List.of());
 
-    assertThatThrownBy(() -> keywordService.getKeywords(1L))
-        .isInstanceOf(BusinessException.class)
-        .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(KeywordErrorCode.KEYWORD_NOT_FOUND);
+    assertThat(keywordService.getKeywords(1L).keywords()).isEmpty();
   }
 
   private NewsKeyword createKeyword(String keyword) {

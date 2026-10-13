@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -62,18 +63,27 @@ public class PortfolioDailySnapshot extends BaseEntity {
     this.baseDate = baseDate;
   }
 
-  public void update(
+  public boolean update(
       BigDecimal totalPurchaseAmount,
       BigDecimal totalEvaluationAmount,
       BigDecimal totalProfitLoss,
       BigDecimal totalReturnRate,
       BigDecimal dailyProfitLoss,
       BigDecimal dailyReturnRate) {
+    if (Objects.equals(this.totalPurchaseAmount, totalPurchaseAmount)
+        && Objects.equals(this.totalEvaluationAmount, totalEvaluationAmount)
+        && Objects.equals(this.totalProfitLoss, totalProfitLoss)
+        && Objects.equals(this.totalReturnRate, totalReturnRate)
+        && Objects.equals(this.dailyProfitLoss, dailyProfitLoss)
+        && Objects.equals(this.dailyReturnRate, dailyReturnRate)) {
+      return false;
+    }
     this.totalPurchaseAmount = totalPurchaseAmount;
     this.totalEvaluationAmount = totalEvaluationAmount;
     this.totalProfitLoss = totalProfitLoss;
     this.totalReturnRate = totalReturnRate;
     this.dailyProfitLoss = dailyProfitLoss;
     this.dailyReturnRate = dailyReturnRate;
+    return true;
   }
 }

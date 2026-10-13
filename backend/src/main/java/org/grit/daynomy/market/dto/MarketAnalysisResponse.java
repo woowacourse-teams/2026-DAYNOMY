@@ -4,24 +4,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 
 public record MarketAnalysisResponse(
-    @Schema(description = "기존 클라이언트 호환을 위한 시장 분석 요약") String summary,
-    @Schema(description = "뉴스 본문에서 직접 확인되는 사실") String observedFact,
-    @Schema(description = "확인된 사실을 바탕으로 한 제한적인 시장 해석") String interpretation,
-    @Schema(description = "해석이 달라질 수 있는 위험 요인") String risk,
-    @Schema(description = "이후 확인해야 할 지표나 사건") String watchPoint,
-    @Schema(description = "분석에 포함되지 않은 정보와 해석 범위") String limitation) {
+    @Schema(description = "기사에 근거한 위험과 불확실성") String risk,
+    @Schema(description = "확인해야 할 지표나 후속 조치와 그 이유") String watchPoint) {
 
   public static MarketAnalysisResponse from(NewsMarketAnalysis marketAnalysis) {
-    return new MarketAnalysisResponse(
-        marketAnalysis.getSummary(),
-        valueOrEmpty(marketAnalysis.getObservedFact()),
-        valueOrEmpty(marketAnalysis.getInterpretation()),
-        valueOrEmpty(marketAnalysis.getRisk()),
-        valueOrEmpty(marketAnalysis.getWatchPoint()),
-        valueOrEmpty(marketAnalysis.getLimitation()));
-  }
-
-  private static String valueOrEmpty(String value) {
-    return value == null ? "" : value;
+    return new MarketAnalysisResponse(marketAnalysis.getRisk(), marketAnalysis.getWatchPoint());
   }
 }

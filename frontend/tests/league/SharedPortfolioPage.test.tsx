@@ -13,6 +13,7 @@ vi.mock('../../src/features/league/sharedPortfolioApi', async (importOriginal) =
   getSharedPortfolio: vi.fn(),
   importSharedHoldings: vi.fn(),
   changeSharedHoldingVisibility: vi.fn(),
+  removeSharedHolding: vi.fn(),
 }));
 vi.mock('../../src/features/league/api', async (importOriginal) => ({
   ...(await importOriginal<typeof leagueApi>()),
@@ -85,7 +86,7 @@ function renderPage() {
 }
 
 async function importButton(view: ReturnType<typeof render>) {
-  const button = await view.findByRole('button', { name: '내 포트폴리오에서 가져오기' });
+  const button = await view.findByRole('button', { name: '종목 추가' });
   await waitFor(() => expect(button).toHaveProperty('disabled', false));
   return button;
 }
@@ -96,12 +97,12 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     const original = localStorage.getItem(storageKey);
     const view = renderPage();
     fireEvent.click(await importButton(view));
-    expect(await view.findByText('원본: 2주 · 평균 70,000원')).toBeTruthy();
-    expect(view.getByRole('button', { name: '1종목 가져오기' })).toHaveProperty('disabled', true);
+    expect(await view.findByText('2주 · 평균 70,000원')).toBeTruthy();
+    expect(view.getByRole('button', { name: '1개 종목 추가' })).toHaveProperty('disabled', true);
     fireEvent.change(view.getByLabelText('삼성전자 보유 이유'), {
       target: { value: '장기 성장 기대' },
     });
-    fireEvent.click(view.getByRole('button', { name: '1종목 가져오기' }));
+    fireEvent.click(view.getByRole('button', { name: '1개 종목 추가' }));
     await waitFor(() =>
       expect(api.importSharedHoldings).toHaveBeenCalledWith(
         [expect.objectContaining({ assetId: 1, quantity: 2 })],
@@ -117,10 +118,10 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
         },
       ),
     );
-    expect(await view.findByRole('heading', { name: '리그 종목 1개' })).toBeTruthy();
+    expect(await view.findByRole('heading', { name: '등록한 종목 1개' })).toBeTruthy();
     expect(localStorage.getItem(storageKey)).toBe(original);
-    expect(view.getByRole('link', { name: '리그 설정' }).getAttribute('href')).toBe(
-      '/portfolio/publication',
+    expect(view.getByRole('link', { name: '투자 기록·복기' }).getAttribute('href')).toBe(
+      '/league/reviews',
     );
     expect(view.queryByRole('region', { name: '공유 방법과 리그 참여' })).toBeNull();
     expect(view.queryByRole('link', { name: '공개 설정 확인 →' })).toBeNull();
@@ -139,7 +140,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     expect(view.queryByText('원본에 등록된 자산이 없어요.')).toBeNull();
     expect(api.importSharedHoldings).not.toHaveBeenCalled();
     fireEvent.click(await importButton(view));
-    expect(await view.findByText('원본: 2주 · 평균 70,000원')).toBeTruthy();
+    expect(await view.findByText('2주 · 평균 70,000원')).toBeTruthy();
   });
 
   it('숨김 저장 실패 시 기존 표시 상태를 유지하고 재시도한다', async () => {
@@ -152,7 +153,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     fireEvent.click(choice);
     expect(await view.findByRole('alert')).toHaveProperty('textContent', '저장 실패');
     expect(choice).toHaveProperty('checked', true);
-    expect(view.getByText('2주')).toBeTruthy();
+    expect(view.getByText('2주 · 평균 매수가 70,000원')).toBeTruthy();
     fireEvent.click(choice);
     await waitFor(() => expect(choice).toHaveProperty('checked', false));
     expect(api.changeSharedHoldingVisibility).toHaveBeenLastCalledWith(1, true);
@@ -182,12 +183,12 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     vi.mocked(api.importSharedHoldings).mockResolvedValue(portfolio);
     const view = renderPage();
     fireEvent.click(await importButton(view));
-    await view.findByRole('heading', { name: '가져올 자산 선택' });
+    await view.findByRole('heading', { name: '종목 추가' });
     fireEvent.click(view.getByRole('checkbox', { name: /삼성전자/ }));
-    expect(view.getByText('공유용: 3주 · 평균 70,000원')).toBeTruthy();
-    expect(view.getByRole('button', { name: '1종목 가져오기' })).toHaveProperty('disabled', true);
-    fireEvent.click(view.getByRole('checkbox', { name: /기존 1종목/ }));
-    fireEvent.click(view.getByRole('button', { name: '1종목 가져오기' }));
+    expect(view.getByText('리그: 3주 · 평균 70,000원')).toBeTruthy();
+    expect(view.getByRole('button', { name: '1개 종목 추가' })).toHaveProperty('disabled', true);
+    fireEvent.click(view.getByRole('checkbox', { name: /등록된 1개 종목/ }));
+    fireEvent.click(view.getByRole('button', { name: '1개 종목 추가' }));
     await waitFor(() =>
       expect(api.importSharedHoldings).toHaveBeenCalledWith(
         [expect.objectContaining({ quantity: 2, averagePurchasePrice: 70000 })],
@@ -210,11 +211,14 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     fireEvent.click(choice);
     await waitFor(() => expect(choice).toHaveProperty('checked', true));
     expect(api.changeSharedHoldingVisibility).toHaveBeenLastCalledWith(1, false);
-    expect(view.getAllByText('+10.00%')).toHaveLength(2);
-    expect(view.getByText('기존 판단')).toBeTruthy();
+    expect(view.getByText('2주 · 평균 매수가 70,000원')).toBeTruthy();
+    expect(view.container.querySelector('.shared-reason-preview')).toHaveProperty(
+      'textContent',
+      '기존 판단',
+    );
     expect(view.queryByRole('button', { name: '수정' })).toBeNull();
     expect(view.queryByRole('button', { name: '공유용에서 삭제' })).toBeNull();
-    expect(view.getByRole('heading', { name: '리그 종목 1개' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '등록한 종목 1개' })).toBeTruthy();
     expect(localStorage.getItem(storageKey)).toBe(original);
   });
 
@@ -224,7 +228,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       .mockResolvedValueOnce(empty);
     const view = renderPage();
     expect(await view.findByRole('alert')).toHaveProperty('textContent', '연결 실패');
-    expect(view.queryByRole('button', { name: '내 포트폴리오에서 가져오기' })).toBeNull();
+    expect(view.queryByRole('button', { name: '종목 추가' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '다시 불러오기' }));
     expect(await importButton(view)).toBeTruthy();
   });
@@ -240,11 +244,11 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     );
     const view = renderPage();
     fireEvent.click(await importButton(view));
-    await view.findByRole('heading', { name: '가져올 자산 선택' });
+    await view.findByRole('heading', { name: '종목 추가' });
     fireEvent.click(view.getByRole('checkbox', { name: /삼성전자/ }));
-    fireEvent.click(view.getByRole('checkbox', { name: /기존 1종목/ }));
-    fireEvent.click(view.getByRole('button', { name: '1종목 가져오기' }));
-    expect(view.getByRole('button', { name: '가져오는 중…' })).toHaveProperty('disabled', true);
+    fireEvent.click(view.getByRole('checkbox', { name: /등록된 1개 종목/ }));
+    fireEvent.click(view.getByRole('button', { name: '1개 종목 추가' }));
+    expect(view.getByRole('button', { name: '추가 중…' })).toHaveProperty('disabled', true);
     expect(view.queryByRole('button', { name: '투자 기록' })).toBeNull();
     expect(view.getByRole('checkbox', { name: /삼성전자/ }).closest('fieldset')).toHaveProperty(
       'disabled',
@@ -279,12 +283,12 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       true,
     );
     expect(view.getByText('주식 · 005930 · 비공개')).toBeTruthy();
-    expect(view.getByRole('link', { name: '리그 설정' }).getAttribute('href')).toBe(
-      '/portfolio/publication',
+    expect(view.getByRole('link', { name: '투자 기록·복기' }).getAttribute('href')).toBe(
+      '/league/reviews',
     );
     fireEvent.click(await importButton(view));
-    await view.findByRole('heading', { name: '가져올 자산 선택' });
-    expect(view.queryByRole('heading', { name: '리그 종목 1개' })).toBeNull();
+    await view.findByRole('heading', { name: '종목 추가' });
+    expect(view.queryByRole('heading', { name: '등록한 종목 1개' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '취소' }));
     expect(view.getByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' })).toHaveProperty(
       'checked',
@@ -331,10 +335,10 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       });
       const view = renderPage();
       expect(await view.findByText(`주식 · 005930 · ${holdingStatus}`)).toBeTruthy();
-      expect(view.getByRole('link', { name: '리그 설정' })).toBeTruthy();
+      expect(view.getByRole('link', { name: '투자 기록·복기' })).toBeTruthy();
       fireEvent.click(await importButton(view));
-      await view.findByRole('heading', { name: '가져올 자산 선택' });
-      expect(Boolean(view.queryByText('가져온 종목과 보유 이유가 공개됩니다.'))).toBe(
+      await view.findByRole('heading', { name: '종목 추가' });
+      expect(Boolean(view.queryByText('추가한 종목과 보유 이유가 공개됩니다.'))).toBe(
         profilePublic && detailPublic,
       );
     },
@@ -349,12 +353,10 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       holdings: [{ ...holding, evaluationAmount: null, returnRate: null, baseDate: null }],
     });
     const view = renderPage();
-    await view.findByRole('heading', { name: '리그 종목 1개' });
-    expect(view.getAllByText('가격 확인 중')).toHaveLength(2);
+    await view.findByRole('heading', { name: '등록한 종목 1개' });
+    expect(view.queryByText('평가금액')).toBeNull();
     expect(view.queryByText('0원')).toBeNull();
-    expect(
-      view.getByText('가격이 없는 종목이 있어 전체 평가금액과 수익률은 표시하지 않았어요.'),
-    ).toBeTruthy();
+    expect(view.queryByText('집계 전')).toBeNull();
   });
   it('숨긴 종목도 보유 이유가 필수이며 저장 후 작성 상태를 갱신한다', async () => {
     vi.mocked(api.getSharedPortfolio).mockResolvedValue({
@@ -381,14 +383,15 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       reviews: [],
     });
     const view = renderPage();
-    expect(await view.findByText('보유 이유 필수')).toBeTruthy();
+    expect(await view.findByText('보유 이유 미작성')).toBeTruthy();
     const writeReason = await view.findByRole('button', { name: '삼성전자 보유 이유 작성' });
     await waitFor(() => expect(writeReason).toHaveProperty('disabled', false));
     fireEvent.click(writeReason);
     fireEvent.change(view.getByLabelText('보유하는 이유'), { target: { value: '장기 성장' } });
     fireEvent.click(view.getByRole('button', { name: '보유 이유 저장' }));
-    await view.findByText('작성 완료');
-    expect(await view.findByText('보유 이유 1/1')).toBeTruthy();
+    await view.findByText('장기 성장');
+    await waitFor(() => expect(view.queryByText('보유 이유 미작성')).toBeNull());
+    expect(await view.findByRole('link', { name: '리그 참여하기' })).toBeTruthy();
     expect(leagueApi.recordDecision).toHaveBeenCalledWith(
       expect.objectContaining({
         assetId: 1,
@@ -400,4 +403,38 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       }),
     );
   });
+});
+
+it('처음 참여하는 사용자는 종목과 보유 이유 준비를 마친 뒤 참여 설정으로 이동한다', async () => {
+  vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
+  const view = renderPage();
+  expect(await view.findByRole('link', { name: '리그 참여하기' })).toHaveProperty(
+    'href',
+    expect.stringContaining('/portfolio/publication?join=true'),
+  );
+  expect(view.queryByRole('link', { name: '공개 프로필 보기' })).toBeNull();
+  expect(view.queryByRole('button', { name: '결과 복기 추가' })).toBeNull();
+});
+
+it('종목 빼기는 확인 후 실행하고 실패 시 종목과 원본을 보존한 채 재시도한다', async () => {
+  vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
+  vi.mocked(api.removeSharedHolding)
+    .mockRejectedValueOnce(new Error('삭제 실패'))
+    .mockResolvedValueOnce(empty);
+  const original = localStorage.getItem(storageKey);
+  const view = renderPage();
+  fireEvent.click(await view.findByRole('button', { name: '삼성전자 리그에서 삭제' }));
+  expect(view.getByText(/마지막 종목을 삭제하면 리그 참여가 종료됩니다/)).toBeTruthy();
+  expect(api.removeSharedHolding).not.toHaveBeenCalled();
+  fireEvent.click(view.getByRole('button', { name: '취소' }));
+  expect(api.removeSharedHolding).not.toHaveBeenCalled();
+  fireEvent.click(view.getByRole('button', { name: '삼성전자 리그에서 삭제' }));
+  fireEvent.click(view.getByRole('button', { name: '삭제 확인' }));
+  await view.findByText('삭제 실패');
+  expect(view.getByRole('heading', { name: '삼성전자' })).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '삭제 확인' }));
+  await view.findByRole('heading', { name: '등록한 종목 0개' });
+  expect(api.removeSharedHolding).toHaveBeenCalledWith(1);
+  expect(view.queryByRole('heading', { name: '삼성전자' })).toBeNull();
+  expect(localStorage.getItem(storageKey)).toBe(original);
 });

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { trackLoadResult, useContentImpression } from '../issue/analytics';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import defaultNewsImage from '../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../newslist/types.ts';
@@ -16,13 +17,9 @@ import { trackEvent } from '../../../analytics';
 const MARKET_ANALYSIS_ITEMS: ReadonlyArray<{
   key: keyof MarketAnalysisResponse;
   label: string;
-  primary: boolean;
 }> = [
-  { key: 'observedFact', label: '확인된 사실', primary: true },
-  { key: 'interpretation', label: '해석', primary: true },
-  { key: 'risk', label: '위험', primary: false },
-  { key: 'watchPoint', label: '확인할 지표', primary: false },
-  { key: 'limitation', label: '분석 한계', primary: false },
+  { key: 'risk', label: '위험' },
+  { key: 'watchPoint', label: '확인할 지표' },
 ];
 
 function getNewsIdFromUrl() {
@@ -85,7 +82,24 @@ function NewsImageCredit({ imageSource }: { imageSource?: NewsImageSource }) {
   );
 }
 
-function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnalysisState }) {
+function DetailAnalysisSections({
+  marketAnalysis,
+  newsId,
+}: {
+  marketAnalysis: MarketAnalysisState;
+  newsId: string;
+}) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useContentImpression(
+    titleRef,
+    newsId,
+    'view_market_analysis',
+    {
+      surface: 'news_detail',
+      news_id: newsId,
+    },
+    marketAnalysis.status === 'success' && /^\d+$/.test(newsId),
+  );
   const analysisItems =
     marketAnalysis.status === 'success'
       ? MARKET_ANALYSIS_ITEMS.filter(({ key }) => marketAnalysis.data[key].trim())
@@ -93,14 +107,13 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnal
 
   return (
     <section className="detail-market" aria-labelledby="detail-market-title">
-      <h2 id="detail-market-title">시장 분석</h2>
+      <h2 ref={titleRef} id="detail-market-title">
+        시장 분석
+      </h2>
       {marketAnalysis.status === 'success' ? (
         <dl className="market-analysis-card">
-          {analysisItems.map(({ key, label, primary }) => (
-            <div
-              className={`market-analysis-item${primary ? ' market-analysis-item-primary' : ''}`}
-              key={key}
-            >
+          {analysisItems.map(({ key, label }) => (
+            <div className="market-analysis-item" key={key}>
               <dt>{label}</dt>
               <dd>{marketAnalysis.data[key]}</dd>
             </div>
@@ -131,11 +144,15 @@ export function NewsDetailPage() {
 
   useEffect(() => {
     let ignore = false;
+    const controller = new AbortController();
 
     if (/^\d+$/.test(newsId)) trackEvent('view_news_detail', { news_id: newsId });
     setPayload(undefined);
     setError('');
-    getNewsDetail(newsId)
+    getNewsDetail(newsId, controller.signal, (area, startedAt, status, count) => {
+      if (!ignore && /^\d+$/.test(newsId))
+        trackLoadResult('news_detail', area, startedAt, status, count, 0);
+    })
       .then((nextPayload) => {
         if (!ignore) {
           setPayload(nextPayload);
@@ -150,6 +167,7 @@ export function NewsDetailPage() {
 
     return () => {
       ignore = true;
+      controller.abort();
     };
   }, [newsId]);
 
@@ -220,13 +238,17 @@ export function NewsDetailPage() {
 
         <section className="body-section" aria-label="뉴스 본문">
           <div className="body-copy">
-            <KeywordText paragraphs={getContentParagraphs(news.content)} keywords={keywords} />
+            <KeywordText
+              newsId={newsId}
+              paragraphs={getContentParagraphs(news.content)}
+              keywords={keywords}
+            />
           </div>
         </section>
 
         <div className="analysis-area">
           <div className="analysis-content">
-            <DetailAnalysisSections marketAnalysis={marketAnalysis} />
+            <DetailAnalysisSections key={newsId} newsId={newsId} marketAnalysis={marketAnalysis} />
           </div>
         </div>
       </article>

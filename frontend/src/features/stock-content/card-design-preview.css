@@ -1,12 +1,12 @@
 .card-preview-page {
   min-height: 100%;
-  padding: 72px 24px 120px;
+  padding: 72px var(--page-side-padding) 120px;
   color: #111827;
   background: #ffffff;
 }
 
 .card-preview-container {
-  width: min(100%, 1120px);
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -260,7 +260,7 @@
 
 @media (max-width: 720px) {
   .card-preview-page {
-    padding: 44px 18px 72px;
+    padding: 44px var(--page-side-padding) 72px;
   }
 
   .card-preview-header {

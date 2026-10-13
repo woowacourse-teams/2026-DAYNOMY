@@ -14,6 +14,8 @@ import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.SocialPostResponse;
 import org.grit.daynomy.content.dto.SocialPostSearchResponse;
 import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
+import org.grit.daynomy.external.s3.S3ImageStorage;
+import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.person.domain.FeaturedPerson;
 import org.grit.daynomy.person.domain.FeaturedPersonPost;
 import org.grit.daynomy.person.dto.FeaturedPeopleResponse;
@@ -35,6 +37,8 @@ public class FeaturedPersonService {
   private final FeaturedPersonRepository personRepository;
   private final FeaturedPersonPostRepository postRepository;
   private final OpenAiSocialPostSearchClient socialPostSearchClient;
+  private final WikimediaImageClient wikimediaImageClient;
+  private final S3ImageStorage s3ImageStorage;
 
   public FeaturedPeopleResponse getPeople() {
     Map<Long, List<FeaturedPersonPost>> postsByPersonId =
@@ -71,7 +75,9 @@ public class FeaturedPersonService {
         FeaturedPerson.create(
             name,
             normalizeProfileUrl(request.xProfileUrl(), this::isXProfile),
-            normalizeProfileUrl(request.threadsProfileUrl(), this::isThreadsProfile));
+            normalizeProfileUrl(request.threadsProfileUrl(), this::isThreadsProfile),
+            normalizeProfileUrl(request.youtubeProfileUrl(), this::isYouTubeProfile),
+            uploadProfileImage(request));
     return FeaturedPersonResponse.from(personRepository.saveAndFlush(person), List.of());
   }
 
@@ -82,16 +88,26 @@ public class FeaturedPersonService {
     if (personRepository.existsByNameAndIdNot(name, personId)) {
       throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_ALREADY_EXISTS);
     }
+    String oldProfileImageUrl = person.getProfileImageUrl();
+    String profileImageUrl =
+        request.profileImageSelection() == null ? oldProfileImageUrl : uploadProfileImage(request);
     person.update(
         name,
         normalizeProfileUrl(request.xProfileUrl(), this::isXProfile),
-        normalizeProfileUrl(request.threadsProfileUrl(), this::isThreadsProfile));
+        normalizeProfileUrl(request.threadsProfileUrl(), this::isThreadsProfile),
+        normalizeProfileUrl(request.youtubeProfileUrl(), this::isYouTubeProfile),
+        profileImageUrl);
+    if (request.profileImageSelection() != null) {
+      s3ImageStorage.deleteIfManaged(oldProfileImageUrl);
+    }
     return FeaturedPersonResponse.from(person, postsFor(personId));
   }
 
   @Transactional
   public void deletePerson(Long personId) {
-    personRepository.delete(getPerson(personId));
+    FeaturedPerson person = getPerson(personId);
+    personRepository.delete(person);
+    s3ImageStorage.deleteIfManaged(person.getProfileImageUrl());
   }
 
   @Transactional
@@ -104,8 +120,7 @@ public class FeaturedPersonService {
     }
     String title = stripToNull(request.title());
     if (title == null) {
-      title =
-          person.getName() + " " + (sourceType == ContentSourceType.X ? "X" : "Threads") + " 게시물";
+      title = person.getName() + " " + sourceLabel(sourceType) + " 게시물";
     }
     FeaturedPersonPost post = FeaturedPersonPost.create(person, sourceType, title, url);
     return FeaturedPersonPostResponse.from(postRepository.saveAndFlush(post));
@@ -147,11 +162,16 @@ public class FeaturedPersonService {
   }
 
   private String normalizePostUrl(String value, ContentSourceType sourceType) {
-    if (sourceType != ContentSourceType.X && sourceType != ContentSourceType.THREADS) {
+    if (sourceType != ContentSourceType.X
+        && sourceType != ContentSourceType.THREADS
+        && sourceType != ContentSourceType.YOUTUBE) {
       throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
     }
     URI uri = parseHttpsUri(value.strip());
-    boolean valid = sourceType == ContentSourceType.X ? isXPost(uri) : isThreadsPost(uri);
+    boolean valid =
+        sourceType == ContentSourceType.X
+            ? isXPost(uri)
+            : sourceType == ContentSourceType.THREADS ? isThreadsPost(uri) : isYouTubeVideo(uri);
     if (!valid) {
       throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
     }
@@ -214,6 +234,42 @@ public class FeaturedPersonService {
         || host.equals("www.threads.net")
         || host.equals("threads.com")
         || host.equals("www.threads.com");
+  }
+
+  private boolean isYouTubeVideo(URI uri) {
+    String host = uri.getHost().toLowerCase(Locale.ROOT).replaceFirst("^www\\.", "");
+    if (host.equals("youtu.be")) return uri.getPath().matches("/[A-Za-z0-9_-]{11}/?");
+    if (!host.equals("youtube.com")) return false;
+    return uri.getPath().matches("/(embed|shorts|live)/[A-Za-z0-9_-]{11}/?")
+        || (uri.getPath().equals("/watch")
+            && uri.getQuery() != null
+            && uri.getQuery().matches(".*(^|&)v=[A-Za-z0-9_-]{11}(&|$).*"));
+  }
+
+  private boolean isYouTubeProfile(URI uri) {
+    String host = uri.getHost().toLowerCase(Locale.ROOT).replaceFirst("^www\\.", "");
+    return host.equals("youtube.com")
+        && (uri.getPath().matches("/@[^/]+/?")
+            || uri.getPath().matches("/(channel|c|user)/[^/]+/?"));
+  }
+
+  private String sourceLabel(ContentSourceType sourceType) {
+    return switch (sourceType) {
+      case X -> "X";
+      case THREADS -> "Threads";
+      case YOUTUBE -> "YouTube";
+      default ->
+          throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
+    };
+  }
+
+  private String uploadProfileImage(FeaturedPersonRequest request) {
+    if (request.profileImageSelection() == null) return null;
+    WikimediaImageClient.ImportedImage importedImage =
+        wikimediaImageClient.download(request.profileImageSelection().title());
+    return s3ImageStorage
+        .upload(importedImage.content(), importedImage.extension(), importedImage.contentType())
+        .publicUrl();
   }
 
   private String stripToNull(String value) {

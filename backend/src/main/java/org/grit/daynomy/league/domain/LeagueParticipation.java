@@ -1,11 +1,9 @@
 package org.grit.daynomy.league.domain;
 
 import jakarta.persistence.*;
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.temporal.TemporalAdjusters;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -43,9 +41,9 @@ public class LeagueParticipation {
   }
 
   public LocalDate eligibleFrom() {
-    return startedAt
-        .atZone(ZoneId.of("Asia/Seoul"))
-        .toLocalDate()
-        .with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+    var started = startedAt.atZone(ZoneId.of("Asia/Seoul"));
+    return started.toLocalTime().isAfter(java.time.LocalTime.of(15, 30))
+        ? started.toLocalDate().plusDays(1)
+        : started.toLocalDate();
   }
 }

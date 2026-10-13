@@ -37,6 +37,12 @@ public class SharedPortfolioController {
     return response(service.changeVisibility(member.memberId(), assetId, request));
   }
 
+  @DeleteMapping("/holdings/{assetId}")
+  public ResponseEntity<PortfolioResponse> removeHolding(
+      @AuthenticationPrincipal AuthenticatedMember member, @PathVariable Long assetId) {
+    return response(service.removeHolding(member.memberId(), assetId));
+  }
+
   private ResponseEntity<PortfolioResponse> response(PortfolioResponse value) {
     return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(value);
   }

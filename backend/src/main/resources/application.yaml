@@ -148,7 +148,7 @@ stock:
   price:
     sync:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
-      cron: ${STOCK_PRICE_SYNC_CRON:0 0 7 * * TUE-SAT}
+      cron: ${STOCK_PRICE_SYNC_CRON:0 0 7,18 * * MON-SAT}
 
 portfolio:
   snapshot:

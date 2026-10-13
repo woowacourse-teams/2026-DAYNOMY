@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../../src/auth/AuthProvider';
 import { useAuth } from '../../src/hooks/useLoginStatus';
 import { ServiceHeader } from '../../src/features/navigation/ServiceHeader';
@@ -36,6 +36,14 @@ function renderAccount() {
     </MemoryRouter>,
   );
 }
+beforeEach(() => {
+  vi.stubGlobal('matchMedia', () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+});
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -44,7 +52,7 @@ afterEach(() => {
 });
 
 describe('실제 인증을 사용하는 마이페이지', () => {
-  it('프로필 버튼이 마이페이지로 연결되고 계정·공유 관리 링크를 제공한다', async () => {
+  it('프로필 버튼이 마이페이지로 연결되고 계정·활동 링크를 제공한다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => json(account)),
@@ -57,9 +65,10 @@ describe('실제 인증을 사용하는 마이페이지', () => {
     expect(view.queryByRole('link', { name: '초보 돈 관리' })).toBeNull();
     expect(view.getByRole('link', { name: '마이페이지' }).getAttribute('href')).toBe('/mypage');
     expect(view.getByRole('link', { name: /내 포트폴리오/ }).getAttribute('href')).toBe('/');
-    expect(view.getByRole('link', { name: /내 리그/ }).getAttribute('href')).toBe(
-      '/league/portfolio',
-    );
+    expect(view.queryByRole('link', { name: /리그 프로필/ })).toBeNull();
+    expect(view.queryByRole('link', { name: /팔로우한 투자자/ })).toBeNull();
+    expect(view.queryByRole('link', { name: /리그 설정/ })).toBeNull();
+    expect(view.queryByText('투자 리그 준비 중')).toBeNull();
   });
 
   it('닉네임 저장은 CSRF를 사용하고 헤더·재방문에 반영하며 저장 중 중복 요청을 막는다', async () => {
@@ -277,4 +286,64 @@ describe('실제 인증을 사용하는 마이페이지', () => {
     expect(await view.findByRole('link', { name: '로그인' })).toBeTruthy();
     expect(view.queryByRole('link', { name: '마이페이지' })).toBeNull();
   });
+});
+
+it('탈퇴 확인 취소는 요청하지 않고 확정은 CSRF와 함께 전송해 세션을 정리한다', async () => {
+  let finish: (response: Response) => void = () => {};
+  const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const path = new URL(String(input), window.location.origin).pathname;
+    if (path === '/api/auth/csrf') return json({ headerName: 'X-CSRF-TOKEN', token: 'test-csrf' });
+    if (init?.method === 'DELETE') {
+      expect(path).toBe('/api/users/me');
+      expect(init.credentials).toBe('include');
+      expect(new Headers(init.headers).get('X-CSRF-TOKEN')).toBe('test-csrf');
+      return new Promise<Response>((resolve) => {
+        finish = resolve;
+      });
+    }
+    return json(account);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const view = renderAccount();
+  await view.findByText(account.email);
+  fireEvent.click(view.getByRole('button', { name: '탈퇴하기' }));
+  fireEvent.click(view.getByRole('button', { name: '취소' }));
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(0);
+  fireEvent.click(view.getByRole('button', { name: '탈퇴하기' }));
+  fireEvent.click(view.getByRole('button', { name: '탈퇴 확정' }));
+  await waitFor(() =>
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1),
+  );
+  expect(view.getByRole('button', { name: '탈퇴 처리 중…' })).toHaveProperty('disabled', true);
+  expect(view.getByRole('button', { name: '로그아웃' })).toHaveProperty('disabled', true);
+  fireEvent.click(view.getByRole('button', { name: '탈퇴 처리 중…' }));
+  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1);
+  finish(new Response(null, { status: 204 }));
+  expect(await view.findByText('로그아웃 완료')).toBeTruthy();
+});
+
+it('탈퇴 실패 시 계정을 유지하고 재시도할 수 있다', async () => {
+  let attempts = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const path = new URL(String(input), window.location.origin).pathname;
+      if (path === '/api/auth/csrf')
+        return json({ headerName: 'X-CSRF-TOKEN', token: 'test-csrf' });
+      if (init?.method === 'DELETE')
+        return ++attempts === 1
+          ? json({ message: '일시 오류' }, 503)
+          : new Response(null, { status: 204 });
+      return json(account);
+    }),
+  );
+  const view = renderAccount();
+  await view.findByText(account.email);
+  fireEvent.click(view.getByRole('button', { name: '탈퇴하기' }));
+  fireEvent.click(view.getByRole('button', { name: '탈퇴 확정' }));
+  expect((await view.findByRole('alert')).textContent).toContain('탈퇴하지 못했습니다');
+  expect(view.getByRole('link', { name: '마이페이지' })).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '탈퇴 확정' }));
+  expect(await view.findByText('로그아웃 완료')).toBeTruthy();
+  expect(attempts).toBe(2);
 });

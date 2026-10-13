@@ -3,10 +3,13 @@ package org.grit.daynomy.portfolio.service;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.NavigableSet;
 import java.util.Optional;
+import java.util.TreeSet;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.asset.service.StockPriceSyncResult;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.portfolio.domain.Portfolio;
@@ -24,6 +27,7 @@ import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,10 +47,11 @@ public class PortfolioSnapshotService {
 
   public int createLatestSnapshots() {
     LocalDate today = LocalDate.now(SEOUL);
-    List<LocalDate> baseDates =
-        stockPriceRepository.findDistinctBaseDatesOrderByBaseDate().stream()
-            .filter(baseDate -> baseDate.isBefore(today))
-            .toList();
+    NavigableSet<LocalDate> priceDates =
+        new TreeSet<>(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate());
+    NavigableSet<LocalDate> candidateDates = new TreeSet<>(priceDates);
+    candidateDates.addAll(snapshotRepository.findDistinctBaseDatesOrderByBaseDate());
+    List<LocalDate> baseDates = candidateDates.headSet(today, false).stream().toList();
     if (baseDates.isEmpty()) {
       return 0;
     }
@@ -54,9 +59,8 @@ public class PortfolioSnapshotService {
     List<Portfolio> portfolios = portfolioRepository.findAll();
     int snapshotCount = 0;
     int failureCount = 0;
-    for (int dateIndex = 0; dateIndex < baseDates.size(); dateIndex++) {
-      LocalDate baseDate = baseDates.get(dateIndex);
-      LocalDate previousBaseDate = dateIndex == 0 ? null : baseDates.get(dateIndex - 1);
+    for (LocalDate baseDate : baseDates) {
+      LocalDate previousBaseDate = priceDates.lower(baseDate);
       for (Portfolio portfolio : portfolios) {
         try {
           if (snapshotTransactionService.createSnapshot(
@@ -82,6 +86,19 @@ public class PortfolioSnapshotService {
         .addKeyValue("failureCount", failureCount)
         .log(LogEvent.PORTFOLIO_SNAPSHOT_COMPLETED.message());
     return snapshotCount;
+  }
+
+  @EventListener(StockPriceSyncResult.class)
+  public void refreshAfterPriceSync() {
+    try {
+      createLatestSnapshots();
+    } catch (RuntimeException exception) {
+      // 종가 저장은 이미 커밋됐다. 스냅샷 실패는 종가 수집 성공을 취소하지 않는다.
+      log.atError()
+          .setCause(exception)
+          .addKeyValue("event", LogEvent.PORTFOLIO_SNAPSHOT_FAILED.code())
+          .log("종가 동기화 후 포트폴리오 스냅샷 갱신 실패");
+    }
   }
 
   @Transactional(readOnly = true)

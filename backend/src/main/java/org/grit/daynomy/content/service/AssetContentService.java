@@ -1,5 +1,6 @@
 package org.grit.daynomy.content.service;
 
+import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -9,9 +10,11 @@ import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.AssetContent;
+import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
+import org.grit.daynomy.content.dto.ContentPageResponse;
 import org.grit.daynomy.content.dto.SocialPostResponse;
 import org.grit.daynomy.content.dto.SocialPostSearchResponse;
 import org.grit.daynomy.content.dto.YouTubeSearchResponse;
@@ -23,6 +26,7 @@ import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.news.domain.News;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,11 +37,21 @@ public class AssetContentService {
 
   private static final String ASSET_CONTENT_URL_UNIQUE_CONSTRAINT =
       "uk_stock_related_contents_asset_url";
+  private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
   private final AssetRepository assetRepository;
   private final AssetContentRepository contentRepository;
   private final YouTubeClient youtubeClient;
   private final OpenAiSocialPostSearchClient socialPostSearchClient;
+
+  public ContentPageResponse getPublicContents(int page, int size) {
+    return ContentPageResponse.from(
+        contentRepository
+            .findAllBySourceTypeInAndNewsIsNullOrderByPublishedDateDescCreatedAtDescIdDesc(
+                List.of(ContentSourceType.YOUTUBE, ContentSourceType.THREADS, ContentSourceType.X),
+                PageRequest.of(page - 1, size))
+            .map(AssetContentResponse::from));
+  }
 
   public AssetContentsResponse getContents(Long assetId) {
     Asset asset = getAsset(assetId);
@@ -100,9 +114,14 @@ public class AssetContentService {
             request.sourceType(),
             request.title().strip(),
             url,
-            stripToNull(request.imageUrl()));
+            stripToNull(request.imageUrl()),
+            request.publishedDate());
     try {
-      return AssetContentResponse.from(contentRepository.saveAndFlush(content));
+      AssetContent saved = contentRepository.saveAndFlush(content);
+      if (saved.getPublishedDate() == null) {
+        saved.fillPublishedDateIfMissing(saved.getCreatedAt().atZone(SEOUL).toLocalDate());
+      }
+      return AssetContentResponse.from(saved);
     } catch (DataIntegrityViolationException exception) {
       if (isAssetContentUrlUniqueConstraintViolation(exception)) {
         throw new BusinessException(ContentErrorCode.ASSET_CONTENT_ALREADY_EXISTS);

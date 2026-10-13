@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -54,6 +55,9 @@ public class AssetContent extends BaseEntity {
   @Column(name = "image_url", columnDefinition = "TEXT")
   private String imageUrl;
 
+  @Column(name = "published_date")
+  private LocalDate publishedDate;
+
   private AssetContent(
       Asset asset, ContentSourceType sourceType, String title, String url, String imageUrl) {
     this.asset = asset;
@@ -81,7 +85,19 @@ public class AssetContent extends BaseEntity {
 
   public static AssetContent create(
       Asset asset, ContentSourceType sourceType, String title, String url, String imageUrl) {
-    return new AssetContent(asset, sourceType, title, url, imageUrl);
+    return create(asset, sourceType, title, url, imageUrl, null);
+  }
+
+  public static AssetContent create(
+      Asset asset,
+      ContentSourceType sourceType,
+      String title,
+      String url,
+      String imageUrl,
+      LocalDate publishedDate) {
+    AssetContent content = new AssetContent(asset, sourceType, title, url, imageUrl);
+    content.publishedDate = publishedDate;
+    return content;
   }
 
   public static AssetContent createInternalNews(Asset asset, News news) {
@@ -92,5 +108,11 @@ public class AssetContent extends BaseEntity {
         news.getTitle(),
         "/news/" + news.getId(),
         null);
+  }
+
+  public void fillPublishedDateIfMissing(LocalDate fallbackDate) {
+    if (publishedDate == null) {
+      publishedDate = fallbackDate;
+    }
   }
 }

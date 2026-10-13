@@ -5,20 +5,16 @@ import NotFoundPage from './features/pages/components/NotFoundPage';
 import { InfoPage } from './features/pages/components/InfoPage';
 import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
 import { NewsListPage } from './features/news/newslist/NewsListPage';
+import { IssueHomePage } from './features/news/issue/IssueHomePage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
 import SearchPage from './features/search/SearchPage';
 import { PortfolioPage } from './features/portfolio/PortfolioPage';
-import { LeaguePage } from './features/league/LeaguePage';
-import { InvestorProfilePage } from './features/league/InvestorProfilePage';
-import { PublicationSettingsPage } from './features/league/PublicationSettingsPage';
-import { SharedPortfolioPage } from './features/league/SharedPortfolioPage';
-import { FollowingPage } from './features/league/FollowingPage';
+import { LeagueComingSoonPage } from './features/league/LeagueComingSoonPage';
 import { MyPage } from './features/account/MyPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { safeReturnPath } from './auth/returnPath';
 import { ServiceHeader } from './features/navigation/ServiceHeader';
-import { LeagueNavigation } from './features/league/LeagueNavigation';
 import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
@@ -128,7 +124,7 @@ function AuthenticatedRoute({ children }: { children: ReactNode }) {
 }
 
 function PortfolioRoute() {
-  const { isLoggedIn, loading } = useAuth();
+  const { memberId, isLoggedIn, loading } = useAuth();
 
   if (loading) {
     return (
@@ -140,7 +136,9 @@ function PortfolioRoute() {
     );
   }
 
-  return <PortfolioPage isLoggedIn={isLoggedIn} />;
+  return (
+    <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
+  );
 }
 
 function PostLoginRedirect() {
@@ -174,7 +172,6 @@ export default function App() {
         <PostLoginRedirect />
         <div className="app-shell">
           <AppHeader />
-          <LeagueNavigation />
           <div className="app-content">
             <Routes>
               <Route path="/" element={<PortfolioRoute />} />
@@ -183,32 +180,9 @@ export default function App() {
                 path="/portfolio/records"
                 element={<Navigate to="/league/portfolio" replace />}
               />
-              <Route
-                path="/league/portfolio"
-                element={
-                  <AuthenticatedRoute>
-                    <SharedPortfolioPage />
-                  </AuthenticatedRoute>
-                }
-              />
-              <Route
-                path="/portfolio/publication"
-                element={
-                  <AuthenticatedRoute>
-                    <PublicationSettingsPage />
-                  </AuthenticatedRoute>
-                }
-              />
-              <Route path="/league" element={<LeaguePage />} />
-              <Route
-                path="/league/following"
-                element={
-                  <AuthenticatedRoute>
-                    <FollowingPage />
-                  </AuthenticatedRoute>
-                }
-              />
-              <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+              {/* shortcut: 화면 안내만으로 API 직접 접근은 막지 못한다. 접근 제한이 필요하면 서버 권한을 추가한다. */}
+              <Route path="/league/*" element={<LeagueComingSoonPage />} />
+              <Route path="/portfolio/publication" element={<LeagueComingSoonPage />} />
               <Route path="/membership" element={<Navigate to="/league" replace />} />
               <Route
                 path="/mypage"
@@ -218,7 +192,9 @@ export default function App() {
                   </AuthenticatedRoute>
                 }
               />
-              <Route path="/news" element={<NewsListPage />} />
+              <Route path="/news" element={<IssueHomePage key="home" />} />
+              <Route path="/news/today" element={<NewsListPage />} />
+              <Route path="/news/contents" element={<IssueHomePage key="contents" fullFeed />} />
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />
               <Route path="/search" element={<SearchPage />} />

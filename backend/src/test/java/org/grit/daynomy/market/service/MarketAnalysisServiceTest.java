@@ -43,12 +43,13 @@ class MarketAnalysisServiceTest {
             argThat(
                 entity -> {
                   assertThat(entity.getNews()).isSameAs(news);
-                  assertThat(entity.getSummary()).isEqualTo("기준금리가 인하됐습니다. 위험자산 선호가 높아질 수 있습니다.");
-                  assertThat(entity.getObservedFact()).isEqualTo("기준금리가 인하됐습니다.");
-                  assertThat(entity.getInterpretation()).isEqualTo("위험자산 선호가 높아질 수 있습니다.");
+                  assertThat(entity.getSummary())
+                      .isEqualTo("물가가 다시 상승하면 해석이 달라질 수 있습니다. 다음 소비자물가 발표를 확인해야 합니다.");
+                  assertThat(entity.getObservedFact()).isNull();
+                  assertThat(entity.getInterpretation()).isNull();
                   assertThat(entity.getRisk()).isEqualTo("물가가 다시 상승하면 해석이 달라질 수 있습니다.");
                   assertThat(entity.getWatchPoint()).isEqualTo("다음 소비자물가 발표를 확인해야 합니다.");
-                  assertThat(entity.getLimitation()).isEqualTo("자산별 가격 데이터는 포함하지 않았습니다.");
+                  assertThat(entity.getLimitation()).isNull();
                   return true;
                 }));
   }
@@ -63,12 +64,12 @@ class MarketAnalysisServiceTest {
 
     marketAnalysisService.updateMarketAnalysis(1L, newMarketAnalysis);
 
-    assertThat(savedMarketAnalysis.getSummary()).isEqualTo("수정된 사실 수정된 해석");
-    assertThat(savedMarketAnalysis.getObservedFact()).isEqualTo("수정된 사실");
-    assertThat(savedMarketAnalysis.getInterpretation()).isEqualTo("수정된 해석");
+    assertThat(savedMarketAnalysis.getSummary()).isEqualTo("수정된 위험 수정된 확인 지표");
+    assertThat(savedMarketAnalysis.getObservedFact()).isNull();
+    assertThat(savedMarketAnalysis.getInterpretation()).isNull();
     assertThat(savedMarketAnalysis.getRisk()).isEqualTo("수정된 위험");
     assertThat(savedMarketAnalysis.getWatchPoint()).isEqualTo("수정된 확인 지표");
-    assertThat(savedMarketAnalysis.getLimitation()).isEqualTo("수정된 분석 한계");
+    assertThat(savedMarketAnalysis.getLimitation()).isNull();
   }
 
   @Test
@@ -91,28 +92,20 @@ class MarketAnalysisServiceTest {
 
     var response = marketAnalysisService.getMarketAnalysis(1L);
 
-    assertThat(response.summary()).isEqualTo("기준금리가 인하됐습니다. 위험자산 선호가 높아질 수 있습니다.");
-    assertThat(response.observedFact()).isEqualTo("기준금리가 인하됐습니다.");
-    assertThat(response.interpretation()).isEqualTo("위험자산 선호가 높아질 수 있습니다.");
     assertThat(response.risk()).isEqualTo("물가가 다시 상승하면 해석이 달라질 수 있습니다.");
     assertThat(response.watchPoint()).isEqualTo("다음 소비자물가 발표를 확인해야 합니다.");
-    assertThat(response.limitation()).isEqualTo("자산별 가격 데이터는 포함하지 않았습니다.");
   }
 
   @Test
-  @DisplayName("기존 시장 분석은 요약으로 반환하고 구조화 필드는 비워서 구분한다")
-  void findLegacyMarketAnalysisReturnsOnlySummary() {
+  @DisplayName("요약만 있는 기존 분석은 위험과 지표로 오인하지 않도록 미제공 처리한다")
+  void findLegacyMarketAnalysisReturnsNotFound() {
     given(newsMarketAnalysisRepository.findByNewsId(1L))
         .willReturn(Optional.of(new NewsMarketAnalysis(createNews(), "기존 시장 분석 요약")));
 
-    var response = marketAnalysisService.getMarketAnalysis(1L);
-
-    assertThat(response.summary()).isEqualTo("기존 시장 분석 요약");
-    assertThat(response.observedFact()).isEmpty();
-    assertThat(response.interpretation()).isEmpty();
-    assertThat(response.risk()).isEmpty();
-    assertThat(response.watchPoint()).isEmpty();
-    assertThat(response.limitation()).isEmpty();
+    assertThatThrownBy(() -> marketAnalysisService.getMarketAnalysis(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND);
   }
 
   @Test
@@ -169,7 +162,7 @@ class MarketAnalysisServiceTest {
   }
 
   private NewsMarketAnalysis createUpdatedMarketAnalysis() {
-    return new NewsMarketAnalysis("수정된 사실", "수정된 해석", "수정된 위험", "수정된 확인 지표", "수정된 분석 한계");
+    return new NewsMarketAnalysis("수정된 위험", "수정된 확인 지표");
   }
 
   private News createNews() {

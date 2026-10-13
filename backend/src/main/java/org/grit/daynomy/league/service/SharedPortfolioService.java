@@ -2,6 +2,7 @@ package org.grit.daynomy.league.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HashSet;
@@ -134,6 +135,25 @@ public class SharedPortfolioService {
     return portfolioRepository
         .findByMemberId(memberId)
         .orElseGet(() -> portfolioRepository.save(SharedPortfolio.create(member)));
+  }
+
+  @Transactional
+  public PortfolioResponse removeHolding(Long memberId, Long assetId) {
+    SharedPortfolio portfolio = getForUpdate(memberId);
+    SharedHolding holding =
+        holdingRepository
+            .findByPortfolioIdAndAssetId(portfolio.getId(), assetId)
+            .orElseThrow(() -> new BusinessException(LeagueErrorCode.SHARED_HOLDING_NOT_FOUND));
+    historyRepository.save(new SharedHoldingHistory(holding, ChangeType.REMOVED));
+    holdingRepository.delete(holding);
+    PortfolioResponse remaining = response(portfolio);
+    if (remaining.holdings().isEmpty()) {
+      profileRepository
+          .findByMemberId(memberId)
+          .ifPresent(
+              profile -> profile.changePublication(false, false, false, false, Instant.now()));
+    }
+    return remaining;
   }
 
   private Asset asset(Long assetId) {

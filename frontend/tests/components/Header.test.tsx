@@ -10,7 +10,7 @@ import { ServiceHeader } from '../../src/features/navigation/ServiceHeader';
 afterEach(cleanup);
 
 describe('헤더', () => {
-  it('서비스 헤더에서 인물 메뉴로 이동하고 현재 페이지를 표시한다', () => {
+  it('인물 화면에서도 이슈 메뉴를 활성화하고 인물 탭은 표시하지 않는다', () => {
     const view = render(
       <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
         <MemoryRouter initialEntries={['/people']}>
@@ -19,8 +19,9 @@ describe('헤더', () => {
       </AuthContext.Provider>,
     );
 
-    const peopleLink = view.getByRole('link', { name: '인물' });
-    expect(peopleLink.getAttribute('href')).toBe('/people');
+    const peopleLink = view.getByRole('link', { name: '소식' });
+    expect(view.queryByRole('link', { name: '인물' })).toBeNull();
+    expect(peopleLink.getAttribute('href')).toBe('/news');
     expect(peopleLink.getAttribute('aria-current')).toBe('page');
     expect(view.getByRole('link', { name: '투자 리그' }).getAttribute('aria-current')).toBeNull();
   });
@@ -49,8 +50,8 @@ describe('헤더', () => {
     expect(view.queryByRole('link', { name: '마이페이지' })).toBeNull();
     expect(view.getByRole('link', { name: 'DAYNOMY 홈' }).getAttribute('href')).toBe('/');
     expect(view.getByRole('link', { name: '포트폴리오' }).getAttribute('href')).toBe('/');
-    expect(view.getByRole('link', { name: '이슈' }).getAttribute('href')).toBe('/news');
-    expect(view.getByRole('link', { name: '인물' }).getAttribute('href')).toBe('/people');
+    expect(view.getByRole('link', { name: '소식' }).getAttribute('href')).toBe('/news');
+    expect(view.queryByRole('link', { name: '인물' })).toBeNull();
     expect(view.queryByRole('link', { name: '로그인' })).toBeNull();
   });
 });

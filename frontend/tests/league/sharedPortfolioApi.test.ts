@@ -5,6 +5,7 @@ import {
   getSharedPortfolio,
   importSharedHoldings,
   readSourceHoldings,
+  removeSharedHolding,
 } from '../../src/features/league/sharedPortfolioApi.ts';
 
 const response = {
@@ -40,8 +41,11 @@ test('공유용 쓰기는 원본 API 대신 별도 API와 CSRF를 사용한다',
     false,
   );
   await changeSharedHoldingVisibility(1, true);
+  await removeSharedHolding(1);
   const writes = calls.filter((call) => call.init?.method && call.init.method !== 'GET');
-  assert.equal(writes.length, 2);
+  assert.equal(writes.length, 3);
+  assert.equal(writes[2].init?.method, 'DELETE');
+  assert.equal(writes[2].url, '/api/users/me/shared-portfolio/holdings/1');
   assert(writes.every((call) => call.url.startsWith('/api/users/me/shared-portfolio')));
   assert(
     writes.every((call) => new Headers(call.init?.headers).get('X-XSRF-TOKEN') === 'test-csrf'),
