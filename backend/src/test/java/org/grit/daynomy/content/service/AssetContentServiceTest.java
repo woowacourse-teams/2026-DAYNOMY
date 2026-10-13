@@ -9,6 +9,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +35,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class AssetContentServiceTest {
@@ -68,24 +70,47 @@ class AssetContentServiceTest {
   }
 
   @Test
-  void createContentPreservesTitleAndOptionalPublicationDate() {
+  void createContentPreservesTitleAndPublicationDate() {
     Asset asset = mock(Asset.class);
     given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
     given(contentRepository.saveAndFlush(any(AssetContent.class)))
         .willAnswer(invocation -> invocation.getArgument(0));
-    for (LocalDate date : new LocalDate[] {LocalDate.of(2020, 4, 5), null}) {
-      var response =
-          assetContentService.createContent(
-              1L,
-              new AssetContentRequest(
-                  ContentSourceType.YOUTUBE,
-                  "원제 [2020-04-05]",
-                  "https://youtu.be/example",
-                  null,
-                  date));
-      assertThat(response.title()).isEqualTo("원제 [2020-04-05]");
-      assertThat(response.publishedDate()).isEqualTo(date);
-    }
+    LocalDate date = LocalDate.of(2020, 4, 5);
+
+    var response =
+        assetContentService.createContent(
+            1L,
+            new AssetContentRequest(
+                ContentSourceType.YOUTUBE,
+                "원제 [2020-04-05]",
+                "https://youtu.be/example",
+                null,
+                date));
+
+    assertThat(response.title()).isEqualTo("원제 [2020-04-05]");
+    assertThat(response.publishedDate()).isEqualTo(date);
+  }
+
+  @Test
+  @DisplayName("원문 게시일이 없으면 서울 기준 등록일을 게시일로 저장한다")
+  void createContentUsesCreatedAtWhenPublicationDateIsMissing() {
+    Asset asset = mock(Asset.class);
+    given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
+    given(contentRepository.saveAndFlush(any(AssetContent.class)))
+        .willAnswer(
+            invocation -> {
+              AssetContent content = invocation.getArgument(0);
+              ReflectionTestUtils.setField(content, "createdAt", Instant.parse("2026-10-12T15:30:00Z"));
+              return content;
+            });
+
+    var response =
+        assetContentService.createContent(
+            1L,
+            new AssetContentRequest(
+                ContentSourceType.YOUTUBE, "원제", "https://youtu.be/example", null, null));
+
+    assertThat(response.publishedDate()).isEqualTo(LocalDate.of(2026, 10, 13));
   }
 
   @Test

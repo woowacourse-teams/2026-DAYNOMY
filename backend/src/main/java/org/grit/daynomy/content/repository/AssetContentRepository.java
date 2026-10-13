@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface AssetContentRepository extends JpaRepository<AssetContent, Long> {
 
-  Page<AssetContent> findAllBySourceTypeInAndNewsIsNull(
+  Page<AssetContent> findAllBySourceTypeInAndNewsIsNullOrderByPublishedDateDescCreatedAtDescIdDesc(
       List<ContentSourceType> sources, Pageable pageable);
 
   List<AssetContent> findAllByAssetIdOrderByCreatedAtDescIdDesc(Long assetId);
