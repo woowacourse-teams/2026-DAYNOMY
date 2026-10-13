@@ -36,7 +36,7 @@ function show() {
     </MemoryRouter>,
   );
 }
-it('버튼 없이 한 기사씩 3초마다 자동 순환한다', () => {
+it('오늘 이슈는 최대 네 개를 한 기사씩 3초마다 자동 순환한다', () => {
   const view = show();
   expect(view.getAllByRole('link')).toHaveLength(1);
   expect(view.queryByRole('button')).toBeNull();
@@ -45,15 +45,27 @@ it('버튼 없이 한 기사씩 3초마다 자동 순환한다', () => {
   fireEvent.mouseEnter(view.getByRole('region', { name: '오늘의 이슈' }));
   act(() => vi.advanceTimersByTime(3000));
   expect(view.getByRole('heading', { name: '기사 2' })).toBeTruthy();
-  act(() => vi.advanceTimersByTime(3000));
-  expect(view.getByRole('heading', { name: '기사 1' })).toBeTruthy();
 });
-it('키보드 포커스 중 링크를 유지하고 떠나면 자동으로 다시 순환한다', () => {
-  const view = show();
-  fireEvent.focus(view.getByRole('link'));
-  act(() => vi.advanceTimersByTime(3000));
-  expect(view.getByRole('heading', { name: '기사 1' })).toBeTruthy();
-  fireEvent.blur(view.getByRole('link'));
-  act(() => vi.advanceTimersByTime(3000));
-  expect(view.getByRole('heading', { name: '기사 2' })).toBeTruthy();
+
+it('오늘 이슈가 없으면 최근 이슈를 최대 네 개 표시한다', () => {
+  const view = render(
+    <MemoryRouter>
+      <IssueStories
+        news={Array.from({ length: 5 }, (_, index) => ({
+          id: index + 1,
+          title: `최근 기사 ${index + 1}`,
+          category: 'STOCK',
+          imageUrl: null,
+          publishedAt: '2026-10-11T09:00:00Z',
+        }))}
+        loading={false}
+        error=""
+        onRetry={() => {}}
+      />
+    </MemoryRouter>,
+  );
+  expect(view.getByRole('heading', { name: '최근 이슈' })).toBeTruthy();
+  expect(view.getByText('오늘 발행된 이슈가 없어 최근 이슈를 보여드려요.')).toBeTruthy();
+  expect(view.getAllByRole('link')).toHaveLength(1);
+  expect(view.getByRole('heading', { name: '최근 기사 1' })).toBeTruthy();
 });

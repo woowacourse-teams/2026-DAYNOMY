@@ -708,6 +708,16 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.issue-story-note,
+.issue-feed-note {
+  margin: -8px 0 16px;
+  color: var(--issue-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.issue-feed-heading .issue-feed-note {
+  margin: -8px 0 0;
+}
 .issue-story-paging {
   display: flex;
   justify-content: flex-end;
