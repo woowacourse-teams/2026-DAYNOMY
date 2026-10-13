@@ -37,7 +37,6 @@ export type RankingEntry = {
   reviewCompletionRate: number;
   followed: boolean;
   profileImageUrl?: string | null;
-  cumulativeReturnRate?: number | null;
   trackingStartedOn?: string | null;
   currentHoldingWeight?: number | null;
   consecutiveRecordedWeeks?: number;
@@ -70,8 +69,6 @@ export type Performance = {
   maxDrawdownRate: number | null;
   volatilityRate: number | null;
   maxHoldingWeight: number | null;
-  cumulativeReturnRate?: number | null;
-  participationReturnRate?: number | null;
   trackingStartedOn?: string | null;
   eligibleFrom?: string | null;
   currentHoldingWeight?: number | null;
@@ -96,7 +93,6 @@ export type DailyHistory = {
   weeklyReturnRate: number | null;
   days: DailyReturnPoint[];
   trackingStartedOn?: string | null;
-  participationReturnRate?: number | null;
   collectionStatus?: CollectionStatus;
 };
 

@@ -88,7 +88,6 @@
 }
 
 .league-primary-link,
-.league-secondary-link,
 .league-page-heading > a,
 .league-investor-header > button,
 .league-investor-header > a {
@@ -108,17 +107,8 @@
   background: var(--league-purple);
 }
 
-.league-secondary-link {
-  border: 1px solid var(--league-line);
-  color: var(--league-ink);
-}
-
 .league-primary-link:hover {
   background: #4034b9;
-}
-
-.league-secondary-link:hover {
-  background: #f8f9fb;
 }
 
 .league-controls {
@@ -128,54 +118,6 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-}
-
-.league-type-options {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.league-type-options > div {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
-  border-radius: 10px;
-  background: #f2f3f7;
-}
-.league-type-options label {
-  position: relative;
-  min-width: 0;
-  cursor: pointer;
-}
-.league-type-options input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-}
-.league-type-options span {
-  display: flex;
-  min-height: 44px;
-  padding: 8px 12px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 7px;
-  color: var(--league-muted);
-  font-size: 14px;
-  font-weight: 650;
-  text-align: center;
-}
-.league-type-options input:checked + span {
-  color: var(--league-purple);
-  background: #fff;
-  box-shadow: 0 1px 4px #17203112;
-}
-.league-type-options input:focus-visible + span {
-  outline: 2px solid var(--league-purple);
-  outline-offset: 2px;
 }
 
 .league-controls > label {
@@ -402,7 +344,6 @@
 }
 
 .league-history-card,
-.league-allocation-card,
 .league-detail-holdings,
 .league-detail-decisions {
   padding: 24px;
@@ -412,7 +353,6 @@
 }
 
 .league-history-card h2,
-.league-allocation-card h2,
 .league-detail-holdings h2,
 .league-detail-decisions h2 {
   font-size: 19px;
@@ -629,38 +569,8 @@
 .league-investor-header > a {
   flex-shrink: 0;
 }
-.league-section-nav {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 24px 0;
-  border-bottom: 1px solid var(--league-line);
-}
-.league-section-nav a {
-  display: inline-flex;
-  min-height: 44px;
-  padding: 12px 8px;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 2px solid transparent;
-  background: #fff;
-  color: var(--league-ink);
-  font-size: 13px;
-  text-decoration: none;
-}
-.league-section-nav a:hover,
-.league-section-nav a[aria-current='page'] {
-  color: var(--league-purple);
-}
-.league-section-nav a[aria-current='page'] {
-  border-bottom-color: var(--league-purple);
-  font-weight: 700;
-}
 .league-page [id] {
   scroll-margin-top: 24px;
-}
-.league-investor-rank {
-  color: var(--league-muted);
-  font-size: 13px;
 }
 
 .league-avatar {
@@ -694,8 +604,7 @@
   margin: 20px 0;
 }
 
-.league-primary-metrics,
-.league-secondary-metrics {
+.league-primary-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
@@ -703,12 +612,6 @@
 
 .league-primary-metrics strong {
   font-size: clamp(20px, 2.5vw, 30px);
-}
-.league-secondary-metrics {
-  margin-top: 12px;
-}
-.league-secondary-metrics strong {
-  font-size: 17px;
 }
 
 .league-page summary:focus-visible {
@@ -785,7 +688,6 @@
 }
 
 .league-history-card,
-.league-allocation-card,
 .league-detail-decisions {
   margin-top: 18px;
 }
@@ -912,8 +814,27 @@
 .league-daily-summary {
   margin: 20px 0;
 }
+.league-daily-empty {
+  margin-top: 20px;
+  padding: 24px;
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+.league-daily-empty p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.league-daily-empty small {
+  color: var(--league-muted);
+  font-size: 13px;
+}
 .league-daily-summary small {
   color: var(--league-muted);
+}
+.league-daily-summary strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
 }
 .league-daily-chart {
   width: 100%;
@@ -953,58 +874,21 @@
   text-align: left;
   border-bottom: 1px solid var(--league-line);
 }
-
-.league-allocation-card > div:first-child p {
-  margin-top: 5px;
+.league-daily-table th:first-child {
+  width: 40%;
+}
+.league-daily-table th small {
+  display: block;
+  margin-top: 4px;
   color: var(--league-muted);
-  font-size: 13px;
-}
-
-.league-allocation-card > div:first-child {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.league-allocation-card > div:first-child small {
-  color: var(--league-muted);
-  font-size: 12px;
-}
-
-.league-allocation-bar {
-  display: flex;
-  height: 8px;
-  margin-top: 16px;
-  overflow: hidden;
-  border-radius: 10px;
-}
-
-.league-allocation-bar span {
-  display: grid;
-  min-width: 0;
-  place-items: center;
-  color: #fff;
-  background: #777080;
   font-size: 11px;
+  font-weight: 400;
 }
-
-.league-allocation-bar span:last-child {
-  background: #e3e2e8;
-}
-
-.league-allocation-card dl {
-  display: flex;
-  margin: 16px 0 0;
-  gap: 24px;
-}
-
-.league-allocation-card dl > div {
-  display: flex;
-  gap: 8px;
-}
-
-.league-allocation-card dd {
-  margin: 0;
-  font-weight: 800;
+.league-daily-table th:not(:first-child),
+.league-daily-table td {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .league-detail-decisions > p {
@@ -1064,15 +948,13 @@
 }
 
 @media (max-width: 720px) {
-  .league-primary-metrics,
-  .league-secondary-metrics {
+  .league-primary-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .league-primary-metrics article:first-child {
     grid-column: 1 / -1;
   }
-  .league-primary-metrics,
-  .league-secondary-metrics {
+  .league-primary-metrics {
     gap: 12px;
   }
   .league-primary-metrics strong {
@@ -1200,7 +1082,6 @@
 
 @media (max-width: 460px) {
   .league-history-card,
-  .league-allocation-card,
   .league-detail-holdings,
   .league-detail-decisions {
     padding: 18px;
@@ -1208,8 +1089,7 @@
 }
 
 @media (max-width: 360px) {
-  .league-primary-metrics,
-  .league-secondary-metrics {
+  .league-primary-metrics {
     grid-template-columns: 1fr;
     gap: 0;
   }
@@ -1370,7 +1250,6 @@ body:has(.league-metrics-dialog[open]) {
   display: none;
 }
 .league-investor-page .league-history-card,
-.league-investor-page .league-allocation-card,
 .league-investor-page .league-detail-holdings,
 .league-investor-page .league-detail-decisions {
   padding: 24px 0;
@@ -1379,12 +1258,6 @@ body:has(.league-metrics-dialog[open]) {
 }
 .league-investor-page .league-metric-cards article {
   border: 0;
-}
-.league-investor-page .league-secondary-metrics article {
-  min-height: 0;
-  padding: 14px 0;
-  border-radius: 0;
-  background: transparent;
 }
 .league-chart-switch {
   display: flex;
@@ -1420,17 +1293,12 @@ body:has(.league-metrics-dialog[open]) {
   }
 }
 
-.league-risk-grid dd small,
-.league-secondary-metrics strong small {
+.league-risk-grid dd small {
   display: block;
   margin-top: 4px;
   font-size: 12px;
   font-weight: 400;
   color: var(--league-muted);
-}
-.league-subsection-title {
-  font-size: 18px;
-  margin: 24px 0 8px;
 }
 .league-investor-page .league-detail-decisions dl {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1439,6 +1307,11 @@ body:has(.league-metrics-dialog[open]) {
 .league-investor-page .league-detail-decisions dl > div {
   padding: 8px 0;
 }
-.league-decision-wide {
-  grid-column: 1 / -1;
+.league-reviews-page {
+  max-width: 760px;
+}
+.league-review-list {
+  display: grid;
+  gap: 24px;
+  padding-top: 24px;
 }

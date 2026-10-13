@@ -146,8 +146,10 @@
 
 .league-feature-nav {
   display: flex;
+  gap: 24px;
   width: min(1120px, calc(100% - 40px));
   margin: 4px auto 0;
+  border-bottom: 1px solid #e7eaf0;
 }
 
 .league-feature-nav a {
@@ -160,6 +162,12 @@
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+
+.league-feature-nav a[aria-current='page'] {
+  color: #5144d8;
+  border-bottom-color: currentColor;
 }
 
 .league-feature-nav a:hover {

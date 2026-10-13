@@ -68,8 +68,6 @@ function optionalImage(value: unknown) {
 }
 function isPerformanceExtension(value: Record<string, unknown>) {
   return (
-    optionalNumber(value.cumulativeReturnRate) &&
-    optionalNumber(value.participationReturnRate) &&
     optionalDate(value.trackingStartedOn) &&
     optionalDate(value.eligibleFrom) &&
     optionalNumber(value.currentHoldingWeight) &&
@@ -334,7 +332,6 @@ function isDailyHistory(value: unknown): value is DailyHistory {
     typeof value.confirmed !== 'boolean' ||
     !isNullableNumber(value.weeklyReturnRate) ||
     !optionalCollectionStatus(value.collectionStatus) ||
-    !optionalNumber(value.participationReturnRate) ||
     !optionalDate(value.trackingStartedOn) ||
     !Array.isArray(value.days)
   )
@@ -367,11 +364,7 @@ function isDailyHistory(value: unknown): value is DailyHistory {
   const last = value.days.at(-1);
   return (
     value.asOfDate === asOfDate &&
-    (value.participationReturnRate === undefined
-      ? value.weeklyReturnRate === (last?.cumulativeReturnRate ?? null)
-      : value.participationReturnRate === (last?.cumulativeReturnRate ?? null) &&
-        (value.weeklyReturnRate === null ||
-          value.weeklyReturnRate === value.participationReturnRate)) &&
+    value.weeklyReturnRate === (last?.cumulativeReturnRate ?? null) &&
     (!value.confirmed || value.weeklyReturnRate !== null)
   );
 }
