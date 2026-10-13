@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockLeagueApi } from './league-api';
 
 const article = {
   id: 7,
@@ -159,6 +160,7 @@ test('오늘의 이슈에서 상세 본문을 읽고 소식 홈으로 돌아온�
 });
 
 test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 메뉴는 분리된다', async ({ page }) => {
+  await mockLeagueApi(page);
   await page.route('**/api/users/me', (route) =>
     route.fulfill({
       json: { id: 1, email: 'admin@example.invalid', nickname: '관리자', role: 'ADMIN' },
@@ -177,7 +179,7 @@ test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 �
     .getByRole('link', { name: '투자 리그' })
     .click();
   await expect(page).toHaveURL('/league');
-  await expect(page.getByRole('heading', { name: '투자 리그를 준비하고 있어요' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '주간 리그', exact: true })).toBeVisible();
   await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toBeVisible();
   await page.getByRole('link', { name: '마이페이지' }).click();
   await expect(page).toHaveURL('/mypage');
@@ -192,51 +194,60 @@ test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 �
 
 for (const width of [1440, 390]) {
   test(
-    width + 'px: 리그 경로는 준비 중 화면만 보여주고 리그 데이터를 요청하지 않는다',
+    width + 'px: 공개 리그·일별 성과를 조회하고 개인 경로는 로그인으로 보호한다',
     async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
-      const leagueRequests: string[] = [];
+      await mockLeagueApi(page);
+      const privateRequests: string[] = [];
       page.on('request', (request) => {
-        const pathname = new URL(request.url()).pathname;
-        if (
-          /\/api\/(league|users\/me\/(shared-portfolio|portfolio\/publication|investor-profile))/.test(
-            pathname,
-          )
-        )
-          leagueRequests.push(pathname);
+        const path = new URL(request.url()).pathname;
+        if (/^\/api\/users\/me\/(shared-portfolio|portfolio|investor-profile|league)/.test(path))
+          privateRequests.push(path);
       });
-
-      for (const path of [
-        '/league',
-        '/league/profile',
-        '/league/portfolio?week=2026-09-28#holdings',
-        '/league/following',
-        '/league/reviews',
-        '/league/investor-1#investment-details',
-        '/portfolio/publication?join=true',
-        '/portfolio/records',
-        '/membership',
-      ]) {
+      for (const path of ['/league', '/membership']) {
         await page.goto(path);
-        await expect(
-          page.getByRole('heading', { name: '투자 리그를 준비하고 있어요' }),
-        ).toBeVisible();
-        await expect(page.getByRole('link', { name: '투자 리그' })).toHaveAttribute(
+        await expect(page).toHaveURL('/league');
+        await expect(page.getByRole('heading', { name: '주간 순위', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: '투자리그 참여하기' })).toHaveAttribute(
+          'href',
+          '/login?returnTo=%2Fleague%2Fportfolio%23select',
+        );
+        await expect(page.getByRole('link', { name: '투자 리그', exact: true })).toHaveAttribute(
           'aria-current',
           'page',
         );
-        await expect(page.getByRole('link', { name: '← 주간 리그' })).toHaveCount(0);
+      }
+      await page.getByRole('link', { name: '리그 투자자 공개 프로필 보기' }).click();
+      await expect(page.getByRole('heading', { name: '리그 투자자', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: '일별', exact: true }).click();
+      await expect(page.getByText('주간 누적 0.00%')).toBeVisible();
+      await expect(page.getByRole('table')).toContainText('성과 시작 종가 · 0%');
+      await expect(page.getByRole('table')).toContainText('참여 전 / 미참여');
+      const back = page.getByRole('link', { name: '← 주간 리그' });
+      await back.focus();
+      await expect(back).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(page).toHaveURL('/league');
+
+      for (const [path, returnTo] of [
+        ['/league/profile', '/league/profile'],
+        [
+          '/league/portfolio?week=2026-10-12#holdings',
+          '/league/portfolio?week=2026-10-12#holdings',
+        ],
+        ['/league/following', '/league/following'],
+        ['/league/reviews', '/league/reviews'],
+        ['/portfolio/publication?join=true', '/portfolio/publication?join=true'],
+        ['/portfolio/records', '/league/portfolio'],
+      ]) {
+        await page.goto(path);
+        await expect(page).toHaveURL('/login?returnTo=' + encodeURIComponent(returnTo));
+        await expect(page.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
           true,
         );
       }
-
-      expect(leagueRequests).toEqual([]);
-      const returnLink = page.getByRole('link', { name: '내 포트폴리오로 돌아가기' });
-      await returnLink.focus();
-      await expect(returnLink).toBeFocused();
-      await page.keyboard.press('Enter');
-      await expect(page).toHaveURL('/');
+      expect(privateRequests).toEqual([]);
     },
   );
 }

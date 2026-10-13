@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockLeagueApi } from './league-api';
 
 const stock = {
   assetId: 1,
@@ -112,31 +113,43 @@ for (const viewport of [
     await checkWidth(page);
   });
 
-  test(viewport.name + ': 마이페이지에 투자 리그 링크를 노출하지 않는다', async ({ page }) => {
-    await page.setViewportSize(viewport);
-    await page.route('**/api/users/me', (route) =>
-      route.fulfill({
-        json: { id: 2, email: 'ux@example.invalid', nickname: '초보', role: 'USER' },
-      }),
-    );
-    const leagueRequests: string[] = [];
-    page.on('request', (request) => {
-      const pathname = new URL(request.url()).pathname;
-      if (
-        /\/api\/(league|users\/me\/(shared-portfolio|portfolio\/publication|investor-profile))/.test(
-          pathname,
+  test(
+    viewport.name + ': 마이페이지에서 리그 프로필·팔로우·설정으로 이동한다',
+    async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.route('**/api/users/me', (route) =>
+        route.fulfill({
+          json: { id: 2, email: 'ux@example.invalid', nickname: '초보', role: 'USER' },
+        }),
+      );
+      await mockLeagueApi(page);
+      const leagueRequests: string[] = [];
+      page.on('request', (request) => {
+        const pathname = new URL(request.url()).pathname;
+        if (
+          /\/api\/(league|users\/me\/(shared-portfolio|portfolio\/publication|investor-profile|league))/.test(
+            pathname,
+          )
         )
-      )
-        leagueRequests.push(pathname);
-    });
+          leagueRequests.push(pathname);
+      });
 
-    await page.goto('/mypage');
-    for (const name of [/리그 프로필/, /팔로우한 투자자/, /리그 설정/]) {
-      await expect(page.getByRole('link', { name })).toHaveCount(0);
-    }
-    expect(leagueRequests).toEqual([]);
-    await checkWidth(page);
-  });
+      await page.goto('/mypage');
+      for (const [name, href] of [
+        [/리그 프로필/, '/league/profile'],
+        [/팔로우한 투자자/, '/league/following'],
+        [/리그 설정/, '/portfolio/publication'],
+      ] as const) {
+        await expect(page.getByRole('link', { name })).toHaveAttribute('href', href);
+      }
+      expect(leagueRequests).toEqual([]);
+      await checkWidth(page);
+      await page.getByRole('link', { name: /팔로우한 투자자/ }).click();
+      await expect(page.getByRole('heading', { name: '팔로잉', exact: true })).toBeVisible();
+      await expect(page.getByText('팔로우한 투자자가 없습니다')).toBeVisible();
+      expect(leagueRequests).toContain('/api/users/me/league/follows/summary');
+    },
+  );
 }
 
 test('모바일: 이름이 없는 기존 계정은 재로그인을 안내하고 닉네임 취소는 저장하지 않는다', async ({
@@ -194,34 +207,28 @@ test('모바일: 삭제된 돈 관리의 기존 주소는 비회원 포트폴리
   await expect(page.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeVisible();
 });
 
-test('모바일: 로그인한 사용자도 리그 참여·공개 설정에 접근하면 준비 중 안내를 본다', async ({
+test('모바일: 로그인한 사용자가 종목·공개 설정·프로필과 첫 일별 성과를 조회한다', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await mockLeagueApi(page);
   await page.route('**/api/users/me', (route) =>
     route.fulfill({ json: { id: 2, email: 'ux@example.invalid', nickname: '초보', role: 'USER' } }),
   );
-  const leagueRequests: string[] = [];
-  page.on('request', (request) => {
-    const pathname = new URL(request.url()).pathname;
-    if (
-      /\/api\/(league|users\/me\/(shared-portfolio|portfolio\/publication|investor-profile))/.test(
-        pathname,
-      )
-    )
-      leagueRequests.push(pathname);
-  });
-
-  for (const path of [
-    '/league/portfolio',
-    '/portfolio/publication?join=true',
-    '/league/profile',
-    '/league/ux#investment-details',
+  for (const [path, heading] of [
+    ['/league/portfolio', '종목 관리'],
+    ['/portfolio/publication?join=true', '주간 리그 참여'],
+    ['/league/profile', '리그 투자자'],
+    ['/league/investor-1', '리그 투자자'],
   ]) {
     await page.goto(path);
-    await expect(page.getByRole('heading', { name: '투자 리그를 준비하고 있어요' })).toBeVisible();
-    await expect(page.locator('main').getByRole('button')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: '← 주간 리그' })).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
     await checkWidth(page);
   }
-  expect(leagueRequests).toEqual([]);
+  await page.getByRole('button', { name: '일별', exact: true }).click();
+  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.getByText('주간 누적 0.00%')).toBeVisible();
+  await checkWidth(page);
 });
