@@ -140,7 +140,42 @@ for (const viewport of [
     });
     await page.goto('/');
     await expect(page.getByRole('button', { name: '삼성전자 보유 상세' })).toBeVisible();
-    await expect(page.getByRole('complementary', { name: '보유 자산 소식' })).toBeVisible();
+    const newsTab = page.getByRole('button', { name: '소식', exact: true });
+    await expect(page.getByRole('complementary', { name: '보유 자산 소식' })).toHaveCount(0);
+    const dashboardBeforeNews = await page.locator('.portfolio-dashboard-main').boundingBox();
+    await newsTab.click();
+    const newsPanel = page.getByRole('dialog', { name: '보유 자산 소식' });
+    await expect(newsPanel).toBeVisible();
+    await expect(newsPanel.getByRole('complementary', { name: '보유 자산 소식' })).toBeVisible();
+    expect(
+      await newsPanel.evaluate((panel) => {
+        const box = panel.getBoundingClientRect();
+        return (
+          Math.abs(box.right - innerWidth) <= 1 &&
+          box.top === 0 &&
+          box.width === Math.min(420, innerWidth) &&
+          box.height === innerHeight &&
+          panel.scrollWidth <= panel.clientWidth
+        );
+      }),
+    ).toBe(true);
+    await newsPanel.screenshot({ path: testInfo.outputPath('news-panel.png') });
+    await newsPanel.getByRole('button', { name: '소식 닫기' }).click();
+    await expect(newsPanel).toHaveCount(0);
+    await expect(newsTab).toBeFocused();
+    expect((await page.locator('.portfolio-dashboard-main').boundingBox())?.width).toBe(
+      dashboardBeforeNews?.width,
+    );
+    await newsTab.click();
+    await page.keyboard.press('Escape');
+    await expect(newsPanel).toHaveCount(0);
+    await expect(newsTab).toBeFocused();
+    if (viewport.name === 'desktop') {
+      await newsTab.click();
+      await page.mouse.click(10, 100);
+      await expect(newsPanel).toHaveCount(0);
+      await expect(newsTab).toBeFocused();
+    }
     const summary = page.getByLabel('자산 요약');
     await expect(summary.getByText('누적 실현손익', { exact: true })).toBeVisible();
     await expect(summary.getByText('로그인 후 확인할 수 있어요', { exact: true })).toBeVisible();
@@ -345,7 +380,15 @@ for (const viewport of [
           assetId: contentStock.assetId,
           assetCode: contentStock.assetCode,
           assetName: contentStock.name,
-          contents: [],
+          contents: Array.from({ length: 15 }, (_, index) => ({
+            id: index + 1,
+            assetId: contentStock.assetId,
+            sourceType: 'OTHER',
+            title: `보유 종목과 연결된 산업 동향과 주요 소식 ${index + 1}`,
+            url: `https://example.test/news/${index + 1}`,
+            imageUrl: null,
+            createdAt: `${today}T01:00:00Z`,
+          })),
         });
       if (path === '/api/users/me')
         return fulfill({
@@ -453,7 +496,50 @@ for (const viewport of [
     await expect(
       page.getByText(`${sum('closePrice').toLocaleString('ko-KR')}원`).first(),
     ).toBeVisible();
-    await expect(page.getByRole('complementary', { name: '보유 자산 소식' })).toBeVisible();
+    const newsTab = page.getByRole('button', { name: '소식', exact: true });
+    await expect(page.getByRole('complementary', { name: '보유 자산 소식' })).toHaveCount(0);
+    const dashboardBeforeNews = await page.locator('.portfolio-dashboard-main').boundingBox();
+    await newsTab.click();
+    const newsPanel = page.getByRole('dialog', { name: '보유 자산 소식' });
+    await expect(newsPanel).toBeVisible();
+    await expect(newsPanel.getByRole('complementary', { name: '보유 자산 소식' })).toBeVisible();
+    expect(
+      await newsPanel.evaluate((panel) => {
+        const box = panel.getBoundingClientRect();
+        return (
+          Math.abs(box.right - innerWidth) <= 1 &&
+          box.top === 0 &&
+          box.width === Math.min(420, innerWidth) &&
+          box.height === innerHeight &&
+          panel.scrollWidth <= panel.clientWidth
+        );
+      }),
+    ).toBe(true);
+    await expect(newsPanel.getByRole('link', { name: /주요 소식 15/ })).toHaveCount(1);
+    await newsPanel.screenshot({ path: testInfo.outputPath('news-panel.png') });
+    await newsPanel.locator('.portfolio-news-body').evaluate((body) => {
+      body.scrollTop = body.scrollHeight;
+    });
+    expect(
+      await newsPanel.locator('.portfolio-news-body').evaluate((body) => body.scrollTop),
+    ).toBeGreaterThan(0);
+    await expect(newsPanel.getByRole('button', { name: '소식 닫기' })).toBeVisible();
+    await newsPanel.getByRole('button', { name: '소식 닫기' }).click();
+    await expect(newsPanel).toHaveCount(0);
+    await expect(newsTab).toBeFocused();
+    expect((await page.locator('.portfolio-dashboard-main').boundingBox())?.width).toBe(
+      dashboardBeforeNews?.width,
+    );
+    await newsTab.click();
+    await page.keyboard.press('Escape');
+    await expect(newsPanel).toHaveCount(0);
+    await expect(newsTab).toBeFocused();
+    if (viewport.name === 'desktop') {
+      await newsTab.click();
+      await page.mouse.click(10, 100);
+      await expect(newsPanel).toHaveCount(0);
+      await expect(newsTab).toBeFocused();
+    }
     const summary = page.getByLabel('자산 요약');
     await expect(summary.getByText('현재 보유 수량 기준', { exact: true })).toBeVisible();
     await expect(summary.getByText('매도로 확정된 손익', { exact: true })).toBeVisible();

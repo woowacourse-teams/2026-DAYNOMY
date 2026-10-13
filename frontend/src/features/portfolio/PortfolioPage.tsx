@@ -33,7 +33,6 @@ const compactWonFormatter = new Intl.NumberFormat('ko-KR', {
   maximumFractionDigits: 1,
 });
 const HIDDEN_AMOUNT = '••••••원';
-const SHOW_PORTFOLIO_NEWS = true;
 const EMPTY_PORTFOLIO_CALCULATION: PortfolioCalculation = {
   baseDate: null,
   pricingStatus: 'COMPLETE',
@@ -673,6 +672,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
   const performance = usePortfolioPerformance(trendPeriod, holdings, revision, isLoggedIn);
+  const [newsOpen, setNewsOpen] = useState(false);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
@@ -776,6 +776,19 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
         <div className="portfolio-page-actions">
           <button
             type="button"
+            className="portfolio-secondary-button portfolio-news-tab"
+            aria-haspopup="dialog"
+            aria-expanded={newsOpen}
+            disabled={holdingsLoading || !!holdingsError}
+            onClick={() => setNewsOpen(true)}
+          >
+            소식
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+          <button
+            type="button"
             className="portfolio-primary-button"
             disabled={holdingsLoading || !!holdingsError}
             onClick={() => (isLoggedIn ? setTransactionEditor({}) : setEditor({}))}
@@ -813,10 +826,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       (!loading || calculation !== null) &&
       !holdingsError &&
       dashboardCalculation ? (
-        <div
-          aria-busy={loading}
-          className={`portfolio-dashboard-layout${SHOW_PORTFOLIO_NEWS ? ' has-news' : ''}`}
-        >
+        <div aria-busy={loading} className="portfolio-dashboard-layout">
           <div className="portfolio-dashboard-main">
             <dl className="portfolio-overview" aria-label="자산 요약">
               <div className="portfolio-summary-total">
@@ -1168,9 +1178,18 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
             )}
           </div>
-          {SHOW_PORTFOLIO_NEWS && <PortfolioNews holdings={dashboardCalculation.holdings} />}
         </div>
       ) : null}
+
+      {newsOpen && (
+        <PortfolioDialog
+          titleId="portfolio-news-title"
+          className="portfolio-news-sheet"
+          onClose={() => setNewsOpen(false)}
+        >
+          <PortfolioNews holdings={holdings} onClose={() => setNewsOpen(false)} />
+        </PortfolioDialog>
+      )}
 
       {isLoggedIn && trendDialogOpen ? (
         <PortfolioTrendDialog

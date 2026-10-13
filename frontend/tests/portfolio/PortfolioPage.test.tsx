@@ -588,19 +588,34 @@ describe('포트폴리오 화면', () => {
     expect(view.queryByText('관리')).toBeNull();
   });
 
-  it('본문 소식은 유지하고 보유 상세에는 소식 패널과 추가 조회 없이 종목 정보와 거래 내역을 제공한다', async () => {
+  it('소식은 별도 패널로 제공하고 보유 상세에는 소식 패널과 추가 조회 없이 종목 정보와 거래 내역을 제공한다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     mockPortfolioApi();
 
     const view = render(<PortfolioPage />);
     await view.findAllByText('750,000원');
-    expect(view.getByRole('complementary', { name: '보유 자산 소식' })).toBeTruthy();
-    await view.findByText('보유 자산에 등록된 소식이 없습니다.');
+    expect(view.queryByRole('complementary', { name: '보유 자산 소식' })).toBeNull();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) => String(input).endsWith('/api/assets/1/contents')),
+    ).toBe(false);
+    const newsTab = view.getByRole('button', { name: /^소식$/ });
+    newsTab.focus();
+    fireEvent.click(newsTab);
+    const newsPanel = view.getByRole('dialog', { name: '보유 자산 소식' });
+    expect(newsTab.getAttribute('aria-expanded')).toBe('true');
+    expect(within(newsPanel).getByRole('complementary', { name: '보유 자산 소식' })).toBeTruthy();
+    await within(newsPanel).findByText('보유 자산에 등록된 소식이 없습니다.');
     expect(
       vi
         .mocked(fetch)
         .mock.calls.filter(([input]) => String(input).endsWith('/api/assets/1/contents')),
     ).toHaveLength(1);
+    fireEvent.click(within(newsPanel).getByRole('button', { name: '소식 닫기' }));
+    expect(view.queryByRole('dialog', { name: '보유 자산 소식' })).toBeNull();
+    expect(newsTab.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(newsTab);
     vi.mocked(fetch).mockClear();
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
@@ -613,6 +628,28 @@ describe('포트폴리오 화면', () => {
         .mocked(fetch)
         .mock.calls.some(([input]) => String(input).endsWith('/api/assets/1/contents')),
     ).toBe(false);
+  });
+
+  it('비회원 소식 패널은 취소 이벤트와 바깥 클릭으로 닫고 탭으로 포커스를 돌린다', async () => {
+    sessionStorage.setItem(
+      'daynomy:guest-portfolio-holdings:v1',
+      JSON.stringify([{ ...stock, quantity: 10, averagePurchasePrice: 70000 }]),
+    );
+    mockPortfolioApi();
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findAllByText('750,000원');
+    const tab = view.getByRole('button', { name: /^소식$/ });
+    for (const close of ['cancel', 'backdrop']) {
+      tab.focus();
+      fireEvent.click(tab);
+      const panel = view.getByRole('dialog', { name: '보유 자산 소식' });
+      await within(panel).findByText('보유 자산에 등록된 소식이 없습니다.');
+      if (close === 'cancel') fireEvent(panel, new Event('cancel', { cancelable: true }));
+      else fireEvent.click(panel);
+      expect(view.queryByRole('dialog', { name: '보유 자산 소식' })).toBeNull();
+      expect(document.activeElement).toBe(tab);
+      expect(document.body.style.overflow).not.toBe('hidden');
+    }
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
