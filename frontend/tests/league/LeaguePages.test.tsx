@@ -288,6 +288,86 @@ describe('투자 리그 화면', () => {
     },
   );
 
+  it.each(['button', 'visibility'] as const)(
+    '실제 대기 날짜를 안내하고 %s 재조회로 첫 0%% 집계를 표시한다',
+    async (refresh) => {
+      const pending = {
+        ...daily,
+        asOfDate: null,
+        weeklyReturnRate: null,
+        days: [
+          {
+            ...daily.days[0],
+            dailyReturnRate: null,
+            cumulativeReturnRate: null,
+            status: 'NOT_PARTICIPATING' as const,
+          },
+          {
+            ...daily.days[0],
+            baseDate: '2026-12-08',
+            dailyReturnRate: null,
+            cumulativeReturnRate: null,
+            status: 'EXCLUDED' as const,
+            reason: 'PRICE_COLLECTION_PENDING',
+          },
+        ],
+      };
+      vi.mocked(leagueApi.getDailyHistory)
+        .mockResolvedValueOnce(pending)
+        .mockResolvedValue({
+          ...daily,
+          asOfDate: '2026-12-08',
+          weeklyReturnRate: 0,
+          days: [
+            {
+              ...daily.days[0],
+              baseDate: '2026-12-08',
+              dailyReturnRate: 0,
+              cumulativeReturnRate: 0,
+              reason: 'TRACKING_BASELINE',
+            },
+          ],
+        });
+      const view = render(
+        <DailyReturns publicId="investor-1" weekStart="" onWeekChange={vi.fn()} />,
+      );
+      expect(await view.findByText(/12\. 8\. .*종가 수집 대기/)).toBeTruthy();
+      expect(view.queryByText(/참여 전 \/ 미참여/)).toBeNull();
+      expect(view.queryByRole('table')).toBeNull();
+      if (refresh === 'button') {
+        fireEvent.click(view.getByRole('button', { name: '일별 기록 다시 확인' }));
+      } else {
+        const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+        fireEvent(document, new Event('visibilitychange'));
+        expect(leagueApi.getDailyHistory).toHaveBeenCalledTimes(1);
+        visibility.mockReturnValue('visible');
+        fireEvent(document, new Event('visibilitychange'));
+      }
+      expect(await view.findByText('주간 누적 0.00%')).toBeTruthy();
+      expect(view.getByRole('table')).toBeTruthy();
+      expect(leagueApi.getDailyHistory).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('브라우저 탭으로 돌아오면 순위를 다시 조회한다', async () => {
+    vi.mocked(leagueApi.getRankings).mockResolvedValue(ranking);
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter>
+          <LeaguePage />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByText('+2.50%');
+    vi.mocked(leagueApi.getRankings).mockResolvedValue({
+      ...ranking,
+      rankings: [{ ...ranking.rankings[0], weeklyReturnRate: 5 }],
+    });
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(await view.findByText('+5.00%')).toBeTruthy();
+  });
+
   it('신규 참여자의 첫 0% 기록을 이번 주 성과로 표시한다', async () => {
     vi.mocked(leagueApi.getDailyHistory).mockResolvedValue({
       ...daily,

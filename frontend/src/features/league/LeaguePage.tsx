@@ -57,6 +57,14 @@ export function LeaguePage() {
     : `/login?returnTo=${encodeURIComponent('/league/portfolio#select')}`;
 
   useEffect(() => {
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') setRetry((value) => value + 1);
+    }
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     setLeagueEnabled(null);
     setProfileError(false);

@@ -47,6 +47,14 @@ export function DailyReturns({
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') setRetry((value) => value + 1);
+    }
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError('');
@@ -73,11 +81,15 @@ export function DailyReturns({
 
   const days = history?.days ?? [];
   const hasReturns = days.some((day) => day.dailyReturnRate !== null);
+  const participatingDays = days.filter((day) => day.status !== 'NOT_PARTICIPATING');
+  const pendingClose = participatingDays.find((day) => day.reason === 'PRICE_COLLECTION_PENDING');
   const emptyDetail =
     days.length > 0
-      ? days.every((day) => day.status === 'NOT_PARTICIPATING')
+      ? participatingDays.length === 0
         ? '이 주에는 참여 기록이 없어요.'
-        : [...new Set(days.map(statusLabel))].join(', ')
+        : pendingClose
+          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기 · 다음 영업일 오후 1시 이후 제공됩니다.`
+          : [...new Set(participatingDays.map(statusLabel))].join(', ')
       : history?.collectionStatus
         ? collectionLabels[history.collectionStatus]
         : '거래일 기록 없음';
@@ -116,6 +128,11 @@ export function DailyReturns({
             <div className="league-daily-empty">
               <p>아직 집계된 수익률이 없어요.</p>
               <small>{emptyDetail}</small>
+              {participatingDays.length > 0 ? (
+                <button type="button" onClick={() => setRetry((value) => value + 1)}>
+                  일별 기록 다시 확인
+                </button>
+              ) : null}
             </div>
           ) : (
             <>

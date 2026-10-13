@@ -227,7 +227,8 @@
   margin-top: 8px;
 }
 
-.league-ranking-empty button {
+.league-ranking-empty button,
+.league-daily-empty button {
   min-height: 44px;
   padding: 8px 16px;
   border: 1px solid #cbd5e5;
@@ -237,7 +238,8 @@
   cursor: pointer;
 }
 
-.league-ranking-empty button:hover {
+.league-ranking-empty button:hover,
+.league-daily-empty button:hover {
   background: #edf2fa;
 }
 
@@ -898,6 +900,10 @@
 .league-daily-empty small {
   color: var(--league-muted);
   font-size: 13px;
+}
+.league-daily-empty button {
+  display: block;
+  margin-top: 12px;
 }
 .league-daily-summary small {
   color: var(--league-muted);
