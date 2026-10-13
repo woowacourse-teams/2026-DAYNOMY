@@ -38,9 +38,7 @@ class PortfolioAnalysisRefreshTest {
             });
     assertThat(revision.analysis().overallDirection()).isEqualTo(ImpactDirection.NEUTRAL);
     assertThat(revision.analysis().overallScore()).isEqualByComparingTo("0");
-    assertThat(revision.analysis().overallImpact())
-        .contains("실적 부담이 있어요.")
-        .doesNotContain("검증되지 않은 전체 설명");
+    assertThat(revision.analysis().overallImpact()).isEmpty();
     assertThat(revision.reason()).contains("삼성전자").doesNotContain("SK하이닉스");
     assertThat(revision.analysis().impacts())
         .extracting(PortfolioAssetImpactResponse::rank)
@@ -97,6 +95,68 @@ class PortfolioAnalysisRefreshTest {
     assertThat(revision.analysis().overallScore()).isEqualByComparingTo("0");
     assertThat(revision.analysis().analyzedAssetCount()).isEqualTo(2);
     assertThat(revision.analysis().overallImpact()).doesNotContain("검증되지 않은 전체 설명");
+  }
+
+  @Test
+  void repairsStoredEnglishEvenWhenTheUnderlyingFactIsUnchanged() {
+    var current = impact("포스코퓨처엠", false, ImpactDirection.POSITIVE);
+    var broken =
+        new PortfolioAssetImpactResponse(
+            current.assetName(),
+            current.weight(),
+            current.direction(),
+            current.impactLevel(),
+            "POSCO Future M signs a supply contract..요.",
+            current.expectedReaction(),
+            current.outlook(),
+            current.reason(),
+            current.evidenceSentence(),
+            current.sources(),
+            1);
+    var revision = PortfolioAnalysisRefresh.compare(response(broken), response(current));
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().impacts())
+        .singleElement()
+        .satisfies(i -> assertThat(i.issueSummary()).isEqualTo(current.issueSummary()));
+    assertThat(revision.reason()).isEqualTo("포스코퓨처엠의 근거와 설명을 갱신했어요.");
+  }
+
+  @Test
+  void doesNotRetainUnusableStoredHomepageAsVerifiedEvidence() {
+    var good = impact("포스코퓨처엠", false, ImpactDirection.POSITIVE);
+    var bad =
+        new PortfolioAssetImpactResponse(
+            good.assetName(),
+            good.weight(),
+            good.direction(),
+            good.impactLevel(),
+            good.issueSummary(),
+            good.expectedReaction(),
+            good.outlook(),
+            good.reason(),
+            good.evidenceSentence(),
+            List.of(new PortfolioAnalysisSourceResponse("뉴스룸", "https://newsroom.posco.com/en/")),
+            1);
+    var revision =
+        PortfolioAnalysisRefresh.compare(response(bad), response(insufficient("포스코퓨처엠")));
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().impacts())
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isNull());
+  }
+
+  @Test
+  void preservesAllFourAssetsForSummaryInsteadOfSelectingTopThree() {
+    var previous =
+        response(insufficient("가"), insufficient("나"), insufficient("다"), insufficient("라"));
+    var candidate =
+        response(
+            impact("가", true, ImpactDirection.POSITIVE),
+            impact("나", true, ImpactDirection.NEGATIVE),
+            impact("다", true, ImpactDirection.POSITIVE),
+            impact("라", true, ImpactDirection.POSITIVE));
+    assertThat(PortfolioAnalysisRefresh.compare(previous, candidate).analysis().impacts())
+        .hasSize(4);
   }
 
   private PortfolioAssetImpactResponse insufficient(String name) {

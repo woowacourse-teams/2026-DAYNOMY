@@ -187,7 +187,10 @@ public class SavedPortfolioAnalysisTransactionService {
         check.finish(token);
         return response(memberId, previous, check, assets, now);
       }
-      result = revision.analysis();
+      if (!result.impacts().equals(revision.analysis().impacts())) {
+        throw new IllegalStateException("최종 병합 결과와 전체 설명의 분석 대상이 다릅니다.");
+      }
+      result = revision.analysis().withOverallImpact(result.overallImpact());
       reason = revision.reason();
     }
     PortfolioAnalysis analysis =

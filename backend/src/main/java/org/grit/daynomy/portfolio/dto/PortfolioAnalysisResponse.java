@@ -27,7 +27,8 @@ public record PortfolioAnalysisResponse(
     @Schema(description = "부정 자산의 보유 비중과 영향 수준을 반영한 기여 점수(0~100)", example = "9.00")
         BigDecimal negativeImpactScore,
     @Schema(description = "분석 생성 시각. 분석 결과가 없으면 null", nullable = true) Instant analyzedAt,
-    @Schema(description = "자산별 분석을 종합한 전체 포트폴리오 예상 영향") String overallImpact,
+    @Schema(description = "최종 종목별 판단을 종합한 세 문단 설명. 일부 근거 부족 시 분석 범위·전체 판단 보류 이유 포함, 전체 부족 시 짧은 안내")
+        String overallImpact,
     @Schema(description = "포트폴리오 자산별 주요 이슈 영향 분석 목록") List<PortfolioAssetImpactResponse> impacts,
     @Schema(description = "분석에 사용된 웹 검색 출처") List<PortfolioAnalysisSourceResponse> sources) {
 
@@ -50,6 +51,20 @@ public record PortfolioAnalysisResponse(
   public String coverage() {
     long supported = impacts.stream().filter(impact -> impact.direction() != null).count();
     return supported == 0 ? "INSUFFICIENT" : supported == totalAssetCount ? "COMPLETE" : "PARTIAL";
+  }
+
+  public PortfolioAnalysisResponse withOverallImpact(String text) {
+    return new PortfolioAnalysisResponse(
+        totalAssetCount,
+        analyzedAssetCount,
+        overallDirection,
+        overallScore,
+        positiveImpactScore,
+        negativeImpactScore,
+        analyzedAt,
+        text,
+        impacts,
+        sources);
   }
 
   public PortfolioAnalysisSnapshot toSnapshot(List<PortfolioAssetRequest> assets) {

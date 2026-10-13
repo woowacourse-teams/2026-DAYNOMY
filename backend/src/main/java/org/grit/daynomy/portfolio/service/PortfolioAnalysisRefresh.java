@@ -37,6 +37,11 @@ final class PortfolioAnalysisRefresh {
         merged.add(old);
         continue;
       }
+      if (!validStoredImpact(old)) {
+        merged.add(current);
+        reasons.add(current.assetName());
+        continue;
+      }
       var comparison = PortfolioEvidenceComparison.compare(facts(old), facts(current));
       if (comparison == PortfolioEvidenceComparison.Result.UNCONFIRMED) {
         insufficient = true;
@@ -47,10 +52,14 @@ final class PortfolioAnalysisRefresh {
         merged.add(old);
       } else {
         merged.add(current);
-        reasons.add(current.assetName() + ": " + current.evidenceSentence());
+        reasons.add(current.assetName());
       }
     }
-    if (reasons.isEmpty()) {
+    boolean repairSummary =
+        previous.analyzedAssetCount() > 0
+            && !validSummary(previous.overallImpact())
+            && candidate.analyzedAssetCount() > 0;
+    if (reasons.isEmpty() && !repairSummary) {
       return new Revision(insufficient ? Outcome.UNCONFIRMED : Outcome.UNCHANGED, previous, "");
     }
     merged.sort(
@@ -90,20 +99,7 @@ final class PortfolioAnalysisRefresh {
                         new PortfolioImpactSummary.AssetImpact(
                             impact.weight(), impact.direction(), impact.impactLevel()))
                 .toList());
-    // 새 전체 설명이 근거 없는 다른 종목의 판단 변경을 다시 끌어들이지 않도록 보존된 본문으로 구성한다.
-    var major =
-        merged.stream()
-            .sorted(Comparator.comparing(PortfolioAssetImpactResponse::weight).reversed())
-            .limit(3)
-            .toList();
-    String prose =
-        List.of(
-                paragraph(major, PortfolioAssetImpactResponse::issueSummary),
-                paragraph(major, PortfolioAssetImpactResponse::expectedReaction),
-                paragraph(major, PortfolioAssetImpactResponse::outlook))
-            .stream()
-            .filter(text -> !text.isBlank())
-            .collect(Collectors.joining("\n\n"));
+    // 외부 요약 호출은 트랜잭션 밖에서 최종 병합 결과로 수행한다.
     var sources =
         merged.stream()
             .flatMap(impact -> impact.sources().stream())
@@ -119,8 +115,10 @@ final class PortfolioAnalysisRefresh {
     return new Revision(
         Outcome.UPDATED,
         PortfolioAnalysisResponse.of(
-            previous.totalAssetCount(), summary, candidate.analyzedAt(), prose, merged, sources),
-        "새 근거 반영 — " + String.join(" ", reasons));
+            previous.totalAssetCount(), summary, candidate.analyzedAt(), "", merged, sources),
+        reasons.isEmpty()
+            ? "종목별 판단은 유지하고 전체 설명을 정리했어요."
+            : String.join(", ", reasons) + "의 근거와 설명을 갱신했어요.");
   }
 
   private static List<Fact> facts(PortfolioAssetImpactResponse impact) {
@@ -131,12 +129,47 @@ final class PortfolioAnalysisRefresh {
         .toList();
   }
 
-  private static String paragraph(
-      List<PortfolioAssetImpactResponse> impacts,
-      Function<PortfolioAssetImpactResponse, String> field) {
-    return impacts.stream()
-        .filter(impact -> !field.apply(impact).isBlank())
-        .map(impact -> impact.assetName() + ": " + field.apply(impact))
-        .collect(Collectors.joining(" "));
+  private static boolean validStoredImpact(PortfolioAssetImpactResponse impact) {
+    try {
+      for (String text :
+          List.of(
+              impact.issueSummary(),
+              impact.expectedReaction(),
+              impact.outlook(),
+              impact.reason(),
+              impact.evidenceSentence())) {
+        org.grit.daynomy.portfolio.ai.PortfolioAnalysisProse.normalize(text);
+      }
+      for (var source : impact.sources()) {
+        if (org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourcePolicy.isIndex(source.url()))
+          return false;
+        org.grit.daynomy.portfolio.ai.PortfolioAnalysisProse.normalize(source.excerpt());
+      }
+      org.grit.daynomy.portfolio.ai.PortfolioAnalysisProse.requireSupportedDates(
+          impact.issueSummary(),
+          impact.sources().stream()
+              .map(
+                  source ->
+                      source.excerpt()
+                          + " "
+                          + source.factQuote()
+                          + " "
+                          + source.publishedOn()
+                          + " "
+                          + source.occurredOn())
+              .collect(Collectors.joining(" ")));
+      return true;
+    } catch (IllegalArgumentException exception) {
+      return false;
+    }
+  }
+
+  private static boolean validSummary(String text) {
+    try {
+      org.grit.daynomy.portfolio.ai.PortfolioAnalysisProse.normalize(text);
+      return !text.contains(":") && text.split("\\R\\s*\\R").length == 3;
+    } catch (IllegalArgumentException exception) {
+      return false;
+    }
   }
 }

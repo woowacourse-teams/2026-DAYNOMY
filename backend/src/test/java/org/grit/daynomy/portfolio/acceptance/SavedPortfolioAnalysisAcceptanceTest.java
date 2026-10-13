@@ -85,6 +85,14 @@ class SavedPortfolioAnalysisAcceptanceTest {
 
   @LocalServerPort private int port;
   @MockitoBean private PortfolioAnalysisAiClient ai;
+  @MockitoBean private org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
+
+  @org.junit.jupiter.api.BeforeEach
+  void narrativeStub() {
+    when(narrative.summarize(org.mockito.ArgumentMatchers.any()))
+        .thenReturn("확인된 발표를 반영했어요.\n\n실적과 비용을 함께 살펴봐야 해요.\n\n다음 실적 발표를 확인해 보세요.");
+  }
+
   @Autowired private MemberRepository members;
   @Autowired private PortfolioRepository portfolios;
   @Autowired private PortfolioHoldingRepository holdings;
@@ -454,7 +462,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .body("size()", equalTo(2))
         .body("[0].previousAnalysisId", equalTo((int) oldId))
         .body("[1].analysis.impacts[0].direction", equalTo("NEGATIVE"));
-    assertThat(history.jsonPath().getString("[0].changeReason")).contains("삼성전자", "새 계약");
+    assertThat(history.jsonPath().getString("[0].changeReason")).isEqualTo("삼성전자의 근거와 설명을 갱신했어요.");
     client(member()).get(API + "/history").then().statusCode(200).body("size()", equalTo(0));
     given().port(port).get(API + "/history").then().statusCode(401);
   }
