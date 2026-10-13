@@ -79,7 +79,8 @@ class ContentSearchAcceptanceTest {
             Category.ETF,
             Instant.parse("2026-08-12T00:00:00Z")));
     newsRepository.save(News.createDraft("금리 비공개 기사", "본문", null, List.of(), Category.ETF));
-    FeaturedPerson person = personRepository.save(FeaturedPerson.create("경제 연구원", null, null));
+    FeaturedPerson person =
+        personRepository.save(FeaturedPerson.create("경제 연구원", null, null, null, null));
     personPostRepository.save(
         FeaturedPersonPost.create(
             person, ContentSourceType.X, "금리 전망", "https://twitter.com/example/status/123"));

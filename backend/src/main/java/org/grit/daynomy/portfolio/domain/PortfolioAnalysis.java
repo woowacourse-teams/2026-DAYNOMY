@@ -75,7 +75,7 @@ public class PortfolioAnalysis extends BaseEntity {
       }
     }
     this.previousAnalysisId = previous == null ? null : previous.getId();
-    this.schemaVersion = 1;
+    this.schemaVersion = 2;
     this.analysisVersion = Objects.requireNonNull(analysisVersion);
     this.model = Objects.requireNonNull(model);
     this.snapshot = Objects.requireNonNull(snapshot);

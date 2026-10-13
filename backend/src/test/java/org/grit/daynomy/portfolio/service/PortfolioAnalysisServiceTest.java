@@ -32,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class PortfolioAnalysisServiceTest {
 
   @Mock private PortfolioAnalysisAiClient portfolioAnalysisAiClient;
+  @Mock private org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
   @Spy private GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
   @InjectMocks private PortfolioAnalysisService portfolioAnalysisService;
@@ -62,6 +63,8 @@ class PortfolioAnalysisServiceTest {
                     1)),
             List.of(new PortfolioAnalysisResult.Source("한국거래소", "https://example.com/news")));
     given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
+    given(narrative.summarize(org.mockito.ArgumentMatchers.any()))
+        .willReturn(analysisResult.overallImpact());
 
     PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request, true);
 
@@ -111,6 +114,8 @@ class PortfolioAnalysisServiceTest {
                 impact("NAVER", ImpactLevel.LOW, 4)),
             List.of(new PortfolioAnalysisResult.Source("출처", "https://example.com")));
     given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
+    given(narrative.summarize(org.mockito.ArgumentMatchers.any()))
+        .willReturn(analysisResult.overallImpact());
 
     PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request, true);
 
@@ -208,7 +213,7 @@ class PortfolioAnalysisServiceTest {
 
     PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request, false);
 
-    assertThat(response.overallImpact()).isEqualTo("분석 결과");
+    verify(narrative).summarize(org.mockito.ArgumentMatchers.any());
     verify(portfolioAnalysisAiClient, times(2)).analyze(targets);
   }
 
@@ -233,5 +238,71 @@ class PortfolioAnalysisServiceTest {
         "판단에 사용한 검색 근거",
         List.of(new PortfolioAnalysisResult.Source("출처", "https://example.com")),
         sortOrder);
+  }
+
+  @Test
+  void summarizesFinalPreservedJudgmentsOutsidePersistence() {
+    var negative =
+        new PortfolioAnalysisResult.AssetImpactResult(
+            "삼성전자",
+            ImpactDirection.NEGATIVE,
+            ImpactLevel.HIGH,
+            "삼성전자의 이익이 줄었어요.",
+            "실적 부담이 있어요.",
+            "다음 실적을 확인해 보세요.",
+            "이익이 줄었어요.",
+            "이익이 줄었어요.",
+            List.of(
+                new PortfolioAnalysisResult.Source(
+                    "공식 발표",
+                    "https://example.com/earnings",
+                    java.time.LocalDate.of(2026, 9, 25),
+                    java.time.LocalDate.of(2026, 9, 25),
+                    "이익이 줄었어요.",
+                    "Profit fell.")),
+            1);
+    var positive =
+        new PortfolioAnalysisResult.AssetImpactResult(
+            "삼성전자",
+            ImpactDirection.POSITIVE,
+            ImpactLevel.HIGH,
+            negative.issueSummary(),
+            "실적에 유리해요.",
+            negative.outlook(),
+            negative.reason(),
+            negative.evidenceSentence(),
+            negative.sources(),
+            1);
+    var oldImpact =
+        org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse.of(
+            negative, new BigDecimal("100"));
+    var previous =
+        PortfolioAnalysisResponse.of(
+            1,
+            org.grit.daynomy.portfolio.domain.PortfolioImpactSummary.calculate(
+                List.of(
+                    new org.grit.daynomy.portfolio.domain.PortfolioImpactSummary.AssetImpact(
+                        new BigDecimal("100"), ImpactDirection.NEGATIVE, ImpactLevel.HIGH))),
+            java.time.Instant.now(),
+            "삼성전자: 이익이 줄었어요.",
+            List.of(oldImpact),
+            List.of());
+    given(
+            portfolioAnalysisAiClient.refresh(
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyString()))
+        .willReturn(
+            new PortfolioAnalysisResult("잘못된 새 전체 설명이에요.", List.of(positive), positive.sources()));
+    given(narrative.summarize(org.mockito.ArgumentMatchers.any())).willReturn("검증된 전체 설명이에요.");
+    var result = portfolioAnalysisService.refresh(request(asset("삼성전자", "100")), previous);
+    var captured = org.mockito.ArgumentCaptor.forClass(PortfolioAnalysisResponse.class);
+    verify(narrative).summarize(captured.capture());
+    assertThat(captured.getValue().impacts())
+        .singleElement()
+        .satisfies(
+            impact -> {
+              assertThat(impact.direction()).isEqualTo(ImpactDirection.NEGATIVE);
+              assertThat(impact.expectedReaction()).isEqualTo("실적 부담이 있어요.");
+            });
+    assertThat(result.overallImpact()).isEqualTo("검증된 전체 설명이에요.");
   }
 }

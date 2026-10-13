@@ -85,6 +85,15 @@ class SavedPortfolioAnalysisAcceptanceTest {
 
   @LocalServerPort private int port;
   @MockitoBean private PortfolioAnalysisAiClient ai;
+  @MockitoBean private org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
+
+  @org.junit.jupiter.api.BeforeEach
+  void narrativeStub() {
+    when(narrative.summarize(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            "현재 보유한 종목의 비중을 확인했어요.\n\n실적과 비용이 전체 자산에 미치는 영향을 함께 살펴봐야 해요.\n\n비중이 큰 종목의 다음 실적 발표를 확인해 보세요.");
+  }
+
   @Autowired private MemberRepository members;
   @Autowired private PortfolioRepository portfolios;
   @Autowired private PortfolioHoldingRepository holdings;
@@ -173,6 +182,56 @@ class SavedPortfolioAnalysisAcceptanceTest {
   }
 
   @Test
+  void soldStockIsExcludedAndNewHoldingIsAnalyzed() {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    hold(portfolio, "SK하이닉스");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    var sold = holdings.findAllByPortfolioIdOrderById(portfolio.getId()).getLast();
+    holdings.delete(sold);
+    hold(portfolio, "포스코인터내셔널");
+    client(member).get(API).then().statusCode(200).body("matchesCurrentPortfolio", equalTo(false));
+    var updated = client(member).post(API);
+    updated.then().statusCode(200);
+    assertThat(updated.jsonPath().getList("analysis.impacts.assetName", String.class))
+        .containsExactlyInAnyOrder("삼성전자", "포스코인터내셔널");
+    org.mockito.ArgumentCaptor<List<PortfolioAnalysisTarget>> captor =
+        org.mockito.ArgumentCaptor.captor();
+    verify(ai, org.mockito.Mockito.times(2)).analyze(captor.capture());
+    assertThat(captor.getValue())
+        .extracting(PortfolioAnalysisTarget::assetName)
+        .containsExactlyInAnyOrder("삼성전자", "포스코인터내셔널");
+  }
+
+  @Test
+  void quantityChangeWithSameWeightRequiresNewAnalysis() {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    successfulAi();
+    var first = client(member).post(API);
+    first.then().statusCode(200);
+    long firstId = first.jsonPath().getLong("analysisId");
+    var holding = holdings.findAllByPortfolioIdOrderById(portfolio.getId()).getFirst();
+    holding.change(2, holding.getAveragePurchasePrice());
+    holdings.saveAndFlush(holding);
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("matchesCurrentPortfolio", equalTo(false))
+        .body("status", equalTo("PORTFOLIO_CHANGED"));
+    var next = client(member).post(API);
+    next.then().statusCode(200);
+    assertThat(next.jsonPath().getLong("analysisId")).isNotEqualTo(firstId);
+    var snapshot = analyses.findById(next.jsonPath().getLong("analysisId")).orElseThrow();
+    assertThat(snapshot.getSchemaVersion()).isEqualTo(2);
+    assertThat(snapshot.getSnapshot().assets().getFirst().quantity()).isEqualTo(2L);
+  }
+
+  @Test
   void changedHoldingsAreMarkedAndFailedAnalysisDoesNotReplacePreviousResultOrSuccessTime() {
     Member member = member();
     Portfolio portfolio = portfolio(member);
@@ -210,7 +269,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .statusCode(200)
         .body("status", equalTo("READY"))
         .body("analysis.impacts.size()", equalTo(2))
-        .body("changeReason", equalTo("보유 자산 또는 비중 변경"));
+        .body("changeReason", equalTo("보유 종목·수량·비중 변경"));
     long newId = updated.jsonPath().getLong("analysisId");
     assertThat(newId).isNotEqualTo(oldId);
     assertThat(
@@ -454,7 +513,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .body("size()", equalTo(2))
         .body("[0].previousAnalysisId", equalTo((int) oldId))
         .body("[1].analysis.impacts[0].direction", equalTo("NEGATIVE"));
-    assertThat(history.jsonPath().getString("[0].changeReason")).contains("삼성전자", "새 계약");
+    assertThat(history.jsonPath().getString("[0].changeReason")).isEqualTo("삼성전자의 근거와 설명을 갱신했어요.");
     client(member()).get(API + "/history").then().statusCode(200).body("size()", equalTo(0));
     given().port(port).get(API + "/history").then().statusCode(401);
   }

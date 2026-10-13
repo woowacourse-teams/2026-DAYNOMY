@@ -956,6 +956,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     () => toPortfolioAnalysisAssets(calculation?.holdings ?? []),
     [calculation],
   );
+  const analysisHoldingsMatch =
+    holdings.length === (calculation?.holdings.length ?? 0) &&
+    holdings.every((holding) =>
+      calculation?.holdings.some(
+        (calculated) =>
+          calculated.assetId === holding.assetId && calculated.quantity === holding.quantity,
+      ),
+    );
   const trendPoints = performance.points;
 
   useEffect(() => {
@@ -1210,7 +1218,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 </div>
               </dl>
               <div className="portfolio-price-status" role="status">
-                {dashboardCalculation.pricingStatus === 'PARTIAL' ? (
+                {!analysisHoldingsMatch ? (
+                  <p className="portfolio-field-note" role="status">
+                    현재 보유 자산의 비중을 확인하고 있어요.
+                  </p>
+                ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
                   <p>
                     <span className="portfolio-status-dot is-pending" />
                     {dashboardCalculation.unpricedHoldingCount}개 종목의 시세를 확인하지 못했어요.
@@ -1509,12 +1521,24 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   </button>
                 </div>
               )}
-              {dashboardCalculation.pricingStatus === 'PARTIAL' ? (
+              {!analysisHoldingsMatch ? (
+                <p className="portfolio-field-note" role="status">
+                  현재 보유 자산의 비중을 확인하고 있어요.
+                </p>
+              ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
                 <p className="portfolio-field-note">
                   전체 자산의 시세가 확인되면 포트폴리오 영향 분석을 이용할 수 있어요.
                 </p>
               ) : (
-                <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
+                <PortfolioAnalysis
+                  assets={analysisAssets}
+                  isLoggedIn={isLoggedIn}
+                  holdingsKey={JSON.stringify(
+                    holdings
+                      .map(({ assetId, quantity }) => [assetId, quantity])
+                      .sort((a, b) => a[0] - b[0]),
+                  )}
+                />
               )}
             </div>
             <PortfolioNews
