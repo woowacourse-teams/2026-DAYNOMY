@@ -20,7 +20,7 @@ export type FeedItem =
       source: FeaturedPersonPost['sourceType'];
       title: string;
       date: string | null;
-      person: FeaturedPerson;
+      person: Pick<FeaturedPerson, 'id' | 'name'>;
       post: FeaturedPersonPost;
     };
 
