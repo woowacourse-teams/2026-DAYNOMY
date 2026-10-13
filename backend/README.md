@@ -5,19 +5,19 @@ Google 로그인은 OIDC 경로 하나를 사용한다. Spring의 `OidcUserServi
 
 ## 기술 스택
 
-| 항목 | 버전 |
-|------|------|
-| Java | 17 |
-| Spring Boot | 3.5.16 |
-| Gradle | 9.5.1 |
-| Database | PostgreSQL |
-| ORM | Spring Data JPA |
+| 항목        | 버전            |
+| ----------- | --------------- |
+| Java        | 21              |
+| Spring Boot | 4.1.0           |
+| Gradle      | 9.5.1           |
+| Database    | PostgreSQL      |
+| ORM         | Spring Data JPA |
 
 ---
 
 ## 필수 설치 항목
 
-- **JDK 17** 이상 설치
+- **JDK 21** 설치 (`build.gradle.kts`의 Java toolchain 기준)
 - **PostgreSQL 17** 설치 및 실행
 - Git
 
@@ -29,7 +29,7 @@ Google 로그인은 OIDC 경로 하나를 사용한다. Spring의 `OidcUserServi
 
 ```bash
 git clone https://github.com/woowacourse-teams/2026-DAYNOMY
-cd daynomy
+cd 2026-DAYNOMY/backend
 ```
 
 ### 2. 데이터베이스 설정
@@ -42,21 +42,28 @@ CREATE DATABASE daynomy;
 
 ### 3. 애플리케이션 설정
 
-`src/main/resources/application.yaml`에 DB 접속 정보를 추가합니다.
+`src/main/resources/application.yaml`은 환경변수를 읽습니다. 실행하는 `backend`
+디렉터리의 비공개 `.env` 또는 실행 환경에 다음 값을 설정합니다. 실제 인증 정보는
+코드와 문서에 기록하지 않습니다.
 
-```yaml
-spring:
-  application:
-    name: daynomy
-  datasource:
-    url: jdbc:postgresql://localhost:5432/daynomy
-    username: <db-username>
-    password: <db-password>
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
+```dotenv
+DB_URL=jdbc:postgresql://localhost:5432/daynomy
+DB_USERNAME=<db-username>
+DB_PASSWORD=<db-password>
+GOOGLE_CLIENT_ID=<google-client-id>
+GOOGLE_CLIENT_SECRET=<google-client-secret>
+JWT_SECRET=<jwt-secret>
+AWS_S3_PUBLIC_BASE_URL=<public-image-base-url>
+PUBLIC_DATA_SERVICE_KEY=<public-data-service-key>
+FRONTEND_BASE_URL=http://localhost:5173
+COOKIE_SECURE=false
 ```
+
+스키마는 Flyway 마이그레이션으로 관리하고 JPA는 `ddl-auto: validate`로 검증합니다.
+기존 DB의 적용 이력을 먼저 확인하며 `update`나 `repair`로 불일치를 우회하지 않습니다.
+Google 로그인 리디렉션 URI는 `http://localhost:8080/login/oauth2/code/google`입니다.
+AI 분석에는 `OPENAI_API_KEY`, 이미지 업로드에는 `AWS_REGION`, `AWS_S3_BUCKET`과
+실행 환경의 AWS 인증이 필요합니다. 상세 설정 이름과 기본값은 `application.yaml`을 따릅니다.
 
 ---
 
@@ -106,6 +113,12 @@ java -jar build/libs/daynomy-0.0.1-SNAPSHOT.jar
 ```bash
 # 전체 테스트 실행
 ./gradlew test
+
+# 코드 규칙과 테스트 검증
+./gradlew spotlessCheck test
+
+# PR 검증
+./gradlew clean build
 ```
 
 ## 보유 이력
