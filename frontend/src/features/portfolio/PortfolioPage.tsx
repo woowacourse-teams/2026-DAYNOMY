@@ -1400,7 +1400,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 amountsHidden={amountsHidden}
                 onCreate={() => openTransactionEditor({}, 'history')}
                 onEdit={(transaction) => openTransactionEditor({ transaction }, 'history')}
-                onDelete={(transaction) => setRemoving({ transaction })}
               />
             ) : (
               <section className="portfolio-holdings" aria-label="보유 자산">
@@ -1587,7 +1586,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           />
         </div>
       ) : null}
-
       {isLoggedIn && trendDialogOpen ? (
         <PortfolioTrendDialog
           points={trendPoints}
@@ -1633,7 +1631,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 : editor
                   ? 'portfolio-holding-sheet'
                   : transactionEditor
-                    ? 'portfolio-transaction-sheet'
+                    ? `portfolio-transaction-sheet${transactionEditor.transaction ? ' portfolio-transaction-edit' : ''}`
                     : ''
           }
         >
@@ -1661,50 +1659,58 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 onEditTransaction={(transaction) =>
                   openTransactionEditor({ transaction }, 'holding_detail')
                 }
-                onDeleteTransaction={(transaction) => setRemoving({ transaction })}
               />
             </div>
           )}
 
           {transactionEditor && (
-            <PortfolioTransactionEditor
-              {...transactionEditor}
-              onOpeningBalance={
-                !selectedStock && !transactionEditor.transaction
-                  ? () => {
-                      setTransactionEditor(null);
-                      openHoldingEditor(undefined, 'editor_switch');
-                    }
-                  : undefined
-              }
-              onClose={() => setTransactionEditor(null)}
-              onSave={async (request, stock) => {
-                const transaction = transactionEditor.transaction;
-                const properties = {
-                  operation: transaction ? 'transaction_update' : 'transaction_create',
-                  storage: isLoggedIn ? 'server' : 'temporary',
-                  transaction_type: request.type,
-                } as const;
-                trackPortfolioEvent('portfolio_save_submitted', properties);
-                try {
-                  if (transaction) {
-                    const { assetId: _assetId, type: _type, ...update } = request;
-                    await updateTransaction(transaction.historyId, transaction.assetId, update);
-                  } else await createTransaction(request, stock);
-                  trackPortfolioEvent('portfolio_save_succeeded', properties);
-                  setTransactionEditor(null);
-                  setNotice(
-                    transaction ? '거래를 수정하고 자산을 다시 계산했어요.' : '거래를 기록했어요.',
-                  );
-                } catch (caughtError) {
-                  trackPortfolioEvent('portfolio_save_failed', {
-                    ...properties,
-                    error_type: portfolioErrorType(caughtError),
-                  });
-                  throw caughtError;
+            <div hidden={!!removing}>
+              <PortfolioTransactionEditor
+                {...transactionEditor}
+                onOpeningBalance={
+                  !selectedStock && !transactionEditor.transaction
+                    ? () => {
+                        setTransactionEditor(null);
+                        openHoldingEditor(undefined, 'editor_switch');
+                      }
+                    : undefined
                 }
-              }}
-            />
+                onClose={() => setTransactionEditor(null)}
+                onDelete={
+                  transactionEditor.transaction
+                    ? () => setRemoving({ transaction: transactionEditor.transaction })
+                    : undefined
+                }
+                onSave={async (request, stock) => {
+                  const transaction = transactionEditor.transaction;
+                  const properties = {
+                    operation: transaction ? 'transaction_update' : 'transaction_create',
+                    storage: isLoggedIn ? 'server' : 'temporary',
+                    transaction_type: request.type,
+                  } as const;
+                  trackPortfolioEvent('portfolio_save_submitted', properties);
+                  try {
+                    if (transaction) {
+                      const { assetId: _assetId, type: _type, ...update } = request;
+                      await updateTransaction(transaction.historyId, transaction.assetId, update);
+                    } else await createTransaction(request, stock);
+                    trackPortfolioEvent('portfolio_save_succeeded', properties);
+                    setTransactionEditor(null);
+                    setNotice(
+                      transaction
+                        ? '거래를 수정하고 자산을 다시 계산했어요.'
+                        : '거래를 기록했어요.',
+                    );
+                  } catch (caughtError) {
+                    trackPortfolioEvent('portfolio_save_failed', {
+                      ...properties,
+                      error_type: portfolioErrorType(caughtError),
+                    });
+                    throw caughtError;
+                  }
+                }}
+              />
+            </div>
           )}
           {removing && (
             <PortfolioConfirmDialog
@@ -1723,6 +1729,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     );
                   else if (removing.holding) await removeHolding(removing.holding.assetId);
                   trackPortfolioEvent('portfolio_delete_succeeded', properties);
+                  if (removing.transaction) setTransactionEditor(null);
                   setRemoving(null);
                   setNotice('삭제 내용을 반영했어요.');
                 } catch (caughtError) {

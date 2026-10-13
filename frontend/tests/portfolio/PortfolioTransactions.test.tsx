@@ -435,11 +435,14 @@ describe('거래 원장 화면', () => {
   it('보유수량이 그대로인 과거 거래일 수정 후 재계산된 추이와 내역을 표시한다', async () => {
     const view = await ready();
     fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
-    await view.findByRole('button', { name: '거래 수정' });
+    await view.findByRole('button', { name: /2026\.10\.01.*매수.*삼성전자/ });
     fireEvent.change(view.getByLabelText('시작일'), { target: { value: '2026-09-01' } });
-    fireEvent.click(await view.findByRole('button', { name: '거래 수정' }));
+    fireEvent.click(await view.findByRole('button', { name: /2026\.10\.01.*매수.*삼성전자/ }));
     const dialog = view.getByRole('dialog', { name: '거래 수정' });
-    expect(within(dialog).getByRole('button', { name: '매수' })).toHaveProperty('disabled', true);
+    expect(within(dialog).getByText('매수 거래')).toBeTruthy();
+    expect(within(dialog).queryByRole('button', { name: '매도' })).toBeNull();
+    expect(within(dialog).getByLabelText('수량 (주)')).toHaveProperty('value', '10');
+    expect(within(dialog).getByLabelText('거래 단가 (원)')).toHaveProperty('value', '70000');
     expect(within(dialog).queryByRole('searchbox')).toBeNull();
     const before = performanceRequests();
     performancePoint = {
@@ -450,7 +453,7 @@ describe('거래 원장 화면', () => {
       totalReturnRate: 20,
     };
     fireEvent.change(within(dialog).getByLabelText('거래일'), { target: { value: '2026-09-30' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: '변경 사항 저장' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '수정하기' }));
     await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(performanceRequests()).toBeGreaterThan(before));
     expect(
@@ -467,12 +470,49 @@ describe('거래 원장 화면', () => {
     expect(JSON.parse(String(init?.body))).not.toHaveProperty('type');
     expect(JSON.parse(String(init?.body))).not.toHaveProperty('assetId');
   });
+  it('거래를 바로 열고 삭제를 취소하면 입력 중이던 값으로 돌아온다', async () => {
+    histories = [
+      buy,
+      {
+        ...buy,
+        historyId: 22,
+        changeType: 'OPENING_BALANCE',
+        quantity: 10,
+        averagePurchasePrice: 70000,
+        transactionQuantity: null,
+        unitPrice: null,
+      },
+    ];
+    const view = await ready();
+    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+    const row = await view.findByRole('button', { name: /2026\.10\.01.*매수.*삼성전자/ });
+    expect(row.getAttribute('aria-haspopup')).toBe('dialog');
+    const history = view.getByRole('region', { name: '거래·변경 내역' });
+    expect(history.querySelector('details')).toBeNull();
+    expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(2);
+    expect(within(history).getByText('평균 매입가 70,000원')).toBeTruthy();
+    expect(within(history).queryByText('기록 시각')).toBeNull();
+    fireEvent.click(row);
+    const editor = view.getByRole('dialog', { name: '거래 수정' });
+    fireEvent.change(within(editor).getByLabelText('수량 (주)'), { target: { value: '12' } });
+    fireEvent.click(within(editor).getByRole('button', { name: '거래 삭제' }));
+    const confirm = view.getByRole('dialog', { name: '거래 삭제' });
+    expect(within(confirm).queryByRole('button', { name: '수정하기' })).toBeNull();
+    fireEvent.click(within(confirm).getByRole('button', { name: '취소' }));
+    expect(view.getByRole('dialog', { name: '거래 수정' })).toBe(editor);
+    expect(within(editor).getByLabelText('수량 (주)')).toHaveProperty('value', '12');
+    fireEvent.click(within(editor).getByRole('button', { name: '닫기' }));
+    expect(view.queryByRole('dialog')).toBeNull();
+    expect(histories[0].transactionQuantity).toBe(10);
+  });
+
   it('삭제 실패 시 내역과 확인창을 유지하고 재시도 성공 시 자산을 복원한다', async () => {
     histories = [{ ...buy, changeType: 'SELL' }];
     rejectMutation = true;
     const view = await ready();
     fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
-    fireEvent.click(await view.findByRole('button', { name: '거래 삭제' }));
+    fireEvent.click(await view.findByRole('button', { name: /2026\.10\.01.*매도.*삼성전자/ }));
+    fireEvent.click(view.getByRole('button', { name: '거래 삭제' }));
     const dialog = view.getByRole('dialog', { name: '거래 삭제' });
     fireEvent.click(within(dialog).getByRole('button', { name: '거래 삭제' }));
     expect(await within(dialog).findByRole('alert')).toHaveProperty(
@@ -547,13 +587,12 @@ describe('거래 원장 화면', () => {
     await within(detail).findByText('2026.10.01');
     expect(within(detail).queryByText('다른 종목')).toBeNull();
     fireEvent.click(within(detail).getByText('2026.10.01'));
-    fireEvent.click(within(detail).getByRole('button', { name: '거래 수정' }));
     const editor = view.getByRole('dialog', { name: '거래 수정' });
     expect(editor).toBe(detail);
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('dialog', { name: '삼성전자 보유 상세' })).toBeNull();
     fireEvent.change(within(editor).getByLabelText('거래일'), { target: { value: '2026-09-30' } });
-    fireEvent.click(within(editor).getByRole('button', { name: '변경 사항 저장' }));
+    fireEvent.click(within(editor).getByRole('button', { name: '수정하기' }));
     await waitFor(() => expect(view.queryByRole('dialog', { name: '거래 수정' })).toBeNull());
     expect(await within(detail).findByText('2026.09.30')).toBeTruthy();
     expect(document.body.style.overflow).toBe('hidden');
