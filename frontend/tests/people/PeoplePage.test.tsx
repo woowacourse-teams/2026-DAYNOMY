@@ -125,6 +125,10 @@ describe('인물의 글 화면', () => {
     );
     expect(await view.findByRole('button', { name: /도널드 트럼프 Threads 게시물/ })).toBeTruthy();
     expect(view.queryByRole('button', { name: /일론 머스크 X 게시물/ })).toBeNull();
+    expect(view.container.querySelector('.issue-feed--visual .issue-feed-thumbnail')).toBeTruthy();
+    expect(view.container.querySelector('.issue-feed-thumbnail-threads')?.textContent).toBe(
+      'Threads',
+    );
   });
   it('지난 글도 처음부터 보여주고 홈 링크와 제목을 유지한다', async () => {
     const view = render(
