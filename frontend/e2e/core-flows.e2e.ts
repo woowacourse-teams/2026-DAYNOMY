@@ -103,9 +103,25 @@ test('관리자 권한이 없는 계정은 관리자 화면에 접근하지 못�
 
 test('검색어 입력에서 뉴스 결과와 상세 화면까지 이동한다', async ({ page }) => {
   await mockNewsApi(page);
-  await page.route('**/api/search/news**', (route) =>
+  await page.route('**/api/search/contents**', (route) =>
     route.fulfill({
-      json: { content: [article], page: 1, size: 10, totalPages: 1, totalElements: 1 },
+      json: {
+        items: [
+          {
+            kind: 'NEWS',
+            id: article.id,
+            source: 'DAYNOMY',
+            title: article.title,
+            date: article.publishedAt,
+            category: article.category,
+            imageUrl: article.imageUrl,
+          },
+        ],
+        page: 1,
+        size: 12,
+        totalPages: 1,
+        totalElements: 1,
+      },
     }),
   );
 
@@ -116,7 +132,7 @@ test('검색어 입력에서 뉴스 결과와 상세 화면까지 이동한다',
 
   await expect(page).toHaveURL(/\/search\?q=/);
   await page
-    .getByRole('region', { name: '검색된 뉴스 목록' })
+    .getByRole('region', { name: '검색된 소식' })
     .getByRole('link', { name: /기준금리 동결 가능성 확대/ })
     .click();
   await expect(page).toHaveURL(/\/news\/7$/);
