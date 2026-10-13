@@ -672,7 +672,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
   const performance = usePortfolioPerformance(trendPeriod, holdings, revision, isLoggedIn);
-  const [newsOpen, setNewsOpen] = useState(false);
+  const [newsOpen, setNewsOpen] = useState(true);
+  const newsButtonRef = useRef<HTMLButtonElement>(null);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
@@ -777,10 +778,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           <button
             type="button"
             className="portfolio-secondary-button portfolio-news-tab"
-            aria-haspopup="dialog"
+            ref={newsButtonRef}
+            aria-controls="portfolio-news-panel"
             aria-expanded={newsOpen}
+            title={newsOpen ? '소식 접기' : '소식 펼치기'}
             disabled={holdingsLoading || !!holdingsError}
-            onClick={() => setNewsOpen(true)}
+            onClick={() => setNewsOpen((open) => !open)}
           >
             소식
             <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -826,7 +829,10 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       (!loading || calculation !== null) &&
       !holdingsError &&
       dashboardCalculation ? (
-        <div aria-busy={loading} className="portfolio-dashboard-layout">
+        <div
+          aria-busy={loading}
+          className={`portfolio-dashboard-layout${newsOpen ? ' has-news' : ''}`}
+        >
           <div className="portfolio-dashboard-main">
             <dl className="portfolio-overview" aria-label="자산 요약">
               <div className="portfolio-summary-total">
@@ -1178,18 +1184,16 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               <PortfolioAnalysis assets={analysisAssets} isLoggedIn={isLoggedIn} />
             )}
           </div>
+          <PortfolioNews
+            holdings={holdings}
+            hidden={!newsOpen}
+            onClose={() => {
+              setNewsOpen(false);
+              newsButtonRef.current?.focus();
+            }}
+          />
         </div>
       ) : null}
-
-      {newsOpen && (
-        <PortfolioDialog
-          titleId="portfolio-news-title"
-          className="portfolio-news-sheet"
-          onClose={() => setNewsOpen(false)}
-        >
-          <PortfolioNews holdings={holdings} onClose={() => setNewsOpen(false)} />
-        </PortfolioDialog>
-      )}
 
       {isLoggedIn && trendDialogOpen ? (
         <PortfolioTrendDialog
