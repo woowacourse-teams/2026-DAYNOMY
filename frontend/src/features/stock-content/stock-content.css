@@ -220,10 +220,10 @@
 
 .stock-content-heading h1 {
   color: var(--stock-ink);
-  font-size: clamp(30px, 3.5vw, 42px);
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  line-height: 1.08;
+  font-size: var(--page-title-size);
+  font-weight: var(--page-title-weight);
+  letter-spacing: var(--page-title-letter-spacing);
+  line-height: var(--page-title-line-height);
 }
 
 .stock-content-code {
@@ -306,7 +306,7 @@
 
 .stock-content-source-tab.is-active {
   color: #ffffff;
-  background: var(--stock-accent);
+  background: var(--button-primary);
 }
 
 .stock-content-source-tab small {
@@ -531,7 +531,7 @@
 .stock-content-state-link:focus-visible,
 .stock-content-news-card:focus-visible {
   border-radius: 5px;
-  outline: 2px solid var(--stock-accent);
+  outline: 2px solid var(--button-primary);
   outline-offset: 4px;
 }
 
@@ -1056,7 +1056,7 @@
   }
 
   .stock-content-heading h1 {
-    font-size: 32px;
+    font-size: var(--page-title-size);
   }
 
   .stock-content-title-row,

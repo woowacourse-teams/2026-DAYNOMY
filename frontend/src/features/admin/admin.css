@@ -135,11 +135,11 @@
 
 .admin-primary-button {
   color: #ffffff;
-  background: #5144d8;
+  background: var(--button-primary);
 }
 
 .admin-primary-button:hover {
-  background: #4339c0;
+  background: var(--button-primary-hover);
   transform: translateY(-1px);
 }
 
@@ -383,7 +383,7 @@
 }
 
 .admin-related-asset-results button:hover:not(:disabled) {
-  border-color: #5144d8;
+  border-color: var(--button-primary-hover);
 }
 
 .admin-related-asset-results button:disabled {
@@ -429,7 +429,7 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  color: #4339c0;
+  color: var(--button-primary);
   background: transparent;
   font-size: 16px;
   line-height: 16px;
@@ -483,8 +483,8 @@
 }
 
 .admin-stock-search-results button:hover {
-  border-color: #5144d8;
-  background: #f8f7ff;
+  border-color: var(--button-primary-hover);
+  background: var(--button-primary-soft);
 }
 
 .admin-stock-search-results span,
@@ -1195,7 +1195,7 @@
 .admin-row-actions button {
   padding: 0;
   border: 0;
-  color: #5144d8;
+  color: var(--button-primary);
   background: transparent;
   font: inherit;
   font-size: 13px;
@@ -1286,7 +1286,7 @@
 }
 .admin-pagination button.active {
   color: #ffffff;
-  background: #5144d8;
+  background: var(--button-primary);
 }
 
 .admin-back-link {

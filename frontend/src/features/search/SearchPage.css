@@ -33,10 +33,10 @@
 .search-page .stock-search-results h1 {
   margin: 0;
   color: #171821;
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 28px;
-  letter-spacing: -0.02em;
+  font-size: var(--page-title-size);
+  font-weight: var(--page-title-weight);
+  line-height: var(--page-title-line-height);
+  letter-spacing: var(--page-title-letter-spacing);
 }
 
 .search-page .stock-search-scroll {
@@ -259,7 +259,7 @@
   border: 0;
   border-radius: 8px;
   color: #fff;
-  background: #4339c0;
+  background: var(--button-primary);
   font-weight: 700;
   cursor: pointer;
 }
@@ -307,7 +307,7 @@
   }
 
   .search-page .stock-search-results h1 {
-    font-size: 18px;
+    font-size: var(--page-title-size);
   }
 
   .search-page .stock-search-scroll {

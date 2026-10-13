@@ -1,12 +1,12 @@
 .service-header {
   display: grid;
-  width: min(100%, 1440px);
+  width: 100%;
   margin: 0 auto;
   height: 64px;
   min-height: 64px;
   max-height: 64px;
   flex: 0 0 64px;
-  padding: 0 clamp(20px, 2vw, 40px);
+  padding: 0 var(--page-side-padding);
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 28px;
@@ -173,7 +173,7 @@
 
 @media (max-width: 1100px) {
   .service-header {
-    padding: 0 24px;
+    padding: 0 var(--page-side-padding);
     gap: 18px;
   }
 
@@ -194,7 +194,7 @@
 
 @media (max-width: 760px) {
   .service-header {
-    padding: 0 18px;
+    padding: 0 var(--page-side-padding);
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 12px;
   }
@@ -232,7 +232,7 @@
 
 @media (max-width: 620px) {
   .service-header {
-    padding: 4px 16px;
+    padding: 4px var(--page-side-padding);
     grid-template-columns: 1fr auto;
     grid-template-rows: 32px 20px;
     gap: 4px 12px;
