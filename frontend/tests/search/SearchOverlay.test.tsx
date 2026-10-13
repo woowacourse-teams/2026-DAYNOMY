@@ -61,7 +61,7 @@ describe('검색 오버레이', () => {
 
     fireEvent.click(trigger);
 
-    const input = view.getByRole('textbox', { name: '뉴스 또는 종목 검색' });
+    const input = view.getByRole('textbox', { name: '소식 검색' });
     await waitFor(() => expect(document.activeElement).toBe(input));
     expect(view.getByText('최근 검색어가 없습니다.')).toBeTruthy();
 
@@ -89,13 +89,13 @@ describe('검색 오버레이', () => {
     const trigger = view.getByRole('button', { name: '검색 열기' });
     fireEvent.click(trigger);
 
-    const input = view.getByRole('textbox', { name: '뉴스 또는 종목 검색' });
+    const input = view.getByRole('textbox', { name: '소식 검색' });
     fireEvent.change(input, { target: { value: ' 기준금리 ' } });
     fireEvent.submit(input.closest('form') as HTMLFormElement);
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe('/search'));
     expect(view.router.state.location.search).toBe(
-      '?q=%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC&category=ALL&page=1',
+      '?q=%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC&source=ALL&page=1',
     );
     expect(document.activeElement).not.toBe(trigger);
   });
@@ -105,7 +105,7 @@ describe('검색 오버레이', () => {
 
     for (const keyword of ['삼성전자', '미국 달러', '기준금리', '삼성전자']) {
       fireEvent.click(view.getByRole('button', { name: '검색 열기' }));
-      const input = view.getByRole('textbox', { name: '뉴스 또는 종목 검색' });
+      const input = view.getByRole('textbox', { name: '소식 검색' });
       fireEvent.change(input, { target: { value: keyword } });
       fireEvent.submit(input.closest('form') as HTMLFormElement);
     }
@@ -134,7 +134,7 @@ describe('검색 오버레이', () => {
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe('/search'));
     expect(view.router.state.location.search).toBe(
-      '?q=%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC&category=ALL&page=1',
+      '?q=%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC&source=ALL&page=1',
     );
   });
 });
