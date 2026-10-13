@@ -49,6 +49,7 @@ class OpenAiPortfolioAnalysisClientTest {
     appender.start();
     logger.addAppender(appender);
     server = new MockWebServer();
+    ((okhttp3.mockwebserver.QueueDispatcher) server.getDispatcher()).setFailFast(true);
     server.start();
     client =
         new OpenAiPortfolioAnalysisClient(
@@ -259,9 +260,9 @@ class OpenAiPortfolioAnalysisClientTest {
   void analyzeRejectsBlankEvidenceExcerpt() throws Exception {
     String invalid = withEvidence(validOutput()).replace("확인된 사업 변화예요.", "   ");
     enqueueOutput(invalid);
-    enqueueOutput(invalid);
+    enqueueParallelCorrection(invalid);
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
@@ -369,7 +370,7 @@ class OpenAiPortfolioAnalysisClientTest {
             .replace("[\"https://example.com/semiconductor\"]", "[]")
             .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
             .replace("\"impactLevel\": \"LOW\"", "\"impactLevel\": null"));
-    enqueueOutput(
+    enqueueParallelCorrection(
         validOutput()
             .replace("[\"https://example.com/semiconductor\"]", "[]")
             .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
@@ -387,7 +388,7 @@ class OpenAiPortfolioAnalysisClientTest {
               assertThat(impact.outlook()).isEmpty();
             });
     assertThat(result.sources()).isEmpty();
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
@@ -467,10 +468,10 @@ class OpenAiPortfolioAnalysisClientTest {
       evidence.add(other);
     }
     enqueueOutput(objectMapper.writeValueAsString(output));
-    enqueueOutput(validOutput());
+    enqueueParallelCorrection(validOutput());
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
@@ -571,21 +572,54 @@ class OpenAiPortfolioAnalysisClientTest {
             });
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(
+      strings = {"2026-02-30", "2999-01-01", "어제", "2026-08-xx", "2023-07-00"})
+  void rejectsImpossibleOrFutureEvidenceDatesWithoutLosingValidAssets(String invalid)
+      throws Exception {
+    var output = objectMapper.readTree(withEvidence(validOutput()));
+    ((com.fasterxml.jackson.databind.node.ObjectNode)
+            output.path("impacts").get(0).path("evidence").get(0))
+        .put("occurredOn", invalid);
+    enqueueOutput(objectMapper.writeValueAsString(output));
+    enqueueOutput(onlyAsset(objectMapper.writeValueAsString(output), "삼성전자"));
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(
+            i -> {
+              assertThat(i.direction()).isNull();
+              assertThat(i.sources()).isEmpty();
+            });
+    assertThat(result.impacts())
+        .filteredOn(i -> i.assetName().equals("SK하이닉스"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isNotNull());
+    assertThat(appender.list)
+        .anySatisfy(
+            event ->
+                assertThat(keyValues(event))
+                    .containsEntry("validationField", "occurredOn")
+                    .containsEntry(
+                        "validationReason",
+                        invalid.equals("2999-01-01")
+                            ? "FUTURE_EVIDENCE_DATE"
+                            : "INVALID_EVIDENCE_DATE"));
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
   @Test
-  void rejectsImpossibleOrFutureEvidenceDates() throws Exception {
-    for (String invalid : List.of("2026-02-30", "2999-01-01", "어제", "2026-08-xx")) {
-      var output = objectMapper.readTree(withEvidence(validOutput()));
-      ((com.fasterxml.jackson.databind.node.ObjectNode)
-              output.path("impacts").get(0).path("evidence").get(0))
-          .put("occurredOn", invalid);
-      enqueueOutput(objectMapper.writeValueAsString(output));
-      assertAnalysisFailed(() -> client.analyze(targets()));
-      assertThat(keyValues(appender.list.getLast()))
-          .containsEntry("validationField", "occurredOn")
-          .containsEntry(
-              "validationReason",
-              invalid.equals("2999-01-01") ? "FUTURE_EVIDENCE_DATE" : "INVALID_EVIDENCE_DATE");
-    }
+  void repairsInvalidPublishedDateWithOneTargetedSearch() throws Exception {
+    var output = objectMapper.readTree(withEvidence(validOutput()));
+    ((com.fasterxml.jackson.databind.node.ObjectNode)
+            output.path("impacts").get(0).path("evidence").get(0))
+        .put("publishedOn", "2023-07-00");
+    enqueueOutput(objectMapper.writeValueAsString(output));
+    enqueueOutput(onlyAsset(validOutput(), "삼성전자"));
+    assertThat(client.analyze(targets()).impacts())
+        .allSatisfy(i -> assertThat(i.direction()).isNotNull());
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -619,7 +653,7 @@ class OpenAiPortfolioAnalysisClientTest {
             .replace("[\"https://example.com/semiconductor\"]", "[]")
             .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
             .replace("\"impactLevel\": \"LOW\"", "\"impactLevel\": null"));
-    enqueueOutputWithoutAnnotations(
+    enqueueParallelCorrection(
         validOutput()
             .replace("[\"https://example.com/semiconductor\"]", "[]")
             .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
@@ -676,7 +710,7 @@ class OpenAiPortfolioAnalysisClientTest {
   @Test
   void rejectsMixedToneInGeneratedProse() throws Exception {
     enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
-    enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
+    enqueueParallelCorrection(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
     assertAnalysisFailed(() -> client.analyze(targets()));
   }
 
@@ -821,7 +855,7 @@ class OpenAiPortfolioAnalysisClientTest {
     String root = "https://newsroom.posco.com/en/";
     enqueueOutputWithSearchSources(
         validOutput().replace("https://example.com/semiconductor", root), root);
-    enqueueOutput(validOutput());
+    enqueueParallelCorrection(validOutput());
     var result = client.analyze(targets());
     assertThat(result.impacts())
         .allSatisfy(
@@ -831,7 +865,7 @@ class OpenAiPortfolioAnalysisClientTest {
                         source ->
                             assertThat(source.url())
                                 .isEqualTo("https://example.com/semiconductor")));
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
@@ -839,23 +873,22 @@ class OpenAiPortfolioAnalysisClientTest {
     String index = "https://example.com/newsroom/";
     enqueueOutputWithSearchSources(
         validOutput().replace("https://example.com/semiconductor", index), index);
-    enqueueOutputWithSearchSources(validOutput(), "https://example.com/semiconductor");
+    enqueueParallelCorrection(validOutput());
 
     assertThat(client.analyze(targets()).impacts()).hasSize(2);
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8()).contains("앞선 응답이 목록 페이지");
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
   void repeatedIndexSourceFailsWithoutUnboundedRetries() throws Exception {
     String index = "https://example.com/newsroom/";
-    for (int i = 0; i < 2; i++) {
-      enqueueOutputWithSearchSources(
-          validOutput().replace("https://example.com/semiconductor", index), index);
-    }
+    enqueueOutputWithSearchSources(
+        validOutput().replace("https://example.com/semiconductor", index), index);
+    enqueueParallelCorrection(validOutput().replace("https://example.com/semiconductor", index));
     assertThatThrownBy(() -> client.analyze(targets())).isInstanceOf(BusinessException.class);
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
@@ -874,13 +907,13 @@ class OpenAiPortfolioAnalysisClientTest {
             .replace(
                 "확인된 사업 변화예요.",
                 "Samsung Electronics today announced its earnings guidance for the third quarter of 2026.. 해요."));
-    enqueueOutput(validOutput());
+    enqueueParallelCorrection(validOutput());
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.direction()).isNotNull());
     server.takeRequest();
     String request = server.takeRequest().getBody().readUtf8();
     assertThat(request).contains("INVALID_PROSE:excerpt", "factQuote");
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
@@ -891,23 +924,23 @@ class OpenAiPortfolioAnalysisClientTest {
                 "\"url\":\"https://example.com/semiconductor\"",
                 "\"url\":\"https://example.com/unrelated\"");
     enqueueOutput(broken);
-    enqueueOutput(validOutput());
+    enqueueParallelCorrection(validOutput());
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8()).contains("MISSING_SOURCE_EVIDENCE");
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
   void doesNotPublishAllInvalidCorrection() throws Exception {
     String broken = withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요.");
     enqueueOutput(broken);
-    enqueueOutput(broken);
+    enqueueParallelCorrection(broken);
     assertAnalysisFailed(() -> client.analyze(targets()));
     assertThat(keyValues(appender.list.getLast()))
         .containsEntry("validationReason", "CORRECTION_EXHAUSTED");
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
@@ -930,13 +963,14 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  void indexThenProseFailureStillMakesOnlyTwoCalls() throws Exception {
+  void indexThenProseFailureDoesNotRetryCorrectionAgain() throws Exception {
     String index = "https://example.com/newsroom/";
     enqueueOutputWithSearchSources(
         validOutput().replace("https://example.com/semiconductor", index), index);
-    enqueueOutput(withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요."));
+    enqueueParallelCorrection(
+        withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요."));
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(3);
   }
 
   @Test
@@ -1026,6 +1060,61 @@ class OpenAiPortfolioAnalysisClientTest {
           ]
         }
         """;
+  }
+
+  private void enqueueParallelCorrection(String outputText) {
+    var initialDispatcher = server.getDispatcher();
+    var calls = new java.util.concurrent.atomic.AtomicInteger();
+    var correctionsStarted = new java.util.concurrent.CountDownLatch(2);
+    server.setDispatcher(
+        new okhttp3.mockwebserver.Dispatcher() {
+          @Override
+          public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+            if (calls.getAndIncrement() == 0) return initialDispatcher.dispatch(request);
+            correctionsStarted.countDown();
+            if (!correctionsStarted.await(3, java.util.concurrent.TimeUnit.SECONDS)) {
+              return new MockResponse().setResponseCode(500);
+            }
+            try {
+              var body = objectMapper.readTree(request.getBody().clone().readUtf8());
+              var target =
+                  objectMapper
+                      .readTree(body.path("input").get(1).path("content").asText())
+                      .path("assets")
+                      .get(0)
+                      .path("assetName")
+                      .asText();
+              String response =
+                  objectMapper.writeValueAsString(
+                      Map.of(
+                          "output",
+                          List.of(
+                              Map.of("type", "web_search_call", "status", "completed"),
+                              Map.of(
+                                  "content",
+                                  List.of(
+                                      Map.of(
+                                          "type",
+                                          "output_text",
+                                          "text",
+                                          withEvidence(onlyAsset(outputText, target)),
+                                          "annotations",
+                                          List.of(
+                                              Map.of(
+                                                  "type",
+                                                  "url_citation",
+                                                  "title",
+                                                  "공식 발표",
+                                                  "url",
+                                                  "https://example.com/semiconductor"))))))));
+              return new MockResponse()
+                  .setHeader("Content-Type", "application/json")
+                  .setBody(response);
+            } catch (Exception exception) {
+              return new MockResponse().setResponseCode(500);
+            }
+          }
+        });
   }
 
   private void enqueueOutput(String outputText) throws JsonProcessingException {
