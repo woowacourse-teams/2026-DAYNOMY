@@ -52,6 +52,7 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
 }
 
 spotless {
