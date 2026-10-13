@@ -215,6 +215,45 @@ function performanceRequests() {
 }
 
 describe('거래 원장 화면', () => {
+  it('전체 종목을 거래일 최신순으로 섞어 표시하고 같은 날짜는 실제 기록 시각과 ID로 정렬한다', async () => {
+    histories = [
+      { ...buy, historyId: 99, name: '삼성전자', effectiveDate: '2026-10-01' },
+      {
+        ...buy,
+        historyId: 23,
+        assetId: 2,
+        name: 'SK하이닉스',
+        effectiveDate: '2026-10-03',
+        occurredAt: '2026-10-03T06:00:00Z',
+      },
+      {
+        ...buy,
+        historyId: 22,
+        name: '삼성전자',
+        effectiveDate: '2026-10-03',
+        occurredAt: '2026-10-03T16:00:00+09:00',
+      },
+      {
+        ...buy,
+        historyId: 24,
+        assetId: 3,
+        name: 'KODEX 200',
+        effectiveDate: '2026-10-03',
+        occurredAt: '2026-10-03T07:00:00Z',
+      },
+    ];
+    const view = await ready();
+    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+    const history = view.getByRole('region', { name: '거래·변경 내역' });
+    await waitFor(() => expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(4));
+    expect(
+      [...history.querySelectorAll('.portfolio-history-name strong')].map(
+        (item) => item.textContent,
+      ),
+    ).toEqual(['KODEX 200', '삼성전자', 'SK하이닉스', '삼성전자']);
+    expect(within(history).getByText('전체 종목 · 거래일 최신순')).toBeTruthy();
+  });
+
   it('자산 추이 제목으로 상세를 열고 음수 손익과 수익률도 0 기준선 아래에 표시한다', async () => {
     earlierPerformancePoints = [historical, { ...historical, baseDate: '2026-10-03' }];
     performancePoint = {

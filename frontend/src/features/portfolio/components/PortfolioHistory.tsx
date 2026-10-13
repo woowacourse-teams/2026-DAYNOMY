@@ -41,11 +41,7 @@ export function PortfolioHistory({
   const validPeriod = !!from && !!to && from <= to;
   useEffect(() => {
     if (localHistories !== undefined) {
-      setHistories(
-        [...localHistories].sort(
-          (a, b) => b.effectiveDate.localeCompare(a.effectiveDate) || b.historyId - a.historyId,
-        ),
-      );
+      setHistories(localHistories);
       setLoading(false);
       setError('');
       return;
@@ -72,16 +68,23 @@ export function PortfolioHistory({
       });
     return () => controller.abort();
   }, [from, to, revision, retry, validPeriod, localHistories]);
-  const visible = histories.filter(
-    (item) =>
-      item.effectiveDate >= from &&
-      item.effectiveDate <= to &&
-      (assetId === undefined || item.assetId === assetId) &&
-      (filter === 'ALL' ||
-        (filter === 'BALANCE'
-          ? item.changeType !== 'BUY' && item.changeType !== 'SELL'
-          : item.changeType === filter)),
-  );
+  const visible = histories
+    .filter(
+      (item) =>
+        item.effectiveDate >= from &&
+        item.effectiveDate <= to &&
+        (assetId === undefined || item.assetId === assetId) &&
+        (filter === 'ALL' ||
+          (filter === 'BALANCE'
+            ? item.changeType !== 'BUY' && item.changeType !== 'SELL'
+            : item.changeType === filter)),
+    )
+    .sort(
+      (a, b) =>
+        b.effectiveDate.localeCompare(a.effectiveDate) ||
+        Date.parse(b.occurredAt) - Date.parse(a.occurredAt) ||
+        b.historyId - a.historyId,
+    );
   const won = (value: number | null) =>
     amountsHidden
       ? '••••••원'
@@ -101,6 +104,9 @@ export function PortfolioHistory({
   }
   const filters = (
     <div className="portfolio-history-toolbar">
+      {assetId === undefined && (
+        <p className="portfolio-history-order">전체 종목 · 거래일 최신순</p>
+      )}
       <div className="portfolio-history-dates">
         <label>
           시작일
