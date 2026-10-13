@@ -125,10 +125,7 @@ export function PortfolioHistory({
           </button>
         </div>
       ) : !visible.length ? (
-        <div className="portfolio-ledger-empty">
-          <span className="portfolio-empty-mark" aria-hidden="true">
-            ↔
-          </span>
+        <div className="portfolio-ledger-empty portfolio-history-empty">
           <h3>이 기간에 표시할 내역이 없어요</h3>
           <p>조회 기간을 바꾸거나 매수·매도 거래를 기록해 보세요.</p>
           <button className="portfolio-secondary-button" onClick={onCreate}>

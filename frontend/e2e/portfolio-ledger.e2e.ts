@@ -228,6 +228,10 @@ for (const viewport of [
     await expect(detail.getByRole('button', { name: '매도', exact: true })).toBeVisible();
     await expect(detail.getByRole('heading', { name: '거래 내역', exact: true })).toBeVisible();
     await expect(detail.getByText('이 기간에 표시할 내역이 없어요')).toBeVisible();
+    await detail.getByRole('region', { name: '거래·변경 내역', exact: true }).screenshot({
+      path: testInfo.outputPath('guest-history-refined.png'),
+      animations: 'disabled',
+    });
     await detail.screenshot({
       path: testInfo.outputPath('guest-detail.png'),
       animations: 'disabled',
