@@ -1192,15 +1192,16 @@
 }
 .portfolio-holding-detail {
   inset: 0;
-  width: min(840px, calc(100% - 32px));
-  height: min(960px, calc(100dvh - 32px));
-  max-height: calc(100dvh - 32px);
+  width: min(720px, calc(100% - 48px));
+  height: fit-content;
+  max-height: min(760px, calc(100dvh - 48px));
   margin: auto;
   border-radius: 18px;
   overflow: hidden;
 }
 .portfolio-holding-detail > .portfolio-sheet-content {
-  height: 100%;
+  height: auto;
+  max-height: inherit;
   min-height: 0;
   padding: 0;
   display: flex;
@@ -1209,8 +1210,8 @@
 .portfolio-holding-detail-heading {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 28px 32px 24px;
+  gap: 12px;
+  padding: 22px 28px 18px;
   flex: 0 0 auto;
 }
 .portfolio-detail-monogram {
@@ -1271,7 +1272,7 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  padding: 8px 32px 28px;
+  padding: 6px 28px 24px;
   overscroll-behavior: contain;
   scrollbar-width: none;
 }
@@ -1284,7 +1285,7 @@
 }
 .portfolio-detail-total {
   display: block;
-  font-size: clamp(32px, 4vw, 44px);
+  font-size: clamp(30px, 3vw, 38px);
   letter-spacing: -0.04em;
   color: #17243a;
   margin-top: 10px;
@@ -1304,8 +1305,8 @@
   display: grid;
   text-align: left;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 26px 16px;
-  margin: 30px 0 22px;
+  gap: 22px 16px;
+  margin: 24px 0 18px;
 }
 .portfolio-detail-metrics dt {
   color: #64748b;
@@ -1431,11 +1432,11 @@
   text-align: center;
 }
 .portfolio-detail-transactions {
-  padding-top: 24px;
-  margin-top: 12px;
+  padding-top: 16px;
+  margin-top: 8px;
 }
 .portfolio-detail-transactions > h3 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   line-height: 1.4;
   letter-spacing: -0.02em;
@@ -1469,7 +1470,7 @@
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: 12px;
-  padding: 18px 32px max(22px, env(safe-area-inset-bottom));
+  padding: 16px 28px max(18px, env(safe-area-inset-bottom));
   border-top: 1px solid #edf0f5;
   background: #fff;
   flex-shrink: 0;
@@ -1485,15 +1486,15 @@
 }
 
 @media (max-width: 640px) {
-  .portfolio-holding-detail {
-    width: 100%;
-    height: 100dvh;
-    max-height: 100dvh;
-    margin: 0;
-    border-radius: 0;
+  .portfolio-sheet.portfolio-holding-detail {
+    width: calc(100% - 24px);
+    height: fit-content;
+    max-height: min(760px, calc(100dvh - 32px));
+    margin: auto;
+    border-radius: 18px;
   }
   .portfolio-holding-detail-heading {
-    padding: 22px 20px;
+    padding: 16px 20px;
     gap: 12px;
   }
   .portfolio-holding-detail-heading h2 {
@@ -1506,9 +1507,6 @@
     width: 44px;
     height: 44px;
     border-radius: 15px;
-  }
-  .portfolio-detail-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .portfolio-detail-footer {
     padding: 14px 20px max(18px, env(safe-area-inset-bottom));
@@ -1539,7 +1537,8 @@
 .portfolio-detail-view:not([hidden]) {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: auto;
+  max-height: inherit;
   min-height: 0;
 }
 .portfolio-detail-view[hidden] {
@@ -2203,6 +2202,12 @@
   }
   .portfolio-edit-values input {
     font-size: 22px;
+  }
+}
+
+@media (max-width: 420px) {
+  .portfolio-detail-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
