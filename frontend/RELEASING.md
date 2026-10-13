@@ -10,20 +10,58 @@
 | Minor | 기존 사용 방식을 유지하는 기능 추가                      |
 | Patch | 기존 기능의 오류 수정                                    |
 
-1. `package.json`·`package-lock.json` 버전을 올리고 [CHANGELOG.md](CHANGELOG.md)를 갱신합니다.
+1. `dev` 기준의 작업 브랜치에서 `package.json`·`package-lock.json` 버전을 올리고
+   [CHANGELOG.md](CHANGELOG.md)를 갱신합니다. 이번 릴리스 대상은 `1.1.1`입니다.
 
    ```bash
    cd frontend
-   npm version 1.0.1 --no-git-tag-version
+   npm version 1.1.1 --no-git-tag-version
    ```
 
 2. `dev`에서 확인한 뒤 `main`에 병합합니다. 포맷·린트·타입 검사·테스트·빌드와
-   배포 검증이 모두 성공하면 해당 커밋에 `v1.0.1` Git tag를 생성합니다.
+   배포 검증이 모두 성공하면 해당 커밋에 `v1.1.1` Git tag를 생성합니다.
 3. Git tag·이미지 버전·Sentry release가 일치하는지 확인하고 공개·관리자 기능을 직접 확인합니다.
    자동 검사는 프론트 HTML, `/api/news`, `/api/auth/csrf`, Google 로그인 리디렉션까지입니다.
 
 실패하면 Git tag를 만들지 않습니다. 재시도 시 같은 커밋의 기존 버전 이미지를 재사용합니다.
 버전은 개발자가 올리며, 이미 태그가 있는 버전의 후속 변경은 SHA 이미지로 배포합니다.
+
+## v1.1.1 반영 순서
+
+이번 버전 준비 작업은 이슈 [#451](https://github.com/woowacourse-teams/2026-DAYNOMY/issues/451)과
+`feature/FE/#451` 브랜치에서 진행합니다. 버전 파일·CHANGELOG만으로 운영 배포 완료를
+판단하지 않으며 다음 순서로 확인합니다.
+
+1. `package.json`과 `package-lock.json`의 최상위·루트 패키지 버전이 모두 `1.1.1`인지 확인합니다. 이미 변경되었다면 `npm version`을 다시 실행하지 않습니다.
+2. `CHANGELOG.md`의 `## v1.1.1`에 `main..dev` 변경을 정리하고, 현재 동작과 API·환경변수·저장 방식·리그 노출 상태를 프론트·백엔드 README와 소식 디자인 계약에 맞춥니다. `Unreleased`는 다음 릴리스용으로 유지합니다.
+3. 작업 브랜치에서 포맷·린트·타입 검사·테스트·빌드와 릴리스 스크립트 검사를 완료하고, `feature/FE/#451 → dev` PR의 CI 결과를 확인합니다.
+4. 개발 배포에서 회원·비회원 거래 관리, 회원 분석 저장·갱신과 비회원 체험, 통합 검색, 소식 게시일, 인물 이미지·YouTube, 리그 ‘준비 중’ 안내를 확인합니다. GA4·PostHog는 설정된 환경의 이벤트 수신과 로그인·관리자 경로 제외를 확인합니다.
+5. `dev → main` 릴리스 PR에 버전·변경 내용·실제 검증 결과를 적습니다. 백엔드 API와 Flyway V35~V42를 포함하는 릴리스이므로 백엔드 CI·배포와 마이그레이션 결과도 확인합니다.
+6. 운영 프론트 배포·라우팅 검증과 자동 `v1.1.1` 태그 발행을 확인합니다. 태그·GHCR 이미지·Sentry release가 같은 배포 커밋을 가리키는지 확인하고 운영 기능을 직접 점검합니다.
+
+개발·운영 GitHub Environment에는 `VITE_POSTHOG_KEY`·`VITE_POSTHOG_HOST`를 각각
+설정할 수 있습니다. 두 값이 모두 있을 때만 PostHog를 사용하고, 값 변경 후 다시 빌드합니다.
+인물 이미지 등록에는 백엔드 S3 설정, 분석에는 OpenAI 설정이 필요합니다. 설정과
+신규 마이그레이션의 상세 내용은 [프론트 README](README.md#환경별-배포)와
+[백엔드 README](../backend/README.md#v111-프론트엔드와-함께-반영할-변경)를 따릅니다.
+
+다음 명령은 로컬 검증이며 실제 개발·운영 배포 검증을 대신하지 않습니다.
+
+```bash
+cd frontend
+npm run format:check
+npm run lint
+npm run typecheck
+npm test
+npm run build
+bash scripts/test-release-version.sh
+# 브라우저 흐름과 Docker 배포 검증은 해당 실행 환경에서 수행
+npm run test:e2e
+bash scripts/test-deploy-frontend.sh
+```
+
+프론트 `v1.1.1` 버전은 백엔드 Gradle 버전, OpenAPI 버전, 분석 스키마·알고리즘 버전,
+브라우저 저장 키 버전과 독립적입니다. 이 값들은 단순 릴리스 번호 변경에 맞춰 올리지 않습니다.
 
 ## 무중단 배포와 자동 롤백
 

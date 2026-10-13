@@ -1,5 +1,25 @@
 # DAYNOMY FRONTEND
 
+## v1.1.1 릴리스 대상
+
+프론트엔드 패키지 버전은 `1.1.1`이며, `dev` 검증 후 `main`에 반영할 릴리스입니다.
+운영 배포 성공 여부와 `v1.1.1` 태그 발행은 배포 이후 확인합니다. 전체 변경 내역은
+[CHANGELOG.md](CHANGELOG.md#v111), 반영 순서와 확인 항목은
+[RELEASING.md](RELEASING.md#v111-반영-순서)를 따릅니다.
+
+| 경로                                     | 현재 제공하는 화면                                          |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| `/`                                      | 회원·비회원 포트폴리오, 거래 기록, 보유 자산 소식과 AI 분석 |
+| `/news`                                  | 오늘의 이슈·인물 미리보기·오늘 올라온 통합 소식             |
+| `/news/today`                            | 기존 뉴스 목록                                              |
+| `/news/contents`                         | 전체 소식과 출처 필터·페이지 이동                           |
+| `/people`                                | 인물 프로필과 X·Threads·YouTube 글                          |
+| `/search`                                | 기사·인물 글·외부 자료 통합 검색                            |
+| `/stocks/:assetId`                       | 종목별 관련 기사·외부 자료와 원문 게시일 표시               |
+| `/mypage`                                | 계정 정보·닉네임 관리와 회원 탈퇴                           |
+| `/admin/people`, `/admin/stock-contents` | 관리자 인물 프로필·게시물과 종목 자료 등록                  |
+| `/league/*`, `/portfolio/publication`    | 투자 리그 ‘준비 중’ 안내                                    |
+
 ## 기술 스택
 
 | 항목       | 버전 |
@@ -23,7 +43,7 @@
 
 ```bash
 git clone https://github.com/woowacourse-teams/2026-DAYNOMY
-cd daynomy/frontend
+cd 2026-DAYNOMY/frontend
 ```
 
 ### 2. 의존성 설치
@@ -67,14 +87,14 @@ npm run dev
 - 프론트의 `VITE_API_BASE_URL`이 비어 있으면 Vite가 `/api`, `/oauth2`, `/login/oauth2`를 동일한 백엔드로 전달합니다. `http://localhost:8080`을 설정한 경우 직접 연결합니다.
 - 로그인 화면의 `Google로 시작하기`에서 기존 Google OAuth를 실행합니다. 로그인 후에는 검증된 서비스 내부 경로로 돌아갑니다.
 - 공유 자산·판단·복기·공개 설정·팔로우의 저장은 실제 로그인 계정과 서버 API를 사용합니다. 공개 투자 상세는 `/api/league/investors/{publicId}/details`에서 비회원도 조회할 수 있습니다.
-- 리그 종류는 주간 수익률·안정형·초보리그 세 가지입니다. 조회 주차는 이번 주와 이전 7주를 제공하며 상세 성과 지표는 유지합니다.
+- 리그 종류는 주간 수익률·안정형·초보리그 세 가지입니다. 순위 선택은 이번 주를 포함한 최근 3주이며, 서버의 기존 8주 상세 성과 지표와 과거 조회 API는 유지합니다.
 - 순위의 상세 지표는 옆 패널에서, 투자자 성과·공개 종목·투자 기록은 탭으로 이동합니다. 리그 설정은 리그와 마이페이지에서 바로 열며, 공유 종목마다 보유 이유만 필수이고 추가 판단 정보와 결과 복기는 선택입니다.
-- 공유 포트폴리오는 원본에서 선택해 불러오기와 숨기기·해제만 제공합니다. 직접 추가·수량/매수가 편집·삭제 및 거래 입력 API는 제거했습니다. 숨김은 `PATCH /api/users/me/shared-portfolio/holdings/{assetId}/visibility`에 `{ "hidden": true }`만 전송하며, 원본·수량·매수가·기존 근거·수익률은 유지합니다. 원본을 수정한 뒤 다시 가져올 때만 확인을 거쳐 값을 갱신합니다. 기존 저장 데이터는 삭제하지 않습니다.
+- 공유 포트폴리오는 원본에서 선택해 불러오기·숨기기·해제와 리그 종목 제거를 제공합니다. 직접 추가·수량/매수가 편집 및 거래 입력 API는 제거했습니다. 숨김은 `PATCH /api/users/me/shared-portfolio/holdings/{assetId}/visibility`에 `{ "hidden": true }`만 전송하며, 원본·수량·매수가·기존 근거·수익률은 유지합니다. 리그 종목 제거는 `DELETE /api/users/me/shared-portfolio/holdings/{assetId}`를 사용하고 마지막 종목을 제거하면 참여를 종료하며 원본 포트폴리오와 기존 판단·복기는 보존합니다. 원본을 수정한 뒤 다시 가져올 때만 확인을 거쳐 값을 갱신합니다.
 - 멤버십·결제·회원 등급·7일 지연 공개는 제거했습니다. 공개 동의가 있는 종목·판단·복기는 즉시 제공하며, 비공개 프로필·상세 비공개·숨긴 종목·실제 금액과 수량은 공개하지 않습니다. 종가가 없는 종목도 이름과 근거는 표시하고 비중·기여도는 집계 대기로 구분합니다. 이전 `/membership` 주소는 리그로 이동합니다.
-- 신청 이후 첫 종가는 0% 추적 기준이고 공식 순위는 다음 월요일부터입니다. 금액 하한은 없습니다. 전체 누적은 최초 추적일부터, 최근 8주는 별도 지표로 표시하며 미참여·누락 주도 유지합니다. 공개 상세의 이번 주 순위와 8주 순위 추이는 확정 기록을 사용합니다. 변동성은 최근 20거래일이고 부족한 값은 0%로 대체하지 않습니다.
+- 신청 이후 첫 집계 종가를 0% 기준으로 이번 주 순위에 포함합니다. 장 마감 후 신청하면 다음 거래일이 첫 기준입니다. 일별 수익률은 해당 주 안에서 복리로 누적하고 다음 주에 새로 시작합니다. 금액 하한은 없으며 전체 누적·참여 후 별도 누적 수익률은 계산하지 않습니다. MDD는 최근 8주, 변동성은 최근 20거래일이며 부족한 값은 0%로 대체하지 않습니다.
 - 거래일 달력·종가 수집·계산이 완료된 주간 확정값의 버전과 기준일을 표시합니다. 종목별 평가 수익률은 평균 매입가 대비 백분율이며, 주간 기여도는 복리 누적을 반영합니다. 과거 확정 결과도 현재 공개 동의를 확인합니다.
 - 관심 투자자는 이번 주 순위를 바로 지난주의 확정 순위와 비교합니다. `previousRank`, `rankChange`, `comparisonWeekStart`를 사용하며 양수는 상승, 음수는 하락, 0은 동일입니다. 비교할 순위가 없으면 `비교 기록 없음`을 표시합니다. 추가 필드가 없는 이전 서버 응답도 기존 요약을 표시합니다.
-- 로그인 변경과 리그 백엔드를 함께 반영해야 합니다. 서버 시작 시 V27이 추적 기준일·참여 기간·거래일 수집 상태·확정 순위 이력을 추가하고, V28이 선택 판단 정보의 미입력을 허용합니다. 거래일 달력은 백엔드가 KRX에 발표된 전년도·올해·다음 해 일정을 자동 갱신합니다. 기존 가격의 수집 완료를 확인하려면 백엔드의 기간별 종가 백필이 필요합니다.
+- 로그인 변경과 리그 백엔드를 함께 반영해야 합니다. V31이 추적 기준일·참여 기간·거래일 수집 상태·확정 순위 이력을 추가하고, V32가 선택 판단 정보의 미입력을 허용합니다. 거래일 달력은 백엔드가 KRX에 발표된 전년도·올해·다음 해 일정을 자동 갱신합니다. 기존 가격의 수집 완료를 확인하려면 백엔드의 기간별 종가 백필이 필요합니다.
 - 상세 공개 필드는 `detailPublic`입니다. 기존 DB의 `premium_detail_enabled`와 이전 요청 필드의 동의 값은 보존하며, 기존 마이그레이션과 구독 테이블을 삭제하거나 공개 설정을 자동 변경하지 않습니다.
 - 마이페이지의 `닉네임 변경`은 기존 `PATCH /api/users/me`와 CSRF 방어를 사용합니다. 앞뒤 공백을 제거한 1~20자를 저장하고, 중복·저장 실패 시 초안을 유지합니다. 성공한 응답은 런타임 검증 후 헤더에도 반영합니다.
 - 이메일·Google 계정 이름은 본인에게만 제공됩니다. Google 이름은 별도 `google_name` 필드에 저장하며 기존 계정은 다음 Google 로그인 때 채웁니다. 이름은 닉네임에서 추측하지 않으며 Google 계정 이름을 실명 인증으로 간주하지 않습니다.
@@ -82,9 +102,9 @@ npm run dev
 - 이미 공개 프로필이 있는 계정은 사용자가 정한 공개 닉네임을 계정 조회에도 사용합니다. 기존 별칭을 임의로 바꾸지 않으며 다음 닉네임 저장 시 회원 정보와 공개 프로필을 함께 갱신합니다.
 - 신규 가입은 Google 이름·이메일 대신 임시 서비스 닉네임을 부여합니다.
 - 초보 돈 관리의 메뉴와 화면 연결은 제거했습니다. `/finance/*`의 기존 주소는 홈으로 이동합니다. 저장 데이터·테이블과 해당 내부 모듈은 보존하되 배포 화면에 포함하지 않습니다.
-- DB 마이그레이션은 공식 `V1~V21`을 보존하고 신규 기능을 `V22~V26`로 구분합니다. 금융 학습·투자 리그·공유 포트폴리오·월 계획·비공개 이름 순서이며, 테이블·제약·인덱스는 처음부터 영문 `snake_case` 기능명으로 생성합니다.
+- DB 마이그레이션은 기존 공식 이력을 보존합니다. 주요 인물은 V24, 피드백은 V25, 금융 학습·투자 리그·공유 포트폴리오·월 계획·비공개 이름은 `V26~V30`, 리그 성과·선택 판단은 `V31~V32`, 거래 원장은 V33, 구조화 시장 분석은 V34입니다. 이번 릴리스의 `V35~V42`는 분석 저장·근거, 콘텐츠 게시일, 인물 프로필과 게시일 정렬을 추가하며 세부 내용은 [백엔드 README](../backend/README.md#v111-프론트엔드와-함께-반영할-변경)를 확인합니다.
 - 공식 V20·V21의 동시 검색 인덱스 생성에는 `.sql.conf`의 `executeInTransaction=false`와 `spring.flyway.postgresql.transactional-lock: false`를 함께 사용합니다.
-- 새 백엔드 실행 전 Flyway 이력을 확인합니다. 이전 로컬 DB의 V16/V17 또는 `V20~V24`에 미공개 금융 학습·리그가 적용됐다면 현재의 공식 이력 및 `V22~V26`과 충돌합니다. SQL 내용이 같아도 버전·파일명 이력은 달라지므로 그대로 시작하지 않습니다. 기존 DB의 초기화나 `repair`로 우회하지 말고 데이터 보존 이전을 승인받습니다.
+- 새 백엔드 실행 전 Flyway 이력을 현재 `backend/src/main/resources/db/migration`과 대조합니다. 이전 로컬 DB에 같은 버전 번호의 다른 미공개 기능이 적용됐다면 SQL 내용이 같아도 버전·파일명 이력은 다를 수 있습니다. 기존 DB의 초기화나 `repair`로 우회하지 말고 데이터 보존 이전을 승인받습니다.
 
 ---
 
@@ -94,6 +114,28 @@ npm run dev
 - 비회원도 종목 추가·정정·제거, 매수·매도 기록·수정·삭제와 거래 내역 조회를 사용할 수 있습니다. 거래일 순서로 보유 수량과 평균 매입가를 반영하며 초과 매도는 저장하지 않습니다. 현재 평가금액·손익·자산 구성은 백엔드 계산 응답으로 표시합니다. 자산 추이와 누적 실현손익은 로그인 안내를 유지합니다.
 - 회원 자산 추이는 거래 변경 성공 후 다시 조회합니다. 서버에서 스냅샷을 재계산한 경우 새로고침 버튼이나 탭 복귀로 최신 결과를 조회하며, 평가금액·손익은 서버 응답을 사용합니다.
 - 기존 비회원 AI 분석 1회 체험 정책은 유지합니다. 로그인하면 서버의 계정 포트폴리오를 조회하며, 임시 보유 종목의 자동 이전은 별도 작업입니다.
+
+---
+
+## 포트폴리오 AI 분석
+
+- 회원은 `GET /api/users/me/portfolio/analysis`로 서버에 저장된 결과를 조회합니다. 단순 조회에는 AI 호출이 없으며, 이전 회원 공용 브라우저 캐시를 읽거나 새 계정으로 이전하지 않습니다.
+- 최초 분석과 보유 자산 변경 후 분석은 `POST /api/users/me/portfolio/analysis`, 같은 포트폴리오의 새 근거 확인은 `POST /api/users/me/portfolio/analysis/refresh`를 사용합니다. 자산·비중·분석 기준이 같은 결과의 재사용과 실제 웹 검색을 구분합니다.
+- 저장 상태는 `EMPTY`, `READY`, `PORTFOLIO_CHANGED`, `PROCESSING`, `RECHECK_REQUIRED`, `FAILED`입니다. 보유 자산이 바뀌면 이전 결과를 현재 자산의 분석으로 표시하지 않으며, 확인 실패 시 기존 결과와 실패 안내를 함께 유지합니다. 진행 중에는 저장 상태를 다시 조회하고 동시 요청의 409 응답도 재조회로 처리합니다.
+- 전체 요약·종목별 영향 점수·출처·변경 이유와 최근 확인 결과를 표시합니다. 동일한 유효 근거이면 기존 분석 생성 시각을 유지하며, 근거 재확인이 어려운 상태와 검색 실패를 구분합니다.
+- 서버는 최근 변경 이력 최대 10개를 `GET /api/users/me/portfolio/analysis/history`로 제공합니다. 현재 프론트는 저장된 최신 결과의 조회·갱신에 연결되어 있으며 분석 이력 탐색 화면은 제공하지 않습니다.
+- 비회원은 `POST /api/portfolio/analysis`로 1회 체험하고 결과·체험 상태를 현재 탭의 `sessionStorage`에 보관합니다. 로그인·계정 전환 시 포트폴리오 화면을 다시 구성하여 다른 사용자의 보유 자산과 분석 결과가 섞이지 않도록 합니다.
+
+## 소식·통합 검색·인물
+
+- 소식 홈은 `/api/news`, `/api/people`, `/api/contents`를 읽어 기사·인물 글·저장된 외부 자료를 합칩니다. 오늘 날짜는 한국 시간으로 판단하며 전체 콘텐츠는 출처별 과거 기록을 클라이언트에서 합쳐 12개씩 표시합니다.
+- 로컬 개발 서버에서는 화면 확인용 샘플 기사를 함께 표시합니다. 운영·개발 배포 빌드와 테스트에서는 샘플을 사용하지 않습니다.
+- 홈·전체 콘텐츠의 종목 외부 자료는 `publishedDate`가 있으면 원문 게시일, 없으면 등록일을 기준으로 정렬·필터링합니다. 같은 날짜에는 등록 시각·ID로 정렬합니다. 기사에는 발행일, 인물 글에는 API 등록일을 사용합니다.
+- `publishedDate`에는 관리자가 입력한 원문 게시일을 사용하며 입력을 생략한 신규 자료와 V42가 보완한 기존 자료는 한국 시간 등록일이 들어갑니다. 날짜 필드가 있다는 이유만으로 원문의 실제 게시일이 확인되었다고 판단하지 않습니다.
+- 통합 검색은 `GET /api/search/contents?q=...&source=ALL&page=1&size=12`를 사용합니다. 출처는 `ALL`, `DAYNOMY`, `X`, `THREADS`, `YOUTUBE`이며 기사 제목·본문과 인물 글·외부 자료의 제목을 검색합니다. 검색어·출처·페이지를 URL과 동기화하고 로딩·빈 결과·오류·재시도를 구분합니다.
+- 검색 결과는 서버가 페이지를 나누며 기사 발행 시각·외부 자료 등록 시각 기준으로 정렬합니다. 원문 게시일 정렬을 적용한 소식 피드와 검색의 정렬 기준은 다릅니다. 종목 상세와 보유 자산 소식도 기존 등록일 정렬을 유지합니다.
+- 동일 URL의 종목 외부 자료를 합치고 인물 글과 겹치면 인물 글을 우선합니다. 기사 링크는 상세로 이동하고 X·Threads·YouTube 자료는 목록에서 펼쳐 원문과 임베드를 확인합니다.
+- 인물은 등록된 프로필 이미지를 표시하고 이미지가 없으면 기본 아이콘을 사용합니다. 관리자는 Wikimedia Commons 이미지 선택과 X·Threads·YouTube 프로필 URL 등록, 세 플랫폼의 게시물 등록을 사용할 수 있습니다.
 
 ---
 
@@ -122,21 +164,24 @@ E2E는 여러 화면을 거치는 흐름과 브라우저 동작을 검증합니�
 
 ### 현재 자동화 범위
 
-| 기능            | 검증 내용                                                                     |
-| --------------- | ----------------------------------------------------------------------------- |
-| 뉴스 목록 API   | 페이지 변환, 응답 매핑, 잘못된 응답 계약                                      |
-| 뉴스 탐색 화면  | 목록·상세 표시, 카테고리 변경, 오류·비로그인 상태                             |
-| 뉴스 검색 API   | 검색 조건과 URL, 응답 매핑, 오류 응답                                         |
-| 뉴스 검색 화면  | 입력 검증, 결과·빈 화면·오류·재시도, URL·카테고리·페이지·브라우저 탐색 동기화 |
-| 종목 목록 API   | 응답 매핑, 잘못된 응답 계약                                                   |
-| 로그인 화면     | Google 로그인 시작, OAuth 실패 안내                                           |
-| 관심 종목 화면  | 북마크 추가·해제와 저장, API 실패 시 대체 상태                                |
-| 포트폴리오 화면 | 분석 결과, 실패 안내와 재시도                                                 |
-| 오류 모니터링   | Sentry 이벤트 개인정보 및 URL 쿼리 제거                                       |
+| 기능             | 검증 내용                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| 뉴스 목록 API    | 페이지 변환, 응답 매핑, 잘못된 응답 계약                                             |
+| 뉴스 탐색 화면   | 목록·상세 표시, 카테고리 변경, 오류·비로그인 상태                                    |
+| 통합 검색 API    | 기사·인물 글·외부 자료 계약, 검색어·출처·페이지 URL, 오류 응답                       |
+| 통합 검색 화면   | 입력 검증, 결과·빈 화면·오류·재시도, URL·출처·페이지·브라우저 탐색 동기화            |
+| 종목 목록 API    | 응답 매핑, 잘못된 응답 계약                                                          |
+| 로그인 화면      | Google 로그인 시작, OAuth 실패 안내                                                  |
+| 포트폴리오 화면  | 회원·비회원 거래 기록, 거래 수정·삭제, 보유 자산·추이·손익 갱신, API 오류 복구       |
+| 포트폴리오 분석  | 저장 결과 조회·갱신·재사용, 자산·계정 변경, 진행 중·실패·근거 재확인 상태, 체험 제한 |
+| 소식·인물 화면   | 출처 통합·중복 제거·게시일 정렬·오늘 필터·페이지 이동, 프로필 이미지와 임베드        |
+| 리그 진입 화면   | ‘준비 중’ 안내 표시와 리그 API 미호출                                                |
+| 사용자 행동 분석 | 콘텐츠·대시보드·분석 이벤트, 수집 제외 경로, GA4·PostHog URL 정리와 파라미터 제한    |
+| 오류 모니터링    | Sentry 이벤트 개인정보 및 URL 쿼리 제거                                              |
 
-뉴스 검색 화면은 사용자 입력, API 요청, URL 상태, 필터, 페이지네이션, 브라우저
+통합 검색 화면은 사용자 입력, API 요청, URL 상태, 필터, 페이지네이션, 브라우저
 탐색과 오류 복구가 함께 동작하는 대표 사용자 흐름이므로 컴포넌트 통합 테스트
-대상으로 선정했습니다. 뉴스 탐색, 로그인, 관심 종목과 포트폴리오는 각 기능의
+대상으로 선정했습니다. 뉴스 탐색, 로그인, 소식과 포트폴리오는 각 기능의
 대표 정상 흐름과 사용자 대응이 필요한 실패 흐름을 검증합니다.
 
 ### 실행
@@ -159,7 +204,9 @@ npm run build && npm run test:e2e
 npm run format:check
 npm run lint
 npm run typecheck
+npm test
 npm run build
+bash scripts/test-release-version.sh
 ```
 
 `dev` 또는 `main` 대상 Pull Request에서 프론트엔드 파일이 변경되면 Frontend CI가
@@ -194,6 +241,8 @@ GitHub의 `development`, `production` Environment에는 다음 값을 각각 설
 | 종류     | 이름                 | 용도                                         |
 | -------- | -------------------- | -------------------------------------------- |
 | Variable | `GA_MEASUREMENT_ID`  | 환경별 별도 GA4 웹 데이터 스트림 ID          |
+| Variable | `VITE_POSTHOG_KEY`   | PostHog 공개 프로젝트 토큰                   |
+| Variable | `VITE_POSTHOG_HOST`  | PostHog 이벤트 수집 호스트                   |
 | Variable | `SENTRY_DSN`         | 환경별 별도 Sentry 프로젝트 DSN              |
 | Variable | `SENTRY_ENVIRONMENT` | development는 `staging`, 운영은 `production` |
 | Variable | `SENTRY_ORG`         | Sentry 조직 slug                             |
@@ -204,6 +253,8 @@ GitHub의 `development`, `production` Environment에는 다음 값을 각각 설
 개발 Sentry 이벤트는 `staging`, 운영 이벤트는 `production`으로 구분합니다.
 각 Environment의 `SENTRY_AUTH_TOKEN` Secret은 빌드 중 소스맵 업로드에 사용하며,
 설정 변경 후에는 프론트를 다시 빌드·배포해야 합니다.
+PostHog는 `VITE_POSTHOG_KEY`와 `VITE_POSTHOG_HOST`가 모두 있어야 활성화됩니다.
+두 값은 빌드에 포함되는 공개 클라이언트 설정이며 개인 API 키를 사용하지 않습니다.
 
 각 EC2의 호스트 Nginx는 화면 요청을 프론트엔드 컨테이너로, `/api`와 OAuth 요청을
 같은 EC2의 백엔드로 전달합니다.
@@ -293,21 +344,41 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 
 #### 이벤트
 
-| 이벤트                              | 발생 시점                                       | 주요 파라미터                                                                                              |
-| ----------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `page_view`                         | 공개 화면의 경로 변경                           | `page_path` (쿼리 없는 경로)                                                                               |
-| `view_news_list`                    | 뉴스 목록 진입·카테고리 변경                    | `category` (뉴스 카테고리 코드)                                                                            |
-| `view_news_detail`                  | 뉴스 상세 진입                                  | `news_id` (기사 식별 번호)                                                                                 |
-| `search_news`                       | 검색어 변경                                     | `search_length` (검색어 글자 수)                                                                           |
-| `click_search_open`                 | 검색 열기 버튼 클릭                             | 없음                                                                                                       |
-| `start_portfolio_analysis`          | 포트폴리오 분석·갱신 요청 시작                  | `action`, `user_type`, `asset_count`                                                                       |
-| `portfolio_analysis_result`         | 사용자가 시작한 분석·갱신 요청 결과             | `action`, `user_type`, `asset_count`, `status`, `last_check_outcome`, `duration_ms`                        |
-| `view_portfolio_analysis`           | 결과 상단 점수 영역이 50% 이상 노출             | `surface`, `user_type`, `analyzed_asset_count`                                                             |
-| `select_portfolio_analysis_asset`   | 차트·목록에서 전체 또는 자산별 결과로 선택 변경 | `surface`, `scope`, `position`                                                                             |
-| `expand_portfolio_analysis_sources` | 분석 출처 펼치기                                | `surface`, `scope`, `source_count`                                                                         |
-| `content_load_result`               | 뉴스 상세의 키워드·시장 분석 개별 조회 결과     | `surface=news_detail`, `area=keywords/market-analysis`, `status`, `result_count`, `attempt`, `duration_ms` |
-| `open_keyword_analysis`             | 키워드 설명이 닫힘에서 열림으로 전환            | `news_id`, `keyword_category`, `trigger`                                                                   |
-| `view_market_analysis`              | 정상 시장 분석의 제목이 50% 이상 노출           | `surface=news_detail`, `news_id`                                                                           |
+| 이벤트                                                                            | 발생 시점                                                | 주요 파라미터                                                                       |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `page_view`                                                                       | 공개 화면의 경로 변경                                    | `page_path` (쿼리 없는 경로)                                                        |
+| `view_news_list`                                                                  | 뉴스 목록 진입·카테고리 변경                             | `category` (뉴스 카테고리 코드)                                                     |
+| `view_news_detail`                                                                | 뉴스 상세 진입                                           | `news_id` (기사 식별 번호)                                                          |
+| `search_news`                                                                     | 검색어 변경                                              | `search_length` (검색어 글자 수)                                                    |
+| `click_search_open`                                                               | 검색 열기 버튼 클릭                                      | 없음                                                                                |
+| `start_portfolio_analysis`                                                        | 포트폴리오 분석·갱신 요청 시작                           | `action`, `user_type`, `asset_count`                                                |
+| `portfolio_analysis_result`                                                       | 사용자가 시작한 분석·갱신 요청 결과                      | `action`, `user_type`, `asset_count`, `status`, `last_check_outcome`, `duration_ms` |
+| `view_portfolio_analysis`                                                         | 결과 상단 점수 영역이 50% 이상 노출                      | `surface`, `user_type`, `analyzed_asset_count`                                      |
+| `select_portfolio_analysis_asset`                                                 | 차트·목록에서 전체 또는 자산별 결과로 선택 변경          | `surface`, `scope`, `position`                                                      |
+| `expand_portfolio_analysis_sources`                                               | 분석 출처 펼치기                                         | `surface`, `scope`, `source_count`                                                  |
+| `content_load_result`                                                             | 소식·인물·종목 콘텐츠·보유 자산 소식·뉴스 분석 조회 결과 | `surface`, `area`, `status`, `result_count`, `attempt`, `duration_ms`               |
+| `view_content_list`, `view_content_empty`                                         | 콘텐츠 목록 또는 빈 상태 확인                            | `surface`, `source_type`, `result_count`, `page_number`, `status`, `reason`         |
+| `click_content`, `click_content_original`, `expand_content`, `open_content_video` | 콘텐츠 선택·원문 이동·글 펼치기·종목 영상 열기           | `surface`, `source_type`, `content_id`, `position`                                  |
+| `filter_content_source`, `change_content_page`                                    | 출처 필터·페이지 변경                                    | `surface`, `source_type`, `previous_source`, `previous_page`, `page_number`         |
+| `click_content_more`, `retry_content_load`                                        | 더 보기 이동·조회 재시도                                 | `surface`, `destination`, `area`, `attempt`                                         |
+| `click_person_preview`, `select_featured_person`                                  | 인물 미리보기·인물 선택                                  | `surface`, `person_id`, `position`                                                  |
+| `view_portfolio_news`                                                             | 보유 자산 소식 제목이 50% 이상 노출                      | `surface=portfolio_news`, `status`, `result_count`                                  |
+| `open_keyword_analysis`                                                           | 키워드 설명이 닫힘에서 열림으로 전환                     | `news_id`, `keyword_category`, `trigger`                                            |
+| `view_market_analysis`                                                            | 정상 시장 분석의 제목이 50% 이상 노출                    | `surface=news_detail`, `news_id`                                                    |
+
+포트폴리오 대시보드는 `/`에서 다음 이벤트를 수집합니다. 로그인 여부·시세 상태·입력
+방식·정렬·조회 기간·실패 유형만 허용하며 종목 이름·금액·수량은 전송하지 않습니다.
+정확한 파라미터 허용 목록은 `src/features/portfolio/analytics.ts`에서 관리합니다.
+
+| 이벤트                                                                                                            | 발생 시점                               |
+| ----------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `portfolio_dashboard_viewed`, `portfolio_dashboard_loaded`, `portfolio_dashboard_load_failed`                     | 대시보드 진입·조회 완료·조회 실패       |
+| `portfolio_retry_clicked`, `portfolio_amount_visibility_changed`, `portfolio_asset_section_toggled`               | 재시도·금액 표시·자산 영역 펼치기       |
+| `portfolio_period_changed`, `portfolio_chart_expanded`, `portfolio_filter_changed`, `portfolio_sort_changed`      | 추이 기간·확대·보유 종목 필터·정렬 변경 |
+| `portfolio_holding_detail_opened`, `portfolio_tab_changed`, `portfolio_editor_opened`, `portfolio_stock_selected` | 종목 상세·탭·입력창·시장 선택           |
+| `portfolio_save_submitted`, `portfolio_save_succeeded`, `portfolio_save_failed`                                   | 보유 정정·거래 등록·수정 제출과 결과    |
+| `portfolio_delete_succeeded`, `portfolio_delete_failed`                                                           | 보유 종목·거래 삭제 결과                |
+| `portfolio_history_filter_changed`, `portfolio_history_range_changed`                                             | 거래 유형·조회 기간 필터 변경           |
 
 #### GA4 관리 화면 설정
 
@@ -328,9 +399,17 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 - 검색 직접 접속·SPA 이동의 GA 요청에 검색어 원문과 중복 `page_view`가 없는지 확인
 - `/login`·`/admin`의 GA 요청 부재, 팀 IP 필터 적용 여부 확인
 
+### PostHog 사용자 행동 분석
+
+- `VITE_POSTHOG_KEY`·`VITE_POSTHOG_HOST`가 모두 설정되면 GA4와 같은 명시적 사용자 행동 이벤트를 전송하며 페이지 조회는 `$pageview` 이름을 사용합니다. GA4 설정 없이 PostHog만 사용할 수도 있습니다.
+- 자동 클릭·페이지 조회·페이지 이탈·성능·오류 수집, 세션 녹화·설문·기능 플래그 자동 조회와 개인 프로필 생성을 끕니다. 이벤트 속성은 코드의 허용 목록으로 제한하며 검색어 원문·보유 종목·금액·수량은 전송하지 않습니다.
+- 익명 식별은 브라우저 `localStorage`를 사용합니다. URL·referrer에서 쿼리·fragment를 제거하고 투자자 공개 ID 경로를 일반 경로로 치환합니다.
+- `/login`·`/admin`에서는 수집하지 않으며 해당 경로에 진입한 뒤에는 같은 앱 세션의 수집을 중지합니다. 분석 SDK 로딩·전송 실패는 사용자 작업을 중단하지 않습니다.
+- 로컬 `.env`와 배포 Environment에서 두 값을 비워 두면 PostHog를 초기화하지 않습니다. 변경 시 다시 빌드하고 해당 환경의 이벤트 수신 여부를 확인합니다.
+
 ### Looker Studio
 
-초기에는 Sentry와 GA4를 분리해서 확인합니다. 운영 데이터가 충분히 쌓인 뒤
+현재는 Sentry와 GA4, 설정된 경우 PostHog를 각각 확인합니다. 운영 데이터가 충분히 쌓인 뒤
 방문자 수, 뉴스 조회, 검색 사용, Sentry 오류 현황을 통합해서 볼 필요가
 있을 때 Looker Studio 대시보드를 추가합니다.
 
@@ -345,8 +424,10 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 - 일반 배포 SHA·버전 배포 Git tag 기준 release 기록
 - Sentry 개인정보 제거
 - GA4 페이지 조회 및 사용자 행동 이벤트 수집
+- PostHog 설정 시 동일한 공개 화면의 명시적 페이지 조회·사용자 행동 이벤트 수집
 - 배포 후 Sentry Release·소스맵 확인
 - GA4 Realtime·DebugView 이벤트 확인
+- PostHog 설정 환경에서 이벤트 이름·파라미터·수집 제외 경로 확인
 
 오류 테스트 시에는 테스트 메시지에 토큰이나 개인정보를 포함하지 않습니다.
 

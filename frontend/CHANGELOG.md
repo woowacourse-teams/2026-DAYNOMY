@@ -7,11 +7,15 @@
 
 ## v1.1.1
 
+`dev → main` 반영을 준비하는 릴리스입니다. 운영 배포 검증과 태그 발행 결과는 배포 후 확인합니다.
+
 ### 포트폴리오와 AI 분석
 
 - 포트폴리오 자산 추이·거래 내역·종목 상세 패널과 반응형 배치를 개선하고, 그래프 툴팁과 팝업 흔들림을 수정했습니다.
 - 비회원의 매수·매도 거래 기록을 지원하고, 회원·비회원의 거래 입력과 보유 자산 관리 화면을 정리했습니다.
 - 포트폴리오 분석 결과를 서버에 저장하고 조회·갱신하도록 연결했습니다. 분석 근거 수집 누락과 응답 검증 실패를 보완하고 전체 요약·출처·문체를 개선했습니다.
+- 회원의 이전 공용 브라우저 분석 캐시를 사용하지 않고 계정별 서버 결과를 조회합니다. 자산·계정 변경, 동시 분석, 새 근거 확인 실패와 이전 결과 유지 상태를 처리하며 서버는 최근 변경 이력 10개를 제공합니다. 프론트의 분석 이력 탐색 화면은 포함하지 않습니다.
+- 자산 추이는 날짜별 평가값과 툴팁을 표시하며 거래 표시점·거래 범례를 제거했습니다. 매수·매도 기록은 거래 내역에서 확인합니다.
 - 종가 누락 처리와 과거 스냅샷 재계산을 보완했습니다.
 
 ### 소식·검색·주요 인물
@@ -19,8 +23,10 @@
 - 소식 홈을 이슈·종목 콘텐츠·인물 소식 중심으로 통합하고, 포트폴리오 보유 자산과 관련된 소식을 제공합니다.
 - 전체 소식 콘텐츠를 통합 검색 API에 연결하고 검색 화면과 검색창을 개선했습니다.
 - 외부 콘텐츠의 발행일 입력·표시와 발행일 기준 정렬을 적용했습니다.
+- 게시일 정렬은 소식 홈·전체 콘텐츠의 종목 외부 자료에 적용됩니다. 통합 검색과 종목 상세·보유 자산 소식은 기존 등록 시각 정렬을 유지하며, 인물 글 날짜는 원문 게시일이 아닌 API 등록일입니다.
 - 주요 인물의 프로필 이미지와 YouTube 채널 연결을 지원하고, 인물 프로필 화면과 파비콘을 변경했습니다.
 - 뉴스 상세 키워드 팝업과 시장 분석 화면을 개선하고, 원문 기반 키워드 분석과 시장 분석 문장부호 처리를 보완했습니다.
+- 로컬 개발 서버에만 소식 화면 확인용 샘플 기사를 표시하고 배포 빌드·테스트에서는 제외합니다.
 
 ### 투자 리그
 
@@ -35,6 +41,29 @@
 - 서비스 전반의 화면 구성·반응형 UI와 마이페이지를 개선했습니다.
 - 이슈·인물·포트폴리오 대시보드·포트폴리오 분석·키워드·시장 분석의 사용자 행동 이벤트를 추가하고, 프론트엔드 배포에 PostHog 설정을 연결했습니다.
 - 통합 검색 테스트 컴파일 오류와 시장 분석 이벤트 테스트의 CI 실패를 수정했습니다.
+- 회원 서버 저장과 비회원 임시 저장, 통합 검색·분석 기능에 맞춰 서비스 소개·이용 안내·개인정보 안내를 갱신했습니다.
+
+### 배포·관련 문서
+
+- 프론트 패키지와 잠금 파일 버전을 `1.1.1`로 맞췄습니다. README·릴리스 절차·소식 디자인 계약과 백엔드 README·리그 모니터링 안내를 현재 코드에 맞췄습니다.
+- 함께 반영할 DB 마이그레이션은 V35~V42입니다. 분석·근거 저장과 동시 요청 상태, 콘텐츠 게시일·인물 프로필 이미지·YouTube URL을 추가합니다. V42는 게시일 없는 기존 외부 자료를 한국 시간 등록일로 채우고 정렬 인덱스를 추가하며 원문 게시일을 새로 수집하지 않습니다. 신규 자료도 게시일 입력을 생략하면 한국 시간 등록일을 저장합니다.
+- 배포 Environment의 `VITE_POSTHOG_KEY`·`VITE_POSTHOG_HOST`가 모두 설정되면 명시적 행동 이벤트를 전송합니다. 자동 수집·세션 녹화는 사용하지 않습니다.
+- 버전 준비는 이슈 [#451](https://github.com/woowacourse-teams/2026-DAYNOMY/issues/451)에서 진행합니다. 개발·운영 적용 순서와 수동 확인 범위는 [RELEASING.md](RELEASING.md#v111-반영-순서)를 따릅니다.
+
+### 포함된 PR
+
+| 변경                                | PR                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 포트폴리오 UI·비회원 거래·추이·툴팁 | [#417](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/417), [#428](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/428), [#433](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/433), [#439](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/439)                                                                     |
+| 포트폴리오 분석 저장·갱신·근거·요약 | [#410](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/410), [#415](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/415), [#421](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/421), [#423](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/423), [#441](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/441) |
+| 종가 누락·과거 스냅샷 재계산        | [#397](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/397)                                                                                                                                                                                                                                                                                 |
+| 소식 홈·종목 게시일 표시·전반 UI    | [#409](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/409), [#416](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/416), [#427](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/427)                                                                                                                                         |
+| 뉴스 키워드·시장 분석·상세 UI       | [#402](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/402), [#403](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/403)                                                                                                                                                                                                             |
+| 소식 통합 검색·테스트 컴파일 수정   | [#430](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/430), [#431](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/431), [#443](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/443)                                                                                                                                         |
+| 인물 프로필·이미지·YouTube·파비콘   | [#435](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/435), [#438](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/438)                                                                                                                                                                                                             |
+| 행동 분석 이벤트·CI 테스트 수정     | [#413](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/413), [#434](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/434), [#446](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/446)                                                                                                                                         |
+| 주간 리그 집계·조회·준비 중 화면    | [#411](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/411), [#412](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/412), [#437](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/437)                                                                                                                                         |
+| 외부 콘텐츠 게시일 정렬             | [#444](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/444), [#448](https://github.com/woowacourse-teams/2026-DAYNOMY/pull/448)                                                                                                                                                                                                             |
 
 ## v1.1.0
 
