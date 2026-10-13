@@ -664,7 +664,11 @@ function PortfolioAnalysisContent({ assets, isLoggedIn = true }: PortfolioAnalys
           <p role="status">다른 요청에서 분석 중이에요. 잠시 후 진행 상태를 확인해 주세요.</p>
         ) : null}
         {!loading && saved?.status === 'RECHECK_REQUIRED' ? (
-          <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
+          <p role="status">
+            {analysis?.analyzedAssetCount === 0
+              ? '판단에 필요한 근거를 확보하지 못했어요. 새 소식 확인으로 다시 시도해 주세요.'
+              : '기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.'}
+          </p>
         ) : null}
         {!loading && saved?.status === 'READY' && saved.lastCheckOutcome === 'UNCHANGED' ? (
           <p role="status">주요 변화가 없어 기존 분석을 유지했어요.</p>

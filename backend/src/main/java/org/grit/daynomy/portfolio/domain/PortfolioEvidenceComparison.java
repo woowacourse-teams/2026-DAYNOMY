@@ -23,7 +23,7 @@ public final class PortfolioEvidenceComparison {
 
   public static Result compare(List<Fact> previous, List<Fact> current) {
     if (current.isEmpty()) {
-      return previous.isEmpty() ? Result.SAME : Result.UNCONFIRMED;
+      return Result.UNCONFIRMED;
     }
     if (current.stream().anyMatch(fact -> normalized(fact.excerpt()).isEmpty())) {
       return Result.UNCONFIRMED;

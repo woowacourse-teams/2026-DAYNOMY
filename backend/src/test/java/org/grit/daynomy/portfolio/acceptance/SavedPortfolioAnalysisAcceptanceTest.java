@@ -380,6 +380,8 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .get(API)
         .then()
         .statusCode(200)
+        .body("status", equalTo("RECHECK_REQUIRED"))
+        .body("lastCheckOutcome", equalTo("UNCONFIRMED"))
         .body("analysis.coverage", equalTo("INSUFFICIENT"))
         .body("analysis.analyzedAssetCount", equalTo(0))
         .body("analysis.analyzedWeight", equalTo(0))
@@ -387,6 +389,16 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .body("analysis.overallScore", nullValue())
         .body("analysis.impacts[0].evidenceStatus", equalTo("INSUFFICIENT"))
         .body("analysis.impacts[0].direction", nullValue());
+    when(ai.refresh(anyList(), anyString()))
+        .thenAnswer(invocation -> ai.analyze(invocation.getArgument(0)));
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("status", equalTo("RECHECK_REQUIRED"))
+        .body("lastCheckOutcome", equalTo("UNCONFIRMED"))
+        .body("analysis.analyzedAssetCount", equalTo(0));
+    client(member).get(API + "/history").then().body("size()", equalTo(1));
   }
 
   @Test

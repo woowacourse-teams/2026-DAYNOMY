@@ -239,7 +239,11 @@ public class SavedPortfolioAnalysisTransactionService {
                         source.excerpt(),
                         source.factQuote())));
     evidence.saveAll(savedEvidence);
-    check.recordSuccess(now, PortfolioAnalysisCheck.Outcome.UPDATED);
+    check.recordSuccess(
+        now,
+        result.analyzedAssetCount() == 0
+            ? PortfolioAnalysisCheck.Outcome.UNCONFIRMED
+            : PortfolioAnalysisCheck.Outcome.UPDATED);
     check.finish(token);
     analyses.flush();
     analyses.deleteOlderAnalyses(portfolio.getId(), RETAINED_ANALYSES);
@@ -346,7 +350,12 @@ public class SavedPortfolioAnalysisTransactionService {
     Instant failedAt = check == null ? null : check.getLastFailedAt();
     Status status =
         analysis == null ? Status.EMPTY : same ? Status.READY : Status.PORTFOLIO_CHANGED;
-    if (analysis != null && same && (check == null || check.requiresRecheck(now))) {
+    if (analysis != null
+        && same
+        && (check == null
+            || check.requiresRecheck(now)
+            || analysis.getSnapshot().impacts().stream()
+                .noneMatch(impact -> impact.direction() != null))) {
       status = Status.RECHECK_REQUIRED;
     }
     if (failedAt != null && (succeededAt == null || failedAt.isAfter(succeededAt))) {
