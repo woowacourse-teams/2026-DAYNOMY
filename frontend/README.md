@@ -292,14 +292,21 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 
 #### 이벤트
 
-| 이벤트                     | 발생 시점                                 | 주요 파라미터                    |
-| -------------------------- | ----------------------------------------- | -------------------------------- |
-| `page_view`                | 공개 화면의 경로 변경                     | `page_path` (쿼리 없는 경로)     |
-| `view_news_list`           | 뉴스 목록 진입·카테고리 변경              | `category` (뉴스 카테고리 코드)  |
-| `view_news_detail`         | 뉴스 상세 진입                            | `news_id` (기사 식별 번호)       |
-| `search_news`              | 검색어 변경                               | `search_length` (검색어 글자 수) |
-| `click_search_open`        | 검색 열기 버튼 클릭                       | 없음                             |
-| `start_portfolio_analysis` | 뉴스 상세에서 포트폴리오 분석 시작·재시도 | 없음                             |
+| 이벤트                              | 발생 시점                                       | 주요 파라미터                                                                                              |
+| ----------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `page_view`                         | 공개 화면의 경로 변경                           | `page_path` (쿼리 없는 경로)                                                                               |
+| `view_news_list`                    | 뉴스 목록 진입·카테고리 변경                    | `category` (뉴스 카테고리 코드)                                                                            |
+| `view_news_detail`                  | 뉴스 상세 진입                                  | `news_id` (기사 식별 번호)                                                                                 |
+| `search_news`                       | 검색어 변경                                     | `search_length` (검색어 글자 수)                                                                           |
+| `click_search_open`                 | 검색 열기 버튼 클릭                             | 없음                                                                                                       |
+| `start_portfolio_analysis`          | 포트폴리오 분석·갱신 요청 시작                  | `action`, `user_type`, `asset_count`                                                                       |
+| `portfolio_analysis_result`         | 사용자가 시작한 분석·갱신 요청 결과             | `action`, `user_type`, `asset_count`, `status`, `last_check_outcome`, `duration_ms`                        |
+| `view_portfolio_analysis`           | 결과 상단 점수 영역이 50% 이상 노출             | `surface`, `user_type`, `analyzed_asset_count`                                                             |
+| `select_portfolio_analysis_asset`   | 차트·목록에서 전체 또는 자산별 결과로 선택 변경 | `surface`, `scope`, `position`                                                                             |
+| `expand_portfolio_analysis_sources` | 분석 출처 펼치기                                | `surface`, `scope`, `source_count`                                                                         |
+| `content_load_result`               | 뉴스 상세의 키워드·시장 분석 개별 조회 결과     | `surface=news_detail`, `area=keywords/market-analysis`, `status`, `result_count`, `attempt`, `duration_ms` |
+| `open_keyword_analysis`             | 키워드 설명이 닫힘에서 열림으로 전환            | `news_id`, `keyword_category`, `trigger`                                                                   |
+| `view_market_analysis`              | 정상 시장 분석의 제목이 50% 이상 노출           | `surface=news_detail`, `news_id`                                                                           |
 
 #### GA4 관리 화면 설정
 

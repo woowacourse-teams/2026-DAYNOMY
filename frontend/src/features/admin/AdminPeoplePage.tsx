@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { searchWikimediaImages } from './api';
+import type { AdminWikimediaImageCandidate } from './types';
 import {
   createFeaturedPerson,
   createFeaturedPersonPost,
@@ -38,9 +40,18 @@ function isSupportedPostUrl(platform: SocialPlatform, value: string) {
         /^\/[^/]+\/status\/\d+\/?$/.test(url.pathname)
       );
     }
+    if (platform === 'THREADS')
+      return (
+        ['threads.net', 'www.threads.net', 'threads.com', 'www.threads.com'].includes(host) &&
+        (/^\/@[^/]+\/post\/[^/]+\/?$/.test(url.pathname) || /^\/t\/[^/]+\/?$/.test(url.pathname))
+      );
+    const normalizedHost = host.replace(/^www\./, '').replace(/^m\./, '');
     return (
-      ['threads.net', 'www.threads.net', 'threads.com', 'www.threads.com'].includes(host) &&
-      (/^\/@[^/]+\/post\/[^/]+\/?$/.test(url.pathname) || /^\/t\/[^/]+\/?$/.test(url.pathname))
+      (normalizedHost === 'youtu.be' && /^\/[A-Za-z0-9_-]{11}\/?$/.test(url.pathname)) ||
+      (normalizedHost === 'youtube.com' &&
+        (/^\/(embed|shorts|live)\/[A-Za-z0-9_-]{11}\/?$/.test(url.pathname) ||
+          (url.pathname === '/watch' &&
+            /^[A-Za-z0-9_-]{11}$/.test(url.searchParams.get('v') ?? ''))))
     );
   } catch {
     return false;
@@ -53,9 +64,15 @@ export function AdminPeoplePage() {
   const [newName, setNewName] = useState('');
   const [newXProfileUrl, setNewXProfileUrl] = useState('');
   const [newThreadsProfileUrl, setNewThreadsProfileUrl] = useState('');
+  const [newYoutubeProfileUrl, setNewYoutubeProfileUrl] = useState('');
   const [editName, setEditName] = useState('');
   const [editXProfileUrl, setEditXProfileUrl] = useState('');
   const [editThreadsProfileUrl, setEditThreadsProfileUrl] = useState('');
+  const [editYoutubeProfileUrl, setEditYoutubeProfileUrl] = useState('');
+  const [imageKeyword, setImageKeyword] = useState('');
+  const [imageCandidates, setImageCandidates] = useState<AdminWikimediaImageCandidate[]>([]);
+  const [selectedImage, setSelectedImage] = useState<AdminWikimediaImageCandidate | null>(null);
+  const [searchingImages, setSearchingImages] = useState(false);
   const [postSourceType, setPostSourceType] = useState<SocialPlatform>('X');
   const [postTitle, setPostTitle] = useState('');
   const [postUrl, setPostUrl] = useState('');
@@ -96,6 +113,10 @@ export function AdminPeoplePage() {
     setEditName(selectedPerson.name);
     setEditXProfileUrl(selectedPerson.xProfileUrl ?? '');
     setEditThreadsProfileUrl(selectedPerson.threadsProfileUrl ?? '');
+    setEditYoutubeProfileUrl(selectedPerson.youtubeProfileUrl ?? '');
+    setSelectedImage(null);
+    setImageCandidates([]);
+    setImageKeyword(selectedPerson.name);
   }, [selectedPerson]);
 
   useEffect(() => {
@@ -115,12 +136,14 @@ export function AdminPeoplePage() {
         name: newName.trim(),
         xProfileUrl: emptyToNull(newXProfileUrl),
         threadsProfileUrl: emptyToNull(newThreadsProfileUrl),
+        youtubeProfileUrl: emptyToNull(newYoutubeProfileUrl),
       });
       setPeople((current) => [...current, person]);
       setSelectedPersonId(person.id);
       setNewName('');
       setNewXProfileUrl('');
       setNewThreadsProfileUrl('');
+      setNewYoutubeProfileUrl('');
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, '주요 인물을 등록하지 못했습니다.'));
     } finally {
@@ -138,12 +161,29 @@ export function AdminPeoplePage() {
         name: editName.trim(),
         xProfileUrl: emptyToNull(editXProfileUrl),
         threadsProfileUrl: emptyToNull(editThreadsProfileUrl),
+        youtubeProfileUrl: emptyToNull(editYoutubeProfileUrl),
+        profileImageSelection: selectedImage ? { title: selectedImage.title } : null,
       });
       setPeople((current) => current.map((item) => (item.id === person.id ? person : item)));
+      setSelectedImage(null);
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, '인물 정보를 수정하지 못했습니다.'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function searchProfileImages() {
+    const keyword = imageKeyword.trim();
+    if (keyword.length < 2 || searchingImages) return;
+    setSearchingImages(true);
+    setError('');
+    try {
+      setImageCandidates(await searchWikimediaImages(keyword));
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError, 'Wikimedia Commons 이미지 검색에 실패했습니다.'));
+    } finally {
+      setSearchingImages(false);
     }
   }
 
@@ -281,6 +321,15 @@ export function AdminPeoplePage() {
             onChange={(event) => setNewThreadsProfileUrl(event.target.value)}
           />
         </label>
+        <label className="admin-field">
+          <span>YouTube 채널 URL</span>
+          <input
+            type="url"
+            value={newYoutubeProfileUrl}
+            placeholder="https://www.youtube.com/@channel"
+            onChange={(event) => setNewYoutubeProfileUrl(event.target.value)}
+          />
+        </label>
         <button className="admin-primary-button" type="submit" disabled={saving || !newName.trim()}>
           인물 추가
         </button>
@@ -302,6 +351,9 @@ export function AdminPeoplePage() {
                 aria-pressed={person.id === selectedPersonId}
                 onClick={() => setSelectedPersonId(person.id)}
               >
+                <span className="admin-person-avatar" aria-hidden="true">
+                  {person.profileImageUrl ? <img src={person.profileImageUrl} alt="" /> : '인'}
+                </span>
                 <strong>{person.name}</strong>
                 <span>{person.posts.length}개 게시물</span>
               </button>
@@ -337,6 +389,16 @@ export function AdminPeoplePage() {
                         Threads 프로필 열기 ↗
                       </a>
                     ) : null}
+                    {selectedPerson.youtubeProfileUrl ? (
+                      <a
+                        className="admin-secondary-button"
+                        href={selectedPerson.youtubeProfileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        YouTube 채널 열기 ↗
+                      </a>
+                    ) : null}
                   </div>
                 </div>
                 <div className="admin-person-profile-fields">
@@ -364,6 +426,77 @@ export function AdminPeoplePage() {
                       onChange={(event) => setEditThreadsProfileUrl(event.target.value)}
                     />
                   </label>
+                  <label className="admin-field">
+                    <span>YouTube 채널 URL</span>
+                    <input
+                      type="url"
+                      value={editYoutubeProfileUrl}
+                      placeholder="https://www.youtube.com/@channel"
+                      onChange={(event) => setEditYoutubeProfileUrl(event.target.value)}
+                    />
+                  </label>
+                  <div className="admin-person-image-picker">
+                    <div className="admin-person-image-picker-heading">
+                      <div>
+                        <span>프로필 이미지</span>
+                        <small>등록하지 않으면 기본 이미지가 표시됩니다.</small>
+                      </div>
+                      <div className="admin-person-image-preview" aria-label="선택된 프로필 이미지">
+                        {selectedImage ? (
+                          <img src={selectedImage.thumbnailUrl} alt={selectedImage.title} />
+                        ) : selectedPerson.profileImageUrl ? (
+                          <img
+                            src={selectedPerson.profileImageUrl}
+                            alt={`${selectedPerson.name} 프로필`}
+                          />
+                        ) : (
+                          <span aria-hidden="true">인</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="admin-person-image-search">
+                      <input
+                        aria-label="프로필 이미지 검색어"
+                        value={imageKeyword}
+                        minLength={2}
+                        maxLength={100}
+                        placeholder="예: 일론 머스크"
+                        onChange={(event) => setImageKeyword(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void searchProfileImages();
+                          }
+                        }}
+                      />
+                      <button
+                        className="admin-secondary-button"
+                        type="button"
+                        disabled={searchingImages || imageKeyword.trim().length < 2}
+                        onClick={() => void searchProfileImages()}
+                      >
+                        {searchingImages ? '검색 중…' : 'Wikimedia 검색'}
+                      </button>
+                    </div>
+                    {imageCandidates.length > 0 ? (
+                      <div
+                        className="admin-person-image-candidates"
+                        aria-label="Wikimedia Commons 이미지 검색 결과"
+                      >
+                        {imageCandidates.map((candidate) => (
+                          <button
+                            key={candidate.title}
+                            type="button"
+                            aria-pressed={selectedImage?.title === candidate.title}
+                            onClick={() => setSelectedImage(candidate)}
+                          >
+                            <img src={candidate.thumbnailUrl} alt={candidate.title} />
+                            <span>{candidate.title.replace(/^File:/, '')}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                   <button
                     className="admin-secondary-button"
                     type="submit"
@@ -408,6 +541,7 @@ export function AdminPeoplePage() {
                     >
                       <option value="X">X</option>
                       <option value="THREADS">Threads</option>
+                      <option value="YOUTUBE">YouTube</option>
                     </select>
                   </label>
                   <label className="admin-field">
@@ -427,7 +561,9 @@ export function AdminPeoplePage() {
                       placeholder={
                         postSourceType === 'X'
                           ? 'https://x.com/username/status/123...'
-                          : 'https://www.threads.net/@username/post/...'
+                          : postSourceType === 'THREADS'
+                            ? 'https://www.threads.net/@username/post/...'
+                            : 'https://www.youtube.com/watch?v=...'
                       }
                       onChange={(event) => setPostUrl(event.target.value)}
                     />

@@ -14,7 +14,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isSocialPlatform(value: unknown): value is SocialPlatform {
-  return value === 'THREADS' || value === 'X';
+  return value === 'THREADS' || value === 'X' || value === 'YOUTUBE';
 }
 
 function isOptionalString(value: unknown) {
@@ -49,6 +49,8 @@ function isPerson(value: unknown): value is FeaturedPerson {
     typeof value.name === 'string' &&
     isOptionalString(value.xProfileUrl) &&
     isOptionalString(value.threadsProfileUrl) &&
+    (value.youtubeProfileUrl === undefined || isOptionalString(value.youtubeProfileUrl)) &&
+    (value.profileImageUrl === undefined || isOptionalString(value.profileImageUrl)) &&
     isOptionalString(value.createdAt) &&
     Array.isArray(value.posts) &&
     value.posts.every(isPost)

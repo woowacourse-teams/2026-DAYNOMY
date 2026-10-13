@@ -1793,6 +1793,8 @@
 
 .admin-person-list button {
   display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 10px;
   gap: 4px;
   width: 100%;
   padding: 14px 16px;
@@ -1817,6 +1819,35 @@
 .admin-person-list span {
   color: #8b94a6;
   font-size: 12px;
+}
+
+.admin-person-list > button > span:last-child {
+  grid-column: 2;
+}
+
+.admin-person-avatar,
+.admin-person-image-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #eef2f6;
+  color: #77869a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.admin-person-avatar {
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+}
+
+.admin-person-avatar img,
+.admin-person-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .admin-person-workspace {
@@ -1872,6 +1903,94 @@
   gap: 14px;
   align-items: end;
   margin-top: 22px;
+}
+
+.admin-person-image-picker {
+  grid-column: 1 / -1;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f7f8fc;
+}
+
+.admin-person-image-picker-heading,
+.admin-person-image-search {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.admin-person-image-picker-heading > div:first-child {
+  display: grid;
+  gap: 4px;
+  color: #283548;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-person-image-picker-heading small {
+  color: #737b8c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-person-image-preview {
+  width: 56px;
+  height: 56px;
+}
+
+.admin-person-image-search {
+  justify-content: flex-start;
+  margin-top: 14px;
+}
+
+.admin-person-image-search input {
+  min-width: 0;
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #dce2ec;
+  border-radius: 9px;
+  color: #243247;
+  background: #fff;
+}
+
+.admin-person-image-candidates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.admin-person-image-candidates button {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #fff;
+  color: #526176;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-person-image-candidates button[aria-pressed='true'] {
+  border-color: #6258d8;
+  box-shadow: 0 6px 16px rgb(81 68 216 / 14%);
+}
+
+.admin-person-image-candidates img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.admin-person-image-candidates span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-person-profile-fields .admin-secondary-button,
