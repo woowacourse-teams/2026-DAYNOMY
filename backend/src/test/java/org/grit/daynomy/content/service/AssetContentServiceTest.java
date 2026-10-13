@@ -100,7 +100,8 @@ class AssetContentServiceTest {
         .willAnswer(
             invocation -> {
               AssetContent content = invocation.getArgument(0);
-              ReflectionTestUtils.setField(content, "createdAt", Instant.parse("2026-10-12T15:30:00Z"));
+              ReflectionTestUtils.setField(
+                  content, "createdAt", Instant.parse("2026-10-12T15:30:00Z"));
               return content;
             });
 
