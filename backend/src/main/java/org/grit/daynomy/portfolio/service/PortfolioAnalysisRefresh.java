@@ -25,10 +25,17 @@ final class PortfolioAnalysisRefresh {
                 Collectors.toMap(PortfolioAssetImpactResponse::assetName, Function.identity()));
     List<PortfolioAssetImpactResponse> merged = new ArrayList<>();
     List<String> reasons = new ArrayList<>();
+    boolean insufficient = false;
     for (var old : previous.impacts()) {
       var current = byName.get(old.assetName());
       if (current == null) {
         return new Revision(Outcome.UNCONFIRMED, previous, "");
+      }
+      // 근거 부족 종목은 보존하되 다른 종목의 새 근거 반영을 막지 않는다.
+      if (old.sources().isEmpty() && current.sources().isEmpty()) {
+        insufficient = true;
+        merged.add(old);
+        continue;
       }
       var comparison = PortfolioEvidenceComparison.compare(facts(old), facts(current));
       if (comparison == PortfolioEvidenceComparison.Result.UNCONFIRMED) {
@@ -42,7 +49,7 @@ final class PortfolioAnalysisRefresh {
       }
     }
     if (reasons.isEmpty()) {
-      return new Revision(Outcome.UNCHANGED, previous, "");
+      return new Revision(insufficient ? Outcome.UNCONFIRMED : Outcome.UNCHANGED, previous, "");
     }
     merged.sort(
         Comparator.comparingInt(

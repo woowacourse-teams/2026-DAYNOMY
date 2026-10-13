@@ -128,7 +128,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .containsEntry("api", "OpenAI")
         .containsEntry("operation", "portfolio-analysis")
         .containsEntry("targetCount", 2)
-        .containsEntry("analyzedCount", 2)
+        .containsEntry("analyzedCount", 2L)
         .containsKey("durationMs");
 
     RecordedRequest request = server.takeRequest();
@@ -292,6 +292,9 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutput("{\"invalid\":[]}");
 
     assertAnalysisFailed(() -> client.analyze(targets()));
+    assertThat(keyValues(appender.list.getLast()))
+        .containsEntry("validationReason", "INVALID_IMPACTS")
+        .containsEntry("model", "test-model");
   }
 
   @Test
@@ -468,6 +471,11 @@ class OpenAiPortfolioAnalysisClientTest {
           .put("occurredOn", invalid);
       enqueueOutput(objectMapper.writeValueAsString(output));
       assertAnalysisFailed(() -> client.analyze(targets()));
+      assertThat(keyValues(appender.list.getLast()))
+          .containsEntry("validationField", "occurredOn")
+          .containsEntry(
+              "validationReason",
+              invalid.equals("2999-01-01") ? "FUTURE_EVIDENCE_DATE" : "INVALID_EVIDENCE_DATE");
     }
   }
 
@@ -489,6 +497,7 @@ class OpenAiPortfolioAnalysisClientTest {
             .replace("\"impactLevel\": \"LOW\"", "\"impactLevel\": null"));
     var result = client.analyze(targets());
     assertThat(result.sources()).isEmpty();
+    assertThat(keyValues(appender.list.getLast())).containsEntry("analyzedCount", 0L);
     assertThat(result.impacts())
         .hasSize(2)
         .allSatisfy(impact -> assertThat(impact.direction()).isNull());
@@ -804,6 +813,23 @@ class OpenAiPortfolioAnalysisClientTest {
             .setResponseCode(200)
             .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
             .setBody(response));
+  }
+
+  @Test
+  void invalidResponseLogsOnlySafeMetadata() {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                "{\"id\":\"resp_test123\",\"output\":[],\"private\":\"secret-portfolio-content\"}"));
+    assertAnalysisFailed(() -> client.analyze(targets()));
+    var event = appender.list.getLast();
+    assertThat(keyValues(event))
+        .containsEntry("responseId", "resp_test123")
+        .containsEntry("validationReason", "SEARCH_NOT_COMPLETED");
+    assertThat(keyValues(event).toString() + event.getFormattedMessage())
+        .doesNotContain("test-api-key", "secret-portfolio-content", "삼성전자");
+    assertThat(event.getThrowableProxy()).isNull();
   }
 
   private void assertAnalysisFailed(ThrowingCallable call) {

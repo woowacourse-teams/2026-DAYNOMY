@@ -9,6 +9,12 @@ import org.grit.daynomy.portfolio.domain.PortfolioEvidenceComparison.Result;
 import org.junit.jupiter.api.Test;
 
 class PortfolioEvidenceComparisonTest {
+  @Test
+  void emptyEvidenceIsUnconfirmedEvenWhenPreviousIsEmpty() {
+    assertThat(PortfolioEvidenceComparison.compare(List.of(), List.of()))
+        .isEqualTo(Result.UNCONFIRMED);
+  }
+
   private final Fact original =
       new Fact("https://example.invalid/old", LocalDate.of(2026, 9, 25), "영업이익이 감소했어요.");
 
