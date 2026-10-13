@@ -290,51 +290,38 @@ describe('거래 원장 화면', () => {
     expect(within(dialog).getByText('0 기준선')).toBeTruthy();
   });
 
-  it('거래 표시점을 그래프 값에 붙이고 데이터가 없는 날짜에는 점이나 평가값을 만들지 않는다', async () => {
+  it('자산 추이에 매수·매도 내역과 거래점을 표시하지 않고 날짜별 평가값만 조회한다', async () => {
     earlierPerformancePoints = [{ ...historical, baseDate: '2026-10-01' }];
     histories = [buy, { ...buy, historyId: 22, effectiveDate: '2026-10-03' }];
     const view = await ready();
     fireEvent.click(view.getByRole('button', { name: '자산 추이' }));
     const dialog = view.getByRole('dialog', { name: '자산 추이 상세' });
-    await waitFor(() =>
-      expect(dialog.querySelectorAll('.portfolio-trend-trade-marker')).toHaveLength(1),
-    );
-    const marker = dialog.querySelector('.portfolio-trend-trade-marker')!;
-    fireEvent.click(marker);
-    const detail = within(dialog).getByRole('region', { name: '선택 날짜의 자산과 거래' });
-    expect(within(detail).getByLabelText('자산 추이 조회 날짜')).toHaveProperty(
-      'value',
-      '2026-10-01',
-    );
-    expect(within(detail).getByText('삼성전자')).toBeTruthy();
-    expect(within(detail).getByText('10주 · 70,000원')).toBeTruthy();
+    const detail = within(dialog).getByRole('region', { name: '선택 날짜의 자산' });
+    expect(dialog.querySelector('.portfolio-trend-trade-marker')).toBeNull();
+    expect(dialog.querySelector('.portfolio-trend-day-trades')).toBeNull();
+    expect(within(dialog).queryByText('매수·매도')).toBeNull();
     for (const metric of ['평가금액', '평가손익', '평가수익률']) {
       fireEvent.click(within(dialog).getByRole('button', { name: metric }));
-      const activePoint = dialog.querySelector('.portfolio-return-active-point .evaluation')!;
-      expect(marker.querySelector('circle:last-child')!.getAttribute('cy')).toBe(
-        activePoint.getAttribute('cy'),
-      );
-      expect(marker.querySelector('circle:last-child')!.getAttribute('cx')).toBe(
-        activePoint.getAttribute('cx'),
-      );
+      fireEvent.change(within(detail).getByLabelText('자산 추이 조회 날짜'), {
+        target: { value: '2026-10-01' },
+      });
+      expect(within(detail).getByText('+50,000원')).toBeTruthy();
+      expect(within(detail).queryByText('삼성전자')).toBeNull();
+      expect(dialog.querySelector('.portfolio-trend-trade-marker')).toBeNull();
     }
     fireEvent.change(within(detail).getByLabelText('자산 추이 조회 날짜'), {
       target: { value: '2026-10-03' },
     });
-    expect(within(detail).getByText('삼성전자')).toBeTruthy();
     expect(within(detail).getByText('평가 데이터 없음')).toBeTruthy();
     expect(detail.querySelector('.portfolio-trend-date-values')).toBeNull();
+    expect(within(detail).queryByText('삼성전자')).toBeNull();
     fireEvent.change(within(detail).getByLabelText('자산 추이 조회 날짜'), {
       target: { value: '2026-10-02' },
     });
     expect(within(detail).getByText('+50,000원')).toBeTruthy();
-    expect(within(detail).queryByText('이 날짜의 매수·매도 내역이 없어요.')).toBeNull();
-    expect(within(dialog).queryByText(/평가금액은 종가 기준/)).toBeNull();
-    expect(within(dialog).queryByLabelText('거래일 바로 보기')).toBeNull();
-    expect(detail.querySelector('time')).toBeNull();
   });
 
-  it('숨긴 금액은 새 지표·날짜별 자산·거래 내역과 차트 설명에서도 노출하지 않는다', async () => {
+  it('숨긴 금액은 새 지표·날짜별 자산과 차트 설명에서도 노출하지 않는다', async () => {
     const view = await ready();
     fireEvent.click(view.getByRole('button', { name: '금액 숨기기' }));
     fireEvent.click(view.getByRole('button', { name: '자산 추이' }));
@@ -346,23 +333,31 @@ describe('거래 원장 화면', () => {
       target: { value: '2026-10-01' },
     });
     expect(dialog.textContent).not.toContain('70,000');
-    expect(within(dialog).getByText('•••주 · ••••••원')).toBeTruthy();
+    expect(dialog.querySelector('.portfolio-trend-day-trades')).toBeNull();
   });
 
-  it('거래 표시 조회가 실패해도 평가 그래프를 유지하고 거래 표시를 재시도한다', async () => {
+  it('자산 추이는 거래 내역을 요청하지 않고 거래 조회 오류도 표시하지 않는다', async () => {
     failedHistories = true;
     const view = await ready();
     fireEvent.click(view.getByRole('button', { name: '자산 추이' }));
     const dialog = view.getByRole('dialog', { name: '자산 추이 상세' });
     expect(within(dialog).getByRole('img', { name: /평가금액 750,000원/ })).toBeTruthy();
-    expect(await within(dialog).findByText('거래 조회 실패')).toBeTruthy();
-    failedHistories = false;
-    fireEvent.click(within(dialog).getByRole('button', { name: '거래 표시 다시 시도' }));
-    fireEvent.change(within(dialog).getByLabelText('자산 추이 조회 날짜'), {
-      target: { value: '2026-10-01' },
-    });
-    expect(await within(dialog).findByText('삼성전자')).toBeTruthy();
     expect(within(dialog).queryByText('거래 조회 실패')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: '거래 표시 다시 시도' })).toBeNull();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) => String(input).includes('/api/portfolio/histories?')),
+    ).toBe(false);
+    fireEvent.click(within(dialog).getByRole('button', { name: '자산 추이 새로고침' }));
+    await waitFor(() =>
+      expect(within(dialog).getByRole('img', { name: /평가금액 750,000원/ })).toBeTruthy(),
+    );
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) => String(input).includes('/api/portfolio/histories?')),
+    ).toBe(false);
   });
 
   it('내역 탭·필터는 변경만 수집하고 조회 날짜 대신 유효한 기간 길이를 보낸다', async () => {

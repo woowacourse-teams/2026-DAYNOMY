@@ -809,27 +809,13 @@ for (const viewport of [
     await expect(trendDetail.getByRole('img', { name: /평가손익/ })).toBeVisible();
     await trendDetail.getByRole('button', { name: '평가수익률', exact: true }).click();
     await expect(trendDetail.getByRole('img', { name: /평가수익률/ })).toBeVisible();
+    await trendDetail.getByLabel('자산 추이 조회 날짜').fill(points[0].baseDate);
     await trendDetail.getByLabel('자산 추이 조회 날짜').fill(today);
-    await expect(
-      trendDetail.locator('.portfolio-trend-day-trades').getByText('삼성전자'),
-    ).toBeVisible();
     await expect(trendDetail.getByLabel('자산 추이 조회 날짜')).toHaveValue(today);
+    await expect(trendDetail.locator('.portfolio-trend-day-trades')).toHaveCount(0);
+    await expect(trendDetail.locator('.portfolio-trend-trade-marker')).toHaveCount(0);
+    await expect(trendDetail.getByText('매수·매도', { exact: true })).toHaveCount(0);
     await trendDetail.getByRole('button', { name: '평가금액', exact: true }).click();
-    const tradeMarker = trendDetail.locator('.portfolio-trend-trade-marker').first();
-    await tradeMarker.click();
-    await expect(trendDetail.getByLabel('자산 추이 조회 날짜')).toHaveValue(today);
-    await expect(trendDetail.getByRole('tooltip').locator('time')).toHaveAttribute(
-      'datetime',
-      today,
-    );
-    const markerPoint = await tradeMarker
-      .locator('circle')
-      .last()
-      .evaluate((point) => ({ x: point.getAttribute('cx'), y: point.getAttribute('cy') }));
-    const activePoint = await trendDetail
-      .locator('.portfolio-return-active-point .evaluation')
-      .evaluate((point) => ({ x: point.getAttribute('cx'), y: point.getAttribute('cy') }));
-    expect(markerPoint).toEqual(activePoint);
     const trendSvg = trendDetail.locator('.portfolio-return-chart');
     const chartBox = (await trendSvg.boundingBox())!;
     const chartWidth = await trendSvg.evaluate(
@@ -866,9 +852,9 @@ for (const viewport of [
         };
       });
     const stableGeometry = await trendGeometry();
-    // 거래가 있는 점과 없는 날짜를 반복 선택해도 팝업과 그래프는 움직이지 않는다.
+    // 날짜를 반복 선택해도 거래 내역 없이 자산 값만 바뀌며 팝업과 그래프는 움직이지 않는다.
     for (let repeat = 0; repeat < 3; repeat++) {
-      for (const point of [points[0], points[20], points[44]]) {
+      for (const point of [points[0], points[20], points[44], { baseDate: today }]) {
         const dateRatio =
           (Date.parse(point.baseDate) - Date.parse(points[0].baseDate)) /
           (Date.parse(today) - Date.parse(points[0].baseDate));
@@ -879,35 +865,9 @@ for (const viewport of [
         await expect(trendDetail.getByLabel('자산 추이 조회 날짜')).toHaveValue(point.baseDate);
         expect(await trendGeometry()).toEqual(stableGeometry);
       }
-      await tradeMarker.click();
-      await expect(trendDetail.getByLabel('자산 추이 조회 날짜')).toHaveValue(today);
-      expect(await trendGeometry()).toEqual(stableGeometry);
     }
-    const originalHistory = history;
-    history = Array.from({ length: 12 }, (_, index) => ({
-      ...originalHistory[0],
-      historyId: 100 + index,
-    }));
-    await trendDetail.getByRole('button', { name: '자산 추이 새로고침' }).click();
-    await expect(trendDetail.locator('.portfolio-trend-day-trades li')).toHaveCount(12);
-    expect(await trendGeometry()).toEqual(stableGeometry);
-    expect(await trendDetail.evaluate((dialog) => dialog.scrollHeight > dialog.clientHeight)).toBe(
-      true,
-    );
-    await page.mouse.click(
-      chartBox.x + (58 / chartWidth) * chartBox.width,
-      chartBox.y + chartBox.height / 2,
-    );
-    await expect(trendDetail.getByLabel('자산 추이 조회 날짜')).toHaveValue(points[0].baseDate);
-    await expect(trendDetail.locator('.portfolio-trend-day-trades li')).toHaveCount(0);
-    expect(await trendGeometry()).toEqual(stableGeometry);
-    await tradeMarker.click();
-    await expect(trendDetail.locator('.portfolio-trend-day-trades li')).toHaveCount(12);
-    expect(await trendGeometry()).toEqual(stableGeometry);
-    history = originalHistory;
-    await trendDetail.getByRole('button', { name: '자산 추이 새로고침' }).click();
-    await expect(trendDetail.locator('.portfolio-trend-day-trades li')).toHaveCount(1);
-    expect(await trendGeometry()).toEqual(stableGeometry);
+    await expect(trendDetail.locator('.portfolio-trend-day-trades')).toHaveCount(0);
+    await expect(trendDetail.locator('.portfolio-trend-trade-marker')).toHaveCount(0);
     await expect(trendDetail.getByText(/평가금액은 종가 기준/)).toHaveCount(0);
     await expect(trendDetail.getByText('이 날짜의 매수·매도 내역이 없어요.')).toHaveCount(0);
     await expect(trendDetail.getByLabel('거래일 바로 보기')).toHaveCount(0);

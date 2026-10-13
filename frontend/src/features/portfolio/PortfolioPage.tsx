@@ -183,9 +183,6 @@ type PortfolioAssetTrendChartProps = {
   onPeriodChange: (period: TrendPeriod) => void;
   mode?: 'compact' | 'expanded';
   onExpand?: (trigger: HTMLButtonElement) => void;
-  histories: PortfolioHoldingHistory[];
-  historyLoading: boolean;
-  historyError: string;
 };
 
 const TREND_PERIODS = [
@@ -236,13 +233,10 @@ function PortfolioAssetTrendChart({
   onPeriodChange,
   mode = 'compact',
   onExpand,
-  histories,
-  historyLoading,
-  historyError,
 }: PortfolioAssetTrendChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [metric, setMetric] = useState<TrendMetric>('evaluation');
-  const [selectedTradeDate, setSelectedTradeDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(720);
   useEffect(() => {
@@ -256,7 +250,7 @@ function PortfolioAssetTrendChart({
   }, [loading, error, points.length]);
   useEffect(() => {
     setHoveredIndex(null);
-    setSelectedTradeDate(null);
+    setSelectedDate(null);
   }, [period]);
   const expanded = mode === 'expanded';
   const titleId = expanded ? 'expanded-asset-trend-title' : 'asset-trend-title';
@@ -267,22 +261,6 @@ function PortfolioAssetTrendChart({
     return points.filter((point) => point.baseDate >= cutoffDate);
   }, [latestAvailablePoint, period, points]);
   const cutoffDate = getTrendPeriodStart(latestAvailablePoint?.baseDate ?? todayInSeoul(), period);
-  const historiesByDate = useMemo(() => {
-    const grouped = new Map<string, PortfolioHoldingHistory[]>();
-    for (const item of histories) {
-      if (item.effectiveDate < cutoffDate) continue;
-      const day = grouped.get(item.effectiveDate) ?? [];
-      day.push(item);
-      grouped.set(item.effectiveDate, day);
-    }
-    for (const day of grouped.values()) {
-      day.sort(
-        (a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt) || b.historyId - a.historyId,
-      );
-    }
-    return grouped;
-  }, [histories, cutoffDate]);
-  const tradePoints = visiblePoints.filter((point) => historiesByDate.has(point.baseDate));
   const firstDate = visiblePoints.at(0)?.baseDate;
   const lastDate = visiblePoints.at(-1)?.baseDate;
   const dateSpan = firstDate && lastDate ? Date.parse(lastDate) - Date.parse(firstDate) : 0;
@@ -347,17 +325,16 @@ function PortfolioAssetTrendChart({
   const latest = visiblePoints.at(-1);
   const activeIndex =
     hoveredIndex === null
-      ? selectedTradeDate !== null
-        ? visiblePoints.findIndex((point) => point.baseDate === selectedTradeDate)
+      ? selectedDate !== null
+        ? visiblePoints.findIndex((point) => point.baseDate === selectedDate)
         : expanded
           ? visiblePoints.length - 1
           : null
       : Math.min(hoveredIndex, visiblePoints.length - 1);
   const activePoint = activeIndex === null || activeIndex < 0 ? null : visiblePoints[activeIndex];
   const activeX = activePoint && activeIndex !== null ? x(activeIndex) : null;
-  const detailDate = selectedTradeDate ?? activePoint?.baseDate ?? latest?.baseDate;
+  const detailDate = selectedDate ?? activePoint?.baseDate ?? latest?.baseDate;
   const detailPoint = visiblePoints.find((point) => point.baseDate === detailDate);
-  const selectedHistories = detailDate ? (historiesByDate.get(detailDate) ?? []) : [];
   const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
   const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
   const dateLabels = Array.from(
@@ -377,7 +354,7 @@ function PortfolioAssetTrendChart({
         Math.abs(x(candidate) - chartX) < Math.abs(x(nearest) - chartX) ? candidate : nearest,
       0,
     );
-    if (clearSelection) setSelectedTradeDate(null);
+    if (clearSelection) setSelectedDate(null);
     setHoveredIndex(index);
   }
 
@@ -385,7 +362,7 @@ function PortfolioAssetTrendChart({
     if (visiblePoints.length === 0) return;
     const currentIndex =
       activeIndex === null || activeIndex < 0 ? visiblePoints.length - 1 : activeIndex;
-    setSelectedTradeDate(null);
+    setSelectedDate(null);
     setHoveredIndex(Math.max(0, Math.min(visiblePoints.length - 1, currentIndex + direction)));
   }
 
@@ -490,7 +467,6 @@ function PortfolioAssetTrendChart({
           {TREND_METRICS.find((item) => item.value === metric)?.label}
         </span>
         <span className="principal">{metric === 'evaluation' ? '매입금액' : '0 기준선'}</span>
-        {expanded && tradePoints.length > 0 && <span className="trade">매수·매도</span>}
       </div>
       <div className="portfolio-trend-plot">
         {loading ? (
@@ -647,34 +623,6 @@ function PortfolioAssetTrendChart({
                     />
                   </g>
                 ) : null}
-                {expanded &&
-                  tradePoints.map((point) => (
-                    <g
-                      key={point.baseDate}
-                      className="portfolio-trend-trade-marker"
-                      aria-hidden="true"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setHoveredIndex(visiblePoints.indexOf(point));
-                        setSelectedTradeDate(point.baseDate);
-                      }}
-                    >
-                      <circle
-                        cx={dateX(point.baseDate)}
-                        cy={y(pointValue(point))}
-                        r="11"
-                        fill="transparent"
-                      />
-                      <circle
-                        cx={dateX(point.baseDate)}
-                        cy={y(pointValue(point))}
-                        r="4"
-                        fill={selectedTradeDate === point.baseDate ? '#172033' : '#697586'}
-                        stroke="#fff"
-                        strokeWidth="2"
-                      />
-                    </g>
-                  ))}
               </svg>
               {hoveredIndex !== null && activePoint && activeX !== null ? (
                 <div
@@ -741,9 +689,9 @@ function PortfolioAssetTrendChart({
         ) : null}
       </div>
       {expanded ? (
-        <section className="portfolio-trend-date-detail" aria-label="선택 날짜의 자산과 거래">
+        <section className="portfolio-trend-date-detail" aria-label="선택 날짜의 자산">
           <div className="portfolio-trend-detail-heading">
-            <h3>날짜별 자산과 거래</h3>
+            <h3>날짜별 자산</h3>
             <label>
               조회 날짜
               <input
@@ -754,7 +702,7 @@ function PortfolioAssetTrendChart({
                 max={todayInSeoul()}
                 onChange={(event) => {
                   setHoveredIndex(null);
-                  setSelectedTradeDate(event.target.value || null);
+                  setSelectedDate(event.target.value || null);
                 }}
               />
             </label>
@@ -794,32 +742,6 @@ function PortfolioAssetTrendChart({
               <p className="portfolio-trend-note">평가 데이터 없음</p>
             ) : null}
           </div>
-          {historyLoading ? (
-            <p className="portfolio-trend-note">거래 표시를 불러오고 있어요.</p>
-          ) : historyError ? (
-            <div className="portfolio-trend-history-error" role="alert">
-              <p>{historyError}</p>
-              <button className="portfolio-secondary-button" type="button" onClick={onRetry}>
-                거래 표시 다시 시도
-              </button>
-            </div>
-          ) : selectedHistories.length ? (
-            <ul className="portfolio-trend-day-trades">
-              {selectedHistories.map((item) => (
-                <li key={item.historyId}>
-                  <span className={`portfolio-history-type type-${item.changeType.toLowerCase()}`}>
-                    {item.changeType === 'BUY' ? '매수' : '매도'}
-                  </span>
-                  <strong>{item.name}</strong>
-                  <span>
-                    {amountsHidden
-                      ? '•••주 · ••••••원'
-                      : `${numberFormatter.format(item.transactionQuantity ?? 0)}주 · ${formatWon(item.unitPrice)}`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
         </section>
       ) : null}
     </section>
@@ -1340,9 +1262,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     {isLoggedIn ? (
                       <PortfolioAssetTrendChart
                         points={trendPoints}
-                        histories={performance.histories}
-                        historyLoading={performance.historyLoading}
-                        historyError={performance.historyError}
                         loading={performance.loading}
                         error={performance.error}
                         onRetry={retryChart}
@@ -1612,9 +1531,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       {isLoggedIn && trendDialogOpen ? (
         <PortfolioTrendDialog
           points={trendPoints}
-          histories={performance.histories}
-          historyLoading={performance.historyLoading}
-          historyError={performance.historyError}
           loading={performance.loading}
           error={performance.error}
           onRetry={retryChart}
