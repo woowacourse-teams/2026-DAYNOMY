@@ -1,6 +1,15 @@
 :root {
   scrollbar-gutter: stable;
 
+  --page-outer-gap: 16px;
+  --page-inner-padding: clamp(32px, 8vw, 128px);
+  --page-side-padding: calc(var(--page-outer-gap) + var(--page-inner-padding));
+  --page-content-width: calc(100% - 2 * var(--page-side-padding));
+  --page-title-size: 24px;
+  --page-title-weight: 700;
+  --page-title-line-height: 1.4;
+  --page-title-letter-spacing: -0.03em;
+
   --bg: #ffffff;
   --surface: #ffffff;
   --surface-strong: #f1f3f7;
@@ -11,6 +20,7 @@
   --accent: #5144d8;
   --button-primary: #326bd5;
   --button-primary-hover: #2459b9;
+  --button-primary-soft: #edf3fc;
   --focus: rgba(81, 68, 216, 0.24);
   --sans:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -22,6 +32,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --page-title-size: 22px;
+  }
 }
 
 * {
@@ -38,8 +54,39 @@ button {
   letter-spacing: 0;
 }
 
+/* 화살표가 이동을 안내하는 링크는 hover·focus에서도 밑줄을 사용하지 않는다. */
+:root
+  :is(
+    .league-breadcrumb a,
+    .league-text-link,
+    .league-row-records,
+    .league-history-single,
+    .issue-back,
+    .issue-profile-links a,
+    .issue-video-link,
+    .issue-row-title,
+    .issue-story-empty a,
+    .admin-back-link,
+    .admin-secondary-button,
+    .loan-back-button,
+    .portfolio-registration-choice button,
+    .portfolio-news-open,
+    .portfolio-news-more,
+    .article-card,
+    .card-preview-action
+  ) {
+  text-decoration: none;
+}
+
 h1,
 h2,
 p {
   margin: 0;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --page-outer-gap: 12px;
+    --page-inner-padding: 24px;
+  }
 }

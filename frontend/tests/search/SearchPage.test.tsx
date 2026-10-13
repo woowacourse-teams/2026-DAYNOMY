@@ -94,9 +94,7 @@ describe('소식 검색 화면', () => {
     const view = renderSearch('/search?q=금리&source=ALL&page=2');
     await view.findByRole('button', { name: /기준금리 해설 영상/ });
 
-    fireEvent.change(view.getByRole('combobox', { name: '소식 출처' }), {
-      target: { value: 'YOUTUBE' },
-    });
+    fireEvent.click(view.getByRole('button', { name: 'YouTube' }));
     await waitFor(() =>
       expect(view.router.state.location.search).toBe('?q=%EA%B8%88%EB%A6%AC&source=YOUTUBE&page=1'),
     );
@@ -125,9 +123,7 @@ describe('소식 검색 화면', () => {
     axios.defaults.adapter = (async (config) => response(config, [article])) satisfies AxiosAdapter;
     const view = renderSearch('/search?q=금리&category=ETF&page=1');
     expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();
-    expect((view.getByRole('combobox', { name: '소식 출처' }) as HTMLSelectElement).value).toBe(
-      'ALL',
-    );
+    expect(view.getByRole('button', { name: '전체' }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('검색 결과가 없으면 빈 상태를 표시한다', async () => {

@@ -70,6 +70,7 @@ function SearchPage() {
   }, [keyword]);
 
   function changeSource(nextSource: ContentSearchSource) {
+    if (nextSource === source) return;
     setParams({ q: keyword, source: nextSource, page: '1' });
   }
 
@@ -88,22 +89,29 @@ function SearchPage() {
       </header>
       {keyword && (
         <section id="search-results" aria-labelledby="search-results-heading">
-          <div className="issue-section-heading">
+          <div className="issue-section-heading issue-feed-heading">
             <h2 id="search-results-heading">검색된 소식</h2>
             <div className="issue-feed-controls">
-              <label>
-                <span className="sr-only">소식 출처</span>
-                <select
-                  value={source}
-                  onChange={(event) => changeSource(event.target.value as ContentSearchSource)}
-                >
-                  <option value="ALL">모든 출처</option>
-                  <option value="DAYNOMY">데이노미</option>
-                  <option value="X">X</option>
-                  <option value="THREADS">Threads</option>
-                  <option value="YOUTUBE">YouTube</option>
-                </select>
-              </label>
+              <div className="issue-source-filters" role="group" aria-label="소식 출처">
+                {(
+                  [
+                    ['ALL', '전체'],
+                    ['DAYNOMY', 'DAYNOMY Issue'],
+                    ['X', 'X'],
+                    ['THREADS', 'Threads'],
+                    ['YOUTUBE', 'YouTube'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={source === value}
+                    onClick={() => changeSource(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <span>최신순</span>
             </div>
           </div>
