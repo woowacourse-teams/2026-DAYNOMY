@@ -100,7 +100,7 @@ class PortfolioAnalysisRepositoryTest {
             .orElseThrow();
 
     assertThat(restored.getSnapshot()).isEqualTo(expected);
-    assertThat(restored.getSchemaVersion()).isEqualTo(1);
+    assertThat(restored.getSchemaVersion()).isEqualTo(2);
     Object type =
         entityManager
             .getEntityManager()

@@ -22,6 +22,19 @@ class PortfolioAnalysisSnapshotTest {
   }
 
   @Test
+  void changedQuantityAndLegacySnapshotWithoutQuantityInvalidateAnalysis() {
+    var current = List.of(new Asset("삼성전자", new BigDecimal("100"), 2L));
+    assertThat(
+            PortfolioAnalysisSnapshot.sameAssets(
+                List.of(new Asset("삼성전자", new BigDecimal("100"), 1L)), current))
+        .isFalse();
+    assertThat(
+            PortfolioAnalysisSnapshot.sameAssets(
+                List.of(new Asset("삼성전자", new BigDecimal("100"))), current))
+        .isFalse();
+  }
+
+  @Test
   void changedWeightOrAssetInvalidatesAnalysis() {
     var saved =
         List.of(new Asset("삼성전자", new BigDecimal("60")), new Asset("SK하이닉스", new BigDecimal("40")));

@@ -70,7 +70,10 @@ public record PortfolioAnalysisResponse(
   public PortfolioAnalysisSnapshot toSnapshot(List<PortfolioAssetRequest> assets) {
     return new PortfolioAnalysisSnapshot(
         assets.stream()
-            .map(asset -> new PortfolioAnalysisSnapshot.Asset(asset.assetName(), asset.weight()))
+            .map(
+                asset ->
+                    new PortfolioAnalysisSnapshot.Asset(
+                        asset.assetName(), asset.weight(), asset.quantity()))
             .toList(),
         new PortfolioImpactSummary(
             overallDirection, overallScore, positiveImpactScore, negativeImpactScore),
