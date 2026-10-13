@@ -217,11 +217,104 @@ class LeagueReturnServiceTest {
             tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
                 any(LocalDate.class)))
         .willReturn(List.of(day(LocalDate.of(2026, 9, 21), true)));
-    assertThat(service.recalculate()).isEqualTo(1);
+    assertThatThrownBy(service::recalculate)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("1건");
     then(metrics).should().resetProfiles(2);
     then(metrics).should().profileFailed();
     then(metrics).should().profileSucceeded(Map.of("NO_HOLDINGS", 1));
     then(returnRepository).should().save(any(PortfolioDailyReturn.class));
+    then(leagueService).shouldHaveNoInteractions();
+    then(metrics).should().finishRun(0L, false);
+  }
+
+  @Test
+  void pendingRunCalculatesOnlyLatestDayAndKeepsPriorBaseline() {
+    LocalDate monday = LocalDate.of(2026, 9, 21);
+    LocalDate wednesday = monday.plusDays(2);
+    SharedPortfolio portfolio = profile(1L, monday);
+    Asset asset = stock();
+    var history =
+        new SharedHoldingHistory(
+            new SharedHolding(portfolio, asset, 1, new BigDecimal("100")),
+            SharedHoldingHistory.ChangeType.ADDED);
+    given(
+            tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
+                any(LocalDate.class)))
+        .willReturn(
+            List.of(day(monday, true), day(monday.plusDays(1), true), day(wednesday, true)));
+    given(returnRepository.findFirstByPortfolioIdOrderByBaseDateDescCalculationVersionDesc(2L))
+        .willReturn(Optional.of(new PortfolioDailyReturn(portfolio, wednesday)));
+    given(
+            returnRepository.existsLatestEligibleByPortfolioIdAndBaseDateBetween(
+                2L, monday, wednesday.minusDays(1)))
+        .willReturn(true);
+    given(
+            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
+                eq(2L), any(Instant.class)))
+        .willReturn(List.of(history));
+    given(
+            tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
+                wednesday))
+        .willReturn(Optional.of(day(wednesday.minusDays(1), true)));
+    price(asset, wednesday.minusDays(1), "100");
+    price(asset, wednesday, "110");
+
+    assertThat(service.recalculatePending()).isEqualTo(1);
+    then(leagueService).should().finalizeWeeks(wednesday);
+    var result = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should().save(result.capture());
+    assertThat(result.getValue().isTrackingBaseline()).isFalse();
+    assertThat(result.getValue().getDailyReturnRate()).isEqualByComparingTo("10");
+  }
+
+  @Test
+  void priceCorrectionRecalculatesFromTheChangedDate() {
+    LocalDate monday = LocalDate.of(2026, 9, 21);
+    SharedPortfolio portfolio = profile(1L, monday);
+    org.mockito.Mockito.reset(tradingDayRepository);
+    given(
+            tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
+                any(LocalDate.class)))
+        .willReturn(
+            List.of(
+                day(monday, true), day(monday.plusDays(1), true), day(monday.plusDays(2), true)));
+    given(returnRepository.findFirstByPortfolioIdOrderByBaseDateDescCalculationVersionDesc(2L))
+        .willReturn(Optional.of(new PortfolioDailyReturn(portfolio, monday.plusDays(2))));
+
+    assertThat(service.recalculateFrom(monday)).isEqualTo(3);
+    then(leagueService).should().finalizeWeeks(monday);
+    then(returnRepository)
+        .should(org.mockito.Mockito.times(3))
+        .save(any(PortfolioDailyReturn.class));
+  }
+
+  @Test
+  void correctedHolidayMovesTrackingStartToNextEligibleTradingDay() {
+    LocalDate monday = LocalDate.of(2026, 9, 21);
+    LocalDate tuesday = monday.plusDays(1);
+    SharedPortfolio portfolio = profile(1L, monday);
+    InvestorProfile investor = profileRepository.findByIdForUpdate(1L).orElseThrow();
+    investor.startTracking(monday);
+    given(tradingDayRepository.findById(monday))
+        .willReturn(Optional.of(new MarketTradingDay(monday, false)));
+    given(
+            tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
+                any(LocalDate.class)))
+        .willReturn(List.of(day(tuesday, true)));
+    Asset asset = stock();
+    given(
+            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
+                eq(2L), any(Instant.class)))
+        .willReturn(
+            List.of(
+                new SharedHoldingHistory(
+                    new SharedHolding(portfolio, asset, 1, new BigDecimal("100")),
+                    SharedHoldingHistory.ChangeType.ADDED)));
+    price(asset, tuesday, "100");
+
+    assertThat(service.recalculate()).isEqualTo(1);
+    assertThat(investor.getTrackingStartedOn()).isEqualTo(tuesday);
   }
 
   private SharedPortfolio profile(Long id, LocalDate enrolled) {

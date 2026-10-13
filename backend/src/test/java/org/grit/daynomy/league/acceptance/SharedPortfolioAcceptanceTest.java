@@ -417,6 +417,9 @@ class SharedPortfolioAcceptanceTest {
     leagueReturns.recalculate();
     assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM portfolio_daily_returns", Long.class))
         .isEqualTo(unchangedDaily);
+    leagueReturns.recalculatePending();
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM portfolio_daily_returns", Long.class))
+        .isEqualTo(unchangedDaily);
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM weekly_leaderboards WHERE week_start=? AND league_type='WEEKLY_RETURN'",
@@ -426,7 +429,7 @@ class SharedPortfolioAcceptanceTest {
     var last = prices.findByAssetIdAndBaseDate(stock.getId(), week.plusDays(2)).orElseThrow();
     last.synchronize(new BigDecimal("120"));
     prices.save(last);
-    leagueReturns.recalculate();
+    leagueReturns.recalculateFrom(week.plusDays(2));
     given()
         .port(port)
         .queryParam("weekStart", week.toString())

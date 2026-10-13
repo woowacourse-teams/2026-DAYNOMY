@@ -1,5 +1,6 @@
 package org.grit.daynomy.league.service;
 
+import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.service.MarketCalendarSyncResult;
@@ -17,23 +18,53 @@ import org.springframework.stereotype.Component;
 public class LeagueReturnScheduler {
 
   private final LeagueReturnService leagueReturnService;
+  private boolean pendingFullRecalculation = true;
+  private LocalDate pendingPriceFrom;
 
   @Scheduled(cron = "${league.calculation.cron}", zone = "Asia/Seoul")
-  public void calculateReturns() {
-    // shortcut: 전체 이력을 재계산한다. 이력 증가로 지연되면 최신 거래일 증분 집계로 전환한다.
-    leagueReturnService.recalculate();
+  public synchronized void calculateReturns() {
+    if (pendingFullRecalculation) {
+      leagueReturnService.recalculate();
+      pendingFullRecalculation = false;
+      pendingPriceFrom = null;
+    } else if (pendingPriceFrom != null) {
+      leagueReturnService.recalculateFrom(pendingPriceFrom);
+      pendingPriceFrom = null;
+    } else {
+      leagueReturnService.recalculatePending();
+    }
   }
 
-  @EventListener({StockPriceSyncResult.class, MarketCalendarSyncResult.class})
-  public void recalculateAfterSync() {
+  @EventListener(StockPriceSyncResult.class)
+  public synchronized void recalculateAfterPriceSync(StockPriceSyncResult result) {
+    if (pendingPriceFrom == null || result.earliestBaseDate().isBefore(pendingPriceFrom)) {
+      pendingPriceFrom = result.earliestBaseDate();
+    }
+    if (recalculateAfterSync(() -> leagueReturnService.recalculateFrom(pendingPriceFrom))) {
+      pendingPriceFrom = null;
+    }
+  }
+
+  @EventListener(MarketCalendarSyncResult.class)
+  public synchronized void recalculateAfterCalendarSync() {
+    pendingFullRecalculation = true;
+    if (recalculateAfterSync(leagueReturnService::recalculate)) {
+      pendingFullRecalculation = false;
+      pendingPriceFrom = null;
+    }
+  }
+
+  private boolean recalculateAfterSync(Runnable calculation) {
     try {
-      calculateReturns();
+      calculation.run();
+      return true;
     } catch (RuntimeException exception) {
       // 원본 저장은 이미 커밋됐다. 집계 실패는 예약 집계에서 재시도한다.
       log.atError()
           .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_FAILED.code())
           .addKeyValue("exception", exception.getClass().getSimpleName())
           .log(LogEvent.LEAGUE_CALCULATION_FAILED.message());
+      return false;
     }
   }
 }

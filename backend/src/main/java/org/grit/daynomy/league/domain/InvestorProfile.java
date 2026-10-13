@@ -93,6 +93,10 @@ public class InvestorProfile extends BaseEntity {
     if (trackingStartedOn == null || date.isBefore(trackingStartedOn)) trackingStartedOn = date;
   }
 
+  public void correctTrackingStart() {
+    trackingStartedOn = null;
+  }
+
   public LocalDate eligibleFrom() {
     return participations.stream()
         .filter(period -> period.getEndedAt() == null)

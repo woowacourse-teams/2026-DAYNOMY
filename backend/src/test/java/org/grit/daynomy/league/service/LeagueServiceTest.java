@@ -106,7 +106,7 @@ class LeagueServiceTest {
     then(tradingDayRepository)
         .should(times(1))
         .findAllByBaseDateBetweenOrderByBaseDate(current, current.plusDays(6));
-    then(calculationMetrics).should().finalizationState(14, 0, null);
+    then(calculationMetrics).should().finalizationState(21, 0, null);
   }
 
   @Test

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -48,6 +49,18 @@ public class LeagueReturnService {
   private final LeagueService leagueService;
 
   public synchronized int recalculate() {
+    return recalculateSince(null, false);
+  }
+
+  public synchronized int recalculatePending() {
+    return recalculateSince(null, true);
+  }
+
+  public synchronized int recalculateFrom(LocalDate from) {
+    return recalculateSince(from, true);
+  }
+
+  private int recalculateSince(LocalDate from, boolean incremental) {
     long started = metrics.startRun();
     boolean completed = false;
     try {
@@ -58,23 +71,32 @@ public class LeagueReturnService {
               .filter(day -> !day.closesAt().isAfter(Instant.now()))
               .toList();
       int calculated = 0;
+      int failed = 0;
+      LocalDate firstCalculated = null;
       List<InvestorProfile> profiles = profileRepository.findAllByLeagueEnabledAtIsNotNull();
       metrics.resetProfiles(profiles.size());
       for (InvestorProfile candidate : profiles) {
         Map<String, Integer> outcomes = new HashMap<>();
         try {
-          Integer count =
+          ProfileCalculation calculation =
               new TransactionTemplate(transactionManager)
                   .execute(
                       status -> {
                         InvestorProfile profile =
                             profileRepository.findByIdForUpdate(candidate.getId()).orElseThrow();
-                        return calculateProfile(profile, days, outcomes);
+                        return calculateProfile(profile, days, outcomes, from, incremental);
                       });
-          calculated += count == null ? 0 : count;
+          if (calculation != null) {
+            calculated += calculation.days();
+            if (calculation.firstDate() != null
+                && (firstCalculated == null || calculation.firstDate().isBefore(firstCalculated))) {
+              firstCalculated = calculation.firstDate();
+            }
+          }
           metrics.profileSucceeded(outcomes);
         } catch (RuntimeException exception) {
           metrics.profileFailed();
+          failed++;
           // 한 포트폴리오 실패는 해당 트랜잭션만 롤백하고 다른 참가자 집계를 계속한다.
           log.atError()
               .addKeyValue(
@@ -85,7 +107,15 @@ public class LeagueReturnService {
               .log("투자 리그 참가자 집계 실패");
         }
       }
-      leagueService.finalizeWeeks();
+      if (failed > 0) {
+        throw new IllegalStateException("투자 리그 참가자 집계 실패: " + failed + "건");
+      }
+      if (incremental) {
+        leagueService.finalizeWeeks(
+            firstCalculated == null ? LocalDate.now(SEOUL) : firstCalculated);
+      } else {
+        leagueService.finalizeWeeks();
+      }
       completed = true;
       return calculated;
     } finally {
@@ -93,14 +123,37 @@ public class LeagueReturnService {
     }
   }
 
-  private int calculateProfile(
-      InvestorProfile profile, List<MarketTradingDay> days, Map<String, Integer> outcomes) {
+  private ProfileCalculation calculateProfile(
+      InvestorProfile profile,
+      List<MarketTradingDay> days,
+      Map<String, Integer> outcomes,
+      LocalDate from,
+      boolean incremental) {
     SharedPortfolio portfolio =
         portfolioRepository.findByMemberId(profile.getMember().getId()).orElse(null);
-    if (portfolio == null || profile.getLeagueEnabledAt() == null) return 0;
+    if (portfolio == null || profile.getLeagueEnabledAt() == null)
+      return new ProfileCalculation(0, null);
+    if (!incremental && profile.getTrackingStartedOn() != null) {
+      tradingDayRepository
+          .findById(profile.getTrackingStartedOn())
+          .filter(day -> !day.isTrading())
+          .ifPresent(day -> profile.correctTrackingStart());
+    }
+    LocalDate starting = null;
+    if (incremental) {
+      starting =
+          returnRepository
+              .findFirstByPortfolioIdOrderByBaseDateDescCalculationVersionDesc(portfolio.getId())
+              .map(PortfolioDailyReturn::getBaseDate)
+              .orElse(null);
+      if (starting != null && from != null && from.isBefore(starting)) starting = from;
+    }
     Set<LeagueParticipation> baselined = new HashSet<>();
+    Set<LeagueParticipation> checked = new HashSet<>();
     int count = 0;
+    LocalDate firstCalculated = null;
     for (MarketTradingDay day : days) {
+      if (starting != null && day.getBaseDate().isBefore(starting)) continue;
       if (day.closesAt().isBefore(profile.getLeagueEnabledAt())) continue;
       LeagueParticipation period =
           profile.getParticipations().stream()
@@ -108,6 +161,19 @@ public class LeagueReturnService {
               .findFirst()
               .orElse(null);
       if (period == null) continue;
+      if (firstCalculated == null) firstCalculated = day.getBaseDate();
+      if (starting != null && checked.add(period)) {
+        LocalDate first = period.getStartedAt().atZone(SEOUL).toLocalDate();
+        if (period
+            .getStartedAt()
+            .isAfter(first.atTime(LocalTime.of(15, 30)).atZone(SEOUL).toInstant())) {
+          first = first.plusDays(1);
+        }
+        LocalDate prior = day.getBaseDate().minusDays(1);
+        if (!first.isAfter(prior)
+            && returnRepository.existsLatestEligibleByPortfolioIdAndBaseDateBetween(
+                portfolio.getId(), first, prior)) baselined.add(period);
+      }
       PortfolioDailyReturn value = calculate(portfolio, day, !baselined.contains(period));
       outcomes.merge(
           value.isEligible() ? "CALCULATED" : value.getIneligibleReason(), 1, Integer::sum);
@@ -116,8 +182,10 @@ public class LeagueReturnService {
       }
       count++;
     }
-    return count;
+    return new ProfileCalculation(count, firstCalculated);
   }
+
+  private record ProfileCalculation(int days, LocalDate firstDate) {}
 
   private PortfolioDailyReturn calculate(
       SharedPortfolio portfolio, MarketTradingDay day, boolean baseline) {

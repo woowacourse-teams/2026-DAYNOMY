@@ -256,7 +256,7 @@ public class LeagueService {
       states.remove(week);
       List<RankedProfile> calculatedProfiles =
           profiles.stream()
-              .filter(profile -> officialParticipation(profile, weekStart))
+              .filter(profile -> participatesInWeek(profile, weekStart))
               .map(profile -> metrics(profile, weekStart))
               .filter(
                   ranked -> ranked.metric() != null && ranked.metric().weeklyReturnRate() != null)
