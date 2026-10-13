@@ -6,6 +6,7 @@ import org.grit.daynomy.auth.handler.RestAuthenticationEntryPoint;
 import org.grit.daynomy.auth.oauth.CustomOidcUserService;
 import org.grit.daynomy.auth.oauth.OAuth2LoginSuccessHandler;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.auth.token.TokenCookieManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +27,7 @@ public class SecurityConfig {
   private final RestAuthenticationEntryPoint authenticationEntryPoint;
   private final RestAccessDeniedHandler accessDeniedHandler;
   private final CorsConfigurationSource corsConfigurationSource;
+  private final TokenCookieManager tokenCookieManager;
 
   @Bean
   public SecurityFilterChain securityFilterChain(
@@ -40,7 +42,10 @@ public class SecurityConfig {
         .csrf(
             csrf ->
                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                    .ignoringRequestMatchers("/api/portfolio/analysis")
+                    .ignoringRequestMatchers(
+                        request ->
+                            "/api/portfolio/analysis".equals(request.getServletPath())
+                                && tokenCookieManager.getAccessToken(request) == null)
                     .csrfTokenRequestHandler(csrfHandler))
         .exceptionHandling(
             exception ->
