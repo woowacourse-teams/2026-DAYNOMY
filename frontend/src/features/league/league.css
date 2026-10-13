@@ -5,7 +5,7 @@
   --league-purple: #5144d8;
   width: var(--page-content-width);
   margin: 0 auto;
-  padding: 16px 0 80px;
+  padding: 52px 0 88px;
   color: var(--league-ink);
   font-variant-numeric: tabular-nums;
   line-height: 1.6;
@@ -30,8 +30,8 @@
 
 .league-hero {
   display: flex;
-  padding: 16px 0 24px;
-  align-items: center;
+  padding: 0 0 24px;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
   border-bottom: 1px solid var(--league-line);
@@ -992,12 +992,12 @@
   }
   .league-page {
     width: var(--page-content-width);
-    padding-top: 8px;
+    padding: 28px 0 56px;
   }
 
   .league-hero {
     min-height: 0;
-    padding: 12px 0 20px;
+    padding: 0 0 20px;
     align-items: stretch;
     flex-direction: column;
     gap: 16px;

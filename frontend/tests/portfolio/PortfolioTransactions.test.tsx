@@ -243,8 +243,8 @@ describe('거래 원장 화면', () => {
       },
     ];
     const view = await ready();
-    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
-    const history = view.getByRole('region', { name: '거래·변경 내역' });
+    fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
+    const history = view.getByRole('region', { name: '거래 내역' });
     await waitFor(() => expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(4));
     expect(
       [...history.querySelectorAll('.portfolio-history-name strong')].map(
@@ -367,9 +367,9 @@ describe('거래 원장 화면', () => {
 
   it('내역 탭·필터는 변경만 수집하고 조회 날짜 대신 유효한 기간 길이를 보낸다', async () => {
     const view = await ready();
-    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
-    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
-    const history = view.getByRole('region', { name: '거래·변경 내역' });
+    fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
+    fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
+    const history = view.getByRole('region', { name: '거래 내역' });
     const filter = within(history).getByRole('combobox');
     fireEvent.change(filter, { target: { value: 'BUY' } });
     fireEvent.change(filter, { target: { value: 'BUY' } });
@@ -434,7 +434,7 @@ describe('거래 원장 화면', () => {
   });
   it('보유수량이 그대로인 과거 거래일 수정 후 재계산된 추이와 내역을 표시한다', async () => {
     const view = await ready();
-    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+    fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
     await view.findByRole('button', { name: /2026\.10\.01.*매수.*삼성전자/ });
     fireEvent.change(view.getByLabelText('시작일'), { target: { value: '2026-09-01' } });
     fireEvent.click(await view.findByRole('button', { name: /2026\.10\.01.*매수.*삼성전자/ }));
@@ -484,13 +484,13 @@ describe('거래 원장 화면', () => {
       },
     ];
     const view = await ready();
-    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+    fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
     const row = await view.findByRole('button', { name: /2026\.10\.01.*매수.*삼성전자/ });
     expect(row.getAttribute('aria-haspopup')).toBe('dialog');
-    const history = view.getByRole('region', { name: '거래·변경 내역' });
+    const history = view.getByRole('region', { name: '거래 내역' });
     expect(history.querySelector('details')).toBeNull();
-    expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(2);
-    expect(within(history).getByText('평균 매입가 70,000원')).toBeTruthy();
+    expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(1);
+    expect(within(history).queryByText('초기 보유 등록')).toBeNull();
     expect(within(history).queryByText('기록 시각')).toBeNull();
     fireEvent.click(row);
     const editor = view.getByRole('dialog', { name: '거래 수정' });
@@ -506,11 +506,36 @@ describe('거래 원장 화면', () => {
     expect(histories[0].transactionQuantity).toBe(10);
   });
 
+  it.each(['OPENING_BALANCE', 'ADDED', 'ADJUSTED', 'UPDATED', 'REMOVED'] as const)(
+    '%s 기록은 대시보드·종목 상세·거래 목록에서 제외하고 보유자산은 유지한다',
+    async (changeType) => {
+      histories = [{ ...buy, changeType, transactionQuantity: null, unitPrice: null }];
+      const view = await ready();
+      fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
+      const history = view.getByRole('region', { name: '거래 내역' });
+      expect(await within(history).findByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
+      expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(0);
+      expect(
+        [...within(history).getByLabelText('내역 유형').querySelectorAll('option')].map(
+          (option) => option.value,
+        ),
+      ).toEqual(['ALL', 'BUY', 'SELL']);
+      fireEvent.click(view.getByRole('button', { name: '보유 자산 1' }));
+      fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+      const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
+      expect(await within(detail).findByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
+      expect(detail.querySelectorAll('.portfolio-history-row')).toHaveLength(0);
+      expect(within(detail).getByText('10주')).toBeTruthy();
+      expect(histories).toHaveLength(1);
+      expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+    },
+  );
+
   it('삭제 실패 시 내역과 확인창을 유지하고 재시도 성공 시 자산을 복원한다', async () => {
     histories = [{ ...buy, changeType: 'SELL' }];
     rejectMutation = true;
     const view = await ready();
-    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+    fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
     fireEvent.click(await view.findByRole('button', { name: /2026\.10\.01.*매도.*삼성전자/ }));
     fireEvent.click(view.getByRole('button', { name: '거래 삭제' }));
     const dialog = view.getByRole('dialog', { name: '거래 삭제' });
@@ -556,7 +581,7 @@ describe('거래 원장 화면', () => {
       within(view.getByRole('dialog', { name: '삼성전자 보유 상세' })).getByText('0주'),
     ).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '보유 상세 닫기' }));
-    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+    fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
     expect(await view.findByText('2026.10.12')).toBeTruthy();
   });
   it('시세가 없어도 종목을 관리하고 null 오늘 값 없이 과거 추이를 표시한다', async () => {

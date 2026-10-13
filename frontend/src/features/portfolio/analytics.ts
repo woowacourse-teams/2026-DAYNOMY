@@ -26,7 +26,7 @@ const EVENTS = [
   'portfolio_history_range_changed',
 ] as const;
 
-type Operation = 'holding_create' | 'holding_update' | 'transaction_create' | 'transaction_update';
+type Operation = 'holding_update' | 'transaction_create' | 'transaction_update';
 type ErrorType = 'unauthorized' | 'client_error' | 'server_error' | 'network_or_unknown';
 type PortfolioEventParams = {
   is_logged_in?: boolean;
@@ -48,7 +48,7 @@ type PortfolioEventParams = {
   transaction_type?: 'BUY' | 'SELL';
   target?: 'holding' | 'transaction' | 'dashboard' | 'chart' | 'history';
   sort?: 'DEFAULT' | 'EVALUATION' | 'PROFIT' | 'RETURN' | 'WEIGHT';
-  filter?: 'ALL' | 'BUY' | 'SELL' | 'BALANCE';
+  filter?: 'ALL' | 'BUY' | 'SELL';
   range_days?: number;
 };
 

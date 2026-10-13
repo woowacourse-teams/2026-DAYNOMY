@@ -1858,8 +1858,16 @@
   padding: 3px 7px;
   border-radius: 5px;
   color: inherit;
-  background: #fbefed;
+  background: #f2f4f6;
   font-size: 11px;
+}
+
+.portfolio-overview .portfolio-daily-performance .portfolio-gain > small {
+  background: #fbefed;
+}
+
+.portfolio-overview .portfolio-daily-performance .portfolio-loss > small {
+  background: #eef4f8;
 }
 
 .portfolio-balance-label {
