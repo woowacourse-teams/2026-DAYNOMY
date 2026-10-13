@@ -22,6 +22,7 @@ import { PortfolioHistory } from './components/PortfolioHistory';
 import { PortfolioDialog } from './components/PortfolioDialog';
 import { PortfolioHoldingDetail } from './components/PortfolioHoldingDetail';
 import { PortfolioConfirmDialog } from './components/PortfolioConfirmDialog';
+import { todayInSeoul } from './transactionForm';
 import type { PortfolioHoldingHistory, PortfolioTransactionType, StockSearchItem } from './types';
 
 const numberFormatter = new Intl.NumberFormat('ko-KR');
@@ -181,6 +182,9 @@ type PortfolioAssetTrendChartProps = {
   onPeriodChange: (period: TrendPeriod) => void;
   mode?: 'compact' | 'expanded';
   onExpand?: (trigger: HTMLButtonElement) => void;
+  histories: PortfolioHoldingHistory[];
+  historyLoading: boolean;
+  historyError: string;
 };
 
 const TREND_PERIODS = [
@@ -191,6 +195,12 @@ const TREND_PERIODS = [
   { value: '5Y', label: '5년' },
 ] as const;
 type TrendPeriod = PortfolioTrendPeriod;
+type TrendMetric = 'evaluation' | 'profit' | 'return';
+const TREND_METRICS = [
+  { value: 'evaluation', label: '평가금액' },
+  { value: 'profit', label: '평가손익' },
+  { value: 'return', label: '평가수익률' },
+] as const;
 
 function getTrendPeriodStart(baseDate: string, period: TrendPeriod) {
   const date = new Date(`${baseDate}T00:00:00Z`);
@@ -225,8 +235,28 @@ function PortfolioAssetTrendChart({
   onPeriodChange,
   mode = 'compact',
   onExpand,
+  histories,
+  historyLoading,
+  historyError,
 }: PortfolioAssetTrendChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [metric, setMetric] = useState<TrendMetric>('evaluation');
+  const [selectedTradeDate, setSelectedTradeDate] = useState<string | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(720);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setChartWidth(entry.contentRect.width);
+    });
+    observer.observe(chart);
+    return () => observer.disconnect();
+  }, [loading, error, points.length]);
+  useEffect(() => {
+    setHoveredIndex(null);
+    setSelectedTradeDate(null);
+  }, [period]);
   const expanded = mode === 'expanded';
   const titleId = expanded ? 'expanded-asset-trend-title' : 'asset-trend-title';
   const latestAvailablePoint = points.at(-1);
@@ -235,32 +265,64 @@ function PortfolioAssetTrendChart({
     const cutoffDate = getTrendPeriodStart(latestAvailablePoint.baseDate, period);
     return points.filter((point) => point.baseDate >= cutoffDate);
   }, [latestAvailablePoint, period, points]);
-  const width = 720;
+  const cutoffDate = getTrendPeriodStart(latestAvailablePoint?.baseDate ?? todayInSeoul(), period);
+  const historiesByDate = useMemo(() => {
+    const grouped = new Map<string, PortfolioHoldingHistory[]>();
+    for (const item of histories) {
+      if (item.effectiveDate < cutoffDate) continue;
+      const day = grouped.get(item.effectiveDate) ?? [];
+      day.push(item);
+      grouped.set(item.effectiveDate, day);
+    }
+    for (const day of grouped.values()) {
+      day.sort(
+        (a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt) || b.historyId - a.historyId,
+      );
+    }
+    return grouped;
+  }, [histories, cutoffDate]);
+  const tradePoints = visiblePoints.filter((point) => historiesByDate.has(point.baseDate));
+  const firstDate = visiblePoints.at(0)?.baseDate;
+  const lastDate = visiblePoints.at(-1)?.baseDate;
+  const dateSpan = firstDate && lastDate ? Date.parse(lastDate) - Date.parse(firstDate) : 0;
+  const dateX = (date: string) =>
+    padding.left +
+    (dateSpan && firstDate
+      ? ((Date.parse(date) - Date.parse(firstDate)) / dateSpan) *
+        (width - padding.left - padding.right)
+      : 0);
+  const pointValue = (point: PortfolioPerformancePoint) =>
+    metric === 'evaluation'
+      ? point.totalEvaluationAmount
+      : metric === 'profit'
+        ? point.totalProfitLoss
+        : point.totalReturnRate;
+  const baselineValue = (point: PortfolioPerformancePoint) =>
+    metric === 'evaluation' ? point.totalPurchaseAmount : 0;
+  const width = chartWidth;
   const hasSinglePoint = visiblePoints.length === 1;
-  const height = expanded ? 300 : hasSinglePoint ? 100 : 190;
-  const padding = { top: 14, right: 12, bottom: 8, left: 58 };
-  const values = visiblePoints.flatMap((point) => [
-    point.totalPurchaseAmount,
-    point.totalEvaluationAmount,
-  ]);
-  const rawMinimum = Math.min(...values);
-  const rawMaximum = Math.max(...values);
-  const amountPadding = Math.max((rawMaximum - rawMinimum) * 0.16, rawMaximum * 0.015, 1);
-  const minimum = Math.max(0, rawMinimum - amountPadding);
+  const height = expanded ? 300 : 190;
+  const padding = { top: 14, right: 12, bottom: 28, left: 58 };
+  const values = visiblePoints.flatMap((point) => [baselineValue(point), pointValue(point)]);
+  const rawMinimum = values.length ? Math.min(...values) : 0;
+  const rawMaximum = values.length ? Math.max(...values) : 0;
+  const amountPadding = Math.max(
+    (rawMaximum - rawMinimum) * 0.16,
+    Math.abs(rawMaximum) * 0.015,
+    metric === 'return' ? 0.1 : 1,
+  );
+  const minimum =
+    metric === 'evaluation' ? Math.max(0, rawMinimum - amountPadding) : rawMinimum - amountPadding;
   const maximum = rawMaximum + amountPadding;
   const range = maximum - minimum || 1;
-  const x = (index: number) =>
-    hasSinglePoint
-      ? padding.left
-      : padding.left +
-        (index / (visiblePoints.length - 1)) * (width - padding.left - padding.right);
+  const x = (index: number) => dateX(visiblePoints[index].baseDate);
   const y = (value: number) =>
     padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
   const chartPoints = visiblePoints.map((point, index) => ({
     x: x(index),
-    evaluationY: y(point.totalEvaluationAmount),
-    purchaseY: y(point.totalPurchaseAmount),
-    difference: point.totalEvaluationAmount - point.totalPurchaseAmount,
+    evaluationY: y(pointValue(point)),
+    purchaseY: y(baselineValue(point)),
+    difference: pointValue(point) - baselineValue(point),
   }));
   const purchaseLinePoints = chartPoints.map((point) => `${point.x},${point.purchaseY}`);
   const segments = chartPoints.slice(1).flatMap((to, index) => {
@@ -283,13 +345,17 @@ function PortfolioAssetTrendChart({
   });
   const latest = visiblePoints.at(-1);
   const activeIndex =
-    hoveredIndex === null
-      ? expanded
-        ? visiblePoints.length - 1
-        : null
-      : Math.min(hoveredIndex, visiblePoints.length - 1);
-  const activePoint = activeIndex === null ? null : visiblePoints[activeIndex];
-  const activeX = activeIndex === null ? null : x(activeIndex);
+    selectedTradeDate !== null
+      ? visiblePoints.findIndex((point) => point.baseDate === selectedTradeDate)
+      : hoveredIndex === null
+        ? expanded
+          ? visiblePoints.length - 1
+          : null
+        : Math.min(hoveredIndex, visiblePoints.length - 1);
+  const activePoint = activeIndex === null || activeIndex < 0 ? null : visiblePoints[activeIndex];
+  const activeX = activePoint && activeIndex !== null ? x(activeIndex) : null;
+  const detailDate = selectedTradeDate ?? activePoint?.baseDate ?? latest?.baseDate;
+  const selectedHistories = detailDate ? (historiesByDate.get(detailDate) ?? []) : [];
   const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
   const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
   const dateLabels = Array.from(
@@ -300,21 +366,24 @@ function PortfolioAssetTrendChart({
     ),
   );
 
-  function selectNearestPoint(clientX: number, chart: SVGSVGElement) {
-    if (visiblePoints.length === 0) return;
+  function selectNearestPoint(clientX: number, chart: SVGSVGElement, clearSelection = false) {
+    if (visiblePoints.length === 0 || (selectedTradeDate !== null && !clearSelection)) return;
     const bounds = chart.getBoundingClientRect();
     const chartX = ((clientX - bounds.left) / bounds.width) * width;
-    const ratio = (chartX - padding.left) / (width - padding.left - padding.right);
-    const index =
-      visiblePoints.length === 1
-        ? 0
-        : Math.round(Math.max(0, Math.min(1, ratio)) * (visiblePoints.length - 1));
+    const index = visiblePoints.reduce(
+      (nearest, _point, candidate) =>
+        Math.abs(x(candidate) - chartX) < Math.abs(x(nearest) - chartX) ? candidate : nearest,
+      0,
+    );
+    setSelectedTradeDate(null);
     setHoveredIndex(index);
   }
 
   function moveActivePoint(direction: -1 | 1) {
     if (visiblePoints.length === 0) return;
-    const currentIndex = activeIndex ?? visiblePoints.length - 1;
+    const currentIndex =
+      activeIndex === null || activeIndex < 0 ? visiblePoints.length - 1 : activeIndex;
+    setSelectedTradeDate(null);
     setHoveredIndex(Math.max(0, Math.min(visiblePoints.length - 1, currentIndex + direction)));
   }
 
@@ -327,7 +396,22 @@ function PortfolioAssetTrendChart({
     >
       <div className="portfolio-dashboard-heading">
         <div className="portfolio-trend-title">
-          <h2 id={titleId}>{expanded ? '자산 추이 상세' : '자산 추이'}</h2>
+          <h2 id={titleId}>
+            {!expanded && onExpand ? (
+              <button
+                className="portfolio-trend-title-button"
+                type="button"
+                onClick={(event) => onExpand(event.currentTarget)}
+              >
+                자산 추이
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 5 7 7-7 7" />
+                </svg>
+              </button>
+            ) : (
+              '자산 추이 상세'
+            )}
+          </h2>
         </div>
         <div className="portfolio-trend-controls">
           <label className="portfolio-trend-period-select">
@@ -347,12 +431,6 @@ function PortfolioAssetTrendChart({
               <path d="m4 6 4 4 4-4" />
             </svg>
           </label>
-          <div className="portfolio-trend-legend" aria-label="자산 추이 범례">
-            <span className="evaluation" title="매입금액보다 높으면 빨강, 낮으면 파랑">
-              자산
-            </span>
-            <span className="principal">매입금액</span>
-          </div>
           <button
             type="button"
             className="portfolio-trend-expand portfolio-trend-refresh"
@@ -379,188 +457,364 @@ function PortfolioAssetTrendChart({
           ) : null}
         </div>
       </div>
-      {loading ? (
-        <p className="portfolio-tracking-state" role="status">
-          자산 추이를 불러오고 있습니다.
-        </p>
-      ) : null}
-      {!loading && error ? (
-        <div className="portfolio-tracking-state" role="alert">
-          <p>{error}</p>
-          <button type="button" className="portfolio-secondary-button" onClick={onRetry}>
-            다시 시도
-          </button>
+      {!loading && !error && latest && expanded ? (
+        <div className="portfolio-trend-summary" aria-label="자산 추이 요약">
+          <span>평가금액 · {latest.baseDate.replaceAll('-', '.')}</span>
+          <strong>{amountsHidden ? HIDDEN_AMOUNT : formatWon(latest.totalEvaluationAmount)}</strong>
+          <p className={profitClass(latest.totalProfitLoss)}>
+            평가손익{' '}
+            {amountsHidden
+              ? '••••••원 · •••%'
+              : `${formatSignedWon(latest.totalProfitLoss)} · ${formatPercent(latest.totalReturnRate, true)}`}
+          </p>
         </div>
       ) : null}
-      {!loading && !error && points.length === 0 ? (
-        <div className="portfolio-tracking-state is-empty" role="status">
-          <strong>선택한 기간에 표시할 추이가 없어요</strong>
-          <p>기간을 바꾸거나 거래를 기록해 주세요. 가격 데이터가 준비되면 추이가 표시됩니다.</p>
-        </div>
-      ) : null}
-      {!loading && !error && visiblePoints.length >= 1 && latest ? (
-        <>
-          <div
-            className="portfolio-return-chart-wrap"
-            tabIndex={0}
-            aria-label="자산 추이 그래프. 좌우 방향키로 날짜를 이동할 수 있습니다."
-            onBlur={() => setHoveredIndex(null)}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowLeft') {
-                event.preventDefault();
-                moveActivePoint(-1);
-              }
-              if (event.key === 'ArrowRight') {
-                event.preventDefault();
-                moveActivePoint(1);
-              }
-            }}
-          >
-            <svg
-              className="portfolio-return-chart"
-              viewBox={`0 0 ${width} ${height}`}
-              role="img"
-              aria-label={
-                amountsHidden
-                  ? '포트폴리오 자산 추이, 금액 숨김'
-                  : `포트폴리오 자산 추이, 평가금액 ${formatWon(latest.totalEvaluationAmount)}, 매입원금 ${formatWon(latest.totalPurchaseAmount)}`
-              }
-              onPointerDown={(event) => selectNearestPoint(event.clientX, event.currentTarget)}
-              onPointerMove={(event) => selectNearestPoint(event.clientX, event.currentTarget)}
-              onPointerLeave={() => setHoveredIndex(null)}
+      {expanded ? (
+        <div className="portfolio-trend-metric-tabs" role="group" aria-label="자산 추이 지표">
+          {TREND_METRICS.map((item) => (
+            <button
+              type="button"
+              key={item.value}
+              aria-pressed={metric === item.value}
+              onClick={() => setMetric(item.value)}
             >
-              {guideValues.map((value) => (
-                <g key={value} className="portfolio-return-guide">
-                  <line x1={padding.left} y1={y(value)} x2={width - padding.right} y2={y(value)} />
-                  <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
-                    {amountsHidden ? '—' : formatCompactWon(value)}
-                  </text>
-                </g>
-              ))}
-              {visiblePoints.length >= 1 ? (
-                <>
-                  {segments.map(({ from, to, tone }, index) => (
-                    <g key={index}>
-                      {tone !== 'neutral' ? (
-                        <polygon
-                          className={`portfolio-return-area is-${tone}`}
-                          points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY} ${to.x},${to.purchaseY} ${from.x},${from.purchaseY}`}
-                          fill={`var(--portfolio-trend-${tone})`}
-                          fillOpacity="0.1"
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="portfolio-trend-legend" aria-label="자산 추이 범례">
+        <span className="evaluation" title="평가이익은 빨강, 평가손실은 파랑">
+          {TREND_METRICS.find((item) => item.value === metric)?.label}
+        </span>
+        <span className="principal">{metric === 'evaluation' ? '매입금액' : '0 기준선'}</span>
+        {expanded && tradePoints.length > 0 && <span className="trade">매수·매도</span>}
+      </div>
+      <div className="portfolio-trend-plot">
+        {loading ? (
+          <p className="portfolio-tracking-state" role="status">
+            자산 추이를 불러오고 있습니다.
+          </p>
+        ) : null}
+        {!loading && error ? (
+          <div className="portfolio-tracking-state" role="alert">
+            <p>{error}</p>
+            <button type="button" className="portfolio-secondary-button" onClick={onRetry}>
+              다시 시도
+            </button>
+          </div>
+        ) : null}
+        {!loading && !error && points.length === 0 ? (
+          <div className="portfolio-tracking-state is-empty" role="status">
+            <strong>선택한 기간에 표시할 추이가 없어요</strong>
+            <p>기간을 바꾸거나 거래를 기록해 주세요. 가격 데이터가 준비되면 추이가 표시됩니다.</p>
+          </div>
+        ) : null}
+        {!loading && !error && visiblePoints.length >= 1 && latest ? (
+          <>
+            <div
+              ref={chartRef}
+              className="portfolio-return-chart-wrap"
+              tabIndex={0}
+              aria-label="자산 추이 그래프. 좌우 방향키로 날짜를 이동할 수 있습니다."
+              onBlur={() => setHoveredIndex(null)}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowLeft') {
+                  event.preventDefault();
+                  moveActivePoint(-1);
+                }
+                if (event.key === 'ArrowRight') {
+                  event.preventDefault();
+                  moveActivePoint(1);
+                }
+              }}
+            >
+              <svg
+                className="portfolio-return-chart"
+                viewBox={`0 0 ${width} ${height}`}
+                preserveAspectRatio="none"
+                role="img"
+                aria-label={
+                  amountsHidden
+                    ? '포트폴리오 자산 추이, 금액 숨김'
+                    : metric === 'evaluation'
+                      ? `포트폴리오 자산 추이, 평가금액 ${formatWon(latest.totalEvaluationAmount)}, 매입원금 ${formatWon(latest.totalPurchaseAmount)}`
+                      : metric === 'profit'
+                        ? `포트폴리오 자산 추이, 평가손익 ${formatSignedWon(latest.totalProfitLoss)}`
+                        : `포트폴리오 자산 추이, 평가수익률 ${formatPercent(latest.totalReturnRate, true)}`
+                }
+                onPointerDown={(event) =>
+                  selectNearestPoint(event.clientX, event.currentTarget, true)
+                }
+                onPointerMove={(event) => selectNearestPoint(event.clientX, event.currentTarget)}
+                onPointerLeave={() => setHoveredIndex(null)}
+              >
+                {guideValues.map((value) => (
+                  <g key={value} className="portfolio-return-guide">
+                    <line
+                      x1={padding.left}
+                      y1={y(value)}
+                      x2={width - padding.right}
+                      y2={y(value)}
+                    />
+                    <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
+                      {amountsHidden
+                        ? '—'
+                        : metric === 'return'
+                          ? formatPercent(value)
+                          : formatCompactWon(value)}
+                    </text>
+                  </g>
+                ))}
+                {visiblePoints.length >= 1 ? (
+                  <>
+                    {segments.map(({ from, to, tone }, index) => (
+                      <g key={index}>
+                        {tone !== 'neutral' ? (
+                          <polygon
+                            className={`portfolio-return-area is-${tone}`}
+                            points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY} ${to.x},${to.purchaseY} ${from.x},${from.purchaseY}`}
+                            fill={`var(--portfolio-trend-${tone})`}
+                            fillOpacity="0.1"
+                          />
+                        ) : null}
+                        <polyline
+                          className={`portfolio-return-line evaluation is-${tone}`}
+                          points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY}`}
+                          style={{ stroke: `var(--portfolio-trend-${tone})` }}
                         />
-                      ) : null}
+                      </g>
+                    ))}
+                    {hasSinglePoint ? (
                       <polyline
-                        className={`portfolio-return-line evaluation is-${tone}`}
-                        points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY}`}
-                        style={{ stroke: `var(--portfolio-trend-${tone})` }}
+                        className="portfolio-return-line evaluation"
+                        points={`${chartPoints[0].x},${chartPoints[0].evaluationY}`}
+                        style={{
+                          stroke: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
+                        }}
+                      />
+                    ) : null}
+                    <polyline
+                      className="portfolio-return-line principal"
+                      points={purchaseLinePoints.join(' ')}
+                    />
+                    {hasSinglePoint && !activePoint ? (
+                      <g className="portfolio-return-single-point">
+                        <circle
+                          className="portfolio-return-point principal"
+                          cx={x(0)}
+                          cy={y(baselineValue(visiblePoints[0]))}
+                          r="3.5"
+                        />
+                        <circle
+                          className="portfolio-return-point evaluation"
+                          style={{
+                            fill: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
+                          }}
+                          cx={x(0)}
+                          cy={y(pointValue(visiblePoints[0]))}
+                          r="4.5"
+                        />
+                      </g>
+                    ) : null}
+                  </>
+                ) : null}
+                {activePoint && activeX !== null ? (
+                  <g className="portfolio-return-active-point">
+                    <line
+                      className="portfolio-return-cursor"
+                      x1={activeX}
+                      y1={padding.top}
+                      x2={activeX}
+                      y2={height - padding.bottom}
+                    />
+                    <circle
+                      className="portfolio-return-point evaluation"
+                      style={{
+                        fill: `var(--portfolio-trend-${trendTone(activePoint.totalProfitLoss)})`,
+                      }}
+                      cx={activeX}
+                      cy={y(pointValue(activePoint))}
+                      r="4.5"
+                    />
+                    <circle
+                      className="portfolio-return-point principal"
+                      cx={activeX}
+                      cy={y(baselineValue(activePoint))}
+                      r="3.5"
+                    />
+                  </g>
+                ) : null}
+                {expanded &&
+                  tradePoints.map((point) => (
+                    <g
+                      key={point.baseDate}
+                      className="portfolio-trend-trade-marker"
+                      aria-hidden="true"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedTradeDate(point.baseDate);
+                      }}
+                    >
+                      <circle
+                        cx={dateX(point.baseDate)}
+                        cy={y(pointValue(point))}
+                        r="11"
+                        fill="transparent"
+                      />
+                      <circle
+                        cx={dateX(point.baseDate)}
+                        cy={y(pointValue(point))}
+                        r="4"
+                        fill={selectedTradeDate === point.baseDate ? '#172033' : '#697586'}
+                        stroke="#fff"
+                        strokeWidth="2"
                       />
                     </g>
                   ))}
-                  {hasSinglePoint ? (
-                    <polyline
-                      className="portfolio-return-line evaluation"
-                      points={`${chartPoints[0].x},${chartPoints[0].evaluationY}`}
-                      style={{
-                        stroke: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
-                      }}
-                    />
-                  ) : null}
-                  <polyline
-                    className="portfolio-return-line principal"
-                    points={purchaseLinePoints.join(' ')}
-                  />
-                  {hasSinglePoint && !activePoint ? (
-                    <g className="portfolio-return-single-point">
-                      <circle
-                        className="portfolio-return-point principal"
-                        cx={padding.left}
-                        cy={y(visiblePoints[0].totalPurchaseAmount)}
-                        r="3.5"
-                      />
-                      <circle
-                        className="portfolio-return-point evaluation"
-                        style={{
-                          fill: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
-                        }}
-                        cx={padding.left}
-                        cy={y(visiblePoints[0].totalEvaluationAmount)}
-                        r="4.5"
-                      />
-                    </g>
-                  ) : null}
-                </>
+              </svg>
+              {!expanded && activePoint && activeX !== null ? (
+                <div
+                  className="portfolio-return-tooltip"
+                  style={{
+                    left: `clamp(min(158px, 50%), ${(activeX / width) * 100}%, max(calc(100% - 158px), 50%))`,
+                    top: `max(140px, ${(y(pointValue(activePoint)) / height) * 100}%)`,
+                  }}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <time dateTime={activePoint.baseDate}>
+                    {formatTrendDate(activePoint.baseDate)}
+                  </time>
+                  <dl>
+                    <div className="principal">
+                      <dt>매입원금</dt>
+                      <dd>
+                        {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalPurchaseAmount)}
+                      </dd>
+                    </div>
+                    <div
+                      className="evaluation"
+                      style={
+                        {
+                          '--portfolio-trend-accent': `var(--portfolio-trend-${trendTone(activePoint.totalProfitLoss)})`,
+                        } as CSSProperties
+                      }
+                    >
+                      <dt>평가금액</dt>
+                      <dd>
+                        {amountsHidden
+                          ? HIDDEN_AMOUNT
+                          : formatWon(activePoint.totalEvaluationAmount)}
+                        <small className={profitClass(activePoint.totalProfitLoss)}>
+                          {amountsHidden
+                            ? '•••%'
+                            : formatPercent(activePoint.totalReturnRate, true)}
+                        </small>
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
               ) : null}
-              {activePoint && activeX !== null ? (
-                <g className="portfolio-return-active-point">
-                  <line
-                    className="portfolio-return-cursor"
-                    x1={activeX}
-                    y1={padding.top}
-                    x2={activeX}
-                    y2={height - padding.bottom}
-                  />
-                  <circle
-                    className="portfolio-return-point evaluation"
-                    style={{
-                      fill: `var(--portfolio-trend-${trendTone(activePoint.totalProfitLoss)})`,
-                    }}
-                    cx={activeX}
-                    cy={y(activePoint.totalEvaluationAmount)}
-                    r="4.5"
-                  />
-                  <circle
-                    className="portfolio-return-point principal"
-                    cx={activeX}
-                    cy={y(activePoint.totalPurchaseAmount)}
-                    r="3.5"
-                  />
-                </g>
-              ) : null}
-            </svg>
-            {activePoint && activeX !== null ? (
-              <div
-                className="portfolio-return-tooltip"
-                style={{
-                  left: `clamp(min(158px, 50%), ${(activeX / width) * 100}%, max(calc(100% - 158px), 50%))`,
-                  top: `${(y(activePoint.totalEvaluationAmount) / height) * 100}%`,
-                }}
-                role="status"
-                aria-live="polite"
-              >
-                <time dateTime={activePoint.baseDate}>{formatTrendDate(activePoint.baseDate)}</time>
-                <dl>
-                  <div className="principal">
-                    <dt>매입원금</dt>
-                    <dd>
-                      {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalPurchaseAmount)}
-                    </dd>
-                  </div>
-                  <div
-                    className="evaluation"
-                    style={
-                      {
-                        '--portfolio-trend-accent': `var(--portfolio-trend-${trendTone(activePoint.totalProfitLoss)})`,
-                      } as CSSProperties
-                    }
-                  >
-                    <dt>평가금액</dt>
-                    <dd>
-                      {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalEvaluationAmount)}
-                      <small className={profitClass(activePoint.totalProfitLoss)}>
-                        {formatPercent(activePoint.totalReturnRate, true)}
-                      </small>
-                    </dd>
-                  </div>
-                </dl>
-              </div>
+            </div>
+            <div
+              className="portfolio-return-dates"
+              aria-hidden="true"
+              style={{
+                paddingLeft: `${(padding.left / width) * 100}%`,
+                paddingRight: `${(padding.right / width) * 100}%`,
+              }}
+            >
+              {dateLabels.map((baseDate) => (
+                <span key={baseDate}>{formatTrendAxisDate(baseDate, period)}</span>
+              ))}
+            </div>
+            {visiblePoints.length === 1 && (
+              <p className="portfolio-trend-note">
+                표시할 평가 데이터가 하루뿐이에요. 기록이 쌓이면 선으로 연결됩니다.
+              </p>
+            )}
+          </>
+        ) : null}
+      </div>
+      {expanded ? (
+        <section className="portfolio-trend-date-detail" aria-label="선택 날짜의 자산과 거래">
+          <div className="portfolio-trend-detail-heading">
+            <h3>날짜별 자산과 거래</h3>
+            <label>
+              조회 날짜
+              <input
+                type="date"
+                aria-label="자산 추이 조회 날짜"
+                value={detailDate ?? ''}
+                min={cutoffDate}
+                max={todayInSeoul()}
+                onChange={(event) => setSelectedTradeDate(event.target.value || null)}
+              />
+            </label>
+          </div>
+          <div role="status" aria-live="polite">
+            {!loading && !error && detailDate && (
+              <span className="portfolio-visually-hidden">{formatTrendDate(detailDate)}</span>
+            )}
+            {!loading && !error && activePoint ? (
+              <dl className="portfolio-trend-date-values">
+                <div>
+                  <dt>매입원금</dt>
+                  <dd>
+                    {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalPurchaseAmount)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>평가금액</dt>
+                  <dd>
+                    {amountsHidden ? HIDDEN_AMOUNT : formatWon(activePoint.totalEvaluationAmount)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>평가손익</dt>
+                  <dd className={profitClass(activePoint.totalProfitLoss)}>
+                    {amountsHidden ? HIDDEN_AMOUNT : formatSignedWon(activePoint.totalProfitLoss)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>평가수익률</dt>
+                  <dd className={profitClass(activePoint.totalProfitLoss)}>
+                    {amountsHidden ? '•••%' : formatPercent(activePoint.totalReturnRate, true)}
+                  </dd>
+                </div>
+              </dl>
+            ) : !loading && !error ? (
+              <p className="portfolio-trend-note">평가 데이터 없음</p>
             ) : null}
           </div>
-          <div className="portfolio-return-dates" aria-hidden="true">
-            {dateLabels.map((baseDate) => (
-              <span key={baseDate}>{formatTrendAxisDate(baseDate, period)}</span>
-            ))}
-          </div>
-        </>
+          {historyLoading ? (
+            <p className="portfolio-trend-note">거래 표시를 불러오고 있어요.</p>
+          ) : historyError ? (
+            <div className="portfolio-trend-history-error" role="alert">
+              <p>{historyError}</p>
+              <button className="portfolio-secondary-button" type="button" onClick={onRetry}>
+                거래 표시 다시 시도
+              </button>
+            </div>
+          ) : selectedHistories.length ? (
+            <ul className="portfolio-trend-day-trades">
+              {selectedHistories.map((item) => (
+                <li key={item.historyId}>
+                  <span className={`portfolio-history-type type-${item.changeType.toLowerCase()}`}>
+                    {item.changeType === 'BUY' ? '매수' : '매도'}
+                  </span>
+                  <strong>{item.name}</strong>
+                  <span>
+                    {amountsHidden
+                      ? '•••주 · ••••••원'
+                      : `${numberFormatter.format(item.transactionQuantity ?? 0)}주 · ${formatWon(item.unitPrice)}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
       ) : null}
     </section>
   );
@@ -1064,6 +1318,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   {isLoggedIn ? (
                     <PortfolioAssetTrendChart
                       points={trendPoints}
+                      histories={performance.histories}
+                      historyLoading={performance.historyLoading}
+                      historyError={performance.historyError}
                       loading={performance.loading}
                       error={performance.error}
                       onRetry={retryChart}
@@ -1334,6 +1591,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       {isLoggedIn && trendDialogOpen ? (
         <PortfolioTrendDialog
           points={trendPoints}
+          histories={performance.histories}
+          historyLoading={performance.historyLoading}
+          historyError={performance.historyError}
           loading={performance.loading}
           error={performance.error}
           onRetry={retryChart}
