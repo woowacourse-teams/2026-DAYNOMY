@@ -390,7 +390,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     fireEvent.change(view.getByLabelText('보유하는 이유'), { target: { value: '장기 성장' } });
     fireEvent.click(view.getByRole('button', { name: '보유 이유 저장' }));
     await view.findByText('장기 성장');
-    expect(view.queryByText('보유 이유 미작성')).toBeNull();
+    await waitFor(() => expect(view.queryByText('보유 이유 미작성')).toBeNull());
     expect(await view.findByRole('link', { name: '리그 참여하기' })).toBeTruthy();
     expect(leagueApi.recordDecision).toHaveBeenCalledWith(
       expect.objectContaining({
