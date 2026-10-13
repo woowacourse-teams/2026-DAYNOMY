@@ -782,6 +782,11 @@
   width: 42px;
   height: 42px;
 }
+.issue-person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .issue-person-content {
   min-width: 0;
 }
@@ -803,6 +808,10 @@
   height: 15px;
   object-fit: contain;
   filter: brightness(0);
+}
+.issue-person-platform svg {
+  width: 17px;
+  height: 13px;
 }
 .issue-person-footer {
   display: flex;
