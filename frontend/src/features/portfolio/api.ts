@@ -335,6 +335,7 @@ export async function getPortfolioPerformance(from: string, to: string, signal?:
     `/api/users/me/portfolio/performance?${query.toString()}`,
     {
       signal,
+      cache: 'no-store',
     },
   );
 

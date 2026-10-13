@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -60,6 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.mocked(trackEvent).mockClear();
   document.getElementById('daynomy-x-embed-script')?.remove();
   document.getElementById('daynomy-threads-embed-script')?.remove();
   vi.unstubAllGlobals();
@@ -183,4 +186,18 @@ it('URL로 인물을 변경하거나 뒤로 가면 해당 인물의 첫 페이�
   fireEvent.click(view.getByRole('button', { name: '뒤로 가기' }));
   expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
   expect(view.getByText('인물1 글30', { exact: true })).toBeTruthy();
+  const views = vi
+    .mocked(trackEvent)
+    .mock.calls.filter(([name]) => name === 'view_content_list')
+    .map(([, params]) => [params?.person_id, params?.page_number]);
+  expect(views).toEqual([
+    [1, 1],
+    [1, 3],
+    [2, 1],
+    [2, 2],
+    [1, 1],
+  ]);
+  expect(vi.mocked(trackEvent).mock.calls.some(([name]) => name === 'select_featured_person')).toBe(
+    false,
+  );
 });

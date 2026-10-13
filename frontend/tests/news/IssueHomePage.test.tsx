@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,6 +75,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
+  vi.mocked(trackEvent).mockClear();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   document.getElementById('daynomy-x-embed-script')?.remove();
@@ -343,4 +346,33 @@ it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 �
     target: { value: 'DAYNOMY' },
   });
   expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
+});
+
+it('출처별 빈 결과를 기록하고 같은 필터의 반복 선택은 중복 집계하지 않는다', async () => {
+  mockApi();
+  const view = render(
+    <MemoryRouter>
+      <IssueHomePage fullFeed />
+    </MemoryRouter>,
+  );
+  await view.findByRole('button', { name: /첫 번째 인물 글/ });
+  fireEvent.change(view.getByRole('combobox', { name: '콘텐츠 출처' }), {
+    target: { value: 'YOUTUBE' },
+  });
+  expect(trackEvent).toHaveBeenCalledWith('filter_content_source', {
+    surface: 'news_contents',
+    previous_source: 'ALL',
+    source_type: 'YOUTUBE',
+    result_count: 0,
+  });
+  expect(trackEvent).toHaveBeenCalledWith('view_content_empty', {
+    surface: 'news_contents',
+    source_type: 'YOUTUBE',
+    reason: 'filter_empty',
+  });
+  const count = vi.mocked(trackEvent).mock.calls.length;
+  fireEvent.change(view.getByRole('combobox', { name: '콘텐츠 출처' }), {
+    target: { value: 'YOUTUBE' },
+  });
+  expect(vi.mocked(trackEvent).mock.calls).toHaveLength(count);
 });
