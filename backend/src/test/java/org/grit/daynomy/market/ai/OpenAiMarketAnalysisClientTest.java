@@ -68,6 +68,26 @@ class OpenAiMarketAnalysisClientTest {
     assertThat(properties.at("/risk/maxLength").asInt()).isEqualTo(240);
   }
 
+  @Test
+  void normalizesSemicolonWithoutChangingEvidenceOrMeaning() throws Exception {
+    var analysis = validAnalysis();
+    analysis.put("watchPoint", "다음 물가 발표를 확인하세요; 금리 인하 효과를 판단할 수 있어요.");
+    respond(analysis);
+    var result = client.analyze(CONTENT);
+    assertThat(result.getWatchPoint()).isEqualTo("다음 물가 발표를 확인하세요. 금리 인하 효과를 판단할 수 있어요.");
+    assertThat(result.getRisk()).isEqualTo(RISK);
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  @Test
+  void normalizesFullWidthSemicolonAndMissingFinalPeriod() throws Exception {
+    var analysis = validAnalysis();
+    analysis.put("watchPoint", "다음 물가 발표를 확인하세요； 금리 인하 효과를 판단할 수 있어요");
+    respond(analysis);
+    assertThat(client.analyze(CONTENT).getWatchPoint())
+        .isEqualTo("다음 물가 발표를 확인하세요. 금리 인하 효과를 판단할 수 있어요.");
+  }
+
   @ParameterizedTest
   @ValueSource(
       strings = {
