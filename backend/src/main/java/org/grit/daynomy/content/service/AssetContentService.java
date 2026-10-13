@@ -1,5 +1,6 @@
 package org.grit.daynomy.content.service;
 
+import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,6 @@ import org.grit.daynomy.news.domain.News;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +37,7 @@ public class AssetContentService {
 
   private static final String ASSET_CONTENT_URL_UNIQUE_CONSTRAINT =
       "uk_stock_related_contents_asset_url";
+  private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
   private final AssetRepository assetRepository;
   private final AssetContentRepository contentRepository;
@@ -46,9 +47,9 @@ public class AssetContentService {
   public ContentPageResponse getPublicContents(int page, int size) {
     return ContentPageResponse.from(
         contentRepository
-            .findAllBySourceTypeInAndNewsIsNull(
+            .findAllBySourceTypeInAndNewsIsNullOrderByPublishedDateDescCreatedAtDescIdDesc(
                 List.of(ContentSourceType.YOUTUBE, ContentSourceType.THREADS, ContentSourceType.X),
-                PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")))
+                PageRequest.of(page - 1, size))
             .map(AssetContentResponse::from));
   }
 
@@ -116,7 +117,11 @@ public class AssetContentService {
             stripToNull(request.imageUrl()),
             request.publishedDate());
     try {
-      return AssetContentResponse.from(contentRepository.saveAndFlush(content));
+      AssetContent saved = contentRepository.saveAndFlush(content);
+      if (saved.getPublishedDate() == null) {
+        saved.fillPublishedDateIfMissing(saved.getCreatedAt().atZone(SEOUL).toLocalDate());
+      }
+      return AssetContentResponse.from(saved);
     } catch (DataIntegrityViolationException exception) {
       if (isAssetContentUrlUniqueConstraintViolation(exception)) {
         throw new BusinessException(ContentErrorCode.ASSET_CONTENT_ALREADY_EXISTS);

@@ -1911,11 +1911,6 @@
   flex-wrap: wrap;
   color: #596779;
 }
-.portfolio-trend-legend .trade::before {
-  width: 7px;
-  height: 7px;
-  background: #697586;
-}
 .portfolio-trend-metric-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1953,13 +1948,6 @@
 .portfolio-trend-refresh:disabled {
   opacity: 0.5;
   cursor: wait;
-}
-.portfolio-trend-trade-marker {
-  cursor: pointer;
-}
-.portfolio-trend-trade-marker:hover circle:last-child {
-  fill: #245cb2;
-  r: 6px;
 }
 .portfolio-trend-date-detail {
   min-width: 0;
@@ -2016,31 +2004,6 @@
   font-size: 17px;
   font-weight: 600;
   overflow-wrap: anywhere;
-}
-.portfolio-trend-day-trades {
-  display: grid;
-  gap: 0;
-  margin: 16px 0;
-  padding: 0;
-  list-style: none;
-}
-.portfolio-trend-day-trades li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 0;
-  border-bottom: 1px solid #edf0f4;
-  font-size: 13px;
-}
-.portfolio-trend-day-trades li > span:last-child {
-  margin-left: auto;
-  color: #596779;
-  font-variant-numeric: tabular-nums;
-}
-.portfolio-trend-history-error {
-  color: #596779;
-  font-size: 13px;
 }
 .portfolio-trend-note {
   margin: 12px 0 0;

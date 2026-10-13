@@ -109,4 +109,10 @@ public class AssetContent extends BaseEntity {
         "/news/" + news.getId(),
         null);
   }
+
+  public void fillPublishedDateIfMissing(LocalDate fallbackDate) {
+    if (publishedDate == null) {
+      publishedDate = fallbackDate;
+    }
+  }
 }

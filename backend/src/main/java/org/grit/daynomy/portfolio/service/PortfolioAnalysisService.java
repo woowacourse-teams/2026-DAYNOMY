@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 public class PortfolioAnalysisService {
 
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
+  private final org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
   private final GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
   public PortfolioAnalysisResponse analyze(
@@ -46,7 +47,9 @@ public class PortfolioAnalysisService {
   }
 
   private PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
-    return response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
+    var result =
+        response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
+    return result.withOverallImpact(narrative.summarize(result));
   }
 
   public PortfolioAnalysisResponse refresh(
@@ -87,8 +90,16 @@ public class PortfolioAnalysisService {
                                                           : source.factQuote()))
                                           .toList()))
                       .toList());
-      return response(
-          request, portfolioAnalysisAiClient.refresh(createTargets(request.assets()), context));
+      var candidate =
+          response(
+              request, portfolioAnalysisAiClient.refresh(createTargets(request.assets()), context));
+      var revision = PortfolioAnalysisRefresh.compare(previous, candidate);
+      if (revision.outcome()
+          != org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED) {
+        return candidate;
+      }
+      var merged = revision.analysis();
+      return merged.withOverallImpact(narrative.summarize(merged));
     } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
       throw new IllegalStateException("이전 분석 근거를 변환하지 못했습니다.");
     }

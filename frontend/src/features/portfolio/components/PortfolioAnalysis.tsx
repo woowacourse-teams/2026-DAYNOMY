@@ -402,7 +402,7 @@ function PortfolioAssetList({
               <span
                 className={`portfolio-asset-analysis${impact ? ` ${directionClass(impact.direction)}` : ''}`}
               >
-                {impact ? `TOP ${impact.rank}` : '분석 결과 없음'}
+                {impact?.direction ? `TOP ${impact.rank}` : '근거 부족'}
               </span>
             </>
           );
@@ -559,7 +559,11 @@ function PortfolioImpactDetail({
     <article className={`portfolio-impact-detail ${directionClass(impact.direction)}`}>
       <div className="portfolio-detail-header">
         <div>
-          <span>{`포트폴리오 영향 TOP ${impact.rank} / ${analyzedAssetCount}`}</span>
+          <span>
+            {impact.direction === null
+              ? '보유 종목 · 근거 부족'
+              : `포트폴리오 영향 TOP ${impact.rank} / ${analyzedAssetCount}`}
+          </span>
           <h3>{impact.assetName}</h3>
         </div>
         <div className="portfolio-detail-badge-group">
@@ -592,20 +596,25 @@ type PortfolioAnalysisProps = {
   assets: PortfolioAsset[];
   isLoggedIn?: boolean;
   memberId?: number;
+  holdingsKey?: string;
 };
 
 export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
   return (
     <PortfolioAnalysisContent
-      key={props.isLoggedIn === false ? 'guest' : `member:${props.memberId ?? 'current'}`}
+      key={`${props.isLoggedIn === false ? 'guest' : `member:${props.memberId ?? 'current'}`}:${props.holdingsKey ?? ''}`}
       {...props}
     />
   );
 }
 
-function PortfolioAnalysisContent({ assets, isLoggedIn = true }: PortfolioAnalysisProps) {
+function PortfolioAnalysisContent({
+  assets,
+  isLoggedIn = true,
+  holdingsKey,
+}: PortfolioAnalysisProps) {
   const { analysis, saved, loading, loaded, error, trialExhausted, portfolioChanged, analyze } =
-    usePortfolioAnalysis(assets, isLoggedIn);
+    usePortfolioAnalysis(assets, isLoggedIn, holdingsKey);
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const sortedImpacts = useMemo(
     () => [...(analysis?.impacts ?? [])].sort((left, right) => left.rank - right.rank),
@@ -686,38 +695,47 @@ function PortfolioAnalysisContent({ assets, isLoggedIn = true }: PortfolioAnalys
                 : '분석 중'
               : saved?.status === 'PROCESSING'
                 ? '진행 상태 확인'
-                : analysis
-                  ? portfolioChanged
-                    ? '현재 자산으로 분석하기'
-                    : '새 소식 확인'
-                  : isLoggedIn
-                    ? '분석하기'
-                    : '1회 분석 체험하기'}
+                : portfolioChanged
+                  ? '현재 자산으로 분석하기'
+                  : analysis
+                    ? '새 소식 확인'
+                    : isLoggedIn
+                      ? '분석하기'
+                      : '1회 분석 체험하기'}
           </button>
         ) : null}
       </div>
 
       <div className="portfolio-analysis-meta">
         {portfolioChanged ? (
-          <p role="status">자산 구성이 바뀌었어요. 아래는 분석 당시 자산과 비중이에요.</p>
+          <p role="status">
+            자산 구성이 바뀌어 이전 분석을 숨겼어요. 현재 보유 자산으로 다시 분석해 주세요.
+          </p>
+        ) : null}
+        {!analysis && assets.length > 0 ? (
+          <p>분석 대상: {assets.map((asset) => asset.assetName).join(', ')}</p>
         ) : null}
         {analysis && loading ? <p role="status">기존 분석을 유지하며 확인하고 있어요.</p> : null}
         {!loading && saved?.status === 'PROCESSING' ? (
-          <p role="status">다른 요청에서 분석 중이에요. 잠시 후 진행 상태를 확인해 주세요.</p>
+          <p role="status">서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.</p>
         ) : null}
-        {!loading && saved?.status === 'RECHECK_REQUIRED' ? (
+        {analysis && !loading && saved?.status === 'RECHECK_REQUIRED' ? (
           <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
         ) : null}
-        {!loading && saved?.status === 'READY' && saved.lastCheckOutcome === 'UNCHANGED' ? (
+        {analysis &&
+        !loading &&
+        saved?.status === 'READY' &&
+        saved.lastCheckOutcome === 'UNCHANGED' ? (
           <p role="status">주요 변화가 없어 기존 분석을 유지했어요.</p>
         ) : null}
-        {!loading &&
+        {analysis &&
+        !loading &&
         saved?.status === 'READY' &&
         saved.lastCheckOutcome === 'UPDATED' &&
         saved.changeReason ? (
           <p role="status">{saved.changeReason}</p>
         ) : null}
-        {saved?.lastSucceededAt ? (
+        {analysis && saved?.lastSucceededAt ? (
           <p className="portfolio-analysis-checked-at">
             최근 확인:{' '}
             <time dateTime={saved.lastSucceededAt}>

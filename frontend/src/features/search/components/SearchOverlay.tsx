@@ -55,7 +55,7 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
       // 검색 이동은 브라우저 저장소 사용 가능 여부와 무관하게 동작한다.
     }
 
-    navigate(`/search?${new URLSearchParams({ q: keyword, category: 'ALL', page: '1' })}`);
+    navigate(`/search?${new URLSearchParams({ q: keyword, source: 'ALL', page: '1' })}`);
     closeDialog(false);
   }
 
@@ -112,14 +112,14 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
         >
           <SearchIcon />
           <label className="search-overlay-label" htmlFor="overlay-search-input">
-            뉴스 또는 종목 검색
+            소식 검색
           </label>
           <input
             ref={inputRef}
             id="overlay-search-input"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="뉴스나 종목을 검색해보세요"
+            placeholder="소식을 검색해보세요"
             autoComplete="off"
             required
             maxLength={100}

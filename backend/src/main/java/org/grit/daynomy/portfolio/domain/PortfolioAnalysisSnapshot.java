@@ -33,12 +33,17 @@ public record PortfolioAnalysisSnapshot(
             asset ->
                 new Asset(
                     asset.assetName().strip().toLowerCase(Locale.ROOT),
-                    asset.weight().stripTrailingZeros()))
+                    asset.weight().stripTrailingZeros(),
+                    asset.quantity()))
         .sorted(Comparator.comparing(Asset::assetName))
         .toList();
   }
 
-  public record Asset(String assetName, BigDecimal weight) {}
+  public record Asset(String assetName, BigDecimal weight, Long quantity) {
+    public Asset(String assetName, BigDecimal weight) {
+      this(assetName, weight, null);
+    }
+  }
 
   public record AssetImpact(
       String assetName,

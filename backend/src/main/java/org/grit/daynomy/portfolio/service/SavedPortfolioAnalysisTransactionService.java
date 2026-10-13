@@ -32,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SavedPortfolioAnalysisTransactionService {
 
-  private static final String ANALYSIS_VERSION = "portfolio-v3";
+  private static final String ANALYSIS_VERSION = "portfolio-v5";
   private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
   private static final int RETAINED_ANALYSES = 10;
 
@@ -115,7 +115,7 @@ public class SavedPortfolioAnalysisTransactionService {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_ASSETS_UNAVAILABLE);
     }
     // 비회원 브라우저에 남은 자산을 회원 분석으로 저장하지 않는다.
-    if (request != null && !sameAssets(request.assets(), assets)) {
+    if (request != null && !sameRequestedAssets(request.assets(), assets)) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_ASSETS_CHANGED);
     }
     PortfolioAnalysis previous = latest(memberId);
@@ -171,7 +171,7 @@ public class SavedPortfolioAnalysisTransactionService {
     }
     PortfolioAnalysis previous = latest(memberId);
     String reason =
-        previous == null ? "최초 분석" : matches(previous, assets) ? "분석 기준 변경" : "보유 자산 또는 비중 변경";
+        previous == null ? "최초 분석" : matches(previous, assets) ? "분석 기준 변경" : "보유 종목·수량·비중 변경";
     if (previous != null
         && matches(previous, assets)
         && ANALYSIS_VERSION.equals(previous.getAnalysisVersion())
@@ -187,7 +187,10 @@ public class SavedPortfolioAnalysisTransactionService {
         check.finish(token);
         return response(memberId, previous, check, assets, now);
       }
-      result = revision.analysis();
+      if (!result.impacts().equals(revision.analysis().impacts())) {
+        throw new IllegalStateException("최종 병합 결과와 전체 설명의 분석 대상이 다릅니다.");
+      }
+      result = revision.analysis().withOverallImpact(result.overallImpact());
       reason = revision.reason();
     }
     PortfolioAnalysis analysis =
@@ -304,7 +307,10 @@ public class SavedPortfolioAnalysisTransactionService {
         new ArrayList<>(
             calculated.holdings().stream()
                 .filter(holding -> holding.weight() != null && holding.weight().signum() > 0)
-                .map(holding -> new PortfolioAssetRequest(holding.name(), holding.weight()))
+                .map(
+                    holding ->
+                        new PortfolioAssetRequest(
+                            holding.name(), holding.weight(), holding.quantity()))
                 .toList());
     if (assets.isEmpty()) {
       return List.of();
@@ -321,8 +327,22 @@ public class SavedPortfolioAnalysisTransactionService {
     assets.set(
         largest,
         new PortfolioAssetRequest(
-            asset.assetName(), asset.weight().add(BigDecimal.valueOf(100).subtract(total))));
+            asset.assetName(),
+            asset.weight().add(BigDecimal.valueOf(100).subtract(total)),
+            asset.quantity()));
     return List.copyOf(assets);
+  }
+
+  // 요청의 수량을 신뢰하지 않고 서버 보유 내역으로 분석 스냅샷을 만든다.
+  private boolean sameRequestedAssets(
+      List<PortfolioAssetRequest> left, List<PortfolioAssetRequest> right) {
+    return PortfolioAnalysisSnapshot.sameAssets(
+        left.stream()
+            .map(asset -> new PortfolioAnalysisSnapshot.Asset(asset.assetName(), asset.weight()))
+            .toList(),
+        right.stream()
+            .map(asset -> new PortfolioAnalysisSnapshot.Asset(asset.assetName(), asset.weight()))
+            .toList());
   }
 
   private boolean sameAssets(List<PortfolioAssetRequest> left, List<PortfolioAssetRequest> right) {
@@ -335,7 +355,10 @@ public class SavedPortfolioAnalysisTransactionService {
 
   private List<PortfolioAnalysisSnapshot.Asset> toAssets(List<PortfolioAssetRequest> assets) {
     return assets.stream()
-        .map(asset -> new PortfolioAnalysisSnapshot.Asset(asset.assetName(), asset.weight()))
+        .map(
+            asset ->
+                new PortfolioAnalysisSnapshot.Asset(
+                    asset.assetName(), asset.weight(), asset.quantity()))
         .toList();
   }
 
@@ -352,7 +375,8 @@ public class SavedPortfolioAnalysisTransactionService {
         analysis == null ? Status.EMPTY : same ? Status.READY : Status.PORTFOLIO_CHANGED;
     if (analysis != null
         && same
-        && (check == null
+        && (!ANALYSIS_VERSION.equals(analysis.getAnalysisVersion())
+            || check == null
             || check.requiresRecheck(now)
             || analysis.getSnapshot().impacts().stream()
                 .noneMatch(impact -> impact.direction() != null))) {
