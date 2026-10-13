@@ -1,7 +1,14 @@
 import { startTransition, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useLoginStatus';
-import { ApiError, getMyProfile, logout, updateMyProfile, type MemberResponse } from '../pages/api';
+import {
+  ApiError,
+  getMyProfile,
+  logout,
+  withdraw,
+  updateMyProfile,
+  type MemberResponse,
+} from '../pages/api';
 import './MyPage.css';
 
 export function MyPage() {
@@ -12,6 +19,9 @@ export function MyPage() {
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [confirmingWithdrawal, setConfirmingWithdrawal] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawalError, setWithdrawalError] = useState('');
   const [editingNickname, setEditingNickname] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState('');
   const [savingNickname, setSavingNickname] = useState(false);
@@ -37,7 +47,7 @@ export function MyPage() {
   }, [retry]);
 
   async function handleSaveNickname() {
-    if (savingNickname || loggingOut) return;
+    if (savingNickname || loggingOut || withdrawing) return;
     const nickname = nicknameDraft.trim();
     setNicknameError('');
     setNicknameNotice('');
@@ -66,7 +76,7 @@ export function MyPage() {
   }
 
   async function handleLogout() {
-    if (loggingOut || savingNickname) return;
+    if (loggingOut || savingNickname || withdrawing) return;
     setLoggingOut(true);
     setError('');
     try {
@@ -82,163 +92,235 @@ export function MyPage() {
     }
   }
 
+  async function handleWithdraw() {
+    if (!confirmingWithdrawal || withdrawing || loggingOut || savingNickname) return;
+    setWithdrawing(true);
+    setWithdrawalError('');
+    try {
+      await withdraw();
+      startTransition(() => {
+        clearSession?.();
+        navigate('/news', { replace: true });
+      });
+    } catch {
+      setWithdrawalError('탈퇴하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.');
+      setWithdrawing(false);
+    }
+  }
+
   const links = [
     { to: '/', title: '내 포트폴리오', description: '입력한 원본 자산과 평가금액 확인' },
     {
-      to: '/league/portfolio',
-      title: '내 리그',
-      description: '종목 · 보유 이유 · 투자 기록',
+      to: '/league/profile',
+      title: '리그 프로필',
+      description: '리그 참여와 공개 프로필',
     },
     {
       to: '/league/following',
       title: '팔로우한 투자자',
       description: '이번 주 수익률과 복기 확인',
     },
+    {
+      to: '/portfolio/publication',
+      title: '리그 설정',
+      description: '공개 범위 · 프로필 · 순위 참여',
+    },
   ];
 
   return (
     <main className="mypage">
-      <header>
+      <header className="mypage-heading">
         <h1>마이페이지</h1>
         <p>내 계정과 공유 설정을 한곳에서 관리하세요.</p>
       </header>
-      <section aria-labelledby="mypage-account-title">
-        <h2 id="mypage-account-title">내 계정</h2>
-        {loading ? (
-          <p role="status">계정 정보를 불러오고 있습니다.</p>
-        ) : profile ? (
-          <dl>
-            <div>
-              <dt>
-                이메일<small className="mypage-visibility">비공개</small>
-              </dt>
-              <dd>{profile.email}</dd>
-            </div>
-            <div>
-              <dt>
-                이름<small className="mypage-visibility">비공개</small>
-              </dt>
-              <dd>
-                <span>{profile.name || '다시 Google 로그인하면 이름을 불러옵니다.'}</span>
-                <small className="mypage-note">Google 계정 이름 · 수정 불가</small>
-              </dd>
-            </div>
-            <div>
-              <dt>
-                닉네임<small className="mypage-visibility">공개용</small>
-              </dt>
-              <dd>
-                {editingNickname ? (
-                  <form
-                    className="mypage-nickname-form"
-                    noValidate
-                    aria-busy={savingNickname}
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void handleSaveNickname();
-                    }}
-                  >
-                    <label htmlFor="mypage-nickname">새 닉네임</label>
-                    <input
-                      id="mypage-nickname"
-                      name="nickname"
-                      autoComplete="nickname"
-                      required
-                      maxLength={20}
-                      value={nicknameDraft}
-                      disabled={savingNickname}
-                      aria-invalid={Boolean(nicknameError)}
-                      aria-describedby={`mypage-nickname-hint${nicknameError ? ' mypage-nickname-error' : ''}`}
-                      onChange={(event) => {
-                        setNicknameDraft(event.target.value);
-                        setNicknameError('');
-                      }}
-                    />
-                    <p id="mypage-nickname-hint" className="mypage-note">
-                      1~20자 · 앞뒤 공백 제외 · 다른 회원과 중복 불가
-                    </p>
-                    {nicknameError ? (
-                      <p id="mypage-nickname-error" role="alert">
-                        {nicknameError}
-                      </p>
-                    ) : null}
-                    <div className="mypage-nickname-actions">
-                      <button type="submit" disabled={savingNickname}>
-                        {savingNickname ? '저장 중…' : '닉네임 저장'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={savingNickname}
-                        onClick={() => {
-                          setEditingNickname(false);
-                          setNicknameError('');
-                        }}
-                      >
-                        취소
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="mypage-nickname-actions">
-                    <span>{profile.nickname}</span>
-                    <button
-                      type="button"
-                      disabled={loggingOut}
-                      onClick={() => {
-                        setNicknameDraft(profile.nickname);
-                        setNicknameError('');
-                        setNicknameNotice('');
-                        setEditingNickname(true);
+      <div className="mypage-content">
+        <section className="mypage-account" aria-labelledby="mypage-account-title">
+          <h2 id="mypage-account-title">내 계정</h2>
+          {loading ? (
+            <p role="status">계정 정보를 불러오고 있습니다.</p>
+          ) : profile ? (
+            <dl>
+              <div>
+                <dt>
+                  이메일<small className="mypage-visibility">비공개</small>
+                </dt>
+                <dd>{profile.email}</dd>
+              </div>
+              <div>
+                <dt>
+                  이름<small className="mypage-visibility">비공개</small>
+                </dt>
+                <dd>
+                  <span>{profile.name || '다시 Google 로그인하면 이름을 불러옵니다.'}</span>
+                  <small className="mypage-note">Google 계정 이름 · 수정 불가</small>
+                </dd>
+              </div>
+              <div
+                className={
+                  editingNickname ? 'mypage-nickname-row is-editing' : 'mypage-nickname-row'
+                }
+              >
+                <dt>
+                  닉네임<small className="mypage-visibility">공개용</small>
+                </dt>
+                <dd>
+                  {editingNickname ? (
+                    <form
+                      className="mypage-nickname-form"
+                      noValidate
+                      aria-busy={savingNickname}
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void handleSaveNickname();
                       }}
                     >
-                      닉네임 변경
-                    </button>
-                  </div>
-                )}
-              </dd>
+                      <label htmlFor="mypage-nickname">새 닉네임</label>
+                      <input
+                        id="mypage-nickname"
+                        name="nickname"
+                        autoComplete="nickname"
+                        required
+                        maxLength={20}
+                        value={nicknameDraft}
+                        disabled={savingNickname || withdrawing}
+                        aria-invalid={Boolean(nicknameError)}
+                        aria-describedby={`mypage-nickname-hint${nicknameError ? ' mypage-nickname-error' : ''}`}
+                        onChange={(event) => {
+                          setNicknameDraft(event.target.value);
+                          setNicknameError('');
+                        }}
+                      />
+                      <p id="mypage-nickname-hint" className="mypage-note">
+                        1~20자 · 앞뒤 공백 제외 · 다른 회원과 중복 불가
+                      </p>
+                      {nicknameError ? (
+                        <p id="mypage-nickname-error" role="alert">
+                          {nicknameError}
+                        </p>
+                      ) : null}
+                      <div className="mypage-nickname-actions">
+                        <button type="submit" disabled={savingNickname || withdrawing}>
+                          {savingNickname ? '저장 중…' : '닉네임 저장'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingNickname || withdrawing}
+                          onClick={() => {
+                            setEditingNickname(false);
+                            setNicknameError('');
+                          }}
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="mypage-nickname-actions">
+                      <span>{profile.nickname}</span>
+                      <button
+                        type="button"
+                        disabled={loggingOut || withdrawing}
+                        onClick={() => {
+                          setNicknameDraft(profile.nickname);
+                          setNicknameError('');
+                          setNicknameNotice('');
+                          setEditingNickname(true);
+                        }}
+                      >
+                        닉네임 변경
+                      </button>
+                    </div>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <button type="button" onClick={() => setRetry((value) => value + 1)}>
+              계정 정보 다시 불러오기
+            </button>
+          )}
+          {nicknameNotice ? <p role="status">{nicknameNotice}</p> : null}
+          <p className="mypage-note">
+            닉네임은 리그에서도 사용하며, 프로필 공개에 동의하면 다른 사용자에게 표시됩니다.
+          </p>
+        </section>
+        <div className="mypage-side">
+          <section aria-labelledby="mypage-activity-title">
+            <h2 id="mypage-activity-title">활동 및 리그</h2>
+            <nav aria-label="활동 및 리그">
+              {links.map((link) => (
+                <Link key={link.to} to={link.to}>
+                  <strong>{link.title}</strong>
+                  <span>{link.description}</span>
+                </Link>
+              ))}
+            </nav>
+          </section>
+        </div>
+      </div>
+      <section className="mypage-session" aria-labelledby="mypage-session-title">
+        <div className="mypage-session-heading">
+          <h2 id="mypage-session-title">계정 관리</h2>
+        </div>
+        <div className="mypage-session-content">
+          {error ? <p role="alert">{error}</p> : null}
+          <div className="mypage-session-row">
+            <div>
+              <h3>로그아웃</h3>
+              <p className="mypage-note">이 기기에서 로그아웃합니다.</p>
             </div>
-          </dl>
-        ) : (
-          <button type="button" onClick={() => setRetry((value) => value + 1)}>
-            계정 정보 다시 불러오기
-          </button>
-        )}
-        {nicknameNotice ? <p role="status">{nicknameNotice}</p> : null}
-        <p className="mypage-note">
-          이름과 이메일은 본인에게만 표시됩니다. 닉네임은 리그에서도 동일하게 사용하며, 프로필
-          공개에 동의한 경우 다른 사용자에게 표시됩니다.
-        </p>
-        <p className="mypage-note">이메일은 다른 투자자에게 공개되지 않습니다.</p>
+            <button
+              type="button"
+              className="mypage-logout"
+              disabled={loggingOut || savingNickname || withdrawing}
+              onClick={() => void handleLogout()}
+            >
+              {loggingOut ? '로그아웃 중…' : '로그아웃'}
+            </button>
+          </div>
+          <section className="mypage-withdrawal" aria-labelledby="mypage-withdrawal-title">
+            <div>
+              <h3 id="mypage-withdrawal-title">회원 탈퇴</h3>
+              <p className="mypage-note">탈퇴 전 계정 이용 종료 안내를 확인해 주세요.</p>
+            </div>
+            {confirmingWithdrawal ? (
+              <div className="mypage-withdrawal-confirm" aria-busy={withdrawing}>
+                <p>탈퇴하면 현재 계정으로 서비스를 이용할 수 없습니다. 탈퇴하시겠어요?</p>
+                {withdrawalError ? <p role="alert">{withdrawalError}</p> : null}
+                <div className="mypage-nickname-actions">
+                  <button
+                    type="button"
+                    disabled={withdrawing}
+                    onClick={() => {
+                      setConfirmingWithdrawal(false);
+                      setWithdrawalError('');
+                    }}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="mypage-withdraw-button"
+                    disabled={withdrawing || loggingOut || savingNickname}
+                    onClick={() => void handleWithdraw()}
+                  >
+                    {withdrawing ? '탈퇴 처리 중…' : '탈퇴 확정'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="mypage-withdraw-button"
+                disabled={loading || !profile || loggingOut || savingNickname}
+                onClick={() => setConfirmingWithdrawal(true)}
+              >
+                탈퇴하기
+              </button>
+            )}
+          </section>
+        </div>
       </section>
-      <section aria-labelledby="mypage-activity-title">
-        <h2 id="mypage-activity-title">내 활동</h2>
-        <nav aria-label="내 활동">
-          {links.map((link) => (
-            <Link key={link.to} to={link.to}>
-              <strong>{link.title}</strong>
-              <span>{link.description}</span>
-            </Link>
-          ))}
-        </nav>
-      </section>
-      <section aria-labelledby="mypage-settings-title">
-        <h2 id="mypage-settings-title">설정</h2>
-        <nav aria-label="계정·공개 설정">
-          <Link to="/portfolio/publication">
-            <strong>리그 설정</strong>
-            <span>공개 범위 · 프로필 · 순위 참여</span>
-          </Link>
-        </nav>
-      </section>
-      {error ? <p role="alert">{error}</p> : null}
-      <button
-        type="button"
-        className="mypage-logout"
-        disabled={loggingOut || savingNickname}
-        onClick={() => void handleLogout()}
-      >
-        {loggingOut ? '로그아웃 중…' : '로그아웃'}
-      </button>
     </main>
   );
 }

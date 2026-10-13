@@ -179,7 +179,7 @@ test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 �
     .getByRole('link', { name: '투자 리그' })
     .click();
   await expect(page).toHaveURL('/league');
-  await expect(page.getByRole('heading', { name: '투자 리그' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '주간 리그' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toBeVisible();
   await page.getByRole('link', { name: '마이페이지' }).click();
   await expect(page).toHaveURL('/mypage');
@@ -190,6 +190,93 @@ test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 �
   await expect(page.getByRole('heading', { name: '종목 관련 링크' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: '관리자 메뉴' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toHaveCount(0);
+});
+
+test('신규 참여자의 0% 순위를 바로 표시하고 주간 누적과 다음 주 갱신을 보여준다', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let phase = 0;
+  const rates = [0, 21, -5];
+  const starts = ['2026-09-21', '2026-09-21', '2026-09-28'];
+  const asOfDates = ['2026-09-23', '2026-09-25', '2026-09-28'];
+  const entry = () => ({
+    rank: 1,
+    publicId: 'new-investor',
+    displayName: '새로운참여자',
+    experienceLevel: 'BEGINNER',
+    riskProfile: 'BALANCED',
+    weeklyReturnRate: rates[phase],
+    eightWeekReturnRate: null,
+    maxDrawdownRate: null,
+    volatilityRate: null,
+    maxHoldingWeight: 100,
+    decisionCount: 1,
+    reviewCompletionRate: 0,
+    followed: false,
+  });
+  await page.route('**/api/league/weeks', (route) =>
+    route.fulfill({
+      json: {
+        weeks: [0, 1, 2].map((offset) => ({
+          weekStart: new Date(Date.parse(starts[phase]) - offset * 7 * 86400000)
+            .toISOString()
+            .slice(0, 10),
+          weekEnd: new Date(Date.parse(starts[phase]) + (6 - offset * 7) * 86400000)
+            .toISOString()
+            .slice(0, 10),
+          confirmed: offset > 0,
+        })),
+      },
+    }),
+  );
+  await page.route('**/api/league/rankings**', (route) =>
+    route.fulfill({
+      json: {
+        weekStart: starts[phase],
+        weekEnd: phase === 2 ? '2026-10-04' : '2026-09-27',
+        leagueType: 'WEEKLY_RETURN',
+        confirmed: false,
+        totalCount: 1,
+        asOfDate: asOfDates[phase],
+        rankings: [entry()],
+      },
+    }),
+  );
+  await page.route('**/api/league/investors/new-investor', (route) =>
+    route.fulfill({
+      json: {
+        ...entry(),
+        bio: '',
+        performance: { ...entry(), weeklyRank: 1 },
+        allocation: null,
+        history: [
+          { weekStart: starts[phase], weeklyReturnRate: rates[phase], maxDrawdownRate: null },
+        ],
+        detailAvailable: false,
+      },
+    }),
+  );
+  await page.goto('/league');
+  await expect(page.getByText('0.00%', { exact: true })).toBeVisible();
+  await expect(page.getByText('2026-09-23 종가 기준', { exact: false })).toBeVisible();
+  await page.getByRole('link', { name: '새로운참여자 공개 프로필 보기', exact: true }).click();
+  await expect(
+    page.getByRole('region', { name: '성과와 위험 지표' }).getByText('0.00%', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: '성과와 위험 지표' }).getByText('1위', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('전체 누적 수익률')).toHaveCount(0);
+  for (const currentPhase of [1, 2]) {
+    phase = currentPhase;
+    await page.goto('/league');
+    await expect(
+      page.getByText(`${phase === 1 ? '+' : ''}${rates[phase].toFixed(2)}%`, { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole('combobox', { name: '조회 주차' })).toHaveValue(starts[phase]);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 for (const width of [1440, 390]) {
@@ -351,12 +438,12 @@ for (const width of [1440, 390]) {
     await expect(dialog).toHaveCount(0);
     await expect(trigger).toBeFocused();
     await trigger.click();
-    await dialog.getByRole('link', { name: '성과 보기' }).click();
+    await dialog.getByRole('link', { name: '공개 프로필 보기' }).click();
 
     await expect(page.getByRole('heading', { name: '차분한초보', level: 1 })).toBeVisible();
-    const chart = page.getByLabel('최근 8주 주간 수익률', { exact: true });
-    await expect(chart.getByRole('button')).toHaveCount(8);
-    await expect(chart.locator('.league-week-bar')).toHaveCount(7);
+    const chart = page.getByLabel('최근 3주 주간 수익률', { exact: true });
+    await expect(chart.getByRole('button')).toHaveCount(3);
+    await expect(chart.locator('.league-week-bar')).toHaveCount(3);
     if (width === 390) {
       const latest = await chart.getByRole('button').last().boundingBox();
       expect(latest?.x).toBeGreaterThanOrEqual(0);
@@ -378,39 +465,23 @@ for (const width of [1440, 390]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await page
-      .getByRole('navigation', { name: '투자자 상세 탐색' })
-      .getByRole('link', { name: '공개 종목', exact: true })
-      .click();
     await expect(page.getByText('보유 이유: 공시를 확인한 보유 판단')).toBeVisible();
-    await page
-      .getByRole('navigation', { name: '투자자 상세 탐색' })
-      .getByRole('link', { name: '투자 기록', exact: true })
-      .click();
     await expect(page.getByText('당일 작성한 판단 근거')).toBeVisible();
-    await expect(page.getByText('실적 악화', { exact: true })).toBeVisible();
+    await expect(page.getByText('실적 악화', { exact: true })).toHaveCount(0);
     await expect(page.locator('main details')).toHaveCount(0);
-    await page
-      .getByRole('navigation', { name: '투자자 상세 탐색' })
-      .getByRole('link', { name: '성과', exact: true })
-      .click();
     await page.getByRole('button', { name: '일별', exact: true }).click();
-    await expect(page.getByRole('heading', { name: '일별 수익률 · 주간 누적' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '일별 수익률' })).toBeVisible();
     await expect(page.getByText('주간 누적 -1.00%', { exact: true })).toBeVisible();
     await expect(page.getByRole('table')).toContainText('+10.00%');
     await page.getByRole('button', { name: '주간', exact: true }).click();
     await page.getByRole('button', { name: /2026-09-28 주간.*일별 기록 보기/ }).click();
     await expect(page.getByRole('combobox', { name: '조회 주차' })).toHaveValue('2026-09-28');
     await expect(page.getByRole('link', { name: '멤버십 알아보기' })).toHaveCount(0);
-    await page
-      .getByRole('navigation', { name: '투자자 상세 탐색' })
-      .getByRole('link', { name: '공개 종목', exact: true })
-      .click();
-    await expect(page.getByText('금액 비공개', { exact: true })).toBeVisible();
-    await page.getByRole('link', { name: '← 투자 리그' }).click();
-    await page.getByRole('link', { name: '차분한초보 투자 기록', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '공개 종목', exact: true })).toBeVisible();
+    await page.getByRole('link', { name: '← 주간 리그', exact: true }).click();
+    await page.getByRole('link', { name: '차분한초보 공개 프로필 보기', exact: true }).click();
     await expect(page.getByRole('heading', { name: '투자 기록', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: '주간 수익률', exact: true })).toBeHidden();
+    await expect(page.getByRole('heading', { name: '주간 수익률', exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('heading', { name: '투자 기록', exact: true })).toBeVisible();
   });

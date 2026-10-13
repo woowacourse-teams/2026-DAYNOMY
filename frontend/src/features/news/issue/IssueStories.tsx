@@ -108,9 +108,6 @@ export function IssueStories({
                   }}
                 />
                 <h3>{article.title}</h3>
-                <span>
-                  기사 읽기 <span aria-hidden="true">↗</span>
-                </span>
               </Link>
             ))}
           </div>

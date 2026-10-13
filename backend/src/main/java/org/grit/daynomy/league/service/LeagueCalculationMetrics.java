@@ -31,9 +31,12 @@ public class LeagueCalculationMetrics {
   private final AtomicLong calendarMissingDays = new AtomicLong();
   private final AtomicLong pendingWeeks = new AtomicLong();
   private final AtomicLong oldestPendingClose = new AtomicLong();
+  private final AtomicLong latestWeeksScanned = new AtomicLong();
   private final Counter profileFailures;
   private final Counter runFailures;
   private final Timer duration;
+  private final Timer fullFinalizationDuration;
+  private final Timer incrementalFinalizationDuration;
 
   public LeagueCalculationMetrics(MeterRegistry registry) {
     profiles.forEach(
@@ -62,9 +65,16 @@ public class LeagueCalculationMetrics {
             this,
             LeagueCalculationMetrics::finalizationDelay)
         .register(registry);
+    Gauge.builder(
+            "daynomy.league.finalization.latest.weeks.scanned", latestWeeksScanned, AtomicLong::get)
+        .register(registry);
     profileFailures = registry.counter("daynomy.league.calculation.profile.failures");
     runFailures = registry.counter("daynomy.league.calculation.run.failures");
     duration = registry.timer("daynomy.league.calculation.duration");
+    fullFinalizationDuration =
+        registry.timer("daynomy.league.finalization.duration", "mode", "full");
+    incrementalFinalizationDuration =
+        registry.timer("daynomy.league.finalization.duration", "mode", "incremental");
   }
 
   public long startRun() {
@@ -102,6 +112,12 @@ public class LeagueCalculationMetrics {
     calendarMissingDays.set(missingDays);
     pendingWeeks.set(pending);
     oldestPendingClose.set(oldestClose == null ? 0 : oldestClose.getEpochSecond());
+  }
+
+  public void finalizationMeasured(long started, int weeks, boolean full) {
+    (full ? fullFinalizationDuration : incrementalFinalizationDuration)
+        .record(System.nanoTime() - started, TimeUnit.NANOSECONDS);
+    latestWeeksScanned.set(weeks);
   }
 
   private double finalizationDelay() {

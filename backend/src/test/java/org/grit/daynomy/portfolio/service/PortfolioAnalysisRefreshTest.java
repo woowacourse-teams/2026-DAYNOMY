@@ -58,6 +58,62 @@ class PortfolioAnalysisRefreshTest {
         .isEqualTo(Outcome.UNCONFIRMED);
   }
 
+  @Test
+  void emptyEvidenceCannotConfirmUnchangedAnalysis() {
+    var previous = response(insufficient("삼성전자"));
+    var revision = PortfolioAnalysisRefresh.compare(previous, response(insufficient("삼성전자")));
+    assertThat(revision.outcome()).isEqualTo(Outcome.UNCONFIRMED);
+    assertThat(revision.analysis()).isSameAs(previous);
+  }
+
+  @Test
+  void insufficientAssetDoesNotBlockNewEvidenceForAnotherAsset() {
+    var previous = response(insufficient("삼성전자"), insufficient("SK하이닉스"));
+    var candidate =
+        response(insufficient("삼성전자"), impact("SK하이닉스", true, ImpactDirection.NEGATIVE));
+    var revision = PortfolioAnalysisRefresh.compare(previous, candidate);
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().analyzedAssetCount()).isEqualTo(1);
+    assertThat(revision.analysis().impacts())
+        .filteredOn(i -> i.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isNull());
+  }
+
+  @Test
+  void preservesOldEvidenceWhileUpdatingOtherVerifiedAsset() {
+    var old =
+        response(
+            impact("삼성전자", false, ImpactDirection.NEGATIVE),
+            impact("SK하이닉스", false, ImpactDirection.NEGATIVE));
+    var candidate =
+        response(insufficient("삼성전자"), impact("SK하이닉스", true, ImpactDirection.POSITIVE));
+    var revision = PortfolioAnalysisRefresh.compare(old, candidate);
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().impacts())
+        .filteredOn(i -> i.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.sources()).isEqualTo(old.impacts().getFirst().sources()));
+    assertThat(revision.analysis().overallScore()).isEqualByComparingTo("0");
+    assertThat(revision.analysis().analyzedAssetCount()).isEqualTo(2);
+    assertThat(revision.analysis().overallImpact()).doesNotContain("검증되지 않은 전체 설명");
+  }
+
+  private PortfolioAssetImpactResponse insufficient(String name) {
+    return new PortfolioAssetImpactResponse(
+        name,
+        new BigDecimal("50"),
+        null,
+        null,
+        "근거가 부족해요.",
+        "",
+        "",
+        "근거가 부족해요.",
+        "근거가 부족해요.",
+        List.of(),
+        1);
+  }
+
   private PortfolioAnalysisResponse response(PortfolioAssetImpactResponse... impacts) {
     var list = List.of(impacts);
     return PortfolioAnalysisResponse.of(

@@ -1,10 +1,10 @@
 .people-page {
-  --people-side-padding: clamp(56px, 8vw, 160px);
+  --people-side-padding: var(--page-side-padding);
   --people-ink: #171821;
   --people-muted: #637082;
   --people-line: #e6e8ec;
   --people-accent: #394fc4;
-  width: min(100%, 2560px);
+  width: 100%;
   margin: 0 auto;
   padding: 0 0 88px;
   color: var(--people-ink);
@@ -31,10 +31,10 @@
 }
 
 .people-heading h1 {
-  font-size: clamp(24px, 1.6vw, 30px);
-  line-height: 1.1;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  font-size: var(--page-title-size);
+  line-height: var(--page-title-line-height);
+  font-weight: var(--page-title-weight);
+  letter-spacing: var(--page-title-letter-spacing);
 }
 
 .people-heading p {
@@ -531,7 +531,7 @@
 
 @media (max-width: 900px) {
   .people-page {
-    --people-side-padding: 32px;
+    --people-side-padding: var(--page-side-padding);
   }
 
   .people-trend-grid {
@@ -569,7 +569,7 @@
 
 @media (max-width: 620px) {
   .people-page {
-    --people-side-padding: 18px;
+    --people-side-padding: var(--page-side-padding);
     padding-bottom: 64px;
   }
 
@@ -582,7 +582,7 @@
   }
 
   .people-heading h1 {
-    font-size: 28px;
+    font-size: var(--page-title-size);
   }
 
   .people-trend-grid,

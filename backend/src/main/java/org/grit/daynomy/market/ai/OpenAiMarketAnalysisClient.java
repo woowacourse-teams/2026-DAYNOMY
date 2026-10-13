@@ -38,6 +38,7 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       먼저 본문 전체의 핵심 사건, 원인, 조건과 불확실성을 파악하세요.
       각 항목은 240자 이내의 1~2문장으로 핵심만 작성하세요. 소제목, 항목명, 목록, 마크다운을 넣지 마세요.
       모든 문장을 '-했어요', '-이에요', '-할 수 있어요', '-하세요' 같은 자연스러운 해요체로 통일하세요.
+      문장은 반드시 온점(.)으로 끝내고 세미콜론(; 또는 ；)으로 연결하지 마세요.
       risk는 본문에 근거해 어떤 조건에서 어떤 기대가 실현되지 않거나 부정적 영향이 생기는지 설명하세요.
       모든 기사에 붙일 수 있는 '변동성에 주의하세요' 같은 일반론이나 기사 요약 반복을 피하세요.
       watchPoint는 위험이나 불확실성을 판단하려면 무엇을 왜 확인해야 하는지 구체적으로 설명하세요.
@@ -216,6 +217,12 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
   private String requiredText(JsonNode root, String fieldName) {
     JsonNode field = root.path(fieldName);
     String value = field.asText().strip();
+    // 생성된 설명에만 적용한다. 원문 근거·URL에는 적용하지 않는다.
+    value = value.replaceAll("[;；]+\\s*", ". ").replaceAll("\\.[ ]*\\.", ".").strip();
+    value = value.replaceAll("요[!?]", "요.");
+    if (value.endsWith("요")) {
+      value += ".";
+    }
     if (!field.isTextual() || value.isBlank()) {
       throw new IllegalStateException(
           "OpenAI market analysis response must contain " + fieldName + ".");

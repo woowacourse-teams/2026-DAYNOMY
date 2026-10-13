@@ -191,7 +191,7 @@ describe('뉴스 탐색 화면', () => {
 
     const view = renderPage(<NewsListPage />);
 
-    expect((await view.findByRole('status')).textContent).toContain(
+    expect((await view.findByRole('alert')).textContent).toContain(
       '이슈 목록을 불러오지 못했습니다.',
     );
   });
