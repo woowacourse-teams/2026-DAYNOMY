@@ -85,9 +85,9 @@ export function MyPage() {
   const links = [
     { to: '/', title: '내 포트폴리오', description: '입력한 원본 자산과 평가금액 확인' },
     {
-      to: '/league/portfolio',
-      title: '내 리그',
-      description: '종목 · 보유 이유 · 투자 기록',
+      to: '/league/profile',
+      title: '리그 프로필',
+      description: '리그 참여와 공개 프로필',
     },
     {
       to: '/league/following',

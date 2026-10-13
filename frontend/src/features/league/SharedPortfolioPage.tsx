@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   changeSharedHoldingVisibility,
   getSharedPortfolio,
   importSharedHoldings,
   readSourceHoldings,
+  removeSharedHolding,
   type SharedPortfolio,
   type SourceHolding,
 } from './sharedPortfolioApi';
@@ -18,13 +19,12 @@ const won = (value: number | null) =>
   value === null
     ? '가격 확인 중'
     : `${value.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원`;
-const rate = (value: number | null) =>
-  value === null ? '집계 전' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : '요청을 처리하지 못했습니다. 다시 시도해 주세요.';
 
 export function SharedPortfolioPage() {
   const { hash } = useLocation();
+  const navigate = useNavigate();
   const [data, setData] = useState<SharedPortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -43,12 +43,19 @@ export function SharedPortfolioPage() {
   const [profileError, setProfileError] = useState(false);
   const panelHeading = useRef<HTMLHeadingElement>(null);
   const holdingsHeading = useRef<HTMLHeadingElement>(null);
+  const wasImportOpen = useRef(false);
   useEffect(() => {
+    if (loading) return;
     if (source) {
       panelHeading.current?.focus({ preventScroll: true });
       panelHeading.current?.scrollIntoView?.({ block: 'start' });
-    } else holdingsHeading.current?.focus({ preventScroll: true });
-  }, [source]);
+    } else if (wasImportOpen.current) {
+      const heading = holdingsHeading.current;
+      heading?.focus({ preventScroll: true });
+      heading?.scrollIntoView?.({ block: 'start' });
+    }
+    wasImportOpen.current = source !== null;
+  }, [loading, source]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -73,8 +80,19 @@ export function SharedPortfolioPage() {
     setError('');
     setData(null);
     getSharedPortfolio(controller.signal)
-      .then((value) => {
-        if (!controller.signal.aborted) setData(value);
+      .then(async (value) => {
+        if (controller.signal.aborted) return;
+        setData(value);
+        if (hash === '#select') {
+          const values = await readSourceHoldings();
+          if (controller.signal.aborted) return;
+          setSource(values);
+          setSelection(
+            values
+              .filter((h) => !value.holdings.some((s) => s.assetId === h.assetId))
+              .map((h) => h.assetId),
+          );
+        }
       })
       .catch((caught) => {
         if (!controller.signal.aborted) setError(errorMessage(caught));
@@ -83,10 +101,10 @@ export function SharedPortfolioPage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [retry]);
+  }, [retry, hash]);
 
   async function mutate(action: () => Promise<SharedPortfolio>, success: string) {
-    if (busy || loading || !data) return;
+    if (busy || loading || !data) return false;
     setBusy(true);
     setError('');
     setMessage('');
@@ -94,8 +112,10 @@ export function SharedPortfolioPage() {
       setData(await action());
       setMessage(success);
       setSource(null);
+      return true;
     } catch (caught) {
       setError(errorMessage(caught));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -154,20 +174,33 @@ export function SharedPortfolioPage() {
         };
     const saved = await importSharedHoldings(selected, overwrite, decisions);
     setRecordRefresh((value) => value + 1);
+    if (
+      hash === '#select' &&
+      !profileLoading &&
+      !profileError &&
+      !profile?.leagueEnabled &&
+      saved.holdings.length > 0 &&
+      saved.holdings.every(
+        (h) => h.reason.trim() || hasReason(h.assetId) || decisions[h.assetId]?.reason.trim(),
+      )
+    )
+      navigate('/portfolio/publication?join=true');
     return saved;
   }
   if (hash === '#league-settings') return <Navigate to="/portfolio/publication" replace />;
   return (
-    <main className="league-page shared-page">
+    <main className="league-page shared-page league-holdings-page">
       <header className="league-hero">
-        <h1>내 리그</h1>
-        <Link className="league-secondary-link" to="/portfolio/publication">
-          리그 설정
+        <h1 ref={holdingsHeading} tabIndex={-1}>
+          종목 관리
+        </h1>
+        <Link className="league-text-link" to="/league/reviews">
+          투자 기록·복기
         </Link>
       </header>
       {loading ? (
         <p className="league-state" role="status">
-          공유 자산을 불러오는 중입니다.
+          종목을 불러오는 중이에요.
         </p>
       ) : !data ? (
         <section className="league-state">
@@ -186,25 +219,31 @@ export function SharedPortfolioPage() {
               {error}
             </p>
           ) : null}
+          {profileError ? (
+            <p role="alert" className="league-inline-error">
+              공개 상태 확인 실패{' '}
+              <button onClick={() => setProfileRetry((value) => value + 1)}>다시 확인</button>
+            </p>
+          ) : null}
           {source ? (
             <section
               className="shared-panel shared-import-panel"
               aria-labelledby="shared-import-title"
             >
               <h2 id="shared-import-title" ref={panelHeading} tabIndex={-1}>
-                가져올 자산 선택
+                종목 추가
               </h2>
               {detailsPublic ? (
-                <p className="shared-privacy-note">가져온 종목과 보유 이유가 공개됩니다.</p>
+                <p className="shared-privacy-note">추가한 종목과 보유 이유가 공개됩니다.</p>
               ) : null}
               {source.length === 0 ? (
                 <p>
-                  원본에 등록된 자산이 없어요. <Link to="/">포트폴리오 입력하기</Link>
+                  포트폴리오에 종목이 없어요. <Link to="/">포트폴리오 입력하기</Link>
                 </p>
               ) : (
                 <>
                   <fieldset disabled={busy}>
-                    <legend>원본 자산 목록</legend>
+                    <legend>내 포트폴리오에서 선택</legend>
                     {source.map((h) => {
                       const existing = data.holdings.find((s) => s.assetId === h.assetId);
                       return (
@@ -225,16 +264,16 @@ export function SharedPortfolioPage() {
                             <span>
                               <strong>
                                 {h.assetName}{' '}
-                                <small className="shared-import-badge">
-                                  {existing ? '이미 가져온 종목' : '새 종목'}
-                                </small>
+                                {existing ? (
+                                  <small className="shared-import-badge">등록됨</small>
+                                ) : null}
                               </strong>
                               <small>
-                                원본: {h.quantity}주 · 평균 {won(h.averagePurchasePrice)}
+                                {h.quantity}주 · 평균 {won(h.averagePurchasePrice)}
                               </small>
                               {existing ? (
                                 <small>
-                                  공유용: {existing.quantity}주 · 평균{' '}
+                                  리그: {existing.quantity}주 · 평균{' '}
                                   {won(existing.averagePurchasePrice)}
                                   {existing.hidden ? ' · 숨김' : ''}
                                 </small>
@@ -265,7 +304,7 @@ export function SharedPortfolioPage() {
                     })}
                   </fieldset>
                   {selected.length === 0 ? (
-                    <p>가져올 종목을 선택하면 아래 버튼이 활성화돼요.</p>
+                    <p>추가할 종목을 선택해 주세요.</p>
                   ) : missingImportReasons.length > 0 ? (
                     <p>{missingImportReasons.length}개 종목의 보유 이유를 작성해 주세요.</p>
                   ) : null}
@@ -277,8 +316,8 @@ export function SharedPortfolioPage() {
                         checked={overwrite}
                         onChange={(event) => setOverwrite(event.target.checked)}
                       />
-                      선택한 기존 {conflicts.length}종목의 수량·평균 매수가를 원본 값으로
-                      갱신합니다. 숨김·판단 근거는 유지합니다.
+                      등록된 {conflicts.length}개 종목의 수량·평균 매수가를 업데이트합니다. 공개
+                      여부와 보유 이유는 유지됩니다.
                     </label>
                   ) : null}
                 </>
@@ -289,15 +328,18 @@ export function SharedPortfolioPage() {
                     className="shared-primary-button"
                     disabled={
                       busy ||
+                      records === null ||
+                      profileLoading ||
+                      profileError ||
                       selected.length === 0 ||
                       missingImportReasons.length > 0 ||
                       (conflicts.length > 0 && !overwrite)
                     }
                     onClick={() =>
-                      void mutate(importSelection, `${selected.length}종목을 가져왔습니다.`)
+                      void mutate(importSelection, `${selected.length}개 종목을 추가했습니다.`)
                     }
                   >
-                    {busy ? '가져오는 중…' : `${selected.length}종목 가져오기`}
+                    {busy ? '추가 중…' : `${selected.length}개 종목 추가`}
                   </button>
                 ) : null}
                 <button disabled={busy} onClick={() => setSource(null)}>
@@ -307,61 +349,40 @@ export function SharedPortfolioPage() {
             </section>
           ) : null}
           <div hidden={source !== null}>
-            {data.holdings.length > 0 ? (
-              <section className="shared-overview" aria-label="내 자산 요약">
-                <header>
-                  <h2>내 자산 요약</h2>
-                  <span>나만 보기</span>
-                </header>
-                <dl>
-                  <div>
-                    <dt>평가금액</dt>
-                    <dd>{won(data.pricesComplete ? data.totalEvaluationAmount : null)}</dd>
-                  </div>
-                  <div>
-                    <dt>매수가 대비 수익률</dt>
-                    <dd>{rate(data.pricesComplete ? data.totalReturnRate : null)}</dd>
-                  </div>
-                </dl>
-                {!data.pricesComplete ? (
-                  <p>가격이 없는 종목이 있어 전체 평가금액과 수익률은 표시하지 않았어요.</p>
-                ) : null}
-              </section>
-            ) : null}
-
             <section className="shared-list" aria-labelledby="shared-holdings-title">
               <header className="shared-section-heading">
                 <div>
-                  <h2 id="shared-holdings-title" ref={holdingsHeading} tabIndex={-1}>
-                    리그 종목 {data.holdings.length}개
+                  <h2 id="shared-holdings-title" className="league-sr-only">
+                    등록한 종목 {data.holdings.length}개
                   </h2>
-                  {data.holdings.length > 0 ? (
-                    <span className="shared-progress">
-                      보유 이유 {data.holdings.length - missingCount}/{data.holdings.length}
-                    </span>
-                  ) : null}
+                  <p>
+                    {data.holdings.length
+                      ? `총 ${data.holdings.length}개`
+                      : '아직 등록한 종목이 없어요.'}
+                  </p>
                 </div>
                 <button
                   className="shared-primary-button"
-                  aria-label="내 포트폴리오에서 가져오기"
                   disabled={busy || records === null}
                   aria-busy={busy}
                   onClick={() => void openImport()}
                 >
-                  종목 가져오기
+                  종목 추가
                 </button>
               </header>
-              {data.holdings.length === 0 ? (
-                <div className="shared-empty-guide">
-                  <strong>리그에 포함할 종목이 아직 없어요</strong>
-                </div>
-              ) : null}
               <HoldingDecisions
                 holdings={data.holdings}
                 portfolioBusy={busy}
                 publicationStatus={selectedStatus}
                 refreshKey={recordRefresh}
                 onRecordsChange={setRecords}
+                onRemove={(assetId) =>
+                  mutate(async () => {
+                    const saved = await removeSharedHolding(assetId);
+                    setProfileRetry((value) => value + 1);
+                    return saved;
+                  }, '종목을 삭제했습니다.')
+                }
                 onVisibilityChange={(assetId, hidden) =>
                   void mutate(
                     () => changeSharedHoldingVisibility(assetId, hidden),
@@ -370,15 +391,16 @@ export function SharedPortfolioPage() {
                 }
               />
             </section>
-            {profileError ? (
-              <p role="alert" className="league-inline-error">
-                공개 상태 확인 실패{' '}
-                <button onClick={() => setProfileRetry((value) => value + 1)}>다시 확인</button>
-              </p>
+            {!profileLoading &&
+            !profileError &&
+            !profile?.leagueEnabled &&
+            data.holdings.length > 0 &&
+            records !== null &&
+            missingCount === 0 ? (
+              <Link className="league-primary-link" to="/portfolio/publication?join=true">
+                리그 참여하기
+              </Link>
             ) : null}
-            <Link className="league-text-link" to="/">
-              원본 포트폴리오 수정 →
-            </Link>
           </div>
         </>
       )}

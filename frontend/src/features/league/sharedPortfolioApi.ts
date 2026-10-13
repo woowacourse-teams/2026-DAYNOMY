@@ -133,3 +133,9 @@ export async function changeSharedHoldingVisibility(assetId: number, hidden: boo
     }),
   );
 }
+
+export async function removeSharedHolding(assetId: number) {
+  return portfolio(
+    await requestWithCsrf<unknown>(`${path}/holdings/${assetId}`, { method: 'DELETE' }),
+  );
+}

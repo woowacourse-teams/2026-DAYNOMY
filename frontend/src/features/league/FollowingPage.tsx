@@ -34,7 +34,7 @@ export function FollowingPage() {
     <main className="league-page league-following-page">
       <header className="league-page-heading">
         <div>
-          <h1>관심 투자자</h1>
+          <h1>팔로잉</h1>
         </div>
         <Link to="/league">투자자 찾기</Link>
       </header>
@@ -50,7 +50,6 @@ export function FollowingPage() {
       {!loading && !error && investors.length === 0 ? (
         <section className="league-empty">
           <strong>팔로우한 투자자가 없습니다</strong>
-          <Link to="/league">투자 리그 둘러보기</Link>
         </section>
       ) : null}
       <div className="league-follow-grid">

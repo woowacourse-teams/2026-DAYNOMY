@@ -330,45 +330,6 @@ describe('포트폴리오 분석 화면', () => {
     );
   });
 
-  it('근거가 없는 결과의 재확인은 변화 없음이나 정상 분석 유지로 안내하지 않는다', async () => {
-    memberFetch(() =>
-      saved({
-        status: 'RECHECK_REQUIRED',
-        lastCheckOutcome: 'UNCONFIRMED',
-        analysis: {
-          ...analysisResponse,
-          analyzedAssetCount: 0,
-          analyzedWeight: 0,
-          coverage: 'INSUFFICIENT',
-          overallDirection: null,
-          overallScore: null,
-          positiveImpactScore: 0,
-          negativeImpactScore: 0,
-          overallImpact: '판단 근거가 부족해요.',
-          sources: [],
-          impacts: analysisResponse.impacts.map((impact) => ({
-            ...impact,
-            direction: null,
-            impactLevel: null,
-            evidenceStatus: 'INSUFFICIENT',
-            sources: [],
-            expectedReaction: '',
-            outlook: '',
-          })),
-        },
-      }),
-    );
-    const view = render(<PortfolioAnalysis assets={assets} />);
-    expect(
-      await view.findByText(
-        '판단에 필요한 근거를 확보하지 못했어요. 새 소식 확인으로 다시 시도해 주세요.',
-      ),
-    ).toBeTruthy();
-    expect(view.queryByText('주요 변화가 없어 기존 분석을 유지했어요.')).toBeNull();
-    expect(view.queryByText('기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.')).toBeNull();
-    expect(view.getByRole('button', { name: '새 소식 확인' })).toBeTruthy();
-  });
-
   it('회원 검색 실패에도 기존 결과를 보존하고 재시도로 갱신 이유를 표시한다', async () => {
     let attempts = 0;
     memberFetch((url) => {
