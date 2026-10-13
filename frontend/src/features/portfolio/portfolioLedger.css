@@ -545,20 +545,20 @@
 }
 .portfolio-sheet {
   position: fixed;
-  inset: 0 0 0 auto;
-  width: min(520px, 100%);
-  height: 100dvh;
-  max-height: 100dvh;
+  inset: 0;
+  width: min(520px, calc(100% - 48px));
+  height: fit-content;
+  max-height: calc(100dvh - 48px);
   max-width: 100%;
-  margin: 0;
+  margin: auto;
   padding: 0;
   border: 0;
-  border-radius: 18px 0 0 18px;
+  border-radius: 18px;
   background: #fff;
   color: #2a3850;
   font-family: inherit;
   font-variant-numeric: tabular-nums;
-  box-shadow: -12px 0 70px rgb(24 42 66 / 12%);
+  box-shadow: 0 24px 70px rgb(24 42 66 / 18%);
   overflow-y: auto;
 }
 .portfolio-sheet::backdrop {
@@ -1020,6 +1020,9 @@
   }
   .portfolio-sheet {
     width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
     border-radius: 0;
   }
   .portfolio-sheet-content {
@@ -1119,9 +1122,9 @@
 }
 .portfolio-holding-detail {
   inset: 0;
-  width: min(640px, calc(100% - 48px));
-  height: min(820px, calc(100dvh - 48px));
-  max-height: calc(100dvh - 48px);
+  width: min(840px, calc(100% - 32px));
+  height: min(960px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
   margin: auto;
   border-radius: 18px;
   overflow: hidden;

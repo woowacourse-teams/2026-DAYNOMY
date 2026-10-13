@@ -271,6 +271,27 @@ for (const viewport of [
     });
     await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
+    const assetTrigger = page.getByRole('button', { name: '자산 추가', exact: true });
+    await assetTrigger.click();
+    const assetEditor = page.getByRole('dialog', { name: '기존 보유자산 등록' });
+    await expect(assetEditor).toBeVisible();
+    await expect(assetEditor.getByRole('searchbox')).toBeFocused();
+    expect(
+      await assetEditor.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return (
+          Math.abs(
+            bounds.left -
+              (document.documentElement.getBoundingClientRect().width - bounds.width) / 2,
+          ) <= 1 &&
+          Math.abs(bounds.top - (innerHeight - bounds.height) / 2) <= 1 &&
+          element.scrollWidth <= element.clientWidth
+        );
+      }),
+    ).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('guest-asset-add-centered.png') });
+    await page.keyboard.press('Escape');
+    await expect(assetTrigger).toBeFocused();
     await page.reload();
     await page.getByRole('button', { name: '거래·변경 내역' }).click();
     await expect(
@@ -616,6 +637,19 @@ for (const viewport of [
     await expect(page.locator('dialog[open]')).toHaveCount(1);
     const dialog = page.getByRole('dialog', { name: '거래 기록' });
     await expect(dialog).toBeVisible();
+    expect(
+      await dialog.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return (
+          Math.abs(
+            bounds.left -
+              (document.documentElement.getBoundingClientRect().width - bounds.width) / 2,
+          ) <= 1 &&
+          Math.abs(bounds.top - (innerHeight - bounds.height) / 2) <= 1 &&
+          element.scrollWidth <= element.clientWidth
+        );
+      }),
+    ).toBe(true);
     await dialog.getByRole('searchbox').fill('삼성');
     await dialog.getByRole('button', { name: /삼성전자/ }).click();
     await expect(dialog.getByLabel('거래일', { exact: true })).toBeFocused();
