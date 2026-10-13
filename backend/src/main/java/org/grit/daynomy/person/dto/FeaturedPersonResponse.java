@@ -10,6 +10,7 @@ public record FeaturedPersonResponse(
     String name,
     String xProfileUrl,
     String threadsProfileUrl,
+    String youtubeProfileUrl,
     String profileImageUrl,
     Instant createdAt,
     List<FeaturedPersonPostResponse> posts) {
@@ -20,6 +21,7 @@ public record FeaturedPersonResponse(
         person.getName(),
         person.getXProfileUrl(),
         person.getThreadsProfileUrl(),
+        person.getYoutubeProfileUrl(),
         person.getProfileImageUrl(),
         person.getCreatedAt(),
         posts.stream().map(FeaturedPersonPostResponse::from).toList());

@@ -33,6 +33,9 @@ public class FeaturedPerson extends BaseEntity {
   @Column(name = "threads_profile_url", columnDefinition = "TEXT")
   private String threadsProfileUrl;
 
+  @Column(name = "youtube_profile_url", columnDefinition = "TEXT")
+  private String youtubeProfileUrl;
+
   @Column(name = "profile_image_url", columnDefinition = "TEXT")
   private String profileImageUrl;
 
@@ -40,10 +43,12 @@ public class FeaturedPerson extends BaseEntity {
       String name,
       String xProfileUrl,
       String threadsProfileUrl,
+      String youtubeProfileUrl,
       String profileImageUrl) {
     this.name = name;
     this.xProfileUrl = xProfileUrl;
     this.threadsProfileUrl = threadsProfileUrl;
+    this.youtubeProfileUrl = youtubeProfileUrl;
     this.profileImageUrl = profileImageUrl;
   }
 
@@ -51,18 +56,21 @@ public class FeaturedPerson extends BaseEntity {
       String name,
       String xProfileUrl,
       String threadsProfileUrl,
+      String youtubeProfileUrl,
       String profileImageUrl) {
-    return new FeaturedPerson(name, xProfileUrl, threadsProfileUrl, profileImageUrl);
+    return new FeaturedPerson(name, xProfileUrl, threadsProfileUrl, youtubeProfileUrl, profileImageUrl);
   }
 
   public void update(
       String name,
       String xProfileUrl,
       String threadsProfileUrl,
+      String youtubeProfileUrl,
       String profileImageUrl) {
     this.name = name;
     this.xProfileUrl = xProfileUrl;
     this.threadsProfileUrl = threadsProfileUrl;
+    this.youtubeProfileUrl = youtubeProfileUrl;
     this.profileImageUrl = profileImageUrl;
   }
 }

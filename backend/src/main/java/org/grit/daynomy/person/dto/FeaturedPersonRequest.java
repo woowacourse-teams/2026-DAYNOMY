@@ -14,4 +14,7 @@ public record FeaturedPersonRequest(
     @Size(max = 2000, message = "Threads 프로필 URL은 2000자 이하여야 합니다.")
         @Pattern(regexp = "https?://\\S+", message = "올바른 Threads 프로필 URL을 입력해주세요.")
         String threadsProfileUrl,
+    @Size(max = 2000, message = "YouTube 채널 URL은 2000자 이하여야 합니다.")
+        @Pattern(regexp = "https?://\\S+", message = "올바른 YouTube 채널 URL을 입력해주세요.")
+        String youtubeProfileUrl,
     @Valid FeaturedPersonImageSelectionRequest profileImageSelection) {}

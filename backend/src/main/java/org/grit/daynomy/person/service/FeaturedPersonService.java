@@ -76,6 +76,7 @@ public class FeaturedPersonService {
             name,
             normalizeProfileUrl(request.xProfileUrl(), this::isXProfile),
             normalizeProfileUrl(request.threadsProfileUrl(), this::isThreadsProfile),
+            normalizeProfileUrl(request.youtubeProfileUrl(), this::isYouTubeProfile),
             uploadProfileImage(request));
     return FeaturedPersonResponse.from(personRepository.saveAndFlush(person), List.of());
   }
@@ -94,6 +95,7 @@ public class FeaturedPersonService {
         name,
         normalizeProfileUrl(request.xProfileUrl(), this::isXProfile),
         normalizeProfileUrl(request.threadsProfileUrl(), this::isThreadsProfile),
+        normalizeProfileUrl(request.youtubeProfileUrl(), this::isYouTubeProfile),
         profileImageUrl);
     if (request.profileImageSelection() != null) {
       s3ImageStorage.deleteIfManaged(oldProfileImageUrl);
@@ -242,6 +244,13 @@ public class FeaturedPersonService {
         || (uri.getPath().equals("/watch")
             && uri.getQuery() != null
             && uri.getQuery().matches(".*(^|&)v=[A-Za-z0-9_-]{11}(&|$).*"));
+  }
+
+  private boolean isYouTubeProfile(URI uri) {
+    String host = uri.getHost().toLowerCase(Locale.ROOT).replaceFirst("^www\\.", "");
+    return host.equals("youtube.com")
+        && (uri.getPath().matches("/@[^/]+/?")
+            || uri.getPath().matches("/(channel|c|user)/[^/]+/?"));
   }
 
   private String sourceLabel(ContentSourceType sourceType) {

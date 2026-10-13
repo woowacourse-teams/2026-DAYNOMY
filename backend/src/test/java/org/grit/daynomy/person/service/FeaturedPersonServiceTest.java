@@ -54,11 +54,13 @@ class FeaturedPersonServiceTest {
                 " 일론 머스크 ",
                 "https://X.com/elonmusk/?lang=ko",
                 "https://www.threads.net/@elonmusk/",
+                "https://www.youtube.com/@Tesla/",
                 null));
 
     assertThat(response.name()).isEqualTo("일론 머스크");
     assertThat(response.xProfileUrl()).isEqualTo("https://x.com/elonmusk");
     assertThat(response.threadsProfileUrl()).isEqualTo("https://www.threads.net/@elonmusk");
+    assertThat(response.youtubeProfileUrl()).isEqualTo("https://www.youtube.com/@Tesla");
   }
 
   @Test
