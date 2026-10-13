@@ -31,7 +31,8 @@ export async function getContentsThroughToday(signal?: AbortSignal, includeHisto
   while (
     current.page < current.totalPages &&
     current.items.length &&
-    (includeHistory || current.items.every((item) => isToday(item.createdAt, now)))
+    (includeHistory ||
+      current.items.every((item) => isToday(item.publishedDate ?? item.createdAt, now)))
   ) {
     current = await getPublicContents(current.page + 1, 100, signal);
     items.push(...current.items);

@@ -14,7 +14,13 @@ export type FeedItem =
       date: string | null;
       content: ExternalContent;
     }
-  | { key: string; source: 'DAYNOMY'; title: string; date: string | null; article: NewsListItem }
+  | {
+      key: string;
+      source: 'DAYNOMY';
+      title: string;
+      date: string | null;
+      article: NewsListItem;
+    }
   | {
       key: string;
       source: FeaturedPersonPost['sourceType'];
@@ -24,16 +30,17 @@ export type FeedItem =
       post: FeaturedPersonPost;
     };
 
-export function timestamp(date: string | null) {
-  return date ? Date.parse(date) || 0 : 0;
-}
-
 const seoulDate = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Seoul',
   year: 'numeric',
   month: '2-digit',
   day: '2-digit',
 });
+
+export function timestamp(date: string | null) {
+  if (!date || Number.isNaN(Date.parse(date))) return 0;
+  return Date.parse(`${seoulDate.format(new Date(date))}T00:00:00Z`);
+}
 
 export function isToday(date: string | null, now = new Date()) {
   return (
@@ -79,13 +86,42 @@ export function createFeed(
       key: `content-${content.id}`,
       source: content.sourceType,
       title: content.title,
-      date: content.createdAt,
+      date: content.publishedDate ?? content.createdAt,
       content,
     });
   }
   return [...items, ...posts, ...external].sort(
-    (a, b) => timestamp(b.date) - timestamp(a.date) || a.key.localeCompare(b.key),
+    (a, b) =>
+      timestamp(b.date) - timestamp(a.date) ||
+      createdTimestamp(createdAt(b)) - createdTimestamp(createdAt(a)) ||
+      compareId(itemId(b), itemId(a)) ||
+      a.key.localeCompare(b.key),
   );
+}
+
+function createdTimestamp(date: string | null) {
+  return date && !Number.isNaN(Date.parse(date)) ? Date.parse(date) : 0;
+}
+
+function createdAt(item: FeedItem) {
+  return 'article' in item
+    ? item.article.publishedAt
+    : 'content' in item
+      ? item.content.createdAt
+      : item.post.createdAt;
+}
+
+function itemId(item: FeedItem) {
+  return 'article' in item ? item.article.id : 'content' in item ? item.content.id : item.post.id;
+}
+
+function compareId(left: string | number, right: string | number) {
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  if (Number.isSafeInteger(leftNumber) && Number.isSafeInteger(rightNumber)) {
+    return leftNumber - rightNumber;
+  }
+  return String(left).localeCompare(String(right));
 }
 
 export function sourceLabel(source: FeedItem['source']) {
