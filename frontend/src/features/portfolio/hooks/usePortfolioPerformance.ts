@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
-import { getPortfolioPerformance } from '../api';
+import { getPortfolioHistories, getPortfolioPerformance } from '../api';
 import { todayInSeoul } from '../transactionForm';
 import type {
   PortfolioHoldingInput,
+  PortfolioHoldingHistory,
   PortfolioPerformancePoint,
   PortfolioTrendPeriod,
 } from '../types';
@@ -40,6 +41,9 @@ export function usePortfolioPerformance(
   const [points, setPoints] = useState<PortfolioPerformancePoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [histories, setHistories] = useState<PortfolioHoldingHistory[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const holdingKey = holdings
     .map(({ assetId, quantity, averagePurchasePrice }) =>
@@ -64,6 +68,9 @@ export function usePortfolioPerformance(
       setPoints([]);
       setLoading(false);
       setError('');
+      setHistories([]);
+      setHistoryLoading(false);
+      setHistoryError('');
       return;
     }
 
@@ -72,6 +79,26 @@ export function usePortfolioPerformance(
     const from = getPeriodStart(to, period);
     setLoading(true);
     setError('');
+    setHistories([]);
+    setHistoryLoading(true);
+    setHistoryError('');
+
+    getPortfolioHistories(formatDate(from), formatDate(to), controller.signal)
+      .then((items) => {
+        if (controller.signal.aborted) return;
+        setHistories(
+          items.filter((item) => item.changeType === 'BUY' || item.changeType === 'SELL'),
+        );
+      })
+      .catch((caught: unknown) => {
+        if (controller.signal.aborted) return;
+        setHistoryError(
+          caught instanceof Error ? caught.message : '거래 표시를 불러오지 못했어요.',
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setHistoryLoading(false);
+      });
 
     getPortfolioPerformance(formatDate(from), formatDate(to), controller.signal)
       .then((response) => {
@@ -103,5 +130,13 @@ export function usePortfolioPerformance(
     return () => controller.abort();
   }, [enabled, holdingKey, holdings.length, period, retryCount, revision]);
 
-  return { points, loading, error, retry: () => setRetryCount((count) => count + 1) };
+  return {
+    points,
+    loading,
+    error,
+    histories,
+    historyLoading,
+    historyError,
+    retry: () => setRetryCount((count) => count + 1),
+  };
 }
