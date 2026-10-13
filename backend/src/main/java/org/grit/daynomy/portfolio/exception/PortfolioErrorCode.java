@@ -4,6 +4,10 @@ import org.grit.daynomy.common.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 public enum PortfolioErrorCode implements ErrorCode {
+  PORTFOLIO_ANALYSIS_IN_PROGRESS(HttpStatus.CONFLICT, "포트폴리오 분석이 진행 중입니다."),
+  PORTFOLIO_ANALYSIS_REQUEST_EXPIRED(HttpStatus.CONFLICT, "분석 요청이 만료되었습니다. 다시 시도해주세요."),
+  PORTFOLIO_ANALYSIS_ASSETS_CHANGED(HttpStatus.CONFLICT, "분석 대상 자산이 변경되었습니다. 다시 시도해주세요."),
+  PORTFOLIO_ANALYSIS_ASSETS_UNAVAILABLE(HttpStatus.CONFLICT, "저장된 보유 자산과 가격이 있어야 분석할 수 있습니다."),
   PORTFOLIO_ANALYSIS_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 뉴스의 포트폴리오 분석을 찾을 수 없습니다."),
   PORTFOLIO_NOT_FOUND(HttpStatus.NOT_FOUND, "포트폴리오를 찾을 수 없습니다."),
   PORTFOLIO_HOLDING_NOT_FOUND(HttpStatus.NOT_FOUND, "포트폴리오 보유자산을 찾을 수 없습니다."),

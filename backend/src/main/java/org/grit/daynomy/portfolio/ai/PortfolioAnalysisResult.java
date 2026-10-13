@@ -1,5 +1,6 @@
 package org.grit.daynomy.portfolio.ai;
 
+import java.time.LocalDate;
 import java.util.List;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -29,5 +30,20 @@ public record PortfolioAnalysisResult(
     }
   }
 
-  public record Source(String title, String url) {}
+  public record Source(
+      String title,
+      String url,
+      LocalDate publishedOn,
+      LocalDate occurredOn,
+      String excerpt,
+      String factQuote) {
+    public Source(
+        String title, String url, LocalDate publishedOn, LocalDate occurredOn, String excerpt) {
+      this(title, url, publishedOn, occurredOn, excerpt, null);
+    }
+
+    public Source(String title, String url) {
+      this(title, url, null, null, "");
+    }
+  }
 }

@@ -54,6 +54,26 @@ class PortfolioImpactSummaryTest {
     assertThat(summary.score()).isEqualByComparingTo("-74.00");
   }
 
+  @Test
+  void partialEvidenceKeepsKnownContributionsWithoutClaimingOverallDirectionOrScore() {
+    var summary =
+        PortfolioImpactSummary.calculate(
+            List.of(
+                impact("60", ImpactDirection.NEGATIVE, ImpactLevel.HIGH),
+                impact("40", null, null)));
+    assertThat(summary.direction()).isNull();
+    assertThat(summary.score()).isNull();
+    assertThat(summary.negativeScore()).isEqualByComparingTo("60");
+    assertThat(summary.positiveScore()).isEqualByComparingTo("0");
+  }
+
+  @Test
+  void noEvidenceIsNotNeutral() {
+    var summary = PortfolioImpactSummary.calculate(List.of(impact("100", null, null)));
+    assertThat(summary.direction()).isNull();
+    assertThat(summary.score()).isNull();
+  }
+
   private PortfolioImpactSummary.AssetImpact impact(
       String weight, ImpactDirection direction, ImpactLevel level) {
     return new PortfolioImpactSummary.AssetImpact(new BigDecimal(weight), direction, level);
