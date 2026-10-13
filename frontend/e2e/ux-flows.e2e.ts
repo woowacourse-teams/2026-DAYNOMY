@@ -112,7 +112,7 @@ for (const viewport of [
     await checkWidth(page);
   });
 
-  test(viewport.name + ': 마이페이지 리그 링크는 준비 중 화면으로 연결된다', async ({ page }) => {
+  test(viewport.name + ': 마이페이지에 투자 리그 링크를 노출하지 않는다', async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.route('**/api/users/me', (route) =>
       route.fulfill({
@@ -132,14 +132,7 @@ for (const viewport of [
 
     await page.goto('/mypage');
     for (const name of [/리그 프로필/, /팔로우한 투자자/, /리그 설정/]) {
-      const link = page.getByRole('link', { name });
-      await expect(link).toContainText('투자 리그 준비 중');
-      await link.click();
-      await expect(
-        page.getByRole('heading', { name: '투자 리그를 준비하고 있어요' }),
-      ).toBeVisible();
-      await page.goBack();
-      await expect(page.getByRole('heading', { name: '마이페이지' })).toBeVisible();
+      await expect(page.getByRole('link', { name })).toHaveCount(0);
     }
     expect(leagueRequests).toEqual([]);
     await checkWidth(page);
