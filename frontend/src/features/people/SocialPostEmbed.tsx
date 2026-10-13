@@ -1,6 +1,7 @@
 import { trackEvent, type AnalyticsParams } from '../../analytics';
 import { useEffect, useRef } from 'react';
 import { platformLabel, type FeaturedPersonPost } from './types';
+import { youtubeId } from '../news/issue/feed';
 
 const X_EMBED_SCRIPT_ID = 'daynomy-x-embed-script';
 const THREADS_EMBED_SCRIPT_ID = 'daynomy-threads-embed-script';
@@ -23,6 +24,7 @@ export function SocialPostEmbed({
   const rootRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    if (post.sourceType === 'YOUTUBE') return;
     if (post.sourceType === 'X') {
       const load = () => {
         const xWindow = window as typeof window & {
@@ -55,7 +57,19 @@ export function SocialPostEmbed({
 
   return (
     <article className="people-social-embed" ref={rootRef}>
-      {post.sourceType === 'THREADS' ? (
+      {post.sourceType === 'YOUTUBE' ? (
+        <>
+          {youtubeId(post.url) ? (
+            <iframe
+              className="people-youtube-embed"
+              title={post.title}
+              src={`https://www.youtube-nocookie.com/embed/${youtubeId(post.url)}`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          ) : null}
+        </>
+      ) : post.sourceType === 'THREADS' ? (
         <blockquote
           className="text-post-media"
           data-text-post-permalink={post.url}
