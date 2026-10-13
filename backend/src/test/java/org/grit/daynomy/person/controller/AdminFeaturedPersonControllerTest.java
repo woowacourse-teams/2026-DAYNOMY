@@ -51,6 +51,7 @@ class AdminFeaturedPersonControllerTest {
                 ContentSourceType.X,
                 "일론 머스크 X 게시물",
                 "https://x.com/elonmusk/status/12345",
+                Instant.parse("2026-10-11T11:00:00Z"),
                 Instant.parse("2026-10-11T12:00:00Z")));
 
     mockMvc
