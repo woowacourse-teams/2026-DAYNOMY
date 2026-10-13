@@ -4,11 +4,9 @@ import { getPortfolioHistories } from '../api';
 import { todayInSeoul } from '../transactionForm';
 import type { PortfolioHoldingChangeType, PortfolioHoldingHistory } from '../types';
 
-const LABELS: Record<PortfolioHoldingChangeType, string> = {
+const LABELS: Partial<Record<PortfolioHoldingChangeType, string>> = {
   BUY: '매수',
   SELL: '매도',
-  OPENING_BALANCE: '초기 보유 등록',
-  ADDED: '초기 보유 등록',
   ADJUSTED: '보유정보 정정',
   UPDATED: '보유정보 정정',
   REMOVED: '보유자산 제거',
@@ -69,6 +67,8 @@ export function PortfolioHistory({
   const visible = histories
     .filter(
       (item) =>
+        item.changeType !== 'OPENING_BALANCE' &&
+        item.changeType !== 'ADDED' &&
         item.effectiveDate >= from &&
         item.effectiveDate <= to &&
         (assetId === undefined || item.assetId === assetId) &&

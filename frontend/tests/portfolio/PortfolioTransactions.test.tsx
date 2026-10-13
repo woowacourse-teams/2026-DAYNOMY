@@ -489,8 +489,8 @@ describe('거래 원장 화면', () => {
     expect(row.getAttribute('aria-haspopup')).toBe('dialog');
     const history = view.getByRole('region', { name: '거래·변경 내역' });
     expect(history.querySelector('details')).toBeNull();
-    expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(2);
-    expect(within(history).getByText('평균 매입가 70,000원')).toBeTruthy();
+    expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(1);
+    expect(within(history).queryByText('초기 보유 등록')).toBeNull();
     expect(within(history).queryByText('기록 시각')).toBeNull();
     fireEvent.click(row);
     const editor = view.getByRole('dialog', { name: '거래 수정' });
@@ -505,6 +505,30 @@ describe('거래 원장 화면', () => {
     expect(view.queryByRole('dialog')).toBeNull();
     expect(histories[0].transactionQuantity).toBe(10);
   });
+
+  it.each(['OPENING_BALANCE', 'ADDED'] as const)(
+    '%s 기록은 대시보드·종목 상세·보유정보 필터에서 제외하고 보유자산은 유지한다',
+    async (changeType) => {
+      histories = [{ ...buy, changeType, transactionQuantity: null, unitPrice: null }];
+      const view = await ready();
+      fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+      const history = view.getByRole('region', { name: '거래·변경 내역' });
+      expect(await within(history).findByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
+      expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(0);
+      fireEvent.change(within(history).getByLabelText('내역 유형'), {
+        target: { value: 'BALANCE' },
+      });
+      expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(0);
+      fireEvent.click(view.getByRole('button', { name: '보유 자산 1' }));
+      fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
+      const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
+      expect(await within(detail).findByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
+      expect(detail.querySelectorAll('.portfolio-history-row')).toHaveLength(0);
+      expect(within(detail).getByText('10주')).toBeTruthy();
+      expect(histories).toHaveLength(1);
+      expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+    },
+  );
 
   it('삭제 실패 시 내역과 확인창을 유지하고 재시도 성공 시 자산을 복원한다', async () => {
     histories = [{ ...buy, changeType: 'SELL' }];
