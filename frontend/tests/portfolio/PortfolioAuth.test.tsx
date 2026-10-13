@@ -84,8 +84,15 @@ describe('포트폴리오 로그인 접근', () => {
     });
   });
 
-  it('비로그인 사용자가 관리자 화면에 접근하면 로그인 후 돌아올 전체 경로를 보존한다', async () => {
-    const path = '/admin/news?page=2#draft';
+  it.each([
+    ['/league/portfolio?week=2026-09-28#holdings', '/league/portfolio?week=2026-09-28#holdings'],
+    ['/league/profile', '/league/profile'],
+    ['/league/following', '/league/following'],
+    ['/league/reviews', '/league/reviews'],
+    ['/portfolio/publication?join=true', '/portfolio/publication?join=true'],
+    ['/portfolio/records', '/league/portfolio'],
+    ['/admin/news?page=2#draft', '/admin/news?page=2#draft'],
+  ])('비로그인 사용자가 %s에 접근하면 로그인 후 돌아올 경로를 보존한다', async (path, returnTo) => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse({}, 401)),
@@ -96,39 +103,88 @@ describe('포트폴리오 로그인 접근', () => {
 
     expect(await view.findByRole('heading', { name: /DAYNOMY (관리자 )?로그인/ })).toBeTruthy();
     expect(window.location.pathname).toBe('/login');
-    expect(new URLSearchParams(window.location.search).get('returnTo')).toBe(path);
-  });
-
-  it.each([
-    ['/league', '/league'],
-    ['/league/portfolio?week=2026-09-28#holdings', '/league/portfolio'],
-    ['/league/investor-1', '/league/investor-1'],
-    ['/portfolio/publication?join=true', '/portfolio/publication'],
-    ['/portfolio/records', '/league/portfolio'],
-    ['/membership', '/league'],
-  ])('%s에서 실제 리그 화면 대신 준비 중 안내를 보여준다', async (path, target) => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => jsonResponse({}, 401)),
-    );
-    window.history.replaceState(null, '', path);
-
-    const view = render(<App />);
-
-    expect(await view.findByRole('heading', { name: '투자 리그를 준비하고 있어요' })).toBeTruthy();
-    expect(window.location.pathname).toBe(target);
-    expect(view.getByRole('link', { name: '내 포트폴리오로 돌아가기' }).getAttribute('href')).toBe(
-      '/',
-    );
-    expect(view.queryByRole('link', { name: '← 주간 리그' })).toBeNull();
+    expect(new URLSearchParams(window.location.search).get('returnTo')).toBe(returnTo);
     expect(
       vi
         .mocked(fetch)
         .mock.calls.some(([input]) =>
-          /\/api\/(league|users\/me\/(shared-portfolio|portfolio\/publication|investor-profile))/.test(
+          /\/api\/users\/me\/(shared-portfolio|portfolio\/|investor-profile|league\/)/.test(
             String(input),
           ),
         ),
+    ).toBe(false);
+  });
+
+  it.each(['/league', '/membership'])(
+    '%s에서 로그인 없이 실제 주간 순위를 조회한다',
+    async (path) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: RequestInfo | URL) => {
+          const pathname = new URL(String(input), window.location.origin).pathname;
+          if (pathname === '/api/league/weeks') return jsonResponse({ weeks: [] });
+          if (pathname === '/api/league/rankings')
+            return jsonResponse({
+              weekStart: '2026-10-12',
+              weekEnd: '2026-10-18',
+              leagueType: 'WEEKLY_RETURN',
+              confirmed: false,
+              totalCount: 0,
+              asOfDate: null,
+              rankings: [],
+            });
+          return jsonResponse({}, 401);
+        }),
+      );
+      window.history.replaceState(null, '', path);
+
+      const view = render(<App />);
+
+      expect(await view.findByText('아직 이 주차에 집계된 투자자가 없습니다')).toBeTruthy();
+      expect(view.getByRole('heading', { name: '주간 리그' })).toBeTruthy();
+      expect(view.getByRole('link', { name: '투자리그 참여하기' })).toBeTruthy();
+      expect(window.location.pathname).toBe('/league');
+    },
+  );
+
+  it('공개 투자자 상세를 로그인 없이 조회하고 본인 관리 API는 호출하지 않는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const pathname = new URL(String(input), window.location.origin).pathname;
+        if (pathname === '/api/league/investors/investor-1')
+          return jsonResponse({
+            publicId: 'investor-1',
+            displayName: '공개 투자자',
+            bio: '',
+            experienceLevel: 'BEGINNER',
+            riskProfile: 'BALANCED',
+            performance: {
+              weeklyReturnRate: null,
+              eightWeekReturnRate: null,
+              maxDrawdownRate: null,
+              volatilityRate: null,
+              maxHoldingWeight: null,
+            },
+            allocation: null,
+            history: [],
+            decisionCount: 0,
+            reviewCompletionRate: 0,
+            followed: false,
+            detailAvailable: false,
+          });
+        return jsonResponse({}, 401);
+      }),
+    );
+    window.history.replaceState(null, '', '/league/investor-1');
+
+    const view = render(<App />);
+
+    expect(await view.findByRole('heading', { name: '공개 투자자' })).toBeTruthy();
+    expect(view.getByRole('link', { name: '로그인하고 팔로우' })).toBeTruthy();
+    expect(view.getByRole('link', { name: '← 주간 리그' }).getAttribute('href')).toBe('/league');
+    expect(
+      vi.mocked(fetch).mock.calls.some(([input]) => /\/api\/users\/me\//.test(String(input))),
     ).toBe(false);
   });
 });

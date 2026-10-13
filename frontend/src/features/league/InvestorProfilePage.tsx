@@ -7,6 +7,7 @@ import { collectionLabels, formatRate, transactionLabels } from './labels';
 import { DailyReturns } from './DailyReturns';
 import { InvestorAvatar } from './InvestorAvatar';
 import type { InvestorDetail, PublicInvestor, InvestorProfile } from './types';
+import { LEAGUE_FIRST_WEEK } from './weeks';
 import './league.css';
 
 export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfile } = {}) {
@@ -110,7 +111,8 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
     );
   if (!investor) return null;
 
-  const history = [...investor.history]
+  const history = investor.history
+    .filter((point) => point.weekStart >= LEAGUE_FIRST_WEEK)
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
     .slice(-3);
   const historyRange = Math.max(
@@ -205,7 +207,7 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
         <section className="league-history-card" hidden={dailyOpen}>
           <header>
             <h2>주간 수익률</h2>
-            <span>최근 3주</span>
+            <span>{history.length <= 1 ? '이번 주' : `최근 ${history.length}주`}</span>
           </header>
           {history.length === 0 ? (
             <p className="league-history-empty">아직 집계된 주간 기록이 없어요.</p>

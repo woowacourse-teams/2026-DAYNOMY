@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDailyHistory, getLeagueWeeks } from './api';
+import { recentLeagueWeeks } from './weeks';
+import { LeagueWeekNavigation } from './LeagueWeekNavigation';
 import { formatRate, collectionLabels } from './labels';
 import type { DailyHistory, DailyReturnPoint, LeagueWeek } from './types';
 
@@ -52,9 +54,7 @@ export function DailyReturns({
     getLeagueWeeks(controller.signal)
       .then(async (availableWeeks) => {
         if (controller.signal.aborted) return;
-        const recentWeeks = [...availableWeeks]
-          .sort((a, b) => b.weekStart.localeCompare(a.weekStart))
-          .slice(0, 3);
+        const recentWeeks = recentLeagueWeeks(availableWeeks);
         setWeeks(recentWeeks);
         const selectedWeek = recentWeeks.some((week) => week.weekStart === weekStart)
           ? weekStart
@@ -95,26 +95,11 @@ export function DailyReturns({
     >
       <header>
         <h2 id="daily-history-title">일별 수익률</h2>
-        <label>
-          <span className="league-sr-only">조회 주차</span>
-          <select
-            value={
-              weeks.some((week) => week.weekStart === weekStart)
-                ? weekStart
-                : weeks[0]?.weekStart || ''
-            }
-            disabled={weeks.length === 0}
-            onChange={(event) => onWeekChange(event.target.value)}
-          >
-            {weeks.length === 0 ? <option value="">이번 주</option> : null}
-            {weeks.map((week, index) => (
-              <option key={week.weekStart} value={week.weekStart}>
-                {['이번 주', '지난주', '지지난주'][index]} · {week.weekStart.slice(5)} ~{' '}
-                {week.weekEnd.slice(5)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <LeagueWeekNavigation
+          weeks={weeks}
+          selected={weeks.some((week) => week.weekStart === weekStart) ? weekStart : ''}
+          onChange={onWeekChange}
+        />
       </header>
       {loading ? (
         <p role="status">일별 기록을 불러오고 있습니다.</p>
