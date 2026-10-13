@@ -27,7 +27,7 @@ body {
 
 .news-detail {
   position: relative;
-  width: var(--page-content-width);
+  width: min(100% - 128px, 920px);
   margin: 0 auto;
   padding: 88px 0 96px;
   background: #fff;
@@ -391,7 +391,7 @@ body {
 
 @media (max-width: 520px) {
   .news-detail {
-    width: var(--page-content-width);
+    width: min(100% - 32px, 920px);
     padding-top: 72px;
     padding-bottom: 32px;
   }
