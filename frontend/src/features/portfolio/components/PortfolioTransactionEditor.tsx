@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { searchStocks } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { getLatestStockPrice, searchStocks } from '../api';
 import {
   todayInSeoul,
   toTransactionRequest,
@@ -42,6 +42,9 @@ export function PortfolioTransactionEditor({
     fee: String(transaction?.fee ?? 0),
     tax: String(transaction?.tax ?? 0),
   });
+  const priceEdited = useRef(false);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<StockSearchItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -78,6 +81,34 @@ export function PortfolioTransactionEditor({
       controller.abort();
     };
   }, [keyword, selected, searchRetry]);
+  useEffect(() => {
+    if (transaction || !selected) {
+      setPriceLoading(false);
+      setPriceError('');
+      return;
+    }
+    const controller = new AbortController();
+    setPriceLoading(true);
+    setPriceError('');
+    getLatestStockPrice(selected.assetId, controller.signal)
+      .then((price) => {
+        if (controller.signal.aborted) return;
+        if (price.closePrice <= 0) throw new Error('최근 종가가 없습니다.');
+        setFields((current) =>
+          controller.signal.aborted || priceEdited.current || current.unitPrice
+            ? current
+            : { ...current, unitPrice: String(price.closePrice) },
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setPriceError('최근 종가를 불러오지 못했습니다. 거래 단가를 직접 입력해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPriceLoading(false);
+      });
+    return () => controller.abort();
+  }, [selected, transaction]);
   const invalid = validateTransaction(fields);
   const gross = Number(fields.quantity) * Number(fields.unitPrice);
   const costs = Number(fields.fee) + Number(fields.tax);
@@ -85,6 +116,7 @@ export function PortfolioTransactionEditor({
   const format = (value: number) =>
     `${value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`;
   function change(key: keyof TransactionFields, value: string) {
+    if (key === 'unitPrice') priceEdited.current = true;
     setFields((current) => ({ ...current, [key]: value }));
     setError('');
   }
@@ -207,7 +239,14 @@ export function PortfolioTransactionEditor({
                   <small>{selected.assetCode}</small>
                 </div>
                 {!transaction && (
-                  <button type="button" onClick={() => setSelected(null)}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelected(null);
+                      priceEdited.current = false;
+                      setFields((current) => ({ ...current, unitPrice: '' }));
+                    }}
+                  >
                     종목 변경
                   </button>
                 )}
@@ -258,10 +297,16 @@ export function PortfolioTransactionEditor({
                     inputMode="decimal"
                     placeholder="0"
                     value={fields.unitPrice}
+                    aria-busy={priceLoading}
                     onChange={(event) => change('unitPrice', event.target.value)}
                   />
                 </label>
               </div>
+              {(priceLoading || priceError) && (
+                <p className="portfolio-field-note" role="status">
+                  {priceLoading ? '최근 종가를 불러오고 있어요.' : priceError}
+                </p>
+              )}
               <details
                 className="portfolio-cost-fields"
                 open={

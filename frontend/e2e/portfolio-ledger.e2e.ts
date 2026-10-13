@@ -97,6 +97,8 @@ for (const viewport of [
         memberRequests.push(path);
         return fulfill({}, 401);
       }
+      if (path === '/api/stocks/1/price')
+        return fulfill({ ...stocks[0], baseDate: today, closePrice: stocks[0].closePrice });
       if (path === '/api/auth/csrf')
         return fulfill({ token: 'preview', headerName: 'X-CSRF-TOKEN' });
       if (path === '/api/portfolio/calculate')
@@ -248,6 +250,7 @@ for (const viewport of [
     await detail.getByRole('button', { name: '매수', exact: true }).click();
     const trade = page.getByRole('dialog', { name: '거래 기록' });
     await expect(trade.getByLabel('거래일', { exact: true })).toBeFocused();
+    await expect(trade.getByLabel('거래 단가 (원)')).toHaveValue('75200');
     await trade.getByLabel('수량 (주)').fill('2');
     await trade.getByLabel('거래 단가 (원)').fill('76000');
     await trade.getByRole('button', { name: '매수 기록하기' }).click();
@@ -256,6 +259,7 @@ for (const viewport of [
       detail.locator('.portfolio-history-amount').getByText('152,000원', { exact: true }),
     ).toBeVisible();
     await detail.getByRole('button', { name: '매도', exact: true }).click();
+    await expect(trade.getByLabel('거래 단가 (원)')).toHaveValue('75200');
     await trade.getByLabel('수량 (주)').fill('3');
     await trade.getByLabel('거래 단가 (원)').fill('78000');
     await trade.getByRole('button', { name: '매도 기록하기' }).click();
@@ -308,6 +312,8 @@ for (const viewport of [
           nickname: '미리보기',
           role: 'USER',
         });
+      if (path === '/api/stocks/1/price')
+        return fulfill({ ...stocks[0], baseDate: today, closePrice: stocks[0].closePrice });
       if (path === '/api/auth/csrf')
         return fulfill({ token: 'preview', headerName: 'X-CSRF-TOKEN' });
       if (path === '/api/users/me/portfolio')
@@ -613,6 +619,7 @@ for (const viewport of [
     await dialog.getByRole('searchbox').fill('삼성');
     await dialog.getByRole('button', { name: /삼성전자/ }).click();
     await expect(dialog.getByLabel('거래일', { exact: true })).toBeFocused();
+    await expect(dialog.getByLabel('거래 단가 (원)')).toHaveValue('75200');
     await dialog.getByLabel('수량 (주)').fill('5');
     await dialog.getByLabel('거래 단가 (원)').fill('75200');
     await page.screenshot({
