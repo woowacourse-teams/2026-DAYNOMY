@@ -21,7 +21,7 @@ public class ContentController {
 
   @Operation(
       summary = "소식의 공개 외부 자료 목록",
-      description = "저장된 YouTube·Threads·X 자료를 등록일, ID 내림차순으로 조회합니다. 페이지는 1부터 시작합니다.")
+      description = "저장된 YouTube·Threads·X 자료를 원문 게시일, 등록일, ID 내림차순으로 조회합니다. 페이지는 1부터 시작합니다.")
   @GetMapping
   public ContentPageResponse getContents(
       @RequestParam(defaultValue = "1") @Min(1) int page,

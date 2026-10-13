@@ -19,5 +19,5 @@ public record AssetContentRequest(
     @Size(max = 2000, message = "이미지 URL은 2000자 이하여야 합니다.")
         @Pattern(regexp = "https?://\\S+", message = "http 또는 https 이미지 URL을 입력해주세요.")
         String imageUrl,
-    @Schema(description = "원문 게시일. 확인하지 못한 경우 생략 또는 null", example = "2020-04-05")
+    @Schema(description = "원문 게시일. 생략 또는 null이면 서울 기준 등록일을 사용", example = "2020-04-05")
         LocalDate publishedDate) {}
