@@ -1,7 +1,7 @@
 .portfolio-analysis-section {
   width: 100%;
   margin: 16px 0 0;
-  padding: 20px;
+  padding: 16px;
   border: 1px solid #dce4ee;
   background: #fff;
 }
@@ -28,12 +28,12 @@
 }
 
 .portfolio-analysis-heading.has-analysis {
-  margin-bottom: 38px;
+  margin-bottom: 26px;
 }
 
 .portfolio-analysis-heading.has-analysis h2 {
-  font-size: 22px;
-  line-height: 31px;
+  font-size: 20px;
+  line-height: 28px;
 }
 
 .portfolio-analysis-heading.has-analysis p {
@@ -41,8 +41,8 @@
 }
 
 .portfolio-score-panel {
-  margin-bottom: 28px;
-  padding: 14px 18px;
+  margin-bottom: 20px;
+  padding: 10px 14px;
   border: 1px solid #e3e9f0;
   background: #f8fafc;
 }
@@ -61,7 +61,7 @@
 }
 
 .portfolio-score-guide summary:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 2px;
 }
 
@@ -111,7 +111,7 @@
   padding: 0 18px;
   border: 0;
   border-radius: 10px;
-  background: #151a2a;
+  background: var(--portfolio-accent, #326bd5);
   color: #fff;
   font: inherit;
   font-size: 14px;
@@ -121,17 +121,17 @@
 }
 
 .portfolio-analysis-button:hover:not(:disabled) {
-  background: #5144d8;
+  background: var(--portfolio-accent, #326bd5);
 }
 
 .portfolio-analysis-button:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 2px;
 }
 
 .portfolio-analysis-button:disabled {
-  background: #e4e7ec;
-  color: #98a2b3;
+  background: #e8effb;
+  color: #6d84ad;
   cursor: not-allowed;
 }
 
@@ -168,7 +168,7 @@
   width: 32px;
   height: 32px;
   border: 3px solid #dce6f2;
-  border-top-color: #5144d8;
+  border-top-color: var(--portfolio-accent, #326bd5);
   border-radius: 50%;
   animation: portfolio-analysis-spin 800ms linear infinite;
 }
@@ -183,7 +183,7 @@
   padding: 0 18px;
   border: 0;
   border-radius: 10px;
-  background: #151a2a;
+  background: var(--portfolio-accent, #326bd5);
   color: #fff;
   font: inherit;
   font-size: 14px;
@@ -192,23 +192,23 @@
 }
 
 .portfolio-analysis-retry-button:hover {
-  background: #5144d8;
+  background: var(--portfolio-accent, #326bd5);
 }
 
 .portfolio-analysis-retry-button:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 2px;
 }
 
 .portfolio-analysis-layout {
   display: grid;
   grid-template-columns: minmax(0, 40%) minmax(0, 60%);
-  min-height: 560px;
+  min-height: 440px;
 }
 
 .portfolio-analysis-overview {
   min-width: 0;
-  padding-right: 30px;
+  padding-right: 24px;
   border-right: 1px solid #e6e9f0;
 }
 
@@ -222,7 +222,7 @@
 .portfolio-analysis-overview-heading h3 {
   margin: 0;
   color: #151a2a;
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1.4;
   font-weight: 900;
 }
@@ -255,8 +255,8 @@
 
 .portfolio-analysis-donut-wrap {
   position: relative;
-  width: min(100%, 286px);
-  margin: 34px auto 28px;
+  width: min(100%, 236px);
+  margin: 20px auto 16px;
   aspect-ratio: 1;
 }
 
@@ -312,13 +312,8 @@
   cursor: pointer;
 }
 
-.portfolio-donut-center:hover strong {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .portfolio-donut-center:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 4px;
 }
 
@@ -327,7 +322,7 @@
   margin-top: 0;
   overflow: hidden;
   color: #151a2a;
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1.35;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -337,7 +332,7 @@
 .portfolio-donut-center b {
   margin-top: 7px;
   color: inherit;
-  font-size: 32px;
+  font-size: 27px;
   line-height: 1;
   font-weight: 900;
   letter-spacing: -0.03em;
@@ -388,7 +383,7 @@
   width: 100%;
   min-width: 0;
   min-height: 43px;
-  grid-template-columns: 10px minmax(0, 1fr) minmax(0, 140px) minmax(52px, auto);
+  grid-template-columns: 10px minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
   padding: 8px 10px;
@@ -401,6 +396,10 @@
   text-align: left;
 }
 
+.portfolio-overall-row {
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+}
+
 button.portfolio-asset-row {
   cursor: pointer;
 }
@@ -410,7 +409,7 @@ button.portfolio-asset-row:hover {
 }
 
 button.portfolio-asset-row:focus-visible {
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 1px;
 }
 
@@ -435,8 +434,8 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-asset-name {
   min-width: 0;
   overflow: hidden;
-  font-size: 16px;
-  line-height: 28px;
+  font-size: 14px;
+  line-height: 24px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -446,8 +445,8 @@ button.portfolio-asset-row:focus-visible {
   overflow: hidden;
   justify-self: stretch;
   color: #a0a9b8;
-  font-size: 16px;
-  line-height: 28px;
+  font-size: 13px;
+  line-height: 24px;
   font-weight: 600;
   text-align: right;
   text-overflow: ellipsis;
@@ -458,14 +457,14 @@ button.portfolio-asset-row:focus-visible {
   min-width: 52px;
   justify-self: end;
   color: #243047;
-  font-size: 16px;
-  line-height: 28px;
+  font-size: 14px;
+  line-height: 24px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
 
 .portfolio-weight-caption {
-  margin: 24px 0 0;
+  margin: 16px 0 0;
   color: #8b95a7;
   font-size: 12px;
   line-height: 1.5;
@@ -477,7 +476,7 @@ button.portfolio-asset-row:focus-visible {
   min-width: 0;
   justify-content: flex-start;
   flex-direction: column;
-  padding: 110px 0 48px 30px;
+  padding: 36px 0 24px 24px;
 }
 
 .portfolio-detail-header {
@@ -486,21 +485,21 @@ button.portfolio-asset-row:focus-visible {
   max-width: 62ch;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 28px;
-  font-size: 18px;
+  gap: 20px;
+  font-size: 16px;
 }
 
 .portfolio-detail-header > div:first-child > span {
   display: block;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.4;
   font-weight: 900;
 }
 
 .portfolio-detail-header h3 {
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   color: #151a2a;
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1.25;
   font-weight: 900;
   letter-spacing: -0.02em;
@@ -517,12 +516,12 @@ button.portfolio-asset-row:focus-visible {
 
 .portfolio-direction-badge {
   display: inline-flex;
-  min-height: 36px;
+  min-height: 30px;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
+  padding: 5px 10px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -559,15 +558,15 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-detail-badge-group small {
   transform: translateY(4px);
   color: #465267;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.3;
   font-weight: 900;
 }
 
 .portfolio-detail-copy {
   display: grid;
-  gap: 24px;
-  margin-top: 42px;
+  gap: 18px;
+  margin-top: 24px;
 }
 
 .portfolio-detail-copy p {
@@ -575,16 +574,11 @@ button.portfolio-asset-row:focus-visible {
   margin: 0;
   overflow-wrap: break-word;
   color: #465267;
-  font-size: 18px;
-  line-height: 32px;
-  text-align: justify;
-  text-justify: inter-character;
+  font-size: 16px;
+  line-height: 27px;
+  text-align: left;
+  font-weight: 400;
   word-break: normal;
-}
-
-.portfolio-detail-copy strong {
-  color: #151a2a;
-  font-weight: 900;
 }
 
 .portfolio-detail-time {
@@ -595,8 +589,8 @@ button.portfolio-asset-row:focus-visible {
 
 .portfolio-evidence {
   max-width: 62ch;
-  margin-top: 42px;
-  font-size: 18px;
+  margin-top: 24px;
+  font-size: 16px;
 }
 
 .portfolio-evidence summary {
@@ -617,7 +611,7 @@ button.portfolio-asset-row:focus-visible {
 
 .portfolio-evidence summary:focus-visible {
   border-radius: 4px;
-  outline: 2px solid #5144d8;
+  outline: 2px solid var(--portfolio-accent, #326bd5);
   outline-offset: 3px;
 }
 
@@ -647,8 +641,7 @@ button.portfolio-asset-row:focus-visible {
 }
 
 .portfolio-evidence-sources {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 10px;
   margin: 0;
   padding: 8px 0 0;
@@ -708,13 +701,13 @@ button.portfolio-asset-row:focus-visible {
 
   .portfolio-analysis-overview {
     padding-right: 0;
-    padding-bottom: 42px;
+    padding-bottom: 24px;
     border-right: 0;
     border-bottom: 1px solid #e6e9f0;
   }
 
   .portfolio-impact-detail {
-    padding: 42px 0 0;
+    padding: 24px 0 0;
   }
 }
 
@@ -725,18 +718,18 @@ button.portfolio-asset-row:focus-visible {
   }
 
   .portfolio-analysis-heading.has-analysis h2 {
-    font-size: 25px;
+    font-size: 20px;
   }
 
   .portfolio-analysis-donut-wrap {
-    width: min(100%, 290px);
+    width: min(100%, 220px);
   }
 
   .portfolio-asset-row {
     grid-template-columns: 10px minmax(0, 1fr) minmax(52px, auto);
   }
 
-  .portfolio-asset-analysis {
+  .portfolio-overall-row .portfolio-asset-analysis {
     display: none;
   }
 
@@ -750,4 +743,61 @@ button.portfolio-asset-row:focus-visible {
     align-items: flex-start;
     transform: none;
   }
+}
+
+.portfolio-evidence-sources li {
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid #e3e9f2;
+}
+
+.portfolio-evidence-sources a {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  color: #151a2a;
+  overflow-wrap: anywhere;
+}
+
+.portfolio-source-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: #68778d;
+  font-size: 12px;
+}
+
+.portfolio-evidence-sources p {
+  margin: 8px 0 0;
+  color: #68778d;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.portfolio-analysis-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 20px;
+  margin: -14px 0 18px;
+  color: #68778d;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.portfolio-analysis-meta:empty {
+  display: none;
+}
+
+.portfolio-analysis-meta p {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
+.portfolio-analysis-checked-at {
+  font-variant-numeric: tabular-nums;
 }
