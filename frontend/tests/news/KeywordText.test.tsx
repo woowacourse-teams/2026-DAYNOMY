@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KeywordText } from '../../src/features/news/newsdetail/components/KeywordText';
 import type { KeywordResponse } from '../../src/features/news/newsdetail/types';
 
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
+
 const keyword: KeywordResponse = {
   keyword: '외환시장',
   category: 'TERM',
@@ -15,6 +18,7 @@ const keyword: KeywordResponse = {
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -82,4 +86,27 @@ describe('키워드 팝업', () => {
       paragraphs,
     );
   });
+});
+
+it('같은 설명의 hover·focus·click은 한 번만 집계하고 닫은 뒤 다시 열면 집계한다', () => {
+  const view = render(<KeywordText newsId="7" paragraphs={['외환시장']} keywords={[keyword]} />);
+  const button = view.getByRole('button');
+  fireEvent.pointerEnter(button);
+  fireEvent.focus(button);
+  fireEvent.click(button);
+  expect(trackEvent).toHaveBeenCalledTimes(1);
+  expect(trackEvent).toHaveBeenLastCalledWith('open_keyword_analysis', {
+    news_id: '7',
+    keyword_category: 'TERM',
+    trigger: 'hover',
+  });
+  fireEvent.keyDown(button, { key: 'Escape' });
+  fireEvent.click(button);
+  expect(trackEvent).toHaveBeenCalledTimes(2);
+  expect(trackEvent).toHaveBeenLastCalledWith('open_keyword_analysis', {
+    news_id: '7',
+    keyword_category: 'TERM',
+    trigger: 'click',
+  });
+  expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain(keyword.keyword);
 });
