@@ -1087,6 +1087,7 @@ describe('포트폴리오 화면', () => {
       });
 
       const view = render(<PortfolioPage />);
+      await view.findAllByText('750,000원');
       const error = await view.findByRole('alert');
       expect(error.textContent).toContain('자산 추이 응답 형식이 올바르지 않습니다.');
       expect(view.queryByRole('img', { name: /포트폴리오 자산 추이/ })).toBeNull();

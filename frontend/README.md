@@ -60,6 +60,7 @@ npm run dev
 
 ### 실제 계정과 API 연결
 
+- 투자 리그 공개 준비 중에는 `/league/*`와 `/portfolio/publication`에서 안내 화면만 표시하고 리그 API를 호출하지 않습니다. 아래 리그 기능 설명은 기존 구현 기준이며 서버 API 접근 제한은 별도입니다.
 - 로컬 백엔드는 `http://localhost:8080`, 프론트는 `http://localhost:5173`을 사용합니다. `localhost`와 `127.0.0.1`을 섞지 않습니다.
 - Google OAuth의 로컬 승인된 리디렉션 URI는 `http://localhost:8080/login/oauth2/code/google`입니다. Google 클라이언트 정보는 백엔드의 비공개 환경 설정에만 둡니다.
 - 백엔드는 `FRONTEND_BASE_URL=http://localhost:5173`, HTTP 로컬 실행에서는 `COOKIE_SECURE=false`를 사용합니다. Dev·Prod의 HTTPS 쿠키 정책은 변경하지 않습니다.

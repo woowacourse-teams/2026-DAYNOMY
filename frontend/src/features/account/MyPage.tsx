@@ -113,17 +113,17 @@ export function MyPage() {
     {
       to: '/league/profile',
       title: '리그 프로필',
-      description: '리그 참여와 공개 프로필',
+      description: '투자 리그 준비 중',
     },
     {
       to: '/league/following',
       title: '팔로우한 투자자',
-      description: '이번 주 수익률과 복기 확인',
+      description: '투자 리그 준비 중',
     },
     {
       to: '/portfolio/publication',
       title: '리그 설정',
-      description: '공개 범위 · 프로필 · 순위 참여',
+      description: '투자 리그 준비 중',
     },
   ];
 
