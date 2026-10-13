@@ -6,6 +6,9 @@
   padding-bottom: 64px;
   color: #253047;
 }
+.portfolio-canvas {
+  display: contents;
+}
 .portfolio-page .portfolio-page-title {
   display: flex;
   align-items: center;
@@ -941,7 +944,7 @@
     padding: 22px;
   }
 }
-@media (max-width: 1100px) {
+@media (max-width: 1023px) {
   .portfolio-page .portfolio-table-wrap {
     contain: none;
     overflow: visible;
@@ -1051,6 +1054,7 @@
   }
   .portfolio-page .portfolio-composition-content {
     grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
     gap: 14px;
   }
   .portfolio-page .portfolio-return-dashboard {
@@ -1160,7 +1164,7 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1023px) {
   .portfolio-asset-trigger {
     min-height: 44px;
   }
@@ -1567,7 +1571,7 @@
   cursor: pointer;
 }
 
-@container portfolio-dashboard (max-width: 1000px) {
+@container portfolio-dashboard (max-width: 680px) {
   .portfolio-page .portfolio-dashboard-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2284,5 +2288,50 @@
   }
   .portfolio-history-dashboard .portfolio-history-amount {
     align-self: start;
+  }
+}
+
+/* Scale one desktop canvas; smaller screens retain the responsive layout. */
+@media (min-width: 1024px) {
+  .portfolio-page {
+    --portfolio-side-padding: 57.6px;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+  }
+  .portfolio-canvas {
+    display: block;
+    width: 1440px;
+    margin-inline: auto;
+    padding: 0 var(--portfolio-side-padding) 64px;
+    zoom: var(--portfolio-desktop-scale, 1);
+  }
+  .portfolio-page .portfolio-overview .portfolio-balance-value {
+    font-size: 40px;
+  }
+  .portfolio-page .portfolio-overview > div:not(.portfolio-summary-total) > dd {
+    font-size: 23px;
+  }
+  .portfolio-page .portfolio-overview > div {
+    padding-inline: 14px;
+  }
+  .portfolio-page .portfolio-overview > div:first-child {
+    padding: 0 20px 0 0;
+  }
+  .portfolio-news {
+    top: calc(64px / var(--portfolio-desktop-scale, 1));
+    max-height: calc((100dvh - 96px) / var(--portfolio-desktop-scale, 1));
+  }
+  .portfolio-news-heading {
+    gap: 8px;
+  }
+  .portfolio-news-heading h2 {
+    font-size: 16px;
+    white-space: nowrap;
+  }
+  .portfolio-news-heading-actions {
+    gap: 4px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 }
