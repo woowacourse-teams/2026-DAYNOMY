@@ -8,6 +8,7 @@ export type StockRelatedContent = {
   url: string;
   imageUrl: string | null;
   createdAt: string | null;
+  publishedDate?: string | null;
 };
 
 export type StockRelatedContentsResponse = {
@@ -37,6 +38,7 @@ export type StockRelatedContentRequest = {
   title: string;
   url: string;
   imageUrl?: string | null;
+  publishedDate?: string | null;
 };
 
 export const STOCK_CONTENT_SOURCE_LABELS: Record<StockRelatedContentSource, string> = {

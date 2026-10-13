@@ -113,7 +113,8 @@ public class AssetContentService {
             request.sourceType(),
             request.title().strip(),
             url,
-            stripToNull(request.imageUrl()));
+            stripToNull(request.imageUrl()),
+            request.publishedDate());
     try {
       return AssetContentResponse.from(contentRepository.saveAndFlush(content));
     } catch (DataIntegrityViolationException exception) {

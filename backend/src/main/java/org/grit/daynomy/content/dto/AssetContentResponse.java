@@ -1,6 +1,7 @@
 package org.grit.daynomy.content.dto;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.domain.ContentSourceType;
 
@@ -11,7 +12,8 @@ public record AssetContentResponse(
     String title,
     String url,
     String imageUrl,
-    Instant createdAt) {
+    Instant createdAt,
+    LocalDate publishedDate) {
 
   public static AssetContentResponse from(AssetContent content) {
     return new AssetContentResponse(
@@ -21,6 +23,7 @@ public record AssetContentResponse(
         content.getTitle(),
         content.getUrl(),
         content.getNews() == null ? content.getImageUrl() : content.getNews().getImageUrl(),
-        content.getCreatedAt());
+        content.getCreatedAt(),
+        content.getPublishedDate());
   }
 }
