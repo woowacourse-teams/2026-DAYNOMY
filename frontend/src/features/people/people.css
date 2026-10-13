@@ -1,10 +1,10 @@
 .people-page {
-  --people-side-padding: clamp(56px, 8vw, 160px);
+  --people-side-padding: var(--page-side-padding);
   --people-ink: #171821;
   --people-muted: #637082;
   --people-line: #e6e8ec;
   --people-accent: #394fc4;
-  width: min(100%, 2560px);
+  width: 100%;
   margin: 0 auto;
   padding: 0 0 88px;
   color: var(--people-ink);
@@ -531,7 +531,7 @@
 
 @media (max-width: 900px) {
   .people-page {
-    --people-side-padding: 32px;
+    --people-side-padding: var(--page-side-padding);
   }
 
   .people-trend-grid {
@@ -569,7 +569,7 @@
 
 @media (max-width: 620px) {
   .people-page {
-    --people-side-padding: 18px;
+    --people-side-padding: var(--page-side-padding);
     padding-bottom: 64px;
   }
 

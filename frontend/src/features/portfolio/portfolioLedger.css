@@ -1,8 +1,8 @@
 /* Portfolio ledger: balances, holdings, and dated transactions share one workspace. */
 .portfolio-page {
   --portfolio-accent: #326bd5;
-  --portfolio-side-padding: clamp(20px, 4vw, 64px);
-  width: min(100%, 1440px);
+  --portfolio-side-padding: var(--page-side-padding);
+  width: 100%;
   padding-bottom: 64px;
   color: #253047;
 }

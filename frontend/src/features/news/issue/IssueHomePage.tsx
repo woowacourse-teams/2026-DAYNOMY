@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
 import { IssueStories } from './IssueStories';
+import { getSampleNews, SAMPLE_NEWS_ID, showSampleNews } from './sampleNews';
 import type { NewsListItem } from '../newslist/types';
 import { createFeed, isToday, sourceLabel, timestamp, type FeedItem } from './feed';
 import { getContentsThroughToday } from './contents';
@@ -89,6 +90,7 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
     .filter((entry) => entry.post)
     .sort((a, b) => timestamp(b.post.createdAt) - timestamp(a.post.createdAt))
     .slice(0, 2);
+  const sampleNews = showSampleNews ? getSampleNews().news : null;
   const settled = !loading && !contentsLoading && !people.loading;
   const failedAreas = [error, contentsError, people.error].filter(Boolean).length;
   const listStatus = failedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
@@ -136,7 +138,19 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
       )}
       {!fullFeed && (
         <div className="issue-briefing">
-          <IssueStories news={news} loading={loading} error={error} onRetry={retry} />
+          <IssueStories
+            news={
+              sampleNews
+                ? [
+                    { ...sampleNews, id: SAMPLE_NEWS_ID, imageUrl: sampleNews.imageUrl ?? null },
+                    ...news,
+                  ]
+                : news
+            }
+            loading={sampleNews ? false : loading}
+            error={sampleNews ? '' : error}
+            onRetry={retry}
+          />
           <section className="issue-people" aria-labelledby="issue-people-heading">
             <div className="issue-section-heading">
               <h2 id="issue-people-heading">주목받는 인물의 글</h2>

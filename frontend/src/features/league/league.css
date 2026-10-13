@@ -3,7 +3,7 @@
   --league-muted: #667085;
   --league-line: #e7eaf0;
   --league-purple: #5144d8;
-  width: min(1120px, calc(100% - 40px));
+  width: var(--page-content-width);
   margin: 0 auto;
   padding: 16px 0 80px;
   color: var(--league-ink);
@@ -976,7 +976,7 @@
     gap: 4px;
   }
   .league-page {
-    width: min(100% - 32px, 1180px);
+    width: var(--page-content-width);
     padding-top: 8px;
   }
 

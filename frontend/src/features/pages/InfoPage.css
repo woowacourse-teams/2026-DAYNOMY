@@ -1,12 +1,12 @@
 .info-page {
   min-height: calc(100svh - 64px);
-  padding: 72px 24px 96px;
+  padding: 72px var(--page-side-padding) 96px;
   color: #171821;
   background: #ffffff;
 }
 
 .info-page-content {
-  width: min(100%, 820px);
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -72,7 +72,7 @@
 
 @media (max-width: 600px) {
   .info-page {
-    padding: 48px 20px 64px;
+    padding: 48px var(--page-side-padding) 64px;
   }
 
   .info-header {

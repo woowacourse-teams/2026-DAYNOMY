@@ -1,9 +1,9 @@
 .portfolio-page {
-  --portfolio-side-padding: clamp(56px, 8vw, 160px);
+  --portfolio-side-padding: var(--page-side-padding);
   --portfolio-muted: #7b7f84;
   --portfolio-line: #eceeef;
   --portfolio-accent: #4169ac;
-  width: min(100%, 2560px);
+  width: 100%;
   margin: 0 auto;
   padding: 0 var(--portfolio-side-padding);
   color: #252729;
@@ -1478,7 +1478,7 @@
 
 @media (max-width: 900px) {
   .portfolio-page {
-    --portfolio-side-padding: 32px;
+    --portfolio-side-padding: var(--page-side-padding);
   }
 
   .portfolio-overview {
@@ -1509,7 +1509,7 @@
 
 @media (max-width: 620px) {
   .portfolio-page {
-    --portfolio-side-padding: 18px;
+    --portfolio-side-padding: var(--page-side-padding);
   }
 
   .portfolio-page-title {
@@ -1727,9 +1727,9 @@
   --portfolio-demo-soft: #f7f9fc;
   --portfolio-demo-navy: #17365f;
   --portfolio-accent: #2474d2;
-  --portfolio-side-padding: clamp(56px, 8vw, 160px);
-  width: min(100%, 2560px);
-  max-width: 2560px;
+  --portfolio-side-padding: var(--page-side-padding);
+  width: 100%;
+  max-width: none;
   min-width: 0;
   margin: 0 auto;
   padding: 0 var(--portfolio-side-padding) 64px;
@@ -2789,7 +2789,7 @@
 
 @media (max-width: 1100px) {
   .portfolio-page {
-    --portfolio-side-padding: 32px;
+    --portfolio-side-padding: var(--page-side-padding);
     padding: 0 var(--portfolio-side-padding) 42px;
   }
 
@@ -2891,7 +2891,7 @@
 
 @media (max-width: 620px) {
   .portfolio-page {
-    --portfolio-side-padding: 18px;
+    --portfolio-side-padding: var(--page-side-padding);
     padding: 0 var(--portfolio-side-padding) 42px;
   }
 

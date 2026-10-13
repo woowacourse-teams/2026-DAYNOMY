@@ -1,5 +1,5 @@
 .mypage {
-  width: min(760px, calc(100% - 40px));
+  width: var(--page-content-width);
   margin: 24px auto 80px;
   color: #172031;
   line-height: 1.6;
@@ -137,6 +137,6 @@
 
 @media (max-width: 720px) {
   .mypage {
-    width: calc(100% - 32px);
+    width: var(--page-content-width);
   }
 }

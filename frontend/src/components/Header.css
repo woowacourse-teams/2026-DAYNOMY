@@ -1,5 +1,5 @@
 .daynomy-header {
-  --header-side-padding: clamp(56px, 8vw, 160px);
+  --header-side-padding: var(--page-side-padding);
   position: relative;
   box-sizing: border-box;
   width: 100%;
@@ -190,7 +190,7 @@
 
 @media (max-width: 900px) {
   .daynomy-header {
-    --header-side-padding: 32px;
+    --header-side-padding: var(--page-side-padding);
   }
 
   .daynomy-header .brand {
@@ -208,7 +208,7 @@
 
 @media (max-width: 720px) {
   .daynomy-header {
-    --header-side-padding: 18px;
+    --header-side-padding: var(--page-side-padding);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -251,7 +251,7 @@
 
 @media (max-width: 400px) {
   .daynomy-header {
-    --header-side-padding: 10px;
+    --header-side-padding: var(--page-side-padding);
     gap: 8px;
   }
 

@@ -1,7 +1,7 @@
 .loan-detail {
-  width: min(100%, 430px);
+  width: var(--page-content-width);
   margin: 0 auto;
-  padding: 0 16px 34px;
+  padding: 0 0 34px;
   background: #ffffff;
   color: #171821;
 }

@@ -1,3 +1,4 @@
+import { getSampleNews, SAMPLE_NEWS_ID, showSampleNews } from '../issue/sampleNews';
 import type {
   KeywordsResponse,
   MarketAnalysisResponse,
@@ -119,6 +120,8 @@ function getMarketAnalysisState(
 }
 
 export async function getNewsDetail(newsId: string): Promise<NewsDetailPayload> {
+  if (showSampleNews && newsId === SAMPLE_NEWS_ID) return getSampleNews();
+
   const news = await getJson(`/api/news/${newsId}`, isNewsDetailResponse);
   const [marketAnalysis, keywords] = await Promise.allSettled([
     getJson(`/api/news/${newsId}/market-analysis`, isMarketAnalysisResponse),

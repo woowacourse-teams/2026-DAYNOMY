@@ -1,6 +1,11 @@
 :root {
   scrollbar-gutter: stable;
 
+  --page-outer-gap: 16px;
+  --page-inner-padding: clamp(32px, 8vw, 128px);
+  --page-side-padding: calc(var(--page-outer-gap) + var(--page-inner-padding));
+  --page-content-width: calc(100% - 2 * var(--page-side-padding));
+
   --bg: #ffffff;
   --surface: #ffffff;
   --surface-strong: #f1f3f7;
@@ -42,4 +47,11 @@ h1,
 h2,
 p {
   margin: 0;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --page-outer-gap: 12px;
+    --page-inner-padding: 24px;
+  }
 }

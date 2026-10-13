@@ -1,6 +1,6 @@
 .search-page {
-  --search-side-padding: clamp(56px, 8vw, 160px);
-  width: min(100%, 2560px);
+  --search-side-padding: var(--page-side-padding);
+  width: 100%;
   margin: 0 auto;
   padding: 32px var(--search-side-padding) 78px;
   color: #171821;
@@ -296,7 +296,7 @@
 
 @media (max-width: 900px) {
   .search-page {
-    --search-side-padding: 32px;
+    --search-side-padding: var(--page-side-padding);
   }
 }
 
@@ -327,6 +327,6 @@
 
 @media (max-width: 620px) {
   .search-page {
-    --search-side-padding: 18px;
+    --search-side-padding: var(--page-side-padding);
   }
 }

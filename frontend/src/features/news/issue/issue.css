@@ -2,7 +2,7 @@
   --issue-ink: #10213c;
   --issue-muted: #606b7a;
   --issue-line: #e5e9ee;
-  width: min(1120px, calc(100% - 96px));
+  width: var(--page-content-width);
   min-height: 65vh;
   margin: 0 auto;
   padding: 52px 0 88px;
@@ -270,7 +270,7 @@
   align-items: center;
 }
 .issue-people-page {
-  max-width: 920px;
+  max-width: none;
 }
 .issue-people-tools {
   display: flex;
@@ -316,7 +316,7 @@
 }
 @media (max-width: 720px) {
   .issue-page {
-    width: calc(100% - 40px);
+    width: var(--page-content-width);
     padding: 28px 0 56px;
   }
   .issue-heading {
@@ -400,7 +400,7 @@
 }
 .news-home.issue-page {
   --news-side-padding: 0px;
-  width: min(920px, calc(100% - 96px));
+  width: var(--page-content-width);
   padding: 52px 0 88px;
 }
 .issue-news-archive .section-header {
@@ -426,7 +426,7 @@
 }
 @media (max-width: 720px) {
   .news-home.issue-page {
-    width: calc(100% - 40px);
+    width: var(--page-content-width);
     padding: 28px 0 56px;
   }
   .issue-news-archive .article-thumbnail {

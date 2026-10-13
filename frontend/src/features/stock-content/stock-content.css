@@ -7,12 +7,12 @@
   --stock-accent: #5144d8;
   width: 100%;
   min-height: calc(100svh - 64px);
-  padding: 28px 24px 96px;
+  padding: 28px var(--page-side-padding) 96px;
   background: #ffffff;
 }
 
 .stock-content-container {
-  width: min(100%, 1240px);
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -1016,7 +1016,7 @@
 
 @media (max-width: 720px) {
   .stock-content-page {
-    padding: 20px 18px 72px;
+    padding: 20px var(--page-side-padding) 72px;
   }
 
   .stock-content-layout,
