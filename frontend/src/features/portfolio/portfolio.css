@@ -2249,7 +2249,6 @@
   background: #98a2b3;
 }
 
-.portfolio-return-dashboard:has(.portfolio-tracking-state.is-empty),
 .portfolio-composition:has(.portfolio-module-empty) {
   grid-template-rows: auto minmax(210px, 1fr);
 }
@@ -2336,10 +2335,6 @@
 
 .portfolio-return-dashboard.is-compact .portfolio-return-chart {
   height: 218px;
-}
-
-.portfolio-return-dashboard.is-compact.has-single-point .portfolio-return-chart {
-  height: 168px;
 }
 
 .portfolio-return-dashboard.is-expanded {

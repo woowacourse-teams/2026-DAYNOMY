@@ -232,7 +232,7 @@
 }
 .portfolio-page .portfolio-dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
   gap: 24px;
 }
 .portfolio-page .portfolio-return-dashboard,
@@ -289,6 +289,7 @@
 .portfolio-page .portfolio-composition .portfolio-donut-wrap {
   width: 136px;
   height: 136px;
+  aspect-ratio: 1;
 }
 .portfolio-page .portfolio-analysis-section {
   margin-top: 36px;
@@ -1571,7 +1572,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-@container portfolio-composition (max-width: 300px) {
+@container portfolio-composition (max-width: 270px) {
   .portfolio-page .portfolio-composition-content {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
@@ -2211,6 +2212,32 @@
   }
 }
 
+/* Keep the dashboard plot's space stable across loading and data counts. */
+.portfolio-return-dashboard.is-compact {
+  grid-template-rows: auto auto 260px;
+  align-content: start;
+}
+.portfolio-return-dashboard.is-compact .portfolio-trend-plot {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 18px 40px;
+  min-height: 0;
+  margin-top: 12px;
+}
+.portfolio-return-dashboard.is-compact .portfolio-return-chart-wrap {
+  min-height: 0;
+  margin: 0;
+}
+.portfolio-return-dashboard.is-compact .portfolio-return-chart {
+  height: 100%;
+}
+.portfolio-return-dashboard.is-compact .portfolio-trend-note {
+  margin: 4px 0 0;
+}
+.portfolio-return-dashboard.is-compact .portfolio-tracking-state {
+  grid-row: 1 / -1;
+  min-height: 0;
+  margin: 0;
+}
 .portfolio-history-dashboard .portfolio-history-edit,
 .portfolio-history-dashboard .portfolio-history-balance {
   display: grid;
