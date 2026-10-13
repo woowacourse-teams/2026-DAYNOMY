@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { PortfolioNews } from '../../src/features/portfolio/components/PortfolioNews';
@@ -6,6 +8,7 @@ import { getStockRelatedContents } from '../../src/features/stock-content/api';
 vi.mock('../../src/features/stock-content/api', () => ({ getStockRelatedContents: vi.fn() }));
 afterEach(() => {
   cleanup();
+  vi.mocked(trackEvent).mockClear();
   vi.resetAllMocks();
 });
 const content = {
@@ -71,6 +74,15 @@ it('일부 종목 조회가 실패해도 성공한 소식은 유지하고 재시
     />,
   );
   await view.findByRole('alert');
+  expect(trackEvent).toHaveBeenCalledWith(
+    'content_load_result',
+    expect.objectContaining({
+      surface: 'portfolio_news',
+      status: 'partial_error',
+      result_count: 1,
+      attempt: 0,
+    }),
+  );
   expect(view.getByText('공통 소식')).toBeTruthy();
   vi.mocked(getStockRelatedContents).mockResolvedValue({
     assetId: 1,
@@ -80,6 +92,21 @@ it('일부 종목 조회가 실패해도 성공한 소식은 유지하고 재시
   });
   fireEvent.click(view.getByRole('button', { name: '소식 다시 불러오기' }));
   await waitFor(() => expect(view.queryByRole('alert')).toBeNull());
+  expect(trackEvent).toHaveBeenCalledWith('retry_content_load', {
+    surface: 'portfolio_news',
+    area: 'all',
+    attempt: 1,
+  });
+  expect(trackEvent).toHaveBeenCalledWith(
+    'content_load_result',
+    expect.objectContaining({ status: 'success', result_count: 1, attempt: 1 }),
+  );
+  fireEvent.click(view.getByRole('link', { name: /공통 소식/ }));
+  expect(trackEvent).toHaveBeenCalledWith(
+    'click_content',
+    expect.objectContaining({ surface: 'portfolio_news', position: 1 }),
+  );
+  expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('종목1');
   expect(view.getByText('공통 소식')).toBeTruthy();
 });
 

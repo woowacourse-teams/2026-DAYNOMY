@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { trackEvent } from '../../../analytics';
+import { trackLoadResult, useContentImpression, useContentView } from '../../news/issue/analytics';
+import { useEffect, useRef, useState } from 'react';
 import { getStockRelatedContents } from '../../stock-content/api';
 import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../../stock-content/types';
 
@@ -26,18 +28,23 @@ export function PortfolioNews({
   const assetKey = JSON.stringify(
     [...new Set(holdings.map((holding) => holding.assetId))].sort((a, b) => a - b),
   );
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [items, setItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(0);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    const startedAt = performance.now();
+    setLoadedKey(null);
     const controller = new AbortController();
     const ids: number[] = JSON.parse(assetKey);
     setItems([]);
     setFailed(0);
     if (!ids.length) {
       setLoading(false);
+      setLoadedKey(assetKey);
       return () => controller.abort();
     }
     setLoading(true);
@@ -60,6 +67,16 @@ export function PortfolioNews({
             } else unique.set(content.url, { ...content, assets: [result.value.assetName] });
           }
         }
+        const failedCount = results.filter((result) => result.status === 'rejected').length;
+        trackLoadResult(
+          'portfolio_news',
+          'all',
+          startedAt,
+          failedCount === results.length ? 'error' : failedCount ? 'partial_error' : 'success',
+          unique.size,
+          attempt,
+        );
+        setLoadedKey(assetKey);
         setItems(
           [...unique.values()].sort(
             (a, b) => (Date.parse(b.createdAt ?? '') || 0) - (Date.parse(a.createdAt ?? '') || 0),
@@ -72,6 +89,26 @@ export function PortfolioNews({
     return () => controller.abort();
   }, [assetKey, attempt]);
 
+  const settled = !loading && loadedKey === assetKey;
+  const status = failed
+    ? failed === JSON.parse(assetKey).length
+      ? 'error'
+      : 'partial_error'
+    : items.length
+      ? 'ready'
+      : 'empty';
+  useContentImpression(
+    panelRef,
+    assetKey,
+    'view_portfolio_news',
+    { surface: 'portfolio_news', status, result_count: items.length },
+    settled && !hidden,
+  );
+  useContentView(settled && !hidden && status === 'empty', 'view_content_empty', {
+    surface: 'portfolio_news',
+    reason: holdings.length ? 'no_linked_content' : 'no_holdings',
+  });
+
   return (
     <aside
       id="portfolio-news-panel"
@@ -79,7 +116,7 @@ export function PortfolioNews({
       aria-labelledby="portfolio-news-title"
       hidden={hidden}
     >
-      <div className="portfolio-news-heading">
+      <div ref={panelRef} className="portfolio-news-heading">
         <h2 id="portfolio-news-title">보유 자산 소식</h2>
         <div className="portfolio-news-heading-actions">
           <span>최신순</span>
@@ -106,7 +143,17 @@ export function PortfolioNews({
       {failed > 0 && (
         <p role="alert" className="portfolio-news-state">
           {failed}개 종목의 소식을 불러오지 못했습니다.{' '}
-          <button aria-label="소식 다시 불러오기" onClick={() => setAttempt((value) => value + 1)}>
+          <button
+            aria-label="소식 다시 불러오기"
+            onClick={() => {
+              trackEvent('retry_content_load', {
+                surface: 'portfolio_news',
+                area: 'all',
+                attempt: attempt + 1,
+              });
+              setAttempt((value) => value + 1);
+            }}
+          >
             다시 시도
           </button>
         </p>
@@ -119,9 +166,18 @@ export function PortfolioNews({
         </p>
       )}
       <ul className="portfolio-news-list">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <li key={item.url}>
             <a
+              onClick={() =>
+                trackEvent('click_content', {
+                  surface: 'portfolio_news',
+                  content_id: `content-${item.id}`,
+                  content_type: item.sourceType === 'INTERNAL_NEWS' ? 'news' : 'external',
+                  source_type: item.sourceType === 'INTERNAL_NEWS' ? 'DAYNOMY' : item.sourceType,
+                  position: index + 1,
+                })
+              }
               href={item.url}
               target={item.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}
               rel={item.sourceType === 'INTERNAL_NEWS' ? undefined : 'noreferrer'}
@@ -162,7 +218,16 @@ export function PortfolioNews({
           </li>
         ))}
       </ul>
-      <a className="portfolio-news-more" href="/news/contents">
+      <a
+        onClick={() =>
+          trackEvent('click_content_more', {
+            surface: 'portfolio_news',
+            destination: 'news_contents',
+          })
+        }
+        className="portfolio-news-more"
+        href="/news/contents"
+      >
         전체 콘텐츠 더 보기 <span aria-hidden="true">→</span>
       </a>
     </aside>

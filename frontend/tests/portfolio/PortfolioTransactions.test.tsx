@@ -1,12 +1,18 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { trackPortfolioEvent } from '../../src/features/portfolio/analytics';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
 import type {
   PortfolioHoldingInput,
   PortfolioHoldingHistory,
   PortfolioTransactionRequest,
 } from '../../src/features/portfolio/types';
+
+vi.mock('../../src/features/portfolio/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/features/portfolio/analytics')>()),
+  trackPortfolioEvent: vi.fn(),
+}));
 
 const stock = {
   assetId: 1,
@@ -68,6 +74,7 @@ function json(body: unknown, status = 200) {
   });
 }
 beforeEach(() => {
+  vi.mocked(trackPortfolioEvent).mockClear();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-12T01:00:00Z'));
   holdings = [{ ...holding }];
@@ -203,6 +210,37 @@ function performanceRequests() {
 }
 
 describe('거래 원장 화면', () => {
+  it('내역 탭·필터는 변경만 수집하고 조회 날짜 대신 유효한 기간 길이를 보낸다', async () => {
+    const view = await ready();
+    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+    fireEvent.click(view.getByRole('button', { name: '거래·변경 내역' }));
+    const history = view.getByRole('region', { name: '거래·변경 내역' });
+    const filter = within(history).getByRole('combobox');
+    fireEvent.change(filter, { target: { value: 'BUY' } });
+    fireEvent.change(filter, { target: { value: 'BUY' } });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_tab_changed'),
+    ).toEqual([['portfolio_tab_changed', { tab: 'history' }]]);
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_history_filter_changed'),
+    ).toEqual([['portfolio_history_filter_changed', { filter: 'BUY' }]]);
+    fireEvent.change(within(history).getByLabelText('시작일'), { target: { value: '2026-10-01' } });
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_history_range_changed', {
+      range_days: 12,
+    });
+    fireEvent.change(within(history).getByLabelText('시작일'), { target: { value: '2026-10-13' } });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_history_range_changed'),
+    ).toHaveLength(1);
+    expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toContain('2026-10-01');
+  });
+
   it('검색한 기존 종목에 추가 매수하고 비용을 API에 전달한다', async () => {
     const view = await ready();
     fireEvent.click(view.getByRole('button', { name: '자산 추가' }));
@@ -230,6 +268,14 @@ describe('거래 원장 화면', () => {
       tax: 0,
     });
     expect(new Headers(init?.headers).get('X-CSRF-TOKEN')).toBe('test');
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_save_succeeded', {
+      operation: 'transaction_create',
+      storage: 'server',
+      transaction_type: 'BUY',
+    });
+    expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
+      /삼성|005930|quantity|unitPrice|tradeDate|75000/,
+    );
   });
   it('보유수량이 그대로인 과거 거래일 수정 후 재계산된 추이와 내역을 표시한다', async () => {
     const view = await ready();

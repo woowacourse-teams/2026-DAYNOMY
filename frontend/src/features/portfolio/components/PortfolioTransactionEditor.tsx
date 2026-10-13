@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getLatestStockPrice, searchStocks } from '../api';
+import { trackPortfolioEvent } from '../analytics';
 import {
   todayInSeoul,
   toTransactionRequest,
@@ -207,7 +208,17 @@ export function PortfolioTransactionEditor({
                   <ul>
                     {results.map((item) => (
                       <li key={item.assetId}>
-                        <button type="button" onClick={() => setSelected(item)}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            trackPortfolioEvent('portfolio_stock_selected', {
+                              category: item.category,
+                              market: item.market,
+                              mode: 'transaction_create',
+                            });
+                            setSelected(item);
+                          }}
+                        >
                           <span className="portfolio-monogram">{item.name.slice(0, 1)}</span>
                           <span>
                             <strong>{item.name}</strong>

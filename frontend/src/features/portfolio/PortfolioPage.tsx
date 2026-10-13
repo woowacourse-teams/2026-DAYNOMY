@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { PortfolioNews } from './components/PortfolioNews';
 import { calculatePortfolio } from './api';
+import { portfolioErrorType, trackPortfolioEvent } from './analytics';
 import { PortfolioAnalysis } from './components/PortfolioAnalysis';
 import { PortfolioEditor } from './components/PortfolioEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
@@ -677,6 +678,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
+  const viewedRef = useRef(false);
+  const loadedRef = useRef(false);
+
+  useEffect(() => {
+    if (viewedRef.current) return;
+    viewedRef.current = true;
+    trackPortfolioEvent('portfolio_dashboard_viewed', { is_logged_in: isLoggedIn });
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (holdingsLoading) return;
@@ -697,6 +706,10 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       .catch((caughtError: unknown) => {
         if (controller.signal.aborted) return;
         setCalculation(null);
+        trackPortfolioEvent('portfolio_dashboard_load_failed', {
+          stage: 'calculation',
+          error_type: portfolioErrorType(caughtError),
+        });
         setError(
           caughtError instanceof Error ? caughtError.message : '포트폴리오를 계산하지 못했습니다.',
         );
@@ -751,10 +764,106 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   );
   const trendPoints = performance.points;
 
+  useEffect(() => {
+    if (
+      loadedRef.current ||
+      holdingsLoading ||
+      loading ||
+      holdingsError ||
+      error ||
+      (holdings.length > 0 && !calculation) ||
+      !dashboardCalculation
+    )
+      return;
+    loadedRef.current = true;
+    trackPortfolioEvent('portfolio_dashboard_loaded', {
+      is_logged_in: isLoggedIn,
+      has_holdings: holdings.length > 0,
+      pricing_status: dashboardCalculation.pricingStatus,
+    });
+  }, [
+    calculation,
+    dashboardCalculation,
+    error,
+    holdings.length,
+    holdingsError,
+    holdingsLoading,
+    isLoggedIn,
+    loading,
+  ]);
+
+  function openHoldingEditor(
+    holding: PortfolioHoldingInput | undefined,
+    entryPoint: 'header' | 'empty_state' | 'holding_detail' | 'editor_switch',
+  ) {
+    trackPortfolioEvent('portfolio_editor_opened', {
+      mode: holding ? 'holding_update' : 'holding_create',
+      entry_point: entryPoint,
+      is_logged_in: isLoggedIn,
+    });
+    setEditor({ holding });
+  }
+
+  function openTransactionEditor(
+    next: NonNullable<typeof transactionEditor>,
+    entryPoint: 'header' | 'empty_state' | 'history' | 'holding_detail' | 'editor_switch',
+  ) {
+    trackPortfolioEvent('portfolio_editor_opened', {
+      mode: next.transaction ? 'transaction_update' : 'transaction_create',
+      entry_point: entryPoint,
+      is_logged_in: isLoggedIn,
+    });
+    setTransactionEditor(next);
+  }
+
+  function openAdd(entryPoint: 'header' | 'empty_state') {
+    if (isLoggedIn) openTransactionEditor({}, entryPoint);
+    else openHoldingEditor(undefined, entryPoint);
+  }
+
+  function openHoldingDetail(holding: PortfolioHoldingResult) {
+    trackPortfolioEvent('portfolio_holding_detail_opened', {
+      category: holding.category,
+      market: holding.market,
+    });
+    setSelectedStock(holding);
+  }
+
+  function changeTab(tab: typeof activeTab) {
+    if (tab === activeTab) return;
+    trackPortfolioEvent('portfolio_tab_changed', { tab });
+    setActiveTab(tab);
+  }
+
+  function changePeriod(period: TrendPeriod, view: 'inline' | 'dialog') {
+    if (period === trendPeriod) return;
+    trackPortfolioEvent('portfolio_period_changed', { period, view });
+    setTrendPeriod(period);
+  }
+
+  function retryChart() {
+    trackPortfolioEvent('portfolio_retry_clicked', { target: 'chart' });
+    performance.retry();
+  }
+
   async function save(nextHolding: PortfolioHoldingInput) {
-    await saveHolding(nextHolding);
-    setEditor(null);
-    setNotice(isLoggedIn ? '보유정보를 저장했어요.' : '보유정보를 현재 탭에 임시 보관했어요.');
+    const operation = holdings.some((holding) => holding.assetId === nextHolding.assetId)
+      ? 'holding_update'
+      : 'holding_create';
+    const properties = { operation, storage: isLoggedIn ? 'server' : 'temporary' } as const;
+    trackPortfolioEvent('portfolio_save_submitted', properties);
+    try {
+      await saveHolding(nextHolding);
+      trackPortfolioEvent('portfolio_save_succeeded', properties);
+      setEditor(null);
+      setNotice(isLoggedIn ? '보유정보를 저장했어요.' : '보유정보를 현재 탭에 임시 보관했어요.');
+    } catch (caughtError) {
+      trackPortfolioEvent('portfolio_save_failed', {
+        ...properties,
+        error_type: portfolioErrorType(caughtError),
+      });
+      throw caughtError;
+    }
   }
 
   function displayWon(value: number | null, signed = false) {
@@ -794,7 +903,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             type="button"
             className="portfolio-primary-button"
             disabled={holdingsLoading || !!holdingsError}
-            onClick={() => (isLoggedIn ? setTransactionEditor({}) : setEditor({}))}
+            onClick={() => openAdd('header')}
           >
             <span aria-hidden="true">＋</span> 자산 추가
           </button>
@@ -818,7 +927,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           <button
             type="button"
             className="portfolio-secondary-button"
-            onClick={() => (holdingsError ? retryHoldings() : setRetryCount((count) => count + 1))}
+            onClick={() => {
+              trackPortfolioEvent('portfolio_retry_clicked', { target: 'dashboard' });
+              if (holdingsError) retryHoldings();
+              else setRetryCount((count) => count + 1);
+            }}
           >
             다시 시도
           </button>
@@ -846,7 +959,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     type="button"
                     className="portfolio-privacy-button"
                     aria-pressed={amountsHidden}
-                    onClick={() => setAmountsHidden((hidden) => !hidden)}
+                    onClick={() => {
+                      trackPortfolioEvent('portfolio_amount_visibility_changed', {
+                        hidden: !amountsHidden,
+                      });
+                      setAmountsHidden(!amountsHidden);
+                    }}
                   >
                     {amountsHidden ? '금액 보기' : '금액 숨기기'}
                   </button>
@@ -924,7 +1042,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   aria-label={`자산 분석 ${analysisExpanded ? '접기' : '펼치기'}`}
                   aria-expanded={analysisExpanded}
                   aria-controls="portfolio-analysis-content"
-                  onClick={() => setAnalysisExpanded((expanded) => !expanded)}
+                  onClick={() => {
+                    trackPortfolioEvent('portfolio_asset_section_toggled', {
+                      expanded: !analysisExpanded,
+                    });
+                    setAnalysisExpanded(!analysisExpanded);
+                  }}
                 >
                   <span id="portfolio-analysis-title" className="portfolio-analysis-title">
                     자산 분석
@@ -943,11 +1066,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                       points={trendPoints}
                       loading={performance.loading}
                       error={performance.error}
-                      onRetry={performance.retry}
+                      onRetry={retryChart}
                       amountsHidden={amountsHidden}
                       period={trendPeriod}
-                      onPeriodChange={setTrendPeriod}
+                      onPeriodChange={(period) => changePeriod(period, 'inline')}
                       onExpand={(trigger) => {
+                        trackPortfolioEvent('portfolio_chart_expanded');
                         trendDialogTriggerRef.current = trigger;
                         setTrendDialogOpen(true);
                       }}
@@ -1000,14 +1124,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               <button
                 type="button"
                 aria-pressed={activeTab === 'holdings'}
-                onClick={() => setActiveTab('holdings')}
+                onClick={() => changeTab('holdings')}
               >
                 보유 자산 <span>{holdings.length}</span>
               </button>
               <button
                 type="button"
                 aria-pressed={activeTab === 'history'}
-                onClick={() => setActiveTab('history')}
+                onClick={() => changeTab('history')}
               >
                 거래·변경 내역
               </button>
@@ -1017,8 +1141,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 revision={revision}
                 localHistories={isLoggedIn ? undefined : guestHistories}
                 amountsHidden={amountsHidden}
-                onCreate={() => setTransactionEditor({})}
-                onEdit={(transaction) => setTransactionEditor({ transaction })}
+                onCreate={() => openTransactionEditor({}, 'history')}
+                onEdit={(transaction) => openTransactionEditor({ transaction }, 'history')}
                 onDelete={(transaction) => setRemoving({ transaction })}
               />
             ) : (
@@ -1032,7 +1156,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                             key={category}
                             type="button"
                             aria-pressed={categoryFilter === category}
-                            onClick={() => setCategoryFilter(category)}
+                            onClick={() => {
+                              if (category === categoryFilter) return;
+                              trackPortfolioEvent('portfolio_filter_changed', { category });
+                              setCategoryFilter(category);
+                            }}
                           >
                             {category === 'ALL' ? '전체' : getCategoryLabel(category)}
                           </button>
@@ -1044,7 +1172,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                           <select
                             aria-label="보유 자산 정렬"
                             value={sort}
-                            onChange={(event) => setSort(event.target.value as PortfolioSort)}
+                            onChange={(event) => {
+                              const next = event.target.value as PortfolioSort;
+                              if (next === sort) return;
+                              trackPortfolioEvent('portfolio_sort_changed', { sort: next });
+                              setSort(next);
+                            }}
                           >
                             <option value="DEFAULT">기본 순서</option>
                             <option value="EVALUATION">평가금액 높은 순</option>
@@ -1082,7 +1215,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                                 event.currentTarget
                                   .querySelector<HTMLButtonElement>('.portfolio-asset-trigger')
                                   ?.focus();
-                                setSelectedStock(holding);
+                                openHoldingDetail(holding);
                               }}
                             >
                               <td>
@@ -1096,7 +1229,10 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                                       className="portfolio-asset-link portfolio-asset-trigger"
                                       aria-label={`${holding.name} 보유 상세`}
                                       aria-haspopup="dialog"
-                                      onClick={() => setSelectedStock(holding)}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openHoldingDetail(holding);
+                                      }}
                                     >
                                       {holding.name}
                                       <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -1170,7 +1306,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 </p>
                 <button
                   className="portfolio-secondary-button"
-                  onClick={() => (isLoggedIn ? setTransactionEditor({}) : setEditor({}))}
+                  onClick={() => openAdd('empty_state')}
                 >
                   {isLoggedIn ? '첫 거래 기록하기' : '첫 자산 추가하기'}
                 </button>
@@ -1200,10 +1336,10 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           points={trendPoints}
           loading={performance.loading}
           error={performance.error}
-          onRetry={performance.retry}
+          onRetry={retryChart}
           amountsHidden={amountsHidden}
           period={trendPeriod}
-          onPeriodChange={setTrendPeriod}
+          onPeriodChange={(period) => changePeriod(period, 'dialog')}
           onClose={() => {
             setTrendDialogOpen(false);
             trendDialogTriggerRef.current?.focus();
@@ -1257,10 +1393,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 amountsHidden={amountsHidden}
                 busy={holdingsSaving || loading}
                 onClose={() => setSelectedStock(null)}
-                onTrade={(type) => setTransactionEditor({ stock: selectedStock, type })}
-                onAdjust={(holding) => setEditor({ holding })}
+                onTrade={(type) =>
+                  openTransactionEditor({ stock: selectedStock, type }, 'holding_detail')
+                }
+                onAdjust={(holding) => openHoldingEditor(holding, 'holding_detail')}
                 onRemove={(holding) => setRemoving({ holding })}
-                onEditTransaction={(transaction) => setTransactionEditor({ transaction })}
+                onEditTransaction={(transaction) =>
+                  openTransactionEditor({ transaction }, 'holding_detail')
+                }
                 onDeleteTransaction={(transaction) => setRemoving({ transaction })}
               />
             </div>
@@ -1273,21 +1413,36 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 !selectedStock && !transactionEditor.transaction
                   ? () => {
                       setTransactionEditor(null);
-                      setEditor({});
+                      openHoldingEditor(undefined, 'editor_switch');
                     }
                   : undefined
               }
               onClose={() => setTransactionEditor(null)}
               onSave={async (request, stock) => {
                 const transaction = transactionEditor.transaction;
-                if (transaction) {
-                  const { assetId: _assetId, type: _type, ...update } = request;
-                  await updateTransaction(transaction.historyId, transaction.assetId, update);
-                } else await createTransaction(request, stock);
-                setTransactionEditor(null);
-                setNotice(
-                  transaction ? '거래를 수정하고 자산을 다시 계산했어요.' : '거래를 기록했어요.',
-                );
+                const properties = {
+                  operation: transaction ? 'transaction_update' : 'transaction_create',
+                  storage: isLoggedIn ? 'server' : 'temporary',
+                  transaction_type: request.type,
+                } as const;
+                trackPortfolioEvent('portfolio_save_submitted', properties);
+                try {
+                  if (transaction) {
+                    const { assetId: _assetId, type: _type, ...update } = request;
+                    await updateTransaction(transaction.historyId, transaction.assetId, update);
+                  } else await createTransaction(request, stock);
+                  trackPortfolioEvent('portfolio_save_succeeded', properties);
+                  setTransactionEditor(null);
+                  setNotice(
+                    transaction ? '거래를 수정하고 자산을 다시 계산했어요.' : '거래를 기록했어요.',
+                  );
+                } catch (caughtError) {
+                  trackPortfolioEvent('portfolio_save_failed', {
+                    ...properties,
+                    error_type: portfolioErrorType(caughtError),
+                  });
+                  throw caughtError;
+                }
               }}
             />
           )}
@@ -1296,14 +1451,27 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               title={removing.transaction ? '거래 삭제' : '보유자산 제거'}
               onClose={() => setRemoving(null)}
               onConfirm={async () => {
-                if (removing.transaction)
-                  await deleteTransaction(
-                    removing.transaction.historyId,
-                    removing.transaction.assetId,
-                  );
-                else if (removing.holding) await removeHolding(removing.holding.assetId);
-                setRemoving(null);
-                setNotice('삭제 내용을 반영했어요.');
+                const properties = {
+                  target: removing.transaction ? 'transaction' : 'holding',
+                  storage: isLoggedIn ? 'server' : 'temporary',
+                } as const;
+                try {
+                  if (removing.transaction)
+                    await deleteTransaction(
+                      removing.transaction.historyId,
+                      removing.transaction.assetId,
+                    );
+                  else if (removing.holding) await removeHolding(removing.holding.assetId);
+                  trackPortfolioEvent('portfolio_delete_succeeded', properties);
+                  setRemoving(null);
+                  setNotice('삭제 내용을 반영했어요.');
+                } catch (caughtError) {
+                  trackPortfolioEvent('portfolio_delete_failed', {
+                    ...properties,
+                    error_type: portfolioErrorType(caughtError),
+                  });
+                  throw caughtError;
+                }
               }}
             >
               <strong>{removing.transaction?.name ?? removing.holding?.name}</strong>
@@ -1337,7 +1505,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 isLoggedIn && !editor.holding
                   ? () => {
                       setEditor(null);
-                      setTransactionEditor({});
+                      openTransactionEditor({}, 'editor_switch');
                     }
                   : undefined
               }
