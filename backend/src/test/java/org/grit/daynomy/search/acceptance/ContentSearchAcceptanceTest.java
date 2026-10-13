@@ -83,7 +83,11 @@ class ContentSearchAcceptanceTest {
         personRepository.save(FeaturedPerson.create("경제 연구원", null, null, null, null));
     personPostRepository.save(
         FeaturedPersonPost.create(
-            person, ContentSourceType.X, "금리 전망", "https://twitter.com/example/status/123"));
+            person,
+            ContentSourceType.X,
+            "금리 전망",
+            "https://twitter.com/example/status/123",
+            Instant.parse("2026-08-12T00:00:00Z")));
     Asset asset = assetRepository.save(new Asset("종목", AssetCategory.STOCK, "SEARCH001"));
     contentRepository.save(
         AssetContent.create(
