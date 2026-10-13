@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe('실제 인증을 사용하는 마이페이지', () => {
-  it('프로필 버튼이 마이페이지로 연결되고 계정·공유 관리 링크를 제공한다', async () => {
+  it('프로필 버튼이 마이페이지로 연결되고 계정·활동 링크를 제공한다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => json(account)),
@@ -65,9 +65,10 @@ describe('실제 인증을 사용하는 마이페이지', () => {
     expect(view.queryByRole('link', { name: '초보 돈 관리' })).toBeNull();
     expect(view.getByRole('link', { name: '마이페이지' }).getAttribute('href')).toBe('/mypage');
     expect(view.getByRole('link', { name: /내 포트폴리오/ }).getAttribute('href')).toBe('/');
-    expect(view.getByRole('link', { name: /리그 프로필/ }).getAttribute('href')).toBe(
-      '/league/profile',
-    );
+    expect(view.queryByRole('link', { name: /리그 프로필/ })).toBeNull();
+    expect(view.queryByRole('link', { name: /팔로우한 투자자/ })).toBeNull();
+    expect(view.queryByRole('link', { name: /리그 설정/ })).toBeNull();
+    expect(view.queryByText('투자 리그 준비 중')).toBeNull();
   });
 
   it('닉네임 저장은 CSRF를 사용하고 헤더·재방문에 반영하며 저장 중 중복 요청을 막는다', async () => {
