@@ -395,14 +395,15 @@ describe('포트폴리오 분석 화면', () => {
     expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
   });
 
-  it('자산이 달라지면 분석 당시 비중을 유지하고 현재 자산 분석 API를 호출한다', async () => {
+  it('자산이 달라지면 과거 분석을 숨기고 현재 자산 분석 API를 호출한다', async () => {
     const fetchMock = memberFetch(() =>
       saved({ matchesCurrentPortfolio: false, status: 'PORTFOLIO_CHANGED' }),
     );
     const view = render(<PortfolioAnalysis assets={[{ assetName: '현대차', weight: 100 }]} />);
-    expect(await view.findByText(/아래는 분석 당시 자산과 비중/)).toBeTruthy();
-    expect(view.getByText('삼성전자')).toBeTruthy();
-    expect(view.queryByText('현대차')).toBeNull();
+    expect(await view.findByText(/자산 구성이 바뀌어 이전 분석을 숨겼어요/)).toBeTruthy();
+    expect(view.queryByText('삼성전자')).toBeNull();
+    expect(view.getByText('분석 대상: 현대차')).toBeTruthy();
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '현재 자산으로 분석하기' }));
     await waitFor(() =>
       expect(
@@ -412,6 +413,126 @@ describe('포트폴리오 분석 화면', () => {
       ).toBe(true),
     );
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/refresh'))).toBe(false);
+  });
+
+  it('매도 후 새 분석이 실패해도 이전 종목의 분석을 다시 표시하지 않는다', async () => {
+    memberFetch((_url, init) =>
+      init?.method === 'POST'
+        ? jsonResponse({}, 502)
+        : saved({ matchesCurrentPortfolio: false, status: 'PORTFOLIO_CHANGED' }),
+    );
+    const currentAssets = [assets[0], { assetName: '포스코인터내셔널', weight: 40 }];
+    const view = render(<PortfolioAnalysis assets={currentAssets} />);
+    fireEvent.click(await view.findByRole('button', { name: '현재 자산으로 분석하기' }));
+    expect(await view.findByRole('alert')).toBeTruthy();
+    expect(view.getByText('분석 대상: 삼성전자, 포스코인터내셔널')).toBeTruthy();
+    expect(view.queryByText('SK하이닉스')).toBeNull();
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    expect(view.queryByRole('heading', { name: '전체 포트폴리오' })).toBeNull();
+  });
+
+  it('비중 변경 즉시 이전 설명을 숨기고 늦은 조회 결과도 노출하지 않는다', async () => {
+    let resolveRead!: (response: Response) => void;
+    let reads = 0;
+    memberFetch(() =>
+      reads++ === 0
+        ? saved()
+        : new Promise<Response>((resolve) => {
+            resolveRead = resolve;
+          }),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    expect(await view.findByText(analysisResponse.overallImpact)).toBeTruthy();
+    view.rerender(
+      <PortfolioAnalysis
+        assets={[
+          { ...assets[0], weight: 70 },
+          { ...assets[1], weight: 30 },
+        ]}
+      />,
+    );
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    await act(async () => resolveRead(jsonResponse(saved())));
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+  });
+
+  it('비회원도 수량이 바뀌면 세션의 이전 분석을 다시 표시하지 않는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(analysisResponse)),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} holdingsKey="1,1" />);
+    fireEvent.click(view.getByRole('button', { name: '1회 분석 체험하기' }));
+    expect(await view.findByText(analysisResponse.overallImpact)).toBeTruthy();
+    view.rerender(<PortfolioAnalysis assets={assets} isLoggedIn={false} holdingsKey="2,2" />);
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    expect(view.getByRole('link', { name: '로그인하고 다시 분석하기' })).toBeTruthy();
+  });
+
+  it('비중이 같아도 수량 변경 시 이전 분석을 즉시 숨기고 서버 상태를 다시 조회한다', async () => {
+    let resolveRead!: (response: Response) => void;
+    let reads = 0;
+    memberFetch(() =>
+      reads++ === 0
+        ? saved()
+        : new Promise<Response>((resolve) => {
+            resolveRead = resolve;
+          }),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} holdingsKey="1,1" />);
+    expect(await view.findByText(analysisResponse.overallImpact)).toBeTruthy();
+    view.rerender(<PortfolioAnalysis assets={assets} holdingsKey="2,2" />);
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    await act(async () =>
+      resolveRead(
+        jsonResponse(saved({ status: 'PORTFOLIO_CHANGED', matchesCurrentPortfolio: false })),
+      ),
+    );
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    expect(view.getByRole('button', { name: '현재 자산으로 분석하기' })).toBeTruthy();
+  });
+
+  it('연결 실패 뒤 서버에서 완료된 부분 분석도 표시한다', async () => {
+    let reads = 0;
+    memberFetch((_url, init) => {
+      if (init?.method === 'POST') return jsonResponse({}, 504);
+      return reads++ === 0
+        ? saved({ analysis: null, status: 'EMPTY', analysisId: null })
+        : saved({ status: 'RECHECK_REQUIRED' });
+    });
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
+    expect(await view.findByText(analysisResponse.overallImpact)).toBeTruthy();
+    expect(view.queryByRole('alert')).toBeNull();
+  });
+
+  it('요청 시간 초과 후 처리 중 상태를 조회하고 완료 결과를 자동으로 표시한다', async () => {
+    let reads = 0;
+    const fetchMock = memberFetch((_url, init) => {
+      if (init?.method === 'POST') return jsonResponse({}, 504);
+      reads++;
+      if (reads === 1) return saved({ analysis: null, status: 'EMPTY', analysisId: null });
+      if (reads === 2) return saved({ analysis: null, status: 'PROCESSING', analysisId: null });
+      return saved();
+    });
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
+    expect(
+      await view.findByText('서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.'),
+    ).toBeTruthy();
+    expect(view.queryByRole('alert')).toBeNull();
+    expect(
+      await view.findByText(analysisResponse.overallImpact, {}, { timeout: 4500 }),
+    ).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.filter(
+        ([url, init]) => String(url).endsWith('/analysis') && init?.method === 'POST',
+      ),
+    ).toHaveLength(1);
+    view.unmount();
+    const calls = fetchMock.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchMock).toHaveBeenCalledTimes(calls);
   });
 
   it('다른 탭에서 처리 중이면 진행 상태만 조회하고 새 분석 요청은 보내지 않는다', async () => {
