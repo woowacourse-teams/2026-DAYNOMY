@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
+import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.publicdata.PublicDataEtfPriceClient;
@@ -45,6 +47,7 @@ public class StockPriceSyncService {
   private final StockPricePersistenceService persistenceService;
   private final StockPriceSyncMetrics syncMetrics;
   private final ApplicationEventPublisher eventPublisher;
+  private final MarketTradingDayRepository tradingDayRepository;
   private final AtomicBoolean running = new AtomicBoolean(false);
 
   public StockPriceSyncService(
@@ -52,12 +55,14 @@ public class StockPriceSyncService {
       PublicDataEtfPriceClient etfPriceClient,
       StockPricePersistenceService persistenceService,
       StockPriceSyncMetrics syncMetrics,
-      ApplicationEventPublisher eventPublisher) {
+      ApplicationEventPublisher eventPublisher,
+      MarketTradingDayRepository tradingDayRepository) {
     this.stockPriceClient = stockPriceClient;
     this.etfPriceClient = etfPriceClient;
     this.persistenceService = persistenceService;
     this.syncMetrics = syncMetrics;
     this.eventPublisher = eventPublisher;
+    this.tradingDayRepository = tradingDayRepository;
   }
 
   public StockPriceSyncResult synchronize() {
@@ -80,7 +85,7 @@ public class StockPriceSyncService {
         .log(LogEvent.STOCK_PRICE_SYNC_STARTED.message());
 
     try {
-      List<StockPriceSnapshot> snapshots = findLatestSnapshots(today);
+      List<StockPriceSnapshot> snapshots = findSnapshotsToSynchronize(today);
       for (int index = snapshots.size() - 1; index > 0; index--) {
         StockPriceSnapshot snapshot = snapshots.get(index);
         persistenceService.synchronize(snapshot.baseDate(), snapshot.entries());
@@ -182,6 +187,26 @@ public class StockPriceSyncService {
     return List.copyOf(snapshots);
   }
 
+  private List<StockPriceSnapshot> findSnapshotsToSynchronize(LocalDate today) {
+    Map<LocalDate, StockPriceSnapshot> snapshots = new LinkedHashMap<>();
+    findLatestSnapshots(today).forEach(snapshot -> snapshots.put(snapshot.baseDate(), snapshot));
+    LocalDate earliestLatest = snapshots.keySet().stream().min(LocalDate::compareTo).orElseThrow();
+    // shortcut: 자동 복구는 최근 10일로 제한한다. 더 긴 장애는 기간별 백필로 복구한다.
+    for (var day :
+        tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+            today.minusDays(LOOKBACK_DAYS), today)) {
+      if (!day.isTrading()
+          || day.getCollectedAt() != null
+          || day.closesAt().isAfter(java.time.Instant.now())
+          || !day.getBaseDate().isBefore(earliestLatest)) continue;
+      findSnapshot(day.getBaseDate())
+          .ifPresent(snapshot -> snapshots.put(snapshot.baseDate(), snapshot));
+    }
+    return snapshots.values().stream()
+        .sorted(Comparator.comparing(StockPriceSnapshot::baseDate).reversed())
+        .toList();
+  }
+
   private Optional<StockPriceSnapshot> findSnapshot(LocalDate requestedDate) {
     List<PublicDataStockPriceItem> items = new ArrayList<>();
     for (StockMarket market : StockMarket.values()) {
@@ -192,6 +217,7 @@ public class StockPriceSyncService {
       items.addAll(marketItems);
     }
     List<PublicDataEtfPriceItem> etfItems = getAllEtfPages(requestedDate);
+    if (etfItems.isEmpty()) return Optional.empty();
     List<StockPriceEntry> entries = new ArrayList<>(toStockEntries(items, requestedDate));
     entries.addAll(toEtfEntries(etfItems, requestedDate));
     if (entries.isEmpty()) {

@@ -80,6 +80,50 @@ class LeagueServiceTest {
   @InjectMocks private LeagueService service;
 
   @Test
+  void finalizationDelayWaitsForNextTradingDayPublicationAndMissingCalendarIsReported(
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {
+    ZoneId seoul = ZoneId.of("Asia/Seoul");
+    LocalDate friday = LocalDate.of(2026, 9, 18);
+    LocalDate week = friday.with(DayOfWeek.MONDAY);
+    LocalDate tuesday = friday.plusDays(4);
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(friday);
+    Instant now = friday.atTime(18, 0).atZone(seoul).toInstant();
+    instants.when(Instant::now).thenReturn(now);
+    InvestorProfile profile =
+        InvestorProfile.create(
+            mock(Member.class),
+            "공개 별명",
+            "",
+            LeagueTypes.ExperienceLevel.BEGINNER,
+            LeagueTypes.RiskProfile.BALANCED);
+    profile.changePublication(true, true, false, false, week.atStartOfDay(seoul).toInstant());
+    given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
+    var calendar =
+        week.datesUntil(week.plusDays(7))
+            .map(date -> new MarketTradingDay(date, date.getDayOfWeek().getValue() < 6))
+            .toList();
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(week, week.plusDays(6)))
+        .willReturn(calendar);
+    given(
+            tradingDayRepository.findFirstByTradingTrueAndBaseDateGreaterThanOrderByBaseDateAsc(
+                friday))
+        .willReturn(Optional.of(new MarketTradingDay(tuesday, true)));
+
+    service.finalizeWeeks();
+
+    then(calculationMetrics)
+        .should()
+        .finalizationState(0, 1, tuesday.atTime(13, 0).atZone(seoul).toInstant());
+    given(
+            tradingDayRepository.findFirstByTradingTrueAndBaseDateGreaterThanOrderByBaseDateAsc(
+                friday))
+        .willReturn(Optional.empty());
+    service.finalizeWeeks();
+    then(calculationMetrics).should().finalizationState(1, 1, null);
+  }
+
+  @Test
   void incrementalFinalizationSkipsOlderWeeksAndKeepsTheirPendingMetrics() {
     LocalDate current = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
     LocalDate older = current.minusWeeks(1);

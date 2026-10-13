@@ -19,8 +19,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
+import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
@@ -50,6 +52,7 @@ class StockPriceSyncServiceTest {
   @Mock private StockPricePersistenceService persistenceService;
   @Mock private StockPriceSyncMetrics syncMetrics;
   @Mock private ApplicationEventPublisher eventPublisher;
+  @Mock private MarketTradingDayRepository tradingDayRepository;
   @InjectMocks private StockPriceSyncService syncService;
 
   private final Logger logger = (Logger) LoggerFactory.getLogger(StockPriceSyncService.class);
@@ -160,30 +163,83 @@ class StockPriceSyncServiceTest {
   }
 
   @Test
-  @DisplayName("ETF 데이터가 없어도 주식 종가를 동기화한다")
-  void synchronizeStockPricesWithoutEtfData() {
+  @DisplayName("ETF 수집이 늦은 날짜는 수집 완료로 저장하지 않는다")
+  void incompleteEtfSnapshotRemainsPending() {
     LocalDate today = LocalDate.of(2026, 9, 21);
-    LocalDate previousBaseDate = today.minusDays(1);
     given(stockPriceClient.getStockPrices(today, StockMarket.KOSPI, 1, 1000))
         .willReturn(response(1, List.of(item(today, "005930", "82000"))));
     given(stockPriceClient.getStockPrices(today, StockMarket.KOSDAQ, 1, 1000))
         .willReturn(response(1, List.of(item(today, "247540", "285000"))));
     given(etfPriceClient.getEtfPrices(today, 1, 1000)).willReturn(etfResponse(0, List.of()));
-    stubCompleteSnapshot(previousBaseDate);
+    stubCompleteSnapshot(today.minusDays(1));
+    stubCompleteSnapshot(today.minusDays(2));
     stubPersistenceResult();
 
-    syncService.synchronize(today);
+    StockPriceSyncResult result = syncService.synchronize(today);
 
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<List<StockPriceEntry>> entriesCaptor = ArgumentCaptor.forClass(List.class);
+    assertThat(result.baseDate()).isEqualTo(today.minusDays(1));
+    then(persistenceService).should(org.mockito.Mockito.never()).synchronize(eq(today), anyList());
+    then(eventPublisher).should().publishEvent(result.withEarliestBaseDate(today.minusDays(2)));
+  }
+
+  @Test
+  @DisplayName("최근 2거래일보다 오래된 미수집 거래일도 복구하고 그 날짜부터 재집계한다")
+  void recoversEarlierMissingTradingDay() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    LocalDate missed = today.minusDays(4);
+    stubCompleteSnapshot(today);
+    stubCompleteSnapshot(today.minusDays(1));
+    stubCompleteSnapshot(missed);
+    stubPersistenceResult();
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(today.minusDays(10), today))
+        .willReturn(List.of(new MarketTradingDay(missed, true)));
+
+    StockPriceSyncResult result = syncService.synchronize(today);
+
+    var order = inOrder(persistenceService, eventPublisher);
+    order.verify(persistenceService).synchronize(eq(missed), anyList());
+    order.verify(persistenceService).synchronize(eq(today.minusDays(1)), anyList());
+    order.verify(persistenceService).synchronize(eq(today), anyList());
+    order.verify(eventPublisher).publishEvent(result.withEarliestBaseDate(missed));
+  }
+
+  @Test
+  @DisplayName("이미 수집한 날짜와 휴장일은 재요청하지 않고 미제공 누락일은 다음 실행에 남긴다")
+  void skipsCollectedAndClosedDatesAndKeepsUnavailableDatePending() {
+    LocalDate today = LocalDate.of(2026, 9, 21);
+    stubCompleteSnapshot(today);
+    stubCompleteSnapshot(today.minusDays(1));
+    stubEmptyDay(today.minusDays(4));
+    stubPersistenceResult();
+    var collected = new MarketTradingDay(today.minusDays(2), true);
+    collected.collected(java.time.Instant.now());
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(today.minusDays(10), today))
+        .willReturn(
+            List.of(
+                collected,
+                new MarketTradingDay(today.minusDays(3), false),
+                new MarketTradingDay(today.minusDays(4), true)));
+
+    StockPriceSyncResult result = syncService.synchronize(today);
+
+    then(stockPriceClient)
+        .should(org.mockito.Mockito.never())
+        .getStockPrices(
+            eq(today.minusDays(2)),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyInt());
+    then(stockPriceClient)
+        .should(org.mockito.Mockito.never())
+        .getStockPrices(
+            eq(today.minusDays(3)),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyInt());
     then(persistenceService)
-        .should()
-        .synchronize(org.mockito.ArgumentMatchers.eq(today), entriesCaptor.capture());
-    assertThat(entriesCaptor.getValue())
-        .extracting(StockPriceEntry::assetCode, StockPriceEntry::category)
-        .containsExactly(
-            org.assertj.core.groups.Tuple.tuple("005930", AssetCategory.STOCK),
-            org.assertj.core.groups.Tuple.tuple("247540", AssetCategory.STOCK));
+        .should(org.mockito.Mockito.times(2))
+        .synchronize(org.mockito.ArgumentMatchers.any(), anyList());
+    then(eventPublisher).should().publishEvent(result.withEarliestBaseDate(today.minusDays(1)));
   }
 
   @Test
@@ -195,7 +251,8 @@ class StockPriceSyncServiceTest {
         .willReturn(response(1, List.of(item(today, "005930", "82000"))));
     given(stockPriceClient.getStockPrices(today, StockMarket.KOSDAQ, 1, 1000))
         .willReturn(response(1, List.of(item(today, "247540", "285000"))));
-    given(etfPriceClient.getEtfPrices(today, 1, 1000)).willReturn(etfResponse(0, List.of()));
+    given(etfPriceClient.getEtfPrices(today, 1, 1000))
+        .willReturn(etfResponse(1, List.of(etfItem(today, "069500", "KODEX 200", "53000"))));
     stubCompleteSnapshot(previousBaseDate);
     given(
             persistenceService.synchronize(
@@ -270,7 +327,7 @@ class StockPriceSyncServiceTest {
     StockPriceBackfillResult result = syncService.backfill(from, to);
 
     assertThat(result.synchronizedDateCount()).isEqualTo(2);
-    assertThat(result.createdCount()).isEqualTo(4);
+    assertThat(result.createdCount()).isEqualTo(6);
     then(persistenceService)
         .should()
         .synchronize(org.mockito.ArgumentMatchers.eq(from), org.mockito.ArgumentMatchers.anyList());
@@ -280,7 +337,7 @@ class StockPriceSyncServiceTest {
     order.verify(persistenceService).synchronize(eq(from.plusDays(1)), anyList());
     order
         .verify(eventPublisher)
-        .publishEvent(new StockPriceSyncResult(from.plusDays(1), 2, 2, 0, 0, from));
+        .publishEvent(new StockPriceSyncResult(from.plusDays(1), 3, 3, 0, 0, from));
   }
 
   private void stubEmptyDay(LocalDate date) {
@@ -293,7 +350,8 @@ class StockPriceSyncServiceTest {
         .willReturn(response(1, List.of(item(date, "005930", "80000"))));
     given(stockPriceClient.getStockPrices(date, StockMarket.KOSDAQ, 1, 1000))
         .willReturn(response(1, List.of(item(date, "247540", "280000"))));
-    given(etfPriceClient.getEtfPrices(date, 1, 1000)).willReturn(etfResponse(0, List.of()));
+    given(etfPriceClient.getEtfPrices(date, 1, 1000))
+        .willReturn(etfResponse(1, List.of(etfItem(date, "069500", "KODEX 200", "53000"))));
   }
 
   private void stubPersistenceResult() {

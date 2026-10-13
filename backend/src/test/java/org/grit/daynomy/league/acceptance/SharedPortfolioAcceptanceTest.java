@@ -240,6 +240,21 @@ class SharedPortfolioAcceptanceTest {
         "UPDATE shared_holding_histories SET created_at=? WHERE portfolio_id=(SELECT id FROM shared_portfolios WHERE member_id=?)",
         java.sql.Timestamp.from(enrolledAt),
         owner.getId());
+    jdbc.update(
+        "UPDATE market_trading_days SET collected_at=NULL WHERE base_date BETWEEN ? AND ?",
+        enrolled,
+        week.plusDays(6));
+    leagueReturns.recalculate();
+    given()
+        .port(port)
+        .queryParam("weekStart", week.toString())
+        .get("/api/league/investors/" + publicId + "/daily-history")
+        .then()
+        .statusCode(200)
+        .body("weeklyReturnRate", nullValue())
+        .body(
+            "days.find { it.baseDate == '" + enrolled + "' }.reason",
+            equalTo("PRICE_COLLECTION_PENDING"));
     for (LocalDate date : trading) {
       if (!date.isBefore(enrolled))
         prices.save(new StockDailyPrice(asset, date, new BigDecimal("100")));
@@ -247,7 +262,7 @@ class SharedPortfolioAcceptanceTest {
           "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
           date);
     }
-    leagueReturns.recalculate();
+    leagueReturns.recalculateFrom(enrolled);
 
     given()
         .port(port)
@@ -270,6 +285,27 @@ class SharedPortfolioAcceptanceTest {
         .body(
             "days.find { it.baseDate == '" + enrolled + "' }.reason", equalTo("TRACKING_BASELINE"))
         .body("$", not(hasKey("participationReturnRate")));
+    var laterCollections =
+        jdbc.queryForList(
+            "SELECT base_date, collected_at FROM market_trading_days WHERE base_date > ? AND collected_at IS NOT NULL",
+            week.plusDays(6));
+    jdbc.update(
+        "UPDATE market_trading_days SET collected_at=NULL WHERE base_date > ?", week.plusDays(6));
+    try {
+      given()
+          .port(port)
+          .get("/api/league/investors/" + publicId + "/details")
+          .then()
+          .statusCode(200)
+          .body("holdings[0].weeklyContributionRate", equalTo(0.0f));
+    } finally {
+      laterCollections.forEach(
+          row ->
+              jdbc.update(
+                  "UPDATE market_trading_days SET collected_at=? WHERE base_date=?",
+                  row.get("collected_at"),
+                  row.get("base_date")));
+    }
     given()
         .port(port)
         .get("/api/league/investors/" + publicId)

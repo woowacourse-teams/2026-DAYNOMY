@@ -345,7 +345,17 @@ public class LeagueService {
             .filter(Objects::nonNull)
             .min(Instant::compareTo)
             .orElse(null);
-    calculationMetrics.finalizationState(missingCalendarDays, pendingWeeks, oldestPendingClose);
+    Instant expectedCollection = null;
+    if (oldestPendingClose != null) {
+      var nextDay =
+          tradingDayRepository
+              .findFirstByTradingTrueAndBaseDateGreaterThanOrderByBaseDateAsc(
+                  oldestPendingClose.atZone(SEOUL).toLocalDate())
+              .orElse(null);
+      if (nextDay == null) missingCalendarDays++;
+      else expectedCollection = nextDay.getBaseDate().atTime(13, 0).atZone(SEOUL).toInstant();
+    }
+    calculationMetrics.finalizationState(missingCalendarDays, pendingWeeks, expectedCollection);
     calculationMetrics.finalizationMeasured(started, scanned, full);
   }
 
@@ -601,7 +611,7 @@ public class LeagueService {
         transactionRepository.findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
             portfolio.getId(), cutoff);
     Map<Long, List<InvestmentReview>> reviews = reviewsByTransaction(transactions);
-    DetailSnapshot snapshot = detailSnapshot(portfolio.getId(), cutoff);
+    DetailSnapshot snapshot = detailSnapshot(profile, portfolio.getId(), cutoff);
     Set<Long> visibleAssets = visibleAssets(portfolio.getId());
     return new InvestorDetailResponse(
         publicId,
@@ -629,7 +639,8 @@ public class LeagueService {
             .toList());
   }
 
-  private DetailSnapshot detailSnapshot(Long portfolioId, LocalDate cutoff) {
+  private DetailSnapshot detailSnapshot(
+      InvestorProfile profile, Long portfolioId, LocalDate cutoff) {
     LocalDate asOfDate =
         tradingDayRepository
             .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
@@ -637,7 +648,7 @@ public class LeagueService {
             .map(MarketTradingDay::getBaseDate)
             .orElse(null);
     Map<Long, BigDecimal> contributions =
-        asOfDate == null ? null : weeklyContributions(portfolioId, asOfDate);
+        asOfDate == null ? null : weeklyContributions(profile, portfolioId, asOfDate);
     List<SharedHolding> holdings = holdingRepository.findAllByPortfolioIdOrderById(portfolioId);
     Map<Long, BigDecimal> evaluations = new LinkedHashMap<>();
     BigDecimal total = BigDecimal.ZERO;
@@ -685,13 +696,17 @@ public class LeagueService {
     return new DetailSnapshot(asOfDate, responses);
   }
 
-  private Map<Long, BigDecimal> weeklyContributions(Long portfolioId, LocalDate asOfDate) {
+  private Map<Long, BigDecimal> weeklyContributions(
+      InvestorProfile profile, Long portfolioId, LocalDate asOfDate) {
     LocalDate week = normalizeWeek(asOfDate);
+    LocalDate start = weeklyStart(profile, week);
+    if (start.isAfter(asOfDate)) return null;
     Map<LocalDate, PortfolioDailyReturn> values = dailyValues(portfolioId, week, asOfDate);
     Map<Long, BigDecimal> contributions = new LinkedHashMap<>();
     BigDecimal index = ONE;
     for (LocalDate date : tradingDates(week)) {
       if (date.isAfter(asOfDate)) break;
+      if (date.isBefore(start)) continue;
       PortfolioDailyReturn daily = values.get(date);
       if (daily == null || !daily.isEligible()) return null;
       if (daily.getDailyReturnRate() == null) return null;
