@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isToday } from '../../src/features/news/issue/feed';
+import { createFeed, isToday } from '../../src/features/news/issue/feed';
 import { getNewsThroughToday } from '../../src/features/news/issue/todayNews';
 import { getNews } from '../../src/features/news/newslist/api';
 vi.mock('../../src/features/news/newslist/api', () => ({ getNews: vi.fn() }));
@@ -48,6 +48,49 @@ describe('오늘 글 기준', () => {
     expect(getNews).toHaveBeenCalledTimes(2);
     expect(getNews).toHaveBeenLastCalledWith('ALL', 2, 100);
   });
+});
+
+it('외부 콘텐츠는 원문 게시일로, 같은 날짜의 콘텐츠는 등록 시각순으로 정렬한다', () => {
+  const feed = createFeed(
+    [
+      {
+        id: 10,
+        title: '데이노미 이슈',
+        category: 'STOCK',
+        imageUrl: null,
+        publishedAt: '2026-10-12T09:00:00Z',
+      },
+    ],
+    [],
+    [
+      {
+        id: 20,
+        assetId: 1,
+        sourceType: 'YOUTUBE',
+        title: '실제 발행일이 더 이른 영상',
+        url: 'https://youtu.be/abcdefghij1',
+        imageUrl: null,
+        createdAt: '2026-10-13T09:00:00Z',
+        publishedDate: '2026-10-11',
+      },
+      {
+        id: 30,
+        assetId: 1,
+        sourceType: 'X',
+        title: '같은 날짜의 외부 콘텐츠',
+        url: 'https://x.com/example/status/30',
+        imageUrl: null,
+        createdAt: '2026-10-10T09:00:00Z',
+        publishedDate: '2026-10-12',
+      },
+    ],
+  );
+
+  expect(feed.map((item) => item.title)).toEqual([
+    '데이노미 이슈',
+    '같은 날짜의 외부 콘텐츠',
+    '실제 발행일이 더 이른 영상',
+  ]);
 });
 
 it('지난 날짜 기사를 페이지 경계까지 모으고 더 오래된 페이지는 요청하지 않는다', async () => {
