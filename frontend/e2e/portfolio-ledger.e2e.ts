@@ -133,6 +133,8 @@ for (const viewport of [
     const summary = page.getByLabel('자산 요약');
     await expect(summary.getByText('누적 실현손익', { exact: true })).toBeVisible();
     await expect(summary.getByText('로그인 후 확인할 수 있어요', { exact: true })).toBeVisible();
+    await expect(summary.getByText('현재 보유 수량 기준', { exact: true })).toBeVisible();
+    await expect(summary.getByText('매도로 확정된 손익', { exact: true })).toBeVisible();
     const trend = page.getByRole('region', { name: '자산 추이', exact: true });
     await expect(trend.getByText('잠금', { exact: true })).toBeVisible();
     await expect(trend.getByText('로그인 후 자산 추이를 확인할 수 있어요')).toBeVisible();
@@ -181,6 +183,23 @@ for (const viewport of [
       expect(headerSize.itemsFit).toBe(true);
     }
     await page.setViewportSize(viewport);
+    const summaryGaps = await summary.locator(':scope > div').evaluateAll((items) =>
+      items.map((item) => {
+        const label = item.querySelector('dt')!.getBoundingClientRect();
+        const value = (item.querySelector('.portfolio-balance-value') ??
+          item.querySelector(':scope > dd'))!.getBoundingClientRect();
+        return value.top - label.bottom;
+      }),
+    );
+    for (const gap of summaryGaps) {
+      expect(gap).toBeGreaterThanOrEqual(0);
+      expect(gap).toBeLessThanOrEqual(24);
+    }
+    await expect(summary.locator('.portfolio-summary-locked')).toHaveCSS('font-size', '14px');
+    await summary.screenshot({
+      path: testInfo.outputPath('guest-summary-restored.png'),
+      animations: 'disabled',
+    });
     await page.screenshot({ path: testInfo.outputPath('guest-portfolio.png'), fullPage: true });
     await page.screenshot({
       path: testInfo.outputPath('guest-notice.png'),
@@ -374,6 +393,13 @@ for (const viewport of [
     await expect(
       page.getByText(`${sum('closePrice').toLocaleString('ko-KR')}원`).first(),
     ).toBeVisible();
+    const summary = page.getByLabel('자산 요약');
+    await expect(summary.getByText('현재 보유 수량 기준', { exact: true })).toBeVisible();
+    await expect(summary.getByText('매도로 확정된 손익', { exact: true })).toBeVisible();
+    await summary.screenshot({
+      path: testInfo.outputPath('member-summary-restored.png'),
+      animations: 'disabled',
+    });
     await expect(page.getByRole('img', { name: /포트폴리오 자산 추이/ })).toBeVisible();
     const navigation = page.getByRole('navigation', { name: '주요 메뉴' });
     const selectedMenu = navigation.getByRole('link', { name: '포트폴리오', exact: true });

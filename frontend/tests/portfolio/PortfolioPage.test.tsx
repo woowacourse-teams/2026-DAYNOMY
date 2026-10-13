@@ -304,6 +304,8 @@ describe('포트폴리오 화면', () => {
     const summary = within(view.getByLabelText('자산 요약'));
     expect(summary.getByText('누적 실현손익')).toBeTruthy();
     expect(summary.getByText('로그인 후 확인할 수 있어요')).toBeTruthy();
+    expect(summary.getByText('현재 보유 수량 기준')).toBeTruthy();
+    expect(summary.getByText('매도로 확정된 손익')).toBeTruthy();
     expect(
       vi
         .mocked(fetch)
@@ -528,6 +530,8 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy();
     expect(view.queryByText('표시할 자산이 없어요')).toBeNull();
     const summary = within(view.getByLabelText('자산 요약'));
+    expect(summary.getByText('현재 보유 수량 기준')).toBeTruthy();
+    expect(summary.getByText('매도로 확정된 손익')).toBeTruthy();
     expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy();
     expect(
       summary.getByText('전체 자산 평가금액').parentElement?.parentElement?.textContent,

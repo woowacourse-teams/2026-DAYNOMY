@@ -849,6 +849,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               <div>
                 <dt>보유자산 매입금액</dt>
                 <dd>{displayWon(dashboardCalculation.totalPurchaseAmount)}</dd>
+                <small>현재 보유 수량 기준</small>
               </div>
               <div>
                 <dt>평가손익</dt>
@@ -868,6 +869,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 ) : (
                   <dd className="portfolio-summary-locked">로그인 후 확인할 수 있어요</dd>
                 )}
+                <small>매도로 확정된 손익</small>
               </div>
             </dl>
             <div className="portfolio-price-status" role="status">
