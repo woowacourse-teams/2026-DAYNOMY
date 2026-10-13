@@ -81,6 +81,7 @@ beforeEach(() => {
             id: 10,
             assetId: 1,
             sourceType: 'YOUTUBE',
+            publishedDate: '2020-04-05',
             title: '삼성전자 분석 영상',
             url: 'https://youtube.com/watch?v=abc',
             imageUrl: null,
@@ -137,6 +138,13 @@ afterEach(() => {
 });
 
 describe('종목 관련 자료 화면의 YouTube 임베드', () => {
+  it('제목과 별도로 확인된 원문 게시일만 표시한다', async () => {
+    const view = renderPage();
+    const date = await view.findByText('게시일 2020.04.05');
+    expect(date.getAttribute('datetime')).toBe('2020-04-05');
+    expect(view.getByText('삼성전자 분석 영상')).toBeTruthy();
+    expect(view.container.querySelectorAll('time')).toHaveLength(1);
+  });
   it('보유 종목을 사이드바에 표시하고 다른 종목 소식으로 이동한다', async () => {
     const view = renderPage();
 

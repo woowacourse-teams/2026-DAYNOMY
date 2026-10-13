@@ -5,6 +5,7 @@ import NotFoundPage from './features/pages/components/NotFoundPage';
 import { InfoPage } from './features/pages/components/InfoPage';
 import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
 import { NewsListPage } from './features/news/newslist/NewsListPage';
+import { IssueHomePage } from './features/news/issue/IssueHomePage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
 import SearchPage from './features/search/SearchPage';
 import { PortfolioPage } from './features/portfolio/PortfolioPage';
@@ -128,7 +129,7 @@ function AuthenticatedRoute({ children }: { children: ReactNode }) {
 }
 
 function PortfolioRoute() {
-  const { isLoggedIn, loading } = useAuth();
+  const { memberId, isLoggedIn, loading } = useAuth();
 
   if (loading) {
     return (
@@ -140,7 +141,9 @@ function PortfolioRoute() {
     );
   }
 
-  return <PortfolioPage isLoggedIn={isLoggedIn} />;
+  return (
+    <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
+  );
 }
 
 function PostLoginRedirect() {
@@ -218,7 +221,9 @@ export default function App() {
                   </AuthenticatedRoute>
                 }
               />
-              <Route path="/news" element={<NewsListPage />} />
+              <Route path="/news" element={<IssueHomePage key="home" />} />
+              <Route path="/news/today" element={<NewsListPage />} />
+              <Route path="/news/contents" element={<IssueHomePage key="contents" fullFeed />} />
               <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
               <Route path="/news/:newsId" element={<NewsDetailPage />} />
               <Route path="/search" element={<SearchPage />} />

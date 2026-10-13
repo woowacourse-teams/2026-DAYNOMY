@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getNews, getTodayNews } from './api';
+import { Link } from 'react-router-dom';
+import { getNews } from './api';
 import { ArticleCard } from './components/ArticleCard';
 import { CategoryTabs } from './components/CategoryTabs';
 import { NewsListSkeleton } from './components/NewsListSkeleton';
-import { TodayNewsBanner } from './components/TodayNewsBanner';
 import { NEWS_LIST_CATEGORIES } from './constants';
 import type { NewsCategory, NewsListItem, NewsPage } from './types';
 import './newsList.css';
+import '../issue/issue.css';
 import { trackEvent } from '../../../analytics';
 
-let todayNewsCache: NewsListItem[] = [];
 const newsPageCache = new Map<string, NewsPage>();
 
 export function NewsListPage() {
@@ -18,11 +18,8 @@ export function NewsListPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
-  const [todayNews, setTodayNews] = useState<NewsListItem[]>(() => todayNewsCache);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [todayNewsError, setTodayNewsError] = useState<string | null>(null);
-  const [todayNewsLoading, setTodayNewsLoading] = useState(true);
 
   const selectedCategoryLabel = useMemo(
     () =>
@@ -92,40 +89,6 @@ export function NewsListPage() {
     };
   }, [selectedCategory, page]);
 
-  useEffect(() => {
-    let ignore = false;
-    setTodayNewsLoading(true);
-    setTodayNewsError(null);
-
-    async function loadTodayNews() {
-      try {
-        const todayNewsPage = await getTodayNews();
-        const content = todayNewsPage.content;
-
-        if (!ignore) {
-          todayNewsCache = content;
-          setTodayNews(content);
-        }
-      } catch {
-        if (!ignore) {
-          todayNewsCache = [];
-          setTodayNews([]);
-          setTodayNewsError('오늘의 이슈를 불러오지 못했습니다.');
-        }
-      } finally {
-        if (!ignore) {
-          setTodayNewsLoading(false);
-        }
-      }
-    }
-
-    loadTodayNews();
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
   function handleCategoryChange(category: NewsCategory) {
     setSelectedCategory(category);
     setPage(1);
@@ -138,19 +101,14 @@ export function NewsListPage() {
   }
 
   return (
-    <main className="news-home">
-      <div className="news-title-row">
-        <h1>오늘의 이슈</h1>
-      </div>
-
-      {!todayNewsError ? <TodayNewsBanner articles={todayNews} loading={todayNewsLoading} /> : null}
-
-      {!todayNews.length && todayNewsError ? (
-        <section className="state-panel" role="alert">
-          <strong>오늘의 이슈를 불러오지 못했습니다.</strong>
-          <p>잠시 후 다시 확인해 주세요.</p>
-        </section>
-      ) : null}
+    <main className="news-home issue-page issue-news-archive">
+      <Link className="issue-back" to="/news">
+        ← 소식 홈
+      </Link>
+      <header className="issue-heading">
+        <h1>데이노미 이슈</h1>
+        <p>오늘의 소식부터 지난 이슈까지, 흐름을 살펴보세요.</p>
+      </header>
 
       <section className="section-header" aria-live="polite">
         <div className="section-title">
@@ -172,7 +130,6 @@ export function NewsListPage() {
 
       <span className="sr-only" role="status">
         {error ? `이슈 목록 API 응답을 받지 못했습니다. ${error}` : ''}
-        {todayNewsError ? ` ${todayNewsError}` : ''}
       </span>
 
       {loading && articles.length === 0 ? <NewsListSkeleton /> : null}

@@ -101,16 +101,16 @@ class KeywordControllerTest {
   }
 
   @Test
-  @DisplayName("뉴스 키워드 조회 API는 키워드가 없으면 에러 응답을 반환한다")
-  void findNewsKeywordsReturnsNotFoundWhenKeywordsMissing() throws Exception {
+  @DisplayName("뉴스 키워드 조회 API는 설명할 개념이 없으면 빈 목록을 반환한다")
+  void findNewsKeywordsReturnsEmptyWhenKeywordsMissing() throws Exception {
     News news = newsRepository.save(createNews());
 
     HttpResponse<String> response = get("/api/news/" + news.getId() + "/keywords");
     JsonNode body = objectMapper.readTree(response.body());
 
-    assertThat(response.statusCode()).isEqualTo(404);
-    assertThat(body.at("/code").asText()).isEqualTo("KEYWORD_NOT_FOUND");
-    assertThat(body.at("/message").asText()).isEqualTo("해당 뉴스의 키워드를 찾을 수 없습니다.");
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(body.at("/keywords").isArray()).isTrue();
+    assertThat(body.at("/keywords")).isEmpty();
   }
 
   private NewsKeyword createKeyword(News news, String keyword) {

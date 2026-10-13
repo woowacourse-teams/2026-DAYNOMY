@@ -532,6 +532,14 @@ export function StockContentPage() {
                             <ArrowUpRightIcon />
                           </a>
                         )}
+                        {content.publishedDate ? (
+                          <time
+                            className="stock-content-published-date"
+                            dateTime={content.publishedDate}
+                          >
+                            게시일 {content.publishedDate.replaceAll('-', '.')}
+                          </time>
+                        ) : null}
                       </li>
                     );
                   })}

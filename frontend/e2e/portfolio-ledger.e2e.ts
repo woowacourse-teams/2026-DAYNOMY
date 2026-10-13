@@ -93,6 +93,14 @@ for (const viewport of [
       const path = new URL(route.request().url()).pathname;
       const fulfill = (body: unknown, status = 200) =>
         route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+      const contentStock = stocks.find((stock) => path === `/api/assets/${stock.assetId}/contents`);
+      if (contentStock)
+        return fulfill({
+          assetId: contentStock.assetId,
+          assetCode: contentStock.assetCode,
+          assetName: contentStock.name,
+          contents: [],
+        });
       if (/users\/me\/portfolio|portfolio\/(histories|transactions)/.test(path)) {
         memberRequests.push(path);
         return fulfill({}, 401);
@@ -132,6 +140,7 @@ for (const viewport of [
     });
     await page.goto('/');
     await expect(page.getByRole('button', { name: '삼성전자 보유 상세' })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: '보유 자산 소식' })).toBeVisible();
     const summary = page.getByLabel('자산 요약');
     await expect(summary.getByText('누적 실현손익', { exact: true })).toBeVisible();
     await expect(summary.getByText('로그인 후 확인할 수 있어요', { exact: true })).toBeVisible();
@@ -330,6 +339,14 @@ for (const viewport of [
       const path = url.pathname;
       const fulfill = (body: unknown, status = 200) =>
         route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+      const contentStock = stocks.find((stock) => path === `/api/assets/${stock.assetId}/contents`);
+      if (contentStock)
+        return fulfill({
+          assetId: contentStock.assetId,
+          assetCode: contentStock.assetCode,
+          assetName: contentStock.name,
+          contents: [],
+        });
       if (path === '/api/users/me')
         return fulfill({
           id: 1,
@@ -341,6 +358,18 @@ for (const viewport of [
         return fulfill({ ...stocks[0], baseDate: today, closePrice: stocks[0].closePrice });
       if (path === '/api/auth/csrf')
         return fulfill({ token: 'preview', headerName: 'X-CSRF-TOKEN' });
+      if (path === '/api/users/me/portfolio/analysis')
+        return fulfill({
+          status: 'EMPTY',
+          lastCheckOutcome: null,
+          analysisId: null,
+          matchesCurrentPortfolio: false,
+          lastSucceededAt: null,
+          lastFailedAt: null,
+          failureCode: null,
+          changeReason: null,
+          analysis: null,
+        });
       if (path === '/api/users/me/portfolio')
         return fulfill({ holdings: stocks, totalRealizedProfitLoss: 483250 });
       if (path === '/api/portfolio/calculate')
@@ -424,6 +453,7 @@ for (const viewport of [
     await expect(
       page.getByText(`${sum('closePrice').toLocaleString('ko-KR')}원`).first(),
     ).toBeVisible();
+    await expect(page.getByRole('complementary', { name: '보유 자산 소식' })).toBeVisible();
     const summary = page.getByLabel('자산 요약');
     await expect(summary.getByText('현재 보유 수량 기준', { exact: true })).toBeVisible();
     await expect(summary.getByText('매도로 확정된 손익', { exact: true })).toBeVisible();
@@ -443,7 +473,7 @@ for (const viewport of [
     expect(
       await selectedMenu.evaluate((element) => getComputedStyle(element).fontFamily),
     ).toContain('Noto Sans KR');
-    const otherMenu = navigation.getByRole('link', { name: '이슈', exact: true });
+    const otherMenu = navigation.getByRole('link', { name: '소식', exact: true });
     expect(await otherMenu.evaluate((element) => getComputedStyle(element).fontWeight)).toBe('600');
     await expect(page.getByRole('link', { name: '마이페이지', exact: true })).toHaveAttribute(
       'href',

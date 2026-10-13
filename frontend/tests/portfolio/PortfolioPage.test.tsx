@@ -97,8 +97,35 @@ function jsonResponse(body: unknown, status = 200) {
 function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input);
   const method = init?.method ?? 'GET';
+  const contentsMatch = url.match(/\/api\/assets\/(\d+)\/contents$/);
+  if (contentsMatch) {
+    const asset = [stock, secondStock, kosdaqStock, etf].find(
+      (candidate) => candidate.assetId === Number(contentsMatch[1]),
+    );
+    if (!asset) return jsonResponse({}, 404);
+    return jsonResponse({
+      assetId: asset.assetId,
+      assetCode: asset.assetCode,
+      assetName: asset.name,
+      contents: [],
+    });
+  }
+  if (url.includes('/api/portfolio/histories?')) return jsonResponse([]);
   if (url.endsWith('/api/auth/csrf')) {
     return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+  }
+  if (url.endsWith('/api/users/me/portfolio/analysis') && method === 'GET') {
+    return jsonResponse({
+      status: 'EMPTY',
+      lastCheckOutcome: null,
+      analysisId: null,
+      matchesCurrentPortfolio: false,
+      lastSucceededAt: null,
+      lastFailedAt: null,
+      failureCode: null,
+      changeReason: null,
+      analysis: null,
+    });
   }
   if (url.endsWith('/api/users/me/portfolio') && method === 'GET') {
     return jsonResponse({ holdings: savedHoldings, totalRealizedProfitLoss: 0 });
@@ -282,7 +309,7 @@ describe('포트폴리오 화면', () => {
     const view = render(<PortfolioPage isLoggedIn={false} />);
 
     expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
-    expect(view.getByText('삼성전자')).toBeTruthy();
+    expect(view.getByRole('button', { name: '삼성전자 보유 상세' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
     expect(view.getByRole('button', { name: '1회 분석 체험하기' })).toBeTruthy();
     expect(view.getByText('비회원 자산은 이 탭에만 임시 저장돼요.')).toBeTruthy();
@@ -561,17 +588,26 @@ describe('포트폴리오 화면', () => {
     expect(view.queryByText('관리')).toBeNull();
   });
 
-  it('보유 상세에는 소식 패널과 소식 조회 요청 없이 종목 정보와 거래 내역을 제공한다', async () => {
+  it('본문 소식은 유지하고 보유 상세에는 소식 패널과 추가 조회 없이 종목 정보와 거래 내역을 제공한다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     mockPortfolioApi();
 
     const view = render(<PortfolioPage />);
     await view.findAllByText('750,000원');
+    expect(view.getByRole('complementary', { name: '보유 자산 소식' })).toBeTruthy();
+    await view.findByText('보유 자산에 등록된 소식이 없습니다.');
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([input]) => String(input).endsWith('/api/assets/1/contents')),
+    ).toHaveLength(1);
+    vi.mocked(fetch).mockClear();
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
     expect(within(detail).queryByRole('complementary', { name: '소식' })).toBeNull();
     expect(within(detail).getByRole('link', { name: /종목 정보 보기/ })).toBeTruthy();
     expect(within(detail).getByRole('heading', { name: '거래 내역' })).toBeTruthy();
+    await within(detail).findByText('이 기간에 표시할 내역이 없어요');
     expect(
       vi
         .mocked(fetch)

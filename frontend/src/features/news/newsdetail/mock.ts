@@ -47,11 +47,8 @@ export function getMockNewsDetail(newsId: string): NewsDetailPayload {
     marketAnalysis: {
       status: 'success',
       data: {
-        observedFact: '시장 변동성이 커지면서 ETF로 자금이 유입되고 있습니다.',
-        interpretation: '분산 투자 수요가 ETF 시장을 지지하는 흐름으로 해석할 수 있습니다.',
-        risk: '편입 자산과 시장 상황에 따라 상품별 성과 차이가 커질 수 있습니다.',
-        watchPoint: '금리와 기업 실적, ETF 거래량의 변화를 확인해야 합니다.',
-        limitation: '기사만으로는 상품별 자금 유입 규모와 수익률을 비교하기 어렵습니다.',
+        risk: '편입 자산과 시장 상황에 따라 상품별 성과 차이가 커질 수 있어요.',
+        watchPoint: '금리와 기업 실적, ETF 거래량의 변화를 확인하세요.',
       },
     },
   };

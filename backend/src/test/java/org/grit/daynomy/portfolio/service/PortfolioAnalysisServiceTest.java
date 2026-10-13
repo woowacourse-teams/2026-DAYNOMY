@@ -67,8 +67,8 @@ class PortfolioAnalysisServiceTest {
 
     assertThat(response.totalAssetCount()).isEqualTo(2);
     assertThat(response.analyzedAssetCount()).isEqualTo(1);
-    assertThat(response.overallDirection()).isEqualTo(ImpactDirection.NEUTRAL);
-    assertThat(response.overallScore()).isEqualByComparingTo("0.00");
+    assertThat(response.overallDirection()).isNull();
+    assertThat(response.overallScore()).isNull();
     assertThat(response.positiveImpactScore()).isEqualByComparingTo("0.00");
     assertThat(response.negativeImpactScore()).isEqualByComparingTo("0.00");
     assertThat(response.overallImpact()).contains("반도체 업종 비중");
@@ -129,8 +129,8 @@ class PortfolioAnalysisServiceTest {
 
     assertThat(response.totalAssetCount()).isZero();
     assertThat(response.analyzedAssetCount()).isZero();
-    assertThat(response.overallDirection()).isEqualTo(ImpactDirection.NEUTRAL);
-    assertThat(response.overallScore()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(response.overallDirection()).isNull();
+    assertThat(response.overallScore()).isNull();
     assertThat(response.analyzedAt()).isNull();
     assertThat(response.impacts()).isEmpty();
     verifyNoInteractions(portfolioAnalysisAiClient);

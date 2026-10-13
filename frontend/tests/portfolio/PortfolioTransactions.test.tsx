@@ -466,7 +466,11 @@ describe('거래 원장 화면', () => {
     expect(await view.findByText('추이 조회 실패')).toBeTruthy();
     expect(view.getByText('10주')).toBeTruthy();
     failedPerformance = false;
-    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    fireEvent.click(
+      within(view.getByRole('region', { name: '자산 추이' })).getByRole('button', {
+        name: '다시 시도',
+      }),
+    );
     expect(await view.findByRole('img', { name: /평가금액 750,000원/ })).toBeTruthy();
   });
 });

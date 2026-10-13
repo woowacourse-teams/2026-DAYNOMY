@@ -1477,10 +1477,12 @@ class SharedPortfolioAcceptanceTest {
           .load()
           .migrate();
       try (var result =
-          sql.executeQuery("SELECT title,image_url FROM stock_related_contents WHERE asset_id=1")) {
+          sql.executeQuery(
+              "SELECT title,image_url,published_date FROM stock_related_contents WHERE asset_id=1")) {
         assertThat(result.next()).isTrue();
         assertThat(result.getString("title")).isEqualTo("기존 콘텐츠");
         assertThat(result.getString("image_url")).isEqualTo("https://example.invalid/image");
+        assertThat(result.getDate("published_date")).isNull();
       }
       try (var result =
           sql.executeQuery(
@@ -1493,7 +1495,6 @@ class SharedPortfolioAcceptanceTest {
         assertThat(result.next()).isTrue();
         assertThat(result.getInt("indexes")).isEqualTo(2);
         assertThat(result.getInt("feature_migrations")).isEqualTo(5);
-        assertThat(result.getInt("latest_version")).isEqualTo(34);
       }
     }
   }

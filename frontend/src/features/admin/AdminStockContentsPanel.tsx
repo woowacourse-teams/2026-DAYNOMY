@@ -1,3 +1,4 @@
+import { getPublishedDate } from '../stock-content/publishedDate';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { searchStocks } from '../portfolio/api';
@@ -45,6 +46,7 @@ export function AdminStockContentsPanel() {
   const [sourceType, setSourceType] = useState<StockRelatedContentSource>('YOUTUBE');
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
+  const [publishedDate, setPublishedDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [youtubeLoading, setYoutubeLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(false);
@@ -226,6 +228,7 @@ export function AdminStockContentsPanel() {
         title: video.title,
         url: video.url,
         imageUrl: video.thumbnailUrl,
+        publishedDate: getPublishedDate(video.publishedAt),
       });
       if (selectedStockRef.current?.assetId !== assetId) return;
       setYoutubeResults((current) => current.filter((item) => item.url !== video.url));
@@ -294,6 +297,7 @@ export function AdminStockContentsPanel() {
         sourceType: post.sourceType,
         title: contentTitle,
         url: post.url,
+        publishedDate: getPublishedDate(post.publishedDate),
       });
       if (selectedStockRef.current?.assetId !== assetId) return;
       setSocialResults((current) => current.filter((item) => item.url !== post.url));
@@ -319,10 +323,12 @@ export function AdminStockContentsPanel() {
         sourceType,
         title: title.trim(),
         url: url.trim(),
+        publishedDate: getPublishedDate(publishedDate),
       });
       if (selectedStockRef.current?.assetId !== assetId) return;
       setTitle('');
       setUrl('');
+      setPublishedDate('');
       await reloadContents(assetId);
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, '관련 자료를 등록하지 못했습니다.'));
@@ -533,6 +539,14 @@ export function AdminStockContentsPanel() {
                 placeholder="https://..."
               />
             </label>
+            <label className="admin-field">
+              <span>원문 게시일 (선택)</span>
+              <input
+                type="date"
+                value={publishedDate}
+                onChange={(event) => setPublishedDate(event.target.value)}
+              />
+            </label>
             <button
               type="submit"
               className="admin-primary-button"
@@ -576,6 +590,11 @@ export function AdminStockContentsPanel() {
                 <div>
                   <span>{STOCK_CONTENT_SOURCE_LABELS[content.sourceType]}</span>
                   <strong>{content.title}</strong>
+                  {content.publishedDate ? (
+                    <time dateTime={content.publishedDate}>
+                      게시일 {content.publishedDate.replaceAll('-', '.')}
+                    </time>
+                  ) : null}
                   <a href={content.url} target="_blank" rel="noreferrer">
                     {content.url}
                   </a>
