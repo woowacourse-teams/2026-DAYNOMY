@@ -1313,6 +1313,7 @@ describe('포트폴리오 화면', () => {
     );
     const view = render(<PortfolioPage />);
     const table = await view.findByRole('region', { name: /보유 자산 표/ });
+    await within(table).findByText('900,000원');
 
     fireEvent.change(view.getByRole('combobox', { name: '보유 자산 정렬' }), {
       target: { value: 'EVALUATION' },
