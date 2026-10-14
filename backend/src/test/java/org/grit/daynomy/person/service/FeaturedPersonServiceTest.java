@@ -106,7 +106,7 @@ class FeaturedPersonServiceTest {
         featuredPersonService.createPost(
             1L,
             new FeaturedPersonPostRequest(
-                ContentSourceType.X, " ", "https://x.com/elonmusk/status/12345?ref=home"));
+                ContentSourceType.X, " ", "https://x.com/elonmusk/status/12345?ref=home", null));
 
     assertThat(response.title()).isEqualTo("일론 머스크 X 게시물");
     assertThat(response.url()).isEqualTo("https://x.com/elonmusk/status/12345");
@@ -122,7 +122,10 @@ class FeaturedPersonServiceTest {
                 featuredPersonService.createPost(
                     1L,
                     new FeaturedPersonPostRequest(
-                        ContentSourceType.THREADS, null, "https://x.com/elonmusk/status/12345")))
+                        ContentSourceType.THREADS,
+                        null,
+                        "https://x.com/elonmusk/status/12345",
+                        null)))
         .isInstanceOf(BusinessException.class)
         .extracting(error -> ((BusinessException) error).errorCode())
         .isEqualTo(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
@@ -145,7 +148,7 @@ class FeaturedPersonServiceTest {
         featuredPersonService.createPost(
             1L,
             new FeaturedPersonPostRequest(
-                ContentSourceType.YOUTUBE, null, "https://youtu.be/dQw4w9WgXcQ?t=1"));
+                ContentSourceType.YOUTUBE, null, "https://youtu.be/dQw4w9WgXcQ?t=1", null));
 
     assertThat(response.title()).isEqualTo("일론 머스크 YouTube 게시물");
     assertThat(response.url()).isEqualTo("https://youtu.be/dQw4w9WgXcQ");

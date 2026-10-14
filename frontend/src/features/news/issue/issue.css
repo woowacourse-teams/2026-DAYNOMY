@@ -535,6 +535,58 @@
   grid-column: 1 / -1;
   width: 100%;
 }
+.issue-feed-row--visual {
+  grid-template-columns: 144px minmax(0, 1fr);
+  column-gap: 24px;
+  align-items: center;
+}
+.issue-feed-row--visual .issue-platform-mark {
+  display: none;
+}
+.issue-feed-thumbnail {
+  position: relative;
+  display: grid;
+  grid-column: 1;
+  grid-row: 1 / 3;
+  align-self: center;
+  width: 144px;
+  height: 92px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 3px;
+  background: #edf1f6;
+  color: #425675;
+}
+.issue-feed-thumbnail-fallback {
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+  text-align: center;
+}
+.issue-feed-thumbnail img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: inherit;
+}
+.issue-feed-thumbnail-x {
+  background: #202a38;
+  color: #f7f9fc;
+}
+.issue-feed-thumbnail-threads {
+  background: #f0eeff;
+  color: #584cc4;
+}
+.issue-feed-thumbnail-youtube {
+  background: #fff1f1;
+  color: #b42b37;
+}
+.issue-feed-row--visual > .issue-inline-post {
+  grid-column: 1 / -1;
+}
 .issue-post-title {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -553,6 +605,18 @@
     width: 44px;
     height: 48px;
     font-size: 25px;
+  }
+  .issue-feed-row--visual {
+    grid-template-columns: 108px minmax(0, 1fr);
+    column-gap: 16px;
+    align-items: start;
+  }
+  .issue-feed-thumbnail {
+    width: 108px;
+    height: 76px;
+  }
+  .issue-feed-thumbnail-fallback {
+    font-size: 13px;
   }
   .issue-row-title {
     flex-wrap: wrap;
@@ -707,6 +771,16 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+.issue-story-note,
+.issue-feed-note {
+  margin: -8px 0 16px;
+  color: var(--issue-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.issue-feed-heading .issue-feed-note {
+  margin: -8px 0 0;
 }
 .issue-story-paging {
   display: flex;

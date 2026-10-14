@@ -155,7 +155,7 @@ describe('이슈 홈과 더보기', () => {
     expect(view.getByRole('button', { name: /첫 번째 인물 글/ })).toBeTruthy();
     expect(view.queryByRole('button', { name: /콘텐츠 더 보기/ })).toBeNull();
   });
-  it('홈에는 오늘 등록된 글을 개수 제한 없이 표시하고 지난 글은 제외한다', async () => {
+  it('홈에는 오늘 등록된 글을 최대 여덟 개 표시하고 지난 글은 제외한다', async () => {
     const posts = Array.from({ length: 15 }, (_, index) => ({
       ...person.posts[0],
       id: index + 10,
@@ -178,9 +178,38 @@ describe('이슈 홈과 더보기', () => {
       </MemoryRouter>,
     );
     expect(await view.findByRole('button', { name: /오늘 글 14/ })).toBeTruthy();
-    expect(view.container.querySelectorAll('.issue-feed button')).toHaveLength(15);
+    expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(8);
+    expect(view.queryByRole('button', { name: /오늘 글 6/ })).toBeNull();
     expect(view.queryByRole('button', { name: /어제 글/ })).toBeNull();
   });
+});
+
+it('홈은 오늘 글이 없으면 최신 글 여덟 개와 안내 문구를 표시한다', async () => {
+  const posts = Array.from({ length: 10 }, (_, index) => ({
+    ...person.posts[0],
+    id: index + 10,
+    title: `최근 글 ${index}`,
+    createdAt: '2026-10-11T08:00:00Z',
+  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) =>
+      new URL(String(input), 'http://localhost').pathname === '/api/contents'
+        ? json(newsPage([]))
+        : new URL(String(input), 'http://localhost').pathname === '/api/people'
+          ? json({ people: [{ ...person, posts }] })
+          : json(newsPage([])),
+    ),
+  );
+  const view = render(
+    <MemoryRouter>
+      <IssueHomePage />
+    </MemoryRouter>,
+  );
+  expect(await view.findByRole('heading', { name: '최근 올라온 글' })).toBeTruthy();
+  expect(view.getByText('오늘 새로 올라온 글이 없어 최신 글을 보여드려요.')).toBeTruthy();
+  expect(view.container.querySelectorAll('.issue-feed button')).toHaveLength(8);
+  expect(view.queryByRole('button', { name: /최근 글 1/ })).toBeNull();
 });
 
 it('네 출처의 오늘 글을 표시하고 YouTube를 목록 안에서 재생한다', async () => {
@@ -310,6 +339,31 @@ it('홈은 달력 없이 오늘 기사만 보여준다', async () => {
   expect(view.queryByLabelText('이슈 날짜')).toBeNull();
   expect(view.container.querySelector('.issue-story-card')?.textContent).not.toContain(older.title);
   expect(view.container.querySelector('.issue-feed')?.textContent).not.toContain(older.title);
+});
+
+it('홈과 전체 콘텐츠를 썸네일형 목록으로 표시한다', async () => {
+  mockApi();
+  const home = render(
+    <MemoryRouter>
+      <IssueHomePage />
+    </MemoryRouter>,
+  );
+  await home.findByRole('button', { name: /첫 번째 인물 글/ });
+  expect(home.container.querySelector('.issue-feed--visual .issue-feed-thumbnail')).toBeTruthy();
+  expect(home.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeTruthy();
+  expect(home.container.querySelector('.issue-feed-thumbnail-x')?.textContent).toBe('X');
+  home.unmount();
+
+  const contents = render(
+    <MemoryRouter>
+      <IssueHomePage fullFeed />
+    </MemoryRouter>,
+  );
+  await contents.findByRole('button', { name: /첫 번째 인물 글/ });
+  expect(
+    contents.container.querySelector('.issue-feed--visual .issue-feed-thumbnail'),
+  ).toBeTruthy();
+  expect(contents.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeTruthy();
 });
 
 it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 페이지로 돌아온다', async () => {
