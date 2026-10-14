@@ -163,7 +163,7 @@ public final class LeagueDto {
       ExperienceLevel experienceLevel,
       RiskProfile riskProfile,
       BigDecimal weeklyReturnRate,
-      BigDecimal eightWeekReturnRate,
+      BigDecimal threeWeekReturnRate,
       BigDecimal maxDrawdownRate,
       BigDecimal volatilityRate,
       BigDecimal maxHoldingWeight,
@@ -192,7 +192,7 @@ public final class LeagueDto {
 
   public record PerformanceResponse(
       BigDecimal weeklyReturnRate,
-      BigDecimal eightWeekReturnRate,
+      BigDecimal threeWeekReturnRate,
       BigDecimal maxDrawdownRate,
       BigDecimal volatilityRate,
       BigDecimal maxHoldingWeight,

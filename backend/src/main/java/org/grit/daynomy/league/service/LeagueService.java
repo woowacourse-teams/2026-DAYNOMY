@@ -132,12 +132,13 @@ public class LeagueService {
     List<RankingEntryResponse> entries;
     if (finalResult == null) {
       List<RankedProfile> profiles = rankedProfiles(weekStart, leagueType, true);
+      List<Integer> ranks = ranks(profiles, leagueType);
       entries =
           IntStream.range(0, profiles.size())
               .mapToObj(
                   index ->
                       rankingEntry(
-                          index + 1,
+                          ranks.get(index),
                           profiles.get(index),
                           followed.contains(profiles.get(index).profile().getId())))
               .toList();
@@ -189,7 +190,7 @@ public class LeagueService {
                 ranked ->
                     type != LeagueType.STABLE
                         || (ranked.metric().volatilityRate() != null
-                            && ranked.metric().eightWeekReturnRate() != null
+                            && ranked.metric().threeWeekReturnRate() != null
                             && ranked.metric().maxDrawdownRate() != null))
             .sorted(comparator(type))
             .toList();
@@ -287,10 +288,11 @@ public class LeagueService {
                     profile ->
                         type != LeagueType.STABLE
                             || (profile.metric().volatilityRate() != null
-                                && profile.metric().eightWeekReturnRate() != null
+                                && profile.metric().threeWeekReturnRate() != null
                                 && profile.metric().maxDrawdownRate() != null))
                 .sorted(comparator(type))
                 .toList();
+        List<Integer> ranks = ranks(ranked, type);
         List<WeeklyLeaderboard.Entry> entries =
             IntStream.range(0, ranked.size())
                 .mapToObj(
@@ -298,10 +300,11 @@ public class LeagueService {
                       RankedProfile value = ranked.get(index);
                       Metric m = value.metric();
                       return new WeeklyLeaderboard.Entry(
-                          index + 1,
+                          ranks.get(index),
                           value.profile().getId(),
                           m.weeklyReturnRate(),
-                          m.eightWeekReturnRate(),
+                          null,
+                          m.threeWeekReturnRate(),
                           null,
                           m.maxDrawdownRate(),
                           m.volatilityRate(),
@@ -400,7 +403,7 @@ public class LeagueService {
         profile.getExperienceLevel(),
         profile.getRiskProfile(),
         e.weeklyReturnRate(),
-        e.eightWeekReturnRate(),
+        e.threeWeekReturnRate(),
         e.maxDrawdownRate(),
         e.volatilityRate(),
         e.maxHoldingWeight(),
@@ -516,7 +519,7 @@ public class LeagueService {
 
   private void validateWeek(LocalDate week) {
     LocalDate current = normalizeWeek(null);
-    if (week.isAfter(current) || week.isBefore(current.minusWeeks(7)))
+    if (week.isAfter(current) || week.isBefore(current.minusWeeks(2)))
       throw new BusinessException(LeagueErrorCode.INVALID_LEAGUE_WEEK);
   }
 
@@ -895,14 +898,19 @@ public class LeagueService {
             : null;
     LocalDate started = profile.getTrackingStartedOn();
     LocalDate recentStart =
-        started != null && started.isAfter(week.minusWeeks(7)) ? started : week.minusWeeks(7);
+        started != null && started.isAfter(week.minusWeeks(2)) ? started : week.minusWeeks(2);
     List<PortfolioDailyReturn> recent =
         values.stream().filter(v -> !v.getBaseDate().isBefore(recentStart)).toList();
     boolean recentComplete = complete(profile, byDate, recentStart, end);
-    BigDecimal eightWeek = recentComplete ? chainedReturn(recent) : null;
+    BigDecimal threeWeek = recentComplete ? chainedReturn(recent) : null;
     BigDecimal drawdown = recentComplete && recent.size() >= 2 ? maxDrawdown(recent) : null;
     List<LocalDate> expected =
-        calendar(recentStart, end).stream()
+        calendar(
+                started != null && started.isAfter(week.minusWeeks(7))
+                    ? started
+                    : week.minusWeeks(7),
+                end)
+            .stream()
             .filter(MarketTradingDay::isTrading)
             .filter(day -> !day.closesAt().isAfter(Instant.now()))
             .map(MarketTradingDay::getBaseDate)
@@ -944,7 +952,7 @@ public class LeagueService {
     }
     return new Metric(
         weeklyRate,
-        eightWeek,
+        threeWeek,
         drawdown,
         volatility,
         maxWeight,
@@ -1038,6 +1046,19 @@ public class LeagueService {
     };
   }
 
+  private List<Integer> ranks(List<RankedProfile> profiles, LeagueType leagueType) {
+    List<Integer> ranks = new ArrayList<>(profiles.size());
+    BigDecimal previousScore = null;
+    int rank = 0;
+    for (RankedProfile profile : profiles) {
+      BigDecimal currentScore = score(profile.metric(), leagueType);
+      if (previousScore == null || currentScore.compareTo(previousScore) != 0) rank++;
+      ranks.add(rank);
+      previousScore = currentScore;
+    }
+    return ranks;
+  }
+
   private RankingEntryResponse rankingEntry(int rank, RankedProfile ranked, boolean followed) {
     InvestorProfile profile = ranked.profile();
     Metric metric = ranked.metric();
@@ -1048,7 +1069,7 @@ public class LeagueService {
         profile.getExperienceLevel(),
         profile.getRiskProfile(),
         metric.weeklyReturnRate(),
-        metric.eightWeekReturnRate(),
+        metric.threeWeekReturnRate(),
         metric.maxDrawdownRate(),
         metric.volatilityRate(),
         metric.maxHoldingWeight(),
@@ -1077,7 +1098,7 @@ public class LeagueService {
           null);
     return new PerformanceResponse(
         current.weeklyReturnRate(),
-        metric.eightWeekReturnRate(),
+        metric.threeWeekReturnRate(),
         metric.maxDrawdownRate(),
         metric.volatilityRate(),
         metric.maxHoldingWeight(),
@@ -1128,7 +1149,7 @@ public class LeagueService {
         portfolioRepository.findByMemberId(profile.getMember().getId()).orElse(null);
     LocalDate from =
         profile.getTrackingStartedOn() == null
-            ? currentWeek.minusWeeks(7)
+            ? currentWeek.minusWeeks(2)
             : profile.getTrackingStartedOn();
     List<PortfolioDailyReturn> values =
         portfolio == null
@@ -1136,7 +1157,7 @@ public class LeagueService {
             : returnRepository.findLatestByPortfolioIdAndBaseDateBetween(
                 portfolio.getId(), from, currentWeek.plusDays(6));
     List<HistoryPointResponse> points = new ArrayList<>();
-    for (int offset = 7; offset >= 0; offset--) {
+    for (int offset = 2; offset >= 0; offset--) {
       LocalDate week = currentWeek.minusWeeks(offset);
       Metric metric =
           calculateMetric(
@@ -1160,12 +1181,13 @@ public class LeagueService {
         else if (result == null && weekly != null) {
           // ponytail: 미확정 주차는 기존 순위를 재계산한다. 참가자가 늘면 집계된 순위를 조회한다.
           List<RankedProfile> ranked = rankedProfiles(week, LeagueType.WEEKLY_RETURN, true);
+          List<Integer> ranks = ranks(ranked, LeagueType.WEEKLY_RETURN);
           rank =
               IntStream.range(0, ranked.size())
                   .filter(
                       index ->
                           ranked.get(index).profile().getPublicId().equals(profile.getPublicId()))
-                  .map(index -> index + 1)
+                  .map(ranks::get)
                   .boxed()
                   .findFirst()
                   .orElse(null);
@@ -1239,7 +1261,7 @@ public class LeagueService {
 
   private record Metric(
       BigDecimal weeklyReturnRate,
-      BigDecimal eightWeekReturnRate,
+      BigDecimal threeWeekReturnRate,
       BigDecimal maxDrawdownRate,
       BigDecimal volatilityRate,
       BigDecimal maxHoldingWeight,

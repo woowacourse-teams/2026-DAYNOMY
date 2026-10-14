@@ -7,15 +7,38 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import org.grit.daynomy.asset.service.MarketCalendarSyncResult;
 import org.grit.daynomy.asset.service.StockPriceSyncResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.ConfigurableApplicationContext;
 
 class LeagueReturnSchedulerTest {
+  @Test
+  void startupRecalculatesExistingFinalizedWeeksBeforeServingNewRankingFields() {
+    LeagueReturnService service = mock(LeagueReturnService.class);
+    new ApplicationContextRunner()
+        .withUserConfiguration(LeagueReturnScheduler.class)
+        .withBean(LeagueReturnService.class, () -> service)
+        .withPropertyValues("league.calculation.enabled=true")
+        .run(
+            context -> {
+              context.publishEvent(
+                  new ApplicationReadyEvent(
+                      new SpringApplication(),
+                      new String[0],
+                      mock(ConfigurableApplicationContext.class),
+                      Duration.ZERO));
+              verify(service).recalculate();
+            });
+  }
+
   @Test
   void calculationFailureDoesNotReportCommittedPricesAsFailedAndScheduledRetryStillWorks() {
     LeagueReturnService service = mock(LeagueReturnService.class);

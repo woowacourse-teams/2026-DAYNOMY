@@ -68,6 +68,7 @@ public class WeeklyLeaderboard {
       Long profileId,
       BigDecimal weeklyReturnRate,
       BigDecimal eightWeekReturnRate,
+      BigDecimal threeWeekReturnRate,
       BigDecimal cumulativeReturnRate,
       BigDecimal maxDrawdownRate,
       BigDecimal volatilityRate,

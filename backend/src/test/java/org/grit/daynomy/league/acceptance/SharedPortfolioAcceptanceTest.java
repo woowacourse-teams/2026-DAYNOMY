@@ -385,9 +385,19 @@ class SharedPortfolioAcceptanceTest {
             .statusCode(200)
             .extract()
             .path("publicId");
-    // 2026 추석에는 목·금요일이 휴장하므로 수요일 종가가 주간 마감이다.
-    LocalDate week = LocalDate.of(2026, 9, 21);
+    // 최근 3주 안의 목·금 휴장 주차를 만들어 수요일 종가 마감을 검증한다.
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
     LocalDate baseline = week.minusDays(3);
+    jdbc.update(
+        "UPDATE market_trading_days SET trading=true WHERE base_date IN (?, ?, ?, ?)",
+        baseline,
+        week,
+        week.plusDays(1),
+        week.plusDays(2));
+    jdbc.update(
+        "UPDATE market_trading_days SET trading=false, collected_at=NULL WHERE base_date IN (?, ?)",
+        week.plusDays(3),
+        week.plusDays(4));
     Instant enrolled = baseline.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
     jdbc.update(
         "UPDATE public_investor_profiles SET league_enabled_at=? WHERE member_id=?",

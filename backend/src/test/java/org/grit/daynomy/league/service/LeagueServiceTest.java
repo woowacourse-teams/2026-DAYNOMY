@@ -11,6 +11,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -78,6 +79,20 @@ class LeagueServiceTest {
   @Mock private LeagueCalculationMetrics calculationMetrics;
   @Mock private EntityManager entityManager;
   @InjectMocks private LeagueService service;
+
+  @Test
+  void oldFinalizedEntryKeepsItsEightWeekValueWithoutCallingItThreeWeeks() throws Exception {
+    var entry =
+        new ObjectMapper()
+            .readValue(
+                """
+                {"rank":1,"profileId":2,"weeklyReturnRate":1.5,"eightWeekReturnRate":4.2}
+                """,
+                WeeklyLeaderboard.Entry.class);
+
+    assertThat(entry.eightWeekReturnRate()).isEqualByComparingTo("4.2");
+    assertThat(entry.threeWeekReturnRate()).isNull();
+  }
 
   @Test
   void finalizationDelayWaitsForNextTradingDayPublicationAndMissingCalendarIsReported(
@@ -213,6 +228,7 @@ class LeagueServiceTest {
               offset == 0 ? 8 : 10,
               1L,
               new BigDecimal("2.5"),
+              null,
               null,
               null,
               null,
@@ -424,6 +440,88 @@ class LeagueServiceTest {
   }
 
   @Test
+  void equalWeeklyReturnsShareDenseRanksInLiveAndFinalizedResults() {
+    ZoneId seoul = ZoneId.of("Asia/Seoul");
+    LocalDate week = LocalDate.now(seoul).with(DayOfWeek.MONDAY).minusWeeks(1);
+    List<InvestorProfile> profiles = new ArrayList<>();
+    java.util.Map<Long, List<PortfolioDailyReturn>> returns = new java.util.HashMap<>();
+    for (int index = 0; index < 4; index++) {
+      long memberId = index + 1L;
+      long portfolioId = index + 10L;
+      Member owner = mock(Member.class);
+      given(owner.getId()).willReturn(memberId);
+      InvestorProfile profile =
+          InvestorProfile.create(
+              owner,
+              "투자자" + index,
+              "",
+              LeagueTypes.ExperienceLevel.BEGINNER,
+              LeagueTypes.RiskProfile.BALANCED);
+      org.springframework.test.util.ReflectionTestUtils.setField(profile, "id", memberId);
+      profile.changePublication(true, true, false, false, week.atStartOfDay(seoul).toInstant());
+      profile.startTracking(week);
+      profiles.add(profile);
+      SharedPortfolio portfolio = mock(SharedPortfolio.class);
+      given(portfolio.getId()).willReturn(portfolioId);
+      given(portfolioRepository.findByMemberId(memberId)).willReturn(Optional.of(portfolio));
+      List<PortfolioDailyReturn> values = new ArrayList<>();
+      var baseline = new PortfolioDailyReturn(portfolio, week);
+      baseline.completeBaseline(new BigDecimal("100"), new BigDecimal("100"), Instant.now());
+      values.add(baseline);
+      for (int day = 1; day < 5; day++) {
+        values.add(dailyReturn(portfolio, week.plusDays(day), index == 3 && day == 4 ? "-1" : "0"));
+      }
+      returns.put(portfolioId, values);
+    }
+    given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue()).willReturn(profiles);
+    given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(profiles);
+    given(
+            returnRepository.findLatestByPortfolioIdAndBaseDateBetween(
+                any(Long.class), any(LocalDate.class), any(LocalDate.class)))
+        .willAnswer(
+            call ->
+                returns.get(call.getArgument(0, Long.class)).stream()
+                    .filter(
+                        value ->
+                            !value.getBaseDate().isBefore(call.getArgument(1, LocalDate.class)))
+                    .filter(
+                        value -> !value.getBaseDate().isAfter(call.getArgument(2, LocalDate.class)))
+                    .toList());
+    given(
+            tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+                any(LocalDate.class), any(LocalDate.class)))
+        .willAnswer(
+            call -> {
+              LocalDate from = call.getArgument(0);
+              LocalDate to = call.getArgument(1);
+              return from.datesUntil(to.plusDays(1))
+                  .map(
+                      date -> {
+                        var day = new MarketTradingDay(date, date.getDayOfWeek().getValue() < 6);
+                        if (day.isTrading() && !day.closesAt().isAfter(Instant.now()))
+                          day.collected(Instant.now());
+                        return day;
+                      })
+                  .toList();
+            });
+
+    assertThat(service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20).rankings())
+        .extracting(value -> value.rank())
+        .containsExactly(1, 1, 1, 2);
+    service.finalizeWeeks();
+    var saved = org.mockito.ArgumentCaptor.forClass(WeeklyLeaderboard.class);
+    then(leaderboardRepository).should(times(3)).save(saved.capture());
+    assertThat(
+            saved.getAllValues().stream()
+                .filter(value -> value.getLeagueType() == LeagueTypes.LeagueType.WEEKLY_RETURN)
+                .findFirst()
+                .orElseThrow()
+                .getEntries())
+        .extracting(WeeklyLeaderboard.Entry::rank)
+        .containsExactly(1, 1, 1, 2);
+  }
+
+  @Test
   void pendingLatestCloseKeepsTheLastRankButAnEarlierGapDoesNot(
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {
@@ -531,6 +629,7 @@ class LeagueServiceTest {
                             null,
                             null,
                             null,
+                            null,
                             0,
                             0,
                             BigDecimal.ZERO,
@@ -619,11 +718,11 @@ class LeagueServiceTest {
   }
 
   @Test
-  void onlyRecentEightWeeksAndPublicProfilesCanBeRead() {
+  void onlyRecentThreeWeeksAndPublicProfilesCanBeRead() {
     LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
     given(profileRepository.findByPublicIdAndProfilePublicTrue("investor-1"))
         .willReturn(Optional.of(mock(InvestorProfile.class)));
-    for (LocalDate invalid : List.of(week.plusWeeks(1), week.minusWeeks(8))) {
+    for (LocalDate invalid : List.of(week.plusWeeks(1), week.minusWeeks(3))) {
       assertThatThrownBy(() -> service.dailyHistory("investor-1", invalid))
           .isInstanceOf(BusinessException.class)
           .extracting(exception -> ((BusinessException) exception).errorCode())
@@ -700,6 +799,18 @@ class LeagueServiceTest {
           new BigDecimal("50"),
           Instant.now());
     }
+    var olderLoss =
+        values.stream()
+            .filter(value -> value.getBaseDate().equals(currentWeek.minusWeeks(4)))
+            .findFirst()
+            .orElseThrow();
+    olderLoss.complete(
+        new BigDecimal("-50"),
+        olderLoss.getStartingEvaluationAmount(),
+        olderLoss.getEndingEvaluationAmount(),
+        new BigDecimal("50"),
+        new BigDecimal("50"),
+        Instant.now());
     var latest = values.getLast();
     latest.complete(
         latest.getDailyReturnRate(),
@@ -720,7 +831,8 @@ class LeagueServiceTest {
     assertThat(performance.weeklyRank()).isEqualTo(expectedRank);
     assertThat(performance.currentHoldingWeight()).isEqualByComparingTo("75");
     assertThat(performance.maxHoldingWeight()).isEqualByComparingTo("75");
-    assertThat(performance.eightWeekReturnRate()).isPositive();
+    assertThat(performance.threeWeekReturnRate()).isPositive();
+    assertThat(performance.maxDrawdownRate()).isZero();
     assertThat(performance.volatilityRate()).isEqualByComparingTo("0.00");
     if (expectedRank == null) {
       assertThat(performance.consecutiveRecordedWeeks()).isZero();
@@ -729,7 +841,7 @@ class LeagueServiceTest {
     }
     values.get(values.size() - 8).exclude("MISSING_PRICE", Instant.now());
     var missing = service.publicInvestor(null, "investor-1").performance();
-    assertThat(missing.eightWeekReturnRate()).isNull();
+    assertThat(missing.threeWeekReturnRate()).isNull();
     assertThat(missing.maxDrawdownRate()).isNull();
     assertThat(missing.volatilityRate()).isNull();
   }
