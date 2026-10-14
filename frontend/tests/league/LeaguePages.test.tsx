@@ -42,7 +42,7 @@ const ranking = {
       experienceLevel: 'BEGINNER' as const,
       riskProfile: 'BALANCED' as const,
       weeklyReturnRate: 2.5,
-      eightWeekReturnRate: 4.2,
+      threeWeekReturnRate: 4.2,
       maxDrawdownRate: -1.1,
       volatilityRate: 0.7,
       maxHoldingWeight: 55,
@@ -61,7 +61,7 @@ const investor = {
   riskProfile: 'BALANCED' as const,
   performance: {
     weeklyReturnRate: 2.5,
-    eightWeekReturnRate: 4.2,
+    threeWeekReturnRate: 4.2,
     maxDrawdownRate: -1.1,
     volatilityRate: 0.7,
     maxHoldingWeight: 55,
@@ -850,7 +850,7 @@ describe('투자 리그 화면', () => {
       history: [],
       performance: {
         weeklyReturnRate: null,
-        eightWeekReturnRate: null,
+        threeWeekReturnRate: null,
         maxDrawdownRate: null,
         volatilityRate: null,
         maxHoldingWeight: null,
@@ -901,7 +901,7 @@ describe('투자 리그 화면', () => {
     expect(await view.findByText('차분한초보')).toBeTruthy();
     expect(view.getByText('+2.50%')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '차분한초보 상세 지표' }));
-    expect(within(view.getByRole('dialog')).getByText('최대 하락률 · 8주')).toBeTruthy();
+    expect(within(view.getByRole('dialog')).getByText('최대 하락률 · 3주')).toBeTruthy();
     expect(view.getByRole('link', { name: '투자리그 참여하기' })).toBeTruthy();
   });
 

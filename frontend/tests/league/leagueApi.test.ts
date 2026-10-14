@@ -4,6 +4,7 @@ import {
   recordDecision,
   getInvestorDetail,
   getRankings,
+  getPublicInvestor,
   getDailyHistory,
   getFollowSummary,
   updateReview,
@@ -59,7 +60,7 @@ test('리그 순위 응답을 런타임에 검증한다', async () => {
           experienceLevel: 'BEGINNER',
           riskProfile: 'BALANCED',
           weeklyReturnRate: 2.5,
-          eightWeekReturnRate: 4.2,
+          threeWeekReturnRate: 4.2,
           maxDrawdownRate: -1.1,
           volatilityRate: 0.7,
           maxHoldingWeight: 55,
@@ -74,6 +75,64 @@ test('리그 순위 응답을 런타임에 검증한다', async () => {
 
   assert.equal(response.rankings[0]?.displayName, '차분한초보');
   assert.equal(response.rankings[0]?.weeklyReturnRate, 2.5);
+});
+
+test('이전 서버의 공개 투자자와 순위 응답도 3주 지표만 비워서 보여준다', async () => {
+  const ranking = {
+    rank: 1,
+    publicId: 'investor-1',
+    displayName: '차분한초보',
+    experienceLevel: 'BEGINNER',
+    riskProfile: 'BALANCED',
+    weeklyReturnRate: 2.5,
+    eightWeekReturnRate: 4.2,
+    maxDrawdownRate: -1.1,
+    volatilityRate: 0.7,
+    maxHoldingWeight: 55,
+    decisionCount: 4,
+    reviewCompletionRate: 75,
+    followed: false,
+  };
+  globalThis.fetch = async () =>
+    jsonResponse({
+      weekStart: '2026-10-12',
+      weekEnd: '2026-10-18',
+      leagueType: 'WEEKLY_RETURN',
+      confirmed: false,
+      totalCount: 1,
+      asOfDate: '2026-10-13',
+      rankings: [ranking],
+    });
+  assert.equal((await getRankings('WEEKLY_RETURN')).rankings[0]?.threeWeekReturnRate, null);
+
+  const investor = {
+    publicId: 'investor-1',
+    displayName: '차분한초보',
+    bio: '',
+    experienceLevel: 'BEGINNER',
+    riskProfile: 'BALANCED',
+    performance: {
+      weeklyReturnRate: 2.5,
+      eightWeekReturnRate: 4.2,
+      maxDrawdownRate: -1.1,
+      volatilityRate: 0.7,
+      maxHoldingWeight: 55,
+    },
+    allocation: null,
+    history: [],
+    decisionCount: 4,
+    reviewCompletionRate: 75,
+    followed: false,
+    detailAvailable: false,
+  };
+  globalThis.fetch = async () => jsonResponse(investor);
+  assert.equal((await getPublicInvestor('investor-1')).performance.threeWeekReturnRate, null);
+  globalThis.fetch = async () =>
+    jsonResponse({
+      ...investor,
+      performance: { ...investor.performance, threeWeekReturnRate: '4.2' },
+    });
+  await assert.rejects(getPublicInvestor('investor-1'), /투자자 응답 형식/);
 });
 
 test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 이후 누적값을 검증한다', async () => {

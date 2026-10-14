@@ -119,7 +119,7 @@ function isRankingEntry(value: unknown): value is RankingEntry {
     experienceLevels.has(value.experienceLevel as ExperienceLevel) &&
     riskProfiles.has(value.riskProfile as RiskProfile) &&
     isNumber(value.weeklyReturnRate) &&
-    isNullableNumber(value.eightWeekReturnRate) &&
+    optionalNumber(value.threeWeekReturnRate) &&
     isNullableNumber(value.maxDrawdownRate) &&
     isNullableNumber(value.volatilityRate) &&
     isNullableNumber(value.maxHoldingWeight) &&
@@ -164,7 +164,7 @@ function isPublicInvestor(value: unknown): value is PublicInvestor {
     experienceLevels.has(value.experienceLevel as ExperienceLevel) &&
     riskProfiles.has(value.riskProfile as RiskProfile) &&
     isNullableNumber(performance.weeklyReturnRate) &&
-    isNullableNumber(performance.eightWeekReturnRate) &&
+    optionalNumber(performance.threeWeekReturnRate) &&
     isNullableNumber(performance.maxDrawdownRate) &&
     isNullableNumber(performance.volatilityRate) &&
     isNullableNumber(performance.maxHoldingWeight) &&
@@ -312,7 +312,13 @@ export async function getRankings(
   if (weekStart) query.set('weekStart', weekStart);
   const response = await request<unknown>(`/api/league/rankings?${query.toString()}`, { signal });
   if (!isRankingResponse(response)) throw new Error('리그 응답 형식이 올바르지 않습니다.');
-  return response;
+  return {
+    ...response,
+    rankings: response.rankings.map((entry) => ({
+      ...entry,
+      threeWeekReturnRate: entry.threeWeekReturnRate ?? null,
+    })),
+  };
 }
 
 export async function getPublicInvestor(publicId: string, signal?: AbortSignal) {
@@ -320,7 +326,13 @@ export async function getPublicInvestor(publicId: string, signal?: AbortSignal) 
     signal,
   });
   if (!isPublicInvestor(response)) throw new Error('투자자 응답 형식이 올바르지 않습니다.');
-  return response;
+  return {
+    ...response,
+    performance: {
+      ...response.performance,
+      threeWeekReturnRate: response.performance.threeWeekReturnRate ?? null,
+    },
+  };
 }
 
 function isDailyHistory(value: unknown): value is DailyHistory {

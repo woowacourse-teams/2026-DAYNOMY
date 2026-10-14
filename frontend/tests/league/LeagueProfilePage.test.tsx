@@ -60,7 +60,7 @@ it('내 프로필은 공개 프로필 본문을 표시하고 팔로우 대신 �
     ...profile,
     performance: {
       weeklyReturnRate: 2,
-      eightWeekReturnRate: null,
+      threeWeekReturnRate: null,
       maxDrawdownRate: null,
       volatilityRate: null,
       maxHoldingWeight: null,

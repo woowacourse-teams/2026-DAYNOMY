@@ -29,7 +29,7 @@ export type RankingEntry = {
   experienceLevel: ExperienceLevel;
   riskProfile: RiskProfile;
   weeklyReturnRate: number;
-  eightWeekReturnRate: number | null;
+  threeWeekReturnRate: number | null;
   maxDrawdownRate: number | null;
   volatilityRate: number | null;
   maxHoldingWeight: number | null;
@@ -65,7 +65,7 @@ export type LeagueWeek = {
 
 export type Performance = {
   weeklyReturnRate: number | null;
-  eightWeekReturnRate: number | null;
+  threeWeekReturnRate: number | null;
   maxDrawdownRate: number | null;
   volatilityRate: number | null;
   maxHoldingWeight: number | null;

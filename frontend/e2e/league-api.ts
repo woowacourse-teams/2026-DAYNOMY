@@ -17,7 +17,7 @@ const profile = {
 
 const performance = {
   weeklyReturnRate: 0,
-  eightWeekReturnRate: 0,
+  threeWeekReturnRate: 0,
   maxDrawdownRate: null,
   volatilityRate: null,
   maxHoldingWeight: 100,

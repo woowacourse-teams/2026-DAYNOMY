@@ -161,7 +161,7 @@ describe('포트폴리오 로그인 접근', () => {
             riskProfile: 'BALANCED',
             performance: {
               weeklyReturnRate: null,
-              eightWeekReturnRate: null,
+              threeWeekReturnRate: null,
               maxDrawdownRate: null,
               volatilityRate: null,
               maxHoldingWeight: null,

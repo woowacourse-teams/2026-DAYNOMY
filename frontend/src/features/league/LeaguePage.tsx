@@ -188,6 +188,7 @@ export function LeaguePage() {
       {!loading && !error && ranking ? (
         <aside className="league-update-notice" aria-label="순위 갱신 안내">
           <p>종가는 다음 영업일 오후 1시 이후 제공되며, 수집·집계 후 반영됩니다.</p>
+          <p>같은 순위 기준 점수는 공동 순위로 표시합니다.</p>
           <p>사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다.</p>
         </aside>
       ) : null}
@@ -365,8 +366,8 @@ export function LeaguePage() {
                   </dd>
                 </div>
                 <div>
-                  <dt>최근 8주 수익률</dt>
-                  <dd>{formatRate(selectedEntry.eightWeekReturnRate)}</dd>
+                  <dt>최근 3주 수익률</dt>
+                  <dd>{formatRate(selectedEntry.threeWeekReturnRate)}</dd>
                 </div>
               </dl>
             </section>
@@ -374,7 +375,7 @@ export function LeaguePage() {
               <h3>위험 지표</h3>
               <dl className="league-risk-grid">
                 <div>
-                  <dt>최대 하락률 · 8주</dt>
+                  <dt>최대 하락률 · 3주</dt>
                   <dd>{formatRate(selectedEntry.maxDrawdownRate, false)}</dd>
                 </div>
                 <div>
@@ -382,7 +383,7 @@ export function LeaguePage() {
                   <dd>{formatRate(selectedEntry.volatilityRate, false)}</dd>
                 </div>
                 <div>
-                  <dt>최대 종목 비중 · 8주</dt>
+                  <dt>최대 종목 비중 · 3주</dt>
                   <dd>
                     {formatRate(selectedEntry.maxHoldingWeight, false)}
                     {selectedEntry.maxHoldingWeight != null ? (
