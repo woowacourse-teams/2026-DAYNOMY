@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { trackEvent } from '../../../../analytics';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { KeywordCategory, KeywordResponse } from '../types.ts';
 
 const keywordCategoryLabels: Record<KeywordCategory, string> = {
@@ -9,10 +10,147 @@ const keywordCategoryLabels: Record<KeywordCategory, string> = {
   TREND: '흐름',
 };
 
+function Keyword({ keyword, newsId }: { keyword: KeywordResponse; newsId?: string }) {
+  const [open, setOpen] = useState(false);
+  const tooltipId = useId();
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const pointerInside = useRef(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const opened = useRef(false);
+
+  function close() {
+    opened.current = false;
+    setOpen(false);
+  }
+
+  function show(trigger: 'hover' | 'focus' | 'click') {
+    clearTimeout(closeTimer.current);
+    if (!opened.current && newsId && /^\d+$/.test(newsId)) {
+      trackEvent('open_keyword_analysis', {
+        news_id: newsId,
+        keyword_category: keyword.category,
+        trigger,
+      });
+    }
+    opened.current = true;
+    setOpen(true);
+  }
+
+  function scheduleClose() {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(close, 180);
+  }
+
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
+
+  useEffect(() => {
+    if (!open) return;
+    function dismissOutside(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) close();
+    }
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') close();
+    }
+    document.addEventListener('pointerdown', dismissOutside);
+    document.addEventListener('keydown', dismissOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside);
+      document.removeEventListener('keydown', dismissOnEscape);
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    function positionTooltip() {
+      const button = buttonRef.current;
+      const tooltip = tooltipRef.current;
+      if (!button || !tooltip) return;
+      const anchor = button.getBoundingClientRect();
+      const { width, height } = tooltip.getBoundingClientRect();
+      const left = Math.max(16, Math.min(anchor.left, window.innerWidth - width - 16));
+      const below = anchor.bottom + 12;
+      const top =
+        below + height <= window.innerHeight - 16 ? below : Math.max(16, anchor.top - height - 12);
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+    }
+    positionTooltip();
+    window.addEventListener('resize', positionTooltip);
+    window.addEventListener('scroll', positionTooltip, true);
+    return () => {
+      window.removeEventListener('resize', positionTooltip);
+      window.removeEventListener('scroll', positionTooltip, true);
+    };
+  }, [open]);
+
+  return (
+    <span
+      ref={containerRef}
+      onPointerDown={() => {
+        pointerInside.current = true;
+      }}
+      onPointerEnter={(event) => {
+        pointerInside.current = true;
+        if (event.pointerType !== 'touch') show('hover');
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === 'touch') return;
+        pointerInside.current = false;
+        scheduleClose();
+      }}
+      onBlur={(event) => {
+        if (
+          !event.currentTarget.contains(event.relatedTarget) &&
+          (event.relatedTarget !== null || !pointerInside.current)
+        )
+          close();
+      }}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        className="keyword"
+        aria-expanded={open}
+        aria-describedby={open ? tooltipId : undefined}
+        onFocus={() => show('focus')}
+        onClick={() => show('click')}
+      >
+        {keyword.keyword}
+      </button>
+      {open && (
+        <span ref={tooltipRef} id={tooltipId} className="keyword-tooltip" role="tooltip">
+          <span className="keyword-tooltip-heading">
+            <span className="keyword-tooltip-badge">{keywordCategoryLabels[keyword.category]}</span>
+            <strong>{keyword.keyword}</strong>
+          </span>
+          <span className="keyword-tooltip-details">
+            <span className="keyword-tooltip-detail">
+              <b>뜻</b>
+              <span>{keyword.definition}</span>
+            </span>
+            <span className="keyword-tooltip-detail">
+              <b>기사 맥락</b>
+              <span>{keyword.context}</span>
+            </span>
+            <span className="keyword-tooltip-detail">
+              <b>확인할 점</b>
+              <span>{keyword.watchPoint}</span>
+            </span>
+          </span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 function highlightKeywords(
   text: string,
   keywords: KeywordResponse[],
   highlightedKeywords: Set<string>,
+  newsId?: string,
 ) {
   const matches = keywords
     .filter(
@@ -40,21 +178,7 @@ function highlightKeywords(
       continue;
     }
 
-    parts.push(
-      <mark className="keyword" key={`${match.keyword}-${index}`} tabIndex={0}>
-        {match.keyword}
-        <span className="keyword-tooltip" role="tooltip">
-          <span className="keyword-tooltip-badge">{keywordCategoryLabels[match.category]}</span>
-          <strong>{match.keyword}</strong>
-          {match.points.map((point, index) => (
-            <span key={point}>
-              <b>{`POINT ${index + 1}`}</b>
-              {point}
-            </span>
-          ))}
-        </span>
-      </mark>,
-    );
+    parts.push(<Keyword key={`${match.keyword}-${index}`} keyword={match} newsId={newsId} />);
     highlightedKeywords.add(match.keyword);
     index += match.keyword.length;
   }
@@ -65,7 +189,9 @@ function highlightKeywords(
 export function KeywordText({
   paragraphs,
   keywords,
+  newsId,
 }: {
+  newsId?: string;
   paragraphs: string[];
   keywords: KeywordResponse[];
 }) {
@@ -75,7 +201,7 @@ export function KeywordText({
     <>
       {paragraphs.map((paragraph, index) => (
         <p key={`${index}-${paragraph}`}>
-          {highlightKeywords(paragraph, keywords, highlightedKeywords)}
+          {highlightKeywords(paragraph, keywords, highlightedKeywords, newsId)}
         </p>
       ))}
     </>

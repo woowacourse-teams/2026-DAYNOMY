@@ -31,7 +31,10 @@ import org.grit.daynomy.news.dto.WikimediaImageCandidateResponse;
 import org.grit.daynomy.news.dto.WikimediaImageSelectionRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.grit.daynomy.search.domain.NewsSearchSort;
+import org.grit.daynomy.search.domain.NewsSearchTerms;
 import org.grit.daynomy.search.repository.NewsSearchRepository;
+import org.grit.daynomy.search.repository.NewsSearchSpecification;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -97,14 +100,21 @@ public class AdminNewsService {
   }
 
   public AdminNewsPageResponse getNewsPage(
-      int page, int size, NewsStatus status, Category category, String keyword) {
+      int page,
+      int size,
+      NewsStatus status,
+      Category category,
+      String keyword,
+      NewsSearchSort sort) {
     PageRequest pageable =
         PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
     Page<News> newsPage;
-    if (keyword != null && !keyword.isBlank()) {
-      String escapedKeyword =
-          keyword.strip().replace("!", "!!").replace("%", "!%").replace("_", "!_");
-      newsPage = newsSearchRepository.search(escapedKeyword, category, status, pageable);
+    NewsSearchTerms terms = NewsSearchTerms.from(keyword == null ? "" : keyword);
+    if (!terms.values().isEmpty()) {
+      newsPage =
+          newsSearchRepository.findAll(
+              NewsSearchSpecification.forAdmin(terms, category, status, sort),
+              PageRequest.of(page - 1, size));
     } else if (status == null && category == null) {
       newsPage = newsRepository.findAll(pageable);
     } else if (status == null) {

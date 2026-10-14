@@ -33,12 +33,19 @@ previous_version=''
 previous_revision=''
 candidate_started=false
 switch_started=false
+deployment_stage='Prepare deployment'
+
+progress() {
+  deployment_stage="$1"
+  echo "Frontend deployment stage: $deployment_stage"
+}
 
 summary() {
   echo "$1"
+  echo "Frontend deployment stage: $deployment_stage"
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-    printf '\n### Frontend deployment: %s\n\n- Environment: %s\n- Requested version: %s\n- Requested commit: %s\n- Previous image: %s\n- Previous version/commit: %s / %s\n- Previous/candidate ports: %s / %s\n' \
-      "$1" "$DEPLOY_ENV" "$DEPLOY_VERSION" "$GITHUB_SHA" "${previous_image:-none}" \
+    printf '\n### Frontend deployment: %s\n\n- Stage: %s\n- Environment: %s\n- Requested version: %s\n- Requested commit: %s\n- Previous image: %s\n- Previous version/commit: %s / %s\n- Previous/candidate ports: %s / %s\n' \
+      "$1" "$deployment_stage" "$DEPLOY_ENV" "$DEPLOY_VERSION" "$GITHUB_SHA" "${previous_image:-none}" \
       "${previous_version:-unknown}" "${previous_revision:-unknown}" \
       "${active_port:-unknown}" "${candidate_port:-unknown}" >> "$GITHUB_STEP_SUMMARY" || true
   fi
@@ -131,6 +138,7 @@ finish() {
 trap finish EXIT
 
 # Validate the image and host setup before touching either container.
+progress 'Validate image and host configuration'
 new_image="$(docker image inspect --format '{{.Id}}' "$FRONTEND_IMAGE")"
 revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$FRONTEND_IMAGE")"
 version="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$FRONTEND_IMAGE")"
@@ -150,6 +158,7 @@ if ! grep -Fq 'proxy_pass http://daynomy_frontend;' "$work_dir/nginx.conf" \
   exit 1
 fi
 
+progress 'Verify currently active frontend'
 active_id="$(docker ps --quiet --filter "name=^/$prefix-$active_port$")"
 legacy_id="$(docker ps --quiet --filter "name=^/$prefix$")"
 if [ -z "$active_id" ] && [ -n "$legacy_id" ] \
@@ -178,6 +187,7 @@ elif curl --fail --silent --connect-timeout 3 --max-time 5 "http://127.0.0.1:$ac
 fi
 
 # A previous Nginx worker may still use the inactive port. Wait before reusing it.
+progress 'Wait for previous Nginx requests to drain'
 for ((elapsed=0; elapsed<=drain_timeout; elapsed++)); do
   if pgrep -f '^nginx: worker process is shutting down' >/dev/null; then
     [ "$elapsed" -lt "$drain_timeout" ] \
@@ -190,6 +200,7 @@ for ((elapsed=0; elapsed<=drain_timeout; elapsed++)); do
   fi
 done
 
+progress 'Archive previous frontend assets'
 mkdir -p "$assets_dir"
 # Keep hashed files across deployments so open tabs and rollbacks can load them.
 # ponytail: assets accumulate; prune only after defining the supported old-version window.
@@ -203,11 +214,13 @@ if [ -n "$legacy_id" ] && [ "$legacy_id" != "$active_id" ] \
   docker rm "$legacy_id" >/dev/null
 fi
 
+progress 'Start candidate container'
 export FRONTEND_IMAGE FRONTEND_PORT="$candidate_port"
 export FRONTEND_CONTAINER_NAME="$prefix-$candidate_port"
 compose=(docker compose --project-name "$FRONTEND_CONTAINER_NAME" --file "$COMPOSE_FILE")
 candidate_started=true
 "${compose[@]}" up --detach --wait --wait-timeout "$wait_timeout" --pull never --no-deps frontend
+progress 'Verify candidate frontend and assets'
 candidate_id="$("${compose[@]}" ps --quiet frontend)"
 [ "$(docker inspect --format '{{.Image}}' "$candidate_id")" = "$new_image" ] \
   || { echo 'Candidate container image does not match' >&2; exit 1; }
@@ -228,8 +241,10 @@ while IFS= read -r asset; do
   fi
 done < "$work_dir/candidate-assets"
 
+progress 'Switch Nginx upstream'
 printf 'upstream daynomy_frontend {\n    server 127.0.0.1:%s;\n}\n' "$candidate_port" > "$work_dir/next-upstream.conf"
 switch_started=true
 install_upstream "$work_dir/next-upstream.conf"
+progress 'Verify public frontend'
 verify_http "$DEPLOY_URL" "$DEPLOY_ENV:$GITHUB_SHA" 10 '' "$candidate_port"
 summary "Succeeded: port $candidate_port image $new_image verified; previous container retained"

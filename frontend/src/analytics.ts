@@ -1,4 +1,4 @@
-type AnalyticsParams = Record<string, string | number | boolean | undefined>;
+export type AnalyticsParams = Record<string, string | number | boolean | undefined>;
 
 declare global {
   interface Window {
@@ -7,34 +7,48 @@ declare global {
   }
 }
 
-const measurementId = import.meta.env.GA_MEASUREMENT_ID;
+const posthogKey = import.meta.env?.VITE_POSTHOG_KEY;
+const posthogHost = import.meta.env?.VITE_POSTHOG_HOST;
+let stopped = false;
+let posthogClient: Promise<(typeof import('posthog-js'))['default'] | null> | undefined;
+
+const measurementId = import.meta.env?.GA_MEASUREMENT_ID;
 let initialized = false;
 let lastPageLocation = '';
 let currentPageReferrer = '';
 
 function isPublicPage(pathname: string) {
-  const section = pathname.split('/')[1];
+  const section = pathname.split('/')[1]?.toLowerCase();
   return section !== 'login' && section !== 'admin';
 }
 
 function cleanUrl(value: string) {
   if (!value) return '';
   const url = new URL(value, window.location.origin);
-  return `${url.origin}${url.pathname}`;
+  const path = url.pathname.replace(
+    /^\/league\/(?!(?:following|portfolio)\/*$)[^/]+\/*$/i,
+    '/league/investor',
+  );
+  return `${url.origin}${path}`;
 }
 
 function canTrack() {
-  if (!measurementId) return false;
+  if (typeof window === 'undefined') return false;
   const disableKey = `ga-disable-${measurementId}`;
   if (!isPublicPage(window.location.pathname)) {
-    Reflect.set(window, disableKey, true);
+    stopped = true;
+    if (measurementId) Reflect.set(window, disableKey, true);
     return false;
   }
-  return Reflect.get(window, disableKey) !== true;
+  return (
+    !stopped &&
+    (Boolean(measurementId) || Boolean(posthogKey && posthogHost)) &&
+    Reflect.get(window, disableKey) !== true
+  );
 }
 
 export function initAnalytics() {
-  if (initialized || typeof document === 'undefined' || !canTrack()) return;
+  if (initialized || !measurementId || typeof document === 'undefined' || !canTrack()) return;
   initialized = true;
   window.dataLayer = window.dataLayer || [];
   window.gtag = function gtag() {
@@ -58,7 +72,6 @@ export function trackPageView(path: string) {
     return;
   }
   initAnalytics();
-  const pathname = new URL(path, window.location.origin).pathname;
   const pageLocation = cleanUrl(path);
   if (pageLocation === lastPageLocation) return;
   const pageReferrer = lastPageLocation || cleanUrl(document.referrer);
@@ -70,20 +83,104 @@ export function trackPageView(path: string) {
     page_location: pageLocation,
     page_referrer: pageReferrer,
   });
-  window.gtag?.('event', 'page_view', {
-    page_path: pathname,
+  const properties = {
+    page_path: new URL(pageLocation).pathname,
     page_location: pageLocation,
     page_referrer: pageReferrer,
-  });
+  };
+  window.gtag?.('event', 'page_view', properties);
+  capturePostHog('$pageview', properties);
 }
 
 export function trackEvent(name: string, params: AnalyticsParams = {}) {
   if (!canTrack()) return;
   initAnalytics();
-  window.gtag?.('event', name, {
+  const properties = {
     ...params,
-    page_path: window.location.pathname,
+    page_path: new URL(cleanUrl(window.location.href)).pathname,
     page_location: cleanUrl(window.location.href),
     page_referrer: currentPageReferrer || cleanUrl(document.referrer),
-  });
+  };
+  window.gtag?.('event', name, properties);
+  capturePostHog(name, properties);
+}
+
+// Explicit events only: SDK-generated properties are filtered before delivery as well.
+const posthogProperties = new Set([
+  'distinct_id',
+  '$device_id',
+  '$session_id',
+  '$window_id',
+  '$lib',
+  '$lib_version',
+  '$browser',
+  '$browser_version',
+  '$os',
+  '$os_version',
+  '$device_type',
+  '$screen_height',
+  '$screen_width',
+  '$viewport_height',
+  '$viewport_width',
+  '$process_person_profile',
+  '$current_url',
+  '$pathname',
+  '$referrer',
+]);
+const sentEvents = new Set<string>();
+function capturePostHog(name: string, properties: AnalyticsParams) {
+  if (!posthogKey || !posthogHost || !canTrack()) return;
+  sentEvents.add(name);
+  Object.keys(properties).forEach((key) => posthogProperties.add(key));
+  posthogClient ??= import('posthog-js')
+    .then(({ default: client }) => {
+      if (!canTrack()) return null;
+      client.init(posthogKey, {
+        api_host: posthogHost,
+        autocapture: false,
+        capture_pageview: false,
+        capture_pageleave: false,
+        capture_performance: false,
+        capture_dead_clicks: false,
+        capture_exceptions: false,
+        disable_session_recording: true,
+        disable_surveys: true,
+        disable_external_dependency_loading: true,
+        advanced_disable_flags: true,
+        person_profiles: 'never',
+        persistence: 'localStorage',
+        ip: false,
+        save_campaign_params: false,
+        save_referrer: false,
+        before_send: (event) => {
+          if (!event || !canTrack() || !sentEvents.has(event.event)) return null;
+          event.properties = Object.fromEntries(
+            Object.entries(event.properties).filter(
+              ([key, value]) =>
+                posthogProperties.has(key) &&
+                ['string', 'number', 'boolean'].includes(typeof value),
+            ),
+          );
+          event.properties.$current_url = event.properties.page_location;
+          event.properties.$pathname = event.properties.page_path;
+          event.properties.$referrer = event.properties.page_referrer;
+          return event;
+        },
+      });
+      return client;
+    })
+    .catch(() => null);
+  void posthogClient
+    .then((client) => {
+      if (!client || !canTrack()) return;
+      client.capture(name, {
+        ...properties,
+        $current_url: properties.page_location,
+        $pathname: properties.page_path,
+        $referrer: properties.page_referrer,
+      });
+    })
+    .catch(() => {
+      /* Analytics must not interrupt user actions. */
+    });
 }

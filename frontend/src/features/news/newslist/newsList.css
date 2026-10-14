@@ -1,6 +1,6 @@
 .news-home {
-  --news-side-padding: clamp(56px, 8vw, 160px);
-  width: min(100%, 2560px);
+  --news-side-padding: var(--page-side-padding);
+  width: 100%;
   margin: 0 auto;
   padding: 0 0 78px;
   background: #ffffff;
@@ -547,7 +547,7 @@
 
 @media (max-width: 900px) {
   .news-home {
-    --news-side-padding: 32px;
+    --news-side-padding: var(--page-side-padding);
   }
 
   .news-title-row,
@@ -582,7 +582,7 @@
 
 @media (max-width: 620px) {
   .news-home {
-    --news-side-padding: 18px;
+    --news-side-padding: var(--page-side-padding);
   }
 
   .news-title-row,

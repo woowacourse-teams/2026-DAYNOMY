@@ -4,16 +4,15 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot;
-import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
@@ -35,70 +34,87 @@ public class PortfolioSnapshotTransactionService {
   private final PortfolioHoldingHistoryRepository historyRepository;
   private final PortfolioDailySnapshotRepository snapshotRepository;
   private final StockDailyPriceRepository stockPriceRepository;
+  private final PortfolioLedgerCalculator ledgerCalculator;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public boolean createSnapshot(Long portfolioId, LocalDate baseDate, LocalDate previousBaseDate) {
-    Portfolio portfolio = portfolioRepository.findById(portfolioId).orElse(null);
+    return upsertSnapshot(portfolioId, baseDate, previousBaseDate);
+  }
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void refreshSnapshotsFrom(Long portfolioId, LocalDate fromDate) {
+    LocalDate today = LocalDate.now(SEOUL);
+    NavigableSet<LocalDate> priceDates =
+        new TreeSet<>(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate());
+    NavigableSet<LocalDate> candidateDates = new TreeSet<>(priceDates);
+    candidateDates.addAll(snapshotRepository.findDistinctBaseDatesOrderByBaseDate());
+    List<LocalDate> baseDates = candidateDates.headSet(today, false).stream().toList();
+    for (LocalDate baseDate : baseDates) {
+      if (baseDate.isBefore(fromDate)) {
+        continue;
+      }
+      LocalDate previousBaseDate = priceDates.lower(baseDate);
+      upsertSnapshot(portfolioId, baseDate, previousBaseDate);
+    }
+  }
+
+  private boolean upsertSnapshot(Long portfolioId, LocalDate baseDate, LocalDate previousBaseDate) {
+    if (!baseDate.isBefore(LocalDate.now(SEOUL))) {
+      return false;
+    }
+    Portfolio portfolio = portfolioRepository.findByIdForUpdate(portfolioId).orElse(null);
     if (portfolio == null) {
       return false;
     }
 
     PortfolioDailySnapshot existing =
         snapshotRepository.findByPortfolioIdAndBaseDate(portfolioId, baseDate).orElse(null);
-    if (existing != null && baseDate.isBefore(LocalDate.now(SEOUL))) {
-      return false;
-    }
-
     List<HistoricalHolding> holdings = reconstructHoldings(portfolioId, baseDate);
     if (holdings.isEmpty()) {
+      deleteExisting(existing);
       return false;
     }
 
     SnapshotAmounts amounts = calculateAmounts(holdings, baseDate, previousBaseDate);
     if (amounts == null) {
+      deleteExisting(existing);
       return false;
     }
 
     PortfolioDailySnapshot snapshot =
-        existing != null
-            ? existing
-            : new PortfolioDailySnapshot(
-                portfolio,
-                baseDate,
-                amounts.totalPurchase(),
-                amounts.totalEvaluation(),
-                amounts.totalProfitLoss(),
-                amounts.totalReturnRate(),
-                amounts.dailyProfitLoss(),
-                amounts.dailyReturnRate());
-    snapshot.update(
-        amounts.totalPurchase(),
-        amounts.totalEvaluation(),
-        amounts.totalProfitLoss(),
-        amounts.totalReturnRate(),
-        amounts.dailyProfitLoss(),
-        amounts.dailyReturnRate());
+        existing != null ? existing : new PortfolioDailySnapshot(portfolio, baseDate);
+    boolean changed =
+        snapshot.update(
+            amounts.totalPurchase(),
+            amounts.totalEvaluation(),
+            amounts.totalProfitLoss(),
+            amounts.totalReturnRate(),
+            amounts.dailyProfitLoss(),
+            amounts.dailyReturnRate());
+    if (!changed) {
+      return false;
+    }
     snapshotRepository.saveAndFlush(snapshot);
     return true;
   }
 
-  private List<HistoricalHolding> reconstructHoldings(Long portfolioId, LocalDate baseDate) {
-    Map<Long, HistoricalHolding> holdings = new LinkedHashMap<>();
-    List<PortfolioHoldingHistory> histories =
-        historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAsc(
-            portfolioId, baseDate.plusDays(1).atStartOfDay(SEOUL).toInstant());
-    for (PortfolioHoldingHistory history : histories) {
-      Long assetId = history.getAsset().getId();
-      if (history.getChangeType() == PortfolioHoldingChangeType.REMOVED) {
-        holdings.remove(assetId);
-      } else {
-        holdings.put(
-            assetId,
-            new HistoricalHolding(
-                history.getAsset(), history.getQuantity(), history.getAveragePurchasePrice()));
-      }
+  private void deleteExisting(PortfolioDailySnapshot existing) {
+    if (existing != null) {
+      snapshotRepository.delete(existing);
     }
-    return List.copyOf(holdings.values());
+  }
+
+  private List<HistoricalHolding> reconstructHoldings(Long portfolioId, LocalDate baseDate) {
+    List<PortfolioHoldingHistory> histories =
+        historyRepository
+            .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                portfolioId, baseDate);
+    return ledgerCalculator.replay(histories).positions().values().stream()
+        .map(
+            position ->
+                new HistoricalHolding(
+                    position.asset(), position.quantity(), position.averagePurchasePrice()))
+        .toList();
   }
 
   private SnapshotAmounts calculateAmounts(

@@ -1,180 +1,151 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { trackEvent } from '../../analytics';
-import { ArticleCard } from '../news/newslist/components/ArticleCard';
-import { CategoryTabs } from '../news/newslist/components/CategoryTabs';
-import { isCategory } from '../news/newslist/types';
-import type { NewsCategory, NewsCategoryOption, NewsListItem } from '../news/newslist/types';
-import { searchNews } from './api';
-import './SearchPage.css';
+import { IssueFeed } from '../news/issue/IssueFeed';
+import { IssuePagination } from '../news/issue/IssuePagination';
+import type { FeedItem } from '../news/issue/feed';
+import { searchContents } from './api';
+import { isContentSearchSource, type ContentSearchSource } from './response';
+import '../news/issue/issue.css';
 
-const PAGE_SIZE = 10;
-const MAX_VISIBLE_PAGES = 5;
-const SEARCH_CATEGORIES: NewsCategoryOption[] = [
-  { label: '전체', value: 'ALL' },
-  { label: '주식', value: 'STOCK' },
-  { label: 'ETF', value: 'ETF' },
-  { label: '부동산', value: 'REAL_ESTATE' },
-];
+const PAGE_SIZE = 12;
 
-function getCategory(searchParams: URLSearchParams): NewsCategory {
-  const category = searchParams.get('category');
-  return category === 'ALL' || isCategory(category) ? category : 'ALL';
+function getSource(params: URLSearchParams): ContentSearchSource {
+  const source = params.get('source');
+  return isContentSearchSource(source) ? source : 'ALL';
 }
 
-function getPage(searchParams: URLSearchParams) {
-  const page = Number(searchParams.get('page'));
+function getPage(params: URLSearchParams) {
+  const page = Number(params.get('page'));
   return Number.isSafeInteger(page) && page > 0 ? page : 1;
 }
 
-function getVisiblePages(currentPage: number, totalPages: number) {
-  const pageCount = Math.min(MAX_VISIBLE_PAGES, totalPages);
-  const startPage = Math.min(
-    Math.max(currentPage - Math.floor(pageCount / 2), 1),
-    totalPages - pageCount + 1,
-  );
-  return Array.from({ length: pageCount }, (_, index) => startPage + index);
-}
-
 function SearchPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const searchedKeyword = searchParams.get('q')?.trim() ?? '';
-  const selectedCategory = getCategory(searchParams);
-  const page = getPage(searchParams);
-  const [results, setResults] = useState<NewsListItem[]>([]);
+  const [params, setParams] = useSearchParams();
+  const keyword = params.get('q')?.trim() ?? '';
+  const source = getSource(params);
+  const page = getPage(params);
+  const [items, setItems] = useState<FeedItem[]>([]);
   const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(Boolean(searchedKeyword));
+  const [loading, setLoading] = useState(Boolean(keyword));
   const [error, setError] = useState<string | null>(null);
-  const [searchAttempt, setSearchAttempt] = useState(0);
-  const resultTitleRef = useRef<HTMLHeadingElement>(null);
+  const [attempt, setAttempt] = useState(0);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    if (searchedKeyword) resultTitleRef.current?.focus();
-  }, [searchedKeyword]);
+    if (keyword) titleRef.current?.focus();
+  }, [keyword]);
 
   useEffect(() => {
-    if (!searchedKeyword) return;
+    if (!keyword) return;
     let ignore = false;
-
-    async function loadSearchResults() {
-      setLoading(true);
-      setError(null);
-      try {
-        const newsPage = await searchNews(searchedKeyword, selectedCategory, page, PAGE_SIZE);
+    setLoading(true);
+    setError(null);
+    searchContents(keyword, source, page, PAGE_SIZE)
+      .then((result) => {
         if (ignore) return;
-        if (newsPage.totalPages > 0 && page > newsPage.totalPages) {
-          setSearchParams(
-            { q: searchedKeyword, category: selectedCategory, page: String(newsPage.totalPages) },
-            { replace: true },
-          );
+        if (result.totalPages > 0 && page > result.totalPages) {
+          setParams({ q: keyword, source, page: String(result.totalPages) }, { replace: true });
           return;
         }
-        setResults(newsPage.content);
-        setTotalPages(newsPage.totalPages);
-      } catch (caughtError) {
+        setItems(result.items);
+        setTotalPages(result.totalPages);
+      })
+      .catch((caught: unknown) => {
         if (ignore) return;
-        setResults([]);
+        setItems([]);
         setTotalPages(0);
-        setError(
-          caughtError instanceof Error ? caughtError.message : '검색 결과를 불러오지 못했습니다.',
-        );
-      } finally {
+        setError(caught instanceof Error ? caught.message : '검색 결과를 불러오지 못했습니다.');
+      })
+      .finally(() => {
         if (!ignore) setLoading(false);
-      }
-    }
-
-    loadSearchResults();
+      });
     return () => {
       ignore = true;
     };
-  }, [searchedKeyword, selectedCategory, page, searchAttempt, setSearchParams]);
+  }, [keyword, source, page, attempt, setParams]);
 
   useEffect(() => {
-    if (searchedKeyword) trackEvent('search_news', { search_length: searchedKeyword.length });
-  }, [searchedKeyword]);
+    if (keyword) trackEvent('search_news', { search_length: keyword.length });
+  }, [keyword]);
 
-  function changeCategory(category: NewsCategory) {
-    setSearchParams({ q: searchedKeyword, category, page: '1' });
+  function changeSource(nextSource: ContentSearchSource) {
+    if (nextSource === source) return;
+    setParams({ q: keyword, source: nextSource, page: '1' });
   }
 
   function changePage(nextPage: number) {
-    setSearchParams({ q: searchedKeyword, category: selectedCategory, page: String(nextPage) });
-    document.getElementById('news-results')?.scrollIntoView({ behavior: 'smooth' });
+    setParams({ q: keyword, source, page: String(nextPage) });
+    document.getElementById('search-results')?.scrollIntoView({ behavior: 'smooth' });
   }
 
-  const visiblePages = getVisiblePages(page, totalPages);
-
   return (
-    <main className="search-page">
-      <div className="search-panel">
-        {searchedKeyword ? (
-          <>
-            <h1 ref={resultTitleRef} id="result-title" className="sr-only" tabIndex={-1}>
-              ‘{searchedKeyword}’ 뉴스
-            </h1>
-            <CategoryTabs
-              categories={SEARCH_CATEGORIES}
-              selectedCategory={selectedCategory}
-              onChange={changeCategory}
-            />
-            <section id="news-results" className="news-results" aria-label="검색된 뉴스 목록">
-              <div className="result-heading">
-                <span>{loading ? '검색 중' : '최신순'}</span>
-              </div>
-              {loading ? <p className="search-state">검색 중입니다.</p> : null}
-              {!loading && error ? (
-                <div className="search-state" role="alert">
-                  <p>{error}</p>
-                  <button type="button" onClick={() => setSearchAttempt((attempt) => attempt + 1)}>
-                    다시 시도
+    <main className="issue-page search-page">
+      <header className="issue-heading">
+        <h1 ref={titleRef} tabIndex={-1}>
+          {keyword ? `‘${keyword}’ 검색 결과` : '소식 검색'}
+        </h1>
+        <p>데이노미, Threads, YouTube, X의 소식을 찾아보세요.</p>
+      </header>
+      {keyword && (
+        <section id="search-results" aria-labelledby="search-results-heading">
+          <div className="issue-section-heading issue-feed-heading">
+            <h2 id="search-results-heading">검색된 소식</h2>
+            <div className="issue-feed-controls">
+              <div className="issue-source-filters" role="group" aria-label="소식 출처">
+                {(
+                  [
+                    ['ALL', '전체'],
+                    ['DAYNOMY', 'DAYNOMY Issue'],
+                    ['X', 'X'],
+                    ['THREADS', 'Threads'],
+                    ['YOUTUBE', 'YouTube'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={source === value}
+                    onClick={() => changeSource(value)}
+                  >
+                    {label}
                   </button>
-                </div>
-              ) : null}
-              {!loading && !error && results.length > 0 ? (
-                <>
-                  <div className="article-list">
-                    {results.map((item) => (
-                      <ArticleCard article={item} key={item.id} />
-                    ))}
-                  </div>
-                  {totalPages > 1 ? (
-                    <nav className="pagination" aria-label="검색 결과 페이지">
-                      <button
-                        type="button"
-                        disabled={page === 1}
-                        onClick={() => changePage(page - 1)}
-                      >
-                        이전
-                      </button>
-                      {visiblePages.map((pageNumber) => (
-                        <button
-                          type="button"
-                          className={page === pageNumber ? 'active' : ''}
-                          aria-current={page === pageNumber ? 'page' : undefined}
-                          onClick={() => changePage(pageNumber)}
-                          key={pageNumber}
-                        >
-                          {pageNumber}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        disabled={page === totalPages}
-                        onClick={() => changePage(page + 1)}
-                      >
-                        다음
-                      </button>
-                    </nav>
-                  ) : null}
-                </>
-              ) : null}
-              {!loading && !error && results.length === 0 ? (
-                <p className="search-state">검색된 결과가 없습니다.</p>
-              ) : null}
-            </section>
-          </>
-        ) : null}
-      </div>
+                ))}
+              </div>
+              <span>최신순</span>
+            </div>
+          </div>
+          {loading && (
+            <p className="issue-state" role="status">
+              검색 중입니다.
+            </p>
+          )}
+          {!loading && error && (
+            <p className="issue-state" role="alert">
+              {error}{' '}
+              <button type="button" onClick={() => setAttempt((value) => value + 1)}>
+                다시 시도
+              </button>
+            </p>
+          )}
+          {!loading && !error && items.length > 0 && (
+            <>
+              <IssueFeed
+                key={`${source}-${page}`}
+                items={items}
+                surface="search_results"
+                offset={(page - 1) * PAGE_SIZE}
+              />
+              {totalPages > 1 && (
+                <IssuePagination page={page} totalPages={totalPages} onChange={changePage} />
+              )}
+            </>
+          )}
+          {!loading && !error && items.length === 0 && (
+            <p className="issue-state">검색된 소식이 없습니다.</p>
+          )}
+        </section>
+      )}
     </main>
   );
 }

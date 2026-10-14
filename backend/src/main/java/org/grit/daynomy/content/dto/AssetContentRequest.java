@@ -1,9 +1,11 @@
 package org.grit.daynomy.content.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 import org.grit.daynomy.content.domain.ContentSourceType;
 
 public record AssetContentRequest(
@@ -16,4 +18,6 @@ public record AssetContentRequest(
         String url,
     @Size(max = 2000, message = "이미지 URL은 2000자 이하여야 합니다.")
         @Pattern(regexp = "https?://\\S+", message = "http 또는 https 이미지 URL을 입력해주세요.")
-        String imageUrl) {}
+        String imageUrl,
+    @Schema(description = "원문 게시일. 생략 또는 null이면 서울 기준 등록일을 사용", example = "2020-04-05")
+        LocalDate publishedDate) {}

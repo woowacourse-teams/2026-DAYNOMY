@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingHistoryResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
@@ -32,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Saved Portfolio", description = "로그인 회원의 포트폴리오와 수익률 추적 API")
 @RequiredArgsConstructor
-@RequestMapping("/api/users/me/portfolio")
+@RequestMapping({"/api/portfolio", "/api/users/me/portfolio"})
 @RestController
 public class SavedPortfolioController {
 
@@ -55,6 +58,32 @@ public class SavedPortfolioController {
         .body(savedPortfolioService.add(member.memberId(), request));
   }
 
+  @Operation(summary = "매수·매도 거래 등록", description = "거래일은 해당 종목의 마지막 보유 수량 등록·조정일 이후(당일 포함)여야 합니다.")
+  @PostMapping("/transactions")
+  public ResponseEntity<PortfolioTransactionResponse> transact(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody PortfolioTransactionRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(savedPortfolioService.transact(member.memberId(), request));
+  }
+
+  @Operation(summary = "매수·매도 거래 수정", description = "거래일은 해당 종목의 마지막 보유 수량 등록·조정일 이후(당일 포함)여야 합니다.")
+  @PatchMapping("/transactions/{transactionId}")
+  public PortfolioTransactionResponse updateTransaction(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId,
+      @Valid @RequestBody PortfolioTransactionUpdateRequest request) {
+    return savedPortfolioService.updateTransaction(member.memberId(), transactionId, request);
+  }
+
+  @Operation(summary = "매수·매도 거래 삭제")
+  @DeleteMapping("/transactions/{transactionId}")
+  public PortfolioTransactionResponse deleteTransaction(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId) {
+    return savedPortfolioService.deleteTransaction(member.memberId(), transactionId);
+  }
+
   @Operation(summary = "보유자산 수정")
   @PatchMapping("/holdings/{assetId}")
   public SavedPortfolioHoldingResponse update(
@@ -73,7 +102,9 @@ public class SavedPortfolioController {
     return ResponseEntity.noContent().build();
   }
 
-  @Operation(summary = "기간별 포트폴리오 수익률 조회", description = "거래일별 매입금액 대비 평가손익의 누적수익률 스냅샷을 조회합니다.")
+  @Operation(
+      summary = "기간별 포트폴리오 수익률 조회",
+      description = "거래일별 매입금액과 평가금액 스냅샷을 조회합니다. 오늘 값은 현재 보유자산과 최근 종가로 계산하며 저장하지 않습니다.")
   @GetMapping("/performance")
   public PortfolioPerformanceResponse performance(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,

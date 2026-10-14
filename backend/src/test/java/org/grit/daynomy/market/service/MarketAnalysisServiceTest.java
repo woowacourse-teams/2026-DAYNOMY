@@ -44,22 +44,32 @@ class MarketAnalysisServiceTest {
                 entity -> {
                   assertThat(entity.getNews()).isSameAs(news);
                   assertThat(entity.getSummary())
-                      .isEqualTo("금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
+                      .isEqualTo("물가가 다시 상승하면 해석이 달라질 수 있습니다. 다음 소비자물가 발표를 확인해야 합니다.");
+                  assertThat(entity.getObservedFact()).isNull();
+                  assertThat(entity.getInterpretation()).isNull();
+                  assertThat(entity.getRisk()).isEqualTo("물가가 다시 상승하면 해석이 달라질 수 있습니다.");
+                  assertThat(entity.getWatchPoint()).isEqualTo("다음 소비자물가 발표를 확인해야 합니다.");
+                  assertThat(entity.getLimitation()).isNull();
                   return true;
                 }));
   }
 
   @Test
   @DisplayName("기존 시장 분석을 새로운 분석 내용으로 수정한다")
-  void updateMarketAnalysisChangesSummary() {
+  void updateMarketAnalysisChangesAnalysis() {
     NewsMarketAnalysis savedMarketAnalysis = createSavedMarketAnalysis();
-    NewsMarketAnalysis newMarketAnalysis = new NewsMarketAnalysis("수정된 시장 분석 결과");
+    NewsMarketAnalysis newMarketAnalysis = createUpdatedMarketAnalysis();
     given(newsMarketAnalysisRepository.findByNewsId(1L))
         .willReturn(Optional.of(savedMarketAnalysis));
 
     marketAnalysisService.updateMarketAnalysis(1L, newMarketAnalysis);
 
-    assertThat(savedMarketAnalysis.getSummary()).isEqualTo("수정된 시장 분석 결과");
+    assertThat(savedMarketAnalysis.getSummary()).isEqualTo("수정된 위험 수정된 확인 지표");
+    assertThat(savedMarketAnalysis.getObservedFact()).isNull();
+    assertThat(savedMarketAnalysis.getInterpretation()).isNull();
+    assertThat(savedMarketAnalysis.getRisk()).isEqualTo("수정된 위험");
+    assertThat(savedMarketAnalysis.getWatchPoint()).isEqualTo("수정된 확인 지표");
+    assertThat(savedMarketAnalysis.getLimitation()).isNull();
   }
 
   @Test
@@ -68,9 +78,7 @@ class MarketAnalysisServiceTest {
     given(newsMarketAnalysisRepository.findByNewsId(1L)).willReturn(Optional.empty());
 
     assertThatThrownBy(
-            () ->
-                marketAnalysisService.updateMarketAnalysis(
-                    1L, new NewsMarketAnalysis("수정된 시장 분석 결과")))
+            () -> marketAnalysisService.updateMarketAnalysis(1L, createUpdatedMarketAnalysis()))
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND);
@@ -84,8 +92,20 @@ class MarketAnalysisServiceTest {
 
     var response = marketAnalysisService.getMarketAnalysis(1L);
 
-    assertThat(response.summary())
-        .isEqualTo("금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
+    assertThat(response.risk()).isEqualTo("물가가 다시 상승하면 해석이 달라질 수 있습니다.");
+    assertThat(response.watchPoint()).isEqualTo("다음 소비자물가 발표를 확인해야 합니다.");
+  }
+
+  @Test
+  @DisplayName("요약만 있는 기존 분석은 위험과 지표로 오인하지 않도록 미제공 처리한다")
+  void findLegacyMarketAnalysisReturnsNotFound() {
+    given(newsMarketAnalysisRepository.findByNewsId(1L))
+        .willReturn(Optional.of(new NewsMarketAnalysis(createNews(), "기존 시장 분석 요약")));
+
+    assertThatThrownBy(() -> marketAnalysisService.getMarketAnalysis(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_NOT_FOUND);
   }
 
   @Test
@@ -123,11 +143,26 @@ class MarketAnalysisServiceTest {
   }
 
   private NewsMarketAnalysis createSavedMarketAnalysis(News news) {
-    return new NewsMarketAnalysis(news, "금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
+    return new NewsMarketAnalysis(
+        news,
+        "기준금리가 인하됐습니다.",
+        "위험자산 선호가 높아질 수 있습니다.",
+        "물가가 다시 상승하면 해석이 달라질 수 있습니다.",
+        "다음 소비자물가 발표를 확인해야 합니다.",
+        "자산별 가격 데이터는 포함하지 않았습니다.");
   }
 
   private NewsMarketAnalysis createMarketAnalysis() {
-    return new NewsMarketAnalysis("금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격에 영향을 줍니다.");
+    return new NewsMarketAnalysis(
+        "기준금리가 인하됐습니다.",
+        "위험자산 선호가 높아질 수 있습니다.",
+        "물가가 다시 상승하면 해석이 달라질 수 있습니다.",
+        "다음 소비자물가 발표를 확인해야 합니다.",
+        "자산별 가격 데이터는 포함하지 않았습니다.");
+  }
+
+  private NewsMarketAnalysis createUpdatedMarketAnalysis() {
+    return new NewsMarketAnalysis("수정된 위험", "수정된 확인 지표");
   }
 
   private News createNews() {

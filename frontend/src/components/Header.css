@@ -1,5 +1,5 @@
 .daynomy-header {
-  --header-side-padding: clamp(56px, 8vw, 160px);
+  --header-side-padding: var(--page-side-padding);
   position: relative;
   box-sizing: border-box;
   width: 100%;
@@ -37,10 +37,11 @@
   left: 50%;
   top: 22px;
   display: flex;
+  width: auto;
   height: 20px;
   align-items: center;
   justify-content: center;
-  gap: 28px;
+  gap: clamp(20px, 2vw, 32px);
   transform: translateX(-50%);
 }
 
@@ -149,7 +150,7 @@
 .daynomy-header .search-link:focus-visible,
 .daynomy-header .header-tab:focus-visible,
 .daynomy-header .login-button:focus-visible {
-  outline: 2px solid #4339c0;
+  outline: 2px solid var(--button-primary);
   outline-offset: 2px;
 }
 
@@ -178,18 +179,18 @@
   border-radius: 10px;
   border: 0;
   color: #ffffff;
-  background: #4339c0;
+  background: var(--button-primary);
   font-weight: 700;
   cursor: pointer;
 }
 
 .daynomy-header .login-button:hover {
-  background: #5548dc;
+  background: var(--button-primary-hover);
 }
 
 @media (max-width: 900px) {
   .daynomy-header {
-    --header-side-padding: 32px;
+    --header-side-padding: var(--page-side-padding);
   }
 
   .daynomy-header .brand {
@@ -207,7 +208,7 @@
 
 @media (max-width: 720px) {
   .daynomy-header {
-    --header-side-padding: 18px;
+    --header-side-padding: var(--page-side-padding);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -249,27 +250,28 @@
 }
 
 @media (max-width: 400px) {
+  .daynomy-header {
+    --header-side-padding: var(--page-side-padding);
+    gap: 8px;
+  }
+
   .daynomy-header .brand {
-    font-size: 20px;
-    letter-spacing: 0.1em;
+    font-size: 16px;
+    letter-spacing: 0.06em;
   }
 
   .daynomy-header .header-tabs {
-    gap: 12px;
+    width: auto;
+    flex-basis: auto;
+    gap: 8px;
   }
 
   .daynomy-header .header-tab {
-    font-size: 12px;
+    font-size: 13px;
   }
 
-  .daynomy-header .login-button {
-    width: 60px;
-    font-size: 12px;
-  }
-}
-
-@media (max-width: 560px) {
-  .daynomy-header .header-actions {
-    display: none;
+  .daynomy-header .search-link {
+    width: 34px;
+    height: 34px;
   }
 }

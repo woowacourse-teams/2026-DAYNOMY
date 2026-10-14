@@ -11,6 +11,7 @@ public record PortfolioHoldingResponse(
     String name,
     AssetCategory category,
     StockMarket market,
+    boolean priceAvailable,
     LocalDate baseDate,
     long quantity,
     BigDecimal averagePurchasePrice,

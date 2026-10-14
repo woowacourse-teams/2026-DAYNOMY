@@ -82,7 +82,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     name: Deploy backend
     needs: build
-    runs-on: [ self-hosted, linux, ARM64, frontend-prod ]
+    runs-on: [ self-hosted, linux, ARM64, backend-prod ]
     environment: production
 
     steps:

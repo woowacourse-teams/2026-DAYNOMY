@@ -135,11 +135,11 @@
 
 .admin-primary-button {
   color: #ffffff;
-  background: #5144d8;
+  background: var(--button-primary);
 }
 
 .admin-primary-button:hover {
-  background: #4339c0;
+  background: var(--button-primary-hover);
   transform: translateY(-1px);
 }
 
@@ -165,6 +165,8 @@
 .admin-back-link:focus-visible,
 .admin-news-title:focus-visible,
 .admin-row-actions button:focus-visible,
+.admin-feedback-content:focus-visible,
+.admin-feedback-dialog button:focus-visible,
 .admin-pagination button:focus-visible,
 .admin-alert button:focus-visible {
   outline: 3px solid var(--focus);
@@ -381,7 +383,7 @@
 }
 
 .admin-related-asset-results button:hover:not(:disabled) {
-  border-color: #5144d8;
+  border-color: var(--button-primary-hover);
 }
 
 .admin-related-asset-results button:disabled {
@@ -427,7 +429,7 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  color: #4339c0;
+  color: var(--button-primary);
   background: transparent;
   font-size: 16px;
   line-height: 16px;
@@ -481,8 +483,8 @@
 }
 
 .admin-stock-search-results button:hover {
-  border-color: #5144d8;
-  background: #f8f7ff;
+  border-color: var(--button-primary-hover);
+  background: var(--button-primary-soft);
 }
 
 .admin-stock-search-results span,
@@ -574,6 +576,55 @@
 .admin-youtube-results span {
   color: #737b8c;
   font-size: 11px;
+}
+
+.admin-social-results {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-social-results li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e4e7ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.admin-social-results li > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.admin-social-results strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.admin-social-results span,
+.admin-social-results a {
+  overflow: hidden;
+  color: #737b8c;
+  font-size: 11px;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-social-results a:hover {
+  color: #5144d8;
 }
 
 .admin-related-form .admin-field {
@@ -1001,6 +1052,140 @@
   color: #737b8c;
   background: #f0f1f4;
 }
+.admin-status-pending {
+  color: #a45b00;
+  background: #fff5df;
+}
+.admin-status-resolved {
+  color: #087443;
+  background: #eaf8f0;
+}
+
+.admin-feedback-summary {
+  margin-top: 42px;
+  color: #737b8c;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-feedback-summary strong {
+  color: #111827;
+  font-weight: 900;
+}
+
+.admin-feedback-content {
+  display: -webkit-box;
+  max-width: 640px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  color: #111827;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.admin-feedback-content:hover {
+  color: #5144d8;
+}
+
+.admin-feedback-path {
+  max-width: 220px;
+  overflow: hidden;
+  color: #737b8c !important;
+  font-size: 12px !important;
+  text-overflow: ellipsis;
+}
+
+.admin-feedback-dialog {
+  width: min(620px, calc(100% - 32px));
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  color: #111827;
+  background: #ffffff;
+  box-shadow: 0 28px 72px rgb(17 24 39 / 24%);
+}
+
+.admin-feedback-dialog::backdrop {
+  background: rgb(17 24 39 / 48%);
+}
+
+.admin-feedback-dialog > div {
+  padding: 28px;
+}
+
+.admin-feedback-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.admin-feedback-dialog-heading h2 {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.admin-feedback-dialog-heading button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: #6b7280;
+  background: #f3f4f8;
+  font:
+    300 28px/1 system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+
+.admin-feedback-dialog dl {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0 0;
+}
+
+.admin-feedback-dialog dl > div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-feedback-dialog dt {
+  color: #737b8c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-feedback-dialog dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-feedback-dialog > div > p {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #eef0f5;
+  color: #242936;
+  font-size: 15px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
 
 .admin-row-actions {
   display: inline-flex;
@@ -1010,7 +1195,7 @@
 .admin-row-actions button {
   padding: 0;
   border: 0;
-  color: #5144d8;
+  color: var(--button-primary);
   background: transparent;
   font: inherit;
   font-size: 13px;
@@ -1101,7 +1286,7 @@
 }
 .admin-pagination button.active {
   color: #ffffff;
-  background: #5144d8;
+  background: var(--button-primary);
 }
 
 .admin-back-link {
@@ -1450,9 +1635,15 @@
   }
   .admin-header {
     min-height: 68px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 0;
   }
   .admin-navigation {
+    width: 100%;
     gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 4px;
   }
   .admin-navigation a {
     font-size: 12px;
@@ -1505,6 +1696,15 @@
     width: 100%;
   }
 
+  .admin-youtube-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-youtube-heading .admin-secondary-button {
+    width: 100%;
+  }
+
   .admin-news-table,
   .admin-news-table tbody,
   .admin-news-table tr,
@@ -1553,6 +1753,434 @@
   .admin-news-title {
     max-width: 100%;
   }
+
+  .admin-feedback-content {
+    max-width: 100%;
+  }
+}
+
+.admin-person-create-form {
+  display: grid;
+  grid-template-columns: 0.8fr 1fr 1fr auto;
+  gap: 14px;
+  align-items: end;
+  margin-top: 36px;
+  padding: 20px;
+  border: 1px solid #e4e7ef;
+  border-radius: 14px;
+  background: #fafbfe;
+}
+
+.admin-people-state {
+  margin: 0;
+  padding: 48px 20px;
+  color: #737b8c;
+  text-align: center;
+}
+
+.admin-people-layout {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.admin-person-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.admin-person-list button {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 10px;
+  gap: 4px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #e4e7ef;
+  border-radius: 12px;
+  color: #374151;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-person-list button:hover,
+.admin-person-list button[aria-pressed='true'] {
+  border-color: #b9b3f1;
+  background: #f6f5ff;
+}
+
+.admin-person-list strong {
+  font-size: 14px;
+}
+
+.admin-person-list span {
+  color: #8b94a6;
+  font-size: 12px;
+}
+
+.admin-person-list > button > span:last-child {
+  grid-column: 2;
+}
+
+.admin-person-avatar,
+.admin-person-image-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #eef2f6;
+  color: #77869a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.admin-person-avatar {
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+}
+
+.admin-person-avatar img,
+.admin-person-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-person-workspace {
+  display: grid;
+  min-width: 0;
+  gap: 20px;
+}
+
+.admin-person-profile-form,
+.admin-person-post-section,
+.admin-person-saved-posts {
+  padding: 24px;
+  border: 1px solid #e4e7ef;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.admin-person-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.admin-person-section-heading h2,
+.admin-person-section-heading p {
+  margin: 0;
+}
+
+.admin-person-section-heading h2 {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.admin-person-section-heading p {
+  margin-top: 5px;
+  color: #737b8c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-person-section-heading > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-person-profile-fields,
+.admin-person-post-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: end;
+  margin-top: 22px;
+}
+
+.admin-person-image-picker {
+  grid-column: 1 / -1;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f7f8fc;
+}
+
+.admin-person-image-picker-heading,
+.admin-person-image-search {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.admin-person-image-picker-heading > div:first-child {
+  display: grid;
+  gap: 4px;
+  color: #283548;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-person-image-picker-heading small {
+  color: #737b8c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-person-image-preview {
+  width: 56px;
+  height: 56px;
+}
+
+.admin-person-image-search {
+  justify-content: flex-start;
+  margin-top: 14px;
+}
+
+.admin-person-image-search input {
+  min-width: 0;
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #dce2ec;
+  border-radius: 9px;
+  color: #243247;
+  background: #fff;
+}
+
+.admin-person-image-candidates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.admin-person-image-candidates button {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #fff;
+  color: #526176;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-person-image-candidates button[aria-pressed='true'] {
+  border-color: #6258d8;
+  box-shadow: 0 6px 16px rgb(81 68 216 / 14%);
+}
+
+.admin-person-image-candidates img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.admin-person-image-candidates span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-person-profile-fields .admin-secondary-button,
+.admin-person-profile-fields .admin-person-delete {
+  justify-self: start;
+}
+
+.admin-person-delete,
+.admin-person-saved-posts li > button {
+  border: 0;
+  color: #c2414d;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-person-delete:disabled,
+.admin-person-saved-posts li > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.admin-person-post-form {
+  grid-template-columns: 120px minmax(180px, 0.7fr) minmax(260px, 1fr) auto;
+}
+
+.admin-person-post-preview {
+  max-width: 620px;
+  margin-top: 20px;
+}
+
+.admin-person-post-preview .people-social-embed {
+  --people-ink: #172235;
+  --people-muted: #718096;
+  --people-line: #e4eaf1;
+}
+
+.admin-person-search-results {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid #edf0f5;
+}
+
+.admin-person-search-results-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-person-search-results-heading h3,
+.admin-person-search-results-heading span {
+  margin: 0;
+}
+
+.admin-person-search-results-heading h3 {
+  font-size: 16px;
+}
+
+.admin-person-search-results-heading span {
+  color: #737b8c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-person-search-results ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-person-search-results li {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e4e7ef;
+  border-radius: 14px;
+  background: #fafbfe;
+}
+
+.admin-person-search-result-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #737b8c;
+  font-size: 12px;
+}
+
+.admin-person-search-result-meta strong {
+  color: #5144d8;
+}
+
+.admin-person-search-results .people-social-embed {
+  --people-ink: #172235;
+  --people-muted: #718096;
+  --people-line: #e4eaf1;
+  min-height: 150px;
+}
+
+.admin-person-search-results li > .admin-primary-button {
+  width: 100%;
+}
+
+.admin-person-saved-posts ul {
+  display: grid;
+  gap: 0;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-person-saved-posts li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-top: 1px solid #edf0f5;
+}
+
+.admin-person-saved-posts li > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.admin-person-saved-posts li span {
+  color: #5144d8;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.admin-person-saved-posts li strong {
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.admin-person-saved-posts li a {
+  overflow: hidden;
+  color: #737b8c;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .admin-person-create-form,
+  .admin-person-profile-fields,
+  .admin-person-post-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-person-create-form .admin-primary-button,
+  .admin-person-post-form .admin-primary-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 740px) {
+  .admin-people-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-person-list {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .admin-person-list button {
+    min-width: 180px;
+  }
+
+  .admin-person-section-heading {
+    flex-direction: column;
+  }
+
+  .admin-person-section-heading > div:last-child {
+    justify-content: flex-start;
+  }
+
+  .admin-person-search-results ul {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 520px) {
@@ -1600,6 +2228,18 @@
   .admin-form-actions a,
   .admin-form-actions button {
     width: 100%;
+  }
+
+  .admin-person-create-form,
+  .admin-person-profile-fields,
+  .admin-person-post-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-person-profile-form,
+  .admin-person-post-section,
+  .admin-person-saved-posts {
+    padding: 20px;
   }
 }
 

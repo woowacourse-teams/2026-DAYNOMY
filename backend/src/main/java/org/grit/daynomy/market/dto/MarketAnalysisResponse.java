@@ -4,12 +4,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 
 public record MarketAnalysisResponse(
-    @Schema(
-            description = "발생 원인과 이슈가 중요한 이유를 통합한 시장 분석 요약",
-            example = "금리 인하 기대가 위험자산 선호를 높이며, 통화정책 변화는 여러 자산의 가격과 투자 심리에 영향을 줍니다.")
-        String summary) {
+    @Schema(description = "기사에 근거한 위험과 불확실성") String risk,
+    @Schema(description = "확인해야 할 지표나 후속 조치와 그 이유") String watchPoint) {
 
   public static MarketAnalysisResponse from(NewsMarketAnalysis marketAnalysis) {
-    return new MarketAnalysisResponse(marketAnalysis.getSummary());
+    return new MarketAnalysisResponse(marketAnalysis.getRisk(), marketAnalysis.getWatchPoint());
   }
 }

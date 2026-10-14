@@ -44,7 +44,10 @@ import org.grit.daynomy.news.dto.NewsSourceRequest;
 import org.grit.daynomy.news.dto.WikimediaImageSelectionRequest;
 import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.grit.daynomy.search.domain.NewsSearchSort;
+import org.grit.daynomy.search.domain.NewsSearchTerms;
 import org.grit.daynomy.search.repository.NewsSearchRepository;
+import org.grit.daynomy.search.repository.NewsSearchSpecification;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -372,7 +375,8 @@ class AdminNewsServiceTest {
     PageRequest pageable = PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
     given(newsRepository.findAll(pageable)).willReturn(new PageImpl<>(List.of(news), pageable, 1));
 
-    var response = adminNewsService.getNewsPage(1, 15, null, null, "  ");
+    var response =
+        adminNewsService.getNewsPage(1, 15, null, null, "\u2003\u00a0\t", NewsSearchSort.RELEVANCE);
 
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().getFirst().title()).isEqualTo("초안 뉴스");
@@ -382,18 +386,31 @@ class AdminNewsServiceTest {
   }
 
   @Test
-  @DisplayName("관리자 뉴스 검색은 검색어를 이스케이프하고 필터·정렬·페이지를 전달한다")
+  @DisplayName("관리자 뉴스 검색은 검색어를 정규화하고 필터·관련도 정렬·페이지를 전달한다")
   void getNewsPageSearchesWithFilters() {
     News news = News.createDraft("금%리_ 뉴스", "본문", null, List.of(), Category.STOCK);
-    PageRequest pageable = PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
-    given(newsSearchRepository.search("금!%리!_", Category.STOCK, NewsStatus.DRAFT, pageable))
+    PageRequest pageable = PageRequest.of(1, 2);
+    NewsSearchSpecification specification =
+        NewsSearchSpecification.forAdmin(
+            new NewsSearchTerms(List.of("금%리_", "etf")),
+            Category.STOCK,
+            NewsStatus.DRAFT,
+            NewsSearchSort.RELEVANCE);
+    given(newsSearchRepository.findAll(specification, pageable))
         .willReturn(new PageImpl<>(List.of(news), pageable, 3));
 
-    var response = adminNewsService.getNewsPage(2, 2, NewsStatus.DRAFT, Category.STOCK, " 금%리_ ");
+    var response =
+        adminNewsService.getNewsPage(
+            2,
+            2,
+            NewsStatus.DRAFT,
+            Category.STOCK,
+            " 금%리_\tETF etf 금%리_ ",
+            NewsSearchSort.RELEVANCE);
 
     assertThat(response.items()).extracting("title").containsExactly("금%리_ 뉴스");
     assertThat(response.totalElements()).isEqualTo(3);
-    verify(newsSearchRepository).search("금!%리!_", Category.STOCK, NewsStatus.DRAFT, pageable);
+    verify(newsSearchRepository).findAll(specification, pageable);
     verifyNoInteractions(newsRepository);
   }
 

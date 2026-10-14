@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.keyword.dto.KeywordsResponse;
-import org.grit.daynomy.keyword.exception.KeywordErrorCode;
 import org.grit.daynomy.keyword.repository.NewsKeywordRepository;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
@@ -32,9 +31,9 @@ public class KeywordService {
                         news,
                         keyword.getCategory(),
                         keyword.getKeyword(),
-                        keyword.getPoint1(),
-                        keyword.getPoint2(),
-                        keyword.getPoint3()))
+                        keyword.getDefinition(),
+                        keyword.getContext(),
+                        keyword.getWatchPoint()))
             .toList());
   }
 
@@ -50,10 +49,6 @@ public class KeywordService {
     }
 
     List<NewsKeyword> keywords = newsKeywordRepository.findByNewsIdOrderByIdAsc(newsId);
-    if (keywords.isEmpty()) {
-      throw new BusinessException(KeywordErrorCode.KEYWORD_NOT_FOUND);
-    }
-
     return KeywordsResponse.from(keywords);
   }
 }

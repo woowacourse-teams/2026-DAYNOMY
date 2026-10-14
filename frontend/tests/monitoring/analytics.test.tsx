@@ -24,6 +24,23 @@ afterEach(() => {
 });
 
 describe('GA4 수집 경계', () => {
+  it('투자자 식별자는 페이지 URL과 이벤트에서 제거한다', async () => {
+    const { trackEvent, trackPageView } = await import('../../src/analytics');
+    for (const path of [
+      '/league/private-investor-id',
+      '/league/private-investor-id/',
+      '/LEAGUE/private-investor-id///',
+    ]) {
+      window.history.replaceState({}, '', path);
+      trackPageView(path);
+      trackEvent('view_investor_profile', { source: 'ranking', rank_bucket: 'top_3' });
+    }
+    expect(JSON.stringify(commands())).not.toContain('private-investor-id');
+    expect(
+      commands().find(([kind, name]) => kind === 'event' && name === 'view_investor_profile')?.[2],
+    ).toMatchObject({ page_path: '/league/investor', source: 'ranking' });
+  });
+
   it('검색 URL과 referrer의 쿼리를 초기화 및 이벤트에 싣지 않는다', async () => {
     const keyword = 'private-search-term';
     window.history.replaceState({}, '', `/search?q=${keyword}&category=ALL`);
@@ -92,4 +109,134 @@ describe('GA4 수집 경계', () => {
     expect(document.querySelector(tagSelector)).toBeNull();
     expect(commands()).toHaveLength(0);
   });
+});
+
+const posthog = vi.hoisted(() => ({ init: vi.fn(), capture: vi.fn() }));
+vi.mock('posthog-js', () => ({ default: posthog }));
+
+beforeEach(() => {
+  posthog.init.mockReset();
+  posthog.capture.mockReset();
+  vi.stubEnv('VITE_POSTHOG_KEY', '');
+  vi.stubEnv('VITE_POSTHOG_HOST', '');
+});
+
+function enablePostHog() {
+  vi.stubEnv('VITE_POSTHOG_KEY', 'phc_test');
+  vi.stubEnv('VITE_POSTHOG_HOST', 'https://example.posthog.test');
+}
+
+it('같은 행동은 두 공급자에 전송하고 페이지 조회만 공급자 표준 이름으로 한 번 보낸다', async () => {
+  enablePostHog();
+  const { trackEvent, trackPageView } = await import('../../src/analytics');
+  trackPageView('/news');
+  trackPageView('/news');
+  trackEvent('expand_content', { surface: 'news_home', content_id: 'content-1' });
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(2));
+  expect(posthog.init).toHaveBeenCalledTimes(1);
+  expect(posthog.capture).toHaveBeenCalledWith(
+    '$pageview',
+    expect.objectContaining({ page_path: '/news' }),
+  );
+  expect(posthog.capture).toHaveBeenCalledWith(
+    'expand_content',
+    expect.objectContaining({ surface: 'news_home', content_id: 'content-1' }),
+  );
+  expect(commands().filter(([kind]) => kind === 'event')).toHaveLength(2);
+});
+
+it('GA4 없이 PostHog만 설정해도 수집하며 GA 태그를 로드하지 않는다', async () => {
+  vi.stubEnv('GA_MEASUREMENT_ID', '');
+  enablePostHog();
+  const { trackEvent } = await import('../../src/analytics');
+  trackEvent('click_content', { surface: 'portfolio_news' });
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(1));
+  expect(document.querySelector(tagSelector)).toBeNull();
+  expect(commands()).toHaveLength(0);
+});
+
+it.each(['none', 'key_only', 'host_only'])(
+  'PostHog 설정이 불완전하면 초기화하지 않는다 (%s)',
+  async (mode) => {
+    if (mode === 'key_only') vi.stubEnv('VITE_POSTHOG_KEY', 'phc_test');
+    if (mode === 'host_only') vi.stubEnv('VITE_POSTHOG_HOST', 'https://example.posthog.test');
+    const { trackEvent } = await import('../../src/analytics');
+    trackEvent('click_content');
+    expect(posthog.init).not.toHaveBeenCalled();
+    expect(commands().some(([kind, name]) => kind === 'event' && name === 'click_content')).toBe(
+      true,
+    );
+  },
+);
+
+it('SDK 기본 속성의 원문 URL·본문·프로필 정보를 제거하고 자동 수집을 끈다', async () => {
+  enablePostHog();
+  window.history.replaceState({}, '', '/search?q=private-input#private-fragment');
+  Object.defineProperty(document, 'referrer', {
+    configurable: true,
+    value: 'https://example.com/?email=private-email',
+  });
+  const { trackEvent } = await import('../../src/analytics');
+  trackEvent('filter_content_source', { source_type: 'X' });
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(1));
+  const config = posthog.init.mock.calls[0][1];
+  expect(config).toMatchObject({
+    autocapture: false,
+    capture_pageview: false,
+    capture_pageleave: false,
+    disable_session_recording: true,
+    person_profiles: 'never',
+    save_referrer: false,
+    save_campaign_params: false,
+  });
+  const result = config.before_send({
+    event: 'filter_content_source',
+    properties: {
+      ...posthog.capture.mock.calls[0][1],
+      $current_url: window.location.href,
+      $referrer: document.referrer,
+      $initial_current_url: window.location.href,
+      $set: { email: 'private-email' },
+      $set_once: { $initial_referrer: document.referrer },
+      $title: 'private-title',
+      distinct_id: 'anonymous-id',
+    },
+  });
+  expect(JSON.stringify(result)).not.toContain('private-');
+  expect(result.properties).toMatchObject({
+    source_type: 'X',
+    distinct_id: 'anonymous-id',
+    $current_url: 'http://localhost:3000/search',
+    $referrer: 'https://example.com/',
+  });
+  expect(config.before_send({ event: '$autocapture', properties: {} })).toBeNull();
+});
+
+it.each(['/admin/news', '/login'])(
+  '보호 경로에서는 지연 중인 PostHog 이벤트도 보내지 않는다 (%s)',
+  async (path) => {
+    enablePostHog();
+    const { trackEvent, trackPageView } = await import('../../src/analytics');
+    trackEvent('click_content');
+    window.history.replaceState({}, '', path);
+    trackPageView(path);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    window.history.replaceState({}, '', '/news');
+    trackEvent('expand_content');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(posthog.capture).not.toHaveBeenCalled();
+  },
+);
+
+it('PostHog 전송 예외가 사용자 동작과 GA4 수집을 중단하지 않는다', async () => {
+  enablePostHog();
+  posthog.capture.mockImplementation(() => {
+    throw new Error('sdk unavailable');
+  });
+  const { trackEvent } = await import('../../src/analytics');
+  expect(() => trackEvent('click_content')).not.toThrow();
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(1));
+  expect(commands().some(([kind, name]) => kind === 'event' && name === 'click_content')).toBe(
+    true,
+  );
 });

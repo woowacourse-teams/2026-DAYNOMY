@@ -32,6 +32,7 @@ import org.grit.daynomy.news.dto.NewsSourceResponse;
 import org.grit.daynomy.news.dto.WikimediaImageCandidateResponse;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.grit.daynomy.news.service.NewsGenerationService;
+import org.grit.daynomy.search.domain.NewsSearchSort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -279,7 +280,7 @@ class AdminNewsControllerTest {
   @Test
   @DisplayName("관리자 뉴스 목록 조회 API는 페이지와 상태를 서비스에 전달한다")
   void getNewsPageReturnsAdminNews() throws Exception {
-    given(adminNewsService.getNewsPage(1, 15, NewsStatus.DRAFT, null, null))
+    given(adminNewsService.getNewsPage(1, 15, NewsStatus.DRAFT, null, null, NewsSearchSort.LATEST))
         .willReturn(
             new AdminNewsPageResponse(
                 java.util.List.of(
@@ -308,19 +309,24 @@ class AdminNewsControllerTest {
         .andExpect(jsonPath("$.page").value(1))
         .andExpect(jsonPath("$.totalElements").value(1));
 
-    then(adminNewsService).should().getNewsPage(1, 15, NewsStatus.DRAFT, null, null);
+    then(adminNewsService)
+        .should()
+        .getNewsPage(1, 15, NewsStatus.DRAFT, null, null, NewsSearchSort.LATEST);
   }
 
   @Test
   @DisplayName("관리자 뉴스 목록 API는 검색어와 필터를 서비스에 전달한다")
   void getNewsPagePassesSearchKeyword() throws Exception {
-    given(adminNewsService.getNewsPage(2, 10, NewsStatus.REJECTED, Category.STOCK, "금리"))
+    given(
+            adminNewsService.getNewsPage(
+                2, 10, NewsStatus.REJECTED, Category.STOCK, "금리 인하", NewsSearchSort.RELEVANCE))
         .willReturn(new AdminNewsPageResponse(java.util.List.of(), 2, 10, 2, 11, false));
 
     mockMvc
         .perform(
             get("/api/admin/news")
-                .param("q", "금리")
+                .param("q", "금리 인하")
+                .param("sort", "RELEVANCE")
                 .param("status", "REJECTED")
                 .param("category", "STOCK")
                 .param("page", "2")
@@ -329,7 +335,22 @@ class AdminNewsControllerTest {
         .andExpect(jsonPath("$.items").isEmpty())
         .andExpect(jsonPath("$.page").value(2));
 
-    then(adminNewsService).should().getNewsPage(2, 10, NewsStatus.REJECTED, Category.STOCK, "금리");
+    then(adminNewsService)
+        .should()
+        .getNewsPage(2, 10, NewsStatus.REJECTED, Category.STOCK, "금리 인하", NewsSearchSort.RELEVANCE);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 검색은 지원하지 않는 정렬을 공통 오류로 반환한다")
+  void getNewsPageRejectsInvalidSort() throws Exception {
+    mockMvc
+        .perform(get("/api/admin/news").param("q", "금리").param("sort", "POPULAR"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("sort"))
+        .andExpect(jsonPath("$.errors[0].reason").value("지원하지 않는 값입니다."));
+
+    verifyNoInteractions(adminNewsService);
   }
 
   @Test

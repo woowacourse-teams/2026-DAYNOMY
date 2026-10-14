@@ -10,6 +10,11 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
+  flyway:
+    postgresql:
+      # Concurrent index creation requires session-level advisory locks.
+      transactional-lock: false
+
   servlet:
     multipart:
       max-file-size: 5MB
@@ -88,11 +93,16 @@ springdoc:
     path: /v3/api-docs
 
 external:
+  krx-calendar:
+    base-url: https://open.krx.co.kr
+    connect-timeout: 3s
+    read-timeout: 10s
   openai:
     api-key: ${OPENAI_API_KEY:}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     image-model: ${OPENAI_IMAGE_MODEL:gpt-image-1-mini}
     economy-news-model: ${OPENAI_ECONOMY_NEWS_MODEL:gpt-5.5}
+    social-search-model: ${OPENAI_SOCIAL_SEARCH_MODEL:gpt-5-mini}
     connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
     read-timeout: ${OPENAI_READ_TIMEOUT:120s}
 
@@ -139,18 +149,27 @@ news:
       cron: ${ECONOMY_NEWS_GENERATION_CRON:0 0 9 * * *}
 
 stock:
+  calendar:
+    sync:
+      enabled: ${MARKET_CALENDAR_SYNC_ENABLED:false}
+      cron: ${MARKET_CALENDAR_SYNC_CRON:0 5 6,18 * * *}
   sync:
     enabled: ${STOCK_SYNC_ENABLED:false}
     cron: ${STOCK_SYNC_CRON:0 10 14 * * MON-FRI}
   price:
     sync:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
-      cron: ${STOCK_PRICE_SYNC_CRON:0 30 14 * * MON-FRI}
+      cron: ${STOCK_PRICE_SYNC_CRON:0 0 7,18 * * MON-SAT}
 
 portfolio:
   snapshot:
     enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
-    cron: ${PORTFOLIO_SNAPSHOT_CRON:0 0 15 * * MON-FRI}
+    cron: ${PORTFOLIO_SNAPSHOT_CRON:0 30 7 * * TUE-SAT}
+
+league:
+  calculation:
+    enabled: ${LEAGUE_CALCULATION_ENABLED:false}
+    cron: ${LEAGUE_CALCULATION_CRON:0 20 17 * * MON-FRI}
 
 investment-calendar:
   sync:

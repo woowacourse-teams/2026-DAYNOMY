@@ -8,4 +8,5 @@ public record PortfolioPerformanceResponse(
     PortfolioPerformanceUnavailableReason reason,
     LocalDate baseDate,
     LocalDate previousBaseDate,
-    List<PortfolioPerformancePointResponse> points) {}
+    List<PortfolioPerformancePointResponse> points,
+    PortfolioCurrentPerformanceResponse currentPoint) {}

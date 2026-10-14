@@ -1,18 +1,26 @@
-import { useEffect, useState } from 'react';
+import { trackLoadResult, useContentImpression } from '../issue/analytics';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import defaultNewsImage from '../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
 import { KeywordText } from './components/KeywordText.tsx';
-import { calculatePortfolio } from '../../portfolio/api.ts';
-import { PortfolioAnalysis } from '../../portfolio/components/PortfolioAnalysis.tsx';
-import { usePortfolioHoldings } from '../../portfolio/hooks/usePortfolioHoldings.ts';
-import type { PortfolioAsset } from '../../portfolio/types.ts';
-import type { MarketAnalysisState, NewsDetailPayload, NewsImageSource } from './types.ts';
+import type {
+  MarketAnalysisResponse,
+  MarketAnalysisState,
+  NewsDetailPayload,
+  NewsImageSource,
+} from './types.ts';
 import './newsDetail.css';
 import { trackEvent } from '../../../analytics';
 
-type PortfolioAssetsStatus = 'loading' | 'ready' | 'error';
+const MARKET_ANALYSIS_ITEMS: ReadonlyArray<{
+  key: keyof MarketAnalysisResponse;
+  label: string;
+}> = [
+  { key: 'risk', label: '위험' },
+  { key: 'watchPoint', label: '확인할 지표' },
+];
 
 function getNewsIdFromUrl() {
   return window.location.pathname.match(/^\/news\/([^/]+)$/)?.[1] ?? '1';
@@ -20,13 +28,6 @@ function getNewsIdFromUrl() {
 
 function getContentParagraphs(content: string | string[]) {
   return Array.isArray(content) ? content : content.split('\n').filter(Boolean);
-}
-
-function getMarketSummaryItems(summary: string) {
-  return summary
-    .split(/\r?\n|(?<=[.!?。！？])\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 function formatDetailDate(value?: string) {
@@ -81,39 +82,46 @@ function NewsImageCredit({ imageSource }: { imageSource?: NewsImageSource }) {
   );
 }
 
-function toPortfolioAssets(
-  holdings: Awaited<ReturnType<typeof calculatePortfolio>>['holdings'],
-): PortfolioAsset[] {
-  if (holdings.length === 0) return [];
-
-  const assets = holdings.map(({ name, weight }) => ({ assetName: name, weight }));
-  const totalWeight = assets.reduce((sum, asset) => sum + asset.weight, 0);
-  const adjustmentIndex = assets.reduce(
-    (largestIndex, asset, index) =>
-      asset.weight > assets[largestIndex].weight ? index : largestIndex,
-    0,
+function DetailAnalysisSections({
+  marketAnalysis,
+  newsId,
+}: {
+  marketAnalysis: MarketAnalysisState;
+  newsId: string;
+}) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useContentImpression(
+    titleRef,
+    newsId,
+    'view_market_analysis',
+    {
+      surface: 'news_detail',
+      news_id: newsId,
+    },
+    marketAnalysis.status === 'success' && /^\d+$/.test(newsId),
   );
+  const analysisItems =
+    marketAnalysis.status === 'success'
+      ? MARKET_ANALYSIS_ITEMS.filter(({ key }) => marketAnalysis.data[key].trim())
+      : [];
 
-  return assets.map((asset, index) =>
-    index === adjustmentIndex
-      ? { ...asset, weight: Number((asset.weight + 100 - totalWeight).toFixed(2)) }
-      : asset,
-  );
-}
-
-function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnalysisState }) {
   return (
     <section className="detail-market" aria-labelledby="detail-market-title">
-      <h2 id="detail-market-title">시장 분석</h2>
+      <h2 ref={titleRef} id="detail-market-title">
+        시장 분석
+      </h2>
       {marketAnalysis.status === 'success' ? (
-        <ul className="market-summary-card">
-          {getMarketSummaryItems(marketAnalysis.data.summary).map((item, index) => (
-            <li key={`${item}-${index}`}>{item}</li>
+        <dl className="market-analysis-card">
+          {analysisItems.map(({ key, label }) => (
+            <div className="market-analysis-item" key={key}>
+              <dt>{label}</dt>
+              <dd>{marketAnalysis.data[key]}</dd>
+            </div>
           ))}
-        </ul>
+        </dl>
       ) : (
         <p
-          className="market-summary-card market-analysis-message"
+          className="market-analysis-card market-analysis-message"
           role={marketAnalysis.status === 'error' ? 'alert' : 'status'}
         >
           {marketAnalysis.status === 'empty'
@@ -128,24 +136,23 @@ function DetailAnalysisSections({ marketAnalysis }: { marketAnalysis: MarketAnal
 export function NewsDetailPage() {
   const newsId = getNewsIdFromUrl();
   const navigate = useNavigate();
-  const { holdings } = usePortfolioHoldings();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
-  const [portfolioAssets, setPortfolioAssets] = useState<PortfolioAsset[]>([]);
-  const [portfolioAssetsStatus, setPortfolioAssetsStatus] = useState<PortfolioAssetsStatus>(
-    holdings.length > 0 ? 'loading' : 'ready',
-  );
   const goBack = () => {
     navigate('/news');
   };
 
   useEffect(() => {
     let ignore = false;
+    const controller = new AbortController();
 
     if (/^\d+$/.test(newsId)) trackEvent('view_news_detail', { news_id: newsId });
     setPayload(undefined);
     setError('');
-    getNewsDetail(newsId)
+    getNewsDetail(newsId, controller.signal, (area, startedAt, status, count) => {
+      if (!ignore && /^\d+$/.test(newsId))
+        trackLoadResult('news_detail', area, startedAt, status, count, 0);
+    })
       .then((nextPayload) => {
         if (!ignore) {
           setPayload(nextPayload);
@@ -160,35 +167,9 @@ export function NewsDetailPage() {
 
     return () => {
       ignore = true;
-    };
-  }, [newsId]);
-
-  useEffect(() => {
-    if (holdings.length === 0) {
-      setPortfolioAssets([]);
-      setPortfolioAssetsStatus('ready');
-      return;
-    }
-
-    const controller = new AbortController();
-    setPortfolioAssets([]);
-    setPortfolioAssetsStatus('loading');
-
-    calculatePortfolio(holdings, controller.signal)
-      .then((calculation) => {
-        setPortfolioAssets(toPortfolioAssets(calculation.holdings));
-        setPortfolioAssetsStatus('ready');
-      })
-      .catch(() => {
-        if (controller.signal.aborted) return;
-        setPortfolioAssets([]);
-        setPortfolioAssetsStatus('error');
-      });
-
-    return () => {
       controller.abort();
     };
-  }, [holdings]);
+  }, [newsId]);
 
   if (error) {
     return (
@@ -257,18 +238,17 @@ export function NewsDetailPage() {
 
         <section className="body-section" aria-label="뉴스 본문">
           <div className="body-copy">
-            <KeywordText paragraphs={getContentParagraphs(news.content)} keywords={keywords} />
+            <KeywordText
+              newsId={newsId}
+              paragraphs={getContentParagraphs(news.content)}
+              keywords={keywords}
+            />
           </div>
         </section>
 
         <div className="analysis-area">
           <div className="analysis-content">
-            <DetailAnalysisSections marketAnalysis={marketAnalysis} />
-            <PortfolioAnalysis
-              newsId={newsId}
-              assets={portfolioAssets}
-              portfolioStatus={portfolioAssetsStatus}
-            />
+            <DetailAnalysisSections key={newsId} newsId={newsId} marketAnalysis={marketAnalysis} />
           </div>
         </div>
       </article>

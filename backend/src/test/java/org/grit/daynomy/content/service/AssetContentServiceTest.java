@@ -9,6 +9,8 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
@@ -19,6 +21,8 @@ import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
+import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
+import org.grit.daynomy.external.openai.SocialPostCandidate;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.external.youtube.YouTubeVideoCandidate;
 import org.grit.daynomy.news.domain.News;
@@ -31,6 +35,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class AssetContentServiceTest {
@@ -38,6 +43,7 @@ class AssetContentServiceTest {
   @Mock private AssetRepository assetRepository;
   @Mock private AssetContentRepository contentRepository;
   @Mock private YouTubeClient youtubeClient;
+  @Mock private OpenAiSocialPostSearchClient socialPostSearchClient;
   @InjectMocks private AssetContentService assetContentService;
 
   @Test
@@ -64,6 +70,51 @@ class AssetContentServiceTest {
   }
 
   @Test
+  void createContentPreservesTitleAndPublicationDate() {
+    Asset asset = mock(Asset.class);
+    given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
+    given(contentRepository.saveAndFlush(any(AssetContent.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+    LocalDate date = LocalDate.of(2020, 4, 5);
+
+    var response =
+        assetContentService.createContent(
+            1L,
+            new AssetContentRequest(
+                ContentSourceType.YOUTUBE,
+                "원제 [2020-04-05]",
+                "https://youtu.be/example",
+                null,
+                date));
+
+    assertThat(response.title()).isEqualTo("원제 [2020-04-05]");
+    assertThat(response.publishedDate()).isEqualTo(date);
+  }
+
+  @Test
+  @DisplayName("원문 게시일이 없으면 서울 기준 등록일을 게시일로 저장한다")
+  void createContentUsesCreatedAtWhenPublicationDateIsMissing() {
+    Asset asset = mock(Asset.class);
+    given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
+    given(contentRepository.saveAndFlush(any(AssetContent.class)))
+        .willAnswer(
+            invocation -> {
+              AssetContent content = invocation.getArgument(0);
+              ReflectionTestUtils.setField(
+                  content, "createdAt", Instant.parse("2026-10-12T15:30:00Z"));
+              return content;
+            });
+
+    var response =
+        assetContentService.createContent(
+            1L,
+            new AssetContentRequest(
+                ContentSourceType.YOUTUBE, "원제", "https://youtu.be/example", null, null));
+
+    assertThat(response.publishedDate()).isEqualTo(LocalDate.of(2026, 10, 13));
+  }
+
+  @Test
   @DisplayName("종목 관련 자료 등록은 같은 URL의 중복 등록을 거부한다")
   void createContentRejectsDuplicateUrl() {
     Asset asset = mock(Asset.class);
@@ -72,7 +123,7 @@ class AssetContentServiceTest {
 
     var request =
         new AssetContentRequest(
-            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news", null);
+            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news", null, null);
 
     assertThatThrownBy(() -> assetContentService.createContent(1L, request))
         .isInstanceOf(BusinessException.class)
@@ -100,6 +151,29 @@ class AssetContentServiceTest {
     assertThat(response.items().getFirst().title()).isEqualTo("삼성전자 분석");
     assertThat(response.items().getFirst().url()).isEqualTo("https://www.youtube.com/watch?v=abc");
     then(youtubeClient).should().search("삼성전자 005930");
+  }
+
+  @Test
+  @DisplayName("Threads·X 검색은 종목을 확인한 뒤 검색 결과를 반환한다")
+  void searchSocialPosts() {
+    Asset asset = mock(Asset.class);
+    given(assetRepository.findById(1L)).willReturn(Optional.of(asset));
+    given(socialPostSearchClient.search("삼성전자"))
+        .willReturn(
+            List.of(
+                new SocialPostCandidate(
+                    SocialPostCandidate.Platform.THREADS,
+                    "삼성전자 실적 전망",
+                    "https://www.threads.net/@investor/post/123",
+                    "2026-10-11")));
+
+    var response = assetContentService.searchSocialPosts(1L, "삼성전자");
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.items().getFirst().title()).isEqualTo("삼성전자 실적 전망");
+    assertThat(response.items().getFirst().sourceType()).isEqualTo(ContentSourceType.THREADS);
+    assertThat(response.items().getFirst().publishedDate()).isEqualTo("2026-10-11");
+    then(socialPostSearchClient).should().search("삼성전자");
   }
 
   @Test
@@ -134,7 +208,7 @@ class AssetContentServiceTest {
 
     var request =
         new AssetContentRequest(
-            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news", null);
+            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news", null, null);
 
     assertThatThrownBy(() -> assetContentService.createContent(1L, request))
         .isInstanceOf(BusinessException.class)
@@ -155,7 +229,7 @@ class AssetContentServiceTest {
 
     var request =
         new AssetContentRequest(
-            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news", null);
+            ContentSourceType.INTERNAL_NEWS, "내부 뉴스", "https://example.com/news", null, null);
 
     assertThatThrownBy(() -> assetContentService.createContent(1L, request)).isSameAs(exception);
   }
