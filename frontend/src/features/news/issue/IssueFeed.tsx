@@ -5,9 +5,37 @@ import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import { Link } from 'react-router-dom';
 import { SocialPostEmbed } from '../../people/SocialPostEmbed';
+import { getNewsImage } from '../newslist/newsImage';
 import { feedDate, isToday, sourceLabel, youtubeId, type FeedItem } from './feed';
 
 type ReadingItem = Exclude<FeedItem, { source: 'DAYNOMY' }>;
+
+function thumbnailImage(item: FeedItem) {
+  if ('article' in item) return getNewsImage(item.article);
+  if ('content' in item) return item.content.imageUrl;
+  return null;
+}
+
+function FeedThumbnail({ item }: { item: FeedItem }) {
+  const imageUrl = thumbnailImage(item);
+  return (
+    <span
+      className={`issue-feed-thumbnail issue-feed-thumbnail-${item.source.toLowerCase()}`}
+      aria-hidden="true"
+    >
+      <span className="issue-feed-thumbnail-fallback">{sourceLabel(item.source)}</span>
+      {imageUrl && (
+        <img
+          src={imageUrl}
+          alt=""
+          onError={(event) => {
+            event.currentTarget.hidden = true;
+          }}
+        />
+      )}
+    </span>
+  );
+}
 
 function InlinePost({ item, analytics }: { item: ReadingItem; analytics: AnalyticsParams }) {
   const post = 'post' in item ? item.post : item.content;
@@ -56,12 +84,14 @@ export function IssueFeed({
   const [selected, setSelected] = useState<ReadingItem | null>(null);
   const id = useId();
   const triggers = useRef(new Map<string, HTMLButtonElement>());
+  const showThumbnails = ['news_home', 'news_contents', 'people'].includes(surface);
   return (
     <>
-      <ul className="issue-feed">
+      <ul className={`issue-feed${showThumbnails ? ' issue-feed--visual' : ''}`}>
         {items.map((item, index) => (
           <li key={item.key}>
-            <article className="issue-feed-row">
+            <article className={`issue-feed-row${showThumbnails ? ' issue-feed-row--visual' : ''}`}>
+              {showThumbnails && <FeedThumbnail item={item} />}
               <span
                 className={`issue-platform-mark issue-platform-${item.source.toLowerCase()}`}
                 aria-hidden="true"
