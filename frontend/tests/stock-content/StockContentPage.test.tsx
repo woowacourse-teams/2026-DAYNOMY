@@ -248,12 +248,14 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
     expect(xEmbed?.querySelector('a')?.getAttribute('href')).toBe(
       'https://x.com/investor/status/12345',
     );
-    expect(document.getElementById('daynomy-threads-embed-script')?.getAttribute('src')).toBe(
-      'https://www.threads.com/embed.js',
-    );
-    expect(document.getElementById('daynomy-x-embed-script')?.getAttribute('src')).toBe(
-      'https://platform.x.com/widgets.js',
-    );
+    await waitFor(() => {
+      expect(document.getElementById('daynomy-threads-embed-script')?.getAttribute('src')).toBe(
+        'https://www.threads.com/embed.js',
+      );
+      expect(document.getElementById('daynomy-x-embed-script')?.getAttribute('src')).toBe(
+        'https://platform.x.com/widgets.js',
+      );
+    });
     expect(view.getByRole('link', { name: 'Threads에서 원문 보기' })).toBeTruthy();
     expect(view.getByRole('link', { name: 'X에서 원문 보기' })).toBeTruthy();
   });
