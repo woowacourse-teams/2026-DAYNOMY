@@ -1147,6 +1147,7 @@ describe('포트폴리오 화면', () => {
     mockPortfolioApi();
     vi.stubGlobal('PointerEvent', MouseEvent);
     const view = render(<PortfolioPage />);
+    await view.findByText('2026.10.06 종가 기준');
     const compact = await view.findByRole('img', { name: /평가금액 750,000원/ });
     const mockBounds = (chart: Element) =>
       vi.spyOn(chart, 'getBoundingClientRect').mockReturnValue({
