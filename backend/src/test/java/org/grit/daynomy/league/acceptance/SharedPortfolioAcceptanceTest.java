@@ -1300,10 +1300,11 @@ class SharedPortfolioAcceptanceTest {
     client(owner)
         .body(
             """
-        {"assetId":%d,"quantity":10,"averagePurchasePrice":70000}
+        {"assetId":%d,"type":"BUY","tradeDate":"%s",
+         "quantity":10,"unitPrice":70000,"fee":0,"tax":0}
         """
-                .formatted(asset.getId()))
-        .post("/api/users/me/portfolio/holdings")
+                .formatted(asset.getId(), LocalDate.now(ZoneId.of("Asia/Seoul"))))
+        .post("/api/users/me/portfolio/transactions")
         .then()
         .statusCode(201);
     var logout =

@@ -219,3 +219,4 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 - 보유 이유는 종목별 최신 판단 기록을 우선하고 판단이 없으면 기존 공유 보유자산의 `reason`을 사용합니다. 내 공유 자산·공개 상세·참여 자격이 같은 규칙을 사용하며 최초 판단과 과거 기록은 수정하지 않습니다.
 - 공유 자산과 공개 상세는 공통 `StockPriceService.pricesAt`으로 같은 기준일의 종가를 일괄 조회합니다. 숨긴 자산도 비중 분모에 포함하며 누락 가격은 값을 만들지 않습니다.
 - 리그 보유 판단 클래스·서비스·DTO는 `InvestmentDecision` 이름으로 정리했습니다. 저장 테이블 `portfolio_transactions`, 기존 API 경로·JSON 필드와 과거 BUY/SELL 값은 호환을 위해 유지합니다.
+- 현재 화면에서 사용하지 않는 최초 보유자산 추가 `POST /api/users/me/portfolio/holdings`(`POST /api/portfolio/holdings` 포함)를 제거했습니다. 새 종목은 기존 매수 거래 API로 등록합니다. 기존 보유잔고·변경 이력은 보존합니다.
