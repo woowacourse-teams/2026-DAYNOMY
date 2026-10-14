@@ -283,3 +283,45 @@ for (const width of [1440, 390]) {
     await checkWidth(page);
   });
 }
+
+for (const width of [1440, 390]) {
+  test(`${width}px: 비회원 임시 포트폴리오가 종목 자료 화면에서도 연결된다`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.addInitScript(() => {
+      sessionStorage.setItem(
+        'daynomy:guest-portfolio-holdings:v1',
+        JSON.stringify([
+          {
+            assetId: 1,
+            assetCode: '005930',
+            name: '삼성전자',
+            category: 'STOCK',
+            market: 'KOSPI',
+            quantity: 1,
+            averagePurchasePrice: 70000,
+          },
+        ]),
+      );
+    });
+    await page.route('**/api/assets/1/contents', (route) =>
+      route.fulfill({
+        json: { assetId: 1, assetCode: '005930', assetName: '삼성전자', contents: [] },
+      }),
+    );
+    const privateRequests: string[] = [];
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/users/me/portfolio')
+        privateRequests.push(request.url());
+    });
+    await page.goto('/stocks/1');
+    await expect(page.getByRole('heading', { name: '삼성전자 소식' })).toBeVisible();
+    if (width === 1440)
+      await expect(page.getByRole('complementary', { name: '내 포트폴리오 종목' })).toContainText(
+        '삼성전자',
+      );
+    else
+      await expect(page.getByRole('combobox', { name: '종목 선택', exact: true })).toHaveValue('1');
+    expect(privateRequests).toEqual([]);
+    await checkWidth(page);
+  });
+}

@@ -2,7 +2,12 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { trackEvent } from '../../analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
-import { getMyInvestorProfile, getTransactions, saveInvestorProfile, savePublication } from './api';
+import {
+  getMyInvestorProfile,
+  getInvestmentDecisions,
+  saveInvestorProfile,
+  savePublication,
+} from './api';
 import { getSharedPortfolio } from './sharedPortfolioApi';
 import { experienceLabels, riskLabels } from './labels';
 import type { ExperienceLevel, InvestorProfile, RiskProfile } from './types';
@@ -25,7 +30,7 @@ export function PublicationSettingsPage() {
     Promise.all([
       getMyInvestorProfile(controller.signal),
       getSharedPortfolio(controller.signal),
-      getTransactions(controller.signal),
+      getInvestmentDecisions(controller.signal),
     ])
       .then(([saved, portfolio, records]) => {
         if (controller.signal.aborted) return;

@@ -152,24 +152,6 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
     savedHoldings = [...savedHoldings, holding];
     return jsonResponse({ transactionId: 1, holding, totalRealizedProfitLoss: 0 }, 201);
   }
-  if (url.endsWith('/api/users/me/portfolio/holdings') && method === 'POST') {
-    const body = JSON.parse(String(init?.body)) as {
-      assetId: number;
-      quantity: number;
-      averagePurchasePrice: number;
-    };
-    const asset = [stock, secondStock, kosdaqStock, etf].find(
-      (candidate) => candidate.assetId === body.assetId,
-    );
-    if (!asset) return jsonResponse({}, 404);
-    const holding = {
-      ...asset,
-      quantity: body.quantity,
-      averagePurchasePrice: body.averagePurchasePrice,
-    };
-    savedHoldings = [...savedHoldings, holding];
-    return jsonResponse(holding, 201);
-  }
   const holdingMatch = url.match(/\/api\/users\/me\/portfolio\/holdings\/(\d+)$/);
   if (holdingMatch && method === 'PATCH') {
     const assetId = Number(holdingMatch[1]);

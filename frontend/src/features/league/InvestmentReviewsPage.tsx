@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { createReview, getTransactions, updateReview } from './api';
+import { createReview, getInvestmentDecisions, updateReview } from './api';
 import { holdingPeriodLabels, transactionLabels } from './labels';
-import type { InvestmentTransaction } from './types';
+import type { InvestmentDecisionRecord } from './types';
 import './league.css';
 import './shared-portfolio.css';
 
@@ -11,7 +11,7 @@ const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
 
 export function InvestmentReviewsPage() {
-  const [records, setRecords] = useState<InvestmentTransaction[] | null>(null);
+  const [records, setRecords] = useState<InvestmentDecisionRecord[] | null>(null);
   const [loadError, setLoadError] = useState('');
   const [retry, setRetry] = useState(0);
   const [reviewId, setReviewId] = useState<number | null>(null);
@@ -23,7 +23,7 @@ export function InvestmentReviewsPage() {
   useEffect(() => {
     const controller = new AbortController();
     setLoadError('');
-    getTransactions(controller.signal)
+    getInvestmentDecisions(controller.signal)
       .then((values) => {
         if (!controller.signal.aborted) setRecords(values);
       })
@@ -71,7 +71,7 @@ export function InvestmentReviewsPage() {
     }
   }
 
-  function renderRecord(r: InvestmentTransaction) {
+  function renderRecord(r: InvestmentDecisionRecord) {
     return (
       <article className="shared-decision" key={r.id}>
         <h2>

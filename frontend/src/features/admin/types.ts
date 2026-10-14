@@ -1,5 +1,5 @@
 import type { Category } from '../news/newslist/types';
-import type { StockSearchItem } from '../portfolio/types';
+import type { StockSearchItem } from '../stocks/types';
 
 export type AdminNewsStatus = 'DRAFT' | 'PUBLISHED' | 'REJECTED' | 'DELETED';
 export type AdminNewsSource = {
@@ -77,10 +77,6 @@ export type AdminNewsFormValues = {
 
 export type AdminNewsFilterStatus = AdminNewsStatus | 'ALL';
 export type AdminNewsFilterCategory = Category | 'ALL';
-
-export type AdminAssetRankingSyncResponse = {
-  savedCount: number;
-};
 
 export type AdminNewsGenerationResponse = {
   savedCount: number;

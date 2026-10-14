@@ -1,10 +1,10 @@
 import { ApiError, request, requestWithCsrf } from '../../api/client';
+import { isStock } from '../stocks/api';
 import type {
   PortfolioHoldingHistory,
   PortfolioTransactionRequest,
   PortfolioTransactionUpdateRequest,
   PortfolioTransactionResponse,
-  AssetCategory,
   MarketAllocation,
   PortfolioAnalysisRequest,
   PortfolioAnalysisResponse,
@@ -20,9 +20,6 @@ import type {
   PortfolioPerformanceResponse,
   SavedPortfolioResponse,
   SavedPortfolioAnalysisResponse,
-  StockMarket,
-  StockPrice,
-  StockSearchItem,
 } from './types';
 
 const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE', 'NEUTRAL']);
@@ -30,36 +27,6 @@ const IMPACT_LEVELS = new Set<PortfolioImpactLevel>(['HIGH', 'MEDIUM', 'LOW']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
-}
-
-function isMarket(value: unknown): value is StockMarket {
-  return value === 'KOSPI' || value === 'KOSDAQ';
-}
-
-function isAssetCategory(value: unknown): value is AssetCategory {
-  return value === 'STOCK' || value === 'ETF';
-}
-
-function isStock(value: unknown): value is StockSearchItem {
-  return (
-    isRecord(value) &&
-    typeof value.assetId === 'number' &&
-    typeof value.assetCode === 'string' &&
-    typeof value.name === 'string' &&
-    isAssetCategory(value.category) &&
-    isMarket(value.market)
-  );
-}
-
-function isStockPrice(value: unknown): value is StockPrice {
-  return (
-    isRecord(value) &&
-    typeof value.assetId === 'number' &&
-    typeof value.assetCode === 'string' &&
-    typeof value.name === 'string' &&
-    typeof value.baseDate === 'string' &&
-    hasNumber(value, 'closePrice')
-  );
 }
 
 function hasNumber(value: Record<string, unknown>, key: string) {
@@ -93,7 +60,7 @@ function isHoldingResult(value: unknown): value is PortfolioHoldingResult {
 function isMarketAllocation(value: unknown): value is MarketAllocation {
   return (
     isRecord(value) &&
-    isMarket(value.market) &&
+    (value.market === 'KOSPI' || value.market === 'KOSDAQ') &&
     hasNumber(value, 'evaluationAmount') &&
     hasNumber(value, 'weight')
   );
@@ -230,27 +197,6 @@ function normalizePortfolioAssets(assets: PortfolioAsset[]) {
 
 export function createPortfolioSnapshotKey(assets: PortfolioAsset[]) {
   return JSON.stringify(normalizePortfolioAssets(assets));
-}
-
-export async function searchStocks(keyword: string, signal?: AbortSignal) {
-  const query = new URLSearchParams({ q: keyword });
-  const response = await request<unknown>(`/api/stocks?${query.toString()}`, { signal });
-
-  if (!isRecord(response) || !Array.isArray(response.stocks) || !response.stocks.every(isStock)) {
-    throw new Error('종목 검색 응답 형식이 올바르지 않습니다.');
-  }
-
-  return response.stocks;
-}
-
-export async function getLatestStockPrice(assetId: number, signal?: AbortSignal) {
-  const response = await request<unknown>(`/api/stocks/${assetId}/price`, { signal });
-
-  if (!isStockPrice(response)) {
-    throw new Error('최근 종가 응답 형식이 올바르지 않습니다.');
-  }
-
-  return response;
 }
 
 export async function calculatePortfolio(holdings: PortfolioHoldingInput[], signal?: AbortSignal) {

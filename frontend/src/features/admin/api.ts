@@ -1,6 +1,6 @@
 import { request, requestWithCsrf } from '../../api/client';
 import { isCategory } from '../news/newslist/types';
-import type { StockSearchItem } from '../portfolio/types';
+import { isStock } from '../stocks/api';
 import type {
   AdminNewsFilterCategory,
   AdminNewsFilterStatus,
@@ -33,17 +33,6 @@ function isNullableString(value: unknown): value is string | null {
 
 function isAdminNewsStatus(value: unknown): value is AdminNewsStatus {
   return value === 'DRAFT' || value === 'PUBLISHED' || value === 'REJECTED' || value === 'DELETED';
-}
-
-function isStockSearchItem(value: unknown): value is StockSearchItem {
-  return (
-    isRecord(value) &&
-    typeof value.assetId === 'number' &&
-    typeof value.assetCode === 'string' &&
-    typeof value.name === 'string' &&
-    (value.category === 'STOCK' || value.category === 'ETF') &&
-    (value.market === 'KOSPI' || value.market === 'KOSDAQ')
-  );
 }
 
 function isAdminNewsSource(value: unknown): value is AdminNewsSource {
@@ -124,7 +113,7 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
     isNullableString(value.publishedAt) &&
     isAdminNewsStatus(value.status) &&
     (value.relatedAssets === undefined ||
-      (Array.isArray(value.relatedAssets) && value.relatedAssets.every(isStockSearchItem)))
+      (Array.isArray(value.relatedAssets) && value.relatedAssets.every(isStock)))
   );
 }
 

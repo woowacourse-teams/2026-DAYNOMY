@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getLatestStockPrice, searchStocks } from '../api';
+import { getLatestStockPrice, searchStocks } from '../../stocks/api';
 import { trackPortfolioEvent } from '../analytics';
 import {
   todayInSeoul,
@@ -8,12 +8,11 @@ import {
   type TransactionFields,
 } from '../transactionForm';
 import type {
-  AssetCategory,
   PortfolioHoldingHistory,
   PortfolioTransactionRequest,
   PortfolioTransactionType,
-  StockSearchItem,
 } from '../types';
+import type { AssetCategory, StockSearchItem } from '../../stocks/types';
 
 type Props = {
   stock?: StockSearchItem;

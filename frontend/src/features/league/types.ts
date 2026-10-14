@@ -137,7 +137,7 @@ export type InvestmentDecisionInput = {
   maximumAcceptableLossRate: number | null;
 };
 
-export type InvestmentTransaction = {
+export type InvestmentDecisionRecord = {
   id: number;
   assetId: number;
   assetCode: string;
@@ -158,7 +158,7 @@ export type InvestmentTransaction = {
 };
 
 export type PublicDecision = Omit<
-  InvestmentTransaction,
+  InvestmentDecisionRecord,
   'id' | 'assetId' | 'assetCode' | 'quantity' | 'unitPrice' | 'fee'
 > & { transactionId: number };
 
