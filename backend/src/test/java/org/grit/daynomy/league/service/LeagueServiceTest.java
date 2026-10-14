@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -27,6 +28,7 @@ import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.league.domain.InvestorFollow;
 import org.grit.daynomy.league.domain.InvestorProfile;
@@ -38,11 +40,11 @@ import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.domain.WeeklyLeaderboard;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestmentReviewRepository;
 import org.grit.daynomy.league.repository.InvestorFollowRepository;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.repository.PortfolioDailyReturnRepository;
-import org.grit.daynomy.league.repository.PortfolioTransactionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
@@ -69,16 +71,66 @@ class LeagueServiceTest {
   @Mock private SharedHoldingRepository holdingRepository;
   @Mock private SharedHoldingHistoryRepository holdingHistoryRepository;
   @Mock private PortfolioDailyReturnRepository returnRepository;
-  @Mock private PortfolioTransactionRepository transactionRepository;
+  @Mock private InvestmentDecisionRepository decisionRepository;
   @Mock private InvestmentReviewRepository reviewRepository;
   @Mock private InvestorFollowRepository followRepository;
   @Mock private MemberRepository memberRepository;
   @Mock private StockDailyPriceRepository priceRepository;
+  @Mock private StockPriceService stockPriceService;
   @Mock private MarketTradingDayRepository tradingDayRepository;
   @Mock private WeeklyLeaderboardRepository leaderboardRepository;
   @Mock private LeagueCalculationMetrics calculationMetrics;
   @Mock private EntityManager entityManager;
   @InjectMocks private LeagueService service;
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void publicWeightsIncludeHiddenHoldingsAndRemainNullWhenTheirPriceIsMissing(boolean missing) {
+    var profile = mock(InvestorProfile.class);
+    var owner = mock(Member.class);
+    var portfolio = mock(SharedPortfolio.class);
+    var visibleAsset = mock(Asset.class);
+    var hiddenAsset = mock(Asset.class);
+    given(profileRepository.findByPublicIdAndProfilePublicTrue("owner"))
+        .willReturn(Optional.of(profile));
+    given(profile.isDetailPublic()).willReturn(true);
+    given(profile.getMember()).willReturn(owner);
+    given(owner.getId()).willReturn(2L);
+    given(portfolioRepository.findByMemberId(2L)).willReturn(Optional.of(portfolio));
+    given(portfolio.getId()).willReturn(3L);
+    given(visibleAsset.getId()).willReturn(4L);
+    given(visibleAsset.getName()).willReturn("공개 종목");
+    given(visibleAsset.getCategory()).willReturn(AssetCategory.STOCK);
+    given(hiddenAsset.getId()).willReturn(5L);
+    var visible = new SharedHolding(portfolio, visibleAsset, 1, new BigDecimal("100"));
+    var hidden = new SharedHolding(portfolio, hiddenAsset, 1, new BigDecimal("300"));
+    hidden.changeVisibility(true);
+    given(holdingRepository.findAllByPortfolioIdOrderById(3L)).willReturn(List.of(visible, hidden));
+    var date = LocalDate.of(2026, 10, 13);
+    given(
+            tradingDayRepository
+                .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
+                    any(LocalDate.class)))
+        .willReturn(Optional.of(tradingDay(date)));
+    var first = new StockDailyPrice(visibleAsset, date, new BigDecimal("100"));
+    given(stockPriceService.pricesAt(List.of(4L, 5L), date))
+        .willReturn(
+            missing
+                ? Map.of(4L, first)
+                : Map.of(
+                    4L, first, 5L, new StockDailyPrice(hiddenAsset, date, new BigDecimal("300"))));
+    var response = service.investorDetail("owner");
+    assertThat(response.holdings())
+        .singleElement()
+        .satisfies(
+            holding -> {
+              assertThat(holding.assetName()).isEqualTo("공개 종목");
+              if (missing) assertThat(holding.weight()).isNull();
+              else assertThat(holding.weight()).isEqualByComparingTo("25.00");
+            });
+    then(stockPriceService).should().pricesAt(List.of(4L, 5L), date);
+    then(priceRepository).shouldHaveNoInteractions();
+  }
 
   @Test
   void oldFinalizedEntryKeepsItsEightWeekValueWithoutCallingItThreeWeeks() throws Exception {
@@ -917,7 +969,7 @@ class LeagueServiceTest {
     given(portfolioRepository.findByMemberId(2L)).willReturn(Optional.of(portfolio));
     given(portfolio.getId()).willReturn(3L);
     given(
-            transactionRepository
+            decisionRepository
                 .findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
                     eq(3L), any(LocalDate.class)))
         .willReturn(List.of());
@@ -970,9 +1022,13 @@ class LeagueServiceTest {
     given(previousPrice.getClosePrice()).willReturn(new BigDecimal("110"));
     given(currentPrice.getClosePrice()).willReturn(new BigDecimal("99"));
 
+    given(stockPriceService.pricesAt(List.of(4L), currentDate))
+        .willReturn(Map.of(4L, currentPrice));
     var response = service.investorDetail("investor-1");
 
     assertThat(response.asOfDate()).isEqualTo(currentDate);
+    then(stockPriceService).should().pricesAt(List.of(4L), currentDate);
+    then(priceRepository).should(times(1)).findByAssetIdAndBaseDate(4L, currentDate);
     if (hidden) {
       assertThat(response.holdings()).isEmpty();
     } else {
@@ -985,7 +1041,7 @@ class LeagueServiceTest {
                 assertThat(holding.weeklyContributionRate()).isEqualByComparingTo("-1.00");
               });
     }
-    then(transactionRepository)
+    then(decisionRepository)
         .should()
         .findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
             eq(3L), any(LocalDate.class));

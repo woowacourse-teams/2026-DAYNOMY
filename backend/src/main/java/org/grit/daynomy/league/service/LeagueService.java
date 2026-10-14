@@ -25,7 +25,9 @@ import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.grit.daynomy.league.domain.InvestorFollow;
 import org.grit.daynomy.league.domain.InvestorProfile;
@@ -34,7 +36,6 @@ import org.grit.daynomy.league.domain.LeagueTypes.DailyReturnStatus;
 import org.grit.daynomy.league.domain.LeagueTypes.ExperienceLevel;
 import org.grit.daynomy.league.domain.LeagueTypes.LeagueType;
 import org.grit.daynomy.league.domain.PortfolioDailyReturn;
-import org.grit.daynomy.league.domain.PortfolioTransaction;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedHoldingHistory;
 import org.grit.daynomy.league.domain.SharedPortfolio;
@@ -56,11 +57,11 @@ import org.grit.daynomy.league.dto.LeagueDto.ReviewResponse;
 import org.grit.daynomy.league.dto.LeagueDto.WeekResponse;
 import org.grit.daynomy.league.dto.LeagueDto.WeeksResponse;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestmentReviewRepository;
 import org.grit.daynomy.league.repository.InvestorFollowRepository;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.repository.PortfolioDailyReturnRepository;
-import org.grit.daynomy.league.repository.PortfolioTransactionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
@@ -86,11 +87,12 @@ public class LeagueService {
   private final SharedHoldingRepository holdingRepository;
   private final SharedHoldingHistoryRepository holdingHistoryRepository;
   private final PortfolioDailyReturnRepository returnRepository;
-  private final PortfolioTransactionRepository transactionRepository;
+  private final InvestmentDecisionRepository decisionRepository;
   private final InvestmentReviewRepository reviewRepository;
   private final InvestorFollowRepository followRepository;
   private final MemberRepository memberRepository;
   private final StockDailyPriceRepository priceRepository;
+  private final StockPriceService stockPriceService;
   private final MarketTradingDayRepository tradingDayRepository;
   private final WeeklyLeaderboardRepository leaderboardRepository;
   private final LeagueCalculationMetrics calculationMetrics;
@@ -610,11 +612,13 @@ public class LeagueService {
     if (portfolio == null) {
       return new InvestorDetailResponse(publicId, null, List.of(), List.of());
     }
-    List<PortfolioTransaction> transactions =
-        transactionRepository.findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
+    List<InvestmentDecision> transactions =
+        decisionRepository.findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
             portfolio.getId(), cutoff);
     Map<Long, List<InvestmentReview>> reviews = reviewsByTransaction(transactions);
-    DetailSnapshot snapshot = detailSnapshot(profile, portfolio.getId(), cutoff);
+    DetailSnapshot snapshot =
+        detailSnapshot(
+            profile, portfolio.getId(), cutoff, InvestmentDecision.latestReasons(transactions));
     Set<Long> visibleAssets = visibleAssets(portfolio.getId());
     return new InvestorDetailResponse(
         publicId,
@@ -643,7 +647,7 @@ public class LeagueService {
   }
 
   private DetailSnapshot detailSnapshot(
-      InvestorProfile profile, Long portfolioId, LocalDate cutoff) {
+      InvestorProfile profile, Long portfolioId, LocalDate cutoff, Map<Long, String> reasons) {
     LocalDate asOfDate =
         tradingDayRepository
             .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
@@ -653,11 +657,13 @@ public class LeagueService {
     Map<Long, BigDecimal> contributions =
         asOfDate == null ? null : weeklyContributions(profile, portfolioId, asOfDate);
     List<SharedHolding> holdings = holdingRepository.findAllByPortfolioIdOrderById(portfolioId);
+    Map<Long, StockDailyPrice> prices =
+        stockPriceService.pricesAt(
+            holdings.stream().map(holding -> holding.getAsset().getId()).toList(), asOfDate);
     Map<Long, BigDecimal> evaluations = new LinkedHashMap<>();
     BigDecimal total = BigDecimal.ZERO;
     for (SharedHolding holding : holdings) {
-      StockDailyPrice price =
-          asOfDate == null ? null : findPrice(holding.getAsset().getId(), asOfDate);
+      StockDailyPrice price = prices.get(holding.getAsset().getId());
       if (price == null) {
         continue;
       }
@@ -688,13 +694,14 @@ public class LeagueService {
                                 .setScale(2, RoundingMode.HALF_UP)
                             : null,
                         evaluations.containsKey(holding.getAsset().getId())
-                            ? findPrice(holding.getAsset().getId(), asOfDate)
+                            ? prices
+                                .get(holding.getAsset().getId())
                                 .getClosePrice()
                                 .subtract(holding.getAveragePurchasePrice())
                                 .multiply(HUNDRED)
                                 .divide(holding.getAveragePurchasePrice(), 2, RoundingMode.HALF_UP)
                             : null,
-                        holding.getReason()))
+                        holding.reasonFrom(reasons)))
             .toList();
     return new DetailSnapshot(asOfDate, responses);
   }
@@ -863,8 +870,8 @@ public class LeagueService {
                 portfolio.getId(), from, weekStart.plusDays(6));
     Metric metric = calculateMetric(profile, returns, weekStart);
     if (finalizationCalendarCache.get() != null) returns.forEach(entityManager::detach);
-    List<PortfolioTransaction> transactions =
-        transactionRepository.findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
+    List<InvestmentDecision> transactions =
+        decisionRepository.findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
             portfolio.getId(), weekStart.plusDays(6));
     Map<Long, List<InvestmentReview>> reviews = reviewsByTransaction(transactions);
     long reviewed =
@@ -1213,8 +1220,8 @@ public class LeagueService {
   }
 
   private Map<Long, List<InvestmentReview>> reviewsByTransaction(
-      List<PortfolioTransaction> transactions) {
-    List<Long> ids = transactions.stream().map(PortfolioTransaction::getId).toList();
+      List<InvestmentDecision> transactions) {
+    List<Long> ids = transactions.stream().map(InvestmentDecision::getId).toList();
     if (ids.isEmpty()) {
       return Map.of();
     }

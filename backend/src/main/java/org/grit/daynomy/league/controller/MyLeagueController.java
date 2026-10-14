@@ -6,18 +6,18 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
+import org.grit.daynomy.league.dto.LeagueDto.DecisionListResponse;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
+import org.grit.daynomy.league.dto.LeagueDto.DecisionResponse;
 import org.grit.daynomy.league.dto.LeagueDto.FollowSummaryListResponse;
 import org.grit.daynomy.league.dto.LeagueDto.ProfileRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ProfileResponse;
 import org.grit.daynomy.league.dto.LeagueDto.PublicationRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewResponse;
-import org.grit.daynomy.league.dto.LeagueDto.TransactionListResponse;
-import org.grit.daynomy.league.dto.LeagueDto.TransactionResponse;
+import org.grit.daynomy.league.service.InvestmentDecisionService;
 import org.grit.daynomy.league.service.InvestorProfileService;
 import org.grit.daynomy.league.service.LeagueService;
-import org.grit.daynomy.league.service.PortfolioTransactionService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MyLeagueController {
 
   private final InvestorProfileService profileService;
-  private final PortfolioTransactionService transactionService;
+  private final InvestmentDecisionService decisionService;
   private final LeagueService leagueService;
 
   @Operation(summary = "내 공개 투자자 프로필 조회")
@@ -69,11 +69,11 @@ public class MyLeagueController {
 
   @Operation(summary = "내 거래와 투자 판단 목록 조회")
   @GetMapping("/portfolio/transactions")
-  public ResponseEntity<TransactionListResponse> transactions(
+  public ResponseEntity<DecisionListResponse> transactions(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
-        .body(transactionService.getMine(member.memberId()));
+        .body(decisionService.getMine(member.memberId()));
   }
 
   @Operation(summary = "투자 판단 복기 추가")
@@ -84,7 +84,7 @@ public class MyLeagueController {
       @Valid @RequestBody ReviewRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED)
         .cacheControl(CacheControl.noStore())
-        .body(transactionService.addReview(member.memberId(), transactionId, request));
+        .body(decisionService.addReview(member.memberId(), transactionId, request));
   }
 
   @Operation(summary = "내 투자 판단 복기 수정")
@@ -96,17 +96,17 @@ public class MyLeagueController {
       @Valid @RequestBody ReviewRequest request) {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
-        .body(transactionService.reviseReview(member.memberId(), transactionId, reviewId, request));
+        .body(decisionService.reviseReview(member.memberId(), transactionId, reviewId, request));
   }
 
   @Operation(summary = "보유 자산의 판단 기록 (수량 변경 없음)")
   @PostMapping("/portfolio/decisions")
-  public ResponseEntity<TransactionResponse> recordDecision(
+  public ResponseEntity<DecisionResponse> recordDecision(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
       @Valid @RequestBody DecisionRecordRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED)
         .cacheControl(CacheControl.noStore())
-        .body(transactionService.recordDecision(member.memberId(), request));
+        .body(decisionService.recordDecision(member.memberId(), request));
   }
 
   @Operation(summary = "공개 투자자 팔로우")
