@@ -50,7 +50,6 @@ function AdminAccessDeniedPage() {
   return (
     <main className="admin-state-page">
       <section className="admin-state-panel">
-        <p className="admin-kicker">DAYNOMY 관리자</p>
         <h1>관리자 권한이 필요합니다.</h1>
         <p>관리자 계정으로 로그인한 뒤 다시 시도해 주세요.</p>
         <Link className="admin-secondary-button" to="/">
@@ -224,7 +223,6 @@ export function AdminNewsPage() {
     <main className="admin-content">
       <div className="admin-page-heading">
         <div>
-          <p className="admin-kicker">콘텐츠 운영</p>
           <h1>뉴스 관리</h1>
           <p>뉴스를 등록하고 서비스에 노출되는 콘텐츠를 관리하세요.</p>
         </div>
@@ -235,8 +233,7 @@ export function AdminNewsPage() {
 
       <section className="admin-action-panel" aria-labelledby="economy-news-generation-title">
         <div>
-          <p className="admin-panel-eyebrow">뉴스 자동 생성</p>
-          <h2 id="economy-news-generation-title">예약 생성 또는 지금 생성</h2>
+          <h2 id="economy-news-generation-title">경제 뉴스 초안 생성</h2>
           <p>
             예약 생성은 기존 스케줄에 따라 실행됩니다. 필요하면 버튼을 눌러 경제 뉴스 초안을 즉시
             추가 생성할 수 있습니다.
@@ -244,7 +241,7 @@ export function AdminNewsPage() {
         </div>
         <button
           type="button"
-          className="admin-primary-button"
+          className="admin-secondary-button"
           disabled={generatingDrafts}
           onClick={handleGenerateDrafts}
         >
@@ -365,9 +362,7 @@ export function AdminNewsPage() {
                   <th scope="col">카테고리</th>
                   <th scope="col">상태</th>
                   <th scope="col">등록일</th>
-                  <th scope="col">
-                    <span className="sr-only">관리</span>
-                  </th>
+                  <th scope="col">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -381,17 +376,29 @@ export function AdminNewsPage() {
                   return (
                     <tr key={item.id}>
                       <td data-label="뉴스">
-                        <Link
-                          className="admin-news-title"
-                          to={`/admin/news/${item.id}/edit`}
-                          aria-disabled={isProcessing}
-                          tabIndex={isProcessing ? -1 : undefined}
-                          onClick={(event) => {
-                            if (isProcessing) event.preventDefault();
-                          }}
-                        >
-                          {item.title}
-                        </Link>
+                        <div className="admin-news-summary">
+                          {item.imageUrl ? (
+                            <img
+                              className="admin-news-thumbnail"
+                              src={item.imageUrl}
+                              alt=""
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="admin-news-no-image">이미지 없음</span>
+                          )}
+                          <Link
+                            className="admin-news-title"
+                            to={`/admin/news/${item.id}/edit`}
+                            aria-disabled={isProcessing}
+                            tabIndex={isProcessing ? -1 : undefined}
+                            onClick={(event) => {
+                              if (isProcessing) event.preventDefault();
+                            }}
+                          >
+                            {item.title}
+                          </Link>
+                        </div>
                       </td>
                       <td data-label="카테고리">{CATEGORY_LABELS[item.category]}</td>
                       <td data-label="상태">
@@ -408,10 +415,10 @@ export function AdminNewsPage() {
                             >
                               {generatingImageId === item.id
                                 ? item.imageUrl
-                                  ? '이미지 수정 중'
+                                  ? '이미지 재생성 중'
                                   : '이미지 생성 중'
                                 : item.imageUrl
-                                  ? '이미지 수정'
+                                  ? '이미지 재생성'
                                   : '이미지 생성'}
                             </button>
                           ) : null}
