@@ -15,6 +15,7 @@ import static org.mockito.Mockito.when;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -89,10 +90,14 @@ class SavedPortfolioAnalysisAcceptanceTest {
 
   @org.junit.jupiter.api.BeforeEach
   void narrativeStub() {
+    assetAnalyses.deleteAll();
     when(narrative.summarize(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
             "현재 보유한 종목의 비중을 확인했어요.\n\n실적과 비용이 전체 자산에 미치는 영향을 함께 살펴봐야 해요.\n\n비중이 큰 종목의 다음 실적 발표를 확인해 보세요.");
   }
+
+  @Autowired
+  private org.grit.daynomy.portfolio.repository.PortfolioAssetAnalysisRepository assetAnalyses;
 
   @Autowired private MemberRepository members;
   @Autowired private PortfolioRepository portfolios;
@@ -156,6 +161,77 @@ class SavedPortfolioAnalysisAcceptanceTest {
   }
 
   @Test
+  void differentMembersReuseAssetResultsButKeepTheirOwnWeightsAndSummaries() {
+    Member first = member();
+    Member second = member();
+    var firstPortfolio = portfolio(first);
+    var secondPortfolio = portfolio(second);
+    hold(firstPortfolio, "삼성전자");
+    hold(firstPortfolio, "SK하이닉스");
+    hold(secondPortfolio, "삼성전자");
+    hold(secondPortfolio, "SK하이닉스");
+    var firstHolding = holdings.findAllByPortfolioIdOrderById(firstPortfolio.getId()).getFirst();
+    firstHolding.change(4, firstHolding.getAveragePurchasePrice());
+    holdings.saveAndFlush(firstHolding);
+    var secondHolding = holdings.findAllByPortfolioIdOrderById(secondPortfolio.getId()).getLast();
+    secondHolding.change(4, secondHolding.getAveragePurchasePrice());
+    holdings.saveAndFlush(secondHolding);
+    successfulAi();
+
+    var firstResponse = client(first).post(API).then().statusCode(200).extract().response();
+    var secondResponse = client(second).post(API).then().statusCode(200).extract().response();
+
+    assertThat(
+            firstResponse
+                .jsonPath()
+                .getDouble("analysis.impacts.find { it.assetName == '삼성전자' }.weight"))
+        .isEqualTo(80.0);
+    assertThat(
+            secondResponse
+                .jsonPath()
+                .getDouble("analysis.impacts.find { it.assetName == '삼성전자' }.weight"))
+        .isEqualTo(20.0);
+    assertThat(firstResponse.jsonPath().getLong("analysisId"))
+        .isNotEqualTo(secondResponse.jsonPath().getLong("analysisId"));
+    verify(ai).analyze(anyList());
+    verify(narrative, org.mockito.Mockito.times(2)).summarize(org.mockito.ArgumentMatchers.any());
+    assertThat(assetAnalyses.count()).isEqualTo(2);
+  }
+
+  @Test
+  void expiredSharedResultIsSearchedAgainForAnotherMember() {
+    Member first = member();
+    Member second = member();
+    hold(portfolio(first), "삼성전자");
+    hold(portfolio(second), "삼성전자");
+    successfulAi();
+    client(first).post(API).then().statusCode(200);
+    jdbc.update(
+        "UPDATE portfolio_asset_analyses SET analyzed_at = CURRENT_TIMESTAMP - INTERVAL '2 hours', expires_at = CURRENT_TIMESTAMP - INTERVAL '1 hour'");
+
+    client(second).post(API).then().statusCode(200);
+
+    verify(ai, org.mockito.Mockito.times(2)).analyze(anyList());
+    assertThat(assetAnalyses.count()).isEqualTo(1);
+    assertThat(assetAnalyses.findAll().getFirst().getExpiresAt()).isAfter(Instant.now());
+  }
+
+  @Test
+  void explicitRefreshWithoutPreviousAnalysisStillSearchesEvenWithSharedResults() {
+    Member first = member();
+    Member second = member();
+    hold(portfolio(first), "삼성전자");
+    hold(portfolio(second), "삼성전자");
+    successfulAi();
+    client(first).post(API).then().statusCode(200);
+    assertThat(assetAnalyses.count()).isEqualTo(1);
+
+    client(second).post(API + "/refresh").then().statusCode(200);
+
+    verify(ai, org.mockito.Mockito.times(2)).analyze(anyList());
+  }
+
+  @Test
   void newMemberDoesNotImportGuestAssetsAndOtherMembersCannotReadStoredAnalysis() {
     Member first = member();
     hold(portfolio(first), "삼성전자");
@@ -202,7 +278,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
     verify(ai, org.mockito.Mockito.times(2)).analyze(captor.capture());
     assertThat(captor.getValue())
         .extracting(PortfolioAnalysisTarget::assetName)
-        .containsExactlyInAnyOrder("삼성전자", "포스코인터내셔널");
+        .containsExactly("포스코인터내셔널");
   }
 
   @Test

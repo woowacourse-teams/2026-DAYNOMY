@@ -151,6 +151,8 @@ stock:
       cron: ${STOCK_PRICE_SYNC_CRON:0 0 7,18 * * MON-SAT}
 
 portfolio:
+  analysis:
+    cache-ttl: ${PORTFOLIO_ANALYSIS_CACHE_TTL:30m}
   snapshot:
     enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
     cron: ${PORTFOLIO_SNAPSHOT_CRON:0 30 7 * * TUE-SAT}

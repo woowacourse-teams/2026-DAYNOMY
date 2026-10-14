@@ -32,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class PortfolioAnalysisServiceTest {
 
   @Mock private PortfolioAnalysisAiClient portfolioAnalysisAiClient;
+  @Mock private PortfolioAssetAnalysisService assetAnalysisService;
   @Mock private org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
   @Spy private GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
@@ -60,7 +61,7 @@ class PortfolioAnalysisServiceTest {
                         new PortfolioAnalysisResult.Source("한국거래소", "https://example.com/news")),
                     1)),
             List.of(new PortfolioAnalysisResult.Source("한국거래소", "https://example.com/news")));
-    given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
+    given(assetAnalysisService.analyze(targets)).willReturn(analysisResult);
     given(narrative.summarize(org.mockito.ArgumentMatchers.any()))
         .willReturn(analysisResult.overallImpact());
 
@@ -87,7 +88,7 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.analyzedAt()).isNotNull();
     assertThat(response.sources())
         .containsExactly(new PortfolioAnalysisSourceResponse("한국거래소", "https://example.com/news"));
-    verify(portfolioAnalysisAiClient).analyze(targets);
+    verify(assetAnalysisService).analyze(targets);
   }
 
   @Test
@@ -111,7 +112,7 @@ class PortfolioAnalysisServiceTest {
                 impact("현대차", ImpactLevel.MEDIUM, 3),
                 impact("NAVER", ImpactLevel.LOW, 4)),
             List.of(new PortfolioAnalysisResult.Source("출처", "https://example.com")));
-    given(portfolioAnalysisAiClient.analyze(targets)).willReturn(analysisResult);
+    given(assetAnalysisService.analyze(targets)).willReturn(analysisResult);
     given(narrative.summarize(org.mockito.ArgumentMatchers.any()))
         .willReturn(analysisResult.overallImpact());
 
@@ -137,7 +138,7 @@ class PortfolioAnalysisServiceTest {
                 impact("삼성전자", ImpactDirection.POSITIVE, ImpactLevel.HIGH, 1),
                 impact("SK하이닉스", ImpactDirection.NEGATIVE, ImpactLevel.HIGH, 2)),
             List.of());
-    given(portfolioAnalysisAiClient.analyze(targets)).willReturn(result);
+    given(assetAnalysisService.analyze(targets)).willReturn(result);
     given(narrative.summarize(org.mockito.ArgumentMatchers.any()))
         .willReturn("첫 사용자 구성의 전체 설명이에요.", "둘째 사용자 구성의 전체 설명이에요.");
 
@@ -146,7 +147,7 @@ class PortfolioAnalysisServiceTest {
     var second =
         portfolioAnalysisService.analyze(request(asset("삼성전자", "5"), asset("SK하이닉스", "95")), true);
 
-    verify(portfolioAnalysisAiClient, times(2)).analyze(targets);
+    verify(assetAnalysisService, times(2)).analyze(targets);
     assertThat(first.impacts())
         .extracting(impact -> impact.weight())
         .containsExactly(new BigDecimal("80"), new BigDecimal("20"));
@@ -185,21 +186,21 @@ class PortfolioAnalysisServiceTest {
     assertThat(response.overallScore()).isNull();
     assertThat(response.analyzedAt()).isNull();
     assertThat(response.impacts()).isEmpty();
-    verifyNoInteractions(portfolioAnalysisAiClient);
+    verifyNoInteractions(assetAnalysisService, portfolioAnalysisAiClient);
   }
 
   @Test
-  @DisplayName("동일한 포트폴리오를 다시 요청해도 매번 AI로 분석한다")
+  @DisplayName("동일한 포트폴리오도 종목 분석 재사용 여부는 종목 분석 서비스에 위임한다")
   void analyzeEveryRequest() {
     PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
     List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
-    given(portfolioAnalysisAiClient.analyze(targets))
+    given(assetAnalysisService.analyze(targets))
         .willReturn(new PortfolioAnalysisResult("분석 결과", List.of(), List.of()));
 
     portfolioAnalysisService.analyze(request, true);
     portfolioAnalysisService.analyze(request, true);
 
-    verify(portfolioAnalysisAiClient, times(2)).analyze(targets);
+    verify(assetAnalysisService, times(2)).analyze(targets);
   }
 
   @Test
@@ -211,7 +212,7 @@ class PortfolioAnalysisServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
-    verifyNoInteractions(portfolioAnalysisAiClient);
+    verifyNoInteractions(assetAnalysisService, portfolioAnalysisAiClient);
   }
 
   @Test
@@ -223,7 +224,7 @@ class PortfolioAnalysisServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(PortfolioErrorCode.INVALID_PORTFOLIO_WEIGHT_TOTAL);
-    verifyNoInteractions(portfolioAnalysisAiClient);
+    verifyNoInteractions(assetAnalysisService, portfolioAnalysisAiClient);
   }
 
   @Test
@@ -231,7 +232,7 @@ class PortfolioAnalysisServiceTest {
   void guestCanAnalyzePortfolioOnlyOnce() {
     PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
     List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
-    given(portfolioAnalysisAiClient.analyze(targets))
+    given(assetAnalysisService.analyze(targets))
         .willReturn(new PortfolioAnalysisResult("분석 결과", List.of(), List.of()));
 
     portfolioAnalysisService.analyze(request, false);
@@ -240,7 +241,7 @@ class PortfolioAnalysisServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(PortfolioErrorCode.PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED);
-    verify(portfolioAnalysisAiClient).analyze(targets);
+    verify(assetAnalysisService).analyze(targets);
   }
 
   @Test
@@ -248,7 +249,7 @@ class PortfolioAnalysisServiceTest {
   void guestCanRetryWhenPortfolioAnalysisFails() {
     PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
     List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
-    given(portfolioAnalysisAiClient.analyze(targets))
+    given(assetAnalysisService.analyze(targets))
         .willThrow(new IllegalStateException("분석 실패"))
         .willReturn(new PortfolioAnalysisResult("분석 결과", List.of(), List.of()));
 
@@ -258,7 +259,24 @@ class PortfolioAnalysisServiceTest {
     PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request, false);
 
     verify(narrative).summarize(org.mockito.ArgumentMatchers.any());
-    verify(portfolioAnalysisAiClient, times(2)).analyze(targets);
+    verify(assetAnalysisService, times(2)).analyze(targets);
+  }
+
+  @Test
+  @DisplayName("이전 결과가 없는 새 근거 확인도 공통 저장 결과를 우회한다")
+  void refreshWithoutPreviousBypassesSharedResults() {
+    var targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
+    given(portfolioAnalysisAiClient.analyze(targets))
+        .willReturn(
+            new PortfolioAnalysisResult(
+                "", List.of(impact("삼성전자", ImpactLevel.HIGH, 1)), List.of()));
+    given(narrative.summarize(org.mockito.ArgumentMatchers.any())).willReturn("새 검색의 전체 설명이에요.");
+
+    var response = portfolioAnalysisService.refresh(request(asset("삼성전자", "100")), null);
+
+    verify(portfolioAnalysisAiClient).analyze(targets);
+    verifyNoInteractions(assetAnalysisService);
+    assertThat(response.overallImpact()).isEqualTo("새 검색의 전체 설명이에요.");
   }
 
   private PortfolioAnalysisRequest request(PortfolioAssetRequest... assets) {

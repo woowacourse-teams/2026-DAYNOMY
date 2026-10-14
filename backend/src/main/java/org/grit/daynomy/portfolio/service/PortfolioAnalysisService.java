@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 public class PortfolioAnalysisService {
 
   private final PortfolioAnalysisAiClient portfolioAnalysisAiClient;
+  private final PortfolioAssetAnalysisService assetAnalysisService;
   private final org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
   private final GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
@@ -47,8 +48,7 @@ public class PortfolioAnalysisService {
   }
 
   private PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
-    var result =
-        response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
+    var result = response(request, assetAnalysisService.analyze(createTargets(request.assets())));
     return result.withOverallImpact(narrative.summarize(result));
   }
 
@@ -56,6 +56,11 @@ public class PortfolioAnalysisService {
       PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous) {
     validateDistinctAssets(request.assets());
     validateTotalWeight(request.assets());
+    if (previous == null) {
+      var result =
+          response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
+      return result.withOverallImpact(narrative.summarize(result));
+    }
     try {
       // 날짜는 명시적인 ISO 문자열로 보내고 포트폴리오 소유자 정보는 보내지 않는다.
       String context =
