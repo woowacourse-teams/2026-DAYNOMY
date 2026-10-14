@@ -122,7 +122,8 @@ public class FeaturedPersonService {
     if (title == null) {
       title = person.getName() + " " + sourceLabel(sourceType) + " 게시물";
     }
-    FeaturedPersonPost post = FeaturedPersonPost.create(person, sourceType, title, url);
+    FeaturedPersonPost post =
+        FeaturedPersonPost.create(person, sourceType, title, url, request.publishedAt());
     return FeaturedPersonPostResponse.from(postRepository.saveAndFlush(post));
   }
 

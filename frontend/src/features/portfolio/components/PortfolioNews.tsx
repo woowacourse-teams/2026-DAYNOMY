@@ -16,6 +16,31 @@ function accountName(item: StockRelatedContent) {
 
 type NewsItem = StockRelatedContent & { assets: string[] };
 
+function NewsThumbnail({ item }: { item: NewsItem }) {
+  const sourceName = STOCK_CONTENT_SOURCE_LABELS[item.sourceType];
+
+  return (
+    <span
+      className={`portfolio-news-thumbnail source-${item.sourceType.toLowerCase()}`}
+      aria-hidden="true"
+    >
+      <span className="portfolio-news-thumbnail-fallback">
+        <span className="portfolio-news-thumbnail-source">{sourceName}</span>
+      </span>
+      {item.imageUrl && (
+        <img
+          src={item.imageUrl}
+          alt=""
+          loading="lazy"
+          onError={(event) => {
+            event.currentTarget.hidden = true;
+          }}
+        />
+      )}
+    </span>
+  );
+}
+
 export function PortfolioNews({
   holdings,
   hidden = false,
@@ -182,37 +207,35 @@ export function PortfolioNews({
               target={item.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}
               rel={item.sourceType === 'INTERNAL_NEWS' ? undefined : 'noreferrer'}
             >
-              <div className="portfolio-news-meta">
-                <span className={`portfolio-news-source source-${item.sourceType.toLowerCase()}`}>
-                  {STOCK_CONTENT_SOURCE_LABELS[item.sourceType]}
-                </span>
-                {item.createdAt && Number.isFinite(Date.parse(item.createdAt)) && (
-                  <time dateTime={item.createdAt}>
-                    {new Intl.DateTimeFormat('ko-KR', {
-                      month: 'numeric',
-                      day: 'numeric',
-                      timeZone: 'Asia/Seoul',
-                    }).format(new Date(item.createdAt))}{' '}
-                    등록
-                  </time>
-                )}
-              </div>
-              {accountName(item) && (
-                <span className="portfolio-news-account">{accountName(item)}</span>
-              )}
               <div className="portfolio-news-copy">
-                <strong>
-                  {['X 게시물', 'Threads 게시물'].includes(item.title.trim())
-                    ? '본문 미리보기가 없는 글입니다. 원문에서 확인하세요.'
-                    : item.title.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1')}
-                </strong>
-                {item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}
-              </div>
-              <div className="portfolio-news-bottom">
-                <span className="portfolio-news-assets">{item.assets.join(' · ')}</span>
-                <span className="portfolio-news-open">
-                  {item.sourceType === 'INTERNAL_NEWS' ? '기사 읽기' : '원문 보기 ↗'}
-                </span>
+                <NewsThumbnail item={item} />
+                <div className="portfolio-news-content">
+                  <div className="portfolio-news-meta">
+                    <span
+                      className={`portfolio-news-source source-${item.sourceType.toLowerCase()}`}
+                    >
+                      {STOCK_CONTENT_SOURCE_LABELS[item.sourceType]}
+                    </span>
+                    {accountName(item) && (
+                      <span className="portfolio-news-account">{accountName(item)}</span>
+                    )}
+                    {item.createdAt && Number.isFinite(Date.parse(item.createdAt)) && (
+                      <time dateTime={item.createdAt}>
+                        {new Intl.DateTimeFormat('ko-KR', {
+                          month: 'numeric',
+                          day: 'numeric',
+                          timeZone: 'Asia/Seoul',
+                        }).format(new Date(item.createdAt))}
+                      </time>
+                    )}
+                  </div>
+                  <strong>
+                    {['X 게시물', 'Threads 게시물'].includes(item.title.trim())
+                      ? '본문 미리보기가 없는 글입니다. 원문에서 확인하세요.'
+                      : item.title.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1')}
+                  </strong>
+                  <span className="portfolio-news-assets">{item.assets.join(' · ')}</span>
+                </div>
               </div>
             </a>
           </li>
