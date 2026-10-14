@@ -93,15 +93,15 @@ function formatRange(statistics: PortfolioReactionStatistics) {
   const lower = statistics.lowerEstimatedAmount;
   const upper = statistics.upperEstimatedAmount;
   if (lower === 0 && upper === 0) return '변화 없음';
-  if (lower === 0) return `변화 없음 – ${compactWonMagnitude(upper)} 증가`;
-  if (upper === 0) return `${compactWonMagnitude(lower)} 감소 – 변화 없음`;
+  if (lower === 0) return `변화 없음 ~ ${compactWonMagnitude(upper)} 증가`;
+  if (upper === 0) return `${compactWonMagnitude(lower)} 감소 ~ 변화 없음`;
   if (lower >= 0) {
-    return `${compactWonMagnitude(lower)} – ${compactWonMagnitude(upper)} 증가`;
+    return `${compactWonMagnitude(lower)} ~ ${compactWonMagnitude(upper)} 증가`;
   }
   if (upper <= 0) {
-    return `${compactWonMagnitude(upper)} – ${compactWonMagnitude(lower)} 감소`;
+    return `${compactWonMagnitude(upper)} ~ ${compactWonMagnitude(lower)} 감소`;
   }
-  return `${compactWonMagnitude(lower)} 감소 – ${compactWonMagnitude(upper)} 증가`;
+  return `${compactWonMagnitude(lower)} 감소 ~ ${compactWonMagnitude(upper)} 증가`;
 }
 
 function impactLabel(level: InvestmentCalendarEvent['portfolioAnalysis']['impactLevel']) {
