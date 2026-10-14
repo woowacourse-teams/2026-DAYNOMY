@@ -148,9 +148,11 @@ class OpenAiPortfolioAnalysisClientTest {
     JsonNode userContent =
         objectMapper.readTree(requestBody.path("input").get(1).path("content").asText());
     assertThat(userContent.path("assets").get(0).path("assetName").asText()).isEqualTo("삼성전자");
-    assertThat(userContent.path("assets").get(0).path("weight").decimalValue())
-        .isEqualByComparingTo("60");
-    assertThat(userContent.toString()).doesNotContain("assetId");
+    assertThat(userContent.toString()).doesNotContain("weight", "quantity", "assetId", "memberId");
+    assertThat(userContent.path("assets"))
+        .allSatisfy(asset -> assertThat(asset.size()).isEqualTo(1));
+    assertThat(requestBody.path("input").get(0).path("content").asText())
+        .contains("각 종목 자체", "서로 독립적으로", "사용자 보유 비중·수량");
   }
 
   @Test
@@ -440,9 +442,7 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   private List<PortfolioAnalysisTarget> targets() {
-    return List.of(
-        new PortfolioAnalysisTarget("삼성전자", new java.math.BigDecimal("60")),
-        new PortfolioAnalysisTarget("SK하이닉스", new java.math.BigDecimal("40")));
+    return List.of(new PortfolioAnalysisTarget("삼성전자"), new PortfolioAnalysisTarget("SK하이닉스"));
   }
 
   @Test
@@ -520,7 +520,7 @@ class OpenAiPortfolioAnalysisClientTest {
       impact.putArray("sourceUrls").add(url);
       impact.putArray("evidence").add(fact);
       search.add(Map.of("type", "url", "title", name + " 공식 발표", "url", url));
-      targets.add(new PortfolioAnalysisTarget(name, new java.math.BigDecimal("50")));
+      targets.add(new PortfolioAnalysisTarget(name));
     }
     enqueueOutputWithSearchAction(
         objectMapper.writeValueAsString(root), Map.of("type", "search", "sources", search));
@@ -728,6 +728,8 @@ class OpenAiPortfolioAnalysisClientTest {
     client.refresh(targets(), previous);
     var request = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
     assertThat(request.path("tool_choice").asText()).isEqualTo("required");
+    var targets = objectMapper.readTree(request.path("input").get(1).path("content").asText());
+    assertThat(targets.toString()).doesNotContain("weight", "quantity", "memberId");
     assertThat(request.path("input").get(2).path("content").asText()).contains("재보도", "검증 대상 데이터");
     assertThat(request.path("input").get(3).path("role").asText()).isEqualTo("user");
     assertThat(request.path("input").get(3).path("content").asText()).isEqualTo(previous);

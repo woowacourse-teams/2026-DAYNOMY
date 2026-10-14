@@ -42,9 +42,7 @@ class PortfolioAnalysisServiceTest {
   void analyzeReturnsPortfolioAnalysis() {
     PortfolioAnalysisRequest request = request(asset(" 삼성전자 ", "78"), asset("SK하이닉스", "22"));
     List<PortfolioAnalysisTarget> targets =
-        List.of(
-            new PortfolioAnalysisTarget("삼성전자", new BigDecimal("78")),
-            new PortfolioAnalysisTarget("SK하이닉스", new BigDecimal("22")));
+        List.of(new PortfolioAnalysisTarget("삼성전자"), new PortfolioAnalysisTarget("SK하이닉스"));
     PortfolioAnalysisResult analysisResult =
         new PortfolioAnalysisResult(
             "반도체 업종 비중이 높아 관련 이슈의 영향을 크게 받을 수 있어요.",
@@ -100,10 +98,10 @@ class PortfolioAnalysisServiceTest {
             asset("삼성전자", "30"), asset("SK하이닉스", "25"), asset("현대차", "20"), asset("NAVER", "25"));
     List<PortfolioAnalysisTarget> targets =
         List.of(
-            new PortfolioAnalysisTarget("삼성전자", new BigDecimal("30")),
-            new PortfolioAnalysisTarget("SK하이닉스", new BigDecimal("25")),
-            new PortfolioAnalysisTarget("현대차", new BigDecimal("20")),
-            new PortfolioAnalysisTarget("NAVER", new BigDecimal("25")));
+            new PortfolioAnalysisTarget("삼성전자"),
+            new PortfolioAnalysisTarget("SK하이닉스"),
+            new PortfolioAnalysisTarget("현대차"),
+            new PortfolioAnalysisTarget("NAVER"));
     PortfolioAnalysisResult analysisResult =
         new PortfolioAnalysisResult(
             "전체 포트폴리오 영향",
@@ -128,6 +126,55 @@ class PortfolioAnalysisServiceTest {
   }
 
   @Test
+  @DisplayName("보유 비중이 달라도 동일한 종목 분석을 요청하고 사용자별 비중으로 전체 영향을 계산한다")
+  void separatesAssetAnalysisFromPortfolioWeights() {
+    var targets =
+        List.of(new PortfolioAnalysisTarget("삼성전자"), new PortfolioAnalysisTarget("SK하이닉스"));
+    var result =
+        new PortfolioAnalysisResult(
+            "",
+            List.of(
+                impact("삼성전자", ImpactDirection.POSITIVE, ImpactLevel.HIGH, 1),
+                impact("SK하이닉스", ImpactDirection.NEGATIVE, ImpactLevel.HIGH, 2)),
+            List.of());
+    given(portfolioAnalysisAiClient.analyze(targets)).willReturn(result);
+    given(narrative.summarize(org.mockito.ArgumentMatchers.any()))
+        .willReturn("첫 사용자 구성의 전체 설명이에요.", "둘째 사용자 구성의 전체 설명이에요.");
+
+    var first =
+        portfolioAnalysisService.analyze(request(asset("삼성전자", "80"), asset("SK하이닉스", "20")), true);
+    var second =
+        portfolioAnalysisService.analyze(request(asset("삼성전자", "5"), asset("SK하이닉스", "95")), true);
+
+    verify(portfolioAnalysisAiClient, times(2)).analyze(targets);
+    assertThat(first.impacts())
+        .extracting(impact -> impact.weight())
+        .containsExactly(new BigDecimal("80"), new BigDecimal("20"));
+    assertThat(second.impacts())
+        .extracting(impact -> impact.weight())
+        .containsExactly(new BigDecimal("5"), new BigDecimal("95"));
+    assertThat(first.impacts())
+        .extracting(impact -> impact.issueSummary(), impact -> impact.sources())
+        .containsExactlyElementsOf(
+            second.impacts().stream()
+                .map(
+                    impact ->
+                        org.assertj.core.groups.Tuple.tuple(
+                            impact.issueSummary(), impact.sources()))
+                .toList());
+    assertThat(first.overallScore()).isEqualByComparingTo("60");
+    assertThat(second.overallScore()).isEqualByComparingTo("-90");
+    assertThat(first.overallDirection()).isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(second.overallDirection()).isEqualTo(ImpactDirection.NEGATIVE);
+    assertThat(first.overallImpact()).isEqualTo("첫 사용자 구성의 전체 설명이에요.");
+    assertThat(second.overallImpact()).isEqualTo("둘째 사용자 구성의 전체 설명이에요.");
+    var captured = org.mockito.ArgumentCaptor.forClass(PortfolioAnalysisResponse.class);
+    verify(narrative, times(2)).summarize(captured.capture());
+    assertThat(captured.getAllValues().get(0).impacts()).isEqualTo(first.impacts());
+    assertThat(captured.getAllValues().get(1).impacts()).isEqualTo(second.impacts());
+  }
+
+  @Test
   @DisplayName("포트폴리오가 비어 있으면 AI를 호출하지 않고 빈 분석 결과를 반환한다")
   void analyzeReturnsEmptyResponseWhenPortfolioIsEmpty() {
     PortfolioAnalysisResponse response = portfolioAnalysisService.analyze(request(), false);
@@ -145,8 +192,7 @@ class PortfolioAnalysisServiceTest {
   @DisplayName("동일한 포트폴리오를 다시 요청해도 매번 AI로 분석한다")
   void analyzeEveryRequest() {
     PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
-    List<PortfolioAnalysisTarget> targets =
-        List.of(new PortfolioAnalysisTarget("삼성전자", new BigDecimal("100")));
+    List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
     given(portfolioAnalysisAiClient.analyze(targets))
         .willReturn(new PortfolioAnalysisResult("분석 결과", List.of(), List.of()));
 
@@ -184,8 +230,7 @@ class PortfolioAnalysisServiceTest {
   @DisplayName("비회원은 포트폴리오 분석을 한 번만 성공할 수 있다")
   void guestCanAnalyzePortfolioOnlyOnce() {
     PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
-    List<PortfolioAnalysisTarget> targets =
-        List.of(new PortfolioAnalysisTarget("삼성전자", new BigDecimal("100")));
+    List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
     given(portfolioAnalysisAiClient.analyze(targets))
         .willReturn(new PortfolioAnalysisResult("분석 결과", List.of(), List.of()));
 
@@ -202,8 +247,7 @@ class PortfolioAnalysisServiceTest {
   @DisplayName("비회원 분석이 실패하면 체험 기회를 소진하지 않는다")
   void guestCanRetryWhenPortfolioAnalysisFails() {
     PortfolioAnalysisRequest request = request(asset("삼성전자", "100"));
-    List<PortfolioAnalysisTarget> targets =
-        List.of(new PortfolioAnalysisTarget("삼성전자", new BigDecimal("100")));
+    List<PortfolioAnalysisTarget> targets = List.of(new PortfolioAnalysisTarget("삼성전자"));
     given(portfolioAnalysisAiClient.analyze(targets))
         .willThrow(new IllegalStateException("분석 실패"))
         .willReturn(new PortfolioAnalysisResult("분석 결과", List.of(), List.of()));
@@ -227,9 +271,14 @@ class PortfolioAnalysisServiceTest {
 
   private PortfolioAnalysisResult.AssetImpactResult impact(
       String assetName, ImpactLevel impactLevel, int sortOrder) {
+    return impact(assetName, ImpactDirection.NEUTRAL, impactLevel, sortOrder);
+  }
+
+  private PortfolioAnalysisResult.AssetImpactResult impact(
+      String assetName, ImpactDirection direction, ImpactLevel impactLevel, int sortOrder) {
     return new PortfolioAnalysisResult.AssetImpactResult(
         assetName,
-        ImpactDirection.NEUTRAL,
+        direction,
         impactLevel,
         "관련 이슈 요약",
         "예상 반응",
