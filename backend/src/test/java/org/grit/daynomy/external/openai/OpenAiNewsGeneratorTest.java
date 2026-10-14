@@ -72,6 +72,35 @@ class OpenAiNewsGeneratorTest {
   }
 
   @Test
+  void generatorUsesUsResearchPromptWithoutChangingWriterFlow() throws Exception {
+    server.enqueue(jsonResponse(researchResponse()));
+    server.enqueue(
+        jsonResponse(
+            writerResponse(
+                List.of(
+                    validContent("미국 뉴스 0"),
+                    validContent("미국 뉴스 1"),
+                    validContent("미국 뉴스 2"),
+                    validContent("미국 뉴스 3")))));
+
+    List<GeneratedEconomicNews> generatedNews = newGenerator().generateUsEconomicNews();
+
+    assertThat(generatedNews).hasSize(4);
+    String researchRequest = server.takeRequest().getBody().readUtf8();
+    assertThat(researchRequest)
+        .contains("최근 미국 경제와 금융시장")
+        .contains("미국 현지 언론")
+        .contains("연방준비제도")
+        .doesNotContain("한국에서 발행된 주요 언론사");
+    String writerRequest = server.takeRequest().getBody().readUtf8();
+    assertThat(writerRequest)
+        .contains("조사 자료 묶음")
+        .contains("미국 뉴스 0")
+        .contains("해라체");
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
   void researcherRetriesWhenRecentDateValidationFails() throws Exception {
     server.enqueue(jsonResponse(researchResponse("2026-09-01")));
     server.enqueue(

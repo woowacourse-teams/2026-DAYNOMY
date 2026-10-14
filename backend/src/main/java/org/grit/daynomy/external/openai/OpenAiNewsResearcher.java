@@ -32,6 +32,8 @@ public class OpenAiNewsResearcher {
   private static final int MAX_ATTEMPTS = 3;
   private static final int RECENT_DAYS = 3;
   private static final String PROMPT = OpenAiPromptLoader.load("prompts/news-researcher.txt");
+  private static final String US_PROMPT =
+      OpenAiPromptLoader.load("prompts/us-news-researcher.txt");
   private static final String RETRY_INSTRUCTION =
       """
 
@@ -54,21 +56,35 @@ public class OpenAiNewsResearcher {
   }
 
   public List<EconomicNewsResearch> researchEconomicNews() {
+    return researchEconomicNews(PROMPT, "economic-news-research", RETRY_INSTRUCTION);
+  }
+
+  public List<EconomicNewsResearch> researchUsEconomicNews() {
+    String retryInstruction =
+        """
+
+        이전 조사 결과가 최신성, 독립 출처, 날짜 또는 기사 수 검증에 실패했다. 처음부터 다시 검색하라. 최근 3일 이내의 미국 경제·금융시장 사건만 선택하고, 미국 공식기관 또는 신뢰할 수 있는 미국 현지 언론의 독립 출처를 이슈마다 2곳 이상 확인하라. 본문이나 시장 분석은 작성하지 말고 검증된 facts만 반환하라.
+        """;
+    return researchEconomicNews(US_PROMPT, "us-economic-news-research", retryInstruction);
+  }
+
+  private List<EconomicNewsResearch> researchEconomicNews(
+      String prompt, String operation, String retryInstruction) {
     log.atInfo()
         .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_REQUESTED.code())
         .addKeyValue("api", "OpenAI")
-        .addKeyValue("operation", "economic-news-research")
+        .addKeyValue("operation", operation)
         .addKeyValue("model", openAiProperties.economyNewsModel())
         .log(LogEvent.AI_NEWS_GENERATION_REQUESTED.message());
 
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        return parseResearch(requestResearch(attempt));
+        return parseResearch(requestResearch(prompt, retryInstruction, attempt));
       } catch (InvalidResearchException exception) {
         log.atWarn()
             .addKeyValue("event", LogEvent.AI_NEWS_VALIDATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
-            .addKeyValue("operation", "economic-news-research")
+            .addKeyValue("operation", operation)
             .addKeyValue("attempt", attempt)
             .addKeyValue("reason", exception.getMessage())
             .log(LogEvent.AI_NEWS_VALIDATION_FAILED.message());
@@ -79,7 +95,7 @@ public class OpenAiNewsResearcher {
         log.atWarn()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
-            .addKeyValue("operation", "economic-news-research")
+            .addKeyValue("operation", operation)
             .addKeyValue("httpStatus", exception.getStatusCode().value())
             .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
         throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
@@ -87,7 +103,7 @@ public class OpenAiNewsResearcher {
         log.atWarn()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
-            .addKeyValue("operation", "economic-news-research")
+            .addKeyValue("operation", operation)
             .addKeyValue("errorType", exception.getClass().getSimpleName())
             .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
         throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
@@ -96,10 +112,10 @@ public class OpenAiNewsResearcher {
     throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
   }
 
-  private String requestResearch(int attempt) {
+  private String requestResearch(String prompt, String retryInstruction, int attempt) {
     String instruction =
-        PROMPT.formatted(LocalDate.now(ZoneId.of("Asia/Seoul")))
-            + (attempt == 1 ? "" : RETRY_INSTRUCTION);
+        prompt.formatted(LocalDate.now(ZoneId.of("Asia/Seoul")))
+            + (attempt == 1 ? "" : retryInstruction);
     return restClient
         .post()
         .uri("/responses")
