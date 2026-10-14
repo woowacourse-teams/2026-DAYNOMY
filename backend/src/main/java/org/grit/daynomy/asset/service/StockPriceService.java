@@ -1,7 +1,6 @@
 package org.grit.daynomy.asset.service;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -9,7 +8,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.dto.StockPriceResponse;
-import org.grit.daynomy.asset.dto.StockPricesResponse;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -35,21 +33,5 @@ public class StockPriceService {
         .findFirstByAssetIdOrderByBaseDateDesc(assetId)
         .map(StockPriceResponse::from)
         .orElseThrow(() -> new BusinessException(AssetErrorCode.STOCK_PRICE_NOT_FOUND));
-  }
-
-  @Transactional(readOnly = true)
-  public StockPricesResponse getPrices(List<Long> assetIds, LocalDate from, LocalDate to) {
-    if (from.isAfter(to) || ChronoUnit.DAYS.between(from, to) > 31) {
-      throw new BusinessException(AssetErrorCode.INVALID_STOCK_PRICE_QUERY_RANGE);
-    }
-    List<Long> distinctAssetIds = assetIds.stream().distinct().toList();
-    List<StockPriceResponse> prices =
-        stockDailyPriceRepository
-            .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
-                distinctAssetIds, from, to)
-            .stream()
-            .map(StockPriceResponse::from)
-            .toList();
-    return new StockPricesResponse(prices);
   }
 }
