@@ -33,4 +33,6 @@ public interface MarketTradingDayRepository extends JpaRepository<MarketTradingD
 
   List<MarketTradingDay> findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
       LocalDate date);
+
+  long countByTradingTrueAndCollectedAtIsNullAndBaseDateLessThanEqual(LocalDate date);
 }

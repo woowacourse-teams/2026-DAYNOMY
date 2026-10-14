@@ -24,6 +24,9 @@ public class MarketTradingDay {
   @Column(name = "collected_at")
   private Instant collectedAt;
 
+  @Column(name = "last_attempted_at")
+  private Instant lastAttemptedAt;
+
   public MarketTradingDay(LocalDate baseDate, boolean trading) {
     this.baseDate = baseDate;
     this.trading = trading;
@@ -38,10 +41,15 @@ public class MarketTradingDay {
     this.collectedAt = collectedAt;
   }
 
+  public void attempted(Instant attemptedAt) {
+    this.lastAttemptedAt = attemptedAt;
+  }
+
   public boolean reviseTrading(boolean trading) {
     if (this.trading == trading) return false;
     this.trading = trading;
     this.collectedAt = null;
+    this.lastAttemptedAt = null;
     return true;
   }
 }

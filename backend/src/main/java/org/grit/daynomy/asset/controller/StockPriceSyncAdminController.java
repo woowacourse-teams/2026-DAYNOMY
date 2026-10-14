@@ -24,7 +24,7 @@ public class StockPriceSyncAdminController {
 
   @Operation(
       summary = "국내 주식·ETF 종가 동기화",
-      description = "최근 2개 거래일의 KOSPI·KOSDAQ 주식과 ETF 종가를 즉시 동기화합니다.")
+      description = "거래일 달력의 미수집 거래일 중 제공 가능한 KOSPI·KOSDAQ 주식과 ETF 종가를 동기화합니다.")
   @PostMapping("/sync")
   public ResponseEntity<StockPriceSyncResponse> synchronize() {
     return ResponseEntity.ok(StockPriceSyncResponse.from(stockPriceSyncService.synchronize()));

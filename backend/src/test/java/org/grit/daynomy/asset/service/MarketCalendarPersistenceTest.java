@@ -72,9 +72,14 @@ class MarketCalendarPersistenceTest {
     Instant collected = Instant.parse("2027-01-04T08:00:00Z");
     new TransactionTemplate(transactionManager)
         .executeWithoutResult(
-            status -> repository.findByIdForUpdate(date).orElseThrow().collected(collected));
+            status -> {
+              var day = repository.findByIdForUpdate(date).orElseThrow();
+              day.attempted(collected);
+              day.collected(collected);
+            });
     service.synchronize(today);
     assertThat(repository.findById(date).orElseThrow().getCollectedAt()).isEqualTo(collected);
+    assertThat(repository.findById(date).orElseThrow().getLastAttemptedAt()).isEqualTo(collected);
     verify(events).publishEvent(new MarketCalendarSyncResult(365));
     verifyNoMoreInteractions(events);
 
@@ -82,6 +87,7 @@ class MarketCalendarPersistenceTest {
     service.synchronize(today);
     assertThat(repository.findById(date).orElseThrow().isTrading()).isFalse();
     assertThat(repository.findById(date).orElseThrow().getCollectedAt()).isNull();
+    assertThat(repository.findById(date).orElseThrow().getLastAttemptedAt()).isNull();
     when(client.holidays(2027)).thenReturn(Set.of(holiday));
     service.synchronize(today);
     assertThat(repository.findById(date).orElseThrow().isTrading()).isTrue();
