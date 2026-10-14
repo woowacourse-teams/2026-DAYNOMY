@@ -48,12 +48,17 @@ test('관리자 최근 종가 동기화 API는 CSRF 토큰과 함께 요청한�
       createdCount: 3400,
       updatedCount: 50,
       skippedCount: 50,
+      synchronizedDateCount: 2,
+      pendingDateCount: 1,
+      failedDateCount: 1,
     });
   };
 
   const result = await syncAdminStockPrices();
 
   assert.equal(result.receivedCount, 3500);
+  assert.equal(result.synchronizedDateCount, 2);
+  assert.equal(result.pendingDateCount, 1);
   assert.equal(calls[1].url, '/api/admin/stocks/prices/sync');
   assert.equal(calls[1].init?.method, 'POST');
   assert.equal(new Headers(calls[1].init?.headers).get('X-CSRF-TOKEN'), 'csrf-token');

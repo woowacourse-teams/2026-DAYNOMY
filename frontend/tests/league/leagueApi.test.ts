@@ -134,6 +134,53 @@ test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 �
   }
 });
 
+test('최신 집계일 이후 종가 수집 대기가 있어도 집계된 주간 누적을 표시한다', async () => {
+  const history = {
+    weekStart: '2026-10-12',
+    weekEnd: '2026-10-18',
+    asOfDate: '2026-10-13',
+    eligibleFrom: '2026-10-13',
+    trackingStartedOn: '2026-10-13',
+    confirmed: false,
+    weeklyReturnRate: 0,
+    days: [
+      {
+        baseDate: '2026-10-12',
+        dailyReturnRate: null,
+        cumulativeReturnRate: null,
+        status: 'NOT_PARTICIPATING',
+        reason: null,
+      },
+      {
+        baseDate: '2026-10-13',
+        dailyReturnRate: 0,
+        cumulativeReturnRate: 0,
+        status: 'CALCULATED',
+        reason: 'TRACKING_BASELINE',
+      },
+      {
+        baseDate: '2026-10-14',
+        dailyReturnRate: null,
+        cumulativeReturnRate: null,
+        status: 'EXCLUDED',
+        reason: 'PRICE_COLLECTION_PENDING',
+      },
+    ],
+  };
+  for (const status of ['PENDING', 'EXCLUDED']) {
+    globalThis.fetch = async () =>
+      jsonResponse({
+        ...history,
+        days: history.days.map((day, index) => (index === 2 ? { ...day, status } : day)),
+      });
+    const response = await getDailyHistory('investor-1', history.weekStart);
+    assert.equal(response.weeklyReturnRate, 0);
+    assert.equal(response.days[2].dailyReturnRate, null);
+  }
+  globalThis.fetch = async () => jsonResponse({ ...history, confirmed: true });
+  await assert.rejects(getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
+});
+
 test('공개 상세의 중첩된 판단 기록까지 런타임에 검증한다', async () => {
   globalThis.fetch = async () =>
     jsonResponse({

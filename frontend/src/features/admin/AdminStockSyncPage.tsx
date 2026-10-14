@@ -55,7 +55,7 @@ export function AdminStockSyncPage() {
         <div>
           <p className="admin-kicker">자산 데이터 운영</p>
           <h1>주식·ETF 동기화</h1>
-          <p>종목 정보와 최근 거래일 종가를 필요한 시점에 직접 갱신하세요.</p>
+          <p>종목 정보와 빠진 거래일 종가를 필요할 때 수동으로 다시 수집할 수 있습니다.</p>
         </div>
       </div>
 
@@ -112,8 +112,8 @@ export function AdminStockSyncPage() {
         <section className="admin-sync-card" aria-labelledby="stock-price-sync-title">
           <div>
             <p className="admin-panel-eyebrow">일별 시세</p>
-            <h2 id="stock-price-sync-title">최근 종가 동기화</h2>
-            <p>주말과 공휴일을 고려해 가장 최근 거래일의 주식·ETF 종가를 저장합니다.</p>
+            <h2 id="stock-price-sync-title">빠진 종가 동기화</h2>
+            <p>거래일 달력에서 수집되지 않은 주식·ETF 종가를 다시 수집합니다.</p>
           </div>
           <button
             type="button"
@@ -121,13 +121,33 @@ export function AdminStockSyncPage() {
             disabled={runningTask !== null}
             onClick={handlePriceSync}
           >
-            {runningTask === 'prices' ? '동기화 중…' : '최근 종가 동기화'}
+            {runningTask === 'prices' ? '동기화 중…' : '빠진 종가 동기화'}
           </button>
 
           {priceResult ? (
             <div className="admin-sync-result" role="status" aria-live="polite">
-              <strong>{formatBaseDate(priceResult.baseDate)} 기준 동기화 완료</strong>
+              <strong>
+                {priceResult.synchronizedDateCount > 0 && priceResult.baseDate
+                  ? `${formatBaseDate(priceResult.baseDate)} 기준 ${priceResult.pendingDateCount > 0 ? '일부 수집 완료' : '동기화 완료'}`
+                  : priceResult.pendingDateCount > 0
+                    ? '미수집 종가가 남아 있습니다.'
+                    : '새로 수집할 종가가 없습니다.'}
+              </strong>
               <dl>
+                <div>
+                  <dt>수집 완료 날짜</dt>
+                  <dd>{priceResult.synchronizedDateCount.toLocaleString('ko-KR')}일</dd>
+                </div>
+                <div>
+                  <dt>남은 미수집 날짜</dt>
+                  <dd>{priceResult.pendingDateCount.toLocaleString('ko-KR')}일</dd>
+                </div>
+                {priceResult.failedDateCount > 0 ? (
+                  <div>
+                    <dt>이번 실행 실패 날짜</dt>
+                    <dd>{priceResult.failedDateCount.toLocaleString('ko-KR')}일</dd>
+                  </div>
+                ) : null}
                 <div>
                   <dt>수신</dt>
                   <dd>{priceResult.receivedCount.toLocaleString('ko-KR')}건</dd>
@@ -145,6 +165,9 @@ export function AdminStockSyncPage() {
                   <dd>{priceResult.skippedCount.toLocaleString('ko-KR')}건</dd>
                 </div>
               </dl>
+              {priceResult.pendingDateCount > 0 ? (
+                <p>남은 날짜는 종가 제공 후 다음 자동 실행에서 다시 확인합니다.</p>
+              ) : null}
             </div>
           ) : null}
 

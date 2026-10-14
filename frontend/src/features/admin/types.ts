@@ -95,9 +95,12 @@ export type AdminStockSyncResponse = {
 };
 
 export type AdminStockPriceSyncResponse = {
-  baseDate: string;
+  baseDate: string | null;
   receivedCount: number;
   createdCount: number;
   updatedCount: number;
   skippedCount: number;
+  synchronizedDateCount: number;
+  pendingDateCount: number;
+  failedDateCount: number;
 };

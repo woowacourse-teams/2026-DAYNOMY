@@ -152,11 +152,17 @@ function isAdminStockSyncResponse(value: unknown): value is AdminStockSyncRespon
 function isAdminStockPriceSyncResponse(value: unknown): value is AdminStockPriceSyncResponse {
   return (
     isRecord(value) &&
-    typeof value.baseDate === 'string' &&
+    (value.baseDate === null || typeof value.baseDate === 'string') &&
     typeof value.receivedCount === 'number' &&
     typeof value.createdCount === 'number' &&
     typeof value.updatedCount === 'number' &&
-    typeof value.skippedCount === 'number'
+    typeof value.skippedCount === 'number' &&
+    Number.isInteger(value.synchronizedDateCount) &&
+    Number(value.synchronizedDateCount) >= 0 &&
+    Number.isInteger(value.pendingDateCount) &&
+    Number(value.pendingDateCount) >= 0 &&
+    Number.isInteger(value.failedDateCount) &&
+    Number(value.failedDateCount) >= 0
   );
 }
 

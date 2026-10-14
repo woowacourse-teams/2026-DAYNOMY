@@ -340,6 +340,7 @@ function isDailyHistory(value: unknown): value is DailyHistory {
   let complete = true;
   let begun = false;
   let asOfDate: string | null = null;
+  let latestCumulativeReturnRate: number | null = null;
   for (const day of value.days) {
     if (
       !isRecord(day) ||
@@ -359,13 +360,16 @@ function isDailyHistory(value: unknown): value is DailyHistory {
     if (calculated) begun = true;
     if (!calculated && (begun || day.status !== 'NOT_PARTICIPATING')) complete = false;
     if ((complete && calculated) !== (day.cumulativeReturnRate !== null)) return false;
-    if (calculated) asOfDate = day.baseDate;
+    if (calculated) {
+      asOfDate = day.baseDate;
+      latestCumulativeReturnRate = day.cumulativeReturnRate;
+    }
   }
-  const last = value.days.at(-1);
   return (
     value.asOfDate === asOfDate &&
-    value.weeklyReturnRate === (last?.cumulativeReturnRate ?? null) &&
-    (!value.confirmed || value.weeklyReturnRate !== null)
+    (value.weeklyReturnRate === latestCumulativeReturnRate ||
+      (!complete && value.weeklyReturnRate === null)) &&
+    (!value.confirmed || (complete && value.weeklyReturnRate !== null))
   );
 }
 
