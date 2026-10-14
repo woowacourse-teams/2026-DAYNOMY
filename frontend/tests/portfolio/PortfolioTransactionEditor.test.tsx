@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getLatestStockPrice, searchStocks } from '../../src/features/portfolio/api';
+import { getLatestStockPrice, searchStocks } from '../../src/features/stocks/api';
 import { PortfolioTransactionEditor } from '../../src/features/portfolio/components/PortfolioTransactionEditor';
-import type { PortfolioHoldingHistory, StockPrice } from '../../src/features/portfolio/types';
+import type { PortfolioHoldingHistory } from '../../src/features/portfolio/types';
+import type { StockPrice } from '../../src/features/stocks/types';
 
-vi.mock('../../src/features/portfolio/api', () => ({
+vi.mock('../../src/features/stocks/api', () => ({
   getLatestStockPrice: vi.fn(),
   searchStocks: vi.fn(),
 }));

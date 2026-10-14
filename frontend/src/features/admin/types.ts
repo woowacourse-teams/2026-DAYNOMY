@@ -1,5 +1,5 @@
 import type { Category } from '../news/newslist/types';
-import type { StockSearchItem } from '../portfolio/types';
+import type { StockSearchItem } from '../stocks/types';
 
 export type AdminNewsStatus = 'DRAFT' | 'PUBLISHED' | 'REJECTED' | 'DELETED';
 export type AdminNewsSource = {

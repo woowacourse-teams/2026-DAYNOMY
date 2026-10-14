@@ -1,6 +1,7 @@
 import { trackEvent } from '../../analytics';
 import { ApiError } from '../../api/client';
-import type { AssetCategory, PortfolioTrendPeriod, StockMarket } from './types';
+import type { PortfolioTrendPeriod } from './types';
+import type { AssetCategory, StockMarket } from '../stocks/types';
 
 const EVENTS = [
   'portfolio_dashboard_viewed',

@@ -21,12 +21,12 @@ import {
   type GuestPortfolioLedger,
 } from '../guestPortfolioLedger';
 import type {
-  StockSearchItem,
   PortfolioHoldingInput,
   PortfolioTransactionRequest,
   PortfolioTransactionUpdateRequest,
   PortfolioTransactionResponse,
 } from '../types';
+import type { StockSearchItem } from '../../stocks/types';
 
 export function usePortfolioHoldings(isLoggedIn = true) {
   const [guestLedger, setGuestLedger] = useState<GuestPortfolioLedger | null>(null);
