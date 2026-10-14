@@ -52,7 +52,7 @@
 }
 .issue-briefing {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.8fr);
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
   gap: 32px;
   padding-bottom: 24px;
   margin-bottom: 36px;
