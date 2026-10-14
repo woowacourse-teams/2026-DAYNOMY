@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -13,7 +15,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
@@ -21,6 +27,7 @@ import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.config.ValidationConfig;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 import org.grit.daynomy.portfolio.dto.PortfolioCurrentPerformanceResponse;
@@ -38,6 +45,9 @@ import org.grit.daynomy.portfolio.service.SavedPortfolioService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -56,16 +66,25 @@ import org.springframework.test.web.servlet.MockMvc;
     excludeFilters =
         @Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthenticationFilter.class))
 @AutoConfigureMockMvc(addFilters = false)
-@Import(GlobalExceptionHandler.class)
+@Import({GlobalExceptionHandler.class, ValidationConfig.class})
 @EnableWebSecurity
 class SavedPortfolioControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private SavedPortfolioService savedPortfolioService;
   @MockitoBean private PortfolioSnapshotService snapshotService;
+  private MockedStatic<Clock> clocks;
 
   @BeforeEach
   void setUpAuthentication() {
+    Instant now = Instant.parse("2026-10-13T15:00:00Z");
+    Clock utcClock = Clock.fixed(now, ZoneOffset.UTC);
+    ZoneId seoul = ZoneId.of("Asia/Seoul");
+    Clock seoulClock = Clock.fixed(now, seoul);
+    clocks = mockStatic(Clock.class, CALLS_REAL_METHODS);
+    clocks.when(Clock::systemDefaultZone).thenReturn(utcClock);
+    clocks.when(() -> Clock.system(seoul)).thenReturn(seoulClock);
+
     var member = new AuthenticatedMember(3L, MemberRole.USER);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken(member, null, List.of()));
@@ -74,6 +93,7 @@ class SavedPortfolioControllerTest {
   @AfterEach
   void clearAuthentication() {
     SecurityContextHolder.clearContext();
+    clocks.close();
   }
 
   @Test
@@ -194,8 +214,89 @@ class SavedPortfolioControllerTest {
     then(savedPortfolioService).should().updateTransaction(3L, 7L, request);
   }
 
-  @Test
-  void updateTransactionRejectsFutureTradeDate() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"2026-10-13", "2026-10-14"})
+  void transactionAcceptsPastAndTodayInSeoulWhenUtcIsYesterday(String tradeDate) throws Exception {
+    var request =
+        new PortfolioTransactionRequest(
+            1L,
+            PortfolioTransactionType.BUY,
+            LocalDate.parse(tradeDate),
+            3L,
+            new BigDecimal("81000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    given(savedPortfolioService.transact(3L, request))
+        .willReturn(new PortfolioTransactionResponse(7L, null, BigDecimal.ZERO));
+
+    mockMvc
+        .perform(
+            post("/api/portfolio/transactions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"assetId":1,"type":"BUY","tradeDate":"%s",
+                     "quantity":3,"unitPrice":81000,"fee":0,"tax":0}
+                    """
+                        .formatted(tradeDate)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.transactionId").value(7));
+
+    then(savedPortfolioService).should().transact(3L, request);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2026-10-13", "2026-10-14"})
+  void updateTransactionAcceptsPastAndTodayInSeoulWhenUtcIsYesterday(String tradeDate)
+      throws Exception {
+    var request =
+        new PortfolioTransactionUpdateRequest(
+            LocalDate.parse(tradeDate),
+            3L,
+            new BigDecimal("81000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    given(savedPortfolioService.updateTransaction(3L, 7L, request))
+        .willReturn(new PortfolioTransactionResponse(7L, null, BigDecimal.ZERO));
+
+    mockMvc
+        .perform(
+            patch("/api/portfolio/transactions/7")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"tradeDate":"%s","quantity":3,"unitPrice":81000,"fee":0,"tax":0}
+                    """
+                        .formatted(tradeDate)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.transactionId").value(7));
+
+    then(savedPortfolioService).should().updateTransaction(3L, 7L, request);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2026-10-15", "2099-01-01"})
+  void transactionRejectsFutureTradeDateInSeoul(String tradeDate) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/portfolio/transactions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"assetId":1,"type":"BUY","tradeDate":"%s",
+                     "quantity":3,"unitPrice":81000,"fee":0,"tax":0}
+                    """
+                        .formatted(tradeDate)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("tradeDate"));
+
+    then(savedPortfolioService).shouldHaveNoInteractions();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2026-10-15", "2099-01-01"})
+  void updateTransactionRejectsFutureTradeDate(String tradeDate) throws Exception {
     mockMvc
         .perform(
             patch("/api/portfolio/transactions/7")
@@ -203,15 +304,17 @@ class SavedPortfolioControllerTest {
                 .content(
                     """
                     {
-                      "tradeDate": "2099-01-01",
+                      "tradeDate": "%s",
                       "quantity": 3,
                       "unitPrice": 81000,
                       "fee": 0,
                       "tax": 0
                     }
-                    """))
+                    """
+                        .formatted(tradeDate)))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("tradeDate"));
 
     then(savedPortfolioService).shouldHaveNoInteractions();
   }
