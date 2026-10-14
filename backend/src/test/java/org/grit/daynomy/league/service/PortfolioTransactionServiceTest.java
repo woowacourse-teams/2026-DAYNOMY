@@ -119,6 +119,34 @@ class PortfolioTransactionServiceTest {
   }
 
   @Test
+  void revisesOwnedReviewWithoutChangingTheInitialDecision() {
+    var transaction = transaction(SharedPortfolio.create(mock(Member.class)), TransactionType.HOLD);
+    var review = new InvestmentReview(transaction, "기존 결과", "기존 차이", "기존 행동");
+    given(reviewRepository.findByIdAndTransactionIdAndTransactionPortfolioMemberId(8L, 7L, 1L))
+        .willReturn(Optional.of(review));
+
+    var response = service.reviseReview(1L, 7L, 8L, new ReviewRequest(" 수정 결과 ", "수정 차이", "수정 행동"));
+
+    assertThat(response.actualResult()).isEqualTo("수정 결과");
+    assertThat(review.getNextAction()).isEqualTo("수정 행동");
+    assertThat(transaction.getDecisionReason()).isEqualTo("장기 성장");
+    then(reviewRepository).should().flush();
+  }
+
+  @Test
+  void cannotReviseAnotherMembersReview() {
+    assertThatThrownBy(
+            () -> service.reviseReview(1L, 7L, 8L, new ReviewRequest("결과", "차이", "다음 행동")))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error -> assertThat(error.errorCode()).isEqualTo(LeagueErrorCode.REVIEW_NOT_FOUND));
+    then(reviewRepository)
+        .should()
+        .findByIdAndTransactionIdAndTransactionPortfolioMemberId(8L, 7L, 1L);
+    then(reviewRepository).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
   void holdingDecisionRetryRejectsChangedPayloadAndLegacyTradeKeys() {
     Member member = mock(Member.class);
     SharedPortfolio portfolio = SharedPortfolio.create(member);

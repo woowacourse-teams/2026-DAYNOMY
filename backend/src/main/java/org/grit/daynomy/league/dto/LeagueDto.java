@@ -92,14 +92,16 @@ public final class LeagueDto {
       String actualResult,
       String differenceFromExpectation,
       String nextAction,
-      Instant createdAt) {
+      Instant createdAt,
+      Instant updatedAt) {
     public static ReviewResponse from(InvestmentReview review) {
       return new ReviewResponse(
           review.getId(),
           review.getActualResult(),
           review.getDifferenceFromExpectation(),
           review.getNextAction(),
-          review.getCreatedAt());
+          review.getCreatedAt(),
+          review.getUpdatedAt());
     }
   }
 

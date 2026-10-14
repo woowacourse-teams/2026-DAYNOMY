@@ -126,6 +126,20 @@ public class PortfolioTransactionService {
                 request.nextAction())));
   }
 
+  @Transactional
+  public ReviewResponse reviseReview(
+      Long memberId, Long transactionId, Long reviewId, ReviewRequest request) {
+    InvestmentReview review =
+        reviewRepository
+            .findByIdAndTransactionIdAndTransactionPortfolioMemberId(
+                reviewId, transactionId, memberId)
+            .orElseThrow(() -> new BusinessException(LeagueErrorCode.REVIEW_NOT_FOUND));
+    review.revise(
+        request.actualResult(), request.differenceFromExpectation(), request.nextAction());
+    reviewRepository.flush();
+    return ReviewResponse.from(review);
+  }
+
   private Member getMemberForUpdate(Long memberId) {
     return memberRepository
         .findByIdForUpdate(memberId)

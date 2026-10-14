@@ -1003,17 +1003,34 @@ class SharedPortfolioAcceptanceTest {
         .post("/api/users/me/portfolio/decisions/" + id + "/reviews")
         .then()
         .statusCode(404);
+    var savedReview =
+        client(owner)
+            .body(review)
+            .post("/api/users/me/portfolio/decisions/" + id + "/reviews")
+            .then()
+            .statusCode(201)
+            .extract();
+    long reviewId = savedReview.jsonPath().getLong("id");
+    String createdAt = savedReview.path("createdAt");
+    String reviewPath = "/api/users/me/portfolio/decisions/" + id + "/reviews/" + reviewId;
+    String revisedReview = review.replace("예상을 점검했습니다", "결과를 다시 확인했습니다");
+    client(viewer).body(revisedReview).put(reviewPath).then().statusCode(404);
     client(owner)
-        .body(review)
-        .post("/api/users/me/portfolio/decisions/" + id + "/reviews")
+        .body(revisedReview)
+        .put(reviewPath)
         .then()
-        .statusCode(201);
+        .statusCode(200)
+        .header("Cache-Control", "no-store")
+        .body("actualResult", equalTo("결과를 다시 확인했습니다"))
+        .body("createdAt", equalTo(createdAt))
+        .body("updatedAt", notNullValue());
     client(owner)
         .get("/api/users/me/portfolio/transactions")
         .then()
         .statusCode(200)
         .body("transactions", hasSize(1))
-        .body("transactions[0].reviews", hasSize(1));
+        .body("transactions[0].reviews", hasSize(1))
+        .body("transactions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"));
     String publicId =
         client(owner)
             .body(
@@ -1067,6 +1084,7 @@ class SharedPortfolioAcceptanceTest {
         .body("decisions", hasSize(1))
         .body("decisions[0].reason", equalTo("실적을 확인한 보유 판단"))
         .body("decisions[0].reviews", hasSize(1))
+        .body("decisions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"))
         .body("email", nullValue())
         .body("name", nullValue());
     client(viewer).get(detail).then().statusCode(200).body("decisions", hasSize(1));

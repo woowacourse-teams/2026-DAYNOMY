@@ -141,6 +141,7 @@ java -jar build/libs/daynomy-0.0.1-SNAPSHOT.jar
 자산과 보유 판단을 하나의 트랜잭션으로 저장한다. 참여 전의 기존 가져오기 요청도 지원한다.
 보유 이유만 필수이고 나머지 판단 항목·결과 복기는 선택이다. 보유 기간·허용 하락률의
 미입력을 허용하는 V32 마이그레이션을 배포 시 적용해야 한다. 기존 판단은 덮어쓰지 않는다.
+본인 복기는 `PUT /api/users/me/portfolio/decisions/{transactionId}/reviews/{reviewId}`로 수정한다. 최초 판단과 복기 작성 시각은 유지하고 `updatedAt`을 응답한다.
 
 ## 투자 리그 집계
 

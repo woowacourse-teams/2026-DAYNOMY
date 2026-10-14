@@ -87,6 +87,18 @@ public class MyLeagueController {
         .body(transactionService.addReview(member.memberId(), transactionId, request));
   }
 
+  @Operation(summary = "내 투자 판단 복기 수정")
+  @PutMapping("/portfolio/decisions/{transactionId}/reviews/{reviewId}")
+  public ResponseEntity<ReviewResponse> reviseReview(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId,
+      @PathVariable Long reviewId,
+      @Valid @RequestBody ReviewRequest request) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(transactionService.reviseReview(member.memberId(), transactionId, reviewId, request));
+  }
+
   @Operation(summary = "보유 자산의 판단 기록 (수량 변경 없음)")
   @PostMapping("/portfolio/decisions")
   public ResponseEntity<TransactionResponse> recordDecision(
