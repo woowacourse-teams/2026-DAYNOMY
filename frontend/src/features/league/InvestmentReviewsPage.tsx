@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { createReview, getTransactions } from './api';
+import { createReview, getTransactions, updateReview } from './api';
 import { holdingPeriodLabels, transactionLabels } from './labels';
 import type { InvestmentTransaction } from './types';
 import './league.css';
@@ -15,6 +15,7 @@ export function InvestmentReviewsPage() {
   const [loadError, setLoadError] = useState('');
   const [retry, setRetry] = useState(0);
   const [reviewId, setReviewId] = useState<number | null>(null);
+  const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
   const [review, setReview] = useState(blankReview);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -42,15 +43,27 @@ export function InvestmentReviewsPage() {
     setError('');
     setMessage('');
     try {
-      const saved = await createReview(reviewId, review);
+      const saved =
+        editingReviewId === null
+          ? await createReview(reviewId, review)
+          : await updateReview(reviewId, editingReviewId, review);
       setRecords((values) =>
         (values ?? []).map((r) =>
-          r.id === reviewId ? { ...r, reviews: [...r.reviews, saved] } : r,
+          r.id === reviewId
+            ? {
+                ...r,
+                reviews:
+                  editingReviewId === null
+                    ? [...r.reviews, saved]
+                    : r.reviews.map((item) => (item.id === editingReviewId ? saved : item)),
+              }
+            : r,
         ),
       );
       setReviewId(null);
+      setEditingReviewId(null);
       setReview(blankReview());
-      setMessage('복기를 저장했습니다.');
+      setMessage(editingReviewId === null ? '복기를 저장했습니다.' : '복기를 수정했습니다.');
     } catch (caught) {
       setError(messageOf(caught));
     } finally {
@@ -114,6 +127,28 @@ export function InvestmentReviewsPage() {
                 <dd>{item.nextAction}</dd>
               </div>
             </dl>
+            {item.updatedAt ? (
+              <small>
+                작성 {item.createdAt.slice(0, 10)} · 마지막 저장 {item.updatedAt.slice(0, 10)}
+              </small>
+            ) : null}
+            <button
+              type="button"
+              disabled={busy || reviewId !== null}
+              onClick={() => {
+                setReviewId(r.id);
+                setEditingReviewId(item.id);
+                setReview({
+                  actualResult: item.actualResult,
+                  differenceFromExpectation: item.differenceFromExpectation,
+                  nextAction: item.nextAction,
+                });
+                setError('');
+                setMessage('');
+              }}
+            >
+              복기 수정
+            </button>
           </div>
         ))}
         <button
@@ -121,6 +156,7 @@ export function InvestmentReviewsPage() {
           disabled={busy || reviewId !== null}
           onClick={() => {
             setReviewId(r.id);
+            setEditingReviewId(null);
             setReview(blankReview());
             setError('');
             setMessage('');
@@ -131,7 +167,9 @@ export function InvestmentReviewsPage() {
         {reviewId === r.id ? (
           <form className="shared-edit-form" onSubmit={(event) => void saveReview(event)}>
             <fieldset disabled={busy}>
-              <legend>{r.assetName} 결과 복기</legend>
+              <legend>
+                {r.assetName} 결과 복기 {editingReviewId === null ? '추가' : '수정'}
+              </legend>
               <label className="shared-reason">
                 실제 결과
                 <textarea
@@ -176,13 +214,14 @@ export function InvestmentReviewsPage() {
             ) : null}
             <div className="shared-form-actions">
               <button className="shared-primary-button" disabled={busy}>
-                {busy ? '저장 중…' : '복기 저장'}
+                {busy ? '저장 중…' : editingReviewId === null ? '복기 저장' : '수정 저장'}
               </button>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => {
                   setReviewId(null);
+                  setEditingReviewId(null);
                   setError('');
                 }}
               >

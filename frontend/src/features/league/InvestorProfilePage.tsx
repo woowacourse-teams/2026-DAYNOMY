@@ -371,6 +371,13 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                       <p>{review.actualResult}</p>
                       <p>예상과 달랐던 점: {review.differenceFromExpectation}</p>
                       <small>다음 행동: {review.nextAction}</small>
+                      {review.updatedAt ? (
+                        <small>
+                          {' '}
+                          · 작성 {review.createdAt.slice(0, 10)} · 마지막 저장{' '}
+                          {review.updatedAt.slice(0, 10)}
+                        </small>
+                      ) : null}
                     </blockquote>
                   ))}
                 </li>

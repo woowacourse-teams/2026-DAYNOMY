@@ -11,6 +11,7 @@ vi.mock('../../src/features/league/api', () => ({
   getTransactions: vi.fn(),
   recordDecision: vi.fn(),
   createReview: vi.fn(),
+  updateReview: vi.fn(),
 }));
 const holding = {
   assetId: 1,
@@ -155,6 +156,40 @@ describe('종목 보유 이유와 별도 투자 복기', () => {
     expect(await view.findByRole('alert')).toHaveProperty('textContent', '복기 실패');
     expect(view.getByLabelText('다음 행동')).toHaveProperty('value', '행동');
     expect(view.getByText(saved.reason)).toBeTruthy();
+  });
+
+  it('기존 복기를 수정하고 작성 시각과 판단은 유지한다', async () => {
+    const original = {
+      id: 2,
+      actualResult: '기존 결과',
+      differenceFromExpectation: '기존 차이',
+      nextAction: '기존 행동',
+      createdAt: '2026-10-06T00:00:00Z',
+    };
+    vi.mocked(api.getTransactions).mockResolvedValue([{ ...saved, reviews: [original] }]);
+    vi.mocked(api.updateReview).mockResolvedValue({
+      ...original,
+      actualResult: '수정한 결과',
+      updatedAt: '2026-10-07T00:00:00Z',
+    });
+    const view = render(
+      <MemoryRouter>
+        <InvestmentReviewsPage />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await view.findByRole('button', { name: '복기 수정' }));
+    expect(view.getByLabelText('다음 행동')).toHaveProperty('value', '기존 행동');
+    fireEvent.change(view.getByLabelText('실제 결과'), { target: { value: '수정한 결과' } });
+    fireEvent.click(view.getByRole('button', { name: '수정 저장' }));
+    expect(await view.findByText('수정한 결과')).toBeTruthy();
+    expect(view.getByText(saved.reason)).toBeTruthy();
+    expect(view.getByText('작성 2026-10-06 · 마지막 저장 2026-10-07')).toBeTruthy();
+    expect(api.updateReview).toHaveBeenCalledWith(1, 2, {
+      actualResult: '수정한 결과',
+      differenceFromExpectation: '기존 차이',
+      nextAction: '기존 행동',
+    });
+    expect(api.createReview).not.toHaveBeenCalled();
   });
   it('보유 이유만 저장하고 선택 항목을 임의의 기간이나 하락률로 채우지 않는다', async () => {
     vi.mocked(api.recordDecision).mockResolvedValue({

@@ -126,6 +126,7 @@ export type InvestmentReview = {
   differenceFromExpectation: string;
   nextAction: string;
   createdAt: string;
+  updatedAt?: string | null;
 };
 
 export type InvestmentDecisionInput = {

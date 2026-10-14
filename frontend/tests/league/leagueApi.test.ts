@@ -6,6 +6,7 @@ import {
   getRankings,
   getDailyHistory,
   getFollowSummary,
+  updateReview,
 } from '../../src/features/league/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -240,6 +241,35 @@ test('투자 판단 저장 요청에 CSRF 토큰과 멱등 키를 전송한다',
   assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
   assert.equal(JSON.parse(String(calls[1]?.init?.body)).requestKey, 'request-1');
   assert.equal(JSON.parse(String(calls[1]?.init?.body)).quantity, undefined);
+});
+
+test('내 복기 수정은 해당 판단과 복기 ID로 PUT 요청한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    if (String(input) === '/api/auth/csrf') {
+      return jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' });
+    }
+    return jsonResponse({
+      id: 2,
+      actualResult: '수정한 결과',
+      differenceFromExpectation: '차이',
+      nextAction: '다음 행동',
+      createdAt: '2026-10-06T00:00:00Z',
+      updatedAt: '2026-10-07T00:00:00Z',
+    });
+  };
+
+  const result = await updateReview(1, 2, {
+    actualResult: '수정한 결과',
+    differenceFromExpectation: '차이',
+    nextAction: '다음 행동',
+  });
+  assert.equal(calls[1]?.url, '/api/users/me/portfolio/decisions/1/reviews/2');
+  assert.equal(calls[1]?.init?.method, 'PUT');
+  assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
+  assert.equal(result.createdAt, '2026-10-06T00:00:00Z');
+  assert.equal(result.updatedAt, '2026-10-07T00:00:00Z');
 });
 
 test('주중 참여는 기준 종가부터 0%로 이번 주 누적 순위에 반영한다', async () => {

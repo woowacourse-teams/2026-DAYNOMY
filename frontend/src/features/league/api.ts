@@ -210,7 +210,10 @@ function isReview(value: unknown): value is InvestmentReview {
     typeof value.actualResult === 'string' &&
     typeof value.differenceFromExpectation === 'string' &&
     typeof value.nextAction === 'string' &&
-    typeof value.createdAt === 'string'
+    typeof value.createdAt === 'string' &&
+    (value.updatedAt === undefined ||
+      value.updatedAt === null ||
+      typeof value.updatedAt === 'string')
   );
 }
 
@@ -463,6 +466,24 @@ export async function createReview(
   );
   if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
   trackEvent('save_investment_review', { origin: 'shared_portfolio' });
+  return response;
+}
+
+export async function updateReview(
+  transactionId: number,
+  reviewId: number,
+  input: { actualResult: string; differenceFromExpectation: string; nextAction: string },
+) {
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/decisions/${transactionId}/reviews/${reviewId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
+  trackEvent('edit_investment_review', { origin: 'shared_portfolio' });
   return response;
 }
 
