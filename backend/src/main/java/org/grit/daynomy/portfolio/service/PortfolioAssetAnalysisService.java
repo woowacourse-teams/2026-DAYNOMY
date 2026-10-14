@@ -8,13 +8,22 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult.AssetImpactResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
 import org.grit.daynomy.portfolio.repository.PortfolioAssetAnalysisRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -27,11 +36,26 @@ public class PortfolioAssetAnalysisService {
   private final Duration ttl;
   private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
+  // 모델과 분석 버전은 이 서비스 인스턴스에서 고정이므로 종목명으로 진행 중 작업을 구분한다.
+  private final Map<String, CompletableFuture<AssetImpactResult>> inFlight = new HashMap<>();
+  private final Duration waitTimeout;
+
+  @Autowired
   public PortfolioAssetAnalysisService(
       PortfolioAssetAnalysisRepository repository,
       PortfolioAnalysisAiClient ai,
       @Value("${ai.openai.model:gpt-5-mini}") String model,
       @Value("${portfolio.analysis.cache-ttl:30m}") Duration ttl) {
+    this(repository, ai, model, ttl, Duration.ofMinutes(3));
+  }
+
+  PortfolioAssetAnalysisService(
+      PortfolioAssetAnalysisRepository repository,
+      PortfolioAnalysisAiClient ai,
+      String model,
+      Duration ttl,
+      Duration waitTimeout) {
+    this.waitTimeout = waitTimeout;
     if (ttl.isZero() || ttl.isNegative()) {
       throw new IllegalArgumentException("종목 분석 유효기간은 0보다 커야 합니다.");
     }
@@ -55,19 +79,64 @@ public class PortfolioAssetAnalysisService {
         .forEach(saved -> results.put(saved.getAssetName(), saved.getSnapshot()));
     var missing =
         targets.stream().filter(target -> !results.containsKey(target.assetName())).toList();
-    if (!missing.isEmpty()) {
-      var generated = ai.analyze(missing);
-      freshSources.addAll(generated.sources());
-      Instant analyzedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
-      for (var impact : generated.impacts()) {
-        results.put(impact.assetName(), impact);
-        // AI 클라이언트가 검증한 결과 중 판단 가능한 종목만 저장한다. 부분 실패는 재사용하지 않는다.
-        if (impact.direction() != null
-            && impact.impactLevel() != null
-            && !impact.sources().isEmpty()) {
-          save(impact, analyzedAt);
+    var owned = new LinkedHashMap<String, CompletableFuture<AssetImpactResult>>();
+    var shared = new LinkedHashMap<String, CompletableFuture<AssetImpactResult>>();
+    // 등록만 잠그고 DB 조회, AI 호출, 결과 대기는 잠금 밖에서 수행한다.
+    synchronized (inFlight) {
+      for (var target : missing) {
+        var future = inFlight.get(target.assetName());
+        if (future == null) {
+          future = new CompletableFuture<>();
+          inFlight.put(target.assetName(), future);
+          owned.put(target.assetName(), future);
+        }
+        shared.put(target.assetName(), future);
+      }
+    }
+    if (!owned.isEmpty()) {
+      try {
+        // 최초 조회 이후 다른 요청이 저장하고 진행 중 표시를 지웠을 수 있다.
+        repository
+            .findAllByAssetNameInAndAnalysisVersionAndModelAndExpiresAtAfter(
+                List.copyOf(owned.keySet()), ANALYSIS_VERSION, model, Instant.now())
+            .forEach(saved -> results.put(saved.getAssetName(), saved.getSnapshot()));
+        var toAnalyze =
+            owned.keySet().stream()
+                .filter(name -> !results.containsKey(name))
+                .map(PortfolioAnalysisTarget::new)
+                .toList();
+        if (!toAnalyze.isEmpty()) {
+          var generated = ai.analyze(toAnalyze);
+          freshSources.addAll(generated.sources());
+          Instant analyzedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+          for (var impact : generated.impacts()) {
+            results.put(impact.assetName(), impact);
+            if (impact.direction() != null
+                && impact.impactLevel() != null
+                && !impact.sources().isEmpty()) {
+              save(impact, analyzedAt);
+            }
+          }
+        }
+        for (var name : owned.keySet()) {
+          if (!results.containsKey(name)) {
+            throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+          }
+        }
+        owned.forEach((name, future) -> future.complete(results.get(name)));
+      } catch (RuntimeException | Error exception) {
+        owned.values().forEach(future -> future.completeExceptionally(exception));
+        throw exception;
+      } finally {
+        synchronized (inFlight) {
+          owned.forEach((name, future) -> inFlight.remove(name, future));
         }
       }
+    }
+    // 먼저 자신이 맡은 분석을 완료해야 서로 다른 종목을 기다리는 요청끼리 교착되지 않는다.
+    long deadline = System.nanoTime() + waitTimeout.toNanos();
+    for (var entry : shared.entrySet()) {
+      results.put(entry.getKey(), await(entry.getValue(), deadline));
     }
     var ordered =
         targets.stream()
@@ -84,6 +153,22 @@ public class PortfolioAssetAnalysisService {
             .distinct()
             .toList();
     return new PortfolioAnalysisResult("", ranked, sources);
+  }
+
+  private AssetImpactResult await(CompletableFuture<AssetImpactResult> future, long deadline) {
+    try {
+      return future.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+    } catch (TimeoutException exception) {
+      // 기다리는 요청만 종료한다. 진행 중인 원래 작업을 지우면 중복 AI 호출이 발생한다.
+      throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+    } catch (ExecutionException exception) {
+      if (exception.getCause() instanceof RuntimeException cause) throw cause;
+      if (exception.getCause() instanceof Error cause) throw cause;
+      throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+    }
   }
 
   private void save(AssetImpactResult impact, Instant analyzedAt) {
