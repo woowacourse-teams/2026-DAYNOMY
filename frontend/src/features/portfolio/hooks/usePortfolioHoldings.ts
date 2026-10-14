@@ -28,7 +28,7 @@ import type {
 } from '../types';
 import type { StockSearchItem } from '../../stocks/types';
 
-export function usePortfolioHoldings(isLoggedIn = true) {
+export function usePortfolioHoldings(isLoggedIn: boolean) {
   const [guestLedger, setGuestLedger] = useState<GuestPortfolioLedger | null>(null);
   const [holdings, setHoldings] = useState<PortfolioHoldingInput[]>([]);
   const [totalRealizedProfitLoss, setTotalRealizedProfitLoss] = useState(0);

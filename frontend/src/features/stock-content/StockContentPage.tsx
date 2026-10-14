@@ -1,3 +1,4 @@
+import { useAuth } from '../../hooks/useLoginStatus';
 import { trackEvent, type AnalyticsParams } from '../../analytics';
 import { trackLoadResult, useContentView } from '../news/issue/analytics';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -178,7 +179,8 @@ export function StockContentPage() {
   const { assetId: assetIdParam } = useParams();
   const navigate = useNavigate();
   const assetId = Number(assetIdParam);
-  const { holdings, loading: holdingsLoading } = usePortfolioHoldings();
+  const { isLoggedIn, loading: authLoading } = useAuth();
+  const { holdings, loading: holdingsLoading } = usePortfolioHoldings(isLoggedIn);
   const [response, setResponse] = useState<Awaited<
     ReturnType<typeof getStockRelatedContents>
   > | null>(null);
@@ -402,12 +404,12 @@ export function StockContentPage() {
         {!loading && !error && response ? (
           <div
             className={
-              holdingsLoading || holdings.length > 0
+              authLoading || holdingsLoading || holdings.length > 0
                 ? 'stock-content-layout'
                 : 'stock-content-layout stock-content-layout--without-sidebar'
             }
           >
-            {holdingsLoading || holdings.length > 0 ? (
+            {authLoading || holdingsLoading || holdings.length > 0 ? (
               <aside className="stock-content-assets" aria-label="내 포트폴리오 종목">
                 <div className="stock-content-assets-heading">
                   <strong>내 포트폴리오</strong>
