@@ -1163,12 +1163,16 @@ describe('포트폴리오 화면', () => {
       });
     mockBounds(compact);
     fireEvent.pointerMove(compact, { clientX: 58 });
-    expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
-      '2026년 9월 24일',
+    await waitFor(() =>
+      expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
+        '2026년 9월 24일',
+      ),
     );
     fireEvent.pointerMove(compact, { clientX: 708 });
-    expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
-      '2026년 10월 6일',
+    await waitFor(() =>
+      expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
+        '2026년 10월 6일',
+      ),
     );
     fireEvent.pointerLeave(compact);
     expect(view.container.querySelector('.portfolio-return-tooltip')).toBeNull();
