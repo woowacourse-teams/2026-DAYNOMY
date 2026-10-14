@@ -1,8 +1,9 @@
-import { request } from '../../api/client';
+import { request, requestWithCsrf } from '../../api/client';
 import { getMockInvestmentCalendar } from './mockData';
 import type {
   InvestmentCalendar,
   InvestmentCalendarEvent,
+  GuestInvestmentCalendarHolding,
   InvestmentCalendarLoadResult,
   InvestmentCalendarScope,
   InvestmentEventDirection,
@@ -98,23 +99,38 @@ export function isInvestmentCalendar(value: unknown): value is InvestmentCalenda
 }
 
 function shouldUseMockData() {
-  return import.meta.env.DEV && import.meta.env.VITE_INVESTMENT_CALENDAR_MOCK_ENABLED === 'true';
+  return import.meta.env?.DEV && import.meta.env.VITE_INVESTMENT_CALENDAR_MOCK_ENABLED === 'true';
 }
 
 export async function getInvestmentCalendar(
   year: number,
   month: number,
   scope: InvestmentCalendarScope,
-  signal?: AbortSignal,
+  options: {
+    isLoggedIn: boolean;
+    guestHoldings?: GuestInvestmentCalendarHolding[];
+    signal?: AbortSignal;
+  },
 ): Promise<InvestmentCalendarLoadResult> {
   if (shouldUseMockData()) {
     return { calendar: getMockInvestmentCalendar(year, month), isDemo: true };
   }
 
   const query = new URLSearchParams({ year: String(year), month: String(month), scope });
-  const response = await request<unknown>(`/api/users/me/investment-calendar?${query.toString()}`, {
-    signal,
-  });
+  const response = options.isLoggedIn
+    ? await request<unknown>(`/api/users/me/investment-calendar?${query.toString()}`, {
+        signal: options.signal,
+      })
+    : await requestWithCsrf<unknown>(
+        `/api/investment-calendar?${query.toString()}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ holdings: options.guestHoldings ?? [] }),
+          signal: options.signal,
+        },
+        false,
+      );
   if (!isInvestmentCalendar(response)) {
     throw new Error('투자 캘린더 API 응답 형식이 올바르지 않습니다.');
   }

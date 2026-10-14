@@ -69,3 +69,8 @@ export type InvestmentCalendarLoadResult = {
   calendar: InvestmentCalendar;
   isDemo: boolean;
 };
+
+export type GuestInvestmentCalendarHolding = {
+  assetId: number;
+  quantity: number;
+};

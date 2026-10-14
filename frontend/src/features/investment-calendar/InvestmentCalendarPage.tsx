@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../hooks/useLoginStatus';
+import { loadGuestPortfolioHoldings } from '../portfolio/portfolioHoldingsStorage';
 import { getInvestmentCalendar } from './api';
 import { InvestmentCalendarNotification } from './InvestmentCalendarNotification';
 import type {
@@ -346,10 +347,21 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
   const requestedScope: InvestmentCalendarScope = calendarView ? calendarScope : 'PORTFOLIO';
 
   useEffect(() => {
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError(false);
-    void getInvestmentCalendar(year, month, requestedScope, controller.signal).then(
+    const guestHoldings = isLoggedIn
+      ? []
+      : loadGuestPortfolioHoldings().map(({ assetId, quantity }) => ({ assetId, quantity }));
+    void getInvestmentCalendar(year, month, requestedScope, {
+      isLoggedIn,
+      guestHoldings,
+      signal: controller.signal,
+    }).then(
       (result) => {
         setEvents(result.calendar.events);
         setIsDemo(result.isDemo);
@@ -365,7 +377,7 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
       },
     );
     return () => controller.abort();
-  }, [month, reloadKey, requestedScope, year]);
+  }, [authLoading, isLoggedIn, month, reloadKey, requestedScope, year]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId) ?? null,

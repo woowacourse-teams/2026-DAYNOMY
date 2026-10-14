@@ -8,6 +8,7 @@ import { getInvestmentCalendar } from '../../src/features/investment-calendar/ap
 import { NOTIFICATION_PROMPT_DISMISSED_KEY } from '../../src/features/investment-calendar/InvestmentCalendarNotification';
 import { InvestmentCalendarPage } from '../../src/features/investment-calendar/InvestmentCalendarPage';
 import { getMockInvestmentCalendar } from '../../src/features/investment-calendar/mockData';
+import { saveGuestPortfolioHoldings } from '../../src/features/portfolio/portfolioHoldingsStorage';
 import {
   deleteInvestmentCalendarNotification,
   getInvestmentCalendarNotification,
@@ -44,6 +45,7 @@ function renderCalendar(
 
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
   mockedGetInvestmentCalendar.mockResolvedValue({
     calendar: getMockInvestmentCalendar(2026, 10),
     isDemo: true,
@@ -107,11 +109,50 @@ describe('투자 캘린더 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '다음 달' }));
 
     expect(await view.findByText('이번 달 예정된 일정이 없어요.')).toBeTruthy();
-    expect(mockedGetInvestmentCalendar).toHaveBeenLastCalledWith(
-      2026,
-      11,
-      'PORTFOLIO',
-      expect.any(AbortSignal),
+    expect(mockedGetInvestmentCalendar).toHaveBeenLastCalledWith(2026, 11, 'PORTFOLIO', {
+      isLoggedIn: true,
+      guestHoldings: [],
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it('비회원은 세션 포트폴리오로 내 일정을 조회한다', async () => {
+    saveGuestPortfolioHoldings([
+      {
+        assetId: 100,
+        assetCode: '000150',
+        name: '두산',
+        category: 'STOCK',
+        market: 'KOSPI',
+        quantity: 3,
+        averagePurchasePrice: 100_000,
+      },
+    ]);
+
+    renderCalendar(<InvestmentCalendarPage />, { isLoggedIn: false });
+
+    await waitFor(() =>
+      expect(mockedGetInvestmentCalendar).toHaveBeenCalledWith(2026, 10, 'PORTFOLIO', {
+        isLoggedIn: false,
+        guestHoldings: [{ assetId: 100, quantity: 3 }],
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it('비회원 세션 포트폴리오가 없으면 빈 보유자산으로 전체 일정도 조회한다', async () => {
+    const view = renderCalendar(<InvestmentCalendarPage />, { isLoggedIn: false });
+    await view.findByText('미국 소비자물가지수 발표');
+
+    fireEvent.click(view.getByRole('button', { name: '달력으로 보기' }));
+    fireEvent.click(view.getByRole('button', { name: '전체 일정' }));
+
+    await waitFor(() =>
+      expect(mockedGetInvestmentCalendar).toHaveBeenLastCalledWith(2026, 10, 'ALL', {
+        isLoggedIn: false,
+        guestHoldings: [],
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 
