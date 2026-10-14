@@ -63,6 +63,14 @@ afterEach(() => {
 });
 
 describe('투자 캘린더 화면', () => {
+  it('소식 홈에서는 중첩 main 없이 섹션 제목으로 표시한다', async () => {
+    const view = renderCalendar(<InvestmentCalendarPage embedded />);
+
+    expect(await view.findByRole('heading', { name: '투자 캘린더', level: 2 })).toBeTruthy();
+    expect(view.container.querySelector('main')).toBeNull();
+    expect(view.container.querySelector('.investment-calendar-embedded')).toBeTruthy();
+  });
+
   it('일정을 선택하면 해당 자산 영향으로 상세 내용을 바꾼다', async () => {
     const view = renderCalendar();
 

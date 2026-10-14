@@ -330,7 +330,7 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
   );
 }
 
-export function InvestmentCalendarPage() {
+export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { isLoggedIn, loading: authLoading } = useAuth();
   const initial = initialMonth();
   const [year, setYear] = useState(initial.year);
@@ -381,12 +381,21 @@ export function InvestmentCalendarPage() {
     [month, year],
   );
 
+  const CalendarRoot = embedded ? 'section' : 'main';
+
   return (
-    <main className="investment-calendar-page">
+    <CalendarRoot
+      className={
+        embedded
+          ? 'investment-calendar-page investment-calendar-embedded'
+          : 'investment-calendar-page'
+      }
+      aria-labelledby={embedded ? 'investment-calendar-title' : undefined}
+    >
       <header className="investment-calendar-heading">
         <div className="investment-calendar-heading-copy">
           <div className="investment-calendar-title-row">
-            <h1>투자 캘린더</h1>
+            {embedded ? <h2 id="investment-calendar-title">투자 캘린더</h2> : <h1>투자 캘린더</h1>}
             {isDemo ? <span className="investment-calendar-demo-badge">데모 데이터</span> : null}
           </div>
           <p>다가오는 발표 전, 내 자산이 과거에 어떻게 움직였는지 확인하세요.</p>
@@ -506,6 +515,6 @@ export function InvestmentCalendarPage() {
         과거 반응은 미래 수익률을 보장하지 않습니다.
         {isDemo ? ' · 현재 화면의 수치는 데모 데이터입니다.' : ''}
       </p>
-    </main>
+    </CalendarRoot>
   );
 }

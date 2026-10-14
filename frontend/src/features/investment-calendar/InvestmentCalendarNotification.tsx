@@ -315,9 +315,7 @@ export function InvestmentCalendarNotification({
                 <p>로그인한 뒤 알림 받을 이메일을 직접 선택할 수 있어요.</p>
                 <a
                   href="/login"
-                  onClick={() =>
-                    sessionStorage.setItem('daynomy:post-login-path', '/investment-calendar')
-                  }
+                  onClick={() => sessionStorage.setItem('daynomy:post-login-path', '/news')}
                 >
                   로그인 후 설정하기
                 </a>

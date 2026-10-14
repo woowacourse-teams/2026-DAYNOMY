@@ -176,6 +176,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<PortfolioRoute />} />
               <Route path="/portfolio" element={<Navigate to="/" replace />} />
+              <Route path="/investment-calendar" element={<Navigate to="/news" replace />} />
               <Route
                 path="/portfolio/records"
                 element={<Navigate to="/league/portfolio" replace />}

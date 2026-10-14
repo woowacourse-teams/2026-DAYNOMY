@@ -41,7 +41,7 @@
   gap: 10px;
 }
 
-.investment-calendar-heading h1 {
+.investment-calendar-heading :is(h1, h2) {
   margin: 0;
   font-size: clamp(28px, 3vw, 36px);
   line-height: 1.2;
@@ -1027,7 +1027,7 @@
     flex-direction: column;
   }
 
-  .investment-calendar-heading h1 {
+  .investment-calendar-heading :is(h1, h2) {
     font-size: 28px;
   }
 
@@ -1124,5 +1124,102 @@
   .investment-calendar-last-result > div {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+}
+
+/* The news home owns the outer page spacing when the calendar is embedded. */
+.investment-calendar-page.investment-calendar-embedded {
+  container-type: inline-size;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.investment-calendar-embedded .investment-calendar-heading {
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.investment-calendar-embedded .investment-calendar-heading :is(h1, h2) {
+  font-size: var(--page-title-size);
+  line-height: var(--page-title-line-height);
+  letter-spacing: var(--page-title-letter-spacing);
+  font-weight: var(--page-title-weight);
+}
+
+.investment-calendar-embedded .investment-calendar-heading-copy > p {
+  max-width: 52ch;
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.investment-calendar-embedded .investment-calendar-workspace {
+  grid-template-columns: minmax(230px, 0.8fr) minmax(360px, 1.2fr);
+  border-radius: 10px;
+}
+
+.investment-calendar-embedded .investment-calendar-detail {
+  padding: 24px;
+}
+
+.investment-calendar-embedded .investment-calendar-detail > h2 {
+  font-size: 22px;
+}
+
+.investment-calendar-embedded .investment-calendar-watch h3 {
+  font-size: 16px;
+}
+
+.investment-calendar-embedded .investment-calendar-disclaimer {
+  margin-bottom: 0;
+}
+
+@container (max-width: 720px) {
+  .investment-calendar-embedded .investment-calendar-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .investment-calendar-embedded .investment-calendar-event-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .investment-calendar-embedded .investment-calendar-event-button {
+    grid-template-columns: 1fr;
+    min-height: 126px;
+    border-right: 1px solid var(--calendar-line);
+  }
+
+  .investment-calendar-embedded .investment-calendar-event-button:last-child {
+    border-right: 0;
+  }
+
+  .investment-calendar-embedded
+    :is(.investment-calendar-detail, .investment-calendar-detail-state) {
+    border-top: 1px solid var(--calendar-line);
+    border-left: 0;
+  }
+}
+
+@container (max-width: 520px) {
+  .investment-calendar-embedded .investment-calendar-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .investment-calendar-embedded .investment-calendar-event-list {
+    grid-template-columns: 1fr;
+  }
+
+  .investment-calendar-embedded .investment-calendar-event-button {
+    grid-template-columns: 58px minmax(0, 1fr);
+    min-height: 92px;
+    border-right: 0;
+  }
+
+  .investment-calendar-embedded .investment-calendar-detail {
+    padding: 22px 18px 24px;
   }
 }

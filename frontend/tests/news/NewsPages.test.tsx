@@ -196,7 +196,7 @@ describe('뉴스 탐색 화면', () => {
     );
   });
 
-  it('오늘의 뉴스가 없으면 최근 이슈를 대신 보여준다', async () => {
+  it('오늘의 뉴스가 없으면 최신 글을 대신 보여준다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) =>
@@ -221,21 +221,21 @@ describe('뉴스 탐색 화면', () => {
     );
 
     const view = renderPage(<IssueHomePage />);
-    await view.findByText('오늘 발행된 이슈가 없어 최근 이슈를 보여드려요.');
-    const recentIssues = view.getByRole('region', { name: '최근 이슈' });
+    await view.findByText('오늘 새로 올라온 글이 없어 최신 글을 보여드려요.');
+    const recentIssues = view.getByRole('heading', { name: '최근 올라온 글' }).closest('section')!;
 
     expect(recentIssues.querySelector('input[type="date"]')).toBeNull();
-    expect(recentIssues.querySelector('a[href="/news/contents"]')).toBeNull();
+    expect(recentIssues.querySelector('a[href="/news/contents"]')).toBeTruthy();
     expect(recentIssues.querySelector(`a[href="/news/${article.id}"]`)).toBeTruthy();
   });
 
-  it('오늘의 뉴스와 뉴스 목록 오류를 소식 홈에 독립적으로 표시한다', async () => {
+  it('뉴스 목록 오류를 소식 홈에 표시한다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse({}, 500)),
     );
     const view = renderPage(<IssueHomePage />);
-    expect(await view.findAllByText('데이노미 이슈를 불러오지 못했습니다.')).toHaveLength(2);
+    expect(await view.findAllByText('데이노미 이슈를 불러오지 못했습니다.')).toHaveLength(1);
   });
 
   it('뉴스 상세 내용과 시장 분석을 표시한다', async () => {

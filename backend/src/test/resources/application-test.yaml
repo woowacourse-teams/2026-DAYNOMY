@@ -48,3 +48,7 @@ cookie:
 external:
   public-data:
     service-key: test-service-key
+
+investment-calendar:
+  sync:
+    enabled: false
