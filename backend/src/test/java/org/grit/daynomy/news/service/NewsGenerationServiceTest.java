@@ -35,15 +35,12 @@ class NewsGenerationServiceTest {
     List<GeneratedEconomicNews> articles = List.of(article, usArticle);
     given(openAiNewsGenerator.generateEconomicNews()).willReturn(List.of(article));
     given(openAiNewsGenerator.generateUsEconomicNews()).willReturn(List.of(usArticle));
-    given(
-            newsPersistenceService.saveDrafts(
-                articles, Collections.nCopies(articles.size(), null)))
+    given(newsPersistenceService.saveDrafts(articles, Collections.nCopies(articles.size(), null)))
         .willReturn(List.of());
 
     List<News> drafts = newsGenerationService.generateEconomyNewsDrafts();
 
     assertThat(drafts).isEmpty();
-    verify(newsPersistenceService)
-        .saveDrafts(articles, Collections.nCopies(articles.size(), null));
+    verify(newsPersistenceService).saveDrafts(articles, Collections.nCopies(articles.size(), null));
   }
 }

@@ -32,8 +32,7 @@ public class OpenAiNewsResearcher {
   private static final int MAX_ATTEMPTS = 3;
   private static final int RECENT_DAYS = 3;
   private static final String PROMPT = OpenAiPromptLoader.load("prompts/news-researcher.txt");
-  private static final String US_PROMPT =
-      OpenAiPromptLoader.load("prompts/us-news-researcher.txt");
+  private static final String US_PROMPT = OpenAiPromptLoader.load("prompts/us-news-researcher.txt");
   private static final String RETRY_INSTRUCTION =
       """
 
