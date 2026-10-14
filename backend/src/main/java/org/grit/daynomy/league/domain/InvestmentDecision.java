@@ -32,7 +32,7 @@ import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
         @UniqueConstraint(
             name = "uk_portfolio_transactions_request",
             columnNames = {"portfolio_id", "request_key"}))
-public class PortfolioTransaction extends BaseEntity {
+public class InvestmentDecision extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -87,7 +87,7 @@ public class PortfolioTransaction extends BaseEntity {
   @Column(nullable = false, length = 20)
   private String status = "ACTIVE";
 
-  public PortfolioTransaction(
+  public InvestmentDecision(
       SharedPortfolio portfolio,
       Asset asset,
       String requestKey,

@@ -17,8 +17,8 @@ import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.dto.LeagueDto.PublicationRequest;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
-import org.grit.daynomy.league.repository.PortfolioTransactionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
 import org.grit.daynomy.member.domain.Member;
@@ -38,7 +38,7 @@ class InvestorProfileServiceTest {
   @Mock private MemberRepository memberRepository;
   @Mock private SharedPortfolioRepository portfolioRepository;
   @Mock private SharedHoldingRepository holdingRepository;
-  @Mock private PortfolioTransactionRepository transactionRepository;
+  @Mock private InvestmentDecisionRepository decisionRepository;
   @InjectMocks private InvestorProfileService service;
 
   @Test

@@ -33,16 +33,16 @@ import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.domain.LeagueTypes;
 import org.grit.daynomy.league.domain.PortfolioDailyReturn;
 import org.grit.daynomy.league.domain.SharedHolding;
-import org.grit.daynomy.league.domain.SharedHoldingHistory;
 import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
+import org.grit.daynomy.league.domain.SharedHoldingHistory;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.domain.WeeklyLeaderboard;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestmentReviewRepository;
 import org.grit.daynomy.league.repository.InvestorFollowRepository;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.repository.PortfolioDailyReturnRepository;
-import org.grit.daynomy.league.repository.PortfolioTransactionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
@@ -69,7 +69,7 @@ class LeagueServiceTest {
   @Mock private SharedHoldingRepository holdingRepository;
   @Mock private SharedHoldingHistoryRepository holdingHistoryRepository;
   @Mock private PortfolioDailyReturnRepository returnRepository;
-  @Mock private PortfolioTransactionRepository transactionRepository;
+  @Mock private InvestmentDecisionRepository decisionRepository;
   @Mock private InvestmentReviewRepository reviewRepository;
   @Mock private InvestorFollowRepository followRepository;
   @Mock private MemberRepository memberRepository;
@@ -917,7 +917,7 @@ class LeagueServiceTest {
     given(portfolioRepository.findByMemberId(2L)).willReturn(Optional.of(portfolio));
     given(portfolio.getId()).willReturn(3L);
     given(
-            transactionRepository
+            decisionRepository
                 .findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
                     eq(3L), any(LocalDate.class)))
         .willReturn(List.of());
@@ -985,7 +985,7 @@ class LeagueServiceTest {
                 assertThat(holding.weeklyContributionRate()).isEqualByComparingTo("-1.00");
               });
     }
-    then(transactionRepository)
+    then(decisionRepository)
         .should()
         .findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
             eq(3L), any(LocalDate.class));

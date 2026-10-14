@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.domain.LeagueTypes.CollectionStatus;
@@ -22,7 +23,6 @@ import org.grit.daynomy.league.domain.LeagueTypes.HoldingPeriod;
 import org.grit.daynomy.league.domain.LeagueTypes.LeagueType;
 import org.grit.daynomy.league.domain.LeagueTypes.RiskProfile;
 import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
-import org.grit.daynomy.league.domain.PortfolioTransaction;
 
 public final class LeagueDto {
   private LeagueDto() {}
@@ -105,7 +105,7 @@ public final class LeagueDto {
     }
   }
 
-  public record TransactionResponse(
+  public record DecisionResponse(
       Long id,
       Long assetId,
       String assetCode,
@@ -123,9 +123,9 @@ public final class LeagueDto {
       BigDecimal maximumAcceptableLossRate,
       boolean writtenAfterTrade,
       List<ReviewResponse> reviews) {
-    public static TransactionResponse from(
-        PortfolioTransaction transaction, List<InvestmentReview> reviews) {
-      return new TransactionResponse(
+    public static DecisionResponse from(
+        InvestmentDecision transaction, List<InvestmentReview> reviews) {
+      return new DecisionResponse(
           transaction.getId(),
           transaction.getAsset().getId(),
           transaction.getAsset().getAssetCode(),
@@ -146,7 +146,7 @@ public final class LeagueDto {
     }
   }
 
-  public record TransactionListResponse(List<TransactionResponse> transactions) {}
+  public record DecisionListResponse(List<DecisionResponse> transactions) {}
 
   public record WeekResponse(
       LocalDate weekStart,

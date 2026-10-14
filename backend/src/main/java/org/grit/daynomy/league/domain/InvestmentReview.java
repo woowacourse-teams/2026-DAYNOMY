@@ -27,7 +27,7 @@ public class InvestmentReview extends BaseEntity {
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "transaction_id", nullable = false)
-  private PortfolioTransaction transaction;
+  private InvestmentDecision transaction;
 
   @Column(name = "actual_result", nullable = false, length = 500)
   private String actualResult;
@@ -39,7 +39,7 @@ public class InvestmentReview extends BaseEntity {
   private String nextAction;
 
   public InvestmentReview(
-      PortfolioTransaction transaction,
+      InvestmentDecision transaction,
       String actualResult,
       String differenceFromExpectation,
       String nextAction) {

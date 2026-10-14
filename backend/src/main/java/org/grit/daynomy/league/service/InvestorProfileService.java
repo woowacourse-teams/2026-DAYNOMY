@@ -10,8 +10,8 @@ import org.grit.daynomy.league.dto.LeagueDto.ProfileRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ProfileResponse;
 import org.grit.daynomy.league.dto.LeagueDto.PublicationRequest;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
-import org.grit.daynomy.league.repository.PortfolioTransactionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
 import org.grit.daynomy.member.domain.Member;
@@ -30,7 +30,7 @@ public class InvestorProfileService {
   private final MemberRepository memberRepository;
   private final SharedPortfolioRepository portfolioRepository;
   private final SharedHoldingRepository holdingRepository;
-  private final PortfolioTransactionRepository transactionRepository;
+  private final InvestmentDecisionRepository decisionRepository;
 
   @Transactional(readOnly = true)
   public ProfileResponse getMine(Long memberId) {
@@ -77,7 +77,7 @@ public class InvestorProfileService {
       var holdings = holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId());
       if (holdings.isEmpty()) throw new BusinessException(LeagueErrorCode.LEAGUE_HOLDINGS_REQUIRED);
       Set<Long> recordedAssets =
-          transactionRepository
+          decisionRepository
               .findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId)
               .stream()
               .filter(record -> !record.getDecisionReason().isBlank())

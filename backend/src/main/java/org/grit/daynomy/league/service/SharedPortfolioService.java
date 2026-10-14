@@ -22,14 +22,14 @@ import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.league.domain.SharedHolding;
-import org.grit.daynomy.league.domain.SharedHoldingHistory;
 import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
+import org.grit.daynomy.league.domain.SharedHoldingHistory;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
 import org.grit.daynomy.league.dto.SharedPortfolioDto.*;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
-import org.grit.daynomy.league.repository.PortfolioTransactionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
@@ -52,8 +52,8 @@ public class SharedPortfolioService {
   private final StockDailyPriceRepository priceRepository;
   private final MarketTradingDayRepository tradingDayRepository;
   private final InvestorProfileRepository profileRepository;
-  private final PortfolioTransactionRepository transactionRepository;
-  private final PortfolioTransactionService transactionService;
+  private final InvestmentDecisionRepository decisionRepository;
+  private final InvestmentDecisionService decisionService;
 
   @Transactional(readOnly = true)
   public PortfolioResponse getMine(Long memberId) {
@@ -69,7 +69,7 @@ public class SharedPortfolioService {
             .map(profile -> profile.isLeagueEnabled())
             .orElse(false);
     Set<Long> recordedAssets =
-        transactionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId).stream()
+        decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId).stream()
             .filter(record -> !record.getDecisionReason().isBlank())
             .map(record -> record.getAsset().getId())
             .collect(Collectors.toSet());
@@ -106,7 +106,7 @@ public class SharedPortfolioService {
         historyRepository.save(new SharedHoldingHistory(holding, changeType));
       }
       if (needsReason && input.decision() != null) {
-        transactionService.recordDecision(
+        decisionService.recordDecision(
             memberId,
             new DecisionRecordRequest(
                 UUID.randomUUID().toString(), input.assetId(), input.decision()));
