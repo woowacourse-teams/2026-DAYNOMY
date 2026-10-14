@@ -1129,6 +1129,7 @@ describe('포트폴리오 화면', () => {
     mockPortfolioApi();
     vi.stubGlobal('PointerEvent', MouseEvent);
     const view = render(<PortfolioPage />);
+    await view.findByText('2026.10.06 종가 기준');
     const compact = await view.findByRole('img', { name: /평가금액 750,000원/ });
     const mockBounds = (chart: Element) =>
       vi.spyOn(chart, 'getBoundingClientRect').mockReturnValue({
@@ -1144,12 +1145,16 @@ describe('포트폴리오 화면', () => {
       });
     mockBounds(compact);
     fireEvent.pointerMove(compact, { clientX: 58 });
-    expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
-      '2026년 9월 24일',
+    await waitFor(() =>
+      expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
+        '2026년 9월 24일',
+      ),
     );
     fireEvent.pointerMove(compact, { clientX: 708 });
-    expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
-      '2026년 10월 6일',
+    await waitFor(() =>
+      expect(view.container.querySelector('.portfolio-return-tooltip time')?.textContent).toBe(
+        '2026년 10월 6일',
+      ),
     );
     fireEvent.pointerLeave(compact);
     expect(view.container.querySelector('.portfolio-return-tooltip')).toBeNull();
