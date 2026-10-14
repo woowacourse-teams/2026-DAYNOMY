@@ -1,0 +1,36 @@
+name: k6 development smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k6-development-smoke-test
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    name: Run k6 against development
+    runs-on: [self-hosted, Linux, ARM64, loadtest-dev]
+    environment: development
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Check k6 installation
+        run: k6 version
+
+      - name: Run smoke test
+        env:
+          BASE_URL: ${{ vars.DEV_BASE_URL }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$BASE_URL" ]]; then
+            echo "Set DEV_BASE_URL in the development environment variables."
+            exit 1
+          fi
+          k6 run loadtest/load-test.js
