@@ -27,10 +27,19 @@ jobs:
       - name: Run smoke test
         env:
           BASE_URL: ${{ vars.DEV_BASE_URL }}
+          K6_PROMETHEUS_RW_SERVER_URL: ${{ vars.K6_PROMETHEUS_RW_SERVER_URL }}
+          K6_PROMETHEUS_RW_TREND_STATS: p(90),p(95),p(99),avg,min,max
+          K6_PROMETHEUS_RW_LABELS: environment=dev,service=k6
         run: |
           set -Eeuo pipefail
           if [[ -z "$BASE_URL" ]]; then
             echo "Set DEV_BASE_URL in the development environment variables."
             exit 1
           fi
-          k6 run loadtest/load-test.js
+          if [[ -z "$K6_PROMETHEUS_RW_SERVER_URL" ]]; then
+            echo "Set K6_PROMETHEUS_RW_SERVER_URL in the development environment variables."
+            exit 1
+          fi
+          k6 run -o experimental-prometheus-rw \
+            --tag testid="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            loadtest/load-test.js
