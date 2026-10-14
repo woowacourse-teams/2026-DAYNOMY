@@ -219,10 +219,25 @@ for (const width of [1440, 390]) {
       }
       await page.getByRole('link', { name: '리그 투자자 공개 프로필 보기' }).click();
       await expect(page.getByRole('heading', { name: '리그 투자자', exact: true })).toBeVisible();
-      await page.getByRole('button', { name: '일별', exact: true }).click();
-      await expect(page.getByText('주간 누적 0.00%')).toBeVisible();
-      await expect(page.getByRole('table')).toContainText('성과 시작 종가 · 0%');
-      await expect(page.getByRole('table')).toContainText('참여 전 / 미참여');
+      await expect(page.locator('.league-chart-switch button')).toHaveText(['일별', '주간']);
+      await expect(page.getByRole('button', { name: '일별', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      const dailyChart = page.getByRole('group', { name: '일별 수익률 그래프', exact: true });
+      await expect(dailyChart).toBeVisible();
+      await expect(dailyChart.locator('.league-return-line circle')).toHaveCount(1);
+      await expect(page.getByText('2026-10-13 종가 기준 · 집계 중')).toBeVisible();
+      await expect(dailyChart).toContainText('성과 시작 종가 · 0%');
+      await expect(dailyChart).toContainText('종가 수집 대기');
+      await expect(page.getByRole('group', { name: '선택한 날짜의 성과' })).toHaveCount(0);
+      await expect(page.getByRole('table')).toHaveCount(0);
+      await page.getByRole('button', { name: '주간', exact: true }).click();
+      const weeklyChart = page.getByRole('group', { name: '이번 주 주간 수익률 그래프' });
+      await expect(weeklyChart).toBeVisible();
+      await expect(weeklyChart.locator('.league-return-line circle')).toHaveCount(1);
+      await weeklyChart.getByRole('button', { name: /주간 0.00% 일별 기록 보기/ }).click();
+      await expect(dailyChart).toBeVisible();
       const back = page.getByRole('link', { name: '← 주간 리그' });
       await back.focus();
       await expect(back).toBeFocused();

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDailyHistory, getLeagueWeeks } from './api';
 import { recentLeagueWeeks } from './weeks';
+import { ReturnLine } from './ReturnLine';
 import { LeagueWeekNavigation } from './LeagueWeekNavigation';
 import { formatRate, collectionLabels } from './labels';
 import type { DailyHistory, DailyReturnPoint, LeagueWeek } from './types';
@@ -29,6 +30,10 @@ function statusLabel(day: DailyReturnPoint) {
     default:
       return '집계 제외';
   }
+}
+
+function rateClass(rate: number | null) {
+  return rate === null || rate === 0 ? '' : rate > 0 ? 'positive' : 'negative';
 }
 
 export function DailyReturns({
@@ -93,12 +98,6 @@ export function DailyReturns({
       : history?.collectionStatus
         ? collectionLabels[history.collectionStatus]
         : '거래일 기록 없음';
-  const rates = days.map((day) => day.cumulativeReturnRate ?? 0);
-  const min = Math.min(0, ...rates);
-  const max = Math.max(0, ...rates);
-  const range = Math.max(max - min, 1);
-  const x = (index: number) => 28 + (index * 344) / Math.max(days.length - 1, 1);
-  const y = (rate: number) => 126 - ((rate - min) / range) * 104;
 
   return (
     <section
@@ -136,91 +135,39 @@ export function DailyReturns({
             </div>
           ) : (
             <>
-              {history.weeklyReturnRate !== null ? (
+              {history.asOfDate ? (
                 <p className="league-daily-summary">
-                  <strong>주간 누적 {formatRate(history.weeklyReturnRate)}</strong>
-                  {history.asOfDate ? (
-                    <small>
-                      {history.asOfDate} 종가 기준{history.confirmed ? ' · 확정' : ''}
-                    </small>
-                  ) : null}
+                  {history.asOfDate} 종가 기준 · {history.confirmed ? '확정' : '집계 중'}
                 </p>
               ) : null}
-              {days.filter((day) => day.cumulativeReturnRate !== null).length >= 2 ? (
-                <svg
-                  className="league-daily-chart"
-                  viewBox="0 0 400 156"
-                  role="img"
-                  aria-label={`${history.weekStart} 주간 누적 수익률 그래프`}
+              <div className="league-history-scroll">
+                <div
+                  className="league-history-chart"
+                  role="group"
+                  aria-label="일별 수익률 그래프"
+                  style={{
+                    gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
+                    minWidth: `${days.length * 56}px`,
+                  }}
                 >
-                  <line x1="20" x2="380" y1={y(0)} y2={y(0)} className="league-chart-baseline" />
-                  <text x="20" y={Math.max(14, y(0) - 6)}>
-                    0%
-                  </text>
-                  {days.map((day, index) => {
-                    const previous = days[index - 1];
-                    const rate = day.cumulativeReturnRate;
-                    return (
-                      <g key={day.baseDate}>
-                        {rate !== null && previous?.cumulativeReturnRate != null ? (
-                          <line
-                            x1={x(index - 1)}
-                            y1={y(previous.cumulativeReturnRate)}
-                            x2={x(index)}
-                            y2={y(rate)}
-                            className="league-chart-line"
-                          />
-                        ) : null}
-                        {rate !== null ? (
-                          <circle cx={x(index)} cy={y(rate)} r="4">
-                            <title>
-                              {day.baseDate}: {formatRate(rate)}
-                            </title>
-                          </circle>
-                        ) : null}
-                        <text x={x(index)} y="151" textAnchor="middle">
-                          {day.baseDate.slice(5)}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-              ) : null}
-              <div className="league-daily-table-wrap">
-                <table className="league-daily-table">
-                  <caption className="league-sr-only">
-                    거래일별 수익률과 해당 주의 누적 수익률
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">날짜</th>
-                      <th scope="col">하루 수익률</th>
-                      <th scope="col">주간 누적</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {days.map((day) => (
-                      <tr key={day.baseDate}>
-                        <th scope="row">
-                          <time dateTime={day.baseDate}>
-                            {dayFormatter.format(new Date(day.baseDate))}
-                          </time>
-                          {day.status !== 'CALCULATED' || day.reason === 'TRACKING_BASELINE' ? (
-                            <small>{statusLabel(day)}</small>
-                          ) : null}
-                        </th>
-                        <td>
+                  <ReturnLine rates={days.map((day) => day.dailyReturnRate)} />
+                  {days.map((day) => (
+                    <div
+                      role="group"
+                      key={day.baseDate}
+                      aria-label={`${dayFormatter.format(new Date(day.baseDate))} 하루 수익률 ${day.dailyReturnRate === null ? statusLabel(day) : formatRate(day.dailyReturnRate)}`}
+                    >
+                      <span className="league-week-label">
+                        <strong className={rateClass(day.dailyReturnRate)}>
                           {day.dailyReturnRate === null ? '—' : formatRate(day.dailyReturnRate)}
-                        </td>
-                        <td>
-                          {day.cumulativeReturnRate === null
-                            ? '—'
-                            : formatRate(day.cumulativeReturnRate)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </strong>
+                        <span className="league-week-meta">{statusLabel(day)}</span>
+                      </span>
+                      <span aria-hidden="true" />
+                      <time dateTime={day.baseDate}>{day.baseDate.slice(5)}</time>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}

@@ -227,8 +227,14 @@ test('모바일: 로그인한 사용자가 종목·공개 설정·프로필과 �
     await expect(page.getByRole('alert')).toHaveCount(0);
     await checkWidth(page);
   }
-  await page.getByRole('button', { name: '일별', exact: true }).click();
-  await expect(page.getByRole('table')).toBeVisible();
-  await expect(page.getByText('주간 누적 0.00%')).toBeVisible();
+  await expect(page.getByRole('button', { name: '일별', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('group', { name: '일별 수익률 그래프', exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: '일별 수익률 그래프', exact: true })).toContainText(
+    '0.00%',
+  );
+  await expect(page.getByRole('table')).toHaveCount(0);
   await checkWidth(page);
 });

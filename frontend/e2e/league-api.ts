@@ -83,6 +83,13 @@ export async function mockLeagueApi(page: Page) {
               status: 'CALCULATED',
               reason: 'TRACKING_BASELINE',
             },
+            {
+              baseDate: '2026-10-14',
+              dailyReturnRate: null,
+              cumulativeReturnRate: null,
+              status: 'EXCLUDED',
+              reason: 'PRICE_COLLECTION_PENDING',
+            },
           ],
         },
       });
