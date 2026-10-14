@@ -16,6 +16,8 @@ import type {
   AdminWikimediaImageCandidate,
   AdminStockPriceSyncResponse,
   AdminStockSyncResponse,
+  AdminStockPriceBackfillResponse,
+  AdminLeagueRecalculationResponse,
 } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -304,4 +306,50 @@ export async function syncAdminStockPrices(): Promise<AdminStockPriceSyncRespons
   });
 
   return assertResponse(response, isAdminStockPriceSyncResponse);
+}
+
+export async function backfillAdminStockPrices(from: string, to: string) {
+  const dates = [from, to].map((value) => new Date(value));
+  if (
+    [from, to].some(
+      (value, index) =>
+        !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+        !Number.isFinite(dates[index].getTime()) ||
+        dates[index].toISOString().slice(0, 10) !== value,
+    ) ||
+    from > to ||
+    dates[1].getTime() - dates[0].getTime() > 30 * 86_400_000
+  )
+    throw new Error('시작일과 종료일을 포함해 31일 이내의 올바른 기간을 선택해 주세요.');
+  const query = new URLSearchParams({ from, to });
+  const response = await requestWithCsrf<unknown>(`/api/admin/stocks/prices/backfill?${query}`, {
+    method: 'POST',
+  });
+  return assertResponse(
+    response,
+    (value): value is AdminStockPriceBackfillResponse =>
+      isRecord(value) &&
+      value.from === from &&
+      value.to === to &&
+      [
+        'synchronizedDateCount',
+        'receivedCount',
+        'createdCount',
+        'updatedCount',
+        'skippedCount',
+      ].every((key) => Number.isSafeInteger(value[key]) && Number(value[key]) >= 0),
+  );
+}
+
+export async function recalculateAdminLeague() {
+  const response = await requestWithCsrf<unknown>('/api/admin/league/recalculate', {
+    method: 'POST',
+  });
+  return assertResponse(
+    response,
+    (value): value is AdminLeagueRecalculationResponse =>
+      isRecord(value) &&
+      Number.isSafeInteger(value.calculatedCount) &&
+      Number(value.calculatedCount) >= 0,
+  );
 }

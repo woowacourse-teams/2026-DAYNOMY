@@ -104,3 +104,17 @@ export type AdminStockPriceSyncResponse = {
   pendingDateCount: number;
   failedDateCount: number;
 };
+
+export type AdminStockPriceBackfillResponse = {
+  from: string;
+  to: string;
+  synchronizedDateCount: number;
+  receivedCount: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+};
+
+export type AdminLeagueRecalculationResponse = {
+  calculatedCount: number;
+};

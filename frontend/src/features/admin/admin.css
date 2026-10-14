@@ -2254,3 +2254,10 @@
     transition: none;
   }
 }
+
+.admin-backfill-form {
+  width: 100%;
+  margin-top: 24px;
+  display: grid;
+  gap: 16px;
+}

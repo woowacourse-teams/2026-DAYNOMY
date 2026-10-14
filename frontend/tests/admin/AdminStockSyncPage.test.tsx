@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AdminStockSyncPage } from '../../src/features/admin/AdminStockSyncPage';
 
@@ -177,4 +177,101 @@ describe('관리자 주식·ETF 동기화 화면', () => {
     expect(await view.findByText('3,500개')).toBeTruthy();
     expect(syncRequestCount).toBe(2);
   });
+});
+
+it('선택 기간을 재수집하고 실행 중 모든 작업을 잠근 뒤 리그 재집계를 제공한다', async () => {
+  let finish!: (response: Response) => void;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/api/auth/csrf'))
+        return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      if (url.includes('/backfill?'))
+        return new Promise<Response>((resolve) => {
+          finish = resolve;
+        });
+      return jsonResponse({ calculatedCount: 12 });
+    }),
+  );
+  const view = render(<AdminStockSyncPage />);
+  fireEvent.change(view.getByLabelText('시작일'), { target: { value: '2026-10-01' } });
+  fireEvent.change(view.getByLabelText('종료일'), { target: { value: '2026-10-02' } });
+  fireEvent.submit(view.getByRole('form', { name: '기간별 종가 재수집' }));
+  await waitFor(() => expect(finish).toBeTypeOf('function'));
+  for (const button of view.getAllByRole('button')) expect(button).toHaveProperty('disabled', true);
+  finish(
+    jsonResponse({
+      from: '2026-10-01',
+      to: '2026-10-02',
+      synchronizedDateCount: 2,
+      receivedCount: 100,
+      createdCount: 90,
+      updatedCount: 10,
+      skippedCount: 0,
+    }),
+  );
+  expect(await view.findByText('2026.10.01 ~ 2026.10.02 재수집 결과')).toBeTruthy();
+  expect(view.getByText('2일')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '리그 성과 재집계' }));
+  expect(await view.findByText('일간 기록 12건 처리')).toBeTruthy();
+  fireEvent.change(view.getByLabelText('종료일'), { target: { value: '2026-10-03' } });
+  expect(view.queryByText('2026.10.01 ~ 2026.10.02 재수집 결과')).toBeNull();
+});
+
+it('기간 오류와 재수집 실패 후에도 입력을 유지하고 다시 실행할 수 있다', async () => {
+  let writes = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/api/auth/csrf'))
+        return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      writes++;
+      return writes === 1
+        ? jsonResponse({ message: '수집 공급원 오류' }, 502)
+        : jsonResponse({
+            from: '2026-10-01',
+            to: '2026-10-02',
+            synchronizedDateCount: 0,
+            receivedCount: 0,
+            createdCount: 0,
+            updatedCount: 0,
+            skippedCount: 0,
+          });
+    }),
+  );
+  const view = render(<AdminStockSyncPage />);
+  const form = view.getByRole('form', { name: '기간별 종가 재수집' });
+  fireEvent.change(view.getByLabelText('시작일'), { target: { value: '2026-10-01' } });
+  fireEvent.change(view.getByLabelText('종료일'), { target: { value: '2026-11-01' } });
+  fireEvent.submit(form);
+  expect((await view.findByRole('alert')).textContent).toContain('31일 이내');
+  expect(writes).toBe(0);
+  fireEvent.change(view.getByLabelText('종료일'), { target: { value: '2026-10-02' } });
+  fireEvent.submit(form);
+  expect(await view.findByText('수집 공급원 오류')).toBeTruthy();
+  expect(view.getByLabelText('시작일')).toHaveProperty('value', '2026-10-01');
+  fireEvent.submit(form);
+  expect(await view.findByText('2026.10.01 ~ 2026.10.02 재수집 결과')).toBeTruthy();
+  expect(writes).toBe(2);
+});
+
+it('리그 재집계 실패를 표시하고 다시 실행한다', async () => {
+  let writes = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/api/auth/csrf'))
+        return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      return ++writes === 1
+        ? jsonResponse({ message: '재집계 실패' }, 500)
+        : jsonResponse({ calculatedCount: 0 });
+    }),
+  );
+  const view = render(<AdminStockSyncPage />);
+  fireEvent.click(view.getByRole('button', { name: '리그 성과 재집계' }));
+  expect(await view.findByText('재집계 실패')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '리그 성과 재집계' }));
+  expect(await view.findByText('일간 기록 0건 처리')).toBeTruthy();
+  expect(view.queryByRole('alert')).toBeNull();
 });

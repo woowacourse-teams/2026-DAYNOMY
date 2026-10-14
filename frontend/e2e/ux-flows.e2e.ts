@@ -238,3 +238,48 @@ test('모바일: 로그인한 사용자가 종목·공개 설정·프로필과 �
   await expect(page.getByRole('table')).toHaveCount(0);
   await checkWidth(page);
 });
+
+for (const width of [1440, 390]) {
+  test(`${width}px: 관리자 화면에서 기간별 종가 복구와 리그 재집계를 실행한다`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('**/api/users/me', (route) =>
+      route.fulfill({
+        json: { id: 1, email: 'admin@example.invalid', nickname: '관리자', role: 'ADMIN' },
+      }),
+    );
+    await page.route('**/api/admin/stocks/prices/backfill?**', (route) => {
+      expect(route.request().method()).toBe('POST');
+      expect(route.request().headers()['x-csrf-token']).toBe('ux-test-token');
+      const query = new URL(route.request().url()).searchParams;
+      expect(query.get('from')).toBe('2026-10-01');
+      expect(query.get('to')).toBe('2026-10-02');
+      return route.fulfill({
+        json: {
+          from: '2026-10-01',
+          to: '2026-10-02',
+          synchronizedDateCount: 1,
+          receivedCount: 100,
+          createdCount: 0,
+          updatedCount: 100,
+          skippedCount: 0,
+        },
+      });
+    });
+    await page.route('**/api/admin/league/recalculate', (route) => {
+      expect(route.request().method()).toBe('POST');
+      expect(route.request().headers()['x-csrf-token']).toBe('ux-test-token');
+      return route.fulfill({ json: { calculatedCount: 10 } });
+    });
+    await page.goto('/admin/stocks');
+    await expect(page.getByRole('heading', { name: '기간별 종가 재수집' })).toBeVisible();
+    await page.getByLabel('시작일', { exact: true }).fill('2026-10-01');
+    await page.getByLabel('종료일', { exact: true }).fill('2026-10-02');
+    await page.getByRole('button', { name: '선택 기간 재수집' }).click();
+    await expect(page.getByText('2026.10.01 ~ 2026.10.02 재수집 결과')).toBeVisible();
+    await page.getByRole('button', { name: '리그 성과 재집계' }).click();
+    await expect(page.getByText('일간 기록 10건 처리')).toBeVisible();
+    await checkWidth(page);
+  });
+}
