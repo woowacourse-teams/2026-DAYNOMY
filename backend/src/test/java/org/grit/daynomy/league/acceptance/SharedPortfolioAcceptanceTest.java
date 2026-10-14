@@ -1002,7 +1002,12 @@ class SharedPortfolioAcceptanceTest {
         .post("/api/users/me/portfolio/decisions")
         .then()
         .statusCode(409);
-    client(owner).get(SHARED).then().statusCode(200).body("holdings[0].quantity", equalTo(10));
+    client(owner)
+        .get(SHARED)
+        .then()
+        .statusCode(200)
+        .body("holdings[0].quantity", equalTo(10))
+        .body("holdings[0].reason", equalTo("실적을 확인한 보유 판단"));
     client(viewer).body(decision).post("/api/users/me/portfolio/decisions").then().statusCode(404);
     String review =
         """
@@ -1092,6 +1097,7 @@ class SharedPortfolioAcceptanceTest {
         .body("holdings[0].weight", nullValue())
         .body("holdings[0].weeklyContributionRate", nullValue())
         .body("decisions", hasSize(1))
+        .body("holdings[0].reason", equalTo("실적을 확인한 보유 판단"))
         .body("decisions[0].reason", equalTo("실적을 확인한 보유 판단"))
         .body("decisions[0].reviews", hasSize(1))
         .body("decisions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"))

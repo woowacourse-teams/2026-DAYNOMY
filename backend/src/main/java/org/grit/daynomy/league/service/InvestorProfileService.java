@@ -1,10 +1,10 @@
 package org.grit.daynomy.league.service;
 
 import java.time.Instant;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.dto.LeagueDto.ProfileRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ProfileResponse;
@@ -76,18 +76,10 @@ public class InvestorProfileService {
               .orElseThrow(() -> new BusinessException(LeagueErrorCode.LEAGUE_HOLDINGS_REQUIRED));
       var holdings = holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId());
       if (holdings.isEmpty()) throw new BusinessException(LeagueErrorCode.LEAGUE_HOLDINGS_REQUIRED);
-      Set<Long> recordedAssets =
-          decisionRepository
-              .findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId)
-              .stream()
-              .filter(record -> !record.getDecisionReason().isBlank())
-              .map(record -> record.getAsset().getId())
-              .collect(Collectors.toSet());
-      if (holdings.stream()
-          .anyMatch(
-              holding ->
-                  holding.getReason().isBlank()
-                      && !recordedAssets.contains(holding.getAsset().getId()))) {
+      Map<Long, String> reasons =
+          InvestmentDecision.latestReasons(
+              decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId));
+      if (holdings.stream().anyMatch(holding -> holding.reasonFrom(reasons).isBlank())) {
         throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
       }
     }

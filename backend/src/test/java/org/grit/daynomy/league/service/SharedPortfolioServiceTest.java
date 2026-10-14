@@ -19,6 +19,7 @@ import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedPortfolio;
+import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
 import org.grit.daynomy.member.domain.Member;
@@ -35,6 +36,7 @@ class SharedPortfolioServiceTest {
   @Mock private SharedPortfolioRepository portfolioRepository;
   @Mock private SharedHoldingRepository holdingRepository;
   @Mock private StockDailyPriceRepository priceRepository;
+  @Mock private InvestmentDecisionRepository decisionRepository;
   @Mock private MarketTradingDayRepository tradingDayRepository;
   @InjectMocks private SharedPortfolioService service;
 

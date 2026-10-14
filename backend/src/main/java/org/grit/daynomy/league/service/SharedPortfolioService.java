@@ -8,7 +8,6 @@ import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -21,6 +20,7 @@ import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
 import org.grit.daynomy.league.domain.SharedHoldingHistory;
@@ -68,11 +68,9 @@ public class SharedPortfolioService {
             .findByMemberId(memberId)
             .map(profile -> profile.isLeagueEnabled())
             .orElse(false);
-    Set<Long> recordedAssets =
-        decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId).stream()
-            .filter(record -> !record.getDecisionReason().isBlank())
-            .map(record -> record.getAsset().getId())
-            .collect(Collectors.toSet());
+    Map<Long, String> reasons =
+        InvestmentDecision.latestReasons(
+            decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId));
     HashSet<Long> seen = new HashSet<>();
     // 중간에 검증이 실패해도 트랜잭션이 앞서 저장한 자산과 이력까지 롤백한다.
     for (HoldingInput input : request.holdings()) {
@@ -86,8 +84,9 @@ public class SharedPortfolioService {
         throw new BusinessException(LeagueErrorCode.SHARED_IMPORT_CONFLICT);
       }
       boolean needsReason =
-          !recordedAssets.contains(input.assetId())
-              && (holding == null || holding.getReason().isBlank());
+          holding == null
+              ? !reasons.containsKey(input.assetId())
+              : holding.reasonFrom(reasons).isBlank();
       if (participating && needsReason && input.decision() == null) {
         throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
       }
@@ -187,6 +186,12 @@ public class SharedPortfolioService {
                     holdings.stream().map(h -> h.getAsset().getId()).toList(), baseDate)
                 .stream()
                 .collect(Collectors.toMap(p -> p.getAsset().getId(), Function.identity()));
+    Map<Long, String> reasons =
+        portfolio == null
+            ? Map.of()
+            : InvestmentDecision.latestReasons(
+                decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(
+                    portfolio.getMember().getId()));
     List<HoldingResponse> values =
         holdings.stream()
             .map(
@@ -205,7 +210,7 @@ public class SharedPortfolioService {
                       h.getQuantity(),
                       h.getAveragePurchasePrice(),
                       h.isHidden(),
-                      h.getReason(),
+                      h.reasonFrom(reasons),
                       price == null ? null : price.getBaseDate(),
                       price == null ? null : price.getClosePrice(),
                       evaluation,

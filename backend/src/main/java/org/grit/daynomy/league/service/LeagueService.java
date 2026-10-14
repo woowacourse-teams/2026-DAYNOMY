@@ -614,7 +614,9 @@ public class LeagueService {
         decisionRepository.findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
             portfolio.getId(), cutoff);
     Map<Long, List<InvestmentReview>> reviews = reviewsByTransaction(transactions);
-    DetailSnapshot snapshot = detailSnapshot(profile, portfolio.getId(), cutoff);
+    DetailSnapshot snapshot =
+        detailSnapshot(
+            profile, portfolio.getId(), cutoff, InvestmentDecision.latestReasons(transactions));
     Set<Long> visibleAssets = visibleAssets(portfolio.getId());
     return new InvestorDetailResponse(
         publicId,
@@ -643,7 +645,7 @@ public class LeagueService {
   }
 
   private DetailSnapshot detailSnapshot(
-      InvestorProfile profile, Long portfolioId, LocalDate cutoff) {
+      InvestorProfile profile, Long portfolioId, LocalDate cutoff, Map<Long, String> reasons) {
     LocalDate asOfDate =
         tradingDayRepository
             .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
@@ -694,7 +696,7 @@ public class LeagueService {
                                 .multiply(HUNDRED)
                                 .divide(holding.getAveragePurchasePrice(), 2, RoundingMode.HALF_UP)
                             : null,
-                        holding.getReason()))
+                        holding.reasonFrom(reasons)))
             .toList();
     return new DetailSnapshot(asOfDate, responses);
   }
