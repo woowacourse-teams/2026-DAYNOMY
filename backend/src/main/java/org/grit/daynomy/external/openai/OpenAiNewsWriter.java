@@ -28,11 +28,12 @@ public class OpenAiNewsWriter {
   private static final int MAX_CONTENT_LENGTH = 1_800;
   private static final int MIN_CONTENT_PARAGRAPHS = 5;
   private static final int MAX_CONTENT_PARAGRAPHS = 9;
+  private static final int MAX_OUTPUT_TOKENS = 12_000;
   private static final String PROMPT = OpenAiPromptLoader.load("prompts/news-writer.txt");
   private static final String RETRY_INSTRUCTION =
       """
 
-      이전 본문 묶음이 형식 검증에 실패했다. 조사 자료에 없는 사실을 추가하지 말고 전체 기사를 처음부터 다시 작성하라. 기사 수를 유지하고, 각 본문은 공백 포함 1,000~1,800자, 5~9개 문단, 해라체를 정확히 지키며 시장 분석·전망·투자 의견을 제외하라.
+      이전 본문 묶음이 형식 검증에 실패했다. 조사 자료에 없는 사실을 추가하지 말고 전체 기사를 처음부터 다시 작성하라. 기사 수를 유지하고, 각 본문은 공백 포함 1,300~1,500자를 목표로 1,000~1,800자 범위를 반드시 지켜라. 반환 전 각 본문의 글자 수를 확인하고, 5~9개 문단과 해라체를 정확히 지키며 시장 분석·전망·투자 의견을 제외하라.
       """;
 
   private final OpenAiProperties openAiProperties;
@@ -108,6 +109,8 @@ public class OpenAiNewsWriter {
             Map.of(
                 "model",
                 openAiProperties.economyNewsModel(),
+                "max_output_tokens",
+                MAX_OUTPUT_TOKENS,
                 "input",
                 instruction,
                 "text",
@@ -206,7 +209,9 @@ public class OpenAiNewsWriter {
         || contentLength < MIN_CONTENT_LENGTH
         || contentLength > MAX_CONTENT_LENGTH) {
       throw new IllegalArgumentException(
-          "Content length must be between "
+          "Content length was "
+              + contentLength
+              + "; expected between "
               + MIN_CONTENT_LENGTH
               + " and "
               + MAX_CONTENT_LENGTH
