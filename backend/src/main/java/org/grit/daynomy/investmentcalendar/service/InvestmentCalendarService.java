@@ -5,12 +5,16 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.investmentcalendar.domain.InvestmentCalendarScope;
 import org.grit.daynomy.investmentcalendar.domain.InvestmentEvent;
 import org.grit.daynomy.investmentcalendar.domain.InvestmentEventType;
+import org.grit.daynomy.investmentcalendar.domain.PortfolioEventAnalysis;
 import org.grit.daynomy.investmentcalendar.dto.InvestmentCalendarEventResponse;
 import org.grit.daynomy.investmentcalendar.dto.InvestmentCalendarResponse;
 import org.grit.daynomy.investmentcalendar.repository.InvestmentEventRepository;
@@ -29,22 +33,59 @@ public class InvestmentCalendarService {
   private final InvestmentCalendarPortfolioAnalysisService portfolioAnalysisService;
   private final PortfolioRepository portfolioRepository;
   private final PortfolioHoldingRepository holdingRepository;
+  private final AssetRepository assetRepository;
 
   @Transactional(readOnly = true)
   public InvestmentCalendarResponse get(
       Long memberId, YearMonth yearMonth, InvestmentCalendarScope scope) {
+    Set<String> holdingAssetCodes = holdingAssetCodes(memberId, scope);
+    return get(
+        yearMonth,
+        scope,
+        holdingAssetCodes,
+        event -> portfolioAnalysisService.analyze(memberId, event));
+  }
+
+  @Transactional(readOnly = true)
+  public InvestmentCalendarResponse getForGuest(
+      YearMonth yearMonth, InvestmentCalendarScope scope, Map<Long, Long> requestedHoldings) {
+    List<InvestmentCalendarHolding> holdings = resolveHoldings(requestedHoldings);
+    Set<String> holdingAssetCodes =
+        holdings.stream()
+            .map(InvestmentCalendarHolding::assetCode)
+            .collect(Collectors.toUnmodifiableSet());
+    return get(
+        yearMonth,
+        scope,
+        holdingAssetCodes,
+        event -> portfolioAnalysisService.analyzeGuest(holdings, event));
+  }
+
+  private InvestmentCalendarResponse get(
+      YearMonth yearMonth,
+      InvestmentCalendarScope scope,
+      Set<String> holdingAssetCodes,
+      Function<InvestmentEvent, PortfolioEventAnalysis> analysis) {
     Instant from = yearMonth.atDay(1).atStartOfDay(SEOUL).toInstant();
     Instant to = yearMonth.plusMonths(1).atDay(1).atStartOfDay(SEOUL).toInstant();
     LocalDate today = LocalDate.now(SEOUL);
-    Set<String> holdingAssetCodes = holdingAssetCodes(memberId, scope);
     List<InvestmentCalendarEventResponse> events =
         eventRepository
             .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(from, to)
             .stream()
             .filter(event -> visible(event, scope, holdingAssetCodes))
-            .map(event -> response(memberId, event, today))
+            .map(event -> response(event, analysis.apply(event), today))
             .toList();
     return new InvestmentCalendarResponse(yearMonth.getYear(), yearMonth.getMonthValue(), events);
+  }
+
+  private List<InvestmentCalendarHolding> resolveHoldings(Map<Long, Long> quantityByAssetId) {
+    return assetRepository.findAllById(quantityByAssetId.keySet()).stream()
+        .map(
+            asset ->
+                new InvestmentCalendarHolding(
+                    asset.getId(), asset.getAssetCode(), quantityByAssetId.get(asset.getId())))
+        .toList();
   }
 
   private Set<String> holdingAssetCodes(Long memberId, InvestmentCalendarScope scope) {
@@ -68,9 +109,8 @@ public class InvestmentCalendarService {
   }
 
   private InvestmentCalendarEventResponse response(
-      Long memberId, InvestmentEvent event, LocalDate today) {
+      InvestmentEvent event, PortfolioEventAnalysis analysis, LocalDate today) {
     LocalDate eventDate = event.getAnnouncedAt().atZone(SEOUL).toLocalDate();
-    return InvestmentCalendarEventResponse.of(
-        event, portfolioAnalysisService.analyze(memberId, event), today, eventDate);
+    return InvestmentCalendarEventResponse.of(event, analysis, today, eventDate);
   }
 }

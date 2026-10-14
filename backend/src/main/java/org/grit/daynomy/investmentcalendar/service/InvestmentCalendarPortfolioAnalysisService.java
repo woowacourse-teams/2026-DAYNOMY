@@ -18,7 +18,6 @@ import org.grit.daynomy.investmentcalendar.domain.PortfolioEventAnalysisStatus;
 import org.grit.daynomy.investmentcalendar.domain.PortfolioReactionStatistics;
 import org.grit.daynomy.investmentcalendar.domain.PortfolioReactionStatisticsCalculator;
 import org.grit.daynomy.investmentcalendar.repository.InvestmentEventRepository;
-import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.springframework.stereotype.Service;
@@ -38,13 +37,25 @@ public class InvestmentCalendarPortfolioAnalysisService {
 
   @Transactional(readOnly = true)
   public PortfolioEventAnalysis analyze(Long memberId, InvestmentEvent selectedEvent) {
-    List<CurrentHolding> holdings = currentHoldings(memberId, selectedEvent);
-    if (holdings.isEmpty()) {
+    List<InvestmentCalendarHolding> holdings = memberHoldings(memberId);
+    return analyzeHoldings(holdings, selectedEvent);
+  }
+
+  @Transactional(readOnly = true)
+  public PortfolioEventAnalysis analyzeGuest(
+      List<InvestmentCalendarHolding> holdings, InvestmentEvent selectedEvent) {
+    return analyzeHoldings(holdings, selectedEvent);
+  }
+
+  private PortfolioEventAnalysis analyzeHoldings(
+      List<InvestmentCalendarHolding> holdings, InvestmentEvent selectedEvent) {
+    List<CurrentHolding> currentHoldings = currentHoldings(holdings, selectedEvent);
+    if (currentHoldings.isEmpty()) {
       return PortfolioEventAnalysis.noPortfolio();
     }
 
     BigDecimal totalEvaluation =
-        holdings.stream()
+        currentHoldings.stream()
             .map(CurrentHolding::evaluationAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     Map<InvestmentEventDirection, List<BigDecimal>> returnsByDirection =
@@ -57,10 +68,10 @@ public class InvestmentCalendarPortfolioAnalysisService {
             .filter(event -> sameCorporateAsset(selectedEvent, event))
             .toList();
 
-    List<Long> assetIds = holdings.stream().map(CurrentHolding::assetId).toList();
+    List<Long> assetIds = currentHoldings.stream().map(CurrentHolding::assetId).toList();
     for (InvestmentEvent historicalEvent : historicalEvents) {
       List<AssetEventReaction> reactions = reactionService.calculate(historicalEvent, assetIds);
-      portfolioReturn(holdings, reactions)
+      portfolioReturn(currentHoldings, reactions)
           .ifPresent(
               rate ->
                   returnsByDirection
@@ -75,39 +86,52 @@ public class InvestmentCalendarPortfolioAnalysisService {
             ? PortfolioEventAnalysisStatus.READY
             : PortfolioEventAnalysisStatus.INSUFFICIENT_DATA;
     LocalDate priceBaseDate =
-        holdings.stream().map(CurrentHolding::priceBaseDate).min(LocalDate::compareTo).orElse(null);
+        currentHoldings.stream()
+            .map(CurrentHolding::priceBaseDate)
+            .min(LocalDate::compareTo)
+            .orElse(null);
     return new PortfolioEventAnalysis(
         status,
         statisticsCalculator.impactLevel(statistics),
-        holdings.size(),
+        currentHoldings.size(),
         totalEvaluation.setScale(0, RoundingMode.HALF_UP),
         priceBaseDate,
         statistics);
   }
 
-  private List<CurrentHolding> currentHoldings(Long memberId, InvestmentEvent event) {
+  private List<InvestmentCalendarHolding> memberHoldings(Long memberId) {
     return portfolioRepository
         .findByMemberId(memberId)
         .map(portfolio -> holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId()))
         .orElseGet(List::of)
         .stream()
-        .filter(holding -> relatedTo(event, holding))
+        .map(
+            holding ->
+                new InvestmentCalendarHolding(
+                    holding.getAsset().getId(),
+                    holding.getAsset().getAssetCode(),
+                    holding.getQuantity()))
+        .toList();
+  }
+
+  private List<CurrentHolding> currentHoldings(
+      List<InvestmentCalendarHolding> holdings, InvestmentEvent event) {
+    return holdings.stream()
+        .filter(holding -> relatedTo(event, holding.assetCode()))
         .map(this::withLatestPrice)
         .filter(java.util.Objects::nonNull)
         .toList();
   }
 
-  private CurrentHolding withLatestPrice(PortfolioHolding holding) {
+  private CurrentHolding withLatestPrice(InvestmentCalendarHolding holding) {
     StockDailyPrice price =
-        priceRepository
-            .findFirstByAssetIdOrderByBaseDateDesc(holding.getAsset().getId())
-            .orElse(null);
+        priceRepository.findFirstByAssetIdOrderByBaseDateDesc(holding.assetId()).orElse(null);
     if (price == null) {
       return null;
     }
     return new CurrentHolding(
-        holding.getAsset().getId(),
-        price.getClosePrice().multiply(BigDecimal.valueOf(holding.getQuantity())),
+        holding.assetId(),
+        price.getClosePrice().multiply(BigDecimal.valueOf(holding.quantity())),
         price.getBaseDate());
   }
 
@@ -139,10 +163,10 @@ public class InvestmentCalendarPortfolioAnalysisService {
     return java.util.Optional.of(weightedReturn);
   }
 
-  private boolean relatedTo(InvestmentEvent event, PortfolioHolding holding) {
+  private boolean relatedTo(InvestmentEvent event, String assetCode) {
     return event.getType() != InvestmentEventType.CORPORATE_EARNINGS
         || event.getRelatedAssetCode() == null
-        || event.getRelatedAssetCode().equals(holding.getAsset().getAssetCode());
+        || event.getRelatedAssetCode().equals(assetCode);
   }
 
   private boolean sameCorporateAsset(InvestmentEvent selected, InvestmentEvent historical) {

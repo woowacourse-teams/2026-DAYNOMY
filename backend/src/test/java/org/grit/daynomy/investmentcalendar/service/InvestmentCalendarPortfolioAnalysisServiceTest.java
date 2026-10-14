@@ -90,6 +90,30 @@ class InvestmentCalendarPortfolioAnalysisServiceTest {
     assertThat(result.statistics().getLast().medianReturnRate()).isEqualByComparingTo("-1.00");
   }
 
+  @Test
+  void analyzesGuestHoldingsWithoutSavedMemberPortfolio() {
+    Asset asset = new Asset("테스트 종목", AssetCategory.STOCK, "000001");
+    ReflectionTestUtils.setField(asset, "id", 100L);
+    InvestmentEvent selected = event("selected", "2026-10-13", null);
+    given(priceRepository.findFirstByAssetIdOrderByBaseDateDesc(100L))
+        .willReturn(
+            Optional.of(
+                new StockDailyPrice(asset, LocalDate.parse("2026-10-05"), new BigDecimal("100"))));
+    given(
+            eventRepository
+                .findAllByTypeAndActualValueIsNotNullAndAnnouncedAtLessThanOrderByAnnouncedAt(
+                    InvestmentEventType.US_CPI, selected.getAnnouncedAt()))
+        .willReturn(List.of());
+
+    PortfolioEventAnalysis result =
+        service()
+            .analyzeGuest(List.of(new InvestmentCalendarHolding(100L, "000001", 10L)), selected);
+
+    assertThat(result.status()).isEqualTo(PortfolioEventAnalysisStatus.INSUFFICIENT_DATA);
+    assertThat(result.relatedAssetCount()).isEqualTo(1);
+    assertThat(result.totalEvaluationAmount()).isEqualByComparingTo("1000");
+  }
+
   private InvestmentCalendarPortfolioAnalysisService service() {
     return new InvestmentCalendarPortfolioAnalysisService(
         portfolioRepository, holdingRepository, priceRepository, eventRepository, reactionService);

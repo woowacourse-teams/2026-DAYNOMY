@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Investment Calendar", description = "로그인 회원의 투자 일정과 포트폴리오 영향 분석 API")
+@Tag(name = "Investment Calendar", description = "투자 일정과 포트폴리오 영향 분석 API")
 @Validated
 @RequiredArgsConstructor
 @RequestMapping("/api/users/me/investment-calendar")

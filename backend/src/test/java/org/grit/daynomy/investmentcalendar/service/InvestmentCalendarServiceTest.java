@@ -7,7 +7,12 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.investmentcalendar.domain.InvestmentCalendarScope;
 import org.grit.daynomy.investmentcalendar.domain.InvestmentEvent;
 import org.grit.daynomy.investmentcalendar.domain.InvestmentEventType;
@@ -29,6 +34,7 @@ class InvestmentCalendarServiceTest {
   @Mock InvestmentCalendarPortfolioAnalysisService portfolioAnalysisService;
   @Mock PortfolioRepository portfolioRepository;
   @Mock PortfolioHoldingRepository holdingRepository;
+  @Mock AssetRepository assetRepository;
 
   @Test
   void returnsEventsWithinRequestedSeoulMonth() {
@@ -57,7 +63,11 @@ class InvestmentCalendarServiceTest {
 
     InvestmentCalendarResponse response =
         new InvestmentCalendarService(
-                eventRepository, portfolioAnalysisService, portfolioRepository, holdingRepository)
+                eventRepository,
+                portfolioAnalysisService,
+                portfolioRepository,
+                holdingRepository,
+                assetRepository)
             .get(3L, YearMonth.of(2026, 10), InvestmentCalendarScope.ALL);
 
     assertThat(response.year()).isEqualTo(2026);
@@ -91,9 +101,88 @@ class InvestmentCalendarServiceTest {
 
     InvestmentCalendarResponse response =
         new InvestmentCalendarService(
-                eventRepository, portfolioAnalysisService, portfolioRepository, holdingRepository)
+                eventRepository,
+                portfolioAnalysisService,
+                portfolioRepository,
+                holdingRepository,
+                assetRepository)
             .get(3L, YearMonth.of(2026, 10), InvestmentCalendarScope.PORTFOLIO);
 
     assertThat(response.events()).isEmpty();
+  }
+
+  @Test
+  void returnsRelatedCorporateEventForGuestHolding() {
+    InvestmentEvent event =
+        new InvestmentEvent(
+            InvestmentEventType.CORPORATE_EARNINGS,
+            "두산 3분기 실적 발표",
+            Instant.parse("2026-10-21T00:00:00Z"),
+            null,
+            null,
+            "백만원",
+            "전자공시시스템(DART)",
+            "https://dart.fss.or.kr/example",
+            "DART-EARNINGS-000150-2026-09-30",
+            "000150");
+    ReflectionTestUtils.setField(event, "id", 2L);
+    Asset asset = new Asset("두산", AssetCategory.STOCK, "000150");
+    ReflectionTestUtils.setField(asset, "id", 100L);
+    Instant from = Instant.parse("2026-09-30T15:00:00Z");
+    Instant to = Instant.parse("2026-10-31T15:00:00Z");
+    given(
+            eventRepository
+                .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(
+                    from, to))
+        .willReturn(List.of(event));
+    given(assetRepository.findAllById(Set.of(100L))).willReturn(List.of(asset));
+    InvestmentCalendarHolding holding = new InvestmentCalendarHolding(100L, "000150", 3L);
+    given(portfolioAnalysisService.analyzeGuest(List.of(holding), event))
+        .willReturn(PortfolioEventAnalysis.noPortfolio());
+
+    InvestmentCalendarResponse response =
+        service()
+            .getForGuest(
+                YearMonth.of(2026, 10), InvestmentCalendarScope.PORTFOLIO, Map.of(100L, 3L));
+
+    assertThat(response.events()).extracting("id").containsExactly(2L);
+  }
+
+  @Test
+  void returnsAllEventsForGuestWithoutHoldings() {
+    InvestmentEvent event =
+        new InvestmentEvent(
+            InvestmentEventType.CORPORATE_EARNINGS,
+            "두산 3분기 실적 발표",
+            Instant.parse("2026-10-21T00:00:00Z"),
+            null,
+            null,
+            "백만원",
+            "전자공시시스템(DART)",
+            "https://dart.fss.or.kr/example",
+            "DART-EARNINGS-000150-2026-09-30",
+            "000150");
+    ReflectionTestUtils.setField(event, "id", 2L);
+    given(
+            eventRepository
+                .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(
+                    Instant.parse("2026-09-30T15:00:00Z"), Instant.parse("2026-10-31T15:00:00Z")))
+        .willReturn(List.of(event));
+    given(portfolioAnalysisService.analyzeGuest(List.of(), event))
+        .willReturn(PortfolioEventAnalysis.noPortfolio());
+
+    InvestmentCalendarResponse response =
+        service().getForGuest(YearMonth.of(2026, 10), InvestmentCalendarScope.ALL, Map.of());
+
+    assertThat(response.events()).extracting("id").containsExactly(2L);
+  }
+
+  private InvestmentCalendarService service() {
+    return new InvestmentCalendarService(
+        eventRepository,
+        portfolioAnalysisService,
+        portfolioRepository,
+        holdingRepository,
+        assetRepository);
   }
 }
