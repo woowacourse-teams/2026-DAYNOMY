@@ -180,20 +180,22 @@ function PostLoginRedirect() {
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isLoggedIn, loading } = useAuth();
+  const { isLoggedIn } = useAuth();
   const [hasStarted, setHasStarted] = useState(
     () => hasStartedService() || loadGuestPortfolioHoldings().length > 0,
   );
   const directServiceVisit =
-    /^\/(?:news|league|stocks|people|search|portfolio|mypage)(?:\/|$)/.test(location.pathname);
+    /^\/(?:news|league|stocks|people|search|portfolio|mypage|finance)(?:\/|$)/.test(
+      location.pathname,
+    );
   const awaitingWelcome = location.pathname === '/' && !hasStarted && !isLoggedIn;
 
   useEffect(() => {
-    if (!loading && (hasStarted || isLoggedIn || directServiceVisit)) {
+    if (hasStarted || isLoggedIn || directServiceVisit) {
       rememberServiceStart();
       setHasStarted(true);
     }
-  }, [directServiceVisit, hasStarted, isLoggedIn, loading]);
+  }, [directServiceVisit, hasStarted, isLoggedIn]);
 
   function startService() {
     rememberServiceStart();

@@ -86,6 +86,31 @@ describe('첫 방문 서비스 소개', () => {
     expect(window.location.pathname).toBe('/');
   });
 
+  it.each(['/finance', '/finance/guide/first-account', '/portfolio', '/stocks'])(
+    '로그인 확인이 늦어도 기존 주소 %s에서 포트폴리오로 바로 진입한다',
+    async (path) => {
+      let finishAuth!: (value: Response) => void;
+      const authResponse = new Promise<Response>((resolve) => {
+        finishAuth = resolve;
+      });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => authResponse),
+      );
+      localStorage.setItem('daynomy:financial-plans:v1', '보존할 기록');
+      window.history.replaceState(null, '', path);
+
+      const view = render(<App />);
+      await waitFor(() => expect(window.location.pathname).toBe('/'));
+      finishAuth(response({}, 401));
+
+      expect(await view.findByRole('button', { name: '자산 추가' })).toBeTruthy();
+      expect(window.location.pathname).toBe('/');
+      expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1');
+      expect(localStorage.getItem('daynomy:financial-plans:v1')).toBe('보존할 기록');
+    },
+  );
+
   it('기존 로그인 사용자는 시작 기록이 없어도 소개를 건너뛴다', async () => {
     vi.stubGlobal(
       'fetch',
