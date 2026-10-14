@@ -9,8 +9,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -18,12 +16,12 @@ import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
-import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.SharedHolding;
-import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
 import org.grit.daynomy.league.domain.SharedHoldingHistory;
+import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
 import org.grit.daynomy.league.dto.SharedPortfolioDto.*;
@@ -49,7 +47,7 @@ public class SharedPortfolioService {
   private final SharedHoldingHistoryRepository historyRepository;
   private final MemberRepository memberRepository;
   private final AssetRepository assetRepository;
-  private final StockDailyPriceRepository priceRepository;
+  private final StockPriceService stockPriceService;
   private final MarketTradingDayRepository tradingDayRepository;
   private final InvestorProfileRepository profileRepository;
   private final InvestmentDecisionRepository decisionRepository;
@@ -179,13 +177,8 @@ public class SharedPortfolioService {
             .map(MarketTradingDay::getBaseDate)
             .orElse(null);
     Map<Long, StockDailyPrice> prices =
-        baseDate == null || holdings.isEmpty()
-            ? Map.of()
-            : priceRepository
-                .findAllByAssetIdInAndBaseDate(
-                    holdings.stream().map(h -> h.getAsset().getId()).toList(), baseDate)
-                .stream()
-                .collect(Collectors.toMap(p -> p.getAsset().getId(), Function.identity()));
+        stockPriceService.pricesAt(
+            holdings.stream().map(h -> h.getAsset().getId()).toList(), baseDate);
     Map<Long, String> reasons =
         portfolio == null
             ? Map.of()

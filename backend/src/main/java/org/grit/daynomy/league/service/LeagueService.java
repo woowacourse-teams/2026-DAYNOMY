@@ -25,6 +25,7 @@ import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestmentReview;
@@ -91,6 +92,7 @@ public class LeagueService {
   private final InvestorFollowRepository followRepository;
   private final MemberRepository memberRepository;
   private final StockDailyPriceRepository priceRepository;
+  private final StockPriceService stockPriceService;
   private final MarketTradingDayRepository tradingDayRepository;
   private final WeeklyLeaderboardRepository leaderboardRepository;
   private final LeagueCalculationMetrics calculationMetrics;
@@ -655,11 +657,13 @@ public class LeagueService {
     Map<Long, BigDecimal> contributions =
         asOfDate == null ? null : weeklyContributions(profile, portfolioId, asOfDate);
     List<SharedHolding> holdings = holdingRepository.findAllByPortfolioIdOrderById(portfolioId);
+    Map<Long, StockDailyPrice> prices =
+        stockPriceService.pricesAt(
+            holdings.stream().map(holding -> holding.getAsset().getId()).toList(), asOfDate);
     Map<Long, BigDecimal> evaluations = new LinkedHashMap<>();
     BigDecimal total = BigDecimal.ZERO;
     for (SharedHolding holding : holdings) {
-      StockDailyPrice price =
-          asOfDate == null ? null : findPrice(holding.getAsset().getId(), asOfDate);
+      StockDailyPrice price = prices.get(holding.getAsset().getId());
       if (price == null) {
         continue;
       }
@@ -690,7 +694,8 @@ public class LeagueService {
                                 .setScale(2, RoundingMode.HALF_UP)
                             : null,
                         evaluations.containsKey(holding.getAsset().getId())
-                            ? findPrice(holding.getAsset().getId(), asOfDate)
+                            ? prices
+                                .get(holding.getAsset().getId())
                                 .getClosePrice()
                                 .subtract(holding.getAveragePurchasePrice())
                                 .multiply(HUNDRED)

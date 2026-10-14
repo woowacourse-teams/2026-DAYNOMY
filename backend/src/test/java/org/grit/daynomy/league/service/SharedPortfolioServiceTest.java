@@ -10,13 +10,14 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
-import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
@@ -35,7 +36,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class SharedPortfolioServiceTest {
   @Mock private SharedPortfolioRepository portfolioRepository;
   @Mock private SharedHoldingRepository holdingRepository;
-  @Mock private StockDailyPriceRepository priceRepository;
+  @Mock private StockPriceService stockPriceService;
   @Mock private InvestmentDecisionRepository decisionRepository;
   @Mock private MarketTradingDayRepository tradingDayRepository;
   @InjectMocks private SharedPortfolioService service;
@@ -64,11 +65,12 @@ class SharedPortfolioServiceTest {
         .willReturn(collected ? Optional.of(day) : Optional.empty());
     if (collected) {
       var firstPrice = new StockDailyPrice(first, date, new BigDecimal("150"));
-      given(priceRepository.findAllByAssetIdInAndBaseDate(List.of(3L, 4L), date))
+      given(stockPriceService.pricesAt(List.of(3L, 4L), date))
           .willReturn(
               pricesComplete
-                  ? List.of(firstPrice, new StockDailyPrice(second, date, new BigDecimal("250")))
-                  : List.of(firstPrice));
+                  ? Map.of(
+                      3L, firstPrice, 4L, new StockDailyPrice(second, date, new BigDecimal("250")))
+                  : Map.of(3L, firstPrice));
     }
 
     var response = service.getMine(1L);
@@ -79,8 +81,8 @@ class SharedPortfolioServiceTest {
       assertThat(response.holdings().getFirst().baseDate()).isEqualTo(date);
       assertThat(response.holdings().getFirst().evaluationAmount()).isEqualByComparingTo("300");
       assertThat(response.holdings().getFirst().returnRate()).isEqualByComparingTo("50");
-      then(priceRepository).should().findAllByAssetIdInAndBaseDate(List.of(3L, 4L), date);
-      then(priceRepository).shouldHaveNoMoreInteractions();
+      then(stockPriceService).should().pricesAt(List.of(3L, 4L), date);
+      then(stockPriceService).shouldHaveNoMoreInteractions();
     } else {
       assertThat(response.holdings())
           .allSatisfy(
@@ -89,7 +91,7 @@ class SharedPortfolioServiceTest {
                 assertThat(holding.evaluationAmount()).isNull();
                 assertThat(holding.returnRate()).isNull();
               });
-      then(priceRepository).shouldHaveNoInteractions();
+      then(stockPriceService).should().pricesAt(List.of(3L, 4L), null);
     }
     if (pricesComplete) {
       assertThat(response.totalEvaluationAmount()).isEqualByComparingTo("1050");

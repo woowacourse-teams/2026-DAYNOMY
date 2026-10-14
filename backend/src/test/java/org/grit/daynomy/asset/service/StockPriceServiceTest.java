@@ -29,6 +29,21 @@ class StockPriceServiceTest {
   @InjectMocks private StockPriceService stockPriceService;
 
   @Test
+  void pricesAtUsesOneQueryAndDoesNotInventMissingPrices() {
+    var asset = mock(Asset.class);
+    given(asset.getId()).willReturn(1L);
+    var date = LocalDate.of(2026, 10, 13);
+    var price = new StockDailyPrice(asset, date, new BigDecimal("100"));
+    given(stockDailyPriceRepository.findAllByAssetIdInAndBaseDate(List.of(1L, 2L), date))
+        .willReturn(List.of(price));
+    assertThat(stockPriceService.pricesAt(List.of(1L, 2L), date)).containsOnlyKeys(1L);
+    assertThat(stockPriceService.pricesAt(List.of(1L, 2L), null)).isEmpty();
+    assertThat(stockPriceService.pricesAt(List.of(), date)).isEmpty();
+    then(stockDailyPriceRepository).should().findAllByAssetIdInAndBaseDate(List.of(1L, 2L), date);
+    then(stockDailyPriceRepository).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
   @DisplayName("종목의 가장 최근 종가를 반환한다")
   void getLatestPrice() {
     Asset asset = mock(Asset.class);
