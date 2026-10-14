@@ -443,3 +443,4 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 ### 공통 종목과 리그 판단 코드
 
 - `src/features/stocks`에서 종목 타입·검색·최근 종가·응답 검증을 제공하며 관리자와 포트폴리오가 함께 사용합니다. 종목 자료 화면도 실제 로그인 상태에 따라 기존 회원·비회원 포트폴리오 조회를 사용합니다.
+- 리그 판단 조회는 내부 이름을 `getInvestmentDecisions`, 기록 타입을 `InvestmentDecisionRecord`로 통일했습니다. 기존 API 경로·응답 필드와 과거 BUY/SELL 기록의 표시는 유지합니다.

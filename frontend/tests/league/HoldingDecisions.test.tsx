@@ -5,10 +5,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { InvestmentReviewsPage } from '../../src/features/league/InvestmentReviewsPage';
 import { HoldingDecisions } from '../../src/features/league/HoldingDecisions';
 import * as api from '../../src/features/league/api';
-import type { InvestmentTransaction } from '../../src/features/league/types';
+import type { InvestmentDecisionRecord } from '../../src/features/league/types';
 
 vi.mock('../../src/features/league/api', () => ({
-  getTransactions: vi.fn(),
+  getInvestmentDecisions: vi.fn(),
   recordDecision: vi.fn(),
   createReview: vi.fn(),
   updateReview: vi.fn(),
@@ -28,7 +28,7 @@ const holding = {
   evaluationAmount: null,
   returnRate: null,
 };
-const saved: InvestmentTransaction = {
+const saved: InvestmentDecisionRecord = {
   id: 1,
   assetId: 1,
   assetCode: '005930',
@@ -48,7 +48,7 @@ const saved: InvestmentTransaction = {
   reviews: [],
 };
 beforeEach(() => {
-  vi.mocked(api.getTransactions).mockResolvedValue([]);
+  vi.mocked(api.getInvestmentDecisions).mockResolvedValue([]);
 });
 afterEach(() => {
   cleanup();
@@ -101,7 +101,7 @@ describe('종목 보유 이유와 별도 투자 복기', () => {
     expect(holding.quantity).toBe(2);
     expect(view.queryByRole('button', { name: '결과 복기 추가' })).toBeNull();
     view.unmount();
-    vi.mocked(api.getTransactions).mockResolvedValue([saved]);
+    vi.mocked(api.getInvestmentDecisions).mockResolvedValue([saved]);
     const reviews = render(
       <MemoryRouter>
         <InvestmentReviewsPage />
@@ -124,7 +124,7 @@ describe('종목 보유 이유와 별도 투자 복기', () => {
   });
 
   it('조회 실패를 빈 기록으로 숨기지 않고 재시도하며 자산 없이 작성하지 않는다', async () => {
-    vi.mocked(api.getTransactions)
+    vi.mocked(api.getInvestmentDecisions)
       .mockRejectedValueOnce(new Error('연결 실패'))
       .mockResolvedValueOnce([]);
     const view = renderRecords([]);
@@ -141,7 +141,7 @@ describe('종목 보유 이유와 별도 투자 복기', () => {
   });
 
   it('별도 복기 화면에서 삭제한 종목의 기록도 유지하고 저장 실패 시 초안을 보존한다', async () => {
-    vi.mocked(api.getTransactions).mockResolvedValue([saved]);
+    vi.mocked(api.getInvestmentDecisions).mockResolvedValue([saved]);
     vi.mocked(api.createReview).mockRejectedValue(new Error('복기 실패'));
     const view = render(
       <MemoryRouter>
@@ -166,7 +166,7 @@ describe('종목 보유 이유와 별도 투자 복기', () => {
       nextAction: '기존 행동',
       createdAt: '2026-10-06T00:00:00Z',
     };
-    vi.mocked(api.getTransactions).mockResolvedValue([{ ...saved, reviews: [original] }]);
+    vi.mocked(api.getInvestmentDecisions).mockResolvedValue([{ ...saved, reviews: [original] }]);
     vi.mocked(api.updateReview).mockResolvedValue({
       ...original,
       actualResult: '수정한 결과',
@@ -219,7 +219,7 @@ describe('종목 보유 이유와 별도 투자 복기', () => {
     expect(view.queryByText('보유 이유 미작성')).toBeNull();
   });
   it('입력하지 않은 선택 정보는 생략하되 허용 하락률 0%는 표시한다', async () => {
-    vi.mocked(api.getTransactions).mockResolvedValue([
+    vi.mocked(api.getInvestmentDecisions).mockResolvedValue([
       {
         ...saved,
         expectedHoldingPeriod: null,
@@ -241,7 +241,7 @@ describe('종목 보유 이유와 별도 투자 복기', () => {
 });
 
 it('복기 조회 실패를 빈 기록과 구분하고 재시도 후 첫 기록 작성으로 안내한다', async () => {
-  vi.mocked(api.getTransactions)
+  vi.mocked(api.getInvestmentDecisions)
     .mockRejectedValueOnce(new Error('연결 실패'))
     .mockResolvedValueOnce([]);
   const view = render(

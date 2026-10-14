@@ -7,7 +7,7 @@ import type {
   HoldingPeriod,
   InvestmentReview,
   InvestmentDecisionInput,
-  InvestmentTransaction,
+  InvestmentDecisionRecord,
   InvestorProfile,
   LeagueType,
   LeagueWeek,
@@ -217,7 +217,7 @@ function isReview(value: unknown): value is InvestmentReview {
   );
 }
 
-export function isTransaction(value: unknown): value is InvestmentTransaction {
+export function isDecisionRecord(value: unknown): value is InvestmentDecisionRecord {
   return (
     isRecord(value) &&
     Number.isInteger(value.id) &&
@@ -437,12 +437,12 @@ export async function savePublication(input: {
   return response;
 }
 
-export async function getTransactions(signal?: AbortSignal) {
+export async function getInvestmentDecisions(signal?: AbortSignal) {
   const response = await request<unknown>('/api/users/me/portfolio/transactions', { signal });
   if (
     !isRecord(response) ||
     !Array.isArray(response.transactions) ||
-    !response.transactions.every(isTransaction)
+    !response.transactions.every(isDecisionRecord)
   ) {
     throw new Error('투자 기록 응답 형식이 올바르지 않습니다.');
   }
@@ -459,7 +459,7 @@ export async function recordDecision(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!isTransaction(response)) throw new Error('판단 기록 응답 형식이 올바르지 않습니다.');
+  if (!isDecisionRecord(response)) throw new Error('판단 기록 응답 형식이 올바르지 않습니다.');
   trackEvent('save_investment_decision', { record_type: response.transactionType });
   return response;
 }
