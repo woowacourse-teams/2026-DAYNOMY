@@ -1,17 +1,17 @@
 import { SharedArray } from "k6/data";
+import { readConfig } from "./support/prepare.js";
 import { createScenario } from "./support/scenario.js";
 
-const config = JSON.parse(open(__ENV.CONFIG_FILE || "./loadtest-config.json"));
-config.version = "v2";
-const users = new SharedArray("measurement-users", () =>
-  JSON.parse(open("./.local/users.json")).sort(
+const config = readConfig("v2");
+const accounts = new SharedArray("portfolio-accounts", () =>
+  JSON.parse(open(__ENV.ACCOUNTS_FILE || "./.local/accounts.json")).sort(
     (a, b) => a.testNumber - b.testNumber,
   ),
 );
 const scenario = createScenario(
   config,
-  users,
-  JSON.parse(open("./.local/warmup-users.json")),
+  accounts.slice(0, 50),
+  accounts.slice(50),
 );
 export const options = scenario.options;
 export const setup = scenario.setup;

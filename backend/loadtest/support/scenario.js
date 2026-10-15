@@ -161,6 +161,7 @@ export function createScenario(config, users, warmups) {
       version,
       trade_date: tradeDate,
       rps: String(rps),
+      run: config.run,
       ...(__ENV.LOADTEST_ID
         ? { testid: __ENV.LOADTEST_ID, environment: "dev", service: "k6" }
         : {}),

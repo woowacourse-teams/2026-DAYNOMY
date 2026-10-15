@@ -1,5 +1,33 @@
 import encoding from "k6/encoding";
 
+// Actions forwards params as k6 environment values. One invocation measures one RPS.
+export function readConfig(version) {
+  if (__ENV.ACTION || __ENV.CONFIG_FILE || __ENV.RPS_STEPS)
+    throw new Error(
+      "Use RPS and DURATION; the automatic execution manager was removed",
+    );
+  const seconds = (value) => {
+    const match = /^([1-9]\d*)(s|m)$/.exec(value);
+    if (!match) throw new Error("Use durations such as 120s or 5m");
+    return Number(match[1]) * (match[2] === "m" ? 60 : 1);
+  };
+  const run = __ENV.RUN || __ENV.LOADTEST_ID || "1";
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(run)) throw new Error("Invalid RUN label");
+  return {
+    version,
+    baseUrl: (__ENV.BASE_URL || "").replace(/\/$/, ""),
+    referenceDate: __ENV.REFERENCE_DATE || "",
+    tradeMonthsAgo: Number(__ENV.TRADE_MONTHS_AGO || 1),
+    rps: Number(__ENV.RPS || 0.1),
+    stageSeconds: seconds(__ENV.DURATION || "2m"),
+    warmupSeconds: seconds(__ENV.WARMUP_DURATION || "2m"),
+    vus: Number(__ENV.VUS || 50),
+    requestTimeoutSeconds: Number(__ENV.REQUEST_TIMEOUT_SECONDS || 10),
+    targetP95Ms: Number(__ENV.TARGET_P95_MS || 3000),
+    run,
+  };
+}
+
 // Validate the fixed workload and private fixture before any HTTP request.
 export function prepare(config, users, warmups) {
   const version = config.version;
@@ -7,10 +35,6 @@ export function prepare(config, users, warmups) {
     if (!condition) throw new Error(message);
   };
   const integer = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
-  const localPath = (s) =>
-    typeof s === "string" &&
-    /^\.local\/[A-Za-z0-9_./-]+$/.test(s) &&
-    !s.split("/").includes("..");
   const origin = config.baseUrl;
   require(/^https:\/\/[a-z0-9.-]*\bdev\b[a-z0-9.-]*(?::\d+)?$/.test(
     origin,
@@ -37,24 +61,15 @@ export function prepare(config, users, warmups) {
   ).getUTCDate();
   month.setUTCDate(Math.min(reference.getUTCDate(), lastDay));
   const tradeDate = month.toISOString().slice(0, 10);
-  const rps = Number(__ENV.RUN_RPS || config.rpsSteps?.[0]);
+  const rps = config.rps;
   const rpm = Math.round(rps * 60);
-  require(Array.isArray(config.rpsSteps) &&
-    config.rpsSteps.length >= 1 &&
-    config.rpsSteps.length <= 10 &&
-    config.rpsSteps.every(
-      (rate, i) =>
-        Number.isFinite(rate) &&
-        rate > 0 &&
-        rate <= 20 &&
-        Math.abs(rate * 60 - Math.round(rate * 60)) < 1e-8 &&
-        (i === 0 || rate > config.rpsSteps[i - 1]),
-    ) &&
-    config.rpsSteps.includes(
-      rps,
-    ), "Use increasing rpsSteps, expressible as whole requests/minute");
-  require(integer(config.stageSeconds, 10, 3600) &&
-    integer(config.warmupSeconds, 1, 600) &&
+  require(Number.isFinite(rps) &&
+    rps > 0 &&
+    rps <= 20 &&
+    Math.abs(rps * 60 - rpm) <
+      1e-8, "RPS must be positive and expressible as whole requests/minute");
+  require(integer(config.stageSeconds, 10, 600) &&
+    integer(config.warmupSeconds, 1, 300) &&
     integer(config.vus, 1, 500) &&
     integer(config.requestTimeoutSeconds, 1, 60) &&
     integer(
@@ -64,12 +79,11 @@ export function prepare(config, users, warmups) {
     ), "Invalid duration, VU or response-time settings");
   const planned = rps * config.stageSeconds;
   const expected = Math.round(planned);
-  require(Math.abs(planned - expected) < 1e-8 &&
+  require(expected >= 1 &&
+    Math.abs(planned - expected) < 1e-8 &&
     expected <=
       5000, "Each stage must plan a whole number of requests, at most 5000");
-  const summaryFile = __ENV.SUMMARY_FILE || ".local/stage-result.json";
-  require(localPath(summaryFile) &&
-    summaryFile.endsWith(".json"), "Invalid summary output path");
+  const summaryFile = `result-transactions-${version}-${config.referenceDate}-${config.tradeMonthsAgo}m-${rps}rps-${config.stageSeconds}s-${config.run}.json`;
   require(users.length === 50 &&
     Array.isArray(warmups) &&
     warmups.length ===

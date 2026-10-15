@@ -164,11 +164,13 @@ public final class PortfolioLoadtestTool {
                 Long.parseLong(env.getOrDefault("REFRESH_TOKEN_EXPIRATION", "1209600000")));
         ObjectNode tokenFiles =
             tokenData(data, namespace, origin, snapshot.path("fingerprint").asText(), issuer);
-        writePrivate(localFile("users.json"), tokenFiles.path("users"));
-        writePrivate(localFile("warmup-users.json"), tokenFiles.path("warmup"));
+        ArrayNode accounts = JSON.createArrayNode();
+        tokenFiles.path("users").forEach(accounts::add);
+        tokenFiles.path("warmup").forEach(accounts::add);
+        writePrivate(localFile("accounts.json"), accounts);
         connection.rollback();
         System.out.println(
-            "Issued USER access tokens into loadtest/.local. No refresh tokens stored.");
+            "Issued 53 USER access tokens into loadtest/.local/accounts.json. No refresh tokens stored.");
       }
     }
   }

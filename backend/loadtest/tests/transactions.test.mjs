@@ -6,9 +6,26 @@ import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const template = JSON.parse(
-  fs.readFileSync(path.join(root, "loadtest-config.json")),
-);
+const template = {
+  baseUrl: "https://dev.daynomy.com",
+  referenceDate: "2026-10-16",
+  tradeMonthsAgo: 1,
+  rps: 0.1,
+  stageSeconds: 120,
+  warmupSeconds: 120,
+  vus: 50,
+  requestTimeoutSeconds: 10,
+  targetP95Ms: 3000,
+};
+
+function readReport(scenario, metrics) {
+  const output = scenario.handleSummary({ metrics });
+  const filename = Object.keys(output).find((name) =>
+    name.startsWith("result-transactions-"),
+  );
+  assert.ok(filename, "a result JSON must be written for Actions artifacts");
+  return JSON.parse(output[filename]);
+}
 
 async function fixture(
   overrides = {},
@@ -110,12 +127,22 @@ async function fixture(
     },
   };
   const files = {
-    "./loadtest-config.json": config,
-    "./.local/users.json": tokens.slice(0, 50),
-    "./.local/warmup-users.json": tokens.slice(50),
+    "./.local/accounts.json": tokens,
+    "custom-accounts.json": tokens,
   };
   const context = vm.createContext({
-    __ENV: environment,
+    __ENV: {
+      BASE_URL: config.baseUrl,
+      REFERENCE_DATE: config.referenceDate,
+      TRADE_MONTHS_AGO: String(config.tradeMonthsAgo),
+      RPS: String(config.rps),
+      DURATION: `${config.stageSeconds}s`,
+      WARMUP_DURATION: `${config.warmupSeconds}s`,
+      VUS: String(config.vus),
+      REQUEST_TIMEOUT_SECONDS: String(config.requestTimeoutSeconds),
+      TARGET_P95_MS: String(config.targetP95Ms),
+      ...environment,
+    },
     Date: TestDate,
     console,
     open: (filename) => JSON.stringify(files[filename]),
@@ -186,6 +213,7 @@ async function fixture(
     exec,
     counters,
     requests,
+    http,
   };
 }
 
@@ -204,7 +232,7 @@ test("one fixed-rate stage uses 50 VUs; calendar subtraction clamps month ends",
 });
 
 test("account selection depends on request index, not which VU is free; each cycle stays balanced", async () => {
-  const f = await fixture({ rpsSteps: [1] });
+  const f = await fixture({ rps: 1 });
   const scenario = f.build();
   for (let index = 0; index < 120; index++) {
     f.exec.scenario.iterationInTest = index;
@@ -246,7 +274,7 @@ test("V1 and V2 send identical payloads/accounts to their own endpoints", async 
 test("invalid token identities, missing cohorts, excessive rates and non-dev targets fail before HTTP", async () => {
   for (const overrides of [
     { baseUrl: "https://daynomy.com" },
-    { rpsSteps: [5] },
+    { rps: 5 },
     { stageSeconds: 0 },
   ]) {
     await assert.rejects(() => fixture(overrides));
@@ -276,8 +304,7 @@ test("reports zero-use accounts, excludes tokens, and cannot pass missing/droppe
     transaction_duration: { values: { "p(95)": 20 } },
     dropped_iterations: { values: { count: 1 } },
   };
-  const output = scenario.handleSummary({ metrics });
-  const report = JSON.parse(output[".local/stage-result.json"]);
+  const report = readReport(scenario, metrics);
   assert.equal(report.outcome, "incomplete");
   assert.equal(report.accounts.length, 50);
   assert.equal(report.accounts[49].started, 0);
@@ -285,11 +312,7 @@ test("reports zero-use accounts, excludes tokens, and cannot pass missing/droppe
   assert.ok(!JSON.stringify(report).includes("test.ey"));
   metrics.dropped_iterations.values.count = 0;
   metrics.transaction_duration.values["p(95)"] = 4000;
-  assert.equal(
-    JSON.parse(scenario.handleSummary({ metrics })[".local/stage-result.json"])
-      .outcome,
-    "target_exceeded",
-  );
+  assert.equal(readReport(scenario, metrics).outcome, "target_exceeded");
 });
 
 test("warmup uses only its three accounts and never enters measured POST counters", async () => {
@@ -306,22 +329,18 @@ test("warmup uses only its three accounts and never enters measured POST counter
 test("reports measured successes/errors and warmup latency separately for each portfolio size", async () => {
   const f = await fixture();
   const scenario = f.build();
-  const report = JSON.parse(
-    scenario.handleSummary({
-      metrics: {
-        transaction_started: { values: { count: 12 } },
-        transaction_success: { values: { count: 11 } },
-        transaction_failed: { values: { count: 1 } },
-        transaction_duration: { values: { "p(95)": 900 } },
-        "transaction_started{account:lt-001}": { values: { count: 2 } },
-        "transaction_success{account:lt-001}": { values: { count: 1 } },
-        "transaction_failed{account:lt-001}": { values: { count: 1 } },
-        "transaction_duration{profile:light}": { values: { "p(95)": 500 } },
-        "warmup_completed{profile:light}": { values: { count: 3 } },
-        "warmup_duration{profile:light}": { values: { "p(95)": 1500 } },
-      },
-    })[".local/stage-result.json"],
-  );
+  const report = readReport(scenario, {
+    transaction_started: { values: { count: 12 } },
+    transaction_success: { values: { count: 11 } },
+    transaction_failed: { values: { count: 1 } },
+    transaction_duration: { values: { "p(95)": 900 } },
+    "transaction_started{account:lt-001}": { values: { count: 2 } },
+    "transaction_success{account:lt-001}": { values: { count: 1 } },
+    "transaction_failed{account:lt-001}": { values: { count: 1 } },
+    "transaction_duration{profile:light}": { values: { "p(95)": 500 } },
+    "warmup_completed{profile:light}": { values: { count: 3 } },
+    "warmup_duration{profile:light}": { values: { "p(95)": 1500 } },
+  });
   const light = report.profiles.find((p) => p.profile === "light");
   assert.equal(light.started, 2);
   assert.equal(light.successful, 1);
@@ -339,18 +358,18 @@ test("reports measured successes/errors and warmup latency separately for each p
 });
 
 test("Actions testid keeps version, date and rate tags on the same run", async () => {
-  const f = await fixture({ version: "v2", rpsSteps: [1] }, () => {}, {
+  const f = await fixture({ version: "v2", rps: 1 }, () => {}, {
     LOADTEST_ID: "actions-stage-id",
   });
   const tags = f.build().options.tags;
   assert.equal(tags.version, "v2");
-  assert.equal(tags.trade_date, "2026-09-15");
+  assert.equal(tags.trade_date, "2026-09-16");
   assert.equal(tags.rps, "1");
   assert.equal(tags.testid, "actions-stage-id");
   assert.equal(tags.environment, "dev");
 });
 
-test("entry filenames fix their version even when the JSON default names the other version", async () => {
+test("entry filenames select the API version independently of runtime params", async () => {
   for (const version of ["v1", "v2"]) {
     const f = await fixture(
       { version: version === "v1" ? "v2" : "v1" },
@@ -359,5 +378,62 @@ test("entry filenames fix their version even when the JSON default names the oth
       version,
     );
     assert.equal(f.build().options.tags.version, version);
+  }
+});
+
+test("Actions scalar params select period, RPS and duration without a config file", async () => {
+  const f = await fixture({}, () => {}, {
+    ACCOUNTS_FILE: "custom-accounts.json",
+    RPS: "1.5",
+    DURATION: "5m",
+    WARMUP_DURATION: "1m",
+    TRADE_MONTHS_AGO: "6",
+    VUS: "50",
+    RUN: "boundary-2",
+  });
+  const scenario = f.build();
+  const options = scenario.options.scenarios.transactions;
+  assert.equal(options.rate, 90);
+  assert.equal(options.timeUnit, "1m");
+  assert.equal(options.duration, "300s");
+  assert.equal(scenario.options.tags.trade_date, "2026-04-16");
+  assert.equal(scenario.options.tags.run, "boundary-2");
+  assert.ok(
+    Object.keys(scenario.handleSummary({ metrics: {} })).some(
+      (name) =>
+        name ===
+        "result-transactions-v1-2026-10-16-6m-1.5rps-300s-boundary-2.json",
+    ),
+  );
+  for (const invalid of [
+    { ACTION: "plan" },
+    { RPS_STEPS: "[1,2]" },
+    { CONFIG_FILE: "old.json" },
+    { DURATION: "0s" },
+    { DURATION: "11m" },
+    { REFERENCE_DATE: "" },
+    { RUN: "../../escape" },
+    { RPS: "NaN" },
+  ])
+    await assert.rejects(() => fixture({}, () => {}, invalid));
+});
+
+test("request errors or unexpected quantities stop the test without retrying", async () => {
+  for (const mismatch of [false, true]) {
+    const f = await fixture();
+    f.http.post = () => ({
+      status: mismatch ? 201 : 503,
+      json: () => ({
+        transactionId: 1,
+        holding: { assetId: 1, quantity: 999 },
+      }),
+    });
+    assert.throws(
+      () =>
+        f.build().run({ csrf: { token: "csrf", headerName: "X-XSRF-TOKEN" } }),
+      mismatch ? /response_mismatch/ : /http_failure_or_timeout/,
+    );
+    assert.equal(f.counters.get("transaction_failed"), 1);
+    assert.equal(f.counters.get("transaction_success"), 0);
   }
 });
