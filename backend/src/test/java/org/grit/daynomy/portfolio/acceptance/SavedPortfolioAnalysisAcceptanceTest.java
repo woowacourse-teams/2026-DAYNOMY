@@ -94,6 +94,11 @@ class SavedPortfolioAnalysisAcceptanceTest {
   }
 
   @LocalServerPort private int port;
+
+  @Autowired
+  private org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext
+      serverContext;
+
   @MockitoBean private PortfolioAnalysisAiClient ai;
   @MockitoBean private OpenAiPortfolioAnalysisClientV1 v1Ai;
   @MockitoBean private org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
@@ -326,6 +331,56 @@ class SavedPortfolioAnalysisAcceptanceTest {
       verify(ai).analyze(anyList());
       verifyNoInteractions(v1Ai);
       assertThat(assetAnalyses.count()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void v2ServesOtherRequestsWhileMoreAnalysesThanTomcatThreadsAreWaiting() throws Exception {
+    var server = (org.springframework.boot.tomcat.TomcatWebServer) serverContext.getWebServer();
+    var protocol =
+        (org.apache.coyote.AbstractProtocol<?>)
+            server.getTomcat().getConnector().getProtocolHandler();
+    int previousMax = protocol.getMaxThreads();
+    int previousSpare = protocol.getMinSpareThreads();
+    var entered = new CountDownLatch(4);
+    var release = new CountDownLatch(1);
+    doAnswer(
+            invocation -> {
+              assertThat(Thread.currentThread().isVirtual()).isTrue();
+              entered.countDown();
+              assertThat(release.await(15, TimeUnit.SECONDS)).isTrue();
+              return result(invocation.getArgument(0));
+            })
+        .when(ai)
+        .analyze(anyList());
+    var clients = new java.util.ArrayList<RequestSpecification>();
+    for (int index = 0; index < 4; index++) {
+      var member = member();
+      hold(portfolio(member), "비동기 시험 종목" + index);
+      clients.add(client(member));
+    }
+    protocol.setMinSpareThreads(2);
+    protocol.setMaxThreads(2);
+    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      var requests =
+          clients.stream()
+              .map(
+                  client ->
+                      executor.submit(() -> client.post("/api/v2/users/me/portfolio/analysis")))
+              .toList();
+      try {
+        assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        var csrf = executor.submit(() -> given().port(port).get("/api/auth/csrf"));
+        assertThat(csrf.get(5, TimeUnit.SECONDS).statusCode()).isEqualTo(200);
+      } finally {
+        release.countDown();
+      }
+      for (var request : requests)
+        assertThat(request.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(200);
+    } finally {
+      release.countDown();
+      protocol.setMaxThreads(previousMax);
+      protocol.setMinSpareThreads(previousSpare);
     }
   }
 
