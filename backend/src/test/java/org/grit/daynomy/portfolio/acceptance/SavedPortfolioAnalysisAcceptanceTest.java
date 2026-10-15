@@ -7,7 +7,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -49,6 +52,8 @@ import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisTransactionService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -57,6 +62,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -98,13 +104,99 @@ class SavedPortfolioAnalysisAcceptanceTest {
   @Autowired private PortfolioRepository portfolios;
   @Autowired private PortfolioHoldingRepository holdings;
   @Autowired private AssetRepository assets;
-  @Autowired private StockDailyPriceRepository prices;
+  @MockitoSpyBean private StockDailyPriceRepository prices;
   @Autowired private PortfolioAnalysisRepository analyses;
   @Autowired private PortfolioAnalysisEvidenceRepository evidence;
   @Autowired private PortfolioAnalysisCheckRepository checks;
   @Autowired private SavedPortfolioAnalysisTransactionService transactions;
   @Autowired private JwtTokenProvider tokens;
   @Autowired private JdbcTemplate jdbc;
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1", "v2"})
+  void versionedAnalysisUsesItsOwnPriceQueryThroughoutTheRequest(String version) {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    hold(portfolio, "SK하이닉스");
+    doAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              return result(invocation.getArgument(0));
+            })
+        .when(ai)
+        .analyze(anyList());
+    clearInvocations(prices);
+
+    var response =
+        client(member)
+            .post("/api/" + version + "/users/me/portfolio/analysis")
+            .then()
+            .statusCode(200)
+            .extract()
+            .response();
+
+    assertThat(response.jsonPath().getString("status")).isEqualTo("READY");
+    assertThat(response.jsonPath().getInt("analysis.totalAssetCount")).isEqualTo(2);
+    assertThat(response.jsonPath().getList("analysis.impacts.weight", BigDecimal.class))
+        .allSatisfy(weight -> assertThat(weight).isEqualByComparingTo("50"));
+    var stored = analyses.findById(response.jsonPath().getLong("analysisId")).orElseThrow();
+    assertThat(stored.getAnalysisVersion()).isEqualTo("portfolio-v5-price-" + version);
+    if (version.equals("v1")) {
+      // prepare와 complete에서 각각 현재 포트폴리오 가격을 확인한다.
+      verify(prices, times(4))
+          .findTop2ByAssetIdOrderByBaseDateDesc(org.mockito.ArgumentMatchers.anyLong());
+      verify(prices, never()).findLatestTwoByAssetIds(anyList());
+    } else {
+      verify(prices, times(2)).findLatestTwoByAssetIds(anyList());
+      verify(prices, never())
+          .findTop2ByAssetIdOrderByBaseDateDesc(org.mockito.ArgumentMatchers.anyLong());
+    }
+    verify(ai).analyze(anyList());
+  }
+
+  @Test
+  void versionedAnalysisDoesNotReuseTheOtherVersionsCompletedResult() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    String v1 = "/api/v1/users/me/portfolio/analysis";
+    String v2 = "/api/v2/users/me/portfolio/analysis";
+
+    long firstId =
+        client(member).post(v1).then().statusCode(200).extract().jsonPath().getLong("analysisId");
+    long secondId =
+        client(member).post(v2).then().statusCode(200).extract().jsonPath().getLong("analysisId");
+    long repeatedId =
+        client(member).post(v2).then().statusCode(200).extract().jsonPath().getLong("analysisId");
+
+    assertThat(secondId).isNotEqualTo(firstId);
+    assertThat(repeatedId).isEqualTo(secondId);
+    verify(ai, times(2)).analyze(anyList());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1", "v2"})
+  void versionedEndpointsRequireAuthenticationAndCsrf(String version) {
+    String path = "/api/" + version + "/users/me/portfolio/analysis";
+    var csrf = given().port(port).get("/api/auth/csrf");
+    given()
+        .port(port)
+        .cookies(csrf.cookies())
+        .header(csrf.jsonPath().getString("headerName"), csrf.jsonPath().getString("token"))
+        .post(path)
+        .then()
+        .statusCode(401);
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    given()
+        .port(port)
+        .cookie("access_token", accessToken(member))
+        .post(path)
+        .then()
+        .statusCode(403);
+    verifyNoInteractions(ai);
+  }
 
   @Test
   void storesAndRestoresAnalysisAndReusesIdenticalAssetsWithoutCallingAiOrAdvancingCheckTime() {
