@@ -1,3 +1,8 @@
+server:
+  tomcat:
+    mbeanregistry:
+      enabled: true
+
 spring:
   autoconfigure:
     exclude:
