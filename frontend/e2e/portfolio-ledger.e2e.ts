@@ -339,7 +339,7 @@ for (const viewport of [
     });
     await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
-    const assetTrigger = page.getByRole('button', { name: '자산 추가', exact: true });
+    const assetTrigger = page.getByRole('button', { name: '거래 기록', exact: true });
     await assetTrigger.click();
     const assetEditor = page.getByRole('dialog', { name: '거래 기록' });
     await expect(assetEditor).toBeVisible();
@@ -1079,7 +1079,7 @@ for (const viewport of [
     await expect(detail).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
-    const trigger = page.getByRole('button', { name: '자산 추가', exact: true });
+    const trigger = page.getByRole('button', { name: '거래 기록', exact: true });
     await trigger.click();
     await expect(
       page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),

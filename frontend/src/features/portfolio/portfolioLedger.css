@@ -586,6 +586,29 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.portfolio-history-amount-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 10px;
+}
+.portfolio-history-edit-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #526681;
+  font-size: 12px;
+  font-weight: 500;
+}
+.portfolio-history-edit-hint svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .portfolio-history-amount strong {
   font-size: 18px;
   font-weight: 650;

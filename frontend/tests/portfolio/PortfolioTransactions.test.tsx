@@ -393,7 +393,7 @@ describe('거래 원장 화면', () => {
 
   it('검색한 기존 종목에 추가 매수하고 비용을 API에 전달한다', async () => {
     const view = await ready();
-    fireEvent.click(view.getByRole('button', { name: '자산 추가' }));
+    fireEvent.click(view.getByRole('button', { name: '거래 기록' }));
     const dialog = view.getByRole('dialog', { name: '거래 기록' });
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));
@@ -482,6 +482,7 @@ describe('거래 원장 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
     const row = await view.findByRole('button', { name: /2026\.10\.01.*매수.*삼성전자/ });
     expect(row.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(within(row).getByText('수정')).toBeTruthy();
     const history = view.getByRole('region', { name: '거래 내역' });
     expect(history.querySelector('details')).toBeNull();
     expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(1);
@@ -576,6 +577,8 @@ describe('거래 원장 화면', () => {
       within(view.getByRole('dialog', { name: '삼성전자 보유 상세' })).getByText('0주'),
     ).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '보유 상세 닫기' }));
+    expect(view.getByRole('button', { name: '거래 기록하기' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '첫 거래 기록하기' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
     expect(await view.findByText('2026.10.12')).toBeTruthy();
   });
