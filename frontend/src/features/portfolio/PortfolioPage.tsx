@@ -819,7 +819,16 @@ type PortfolioPageProps = {
 
 export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const pageRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [desktopScale, setDesktopScale] = useState(1);
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = '내 포트폴리오 | DAYNOMY';
+    headingRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
   useEffect(() => {
     const page = pageRef.current;
     if (!page || typeof ResizeObserver === 'undefined') return;
@@ -1079,7 +1088,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     >
       <header className="portfolio-page-title">
         <div>
-          <h1>내 포트폴리오</h1>
+          <h1 ref={headingRef} tabIndex={-1}>
+            내 포트폴리오
+          </h1>
           {!isLoggedIn && (
             <p className="portfolio-save-notice is-guest" role="status">
               {notice || '비회원 자산은 이 탭에만 임시 저장돼요.'}
