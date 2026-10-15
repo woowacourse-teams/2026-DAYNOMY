@@ -43,7 +43,7 @@ jobs:
           K6_PROMETHEUS_RW_LABELS: environment=dev,service=k6
           K6_SCRIPT: ${{ inputs.script }}
           K6_PARAMS_JSON: ${{ inputs.params }}
-          K6_ACCOUNTS_JSON: ${{ secrets.K6_ACCOUNTS_JSON }}
+          K6_ACCOUNTS_JSON_GZ_BASE64: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64 }}
         run: |
           set -Eeuo pipefail
           if [[ ! "$K6_SCRIPT" =~ ^loadtest/[A-Za-z0-9._/-]+\.js$ || "$K6_SCRIPT" == *..* || ! -f "$K6_SCRIPT" ]]; then
@@ -52,14 +52,15 @@ jobs:
           fi
           script_name="${K6_SCRIPT#loadtest/}"
           if [[ "$script_name" == portfolio-analysis-*.js ]]; then
-            if [[ -z "$K6_ACCOUNTS_JSON" ]]; then
-              echo "Set K6_ACCOUNTS_JSON in the development environment secrets."
+            if [[ -z "$K6_ACCOUNTS_JSON_GZ_BASE64" ]]; then
+              echo "Set K6_ACCOUNTS_JSON_GZ_BASE64 in the development environment secrets."
               exit 1
             fi
+            accounts_file="$GITHUB_WORKSPACE/loadtest/accounts.json"
+            trap 'rm -f "$accounts_file"' EXIT
             umask 077
-            printf '%s' "$K6_ACCOUNTS_JSON" > loadtest/accounts.json
-            unset K6_ACCOUNTS_JSON
-            trap 'rm -f loadtest/accounts.json' EXIT
+            printf '%s' "$K6_ACCOUNTS_JSON_GZ_BASE64" | base64 --decode | gzip --decompress > "$accounts_file"
+            unset K6_ACCOUNTS_JSON_GZ_BASE64
           fi
           if [[ -z "$BASE_URL" ]]; then
             echo "Set DEV_BASE_URL in the development environment variables."
