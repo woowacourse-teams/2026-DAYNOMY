@@ -586,6 +586,29 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.portfolio-history-amount-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 10px;
+}
+.portfolio-history-edit-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #526681;
+  font-size: 12px;
+  font-weight: 500;
+}
+.portfolio-history-edit-hint svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .portfolio-history-amount strong {
   font-size: 18px;
   font-weight: 650;
@@ -651,6 +674,9 @@
 }
 .portfolio-transaction-sheet .portfolio-sheet-heading {
   margin-bottom: 24px;
+}
+.portfolio-transaction-sheet .portfolio-sheet-heading h2 {
+  letter-spacing: -0.02em;
 }
 .portfolio-transaction-sheet .portfolio-ledger-field {
   margin-bottom: 18px;
@@ -729,9 +755,62 @@
   gap: 16px;
 }
 .portfolio-stock-results {
+  block-size: 160px;
+  padding-block: 16px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   color: #8290a5;
   font-size: 13px;
   line-height: 1.7;
+}
+.portfolio-stock-results > p {
+  margin: 0;
+  line-height: 1.9;
+  letter-spacing: 0.01em;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.portfolio-stock-search-loading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+.portfolio-stock-search-spinner {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+}
+.portfolio-stock-search-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 0;
+  color: #526078;
+}
+.portfolio-stock-search-error p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.portfolio-stock-search-retry {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--button-primary);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+.portfolio-stock-search-retry:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (pointer: coarse) {
+  .portfolio-stock-search-retry {
+    min-height: 44px;
+  }
 }
 .portfolio-stock-results ul {
   list-style: none;
@@ -1103,6 +1182,13 @@
     max-height: 100dvh;
     margin: 0;
     border-radius: 0;
+  }
+  .portfolio-sheet.portfolio-transaction-sheet:has(.portfolio-stock-results) {
+    width: min(520px, calc(100% - 32px));
+    height: fit-content;
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    border-radius: 18px;
   }
   .portfolio-sheet-content,
   .portfolio-transaction-sheet .portfolio-sheet-content {
@@ -2218,6 +2304,13 @@
 .portfolio-return-dashboard.is-compact {
   grid-template-rows: auto auto 260px;
   align-content: start;
+}
+.portfolio-return-dashboard.is-compact:has(.portfolio-trend-locked) {
+  grid-template-rows: auto 210px;
+}
+.portfolio-page .portfolio-return-dashboard.is-compact .portfolio-trend-locked {
+  min-height: 0;
+  margin-top: 0;
 }
 .portfolio-return-dashboard.is-compact .portfolio-trend-plot {
   display: grid;
