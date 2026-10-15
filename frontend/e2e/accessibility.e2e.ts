@@ -15,8 +15,9 @@ test('키보드로 소개·거래 입력 오류 수정·뉴스 검색과 읽기�
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installAccessibilityFixtures(page);
-  await page.goto('/welcome');
+  await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page).toHaveURL('/');
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: '본문 바로가기' })).toBeFocused();
   await page.keyboard.press('Enter');
