@@ -146,7 +146,7 @@ class EntityAuditPersistenceTest {
             .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
             .schemas(schema)
             .defaultSchema(schema);
-    configuration.target("44").load().migrate();
+    configuration.target("45").load().migrate();
     try (var connection =
             DriverManager.getConnection(
                 POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
