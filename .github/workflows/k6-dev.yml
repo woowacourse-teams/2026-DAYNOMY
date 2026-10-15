@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         default: loadtest/load-test.js
+      params:
+        description: 'JSON object of k6 script parameters, for example {"CASE":"B1","API_MODE":"real","USERS":1}'
+        required: true
+        type: string
+        default: '{"CASE":"B1","API_MODE":"real","USERS":1,"RUN":"1"}'
 
 permissions:
   contents: read
@@ -21,7 +26,7 @@ jobs:
     name: Run k6 against development
     runs-on: [self-hosted, Linux, ARM64, loadtest-dev]
     environment: development
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -37,11 +42,24 @@ jobs:
           K6_PROMETHEUS_RW_TREND_STATS: p(90),p(95),p(99),avg,min,max
           K6_PROMETHEUS_RW_LABELS: environment=dev,service=k6
           K6_SCRIPT: ${{ inputs.script }}
+          K6_PARAMS_JSON: ${{ inputs.params }}
+          K6_ACCOUNTS_JSON: ${{ secrets.K6_ACCOUNTS_JSON }}
         run: |
           set -Eeuo pipefail
           if [[ ! "$K6_SCRIPT" =~ ^loadtest/[A-Za-z0-9._/-]+\.js$ || "$K6_SCRIPT" == *..* || ! -f "$K6_SCRIPT" ]]; then
             echo "Choose an existing .js file under loadtest/."
             exit 1
+          fi
+          script_name="${K6_SCRIPT#loadtest/}"
+          if [[ "$script_name" == portfolio-analysis-*.js ]]; then
+            if [[ -z "$K6_ACCOUNTS_JSON" ]]; then
+              echo "Set K6_ACCOUNTS_JSON in the development environment secrets."
+              exit 1
+            fi
+            umask 077
+            printf '%s' "$K6_ACCOUNTS_JSON" > loadtest/accounts.json
+            unset K6_ACCOUNTS_JSON
+            trap 'rm -f loadtest/accounts.json' EXIT
           fi
           if [[ -z "$BASE_URL" ]]; then
             echo "Set DEV_BASE_URL in the development environment variables."
@@ -51,6 +69,53 @@ jobs:
             echo "Set K6_PROMETHEUS_RW_SERVER_URL in the development environment variables."
             exit 1
           fi
-          k6 run -o experimental-prometheus-rw \
-            --tag testid="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            "$K6_SCRIPT"
+          cd loadtest
+          K6_SCRIPT_NAME="$script_name" python3 - <<'PY'
+          import json
+          import math
+          import os
+          import re
+          import subprocess
+          import sys
+
+          try:
+              params = json.loads(os.environ["K6_PARAMS_JSON"])
+          except json.JSONDecodeError as error:
+              raise SystemExit(f"Invalid params JSON: {error.msg}")
+
+          if not isinstance(params, dict):
+              raise SystemExit("params must be a JSON object.")
+          if "BASE_URL" in params or "ACCOUNTS_FILE" in params:
+              raise SystemExit("BASE_URL and ACCOUNTS_FILE are managed by the workflow.")
+
+          args = [
+              "k6", "run", "-o", "experimental-prometheus-rw",
+              "--tag", f"testid={os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}",
+          ]
+          params["BASE_URL"] = os.environ["BASE_URL"]
+          if os.path.isfile("accounts.json"):
+              params["ACCOUNTS_FILE"] = "./accounts.json"
+
+          for key, value in params.items():
+              if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
+                  raise SystemExit(f"Invalid k6 parameter name: {key}")
+              if isinstance(value, bool):
+                  value = str(value).lower()
+              elif isinstance(value, (str, int, float)) and (not isinstance(value, float) or math.isfinite(value)):
+                  value = str(value)
+              else:
+                  raise SystemExit(f"Parameter {key} must have a string, number, or boolean value.")
+              args.extend(["-e", f"{key}={value}"])
+
+          args.append(os.environ["K6_SCRIPT_NAME"])
+          sys.exit(subprocess.run(args).returncode)
+          PY
+
+      - name: Upload load test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: loadtest/result-*.json
+          if-no-files-found: ignore
+          retention-days: 14
