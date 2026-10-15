@@ -70,6 +70,8 @@ public class SecurityConfig {
                     .authenticated()
                     .requestMatchers("/api/users/**")
                     .authenticated()
+                    .requestMatchers("/api/v2/users/**")
+                    .authenticated()
                     .anyRequest()
                     .permitAll())
         .oauth2Login(
