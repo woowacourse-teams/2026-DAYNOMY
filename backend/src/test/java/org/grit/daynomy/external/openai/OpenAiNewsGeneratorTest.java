@@ -93,7 +93,7 @@ class OpenAiNewsGeneratorTest {
         .contains("연방준비제도")
         .doesNotContain("한국에서 발행된 주요 언론사");
     String writerRequest = server.takeRequest().getBody().readUtf8();
-    assertThat(writerRequest).contains("조사 자료 묶음").contains("미국 뉴스 0").contains("해라체");
+    assertThat(writerRequest).contains("조사 자료 묶음").contains("첫 번째 뉴스").contains("해라체");
     assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
