@@ -268,6 +268,49 @@ fixture hash는 `e812854492f34ac082d2b4744211409fc2f33688751e86ebaf488ab277a1714
 동시 사용자 수 증가·지속 부하·부하 발생기 분리는 후속 검증이다. 원본은
 `.local/results/compare-*`, 집계는 `.local/results/comparison.json`에 보존한다.
 
+## JFR 프로파일링과 기간·동시 사용자 비교
+
+계산 코드를 바꾸지 않고 JDK 21의 JFR로 실행 스택과 DB 소켓 읽기를 수집한다.
+전용 서버를 실행하고 `prepare`를 완료한 뒤 서버 JVM의 PID를 지정한다.
+`JAVA_HOME/bin/jcmd -l`에서 `DaynomyApplication`과 loadtest 설정을 확인한다.
+
+```bash
+python3 backend/loadtest/benchmark.py profile \
+  --label profile-496-example --pid <서버-JVM-PID> --jdk "$JAVA_HOME" \
+  --vus 1 --iterations 3 --repeats 1
+
+python3 backend/loadtest/analyze_profile.py --jdk "$JAVA_HOME" \
+  backend/loadtest/.local/results/profile-496-example/*.jfr
+```
+
+JFR 실행은 성능 비교에 섞지 않는다. `ExecutionSample`/`NativeMethodSample`의
+API 처리 스레드 스택을 자동 flush·기타 flush·이력 계산·JDBC 등으로 분류한다.
+비율은 **실행 샘플 비중**이며 정확한 구간별 경과시간 비율이 아니다. DB 포트의
+SocketRead 시간은 서버 처리·통신 대기를 포함하고 PostgreSQL 실행시간과 다르다.
+표본이 없는 짧은 요청은 해당 코드가 비용이 없다는 뜻이 아니다.
+
+JFR을 끈 비교 실행:
+
+```bash
+python3 backend/loadtest/benchmark.py matrix --label matrix-496-example \
+  --vus 1 5 10 20 50 --iterations 3 --repeats 3
+```
+
+- 기본은 BUY이며 `--side SELL`로 매도를 별도로 측정할 수 있다.
+- 각 기간의 V1/V2를 워밍업하고, 매 측정 전에 같은 초기 데이터를 복원한다.
+- 반복 차수마다 버전 실행 순서를 바꾼다. V1/V2를 동시에 호출하지 않는다.
+- 각 결과에 응답·전체 과거 스냅샷 검증을 수행한다. 실패 시험을 정상 성능 비교에 넣지 않는다.
+- 클라이언트 중단 후에도 서버 작업이 남을 수 있어, DB 연결 active/pending이 연속 3회
+  0이 된 뒤 초기화한다. 30분 내 끝나지 않으면 다음 시험을 진행하지 않는다.
+- `resources.json`은 0.5초 간격의 JVM CPU 누적시간·메모리·GC·Hikari 사용/대기 연결
+  등의 관측이다. 짧은 피크는 놓칠 수 있으며 측정 전 검증·CSRF 구간도 포함한다.
+- 전체 계획·환경과 집계는 `.local/results/<label>/environment.json`, `comparison.json`에 저장한다.
+  시험별 k6 출력은 같은 디렉터리의 로그, 상세 결과는 각 시험 label 디렉터리에 저장한다.
+- VU당 요청 횟수가 정해진 짧은 동시 요청 비교다. 지속 부하·고정 RPS·최대 처리량 시험과
+  구분하고, 적은 표본의 p95/p99를 안정적인 지연 지표로 해석하지 않는다.
+
+측정 방법과 결과 해석은 [프로파일링·비교 기록](PROFILING-496.md)에 정리한다.
+
 ## 검증 및 종료
 
 ```bash
