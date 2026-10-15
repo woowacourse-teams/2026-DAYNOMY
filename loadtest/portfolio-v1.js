@@ -4,6 +4,7 @@ import { Counter, Rate, Trend } from 'k6/metrics';
 
 // loadtest 폴더에서 실행: k6 run -e BASE_URL=https://개발서버 -e USERS=1 portfolio-v1.js
 // CASE/API_MODE는 기록용이다. DB 준비 상태와 서버의 AI 연결은 별도로 맞춘다.
+// accounts.json의 warmup: true 회원 1명으로 먼저 워밍업한다. USERS에는 포함하지 않는다.
 // 반복 전 새 회원 파일(ACCOUNTS_FILE)을 쓰거나 테스트 분석 상태를 초기화한다.
 const BASE_URL = (__ENV.BASE_URL || '').replace(/\/$/, '');
 const USERS = Number(__ENV.USERS || 1);
@@ -28,15 +29,21 @@ try {
   throw new Error('계정 JSON 파일을 준비하고 형식을 확인하세요.');
 }
 if (!Array.isArray(accountData)) throw new Error('계정 파일은 JSON 배열이어야 합니다.');
-const accounts = accountData.slice(0, USERS);
+const warmupAccounts = accountData.filter((account) => account.warmup === true);
+if (warmupAccounts.length !== 1) {
+  throw new Error('계정 파일에 warmup: true인 워밍업 회원을 정확히 1명 지정하세요.');
+}
+const warmupAccount = warmupAccounts[0];
+const accounts = accountData.filter((account) => account.warmup !== true).slice(0, USERS);
+const participants = [warmupAccount, ...accounts];
 if (
   accounts.length !== USERS ||
-  new Set(accounts.map((a) => a.memberId)).size !== USERS ||
-  new Set(accounts.map((a) => a.accessToken)).size !== USERS
+  new Set(participants.map((a) => a.memberId)).size !== USERS + 1 ||
+  new Set(participants.map((a) => a.accessToken)).size !== USERS + 1
 ) {
-  throw new Error('동시 인원만큼 서로 다른 테스트 계정을 준비하세요.');
+  throw new Error('본 측정 인원과 별도 워밍업 회원의 ID·토큰은 서로 달라야 합니다.');
 }
-if (accounts.some((a) =>
+if (participants.some((a) =>
   !Number.isSafeInteger(a.memberId) || a.memberId < 1 ||
   typeof a.accessToken !== 'string' || a.accessToken.split('.').length !== 3 ||
   !Array.isArray(a.assetNames) || !a.assetNames.length ||
@@ -44,6 +51,10 @@ if (accounts.some((a) =>
   new Set(a.assetNames).size !== a.assetNames.length
 )) {
   throw new Error('회원 ID·실제 access_token·보유 종목명을 입력하세요.');
+}
+
+if (warmupAccount.assetNames.some((name) => accounts.some((a) => a.assetNames.includes(name)))) {
+  throw new Error('워밍업 종목과 본 측정 종목은 겹치면 안 됩니다.');
 }
 
 const requests = new Counter('analysis_requests');
@@ -60,7 +71,7 @@ export const options = {
       gracefulStop: '0s',
     },
   },
-  setupTimeout: '2m',
+  setupTimeout: '8m',
   maxRedirects: 0,
   tags: { version: 'v1', condition: CASE, api_mode: API_MODE, run: RUN },
   summaryTrendStats: ['avg', 'med', 'p(95)', 'max'],
@@ -70,8 +81,48 @@ export const options = {
   },
 };
 
-// 인증 준비는 분석 시간에 포함하지 않는다.
+function readCsrf(response) {
+  let body;
+  try {
+    body = response.json();
+  } catch (_) {
+    throw new Error('CSRF 응답 오류. 서버 주소와 인증 정보를 확인하세요.');
+  }
+  const cookie = response.cookies['XSRF-TOKEN']?.[0]?.value;
+  if (response.status !== 200 || !body?.token || !body?.headerName || !cookie) {
+    throw new Error('CSRF 준비 실패. 인증 정보를 확인하세요.');
+  }
+  return { token: body.token, headerName: body.headerName, cookie };
+}
+
+// 워밍업과 인증 준비는 본 측정의 건수·성공률·분석 시간에 포함하지 않는다.
+// 반복 시 저장된 워밍업 결과가 재사용될 수 있다. 전체 경로 재실행이 필요하면 전용 분석 결과도 초기화한다.
 export function setup() {
+  const jar = new http.CookieJar();
+  jar.set(BASE_URL, 'access_token', warmupAccount.accessToken);
+  const warmupCsrf = readCsrf(http.get(`${BASE_URL}/api/auth/csrf`, {
+    jar, timeout: '15s', tags: { name: 'csrf_prepare', phase: 'warmup' },
+  }));
+  const response = http.post(`${BASE_URL}/api/v1/users/me/portfolio/analysis`, null, {
+    jar,
+    cookies: { access_token: warmupAccount.accessToken, 'XSRF-TOKEN': warmupCsrf.cookie },
+    headers: { [warmupCsrf.headerName]: warmupCsrf.token },
+    timeout: '300s',
+    tags: { name: 'portfolio_analysis_v1_warmup', phase: 'warmup' },
+  });
+  let body;
+  try { body = response.json(); } catch (_) { /* 정상 분석 응답이 아니면 본 측정을 시작하지 않는다. */ }
+  const impacts = body?.analysis?.impacts;
+  if (response.status !== 200 || body?.status !== 'READY' ||
+      !Number.isSafeInteger(body?.analysisId) || body?.matchesCurrentPortfolio !== true ||
+      body?.analysis?.totalAssetCount !== warmupAccount.assetNames.length ||
+      !Array.isArray(impacts) || impacts.length !== warmupAccount.assetNames.length ||
+      new Set(impacts.map((i) => i.assetName)).size !== impacts.length ||
+      impacts.some((i) => !warmupAccount.assetNames.includes(i.assetName))) {
+    throw new Error(`워밍업 실패: HTTP ${response.status}. 본 측정은 시작하지 않습니다.`);
+  }
+  console.info('워밍업 완료. 지금부터 본 측정을 준비합니다.');
+
   const responses = http.batch(
     accounts.map((account) => {
       const jar = new http.CookieJar();
@@ -79,23 +130,11 @@ export function setup() {
       return {
         method: 'GET',
         url: `${BASE_URL}/api/auth/csrf`,
-        params: { jar, timeout: '15s', tags: { name: 'csrf_prepare' } },
+        params: { jar, timeout: '15s', tags: { name: 'csrf_prepare', phase: 'measurement' } },
       };
     }),
   );
-  const csrf = responses.map((response) => {
-    let body;
-    try {
-      body = response.json();
-    } catch (_) {
-      throw new Error('CSRF 응답 오류. 서버 주소와 인증 정보를 확인하세요.');
-    }
-    const cookie = response.cookies['XSRF-TOKEN']?.[0]?.value;
-    if (response.status !== 200 || !body?.token || !body?.headerName || !cookie) {
-      throw new Error('CSRF 준비 실패. 인증 정보를 확인하세요.');
-    }
-    return { token: body.token, headerName: body.headerName, cookie };
-  });
+  const csrf = responses.map(readCsrf);
   return { csrf, startAt: Date.now() + 2000 };
 }
 
@@ -117,7 +156,7 @@ export default function (data) {
       },
       headers: { [csrf.headerName]: csrf.token },
       timeout: '300s',
-      tags: { name: 'portfolio_analysis_v1' },
+      tags: { name: 'portfolio_analysis_v1', phase: 'measurement' },
     },
   );
   duration.add(Date.now() - startedAt);
@@ -165,6 +204,7 @@ export function handleSummary(data) {
   const summary = [
     `포트폴리오 분석 V1 / ${CASE} / ${API_MODE} / ${USERS}명 / 실행 ${RUN}`,
     `정상 완료: ${successValues?.passes || 0} / ${requestCount}건 (예정 ${USERS}건)`,
+    '워밍업 요청은 아래 결과에서 제외됩니다.',
     `실패율: ${failureRate}`,
     `평균 분석 시간: ${milliseconds(latency?.avg)}`,
     `p95 분석 시간: ${milliseconds(latency?.['p(95)'])}`,
