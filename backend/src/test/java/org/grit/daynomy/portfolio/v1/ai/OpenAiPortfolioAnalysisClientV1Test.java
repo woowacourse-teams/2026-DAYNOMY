@@ -87,10 +87,10 @@ class OpenAiPortfolioAnalysisClientV1Test {
   }
 
   @Test
-  void assignsOneRequiredSlotPerAssetAndReturnsAllFiftyAssets() throws Exception {
+  void assignsOneRequiredSlotPerAssetAndReturnsAllFiveAssets() throws Exception {
     var targets =
-        IntStream.range(0, 50)
-            .mapToObj(i -> new PortfolioAnalysisTargetV1("종목" + i, new BigDecimal("2")))
+        IntStream.range(0, 5)
+            .mapToObj(i -> new PortfolioAnalysisTargetV1("종목" + i, new BigDecimal("20")))
             .toList();
     var impacts = mapper.createObjectNode();
     targets.forEach(target -> impacts.set(target.assetName(), validImpact()));
@@ -114,8 +114,8 @@ class OpenAiPortfolioAnalysisClientV1Test {
     var slots = schema.path("properties").path("impacts");
     assertThat(slots.path("type").asText()).isEqualTo("object");
     assertThat(slots.path("additionalProperties").asBoolean()).isFalse();
-    assertThat(slots.path("required").size()).isEqualTo(50);
-    assertThat(slots.path("properties").size()).isEqualTo(50);
+    assertThat(slots.path("required").size()).isEqualTo(5);
+    assertThat(slots.path("properties").size()).isEqualTo(5);
     for (var target : targets) {
       assertThat(slots.path("properties").path(target.assetName()).path("$ref").asText())
           .isEqualTo("#/$defs/assetImpact");

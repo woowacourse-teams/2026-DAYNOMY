@@ -35,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SavedPortfolioAnalysisTransactionService {
 
-  private static final String ANALYSIS_VERSION = "portfolio-v6";
+  private static final String ANALYSIS_VERSION = "portfolio-v7-batch5";
   private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
   private static final int RETAINED_ANALYSES = 10;
 

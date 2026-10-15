@@ -56,6 +56,7 @@ import org.grit.daynomy.portfolio.v1.ai.OpenAiPortfolioAnalysisClientV1;
 import org.grit.daynomy.portfolio.v1.ai.PortfolioAnalysisTargetV1;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -132,12 +133,11 @@ class SavedPortfolioAnalysisAcceptanceTest {
   @Autowired private JdbcTemplate jdbc;
 
   @ParameterizedTest
-  @ValueSource(strings = {"v1", "v2"})
-  void versionedAnalysisUsesItsOwnPriceQueryThroughoutTheRequest(String version) {
+  @CsvSource({"v1,2", "v2,2", "v1,50", "v2,50"})
+  void versionedAnalysisUsesItsOwnPriceQueryThroughoutTheRequest(String version, int assetCount) {
     Member member = member();
     Portfolio portfolio = portfolio(member);
-    hold(portfolio, "삼성전자");
-    hold(portfolio, "SK하이닉스");
+    for (int index = 0; index < assetCount; index++) hold(portfolio, "인수시험 종목" + index);
     doAnswer(
             invocation -> {
               assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
@@ -156,15 +156,22 @@ class SavedPortfolioAnalysisAcceptanceTest {
             .response();
 
     assertThat(response.jsonPath().getString("status")).isEqualTo("READY");
-    assertThat(response.jsonPath().getInt("analysis.totalAssetCount")).isEqualTo(2);
+    assertThat(response.jsonPath().getInt("analysis.totalAssetCount")).isEqualTo(assetCount);
     assertThat(response.jsonPath().getList("analysis.impacts.weight", BigDecimal.class))
-        .allSatisfy(weight -> assertThat(weight).isEqualByComparingTo("50"));
+        .allSatisfy(
+            weight ->
+                assertThat(weight)
+                    .isEqualByComparingTo(
+                        BigDecimal.valueOf(100).divide(BigDecimal.valueOf(assetCount))));
     var stored = analyses.findById(response.jsonPath().getLong("analysisId")).orElseThrow();
     assertThat(stored.getAnalysisVersion())
-        .isEqualTo(version.equals("v1") ? "portfolio-v5-price-v1" : "portfolio-v6-price-ai-v2");
+        .isEqualTo(
+            version.equals("v1")
+                ? "portfolio-v7-batch-price-v1"
+                : "portfolio-v7-batch-price-ai-v2");
     if (version.equals("v1")) {
       // prepare와 complete에서 각각 현재 포트폴리오 가격을 확인한다.
-      verify(prices, times(4))
+      verify(prices, times(assetCount * 2))
           .findTop2ByAssetIdOrderByBaseDateDesc(org.mockito.ArgumentMatchers.anyLong());
       verify(prices, never()).findLatestTwoByAssetIds(anyList());
     } else {
@@ -179,7 +186,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
     } else {
       verify(ai).analyze(anyList());
       verifyNoInteractions(v1Ai);
-      assertThat(assetAnalyses.count()).isEqualTo(2);
+      assertThat(assetAnalyses.count()).isEqualTo(assetCount);
     }
   }
 
