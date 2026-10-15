@@ -123,6 +123,42 @@ afterEach(() => {
 });
 
 describe('투자 리그 화면', () => {
+  it('투자자 이름과 팔로우 상태를 전달하고 화면을 닫으면 원래 제목을 복원한다', async () => {
+    const previousTitle = document.title;
+    vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
+      ...investor,
+      detailAvailable: false,
+    });
+    vi.mocked(leagueApi.followInvestor).mockResolvedValue(undefined);
+    vi.mocked(leagueApi.unfollowInvestor).mockResolvedValue(undefined);
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'USER' }}>
+        <MemoryRouter initialEntries={['/league/investor-1']}>
+          <Routes>
+            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    const button = await view.findByRole('button', { name: '차분한초보 팔로우' });
+    await waitFor(() => {
+      expect(document.title).toBe('차분한초보 공개 프로필 | DAYNOMY');
+      expect(document.activeElement).toBe(view.getByRole('heading', { name: '차분한초보' }));
+    });
+    button.focus();
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(button);
+    await waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('true'));
+    expect(view.getByRole('button', { name: '차분한초보 팔로잉 취소' })).toBe(button);
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(button.getAttribute('aria-pressed')).toBe('false'));
+    expect(leagueApi.followInvestor).toHaveBeenCalledWith('investor-1');
+    expect(leagueApi.unfollowInvestor).toHaveBeenCalledWith('investor-1');
+    view.unmount();
+    expect(document.title).toBe(previousTitle);
+  });
+
   it('일별 조회는 서버 주차를 최신 3주로 정렬하고 오래된 선택은 이번 주로 바꾼다', async () => {
     vi.mocked(leagueApi.getLeagueWeeks).mockResolvedValue(
       Array.from({ length: 8 }, (_, index) => ({
@@ -253,6 +289,8 @@ describe('투자 리그 화면', () => {
       </AuthContext.Provider>,
     );
     const trigger = await view.findByRole('button', { name: '차분한초보 상세 지표' });
+    expect(document.title).toBe('주간 리그 | DAYNOMY');
+    expect(document.activeElement).toBe(view.getByRole('heading', { name: '주간 리그' }));
     fireEvent.click(trigger);
     const dialog = view.getByRole('dialog', { name: '차분한초보 상세 지표' });
     expect(within(dialog).getByText('투자 기록 4개')).toBeTruthy();
@@ -315,6 +353,8 @@ describe('투자 리그 화면', () => {
       </MemoryRouter>,
     );
     await view.findByText('지난주 대비 2위 상승');
+    expect(document.title).toBe('팔로잉 | DAYNOMY');
+    expect(document.activeElement).toBe(view.getByRole('heading', { name: '팔로잉' }));
     expect(view.getByText('지난주 대비 2위 하락')).toBeTruthy();
     expect(view.getByText('지난주와 동일')).toBeTruthy();
     expect(view.getByText('비교 기록 없음')).toBeTruthy();
@@ -415,6 +455,9 @@ describe('투자 리그 화면', () => {
         1,
       ),
     );
+    const pageStatus = await view.findByRole('status', { name: '전체 3페이지 중 2페이지' });
+    expect(document.activeElement).toBe(pageStatus);
+    expect(view.getByRole('list').getAttribute('start')).toBe('21');
     fireEvent.change(view.getByRole('combobox', { name: '조회 주차' }), {
       target: { value: '2026-09-21' },
     });

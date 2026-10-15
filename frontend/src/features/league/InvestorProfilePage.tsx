@@ -8,6 +8,7 @@ import { DailyReturns } from './DailyReturns';
 import { InvestorAvatar } from './InvestorAvatar';
 import type { InvestorDetail, PublicInvestor, InvestorProfile } from './types';
 import './league.css';
+import { useLeaguePageHeading } from './useLeaguePageHeading';
 
 export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfile } = {}) {
   const params = useParams();
@@ -28,6 +29,10 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
   const [detailError, setDetailError] = useState('');
   const [weekStart, setWeekStart] = useState('');
   const [dailyOpen, setDailyOpen] = useState(false);
+  const heading = useLeaguePageHeading(
+    investor ? `${investor.displayName} 공개 프로필` : '투자자 프로필',
+    !loading,
+  );
 
   const dailyContent = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -98,10 +103,20 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
   }
 
   if (loading)
-    return <main className="league-page league-state">투자 기록을 불러오고 있습니다.</main>;
+    return (
+      <main className="league-page league-state">
+        <h1 ref={heading} tabIndex={-1}>
+          투자자 프로필
+        </h1>
+        <p role="status">투자 기록을 불러오고 있습니다.</p>
+      </main>
+    );
   if (error && !investor)
     return (
       <main className="league-page league-state" role="alert">
+        <h1 ref={heading} tabIndex={-1}>
+          투자자 프로필
+        </h1>
         <p>{error}</p>
         <button type="button" onClick={() => setRetry((n) => n + 1)}>
           다시 불러오기
@@ -140,7 +155,9 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
         <div>
           <InvestorAvatar name={investor.displayName} imageUrl={investor.profileImageUrl} />
           <div>
-            <h1>{investor.displayName}</h1>
+            <h1 ref={heading} tabIndex={-1}>
+              {investor.displayName}
+            </h1>
             {investor.bio ? <p>{investor.bio}</p> : null}
           </div>
         </div>
@@ -149,7 +166,13 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
             프로필 설정
           </Link>
         ) : isLoggedIn ? (
-          <button type="button" disabled={followSaving} onClick={() => void toggleFollow()}>
+          <button
+            type="button"
+            disabled={followSaving}
+            aria-pressed={investor.followed}
+            aria-label={`${investor.displayName} ${investor.followed ? '팔로잉 취소' : '팔로우'}`}
+            onClick={() => void toggleFollow()}
+          >
             {investor.followed ? '팔로잉' : '팔로우'}
           </button>
         ) : (
@@ -194,7 +217,7 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
           </div>
         </section>
 
-        <div className="league-chart-switch" aria-label="수익률 조회 단위">
+        <div className="league-chart-switch" role="group" aria-label="수익률 조회 단위">
           <button type="button" aria-pressed={!dailyOpen} onClick={() => setDailyOpen(false)}>
             주간
           </button>

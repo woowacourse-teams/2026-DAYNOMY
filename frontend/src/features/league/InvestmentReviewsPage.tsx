@@ -1,16 +1,18 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { createReview, getTransactions } from './api';
 import { holdingPeriodLabels, transactionLabels } from './labels';
 import type { InvestmentTransaction } from './types';
 import './league.css';
 import './shared-portfolio.css';
+import { useLeaguePageHeading } from './useLeaguePageHeading';
 
 const blankReview = () => ({ actualResult: '', differenceFromExpectation: '', nextAction: '' });
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
 
 export function InvestmentReviewsPage() {
+  const heading = useLeaguePageHeading('투자 복기');
   const [records, setRecords] = useState<InvestmentTransaction[] | null>(null);
   const [loadError, setLoadError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -19,6 +21,23 @@ export function InvestmentReviewsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const errorId = useId();
+  const reviewForm = useRef<HTMLFormElement>(null);
+  const errorNotice = useRef<HTMLParagraphElement>(null);
+  const reviewTrigger = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (reviewId === null && !busy) {
+      reviewTrigger.current?.focus();
+      reviewTrigger.current = null;
+    }
+  }, [reviewId, busy]);
+  useEffect(() => {
+    if (!error || busy) return;
+    const invalidInput = Array.from(reviewForm.current?.elements ?? []).find(
+      (input) => input instanceof HTMLTextAreaElement && !input.value.trim(),
+    );
+    (invalidInput instanceof HTMLTextAreaElement ? invalidInput : errorNotice.current)?.focus();
+  }, [error, busy]);
   useEffect(() => {
     const controller = new AbortController();
     setLoadError('');
@@ -118,8 +137,11 @@ export function InvestmentReviewsPage() {
         ))}
         <button
           type="button"
+          aria-label={`${r.assetName} ${r.tradedOn} ${transactionLabels[r.transactionType]} 결과 복기 추가`}
+          aria-expanded={reviewId === r.id}
           disabled={busy || reviewId !== null}
-          onClick={() => {
+          onClick={(event) => {
+            reviewTrigger.current = event.currentTarget;
             setReviewId(r.id);
             setReview(blankReview());
             setError('');
@@ -129,13 +151,19 @@ export function InvestmentReviewsPage() {
           결과 복기 추가
         </button>
         {reviewId === r.id ? (
-          <form className="shared-edit-form" onSubmit={(event) => void saveReview(event)}>
+          <form
+            ref={reviewForm}
+            className="shared-edit-form"
+            onSubmit={(event) => void saveReview(event)}
+          >
             <fieldset disabled={busy}>
               <legend>{r.assetName} 결과 복기</legend>
               <label className="shared-reason">
                 실제 결과
                 <textarea
                   required
+                  aria-invalid={(Boolean(error) && !review.actualResult.trim()) || undefined}
+                  aria-describedby={error ? errorId : undefined}
                   maxLength={500}
                   rows={3}
                   autoFocus
@@ -148,6 +176,10 @@ export function InvestmentReviewsPage() {
                 예상과 달랐던 점
                 <textarea
                   required
+                  aria-invalid={
+                    (Boolean(error) && !review.differenceFromExpectation.trim()) || undefined
+                  }
+                  aria-describedby={error ? errorId : undefined}
                   maxLength={500}
                   rows={3}
                   value={review.differenceFromExpectation}
@@ -161,6 +193,8 @@ export function InvestmentReviewsPage() {
                 다음 행동
                 <textarea
                   required
+                  aria-invalid={(Boolean(error) && !review.nextAction.trim()) || undefined}
+                  aria-describedby={error ? errorId : undefined}
                   maxLength={500}
                   rows={3}
                   value={review.nextAction}
@@ -170,7 +204,13 @@ export function InvestmentReviewsPage() {
               </label>
             </fieldset>
             {error ? (
-              <p role="alert" className="league-form-error">
+              <p
+                id={errorId}
+                ref={errorNotice}
+                tabIndex={-1}
+                role="alert"
+                className="league-form-error"
+              >
                 {error}
               </p>
             ) : null}
@@ -197,7 +237,9 @@ export function InvestmentReviewsPage() {
   return (
     <main className="league-page shared-page league-reviews-page">
       <header className="league-hero">
-        <h1>투자 복기</h1>
+        <h1 ref={heading} tabIndex={-1}>
+          투자 복기
+        </h1>
         <Link className="league-text-link" to="/league/portfolio">
           {records?.length === 0 ? '보유 이유 작성하기' : '종목 관리'}
         </Link>
@@ -212,7 +254,7 @@ export function InvestmentReviewsPage() {
           투자 기록을 불러오는 중입니다.
         </p>
       ) : records.length === 0 ? (
-        <section className="league-empty">
+        <section className="league-empty" role="status">
           <strong>아직 투자 기록이 없습니다</strong>
         </section>
       ) : (

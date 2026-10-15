@@ -1291,7 +1291,7 @@ body:has(.league-metrics-dialog[open]) {
 }
 .league-chart-switch button[aria-pressed='true'] {
   background: var(--button-primary-soft);
-  color: var(--button-primary);
+  color: var(--button-primary-hover);
   font-weight: 700;
 }
 .league-investor-page .league-detail-decisions blockquote {
