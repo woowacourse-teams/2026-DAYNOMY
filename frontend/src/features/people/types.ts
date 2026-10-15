@@ -5,6 +5,7 @@ export type FeaturedPersonPost = {
   sourceType: SocialPlatform;
   title: string;
   url: string;
+  publishedAt?: string | null;
   createdAt: string | null;
 };
 

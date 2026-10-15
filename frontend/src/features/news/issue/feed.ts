@@ -56,7 +56,7 @@ export function peopleFeed(people: FeaturedPerson[]): FeedItem[] {
       key: `person-${person.id}-${post.id}`,
       source: post.sourceType,
       title: post.title,
-      date: post.createdAt,
+      date: post.publishedAt ?? null,
       person,
       post,
     })),
