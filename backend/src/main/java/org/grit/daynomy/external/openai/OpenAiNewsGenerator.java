@@ -15,4 +15,8 @@ public class OpenAiNewsGenerator {
   public List<GeneratedEconomicNews> generateEconomicNews() {
     return writer.write(researcher.researchEconomicNews());
   }
+
+  public List<GeneratedEconomicNews> generateUsEconomicNews() {
+    return writer.write(researcher.researchUsEconomicNews());
+  }
 }
