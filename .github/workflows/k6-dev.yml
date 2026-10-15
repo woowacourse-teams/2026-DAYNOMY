@@ -1,0 +1,170 @@
+name: k6 development smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Existing loadtest/*.js, or backend/loadtest/transactions-v1.js / transactions-v2.js"
+        required: true
+        type: string
+        default: loadtest/load-test.js
+      params:
+        description: 'Script parameters JSON. Portfolio example: {"ACTION":"plan","TRADE_MONTHS_AGO":1,"RPS_STEPS":[0.1,0.2],"STAGE_SECONDS":120}'
+        required: true
+        type: string
+        default: '{"CASE":"B1","API_MODE":"real","USERS":1,"RUN":"1"}'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-backend
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    name: Run k6 against development
+    runs-on: [self-hosted, Linux, ARM64, loadtest-dev]
+    environment: development
+    timeout-minutes: ${{ (inputs.script == 'backend/loadtest/transactions-v1.js' || inputs.script == 'backend/loadtest/transactions-v2.js') && 120 || 30 }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Check k6 installation
+        run: k6 version
+
+      - name: Set up Java 21 for portfolio preparation
+        if: (inputs.script == 'backend/loadtest/transactions-v1.js' || inputs.script == 'backend/loadtest/transactions-v2.js')
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle for portfolio preparation
+        if: (inputs.script == 'backend/loadtest/transactions-v1.js' || inputs.script == 'backend/loadtest/transactions-v2.js')
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Run portfolio transaction test
+        if: (inputs.script == 'backend/loadtest/transactions-v1.js' || inputs.script == 'backend/loadtest/transactions-v2.js')
+        env:
+          K6_SCRIPT: ${{ inputs.script }}
+          BASE_URL: ${{ vars.DEV_BASE_URL }}
+          K6_PARAMS_JSON: ${{ inputs.params }}
+          K6_PROMETHEUS_RW_SERVER_URL: ${{ vars.K6_PROMETHEUS_RW_SERVER_URL }}
+          PORTFOLIO_PROMETHEUS_URL: ${{ vars.PORTFOLIO_PROMETHEUS_URL }}
+          PORTFOLIO_LOADTEST_STATE_DIR: ${{ vars.PORTFOLIO_LOADTEST_STATE_DIR }}
+          PORTFOLIO_LOADTEST_DEV_ENV: ${{ secrets.PORTFOLIO_LOADTEST_DEV_ENV }}
+          PORTFOLIO_LOADTEST_RESULTS_DIR: ${{ runner.temp }}/portfolio-loadtest-${{ github.run_id }}-${{ github.run_attempt }}
+        run: python3 -B backend/loadtest/run-loadtest.py --actions
+
+      - name: Remove private portfolio credentials and checkout link
+        if: always() && (inputs.script == 'backend/loadtest/transactions-v1.js' || inputs.script == 'backend/loadtest/transactions-v2.js')
+        env:
+          PORTFOLIO_LOADTEST_STATE_DIR: ${{ vars.PORTFOLIO_LOADTEST_STATE_DIR }}
+        run: |
+          if [ -f backend/loadtest/run-loadtest.py ]; then
+            python3 -B backend/loadtest/run-loadtest.py --cleanup
+          fi
+
+      - name: Upload portfolio reports only
+        if: always() && (inputs.script == 'backend/loadtest/transactions-v1.js' || inputs.script == 'backend/loadtest/transactions-v2.js')
+        uses: actions/upload-artifact@v4
+        with:
+          name: portfolio-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/portfolio-loadtest-${{ github.run_id }}-${{ github.run_attempt }}/request.json
+            ${{ runner.temp }}/portfolio-loadtest-${{ github.run_id }}-${{ github.run_attempt }}/config.json
+            ${{ runner.temp }}/portfolio-loadtest-${{ github.run_id }}-${{ github.run_attempt }}/results.json
+            ${{ runner.temp }}/portfolio-loadtest-${{ github.run_id }}-${{ github.run_attempt }}/rps-*.json
+            ${{ runner.temp }}/portfolio-loadtest-${{ github.run_id }}-${{ github.run_attempt }}/comparison.csv
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Run smoke test
+        if: (inputs.script != 'backend/loadtest/transactions-v1.js' && inputs.script != 'backend/loadtest/transactions-v2.js')
+        env:
+          BASE_URL: ${{ vars.DEV_BASE_URL }}
+          K6_PROMETHEUS_RW_SERVER_URL: ${{ vars.K6_PROMETHEUS_RW_SERVER_URL }}
+          K6_PROMETHEUS_RW_TREND_STATS: p(90),p(95),p(99),avg,min,max
+          K6_PROMETHEUS_RW_LABELS: environment=dev,service=k6
+          K6_SCRIPT: ${{ inputs.script }}
+          K6_PARAMS_JSON: ${{ inputs.params }}
+          K6_ACCOUNTS_JSON_GZ_BASE64: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64 }}
+        run: |
+          set -Eeuo pipefail
+          if [[ ! "$K6_SCRIPT" =~ ^loadtest/[A-Za-z0-9._/-]+\.js$ || "$K6_SCRIPT" == *..* || ! -f "$K6_SCRIPT" ]]; then
+            echo "Choose an existing .js file under loadtest/."
+            exit 1
+          fi
+          script_name="${K6_SCRIPT#loadtest/}"
+          if [[ "$script_name" == portfolio-analysis-*.js ]]; then
+            if [[ -z "$K6_ACCOUNTS_JSON_GZ_BASE64" ]]; then
+              echo "Set K6_ACCOUNTS_JSON_GZ_BASE64 in the development environment secrets."
+              exit 1
+            fi
+            accounts_file="$GITHUB_WORKSPACE/loadtest/accounts.json"
+            trap 'rm -f "$accounts_file"' EXIT
+            umask 077
+            printf '%s' "$K6_ACCOUNTS_JSON_GZ_BASE64" | base64 --decode | gzip --decompress > "$accounts_file"
+            unset K6_ACCOUNTS_JSON_GZ_BASE64
+          fi
+          if [[ -z "$BASE_URL" ]]; then
+            echo "Set DEV_BASE_URL in the development environment variables."
+            exit 1
+          fi
+          if [[ -z "$K6_PROMETHEUS_RW_SERVER_URL" ]]; then
+            echo "Set K6_PROMETHEUS_RW_SERVER_URL in the development environment variables."
+            exit 1
+          fi
+          cd loadtest
+          K6_SCRIPT_NAME="$script_name" python3 - <<'PY'
+          import json
+          import math
+          import os
+          import re
+          import subprocess
+          import sys
+
+          try:
+              params = json.loads(os.environ["K6_PARAMS_JSON"])
+          except json.JSONDecodeError as error:
+              raise SystemExit(f"Invalid params JSON: {error.msg}")
+
+          if not isinstance(params, dict):
+              raise SystemExit("params must be a JSON object.")
+          if "BASE_URL" in params or "ACCOUNTS_FILE" in params:
+              raise SystemExit("BASE_URL and ACCOUNTS_FILE are managed by the workflow.")
+
+          args = [
+              "k6", "run", "-o", "experimental-prometheus-rw",
+              "--tag", f"testid={os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}",
+          ]
+          params["BASE_URL"] = os.environ["BASE_URL"]
+          if os.path.isfile("accounts.json"):
+              params["ACCOUNTS_FILE"] = "./accounts.json"
+
+          for key, value in params.items():
+              if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
+                  raise SystemExit(f"Invalid k6 parameter name: {key}")
+              if isinstance(value, bool):
+                  value = str(value).lower()
+              elif isinstance(value, (str, int, float)) and (not isinstance(value, float) or math.isfinite(value)):
+                  value = str(value)
+              else:
+                  raise SystemExit(f"Parameter {key} must have a string, number, or boolean value.")
+              args.extend(["-e", f"{key}={value}"])
+
+          args.append(os.environ["K6_SCRIPT_NAME"])
+          sys.exit(subprocess.run(args).returncode)
+          PY
+
+      - name: Upload load test results
+        if: always() && (inputs.script != 'backend/loadtest/transactions-v1.js' && inputs.script != 'backend/loadtest/transactions-v2.js')
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: loadtest/result-*.json
+          if-no-files-found: ignore
+          retention-days: 14

@@ -9,6 +9,7 @@ on:
       - 'backend/**'
       - 'monitoring/**'
       - '.github/workflows/backend-ci.yml'
+      - '.github/workflows/k6-dev.yml'
 
 permissions:
   contents: read
@@ -47,6 +48,11 @@ jobs:
 
       - name: Validate Market Calendar Tool
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: Validate Loadtest Configuration and Scheduling
+        run: |
+          python3 -B -m unittest discover -s loadtest/tests -p 'test_*.py'
+          node --experimental-vm-modules --test loadtest/tests/transactions.test.mjs
 
       - name: Validate Monitoring Rules
         working-directory: monitoring/prometheus

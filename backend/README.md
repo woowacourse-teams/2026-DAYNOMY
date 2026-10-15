@@ -214,6 +214,8 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 
 ### 포트폴리오 거래 등록 부하 테스트
 
-dev의 V1/V2 매수·매도 등록은 [k6 실행 문서](loadtest/README.md)를 따른다. dev API 주소·테스트 회원·거래일을 지정하고 `transactions-v1.js`와 `transactions-v2.js`를 따로 실행한다. 회원별 요청 횟수와 초기 데이터를 맞춰 비교한다.
+dev의 과거 매수 거래 등록 V1/V2 비교는 [부하테스트 문서](loadtest/README.md)를 따른다. `loadtest-config.json`에서 거래 시점·RPS·시간·VU를 설정하고, `run-loadtest.py --plan`으로 통신 없이 계획을 확인한다. 실제 실행은 별도 옵션이며 단계별 초기 데이터 복원·토큰 발급·중단·결과 저장을 관리한다.
+
+GitHub Actions에서는 기존 `k6-dev.yml`의 `script`에 `backend/loadtest/transactions-v1.js` 또는 `backend/loadtest/transactions-v2.js`를 지정하고 `params` JSON으로 과거 개월 수·RPS·측정 시간을 선택한다. `ACTION`을 생략하면 계획 확인만 수행하며, SQL 직접 적재와 원본 `capture` 이후 `execute`로 부하를 시작한다. 비공개 환경 설정과 결과 확인 방법은 같은 문서에 정리한다.
 
 `POST /api/v2/users/me/portfolio/transactions`는 V1과 같은 요청·응답 형식을 사용한다. 회원·포트폴리오 잠금과 단일 트랜잭션을 유지하면서 거래 이력·기존 스냅샷을 일괄 조회하고, 종가는 최대 31개 재계산 기준일 단위로 조회한다. 현재 보유자산과 과거 스냅샷은 응답 전에 갱신되며, 가격 누락·반올림·실패 시 롤백 규칙은 V1과 동일하다. V1 API와 수정·삭제 경로는 그대로 사용한다.
