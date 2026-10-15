@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -69,13 +71,10 @@ class PortfolioCalculationServiceTest {
   void calculatePortfolio() {
     Asset samsung = asset(1L, "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI);
     Asset kodex200 = asset(2L, "069500", "KODEX 200", AssetCategory.ETF, StockMarket.KOSPI);
-    given(stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(1L))
+    given(stockDailyPriceRepository.findLatestTwoByAssetIds(List.of(1L, 2L)))
         .willReturn(
             List.of(
-                new StockDailyPrice(samsung, LocalDate.of(2026, 9, 18), new BigDecimal("82000"))));
-    given(stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(2L))
-        .willReturn(
-            List.of(
+                new StockDailyPrice(samsung, LocalDate.of(2026, 9, 18), new BigDecimal("82000")),
                 new StockDailyPrice(
                     kodex200, LocalDate.of(2026, 9, 17), new BigDecimal("285000"))));
     PortfolioCalculateRequest request =
@@ -85,6 +84,9 @@ class PortfolioCalculationServiceTest {
                 new PortfolioHoldingRequest(2L, 2L, new BigDecimal("300000"))));
 
     var response = calculationService.calculate(request);
+
+    verify(stockDailyPriceRepository).findLatestTwoByAssetIds(List.of(1L, 2L));
+    verifyNoMoreInteractions(stockDailyPriceRepository);
 
     assertThat(response.baseDate()).isEqualTo(LocalDate.of(2026, 9, 17));
     assertThat(response.pricingStatus()).isEqualTo(PortfolioPricingStatus.MIXED_DATES);
@@ -133,7 +135,7 @@ class PortfolioCalculationServiceTest {
   @DisplayName("모든 종목의 최근 거래일이 같으면 오늘 손익과 수익률을 계산한다")
   void calculateDailyPerformance() {
     Asset samsung = asset(1L, "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI);
-    given(stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(1L))
+    given(stockDailyPriceRepository.findLatestTwoByAssetIds(List.of(1L)))
         .willReturn(
             List.of(
                 new StockDailyPrice(samsung, LocalDate.of(2026, 9, 18), new BigDecimal("82000")),
@@ -168,7 +170,7 @@ class PortfolioCalculationServiceTest {
   @DisplayName("종가가 없는 종목은 가격 미확인 상태로 남기고 나머지 계산을 제공한다")
   void keepAssetWithoutPriceAsUnpriced() {
     Asset samsung = asset(1L, "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI);
-    given(stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(1L)).willReturn(List.of());
+    given(stockDailyPriceRepository.findLatestTwoByAssetIds(List.of(1L))).willReturn(List.of());
     given(assetRepository.findById(1L)).willReturn(java.util.Optional.of(samsung));
     PortfolioCalculateRequest request =
         new PortfolioCalculateRequest(
@@ -184,6 +186,70 @@ class PortfolioCalculationServiceTest {
     assertThat(response.totalReturnRate()).isNull();
     assertThat(response.holdings().getFirst().priceAvailable()).isFalse();
     assertThat(response.holdings().getFirst().closePrice()).isNull();
+  }
+
+  @Test
+  @DisplayName("일괄 조회 결과 순서와 무관하게 보유 순서대로 비중과 하루 손익을 계산한다")
+  void calculatesMultipleAssetsInHoldingOrder() {
+    Asset first = asset(1L, "FIRST", "첫 종목", AssetCategory.STOCK, StockMarket.KOSPI);
+    Asset second = asset(2L, "SECOND", "둘째 종목", AssetCategory.ETF, StockMarket.KOSPI);
+    given(stockDailyPriceRepository.findLatestTwoByAssetIds(List.of(2L, 1L)))
+        .willReturn(
+            List.of(
+                new StockDailyPrice(first, LocalDate.of(2026, 9, 18), new BigDecimal("120")),
+                new StockDailyPrice(first, LocalDate.of(2026, 9, 17), new BigDecimal("100")),
+                new StockDailyPrice(second, LocalDate.of(2026, 9, 18), new BigDecimal("80")),
+                new StockDailyPrice(second, LocalDate.of(2026, 9, 17), new BigDecimal("100"))));
+
+    var response =
+        calculationService.calculate(
+            new PortfolioCalculateRequest(
+                List.of(
+                    new PortfolioHoldingRequest(2L, 1L, new BigDecimal("100")),
+                    new PortfolioHoldingRequest(1L, 2L, new BigDecimal("100")))));
+
+    assertThat(response.totalEvaluationAmount()).isEqualByComparingTo("320.00");
+    assertThat(response.totalPurchaseAmount()).isEqualByComparingTo("300.00");
+    assertThat(response.dailyProfitLoss()).isEqualByComparingTo("20.00");
+    assertThat(response.dailyReturnRate()).isEqualByComparingTo("6.67");
+    assertThat(response.holdings())
+        .extracting(holding -> holding.assetCode(), holding -> holding.weight())
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple("SECOND", new BigDecimal("25.00")),
+            org.assertj.core.groups.Tuple.tuple("FIRST", new BigDecimal("75.00")));
+    verify(stockDailyPriceRepository).findLatestTwoByAssetIds(List.of(2L, 1L));
+    verifyNoMoreInteractions(stockDailyPriceRepository);
+  }
+
+  @Test
+  @DisplayName("일부 종목의 가격이 누락되어도 보유 종목을 유지하고 전체 손익 판단을 보류한다")
+  void retainsMissingAssetInMixedPortfolio() {
+    Asset priced = asset(1L, "PRICED", "가격 있음", AssetCategory.STOCK, StockMarket.KOSPI);
+    Asset missing = asset(2L, "MISSING", "가격 없음", AssetCategory.STOCK, StockMarket.KOSPI);
+    given(stockDailyPriceRepository.findLatestTwoByAssetIds(List.of(1L, 2L)))
+        .willReturn(
+            List.of(new StockDailyPrice(priced, LocalDate.of(2026, 9, 18), new BigDecimal("120"))));
+    given(assetRepository.findById(2L)).willReturn(java.util.Optional.of(missing));
+
+    var response =
+        calculationService.calculate(
+            new PortfolioCalculateRequest(
+                List.of(
+                    new PortfolioHoldingRequest(1L, 2L, new BigDecimal("100")),
+                    new PortfolioHoldingRequest(2L, 1L, new BigDecimal("100")))));
+
+    assertThat(response.pricingStatus()).isEqualTo(PortfolioPricingStatus.PARTIAL);
+    assertThat(response.pricedHoldingCount()).isEqualTo(1);
+    assertThat(response.unpricedHoldingCount()).isEqualTo(1);
+    assertThat(response.totalPurchaseAmount()).isEqualByComparingTo("300.00");
+    assertThat(response.totalEvaluationAmount()).isEqualByComparingTo("240.00");
+    assertThat(response.totalProfitLoss()).isNull();
+    assertThat(response.dailyProfitLoss()).isNull();
+    assertThat(response.holdings())
+        .extracting(holding -> holding.assetCode(), holding -> holding.priceAvailable())
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple("PRICED", true),
+            org.assertj.core.groups.Tuple.tuple("MISSING", false));
   }
 
   private Asset asset(

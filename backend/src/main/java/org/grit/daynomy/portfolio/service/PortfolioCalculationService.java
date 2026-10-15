@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongFunction;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
@@ -27,11 +29,13 @@ import org.grit.daynomy.portfolio.dto.PortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioMarketAllocationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPricingStatus;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
 @Slf4j
+@Primary
 @Service
 public class PortfolioCalculationService {
 
@@ -61,8 +65,9 @@ public class PortfolioCalculationService {
     boolean allHoldingsHavePreviousPrice = true;
     int unpricedHoldingCount = 0;
 
+    LongFunction<List<StockDailyPrice>> pricesForAsset = priceLookup(request.holdings());
     for (PortfolioHoldingRequest holding : request.holdings()) {
-      List<StockDailyPrice> prices = latestPrices(holding.assetId());
+      List<StockDailyPrice> prices = pricesForAsset.apply(holding.assetId());
       if (prices.isEmpty()) {
         Asset asset =
             assetRepository
@@ -148,8 +153,16 @@ public class PortfolioCalculationService {
     }
   }
 
-  private List<StockDailyPrice> latestPrices(Long assetId) {
-    return stockDailyPriceRepository.findTop2ByAssetIdOrderByBaseDateDesc(assetId);
+  protected LongFunction<List<StockDailyPrice>> priceLookup(
+      List<PortfolioHoldingRequest> holdings) {
+    if (holdings.isEmpty()) {
+      return ignored -> List.of();
+    }
+    List<Long> assetIds = holdings.stream().map(PortfolioHoldingRequest::assetId).toList();
+    Map<Long, List<StockDailyPrice>> pricesByAssetId =
+        stockDailyPriceRepository.findLatestTwoByAssetIds(assetIds).stream()
+            .collect(Collectors.groupingBy(price -> price.getAsset().getId()));
+    return assetId -> pricesByAssetId.getOrDefault(assetId, List.of());
   }
 
   private CalculatedHolding calculateUnpricedHolding(PortfolioHoldingRequest holding, Asset asset) {

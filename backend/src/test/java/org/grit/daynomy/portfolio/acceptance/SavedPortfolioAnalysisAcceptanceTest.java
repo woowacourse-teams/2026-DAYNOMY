@@ -7,7 +7,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -49,7 +52,11 @@ import org.grit.daynomy.portfolio.repository.PortfolioAnalysisRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisTransactionService;
+import org.grit.daynomy.portfolio.v1.ai.OpenAiPortfolioAnalysisClientV1;
+import org.grit.daynomy.portfolio.v1.ai.PortfolioAnalysisTargetV1;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -58,6 +65,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -86,11 +94,23 @@ class SavedPortfolioAnalysisAcceptanceTest {
 
   @LocalServerPort private int port;
   @MockitoBean private PortfolioAnalysisAiClient ai;
+  @MockitoBean private OpenAiPortfolioAnalysisClientV1 v1Ai;
   @MockitoBean private org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
 
   @org.junit.jupiter.api.BeforeEach
   void narrativeStub() {
     assetAnalyses.deleteAll();
+    doAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              List<PortfolioAnalysisTargetV1> targets = invocation.getArgument(0);
+              return result(
+                  targets.stream()
+                      .map(target -> new PortfolioAnalysisTarget(target.assetName()))
+                      .toList());
+            })
+        .when(v1Ai)
+        .analyze(anyList());
     when(narrative.summarize(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
             "현재 보유한 종목의 비중을 확인했어요.\n\n실적과 비용이 전체 자산에 미치는 영향을 함께 살펴봐야 해요.\n\n비중이 큰 종목의 다음 실적 발표를 확인해 보세요.");
@@ -103,13 +123,223 @@ class SavedPortfolioAnalysisAcceptanceTest {
   @Autowired private PortfolioRepository portfolios;
   @Autowired private PortfolioHoldingRepository holdings;
   @Autowired private AssetRepository assets;
-  @Autowired private StockDailyPriceRepository prices;
+  @MockitoSpyBean private StockDailyPriceRepository prices;
   @Autowired private PortfolioAnalysisRepository analyses;
   @Autowired private PortfolioAnalysisEvidenceRepository evidence;
   @Autowired private PortfolioAnalysisCheckRepository checks;
   @Autowired private SavedPortfolioAnalysisTransactionService transactions;
   @Autowired private JwtTokenProvider tokens;
   @Autowired private JdbcTemplate jdbc;
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1", "v2"})
+  void versionedAnalysisUsesItsOwnPriceQueryThroughoutTheRequest(String version) {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    hold(portfolio, "SK하이닉스");
+    doAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              return result(invocation.getArgument(0));
+            })
+        .when(ai)
+        .analyze(anyList());
+    clearInvocations(prices);
+
+    var response =
+        client(member)
+            .post("/api/" + version + "/users/me/portfolio/analysis")
+            .then()
+            .statusCode(200)
+            .extract()
+            .response();
+
+    assertThat(response.jsonPath().getString("status")).isEqualTo("READY");
+    assertThat(response.jsonPath().getInt("analysis.totalAssetCount")).isEqualTo(2);
+    assertThat(response.jsonPath().getList("analysis.impacts.weight", BigDecimal.class))
+        .allSatisfy(weight -> assertThat(weight).isEqualByComparingTo("50"));
+    var stored = analyses.findById(response.jsonPath().getLong("analysisId")).orElseThrow();
+    assertThat(stored.getAnalysisVersion())
+        .isEqualTo(version.equals("v1") ? "portfolio-v5-price-v1" : "portfolio-v6-price-ai-v2");
+    if (version.equals("v1")) {
+      // prepare와 complete에서 각각 현재 포트폴리오 가격을 확인한다.
+      verify(prices, times(4))
+          .findTop2ByAssetIdOrderByBaseDateDesc(org.mockito.ArgumentMatchers.anyLong());
+      verify(prices, never()).findLatestTwoByAssetIds(anyList());
+    } else {
+      verify(prices, times(2)).findLatestTwoByAssetIds(anyList());
+      verify(prices, never())
+          .findTop2ByAssetIdOrderByBaseDateDesc(org.mockito.ArgumentMatchers.anyLong());
+    }
+    if (version.equals("v1")) {
+      verify(v1Ai).analyze(anyList());
+      verifyNoInteractions(ai);
+      assertThat(assetAnalyses.count()).isZero();
+    } else {
+      verify(ai).analyze(anyList());
+      verifyNoInteractions(v1Ai);
+      assertThat(assetAnalyses.count()).isEqualTo(2);
+    }
+  }
+
+  @Test
+  void versionedAnalysisDoesNotReuseTheOtherVersionsCompletedResult() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    String v1 = "/api/v1/users/me/portfolio/analysis";
+    String v2 = "/api/v2/users/me/portfolio/analysis";
+
+    long firstId =
+        client(member).post(v1).then().statusCode(200).extract().jsonPath().getLong("analysisId");
+    long secondId =
+        client(member).post(v2).then().statusCode(200).extract().jsonPath().getLong("analysisId");
+    long repeatedId =
+        client(member).post(v2).then().statusCode(200).extract().jsonPath().getLong("analysisId");
+
+    assertThat(secondId).isNotEqualTo(firstId);
+    assertThat(repeatedId).isEqualTo(secondId);
+    verify(v1Ai).analyze(anyList());
+    verify(ai).analyze(anyList());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1", "v2"})
+  void versionedEndpointsRequireAuthenticationAndCsrf(String version) {
+    String path = "/api/" + version + "/users/me/portfolio/analysis";
+    var csrf = given().port(port).get("/api/auth/csrf");
+    given()
+        .port(port)
+        .cookies(csrf.cookies())
+        .header(csrf.jsonPath().getString("headerName"), csrf.jsonPath().getString("token"))
+        .post(path)
+        .then()
+        .statusCode(401);
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    given()
+        .port(port)
+        .cookie("access_token", accessToken(member))
+        .post(path)
+        .then()
+        .statusCode(403);
+    verifyNoInteractions(ai, v1Ai);
+  }
+
+  @Test
+  void v1AlwaysAnalyzesEachMembersStocksWhileV2ReusesTheSharedResults() {
+    successfulAi();
+    var membersToTest = List.of(member(), member(), member(), member());
+    for (var member : membersToTest) {
+      var portfolio = portfolio(member);
+      hold(portfolio, "삼성전자");
+      hold(portfolio, "SK하이닉스");
+    }
+    client(membersToTest.get(0)).post("/api/v1/users/me/portfolio/analysis").then().statusCode(200);
+    client(membersToTest.get(1)).post("/api/v1/users/me/portfolio/analysis").then().statusCode(200);
+    assertThat(assetAnalyses.count()).isZero();
+    client(membersToTest.get(2)).post("/api/v2/users/me/portfolio/analysis").then().statusCode(200);
+    client(membersToTest.get(3)).post("/api/v2/users/me/portfolio/analysis").then().statusCode(200);
+
+    verify(v1Ai, times(2)).analyze(anyList());
+    verify(ai).analyze(anyList());
+    verify(narrative, times(4)).summarize(org.mockito.ArgumentMatchers.any());
+    assertThat(assetAnalyses.count()).isEqualTo(2);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1", "v2"})
+  void concurrentMembersUseSeparateV1AnalysisButShareV2Analysis(String version) throws Exception {
+    var firstMember = member();
+    var secondMember = member();
+    var firstPortfolio = portfolio(firstMember);
+    var secondPortfolio = portfolio(secondMember);
+    hold(firstPortfolio, "삼성전자");
+    hold(secondPortfolio, "삼성전자");
+    var entered = new CountDownLatch(version.equals("v1") ? 2 : 1);
+    var release = new CountDownLatch(1);
+    if (version.equals("v1")) {
+      doAnswer(
+              invocation -> {
+                entered.countDown();
+                assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+                List<PortfolioAnalysisTargetV1> targets = invocation.getArgument(0);
+                return result(
+                    targets.stream()
+                        .map(target -> new PortfolioAnalysisTarget(target.assetName()))
+                        .toList());
+              })
+          .when(v1Ai)
+          .analyze(anyList());
+    } else {
+      doAnswer(
+              invocation -> {
+                entered.countDown();
+                assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+                return result(invocation.getArgument(0));
+              })
+          .when(ai)
+          .analyze(anyList());
+    }
+    String path = "/api/" + version + "/users/me/portfolio/analysis";
+    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      var first = executor.submit(() -> client(firstMember).post(path));
+      var second = executor.submit(() -> client(secondMember).post(path));
+      try {
+        assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        boolean bothProcessing = false;
+        while (System.nanoTime() < deadline) {
+          bothProcessing =
+              checks
+                      .findById(firstPortfolio.getId())
+                      .map(check -> check.getRequestToken() != null)
+                      .orElse(false)
+                  && checks
+                      .findById(secondPortfolio.getId())
+                      .map(check -> check.getRequestToken() != null)
+                      .orElse(false);
+          if (bothProcessing) break;
+          Thread.sleep(10);
+        }
+        assertThat(bothProcessing).isTrue();
+        release.countDown();
+        assertThat(first.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(200);
+        assertThat(second.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(200);
+      } finally {
+        release.countDown();
+      }
+    }
+    if (version.equals("v1")) {
+      verify(v1Ai, times(2)).analyze(anyList());
+      verifyNoInteractions(ai);
+      assertThat(assetAnalyses.count()).isZero();
+    } else {
+      verify(ai).analyze(anyList());
+      verifyNoInteractions(v1Ai);
+      assertThat(assetAnalyses.count()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void v1IgnoresCompletedSharedResultsCreatedByV2() {
+    successfulAi();
+    var v2Member = member();
+    var v1Member = member();
+    hold(portfolio(v2Member), "삼성전자");
+    hold(portfolio(v1Member), "삼성전자");
+    client(v2Member).post("/api/v2/users/me/portfolio/analysis").then().statusCode(200);
+    var stored = assetAnalyses.findAll().getFirst();
+
+    client(v1Member).post("/api/v1/users/me/portfolio/analysis").then().statusCode(200);
+
+    verify(v1Ai).analyze(anyList());
+    verify(ai).analyze(anyList());
+    assertThat(assetAnalyses.count()).isEqualTo(1);
+    assertThat(assetAnalyses.findById(stored.getId()).orElseThrow().getAnalyzedAt())
+        .isEqualTo(stored.getAnalyzedAt());
+  }
 
   @Test
   void storesAndRestoresAnalysisAndReusesIdenticalAssetsWithoutCallingAiOrAdvancingCheckTime() {

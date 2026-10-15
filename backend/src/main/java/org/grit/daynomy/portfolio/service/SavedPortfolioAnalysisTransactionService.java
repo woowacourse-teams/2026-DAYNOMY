@@ -25,10 +25,13 @@ import org.grit.daynomy.portfolio.repository.PortfolioAnalysisEvidenceRepository
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Primary
 @Service
 public class SavedPortfolioAnalysisTransactionService {
 
@@ -43,7 +46,9 @@ public class SavedPortfolioAnalysisTransactionService {
   private final PortfolioAnalysisCheckRepository checks;
   private final PortfolioCalculationService calculation;
   private final String model;
+  private final String analysisVersion;
 
+  @Autowired
   public SavedPortfolioAnalysisTransactionService(
       PortfolioRepository portfolios,
       PortfolioHoldingRepository holdings,
@@ -52,6 +57,18 @@ public class SavedPortfolioAnalysisTransactionService {
       PortfolioAnalysisCheckRepository checks,
       PortfolioCalculationService calculation,
       @Value("${ai.openai.model:gpt-5-mini}") String model) {
+    this(portfolios, holdings, analyses, evidence, checks, calculation, model, ANALYSIS_VERSION);
+  }
+
+  public SavedPortfolioAnalysisTransactionService(
+      PortfolioRepository portfolios,
+      PortfolioHoldingRepository holdings,
+      PortfolioAnalysisRepository analyses,
+      PortfolioAnalysisEvidenceRepository evidence,
+      PortfolioAnalysisCheckRepository checks,
+      PortfolioCalculationService calculation,
+      String model,
+      String analysisVersion) {
     this.portfolios = portfolios;
     this.holdings = holdings;
     this.analyses = analyses;
@@ -59,6 +76,7 @@ public class SavedPortfolioAnalysisTransactionService {
     this.checks = checks;
     this.calculation = calculation;
     this.model = model;
+    this.analysisVersion = analysisVersion;
   }
 
   @Transactional(readOnly = true)
@@ -130,7 +148,7 @@ public class SavedPortfolioAnalysisTransactionService {
     if (!refresh
         && previous != null
         && matches(previous, assets)
-        && ANALYSIS_VERSION.equals(previous.getAnalysisVersion())
+        && analysisVersion.equals(previous.getAnalysisVersion())
         && model.equals(previous.getModel())) {
       return new PreparedAnalysis(
           response(memberId, previous, check, assets, now), null, assets, null);
@@ -145,7 +163,7 @@ public class SavedPortfolioAnalysisTransactionService {
         assets,
         previous != null
                 && matches(previous, assets)
-                && ANALYSIS_VERSION.equals(previous.getAnalysisVersion())
+                && analysisVersion.equals(previous.getAnalysisVersion())
                 && model.equals(previous.getModel())
             ? PortfolioAnalysisResponse.from(
                 previous,
@@ -174,7 +192,7 @@ public class SavedPortfolioAnalysisTransactionService {
         previous == null ? "최초 분석" : matches(previous, assets) ? "분석 기준 변경" : "보유 종목·수량·비중 변경";
     if (previous != null
         && matches(previous, assets)
-        && ANALYSIS_VERSION.equals(previous.getAnalysisVersion())
+        && analysisVersion.equals(previous.getAnalysisVersion())
         && model.equals(previous.getModel())) {
       var old =
           PortfolioAnalysisResponse.from(
@@ -198,7 +216,7 @@ public class SavedPortfolioAnalysisTransactionService {
             PortfolioAnalysis.create(
                 portfolio,
                 previous,
-                ANALYSIS_VERSION,
+                analysisVersion,
                 model,
                 result.toSnapshot(assets),
                 result.analyzedAt(),
@@ -375,7 +393,7 @@ public class SavedPortfolioAnalysisTransactionService {
         analysis == null ? Status.EMPTY : same ? Status.READY : Status.PORTFOLIO_CHANGED;
     if (analysis != null
         && same
-        && (!ANALYSIS_VERSION.equals(analysis.getAnalysisVersion())
+        && (!analysisVersion.equals(analysis.getAnalysisVersion())
             || check == null
             || check.requiresRecheck(now)
             || analysis.getSnapshot().impacts().stream()

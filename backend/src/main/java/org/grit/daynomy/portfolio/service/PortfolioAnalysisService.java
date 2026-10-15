@@ -20,9 +20,11 @@ import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 @RequiredArgsConstructor
+@Primary
 @Service
 public class PortfolioAnalysisService {
 
@@ -47,7 +49,7 @@ public class PortfolioAnalysisService {
     return analyze(request);
   }
 
-  private PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
+  protected PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
     var result = response(request, assetAnalysisService.analyze(createTargets(request.assets())));
     return result.withOverallImpact(narrative.summarize(result));
   }
@@ -110,7 +112,7 @@ public class PortfolioAnalysisService {
     }
   }
 
-  private PortfolioAnalysisResponse response(
+  protected PortfolioAnalysisResponse response(
       PortfolioAnalysisRequest request, PortfolioAnalysisResult result) {
     Map<String, BigDecimal> weightByAssetName = createWeightByAssetName(request.assets());
 
