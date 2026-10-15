@@ -147,11 +147,16 @@ function PortfolioRoute() {
   );
 }
 
-function HomeRoute({ hasStarted }: { hasStarted: boolean }) {
+function HomeRoute({ hasStarted, onStart }: { hasStarted: boolean; onStart: () => void }) {
   const { isLoggedIn, loading } = useAuth();
 
   if (!hasStarted && loading) return <main aria-busy="true" aria-label="서비스 확인 중" />;
-  if (!hasStarted && !isLoggedIn) return <Navigate to="/welcome" replace />;
+  if (!hasStarted && !isLoggedIn)
+    return (
+      <Suspense fallback={<main aria-busy="true" aria-label="서비스 소개 불러오는 중" />}>
+        <LandingPage onStart={onStart} />
+      </Suspense>
+    );
   return <PortfolioRoute />;
 }
 
@@ -200,6 +205,7 @@ function AppContent() {
   function startService() {
     rememberServiceStart();
     setHasStarted(true);
+    window.scrollTo({ top: 0, behavior: 'instant' });
     navigate('/', { replace: true });
   }
 
@@ -212,7 +218,10 @@ function AppContent() {
         {!awaitingWelcome && <AppHeader />}
         <div className="app-content">
           <Routes>
-            <Route path="/" element={<HomeRoute hasStarted={hasStarted} />} />
+            <Route
+              path="/"
+              element={<HomeRoute hasStarted={hasStarted} onStart={startService} />}
+            />
             <Route
               path="/welcome"
               element={

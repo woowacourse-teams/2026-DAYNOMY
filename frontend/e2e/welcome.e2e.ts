@@ -14,16 +14,23 @@ for (const width of [1440, 390]) {
   }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
-    await expect(page).toHaveURL('/welcome');
+    await expect(page).toHaveURL('/');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('매일의 경제 이슈를');
+    await expect(page).toHaveTitle('서비스 소개 | DAYNOMY');
+    await expect(page.getByRole('banner')).toHaveCount(1);
+    await expect(page.getByRole('contentinfo')).toHaveCount(1);
     await expect(page.locator('iframe')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await page.getByRole('link', { name: 'DAYNOMY 시작하기', exact: true }).first().click();
+    const start = page.locator('.closing-cta .primary-cta');
+    await start.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await start.click();
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
     await expect(page).toHaveTitle('내 포트폴리오 | DAYNOMY');
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     await expect(page.getByRole('button', { name: '거래 기록', exact: true })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem('daynomy:service-started:v1'))).toBe('1');
     await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toHaveCSS(
