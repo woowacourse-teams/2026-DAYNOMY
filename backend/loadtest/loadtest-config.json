@@ -1,0 +1,20 @@
+{
+  "baseUrl": "https://dev.daynomy.com",
+  "version": "v1",
+  "referenceDate": "2026-10-15",
+  "tradeMonthsAgo": 1,
+  "rpsSteps": [0.1, 0.2, 0.5, 1, 2, 3],
+  "stageSeconds": 120,
+  "warmupSeconds": 120,
+  "vus": 50,
+  "requestTimeoutSeconds": 10,
+  "targetP95Ms": 3000,
+  "monitoring": {
+    "prometheusUrl": "http://127.0.0.1:9090",
+    "backendInstance": "ec2-daynomy-server-dev",
+    "databaseInstance": "ec2-daynomy-db-dev",
+    "cpuLimit": 0.85,
+    "minAvailableMemoryRatio": 0.15,
+    "holdSeconds": 60
+  }
+}

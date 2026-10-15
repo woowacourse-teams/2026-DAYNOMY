@@ -55,6 +55,13 @@ tasks.withType<Test> {
     if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
 }
 
+// Manual dev load-test preparation only; no Spring server or schedulers are started.
+tasks.register<JavaExec>("portfolioLoadtest") {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("org.grit.daynomy.loadtest.PortfolioLoadtestTool")
+}
+
 spotless {
     java {
         googleJavaFormat()
