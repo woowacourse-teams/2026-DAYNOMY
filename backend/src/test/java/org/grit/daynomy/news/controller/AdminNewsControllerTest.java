@@ -241,17 +241,33 @@ class AdminNewsControllerTest {
   }
 
   @Test
-  @DisplayName("관리자 경제 뉴스 초안 생성 API는 즉시 생성을 실행하고 저장 건수를 반환한다")
-  void generateEconomyNewsDraftsReturnsSavedCount() throws Exception {
-    given(newsGenerationService.generateEconomyNewsDrafts())
+  @DisplayName("관리자 한국 뉴스 초안 생성 API는 한국 뉴스를 생성하고 저장 건수를 반환한다")
+  void generateKoreanEconomicNewsDraftsReturnsSavedCount() throws Exception {
+    given(newsGenerationService.generateKoreanEconomicNewsDrafts())
         .willReturn(java.util.List.of(mock(News.class), mock(News.class)));
 
     mockMvc
-        .perform(post("/api/admin/news/generate/economy"))
+        .perform(post("/api/admin/news/generate/economy/korea"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.savedCount").value(2));
 
-    then(newsGenerationService).should().generateEconomyNewsDrafts();
+    then(newsGenerationService).should().generateKoreanEconomicNewsDrafts();
+    then(newsGenerationService).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
+  @DisplayName("관리자 미국 뉴스 초안 생성 API는 미국 뉴스를 생성하고 저장 건수를 반환한다")
+  void generateUsEconomicNewsDraftsReturnsSavedCount() throws Exception {
+    given(newsGenerationService.generateUsEconomicNewsDrafts())
+        .willReturn(java.util.List.of(mock(News.class), mock(News.class)));
+
+    mockMvc
+        .perform(post("/api/admin/news/generate/economy/us"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.savedCount").value(2));
+
+    then(newsGenerationService).should().generateUsEconomicNewsDrafts();
+    then(newsGenerationService).shouldHaveNoMoreInteractions();
   }
 
   @Test
