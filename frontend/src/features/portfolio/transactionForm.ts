@@ -13,7 +13,9 @@ export function todayInSeoul() {
 }
 
 export type TransactionFields = Record<keyof PortfolioTransactionUpdateRequest, string>;
-export function validateTransaction(fields: TransactionFields): string | null {
+export function getTransactionValidationError(
+  fields: TransactionFields,
+): { field: keyof TransactionFields; message: string } | null {
   const date = new Date(`${fields.tradeDate}T00:00:00Z`);
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(fields.tradeDate) ||
@@ -21,24 +23,35 @@ export function validateTransaction(fields: TransactionFields): string | null {
     date.toISOString().slice(0, 10) !== fields.tradeDate ||
     fields.tradeDate > todayInSeoul()
   ) {
-    return '거래일은 오늘 또는 과거의 올바른 날짜로 입력해 주세요.';
+    return {
+      field: 'tradeDate',
+      message: '거래일은 오늘 또는 과거의 올바른 날짜로 입력해 주세요.',
+    };
   }
   if (
     !/^\d+$/.test(fields.quantity) ||
     !Number.isSafeInteger(Number(fields.quantity)) ||
     Number(fields.quantity) <= 0
   ) {
-    return '수량은 1주 이상의 정수로 입력해 주세요.';
+    return { field: 'quantity', message: '수량은 1주 이상의 정수로 입력해 주세요.' };
   }
   for (const key of ['unitPrice', 'fee', 'tax'] as const) {
     const minimum = key === 'unitPrice' ? 0.01 : 0;
     if (!/^\d{1,15}(\.\d{1,2})?$/.test(fields[key]) || Number(fields[key]) < minimum) {
-      return key === 'unitPrice'
-        ? '거래 단가는 0.01원 이상, 소수점 둘째 자리까지 입력해 주세요.'
-        : '수수료와 세금은 0원 이상, 소수점 둘째 자리까지 입력해 주세요.';
+      return {
+        field: key,
+        message:
+          key === 'unitPrice'
+            ? '거래 단가는 0.01원 이상, 소수점 둘째 자리까지 입력해 주세요.'
+            : '수수료와 세금은 0원 이상, 소수점 둘째 자리까지 입력해 주세요.',
+      };
     }
   }
   return null;
+}
+
+export function validateTransaction(fields: TransactionFields): string | null {
+  return getTransactionValidationError(fields)?.message ?? null;
 }
 
 export function toTransactionRequest(fields: TransactionFields): PortfolioTransactionUpdateRequest {

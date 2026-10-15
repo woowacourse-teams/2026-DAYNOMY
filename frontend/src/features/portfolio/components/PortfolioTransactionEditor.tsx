@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { getLatestStockPrice, searchStocks } from '../api';
 import { trackPortfolioEvent } from '../analytics';
 import {
   todayInSeoul,
   toTransactionRequest,
-  validateTransaction,
+  getTransactionValidationError,
   type TransactionFields,
 } from '../transactionForm';
 import type {
@@ -31,6 +31,8 @@ export function PortfolioTransactionEditor({
   onDelete,
   onSave,
 }: Props) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const errorId = useId();
   const [selected, setSelected] = useState<StockSearchItem | PortfolioHoldingHistory | null>(
     transaction ?? stock ?? null,
   );
@@ -112,7 +114,8 @@ export function PortfolioTransactionEditor({
       });
     return () => controller.abort();
   }, [selected, transaction]);
-  const invalid = validateTransaction(fields);
+  const invalid = getTransactionValidationError(fields);
+  const invalidField = error === invalid?.message ? invalid?.field : undefined;
   const filteredResults = results.filter(
     (item) => categoryFilter === 'ALL' || item.category === categoryFilter,
   );
@@ -130,7 +133,14 @@ export function PortfolioTransactionEditor({
     event.preventDefault();
     if (saving || !selected) return;
     if (invalid) {
-      setError(invalid);
+      setError(invalid.message);
+      window.requestAnimationFrame(() => {
+        const input = formRef.current?.elements.namedItem(invalid.field);
+        if (input instanceof HTMLElement) {
+          input.closest('details')?.setAttribute('open', '');
+          input.focus();
+        }
+      });
       return;
     }
     setSaving(true);
@@ -157,6 +167,7 @@ export function PortfolioTransactionEditor({
   return (
     <>
       <form
+        ref={formRef}
         onSubmit={submit}
         noValidate
         className={transaction ? 'portfolio-edit-form' : undefined}
@@ -214,7 +225,7 @@ export function PortfolioTransactionEditor({
                     </button>
                   </div>
                 ) : filteredResults.length ? (
-                  <ul>
+                  <ul aria-label="검색된 종목">
                     {filteredResults.map((item) => (
                       <li key={item.assetId}>
                         <button
@@ -228,7 +239,9 @@ export function PortfolioTransactionEditor({
                             setSelected(item);
                           }}
                         >
-                          <span className="portfolio-monogram">{item.name.slice(0, 1)}</span>
+                          <span className="portfolio-monogram" aria-hidden="true">
+                            {item.name.slice(0, 1)}
+                          </span>
                           <span>
                             <strong>{item.name}</strong>
                             <small>
@@ -296,6 +309,9 @@ export function PortfolioTransactionEditor({
                     autoFocus={!transaction}
                     data-autofocus={!transaction || undefined}
                     type="date"
+                    name="tradeDate"
+                    aria-invalid={invalidField === 'tradeDate' || undefined}
+                    aria-describedby={invalidField === 'tradeDate' ? errorId : undefined}
                     required
                     max={todayInSeoul()}
                     value={fields.tradeDate}
@@ -309,6 +325,9 @@ export function PortfolioTransactionEditor({
                   <input
                     type="text"
                     inputMode="numeric"
+                    name="quantity"
+                    aria-invalid={invalidField === 'quantity' || undefined}
+                    aria-describedby={invalidField === 'quantity' ? errorId : undefined}
                     autoFocus={!!transaction}
                     data-autofocus={transaction ? true : undefined}
                     placeholder="0"
@@ -321,6 +340,9 @@ export function PortfolioTransactionEditor({
                   <input
                     type="text"
                     inputMode="decimal"
+                    name="unitPrice"
+                    aria-invalid={invalidField === 'unitPrice' || undefined}
+                    aria-describedby={invalidField === 'unitPrice' ? errorId : undefined}
                     placeholder="0"
                     value={fields.unitPrice}
                     aria-busy={priceLoading}
@@ -335,6 +357,9 @@ export function PortfolioTransactionEditor({
                     autoFocus={!transaction}
                     data-autofocus={!transaction || undefined}
                     type="date"
+                    name="tradeDate"
+                    aria-invalid={invalidField === 'tradeDate' || undefined}
+                    aria-describedby={invalidField === 'tradeDate' ? errorId : undefined}
                     required
                     max={todayInSeoul()}
                     value={fields.tradeDate}
@@ -362,6 +387,9 @@ export function PortfolioTransactionEditor({
                     <input
                       type="text"
                       inputMode="decimal"
+                      name="fee"
+                      aria-invalid={invalidField === 'fee' || undefined}
+                      aria-describedby={invalidField === 'fee' ? errorId : undefined}
                       value={fields.fee}
                       onChange={(event) => change('fee', event.target.value)}
                     />
@@ -371,6 +399,9 @@ export function PortfolioTransactionEditor({
                     <input
                       type="text"
                       inputMode="decimal"
+                      name="tax"
+                      aria-invalid={invalidField === 'tax' || undefined}
+                      aria-describedby={invalidField === 'tax' ? errorId : undefined}
                       value={fields.tax}
                       onChange={(event) => change('tax', event.target.value)}
                     />
@@ -393,7 +424,7 @@ export function PortfolioTransactionEditor({
           )}
         </fieldset>
         {error && (
-          <p className="portfolio-form-error" role="alert">
+          <p className="portfolio-form-error" role="alert" id={errorId}>
             {error}
           </p>
         )}
