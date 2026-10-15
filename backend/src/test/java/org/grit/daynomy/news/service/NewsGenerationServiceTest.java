@@ -30,13 +30,17 @@ class NewsGenerationServiceTest {
   void generateEconomyNewsDraftsSavesWithoutImages() {
     GeneratedEconomicNews article =
         new GeneratedEconomicNews("경제 뉴스", "본문", Category.STOCK, List.of());
+    GeneratedEconomicNews usArticle =
+        new GeneratedEconomicNews("미국 경제 뉴스", "본문", Category.STOCK, List.of());
+    List<GeneratedEconomicNews> articles = List.of(article, usArticle);
     given(openAiNewsGenerator.generateEconomicNews()).willReturn(List.of(article));
-    given(newsPersistenceService.saveDrafts(List.of(article), Collections.singletonList(null)))
+    given(openAiNewsGenerator.generateUsEconomicNews()).willReturn(List.of(usArticle));
+    given(newsPersistenceService.saveDrafts(articles, Collections.nCopies(articles.size(), null)))
         .willReturn(List.of());
 
     List<News> drafts = newsGenerationService.generateEconomyNewsDrafts();
 
     assertThat(drafts).isEmpty();
-    verify(newsPersistenceService).saveDrafts(List.of(article), Collections.singletonList(null));
+    verify(newsPersistenceService).saveDrafts(articles, Collections.nCopies(articles.size(), null));
   }
 }

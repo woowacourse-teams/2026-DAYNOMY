@@ -3,6 +3,7 @@ package org.grit.daynomy.news.service;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.logging.LogEvent;
@@ -21,7 +22,11 @@ public class NewsGenerationService {
 
   public List<News> generateEconomyNewsDrafts() {
     long startedAt = System.nanoTime();
-    List<GeneratedEconomicNews> generatedNews = openAiNewsGenerator.generateEconomicNews();
+    List<GeneratedEconomicNews> generatedNews =
+        Stream.concat(
+                openAiNewsGenerator.generateEconomicNews().stream(),
+                openAiNewsGenerator.generateUsEconomicNews().stream())
+            .toList();
     List<String> imageUrls = Collections.nCopies(generatedNews.size(), null);
     List<News> drafts = newsPersistenceService.saveDrafts(generatedNews, imageUrls);
     log.atInfo()

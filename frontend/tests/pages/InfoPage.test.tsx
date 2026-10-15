@@ -28,6 +28,8 @@ describe('푸터 안내 페이지', () => {
       expect(view.getByRole('link', { name: label }).getAttribute('href')).toBe(path);
     }
 
+    expect(view.getByRole('link', { name: '서비스 소개' }).getAttribute('href')).toBe('/welcome');
+
     expect(view.getByRole('link', { name: '문의하기' }).getAttribute('href')).toBe(
       'mailto:paperchoigo@gmail.com',
     );

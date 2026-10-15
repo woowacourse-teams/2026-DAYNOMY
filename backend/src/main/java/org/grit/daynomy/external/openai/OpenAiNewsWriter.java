@@ -24,8 +24,8 @@ public class OpenAiNewsWriter {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final int MAX_ATTEMPTS = 3;
-  private static final int MIN_CONTENT_LENGTH = 700;
-  private static final int MAX_CONTENT_LENGTH = 1_200;
+  private static final int MIN_CONTENT_LENGTH = 1_000;
+  private static final int MAX_CONTENT_LENGTH = 1_500;
   private static final int MIN_CONTENT_PARAGRAPHS = 4;
   private static final int MAX_CONTENT_PARAGRAPHS = 6;
   private static final int MAX_OUTPUT_TOKENS = 12_000;
@@ -33,7 +33,7 @@ public class OpenAiNewsWriter {
   private static final String RETRY_INSTRUCTION =
       """
 
-      이전 본문 묶음이 형식 검증에 실패했다. 조사 자료에 없는 사실을 추가하지 말고 전체 기사를 처음부터 다시 작성하라. 기사 수를 유지하고, 각 본문은 공백 포함 900~1,000자를 목표로 700~1,200자 범위를 반드시 지켜라. 반환 전 각 본문의 글자 수를 확인하고, 4~6개 문단과 해라체를 정확히 지키며 시장 분석·전망·투자 의견을 제외하라.
+      이전 본문 묶음이 형식 검증에 실패했다. 조사 자료에 없는 사실을 추가하지 말고 전체 기사를 처음부터 다시 작성하라. 기사 수를 유지하고, 각 본문은 공백 포함 1,200~1,300자를 목표로 1,000~1,500자 범위를 반드시 지켜라. 반환 전 각 본문의 글자 수를 확인하고, 4~6개 문단과 해라체를 정확히 지키며 시장 분석·전망·투자 의견을 제외하라.
       """;
 
   private final OpenAiProperties openAiProperties;
