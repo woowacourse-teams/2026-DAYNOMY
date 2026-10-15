@@ -1477,24 +1477,38 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                                     {displayWon(holding.averagePurchasePrice)}
                                   </td>
                                   <td data-label="최근 종가">
-                                    <span>{formatWon(holding.closePrice)}</span>
-                                    <small className="portfolio-price-date">
-                                      {holding.priceAvailable
-                                        ? holding.baseDate?.replaceAll('-', '.')
-                                        : '시세 없음'}
-                                    </small>
+                                    <span>
+                                      {holding.closePrice === null
+                                        ? '-'
+                                        : formatWon(holding.closePrice)}
+                                    </span>
+                                    {holding.priceAvailable && holding.baseDate && (
+                                      <small className="portfolio-price-date">
+                                        {holding.baseDate.replaceAll('-', '.')}
+                                      </small>
+                                    )}
                                   </td>
                                   <td data-label="평가금액" className="portfolio-value">
-                                    {displayWon(holding.evaluationAmount)}
+                                    {holding.evaluationAmount === null
+                                      ? '-'
+                                      : displayWon(holding.evaluationAmount)}
                                   </td>
                                   <td
                                     data-label="손익 · 수익률"
                                     className={`portfolio-profit-cell ${profitClass(holding.profitLoss)}`}
                                   >
-                                    <strong>{displayWon(holding.profitLoss, true)}</strong>
-                                    <small>{formatPercent(holding.returnRate, true)}</small>
+                                    <strong>
+                                      {holding.profitLoss === null
+                                        ? '-'
+                                        : displayWon(holding.profitLoss, true)}
+                                    </strong>
+                                    {holding.returnRate !== null && (
+                                      <small>{formatPercent(holding.returnRate, true)}</small>
+                                    )}
                                   </td>
-                                  <td data-label="비중">{formatPercent(holding.weight)}</td>
+                                  <td data-label="비중">
+                                    {holding.weight === null ? '-' : formatPercent(holding.weight)}
+                                  </td>
                                 </tr>
                               ))}
                               {visibleHoldings.length === 0 ? (

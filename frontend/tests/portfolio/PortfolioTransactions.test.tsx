@@ -586,7 +586,14 @@ describe('거래 원장 화면', () => {
     pricing = 'PARTIAL';
     const view = await ready();
     expect(view.getByText('시세 확인된 자산 평가금액')).toBeTruthy();
-    expect(view.getByText('시세 없음')).toBeTruthy();
+    const holdingRow = view.getByRole('button', { name: '삼성전자 보유 상세' }).closest('tr')!;
+    expect(
+      within(holdingRow)
+        .getAllByRole('cell')
+        .slice(3)
+        .map((cell) => cell.textContent),
+    ).toEqual(['-', '-', '-', '-']);
+    expect(view.queryByText('시세 없음')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
     expect(within(detail).getByRole('button', { name: '매수' })).toBeTruthy();
