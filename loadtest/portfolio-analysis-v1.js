@@ -2,7 +2,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 
-// loadtest 폴더에서 실행: k6 run -e BASE_URL=https://개발서버 -e USERS=1 portfolio-v1.js
+// loadtest 폴더에서 실행: k6 run -e BASE_URL=https://개발서버 -e USERS=1 portfolio-analysis-v1.js
 // CASE/API_MODE는 기록용이다. DB 준비 상태와 서버의 AI 연결은 별도로 맞춘다.
 // accounts.json의 warmup: true 회원 1명으로 먼저 워밍업한다. USERS에는 포함하지 않는다.
 // 반복 전 새 회원 파일(ACCOUNTS_FILE)을 쓰거나 테스트 분석 상태를 초기화한다.
