@@ -214,6 +214,6 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 
 ### 포트폴리오 거래 등록 부하 테스트
 
-V1/V2 매수·매도 등록의 오늘·1개월 전·6개월 전 시나리오와 전용 로컬 DB의 합성 데이터 준비·초기화·검증 절차는 [부하 테스트 실행 문서](loadtest/README.md)를 따른다. `transactions-v1.js`와 `transactions-v2.js`를 각각 실행하며 회원별 요청 횟수와 초기 데이터를 고정한다. 결과는 Git에서 제외한 `loadtest/.local/results/`에 저장한다.
+dev의 V1/V2 매수·매도 등록은 [k6 실행 문서](loadtest/README.md)를 따른다. dev API 주소·테스트 회원·거래일을 지정하고 `transactions-v1.js`와 `transactions-v2.js`를 따로 실행한다. 회원별 요청 횟수와 초기 데이터를 맞춰 비교한다.
 
 `POST /api/v2/users/me/portfolio/transactions`는 V1과 같은 요청·응답 형식을 사용한다. 회원·포트폴리오 잠금과 단일 트랜잭션을 유지하면서 거래 이력·기존 스냅샷을 일괄 조회하고, 종가는 최대 31개 재계산 기준일 단위로 조회한다. 현재 보유자산과 과거 스냅샷은 응답 전에 갱신되며, 가격 누락·반올림·실패 시 롤백 규칙은 V1과 동일하다. V1 API와 수정·삭제 경로는 그대로 사용한다.
