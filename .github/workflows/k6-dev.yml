@@ -8,6 +8,38 @@ on:
         required: true
         type: string
         default: loadtest/load-test.js
+      case:
+        description: Test condition
+        required: true
+        type: choice
+        options: [B1, B2, B3, B4]
+        default: B1
+      api_mode:
+        description: Result label (actual AI mode is configured on the server)
+        required: true
+        type: choice
+        options: [real, fake]
+        default: real
+      users:
+        description: Number of measured users
+        required: true
+        type: number
+        default: 1
+      run:
+        description: Run label
+        required: true
+        type: string
+        default: '1'
+      rps:
+        description: Target requests per second for RPS scripts
+        required: true
+        type: number
+        default: 1
+      duration:
+        description: Duration for RPS scripts (for example 30s or 5m)
+        required: true
+        type: string
+        default: 30s
 
 permissions:
   contents: read
@@ -21,7 +53,7 @@ jobs:
     name: Run k6 against development
     runs-on: [self-hosted, Linux, ARM64, loadtest-dev]
     environment: development
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -37,11 +69,29 @@ jobs:
           K6_PROMETHEUS_RW_TREND_STATS: p(90),p(95),p(99),avg,min,max
           K6_PROMETHEUS_RW_LABELS: environment=dev,service=k6
           K6_SCRIPT: ${{ inputs.script }}
+          CASE: ${{ inputs.case }}
+          API_MODE: ${{ inputs.api_mode }}
+          USERS: ${{ inputs.users }}
+          RUN: ${{ inputs.run }}
+          RPS: ${{ inputs.rps }}
+          DURATION: ${{ inputs.duration }}
+          K6_ACCOUNTS_JSON: ${{ secrets.K6_ACCOUNTS_JSON }}
         run: |
           set -Eeuo pipefail
           if [[ ! "$K6_SCRIPT" =~ ^loadtest/[A-Za-z0-9._/-]+\.js$ || "$K6_SCRIPT" == *..* || ! -f "$K6_SCRIPT" ]]; then
             echo "Choose an existing .js file under loadtest/."
             exit 1
+          fi
+          script_name="${K6_SCRIPT#loadtest/}"
+          if [[ "$script_name" == portfolio-analysis-*.js ]]; then
+            if [[ -z "$K6_ACCOUNTS_JSON" ]]; then
+              echo "Set K6_ACCOUNTS_JSON in the development environment secrets."
+              exit 1
+            fi
+            umask 077
+            printf '%s' "$K6_ACCOUNTS_JSON" > loadtest/accounts.json
+            unset K6_ACCOUNTS_JSON
+            trap 'rm -f loadtest/accounts.json' EXIT
           fi
           if [[ -z "$BASE_URL" ]]; then
             echo "Set DEV_BASE_URL in the development environment variables."
@@ -51,6 +101,24 @@ jobs:
             echo "Set K6_PROMETHEUS_RW_SERVER_URL in the development environment variables."
             exit 1
           fi
+          cd loadtest
           k6 run -o experimental-prometheus-rw \
             --tag testid="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            "$K6_SCRIPT"
+            -e "BASE_URL=$BASE_URL" \
+            -e "CASE=$CASE" \
+            -e "API_MODE=$API_MODE" \
+            -e "USERS=$USERS" \
+            -e "RUN=$RUN" \
+            -e "RPS=$RPS" \
+            -e "DURATION=$DURATION" \
+            -e "ACCOUNTS_FILE=./accounts.json" \
+            "$script_name"
+
+      - name: Upload load test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: loadtest/result-*.json
+          if-no-files-found: ignore
+          retention-days: 14
