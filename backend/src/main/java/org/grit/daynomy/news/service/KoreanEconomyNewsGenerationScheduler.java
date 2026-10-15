@@ -10,24 +10,24 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "news.generation.economy.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "news.generation.korea.enabled", havingValue = "true")
 @Component
-public class EconomyNewsGenerationScheduler {
+public class KoreanEconomyNewsGenerationScheduler {
 
   private final NewsGenerationService newsGenerationService;
 
-  @Scheduled(cron = "${news.generation.economy.cron}", zone = "Asia/Seoul")
-  public void generateEconomyNewsDrafts() {
+  @Scheduled(cron = "${news.generation.korea.cron}", zone = "Asia/Seoul")
+  public void generateKoreanEconomicNewsDrafts() {
     log.atDebug()
         .addKeyValue("event", LogEvent.NEWS_GENERATION_STARTED.code())
-        .addKeyValue("generationType", "economy")
+        .addKeyValue("generationType", "korea")
         .log(LogEvent.NEWS_GENERATION_STARTED.message());
     try {
-      newsGenerationService.generateEconomyNewsDrafts();
+      newsGenerationService.generateKoreanEconomicNewsDrafts();
     } catch (BusinessException exception) {
       log.atWarn()
           .addKeyValue("event", LogEvent.NEWS_GENERATION_FAILED.code())
-          .addKeyValue("generationType", "economy")
+          .addKeyValue("generationType", "korea")
           .addKeyValue("errorCode", exception.errorCode().code())
           .log(LogEvent.NEWS_GENERATION_FAILED.message());
     }

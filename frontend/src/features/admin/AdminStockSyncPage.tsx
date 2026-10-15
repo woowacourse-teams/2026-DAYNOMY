@@ -101,7 +101,6 @@ export function AdminStockSyncPage() {
     <main className="admin-content">
       <div className="admin-page-heading">
         <div>
-          <p className="admin-kicker">자산 데이터 운영</p>
           <h1>주식·ETF 동기화</h1>
           <p>
             종목·종가 수집과 리그 집계는 자동으로 실행됩니다. 가격 정정이나 장애 복구가 필요할 때
@@ -113,7 +112,6 @@ export function AdminStockSyncPage() {
       <div className="admin-sync-grid">
         <section className="admin-sync-card" aria-labelledby="stock-master-sync-title">
           <div>
-            <p className="admin-panel-eyebrow">종목 마스터</p>
             <h2 id="stock-master-sync-title">종목 정보 동기화</h2>
             <p>KOSPI·KOSDAQ 주식과 ETF의 신규 상장, 종목명 변경, 상장폐지 정보를 반영합니다.</p>
           </div>
@@ -162,7 +160,6 @@ export function AdminStockSyncPage() {
 
         <section className="admin-sync-card" aria-labelledby="stock-price-sync-title">
           <div>
-            <p className="admin-panel-eyebrow">일별 시세</p>
             <h2 id="stock-price-sync-title">빠진 종가 동기화</h2>
             <p>거래일 달력에서 수집되지 않은 주식·ETF 종가를 다시 수집합니다.</p>
           </div>

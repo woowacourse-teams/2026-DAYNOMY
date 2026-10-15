@@ -3,6 +3,7 @@
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/App';
+import { SERVICE_STARTED_KEY } from '../../src/features/landing/startedService';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -15,6 +16,7 @@ afterEach(() => {
   cleanup();
   window.history.replaceState(null, '', '/');
   sessionStorage.clear();
+  localStorage.removeItem(SERVICE_STARTED_KEY);
   vi.unstubAllGlobals();
 });
 
@@ -33,6 +35,7 @@ describe('포트폴리오 로그인 접근', () => {
   });
 
   it('비로그인 사용자도 빈 포트폴리오 대시보드를 사용한다', async () => {
+    localStorage.setItem(SERVICE_STARTED_KEY, '1');
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse({}, 401)),
@@ -41,7 +44,7 @@ describe('포트폴리오 로그인 접근', () => {
 
     const view = render(<App />);
 
-    expect(await view.findByRole('button', { name: /자산 추가/ })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
     expect(view.queryByText('로그인해야 볼 수 있습니다')).toBeNull();
     expect(window.location.pathname).toBe('/');

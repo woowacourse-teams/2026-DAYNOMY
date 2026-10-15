@@ -55,6 +55,8 @@
 }
 
 .search-overlay-form:focus-within {
+  outline: 3px solid #2563eb;
+  outline-offset: 4px;
   box-shadow: 0 0 0 4px rgb(81 65 201 / 18%);
 }
 
@@ -94,7 +96,7 @@
 }
 
 .search-overlay-form input::placeholder {
-  color: #9299aa;
+  color: #52647f;
 }
 
 .recent-searches {
@@ -107,13 +109,13 @@
 
 .recent-searches h2 {
   margin: 0;
-  color: #6f7788;
+  color: #52647f;
   font-size: 15px;
 }
 
 .recent-searches p {
   margin: 72px 0 0;
-  color: #9299aa;
+  color: #52647f;
   font-size: 15px;
   text-align: center;
 }

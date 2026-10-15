@@ -2,6 +2,7 @@ package org.grit.daynomy.news.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.util.Collections;
@@ -26,17 +27,36 @@ class NewsGenerationServiceTest {
   @InjectMocks private NewsGenerationService newsGenerationService;
 
   @Test
-  @DisplayName("경제 뉴스 초안은 이미지를 생성하지 않고 이미지 URL 없이 저장한다")
-  void generateEconomyNewsDraftsSavesWithoutImages() {
+  @DisplayName("한국 뉴스 초안 생성은 한국 뉴스만 이미지 없이 저장한다")
+  void generateKoreanEconomicNewsDraftsSavesKoreanNewsWithoutImages() {
     GeneratedEconomicNews article =
-        new GeneratedEconomicNews("경제 뉴스", "본문", Category.STOCK, List.of());
+        new GeneratedEconomicNews("한국 경제 뉴스", "본문", Category.STOCK, List.of());
     given(openAiNewsGenerator.generateEconomicNews()).willReturn(List.of(article));
     given(newsPersistenceService.saveDrafts(List.of(article), Collections.singletonList(null)))
         .willReturn(List.of());
 
-    List<News> drafts = newsGenerationService.generateEconomyNewsDrafts();
+    List<News> drafts = newsGenerationService.generateKoreanEconomicNewsDrafts();
 
     assertThat(drafts).isEmpty();
     verify(newsPersistenceService).saveDrafts(List.of(article), Collections.singletonList(null));
+    verify(openAiNewsGenerator).generateEconomicNews();
+    verify(openAiNewsGenerator, never()).generateUsEconomicNews();
+  }
+
+  @Test
+  @DisplayName("미국 뉴스 초안 생성은 미국 뉴스만 이미지 없이 저장한다")
+  void generateUsEconomicNewsDraftsSavesUsNewsWithoutImages() {
+    GeneratedEconomicNews article =
+        new GeneratedEconomicNews("미국 경제 뉴스", "본문", Category.STOCK, List.of());
+    given(openAiNewsGenerator.generateUsEconomicNews()).willReturn(List.of(article));
+    given(newsPersistenceService.saveDrafts(List.of(article), Collections.singletonList(null)))
+        .willReturn(List.of());
+
+    List<News> drafts = newsGenerationService.generateUsEconomicNewsDrafts();
+
+    assertThat(drafts).isEmpty();
+    verify(newsPersistenceService).saveDrafts(List.of(article), Collections.singletonList(null));
+    verify(openAiNewsGenerator).generateUsEconomicNews();
+    verify(openAiNewsGenerator, never()).generateEconomicNews();
   }
 }

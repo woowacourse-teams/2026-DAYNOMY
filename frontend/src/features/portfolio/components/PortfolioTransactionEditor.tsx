@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { getLatestStockPrice, searchStocks } from '../../stocks/api';
 import { trackPortfolioEvent } from '../analytics';
 import {
   todayInSeoul,
   toTransactionRequest,
-  validateTransaction,
+  getTransactionValidationError,
   type TransactionFields,
 } from '../transactionForm';
 import type {
@@ -30,6 +30,8 @@ export function PortfolioTransactionEditor({
   onDelete,
   onSave,
 }: Props) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const errorId = useId();
   const [selected, setSelected] = useState<StockSearchItem | PortfolioHoldingHistory | null>(
     transaction ?? stock ?? null,
   );
@@ -71,8 +73,7 @@ export function PortfolioTransactionEditor({
           if (!controller.signal.aborted) setResults(items);
         })
         .catch(() => {
-          if (!controller.signal.aborted)
-            setSearchError('종목을 검색하지 못했습니다. 다시 시도해 주세요.');
+          if (!controller.signal.aborted) setSearchError('검색 결과를 불러오지 못했어요.');
         })
         .finally(() => {
           if (!controller.signal.aborted) setSearchLoading(false);
@@ -111,7 +112,8 @@ export function PortfolioTransactionEditor({
       });
     return () => controller.abort();
   }, [selected, transaction]);
-  const invalid = validateTransaction(fields);
+  const invalid = getTransactionValidationError(fields);
+  const invalidField = error === invalid?.message ? invalid?.field : undefined;
   const filteredResults = results.filter(
     (item) => categoryFilter === 'ALL' || item.category === categoryFilter,
   );
@@ -129,7 +131,14 @@ export function PortfolioTransactionEditor({
     event.preventDefault();
     if (saving || !selected) return;
     if (invalid) {
-      setError(invalid);
+      setError(invalid.message);
+      window.requestAnimationFrame(() => {
+        const input = formRef.current?.elements.namedItem(invalid.field);
+        if (input instanceof HTMLElement) {
+          input.closest('details')?.setAttribute('open', '');
+          input.focus();
+        }
+      });
       return;
     }
     setSaving(true);
@@ -156,6 +165,7 @@ export function PortfolioTransactionEditor({
   return (
     <>
       <form
+        ref={formRef}
         onSubmit={submit}
         noValidate
         className={transaction ? 'portfolio-edit-form' : undefined}
@@ -202,18 +212,28 @@ export function PortfolioTransactionEditor({
                   </button>
                 ))}
               </div>
-              <div className="portfolio-stock-results" aria-live="polite">
+              <div className="portfolio-stock-results" aria-live="polite" aria-busy={searchLoading}>
                 {searchLoading ? (
-                  <p role="status">종목을 검색하고 있어요.</p>
+                  <div className="portfolio-stock-search-loading" role="status">
+                    <span
+                      className="portfolio-analysis-spinner portfolio-stock-search-spinner"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">종목 검색 중</span>
+                  </div>
                 ) : searchError ? (
-                  <div role="alert">
+                  <div className="portfolio-stock-search-error" role="alert">
                     <p>{searchError}</p>
-                    <button type="button" onClick={() => setSearchRetry((value) => value + 1)}>
-                      다시 검색
+                    <button
+                      type="button"
+                      className="portfolio-stock-search-retry"
+                      onClick={() => setSearchRetry((value) => value + 1)}
+                    >
+                      다시 시도
                     </button>
                   </div>
                 ) : filteredResults.length ? (
-                  <ul>
+                  <ul aria-label="검색된 종목">
                     {filteredResults.map((item) => (
                       <li key={item.assetId}>
                         <button
@@ -227,7 +247,9 @@ export function PortfolioTransactionEditor({
                             setSelected(item);
                           }}
                         >
-                          <span className="portfolio-monogram">{item.name.slice(0, 1)}</span>
+                          <span className="portfolio-monogram" aria-hidden="true">
+                            {item.name.slice(0, 1)}
+                          </span>
                           <span>
                             <strong>{item.name}</strong>
                             <small>
@@ -242,9 +264,14 @@ export function PortfolioTransactionEditor({
                   </ul>
                 ) : (
                   <p>
-                    {keyword.trim()
-                      ? '검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.'
-                      : '국내 주식과 ETF를 검색하세요. 과거에 매도한 종목도 기록할 수 있어요.'}
+                    {keyword.trim() ? (
+                      '검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.'
+                    ) : (
+                      <>
+                        국내 주식과 ETF를 검색하세요. <br />
+                        과거에 매도한 종목도 기록할 수 있어요.
+                      </>
+                    )}
                   </p>
                 )}
               </div>
@@ -295,6 +322,9 @@ export function PortfolioTransactionEditor({
                     autoFocus={!transaction}
                     data-autofocus={!transaction || undefined}
                     type="date"
+                    name="tradeDate"
+                    aria-invalid={invalidField === 'tradeDate' || undefined}
+                    aria-describedby={invalidField === 'tradeDate' ? errorId : undefined}
                     required
                     max={todayInSeoul()}
                     value={fields.tradeDate}
@@ -308,6 +338,9 @@ export function PortfolioTransactionEditor({
                   <input
                     type="text"
                     inputMode="numeric"
+                    name="quantity"
+                    aria-invalid={invalidField === 'quantity' || undefined}
+                    aria-describedby={invalidField === 'quantity' ? errorId : undefined}
                     autoFocus={!!transaction}
                     data-autofocus={transaction ? true : undefined}
                     placeholder="0"
@@ -320,6 +353,9 @@ export function PortfolioTransactionEditor({
                   <input
                     type="text"
                     inputMode="decimal"
+                    name="unitPrice"
+                    aria-invalid={invalidField === 'unitPrice' || undefined}
+                    aria-describedby={invalidField === 'unitPrice' ? errorId : undefined}
                     placeholder="0"
                     value={fields.unitPrice}
                     aria-busy={priceLoading}
@@ -334,6 +370,9 @@ export function PortfolioTransactionEditor({
                     autoFocus={!transaction}
                     data-autofocus={!transaction || undefined}
                     type="date"
+                    name="tradeDate"
+                    aria-invalid={invalidField === 'tradeDate' || undefined}
+                    aria-describedby={invalidField === 'tradeDate' ? errorId : undefined}
                     required
                     max={todayInSeoul()}
                     value={fields.tradeDate}
@@ -361,6 +400,9 @@ export function PortfolioTransactionEditor({
                     <input
                       type="text"
                       inputMode="decimal"
+                      name="fee"
+                      aria-invalid={invalidField === 'fee' || undefined}
+                      aria-describedby={invalidField === 'fee' ? errorId : undefined}
                       value={fields.fee}
                       onChange={(event) => change('fee', event.target.value)}
                     />
@@ -370,6 +412,9 @@ export function PortfolioTransactionEditor({
                     <input
                       type="text"
                       inputMode="decimal"
+                      name="tax"
+                      aria-invalid={invalidField === 'tax' || undefined}
+                      aria-describedby={invalidField === 'tax' ? errorId : undefined}
                       value={fields.tax}
                       onChange={(event) => change('tax', event.target.value)}
                     />
@@ -392,7 +437,7 @@ export function PortfolioTransactionEditor({
           )}
         </fieldset>
         {error && (
-          <p className="portfolio-form-error" role="alert">
+          <p className="portfolio-form-error" role="alert" id={errorId}>
             {error}
           </p>
         )}

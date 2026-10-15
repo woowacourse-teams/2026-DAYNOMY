@@ -33,7 +33,12 @@ function SearchPage() {
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    if (keyword) titleRef.current?.focus();
+    const previousTitle = document.title;
+    document.title = `${keyword ? `‘${keyword}’ 검색 결과` : '소식 검색'} | DAYNOMY`;
+    titleRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.title = previousTitle;
+    };
   }, [keyword]);
 
   useEffect(() => {
@@ -142,7 +147,9 @@ function SearchPage() {
             </>
           )}
           {!loading && !error && items.length === 0 && (
-            <p className="issue-state">검색된 소식이 없습니다.</p>
+            <p className="issue-state" role="status">
+              검색된 소식이 없습니다.
+            </p>
           )}
         </section>
       )}

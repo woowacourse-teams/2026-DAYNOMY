@@ -53,7 +53,7 @@ public class SavedPortfolioAnalysisController {
   @Operation(
       summary = "내 포트폴리오 분석 생성 또는 재사용",
       description =
-          "DB의 보유 자산과 가격으로 분석합니다. 자산·비중·분석 기준이 같으면 기존 결과를 반환하며 확인 성공 시각은 갱신하지 않습니다. 새 뉴스 확인과는 별개입니다. 동시 분석은 409를 반환합니다.")
+          "DB의 보유 자산과 가격으로 분석합니다. 종목별 유효 분석은 사용자 간 재사용하고 없거나 만료된 종목만 검색합니다. 자산·비중·분석 기준이 같으면 기존 결과를 반환하며 확인 성공 시각은 갱신하지 않습니다. 새 뉴스 확인과는 별개입니다. 동시 분석은 409를 반환합니다.")
   @PostMapping
   public SavedPortfolioAnalysisResponse analyze(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {

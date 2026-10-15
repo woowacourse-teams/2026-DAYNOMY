@@ -269,8 +269,16 @@ export async function generateAdminNewsImage(id: number) {
   return assertResponse(response, isAdminNewsResponse);
 }
 
-export async function generateAdminEconomyNewsDrafts(): Promise<AdminNewsGenerationResponse> {
-  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy', {
+export async function generateAdminKoreanEconomicNewsDrafts(): Promise<AdminNewsGenerationResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy/korea', {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminNewsGenerationResponse);
+}
+
+export async function generateAdminUsEconomicNewsDrafts(): Promise<AdminNewsGenerationResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy/us', {
     method: 'POST',
   });
 
