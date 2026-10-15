@@ -90,10 +90,16 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
   const featured = people.people
     .map((person) => ({
       person,
-      post: [...person.posts].sort((a, b) => timestamp(b.createdAt) - timestamp(a.createdAt))[0],
+      post: [...person.posts].sort(
+        (a, b) => timestamp(b.publishedAt ?? b.createdAt) - timestamp(a.publishedAt ?? a.createdAt),
+      )[0],
     }))
     .filter((entry) => entry.post)
-    .sort((a, b) => timestamp(b.post.createdAt) - timestamp(a.post.createdAt))
+    .sort(
+      (a, b) =>
+        timestamp(b.post.publishedAt ?? b.post.createdAt) -
+        timestamp(a.post.publishedAt ?? a.post.createdAt),
+    )
     .slice(0, 2);
   const sampleNews = showSampleNews ? getSampleNews().news : null;
   const settled = !loading && !contentsLoading && !people.loading;
