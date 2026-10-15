@@ -73,6 +73,28 @@ for (const viewport of [
   { name: 'desktop', width: 1440, height: 1050 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
+  test(`비회원 빈 자산 분석 카드에 과도한 여백이 없다: ${viewport.name}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await page.route('**/api/**', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
+    );
+    await page.goto('/');
+    const trend = page.locator('.portfolio-return-dashboard');
+    const composition = page.locator('.portfolio-composition');
+    await expect(trend.getByRole('link', { name: '로그인하기' })).toBeVisible();
+    await expect(composition.getByText('표시할 자산이 없습니다')).toBeVisible();
+    for (const card of [trend, composition]) {
+      const height = await card.evaluate((element) => parseFloat(getComputedStyle(element).height));
+      expect(height).toBeLessThanOrEqual(340);
+      expect(height).toBeGreaterThanOrEqual(250);
+    }
+    await page.locator('.portfolio-dashboard-grid').screenshot({
+      path: testInfo.outputPath('empty-asset-analysis.png'),
+    });
+  });
+
   test(`비회원 잠금 안내와 종목 상세 진입: ${viewport.name}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     const guestHolding = {

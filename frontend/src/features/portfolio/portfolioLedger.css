@@ -2305,6 +2305,13 @@
   grid-template-rows: auto auto 260px;
   align-content: start;
 }
+.portfolio-return-dashboard.is-compact:has(.portfolio-trend-locked) {
+  grid-template-rows: auto 210px;
+}
+.portfolio-page .portfolio-return-dashboard.is-compact .portfolio-trend-locked {
+  min-height: 0;
+  margin-top: 0;
+}
 .portfolio-return-dashboard.is-compact .portfolio-trend-plot {
   display: grid;
   grid-template-rows: minmax(0, 1fr) 18px 40px;
