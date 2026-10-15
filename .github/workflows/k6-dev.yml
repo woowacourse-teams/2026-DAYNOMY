@@ -8,38 +8,11 @@ on:
         required: true
         type: string
         default: loadtest/load-test.js
-      case:
-        description: Test condition
-        required: true
-        type: choice
-        options: [B1, B2, B3, B4]
-        default: B1
-      api_mode:
-        description: Result label (actual AI mode is configured on the server)
-        required: true
-        type: choice
-        options: [real, fake]
-        default: real
-      users:
-        description: Number of measured users
-        required: true
-        type: number
-        default: 1
-      run:
-        description: Run label
+      params:
+        description: 'JSON object of k6 script parameters, for example {"CASE":"B1","API_MODE":"real","USERS":1}'
         required: true
         type: string
-        default: '1'
-      rps:
-        description: Target requests per second for RPS scripts
-        required: true
-        type: number
-        default: 1
-      duration:
-        description: Duration for RPS scripts (for example 30s or 5m)
-        required: true
-        type: string
-        default: 30s
+        default: '{"CASE":"B1","API_MODE":"real","USERS":1,"RUN":"1"}'
 
 permissions:
   contents: read
@@ -69,12 +42,7 @@ jobs:
           K6_PROMETHEUS_RW_TREND_STATS: p(90),p(95),p(99),avg,min,max
           K6_PROMETHEUS_RW_LABELS: environment=dev,service=k6
           K6_SCRIPT: ${{ inputs.script }}
-          CASE: ${{ inputs.case }}
-          API_MODE: ${{ inputs.api_mode }}
-          USERS: ${{ inputs.users }}
-          RUN: ${{ inputs.run }}
-          RPS: ${{ inputs.rps }}
-          DURATION: ${{ inputs.duration }}
+          K6_PARAMS_JSON: ${{ inputs.params }}
           K6_ACCOUNTS_JSON: ${{ secrets.K6_ACCOUNTS_JSON }}
         run: |
           set -Eeuo pipefail
@@ -102,17 +70,46 @@ jobs:
             exit 1
           fi
           cd loadtest
-          k6 run -o experimental-prometheus-rw \
-            --tag testid="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            -e "BASE_URL=$BASE_URL" \
-            -e "CASE=$CASE" \
-            -e "API_MODE=$API_MODE" \
-            -e "USERS=$USERS" \
-            -e "RUN=$RUN" \
-            -e "RPS=$RPS" \
-            -e "DURATION=$DURATION" \
-            -e "ACCOUNTS_FILE=./accounts.json" \
-            "$script_name"
+          K6_SCRIPT_NAME="$script_name" python3 - <<'PY'
+          import json
+          import math
+          import os
+          import re
+          import subprocess
+          import sys
+
+          try:
+              params = json.loads(os.environ["K6_PARAMS_JSON"])
+          except json.JSONDecodeError as error:
+              raise SystemExit(f"Invalid params JSON: {error.msg}")
+
+          if not isinstance(params, dict):
+              raise SystemExit("params must be a JSON object.")
+          if "BASE_URL" in params or "ACCOUNTS_FILE" in params:
+              raise SystemExit("BASE_URL and ACCOUNTS_FILE are managed by the workflow.")
+
+          args = [
+              "k6", "run", "-o", "experimental-prometheus-rw",
+              "--tag", f"testid={os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}",
+          ]
+          params["BASE_URL"] = os.environ["BASE_URL"]
+          if os.path.isfile("accounts.json"):
+              params["ACCOUNTS_FILE"] = "./accounts.json"
+
+          for key, value in params.items():
+              if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
+                  raise SystemExit(f"Invalid k6 parameter name: {key}")
+              if isinstance(value, bool):
+                  value = str(value).lower()
+              elif isinstance(value, (str, int, float)) and (not isinstance(value, float) or math.isfinite(value)):
+                  value = str(value)
+              else:
+                  raise SystemExit(f"Parameter {key} must have a string, number, or boolean value.")
+              args.extend(["-e", f"{key}={value}"])
+
+          args.append(os.environ["K6_SCRIPT_NAME"])
+          sys.exit(subprocess.run(args).returncode)
+          PY
 
       - name: Upload load test results
         if: always()
