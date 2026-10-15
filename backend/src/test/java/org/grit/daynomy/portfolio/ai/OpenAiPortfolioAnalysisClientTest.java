@@ -41,6 +41,7 @@ class OpenAiPortfolioAnalysisClientTest {
   private MockWebServer server;
   private OpenAiPortfolioAnalysisClient client;
   private Level originalLevel;
+  private MockResponse firstEnqueuedResponse;
 
   @BeforeEach
   void setUp() throws IOException {
@@ -49,6 +50,7 @@ class OpenAiPortfolioAnalysisClientTest {
     appender.start();
     logger.addAppender(appender);
     server = new MockWebServer();
+    firstEnqueuedResponse = null;
     ((okhttp3.mockwebserver.QueueDispatcher) server.getDispatcher()).setFailFast(true);
     server.start();
     client =
@@ -415,7 +417,7 @@ class OpenAiPortfolioAnalysisClientTest {
   @DisplayName("OpenAI가 HTTP 오류를 반환하면 분석 실패로 처리한다")
   void analyzeHandlesHttpError() {
     String responseBody = "{\"error\":\"sensitive-response\"}";
-    server.enqueue(
+    enqueueResponse(
         new MockResponse()
             .setResponseCode(500)
             .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
@@ -691,7 +693,7 @@ class OpenAiPortfolioAnalysisClientTest {
                                         "출처",
                                         "url",
                                         "https://example.com/semiconductor"))))))));
-    server.enqueue(
+    enqueueResponse(
         new MockResponse()
             .setResponseCode(200)
             .setHeader("Content-Type", "application/json")
@@ -1063,14 +1065,15 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   private void enqueueParallelCorrection(String outputText) {
-    var initialDispatcher = server.getDispatcher();
+    var initialResponse = firstEnqueuedResponse;
+    firstEnqueuedResponse = null;
     var calls = new java.util.concurrent.atomic.AtomicInteger();
     var correctionsStarted = new java.util.concurrent.CountDownLatch(2);
     server.setDispatcher(
         new okhttp3.mockwebserver.Dispatcher() {
           @Override
           public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
-            if (calls.getAndIncrement() == 0) return initialDispatcher.dispatch(request);
+            if (calls.getAndIncrement() == 0) return initialResponse;
             correctionsStarted.countDown();
             if (!correctionsStarted.await(3, java.util.concurrent.TimeUnit.SECONDS)) {
               return new MockResponse().setResponseCode(500);
@@ -1145,7 +1148,7 @@ class OpenAiPortfolioAnalysisClientTest {
                                         "반도체 산업 동향",
                                         "url",
                                         citationUrl))))))));
-    server.enqueue(
+    enqueueResponse(
         new MockResponse()
             .setResponseCode(200)
             .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
@@ -1183,7 +1186,7 @@ class OpenAiPortfolioAnalysisClientTest {
                                 withEvidence(outputText),
                                 "annotations",
                                 List.of()))))));
-    server.enqueue(
+    enqueueResponse(
         new MockResponse()
             .setResponseCode(200)
             .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
@@ -1207,7 +1210,7 @@ class OpenAiPortfolioAnalysisClientTest {
                                 withEvidence(outputText),
                                 "annotations",
                                 List.of()))))));
-    server.enqueue(
+    enqueueResponse(
         new MockResponse()
             .setResponseCode(200)
             .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
@@ -1216,7 +1219,7 @@ class OpenAiPortfolioAnalysisClientTest {
 
   @Test
   void invalidResponseLogsOnlySafeMetadata() {
-    server.enqueue(
+    enqueueResponse(
         new MockResponse()
             .setHeader("Content-Type", "application/json")
             .setBody(
@@ -1229,6 +1232,11 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(keyValues(event).toString() + event.getFormattedMessage())
         .doesNotContain("test-api-key", "secret-portfolio-content", "삼성전자");
     assertThat(event.getThrowableProxy()).isNull();
+  }
+
+  private void enqueueResponse(MockResponse response) {
+    if (firstEnqueuedResponse == null) firstEnqueuedResponse = response;
+    server.enqueue(response);
   }
 
   private void assertAnalysisFailed(ThrowingCallable call) {

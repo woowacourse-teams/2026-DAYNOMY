@@ -53,7 +53,6 @@ export function AdminStockSyncPage() {
     <main className="admin-content">
       <div className="admin-page-heading">
         <div>
-          <p className="admin-kicker">자산 데이터 운영</p>
           <h1>주식·ETF 동기화</h1>
           <p>종목 정보와 최근 거래일 종가를 필요한 시점에 직접 갱신하세요.</p>
         </div>
@@ -62,7 +61,6 @@ export function AdminStockSyncPage() {
       <div className="admin-sync-grid">
         <section className="admin-sync-card" aria-labelledby="stock-master-sync-title">
           <div>
-            <p className="admin-panel-eyebrow">종목 마스터</p>
             <h2 id="stock-master-sync-title">종목 정보 동기화</h2>
             <p>KOSPI·KOSDAQ 주식과 ETF의 신규 상장, 종목명 변경, 상장폐지 정보를 반영합니다.</p>
           </div>
@@ -111,7 +109,6 @@ export function AdminStockSyncPage() {
 
         <section className="admin-sync-card" aria-labelledby="stock-price-sync-title">
           <div>
-            <p className="admin-panel-eyebrow">일별 시세</p>
             <h2 id="stock-price-sync-title">최근 종가 동기화</h2>
             <p>주말과 공휴일을 고려해 가장 최근 거래일의 주식·ETF 종가를 저장합니다.</p>
           </div>

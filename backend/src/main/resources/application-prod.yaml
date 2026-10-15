@@ -28,3 +28,7 @@ management:
   metrics:
     tags:
       environment: prod
+  tracing:
+    export:
+      otlp:
+        enabled: false

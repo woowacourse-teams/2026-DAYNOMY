@@ -1,25 +1,72 @@
 import type { ReactNode } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import daynomyLogo from '../../../assets/daynomy-logo.png';
 
+const sections = [
+  { path: '/admin/news', label: '뉴스 관리', icon: 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h4' },
+  {
+    path: '/admin/people',
+    label: '주요 인물',
+    icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M17 4a4 4 0 0 1 0 8 M22 21v-2a4 4 0 0 0-3-3.87',
+  },
+  {
+    path: '/admin/stock-contents',
+    label: '종목 연결',
+    icon: 'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2',
+  },
+  {
+    path: '/admin/feedbacks',
+    label: '피드백',
+    icon: 'M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z M7 8h10 M7 12h6',
+  },
+  { path: '/admin/stocks', label: '자산 데이터', icon: 'M4 20V10 M10 20V4 M16 20v-7 M22 20H2' },
+];
+
 export function AdminShell({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const current = sections.find(({ path }) => pathname === path || pathname.startsWith(`${path}/`));
   return (
     <div className="admin-app">
+      <a className="admin-skip-link" href="#admin-workspace">
+        본문으로 이동
+      </a>
       <header className="admin-header">
         <Link className="admin-brand" to="/admin/news" aria-label="DAYNOMY 관리자 홈">
           <img src={daynomyLogo} alt="DAYNOMY" />
           <span>관리자</span>
         </Link>
         <nav className="admin-navigation" aria-label="관리자 메뉴">
-          <NavLink to="/admin/news">뉴스 관리</NavLink>
-          <NavLink to="/admin/feedbacks">피드백</NavLink>
-          <NavLink to="/admin/stocks">자산 데이터</NavLink>
-          <NavLink to="/admin/stock-contents">종목 연결</NavLink>
-          <NavLink to="/admin/people">주요 인물</NavLink>
-          <Link to="/">서비스 홈</Link>
+          {sections.map(({ path, label, icon }) => (
+            <NavLink key={path} to={path}>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d={icon} />
+              </svg>
+              {label}
+            </NavLink>
+          ))}
         </nav>
+        <Link className="admin-service-link" to="/">
+          서비스 홈 <span aria-hidden="true">↗</span>
+        </Link>
       </header>
-      {children}
+      <div className="admin-workspace" id="admin-workspace" tabIndex={-1}>
+        <div className="admin-topbar">
+          <span>관리자 워크스페이스</span>
+          <span aria-hidden="true">/</span>
+          <strong>{current?.label ?? '접근 권한'}</strong>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

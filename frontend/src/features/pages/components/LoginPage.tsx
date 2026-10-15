@@ -1,4 +1,5 @@
 import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import '../LoginPage.css';
 import { getApiUrl } from '../api';
 import { safeReturnPath } from '../../../auth/returnPath';
@@ -30,9 +31,26 @@ function LoginPage() {
   const [searchParams] = useSearchParams();
   const oauthError = searchParams.get('error') === 'oauth';
   const errorMessage = oauthError ? 'Google 로그인에 실패했습니다.' : null;
-  const requestedPath = searchParams.get('returnTo');
+  let requestedPath = searchParams.get('returnTo');
+  if (!requestedPath && oauthError) {
+    try {
+      requestedPath = sessionStorage.getItem('daynomy:post-login-path');
+    } catch {
+      requestedPath = null;
+    }
+  }
   const returnPath = safeReturnPath(requestedPath);
   const isAdminLogin = /^\/admin(?:\/|\?|#|$)/.test(returnPath);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = `${oauthError ? '로그인 오류' : isAdminLogin ? '관리자 로그인' : '로그인'} | DAYNOMY`;
+    (oauthError ? errorRef.current : headingRef.current)?.focus({ preventScroll: true });
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [oauthError, isAdminLogin]);
 
   return (
     <main className="login-page">
@@ -41,7 +59,9 @@ function LoginPage() {
       </Link>
       <section className="login-card">
         <div className="login-heading">
-          <h1>{isAdminLogin ? 'DAYNOMY 관리자 로그인' : 'DAYNOMY 로그인'}</h1>
+          <h1 ref={headingRef} tabIndex={-1}>
+            {isAdminLogin ? 'DAYNOMY 관리자 로그인' : 'DAYNOMY 로그인'}
+          </h1>
           <p>
             {isAdminLogin
               ? '관리자 계정으로 로그인해 뉴스 콘텐츠를 관리하세요'
@@ -62,7 +82,7 @@ function LoginPage() {
 
         <div className="login-message" aria-live="polite">
           {errorMessage && (
-            <p className="login-error" role="alert">
+            <p className="login-error" role="alert" ref={errorRef} tabIndex={-1}>
               {errorMessage}
             </p>
           )}
