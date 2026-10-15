@@ -52,10 +52,10 @@ afterEach(() => {
 });
 
 describe('첫 방문 서비스 소개', () => {
-  it('새 비회원은 소개로 이동하며 서비스 헤더와 푸터를 겹쳐 표시하지 않는다', async () => {
+  it('새 비회원은 루트 주소에서 소개를 보고 서비스 헤더와 푸터를 겹쳐 표시하지 않는다', async () => {
     const view = render(<App />);
     expect(await view.findByRole('heading', { name: 'DAYNOMY 서비스 소개' })).toBeTruthy();
-    expect(window.location.pathname).toBe('/welcome');
+    expect(window.location.pathname).toBe('/');
     expect(view.container.querySelector('.service-header')).toBeNull();
     expect(view.container.querySelector('.daynomy-footer')).toBeNull();
     expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBeNull();
@@ -63,13 +63,20 @@ describe('첫 방문 서비스 소개', () => {
 
   it('시작하기 후에는 기록을 남기고 새로 접속해도 포트폴리오를 표시한다', async () => {
     const view = render(<App />);
-    fireEvent.click(await view.findByRole('button', { name: '시작하기' }));
-    expect(await view.findByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
+    const start = await view.findByRole('button', { name: '시작하기' });
+    expect(window.location.pathname).toBe('/');
+    fireEvent.click(start);
+    const heading = await view.findByRole('heading', { name: '내 포트폴리오' });
+    expect(document.activeElement).toBe(heading);
+    expect(document.title).toBe('내 포트폴리오 | DAYNOMY');
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' });
+    expect(view.container.querySelector('.service-header')).not.toBeNull();
+    expect(view.container.querySelector('.daynomy-footer')).not.toBeNull();
     expect(window.location.pathname).toBe('/');
     expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1');
     cleanup();
     const revisit = render(<App />);
-    expect(await revisit.findByRole('button', { name: '자산 추가' })).toBeTruthy();
+    expect(await revisit.findByRole('button', { name: '거래 기록' })).toBeTruthy();
     expect(window.location.pathname).toBe('/');
   });
 
@@ -82,7 +89,7 @@ describe('첫 방문 서비스 소개', () => {
     );
     await waitFor(() => expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1'));
     fireEvent.click(view.getByRole('link', { name: '포트폴리오' }));
-    expect(await view.findByRole('button', { name: '자산 추가' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
     expect(window.location.pathname).toBe('/');
   });
 
@@ -104,7 +111,7 @@ describe('첫 방문 서비스 소개', () => {
       await waitFor(() => expect(window.location.pathname).toBe('/'));
       finishAuth(response({}, 401));
 
-      expect(await view.findByRole('button', { name: '자산 추가' })).toBeTruthy();
+      expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
       expect(window.location.pathname).toBe('/');
       expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1');
       expect(localStorage.getItem('daynomy:financial-plans:v1')).toBe('보존할 기록');
@@ -128,7 +135,7 @@ describe('첫 방문 서비스 소개', () => {
       }),
     );
     const view = render(<App />);
-    expect(await view.findByRole('button', { name: '자산 추가' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
     expect(window.location.pathname).toBe('/');
     await waitFor(() => expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1'));
   });
@@ -139,8 +146,10 @@ describe('첫 방문 서비스 소개', () => {
     fireEvent.click(await view.findByRole('link', { name: '서비스 소개' }));
     expect(await view.findByRole('heading', { name: 'DAYNOMY 서비스 소개' })).toBeTruthy();
     expect(window.location.pathname).toBe('/welcome');
+    expect(view.container.querySelector('.service-header')).toBeNull();
+    expect(view.container.querySelector('.daynomy-footer')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '시작하기' }));
-    expect(await view.findByRole('button', { name: '자산 추가' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
   });
 
   it('모든 브라우저 저장소가 차단되어도 시작하기로 서비스에 들어간다', async () => {
@@ -156,7 +165,7 @@ describe('첫 방문 서비스 소개', () => {
     vi.stubGlobal('sessionStorage', blocked);
     const view = render(<App />);
     fireEvent.click(await view.findByRole('button', { name: '시작하기' }));
-    expect(await view.findByRole('button', { name: '자산 추가' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
     expect(window.location.pathname).toBe('/');
   });
 

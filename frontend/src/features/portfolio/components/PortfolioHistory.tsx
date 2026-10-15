@@ -175,7 +175,7 @@ export function PortfolioHistory({
           <h3>이 기간에 표시할 내역이 없어요</h3>
           <p>조회 기간을 바꾸거나 매수·매도 거래를 기록해 보세요.</p>
           <button className="portfolio-secondary-button" onClick={onCreate}>
-            거래 기록
+            거래 기록하기
           </button>
         </div>
       ) : (
@@ -214,7 +214,15 @@ export function PortfolioHistory({
                   )}
                 </span>
                 <span className="portfolio-history-amount">
-                  <strong>{won(gross)}</strong>
+                  <span className="portfolio-history-amount-heading">
+                    <strong>{won(gross)}</strong>
+                    <span className="portfolio-history-edit-hint">
+                      수정
+                      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="m6 4 4 4-4 4" />
+                      </svg>
+                    </span>
+                  </span>
                   {assetId === undefined && (
                     <small>
                       {`${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`}

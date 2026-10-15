@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { searchWikimediaImages } from './api';
 import type { AdminWikimediaImageCandidate } from './types';
@@ -148,7 +148,7 @@ export function AdminPeoplePage() {
     personImageUrl,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPostQuery('');
     setPostFilter('ALL');
     setExpandedPostId(null);

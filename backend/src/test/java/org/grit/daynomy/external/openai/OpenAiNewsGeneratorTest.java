@@ -61,7 +61,7 @@ class OpenAiNewsGeneratorTest {
     String writerRequest = server.takeRequest().getBody().readUtf8();
     assertThat(writerRequest)
         .doesNotContain("web_search")
-        .contains("공백 포함 1,000~1,500자")
+        .contains("공백 포함 800~1,500자")
         .contains("1,200~1,300자를 목표")
         .contains("해라체")
         .contains("시장 분석, 투자 의견")
@@ -129,7 +129,7 @@ class OpenAiNewsGeneratorTest {
 
     assertThat(generated).hasSize(1);
     assertThat(generated.getFirst().title()).isEqualTo("뉴스 제목");
-    assertThat(generated.getFirst().content()).hasSizeBetween(1_000, 1_500);
+    assertThat(generated.getFirst().content()).hasSizeBetween(800, 1_500);
     assertThat(server.getRequestCount()).isEqualTo(2);
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8())

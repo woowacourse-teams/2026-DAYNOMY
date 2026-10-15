@@ -190,7 +190,7 @@ describe('주요 인물 관리자 화면', () => {
     const view = render(<AdminPeoplePage />);
     await view.findByRole('heading', { name: '일론 머스크' });
     fireEvent.click(view.getByRole('button', { name: '게시물 추가' }));
-    const input = view.getByLabelText('게시물 URL');
+    const input = await view.findByLabelText('게시물 URL');
     fireEvent.change(input, { target: { value: 'https://www.threads.net/@example/post/ABC' } });
     expect((view.getByLabelText('출처') as HTMLSelectElement).value).toBe('THREADS');
     expect((view.getByRole('button', { name: '게시물 저장' }) as HTMLButtonElement).disabled).toBe(
@@ -233,6 +233,7 @@ describe('주요 인물 관리자 화면', () => {
 
     await view.findByRole('heading', { name: '일론 머스크' });
     fireEvent.click(view.getByRole('button', { name: '게시물 추가' }));
+    await view.findByRole('button', { name: 'AI로 찾아 등록' });
     fireEvent.click(view.getByRole('button', { name: 'AI로 찾아 등록' }));
     fireEvent.click(view.getByRole('button', { name: 'AI로 X·Threads 검색' }));
 
