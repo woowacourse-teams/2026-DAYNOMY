@@ -72,6 +72,21 @@ describe('로그인 화면', () => {
     const view = renderLogin('/login?error=oauth');
 
     expect(view.getByRole('alert').textContent).toContain('Google 로그인에 실패했습니다.');
+    expect(document.activeElement).toBe(view.getByRole('alert'));
+    expect(document.title).toBe('로그인 오류 | DAYNOMY');
+  });
+
+  it('로그인 진입 시 제목에 초점을 두고 실패 후 재시도에도 원래 복귀 경로를 보존한다', () => {
+    sessionStorage.setItem('daynomy:post-login-path', '/news?source=share#latest');
+    const view = renderLogin('/login?error=oauth');
+    const link = view.getByRole('link', { name: 'Google로 시작하기' });
+    link.addEventListener('click', (event) => event.preventDefault());
+    fireEvent.click(link);
+    expect(sessionStorage.getItem('daynomy:post-login-path')).toBe('/news?source=share#latest');
+    cleanup();
+    const login = renderLogin();
+    expect(document.activeElement).toBe(login.getByRole('heading', { name: 'DAYNOMY 로그인' }));
+    expect(document.title).toBe('로그인 | DAYNOMY');
   });
 
   it.each([

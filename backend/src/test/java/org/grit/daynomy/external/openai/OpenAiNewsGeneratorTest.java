@@ -61,13 +61,39 @@ class OpenAiNewsGeneratorTest {
     String writerRequest = server.takeRequest().getBody().readUtf8();
     assertThat(writerRequest)
         .doesNotContain("web_search")
-        .contains("공백 포함 700~1,200자")
-        .contains("900~1,000자를 목표")
+        .contains("공백 포함 800~1,500자")
+        .contains("1,200~1,300자를 목표")
         .contains("해라체")
         .contains("시장 분석, 투자 의견")
         .contains("조사 자료 묶음");
     assertThat(new ObjectMapper().readTree(writerRequest).path("max_output_tokens").asInt())
         .isEqualTo(12_000);
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void generatorUsesUsResearchPromptWithoutChangingWriterFlow() throws Exception {
+    server.enqueue(jsonResponse(researchResponse()));
+    server.enqueue(
+        jsonResponse(
+            writerResponse(
+                List.of(
+                    validContent("미국 뉴스 0"),
+                    validContent("미국 뉴스 1"),
+                    validContent("미국 뉴스 2"),
+                    validContent("미국 뉴스 3")))));
+
+    List<GeneratedEconomicNews> generatedNews = newGenerator().generateUsEconomicNews();
+
+    assertThat(generatedNews).hasSize(4);
+    String researchRequest = server.takeRequest().getBody().readUtf8();
+    assertThat(researchRequest)
+        .contains("최근 미국 경제와 금융시장")
+        .contains("미국 현지 언론")
+        .contains("연방준비제도")
+        .doesNotContain("한국에서 발행된 주요 언론사");
+    String writerRequest = server.takeRequest().getBody().readUtf8();
+    assertThat(writerRequest).contains("조사 자료 묶음").contains("첫 번째 뉴스").contains("해라체");
     assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
@@ -103,12 +129,12 @@ class OpenAiNewsGeneratorTest {
 
     assertThat(generated).hasSize(1);
     assertThat(generated.getFirst().title()).isEqualTo("뉴스 제목");
-    assertThat(generated.getFirst().content()).hasSizeBetween(700, 1_200);
+    assertThat(generated.getFirst().content()).hasSizeBetween(800, 1_500);
     assertThat(server.getRequestCount()).isEqualTo(2);
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8())
         .contains("이전 본문 묶음이 형식 검증에 실패했다")
-        .contains("900~1,000자를 목표");
+        .contains("1,200~1,300자를 목표");
   }
 
   @Test
@@ -217,10 +243,10 @@ class OpenAiNewsGeneratorTest {
         "공식 자료에 따르면 계약 대상과 금액, 일정이 확인됐다. 관련 기업은 공개된 조건에 따라 사업을 진행하며 계약 이행 과정은 향후 자료를 통해 확인할 수 있다. ";
     return String.join(
         "\n\n",
-        label + " " + paragraph.repeat(2),
-        "계약의 주요 조건과 사업 범위가 공개됐다. " + paragraph.repeat(2),
-        "관련 기업과 기관은 공개된 일정에 따라 후속 절차를 진행한다. " + paragraph.repeat(2),
-        "추가 내용은 향후 공시와 공식 자료를 통해 확인될 예정이다. " + paragraph.repeat(2));
+        label + " " + paragraph.repeat(3),
+        "계약의 주요 조건과 사업 범위가 공개됐다. " + paragraph.repeat(3),
+        "관련 기업과 기관은 공개된 일정에 따라 후속 절차를 진행한다. " + paragraph.repeat(3),
+        "추가 내용은 향후 공시와 공식 자료를 통해 확인될 예정이다. " + paragraph.repeat(3));
   }
 
   private String validContentWithBlankSegment() {
@@ -228,12 +254,12 @@ class OpenAiNewsGeneratorTest {
         "공식 자료에서 계약 규모와 일정이 확인됐다. 회사는 공개된 조건에 따라 사업을 진행하고 있다. 관련 절차는 공시된 일정에 따라 진행된다. ";
     List<String> paragraphs =
         List.of(
-            paragraph.repeat(2),
+            paragraph.repeat(3),
             "\u2003",
-            paragraph.repeat(2),
-            paragraph.repeat(2),
-            paragraph.repeat(2),
-            paragraph.repeat(2));
+            paragraph.repeat(3),
+            paragraph.repeat(3),
+            paragraph.repeat(3),
+            paragraph.repeat(3));
     return String.join("\n\n", paragraphs);
   }
 }

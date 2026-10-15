@@ -19,14 +19,21 @@ public class NewsGenerationService {
   private final OpenAiNewsGenerator openAiNewsGenerator;
   private final NewsPersistenceService newsPersistenceService;
 
-  public List<News> generateEconomyNewsDrafts() {
+  public List<News> generateKoreanEconomicNewsDrafts() {
+    return saveDrafts("korea", openAiNewsGenerator.generateEconomicNews());
+  }
+
+  public List<News> generateUsEconomicNewsDrafts() {
+    return saveDrafts("us", openAiNewsGenerator.generateUsEconomicNews());
+  }
+
+  private List<News> saveDrafts(String generationType, List<GeneratedEconomicNews> generatedNews) {
     long startedAt = System.nanoTime();
-    List<GeneratedEconomicNews> generatedNews = openAiNewsGenerator.generateEconomicNews();
     List<String> imageUrls = Collections.nCopies(generatedNews.size(), null);
     List<News> drafts = newsPersistenceService.saveDrafts(generatedNews, imageUrls);
     log.atInfo()
         .addKeyValue("event", LogEvent.NEWS_GENERATION_COMPLETED.code())
-        .addKeyValue("generationType", "economy")
+        .addKeyValue("generationType", generationType)
         .addKeyValue("generatedCount", generatedNews.size())
         .addKeyValue("savedCount", drafts.size())
         .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt))

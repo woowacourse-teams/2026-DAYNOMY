@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { validateTransaction } from '../../src/features/portfolio/transactionForm.ts';
+import {
+  getTransactionValidationError,
+  validateTransaction,
+} from '../../src/features/portfolio/transactionForm.ts';
 const valid = {
   tradeDate: '2026-01-01',
   quantity: '10',
@@ -10,6 +13,19 @@ const valid = {
 };
 test('거래 입력은 소수점 비용과 과거 거래일을 허용한다', () => {
   assert.equal(validateTransaction(valid), null);
+});
+test('거래 오류는 수정해야 할 필드와 기존 안내 문구를 함께 반환한다', () => {
+  for (const [field, value] of Object.entries({
+    tradeDate: '9999-01-01',
+    quantity: '0',
+    unitPrice: '0',
+    fee: '-1',
+    tax: '-1',
+  })) {
+    const fields = { ...valid, [field]: value };
+    assert.equal(getTransactionValidationError(fields)?.field, field);
+    assert.equal(getTransactionValidationError(fields)?.message, validateTransaction(fields));
+  }
 });
 test('미래일·존재하지 않는 날짜·소수 수량·음수 비용을 거부한다', () => {
   for (const change of [

@@ -22,14 +22,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
-class EconomyNewsGenerationSchedulerTest {
+class KoreanEconomyNewsGenerationSchedulerTest {
 
   @Mock private NewsGenerationService newsGenerationService;
 
-  @InjectMocks private EconomyNewsGenerationScheduler scheduler;
+  @InjectMocks private KoreanEconomyNewsGenerationScheduler scheduler;
 
   private final Logger logger =
-      (Logger) LoggerFactory.getLogger(EconomyNewsGenerationScheduler.class);
+      (Logger) LoggerFactory.getLogger(KoreanEconomyNewsGenerationScheduler.class);
   private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
   private Level originalLevel;
@@ -51,7 +51,7 @@ class EconomyNewsGenerationSchedulerTest {
 
   @Test
   void logsGenerationStartedAtDebugLevel() {
-    scheduler.generateEconomyNewsDrafts();
+    scheduler.generateKoreanEconomicNewsDrafts();
 
     assertThat(appender.list).hasSize(1);
     ILoggingEvent log = appender.list.getFirst();
@@ -59,15 +59,15 @@ class EconomyNewsGenerationSchedulerTest {
     assertThat(log.getFormattedMessage()).isEqualTo(LogEvent.NEWS_GENERATION_STARTED.message());
     assertThat(keyValues(log))
         .containsEntry("event", LogEvent.NEWS_GENERATION_STARTED.code())
-        .containsEntry("generationType", "economy");
+        .containsEntry("generationType", "korea");
   }
 
   @Test
   void logsGenerationFailureAtWarnLevel() {
-    given(newsGenerationService.generateEconomyNewsDrafts())
+    given(newsGenerationService.generateKoreanEconomicNewsDrafts())
         .willThrow(new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
 
-    scheduler.generateEconomyNewsDrafts();
+    scheduler.generateKoreanEconomicNewsDrafts();
 
     assertThat(appender.list).hasSize(2);
     ILoggingEvent log = appender.list.get(1);
@@ -75,7 +75,7 @@ class EconomyNewsGenerationSchedulerTest {
     assertThat(log.getFormattedMessage()).isEqualTo(LogEvent.NEWS_GENERATION_FAILED.message());
     assertThat(keyValues(log))
         .containsEntry("event", LogEvent.NEWS_GENERATION_FAILED.code())
-        .containsEntry("generationType", "economy")
+        .containsEntry("generationType", "korea")
         .containsEntry("errorCode", NewsErrorCode.NEWS_NOT_FOUND.code());
   }
 
