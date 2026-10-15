@@ -138,8 +138,12 @@ ai:
 
 news:
   generation:
-    economy:
-      cron: ${ECONOMY_NEWS_GENERATION_CRON:0 0 9 * * *}
+    korea:
+      enabled: ${KOREAN_NEWS_GENERATION_ENABLED:${ECONOMY_NEWS_GENERATION_ENABLED:${news.generation.economy.enabled:false}}}
+      cron: ${KOREAN_NEWS_GENERATION_CRON:${ECONOMY_NEWS_GENERATION_CRON:0 0 9 * * *}}
+    us:
+      enabled: ${US_NEWS_GENERATION_ENABLED:false}
+      cron: ${US_NEWS_GENERATION_CRON:0 0 9 * * *}
 
 stock:
   calendar:
