@@ -389,6 +389,7 @@ for (const viewport of [
     let largeChart = false;
     let chartState: 'normal' | 'single' | 'empty' | 'error' = 'normal';
     let pendingPerformance: Promise<void> | null = null;
+    let pendingStockSearch: Promise<void> | null = null;
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.route('**/api/**', async (route) => {
@@ -499,7 +500,10 @@ for (const viewport of [
         });
       }
       if (path === '/api/portfolio/histories') return fulfill(history);
-      if (path === '/api/stocks') return fulfill({ stocks });
+      if (path === '/api/stocks') {
+        if (pendingStockSearch) await pendingStockSearch;
+        return fulfill({ stocks });
+      }
       if (path === '/api/portfolio/transactions' && route.request().method() === 'POST') {
         const body = route.request().postDataJSON();
         history = [
@@ -1106,7 +1110,30 @@ for (const viewport of [
         );
       }),
     ).toBe(true);
+    const searchBounds = await dialog.boundingBox();
+    expect(searchBounds!.height).toBeLessThanOrEqual(500);
+    let finishStockSearch!: () => void;
+    pendingStockSearch = new Promise<void>((resolve) => {
+      finishStockSearch = resolve;
+    });
     await dialog.getByRole('searchbox').fill('삼성');
+    const stockLoading = dialog.getByRole('status');
+    await expect(stockLoading).toHaveText('종목 검색 중');
+    await expect(stockLoading.locator('.portfolio-stock-search-spinner')).toBeVisible();
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    await dialog.screenshot({ path: testInfo.outputPath('stock-search-loading.png') });
+    finishStockSearch();
+    pendingStockSearch = null;
+    await expect(dialog.getByRole('button', { name: /삼성전자/ })).toBeVisible();
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    pendingStockSearch = new Promise<void>((resolve) => {
+      finishStockSearch = resolve;
+    });
+    await dialog.getByRole('searchbox').fill('하이닉스');
+    await expect(stockLoading).toHaveText('종목 검색 중');
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    finishStockSearch();
+    pendingStockSearch = null;
     await dialog.getByRole('button', { name: /삼성전자/ }).click();
     await expect(dialog.getByLabel('거래일', { exact: true })).toBeFocused();
     await expect(dialog.getByLabel('거래 단가 (원)')).toHaveValue('75200');

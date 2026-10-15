@@ -1494,8 +1494,8 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(searchInput, { target: { value: '없는종목' } });
 
     const error = await within(dialog).findByRole('alert');
-    expect(within(error).getByText('종목을 검색하지 못했습니다. 다시 시도해 주세요.')).toBeTruthy();
-    expect(within(error).getByRole('button', { name: '다시 검색' })).toBeTruthy();
+    expect(within(error).getByText('검색 결과를 불러오지 못했어요.')).toBeTruthy();
+    expect(within(error).getByRole('button', { name: '다시 시도' })).toBeTruthy();
     expect(within(dialog).queryByText('Failed to fetch')).toBeNull();
     expect(within(dialog).queryByText('보유 중인 종목을 검색해 보세요')).toBeNull();
 
