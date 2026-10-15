@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe('관리자 뉴스 화면', () => {
-  it('경제 뉴스 초안 생성 버튼을 누르면 즉시 생성하고 결과와 새 목록을 표시한다', async () => {
+  it('한국 뉴스 초안 생성 버튼은 한국 뉴스를 생성하고 결과와 새 목록을 표시한다', async () => {
     const calls: Array<{ url: string; method?: string }> = [];
     let listRequestCount = 0;
 
@@ -66,7 +66,7 @@ describe('관리자 뉴스 화면', () => {
           return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
         }
 
-        if (url.endsWith('/api/admin/news/generate/economy')) {
+        if (url.endsWith('/api/admin/news/generate/economy/korea')) {
           return jsonResponse({ savedCount: 2 });
         }
 
@@ -83,16 +83,50 @@ describe('관리자 뉴스 화면', () => {
     );
 
     const view = renderAdmin(<AdminNewsPage />);
-    fireEvent.click(await view.findByRole('button', { name: '지금 초안 생성' }));
+    fireEvent.click(await view.findByRole('button', { name: '한국 뉴스 지금 생성' }));
 
-    expect(await view.findByText('경제 뉴스 초안 생성이 완료되었습니다.')).toBeTruthy();
+    expect(await view.findByText('한국 뉴스 초안 생성이 완료되었습니다.')).toBeTruthy();
     expect(view.getByRole('status').textContent).toContain('2');
     await waitFor(() => expect(listRequestCount).toBe(2));
     expect(
       calls.some(
-        ({ url, method }) => url.endsWith('/api/admin/news/generate/economy') && method === 'POST',
+        ({ url, method }) =>
+          url.endsWith('/api/admin/news/generate/economy/korea') && method === 'POST',
       ),
     ).toBe(true);
+  });
+
+  it('미국 뉴스 초안 생성 버튼은 미국 뉴스만 따로 실행한다', async () => {
+    let generatedUsNews = false;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+        if (url.endsWith('/api/admin/news/generate/economy/us')) {
+          generatedUsNews = true;
+          return jsonResponse({ savedCount: 3 });
+        }
+        return jsonResponse({
+          items: [listItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    fireEvent.click(await view.findByRole('button', { name: '미국 뉴스 지금 생성' }));
+
+    expect(await view.findByText('미국 뉴스 초안 생성이 완료되었습니다.')).toBeTruthy();
+    expect(view.getByRole('status').textContent).toContain('3');
+    expect(generatedUsNews).toBe(true);
   });
 
   it('뉴스 목록을 표시하고 상태 필터를 API 요청에 반영한다', async () => {

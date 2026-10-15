@@ -865,6 +865,12 @@
   white-space: nowrap;
 }
 
+.admin-action-panel-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .admin-success-panel {
   padding: 18px 20px;
   border-color: #bfe7d0;
