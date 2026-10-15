@@ -70,6 +70,9 @@ if (warmupAccount.assetNames.some((name) => accounts.some((a) => a.assetNames.in
 const requests = new Counter('analysis_requests');
 const success = new Rate('analysis_success');
 const duration = new Trend('analysis_duration_ms', true);
+// 정상 응답의 분석 완성도는 요청 성공률과 별도로 기록한다.
+const insufficientAssets = new Rate('analysis_insufficient_assets');
+const completeCoverage = new Rate('analysis_complete_coverage');
 
 export const options = {
   scenarios: {
@@ -153,10 +156,8 @@ export function setup() {
 
 export default function (data) {
   const index = exec.scenario.iterationInTest;
-  if (index >= accounts.length) {
-    exec.test.abort('측정용 회원을 모두 사용했습니다. 같은 회원으로 재요청하지 않습니다.');
-    return;
-  }
+  // 실행 시간 경계에서 k6가 추가 회차를 시작해도 예정 요청 수를 넘겨 보내지 않는다.
+  if (index >= EXPECTED_REQUESTS) return;
   const account = accounts[index];
   const csrf = data.csrf[index];
 
@@ -189,17 +190,25 @@ export default function (data) {
     impacts.every((i) => typeof i.weight === 'number' && i.weight > 0) &&
     Math.abs(impacts.reduce((sum, i) => sum + i.weight, 0) - 100) < 0.02;
 
+  const analyzedCount = assetsValid ? impacts.filter((i) => i.direction != null).length : 0;
+  const expectedCoverage = analyzedCount === 0 ? 'INSUFFICIENT'
+    : analyzedCount === impacts?.length ? 'COMPLETE' : 'PARTIAL';
   const passed = check(response, {
     'HTTP 200': (r) => r.status === 200,
     '분석 저장 완료': () => body?.status === 'READY' &&
       Number.isSafeInteger(body?.analysisId) && body?.matchesCurrentPortfolio === true,
     '종목·비중 정상': () => assetsValid && weightsValid &&
       analysis?.totalAssetCount === account.assetNames.length,
-    '근거·전체 설명 완료': () => analysis?.coverage === 'COMPLETE' &&
+    '근거 상태·전체 설명 정상': () => assetsValid &&
+      analysis?.analyzedAssetCount === analyzedCount && analysis?.coverage === expectedCoverage &&
       typeof analysis?.overallImpact === 'string' && analysis.overallImpact.trim().length > 0,
   });
   success.add(passed);
-  if (!passed) console.error(`v2 검증 실패: HTTP ${response.status}`);
+  if (passed) {
+    completeCoverage.add(analysis.coverage === 'COMPLETE');
+    impacts.forEach((impact) => insufficientAssets.add(impact.direction == null));
+  }
+  if (!passed) console.error(`v2 검증 실패: HTTP ${response.status}, 상태=${body?.status || '없음'}, 근거=${analysis?.coverage || '없음'}`);
 }
 
 export function handleSummary(data) {
@@ -207,6 +216,8 @@ export function handleSummary(data) {
   const successValues = data.metrics.analysis_success?.values;
   const dropped = data.metrics.dropped_iterations?.values?.count || 0;
   const latency = data.metrics.analysis_duration_ms?.values;
+  const insufficient = data.metrics.analysis_insufficient_assets?.values;
+  const qualityRate = (value) => Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : 'N/A';
   const milliseconds = (value) => Number.isFinite(value) ? `${value.toFixed(2)} ms` : 'N/A';
   const failureRate = Number.isFinite(successValues?.rate)
     ? `${((1 - successValues.rate) * 100).toFixed(2)}%`
@@ -218,6 +229,8 @@ export function handleSummary(data) {
     requests: data.metrics.analysis_requests,
     success: data.metrics.analysis_success,
     durationMs: data.metrics.analysis_duration_ms,
+    insufficientAssets: data.metrics.analysis_insufficient_assets,
+    completeCoverage: data.metrics.analysis_complete_coverage,
     droppedIterations: dropped,
   }, null, 2);
   const summary = [
@@ -227,6 +240,8 @@ export function handleSummary(data) {
     `정상 완료: ${successValues?.passes || 0} / ${requestCount}건 (예정 ${EXPECTED_REQUESTS}건)`,
     '워밍업 요청은 아래 결과에서 제외됩니다.',
     `실패율: ${failureRate}`,
+    `근거 부족 종목 비율: ${qualityRate(insufficient?.rate)} (정상 응답의 종목 기준)`,
+    `전체 종목 근거 확보 요청 비율: ${qualityRate(data.metrics.analysis_complete_coverage?.values?.rate)}`,
     `평균 분석 시간: ${milliseconds(latency?.avg)}`,
     `p95 분석 시간: ${milliseconds(latency?.['p(95)'])}`,
     `최대 분석 시간: ${milliseconds(latency?.max)}`,

@@ -28,6 +28,8 @@ import org.grit.daynomy.portfolio.repository.PortfolioAssetAnalysisRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -64,7 +66,7 @@ class PortfolioAssetAnalysisServiceTest {
     verify(repository, times(2))
         .upsert(
             anyString(),
-            eq("asset-v1"),
+            eq("asset-v2-batch5"),
             eq("test-model"),
             snapshot.capture(),
             analyzedAt.capture(),
@@ -87,7 +89,7 @@ class PortfolioAssetAnalysisServiceTest {
         List.of(saved(impact("삼성전자", ImpactLevel.LOW)), saved(impact("SK하이닉스", ImpactLevel.HIGH)));
     given(
             repository.findAllByAssetNameInAndAnalysisVersionAndModelAndExpiresAtAfter(
-                eq(List.of("삼성전자", "SK하이닉스")), eq("asset-v1"), eq("test-model"), any()))
+                eq(List.of("삼성전자", "SK하이닉스")), eq("asset-v2-batch5"), eq("test-model"), any()))
         .willReturn(savedResults);
 
     var response = service.analyze(targets);
@@ -154,8 +156,10 @@ class PortfolioAssetAnalysisServiceTest {
     verifyNoInteractions(repository, ai);
   }
 
-  @Test
-  void nineConcurrentRequestsShareOneAnalysisAndKeepTheirOwnOrdering() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {9, 50})
+  void concurrentRequestsShareOneAnalysisAndKeepTheirOwnOrdering(int requestCount)
+      throws Exception {
     var entered = new CountDownLatch(1);
     var release = new CountDownLatch(1);
     given(ai.analyze(targets))
@@ -170,7 +174,7 @@ class PortfolioAssetAnalysisServiceTest {
       try {
         assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
         var waiting = new ArrayList<FutureTask<PortfolioAnalysisResult>>();
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < requestCount - 1; i++) {
           var task = new FutureTask<>(() -> service.analyze(targets.reversed()));
           waiting.add(task);
           awaitWaiting(Thread.ofPlatform().start(task));
@@ -309,6 +313,49 @@ class PortfolioAssetAnalysisServiceTest {
       }
     }
     verify(ai).analyze(targets);
+  }
+
+  @Test
+  void doesNotRestartWaitBudgetAfterAnalyzingOwnedAssets() throws Exception {
+    service =
+        new PortfolioAssetAnalysisService(
+            repository, ai, "test-model", Duration.ofMinutes(30), Duration.ofMillis(500));
+    var entered = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    var ownAnalysisFinished = new CountDownLatch(1);
+    var common = targets.getFirst();
+    var own = targets.getLast();
+    given(ai.analyze(List.of(common)))
+        .willAnswer(
+            invocation -> {
+              entered.countDown();
+              assertThat(release.await(5, TimeUnit.SECONDS)).isTrue();
+              return result(impact(common.assetName(), ImpactLevel.HIGH));
+            });
+    given(ai.analyze(List.of(own)))
+        .willAnswer(
+            invocation -> {
+              Thread.sleep(600);
+              ownAnalysisFinished.countDown();
+              return result(impact(own.assetName(), ImpactLevel.LOW));
+            });
+    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      var owner = executor.submit(() -> service.analyze(List.of(common)));
+      try {
+        assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        var mixed = executor.submit(() -> service.analyze(targets));
+        assertThat(ownAnalysisFinished.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThatThrownBy(() -> mixed.get(250, TimeUnit.MILLISECONDS))
+            .hasCauseInstanceOf(BusinessException.class);
+        release.countDown();
+        assertThat(owner.get(5, TimeUnit.SECONDS).impacts()).hasSize(1);
+      } finally {
+        release.countDown();
+      }
+    }
+    verify(ai).analyze(List.of(common));
+    verify(ai).analyze(List.of(own));
+    verifyNoMoreInteractions(ai);
   }
 
   @Test

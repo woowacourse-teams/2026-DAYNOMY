@@ -264,9 +264,9 @@ class OpenAiPortfolioAnalysisClientTest {
   void analyzeRejectsBlankEvidenceExcerpt() throws Exception {
     String invalid = withEvidence(validOutput()).replace("확인된 사업 변화예요.", "   ");
     enqueueOutput(invalid);
-    enqueueParallelCorrection(invalid);
+    enqueueCorrection(invalid);
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -374,7 +374,7 @@ class OpenAiPortfolioAnalysisClientTest {
             .replace("[\"https://example.com/semiconductor\"]", "[]")
             .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
             .replace("\"impactLevel\": \"LOW\"", "\"impactLevel\": null"));
-    enqueueParallelCorrection(
+    enqueueCorrection(
         validOutput()
             .replace("[\"https://example.com/semiconductor\"]", "[]")
             .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
@@ -392,7 +392,7 @@ class OpenAiPortfolioAnalysisClientTest {
               assertThat(impact.outlook()).isEmpty();
             });
     assertThat(result.sources()).isEmpty();
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -470,10 +470,10 @@ class OpenAiPortfolioAnalysisClientTest {
       evidence.add(other);
     }
     enqueueOutput(objectMapper.writeValueAsString(output));
-    enqueueParallelCorrection(validOutput());
+    enqueueCorrection(validOutput());
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -655,7 +655,7 @@ class OpenAiPortfolioAnalysisClientTest {
             .replace("[\"https://example.com/semiconductor\"]", "[]")
             .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
             .replace("\"impactLevel\": \"LOW\"", "\"impactLevel\": null"));
-    enqueueParallelCorrection(
+    enqueueCorrection(
         validOutput()
             .replace("[\"https://example.com/semiconductor\"]", "[]")
             .replace("\"direction\": \"NEUTRAL\"", "\"direction\": null")
@@ -712,7 +712,7 @@ class OpenAiPortfolioAnalysisClientTest {
   @Test
   void rejectsMixedToneInGeneratedProse() throws Exception {
     enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
-    enqueueParallelCorrection(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
+    enqueueCorrection(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
     assertAnalysisFailed(() -> client.analyze(targets()));
   }
 
@@ -859,7 +859,7 @@ class OpenAiPortfolioAnalysisClientTest {
     String root = "https://newsroom.posco.com/en/";
     enqueueOutputWithSearchSources(
         validOutput().replace("https://example.com/semiconductor", root), root);
-    enqueueParallelCorrection(validOutput());
+    enqueueCorrection(validOutput());
     var result = client.analyze(targets());
     assertThat(result.impacts())
         .allSatisfy(
@@ -869,7 +869,7 @@ class OpenAiPortfolioAnalysisClientTest {
                         source ->
                             assertThat(source.url())
                                 .isEqualTo("https://example.com/semiconductor")));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -877,12 +877,12 @@ class OpenAiPortfolioAnalysisClientTest {
     String index = "https://example.com/newsroom/";
     enqueueOutputWithSearchSources(
         validOutput().replace("https://example.com/semiconductor", index), index);
-    enqueueParallelCorrection(validOutput());
+    enqueueCorrection(validOutput());
 
     assertThat(client.analyze(targets()).impacts()).hasSize(2);
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8()).contains("앞선 응답이 목록 페이지");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -890,9 +890,9 @@ class OpenAiPortfolioAnalysisClientTest {
     String index = "https://example.com/newsroom/";
     enqueueOutputWithSearchSources(
         validOutput().replace("https://example.com/semiconductor", index), index);
-    enqueueParallelCorrection(validOutput().replace("https://example.com/semiconductor", index));
+    enqueueCorrection(validOutput().replace("https://example.com/semiconductor", index));
     assertThatThrownBy(() -> client.analyze(targets())).isInstanceOf(BusinessException.class);
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -911,13 +911,13 @@ class OpenAiPortfolioAnalysisClientTest {
             .replace(
                 "확인된 사업 변화예요.",
                 "Samsung Electronics today announced its earnings guidance for the third quarter of 2026.. 해요."));
-    enqueueParallelCorrection(validOutput());
+    enqueueCorrection(validOutput());
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.direction()).isNotNull());
     server.takeRequest();
     String request = server.takeRequest().getBody().readUtf8();
     assertThat(request).contains("INVALID_PROSE:excerpt", "factQuote");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -928,23 +928,23 @@ class OpenAiPortfolioAnalysisClientTest {
                 "\"url\":\"https://example.com/semiconductor\"",
                 "\"url\":\"https://example.com/unrelated\"");
     enqueueOutput(broken);
-    enqueueParallelCorrection(validOutput());
+    enqueueCorrection(validOutput());
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8()).contains("MISSING_SOURCE_EVIDENCE");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
   void doesNotPublishAllInvalidCorrection() throws Exception {
     String broken = withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요.");
     enqueueOutput(broken);
-    enqueueParallelCorrection(broken);
+    enqueueCorrection(broken);
     assertAnalysisFailed(() -> client.analyze(targets()));
     assertThat(keyValues(appender.list.getLast()))
-        .containsEntry("validationReason", "CORRECTION_EXHAUSTED");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+        .containsEntry("validationReason", "INVALID_PROSE");
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -971,10 +971,10 @@ class OpenAiPortfolioAnalysisClientTest {
     String index = "https://example.com/newsroom/";
     enqueueOutputWithSearchSources(
         validOutput().replace("https://example.com/semiconductor", index), index);
-    enqueueParallelCorrection(
+    enqueueCorrection(
         withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요."));
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -1066,29 +1066,29 @@ class OpenAiPortfolioAnalysisClientTest {
         """;
   }
 
-  private void enqueueParallelCorrection(String outputText) {
+  private void enqueueCorrection(String outputText) {
     var initialResponse = firstEnqueuedResponse;
     firstEnqueuedResponse = null;
     var calls = new java.util.concurrent.atomic.AtomicInteger();
-    var correctionsStarted = new java.util.concurrent.CountDownLatch(2);
     server.setDispatcher(
         new okhttp3.mockwebserver.Dispatcher() {
           @Override
           public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
             if (calls.getAndIncrement() == 0) return initialResponse;
-            correctionsStarted.countDown();
-            if (!correctionsStarted.await(3, java.util.concurrent.TimeUnit.SECONDS)) {
-              return new MockResponse().setResponseCode(500);
-            }
             try {
               var body = objectMapper.readTree(request.getBody().clone().readUtf8());
-              var target =
+              var requested =
                   objectMapper
                       .readTree(body.path("input").get(1).path("content").asText())
-                      .path("assets")
-                      .get(0)
-                      .path("assetName")
-                      .asText();
+                      .path("assets");
+              var names = new java.util.HashSet<String>();
+              requested.forEach(asset -> names.add(asset.path("assetName").asText()));
+              var output = objectMapper.readTree(withEvidence(outputText));
+              var selected = objectMapper.createArrayNode();
+              for (var impact : output.path("impacts")) {
+                if (names.contains(impact.path("assetName").asText())) selected.add(impact);
+              }
+              ((com.fasterxml.jackson.databind.node.ObjectNode) output).set("impacts", selected);
               String response =
                   objectMapper.writeValueAsString(
                       Map.of(
@@ -1102,7 +1102,7 @@ class OpenAiPortfolioAnalysisClientTest {
                                           "type",
                                           "output_text",
                                           "text",
-                                          withEvidence(onlyAsset(outputText, target)),
+                                          output.toString(),
                                           "annotations",
                                           List.of(
                                               Map.of(
