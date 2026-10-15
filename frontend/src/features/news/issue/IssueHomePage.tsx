@@ -3,7 +3,7 @@ import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import { trackLoadResult, useContentView } from './analytics';
 import { IssuePagination } from './IssuePagination';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
 import { IssueStories } from './IssueStories';
@@ -18,6 +18,15 @@ import '../../people/people.css';
 import './issue.css';
 
 export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = `${fullFeed ? '전체 콘텐츠' : '소식'} | DAYNOMY`;
+    headingRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [fullFeed]);
   const surface = fullFeed ? 'news_contents' : 'news_home';
   const people = useFeaturedPeople(surface);
   const [contents, setContents] = useState<ExternalContent[]>([]);
@@ -141,11 +150,15 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
       )}
       {fullFeed ? (
         <header className="issue-heading">
-          <h1>전체 콘텐츠</h1>
+          <h1 ref={headingRef} tabIndex={-1}>
+            전체 콘텐츠
+          </h1>
           <p>데이노미, Threads, YouTube, X의 소식을 한곳에서.</p>
         </header>
       ) : (
-        <h1 className="sr-only">소식</h1>
+        <h1 className="sr-only" ref={headingRef} tabIndex={-1}>
+          소식
+        </h1>
       )}
       {!fullFeed && (
         <div className="issue-briefing">

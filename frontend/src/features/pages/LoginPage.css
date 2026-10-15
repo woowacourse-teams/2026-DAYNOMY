@@ -13,12 +13,12 @@
   top: 48px;
   right: 72px;
   display: inline-flex;
-  width: 18px;
-  height: 18px;
+  width: 44px;
+  height: 44px;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  color: #8b94a6;
+  color: #52647f;
   font-family:
     Inter,
     system-ui,
@@ -37,7 +37,7 @@
 }
 
 .login-close:focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 3px solid #2563eb;
   outline-offset: 4px;
 }
 
@@ -65,7 +65,7 @@
 
 .login-heading p {
   margin-top: 7px;
-  color: #737885;
+  color: #52647f;
   font-size: 15px;
   font-weight: 400;
   line-height: 22px;
@@ -107,7 +107,7 @@
 }
 
 .google-login-button:focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 3px solid #2563eb;
   outline-offset: 2px;
 }
 
@@ -132,7 +132,7 @@
 
 .login-policy {
   margin-top: 32px;
-  color: #737885;
+  color: #52647f;
   font-size: 12px;
   font-weight: 400;
   line-height: 18px;
