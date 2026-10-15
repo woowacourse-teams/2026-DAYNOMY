@@ -2,6 +2,7 @@ package org.grit.daynomy.person.service;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,6 +44,10 @@ public class FeaturedPersonService {
   public FeaturedPeopleResponse getPeople() {
     Map<Long, List<FeaturedPersonPost>> postsByPersonId =
         postRepository.findAllByOrderByCreatedAtDescIdDesc().stream()
+            .sorted(
+                Comparator.comparing(
+                    FeaturedPersonPost::getPublishedAt,
+                    Comparator.nullsLast(Comparator.reverseOrder())))
             .collect(Collectors.groupingBy(post -> post.getPerson().getId()));
     return new FeaturedPeopleResponse(
         personRepository.findAllByOrderByCreatedAtAscIdAsc().stream()
@@ -149,6 +154,10 @@ public class FeaturedPersonService {
   private List<FeaturedPersonPost> postsFor(Long personId) {
     return postRepository.findAllByOrderByCreatedAtDescIdDesc().stream()
         .filter(post -> personId.equals(post.getPerson().getId()))
+        .sorted(
+            Comparator.comparing(
+                FeaturedPersonPost::getPublishedAt,
+                Comparator.nullsLast(Comparator.reverseOrder())))
         .toList();
   }
 

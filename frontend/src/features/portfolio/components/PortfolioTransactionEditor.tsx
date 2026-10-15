@@ -74,8 +74,7 @@ export function PortfolioTransactionEditor({
           if (!controller.signal.aborted) setResults(items);
         })
         .catch(() => {
-          if (!controller.signal.aborted)
-            setSearchError('종목을 검색하지 못했습니다. 다시 시도해 주세요.');
+          if (!controller.signal.aborted) setSearchError('검색 결과를 불러오지 못했어요.');
         })
         .finally(() => {
           if (!controller.signal.aborted) setSearchLoading(false);
@@ -214,14 +213,24 @@ export function PortfolioTransactionEditor({
                   </button>
                 ))}
               </div>
-              <div className="portfolio-stock-results" aria-live="polite">
+              <div className="portfolio-stock-results" aria-live="polite" aria-busy={searchLoading}>
                 {searchLoading ? (
-                  <p role="status">종목을 검색하고 있어요.</p>
+                  <div className="portfolio-stock-search-loading" role="status">
+                    <span
+                      className="portfolio-analysis-spinner portfolio-stock-search-spinner"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">종목 검색 중</span>
+                  </div>
                 ) : searchError ? (
-                  <div role="alert">
+                  <div className="portfolio-stock-search-error" role="alert">
                     <p>{searchError}</p>
-                    <button type="button" onClick={() => setSearchRetry((value) => value + 1)}>
-                      다시 검색
+                    <button
+                      type="button"
+                      className="portfolio-stock-search-retry"
+                      onClick={() => setSearchRetry((value) => value + 1)}
+                    >
+                      다시 시도
                     </button>
                   </div>
                 ) : filteredResults.length ? (
@@ -256,9 +265,14 @@ export function PortfolioTransactionEditor({
                   </ul>
                 ) : (
                   <p>
-                    {keyword.trim()
-                      ? '검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.'
-                      : '국내 주식과 ETF를 검색하세요. 과거에 매도한 종목도 기록할 수 있어요.'}
+                    {keyword.trim() ? (
+                      '검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.'
+                    ) : (
+                      <>
+                        국내 주식과 ETF를 검색하세요. <br />
+                        과거에 매도한 종목도 기록할 수 있어요.
+                      </>
+                    )}
                   </p>
                 )}
               </div>

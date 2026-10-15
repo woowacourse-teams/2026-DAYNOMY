@@ -24,14 +24,14 @@ for (const width of [1440, 390]) {
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
     await expect(page).toHaveTitle('내 포트폴리오 | DAYNOMY');
-    await expect(page.getByRole('button', { name: '자산 추가', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '거래 기록', exact: true })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem('daynomy:service-started:v1'))).toBe('1');
     await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toHaveCSS(
       'font-size',
       width === 390 ? '22px' : '24px',
     );
     await page.reload();
-    await expect(page.getByRole('button', { name: '자산 추가', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '거래 기록', exact: true })).toBeVisible();
     await expect(page.locator('.landing-page')).toHaveCount(0);
     await page.getByRole('link', { name: '서비스 소개', exact: true }).click();
     await expect(page).toHaveURL('/welcome');
@@ -104,7 +104,7 @@ test('인트로 중에도 본문으로 건너뛰고 자동 움직임을 정지·
   ).toBe(0);
 });
 
-test('키보드로 메뉴·FAQ·시작하기·자산 추가를 사용하고 닫으면 초점이 돌아온다', async ({ page }) => {
+test('키보드로 메뉴·FAQ·시작하기·거래 기록을 사용하고 닫으면 초점이 돌아온다', async ({ page }) => {
   await page.goto('/welcome');
   const menu = page.getByRole('button', { name: '메뉴 열기' });
   await menu.focus();
@@ -126,7 +126,7 @@ test('키보드로 메뉴·FAQ·시작하기·자산 추가를 사용하고 닫�
   await page.locator('.hero .primary-cta').focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
-  const add = page.getByRole('button', { name: '자산 추가', exact: true });
+  const add = page.getByRole('button', { name: '거래 기록', exact: true });
   await add.focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog', { name: '거래 기록' })).toBeVisible();
@@ -201,5 +201,5 @@ test('공유 뉴스 상세는 소개를 거치지 않고 원래 주소로 열린
   await expect(page.locator('.landing-page')).toHaveCount(0);
   await page.getByRole('link', { name: '포트폴리오', exact: true }).click();
   await expect(page).toHaveURL('/');
-  await expect(page.getByRole('button', { name: '자산 추가', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '거래 기록', exact: true })).toBeVisible();
 });
