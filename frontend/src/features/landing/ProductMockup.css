@@ -1,0 +1,789 @@
+.landing-page .product-mockup {
+  width: 100%;
+  margin: 0 auto;
+  min-width: 0;
+  color: #171821;
+  container-type: inline-size;
+  position: relative;
+  z-index: 1;
+}
+.landing-page .product-mockup figcaption {
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #71829b;
+  margin-top: 26px;
+  word-break: keep-all;
+}
+.landing-page .iphone {
+  max-width: 370px;
+}
+.landing-page .mockup-hardware {
+  position: relative;
+  background: linear-gradient(125deg, #d6d8dd, #767b86 25%, #e5e7ec 45%, #696e78 80%, #d5d8df);
+  padding: 5px;
+  border-radius: 54px;
+  box-shadow:
+    0 35px 65px #14294a28,
+    0 3px 5px #14294a20;
+}
+.landing-page .iphone .mockup-hardware:before {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: 130px;
+  width: 3px;
+  height: 64px;
+  background: #9297a2;
+  border-radius: 3px 0 0 3px;
+  box-shadow: 0 -43px #9297a2;
+}
+.landing-page .iphone .mockup-hardware:after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  top: 150px;
+  width: 3px;
+  height: 80px;
+  background: #9297a2;
+  border-radius: 0 3px 3px 0;
+}
+.landing-page .mockup-display {
+  position: relative;
+  background: #fff;
+  overflow: hidden;
+  border: 7px solid #14171d;
+  border-radius: 49px;
+}
+.landing-page .iphone .mockup-display:before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28%;
+  height: 25px;
+  background: #090b10;
+  border-radius: 30px;
+}
+.landing-page .mockup-status {
+  height: 53px;
+  padding: 15px 25px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.landing-page .mockup-status > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.landing-page .mockup-home-indicator {
+  width: 32%;
+  height: 4px;
+  background: #14171d;
+  border-radius: 5px;
+  margin: 16px auto 8px;
+}
+.landing-page .mockup-app {
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    sans-serif;
+  letter-spacing: -0.02em;
+  font-size: 12px;
+  background: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.landing-page .mockup-app-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px 37px;
+}
+.landing-page .mockup-app-header > b {
+  color: #08162e;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.landing-page .mockup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #78808f;
+}
+.landing-page .mockup-header-actions > span,
+.landing-page .mockup-actions > b,
+.landing-page .service-league-heading > b {
+  background: #326bd5;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.landing-page .mockup-service-tabs {
+  position: absolute;
+  bottom: 11px;
+  right: 24px;
+  display: flex;
+  gap: 15px;
+  color: #737885;
+  font-size: 10px;
+  font-weight: 600;
+}
+.landing-page .mockup-service-tabs .active {
+  color: #131417;
+  font-weight: 750;
+}
+.landing-page .mockup-content {
+  padding: 22px 24px 14px;
+}
+.landing-page .mockup-content h3 {
+  font-size: 19px;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0 0 17px;
+}
+.landing-page .mockup-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 26px;
+}
+.landing-page .mockup-actions > * {
+  flex: 1;
+  text-align: center;
+  padding: 9px;
+  border: 1px solid #e4e7ef;
+  border-radius: 5px;
+  font-size: 10px;
+}
+.landing-page .mockup-actions > b {
+  border-color: #326bd5;
+}
+.landing-page .mockup-balance > span {
+  color: #7b7f84;
+  font-size: 10px;
+}
+.landing-page .mockup-balance > strong {
+  display: block;
+  font-size: 30px;
+  font-weight: 700;
+  margin: 13px 0;
+}
+.landing-page .mockup-balance > strong > small {
+  font-size: 19px;
+}
+.landing-page .mockup-daily {
+  font-size: 9px;
+  color: #7b7f84;
+  display: flex;
+  gap: 8px;
+}
+.landing-page .mockup-daily em {
+  font-style: normal;
+  color: #d24755;
+}
+.landing-page .mockup-daily em small {
+  font-size: 8px;
+}
+.landing-page .service-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 22px 0;
+  border-bottom: 1px solid #eceeef;
+}
+.landing-page .service-metrics > div {
+  display: grid;
+  gap: 7px;
+}
+.landing-page .service-metrics > div + div {
+  border-left: 1px solid #eceeef;
+  padding-left: 17px;
+}
+.landing-page .service-metrics span,
+.landing-page .service-metrics small {
+  font-size: 9px;
+  color: #7b7f84;
+}
+.landing-page .service-metrics b {
+  font-size: 12px;
+}
+.landing-page .service-positive {
+  color: #d24755 !important;
+}
+.landing-page .service-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.landing-page .service-section-title > b {
+  font-size: 13px;
+}
+.landing-page .service-section-title > span {
+  font-size: 9px;
+  color: #7b7f84;
+}
+.landing-page .service-chart {
+  padding: 20px 0;
+  border-bottom: 1px solid #eceeef;
+}
+.landing-page .service-chart-tabs {
+  display: flex;
+  gap: 15px;
+  margin: 15px 0;
+  font-size: 9px;
+  color: #7b7f84;
+}
+.landing-page .service-chart-tabs > b {
+  color: #252729;
+}
+.landing-page .mockup-chart {
+  display: block;
+  width: 100%;
+  height: 95px;
+  overflow: visible;
+}
+.landing-page .chart-line {
+  stroke-dasharray: 420;
+  animation: landing-draw-chart 7s ease-in-out infinite;
+}
+.landing-page .chart-area {
+  animation: landing-chart-fill 7s ease-in-out infinite;
+}
+.landing-page .service-chart-dates {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  color: #92979c;
+  margin-top: 8px;
+}
+.landing-page .service-composition {
+  padding: 18px 0;
+  border-bottom: 1px solid #eceeef;
+}
+.landing-page .service-composition > b {
+  font-size: 13px;
+}
+.landing-page .service-composition > div {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  margin-top: 14px;
+}
+.landing-page .service-donut {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: conic-gradient(#4169ac 0 65%, #e58a25 65%);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.landing-page .service-donut > span {
+  background: white;
+  width: 59px;
+  height: 59px;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+.landing-page .service-donut small {
+  display: block;
+  font-size: 7px;
+  color: #7b7f84;
+  font-weight: 400;
+}
+.landing-page .service-composition dl {
+  flex: 1;
+  font-size: 10px;
+}
+.landing-page .service-composition dl > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 0;
+}
+.landing-page .service-composition dt {
+  color: #4169ac;
+}
+.landing-page .service-composition dl > div + div dt {
+  color: #b97223;
+}
+.landing-page .service-holdings {
+  padding-top: 19px;
+}
+.landing-page .service-holdings > .service-section-title {
+  margin-bottom: 9px;
+}
+.landing-page .service-holdings > .service-section-title small {
+  color: #7b7f84;
+  font-size: 10px;
+}
+.landing-page .service-holdings > div:not(.service-section-title) {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #eceeef;
+  font-size: 10px;
+}
+.landing-page .service-league-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 19px;
+  border-bottom: 1px solid #e7eaf0;
+}
+.landing-page .service-league-heading h3 {
+  margin: 0;
+}
+.landing-page .service-league-heading > b {
+  font-size: 8px;
+  padding: 9px;
+}
+.landing-page .service-league-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0 12px;
+}
+.landing-page .service-league-controls > span {
+  border: 1px solid #e7eaf0;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 10px;
+}
+.landing-page .service-league-controls > small {
+  color: #667085;
+  font-size: 9px;
+}
+.landing-page .service-league-notice {
+  font-size: 9px;
+  line-height: 1.7;
+  color: #667085;
+  border-bottom: 1px solid #e7eaf0;
+  padding-bottom: 16px;
+}
+.landing-page .service-ranking-title {
+  margin-top: 23px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid #e7eaf0;
+}
+.landing-page .service-rank {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 22px 0;
+  border-bottom: 1px solid #e7eaf0;
+}
+.landing-page .service-rank > b {
+  font-size: 12px;
+  width: 10px;
+}
+.landing-page .service-rank > i,
+.landing-page .service-person > i {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f1f3f7;
+  color: #8b96a7;
+  width: 29px;
+  height: 29px;
+  flex-shrink: 0;
+}
+.landing-page .service-rank > div {
+  display: grid;
+  gap: 7px;
+}
+.landing-page .service-rank > div > b {
+  font-size: 10px;
+}
+.landing-page .service-rank small {
+  display: block;
+  color: #667085;
+  font-size: 8px;
+  font-weight: 400;
+}
+.landing-page .service-rank > strong {
+  margin-left: auto;
+  color: #d24755;
+  font-size: 13px;
+  text-align: right;
+}
+.landing-page .service-rank > strong small {
+  margin-top: 5px;
+}
+.landing-page .service-record {
+  border: 1px solid #e7eaf0;
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 24px;
+}
+.landing-page .service-record h4 {
+  font-size: 12px;
+  margin: 18px 0 10px;
+}
+.landing-page .service-record p {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #667085;
+}
+.landing-page .service-record > span {
+  display: block;
+  font-size: 9px;
+  color: #667085;
+  margin-top: 18px;
+}
+.landing-page .service-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  align-items: center;
+  margin: 28px 0 12px;
+  color: #667085;
+  font-size: 10px;
+}
+.landing-page .service-pagination > b {
+  padding: 5px 9px;
+  background: #edf3fc;
+  color: #326bd5;
+  border-radius: 3px;
+}
+.landing-page .macbook {
+  max-width: 1160px;
+  padding: 0 3%;
+}
+.landing-page .macbook .mockup-hardware {
+  padding: 4px;
+  border-radius: 24px 24px 5px 5px;
+  box-shadow: 0 25px 60px #14294a1a;
+}
+.landing-page .macbook .mockup-display {
+  border-width: 14px 12px 18px;
+  border-radius: 21px 21px 3px 3px;
+  aspect-ratio: 16/10;
+}
+.landing-page .macbook .mockup-display:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12%;
+  height: 14px;
+  background: #14171d;
+  border-radius: 0 0 7px 7px;
+  z-index: 2;
+}
+.landing-page .macbook-base {
+  position: relative;
+  width: 110%;
+  margin-left: -5%;
+  height: 23px;
+  border-radius: 2px 2px 60% 60% / 2px 2px 16px 16px;
+  background: linear-gradient(#e9ebef, #bac0c9 55%, #8d939d);
+  box-shadow: 0 22px 32px #172b4d26;
+}
+.landing-page .macbook-base i {
+  display: block;
+  width: 15%;
+  height: 7px;
+  background: #9299a5;
+  border-radius: 0 0 9px 9px;
+  margin: auto;
+}
+.landing-page .macbook .mockup-app-header {
+  padding: 1.8cqw 7%;
+}
+.landing-page .macbook .mockup-app-header > b {
+  font-size: 1.9cqw;
+}
+.landing-page .macbook .mockup-service-tabs {
+  position: static;
+  font-size: 1.1cqw;
+  gap: 2cqw;
+  order: 1;
+}
+.landing-page .macbook .mockup-header-actions {
+  order: 2;
+  gap: 1cqw;
+}
+.landing-page .macbook .mockup-header-actions svg {
+  width: 1.5cqw;
+  height: 1.5cqw;
+}
+.landing-page .macbook .mockup-header-actions > span {
+  font-size: 1cqw;
+  padding: 0.7cqw 1.2cqw;
+  border-radius: 0.4cqw;
+}
+.landing-page .macbook .mockup-content {
+  padding: 1.5cqw 7% 1cqw;
+}
+.landing-page .macbook .mockup-content h3 {
+  font-size: 1.9cqw;
+  margin: 0 0 1.6cqw;
+  color: #10213c;
+}
+.landing-page .mockup-news-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3cqw;
+}
+.landing-page .service-story img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  border-radius: 0.3cqw;
+}
+.landing-page .service-story h4 {
+  font-size: 1.35cqw;
+  line-height: 1.5;
+  margin: 1cqw 0;
+  color: #10213c;
+}
+.landing-page .service-story > span {
+  font-size: 0.8cqw;
+  color: #606b7a;
+}
+.landing-page .service-people {
+  border-left: 1px solid #e5e9ee;
+  padding-left: 3cqw;
+}
+.landing-page .service-people .service-section-title > span {
+  font-size: 0.85cqw;
+}
+.landing-page .service-person {
+  display: flex;
+  gap: 1.2cqw;
+  align-items: flex-start;
+  padding: 1.6cqw 0;
+  border-bottom: 1px solid #e5e9ee;
+}
+.landing-page .service-person > i {
+  width: 3.2cqw;
+  height: 3.2cqw;
+}
+.landing-page .service-person > i > svg {
+  width: 1.8cqw;
+  height: 1.8cqw;
+}
+.landing-page .service-person small,
+.landing-page .service-person > div > span {
+  font-size: 0.85cqw;
+  color: #606b7a;
+}
+.landing-page .service-person h4 {
+  font-size: 1.25cqw;
+  line-height: 1.6;
+  margin: 0.7cqw 0;
+  color: #10213c;
+}
+.landing-page .service-feed {
+  border-top: 1px solid #e5e9ee;
+  margin-top: 1cqw;
+  padding-top: 1cqw;
+}
+.landing-page .service-filters {
+  display: flex;
+  gap: 0.7cqw;
+  margin-bottom: 1cqw;
+  font-size: 0.85cqw;
+}
+.landing-page .service-filters > * {
+  padding: 0.65cqw 1.2cqw;
+  background: #f1f3f7;
+  border-radius: 3cqw;
+  color: #10213c;
+}
+.landing-page .service-filters > b {
+  background: #243651;
+  color: white;
+}
+.landing-page .service-feed-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5cqw;
+  padding: 1.3cqw 0;
+  border-bottom: 1px solid #e5e9ee;
+}
+.landing-page .service-platform {
+  display: grid;
+  place-items: center;
+  width: 4.5cqw;
+  height: 3cqw;
+  background: #f1f3f7;
+  color: #10213c;
+  font-size: 1.6cqw;
+  flex-shrink: 0;
+}
+.landing-page .service-feed-row small,
+.landing-page .service-feed-row > span:last-child {
+  font-size: 0.8cqw;
+  color: #606b7a;
+}
+.landing-page .service-feed-row > span:last-child {
+  margin-left: auto;
+}
+.landing-page .service-feed-row h4 {
+  font-size: 1.2cqw;
+  line-height: 1.5;
+  margin: 0.6cqw 0 0;
+  color: #10213c;
+}
+.landing-page .mockup-reveal {
+  animation: landing-mockup-reveal 7s ease-in-out infinite;
+  animation-fill-mode: both;
+}
+.landing-page .delay-one {
+  animation-delay: 0.25s;
+}
+.landing-page .delay-two {
+  animation-delay: 0.5s;
+}
+.landing-page .delay-three {
+  animation-delay: 0.75s;
+}
+@keyframes landing-mockup-reveal {
+  0%,
+  5% {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  18%,
+  88%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes landing-draw-chart {
+  0%,
+  8% {
+    stroke-dashoffset: 420;
+  }
+  45%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes landing-chart-fill {
+  0%,
+  20% {
+    opacity: 0;
+  }
+  45%,
+  100% {
+    opacity: 1;
+  }
+}
+.landing-page .league-story .product-mockup figcaption {
+  color: #a9bddc;
+}
+.landing-page .feature-visual .product-mockup {
+  max-width: 370px;
+}
+@media (max-width: 600px) {
+  .landing-page .iphone {
+    max-width: 340px;
+  }
+  .landing-page .mockup-content {
+    padding-inline: 20px;
+  }
+  .landing-page .mockup-app-header {
+    padding-inline: 20px;
+  }
+  .landing-page .mockup-service-tabs {
+    right: 20px;
+  }
+  .landing-page .macbook {
+    padding: 0 2%;
+  }
+  .landing-page .macbook .mockup-display {
+    border-width: 8px 6px 10px;
+    border-radius: 12px 12px 2px 2px;
+  }
+  .landing-page .macbook .mockup-hardware {
+    border-radius: 15px 15px 3px 3px;
+    padding: 2px;
+  }
+  .landing-page .macbook .mockup-display:before {
+    height: 7px;
+  }
+  .landing-page .macbook-base {
+    height: 13px;
+  }
+  .landing-page .macbook-base i {
+    height: 4px;
+  }
+  .landing-page .product-mockup figcaption {
+    font-size: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-page .product-mockup * {
+    animation: none !important;
+  }
+  .landing-page .chart-line {
+    stroke-dashoffset: 0;
+  }
+}
+.landing-page .macbook .mockup-app {
+  font-size: 1.1cqw;
+  line-height: 1.45;
+}
+
+.landing-page .iphone .mockup-display {
+  aspect-ratio: 390/844;
+}
+.landing-page .iphone .mockup-app {
+  position: absolute;
+  inset: 53px 0 24px;
+  display: flex;
+  flex-direction: column;
+}
+.landing-page .iphone .mockup-app-header {
+  flex-shrink: 0;
+  background: #fff;
+  z-index: 1;
+}
+.landing-page .iphone .mockup-viewport {
+  flex: 1;
+  overflow: hidden;
+}
+.landing-page .iphone .mockup-home-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 34%;
+  margin: 0;
+}
+.landing-page .iphone .mockup-content {
+  --mockup-scroll: -180px;
+  animation: landing-service-scroll 14s ease-in-out infinite;
+}
+.landing-page .mockup-league .mockup-content {
+  --mockup-scroll: -110px;
+}
+@keyframes landing-service-scroll {
+  0%,
+  35%,
+  100% {
+    transform: translateY(0);
+  }
+  60%,
+  85% {
+    transform: translateY(var(--mockup-scroll));
+  }
+}

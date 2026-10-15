@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('daynomy:service-started:v1', '1'));
+});
+
 const stocks = [
   {
     assetId: 1,
