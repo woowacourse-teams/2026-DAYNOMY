@@ -3,6 +3,10 @@ package org.grit.daynomy.asset.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Set;
@@ -10,6 +14,7 @@ import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.external.krx.KrxCalendarClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
@@ -93,6 +98,49 @@ class MarketCalendarPersistenceTest {
     assertThat(repository.findById(date).orElseThrow().isTrading()).isTrue();
     assertThat(repository.findById(date).orElseThrow().getCollectedAt()).isNull();
     verify(events, times(2)).publishEvent(new MarketCalendarSyncResult(1));
+  }
+
+  @Test
+  void calendarSqlPreservesCreationAndUpdatesAuditTimeOnlyWhenTradingChanges(@TempDir Path temp)
+      throws Exception {
+    LocalDate date = LocalDate.of(2026, 10, 13);
+    Instant original = Instant.parse("2020-01-01T00:00:00Z");
+    Instant collected = Instant.parse("2026-10-13T08:00:00Z");
+    jdbc.update(
+        "UPDATE market_trading_days SET created_at = ?, updated_at = ?, collected_at = ? WHERE base_date = ?",
+        Timestamp.from(original),
+        Timestamp.from(original),
+        Timestamp.from(collected),
+        date);
+    Path csv = temp.resolve("calendar.csv");
+    for (boolean trading : new boolean[] {true, false}) {
+      Files.writeString(csv, "base_date,trading\n" + date + "," + trading + "\n");
+      Process process =
+          new ProcessBuilder(
+                  "python3",
+                  "scripts/market_calendar.py",
+                  csv.toString(),
+                  "--source",
+                  "https://open.krx.co.kr/contents/calendar.jsp")
+              .redirectErrorStream(true)
+              .start();
+      String generated =
+          new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+      assertThat(process.waitFor()).as(generated).isZero();
+      jdbc.execute(generated);
+
+      var row =
+          jdbc.queryForMap(
+              "SELECT created_at, updated_at, collected_at FROM market_trading_days WHERE base_date = ?",
+              date);
+      assertThat(row.get("created_at")).isEqualTo(Timestamp.from(original));
+      assertThat(row.get("collected_at")).isEqualTo(trading ? Timestamp.from(collected) : null);
+      if (trading) {
+        assertThat(row.get("updated_at")).isEqualTo(Timestamp.from(original));
+      } else {
+        assertThat(((Timestamp) row.get("updated_at")).toInstant()).isAfter(original);
+      }
+    }
   }
 
   @Test

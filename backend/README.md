@@ -220,3 +220,10 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 - 공유 자산과 공개 상세는 공통 `StockPriceService.pricesAt`으로 같은 기준일의 종가를 일괄 조회합니다. 숨긴 자산도 비중 분모에 포함하며 누락 가격은 값을 만들지 않습니다.
 - 리그 보유 판단 클래스·서비스·DTO는 `InvestmentDecision` 이름으로 정리했습니다. 저장 테이블 `portfolio_transactions`, 기존 API 경로·JSON 필드와 과거 BUY/SELL 값은 호환을 위해 유지합니다.
 - 현재 화면에서 사용하지 않는 최초 보유자산 추가 `POST /api/users/me/portfolio/holdings`(`POST /api/portfolio/holdings` 포함)와 기간별 종가 조회 `GET /api/stocks/prices`를 제거했습니다. 새 종목은 기존 매수 거래 API로 등록하고 기간별 성과는 포트폴리오 성과 API로 조회합니다. 기존 보유잔고·변경 이력·종가는 보존합니다.
+
+### 엔티티 생성·수정 시각
+
+- `MarketTradingDay`, `LeagueParticipation`, `WeeklyLeaderboard`, `PortfolioAnalysisCheck`, `PortfolioAnalysisEvidence`는 `BaseEntity`의 `createdAt`·`updatedAt`을 사용합니다. Hibernate가 저장·변경을 DB에 반영할 때 기록하므로 아직 저장하지 않은 객체의 시각은 `null`입니다.
+- V45는 해당 다섯 테이블에 `created_at`·`updated_at`을 추가합니다. 기존 행의 실제 생성 시각은 복원할 수 없어 마이그레이션 적용 시각으로 초기화합니다. 거래일·참여 시작·확정·수집·분석 확인 시각과 기존 데이터는 보존합니다.
+- 달력 SQL 도구의 신규 등록은 DB 기본값을 사용하고, 거래 여부가 바뀌면 `updated_at`을 갱신합니다. 같은 내용 재적용은 기존 감사 시각을 유지합니다.
+- `RefreshToken`은 자체 `@CreationTimestamp`로 생성 시각을 이미 기록하며 기존 저장 방식을 유지합니다.

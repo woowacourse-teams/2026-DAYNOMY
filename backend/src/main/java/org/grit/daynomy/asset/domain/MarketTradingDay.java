@@ -8,12 +8,13 @@ import java.time.ZoneId;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.grit.daynomy.common.BaseEntity;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "market_trading_days")
-public class MarketTradingDay {
+public class MarketTradingDay extends BaseEntity {
   @Id
   @Column(name = "base_date")
   private LocalDate baseDate;

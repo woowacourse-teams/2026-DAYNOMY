@@ -13,12 +13,13 @@ import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.grit.daynomy.common.BaseEntity;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "portfolio_analysis_evidence")
-public class PortfolioAnalysisEvidence {
+public class PortfolioAnalysisEvidence extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
