@@ -39,7 +39,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   private static final String PORTFOLIO_ANALYSIS_PROMPT =
       """
-            웹 검색을 통해 최근 경제·금융·산업 이슈를 찾고, 사용자의 포트폴리오 자산에 미치는 영향을 분석하세요.
+            웹 검색을 통해 최근 경제·금융·산업 이슈를 찾고, 요청된 각 종목 자체에 미치는 영향을 서로 독립적으로 분석하세요.
+            - 사용자 보유 비중·수량이나 함께 요청된 다른 종목을 추측하거나 종목별 설명과 판단에 반영하지 마세요. 포트폴리오 전체 설명은 별도 단계에서 작성합니다.
             - 회사명과 실적·계약·공식 보도자료를 날짜 제한 없이 먼저 검색하고, 결과에서 최신 유효 발표를 선택하세요. 현재 월만 지정한 검색이나 DART 색인 검색만으로 근거 부족을 결론내리지 마세요.
             - 오늘 새 소식이 없는 것과 판단 근거가 없는 것은 다릅니다. 최근 자료를 우선 찾되, 여전히 유효한 이전 공식 실적·계약·사업 발표도 날짜를 명시해 활용하세요.
             - 기사 발행일과 실제 사건일을 구분하고, 과거 사건의 재보도를 오늘 발생한 새 사건처럼 설명하지 마세요.
@@ -58,7 +59,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             - 오래된 분기 실적을 찾았으면 더 최신 공식 실적이 있는지 추가로 검색하세요. 최신 발표가 과거 전망을 대체했다면 과거 전망을 현재 판단의 근거로 삼지 마세요.
             - 날짜가 연·월까지만 확인되거나 xx·미정 등으로 표시되면 날짜 전체를 null로 반환하세요. 월의 1일이나 기사 게시일을 사건일로 추측해 채우지 마세요.
             - 투자 계획·양해각서·기업 홍보 문구를 확정된 매출·이익 개선으로 바꾸지 마세요. 실제 계약 조건, 비용과 실적 반영 시점이 확인됐는지 구분하세요.
-            - 영향이 큰 자산부터 정렬하세요.
+            - 각 종목 자체의 영향도가 큰 자산부터 정렬하세요.
             - assetName은 제공된 값을 그대로 사용하세요.
             - direction은 검색 결과에서 확인한 직접적인 영향만을 근거로 판단하세요.
             - 자산의 실적, 수요, 경쟁력 또는 수급에 유리한 직접 영향이 명확하면 POSITIVE로 판단하세요.
@@ -450,9 +451,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "asOfDate",
             LocalDate.now(ZoneId.of("Asia/Seoul")).toString(),
             "assets",
-            targets.stream()
-                .map(target -> Map.of("assetName", target.assetName(), "weight", target.weight()))
-                .toList());
+            targets.stream().map(target -> Map.of("assetName", target.assetName())).toList());
 
     try {
       return objectMapper.writeValueAsString(content);

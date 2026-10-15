@@ -5,9 +5,9 @@ import org.grit.daynomy.portfolio.repository.PortfolioAnalysisEvidenceRepository
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
-import org.grit.daynomy.portfolio.service.PortfolioAnalysisService;
 import org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisService;
 import org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisTransactionService;
+import org.grit.daynomy.portfolio.v2.service.PortfolioAnalysisServiceV2;
 import org.grit.daynomy.portfolio.v2.service.PortfolioCalculationServiceV2;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,14 +33,14 @@ public class PortfolioAnalysisV2Config {
         checks,
         calculation,
         model,
-        "portfolio-v5-price-v2");
+        "portfolio-v6-price-ai-v2");
   }
 
   @Bean("savedPortfolioAnalysisV2")
   SavedPortfolioAnalysisService analysis(
       @Qualifier("portfolioAnalysisTransactionsV2")
           SavedPortfolioAnalysisTransactionService transactions,
-      PortfolioAnalysisService analysisService) {
+      PortfolioAnalysisServiceV2 analysisService) {
     return new SavedPortfolioAnalysisService(transactions, analysisService);
   }
 }

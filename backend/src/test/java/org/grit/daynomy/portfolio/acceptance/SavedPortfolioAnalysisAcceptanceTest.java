@@ -18,6 +18,7 @@ import static org.mockito.Mockito.when;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +52,8 @@ import org.grit.daynomy.portfolio.repository.PortfolioAnalysisRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisTransactionService;
+import org.grit.daynomy.portfolio.v1.ai.OpenAiPortfolioAnalysisClientV1;
+import org.grit.daynomy.portfolio.v1.ai.PortfolioAnalysisTargetV1;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -91,14 +94,30 @@ class SavedPortfolioAnalysisAcceptanceTest {
 
   @LocalServerPort private int port;
   @MockitoBean private PortfolioAnalysisAiClient ai;
+  @MockitoBean private OpenAiPortfolioAnalysisClientV1 v1Ai;
   @MockitoBean private org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
 
   @org.junit.jupiter.api.BeforeEach
   void narrativeStub() {
+    assetAnalyses.deleteAll();
+    doAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              List<PortfolioAnalysisTargetV1> targets = invocation.getArgument(0);
+              return result(
+                  targets.stream()
+                      .map(target -> new PortfolioAnalysisTarget(target.assetName()))
+                      .toList());
+            })
+        .when(v1Ai)
+        .analyze(anyList());
     when(narrative.summarize(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
             "현재 보유한 종목의 비중을 확인했어요.\n\n실적과 비용이 전체 자산에 미치는 영향을 함께 살펴봐야 해요.\n\n비중이 큰 종목의 다음 실적 발표를 확인해 보세요.");
   }
+
+  @Autowired
+  private org.grit.daynomy.portfolio.repository.PortfolioAssetAnalysisRepository assetAnalyses;
 
   @Autowired private MemberRepository members;
   @Autowired private PortfolioRepository portfolios;
@@ -141,7 +160,8 @@ class SavedPortfolioAnalysisAcceptanceTest {
     assertThat(response.jsonPath().getList("analysis.impacts.weight", BigDecimal.class))
         .allSatisfy(weight -> assertThat(weight).isEqualByComparingTo("50"));
     var stored = analyses.findById(response.jsonPath().getLong("analysisId")).orElseThrow();
-    assertThat(stored.getAnalysisVersion()).isEqualTo("portfolio-v5-price-" + version);
+    assertThat(stored.getAnalysisVersion())
+        .isEqualTo(version.equals("v1") ? "portfolio-v5-price-v1" : "portfolio-v6-price-ai-v2");
     if (version.equals("v1")) {
       // prepare와 complete에서 각각 현재 포트폴리오 가격을 확인한다.
       verify(prices, times(4))
@@ -152,7 +172,15 @@ class SavedPortfolioAnalysisAcceptanceTest {
       verify(prices, never())
           .findTop2ByAssetIdOrderByBaseDateDesc(org.mockito.ArgumentMatchers.anyLong());
     }
-    verify(ai).analyze(anyList());
+    if (version.equals("v1")) {
+      verify(v1Ai).analyze(anyList());
+      verifyNoInteractions(ai);
+      assertThat(assetAnalyses.count()).isZero();
+    } else {
+      verify(ai).analyze(anyList());
+      verifyNoInteractions(v1Ai);
+      assertThat(assetAnalyses.count()).isEqualTo(2);
+    }
   }
 
   @Test
@@ -172,7 +200,8 @@ class SavedPortfolioAnalysisAcceptanceTest {
 
     assertThat(secondId).isNotEqualTo(firstId);
     assertThat(repeatedId).isEqualTo(secondId);
-    verify(ai, times(2)).analyze(anyList());
+    verify(v1Ai).analyze(anyList());
+    verify(ai).analyze(anyList());
   }
 
   @ParameterizedTest
@@ -195,7 +224,121 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .post(path)
         .then()
         .statusCode(403);
-    verifyNoInteractions(ai);
+    verifyNoInteractions(ai, v1Ai);
+  }
+
+  @Test
+  void v1AlwaysAnalyzesEachMembersStocksWhileV2ReusesTheSharedResults() {
+    successfulAi();
+    var membersToTest = List.of(member(), member(), member(), member());
+    for (var member : membersToTest) {
+      var portfolio = portfolio(member);
+      hold(portfolio, "삼성전자");
+      hold(portfolio, "SK하이닉스");
+    }
+    client(membersToTest.get(0)).post("/api/v1/users/me/portfolio/analysis").then().statusCode(200);
+    client(membersToTest.get(1)).post("/api/v1/users/me/portfolio/analysis").then().statusCode(200);
+    assertThat(assetAnalyses.count()).isZero();
+    client(membersToTest.get(2)).post("/api/v2/users/me/portfolio/analysis").then().statusCode(200);
+    client(membersToTest.get(3)).post("/api/v2/users/me/portfolio/analysis").then().statusCode(200);
+
+    verify(v1Ai, times(2)).analyze(anyList());
+    verify(ai).analyze(anyList());
+    verify(narrative, times(4)).summarize(org.mockito.ArgumentMatchers.any());
+    assertThat(assetAnalyses.count()).isEqualTo(2);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1", "v2"})
+  void concurrentMembersUseSeparateV1AnalysisButShareV2Analysis(String version) throws Exception {
+    var firstMember = member();
+    var secondMember = member();
+    var firstPortfolio = portfolio(firstMember);
+    var secondPortfolio = portfolio(secondMember);
+    hold(firstPortfolio, "삼성전자");
+    hold(secondPortfolio, "삼성전자");
+    var entered = new CountDownLatch(version.equals("v1") ? 2 : 1);
+    var release = new CountDownLatch(1);
+    if (version.equals("v1")) {
+      doAnswer(
+              invocation -> {
+                entered.countDown();
+                assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+                List<PortfolioAnalysisTargetV1> targets = invocation.getArgument(0);
+                return result(
+                    targets.stream()
+                        .map(target -> new PortfolioAnalysisTarget(target.assetName()))
+                        .toList());
+              })
+          .when(v1Ai)
+          .analyze(anyList());
+    } else {
+      doAnswer(
+              invocation -> {
+                entered.countDown();
+                assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+                return result(invocation.getArgument(0));
+              })
+          .when(ai)
+          .analyze(anyList());
+    }
+    String path = "/api/" + version + "/users/me/portfolio/analysis";
+    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      var first = executor.submit(() -> client(firstMember).post(path));
+      var second = executor.submit(() -> client(secondMember).post(path));
+      try {
+        assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        boolean bothProcessing = false;
+        while (System.nanoTime() < deadline) {
+          bothProcessing =
+              checks
+                      .findById(firstPortfolio.getId())
+                      .map(check -> check.getRequestToken() != null)
+                      .orElse(false)
+                  && checks
+                      .findById(secondPortfolio.getId())
+                      .map(check -> check.getRequestToken() != null)
+                      .orElse(false);
+          if (bothProcessing) break;
+          Thread.sleep(10);
+        }
+        assertThat(bothProcessing).isTrue();
+        release.countDown();
+        assertThat(first.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(200);
+        assertThat(second.get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(200);
+      } finally {
+        release.countDown();
+      }
+    }
+    if (version.equals("v1")) {
+      verify(v1Ai, times(2)).analyze(anyList());
+      verifyNoInteractions(ai);
+      assertThat(assetAnalyses.count()).isZero();
+    } else {
+      verify(ai).analyze(anyList());
+      verifyNoInteractions(v1Ai);
+      assertThat(assetAnalyses.count()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void v1IgnoresCompletedSharedResultsCreatedByV2() {
+    successfulAi();
+    var v2Member = member();
+    var v1Member = member();
+    hold(portfolio(v2Member), "삼성전자");
+    hold(portfolio(v1Member), "삼성전자");
+    client(v2Member).post("/api/v2/users/me/portfolio/analysis").then().statusCode(200);
+    var stored = assetAnalyses.findAll().getFirst();
+
+    client(v1Member).post("/api/v1/users/me/portfolio/analysis").then().statusCode(200);
+
+    verify(v1Ai).analyze(anyList());
+    verify(ai).analyze(anyList());
+    assertThat(assetAnalyses.count()).isEqualTo(1);
+    assertThat(assetAnalyses.findById(stored.getId()).orElseThrow().getAnalyzedAt())
+        .isEqualTo(stored.getAnalyzedAt());
   }
 
   @Test
@@ -248,6 +391,77 @@ class SavedPortfolioAnalysisAcceptanceTest {
   }
 
   @Test
+  void differentMembersReuseAssetResultsButKeepTheirOwnWeightsAndSummaries() {
+    Member first = member();
+    Member second = member();
+    var firstPortfolio = portfolio(first);
+    var secondPortfolio = portfolio(second);
+    hold(firstPortfolio, "삼성전자");
+    hold(firstPortfolio, "SK하이닉스");
+    hold(secondPortfolio, "삼성전자");
+    hold(secondPortfolio, "SK하이닉스");
+    var firstHolding = holdings.findAllByPortfolioIdOrderById(firstPortfolio.getId()).getFirst();
+    firstHolding.change(4, firstHolding.getAveragePurchasePrice());
+    holdings.saveAndFlush(firstHolding);
+    var secondHolding = holdings.findAllByPortfolioIdOrderById(secondPortfolio.getId()).getLast();
+    secondHolding.change(4, secondHolding.getAveragePurchasePrice());
+    holdings.saveAndFlush(secondHolding);
+    successfulAi();
+
+    var firstResponse = client(first).post(API).then().statusCode(200).extract().response();
+    var secondResponse = client(second).post(API).then().statusCode(200).extract().response();
+
+    assertThat(
+            firstResponse
+                .jsonPath()
+                .getDouble("analysis.impacts.find { it.assetName == '삼성전자' }.weight"))
+        .isEqualTo(80.0);
+    assertThat(
+            secondResponse
+                .jsonPath()
+                .getDouble("analysis.impacts.find { it.assetName == '삼성전자' }.weight"))
+        .isEqualTo(20.0);
+    assertThat(firstResponse.jsonPath().getLong("analysisId"))
+        .isNotEqualTo(secondResponse.jsonPath().getLong("analysisId"));
+    verify(ai).analyze(anyList());
+    verify(narrative, org.mockito.Mockito.times(2)).summarize(org.mockito.ArgumentMatchers.any());
+    assertThat(assetAnalyses.count()).isEqualTo(2);
+  }
+
+  @Test
+  void expiredSharedResultIsSearchedAgainForAnotherMember() {
+    Member first = member();
+    Member second = member();
+    hold(portfolio(first), "삼성전자");
+    hold(portfolio(second), "삼성전자");
+    successfulAi();
+    client(first).post(API).then().statusCode(200);
+    jdbc.update(
+        "UPDATE portfolio_asset_analyses SET analyzed_at = CURRENT_TIMESTAMP - INTERVAL '2 hours', expires_at = CURRENT_TIMESTAMP - INTERVAL '1 hour'");
+
+    client(second).post(API).then().statusCode(200);
+
+    verify(ai, org.mockito.Mockito.times(2)).analyze(anyList());
+    assertThat(assetAnalyses.count()).isEqualTo(1);
+    assertThat(assetAnalyses.findAll().getFirst().getExpiresAt()).isAfter(Instant.now());
+  }
+
+  @Test
+  void explicitRefreshWithoutPreviousAnalysisStillSearchesEvenWithSharedResults() {
+    Member first = member();
+    Member second = member();
+    hold(portfolio(first), "삼성전자");
+    hold(portfolio(second), "삼성전자");
+    successfulAi();
+    client(first).post(API).then().statusCode(200);
+    assertThat(assetAnalyses.count()).isEqualTo(1);
+
+    client(second).post(API + "/refresh").then().statusCode(200);
+
+    verify(ai, org.mockito.Mockito.times(2)).analyze(anyList());
+  }
+
+  @Test
   void newMemberDoesNotImportGuestAssetsAndOtherMembersCannotReadStoredAnalysis() {
     Member first = member();
     hold(portfolio(first), "삼성전자");
@@ -294,7 +508,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
     verify(ai, org.mockito.Mockito.times(2)).analyze(captor.capture());
     assertThat(captor.getValue())
         .extracting(PortfolioAnalysisTarget::assetName)
-        .containsExactlyInAnyOrder("삼성전자", "포스코인터내셔널");
+        .containsExactly("포스코인터내셔널");
   }
 
   @Test

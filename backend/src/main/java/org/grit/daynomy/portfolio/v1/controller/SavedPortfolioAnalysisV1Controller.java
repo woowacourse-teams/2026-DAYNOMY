@@ -20,7 +20,7 @@ public class SavedPortfolioAnalysisV1Controller {
     this.service = service;
   }
 
-  @Operation(summary = "포트폴리오 분석 V1: 종목별 가격 조회")
+  @Operation(summary = "포트폴리오 분석 V1: 종목별 가격 조회 및 기존 AI 분석")
   @PostMapping
   public SavedPortfolioAnalysisResponse analyze(
       @AuthenticationPrincipal AuthenticatedMember member) {
