@@ -45,6 +45,10 @@ management:
   server:
     address: 127.0.0.1
     port: ${MANAGEMENT_SERVER_PORT:8081}
+  tracing:
+    export:
+      otlp:
+        enabled: false
   endpoints:
     web:
       exposure:
