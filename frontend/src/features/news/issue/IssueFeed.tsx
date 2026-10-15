@@ -13,6 +13,10 @@ type ReadingItem = Exclude<FeedItem, { source: 'DAYNOMY' }>;
 function thumbnailImage(item: FeedItem) {
   if ('article' in item) return getNewsImage(item.article);
   if ('content' in item) return item.content.imageUrl;
+  if (item.post.sourceType === 'YOUTUBE') {
+    const video = youtubeId(item.post.url);
+    return video ? `https://i.ytimg.com/vi/${video}/hqdefault.jpg` : null;
+  }
   return null;
 }
 
