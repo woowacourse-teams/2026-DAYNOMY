@@ -3,3 +3,5 @@
 node_modules/
 monitoring/secrets/
 /data/
+/loadtest/accounts*.json
+/loadtest/result-*.json
