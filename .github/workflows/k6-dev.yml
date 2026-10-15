@@ -2,6 +2,12 @@ name: k6 development smoke test
 
 on:
   workflow_dispatch:
+    inputs:
+      script:
+        description: k6 script path under loadtest/
+        required: true
+        type: string
+        default: loadtest/load-test.js
 
 permissions:
   contents: read
@@ -30,8 +36,13 @@ jobs:
           K6_PROMETHEUS_RW_SERVER_URL: ${{ vars.K6_PROMETHEUS_RW_SERVER_URL }}
           K6_PROMETHEUS_RW_TREND_STATS: p(90),p(95),p(99),avg,min,max
           K6_PROMETHEUS_RW_LABELS: environment=dev,service=k6
+          K6_SCRIPT: ${{ inputs.script }}
         run: |
           set -Eeuo pipefail
+          if [[ ! "$K6_SCRIPT" =~ ^loadtest/[A-Za-z0-9._/-]+\.js$ || "$K6_SCRIPT" == *..* || ! -f "$K6_SCRIPT" ]]; then
+            echo "Choose an existing .js file under loadtest/."
+            exit 1
+          fi
           if [[ -z "$BASE_URL" ]]; then
             echo "Set DEV_BASE_URL in the development environment variables."
             exit 1
@@ -42,4 +53,4 @@ jobs:
           fi
           k6 run -o experimental-prometheus-rw \
             --tag testid="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            loadtest/load-test.js
+            "$K6_SCRIPT"
