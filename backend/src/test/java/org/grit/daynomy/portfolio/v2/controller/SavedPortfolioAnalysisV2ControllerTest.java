@@ -8,6 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import jakarta.servlet.AsyncEvent;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -24,6 +27,7 @@ import org.grit.daynomy.portfolio.v1.controller.SavedPortfolioAnalysisV1Controll
 import org.grit.daynomy.portfolio.v2.config.PortfolioAnalysisAsyncV2Config;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -124,6 +128,50 @@ class SavedPortfolioAnalysisV2ControllerTest {
             .andReturn();
     result.getAsyncResult(5000);
     mvc.perform(asyncDispatch(result)).andExpect(status().isBadGateway());
+  }
+
+  @Test
+  void logsCorrelatedStartCompletionAndFailureWithoutResponseBody() throws Exception {
+    authenticate();
+    MDC.put("requestId", "diagnostic-request");
+    var logger = (Logger) LoggerFactory.getLogger(SavedPortfolioAnalysisV2Controller.class);
+    var appender = new ListAppender<ILoggingEvent>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      when(v2.analyze(1L, null)).thenReturn(SavedPortfolioAnalysisResponse.empty());
+      var success = mvc.perform(post("/api/v2/users/me/portfolio/analysis")).andReturn();
+      success.getAsyncResult(5000);
+      mvc.perform(asyncDispatch(success)).andExpect(status().isOk());
+      when(v2.analyze(1L, null))
+          .thenThrow(new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED));
+      var failure = mvc.perform(post("/api/v2/users/me/portfolio/analysis")).andReturn();
+      failure.getAsyncResult(5000);
+      mvc.perform(asyncDispatch(failure)).andExpect(status().isBadGateway());
+      assertThat(appender.list)
+          .extracting(event -> fields(event).get("event"))
+          .containsExactly(
+              "portfolio.analysis.v2.started",
+              "portfolio.analysis.v2.completed",
+              "portfolio.analysis.v2.started",
+              "portfolio.analysis.v2.failed");
+      assertThat(appender.list)
+          .allSatisfy(
+              event ->
+                  assertThat(fields(event))
+                      .containsEntry("requestId", "diagnostic-request")
+                      .doesNotContainKeys("memberId", "assets", "response", "accessToken"));
+      assertThat(fields(appender.list.get(0)).get("waitMs")).isInstanceOf(Long.class);
+      assertThat(fields(appender.list.get(1)).get("durationMs")).isInstanceOf(Long.class);
+    } finally {
+      logger.detachAppender(appender);
+      appender.stop();
+    }
+  }
+
+  private java.util.Map<String, Object> fields(ILoggingEvent event) {
+    return event.getKeyValuePairs().stream()
+        .collect(java.util.stream.Collectors.toMap(pair -> pair.key, pair -> pair.value));
   }
 
   @Test

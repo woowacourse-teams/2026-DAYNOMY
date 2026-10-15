@@ -94,6 +94,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
   }
 
   @LocalServerPort private int port;
+  @Autowired private io.micrometer.core.instrument.MeterRegistry metrics;
 
   @Autowired
   private org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext
@@ -370,6 +371,10 @@ class SavedPortfolioAnalysisAcceptanceTest {
               .toList();
       try {
         assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(metrics.find("tomcat.threads.config.max").gauges())
+            .anySatisfy(gauge -> assertThat(gauge.value()).isEqualTo(2));
+        assertThat(metrics.find("tomcat.threads.busy").gauges()).isNotEmpty();
+        assertThat(metrics.find("tomcat.threads.current").gauges()).isNotEmpty();
         var csrf = executor.submit(() -> given().port(port).get("/api/auth/csrf"));
         assertThat(csrf.get(5, TimeUnit.SECONDS).statusCode()).isEqualTo(200);
       } finally {
