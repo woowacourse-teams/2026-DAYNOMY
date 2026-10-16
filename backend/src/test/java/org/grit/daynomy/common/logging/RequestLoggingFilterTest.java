@@ -91,6 +91,30 @@ class RequestLoggingFilterTest {
   }
 
   @Test
+  void logsAsyncCompletionOnlyAfterTheResponseCompletes() throws Exception {
+    var request = new MockHttpServletRequest("POST", "/api/v2/users/me/portfolio/analysis");
+    request.setAsyncSupported(true);
+    var response = new MockHttpServletResponse();
+    var requestId = new AtomicReference<String>();
+    requestLoggingFilter.doFilter(
+        request,
+        response,
+        (req, res) -> {
+          requestId.set(MDC.get("requestId"));
+          req.startAsync(req, res);
+        });
+    assertThat(appender.list).hasSize(1);
+    assertThat(MDC.get("requestId")).isNull();
+    response.setStatus(502);
+    request.getAsyncContext().complete();
+    assertThat(appender.list).hasSize(2);
+    assertThat(keyValues(appender.list.get(1))).containsEntry("httpStatus", 502);
+    assertThat(appender.list.get(1).getMDCPropertyMap())
+        .containsEntry("requestId", requestId.get());
+    assertThat(MDC.get("requestId")).isNull();
+  }
+
+  @Test
   void classifiesAutomationFromUserAgent() throws Exception {
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/news");
     request.addHeader("User-Agent", "curl/8.0");

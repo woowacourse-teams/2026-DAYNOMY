@@ -3,6 +3,11 @@ spring:
     activate:
       on-profile: dev
 
+server:
+  tomcat:
+    mbeanregistry:
+      enabled: true
+
 news:
   generation:
     economy:

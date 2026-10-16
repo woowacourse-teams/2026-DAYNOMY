@@ -1,10 +1,14 @@
 package org.grit.daynomy.portfolio.repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface PortfolioHoldingHistoryRepository
     extends JpaRepository<PortfolioHoldingHistory, Long> {
@@ -21,4 +25,19 @@ public interface PortfolioHoldingHistoryRepository
 
   List<PortfolioHoldingHistory> findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(
       Long portfolioId);
+
+  boolean existsByPortfolioIdAndAssetIdAndChangeTypeInAndEffectiveDateAfter(
+      Long portfolioId,
+      Long assetId,
+      Collection<PortfolioHoldingChangeType> changeTypes,
+      LocalDate tradeDate);
+
+  @Query(
+      """
+      select history from PortfolioHoldingHistory history join fetch history.asset
+      where history.portfolio.id = :portfolioId
+      order by history.effectiveDate, history.createdAt, history.id
+      """)
+  List<PortfolioHoldingHistory> findOrderedWithAssetsByPortfolioId(
+      @Param("portfolioId") Long portfolioId);
 }
