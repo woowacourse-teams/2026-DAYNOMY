@@ -2,8 +2,8 @@ import type {
   PortfolioHoldingHistory,
   PortfolioHoldingInput,
   PortfolioTransactionRequest,
-  StockSearchItem,
 } from './types';
+import type { StockSearchItem } from '../stocks/types';
 import { todayInSeoul, validateTransaction } from './transactionForm';
 
 export type GuestPortfolioHistory = PortfolioHoldingHistory &

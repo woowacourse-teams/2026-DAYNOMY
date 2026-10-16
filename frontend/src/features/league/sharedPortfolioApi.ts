@@ -1,13 +1,11 @@
 import { request, requestWithCsrf } from '../../api/client';
 import { getSavedPortfolio } from '../portfolio/api';
+import { isStock } from '../stocks/api';
+import type { StockSearchItem } from '../stocks/types';
 import type { InvestmentDecisionInput } from './types';
 
-export type SourceHolding = {
-  assetId: number;
-  assetCode: string;
+export type SourceHolding = Omit<StockSearchItem, 'name'> & {
   assetName: string;
-  category: 'STOCK' | 'ETF';
-  market: 'KOSPI' | 'KOSDAQ';
   quantity: number;
   averagePurchasePrice: number;
 };
@@ -38,12 +36,7 @@ function nullableNumber(value: unknown): value is number | null {
 function sourceHolding(value: unknown): value is SourceHolding {
   return (
     record(value) &&
-    Number.isSafeInteger(value.assetId) &&
-    Number(value.assetId) > 0 &&
-    typeof value.assetCode === 'string' &&
-    typeof value.assetName === 'string' &&
-    (value.category === 'STOCK' || value.category === 'ETF') &&
-    (value.market === 'KOSPI' || value.market === 'KOSDAQ') &&
+    isStock({ ...value, name: value.assetName }) &&
     Number.isSafeInteger(value.quantity) &&
     Number(value.quantity) > 0 &&
     Number(value.quantity) <= 1e9 &&

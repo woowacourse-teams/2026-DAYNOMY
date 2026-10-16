@@ -110,6 +110,21 @@ export function MyPage() {
 
   const links = [
     { to: '/', title: '내 포트폴리오', description: '입력한 원본 자산과 평가금액 확인' },
+    {
+      to: '/league/profile',
+      title: '리그 프로필',
+      description: '리그 참여와 공개 프로필',
+    },
+    {
+      to: '/league/following',
+      title: '팔로우한 투자자',
+      description: '이번 주 수익률과 복기 확인',
+    },
+    {
+      to: '/portfolio/publication',
+      title: '리그 설정',
+      description: '공개 범위 · 프로필 · 순위 참여',
+    },
   ];
 
   return (
@@ -225,11 +240,14 @@ export function MyPage() {
             </button>
           )}
           {nicknameNotice ? <p role="status">{nicknameNotice}</p> : null}
+          <p className="mypage-note">
+            닉네임은 리그에서도 사용하며, 프로필 공개에 동의하면 다른 사용자에게 표시됩니다.
+          </p>
         </section>
         <div className="mypage-side">
           <section aria-labelledby="mypage-activity-title">
-            <h2 id="mypage-activity-title">활동</h2>
-            <nav aria-label="활동">
+            <h2 id="mypage-activity-title">활동 및 리그</h2>
+            <nav aria-label="활동 및 리그">
               {links.map((link) => (
                 <Link key={link.to} to={link.to}>
                   <strong>{link.title}</strong>

@@ -17,7 +17,7 @@ vi.mock('../../src/features/league/sharedPortfolioApi', async (importOriginal) =
 }));
 vi.mock('../../src/features/league/api', async (importOriginal) => ({
   ...(await importOriginal<typeof leagueApi>()),
-  getTransactions: vi.fn(),
+  getInvestmentDecisions: vi.fn(),
   getMyInvestorProfile: vi.fn(),
   recordDecision: vi.fn(),
 }));
@@ -56,7 +56,7 @@ const portfolio = {
 };
 const storageKey = 'daynomy:portfolio-holdings:v1';
 beforeEach(() => {
-  vi.mocked(leagueApi.getTransactions).mockResolvedValue([]);
+  vi.mocked(leagueApi.getInvestmentDecisions).mockResolvedValue([]);
   vi.mocked(leagueApi.getMyInvestorProfile).mockResolvedValue(null);
   vi.mocked(api.getSharedPortfolio).mockResolvedValue(empty);
   vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({

@@ -3,8 +3,8 @@ import { AdminDaynomyNewsSearch } from './components/AdminDaynomyNewsSearch';
 import { getPublishedDate } from '../stock-content/publishedDate';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
-import { searchStocks } from '../portfolio/api';
-import type { StockSearchItem } from '../portfolio/types';
+import { searchStocks } from '../stocks/api';
+import type { StockSearchItem } from '../stocks/types';
 import {
   createAdminStockRelatedContent,
   deleteAdminStockRelatedContent,

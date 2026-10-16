@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { getTransactions, recordDecision } from './api';
+import { getInvestmentDecisions, recordDecision } from './api';
 import type { SharedHolding } from './sharedPortfolioApi';
-import type { InvestmentTransaction } from './types';
+import type { InvestmentDecisionRecord } from './types';
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
 
@@ -19,11 +19,11 @@ export function HoldingDecisions({
   publicationStatus: string;
   onVisibilityChange: (assetId: number, hidden: boolean) => void;
   onRemove: (assetId: number) => Promise<boolean>;
-  onRecordsChange: (records: InvestmentTransaction[] | null) => void;
+  onRecordsChange: (records: InvestmentDecisionRecord[] | null) => void;
   refreshKey: number;
 }) {
   const [removing, setRemoving] = useState<number | null>(null);
-  const [records, setRecords] = useState<InvestmentTransaction[] | null>(null);
+  const [records, setRecords] = useState<InvestmentDecisionRecord[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
@@ -39,7 +39,7 @@ export function HoldingDecisions({
     const controller = new AbortController();
     setLoading(true);
     setLoadError('');
-    getTransactions(controller.signal)
+    getInvestmentDecisions(controller.signal)
       .then((values) => {
         if (!controller.signal.aborted) setRecords(values);
       })

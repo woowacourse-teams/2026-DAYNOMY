@@ -9,6 +9,7 @@ vi.mock('../../src/features/league/api', () => ({
   getMyInvestorProfile: vi.fn(),
   getPublicInvestor: vi.fn(),
   getInvestorDetail: vi.fn(),
+  getLeagueWeeks: vi.fn(),
   getDailyHistory: vi.fn(),
 }));
 const profile = {
@@ -25,6 +26,16 @@ const profile = {
 };
 beforeEach(() => {
   vi.mocked(api.getMyInvestorProfile).mockResolvedValue(null);
+  vi.mocked(api.getLeagueWeeks).mockResolvedValue([]);
+  vi.mocked(api.getDailyHistory).mockResolvedValue({
+    weekStart: '2026-10-12',
+    weekEnd: '2026-10-18',
+    asOfDate: null,
+    eligibleFrom: null,
+    confirmed: false,
+    weeklyReturnRate: null,
+    days: [],
+  });
 });
 afterEach(() => {
   cleanup();
@@ -60,7 +71,7 @@ it('내 프로필은 공개 프로필 본문을 표시하고 팔로우 대신 �
     ...profile,
     performance: {
       weeklyReturnRate: 2,
-      eightWeekReturnRate: null,
+      threeWeekReturnRate: null,
       maxDrawdownRate: null,
       volatilityRate: null,
       maxHoldingWeight: null,
@@ -75,6 +86,7 @@ it('내 프로필은 공개 프로필 본문을 표시하고 팔로우 대신 �
   const view = renderPage();
   expect(await view.findByRole('heading', { name: profile.displayName })).toBeTruthy();
   expect(view.getByText('이번 주 수익률')).toBeTruthy();
+  expect(view.getByRole('button', { name: '일별' }).getAttribute('aria-pressed')).toBe('true');
   expect(view.getByRole('link', { name: '프로필 설정' })).toBeTruthy();
   expect(view.queryByRole('button', { name: '팔로우' })).toBeNull();
   expect(view.queryByRole('link', { name: '종목 관리' })).toBeNull();

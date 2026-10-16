@@ -3,7 +3,7 @@ import { InvestorAvatar } from './InvestorAvatar';
 import { Link } from 'react-router-dom';
 import { trackEvent } from '../../analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
-import { getLeagueWeeks, getRankings } from './api';
+import { getLeagueWeeks, getMyInvestorProfile, getRankings } from './api';
 import {
   collectionLabels,
   concentrationLabel,
@@ -11,11 +11,33 @@ import {
   formatRate,
   riskLabels,
 } from './labels';
-import type { LeagueWeek, RankingEntry, RankingResponse } from './types';
+import type { CollectionStatus, LeagueWeek, RankingEntry, RankingResponse } from './types';
+import { recentLeagueWeeks } from './weeks';
+import { LeagueWeekNavigation } from './LeagueWeekNavigation';
 import './league.css';
 
+const emptyCollectionStates: Partial<
+  Record<CollectionStatus, { title: string; description: string }>
+> = {
+  COLLECTION_PENDING: {
+    title: '종가 수집을 기다리고 있어요',
+    description: '필요한 종가가 모두 확보되면 순위를 확인할 수 있어요.',
+  },
+  CALENDAR_PENDING: {
+    title: '거래일 정보를 확인하고 있어요',
+    description: '선택한 주차의 거래일이 확인되면 종가 수집과 순위 집계가 진행됩니다.',
+  },
+  NO_TRADING_DAYS: {
+    title: '이 주에는 거래일이 없어요',
+    description: '거래일이 있는 주에 성과를 집계합니다.',
+  },
+};
+
 export function LeaguePage() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, memberId } = useAuth();
+  const [leagueEnabled, setLeagueEnabled] = useState<boolean | null>(null);
+  const [profileError, setProfileError] = useState(false);
+  const [profileRetry, setProfileRetry] = useState(0);
   const [weeks, setWeeks] = useState<LeagueWeek[]>([]);
   const [weekStart, setWeekStart] = useState('');
   const [ranking, setRanking] = useState<RankingResponse | null>(null);
@@ -26,6 +48,37 @@ export function LeaguePage() {
   const [page, setPage] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<RankingEntry | null>(null);
   const metricsDialog = useRef<HTMLDialogElement>(null);
+  const emptyCollectionState = emptyCollectionStates[ranking?.collectionStatus ?? 'IN_PROGRESS'];
+  const isCurrentWeek = !weekStart || weekStart === weeks[0]?.weekStart;
+  const participationPath = isLoggedIn
+    ? leagueEnabled
+      ? '/league/portfolio'
+      : '/league/portfolio#select'
+    : `/login?returnTo=${encodeURIComponent('/league/portfolio#select')}`;
+
+  useEffect(() => {
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') setRetry((value) => value + 1);
+    }
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLeagueEnabled(null);
+    setProfileError(false);
+    if (isLoggedIn) {
+      getMyInvestorProfile(controller.signal)
+        .then((profile) => {
+          if (!controller.signal.aborted) setLeagueEnabled(profile?.leagueEnabled ?? false);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setProfileError(true);
+        });
+    }
+    return () => controller.abort();
+  }, [isLoggedIn, memberId, profileRetry]);
 
   useEffect(() => {
     const dialog = metricsDialog.current;
@@ -44,9 +97,7 @@ export function LeaguePage() {
     getLeagueWeeks(controller.signal)
       .then((availableWeeks) => {
         if (controller.signal.aborted) return;
-        const recentWeeks = [...availableWeeks]
-          .sort((a, b) => b.weekStart.localeCompare(a.weekStart))
-          .slice(0, 3);
+        const recentWeeks = recentLeagueWeeks(availableWeeks);
         setWeeks(recentWeeks);
         setWeekStart((current) =>
           recentWeeks.some((week) => week.weekStart === current)
@@ -84,56 +135,62 @@ export function LeaguePage() {
     <main className="league-page">
       <header className="league-hero">
         <h1>주간 리그</h1>
-        {isLoggedIn ? (
-          <div className="league-hero-actions">
-            <Link className="league-primary-link" to="/league/portfolio">
-              종목 관리
+        <div className="league-hero-actions">
+          {isLoggedIn && profileError ? (
+            <button type="button" onClick={() => setProfileRetry((value) => value + 1)}>
+              참여 상태 다시 확인
+            </button>
+          ) : isLoggedIn && leagueEnabled === null ? (
+            <span role="status">참여 상태 확인 중</span>
+          ) : (
+            <Link className="league-primary-link" to={participationPath}>
+              {isLoggedIn && leagueEnabled ? '종목 관리하기' : '투자리그 참여하기'}
             </Link>
-            <Link className="league-text-link" to="/league/profile">
-              내 프로필
-            </Link>
-            <Link className="league-text-link" to="/league/following">
-              팔로잉
-            </Link>
-          </div>
-        ) : (
-          <Link className="league-primary-link" to="/login?returnTo=/league/profile">
-            로그인하고 참여하기
-          </Link>
-        )}
+          )}
+          {isLoggedIn ? (
+            <>
+              <Link className="league-text-link" to="/league/profile">
+                내 프로필
+              </Link>
+              <Link className="league-text-link" to="/league/following">
+                팔로잉
+              </Link>
+            </>
+          ) : null}
+        </div>
       </header>
       <section className="league-controls" aria-label="리그 조회 조건">
-        <label className="league-week-filter">
-          <span>조회 주차</span>
-          <select
-            value={weekStart}
-            onChange={(event) => {
-              setWeekStart(event.target.value);
-              setPage(0);
-              const index = weeks.findIndex((week) => week.weekStart === event.target.value);
-              trackEvent('change_league_week', {
-                relative_week: -index,
-                week_state: weeks[index]?.confirmed ? 'confirmed' : 'in_progress',
-              });
-            }}
-          >
-            {weeks.length === 0 ? <option value="">이번 주</option> : null}
-            {weeks.map((week, index) => (
-              <option key={week.weekStart} value={week.weekStart}>
-                {['이번 주', '지난주', '지지난주'][index]} · {week.weekStart.slice(5)} ~{' '}
-                {week.weekEnd.slice(5)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <LeagueWeekNavigation
+          weeks={weeks}
+          selected={weekStart}
+          onChange={(value) => {
+            setWeekStart(value);
+            setPage(0);
+            const index = weeks.findIndex((week) => week.weekStart === value);
+            trackEvent('change_league_week', {
+              relative_week: -index,
+              week_state: weeks[index]?.confirmed ? 'confirmed' : 'in_progress',
+            });
+          }}
+        />
+        {!loading && !error && ranking && (ranking.asOfDate || ranking.rankings.length > 0) ? (
+          <div className="league-ranking-meta">
+            {ranking.asOfDate ? <span>{ranking.asOfDate} 종가 기준</span> : null}
+            <span className={`league-status-badge${ranking.confirmed ? ' is-confirmed' : ''}`}>
+              {ranking.confirmed
+                ? '순위 확정'
+                : collectionLabels[ranking.collectionStatus ?? 'IN_PROGRESS']}
+            </span>
+          </div>
+        ) : null}
       </section>
 
       {!loading && !error && ranking ? (
-        <p className="league-calculation-note">
-          {ranking.asOfDate ? `${ranking.asOfDate} 종가 기준` : '종가 수집 대기'} · 주간 수익률순
-          <br />
-          종가 기준의 가상 성과로, 실제 투자 수익률과 다를 수 있습니다.
-        </p>
+        <aside className="league-update-notice" aria-label="순위 갱신 안내">
+          <p>종가는 다음 영업일 오후 1시 이후 제공되며, 수집·집계 후 반영됩니다.</p>
+          <p>같은 순위 기준 점수는 공동 순위로 표시합니다.</p>
+          <p>사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다.</p>
+        </aside>
       ) : null}
 
       {loading ? (
@@ -158,8 +215,21 @@ export function LeaguePage() {
         </div>
       ) : null}
       {!loading && !error && ranking?.rankings.length === 0 ? (
-        <section className="league-empty">
-          <strong>아직 이 주차에 집계된 투자자가 없습니다</strong>
+        <section className="league-empty league-ranking-empty" aria-label="순위 조회 결과">
+          <strong>
+            {emptyCollectionState?.title ?? '아직 이 주차에 집계된 투자자가 없습니다'}
+          </strong>
+          <p>
+            {emptyCollectionState?.description ??
+              (isCurrentWeek
+                ? '종가 수집과 참여자 집계가 끝나면 순위를 확인할 수 있어요.'
+                : '이 주차에 표시할 순위가 없어요. 다른 주차를 선택해 보세요.')}
+          </p>
+          {ranking.collectionStatus === 'NO_TRADING_DAYS' ? null : emptyCollectionState ? (
+            <button type="button" onClick={() => setRetry((value) => value + 1)}>
+              순위 다시 확인
+            </button>
+          ) : null}
         </section>
       ) : null}
 
@@ -169,12 +239,7 @@ export function LeaguePage() {
             <div>
               <h2 id="league-board-title">주간 순위</h2>
             </div>
-            <p>
-              {ranking.totalCount}명 ·{' '}
-              {ranking.confirmed
-                ? '순위 확정'
-                : collectionLabels[ranking.collectionStatus ?? 'IN_PROGRESS']}
-            </p>
+            <p>{ranking.totalCount}명 · 주간 수익률순</p>
           </header>
           <ol>
             {ranking.rankings.map((entry) => (
@@ -301,8 +366,8 @@ export function LeaguePage() {
                   </dd>
                 </div>
                 <div>
-                  <dt>최근 8주 수익률</dt>
-                  <dd>{formatRate(selectedEntry.eightWeekReturnRate)}</dd>
+                  <dt>최근 3주 수익률</dt>
+                  <dd>{formatRate(selectedEntry.threeWeekReturnRate)}</dd>
                 </div>
               </dl>
             </section>
@@ -310,7 +375,7 @@ export function LeaguePage() {
               <h3>위험 지표</h3>
               <dl className="league-risk-grid">
                 <div>
-                  <dt>최대 하락률 · 8주</dt>
+                  <dt>최대 하락률 · 3주</dt>
                   <dd>{formatRate(selectedEntry.maxDrawdownRate, false)}</dd>
                 </div>
                 <div>
@@ -318,7 +383,7 @@ export function LeaguePage() {
                   <dd>{formatRate(selectedEntry.volatilityRate, false)}</dd>
                 </div>
                 <div>
-                  <dt>최대 종목 비중 · 8주</dt>
+                  <dt>최대 종목 비중 · 3주</dt>
                   <dd>
                     {formatRate(selectedEntry.maxHoldingWeight, false)}
                     {selectedEntry.maxHoldingWeight != null ? (
