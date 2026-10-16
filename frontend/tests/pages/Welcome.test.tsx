@@ -82,7 +82,6 @@ describe('첫 방문 서비스 소개', () => {
     expect(window.location.pathname).toBe('/');
     fireEvent.click(start);
     expect(await view.findByRole('region', { name: '포트폴리오 사용 안내' })).toBeTruthy();
-    expect(await view.findByRole('region', { name: '포트폴리오 사용 안내' })).toBeTruthy();
     await waitFor(() =>
       expect(document.activeElement).toBe(view.getByRole('button', { name: '다음' })),
     );
