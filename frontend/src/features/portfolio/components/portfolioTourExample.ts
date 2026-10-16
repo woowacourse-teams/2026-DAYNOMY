@@ -1,4 +1,5 @@
-import type { PortfolioCalculation, PortfolioAnalysisResponse, StockSearchItem } from '../types';
+import type { StockSearchItem } from '../../stocks/types';
+import type { PortfolioCalculation, PortfolioAnalysisResponse } from '../types';
 import type { StockRelatedContent } from '../../stock-content/types';
 
 // Display-only examples. Never pass these values to persistence or analysis APIs.
