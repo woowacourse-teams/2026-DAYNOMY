@@ -14,6 +14,9 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -32,7 +35,7 @@ import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
         @UniqueConstraint(
             name = "uk_portfolio_transactions_request",
             columnNames = {"portfolio_id", "request_key"}))
-public class PortfolioTransaction extends BaseEntity {
+public class InvestmentDecision extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -87,7 +90,7 @@ public class PortfolioTransaction extends BaseEntity {
   @Column(nullable = false, length = 20)
   private String status = "ACTIVE";
 
-  public PortfolioTransaction(
+  public InvestmentDecision(
       SharedPortfolio portfolio,
       Asset asset,
       String requestKey,
@@ -124,6 +127,17 @@ public class PortfolioTransaction extends BaseEntity {
       throw new IllegalArgumentException("투자 판단은 비어 있을 수 없습니다.");
     }
     return value.trim();
+  }
+
+  /** 최신순 판단에서 종목별 마지막 보유 이유를 선택한다. 과거 매수·매도 판단도 보존한다. */
+  public static Map<Long, String> latestReasons(List<InvestmentDecision> decisions) {
+    Map<Long, String> reasons = new LinkedHashMap<>();
+    for (InvestmentDecision decision : decisions) {
+      if (!decision.getDecisionReason().isBlank()) {
+        reasons.putIfAbsent(decision.getAsset().getId(), decision.getDecisionReason());
+      }
+    }
+    return reasons;
   }
 
   public boolean matchesDecision(

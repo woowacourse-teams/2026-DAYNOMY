@@ -77,7 +77,7 @@ public class LeagueController {
 
   @Operation(
       summary = "공개 투자자의 일별·주간 누적 수익률 조회",
-      description = "최근 8주를 월요일~일요일(KST)로 구분합니다. 금액과 수량은 공개하지 않습니다.")
+      description = "최근 3주를 월요일~일요일(KST)로 구분합니다. 금액과 수량은 공개하지 않습니다.")
   @GetMapping("/investors/{publicId}/daily-history")
   public ResponseEntity<DailyHistoryResponse> dailyHistory(
       @PathVariable String publicId,

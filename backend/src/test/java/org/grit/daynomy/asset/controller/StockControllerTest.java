@@ -13,7 +13,6 @@ import java.util.List;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.dto.StockPriceResponse;
-import org.grit.daynomy.asset.dto.StockPricesResponse;
 import org.grit.daynomy.asset.dto.StockSearchItemResponse;
 import org.grit.daynomy.asset.dto.StockSearchResponse;
 import org.grit.daynomy.asset.service.StockPriceService;
@@ -101,35 +100,16 @@ class StockControllerTest {
   }
 
   @Test
-  @DisplayName("국내 주식 기간별 종가 API는 여러 종목의 거래일별 종가를 반환한다")
-  void getStockPrices() throws Exception {
-    LocalDate from = LocalDate.of(2026, 9, 1);
-    LocalDate to = LocalDate.of(2026, 9, 14);
-    given(stockPriceService.getPrices(List.of(1L, 2L), from, to))
-        .willReturn(
-            new StockPricesResponse(
-                List.of(
-                    new StockPriceResponse(
-                        1L, "005930", "삼성전자", LocalDate.of(2026, 9, 1), new BigDecimal("80000")),
-                    new StockPriceResponse(
-                        2L,
-                        "000660",
-                        "SK하이닉스",
-                        LocalDate.of(2026, 9, 1),
-                        new BigDecimal("250000")))));
-
+  @DisplayName("제거한 기간별 종가 API는 찾을 수 없음을 반환한다")
+  void retiredStockPriceHistoryApiIsNotFound() throws Exception {
     mockMvc
         .perform(
             get("/api/stocks/prices")
                 .param("assetIds", "1", "2")
                 .param("from", "2026-09-01")
                 .param("to", "2026-09-14"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.prices.length()").value(2))
-        .andExpect(jsonPath("$.prices[0].assetId").value(1))
-        .andExpect(jsonPath("$.prices[0].baseDate").value("2026-09-01"))
-        .andExpect(jsonPath("$.prices[1].assetId").value(2));
+        .andExpect(status().isNotFound());
 
-    then(stockPriceService).should().getPrices(List.of(1L, 2L), from, to);
+    verifyNoInteractions(stockSearchService, stockPriceService);
   }
 }

@@ -8,10 +8,7 @@ import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -19,8 +16,9 @@ import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
-import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedHoldingHistory;
 import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
@@ -28,8 +26,8 @@ import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
 import org.grit.daynomy.league.dto.SharedPortfolioDto.*;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
-import org.grit.daynomy.league.repository.PortfolioTransactionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
@@ -49,11 +47,11 @@ public class SharedPortfolioService {
   private final SharedHoldingHistoryRepository historyRepository;
   private final MemberRepository memberRepository;
   private final AssetRepository assetRepository;
-  private final StockDailyPriceRepository priceRepository;
+  private final StockPriceService stockPriceService;
   private final MarketTradingDayRepository tradingDayRepository;
   private final InvestorProfileRepository profileRepository;
-  private final PortfolioTransactionRepository transactionRepository;
-  private final PortfolioTransactionService transactionService;
+  private final InvestmentDecisionRepository decisionRepository;
+  private final InvestmentDecisionService decisionService;
 
   @Transactional(readOnly = true)
   public PortfolioResponse getMine(Long memberId) {
@@ -68,11 +66,9 @@ public class SharedPortfolioService {
             .findByMemberId(memberId)
             .map(profile -> profile.isLeagueEnabled())
             .orElse(false);
-    Set<Long> recordedAssets =
-        transactionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId).stream()
-            .filter(record -> !record.getDecisionReason().isBlank())
-            .map(record -> record.getAsset().getId())
-            .collect(Collectors.toSet());
+    Map<Long, String> reasons =
+        InvestmentDecision.latestReasons(
+            decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId));
     HashSet<Long> seen = new HashSet<>();
     // 중간에 검증이 실패해도 트랜잭션이 앞서 저장한 자산과 이력까지 롤백한다.
     for (HoldingInput input : request.holdings()) {
@@ -86,8 +82,9 @@ public class SharedPortfolioService {
         throw new BusinessException(LeagueErrorCode.SHARED_IMPORT_CONFLICT);
       }
       boolean needsReason =
-          !recordedAssets.contains(input.assetId())
-              && (holding == null || holding.getReason().isBlank());
+          holding == null
+              ? !reasons.containsKey(input.assetId())
+              : holding.reasonFrom(reasons).isBlank();
       if (participating && needsReason && input.decision() == null) {
         throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
       }
@@ -106,7 +103,7 @@ public class SharedPortfolioService {
         historyRepository.save(new SharedHoldingHistory(holding, changeType));
       }
       if (needsReason && input.decision() != null) {
-        transactionService.recordDecision(
+        decisionService.recordDecision(
             memberId,
             new DecisionRecordRequest(
                 UUID.randomUUID().toString(), input.assetId(), input.decision()));
@@ -180,13 +177,14 @@ public class SharedPortfolioService {
             .map(MarketTradingDay::getBaseDate)
             .orElse(null);
     Map<Long, StockDailyPrice> prices =
-        baseDate == null || holdings.isEmpty()
+        stockPriceService.pricesAt(
+            holdings.stream().map(h -> h.getAsset().getId()).toList(), baseDate);
+    Map<Long, String> reasons =
+        portfolio == null
             ? Map.of()
-            : priceRepository
-                .findAllByAssetIdInAndBaseDate(
-                    holdings.stream().map(h -> h.getAsset().getId()).toList(), baseDate)
-                .stream()
-                .collect(Collectors.toMap(p -> p.getAsset().getId(), Function.identity()));
+            : InvestmentDecision.latestReasons(
+                decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(
+                    portfolio.getMember().getId()));
     List<HoldingResponse> values =
         holdings.stream()
             .map(
@@ -205,7 +203,7 @@ public class SharedPortfolioService {
                       h.getQuantity(),
                       h.getAveragePurchasePrice(),
                       h.isHidden(),
-                      h.getReason(),
+                      h.reasonFrom(reasons),
                       price == null ? null : price.getBaseDate(),
                       price == null ? null : price.getClosePrice(),
                       evaluation,

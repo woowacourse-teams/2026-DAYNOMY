@@ -88,6 +88,8 @@ WHERE calendar.base_date IS NULL;
 
 ## LeagueFinalizationDelayed
 
+지연은 마지막 거래일의 다음 거래일 13시 이후부터 계산한다. 금요일 마감 뒤 주말과 다음 거래일이 휴장인 경우는 제공 대기이며 장애 지연에 포함하지 않는다.
+
 1. 해당 주 달력이 완전하고 마지막 실제 거래일이 올바른지 확인한다. 달력 자체가 누락된 경우 `LeagueCalendarMissing`부터 해결한다.
 
 ```sql
