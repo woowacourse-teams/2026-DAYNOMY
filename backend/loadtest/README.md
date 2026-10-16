@@ -160,6 +160,7 @@ RPS는 분당 정수·예정 요청 수도 정수여야 하고, 한 실행 최�
 - 클라이언트 중단이 이미 실행 중인 서버·DB 작업을 취소하지는 않는다. 남은 작업과 회복을 확인한 후 수동 복원한다.
 
 Actions **Summary**와 로그에서 버전·거래일·RPS·성공 건수·p95·판정을 본다.
+측정 거래 POST는 `RPS × 측정 시간(초)`건까지만 전송한다. 종료 경계의 추가 iteration은 POST 없이 끝나므로, k6 전체 iteration 수와 측정 거래 수는 다를 수 있다. 예정 거래가 누락되면 계속 실패로 판정한다.
 `k6-results-<run id>-<attempt>` artifact에 `result-transactions-*.json`을 보관한다. 계정·토큰·baseline은 업로드하지 않는다.
 결과 JSON에는 전체 p95/p99, light/standard/heavy별 지연·성공·실패, 50명 각각의 요청 건수(미사용 0건 포함), 별도 워밍업 지표가 들어 있다.
 Grafana는 `testid`, `version`, `trade_date`, `rps`, `profile`, `phase`로 구분한다.

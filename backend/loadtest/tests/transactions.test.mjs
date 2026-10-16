@@ -277,6 +277,27 @@ test("entry filenames select V1/V2 endpoints with identical payloads/accounts", 
   assert.match(runs[1].url, /\/api\/v2\/users\/me\//);
 });
 
+test("an extra arrival at the duration boundary cannot exceed the planned POST count", async () => {
+  for (const version of ["v1", "v2"]) {
+    const f = await fixture({ version });
+    const scenario = f.build();
+    for (let index = 0; index <= 12; index++) {
+      f.exec.scenario.iterationInTest = index;
+      scenario.run({ csrf: { token: "csrf", headerName: "X-XSRF-TOKEN" } });
+    }
+    assert.equal(f.requests.length, 12);
+    assert.equal(f.counters.get("transaction_started"), 12);
+    assert.equal(f.counters.get("transaction_success"), 12);
+    assert.equal(f.counters.get("transaction_failed"), 0);
+    const report = readReport(scenario, {
+      transaction_started: { values: { count: 12 } },
+      transaction_success: { values: { count: 12 } },
+      transaction_duration: { values: { "p(95)": 20 } },
+    });
+    assert.equal(report.outcome, "exploratory_pass");
+  }
+});
+
 test("invalid token identities, missing cohorts, excessive rates and non-dev targets fail before HTTP", async () => {
   for (const overrides of [
     { baseUrl: "https://daynomy.com" },
@@ -319,6 +340,10 @@ test("reports zero-use accounts, excludes tokens, and cannot pass missing/droppe
   metrics.dropped_iterations.values.count = 0;
   metrics.transaction_duration.values["p(95)"] = 4000;
   assert.equal(readReport(scenario, metrics).outcome, "target_exceeded");
+  metrics.transaction_duration.values["p(95)"] = 20;
+  metrics.transaction_started.values.count = 11;
+  metrics.transaction_success.values.count = 11;
+  assert.equal(readReport(scenario, metrics).outcome, "incomplete");
 });
 
 test("warmup uses only its three accounts and never enters measured POST counters", async () => {
