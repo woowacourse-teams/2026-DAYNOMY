@@ -1,3 +1,4 @@
+import { tourNews } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { trackLoadResult, useContentImpression, useContentView } from '../../news/issue/analytics';
 import { useEffect, useRef, useState } from 'react';
@@ -42,11 +43,13 @@ function NewsThumbnail({ item }: { item: NewsItem }) {
 }
 
 export function PortfolioNews({
+  demo = false,
   holdings,
   hidden = false,
   onClose,
 }: {
   holdings: { assetId: number; name: string }[];
+  demo?: boolean;
   hidden?: boolean;
   onClose?: () => void;
 }) {
@@ -61,6 +64,7 @@ export function PortfolioNews({
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (demo) return;
     const startedAt = performance.now();
     setLoadedKey(null);
     const controller = new AbortController();
@@ -112,8 +116,9 @@ export function PortfolioNews({
       },
     );
     return () => controller.abort();
-  }, [assetKey, attempt]);
+  }, [assetKey, attempt, demo]);
 
+  const displayItems = demo ? tourNews : items;
   const settled = !loading && loadedKey === assetKey;
   const status = failed
     ? failed === JSON.parse(assetKey).length
@@ -127,9 +132,9 @@ export function PortfolioNews({
     assetKey,
     'view_portfolio_news',
     { surface: 'portfolio_news', status, result_count: items.length },
-    settled && !hidden,
+    settled && !hidden && !demo,
   );
-  useContentView(settled && !hidden && status === 'empty', 'view_content_empty', {
+  useContentView(settled && !hidden && !demo && status === 'empty', 'view_content_empty', {
     surface: 'portfolio_news',
     reason: holdings.length ? 'no_linked_content' : 'no_holdings',
   });
@@ -159,13 +164,17 @@ export function PortfolioNews({
           )}
         </div>
       </div>
-      <p className="portfolio-news-description">보유 종목과 연결된 뉴스와 이야기</p>
-      {loading && (
+      <p className="portfolio-news-description">
+        {demo
+          ? '체험용 가상 소식 · 신제품 수요가 늘었다고 가정해요. 다음 단계에서 내 자산에 미칠 영향을 확인해요.'
+          : '보유 종목과 연결된 뉴스와 이야기'}
+      </p>
+      {!demo && loading && (
         <p role="status" className="portfolio-news-state">
           소식을 불러오는 중입니다.
         </p>
       )}
-      {failed > 0 && (
+      {!demo && failed > 0 && (
         <p role="alert" className="portfolio-news-state">
           {failed}개 종목의 소식을 불러오지 못했습니다.{' '}
           <button
@@ -183,7 +192,7 @@ export function PortfolioNews({
           </button>
         </p>
       )}
-      {!loading && !failed && !items.length && (
+      {!demo && !loading && !failed && !items.length && (
         <p className="portfolio-news-state">
           {holdings.length
             ? '보유 자산에 등록된 소식이 없습니다.'
@@ -191,7 +200,7 @@ export function PortfolioNews({
         </p>
       )}
       <ul className="portfolio-news-list">
-        {items.map((item, index) => (
+        {displayItems.map((item, index) => (
           <li key={item.url}>
             <a
               onClick={() =>

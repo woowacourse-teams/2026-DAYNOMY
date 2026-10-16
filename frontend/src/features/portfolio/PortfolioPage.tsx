@@ -1,4 +1,6 @@
+import { tourCalculation } from './components/portfolioTourExample';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { PortfolioTour } from './components/PortfolioTour';
 import { PortfolioNews } from './components/PortfolioNews';
 import { calculatePortfolio } from './api';
 import { portfolioErrorType, trackPortfolioEvent } from './analytics';
@@ -860,6 +862,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [editor, setEditor] = useState<{ holding: PortfolioHoldingInput } | null>(null);
+  const [tourStartRequest, setTourStartRequest] = useState(0);
+  const [tourStep, setTourStep] = useState<number | null>(null);
+  const touring = tourStep !== null;
   const [activeTab, setActiveTab] = useState<'holdings' | 'history'>('holdings');
   const [transactionEditor, setTransactionEditor] = useState<{
     stock?: StockSearchItem;
@@ -925,7 +930,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     return () => controller.abort();
   }, [holdings, holdingsLoading, retryCount]);
 
-  const dashboardCalculation = useMemo<PortfolioCalculation | null>(
+  const liveDashboardCalculation = useMemo<PortfolioCalculation | null>(
     () =>
       calculation ??
       (!holdingsLoading && !holdingsError
@@ -955,25 +960,32 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     [calculation, holdingsLoading, holdingsError, holdings],
   );
 
+  const dashboardCalculation =
+    tourStep !== null && tourStep >= 8 ? tourCalculation : liveDashboardCalculation;
+  const displayedTab = touring ? 'holdings' : activeTab;
+  const displayedNewsOpen = (tourStep !== null && tourStep >= 10) || newsOpen;
+  const displayedHoldings =
+    tourStep !== null && tourStep >= 8 ? tourCalculation.holdings : holdings;
   const visibleHoldings = useMemo(() => {
     const filtered =
       dashboardCalculation?.holdings.filter(
-        (holding) => categoryFilter === 'ALL' || holding.category === categoryFilter,
+        (holding) => touring || categoryFilter === 'ALL' || holding.category === categoryFilter,
       ) ?? [];
     return [...filtered].sort((first, second) => compareHoldings(first, second, sort));
-  }, [dashboardCalculation, categoryFilter, sort]);
+  }, [dashboardCalculation, categoryFilter, sort, touring]);
   const analysisAssets = useMemo(
-    () => toPortfolioAnalysisAssets(calculation?.holdings ?? []),
-    [calculation],
+    () => toPortfolioAnalysisAssets((touring ? dashboardCalculation : calculation)?.holdings ?? []),
+    [calculation, dashboardCalculation, touring],
   );
   const analysisHoldingsMatch =
-    holdings.length === (calculation?.holdings.length ?? 0) &&
-    holdings.every((holding) =>
-      calculation?.holdings.some(
-        (calculated) =>
-          calculated.assetId === holding.assetId && calculated.quantity === holding.quantity,
-      ),
-    );
+    touring ||
+    (holdings.length === (calculation?.holdings.length ?? 0) &&
+      holdings.every((holding) =>
+        calculation?.holdings.some(
+          (calculated) =>
+            calculated.assetId === holding.assetId && calculated.quantity === holding.quantity,
+        ),
+      ));
   const trendPoints = performance.points;
 
   useEffect(() => {
@@ -1076,22 +1088,48 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   }
 
   function displayWon(value: number | null, signed = false) {
-    if (amountsHidden) return HIDDEN_AMOUNT;
+    if (amountsHidden && !touring) return HIDDEN_AMOUNT;
     if (value === null) return '—';
     return signed ? formatSignedWon(value) : formatWon(value);
   }
 
   return (
     <main
+      onClickCapture={(event) => {
+        if (
+          touring &&
+          event.target instanceof Element &&
+          !event.target.closest('.portfolio-tour, [data-tour-trigger]')
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+      onSubmitCapture={(event) => {
+        if (touring) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
       className="portfolio-page"
       ref={pageRef}
       style={{ '--portfolio-desktop-scale': desktopScale } as CSSProperties}
     >
       <header className="portfolio-page-title">
-        <div>
-          <h1 ref={headingRef} tabIndex={-1}>
-            내 포트폴리오
-          </h1>
+        <div className="portfolio-title-group">
+          <div className="portfolio-title-with-guide">
+            <h1 ref={headingRef} tabIndex={-1}>
+              내 포트폴리오
+            </h1>
+            <PortfolioTour
+              startRequest={tourStartRequest}
+              onStepChange={setTourStep}
+              onRegister={() => openAdd('header')}
+              ready={
+                !holdingsLoading && !loading && !holdingsError && !error && !!dashboardCalculation
+              }
+            />
+          </div>
           {!isLoggedIn && (
             <p className="portfolio-save-notice is-guest" role="status">
               {notice || '비회원 자산은 이 탭에만 임시 저장돼요.'}
@@ -1102,10 +1140,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           <button
             type="button"
             className="portfolio-secondary-button portfolio-news-tab"
+            data-portfolio-tour="news"
             ref={newsButtonRef}
             aria-controls="portfolio-news-panel"
-            aria-expanded={newsOpen}
-            title={newsOpen ? '소식 접기' : '소식 펼치기'}
+            aria-expanded={displayedNewsOpen}
+            title={displayedNewsOpen ? '소식 접기' : '소식 펼치기'}
             disabled={holdingsLoading || !!holdingsError}
             onClick={() => setNewsOpen((open) => !open)}
           >
@@ -1118,12 +1157,34 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             type="button"
             className="portfolio-primary-button"
             disabled={holdingsLoading || !!holdingsError}
+            data-portfolio-tour="trade"
             onClick={() => openAdd('header')}
           >
             <span aria-hidden="true">＋</span> 거래 기록
           </button>
         </div>
       </header>
+      {!touring &&
+        !holdingsLoading &&
+        !loading &&
+        !holdingsError &&
+        !error &&
+        holdings.length === 0 && (
+          <section className="portfolio-guide-invitation" aria-label="처음 이용 안내">
+            <div>
+              <strong>처음이신가요? 예시로 따라 해보세요</strong>
+              <p>자산 등록부터 소식 확인, 포트폴리오 분석까지 함께 살펴봐요.</p>
+            </div>
+            <button
+              type="button"
+              className="portfolio-secondary-button"
+              data-tour-trigger
+              onClick={() => setTourStartRequest((request) => request + 1)}
+            >
+              가이드 시작
+            </button>
+          </section>
+        )}
       <div className="portfolio-canvas">
         {isLoggedIn && notice && (
           <p className="portfolio-save-notice" role="status">
@@ -1162,10 +1223,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
         dashboardCalculation ? (
           <div
             aria-busy={loading}
-            className={`portfolio-dashboard-layout${newsOpen ? ' has-news' : ''}`}
+            className={`portfolio-dashboard-layout${displayedNewsOpen ? ' has-news' : ''}`}
           >
             <div className="portfolio-dashboard-main">
-              <dl className="portfolio-overview" aria-label="자산 요약">
+              <dl
+                data-portfolio-tour="summary"
+                className="portfolio-overview"
+                aria-label="자산 요약"
+              >
                 <div className="portfolio-summary-total">
                   <div className="portfolio-balance-label">
                     <dt>
@@ -1175,6 +1240,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     </dt>
                     <button
                       type="button"
+
                       className="portfolio-privacy-button"
                       aria-pressed={amountsHidden}
                       onClick={() => {
@@ -1221,7 +1287,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   <dt>누적 실현손익</dt>
                   {isLoggedIn ? (
                     <dd className={profitClass(totalRealizedProfitLoss)}>
-                      {displayWon(totalRealizedProfitLoss, true)}
+                      {displayWon(touring ? 0 : totalRealizedProfitLoss, true)}
                     </dd>
                   ) : (
                     <dd className="portfolio-summary-locked">로그인 후 확인할 수 있어요</dd>
@@ -1248,14 +1314,20 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 ) : (
                   <p>
                     <span className="portfolio-status-dot" />
-                    {dashboardCalculation.baseDate
-                      ? `${dashboardCalculation.baseDate.replaceAll('-', '.')} 종가 기준`
-                      : '매수·매도 거래를 기록해 시작하세요.'}
+                    {tourStep !== null && tourStep >= 8
+                      ? '체험용 예시 시세 · 실제 자산에 저장되지 않아요'
+                      : dashboardCalculation.baseDate
+                        ? `${dashboardCalculation.baseDate.replaceAll('-', '.')} 종가 기준`
+                        : '매수·매도 거래를 기록해 시작하세요.'}
                   </p>
                 )}
               </div>
 
-              <section className="portfolio-analysis" aria-labelledby="portfolio-analysis-title">
+              <section
+                data-portfolio-tour="analysis"
+                className="portfolio-analysis"
+                aria-labelledby="portfolio-analysis-title"
+              >
                 <div className="portfolio-analysis-toolbar">
                   <button
                     type="button"
@@ -1279,7 +1351,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     </span>
                   </button>
                 </div>
-                {analysisExpanded ? (
+                {touring || analysisExpanded ? (
                   <div id="portfolio-analysis-content" className="portfolio-dashboard-grid">
                     {isLoggedIn ? (
                       <PortfolioAssetTrendChart
@@ -1340,23 +1412,30 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 ) : null}
               </section>
 
-              <div className="portfolio-ledger-tabs" role="group" aria-label="포트폴리오 내역 보기">
+              <div
+                data-portfolio-tour="ledger"
+                className="portfolio-ledger-tabs"
+                role="group"
+                aria-label="포트폴리오 내역 보기"
+              >
                 <button
                   type="button"
-                  aria-pressed={activeTab === 'holdings'}
+                  data-portfolio-tour="holdings"
+                  aria-pressed={displayedTab === 'holdings'}
                   onClick={() => changeTab('holdings')}
                 >
-                  보유 자산 <span>{holdings.length}</span>
+                  보유 자산 <span>{displayedHoldings.length}</span>
                 </button>
                 <button
                   type="button"
-                  aria-pressed={activeTab === 'history'}
+                  data-portfolio-tour="history"
+                  aria-pressed={displayedTab === 'history'}
                   onClick={() => changeTab('history')}
                 >
                   거래 내역
                 </button>
               </div>
-              {activeTab === 'history' ? (
+              {displayedTab === 'history' ? (
                 <PortfolioHistory
                   revision={revision}
                   localHistories={isLoggedIn ? undefined : guestHistories}
@@ -1366,7 +1445,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 />
               ) : (
                 <section className="portfolio-holdings" aria-label="보유 자산">
-                  {holdings.length === 0 ? (
+                  {displayedHoldings.length === 0 ? (
                     <div className="portfolio-ledger-empty">
                       <h3>보유 중인 자산이 없어요</h3>
                       <p>
@@ -1545,15 +1624,16 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 </section>
               )}
               {!analysisHoldingsMatch ? (
-                <p className="portfolio-field-note" role="status">
+                <p data-portfolio-tour="impact" className="portfolio-field-note" role="status">
                   현재 보유 자산의 비중을 확인하고 있어요.
                 </p>
               ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
-                <p className="portfolio-field-note">
+                <p data-portfolio-tour="impact" className="portfolio-field-note">
                   전체 자산의 시세가 확인되면 포트폴리오 영향 분석을 이용할 수 있어요.
                 </p>
               ) : (
                 <PortfolioAnalysis
+                  demoStep={tourStep ?? undefined}
                   assets={analysisAssets}
                   isLoggedIn={isLoggedIn}
                   holdingsKey={JSON.stringify(
@@ -1565,8 +1645,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               )}
             </div>
             <PortfolioNews
+              demo={tourStep !== null && tourStep >= 8}
               holdings={holdings}
-              hidden={!newsOpen}
+              hidden={!displayedNewsOpen}
               onClose={() => {
                 setNewsOpen(false);
                 newsButtonRef.current?.focus();
@@ -1591,6 +1672,20 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
         />
       ) : null}
 
+      {(tourStep === 2 || tourStep === 6) && (
+        <PortfolioDialog
+          titleId="transaction-title"
+          className="portfolio-transaction-sheet"
+          onClose={() => {}}
+        >
+          <PortfolioTransactionEditor
+            key={tourStep}
+            demoStep={tourStep}
+            onClose={() => {}}
+            onSave={async () => {}}
+          />
+        </PortfolioDialog>
+      )}
       {(selectedStock || transactionEditor || editor || removing) && (
         <PortfolioDialog
           titleId={

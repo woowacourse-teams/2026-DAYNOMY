@@ -76,6 +76,7 @@ function json(body: unknown, status = 200) {
   });
 }
 beforeEach(() => {
+  localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
   vi.mocked(trackPortfolioEvent).mockClear();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-12T01:00:00Z'));

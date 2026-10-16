@@ -1,0 +1,285 @@
+.portfolio-tour {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+  color: #172033;
+  font-family:
+    Inter,
+    Pretendard,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  letter-spacing: -0.025em;
+  z-index: 1000;
+}
+.portfolio-tour::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
+.portfolio-tour-highlight {
+  position: fixed;
+  box-sizing: border-box;
+  border: 2px solid #3869d4;
+  outline: 3px solid white;
+  border-radius: 8px;
+  box-shadow: 0 0 0 100vmax rgb(10 10 10 / 12%);
+  pointer-events: none;
+}
+.portfolio-tour-panel {
+  position: fixed;
+  box-sizing: border-box;
+  width: min(340px, calc(100vw - 24px));
+  padding: 20px;
+  border: 1px solid #e8e8e4;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 14%);
+  pointer-events: auto;
+  max-height: calc(100dvh - var(--portfolio-tour-bar-height, 88px) - 32px);
+  overflow: auto;
+}
+.portfolio-tour-flow {
+  display: flex;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: #767676;
+  font-size: 11px;
+}
+.portfolio-tour-flow li[aria-current='step'] {
+  color: #172033;
+  font-weight: 650;
+}
+.portfolio-tour-copy h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+.portfolio-tour-copy p,
+.portfolio-tour-hint {
+  margin: 0;
+  color: #626262;
+  font-size: 13px;
+  line-height: 1.65;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.portfolio-tour-copy .portfolio-tour-status {
+  margin-top: 10px;
+  color: #a13d20;
+}
+.portfolio-tour-navigation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+}
+.portfolio-tour-progress {
+  margin-right: 12px;
+  color: #767676;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.portfolio-tour .portfolio-tour-navigation button {
+  min-height: 44px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.portfolio-tour .portfolio-tour-navigation .portfolio-primary-button {
+  background: #3869d4;
+  border: 1px solid #3869d4;
+  color: white;
+}
+.portfolio-tour .portfolio-tour-navigation .portfolio-secondary-button {
+  background: white;
+  border: 1px solid #dededb;
+  color: #172033;
+}
+.portfolio-tour-skip {
+  border: 0;
+  background: transparent;
+  color: #626262;
+}
+.portfolio-tour button:focus-visible {
+  outline: 2px solid #172033;
+  outline-offset: 3px;
+}
+.portfolio-tour button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.portfolio-tour-hint {
+  margin-top: 10px;
+  font-size: 11px;
+}
+@media (max-width: 699px) {
+  .portfolio-tour-panel {
+    padding: 16px;
+  }
+  .portfolio-tour-copy h2 {
+    font-size: 16px;
+  }
+}
+
+.portfolio-tour-demo-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: #626262;
+}
+
+:root.portfolio-tour-active {
+  --portfolio-tour-bar-height: calc(88px + env(safe-area-inset-bottom, 0px));
+  scroll-padding-bottom: var(--portfolio-tour-bar-height);
+}
+.portfolio-tour-active body {
+  padding-bottom: var(--portfolio-tour-bar-height);
+}
+.portfolio-tour-active .portfolio-transaction-sheet {
+  max-height: calc(100dvh - var(--portfolio-tour-bar-height) - 32px);
+  margin-block: 16px auto;
+  scroll-padding-block: 16px;
+}
+.portfolio-tour-bottom-bar {
+  position: fixed;
+  inset: auto 0 0;
+  box-sizing: border-box;
+  min-height: var(--portfolio-tour-bar-height, 88px);
+  padding: 20px 24px calc(20px + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+  border-top: 1px solid #e2e7ef;
+  box-shadow: 0 -4px 20px rgb(23 32 51 / 6%);
+  pointer-events: auto;
+}
+.portfolio-tour-bottom-inner {
+  max-width: 1200px;
+  margin-inline: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+.portfolio-tour-bottom-bar .portfolio-tour-flow {
+  font-size: 13px;
+  gap: 20px;
+}
+.portfolio-tour-bottom-bar .portfolio-primary-button {
+  min-width: 132px;
+}
+@media (max-width: 699px) {
+  :root.portfolio-tour-active {
+    --portfolio-tour-bar-height: calc(124px + env(safe-area-inset-bottom, 0px));
+  }
+  .portfolio-tour-bottom-bar {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .portfolio-tour-bottom-inner {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .portfolio-tour-navigation {
+    width: 100%;
+  }
+  .portfolio-tour-progress {
+    margin-right: auto;
+  }
+  .portfolio-tour-bottom-bar .portfolio-primary-button {
+    min-width: 120px;
+  }
+  .portfolio-tour-bottom-bar .portfolio-tour-flow {
+    font-size: 12px;
+  }
+}
+
+.portfolio-page-title:has(.portfolio-title-group) {
+  height: auto;
+  min-height: 44px;
+}
+.portfolio-page-title > .portfolio-title-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+.portfolio-title-with-guide {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.portfolio-guide-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 8px 4px;
+  border: 0;
+  background: transparent;
+  color: #3869d4;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.portfolio-guide-trigger:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.portfolio-guide-trigger:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.portfolio-guide-trigger:focus-visible {
+  outline: 2px solid #3869d4;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.portfolio-guide-invitation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  border: 1px solid #dfe8fa;
+  border-radius: 12px;
+  background: #f5f8ff;
+}
+.portfolio-guide-invitation strong {
+  color: #243b60;
+  font-size: 14px;
+}
+.portfolio-guide-invitation p {
+  margin: 6px 0 0;
+  color: #617087;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+.portfolio-guide-invitation button {
+  flex-shrink: 0;
+}
+@media (max-width: 599px) {
+  .portfolio-guide-invitation {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 16px;
+  }
+}
