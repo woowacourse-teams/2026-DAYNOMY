@@ -311,7 +311,7 @@ describe('포트폴리오 화면', () => {
     localStorage.removeItem('daynomy:portfolio-tour:v1');
     const view = render(<PortfolioPage isLoggedIn={false} />);
     await view.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
-    for (let i = 0; i < 7; i++) fireEvent.click(view.getByRole('button', { name: '다음' }));
+    for (let i = 0; i < 9; i++) fireEvent.click(view.getByRole('button', { name: '다음' }));
     fireEvent.click(view.getByRole('button', { name: '내 자산 등록하기' }));
     const search = await view.findByRole('searchbox', { name: '종목 검색' });
     expect((search as HTMLInputElement).value).toBe('');

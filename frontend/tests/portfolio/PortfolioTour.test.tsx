@@ -71,7 +71,7 @@ describe('포트폴리오 가이드 투어', () => {
     expect(onStepChange).toHaveBeenLastCalledWith(2);
     next();
     expect(onStepChange).toHaveBeenLastCalledWith(6);
-    for (let i = 0; i < 5; i++) next();
+    for (let i = 0; i < 7; i++) next();
     expect(onStepChange).toHaveBeenLastCalledWith(14);
     fireEvent.click(screen.getByRole('button', { name: '내 자산 등록하기' }));
     expect(onRegister).toHaveBeenCalledTimes(1);

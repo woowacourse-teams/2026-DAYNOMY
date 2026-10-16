@@ -40,7 +40,25 @@ const steps = [
     selector: target('summary'),
     title: '예시 자산이 반영된 모습이에요',
     description:
-      '예시 시세로 계산한 평가금액은 720,000원, 매입금액은 700,000원이에요. 차이인 +20,000원이 평가손익이에요. 이제 관련 소식을 살펴봐요.',
+      '예시 시세로 계산한 평가금액은 720,000원, 매입금액은 700,000원이에요. 차이인 +20,000원이 평가손익이에요. 다음으로 자산의 변화와 보유 내역을 살펴봐요.',
+  },
+  {
+    id: 'asset_trend_composition',
+    group: 0,
+    demoStep: 8,
+    selector: target('analysis'),
+    title: '자산의 변화와 구성을 확인해요',
+    description:
+      '자산 추이에서 기간별 평가금액과 매입금액을 비교해요. 예시는 하루 기록이라 점으로 표시되며, 기록이 쌓이면 선으로 이어져요. 자산 구성에서는 주식·ETF와 시장별 비중을 확인해요. 실제 자산 추이는 로그인 후 이용할 수 있어요.',
+  },
+  {
+    id: 'asset_holdings_history',
+    group: 0,
+    demoStep: 8,
+    selector: target('holdings-overview'),
+    title: '종목별 내역과 손익을 확인해요',
+    description:
+      '보유 자산에서 종목별 수량·평균 매수가·평가금액·손익을 확인해요. 주식·ETF 필터와 정렬로 원하는 종목을 찾을 수 있어요. 거래 내역 탭에서는 매수·매도 기록을 확인해요. 다음에는 보유 종목의 소식을 살펴봐요.',
   },
   {
     id: 'asset_news',
@@ -125,7 +143,7 @@ export function PortfolioTour({
   const trackedStepRef = useRef<number | null>(null);
   function properties(index: number) {
     return {
-      tour_version: 'v1',
+      tour_version: 'v2',
       tour_source: sourceRef.current,
       step_number: index + 1,
       step_id: steps[index].id,
