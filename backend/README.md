@@ -227,3 +227,12 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 - V46은 해당 다섯 테이블에 `created_at`·`updated_at`을 추가합니다. 기존 행의 실제 생성 시각은 복원할 수 없어 마이그레이션 적용 시각으로 초기화합니다. 거래일·참여 시작·확정·수집·분석 확인 시각과 기존 데이터는 보존합니다.
 - 달력 SQL 도구의 신규 등록은 DB 기본값을 사용하고, 거래 여부가 바뀌면 `updated_at`을 갱신합니다. 같은 내용 재적용은 기존 감사 시각을 유지합니다.
 - `RefreshToken`은 자체 `@CreationTimestamp`로 생성 시각을 이미 기록하며 기존 저장 방식을 유지합니다.
+- 운영 데이터의 종가 백필은 기존 관리자 API로 실행해야 한다. 이번 변경은 운영 DB에 직접 접속하거나 백필을 실행하지 않는다.
+
+### 포트폴리오 거래 등록 부하 테스트
+
+dev의 과거 매수 거래 등록 V1/V2 비교는 [부하테스트 문서](loadtest/README.md)를 따른다. 데이터 복원·53명 토큰 발급은 측정 전에 별도 준비하고, 기존 `k6-dev.yml`에서 k6를 직접 실행한다. Actions에는 DB 비밀번호나 JWT 서명키를 전달하지 않는다.
+
+`script`에 `backend/loadtest/transactions-v1.js` 또는 `backend/loadtest/transactions-v2.js`, `params`에 기준일·과거 개월 수·RPS·측정 시간을 넣는다. 한 실행에서 한 RPS를 측정하며 워밍업·그룹별 지표·오류 중단은 유지한다. `run-loadtest.py`, 설정 JSON, `ACTION` 모드는 제거했다. **Run workflow는 실제 부하 실행**이므로 데이터·토큰·서버 상태를 준비한 뒤 사용한다.
+
+`POST /api/v2/users/me/portfolio/transactions`는 V1과 같은 요청·응답 형식을 사용한다. 회원·포트폴리오 잠금과 단일 트랜잭션을 유지하면서 거래 이력·기존 스냅샷을 일괄 조회하고, 종가는 최대 31개 재계산 기준일 단위로 조회한다. 현재 보유자산과 과거 스냅샷은 응답 전에 갱신되며, 가격 누락·반올림·실패 시 롤백 규칙은 V1과 동일하다. V1 API와 수정·삭제 경로는 그대로 사용한다.

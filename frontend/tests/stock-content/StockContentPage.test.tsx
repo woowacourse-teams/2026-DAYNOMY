@@ -268,8 +268,10 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
     const view = renderPage();
 
     await view.findByRole('heading', { name: '삼성전자 소식' });
+    await waitFor(() => {
+      expect(document.getElementById('daynomy-threads-embed-script')).toBeTruthy();
+    });
     const initialThreadsScript = document.getElementById('daynomy-threads-embed-script');
-    expect(initialThreadsScript).toBeTruthy();
     loadXEmbeds.mockClear();
 
     fireEvent.click(view.getByRole('button', { name: 'X 1개' }));
