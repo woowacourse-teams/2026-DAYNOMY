@@ -88,6 +88,25 @@ class PortfolioLoadtestDatabaseTest {
   }
 
   @Test
+  void restoresSerializedBaselineWithoutTreatingWholeDecimalsAsChangedData() throws Exception {
+    try (Connection c = connect()) {
+      JsonNode captured = PortfolioLoadtestTool.readData(c, NS);
+      JsonNode serialized =
+          PortfolioLoadtestTool.JSON.readTree(
+              PortfolioLoadtestTool.JSON
+                  .writerWithDefaultPrettyPrinter()
+                  .writeValueAsString(captured));
+      assertThat(serialized).isNotEqualTo(captured);
+
+      c.setAutoCommit(false);
+      PortfolioLoadtestTool.restore(c, NS, serialized);
+      c.commit();
+
+      assertThat(PortfolioLoadtestTool.readData(c, NS)).isEqualTo(captured);
+    }
+  }
+
+  @Test
   void seedsFiftyMeasurementMembersAndThreeWarmupMembersWithoutChangingExistingMembers()
       throws Exception {
     String namespace = "lt496-20261013";

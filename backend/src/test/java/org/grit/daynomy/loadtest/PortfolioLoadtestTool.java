@@ -154,7 +154,7 @@ public final class PortfolioLoadtestTool {
             "Restored only the captured test holdings, histories and snapshots. Sequences unchanged.");
       } else {
         require(
-            readData(connection, namespace).equals(data),
+            sameData(readData(connection, namespace), data),
             "DB differs from baseline; restore before issuing tokens");
         JwtTokenProvider issuer =
             new JwtTokenProvider(
@@ -238,6 +238,18 @@ public final class PortfolioLoadtestTool {
         .formatHex(
             MessageDigest.getInstance("SHA-256")
                 .digest(data.toString().getBytes(StandardCharsets.UTF_8)));
+  }
+
+  static boolean sameData(JsonNode left, JsonNode right) {
+    // Serializing a whole decimal can turn 0.00 into 0; compare exact numeric values.
+    return left.equals(
+        (a, b) -> {
+          if (a.isNumber() && b.isNumber()) {
+            return a.decimalValue().compareTo(b.decimalValue());
+          }
+          return a.equals(b) ? 0 : 1;
+        },
+        right);
   }
 
   static JsonNode readData(Connection connection, String namespace) throws Exception {
@@ -345,12 +357,12 @@ public final class PortfolioLoadtestTool {
     }
     JsonNode current = readData(connection, namespace);
     require(
-        current.path("members").equals(baseline.path("members"))
-            && current.path("portfolios").equals(baseline.path("portfolios")),
+        sameData(current.path("members"), baseline.path("members"))
+            && sameData(current.path("portfolios"), baseline.path("portfolios")),
         "Test member or portfolio identity changed");
     require(
-        current.path("prices").equals(baseline.path("prices"))
-            && current.path("priceDates").equals(baseline.path("priceDates")),
+        sameData(current.path("prices"), baseline.path("prices"))
+            && sameData(current.path("priceDates"), baseline.path("priceDates")),
         "Price data changed; do not compare against this baseline");
     for (String table : List.of("snapshots", "histories", "holdings")) {
       try (var statement =
@@ -374,7 +386,7 @@ public final class PortfolioLoadtestTool {
       }
     }
     require(
-        readData(connection, namespace).equals(baseline),
+        sameData(readData(connection, namespace), baseline),
         "Restored data differs; transaction will be rolled back");
   }
 

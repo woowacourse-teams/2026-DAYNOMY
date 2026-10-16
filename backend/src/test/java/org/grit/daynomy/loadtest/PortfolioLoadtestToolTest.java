@@ -77,6 +77,28 @@ class PortfolioLoadtestToolTest {
   }
 
   @Test
+  void comparesNumericValuesAcrossJsonRoundTripsWithoutIgnoringRealChanges() throws Exception {
+    JsonNode live =
+        PortfolioLoadtestTool.JSON.readTree(
+            "{\"amounts\":[0.00,100.00,123456789012345.67],\"status\":\"ACTIVE\"}");
+    JsonNode serialized = PortfolioLoadtestTool.JSON.readTree(live.toString());
+    assertThat(PortfolioLoadtestTool.sameData(live, serialized)).isTrue();
+    assertThat(PortfolioLoadtestTool.sameData(serialized, live)).isTrue();
+
+    JsonNode changedAmount =
+        PortfolioLoadtestTool.JSON.readTree(
+            "{\"amounts\":[0,100,123456789012345.68],\"status\":\"ACTIVE\"}");
+    assertThat(PortfolioLoadtestTool.sameData(live, changedAmount)).isFalse();
+    JsonNode changedType =
+        PortfolioLoadtestTool.JSON.readTree(
+            "{\"amounts\":[\"0\",100,123456789012345.67],\"status\":\"ACTIVE\"}");
+    assertThat(PortfolioLoadtestTool.sameData(live, changedType)).isFalse();
+    ObjectNode changedIdentity = (ObjectNode) serialized.deepCopy();
+    changedIdentity.put("status", "INACTIVE");
+    assertThat(PortfolioLoadtestTool.sameData(live, changedIdentity)).isFalse();
+  }
+
+  @Test
   void environmentFileIsParsedAsDataWithoutExecutingShell() throws Exception {
     Path file = temporary.resolve("dev.env");
     Files.writeString(file, "# comment\nLOADTEST_VALUE='$(do-not-execute)'\n");
