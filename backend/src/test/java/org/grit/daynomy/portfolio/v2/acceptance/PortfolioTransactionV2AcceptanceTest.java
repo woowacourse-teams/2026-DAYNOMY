@@ -96,6 +96,7 @@ class PortfolioTransactionV2AcceptanceTest {
         client(v1).body(body).post(V1).then().statusCode(201).extract().jsonPath().getMap("");
     Map<String, Object> secondResponse =
         client(v2).body(body).post(V2).then().statusCode(201).extract().jsonPath().getMap("");
+    assertThat(((Number) secondResponse.get("transactionId")).longValue()).isPositive();
     assertThat(secondResponse.get("holding")).isEqualTo(firstResponse.get("holding"));
     assertThat(secondResponse.get("totalRealizedProfitLoss"))
         .isEqualTo(firstResponse.get("totalRealizedProfitLoss"));
@@ -130,6 +131,28 @@ class PortfolioTransactionV2AcceptanceTest {
         .post(V2)
         .then()
         .statusCode(403);
+  }
+
+  @Test
+  void rejectsInvalidQuantityAndFutureTradeDateBeforeCreatingPortfolio() {
+    Member member = member();
+    Asset asset = asset();
+    client(member)
+        .body(transaction(asset, PortfolioTransactionType.BUY, FIRST, 0))
+        .post(V2)
+        .then()
+        .statusCode(400);
+    client(member)
+        .body(
+            transaction(
+                asset,
+                PortfolioTransactionType.BUY,
+                LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(1),
+                1))
+        .post(V2)
+        .then()
+        .statusCode(400);
+    assertThat(portfolios.findByMemberId(member.getId())).isEmpty();
   }
 
   @Test

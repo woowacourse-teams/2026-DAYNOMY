@@ -257,11 +257,17 @@ test("account selection depends on request index, not which VU is free; each cyc
   assert.equal(f.counters.get("transaction_failed"), 0);
 });
 
-test("V1 and V2 send identical payloads/accounts to their own endpoints", async () => {
+test("entry filenames select V1/V2 endpoints with identical payloads/accounts", async () => {
   const runs = [];
   for (const version of ["v1", "v2"]) {
-    const f = await fixture({ version });
+    const f = await fixture(
+      { version: version === "v1" ? "v2" : "v1" },
+      () => {},
+      {},
+      version,
+    );
     const scenario = f.build();
+    assert.equal(scenario.options.tags.version, version);
     scenario.run({ csrf: { token: "csrf", headerName: "X-XSRF-TOKEN" } });
     runs.push(f.requests[0]);
   }
@@ -367,18 +373,6 @@ test("Actions testid keeps version, date and rate tags on the same run", async (
   assert.equal(tags.rps, "1");
   assert.equal(tags.testid, "actions-stage-id");
   assert.equal(tags.environment, "dev");
-});
-
-test("entry filenames select the API version independently of runtime params", async () => {
-  for (const version of ["v1", "v2"]) {
-    const f = await fixture(
-      { version: version === "v1" ? "v2" : "v1" },
-      () => {},
-      {},
-      version,
-    );
-    assert.equal(f.build().options.tags.version, version);
-  }
 });
 
 test("Actions scalar params select period, RPS and duration without a config file", async () => {
