@@ -5,6 +5,7 @@ import { InvestorProfilePage } from './InvestorProfilePage';
 import { useAuth } from '../../hooks/useLoginStatus';
 import type { InvestorProfile } from './types';
 import './league.css';
+import { useLeaguePageHeading } from './useLeaguePageHeading';
 
 export function LeagueProfilePage() {
   const { nickname } = useAuth();
@@ -12,6 +13,10 @@ export function LeagueProfilePage() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
+  const heading = useLeaguePageHeading(
+    !loading && !failed && profile?.profilePublic ? null : '내 프로필',
+    !loading,
+  );
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
@@ -32,6 +37,11 @@ export function LeagueProfilePage() {
     return <InvestorProfilePage ownProfile={profile} />;
   return (
     <main className="league-page league-profile-page">
+      {loading || failed ? (
+        <h1 ref={heading} tabIndex={-1}>
+          내 프로필
+        </h1>
+      ) : null}
       {loading ? (
         <p role="status">불러오는 중…</p>
       ) : failed ? (
@@ -42,7 +52,9 @@ export function LeagueProfilePage() {
       ) : (
         <>
           <header className="league-hero">
-            <h1>{profile?.displayName || nickname || '내 프로필'}</h1>
+            <h1 ref={heading} tabIndex={-1}>
+              {profile?.displayName || nickname || '내 프로필'}
+            </h1>
             <Link className="league-text-link" to="/portfolio/publication">
               프로필 설정
             </Link>

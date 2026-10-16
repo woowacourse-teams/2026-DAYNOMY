@@ -15,6 +15,7 @@ import type { CollectionStatus, LeagueWeek, RankingEntry, RankingResponse } from
 import { recentLeagueWeeks } from './weeks';
 import { LeagueWeekNavigation } from './LeagueWeekNavigation';
 import './league.css';
+import { useLeaguePageHeading } from './useLeaguePageHeading';
 
 const emptyCollectionStates: Partial<
   Record<CollectionStatus, { title: string; description: string }>
@@ -34,6 +35,7 @@ const emptyCollectionStates: Partial<
 };
 
 export function LeaguePage() {
+  const heading = useLeaguePageHeading('주간 리그');
   const { isLoggedIn, memberId } = useAuth();
   const [leagueEnabled, setLeagueEnabled] = useState<boolean | null>(null);
   const [profileError, setProfileError] = useState(false);
@@ -48,6 +50,15 @@ export function LeaguePage() {
   const [page, setPage] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<RankingEntry | null>(null);
   const metricsDialog = useRef<HTMLDialogElement>(null);
+  const pageStatus = useRef<HTMLSpanElement>(null);
+  const changingPage = useRef(false);
+
+  useEffect(() => {
+    if (!loading && changingPage.current) {
+      (pageStatus.current ?? heading.current)?.focus();
+      changingPage.current = false;
+    }
+  }, [loading, heading]);
   const emptyCollectionState = emptyCollectionStates[ranking?.collectionStatus ?? 'IN_PROGRESS'];
   const isCurrentWeek = !weekStart || weekStart === weeks[0]?.weekStart;
   const participationPath = isLoggedIn
@@ -134,7 +145,9 @@ export function LeaguePage() {
   return (
     <main className="league-page">
       <header className="league-hero">
-        <h1>주간 리그</h1>
+        <h1 ref={heading} tabIndex={-1}>
+          주간 리그
+        </h1>
         <div className="league-hero-actions">
           {isLoggedIn && profileError ? (
             <button type="button" onClick={() => setProfileRetry((value) => value + 1)}>
@@ -215,7 +228,11 @@ export function LeaguePage() {
         </div>
       ) : null}
       {!loading && !error && ranking?.rankings.length === 0 ? (
-        <section className="league-empty league-ranking-empty" aria-label="순위 조회 결과">
+        <section
+          className="league-empty league-ranking-empty"
+          role="status"
+          aria-label="순위 조회 결과"
+        >
           <strong>
             {emptyCollectionState?.title ?? '아직 이 주차에 집계된 투자자가 없습니다'}
           </strong>
@@ -241,7 +258,7 @@ export function LeaguePage() {
             </div>
             <p>{ranking.totalCount}명 · 주간 수익률순</p>
           </header>
-          <ol>
+          <ol start={page * 20 + 1}>
             {ranking.rankings.map((entry) => (
               <li key={entry.publicId}>
                 <span className="league-rank">{entry.rank}</span>
@@ -296,17 +313,28 @@ export function LeaguePage() {
               <button
                 type="button"
                 disabled={page === 0}
-                onClick={() => setPage((value) => value - 1)}
+                onClick={() => {
+                  changingPage.current = true;
+                  setPage((value) => value - 1);
+                }}
               >
                 이전
               </button>
-              <span>
+              <span
+                ref={pageStatus}
+                tabIndex={-1}
+                role="status"
+                aria-label={`전체 ${Math.ceil(ranking.totalCount / 20)}페이지 중 ${page + 1}페이지`}
+              >
                 {page + 1} / {Math.ceil(ranking.totalCount / 20)}
               </span>
               <button
                 type="button"
                 disabled={(page + 1) * 20 >= ranking.totalCount}
-                onClick={() => setPage((value) => value + 1)}
+                onClick={() => {
+                  changingPage.current = true;
+                  setPage((value) => value + 1);
+                }}
               >
                 다음
               </button>

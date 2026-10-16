@@ -223,6 +223,7 @@ test('모바일: 로그인한 사용자가 종목·공개 설정·프로필과 �
   ]) {
     await page.goto(path);
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeFocused();
     await expect(page.getByRole('link', { name: '← 주간 리그' })).toBeVisible();
     await expect(page.getByRole('alert')).toHaveCount(0);
     await checkWidth(page);

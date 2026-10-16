@@ -207,6 +207,8 @@ for (const width of [1440, 390]) {
       for (const path of ['/league', '/membership']) {
         await page.goto(path);
         await expect(page).toHaveURL('/league');
+        await expect(page).toHaveTitle('주간 리그 | DAYNOMY');
+        await expect(page.getByRole('heading', { name: '주간 리그', exact: true })).toBeFocused();
         await expect(page.getByRole('heading', { name: '주간 순위', exact: true })).toBeVisible();
         await expect(page.getByRole('link', { name: '투자리그 참여하기' })).toHaveAttribute(
           'href',
@@ -219,6 +221,8 @@ for (const width of [1440, 390]) {
       }
       await page.getByRole('link', { name: '리그 투자자 공개 프로필 보기' }).click();
       await expect(page.getByRole('heading', { name: '리그 투자자', exact: true })).toBeVisible();
+      await expect(page).toHaveTitle('리그 투자자 공개 프로필 | DAYNOMY');
+      await expect(page.getByRole('heading', { name: '리그 투자자', exact: true })).toBeFocused();
       await expect(page.locator('.league-chart-switch button')).toHaveText(['일별', '주간']);
       await expect(page.getByRole('button', { name: '일별', exact: true })).toHaveAttribute(
         'aria-pressed',

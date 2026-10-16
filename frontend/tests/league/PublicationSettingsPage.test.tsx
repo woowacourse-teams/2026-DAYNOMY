@@ -93,6 +93,8 @@ it.each([false, true])(
       </MemoryRouter>,
     );
     await view.findByLabelText('공개 닉네임');
+    expect(document.title).toBe('프로필 설정 | DAYNOMY');
+    expect(document.activeElement).toBe(view.getByRole('heading', { name: '프로필 설정' }));
     expect(view.getByRole('link', { name: '← 내 프로필' })).toHaveProperty(
       'href',
       expect.stringContaining('/league/profile'),
@@ -243,6 +245,7 @@ it('새 프로필은 계정 닉네임으로 시작하고 저장 실패 후 선�
   fireEvent.click(view.getByRole('radio', { name: /주간 리그 참여/ }));
   fireEvent.click(view.getByRole('button', { name: /^(저장|공개에 동의하고 저장)$/ }));
   await view.findByRole('alert');
+  await waitFor(() => expect(document.activeElement).toBe(view.getByRole('alert')));
   expect(view.getByLabelText('공개 닉네임')).toHaveProperty('value', saved.displayName);
   expect(view.queryByRole('checkbox')).toBeNull();
   expect(view.getByRole('radio', { name: '투자 3년 이상' })).toHaveProperty('checked', true);
@@ -254,6 +257,19 @@ it('새 프로필은 계정 닉네임으로 시작하고 저장 실패 후 선�
   fireEvent.click(view.getByRole('button', { name: /^(저장|공개에 동의하고 저장)$/ }));
   await waitFor(() => expect(onSaved).toHaveBeenCalledWith(saved));
   expect(updateNickname).toHaveBeenCalledWith(saved.displayName);
+});
+
+it('닉네임은 기본 필수 입력과 공백 검증을 사용하며 저장 버튼을 탐색할 수 있다', () => {
+  const view = renderSettings({ saved: null });
+  const input = view.getByRole('textbox', { name: '공개 닉네임' }) as HTMLInputElement;
+  for (const value of ['', '   ']) {
+    fireEvent.change(input, { target: { value } });
+    expect(input.checkValidity()).toBe(false);
+    expect(view.getByRole('button', { name: '저장' })).toHaveProperty('disabled', false);
+  }
+  fireEvent.change(input, { target: { value: '새닉네임' } });
+  expect(input.checkValidity()).toBe(true);
+  expect(api.saveInvestorProfile).not.toHaveBeenCalled();
 });
 
 it('기존 프로필만 공개한 계정은 자동 가입 없이 비공개 선택으로 시작한다', async () => {

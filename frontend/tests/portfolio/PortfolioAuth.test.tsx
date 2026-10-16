@@ -145,6 +145,8 @@ describe('포트폴리오 로그인 접근', () => {
 
       expect(await view.findByText('아직 이 주차에 집계된 투자자가 없습니다')).toBeTruthy();
       expect(view.getByRole('heading', { name: '주간 리그' })).toBeTruthy();
+      expect(document.title).toBe('주간 리그 | DAYNOMY');
+      expect(document.activeElement).toBe(view.getByRole('heading', { name: '주간 리그' }));
       expect(view.getByRole('link', { name: '투자리그 참여하기' })).toBeTruthy();
       expect(window.location.pathname).toBe('/league');
     },
@@ -184,6 +186,10 @@ describe('포트폴리오 로그인 접근', () => {
     const view = render(<App />);
 
     expect(await view.findByRole('heading', { name: '공개 투자자' })).toBeTruthy();
+    await waitFor(() => {
+      expect(document.title).toBe('공개 투자자 공개 프로필 | DAYNOMY');
+      expect(document.activeElement).toBe(view.getByRole('heading', { name: '공개 투자자' }));
+    });
     expect(view.getByRole('link', { name: '로그인하고 팔로우' })).toBeTruthy();
     expect(view.getByRole('link', { name: '← 주간 리그' }).getAttribute('href')).toBe('/league');
     expect(
