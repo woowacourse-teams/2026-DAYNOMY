@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('daynomy:service-started:v1', '1'));
+  await page.addInitScript(() => {
+    localStorage.setItem('daynomy:service-started:v1', '1');
+    localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
+  });
 });
 
 const stocks = [

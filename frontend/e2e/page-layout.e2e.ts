@@ -3,6 +3,7 @@ import { mockLeagueApi } from './league-api';
 
 test('이슈·포트폴리오·주간 리그 본문을 같은 너비로 배치한다', async ({ page }, testInfo) => {
   test.slow();
+  await page.addInitScript(() => localStorage.setItem('daynomy:portfolio-tour:v1', 'done'));
   await page.route('**/api/**', (route) => route.fulfill({ status: 404 }));
   await page.route('**/api/users/me', (route) => route.fulfill({ status: 401 }));
   await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 401 }));
