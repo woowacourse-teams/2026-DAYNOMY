@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { cleanup, render, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/App';
 import { SERVICE_STARTED_KEY } from '../../src/features/landing/startedService';
 
@@ -12,11 +12,16 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+beforeEach(() => {
+  localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
+});
+
 afterEach(() => {
   cleanup();
   window.history.replaceState(null, '', '/');
   sessionStorage.clear();
   localStorage.removeItem(SERVICE_STARTED_KEY);
+  localStorage.removeItem('daynomy:portfolio-tour:v1');
   vi.unstubAllGlobals();
 });
 

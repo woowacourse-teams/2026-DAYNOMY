@@ -24,7 +24,11 @@ test('키보드로 소개·거래 입력 오류 수정·뉴스 검색과 읽기�
   await expect(page.getByRole('main')).toBeFocused();
   await tabTo(page, '.hero .primary-cta');
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
+  await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '다음', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toBeHidden();
+  await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toBeFocused();
   await tabTo(page, '.portfolio-page-actions .portfolio-primary-button');
   await page.keyboard.press('Enter');
   const quantity = page.getByLabel('수량 (주)');

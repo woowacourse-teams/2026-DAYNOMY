@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { tourStock } from './portfolioTourExample';
 import { getLatestStockPrice, searchStocks } from '../../stocks/api';
 import { trackPortfolioEvent } from '../analytics';
 import {
@@ -15,6 +16,7 @@ import type {
 import type { AssetCategory, StockSearchItem } from '../../stocks/types';
 
 type Props = {
+  demoStep?: number;
   stock?: StockSearchItem;
   type?: PortfolioTransactionType;
   transaction?: PortfolioHoldingHistory;
@@ -23,6 +25,7 @@ type Props = {
   onSave: (request: PortfolioTransactionRequest, stock?: StockSearchItem) => Promise<void>;
 };
 export function PortfolioTransactionEditor({
+  demoStep,
   stock,
   type = 'BUY',
   transaction,
@@ -33,23 +36,23 @@ export function PortfolioTransactionEditor({
   const formRef = useRef<HTMLFormElement>(null);
   const errorId = useId();
   const [selected, setSelected] = useState<StockSearchItem | PortfolioHoldingHistory | null>(
-    transaction ?? stock ?? null,
+    demoStep !== undefined ? (demoStep >= 6 ? tourStock : null) : (transaction ?? stock ?? null),
   );
   const [transactionType, setTransactionType] = useState<PortfolioTransactionType>(
     transaction?.changeType === 'SELL' ? 'SELL' : type,
   );
   const [fields, setFields] = useState<TransactionFields>({
     tradeDate: transaction?.effectiveDate ?? todayInSeoul(),
-    quantity: transaction?.transactionQuantity?.toString() ?? '',
-    unitPrice: transaction?.unitPrice?.toString() ?? '',
+    quantity: demoStep !== undefined ? '10' : (transaction?.transactionQuantity?.toString() ?? ''),
+    unitPrice: demoStep !== undefined ? '70000' : (transaction?.unitPrice?.toString() ?? ''),
     fee: String(transaction?.fee ?? 0),
     tax: String(transaction?.tax ?? 0),
   });
   const priceEdited = useRef(false);
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const [results, setResults] = useState<StockSearchItem[]>([]);
+  const [keyword, setKeyword] = useState(demoStep === 2 ? '삼성전자' : '');
+  const [results, setResults] = useState<StockSearchItem[]>(demoStep === 2 ? [tourStock] : []);
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | AssetCategory>('ALL');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
@@ -57,6 +60,7 @@ export function PortfolioTransactionEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
+    if (demoStep !== undefined) return;
     if (selected || !keyword.trim()) {
       setResults([]);
       setSearchLoading(false);
@@ -83,8 +87,9 @@ export function PortfolioTransactionEditor({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [keyword, selected, searchRetry]);
+  }, [keyword, selected, searchRetry, demoStep]);
   useEffect(() => {
+    if (demoStep !== undefined) return;
     if (transaction || !selected) {
       setPriceLoading(false);
       setPriceError('');
@@ -111,7 +116,7 @@ export function PortfolioTransactionEditor({
         if (!controller.signal.aborted) setPriceLoading(false);
       });
     return () => controller.abort();
-  }, [selected, transaction]);
+  }, [selected, transaction, demoStep]);
   const invalid = getTransactionValidationError(fields);
   const invalidField = error === invalid?.message ? invalid?.field : undefined;
   const filteredResults = results.filter(
@@ -129,7 +134,7 @@ export function PortfolioTransactionEditor({
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (saving || !selected) return;
+    if (demoStep !== undefined || saving || !selected) return;
     if (invalid) {
       setError(invalid.message);
       window.requestAnimationFrame(() => {
@@ -186,15 +191,21 @@ export function PortfolioTransactionEditor({
             ×
           </button>
         </header>
-        <fieldset disabled={saving} className="portfolio-sheet-fields">
+        <fieldset
+          data-portfolio-tour="trade-fields"
+          disabled={saving}
+          className="portfolio-sheet-fields"
+        >
           {!selected ? (
             <>
               <label className="portfolio-ledger-field">
                 종목 검색
                 <input
+                  readOnly={demoStep !== undefined}
                   autoFocus
                   data-autofocus
                   type="search"
+                  data-portfolio-tour="search"
                   placeholder="종목명 또는 종목코드"
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
@@ -212,7 +223,12 @@ export function PortfolioTransactionEditor({
                   </button>
                 ))}
               </div>
-              <div className="portfolio-stock-results" aria-live="polite" aria-busy={searchLoading}>
+              <div
+                data-portfolio-tour="search-results"
+                className="portfolio-stock-results"
+                aria-live="polite"
+                aria-busy={searchLoading}
+              >
                 {searchLoading ? (
                   <div className="portfolio-stock-search-loading" role="status">
                     <span
@@ -302,11 +318,17 @@ export function PortfolioTransactionEditor({
                   {transactionType === 'BUY' ? '매수' : '매도'} 거래
                 </span>
               ) : (
-                <div className="portfolio-trade-types" role="group" aria-label="거래 구분">
+                <div
+                  data-portfolio-tour="trade-type"
+                  className="portfolio-trade-types"
+                  role="group"
+                  aria-label="거래 구분"
+                >
                   {(['BUY', 'SELL'] as const).map((value) => (
                     <button
                       key={value}
                       type="button"
+                      data-tour-buy={value === 'BUY' ? '' : undefined}
                       aria-pressed={transactionType === value}
                       onClick={() => setTransactionType(value)}
                     >
@@ -319,10 +341,12 @@ export function PortfolioTransactionEditor({
                 <label className="portfolio-ledger-field">
                   거래일
                   <input
+                    readOnly={demoStep !== undefined}
                     autoFocus={!transaction}
                     data-autofocus={!transaction || undefined}
                     type="date"
                     name="tradeDate"
+                    data-portfolio-tour="trade-date"
                     aria-invalid={invalidField === 'tradeDate' || undefined}
                     aria-describedby={invalidField === 'tradeDate' ? errorId : undefined}
                     required
@@ -336,9 +360,11 @@ export function PortfolioTransactionEditor({
                 <label className="portfolio-ledger-field">
                   수량 (주)
                   <input
+                    readOnly={demoStep !== undefined}
                     type="text"
                     inputMode="numeric"
                     name="quantity"
+                    data-portfolio-tour="trade-quantity"
                     aria-invalid={invalidField === 'quantity' || undefined}
                     aria-describedby={invalidField === 'quantity' ? errorId : undefined}
                     autoFocus={!!transaction}
@@ -351,9 +377,11 @@ export function PortfolioTransactionEditor({
                 <label className="portfolio-ledger-field">
                   거래 단가 (원)
                   <input
+                    readOnly={demoStep !== undefined}
                     type="text"
                     inputMode="decimal"
                     name="unitPrice"
+                    data-portfolio-tour="trade-price"
                     aria-invalid={invalidField === 'unitPrice' || undefined}
                     aria-describedby={invalidField === 'unitPrice' ? errorId : undefined}
                     placeholder="0"
@@ -367,10 +395,12 @@ export function PortfolioTransactionEditor({
                 <label className="portfolio-ledger-field">
                   거래일
                   <input
+                    readOnly={demoStep !== undefined}
                     autoFocus={!transaction}
                     data-autofocus={!transaction || undefined}
                     type="date"
                     name="tradeDate"
+                    data-portfolio-tour="trade-date"
                     aria-invalid={invalidField === 'tradeDate' || undefined}
                     aria-describedby={invalidField === 'tradeDate' ? errorId : undefined}
                     required
@@ -398,6 +428,7 @@ export function PortfolioTransactionEditor({
                   <label className="portfolio-ledger-field">
                     수수료 (원)
                     <input
+                      readOnly={demoStep !== undefined}
                       type="text"
                       inputMode="decimal"
                       name="fee"
@@ -410,6 +441,7 @@ export function PortfolioTransactionEditor({
                   <label className="portfolio-ledger-field">
                     세금 (원)
                     <input
+                      readOnly={demoStep !== undefined}
                       type="text"
                       inputMode="decimal"
                       name="tax"
@@ -464,7 +496,12 @@ export function PortfolioTransactionEditor({
                 취소
               </button>
             )}
-            <button type="submit" className="portfolio-primary-button" disabled={saving}>
+            <button
+              data-portfolio-tour="trade-submit"
+              type="submit"
+              className="portfolio-primary-button"
+              disabled={saving}
+            >
               {saving
                 ? '저장 중…'
                 : transaction

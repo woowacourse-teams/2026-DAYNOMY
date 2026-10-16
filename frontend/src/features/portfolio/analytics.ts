@@ -4,6 +4,12 @@ import type { PortfolioTrendPeriod } from './types';
 import type { AssetCategory, StockMarket } from '../stocks/types';
 
 const EVENTS = [
+  'portfolio_tour_started',
+  'portfolio_tour_step_viewed',
+  'portfolio_tour_step_changed',
+  'portfolio_tour_exited',
+  'portfolio_tour_completed',
+  'portfolio_tour_register_clicked',
   'portfolio_dashboard_viewed',
   'portfolio_dashboard_loaded',
   'portfolio_dashboard_load_failed',
@@ -30,6 +36,15 @@ const EVENTS = [
 type Operation = 'holding_update' | 'transaction_create' | 'transaction_update';
 type ErrorType = 'unauthorized' | 'client_error' | 'server_error' | 'network_or_unknown';
 type PortfolioEventParams = {
+  tour_version?: string;
+  tour_source?: 'automatic' | 'title' | 'empty_state';
+  step_number?: number;
+  step_id?: string;
+  step_group?: 'registration' | 'news' | 'analysis';
+  total_steps?: number;
+  to_step?: number;
+  direction?: 'previous' | 'next';
+  exit_reason?: 'button' | 'escape';
   is_logged_in?: boolean;
   has_holdings?: boolean;
   pricing_status?: 'COMPLETE' | 'PARTIAL' | 'MIXED_DATES';
@@ -54,6 +69,15 @@ type PortfolioEventParams = {
 };
 
 const PARAM_KEYS = new Set([
+  'tour_version',
+  'tour_source',
+  'step_number',
+  'step_id',
+  'step_group',
+  'total_steps',
+  'to_step',
+  'direction',
+  'exit_reason',
   'is_logged_in',
   'has_holdings',
   'pricing_status',

@@ -299,6 +299,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   localStorage.clear();
+  localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
   sessionStorage.clear();
   window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
@@ -306,6 +307,17 @@ afterEach(() => {
 });
 
 describe('포트폴리오 화면', () => {
+  it('첫 방문 체험을 마치면 빈 실제 거래 입력 창을 연다', async () => {
+    localStorage.removeItem('daynomy:portfolio-tour:v1');
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
+    for (let i = 0; i < 9; i++) fireEvent.click(view.getByRole('button', { name: '다음' }));
+    fireEvent.click(view.getByRole('button', { name: '내 자산 등록하기' }));
+    const search = await view.findByRole('searchbox', { name: '종목 검색' });
+    expect((search as HTMLInputElement).value).toBe('');
+    expect(view.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
+  });
+
   it('StrictMode에서도 진입은 한 번 수집하고 실제 계산 완료 전에는 loaded를 보내지 않는다', async () => {
     let finishHoldings!: () => void;
     let finishCalculation!: () => void;
@@ -1310,7 +1322,10 @@ describe('포트폴리오 화면', () => {
       target: { value: 'EVALUATION' },
     });
     let rows = within(table).getAllByRole('row');
-    expect(within(rows[1]).getByText('KODEX 200')).toBeTruthy();
+    await waitFor(() => {
+      rows = within(table).getAllByRole('row');
+      expect(within(rows[1]).getByText('KODEX 200')).toBeTruthy();
+    });
 
     fireEvent.click(view.getByRole('button', { name: '주식' }));
     rows = within(table).getAllByRole('row');
