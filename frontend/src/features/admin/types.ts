@@ -1,5 +1,5 @@
 import type { Category } from '../news/newslist/types';
-import type { StockSearchItem } from '../portfolio/types';
+import type { StockSearchItem } from '../stocks/types';
 
 export type AdminNewsStatus = 'DRAFT' | 'PUBLISHED' | 'REJECTED' | 'DELETED';
 export type AdminNewsSource = {
@@ -78,10 +78,6 @@ export type AdminNewsFormValues = {
 export type AdminNewsFilterStatus = AdminNewsStatus | 'ALL';
 export type AdminNewsFilterCategory = Category | 'ALL';
 
-export type AdminAssetRankingSyncResponse = {
-  savedCount: number;
-};
-
 export type AdminNewsGenerationResponse = {
   savedCount: number;
 };
@@ -95,9 +91,26 @@ export type AdminStockSyncResponse = {
 };
 
 export type AdminStockPriceSyncResponse = {
-  baseDate: string;
+  baseDate: string | null;
   receivedCount: number;
   createdCount: number;
   updatedCount: number;
   skippedCount: number;
+  synchronizedDateCount: number;
+  pendingDateCount: number;
+  failedDateCount: number;
+};
+
+export type AdminStockPriceBackfillResponse = {
+  from: string;
+  to: string;
+  synchronizedDateCount: number;
+  receivedCount: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+};
+
+export type AdminLeagueRecalculationResponse = {
+  calculatedCount: number;
 };

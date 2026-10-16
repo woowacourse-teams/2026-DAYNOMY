@@ -29,7 +29,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PortfolioAssetAnalysisService {
-  static final String ANALYSIS_VERSION = "asset-v1";
+  static final String ANALYSIS_VERSION = "asset-v2-batch5";
   private final PortfolioAssetAnalysisRepository repository;
   private final PortfolioAnalysisAiClient ai;
   private final String model;
@@ -46,7 +46,7 @@ public class PortfolioAssetAnalysisService {
       PortfolioAnalysisAiClient ai,
       @Value("${ai.openai.model:gpt-5-mini}") String model,
       @Value("${portfolio.analysis.cache-ttl:30m}") Duration ttl) {
-    this(repository, ai, model, ttl, Duration.ofMinutes(3));
+    this(repository, ai, model, ttl, Duration.ofMinutes(4));
   }
 
   PortfolioAssetAnalysisService(
@@ -68,6 +68,7 @@ public class PortfolioAssetAnalysisService {
   // 외부 AI 호출 중 DB 트랜잭션을 유지하지 않는다.
   public PortfolioAnalysisResult analyze(List<PortfolioAnalysisTarget> targets) {
     if (targets.isEmpty()) return new PortfolioAnalysisResult("", List.of(), List.of());
+    long deadline = System.nanoTime() + waitTimeout.toNanos();
     var results = new HashMap<String, AssetImpactResult>();
     var freshSources = new ArrayList<PortfolioAnalysisResult.Source>();
     repository
@@ -134,7 +135,6 @@ public class PortfolioAssetAnalysisService {
       }
     }
     // 먼저 자신이 맡은 분석을 완료해야 서로 다른 종목을 기다리는 요청끼리 교착되지 않는다.
-    long deadline = System.nanoTime() + waitTimeout.toNanos();
     for (var entry : shared.entrySet()) {
       results.put(entry.getKey(), await(entry.getValue(), deadline));
     }

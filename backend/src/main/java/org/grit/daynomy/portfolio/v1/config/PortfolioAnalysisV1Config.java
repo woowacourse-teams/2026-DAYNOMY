@@ -33,7 +33,7 @@ public class PortfolioAnalysisV1Config {
         checks,
         calculation,
         model,
-        "portfolio-v5-price-v1");
+        "portfolio-v7-batch-price-v1");
   }
 
   @Bean("savedPortfolioAnalysisV1")

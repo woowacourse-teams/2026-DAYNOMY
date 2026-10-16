@@ -152,24 +152,6 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
     savedHoldings = [...savedHoldings, holding];
     return jsonResponse({ transactionId: 1, holding, totalRealizedProfitLoss: 0 }, 201);
   }
-  if (url.endsWith('/api/users/me/portfolio/holdings') && method === 'POST') {
-    const body = JSON.parse(String(init?.body)) as {
-      assetId: number;
-      quantity: number;
-      averagePurchasePrice: number;
-    };
-    const asset = [stock, secondStock, kosdaqStock, etf].find(
-      (candidate) => candidate.assetId === body.assetId,
-    );
-    if (!asset) return jsonResponse({}, 404);
-    const holding = {
-      ...asset,
-      quantity: body.quantity,
-      averagePurchasePrice: body.averagePurchasePrice,
-    };
-    savedHoldings = [...savedHoldings, holding];
-    return jsonResponse(holding, 201);
-  }
   const holdingMatch = url.match(/\/api\/users\/me\/portfolio\/holdings\/(\d+)$/);
   if (holdingMatch && method === 'PATCH') {
     const assetId = Number(holdingMatch[1]);
@@ -1322,6 +1304,7 @@ describe('포트폴리오 화면', () => {
     );
     const view = render(<PortfolioPage />);
     const table = await view.findByRole('region', { name: /보유 자산 표/ });
+    await within(table).findByText('900,000원');
 
     fireEvent.change(view.getByRole('combobox', { name: '보유 자산 정렬' }), {
       target: { value: 'EVALUATION' },

@@ -18,8 +18,8 @@ import {
   searchWikimediaImages,
   updateAdminNews,
 } from './api';
-import { searchStocks } from '../portfolio/api';
-import type { StockSearchItem } from '../portfolio/types';
+import { searchStocks } from '../stocks/api';
+import type { StockSearchItem } from '../stocks/types';
 import type { AdminNewsFormValues, AdminNewsStatus, AdminWikimediaImageCandidate } from './types';
 import './admin.css';
 

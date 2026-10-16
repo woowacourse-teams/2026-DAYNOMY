@@ -4,8 +4,8 @@ import type {
   PortfolioHoldingInput,
   PortfolioHoldingResult,
   PortfolioTransactionType,
-  StockSearchItem,
 } from '../types';
+import type { StockSearchItem } from '../../stocks/types';
 
 type Props = {
   stock: StockSearchItem;

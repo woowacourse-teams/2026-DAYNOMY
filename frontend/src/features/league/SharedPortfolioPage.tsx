@@ -13,7 +13,7 @@ import './league.css';
 import './shared-portfolio.css';
 import { HoldingDecisions } from './HoldingDecisions';
 import { getMyInvestorProfile } from './api';
-import type { InvestorProfile, InvestmentDecisionInput, InvestmentTransaction } from './types';
+import type { InvestorProfile, InvestmentDecisionInput, InvestmentDecisionRecord } from './types';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
 
 const won = (value: number | null) =>
@@ -35,7 +35,7 @@ export function SharedPortfolioPage() {
   const [source, setSource] = useState<SourceHolding[] | null>(null);
   const [selection, setSelection] = useState<number[]>([]);
   const [overwrite, setOverwrite] = useState(false);
-  const [records, setRecords] = useState<InvestmentTransaction[] | null>(null);
+  const [records, setRecords] = useState<InvestmentDecisionRecord[] | null>(null);
   const [recordRefresh, setRecordRefresh] = useState(0);
   const [importReasons, setImportReasons] = useState<Record<number, string>>({});
   const [profileRetry, setProfileRetry] = useState(0);

@@ -11,7 +11,7 @@ import * as sharedApi from '../../src/features/league/sharedPortfolioApi';
 import { AuthContext } from '../../src/auth/AuthContext';
 vi.mock('../../src/features/league/api', () => ({
   getMyInvestorProfile: vi.fn(),
-  getTransactions: vi.fn(),
+  getInvestmentDecisions: vi.fn(),
   saveInvestorProfile: vi.fn(),
   savePublication: vi.fn(),
 }));
@@ -77,7 +77,7 @@ it.each([false, true])(
       totalReturnRate: null,
       pricesComplete: true,
     });
-    vi.mocked(api.getTransactions).mockResolvedValue([]);
+    vi.mocked(api.getInvestmentDecisions).mockResolvedValue([]);
     vi.mocked(api.saveInvestorProfile).mockResolvedValue(profile);
     vi.mocked(api.savePublication).mockResolvedValue({ ...profile, allocationPublic: false });
     const view = render(
@@ -143,7 +143,7 @@ it('독립 설정 화면에서 숨긴 종목의 필수 기록을 확인하고 �
     totalReturnRate: null,
     pricesComplete: false,
   });
-  vi.mocked(api.getTransactions)
+  vi.mocked(api.getInvestmentDecisions)
     .mockRejectedValueOnce(new Error('기록 조회 실패'))
     .mockResolvedValue([]);
   const view = render(

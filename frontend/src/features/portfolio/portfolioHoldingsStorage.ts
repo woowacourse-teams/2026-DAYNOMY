@@ -1,4 +1,5 @@
-import type { AssetCategory, PortfolioHoldingInput, StockMarket } from './types';
+import type { PortfolioHoldingInput } from './types';
+import type { AssetCategory, StockMarket } from '../stocks/types';
 import { replayGuestPortfolio, type GuestPortfolioLedger } from './guestPortfolioLedger';
 import { validateTransaction } from './transactionForm';
 

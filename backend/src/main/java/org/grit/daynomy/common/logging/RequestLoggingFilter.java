@@ -1,5 +1,7 @@
 package org.grit.daynomy.common.logging;
 
+import jakarta.servlet.AsyncEvent;
+import jakarta.servlet.AsyncListener;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,21 +46,55 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
       filterChain.doFilter(request, response);
     } finally {
       try {
-        long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+        if (request.isAsyncStarted()) {
+          var context = MDC.getCopyOfContextMap();
+          request
+              .getAsyncContext()
+              .addListener(
+                  new AsyncListener() {
+                    @Override
+                    public void onComplete(AsyncEvent event) {
+                      var previous = MDC.getCopyOfContextMap();
+                      try {
+                        if (context != null) MDC.setContextMap(context);
+                        logCompletion(request, response, startedAt);
+                      } finally {
+                        if (previous == null) MDC.clear();
+                        else MDC.setContextMap(previous);
+                      }
+                    }
 
-        log.atInfo()
-            .addKeyValue("event", LogEvent.HTTP_REQUEST_COMPLETED.code())
-            .addKeyValue("method", request.getMethod())
-            .addKeyValue("uri", request.getRequestURI())
-            .addKeyValue("httpStatus", response.getStatus())
-            .addKeyValue("durationMs", durationMs)
-            .log(LogEvent.HTTP_REQUEST_COMPLETED.message());
+                    @Override
+                    public void onStartAsync(AsyncEvent event) {
+                      event.getAsyncContext().addListener(this);
+                    }
+
+                    @Override
+                    public void onTimeout(AsyncEvent event) {}
+
+                    @Override
+                    public void onError(AsyncEvent event) {}
+                  });
+        } else {
+          logCompletion(request, response, startedAt);
+        }
       } finally {
         MDC.remove(REQUEST_ID);
         MDC.remove(TRACE_ID);
         MDC.remove(AUTOMATION);
       }
     }
+  }
+
+  private void logCompletion(
+      HttpServletRequest request, HttpServletResponse response, long startedAt) {
+    log.atInfo()
+        .addKeyValue("event", LogEvent.HTTP_REQUEST_COMPLETED.code())
+        .addKeyValue("method", request.getMethod())
+        .addKeyValue("uri", request.getRequestURI())
+        .addKeyValue("httpStatus", response.getStatus())
+        .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt))
+        .log(LogEvent.HTTP_REQUEST_COMPLETED.message());
   }
 
   private AutomationType detectAutomation(HttpServletRequest request) {

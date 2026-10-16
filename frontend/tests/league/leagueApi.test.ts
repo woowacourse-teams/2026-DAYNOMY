@@ -4,8 +4,10 @@ import {
   recordDecision,
   getInvestorDetail,
   getRankings,
+  getPublicInvestor,
   getDailyHistory,
   getFollowSummary,
+  updateReview,
 } from '../../src/features/league/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -58,7 +60,7 @@ test('리그 순위 응답을 런타임에 검증한다', async () => {
           experienceLevel: 'BEGINNER',
           riskProfile: 'BALANCED',
           weeklyReturnRate: 2.5,
-          eightWeekReturnRate: 4.2,
+          threeWeekReturnRate: 4.2,
           maxDrawdownRate: -1.1,
           volatilityRate: 0.7,
           maxHoldingWeight: 55,
@@ -73,6 +75,64 @@ test('리그 순위 응답을 런타임에 검증한다', async () => {
 
   assert.equal(response.rankings[0]?.displayName, '차분한초보');
   assert.equal(response.rankings[0]?.weeklyReturnRate, 2.5);
+});
+
+test('이전 서버의 공개 투자자와 순위 응답도 3주 지표만 비워서 보여준다', async () => {
+  const ranking = {
+    rank: 1,
+    publicId: 'investor-1',
+    displayName: '차분한초보',
+    experienceLevel: 'BEGINNER',
+    riskProfile: 'BALANCED',
+    weeklyReturnRate: 2.5,
+    eightWeekReturnRate: 4.2,
+    maxDrawdownRate: -1.1,
+    volatilityRate: 0.7,
+    maxHoldingWeight: 55,
+    decisionCount: 4,
+    reviewCompletionRate: 75,
+    followed: false,
+  };
+  globalThis.fetch = async () =>
+    jsonResponse({
+      weekStart: '2026-10-12',
+      weekEnd: '2026-10-18',
+      leagueType: 'WEEKLY_RETURN',
+      confirmed: false,
+      totalCount: 1,
+      asOfDate: '2026-10-13',
+      rankings: [ranking],
+    });
+  assert.equal((await getRankings('WEEKLY_RETURN')).rankings[0]?.threeWeekReturnRate, null);
+
+  const investor = {
+    publicId: 'investor-1',
+    displayName: '차분한초보',
+    bio: '',
+    experienceLevel: 'BEGINNER',
+    riskProfile: 'BALANCED',
+    performance: {
+      weeklyReturnRate: 2.5,
+      eightWeekReturnRate: 4.2,
+      maxDrawdownRate: -1.1,
+      volatilityRate: 0.7,
+      maxHoldingWeight: 55,
+    },
+    allocation: null,
+    history: [],
+    decisionCount: 4,
+    reviewCompletionRate: 75,
+    followed: false,
+    detailAvailable: false,
+  };
+  globalThis.fetch = async () => jsonResponse(investor);
+  assert.equal((await getPublicInvestor('investor-1')).performance.threeWeekReturnRate, null);
+  globalThis.fetch = async () =>
+    jsonResponse({
+      ...investor,
+      performance: { ...investor.performance, threeWeekReturnRate: '4.2' },
+    });
+  await assert.rejects(getPublicInvestor('investor-1'), /투자자 응답 형식/);
 });
 
 test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 이후 누적값을 검증한다', async () => {
@@ -134,6 +194,53 @@ test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 �
   }
 });
 
+test('최신 집계일 이후 종가 수집 대기가 있어도 집계된 주간 누적을 표시한다', async () => {
+  const history = {
+    weekStart: '2026-10-12',
+    weekEnd: '2026-10-18',
+    asOfDate: '2026-10-13',
+    eligibleFrom: '2026-10-13',
+    trackingStartedOn: '2026-10-13',
+    confirmed: false,
+    weeklyReturnRate: 0,
+    days: [
+      {
+        baseDate: '2026-10-12',
+        dailyReturnRate: null,
+        cumulativeReturnRate: null,
+        status: 'NOT_PARTICIPATING',
+        reason: null,
+      },
+      {
+        baseDate: '2026-10-13',
+        dailyReturnRate: 0,
+        cumulativeReturnRate: 0,
+        status: 'CALCULATED',
+        reason: 'TRACKING_BASELINE',
+      },
+      {
+        baseDate: '2026-10-14',
+        dailyReturnRate: null,
+        cumulativeReturnRate: null,
+        status: 'EXCLUDED',
+        reason: 'PRICE_COLLECTION_PENDING',
+      },
+    ],
+  };
+  for (const status of ['PENDING', 'EXCLUDED']) {
+    globalThis.fetch = async () =>
+      jsonResponse({
+        ...history,
+        days: history.days.map((day, index) => (index === 2 ? { ...day, status } : day)),
+      });
+    const response = await getDailyHistory('investor-1', history.weekStart);
+    assert.equal(response.weeklyReturnRate, 0);
+    assert.equal(response.days[2].dailyReturnRate, null);
+  }
+  globalThis.fetch = async () => jsonResponse({ ...history, confirmed: true });
+  await assert.rejects(getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
+});
+
 test('공개 상세의 중첩된 판단 기록까지 런타임에 검증한다', async () => {
   globalThis.fetch = async () =>
     jsonResponse({
@@ -193,6 +300,35 @@ test('투자 판단 저장 요청에 CSRF 토큰과 멱등 키를 전송한다',
   assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
   assert.equal(JSON.parse(String(calls[1]?.init?.body)).requestKey, 'request-1');
   assert.equal(JSON.parse(String(calls[1]?.init?.body)).quantity, undefined);
+});
+
+test('내 복기 수정은 해당 판단과 복기 ID로 PUT 요청한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    if (String(input) === '/api/auth/csrf') {
+      return jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' });
+    }
+    return jsonResponse({
+      id: 2,
+      actualResult: '수정한 결과',
+      differenceFromExpectation: '차이',
+      nextAction: '다음 행동',
+      createdAt: '2026-10-06T00:00:00Z',
+      updatedAt: '2026-10-07T00:00:00Z',
+    });
+  };
+
+  const result = await updateReview(1, 2, {
+    actualResult: '수정한 결과',
+    differenceFromExpectation: '차이',
+    nextAction: '다음 행동',
+  });
+  assert.equal(calls[1]?.url, '/api/users/me/portfolio/decisions/1/reviews/2');
+  assert.equal(calls[1]?.init?.method, 'PUT');
+  assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
+  assert.equal(result.createdAt, '2026-10-06T00:00:00Z');
+  assert.equal(result.updatedAt, '2026-10-07T00:00:00Z');
 });
 
 test('주중 참여는 기준 종가부터 0%로 이번 주 누적 순위에 반영한다', async () => {

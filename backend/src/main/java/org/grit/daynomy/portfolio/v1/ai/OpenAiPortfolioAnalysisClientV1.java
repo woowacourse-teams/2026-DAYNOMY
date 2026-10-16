@@ -26,6 +26,7 @@ import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
+import org.grit.daynomy.portfolio.ai.PortfolioAnalysisBatches;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisProse;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourcePolicy;
@@ -73,6 +74,7 @@ public class OpenAiPortfolioAnalysisClientV1 {
             - HIGH에 해당하지 않고 영향 규모가 작거나 일시적이라고 명시된 경우에는 LOW로 우선 판단하세요.
             - HIGH와 LOW에 해당하지 않으면서 직접적인 영향은 명확하지만 범위가 일부 사업·제품에 한정되거나 규모 또는 시점이 불확실하면 MEDIUM으로 판단하세요.
             - expectedReaction에는 유리한 점과 불리한 점·불확실성을 함께 설명하세요. 확인되지 않은 반대 요인을 억지로 만들지 마세요.
+            - issueSummary에 날짜를 쓰려면 해당 종목 evidence의 publishedOn, occurredOn 또는 원문 인용에서 동일한 날짜를 확인해야 합니다. 확인되지 않은 날짜는 설명에서도 생략하고, 과거 분기명·예정일을 발표일로 추측하지 마세요.
             - issueSummary에는 종목명과 확인된 사건·발표 날짜, 보유 종목과의 관계를 짧게 설명하세요. 단독으로 읽어도 어떤 기업의 사건인지 알 수 있어야 합니다.
             - outlook에는 다음에 확인할 구체적인 발표나 지표와 확인할 이유를 쓰세요. 발표 일정이 확인되지 않으면 날짜를 만들지 마세요.
             - reason에는 판단 근거를 자연스러운 해요체로 작성하세요.
@@ -84,6 +86,9 @@ public class OpenAiPortfolioAnalysisClientV1 {
             - 사용자에게 노출되는 문장에 '-하다.', '-했음.', '-함.'과 같은 문어체나 명사형 종결 표현을 사용하지 마세요.
             - sourceUrls에는 해당 자산의 판단에 직접 사용한 인용 출처 URL만 포함하세요.
             - 직접·산업 자료와 유효한 과거 근거까지 찾고도 근거가 부족하면 direction과 impactLevel을 null, sourceUrls와 evidence를 빈 배열로 반환하세요. issueSummary에는 짧은 안내만 쓰고 expectedReaction과 outlook은 빈 문자열로 두세요.
+            - sourceUrls와 evidence.url은 중복 없이 일대일로 대응해야 합니다. 동일 URL에서 여러 사실을 찾았어도 evidence 항목은 하나만 작성하세요.
+            - /tag/, /category/, 뉴스·공시 목록 URL은 sourceUrls에 넣지 마세요. 검색 결과의 목록에서 개별 발표문·공시·기사 원문으로 이동해 실제 본문과 URL을 확인하세요. URL을 추측하거나 예시 번호로 만들지 마세요.
+            - '아직 검색하지 않았어요' 같은 작업 상태나 검색 계획을 최종 결과로 반환하지 마세요. 요청된 각 종목을 실제 웹 검색한 뒤에만 분석 결과 또는 근거 부족 판단을 반환하세요.
             - 각 종목의 evidence에는 sourceUrls별 url, publishedOn, occurredOn, excerpt, factQuote를 포함하세요. 날짜는 확인된 YYYY-MM-DD 또는 null이며 추측하지 마세요. excerpt는 해당 출처에서 확인한 핵심 사실이고 본인의 전망을 넣지 마세요.
             - 본문에 URL·출처 번호를 넣지 마세요. 출처는 sourceUrls와 evidence로만 제공하세요.
             - 검색 결과에서 확인할 수 없는 사실을 단정하지 마세요.
@@ -109,16 +114,27 @@ public class OpenAiPortfolioAnalysisClientV1 {
   }
 
   public PortfolioAnalysisResult analyze(List<PortfolioAnalysisTargetV1> targets) {
-    return requestAnalysis(targets, null);
+    return requestBatches(targets, null);
   }
 
   public PortfolioAnalysisResult refresh(
       List<PortfolioAnalysisTargetV1> targets, String previousEvidence) {
-    return requestAnalysis(targets, previousEvidence);
+    return requestBatches(targets, previousEvidence);
+  }
+
+  private PortfolioAnalysisResult requestBatches(
+      List<PortfolioAnalysisTargetV1> targets, String previousEvidence) {
+    if (targets.stream().map(PortfolioAnalysisTargetV1::assetName).distinct().count()
+        != targets.size()) {
+      throw invalidResponse("DUPLICATE_TARGET");
+    }
+    return PortfolioAnalysisBatches.analyze(
+        targets, batch -> requestAnalysis(batch, previousEvidence));
   }
 
   private PortfolioAnalysisResult requestAnalysis(
       List<PortfolioAnalysisTargetV1> targets, String previousEvidence) {
+    if (Thread.currentThread().isInterrupted()) throw analysisFailed();
     if (targets.isEmpty()) {
       return new PortfolioAnalysisResult("", List.of(), List.of());
     }
@@ -170,6 +186,7 @@ public class OpenAiPortfolioAnalysisClientV1 {
         }
         String original = response;
         var originalResult = parseAnalysis(original, targets, true);
+        var originalSources = extractOutputContent(original).sources();
         var missingNames =
             originalResult.impacts().stream()
                 .filter(impact -> impact.direction() == null)
@@ -186,7 +203,8 @@ public class OpenAiPortfolioAnalysisClientV1 {
             corrections.stream()
                 .flatMap(
                     correction ->
-                        parseAnalysis(correction.response(), correction.targets(), true)
+                        parseAnalysis(
+                            correction.response(), correction.targets(), true, originalSources)
                             .impacts()
                             .stream())
                 .toList();
@@ -204,10 +222,10 @@ public class OpenAiPortfolioAnalysisClientV1 {
         if (retained.stream().noneMatch(impact -> impact.direction() != null)) {
           try {
             for (var correction : corrections) {
-              parseAnalysis(correction.response(), correction.targets());
+              parseAnalysis(correction.response(), correction.targets(), false, originalSources);
             }
-          } catch (BusinessException | IndexSourceException exhausted) {
-            throw invalidResponse("CORRECTION_EXHAUSTED");
+          } catch (IndexSourceException exhausted) {
+            throw invalidResponse("INDEX_SOURCE");
           }
         }
         retained.sort(Comparator.comparingInt(impact -> impactLevelPriority(impact.impactLevel())));
@@ -300,33 +318,9 @@ public class OpenAiPortfolioAnalysisClientV1 {
       String previousEvidence,
       String original,
       RuntimeException exception) {
-    if (targets.size() == 1) {
-      return List.of(requestCorrection(targets, previousEvidence, original, exception));
-    }
-    // 보완 검색은 최대 두 요청으로 나눈다. 종목을 누락하지 않으면서 순차 대기를 줄인다.
-    int middle = (targets.size() + 1) / 2;
-    try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
-      var tasks =
-          List.<java.util.concurrent.Callable<Correction>>of(
-              () ->
-                  requestCorrection(
-                      targets.subList(0, middle), previousEvidence, original, exception),
-              () ->
-                  requestCorrection(
-                      targets.subList(middle, targets.size()),
-                      previousEvidence,
-                      original,
-                      exception));
-      var results = new ArrayList<Correction>();
-      for (var future : executor.invokeAll(tasks)) results.add(future.get());
-      return results;
-    } catch (InterruptedException interrupted) {
-      Thread.currentThread().interrupt();
-      throw analysisFailed();
-    } catch (java.util.concurrent.ExecutionException failed) {
-      if (failed.getCause() instanceof RuntimeException cause) throw cause;
-      throw analysisFailed();
-    }
+    // 최초 요청이 최대 5종목이므로 보완 요청도 한 묶음으로 처리한다.
+    // 보완을 다시 병렬 분할하면 한 분석 요청의 외부 호출이 2개를 초과한다.
+    return List.of(requestCorrection(targets, previousEvidence, original, exception));
   }
 
   private Correction requestCorrection(
@@ -334,6 +328,7 @@ public class OpenAiPortfolioAnalysisClientV1 {
       String previousEvidence,
       String original,
       RuntimeException exception) {
+    if (Thread.currentThread().isInterrupted()) throw analysisFailed();
     Map<String, Object> retry = new LinkedHashMap<>(createRequest(retryTargets, previousEvidence));
     var input = new ArrayList<>(createInput(retryTargets, previousEvidence));
     String failure =
@@ -615,6 +610,14 @@ public class OpenAiPortfolioAnalysisClientV1 {
 
   private PortfolioAnalysisResult parseAnalysis(
       String response, List<PortfolioAnalysisTargetV1> targets, boolean partial) {
+    return parseAnalysis(response, targets, partial, List.of());
+  }
+
+  private PortfolioAnalysisResult parseAnalysis(
+      String response,
+      List<PortfolioAnalysisTargetV1> targets,
+      boolean partial,
+      List<PortfolioAnalysisResult.Source> originalSources) {
     OutputContent output = extractOutputContent(response);
 
     try {
@@ -634,6 +637,9 @@ public class OpenAiPortfolioAnalysisClientV1 {
                       source -> source,
                       (first, ignored) -> first,
                       LinkedHashMap::new));
+      // 보정은 같은 요청의 첫 검색에서 확인한 출처도 사용할 수 있다.
+      originalSources.forEach(
+          source -> sourceByUrl.putIfAbsent(normalizeSourceUrl(source.url()), source));
       List<PortfolioAnalysisResult.AssetImpactResult> impacts =
           parseImpacts(root.path("impacts"), targets, sourceByUrl, partial);
       return verifiedSummary(impacts);
@@ -748,6 +754,7 @@ public class OpenAiPortfolioAnalysisClientV1 {
         }
         log.atInfo()
             .addKeyValue("event", "portfolio.analysis.asset.validation.failed")
+            .addKeyValue("validationAssetName", assetName)
             .addKeyValue(
                 "validationReason",
                 exception instanceof InvalidResponseException invalid

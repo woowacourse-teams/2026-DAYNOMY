@@ -2,8 +2,10 @@ package org.grit.daynomy.portfolio.ai;
 
 import java.text.BreakIterator;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /** 생성된 설명만 검사한다. 종목명, 출처 제목, URL에는 적용하지 않는다. */
 public final class PortfolioAnalysisProse {
@@ -45,12 +47,30 @@ public final class PortfolioAnalysisProse {
         String sentence = value.substring(start, end).strip();
         if (!sentence.endsWith("요.")
             || !sentence.matches("(?s).*[가-힣]{2,}.*")
-            || sentence.matches("(?s).*[A-Za-z]+(?:[ \t]+[A-Za-z]+){4,}.*")) {
+            || containsEnglishProse(sentence)) {
           throw new IllegalArgumentException("분석 설명은 해요체와 온점으로 끝나야 합니다.");
         }
       }
       paragraphs.add(value);
     }
     return String.join("\n\n", paragraphs);
+  }
+
+  private static boolean containsEnglishProse(String sentence) {
+    var phrases =
+        java.util.regex.Pattern.compile("[A-Za-z]+(?:[ \t]+[A-Za-z]+){4,}").matcher(sentence);
+    while (phrases.find()) {
+      // 영문 고유명사 뒤에 한국어 조사가 이어지는 경우는 한국어 설명의 일부다.
+      boolean properName =
+          Arrays.stream(phrases.group().split("[ \t]+"))
+              .allMatch(
+                  word ->
+                      Character.isUpperCase(word.charAt(0))
+                          || Set.of("of", "the", "and", "for", "in", "on", "to").contains(word));
+      boolean followedByParticle =
+          sentence.substring(phrases.end()).matches("(?s)^(은|는|이|가|을|를|의|와|과|에|로|으로).*");
+      if (!properName || !followedByParticle) return true;
+    }
+    return false;
   }
 }

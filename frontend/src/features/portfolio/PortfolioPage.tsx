@@ -8,13 +8,13 @@ import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
 import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
 import { toPortfolioAnalysisAssets } from './portfolioAnalysisAssets';
 import type {
-  AssetCategory,
   PortfolioCalculation,
   PortfolioHoldingInput,
   PortfolioHoldingResult,
   PortfolioPerformancePoint,
   PortfolioTrendPeriod,
 } from './types';
+import type { AssetCategory } from '../stocks/types';
 import './portfolio.css';
 import './portfolioLedger.css';
 import { PortfolioTransactionEditor } from './components/PortfolioTransactionEditor';
@@ -23,7 +23,8 @@ import { PortfolioDialog } from './components/PortfolioDialog';
 import { PortfolioHoldingDetail } from './components/PortfolioHoldingDetail';
 import { PortfolioConfirmDialog } from './components/PortfolioConfirmDialog';
 import { todayInSeoul } from './transactionForm';
-import type { PortfolioHoldingHistory, PortfolioTransactionType, StockSearchItem } from './types';
+import type { PortfolioHoldingHistory, PortfolioTransactionType } from './types';
+import type { StockSearchItem } from '../stocks/types';
 
 const numberFormatter = new Intl.NumberFormat('ko-KR');
 const percentFormatter = new Intl.NumberFormat('ko-KR', {

@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       script:
-        description: k6 script path under loadtest/
+        description: "k6 script under loadtest/, or backend/loadtest/transactions-v1.js / transactions-v2.js"
         required: true
         type: string
         default: loadtest/load-test.js
       params:
-        description: 'JSON object of k6 script parameters, for example {"CASE":"B1","API_MODE":"real","USERS":1}'
+        description: 'JSON k6 parameters: CASE/API_MODE/USERS for analysis; REFERENCE_DATE/TRADE_MONTHS_AGO/RPS/DURATION/VUS for transactions'
         required: true
         type: string
         default: '{"CASE":"B1","API_MODE":"real","USERS":1,"RUN":"1"}'
@@ -18,7 +18,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: k6-development-smoke-test
+  # Keep development deployments from overlapping either kind of load test.
+  group: development-backend
   cancel-in-progress: false
 
 jobs:
@@ -35,7 +36,7 @@ jobs:
       - name: Check k6 installation
         run: k6 version
 
-      - name: Run smoke test
+      - name: Run k6 test
         env:
           BASE_URL: ${{ vars.DEV_BASE_URL }}
           K6_PROMETHEUS_RW_SERVER_URL: ${{ vars.K6_PROMETHEUS_RW_SERVER_URL }}
@@ -44,23 +45,45 @@ jobs:
           K6_SCRIPT: ${{ inputs.script }}
           K6_PARAMS_JSON: ${{ inputs.params }}
           K6_ACCOUNTS_JSON_GZ_BASE64: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64 }}
+          PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64: ${{ secrets.PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64 }}
+          LOADTEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -Eeuo pipefail
-          if [[ ! "$K6_SCRIPT" =~ ^loadtest/[A-Za-z0-9._/-]+\.js$ || "$K6_SCRIPT" == *..* || ! -f "$K6_SCRIPT" ]]; then
-            echo "Choose an existing .js file under loadtest/."
-            exit 1
-          fi
-          script_name="${K6_SCRIPT#loadtest/}"
-          if [[ "$script_name" == portfolio-analysis-*.js ]]; then
-            if [[ -z "$K6_ACCOUNTS_JSON_GZ_BASE64" ]]; then
-              echo "Set K6_ACCOUNTS_JSON_GZ_BASE64 in the development environment secrets."
+          umask 077
+          portfolio=false
+          if [[ "$K6_SCRIPT" == backend/loadtest/transactions-v1.js || "$K6_SCRIPT" == backend/loadtest/transactions-v2.js ]]; then
+            portfolio=true
+            workdir="$GITHUB_WORKSPACE/backend/loadtest"
+            script_name="${K6_SCRIPT#backend/loadtest/}"
+            mkdir -p "$workdir/.local"
+            accounts_file="$workdir/.local/accounts.json"
+            if [[ -z "$PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64" ]]; then
+              echo "Prepare the 53 transaction accounts in PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64."
               exit 1
             fi
-            accounts_file="$GITHUB_WORKSPACE/loadtest/accounts.json"
             trap 'rm -f "$accounts_file"' EXIT
-            umask 077
-            printf '%s' "$K6_ACCOUNTS_JSON_GZ_BASE64" | base64 --decode | gzip --decompress > "$accounts_file"
-            unset K6_ACCOUNTS_JSON_GZ_BASE64
+            printf '%s' "$PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64" | base64 --decode | gzip --decompress > "$accounts_file"
+          else
+            if [[ ! "$K6_SCRIPT" =~ ^loadtest/[A-Za-z0-9._/-]+\.js$ || "$K6_SCRIPT" == *..* || ! -f "$K6_SCRIPT" ]]; then
+              echo "Choose an existing .js file under loadtest/, or a transaction V1/V2 entry."
+              exit 1
+            fi
+            workdir="$GITHUB_WORKSPACE/loadtest"
+            script_name="${K6_SCRIPT#loadtest/}"
+            if [[ "$script_name" == portfolio-analysis-*.js ]]; then
+              if [[ -z "$K6_ACCOUNTS_JSON_GZ_BASE64" ]]; then
+                echo "Set K6_ACCOUNTS_JSON_GZ_BASE64 in the development environment secrets."
+                exit 1
+              fi
+              accounts_file="$workdir/accounts.json"
+              trap 'rm -f "$accounts_file"' EXIT
+              printf '%s' "$K6_ACCOUNTS_JSON_GZ_BASE64" | base64 --decode | gzip --decompress > "$accounts_file"
+            fi
+          fi
+          unset K6_ACCOUNTS_JSON_GZ_BASE64 PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64
+          if [[ ! -f "$workdir/$script_name" ]]; then
+            echo "Selected script does not exist on this branch."
+            exit 1
           fi
           if [[ -z "$BASE_URL" ]]; then
             echo "Set DEV_BASE_URL in the development environment variables."
@@ -70,8 +93,8 @@ jobs:
             echo "Set K6_PROMETHEUS_RW_SERVER_URL in the development environment variables."
             exit 1
           fi
-          cd loadtest
-          K6_SCRIPT_NAME="$script_name" python3 - <<'PY'
+          cd "$workdir"
+          PORTFOLIO_TEST="$portfolio" K6_SCRIPT_NAME="$script_name" python3 - <<'PY'
           import json
           import math
           import os
@@ -89,13 +112,18 @@ jobs:
           if "BASE_URL" in params or "ACCOUNTS_FILE" in params:
               raise SystemExit("BASE_URL and ACCOUNTS_FILE are managed by the workflow.")
 
-          args = [
-              "k6", "run", "-o", "experimental-prometheus-rw",
-              "--tag", f"testid={os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}",
-          ]
+          args = ["k6", "run", "-o", "experimental-prometheus-rw"]
+          if os.environ["PORTFOLIO_TEST"] == "true":
+              allowed = {"REFERENCE_DATE", "TRADE_MONTHS_AGO", "RPS", "DURATION", "WARMUP_DURATION",
+                         "VUS", "REQUEST_TIMEOUT_SECONDS", "TARGET_P95_MS", "RUN"}
+              if set(params) - allowed or not params.get("REFERENCE_DATE"):
+                  raise SystemExit("Use REFERENCE_DATE and scalar RPS/DURATION params. ACTION/RPS_STEPS are no longer supported.")
+              params["ACCOUNTS_FILE"] = "./.local/accounts.json"
+          else:
+              args.extend(["--tag", f"testid={os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"])
+              if os.path.isfile("accounts.json"):
+                  params["ACCOUNTS_FILE"] = "./accounts.json"
           params["BASE_URL"] = os.environ["BASE_URL"]
-          if os.path.isfile("accounts.json"):
-              params["ACCOUNTS_FILE"] = "./accounts.json"
 
           for key, value in params.items():
               if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
@@ -112,11 +140,28 @@ jobs:
           sys.exit(subprocess.run(args).returncode)
           PY
 
+      - name: Summarize transaction results
+        if: always() && (inputs.script == 'backend/loadtest/transactions-v1.js' || inputs.script == 'backend/loadtest/transactions-v2.js')
+        run: |
+          python3 - <<'PY'
+          import glob
+          import json
+          import os
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
+              output.write("| Version | Trade date | RPS | Success / planned | p95 (ms) | Result |\n| --- | --- | --- | --- | --- | --- |\n")
+              for path in sorted(glob.glob("backend/loadtest/result-transactions-*.json")):
+                  report = json.load(open(path))
+                  output.write(f"| {report['version']} | {report['tradeDate']} | {report['rps']} | "
+                               f"{report['successful']} / {report['expected']} | {report['latency'].get('p(95)', 'n/a')} | {report['outcome']} |\n")
+          PY
+
       - name: Upload load test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: k6-results-${{ github.run_id }}-${{ github.run_attempt }}
-          path: loadtest/result-*.json
+          path: |
+            loadtest/result-*.json
+            backend/loadtest/result-*.json
           if-no-files-found: ignore
           retention-days: 14
