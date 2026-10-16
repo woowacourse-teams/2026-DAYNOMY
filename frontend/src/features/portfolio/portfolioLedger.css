@@ -37,7 +37,7 @@
 }
 .portfolio-eyebrow,
 .portfolio-page-title > div > .portfolio-eyebrow {
-  color: #6d7e96;
+  color: #52647f;
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.12em;
@@ -135,7 +135,7 @@
   gap: 10px;
 }
 .portfolio-page .portfolio-overview dt {
-  color: #64748b;
+  color: #52647f;
   font-size: 12px;
   font-weight: 500;
 }
@@ -161,7 +161,7 @@
   .portfolio-overview
   > div:not(.portfolio-summary-total)
   > dd.portfolio-summary-locked {
-  color: #718096;
+  color: #52647f;
   font-size: 14px;
   font-weight: 500;
   letter-spacing: 0;
@@ -171,14 +171,14 @@
 .portfolio-page .portfolio-overview > div > small {
   display: block;
   margin-top: 9px;
-  color: #64748b;
+  color: #52647f;
   font-size: 12px;
   line-height: 1.5;
   word-break: keep-all;
 }
 .portfolio-page .portfolio-overview small {
   font-size: 12px;
-  color: #64748b;
+  color: #52647f;
 }
 .portfolio-page .portfolio-overview .portfolio-daily-performance {
   display: flex;
@@ -189,7 +189,7 @@
 .portfolio-page .portfolio-overview .portfolio-daily-performance > span {
   background: transparent;
   padding: 0;
-  color: #64748b;
+  color: #52647f;
   font-size: 12px;
 }
 .portfolio-page .portfolio-overview .portfolio-daily-performance strong {
@@ -210,13 +210,13 @@
   padding: 0 7px;
   border: 0;
   background: #f3f5f8;
-  color: #64748b;
+  color: #52647f;
   font-size: 12px;
 }
 .portfolio-price-status {
   margin: 6px 0 26px;
   font-size: 11px;
-  color: #738097;
+  color: #52647f;
   line-height: 1.7;
 }
 .portfolio-status-dot {
@@ -314,7 +314,7 @@
   background: transparent;
   font: inherit;
   font-size: 15px;
-  color: #7b8596;
+  color: #52647f;
   font-weight: 600;
   cursor: pointer;
 }
@@ -338,7 +338,7 @@
   font-size: 13px;
 }
 .portfolio-page .portfolio-table-wrap th {
-  color: #7c8798;
+  color: #52647f;
   font-size: 11px;
   background: #f8f9fc;
 }
@@ -386,7 +386,7 @@
 .portfolio-ledger-empty {
   text-align: center;
   padding: 44px 24px;
-  color: #7b8596;
+  color: #52647f;
 }
 .portfolio-ledger-empty h3 {
   color: #34445e;
@@ -437,14 +437,14 @@
 }
 .portfolio-history-dates > span {
   padding-bottom: 13px;
-  color: #64748b;
+  color: #52647f;
   font-size: 14px;
 }
 .portfolio-history-toolbar label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #64748b;
+  color: #52647f;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
@@ -484,7 +484,7 @@
 .portfolio-history-empty p {
   margin: 8px auto 18px;
   max-width: 38ch;
-  color: #64748b;
+  color: #52647f;
   font-size: 14px;
   line-height: 1.6;
   word-break: keep-all;
@@ -578,13 +578,36 @@
 }
 .portfolio-history-name small,
 .portfolio-history-description > small {
-  color: #64748b;
+  color: #52647f;
   font-size: 12px;
   line-height: 1.5;
 }
 .portfolio-history-amount {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.portfolio-history-amount-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 10px;
+}
+.portfolio-history-edit-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #526681;
+  font-size: 12px;
+  font-weight: 500;
+}
+.portfolio-history-edit-hint svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .portfolio-history-amount strong {
   font-size: 18px;
@@ -604,7 +627,7 @@
 }
 .portfolio-history-detail dt {
   font-size: 12px;
-  color: #64748b;
+  color: #52647f;
 }
 .portfolio-history-detail dd {
   font-size: 14px;
@@ -615,7 +638,7 @@
 }
 .portfolio-history-skeleton {
   padding: 48px 20px;
-  color: #7b8596;
+  color: #52647f;
   font-size: 13px;
   text-align: center;
   background: #f8fafc;
@@ -652,6 +675,9 @@
 .portfolio-transaction-sheet .portfolio-sheet-heading {
   margin-bottom: 24px;
 }
+.portfolio-transaction-sheet .portfolio-sheet-heading h2 {
+  letter-spacing: -0.02em;
+}
 .portfolio-transaction-sheet .portfolio-ledger-field {
   margin-bottom: 18px;
 }
@@ -677,7 +703,7 @@
   letter-spacing: -0.04em;
 }
 .portfolio-sheet-heading p {
-  color: #7c899b;
+  color: #52647f;
   font-size: 13px;
   line-height: 1.7;
 }
@@ -688,7 +714,7 @@
   border: 0;
   border-radius: 50%;
   background: #f4f6fa;
-  color: #6e7d92;
+  color: #52647f;
   font-size: 24px;
   cursor: pointer;
 }
@@ -729,9 +755,62 @@
   gap: 16px;
 }
 .portfolio-stock-results {
-  color: #8290a5;
+  block-size: 160px;
+  padding-block: 16px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  color: #52647f;
   font-size: 13px;
   line-height: 1.7;
+}
+.portfolio-stock-results > p {
+  margin: 0;
+  line-height: 1.9;
+  letter-spacing: 0.01em;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.portfolio-stock-search-loading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+.portfolio-stock-search-spinner {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+}
+.portfolio-stock-search-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 0;
+  color: #526078;
+}
+.portfolio-stock-search-error p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.portfolio-stock-search-retry {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--button-primary);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+.portfolio-stock-search-retry:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (pointer: coarse) {
+  .portfolio-stock-search-retry {
+    min-height: 44px;
+  }
 }
 .portfolio-stock-results ul {
   list-style: none;
@@ -766,7 +845,7 @@
 .portfolio-trade-stock small {
   display: block;
   margin-top: 5px;
-  color: #8592a5;
+  color: #52647f;
   font-size: 11px;
 }
 .portfolio-trade-stock {
@@ -795,7 +874,7 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #7f8ba0;
+  color: #52647f;
   font: inherit;
   font-size: 14px;
   cursor: pointer;
@@ -818,7 +897,7 @@
   margin-bottom: 20px;
 }
 .portfolio-cost-fields summary span {
-  color: #9aa5b5;
+  color: #52647f;
   font-size: 11px;
   margin-left: 8px;
 }
@@ -829,7 +908,7 @@
   margin: 8px 0 16px;
 }
 .portfolio-trade-total > span {
-  color: #6a7c98;
+  color: #52647f;
   font-size: 12px;
 }
 .portfolio-trade-total strong {
@@ -841,11 +920,11 @@
   overflow-wrap: anywhere;
 }
 .portfolio-trade-total small {
-  color: #8996ac;
+  color: #52647f;
   font-size: 11px;
 }
 .portfolio-field-note {
-  color: #8793a6;
+  color: #52647f;
   font-size: 12px;
   line-height: 1.8;
   margin: 14px 0;
@@ -1104,6 +1183,13 @@
     margin: 0;
     border-radius: 0;
   }
+  .portfolio-sheet.portfolio-transaction-sheet:has(.portfolio-stock-results) {
+    width: min(520px, calc(100% - 32px));
+    height: fit-content;
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    border-radius: 18px;
+  }
   .portfolio-sheet-content,
   .portfolio-transaction-sheet .portfolio-sheet-content {
     padding: 24px 20px;
@@ -1136,7 +1222,7 @@
   flex-wrap: wrap;
   gap: 8px 12px;
   padding-top: 16px;
-  color: #8390a4;
+  color: #52647f;
   font-size: 10px;
 }
 
@@ -1315,7 +1401,7 @@
   margin: 24px 0 18px;
 }
 .portfolio-detail-metrics dt {
-  color: #64748b;
+  color: #52647f;
   font-size: 13px;
   margin-bottom: 9px;
 }
@@ -1340,7 +1426,7 @@
   height: 44px;
   border-radius: 12px;
   background: #f4f6fa;
-  color: #64748b;
+  color: #52647f;
   cursor: pointer;
   list-style: none;
 }
@@ -1400,7 +1486,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #64748b;
+  color: #52647f;
   font-size: 13px;
   cursor: pointer;
   list-style: none;
@@ -1433,7 +1519,7 @@
   padding: 24px;
   border: 1px solid #e9edf3;
   border-radius: 14px;
-  color: #718096;
+  color: #52647f;
   font-size: 14px;
   text-align: center;
 }
@@ -2219,6 +2305,13 @@
   grid-template-rows: auto auto 260px;
   align-content: start;
 }
+.portfolio-return-dashboard.is-compact:has(.portfolio-trend-locked) {
+  grid-template-rows: auto 210px;
+}
+.portfolio-page .portfolio-return-dashboard.is-compact .portfolio-trend-locked {
+  min-height: 0;
+  margin-top: 0;
+}
 .portfolio-return-dashboard.is-compact .portfolio-trend-plot {
   display: grid;
   grid-template-rows: minmax(0, 1fr) 18px 40px;
@@ -2258,14 +2351,14 @@
   gap: 4px;
 }
 .portfolio-history-date {
-  color: #64748b;
+  color: #52647f;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .portfolio-history-amount > small {
   display: block;
   margin-top: 4px;
-  color: #64748b;
+  color: #52647f;
   font-size: 12px;
   line-height: 1.5;
 }

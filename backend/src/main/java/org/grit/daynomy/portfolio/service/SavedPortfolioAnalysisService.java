@@ -4,8 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioAnalysisResponse;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
+@Primary
 @Service
 @RequiredArgsConstructor
 public class SavedPortfolioAnalysisService {
@@ -23,22 +25,24 @@ public class SavedPortfolioAnalysisService {
   }
 
   public SavedPortfolioAnalysisResponse analyze(Long memberId, PortfolioAnalysisRequest request) {
-    return execute(memberId, transactions.prepare(memberId, request));
+    return execute(memberId, transactions.prepare(memberId, request), false);
   }
 
   public SavedPortfolioAnalysisResponse refresh(Long memberId) {
-    return execute(memberId, transactions.prepareRefresh(memberId));
+    return execute(memberId, transactions.prepareRefresh(memberId), true);
   }
 
   private SavedPortfolioAnalysisResponse execute(
-      Long memberId, SavedPortfolioAnalysisTransactionService.PreparedAnalysis prepared) {
+      Long memberId,
+      SavedPortfolioAnalysisTransactionService.PreparedAnalysis prepared,
+      boolean refresh) {
     if (prepared.saved() != null) {
       return prepared.saved();
     }
     try {
       // 외부 API 대기 중에는 DB 트랜잭션과 행 잠금을 유지하지 않는다.
       var result =
-          prepared.previous() == null
+          !refresh && prepared.previous() == null
               ? analysisService.analyze(new PortfolioAnalysisRequest(prepared.assets()), true)
               : analysisService.refresh(
                   new PortfolioAnalysisRequest(prepared.assets()), prepared.previous());

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import './Footer.css';
 
 const footerItems = [
+  { label: '서비스 소개', to: '/welcome' },
   { label: '회사소개', to: '/about' },
   { label: '이용약관', to: '/terms' },
   { label: '개인정보처리방침', to: '/privacy', emphasized: true },

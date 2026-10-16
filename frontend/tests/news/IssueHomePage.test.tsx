@@ -341,6 +341,31 @@ it('홈은 달력 없이 오늘 기사만 보여준다', async () => {
   expect(view.container.querySelector('.issue-feed')?.textContent).not.toContain(older.title);
 });
 
+it('홈과 전체 콘텐츠를 썸네일형 목록으로 표시한다', async () => {
+  mockApi();
+  const home = render(
+    <MemoryRouter>
+      <IssueHomePage />
+    </MemoryRouter>,
+  );
+  await home.findByRole('button', { name: /첫 번째 인물 글/ });
+  expect(home.container.querySelector('.issue-feed--visual .issue-feed-thumbnail')).toBeTruthy();
+  expect(home.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeTruthy();
+  expect(home.container.querySelector('.issue-feed-thumbnail-x')?.textContent).toBe('X');
+  home.unmount();
+
+  const contents = render(
+    <MemoryRouter>
+      <IssueHomePage fullFeed />
+    </MemoryRouter>,
+  );
+  await contents.findByRole('button', { name: /첫 번째 인물 글/ });
+  expect(
+    contents.container.querySelector('.issue-feed--visual .issue-feed-thumbnail'),
+  ).toBeTruthy();
+  expect(contents.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeTruthy();
+});
+
 it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 페이지로 돌아온다', async () => {
   const articles = Array.from({ length: 14 }, (_, index) => ({
     ...article,

@@ -138,6 +138,7 @@ export function NewsDetailPage() {
   const navigate = useNavigate();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const goBack = () => {
     navigate('/news');
   };
@@ -171,6 +172,16 @@ export function NewsDetailPage() {
     };
   }, [newsId]);
 
+  useEffect(() => {
+    if (!payload) return;
+    const previousTitle = document.title;
+    document.title = `${payload.news.title} | DAYNOMY`;
+    headingRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [payload]);
+
   if (error) {
     return (
       <main className="news-page">
@@ -184,7 +195,9 @@ export function NewsDetailPage() {
   if (!payload) {
     return (
       <main className="news-page">
-        <p className="loading">뉴스를 불러오는 중입니다.</p>
+        <p className="loading" role="status">
+          뉴스를 불러오는 중입니다.
+        </p>
       </main>
     );
   }
@@ -227,7 +240,9 @@ export function NewsDetailPage() {
           ) : null}
         </div>
 
-        <h1>{news.title}</h1>
+        <h1 ref={headingRef} tabIndex={-1}>
+          {news.title}
+        </h1>
 
         <time className="detail-date" dateTime={news.publishedAt}>
           {formatDetailDate(news.publishedAt)}

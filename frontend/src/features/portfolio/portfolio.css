@@ -1,6 +1,6 @@
 .portfolio-page {
   --portfolio-side-padding: var(--page-side-padding);
-  --portfolio-muted: #7b7f84;
+  --portfolio-muted: #52647f;
   --portfolio-line: #eceeef;
   --portfolio-accent: #4169ac;
   width: 100%;
@@ -291,7 +291,7 @@
 
 .portfolio-table-wrap .portfolio-no-results {
   padding: 48px 12px;
-  color: #8b9095;
+  color: #52647f;
   text-align: center;
 }
 
@@ -897,7 +897,7 @@
 .portfolio-selected-stock small {
   display: block;
   margin-top: 6px;
-  color: #8b9095;
+  color: #52647f;
   font-size: 11px;
 }
 
@@ -1116,7 +1116,7 @@
   min-height: 45px;
   padding: 0 1px;
   border: 0;
-  color: #777f88;
+  color: #52647f;
   background: none;
   font-size: 13px;
   cursor: pointer;
@@ -2118,7 +2118,7 @@
 }
 
 .portfolio-dashboard-heading span {
-  color: #718096;
+  color: #52647f;
   font-size: 12px;
 }
 
@@ -2272,7 +2272,7 @@
   place-content: center;
   justify-items: center;
   gap: 10px;
-  color: #718096;
+  color: #52647f;
   font-size: 12px;
   text-align: center;
 }
@@ -2283,7 +2283,7 @@
 }
 
 .portfolio-tracking-state.is-empty strong {
-  color: #7c8593;
+  color: #52647f;
   font-size: 14px;
   font-weight: 500;
 }
@@ -2304,7 +2304,7 @@
   min-height: 210px;
   margin: 0;
   place-items: center;
-  color: #7c8593;
+  color: #52647f;
   font-size: 14px;
   font-weight: 500;
   text-align: center;
@@ -2505,7 +2505,7 @@
 .portfolio-return-dates {
   display: flex;
   justify-content: space-between;
-  color: #718096;
+  color: #52647f;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   padding-right: 1.7%;
@@ -2594,7 +2594,7 @@
   padding: 0 14px;
   border: 0;
   border-radius: 9px;
-  color: #8b95a1;
+  color: #52647f;
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -2706,7 +2706,7 @@
   padding: 14px 16px;
   border-right: 0;
   border-bottom: 1px solid #eef1f4;
-  color: #8b95a1;
+  color: #52647f;
   background: transparent;
   font-size: 12px;
   font-weight: 500;
