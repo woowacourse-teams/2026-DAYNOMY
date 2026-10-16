@@ -10,6 +10,4 @@ public interface PortfolioHoldingRepository extends JpaRepository<PortfolioHoldi
   List<PortfolioHolding> findAllByPortfolioIdOrderById(Long portfolioId);
 
   Optional<PortfolioHolding> findByPortfolioIdAndAssetId(Long portfolioId, Long assetId);
-
-  boolean existsByPortfolioIdAndAssetId(Long portfolioId, Long assetId);
 }

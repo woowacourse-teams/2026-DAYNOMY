@@ -2,11 +2,15 @@ package org.grit.daynomy.league.repository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface InvestmentReviewRepository extends JpaRepository<InvestmentReview, Long> {
+  Optional<InvestmentReview> findByIdAndTransactionIdAndTransactionPortfolioMemberId(
+      Long id, Long transactionId, Long memberId);
+
   List<InvestmentReview> findAllByTransactionIdOrderByCreatedAtAsc(Long transactionId);
 
   List<InvestmentReview> findAllByTransactionIdInOrderByCreatedAtAsc(List<Long> transactionIds);

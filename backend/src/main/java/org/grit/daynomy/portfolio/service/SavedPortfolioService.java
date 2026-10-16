@@ -21,7 +21,6 @@ import org.grit.daynomy.portfolio.dto.PortfolioHoldingHistoryResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
-import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioResponse;
@@ -60,30 +59,6 @@ public class SavedPortfolioService {
                   ledger.realizedProfitLoss());
             })
         .orElseGet(SavedPortfolioResponse::empty);
-  }
-
-  @Transactional
-  public SavedPortfolioHoldingResponse add(
-      Long memberId, SavedPortfolioHoldingCreateRequest request) {
-    Member member =
-        memberRepository
-            .findByIdForUpdate(memberId)
-            .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
-    Portfolio portfolio = getOrCreatePortfolio(member);
-    if (holdingRepository.existsByPortfolioIdAndAssetId(portfolio.getId(), request.assetId())) {
-      throw new BusinessException(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
-    }
-    Asset asset =
-        assetRepository
-            .findById(request.assetId())
-            .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
-    PortfolioHolding holding =
-        holdingRepository.save(
-            new PortfolioHolding(
-                portfolio, asset, request.quantity(), request.averagePurchasePrice()));
-    historyRepository.save(
-        new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.OPENING_BALANCE));
-    return SavedPortfolioHoldingResponse.from(holding);
   }
 
   @Transactional

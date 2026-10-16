@@ -51,6 +51,10 @@ ON CONFLICT (base_date) DO UPDATE SET
   collected_at = CASE
     WHEN market_trading_days.trading = EXCLUDED.trading THEN market_trading_days.collected_at
     ELSE NULL
+  END,
+  updated_at = CASE
+    WHEN market_trading_days.trading = EXCLUDED.trading THEN market_trading_days.updated_at
+    ELSE CURRENT_TIMESTAMP
   END;
 COMMIT;
 """

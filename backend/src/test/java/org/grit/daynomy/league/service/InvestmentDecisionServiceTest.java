@@ -15,18 +15,18 @@ import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.grit.daynomy.league.domain.LeagueTypes.HoldingPeriod;
 import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
-import org.grit.daynomy.league.domain.PortfolioTransaction;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewRequest;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestmentReviewRepository;
-import org.grit.daynomy.league.repository.PortfolioTransactionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
 import org.grit.daynomy.member.domain.Member;
@@ -38,13 +38,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class PortfolioTransactionServiceTest {
-  @Mock private PortfolioTransactionRepository transactionRepository;
+class InvestmentDecisionServiceTest {
+  @Mock private InvestmentDecisionRepository decisionRepository;
   @Mock private InvestmentReviewRepository reviewRepository;
   @Mock private SharedPortfolioRepository portfolioRepository;
   @Mock private SharedHoldingRepository holdingRepository;
   @Mock private MemberRepository memberRepository;
-  @InjectMocks private PortfolioTransactionService service;
+  @InjectMocks private InvestmentDecisionService service;
 
   @Test
   void holdingDecisionSnapshotsPositionWithoutChangingQuantityPriceOrVisibility() {
@@ -55,7 +55,7 @@ class PortfolioTransactionServiceTest {
     given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findByPortfolioIdAndAssetId(null, 2L)).willReturn(Optional.of(holding));
-    given(transactionRepository.save(any(PortfolioTransaction.class)))
+    given(decisionRepository.save(any(InvestmentDecision.class)))
         .willAnswer(invocation -> invocation.getArgument(0));
     var response =
         service.recordDecision(1L, new DecisionRecordRequest("decision-1", 2L, decision()));
@@ -84,8 +84,8 @@ class PortfolioTransactionServiceTest {
                 assertThat(error.errorCode()).isEqualTo(LeagueErrorCode.SHARED_HOLDING_NOT_FOUND));
     then(holdingRepository).should().findByPortfolioIdAndAssetId(null, 2L);
     then(holdingRepository).shouldHaveNoMoreInteractions();
-    then(transactionRepository).should().findByPortfolioIdAndRequestKey(null, "decision-1");
-    then(transactionRepository).shouldHaveNoMoreInteractions();
+    then(decisionRepository).should().findByPortfolioIdAndRequestKey(null, "decision-1");
+    then(decisionRepository).shouldHaveNoMoreInteractions();
   }
 
   @Test
@@ -95,20 +95,20 @@ class PortfolioTransactionServiceTest {
     var existing = transaction(portfolio, TransactionType.HOLD);
     given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
-    given(transactionRepository.findByPortfolioIdAndRequestKey(null, "decision-1"))
+    given(decisionRepository.findByPortfolioIdAndRequestKey(null, "decision-1"))
         .willReturn(Optional.of(existing));
     var response =
         service.recordDecision(1L, new DecisionRecordRequest("decision-1", 2L, decision()));
     assertThat(response.reason()).isEqualTo("장기 성장");
     then(holdingRepository).shouldHaveNoInteractions();
-    then(transactionRepository).should().findByPortfolioIdAndRequestKey(null, "decision-1");
-    then(transactionRepository).shouldHaveNoMoreInteractions();
+    then(decisionRepository).should().findByPortfolioIdAndRequestKey(null, "decision-1");
+    then(decisionRepository).shouldHaveNoMoreInteractions();
   }
 
   @Test
   void reviewAddsResultsWithoutRewritingTheInitialDecision() {
     var existing = transaction(SharedPortfolio.create(mock(Member.class)), TransactionType.HOLD);
-    given(transactionRepository.findByIdAndPortfolioMemberId(7L, 1L))
+    given(decisionRepository.findByIdAndPortfolioMemberId(7L, 1L))
         .willReturn(Optional.of(existing));
     given(reviewRepository.save(any(InvestmentReview.class)))
         .willAnswer(invocation -> invocation.getArgument(0));
@@ -119,6 +119,34 @@ class PortfolioTransactionServiceTest {
   }
 
   @Test
+  void revisesOwnedReviewWithoutChangingTheInitialDecision() {
+    var transaction = transaction(SharedPortfolio.create(mock(Member.class)), TransactionType.HOLD);
+    var review = new InvestmentReview(transaction, "기존 결과", "기존 차이", "기존 행동");
+    given(reviewRepository.findByIdAndTransactionIdAndTransactionPortfolioMemberId(8L, 7L, 1L))
+        .willReturn(Optional.of(review));
+
+    var response = service.reviseReview(1L, 7L, 8L, new ReviewRequest(" 수정 결과 ", "수정 차이", "수정 행동"));
+
+    assertThat(response.actualResult()).isEqualTo("수정 결과");
+    assertThat(review.getNextAction()).isEqualTo("수정 행동");
+    assertThat(transaction.getDecisionReason()).isEqualTo("장기 성장");
+    then(reviewRepository).should().flush();
+  }
+
+  @Test
+  void cannotReviseAnotherMembersReview() {
+    assertThatThrownBy(
+            () -> service.reviseReview(1L, 7L, 8L, new ReviewRequest("결과", "차이", "다음 행동")))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error -> assertThat(error.errorCode()).isEqualTo(LeagueErrorCode.REVIEW_NOT_FOUND));
+    then(reviewRepository)
+        .should()
+        .findByIdAndTransactionIdAndTransactionPortfolioMemberId(8L, 7L, 1L);
+    then(reviewRepository).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
   void holdingDecisionRetryRejectsChangedPayloadAndLegacyTradeKeys() {
     Member member = mock(Member.class);
     SharedPortfolio portfolio = SharedPortfolio.create(member);
@@ -126,7 +154,7 @@ class PortfolioTransactionServiceTest {
     var existingTrade = transaction(portfolio, TransactionType.BUY);
     given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
-    given(transactionRepository.findByPortfolioIdAndRequestKey(null, "decision-1"))
+    given(decisionRepository.findByPortfolioIdAndRequestKey(null, "decision-1"))
         .willReturn(Optional.of(existingDecision), Optional.of(existingTrade));
     var changed =
         new DecisionRequest(
@@ -145,7 +173,7 @@ class PortfolioTransactionServiceTest {
             error ->
                 assertThat(error.errorCode()).isEqualTo(LeagueErrorCode.DECISION_REQUEST_CONFLICT));
     then(holdingRepository).shouldHaveNoInteractions();
-    then(transactionRepository).should(times(2)).findByPortfolioIdAndRequestKey(null, "decision-1");
+    then(decisionRepository).should(times(2)).findByPortfolioIdAndRequestKey(null, "decision-1");
   }
 
   @Test
@@ -180,7 +208,7 @@ class PortfolioTransactionServiceTest {
     given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findByPortfolioIdAndAssetId(null, 2L)).willReturn(Optional.of(holding));
-    given(transactionRepository.save(any(PortfolioTransaction.class)))
+    given(decisionRepository.save(any(InvestmentDecision.class)))
         .willAnswer(invocation -> invocation.getArgument(0));
     var input = new DecisionRequest(" 보유 이유 ", null, null, null, null);
     var response = service.recordDecision(1L, new DecisionRecordRequest("reason-only", 2L, input));
@@ -189,7 +217,7 @@ class PortfolioTransactionServiceTest {
     assertThat(response.maximumAcceptableLossRate()).isNull();
     assertThat(response.expectedChange()).isEmpty();
     var saved =
-        new PortfolioTransaction(
+        new InvestmentDecision(
             portfolio,
             holding.getAsset(),
             "reason-only",
@@ -208,8 +236,8 @@ class PortfolioTransactionServiceTest {
     assertThat(saved.matchesDecision("보유 이유", null, "", "", BigDecimal.ZERO)).isFalse();
   }
 
-  private PortfolioTransaction transaction(SharedPortfolio portfolio, TransactionType type) {
-    return new PortfolioTransaction(
+  private InvestmentDecision transaction(SharedPortfolio portfolio, TransactionType type) {
+    return new InvestmentDecision(
         portfolio,
         asset(),
         "decision-1",

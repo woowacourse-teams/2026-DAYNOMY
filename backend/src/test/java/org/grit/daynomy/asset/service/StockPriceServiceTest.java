@@ -29,6 +29,21 @@ class StockPriceServiceTest {
   @InjectMocks private StockPriceService stockPriceService;
 
   @Test
+  void pricesAtUsesOneQueryAndDoesNotInventMissingPrices() {
+    var asset = mock(Asset.class);
+    given(asset.getId()).willReturn(1L);
+    var date = LocalDate.of(2026, 10, 13);
+    var price = new StockDailyPrice(asset, date, new BigDecimal("100"));
+    given(stockDailyPriceRepository.findAllByAssetIdInAndBaseDate(List.of(1L, 2L), date))
+        .willReturn(List.of(price));
+    assertThat(stockPriceService.pricesAt(List.of(1L, 2L), date)).containsOnlyKeys(1L);
+    assertThat(stockPriceService.pricesAt(List.of(1L, 2L), null)).isEmpty();
+    assertThat(stockPriceService.pricesAt(List.of(), date)).isEmpty();
+    then(stockDailyPriceRepository).should().findAllByAssetIdInAndBaseDate(List.of(1L, 2L), date);
+    then(stockDailyPriceRepository).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
   @DisplayName("종목의 가장 최근 종가를 반환한다")
   void getLatestPrice() {
     Asset asset = mock(Asset.class);
@@ -56,47 +71,5 @@ class StockPriceServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(AssetErrorCode.STOCK_PRICE_NOT_FOUND);
-  }
-
-  @Test
-  @DisplayName("여러 종목의 기간별 종가를 중복 종목 없이 반환한다")
-  void getPrices() {
-    Asset asset = mock(Asset.class);
-    given(asset.getId()).willReturn(1L);
-    given(asset.getAssetCode()).willReturn("005930");
-    given(asset.getName()).willReturn("삼성전자");
-    LocalDate from = LocalDate.of(2026, 9, 1);
-    LocalDate to = LocalDate.of(2026, 9, 14);
-    given(
-            stockDailyPriceRepository
-                .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
-                    List.of(1L, 2L), from, to))
-        .willReturn(
-            List.of(
-                new StockDailyPrice(asset, LocalDate.of(2026, 9, 1), new BigDecimal("80000")),
-                new StockDailyPrice(asset, LocalDate.of(2026, 9, 2), new BigDecimal("81000"))));
-
-    var response = stockPriceService.getPrices(List.of(1L, 1L, 2L), from, to);
-
-    assertThat(response.prices()).hasSize(2);
-    then(stockDailyPriceRepository)
-        .should()
-        .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
-            List.of(1L, 2L), from, to);
-  }
-
-  @Test
-  @DisplayName("기간별 종가 조회는 31일을 초과하거나 역전된 기간을 거부한다")
-  void getPricesRejectsInvalidRange() {
-    LocalDate from = LocalDate.of(2026, 9, 1);
-
-    assertThatThrownBy(() -> stockPriceService.getPrices(List.of(1L), from, from.plusDays(32)))
-        .isInstanceOf(BusinessException.class)
-        .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(AssetErrorCode.INVALID_STOCK_PRICE_QUERY_RANGE);
-    assertThatThrownBy(() -> stockPriceService.getPrices(List.of(1L), from, from.minusDays(1)))
-        .isInstanceOf(BusinessException.class)
-        .extracting(exception -> ((BusinessException) exception).errorCode())
-        .isEqualTo(AssetErrorCode.INVALID_STOCK_PRICE_QUERY_RANGE);
   }
 }

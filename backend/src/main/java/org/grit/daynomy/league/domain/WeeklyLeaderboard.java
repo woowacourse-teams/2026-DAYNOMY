@@ -8,6 +8,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.grit.daynomy.common.BaseEntity;
 import org.grit.daynomy.league.domain.LeagueTypes.LeagueType;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -19,7 +20,7 @@ import org.hibernate.type.SqlTypes;
     name = "weekly_leaderboards",
     uniqueConstraints =
         @UniqueConstraint(columnNames = {"week_start", "league_type", "calculation_version"}))
-public class WeeklyLeaderboard {
+public class WeeklyLeaderboard extends BaseEntity {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
@@ -68,6 +69,7 @@ public class WeeklyLeaderboard {
       Long profileId,
       BigDecimal weeklyReturnRate,
       BigDecimal eightWeekReturnRate,
+      BigDecimal threeWeekReturnRate,
       BigDecimal cumulativeReturnRate,
       BigDecimal maxDrawdownRate,
       BigDecimal volatilityRate,

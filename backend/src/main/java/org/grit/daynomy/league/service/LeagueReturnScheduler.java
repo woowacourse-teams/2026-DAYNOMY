@@ -7,6 +7,7 @@ import org.grit.daynomy.asset.service.MarketCalendarSyncResult;
 import org.grit.daynomy.asset.service.StockPriceSyncResult;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,7 @@ public class LeagueReturnScheduler {
   private boolean pendingFullRecalculation = true;
   private LocalDate pendingPriceFrom;
 
+  @EventListener(ApplicationReadyEvent.class)
   @Scheduled(cron = "${league.calculation.cron}", zone = "Asia/Seoul")
   public synchronized void calculateReturns() {
     if (pendingFullRecalculation) {
