@@ -7,7 +7,7 @@ import { createReport } from "./report.js";
 // Both entry files use the same workload, validation and stop conditions.
 export function createScenario(config, users, warmups) {
   const context = prepare(config, users, warmups);
-  const { version, origin, tradeDate, rps, rpm } = context;
+  const { version, origin, tradeDate, rps, rpm, expected } = context;
   const report = createReport(context);
   const {
     duration,
@@ -147,6 +147,8 @@ export function createScenario(config, users, warmups) {
   function run(data) {
     if (!data?.csrf) abort("setup_missing");
     const index = exec.scenario.iterationInTest;
+    // An arrival at the duration boundary must not add an extra trade to the workload.
+    if (index >= expected) return;
     // Global iteration index, independent of which VU is free and how fast V1/V2 responds.
     register(
       users[index % users.length],
