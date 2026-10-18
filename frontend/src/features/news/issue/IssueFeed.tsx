@@ -6,7 +6,7 @@ import threadsMark from '../../../assets/platform-threads.svg';
 import { Link } from 'react-router-dom';
 import { SocialPostEmbed } from '../../people/SocialPostEmbed';
 import { getCategoryLabel } from '../newslist/types';
-import { feedDate, isToday, sourceLabel, youtubeId, type FeedItem } from './feed';
+import { feedDate, isToday, sourceLabel, timestamp, youtubeId, type FeedItem } from './feed';
 
 type ReadingItem = Exclude<FeedItem, { source: 'DAYNOMY' }>;
 
@@ -100,13 +100,34 @@ export function IssueFeed({
   const [selected, setSelected] = useState<ReadingItem | null>(null);
   const id = useId();
   const triggers = useRef(new Map<string, HTMLButtonElement>());
-  const compactNews = surface === 'news_home' || surface === 'news_contents';
+  const peopleTimeline = surface === 'people';
+  const compactNews = surface === 'news_home' || surface === 'news_contents' || peopleTimeline;
   const showThumbnails = ['news_home', 'news_contents', 'people'].includes(surface);
   return (
     <>
-      <ul className={`issue-feed${showThumbnails ? ' issue-feed--visual' : ''}`}>
+      <ul
+        className={`issue-feed${showThumbnails ? ' issue-feed--visual' : ''}${peopleTimeline ? ' people-timeline' : ''}`}
+      >
         {items.map((item, index) => (
-          <li key={item.key}>
+          <li
+            key={item.key}
+            className={
+              peopleTimeline &&
+              (index === 0 || timestamp(items[index - 1].date) !== timestamp(item.date))
+                ? 'people-date-start'
+                : undefined
+            }
+          >
+            {peopleTimeline &&
+              (index === 0 || timestamp(items[index - 1].date) !== timestamp(item.date)) && (
+                <div className="people-date-marker">
+                  <time dateTime={item.date ?? undefined} title={item.date ?? undefined}>
+                    {timestamp(item.date)
+                      ? feedDate(item.date, '발행').replace(' 발행', '')
+                      : '날짜 미제공'}
+                  </time>
+                </div>
+              )}
             <article
               className={`issue-feed-row${showThumbnails ? ' issue-feed-row--visual' : ''}${compactNews ? ' issue-feed-row--news' : ''}`}
             >
@@ -148,26 +169,27 @@ export function IssueFeed({
                 {compactNews && item.source === 'DAYNOMY' && item.article.category !== 'ALL' && (
                   <span>{getCategoryLabel(item.article.category)}</span>
                 )}
-                {compactNews ? (
-                  <time
-                    dateTime={
-                      (item.source === 'DAYNOMY'
-                        ? item.date
-                        : 'post' in item
-                          ? item.post.createdAt
-                          : item.content.createdAt) ?? undefined
-                    }
-                  >
-                    {item.source === 'DAYNOMY'
-                      ? feedDate(item.date, '발행')
-                      : feedDate(
-                          'post' in item ? item.post.createdAt : item.content.createdAt,
-                          '등록',
-                        )}
-                  </time>
-                ) : (
-                  <time dateTime={item.date ?? undefined}>{feedDate(item.date)}</time>
-                )}
+                {!peopleTimeline &&
+                  (compactNews ? (
+                    <time
+                      dateTime={
+                        (item.source === 'DAYNOMY'
+                          ? item.date
+                          : 'post' in item
+                            ? item.post.createdAt
+                            : item.content.createdAt) ?? undefined
+                      }
+                    >
+                      {item.source === 'DAYNOMY'
+                        ? feedDate(item.date, '발행')
+                        : feedDate(
+                            'post' in item ? item.post.createdAt : item.content.createdAt,
+                            '등록',
+                          )}
+                    </time>
+                  ) : (
+                    <time dateTime={item.date ?? undefined}>{feedDate(item.date)}</time>
+                  ))}
               </div>
               {item.source === 'DAYNOMY' ? (
                 <Link
