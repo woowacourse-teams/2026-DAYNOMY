@@ -289,6 +289,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                         </div>
                         {social ? (
                           <button
+                            id={`portfolio-trigger-${key}`}
                             className="issue-row-title"
                             aria-expanded={expanded === key}
                             aria-controls={`portfolio-post-${key}`}
@@ -343,18 +344,54 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                             className="issue-inline-post"
                             hidden={expanded !== key}
                           >
-                            {expanded === key &&
-                              (item.sourceType === 'X' ||
-                                item.sourceType === 'THREADS' ||
-                                item.sourceType === 'YOUTUBE') && (
-                                <SocialPostEmbed
-                                  post={{
-                                    sourceType: item.sourceType,
-                                    title: item.title,
-                                    url: item.url,
+                            {expanded === key && (
+                              <>
+                                <div className="issue-reading-embed">
+                                  {item.sourceType === 'YOUTUBE' ? (
+                                    <>
+                                      {videoId ? (
+                                        <iframe
+                                          className="issue-video"
+                                          title={item.title}
+                                          src={`https://www.youtube-nocookie.com/embed/${videoId}`}
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                          allowFullScreen
+                                        />
+                                      ) : (
+                                        <p>이 영상은 YouTube에서 확인해 주세요.</p>
+                                      )}
+                                      <a
+                                        className="issue-video-link"
+                                        href={item.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        YouTube에서 원문 보기 ↗
+                                      </a>
+                                    </>
+                                  ) : (
+                                    (item.sourceType === 'X' || item.sourceType === 'THREADS') && (
+                                      <SocialPostEmbed
+                                        post={{
+                                          sourceType: item.sourceType,
+                                          title: item.title,
+                                          url: item.url,
+                                        }}
+                                      />
+                                    )
+                                  )}
+                                </div>
+                                <button
+                                  className="issue-inline-close"
+                                  onClick={() => {
+                                    setExpanded(null);
+                                    document.getElementById(`portfolio-trigger-${key}`)?.focus();
                                   }}
-                                />
-                              )}
+                                >
+                                  글 접기 ↑
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
                       </article>
