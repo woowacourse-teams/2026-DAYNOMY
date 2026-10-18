@@ -4,7 +4,8 @@ import threadsMark from '../../../assets/platform-threads.svg';
 import { trackLoadResult, useContentView } from './analytics';
 import { IssuePagination } from './IssuePagination';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { PortfolioContentsPage } from './PortfolioContentsPage';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
 import { IssueStories } from './IssueStories';
 import { getSampleNews, SAMPLE_NEWS_ID, showSampleNews } from './sampleNews';
@@ -18,6 +19,15 @@ import '../../people/people.css';
 import './issue.css';
 
 export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
+  const [params] = useSearchParams();
+  return fullFeed && params.get('scope') === 'portfolio' ? (
+    <PortfolioContentsPage />
+  ) : (
+    <PublicIssueHomePage fullFeed={fullFeed} />
+  );
+}
+
+function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     const previousTitle = document.title;

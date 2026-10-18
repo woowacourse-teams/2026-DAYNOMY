@@ -254,13 +254,13 @@ export function PortfolioNews({
         onClick={() =>
           trackEvent('click_content_more', {
             surface: 'portfolio_news',
-            destination: 'news_contents',
+            destination: 'portfolio_contents',
           })
         }
         className="portfolio-news-more"
-        href="/news/contents"
+        href="/news/contents?scope=portfolio"
       >
-        전체 콘텐츠 더 보기 <span aria-hidden="true">→</span>
+        보유 종목 소식 더 보기 <span aria-hidden="true">→</span>
       </a>
     </aside>
   );

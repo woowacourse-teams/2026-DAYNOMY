@@ -1661,3 +1661,230 @@
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
 }
+
+.portfolio-contents-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 36px;
+}
+.portfolio-company-sidebar {
+  min-width: 0;
+  padding-right: 24px;
+  border-right: 1px solid var(--issue-line);
+}
+.portfolio-company-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 24px;
+  padding: 10px 12px;
+  border: 1px solid var(--issue-line);
+  border-radius: 6px;
+}
+.portfolio-company-search svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: #677487;
+  stroke-width: 1.5;
+}
+.portfolio-company-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--issue-ink);
+  font: inherit;
+  font-size: 14px;
+}
+.portfolio-content-companies {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 65vh;
+  overflow-y: auto;
+  padding: 4px;
+}
+.portfolio-content-companies button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--issue-ink);
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.portfolio-content-companies button > span:last-child {
+  overflow-wrap: anywhere;
+}
+.portfolio-content-companies button:hover {
+  background: #f5f7fa;
+}
+.portfolio-content-companies button[aria-pressed='true'] {
+  background: #edf4ff;
+  color: #1764df;
+  font-weight: 600;
+}
+.portfolio-company-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #eef1f5;
+  color: #526177;
+  font-size: 13px;
+}
+.portfolio-company-empty {
+  margin: 12px 8px;
+  color: var(--issue-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.portfolio-company-content {
+  min-width: 0;
+}
+.portfolio-content-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--issue-line);
+}
+.portfolio-content-heading h1 {
+  margin: 0;
+  font-size: var(--page-title-size);
+  font-weight: var(--page-title-weight);
+  line-height: var(--page-title-line-height);
+  letter-spacing: var(--page-title-letter-spacing);
+  overflow-wrap: anywhere;
+}
+.portfolio-content-eyebrow {
+  margin: 0 0 8px;
+  color: var(--issue-muted);
+  font-size: 12px;
+}
+.portfolio-content-heading > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: #0a0a0a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.portfolio-content-heading > a svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.portfolio-content-heading > a:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+}
+.portfolio-content-heading > a:focus-visible {
+  outline: 2px solid #1764df;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-content-heading > a {
+    transition: none;
+  }
+  .portfolio-content-heading > a:hover {
+    transform: none;
+  }
+}
+.portfolio-content-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0 0;
+}
+.portfolio-content-toolbar .issue-source-filters {
+  min-width: 0;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+.portfolio-content-toolbar > span {
+  flex-shrink: 0;
+  color: var(--issue-muted);
+  font-size: 12px;
+}
+.portfolio-content-companies button:focus-visible,
+.portfolio-company-search:focus-within,
+.portfolio-content-toolbar button:focus-visible {
+  outline: 2px solid #1764df;
+  outline-offset: 2px;
+}
+.portfolio-company-search input:focus-visible {
+  outline: none;
+}
+@media (max-width: 1000px) {
+  .portfolio-contents-layout {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .portfolio-company-sidebar {
+    padding-right: 16px;
+  }
+}
+@media (max-width: 720px) {
+  .portfolio-contents-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .portfolio-company-sidebar {
+    padding: 0 0 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--issue-line);
+  }
+  .portfolio-company-search {
+    margin: 16px 0 12px;
+  }
+  .portfolio-content-companies {
+    flex-direction: row;
+    max-height: none;
+    overflow-x: auto;
+  }
+  .portfolio-content-companies button {
+    width: auto;
+    max-width: 220px;
+    padding: 8px 12px;
+  }
+  .portfolio-content-companies button > span:last-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .portfolio-content-heading {
+    align-items: flex-start;
+    padding-bottom: 16px;
+  }
+  .portfolio-content-heading > a {
+    font-size: 12px;
+    min-height: 36px;
+    padding: 0 12px;
+  }
+}
