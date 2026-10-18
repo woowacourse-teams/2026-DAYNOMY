@@ -411,8 +411,10 @@ it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 �
   fireEvent.click(view.getByRole('button', { name: '2페이지' }));
   expect(view.getAllByRole('link', { name: /페이지 기사/ })).toHaveLength(2);
   expect(view.queryByRole('link', { name: '페이지 기사 0 기사 읽기' })).toBeNull();
-  expect(view.getByRole('button', { name: '다음 페이지' }).hasAttribute('disabled')).toBe(true);
-  fireEvent.click(view.getByRole('button', { name: '이전 페이지' }));
+  expect(
+    view.getByRole('button', { name: '다음 방향 2페이지로 이동' }).hasAttribute('disabled'),
+  ).toBe(true);
+  fireEvent.click(view.getByRole('button', { name: '이전 방향 1페이지로 이동' }));
   expect(view.getByRole('link', { name: '페이지 기사 0 기사 읽기' })).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '2페이지' }));
   fireEvent.click(view.getByRole('button', { name: '데이노미' }));

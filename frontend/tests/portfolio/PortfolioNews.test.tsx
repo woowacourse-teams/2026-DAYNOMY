@@ -51,8 +51,8 @@ it('모든 보유 종목의 소식을 최신순으로 병합하고 같은 글에
   await view.findByText('새 소식');
   expect(getStockRelatedContents).toHaveBeenCalledTimes(2);
   expect(view.container.querySelectorAll('.portfolio-news-list a')).toHaveLength(2);
-  expect(view.getByRole('link', { name: /전체 콘텐츠 더 보기/ }).getAttribute('href')).toBe(
-    '/news/contents',
+  expect(view.getByRole('link', { name: /보유 종목 소식 더 보기/ }).getAttribute('href')).toBe(
+    '/news/contents?scope=portfolio',
   );
   expect(view.getAllByRole('link')[0].textContent).toContain('새 소식');
   expect(view.getByText('종목1 · 종목2')).toBeTruthy();
