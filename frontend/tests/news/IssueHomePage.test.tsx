@@ -341,7 +341,7 @@ it('홈은 달력 없이 오늘 기사만 보여준다', async () => {
   expect(view.container.querySelector('.issue-feed')?.textContent).not.toContain(older.title);
 });
 
-it('홈과 전체 콘텐츠를 썸네일형 목록으로 표시한다', async () => {
+it('홈과 전체 콘텐츠에서 기사와 외부 글의 썸네일 및 날짜를 표시한다', async () => {
   mockApi();
   const home = render(
     <MemoryRouter>
@@ -350,8 +350,23 @@ it('홈과 전체 콘텐츠를 썸네일형 목록으로 표시한다', async ()
   );
   await home.findByRole('button', { name: /첫 번째 인물 글/ });
   expect(home.container.querySelector('.issue-feed--visual .issue-feed-thumbnail')).toBeTruthy();
-  expect(home.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeTruthy();
+  expect(home.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeNull();
+  expect(home.container.querySelector('.issue-feed-thumbnail-daynomy')?.textContent).toBe(
+    '데이노미',
+  );
+  expect(home.container.querySelector('.issue-story-image')?.textContent).toBe('데이노미');
   expect(home.container.querySelector('.issue-feed-thumbnail-x')?.textContent).toBe('X');
+  const externalRow = home.getByRole('button', { name: /첫 번째 인물 글/ }).closest('article')!;
+  expect(externalRow.querySelector('time')?.textContent).toBe('10.12 등록');
+  expect(externalRow.querySelector('.issue-feed-thumbnail')).toBeTruthy();
+  expect(home.container.querySelector('.issue-story-meta')?.textContent).toContain('주식');
+  expect(home.container.querySelector('.issue-story-meta time')?.textContent).toBe('10.12 발행');
+  fireEvent.click(home.getByRole('button', { name: /첫 번째 인물 글/ }));
+  expect(home.getByRole('button', { name: /첫 번째 인물 글/ }).getAttribute('aria-expanded')).toBe(
+    'true',
+  );
+  fireEvent.click(home.getByRole('button', { name: /글 접기/ }));
+  expect(document.activeElement).toBe(home.getByRole('button', { name: /첫 번째 인물 글/ }));
   home.unmount();
 
   const contents = render(
@@ -363,7 +378,11 @@ it('홈과 전체 콘텐츠를 썸네일형 목록으로 표시한다', async ()
   expect(
     contents.container.querySelector('.issue-feed--visual .issue-feed-thumbnail'),
   ).toBeTruthy();
-  expect(contents.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeTruthy();
+  expect(contents.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeNull();
+  expect(contents.container.querySelector('.issue-feed-thumbnail-daynomy')?.textContent).toBe(
+    '데이노미',
+  );
+  expect(contents.container.querySelector('.issue-feed-thumbnail-x')?.textContent).toBe('X');
 });
 
 it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 페이지로 돌아온다', async () => {
@@ -391,12 +410,12 @@ it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 �
   expect(view.getAllByRole('link', { name: /페이지 기사/ })).toHaveLength(12);
   fireEvent.click(view.getByRole('button', { name: '2페이지' }));
   expect(view.getAllByRole('link', { name: /페이지 기사/ })).toHaveLength(2);
-  expect(view.queryByRole('link', { name: '페이지 기사 0' })).toBeNull();
+  expect(view.queryByRole('link', { name: '페이지 기사 0 기사 읽기' })).toBeNull();
   expect(view.getByRole('button', { name: '다음 페이지' }).hasAttribute('disabled')).toBe(true);
   fireEvent.click(view.getByRole('button', { name: '이전 페이지' }));
-  expect(view.getByRole('link', { name: '페이지 기사 0' })).toBeTruthy();
+  expect(view.getByRole('link', { name: '페이지 기사 0 기사 읽기' })).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '2페이지' }));
-  fireEvent.click(view.getByRole('button', { name: 'DAYNOMY Issue' }));
+  fireEvent.click(view.getByRole('button', { name: '데이노미' }));
   expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
 });
 

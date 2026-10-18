@@ -248,9 +248,7 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
                         <h3>{post.title}</h3>
                       </div>
                       <div className="issue-person-footer">
-                        <span>
-                          {post.createdAt ? `${feedDate(post.createdAt)} 등록` : '등록일 미제공'}
-                        </span>
+                        <span>{feedDate(post.createdAt, '등록')}</span>
                       </div>
                     </div>
                   </Link>
@@ -275,7 +273,7 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
               {(
                 [
                   ['ALL', '전체'],
-                  ['DAYNOMY', 'DAYNOMY Issue'],
+                  ['DAYNOMY', '데이노미'],
                   ['X', 'X'],
                   ['THREADS', 'Threads'],
                   ['YOUTUBE', 'YouTube'],

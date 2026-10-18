@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createFeed, isToday } from '../../src/features/news/issue/feed';
+import { createFeed, feedDate, isToday } from '../../src/features/news/issue/feed';
 import { getNewsThroughToday } from '../../src/features/news/issue/todayNews';
 import { getNews } from '../../src/features/news/newslist/api';
 vi.mock('../../src/features/news/newslist/api', () => ({ getNews: vi.fn() }));
@@ -120,4 +120,11 @@ it('지난 날짜 기사를 페이지 경계까지 모으고 더 오래된 페�
     });
   expect((await getNewsForDate('2026-10-11')).map((item) => item.id)).toEqual([2, 3]);
   expect(getNews).toHaveBeenCalledTimes(3);
+});
+
+it('짧은 날짜는 한국 시간으로 발행과 등록을 구분하고 누락된 날짜를 명시한다', () => {
+  expect(feedDate('2026-10-11T15:00:00Z', '발행')).toBe('10.12 발행');
+  expect(feedDate('2026-10-11T14:59:59Z', '등록')).toBe('10.11 등록');
+  expect(feedDate(null, '발행')).toBe('발행일 미제공');
+  expect(feedDate('invalid', '등록')).toBe('등록일 미제공');
 });
