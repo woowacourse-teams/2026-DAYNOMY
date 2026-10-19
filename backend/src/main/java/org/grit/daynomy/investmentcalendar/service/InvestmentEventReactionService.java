@@ -2,6 +2,8 @@ package org.grit.daynomy.investmentcalendar.service;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -25,30 +27,57 @@ public class InvestmentEventReactionService {
   private final TradingDayReactionCalculator calculator = new TradingDayReactionCalculator();
 
   @Transactional(readOnly = true)
-  public List<AssetEventReaction> calculate(InvestmentEvent event, List<Long> assetIds) {
-    if (assetIds.isEmpty()) {
-      return List.of();
+  public Map<InvestmentEvent, List<AssetEventReaction>> calculate(
+      List<InvestmentEvent> events, List<Long> assetIds) {
+    if (assetIds.isEmpty() || events.isEmpty()) {
+      return Map.of();
     }
-    LocalDate eventDate = event.getAnnouncedAt().atZone(SEOUL).toLocalDate();
+    LocalDate from =
+        events.stream()
+            .map(this::eventDate)
+            .min(Comparator.naturalOrder())
+            .orElseThrow()
+            .minusDays(LOOKUP_RANGE_DAYS);
+    LocalDate to =
+        events.stream()
+            .map(this::eventDate)
+            .max(Comparator.naturalOrder())
+            .orElseThrow()
+            .plusDays(LOOKUP_RANGE_DAYS);
     Map<Long, List<StockDailyPrice>> pricesByAsset =
         priceRepository
-            .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
-                assetIds,
-                eventDate.minusDays(LOOKUP_RANGE_DAYS),
-                eventDate.plusDays(LOOKUP_RANGE_DAYS))
+            .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(assetIds, from, to)
             .stream()
             .collect(Collectors.groupingBy(price -> price.getAsset().getId()));
+    Map<InvestmentEvent, List<AssetEventReaction>> result = new HashMap<>();
+    for (InvestmentEvent event : events) {
+      LocalDate date = eventDate(event);
+      List<AssetEventReaction> reactions =
+          assetIds.stream()
+              .map(
+                  assetId ->
+                      calculator
+                          .calculate(
+                              assetId,
+                              event.getAnnouncedAt(),
+                              pricesInWindow(pricesByAsset.getOrDefault(assetId, List.of()), date))
+                          .orElse(null))
+              .filter(java.util.Objects::nonNull)
+              .toList();
+      result.put(event, reactions);
+    }
+    return result;
+  }
 
-    return assetIds.stream()
-        .map(
-            assetId ->
-                calculator
-                    .calculate(
-                        assetId,
-                        event.getAnnouncedAt(),
-                        pricesByAsset.getOrDefault(assetId, List.of()))
-                    .orElse(null))
-        .filter(java.util.Objects::nonNull)
+  private List<StockDailyPrice> pricesInWindow(List<StockDailyPrice> prices, LocalDate date) {
+    LocalDate from = date.minusDays(LOOKUP_RANGE_DAYS);
+    LocalDate to = date.plusDays(LOOKUP_RANGE_DAYS);
+    return prices.stream()
+        .filter(price -> !price.getBaseDate().isBefore(from) && !price.getBaseDate().isAfter(to))
         .toList();
+  }
+
+  private LocalDate eventDate(InvestmentEvent event) {
+    return event.getAnnouncedAt().atZone(SEOUL).toLocalDate();
   }
 }

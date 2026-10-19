@@ -2,6 +2,7 @@ package org.grit.daynomy.investmentcalendar.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -40,10 +41,48 @@ class InvestmentEventReactionServiceTest {
                 price(secondAsset, "2026-10-13", "20000")));
     InvestmentEventReactionService service = new InvestmentEventReactionService(priceRepository);
 
-    List<AssetEventReaction> result = service.calculate(event, List.of(1L, 2L));
+    List<AssetEventReaction> result = service.calculate(List.of(event), List.of(1L, 2L)).get(event);
 
     assertThat(result).hasSize(1);
     assertThat(result.getFirst().assetId()).isEqualTo(1L);
+  }
+
+  @Test
+  void batchesPricesButDoesNotUsePricesOutsideEachEventWindow() {
+    Asset asset = asset(1L, "000001");
+    InvestmentEvent first = event();
+    InvestmentEvent second =
+        new InvestmentEvent(
+            InvestmentEventType.US_CPI,
+            "다음 발표",
+            Instant.parse("2026-11-13T00:30:00Z"),
+            BigDecimal.ONE,
+            BigDecimal.TEN,
+            "%",
+            "BLS",
+            "https://www.bls.gov/",
+            "next",
+            null);
+    given(
+            priceRepository.findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+                List.of(1L), LocalDate.of(2026, 10, 3), LocalDate.of(2026, 11, 23)))
+        .willReturn(
+            List.of(
+                price(asset, "2026-10-12", "100"),
+                price(asset, "2026-10-13", "110"),
+                price(asset, "2026-11-13", "200")));
+
+    var result =
+        new InvestmentEventReactionService(priceRepository)
+            .calculate(List.of(first, second), List.of(1L));
+
+    assertThat(result.get(first).getFirst().returnRate()).isEqualByComparingTo("10");
+    assertThat(result.get(second)).isEmpty();
+    then(priceRepository)
+        .should()
+        .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+            List.of(1L), LocalDate.of(2026, 10, 3), LocalDate.of(2026, 11, 23));
+    then(priceRepository).shouldHaveNoMoreInteractions();
   }
 
   private InvestmentEvent event() {

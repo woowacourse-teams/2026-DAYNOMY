@@ -7,7 +7,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.repository.AssetRepository;
@@ -38,44 +37,36 @@ public class InvestmentCalendarService {
   @Transactional(readOnly = true)
   public InvestmentCalendarResponse get(
       Long memberId, YearMonth yearMonth, InvestmentCalendarScope scope) {
-    Set<String> holdingAssetCodes = holdingAssetCodes(memberId, scope);
-    return get(
-        yearMonth,
-        scope,
-        holdingAssetCodes,
-        event -> portfolioAnalysisService.analyze(memberId, event));
+    return get(yearMonth, scope, memberHoldings(memberId));
   }
 
   @Transactional(readOnly = true)
   public InvestmentCalendarResponse getForGuest(
       YearMonth yearMonth, InvestmentCalendarScope scope, Map<Long, Long> requestedHoldings) {
-    List<InvestmentCalendarHolding> holdings = resolveHoldings(requestedHoldings);
-    Set<String> holdingAssetCodes =
-        holdings.stream()
-            .map(InvestmentCalendarHolding::assetCode)
-            .collect(Collectors.toUnmodifiableSet());
-    return get(
-        yearMonth,
-        scope,
-        holdingAssetCodes,
-        event -> portfolioAnalysisService.analyzeGuest(holdings, event));
+    return get(yearMonth, scope, resolveHoldings(requestedHoldings));
   }
 
   private InvestmentCalendarResponse get(
       YearMonth yearMonth,
       InvestmentCalendarScope scope,
-      Set<String> holdingAssetCodes,
-      Function<InvestmentEvent, PortfolioEventAnalysis> analysis) {
+      List<InvestmentCalendarHolding> holdings) {
+    Set<String> holdingAssetCodes =
+        holdings.stream()
+            .map(InvestmentCalendarHolding::assetCode)
+            .collect(Collectors.toUnmodifiableSet());
     Instant from = yearMonth.atDay(1).atStartOfDay(SEOUL).toInstant();
     Instant to = yearMonth.plusMonths(1).atDay(1).atStartOfDay(SEOUL).toInstant();
     LocalDate today = LocalDate.now(SEOUL);
-    List<InvestmentCalendarEventResponse> events =
+    List<InvestmentEvent> visibleEvents =
         eventRepository
             .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(from, to)
             .stream()
             .filter(event -> visible(event, scope, holdingAssetCodes))
-            .map(event -> response(event, analysis.apply(event), today))
             .toList();
+    Map<InvestmentEvent, PortfolioEventAnalysis> analyses =
+        portfolioAnalysisService.analyze(holdings, visibleEvents);
+    List<InvestmentCalendarEventResponse> events =
+        visibleEvents.stream().map(event -> response(event, analyses.get(event), today)).toList();
     return new InvestmentCalendarResponse(yearMonth.getYear(), yearMonth.getMonthValue(), events);
   }
 
@@ -88,17 +79,19 @@ public class InvestmentCalendarService {
         .toList();
   }
 
-  private Set<String> holdingAssetCodes(Long memberId, InvestmentCalendarScope scope) {
-    if (scope == InvestmentCalendarScope.ALL) {
-      return Set.of();
-    }
+  private List<InvestmentCalendarHolding> memberHoldings(Long memberId) {
     return portfolioRepository
         .findByMemberId(memberId)
         .map(portfolio -> holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId()))
         .orElseGet(List::of)
         .stream()
-        .map(holding -> holding.getAsset().getAssetCode())
-        .collect(Collectors.toUnmodifiableSet());
+        .map(
+            holding ->
+                new InvestmentCalendarHolding(
+                    holding.getAsset().getId(),
+                    holding.getAsset().getAssetCode(),
+                    holding.getQuantity()))
+        .toList();
   }
 
   private boolean visible(
