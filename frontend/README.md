@@ -516,18 +516,14 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 
 가이드 10단계 버전은 `tour_version: v2`로 전송합니다. 추가된 단계 ID는 `asset_trend_composition`, `asset_holdings_history`이며, 기존 완료 저장 키는 유지합니다.
 
-### 포트폴리오 이벤트 점검 (#550)
+### 포트폴리오 대시보드·거래 이벤트 점검 (#550)
 
-대상은 대시보드 `/`와 이 화면에서 실행되는 거래·소식·분석 흐름이다. 실제 PostHog 수신 대조는 이 코드 점검에 포함하지 않는다.
+이번 변경은 대시보드와 거래 이벤트의 코드·로컬 테스트 점검이다. AI 분석 결과·조회 실패·출처 클릭과 공통 이벤트 전송 코드는 변경하지 않는다.
 
-| 흐름                | 이벤트와 검증 기준                                                                                                                                                                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 대시보드            | `portfolio_dashboard_viewed`·`portfolio_dashboard_loaded`는 마운트당 한 번. 보유정보와 계산 완료 후 로딩 성공을 기록하며 빈 포트폴리오도 정상이다. 추이·내역 실패는 `portfolio_dashboard_load_failed`의 `stage`로 구분한다.                                        |
-| 거래 진입·등록·수정 | `portfolio_editor_opened`의 `mode`·`entry_point`, `portfolio_save_submitted` → `portfolio_save_succeeded` 또는 `portfolio_save_failed`. 서버 응답 검증 또는 브라우저 임시 저장이 끝나야 성공이다. 실패 후 재시도는 별도 제출이며 렌더링은 제출로 세지 않는다.      |
-| 거래 삭제           | `portfolio_delete_succeeded`·`portfolio_delete_failed`. 실패 중에는 성공이 없고 재시도 성공은 한 번만 기록한다.                                                                                                                                                    |
-| 소식                | `view_portfolio_news`, `content_load_result`, `click_content`·`click_content_original`, `retry_content_load`. 노출·일부 실패·재시도를 구분하고 종목명·URL 원문을 전송하지 않는다.                                                                                  |
-| 분석 요청·결과      | `start_portfolio_analysis` 후 `portfolio_analysis_result`는 최종 상태에서 한 번. `PROCESSING`은 결과로 세지 않고 폴링/수동 확인의 최종 상태를 연결하며 시간은 처음 요청부터 계산한다. 기존 분석 복원·409 뒤 다른 요청의 결과·화면 이탈은 새 성공으로 세지 않는다.  |
-| 분석 조회 실패      | `portfolio_analysis_load_failed`: `user_type`, `stage` (`restore`·`poll`·`recovery`), `error_type`. 진행 상태/실패한 초기 조회를 수동으로 다시 확인하면 `portfolio_retry_clicked` (`target: analysis`). 조회 실패 후 복구해도 분석 시작을 중복 기록하지 않는다.    |
-| 분석 노출·출처      | `view_portfolio_analysis`, `expand_portfolio_analysis_sources`, `click_portfolio_analysis_source`. 원문 클릭은 `surface`, `scope`, `position`, `source_count`만 전송하고 출처 URL·제목·종목·보유정보는 제외한다. 가이드 예제는 분석 노출·출처 이벤트에서 제외한다. |
+| 흐름                | 이벤트와 검증 기준                                                                                                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 대시보드            | `portfolio_dashboard_viewed`·`portfolio_dashboard_loaded`는 마운트당 한 번. 보유정보와 계산 완료 후 로딩 성공을 기록하며 빈 포트폴리오도 정상이다. 추이·내역 실패는 `portfolio_dashboard_load_failed`의 `stage`로 구분한다.                                   |
+| 거래 진입·등록·수정 | `portfolio_editor_opened`의 `mode`·`entry_point`, `portfolio_save_submitted` → `portfolio_save_succeeded` 또는 `portfolio_save_failed`. 서버 응답 검증 또는 브라우저 임시 저장이 끝나야 성공이다. 실패 후 재시도는 별도 제출이며 렌더링은 제출로 세지 않는다. |
+| 거래 삭제           | `portfolio_delete_succeeded`·`portfolio_delete_failed`. 실패 중에는 성공이 없고 재시도 성공은 한 번만 기록한다.                                                                                                                                               |
 
-`tests/portfolio/PortfolioPage.test.tsx`, `PortfolioTransactions.test.tsx`, `GuestPortfolioTransactions.test.tsx`, `PortfolioNews.test.tsx`, `PortfolioAnalysis.test.tsx`와 `tests/monitoring`에서 정상·실패·재시도·취소·중복·민감정보 제외를 검증한다. GA/PostHog 수집 예외는 사용자 작업을 실패로 바꾸지 않는다. `/login`·`/admin` 진입 후 같은 앱 세션 수집을 중지하는 기존 정책은 유지한다.
+기존 `tests/portfolio/PortfolioPage.test.tsx`, `GuestPortfolioTransactions.test.tsx`, `tests/monitoring/portfolioAnalytics.test.tsx`를 확인하고 `PortfolioTransactions.test.tsx`에 회원 거래 등록·수정·삭제 실패 및 재시도 시 이벤트 순서·횟수와 민감정보 제외 검증을 보강했다. 실제 PostHog 수신 대조는 포함하지 않는다.

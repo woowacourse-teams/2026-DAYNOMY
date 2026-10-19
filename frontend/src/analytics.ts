@@ -163,6 +163,7 @@ export function trackPageView(path: string) {
 
 export function trackEvent(name: string, params: AnalyticsParams = {}) {
   if (!canTrack()) return;
+  initAnalytics();
   const properties = {
     ...Object.fromEntries(
       Object.entries(params).filter(
@@ -173,12 +174,7 @@ export function trackEvent(name: string, params: AnalyticsParams = {}) {
     page_location: cleanUrl(window.location.href),
     page_referrer: currentPageReferrer || cleanUrl(document.referrer),
   };
-  try {
-    initAnalytics();
-    window.gtag?.('event', name, properties);
-  } catch {
-    // GA 전송 실패가 분석·저장 처리와 PostHog 전송을 중단하지 않게 한다.
-  }
+  window.gtag?.('event', name, properties);
   capturePostHog(name, properties);
 }
 

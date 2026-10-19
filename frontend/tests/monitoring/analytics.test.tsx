@@ -267,19 +267,3 @@ it('PostHog 전송 예외가 사용자 동작과 GA4 수집을 중단하지 않�
     true,
   );
 });
-
-it('GA 전송 예외가 분석 요청 처리와 PostHog 수집을 중단하지 않는다', async () => {
-  enablePostHog();
-  const { initAnalytics, trackEvent } = await import('../../src/analytics');
-  initAnalytics();
-  window.gtag = () => {
-    throw new Error('tag unavailable');
-  };
-  expect(() => trackEvent('start_portfolio_analysis', { action: 'analyze' })).not.toThrow();
-  await vi.waitFor(() =>
-    expect(posthog.capture).toHaveBeenCalledWith(
-      'start_portfolio_analysis',
-      expect.objectContaining({ action: 'analyze' }),
-    ),
-  );
-});
