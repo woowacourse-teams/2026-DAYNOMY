@@ -81,12 +81,21 @@ it('이미지가 있는 소식에는 원본 썸네일을, 없는 소식에는 �
   const view = render(<PortfolioNews holdings={[{ assetId: 1, name: '종목1' }]} />);
 
   await view.findAllByText('공통 소식');
-  expect(view.container.querySelector('.portfolio-news-thumbnail.source-x img')).toBeNull();
+  expect(view.container.querySelector('.portfolio-news-thumbnail.source-x > img')).toBeNull();
+  expect(
+    view.container.querySelector('.source-x .portfolio-news-thumbnail-fallback img'),
+  ).toBeTruthy();
   expect(
     view.container
-      .querySelector('.portfolio-news-thumbnail.source-youtube img')
+      .querySelector('.portfolio-news-thumbnail.source-youtube > img')
       ?.getAttribute('src'),
   ).toBe('https://images.example.test/video.jpg');
+  const image = view.container.querySelector('.portfolio-news-thumbnail.source-youtube > img')!;
+  fireEvent.error(image);
+  expect(image.hasAttribute('hidden')).toBe(true);
+  expect(
+    view.container.querySelector('.source-youtube .portfolio-news-thumbnail-fallback svg'),
+  ).toBeTruthy();
 });
 it('일부 종목 조회가 실패해도 성공한 소식은 유지하고 재시도한다', async () => {
   vi.mocked(getStockRelatedContents).mockImplementation(async (id) => {
@@ -143,7 +152,7 @@ it.each([
   ['2026-10-14T01:00:00Z', '2026-10-12T10:00:00Z'],
   [null, '2026-10-14T01:00:00Z'],
 ])(
-  '중복 소식은 조회 순서와 무관하게 최신 등록일로 표시하고 정렬한다 (%s, %s)',
+  '게시일 없는 중복 소식은 조회 순서와 무관하게 최신 등록일로 표시하고 정렬한다 (%s, %s)',
   async (first, second) => {
     vi.mocked(getStockRelatedContents).mockImplementation(async (id) => ({
       assetId: id,
@@ -180,3 +189,102 @@ it.each([
     expect(links[0].textContent).toContain('종목1 · 종목2');
   },
 );
+
+it.each([null, undefined])(
+  '게시일을 우선하고 게시일이 %s이면 등록일로 정렬한다',
+  async (missingDate) => {
+    vi.mocked(getStockRelatedContents).mockResolvedValue({
+      assetId: 1,
+      assetCode: '1',
+      assetName: '종목1',
+      contents: [
+        {
+          ...content,
+          title: '최근 등록된 오래된 글',
+          publishedDate: '2026-10-10',
+          createdAt: '2026-10-19T00:00:00Z',
+        },
+        {
+          ...content,
+          id: 2,
+          url: 'https://x.com/test/status/2',
+          title: '최근 게시된 글',
+          publishedDate: '2026-10-15',
+          createdAt: '2026-10-16T00:00:00Z',
+        },
+        {
+          ...content,
+          id: 3,
+          url: 'https://x.com/test/status/3',
+          title: '게시일 없는 글',
+          publishedDate: missingDate,
+          createdAt: '2026-10-14T00:00:00Z',
+        },
+      ],
+    });
+    const view = render(<PortfolioNews holdings={[{ assetId: 1, name: '종목1' }]} />);
+    await view.findByText('게시일 없는 글');
+    const links = Array.from(view.container.querySelectorAll('.portfolio-news-list a'));
+    expect(links.map((link) => link.querySelector('strong')?.textContent)).toEqual([
+      '최근 게시된 글',
+      '게시일 없는 글',
+      '최근 등록된 오래된 글',
+    ]);
+    expect(links.map((link) => link.querySelector('time')?.textContent)).toEqual([
+      '10.15 발행',
+      '10.14 등록',
+      '10.10 발행',
+    ]);
+    expect(links.map((link) => link.querySelector('time')?.getAttribute('datetime'))).toEqual([
+      '2026-10-15',
+      '2026-10-14T00:00:00Z',
+      '2026-10-10',
+    ]);
+  },
+);
+
+it.each([
+  ['2026-10-15', null],
+  [null, '2026-10-15'],
+])('중복 글의 게시일을 유지하며 등록일보다 우선한다 (%s, %s)', async (first, second) => {
+  vi.mocked(getStockRelatedContents).mockImplementation(async (id) => ({
+    assetId: id,
+    assetCode: String(id),
+    assetName: `종목${id}`,
+    contents: [
+      {
+        ...content,
+        assetId: id,
+        publishedDate: id === 1 ? first : second,
+        createdAt: '2026-10-19T00:00:00Z',
+      },
+      ...(id === 1
+        ? [
+            {
+              ...content,
+              id: 3,
+              url: 'https://x.com/test/status/3',
+              title: '더 최근 게시된 글',
+              publishedDate: '2026-10-16',
+              createdAt: '2026-10-17T00:00:00Z',
+            },
+          ]
+        : []),
+    ],
+  }));
+  const view = render(
+    <PortfolioNews
+      holdings={[
+        { assetId: 1, name: '종목1' },
+        { assetId: 2, name: '종목2' },
+      ]}
+    />,
+  );
+  await view.findByText('공통 소식');
+  const links = view.container.querySelectorAll('.portfolio-news-list a');
+  expect(links).toHaveLength(2);
+  expect(links[0].querySelector('strong')?.textContent).toBe('더 최근 게시된 글');
+  expect(links[1].querySelector('time')?.textContent).toBe('10.15 발행');
+  expect(links[1].querySelector('time')?.getAttribute('datetime')).toBe('2026-10-15');
+  expect(links[1].textContent).toContain('종목1 · 종목2');
+});
