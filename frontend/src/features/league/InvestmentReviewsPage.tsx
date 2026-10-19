@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { createReview, getInvestmentDecisions, updateReview } from './api';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { holdingPeriodLabels, transactionLabels } from './labels';
 import type { InvestmentDecisionRecord } from './types';
 import './league.css';
@@ -44,10 +45,24 @@ export function InvestmentReviewsPage() {
     setLoadError('');
     getInvestmentDecisions(controller.signal)
       .then((values) => {
-        if (!controller.signal.aborted) setRecords(values);
+        if (!controller.signal.aborted) {
+          setRecords(values);
+          trackLeagueEvent('league_load_result', {
+            surface: 'reviews',
+            status: 'success',
+            result_count: values.length,
+          });
+        }
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setLoadError('투자 기록을 불러오지 못했습니다.');
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) {
+          setLoadError('투자 기록을 불러오지 못했습니다.');
+          trackLeagueEvent('league_load_result', {
+            surface: 'reviews',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       });
     return () => controller.abort();
   }, [retry]);
@@ -59,6 +74,11 @@ export function InvestmentReviewsPage() {
       return;
     }
     setBusy(true);
+    trackLeagueEvent('league_action', {
+      surface: 'reviews',
+      action: editingReviewId === null ? 'save_review' : 'edit_review',
+      status: 'submitted',
+    });
     setError('');
     setMessage('');
     try {
@@ -85,6 +105,12 @@ export function InvestmentReviewsPage() {
       setMessage(editingReviewId === null ? '복기를 저장했습니다.' : '복기를 수정했습니다.');
     } catch (caught) {
       setError(messageOf(caught));
+      trackLeagueEvent('league_action', {
+        surface: 'reviews',
+        action: editingReviewId === null ? 'save_review' : 'edit_review',
+        status: 'error',
+        error_type: leagueErrorType(caught),
+      });
     } finally {
       setBusy(false);
     }
@@ -157,6 +183,11 @@ export function InvestmentReviewsPage() {
               aria-expanded={reviewId === r.id && editingReviewId === item.id}
               disabled={busy || reviewId !== null}
               onClick={(event) => {
+                trackLeagueEvent('league_action', {
+                  surface: 'reviews',
+                  action: 'open_review',
+                  status: 'clicked',
+                });
                 reviewTrigger.current = event.currentTarget;
                 setReviewId(r.id);
                 setEditingReviewId(item.id);
@@ -179,6 +210,11 @@ export function InvestmentReviewsPage() {
           aria-expanded={reviewId === r.id && editingReviewId === null}
           disabled={busy || reviewId !== null}
           onClick={(event) => {
+            trackLeagueEvent('league_action', {
+              surface: 'reviews',
+              action: 'open_review',
+              status: 'clicked',
+            });
             reviewTrigger.current = event.currentTarget;
             setReviewId(r.id);
             setEditingReviewId(null);
@@ -289,7 +325,18 @@ export function InvestmentReviewsPage() {
       {loadError ? (
         <div className="league-state" role="alert">
           <p>{loadError}</p>
-          <button onClick={() => setRetry((value) => value + 1)}>다시 불러오기</button>
+          <button
+            onClick={() => {
+              trackLeagueEvent('league_action', {
+                surface: 'reviews',
+                action: 'retry',
+                status: 'clicked',
+              });
+              setRetry((value) => value + 1);
+            }}
+          >
+            다시 불러오기
+          </button>
         </div>
       ) : records === null ? (
         <p className="league-state" role="status">

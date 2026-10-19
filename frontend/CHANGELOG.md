@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- PostHog 프로젝트 토큰 설정명을 `VITE_POSTHOG_PROJECT_TOKEN`으로 통일해 GitHub Environment에 등록된 값을 코드와 배포 빌드가 읽도록 수정했습니다.
+- 투자 리그의 주요 동작·조회·저장 이벤트를 보강했습니다.
+
 ## v1.1.4
 
 ### 접근성과 오류 복구

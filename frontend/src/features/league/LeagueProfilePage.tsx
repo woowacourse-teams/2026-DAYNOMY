@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getMyInvestorProfile } from './api';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { InvestorProfilePage } from './InvestorProfilePage';
 import { useAuth } from '../../hooks/useLoginStatus';
 import type { InvestorProfile } from './types';
@@ -23,10 +24,20 @@ export function LeagueProfilePage() {
     setFailed(false);
     getMyInvestorProfile(controller.signal)
       .then((saved) => {
-        if (!controller.signal.aborted) setProfile(saved);
+        if (!controller.signal.aborted) {
+          setProfile(saved);
+          trackLeagueEvent('league_load_result', { surface: 'own_profile', status: 'success' });
+        }
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setFailed(true);
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) {
+          setFailed(true);
+          trackLeagueEvent('league_load_result', {
+            surface: 'own_profile',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -47,7 +58,18 @@ export function LeagueProfilePage() {
       ) : failed ? (
         <div role="alert">
           <p>프로필을 불러오지 못했습니다.</p>
-          <button onClick={() => setRetry((value) => value + 1)}>다시 불러오기</button>
+          <button
+            onClick={() => {
+              trackLeagueEvent('league_action', {
+                surface: 'own_profile',
+                action: 'retry',
+                status: 'clicked',
+              });
+              setRetry((value) => value + 1);
+            }}
+          >
+            다시 불러오기
+          </button>
         </div>
       ) : (
         <>

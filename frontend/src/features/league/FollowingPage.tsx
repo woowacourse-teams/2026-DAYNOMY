@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getFollowSummary } from './api';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { formatRate } from './labels';
 import type { FollowSummary } from './types';
 import './league.css';
@@ -20,11 +21,24 @@ export function FollowingPage() {
     setInvestors([]);
     getFollowSummary(controller.signal)
       .then((value) => {
-        if (!controller.signal.aborted) setInvestors(value);
+        if (!controller.signal.aborted) {
+          setInvestors(value);
+          trackLeagueEvent('league_load_result', {
+            surface: 'following',
+            status: 'success',
+            result_count: value.length,
+          });
+        }
       })
       .catch((caught: unknown) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
           setError(caught instanceof Error ? caught.message : '팔로우 요약을 불러오지 못했습니다.');
+          trackLeagueEvent('league_load_result', {
+            surface: 'following',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -50,7 +64,17 @@ export function FollowingPage() {
       {error ? (
         <div className="league-state" role="alert">
           <p>{error}</p>
-          <button type="button" onClick={() => setRetry((n) => n + 1)}>
+          <button
+            type="button"
+            onClick={() => {
+              trackLeagueEvent('league_action', {
+                surface: 'following',
+                action: 'retry',
+                status: 'clicked',
+              });
+              setRetry((n) => n + 1);
+            }}
+          >
             다시 불러오기
           </button>
         </div>

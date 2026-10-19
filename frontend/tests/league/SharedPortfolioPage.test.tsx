@@ -7,6 +7,9 @@ import * as api from '../../src/features/league/sharedPortfolioApi';
 import { AuthContext } from '../../src/auth/AuthContext';
 import * as leagueApi from '../../src/features/league/api';
 import * as portfolioApi from '../../src/features/portfolio/api';
+import { trackEvent } from '../../src/analytics';
+
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 
 vi.mock('../../src/features/league/sharedPortfolioApi', async (importOriginal) => ({
   ...(await importOriginal<typeof api>()),
@@ -92,7 +95,10 @@ async function importButton(view: ReturnType<typeof render>) {
 }
 
 describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오', () => {
-  it('원본 자산을 선택해 가져오고 원본 저장소는 변경하지 않는다', async () => {
+  it('분석 전송이 실패해도 원본 자산을 가져오고 원본 저장소는 변경하지 않는다', async () => {
+    vi.mocked(trackEvent).mockImplementation(() => {
+      throw new Error('SDK failed');
+    });
     vi.mocked(api.importSharedHoldings).mockResolvedValue(portfolio);
     const original = localStorage.getItem(storageKey);
     const view = renderPage();
@@ -119,6 +125,13 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       ),
     );
     expect(await view.findByRole('heading', { name: '등록한 종목 1개' })).toBeTruthy();
+    expect(trackEvent).toHaveBeenCalledWith(
+      'league_action',
+      expect.objectContaining({ action: 'import_holdings', status: 'success', result_count: 1 }),
+    );
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toMatch(
+      /삼성전자|장기 성장 기대|70000/,
+    );
     expect(localStorage.getItem(storageKey)).toBe(original);
     expect(view.getByRole('link', { name: '투자 기록·복기' }).getAttribute('href')).toBe(
       '/league/reviews',

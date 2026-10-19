@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { InvestorAvatar } from './InvestorAvatar';
 import { Link } from 'react-router-dom';
-import { trackEvent } from '../../analytics';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { getLeagueWeeks, getMyInvestorProfile, getRankings } from './api';
 import {
@@ -41,6 +41,7 @@ export function LeaguePage() {
   const [profileError, setProfileError] = useState(false);
   const [profileRetry, setProfileRetry] = useState(0);
   const [weeks, setWeeks] = useState<LeagueWeek[]>([]);
+  const [weeksReady, setWeeksReady] = useState(false);
   const [weekStart, setWeekStart] = useState('');
   const [ranking, setRanking] = useState<RankingResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +53,12 @@ export function LeaguePage() {
   const metricsDialog = useRef<HTMLDialogElement>(null);
   const pageStatus = useRef<HTMLSpanElement>(null);
   const changingPage = useRef(false);
+  const viewed = useRef(false);
+
+  function retryLoad() {
+    trackLeagueEvent('league_action', { surface: 'ranking', action: 'retry', status: 'clicked' });
+    setRetry((value) => value + 1);
+  }
 
   useEffect(() => {
     if (!loading && changingPage.current) {
@@ -99,7 +106,9 @@ export function LeaguePage() {
   }, [selectedEntry]);
 
   useEffect(() => {
-    trackEvent('view_league', { league_type: 'WEEKLY_RETURN', week_state: 'current' });
+    if (viewed.current) return;
+    viewed.current = true;
+    trackLeagueEvent('view_league', { league_type: 'WEEKLY_RETURN', week_state: 'current' });
   }, []);
 
   useEffect(() => {
@@ -115,32 +124,61 @@ export function LeaguePage() {
             ? current
             : recentWeeks[0]?.weekStart || '',
         );
+        setWeeksReady(true);
+        trackLeagueEvent('league_load_result', {
+          surface: 'ranking_weeks',
+          status: 'success',
+          result_count: recentWeeks.length,
+        });
       })
-      .catch(() => {
-        if (!controller.signal.aborted)
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) {
           setWeekError('조회 주차를 불러오지 못했습니다. 다시 불러와 주세요.');
+          setWeeksReady(true);
+          trackLeagueEvent('league_load_result', {
+            surface: 'ranking_weeks',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       });
     return () => controller.abort();
   }, [retry]);
 
   useEffect(() => {
+    if (!weeksReady) return;
     const controller = new AbortController();
     setLoading(true);
     setError('');
     getRankings('WEEKLY_RETURN', weekStart || undefined, controller.signal, page)
       .then((value) => {
-        if (!controller.signal.aborted) setRanking(value);
+        if (controller.signal.aborted) return;
+        setRanking(value);
+        trackLeagueEvent('league_load_result', {
+          surface: 'ranking',
+          status: 'success',
+          page,
+          result_count: value.rankings.length,
+          confirmed: value.confirmed,
+          collection_status: value.collectionStatus,
+        });
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) {
           setError(caught instanceof Error ? caught.message : '리그를 불러오지 못했습니다.');
+          trackLeagueEvent('league_load_result', {
+            surface: 'ranking',
+            status: 'error',
+            page,
+            error_type: leagueErrorType(caught),
+          });
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [retry, weekStart, page]);
+  }, [retry, weekStart, page, weeksReady]);
 
   return (
     <main className="league-page">
@@ -156,16 +194,46 @@ export function LeaguePage() {
           ) : isLoggedIn && leagueEnabled === null ? (
             <span role="status">참여 상태 확인 중</span>
           ) : (
-            <Link className="league-primary-link" to={participationPath}>
+            <Link
+              className="league-primary-link"
+              to={participationPath}
+              onClick={() =>
+                trackLeagueEvent('league_action', {
+                  surface: 'ranking',
+                  action: leagueEnabled ? 'manage_holdings' : 'participate',
+                  status: 'clicked',
+                })
+              }
+            >
               {isLoggedIn && leagueEnabled ? '종목 관리하기' : '투자리그 참여하기'}
             </Link>
           )}
           {isLoggedIn ? (
             <>
-              <Link className="league-text-link" to="/league/profile">
+              <Link
+                className="league-text-link"
+                to="/league/profile"
+                onClick={() =>
+                  trackLeagueEvent('league_action', {
+                    surface: 'ranking',
+                    action: 'open_profile',
+                    status: 'clicked',
+                  })
+                }
+              >
                 내 프로필
               </Link>
-              <Link className="league-text-link" to="/league/following">
+              <Link
+                className="league-text-link"
+                to="/league/following"
+                onClick={() =>
+                  trackLeagueEvent('league_action', {
+                    surface: 'ranking',
+                    action: 'open_following',
+                    status: 'clicked',
+                  })
+                }
+              >
                 팔로잉
               </Link>
             </>
@@ -180,7 +248,7 @@ export function LeaguePage() {
             setWeekStart(value);
             setPage(0);
             const index = weeks.findIndex((week) => week.weekStart === value);
-            trackEvent('change_league_week', {
+            trackLeagueEvent('change_league_week', {
               relative_week: -index,
               week_state: weeks[index]?.confirmed ? 'confirmed' : 'in_progress',
             });
@@ -214,7 +282,7 @@ export function LeaguePage() {
       {weekError ? (
         <div className="league-state" role="alert">
           <p>{weekError}</p>
-          <button type="button" onClick={() => setRetry((v) => v + 1)}>
+          <button type="button" onClick={retryLoad}>
             주차 다시 불러오기
           </button>
         </div>
@@ -222,7 +290,7 @@ export function LeaguePage() {
       {!loading && error ? (
         <div className="league-state" role="alert">
           <p>{error}</p>
-          <button type="button" onClick={() => setRetry((value) => value + 1)}>
+          <button type="button" onClick={retryLoad}>
             다시 시도
           </button>
         </div>
@@ -243,7 +311,7 @@ export function LeaguePage() {
                 : '이 주차에 표시할 순위가 없어요. 다른 주차를 선택해 보세요.')}
           </p>
           {ranking.collectionStatus === 'NO_TRADING_DAYS' ? null : emptyCollectionState ? (
-            <button type="button" onClick={() => setRetry((value) => value + 1)}>
+            <button type="button" onClick={retryLoad}>
               순위 다시 확인
             </button>
           ) : null}
@@ -289,7 +357,16 @@ export function LeaguePage() {
                     aria-label={`${entry.displayName} 상세 지표`}
                     aria-haspopup="dialog"
                     aria-expanded={selectedEntry?.publicId === entry.publicId}
-                    onClick={() => setSelectedEntry(entry)}
+                    onClick={() => {
+                      setSelectedEntry(entry);
+                      trackLeagueEvent('league_action', {
+                        surface: 'ranking',
+                        action: 'open_metrics',
+                        status: 'clicked',
+                        rank_bucket:
+                          entry.rank <= 3 ? 'top_3' : entry.rank <= 10 ? 'top_10' : 'other',
+                      });
+                    }}
                   >
                     상세 지표
                   </button>
@@ -315,6 +392,12 @@ export function LeaguePage() {
                 disabled={page === 0}
                 onClick={() => {
                   changingPage.current = true;
+                  trackLeagueEvent('league_action', {
+                    surface: 'ranking',
+                    action: 'change_page',
+                    status: 'clicked',
+                    page: page - 1,
+                  });
                   setPage((value) => value - 1);
                 }}
               >
@@ -333,6 +416,12 @@ export function LeaguePage() {
                 disabled={(page + 1) * 20 >= ranking.totalCount}
                 onClick={() => {
                   changingPage.current = true;
+                  trackLeagueEvent('league_action', {
+                    surface: 'ranking',
+                    action: 'change_page',
+                    status: 'clicked',
+                    page: page + 1,
+                  });
                   setPage((value) => value + 1);
                 }}
               >

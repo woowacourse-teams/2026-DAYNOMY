@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { getInvestmentDecisions, recordDecision } from './api';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import type { SharedHolding } from './sharedPortfolioApi';
 import type { InvestmentDecisionRecord } from './types';
 const messageOf = (error: unknown) =>
@@ -59,11 +60,24 @@ export function HoldingDecisions({
     setLoadError('');
     getInvestmentDecisions(controller.signal)
       .then((values) => {
-        if (!controller.signal.aborted) setRecords(values);
+        if (!controller.signal.aborted) {
+          setRecords(values);
+          trackLeagueEvent('league_load_result', {
+            surface: 'decisions',
+            status: 'success',
+            result_count: values.length,
+          });
+        }
       })
-      .catch(() => {
-        if (!controller.signal.aborted)
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) {
           setLoadError('판단 기록을 불러오지 못했습니다. 기록이 없는 것은 아니에요.');
+          trackLeagueEvent('league_load_result', {
+            surface: 'decisions',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -89,6 +103,11 @@ export function HoldingDecisions({
       return;
     }
     if (!requestKey.current) requestKey.current = crypto.randomUUID();
+    trackLeagueEvent('league_action', {
+      surface: 'decisions',
+      action: 'save_decision',
+      status: 'submitted',
+    });
     setBusy(true);
     setError('');
     setMessage('');
@@ -111,12 +130,23 @@ export function HoldingDecisions({
       setMessage('저장했습니다.');
     } catch (caught) {
       setError(messageOf(caught));
+      trackLeagueEvent('league_action', {
+        surface: 'decisions',
+        action: 'save_decision',
+        status: 'error',
+        error_type: leagueErrorType(caught),
+      });
     } finally {
       setBusy(false);
     }
   }
 
   function startDecision(id: number) {
+    trackLeagueEvent('league_action', {
+      surface: 'decisions',
+      action: 'open_decision',
+      status: 'clicked',
+    });
     setAssetId(String(id));
     setReason('');
     requestKey.current = '';
@@ -180,7 +210,18 @@ export function HoldingDecisions({
       ) : loadError ? (
         <div role="alert">
           <p>{loadError}</p>
-          <button onClick={() => setRetry((value) => value + 1)}>판단 기록 다시 불러오기</button>
+          <button
+            onClick={() => {
+              trackLeagueEvent('league_action', {
+                surface: 'decisions',
+                action: 'retry',
+                status: 'clicked',
+              });
+              setRetry((value) => value + 1);
+            }}
+          >
+            판단 기록 다시 불러오기
+          </button>
         </div>
       ) : null}
       {holdings.map((h) => {

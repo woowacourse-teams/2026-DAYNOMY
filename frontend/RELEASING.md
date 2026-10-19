@@ -38,7 +38,7 @@
 5. `dev → main` 릴리스 PR에 버전·변경 내용·실제 검증 결과를 적습니다. 이 릴리스는 프론트엔드 변경만 포함하며, 백엔드 API·Flyway 마이그레이션은 포함하지 않습니다.
 6. 운영 프론트 배포·라우팅 검증과 자동 `v1.1.4` 태그 발행을 확인합니다. 태그·GHCR 이미지·Sentry release가 같은 배포 커밋을 가리키는지 확인하고 운영 기능을 직접 점검합니다.
 
-개발·운영 GitHub Environment에는 `VITE_POSTHOG_KEY`·`VITE_POSTHOG_HOST`를 각각
+개발·운영 GitHub Environment에는 `VITE_POSTHOG_PROJECT_TOKEN`·`VITE_POSTHOG_HOST`를 각각
 설정할 수 있습니다. 두 값이 모두 있을 때만 PostHog를 사용하고, 값 변경 후 다시 빌드합니다.
 설정 상세 내용은 [프론트 README](README.md#환경별-배포)를 따릅니다.
 
