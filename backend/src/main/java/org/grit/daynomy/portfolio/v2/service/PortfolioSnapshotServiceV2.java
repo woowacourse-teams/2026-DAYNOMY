@@ -33,6 +33,7 @@ public class PortfolioSnapshotServiceV2 {
   private final PortfolioDailySnapshotRepository snapshotRepository;
   private final PortfolioLedgerCalculator ledgerCalculator;
   private final PortfolioSnapshotCalculatorV2 calculator;
+  private final org.grit.daynomy.exchangerate.service.ExchangeRateService exchangeRates;
 
   // 호출자는 회원 → 포트폴리오 순서로 잠금을 확보한 뒤 같은 트랜잭션에서 호출한다.
   @Transactional(propagation = Propagation.MANDATORY)
@@ -65,9 +66,14 @@ public class PortfolioSnapshotServiceV2 {
         for (StockDailyPrice price :
             priceRepository.findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
                 assetIds, priceFrom, batch.getLast())) {
+          BigDecimal converted =
+              "USD".equals(price.getAsset().getCurrency())
+                  ? exchangeRates.priceInKrwOrNull(price)
+                  : price.getClosePrice();
+          if (converted == null) continue;
           prices
               .computeIfAbsent(price.getBaseDate(), ignored -> new HashMap<>())
-              .put(price.getAsset().getId(), price.getClosePrice());
+              .put(price.getAsset().getId(), converted);
         }
       }
       List<PortfolioDailySnapshot> additions = new ArrayList<>();

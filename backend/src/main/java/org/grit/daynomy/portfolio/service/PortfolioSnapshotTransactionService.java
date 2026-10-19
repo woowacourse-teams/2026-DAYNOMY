@@ -35,6 +35,7 @@ public class PortfolioSnapshotTransactionService {
   private final PortfolioDailySnapshotRepository snapshotRepository;
   private final StockDailyPriceRepository stockPriceRepository;
   private final PortfolioLedgerCalculator ledgerCalculator;
+  private final org.grit.daynomy.exchangerate.service.ExchangeRateService exchangeRates;
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public boolean createSnapshot(Long portfolioId, LocalDate baseDate, LocalDate previousBaseDate) {
@@ -130,15 +131,18 @@ public class PortfolioSnapshotTransactionService {
       }
       BigDecimal quantity = BigDecimal.valueOf(holding.quantity());
       purchase = purchase.add(holding.averagePurchasePrice().multiply(quantity));
-      evaluation = evaluation.add(price.getClosePrice().multiply(quantity));
+      BigDecimal converted = convertedPrice(price);
+      if (converted == null) return null;
+      evaluation = evaluation.add(converted.multiply(quantity));
 
       if (previousBaseDate != null) {
         StockDailyPrice previousPrice = findPrice(holding.asset().getId(), previousBaseDate);
         if (previousPrice == null) {
           return null;
         }
-        previousEvaluation =
-            previousEvaluation.add(previousPrice.getClosePrice().multiply(quantity));
+        BigDecimal previousConverted = convertedPrice(previousPrice);
+        if (previousConverted == null) return null;
+        previousEvaluation = previousEvaluation.add(previousConverted.multiply(quantity));
       }
     }
 
@@ -160,6 +164,12 @@ public class PortfolioSnapshotTransactionService {
         totalReturnRate,
         dailyProfitLoss,
         dailyReturnRate);
+  }
+
+  private BigDecimal convertedPrice(StockDailyPrice price) {
+    return "USD".equals(price.getAsset().getCurrency())
+        ? exchangeRates.priceInKrwOrNull(price)
+        : price.getClosePrice();
   }
 
   private StockDailyPrice findPrice(Long assetId, LocalDate baseDate) {

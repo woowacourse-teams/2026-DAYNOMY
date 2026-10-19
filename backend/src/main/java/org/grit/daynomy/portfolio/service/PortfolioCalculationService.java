@@ -45,6 +45,7 @@ public class PortfolioCalculationService {
 
   private final StockDailyPriceRepository stockDailyPriceRepository;
   private final AssetRepository assetRepository;
+  private final org.grit.daynomy.exchangerate.service.ExchangeRateService exchangeRates;
 
   @Transactional(readOnly = true)
   public PortfolioCalculationResponse calculate(PortfolioCalculateRequest request) {
@@ -68,11 +69,14 @@ public class PortfolioCalculationService {
     LongFunction<List<StockDailyPrice>> pricesForAsset = priceLookup(request.holdings());
     for (PortfolioHoldingRequest holding : request.holdings()) {
       List<StockDailyPrice> prices = pricesForAsset.apply(holding.assetId());
-      if (prices.isEmpty()) {
+      BigDecimal krwPrice = prices.isEmpty() ? null : convertedPrice(prices.getFirst());
+      if (krwPrice == null) {
         Asset asset =
-            assetRepository
-                .findById(holding.assetId())
-                .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
+            prices.isEmpty()
+                ? assetRepository
+                    .findById(holding.assetId())
+                    .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND))
+                : prices.getFirst().getAsset();
         calculatedHoldings.add(calculateUnpricedHolding(holding, asset));
         totalPurchaseAmount =
             totalPurchaseAmount.add(
@@ -82,7 +86,7 @@ public class PortfolioCalculationService {
         continue;
       }
       StockDailyPrice price = prices.getFirst();
-      CalculatedHolding calculated = calculateHolding(holding, price);
+      CalculatedHolding calculated = calculateHolding(holding, price, krwPrice);
       calculatedHoldings.add(calculated);
       totalPurchaseAmount = totalPurchaseAmount.add(calculated.purchaseAmount());
       totalEvaluationAmount = totalEvaluationAmount.add(calculated.evaluationAmount());
@@ -93,10 +97,15 @@ public class PortfolioCalculationService {
         allHoldingsHavePreviousPrice = false;
       } else {
         StockDailyPrice previousPrice = prices.get(1);
-        previousPriceDates.add(previousPrice.getBaseDate());
-        previousEvaluationAmount =
-            previousEvaluationAmount.add(
-                previousPrice.getClosePrice().multiply(BigDecimal.valueOf(holding.quantity())));
+        BigDecimal previousKrw = convertedPrice(previousPrice);
+        if (previousKrw == null) {
+          allHoldingsHavePreviousPrice = false;
+        } else {
+          previousPriceDates.add(previousPrice.getBaseDate());
+          previousEvaluationAmount =
+              previousEvaluationAmount.add(
+                  previousKrw.multiply(BigDecimal.valueOf(holding.quantity())));
+        }
       }
     }
 
@@ -165,6 +174,12 @@ public class PortfolioCalculationService {
     return assetId -> pricesByAssetId.getOrDefault(assetId, List.of());
   }
 
+  private BigDecimal convertedPrice(StockDailyPrice price) {
+    return "USD".equals(price.getAsset().getCurrency())
+        ? exchangeRates.priceInKrwOrNull(price)
+        : price.getClosePrice();
+  }
+
   private CalculatedHolding calculateUnpricedHolding(PortfolioHoldingRequest holding, Asset asset) {
     BigDecimal purchaseAmount =
         money(holding.averagePurchasePrice().multiply(BigDecimal.valueOf(holding.quantity())));
@@ -181,17 +196,17 @@ public class PortfolioCalculationService {
   }
 
   private CalculatedHolding calculateHolding(
-      PortfolioHoldingRequest holding, StockDailyPrice price) {
+      PortfolioHoldingRequest holding, StockDailyPrice price, BigDecimal krwPrice) {
     BigDecimal quantity = BigDecimal.valueOf(holding.quantity());
     BigDecimal purchaseAmount = money(holding.averagePurchasePrice().multiply(quantity));
-    BigDecimal evaluationAmount = money(price.getClosePrice().multiply(quantity));
+    BigDecimal evaluationAmount = money(krwPrice.multiply(quantity));
     BigDecimal profitLoss = money(evaluationAmount.subtract(purchaseAmount));
     return new CalculatedHolding(
         price.getAsset(),
         price.getBaseDate(),
         holding.quantity(),
         money(holding.averagePurchasePrice()),
-        money(price.getClosePrice()),
+        price.getClosePrice(),
         purchaseAmount,
         evaluationAmount,
         profitLoss,

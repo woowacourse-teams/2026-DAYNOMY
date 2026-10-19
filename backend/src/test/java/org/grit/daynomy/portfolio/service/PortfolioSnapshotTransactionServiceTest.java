@@ -251,6 +251,7 @@ class PortfolioSnapshotTransactionServiceTest {
 
   private StockDailyPrice price(String closePrice) {
     StockDailyPrice price = mock(StockDailyPrice.class);
+    given(price.getAsset()).willReturn(mock(Asset.class));
     given(price.getClosePrice()).willReturn(new BigDecimal(closePrice));
     return price;
   }

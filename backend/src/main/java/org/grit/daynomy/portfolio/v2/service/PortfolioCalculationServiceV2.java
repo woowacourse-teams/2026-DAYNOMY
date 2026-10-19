@@ -7,7 +7,10 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PortfolioCalculationServiceV2 extends PortfolioCalculationService {
-  public PortfolioCalculationServiceV2(StockDailyPriceRepository prices, AssetRepository assets) {
-    super(prices, assets);
+  public PortfolioCalculationServiceV2(
+      StockDailyPriceRepository prices,
+      AssetRepository assets,
+      org.grit.daynomy.exchangerate.service.ExchangeRateService exchangeRates) {
+    super(prices, assets, exchangeRates);
   }
 }

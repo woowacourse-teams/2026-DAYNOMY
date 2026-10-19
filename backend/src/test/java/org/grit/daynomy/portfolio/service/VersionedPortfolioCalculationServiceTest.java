@@ -28,6 +28,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class VersionedPortfolioCalculationServiceTest {
   @Mock private StockDailyPriceRepository prices;
   @Mock private AssetRepository assets;
+  @Mock private org.grit.daynomy.exchangerate.service.ExchangeRateService exchangeRates;
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -56,8 +57,9 @@ class VersionedPortfolioCalculationServiceTest {
                 new PortfolioHoldingRequest(1L, 10L, new BigDecimal("90")),
                 new PortfolioHoldingRequest(2L, 2L, new BigDecimal("180"))));
 
-    var before = new PortfolioCalculationServiceV1(prices, assets).calculate(request);
-    var after = new PortfolioCalculationServiceV2(prices, assets).calculate(request);
+    var before =
+        new PortfolioCalculationServiceV1(prices, assets, exchangeRates).calculate(request);
+    var after = new PortfolioCalculationServiceV2(prices, assets, exchangeRates).calculate(request);
 
     assertThat(after).isEqualTo(before);
     verify(prices).findTop2ByAssetIdOrderByBaseDateDesc(1L);
