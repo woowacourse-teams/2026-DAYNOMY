@@ -3,7 +3,6 @@
 import { cleanup, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
-import { Header } from '../../src/components/Header';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { ServiceHeader } from '../../src/features/navigation/ServiceHeader';
 
@@ -40,11 +39,13 @@ describe('헤더', () => {
     expect(new URL(href, window.location.origin).searchParams.get('returnTo')).toBe(path);
   });
 
-  it('마이페이지 링크를 표시하지 않는다', () => {
+  it('비로그인 상태에서는 마이페이지 대신 로그인 링크를 표시한다', () => {
     const view = render(
-      <MemoryRouter>
-        <Header />
-      </MemoryRouter>,
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter>
+          <ServiceHeader />
+        </MemoryRouter>
+      </AuthContext.Provider>,
     );
 
     expect(view.queryByRole('link', { name: '마이페이지' })).toBeNull();
@@ -52,6 +53,8 @@ describe('헤더', () => {
     expect(view.getByRole('link', { name: '포트폴리오' }).getAttribute('href')).toBe('/');
     expect(view.getByRole('link', { name: '소식' }).getAttribute('href')).toBe('/news');
     expect(view.queryByRole('link', { name: '인물' })).toBeNull();
-    expect(view.queryByRole('link', { name: '로그인' })).toBeNull();
+    expect(view.getByRole('link', { name: '로그인' }).getAttribute('href')).toBe(
+      '/login?returnTo=%2F',
+    );
   });
 });
