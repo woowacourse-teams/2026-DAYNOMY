@@ -48,14 +48,21 @@ public class WikimediaImageClient {
 
   private final WikimediaProperties properties;
   private final RestClient restClient;
+  private final RestClient downloadClient;
 
-  public WikimediaImageClient(WikimediaProperties properties) {
+  public WikimediaImageClient(
+      WikimediaProperties properties, RestClient.Builder restClientBuilder) {
     this.properties = properties;
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
     this.restClient =
-        RestClient.builder().baseUrl(properties.baseUrl()).requestFactory(requestFactory).build();
+        restClientBuilder
+            .clone()
+            .baseUrl(properties.baseUrl())
+            .requestFactory(requestFactory)
+            .build();
+    this.downloadClient = restClientBuilder.clone().requestFactory(requestFactory()).build();
   }
 
   public List<WikimediaImageCandidate> search(String keyword) {
@@ -108,9 +115,7 @@ public class WikimediaImageClient {
     try {
       WikimediaImageCandidate candidate = findCandidate(title);
       DownloadedImage downloadedImage =
-          RestClient.builder()
-              .requestFactory(requestFactory())
-              .build()
+          downloadClient
               .get()
               .uri(URI.create(candidate.thumbnailUrl()))
               .header(HttpHeaders.USER_AGENT, userAgent())

@@ -102,7 +102,8 @@ class WikimediaImageClientTest {
             server.url("/").toString(),
             "daynomy-test/1.0",
             Duration.ofSeconds(1),
-            Duration.ofSeconds(1)));
+            Duration.ofSeconds(1)),
+        org.springframework.web.client.RestClient.builder());
   }
 
   private String searchResponse() {

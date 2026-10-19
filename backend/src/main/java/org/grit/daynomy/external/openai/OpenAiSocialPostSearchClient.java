@@ -41,13 +41,14 @@ public class OpenAiSocialPostSearchClient {
   private final OpenAiProperties properties;
   private final RestClient restClient;
 
-  public OpenAiSocialPostSearchClient(OpenAiProperties properties) {
+  public OpenAiSocialPostSearchClient(
+      OpenAiProperties properties, RestClient.Builder restClientBuilder) {
     this.properties = properties;
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
     this.restClient =
-        RestClient.builder().baseUrl(properties.baseUrl()).requestFactory(requestFactory).build();
+        restClientBuilder.baseUrl(properties.baseUrl()).requestFactory(requestFactory).build();
   }
 
   public List<SocialPostCandidate> search(String keyword) {

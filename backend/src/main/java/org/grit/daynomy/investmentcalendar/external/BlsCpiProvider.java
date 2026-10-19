@@ -46,12 +46,15 @@ public class BlsCpiProvider implements InvestmentCalendarProvider {
   private final RestClient apiClient;
   private final RestClient scheduleClient;
 
-  public BlsCpiProvider(InvestmentCalendarExternalProperties properties) {
+  public BlsCpiProvider(
+      InvestmentCalendarExternalProperties properties, RestClient.Builder restClientBuilder) {
     this.properties = properties;
     this.apiClient =
-        InvestmentCalendarHttpClientFactory.create(properties.blsBaseUrl(), properties);
+        InvestmentCalendarHttpClientFactory.create(
+            properties.blsBaseUrl(), properties, restClientBuilder);
     this.scheduleClient =
-        InvestmentCalendarHttpClientFactory.create(properties.blsScheduleUrl(), properties);
+        InvestmentCalendarHttpClientFactory.create(
+            properties.blsScheduleUrl(), properties, restClientBuilder);
   }
 
   @Override

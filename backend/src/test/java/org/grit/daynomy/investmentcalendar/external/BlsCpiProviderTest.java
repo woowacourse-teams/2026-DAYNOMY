@@ -55,7 +55,8 @@ class BlsCpiProviderTest {
                 }
                 """));
 
-    var provider = new BlsCpiProvider(properties());
+    var provider =
+        new BlsCpiProvider(properties(), org.springframework.web.client.RestClient.builder());
 
     var entries = provider.fetch(LocalDate.of(2026, 10, 6), 0, 30);
 

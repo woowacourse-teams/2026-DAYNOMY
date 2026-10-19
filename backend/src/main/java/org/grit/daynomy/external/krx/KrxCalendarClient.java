@@ -29,12 +29,13 @@ public class KrxCalendarClient {
       Pattern.compile("<option\\b[^>]*\\bvalue=[\"'](\\d{4})[\"']", Pattern.CASE_INSENSITIVE);
   private final RestClient client;
 
-  public KrxCalendarClient(KrxCalendarProperties properties) {
+  public KrxCalendarClient(
+      KrxCalendarProperties properties, RestClient.Builder restClientBuilder) {
     var factory = new SimpleClientHttpRequestFactory();
     factory.setConnectTimeout(properties.connectTimeout());
     factory.setReadTimeout(properties.readTimeout());
     client =
-        RestClient.builder()
+        restClientBuilder
             .baseUrl(properties.baseUrl())
             .defaultHeader("Referer", properties.baseUrl() + PAGE)
             .requestFactory(factory)
