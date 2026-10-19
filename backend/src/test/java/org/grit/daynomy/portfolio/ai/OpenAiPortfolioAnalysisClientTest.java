@@ -416,19 +416,6 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  void logsMissingConfigurationWithoutCallingOpenAi() {
-    client =
-        new OpenAiPortfolioAnalysisClient(
-            RestClient.builder(), server.url("/").toString(), "", "test-model");
-    assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(appender.list).hasSize(1);
-    assertThat(appender.list.getFirst().getLevel()).isEqualTo(Level.ERROR);
-    assertThat(keyValues(appender.list.getFirst()))
-        .containsEntry("errorType", "MissingConfiguration");
-    assertThat(server.getRequestCount()).isZero();
-  }
-
-  @Test
   @DisplayName("OpenAI가 HTTP 오류를 반환하면 분석 실패로 처리한다")
   void analyzeHandlesHttpError() {
     String responseBody = "{\"error\":\"sensitive-response\"}";
@@ -441,7 +428,7 @@ class OpenAiPortfolioAnalysisClientTest {
     assertAnalysisFailed(() -> client.analyze(targets()));
 
     ILoggingEvent failedLog = appender.list.getLast();
-    assertThat(failedLog.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(failedLog.getLevel()).isEqualTo(Level.WARN);
     assertThat(failedLog.getFormattedMessage())
         .isEqualTo(LogEvent.PORTFOLIO_ANALYSIS_FAILED.message())
         .doesNotContain(responseBody)

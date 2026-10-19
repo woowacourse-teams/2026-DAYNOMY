@@ -139,11 +139,6 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     }
 
     if (apiKey == null || apiKey.isBlank()) {
-      log.atError()
-          .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_FAILED.code())
-          .addKeyValue("api", "OpenAI")
-          .addKeyValue("errorType", "MissingConfiguration")
-          .log(LogEvent.PORTFOLIO_ANALYSIS_FAILED.message());
       throw analysisFailed();
     }
 
@@ -265,7 +260,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
           .log(LogEvent.PORTFOLIO_ANALYSIS_COMPLETED.message());
       return result;
     } catch (HttpStatusCodeException exception) {
-      log.atError()
+      log.atWarn()
           .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_FAILED.code())
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "portfolio-analysis")
@@ -276,7 +271,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
           .log(LogEvent.PORTFOLIO_ANALYSIS_FAILED.message());
       throw analysisFailed();
     } catch (RestClientException exception) {
-      log.atError()
+      log.atWarn()
           .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_FAILED.code())
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "portfolio-analysis")
@@ -286,7 +281,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
           .log(LogEvent.PORTFOLIO_ANALYSIS_FAILED.message());
       throw analysisFailed();
     } catch (BusinessException exception) {
-      log.atError()
+      log.atWarn()
           .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_FAILED.code())
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "portfolio-analysis")

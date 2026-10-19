@@ -239,19 +239,17 @@ dev의 과거 매수 거래 등록 V1/V2 비교는 [부하테스트 문서](load
 
 ### 포트폴리오 실패 로그 점검 (#551)
 
-대시보드가 호출하는 거래 등록·수정·삭제, 보유정보, 계산, 추이, 저장 분석과 종목 AI·스냅샷 경로를 점검한다. API 동작·응답과 거래 처리 구조는 변경하지 않는다.
+대시보드가 호출하는 거래 등록·수정·삭제, 보유정보, 계산, 추이와 스냅샷 경로의 실패 로그 및 공통 HTTP 요청 추적을 보완한다. AI 처리 로그 추가와 로그 레벨 변경은 작업 범위에서 제외한다. API 동작·응답과 거래 처리 구조는 변경하지 않는다.
 
 | 실패 사례 | 확인할 로그 |
 | --- | --- |
 | 거래·계산의 예상하지 못한 예외 | `http.request.failed` (ERROR)의 `errorCode`, `errorType`, 호출 스택. 동일 `requestId`·`traceId`의 `http.request.completed`에서 메서드·URI·HTTP 상태·처리 시간을 확인한다. |
 | 잘못된 입력·보유 수량 부족·존재하지 않는 거래 | 기존 `http.request.completed` (INFO)에 `errorCode`를 추가한다. 예상 가능한 4xx에 별도 WARN/ERROR를 중복 기록하지 않는다. |
-| OpenAI HTTP·통신·응답 검증 최종 실패 | `portfolio.analysis.failed` (ERROR). HTTP 오류는 `httpStatus`·`errorType`·소요 시간을 확인한다. 설정 누락은 `errorType=MissingConfiguration`으로 외부 호출 전에 기록한다. 원문 응답과 인증정보는 기록하지 않는다. |
-| 공유 종목 분석 대기·배치 제한 시간 초과 | `portfolio.analysis.wait.timeout`·`portfolio.analysis.batch.timeout` (ERROR). 대기 중단은 `*.interrupted` (WARN). |
 | 스냅샷 개별 생성·종가 수집 후 갱신 | `portfolio.snapshot.failed` (ERROR), 개별 생성은 `portfolioId`·`baseDate` 포함. 다른 포트폴리오 처리는 계속하고 완료 로그의 `failureCount`로 실패 건수를 확인한다. 스케줄러 작업에는 HTTP 요청 ID가 없을 수 있다. |
-| 비동기 분석 | 최초 요청·작업·ASYNC 재디스패치에서 같은 MDC 식별자를 사용한다. 완료 로그는 AsyncListener에서 한 번만 남긴다. |
+| 공통 비동기 HTTP 요청 | 최초 요청·작업·ASYNC 재디스패치에서 같은 MDC 식별자를 사용한다. 완료 로그는 AsyncListener에서 한 번만 남긴다. |
 
 공통 예외와 스냅샷 스택은 예외 메시지를 제외하고 타입·프레임·원인·suppressed 예외의 호출 위치만 기록한다. SQL에 포함된 거래값이나 예외 메시지의 토큰이 그대로 출력되지 않도록 한다. 요청 본문·헤더·쿼리 문자열도 로그에 추가하지 않는다.
 
-로컬 재현은 `GlobalExceptionHandlerTest`의 POST/PATCH/DELETE 500 및 400, `RequestLoggingFilterTest`의 비동기 상관관계, `OpenAiPortfolioAnalysisClientTest`의 외부 API/설정 오류, `PortfolioAssetAnalysisServiceTest`·`PortfolioAnalysisBatchesTest`의 대기 실패, `PortfolioSnapshotServiceTest`의 스냅샷 실패를 실행한다. 모두 가짜 입력·MockWebServer·Mock으로 재현하며 운영 실패를 유발하지 않는다.
+로컬 재현은 `GlobalExceptionHandlerTest`의 POST/PATCH/DELETE 500 및 400, `RequestLoggingFilterTest`의 비동기 상관관계, `PortfolioSnapshotServiceTest`·`PortfolioSnapshotSchedulerTest`의 스냅샷 실패를 실행한다. 가짜 입력과 Mock으로 재현하며 운영 실패를 유발하지 않는다.
 
-부하 비교 전용 `/api/v1`, `/api/v2`의 AI 구현 전체를 통합하거나 로깅 체계를 재설계하지 않는다. 이 문서는 코드·로컬 테스트 확인 방법이며 운영 로그 수집 결과를 의미하지 않는다.
+이 문서는 코드·로컬 테스트 확인 방법이며 운영 로그 수집 결과를 의미하지 않는다.

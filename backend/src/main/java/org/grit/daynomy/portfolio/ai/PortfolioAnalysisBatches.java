@@ -73,12 +73,9 @@ public final class PortfolioAnalysisBatches {
       }
     } catch (InterruptedException exception) {
       Thread.currentThread().interrupt();
-      log.atWarn()
-          .addKeyValue("event", "portfolio.analysis.batch.interrupted")
-          .log("종목 분석 배치 대기 중단");
       throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
     } catch (TimeoutException exception) {
-      log.atError()
+      log.atWarn()
           .addKeyValue("event", "portfolio.analysis.batch.timeout")
           .addKeyValue("targetCount", targets.size())
           .addKeyValue("completedBatchCount", completed.size())
