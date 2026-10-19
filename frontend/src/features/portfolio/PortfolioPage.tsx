@@ -862,7 +862,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [editor, setEditor] = useState<{ holding: PortfolioHoldingInput } | null>(null);
-  const [tourStartRequest, setTourStartRequest] = useState(0);
   const [tourStep, setTourStep] = useState<number | null>(null);
   const touring = tourStep !== null;
   const [activeTab, setActiveTab] = useState<'holdings' | 'history'>('holdings');
@@ -1133,7 +1132,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
               내 포트폴리오
             </h1>
             <PortfolioTour
-              startRequest={tourStartRequest}
+              isGuest={!isLoggedIn}
               onStepChange={setTourStep}
               onRegister={() => openAdd('header')}
               ready={
@@ -1175,27 +1174,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           </button>
         </div>
       </header>
-      {!touring &&
-        !holdingsLoading &&
-        !loading &&
-        !holdingsError &&
-        !error &&
-        holdings.length === 0 && (
-          <section className="portfolio-guide-invitation" aria-label="처음 이용 안내">
-            <div>
-              <strong>처음이신가요? 예시로 따라 해보세요</strong>
-              <p>자산 등록부터 소식 확인, 포트폴리오 분석까지 함께 살펴봐요.</p>
-            </div>
-            <button
-              type="button"
-              className="portfolio-secondary-button"
-              data-tour-trigger
-              onClick={() => setTourStartRequest((request) => request + 1)}
-            >
-              가이드 시작
-            </button>
-          </section>
-        )}
       <div className="portfolio-canvas">
         {isLoggedIn && notice && (
           <p className="portfolio-save-notice" role="status">

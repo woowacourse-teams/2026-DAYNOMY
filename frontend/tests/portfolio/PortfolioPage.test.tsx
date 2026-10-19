@@ -310,6 +310,8 @@ describe('포트폴리오 화면', () => {
   it('첫 방문 체험을 마치면 빈 실제 거래 입력 창을 연다', async () => {
     localStorage.removeItem('daynomy:portfolio-tour:v1');
     const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findByRole('complementary', { name: '처음 이용 안내' });
+    fireEvent.click(view.getByRole('button', { name: '사용 가이드' }));
     await view.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
     for (let i = 0; i < 9; i++) fireEvent.click(view.getByRole('button', { name: '다음' }));
     fireEvent.click(view.getByRole('button', { name: '내 자산 등록하기' }));

@@ -81,6 +81,8 @@ describe('첫 방문 서비스 소개', () => {
     const start = await view.findByRole('button', { name: '시작하기' });
     expect(window.location.pathname).toBe('/');
     fireEvent.click(start);
+    await view.findByRole('complementary', { name: '처음 이용 안내' });
+    fireEvent.click(view.getByRole('button', { name: '사용 가이드' }));
     expect(await view.findByRole('region', { name: '포트폴리오 사용 안내' })).toBeTruthy();
     await waitFor(() =>
       expect(document.activeElement).toBe(view.getByRole('button', { name: '다음' })),
