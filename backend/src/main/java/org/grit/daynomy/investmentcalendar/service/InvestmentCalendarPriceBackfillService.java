@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
+import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient.HistoricalPrice;
@@ -28,6 +29,7 @@ public class InvestmentCalendarPriceBackfillService {
 
   private final InvestmentCalendarHoldingAssetRepository holdingAssetRepository;
   private final StockDailyPriceRepository priceRepository;
+  private final AssetRepository assetRepository;
   private final InvestmentCalendarHistoricalPriceClient priceClient;
 
   @Value("${investment-calendar.sync.history-years:5}")
@@ -65,7 +67,7 @@ public class InvestmentCalendarPriceBackfillService {
     List<StockDailyPrice> existing =
         priceRepository.findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
             List.of(asset.getId()), requestedFrom, today);
-    LocalDate fetchFrom = fetchFrom(existing, requestedFrom, today);
+    LocalDate fetchFrom = fetchFrom(asset, existing, requestedFrom, today);
     if (fetchFrom == null) {
       return AssetBackfillResult.empty();
     }
@@ -96,16 +98,22 @@ public class InvestmentCalendarPriceBackfillService {
     if (!changed.isEmpty()) {
       priceRepository.saveAll(changed);
     }
+    if (!fetched.isEmpty()) {
+      asset.recordPriceHistoryBackfill(requestedFrom);
+      assetRepository.save(asset);
+    }
     return new AssetBackfillResult(fetched.size(), created, updated, unchanged);
   }
 
   private LocalDate fetchFrom(
-      List<StockDailyPrice> existing, LocalDate requestedFrom, LocalDate today) {
+      Asset asset, List<StockDailyPrice> existing, LocalDate requestedFrom, LocalDate today) {
     if (existing.isEmpty()) {
       return requestedFrom;
     }
     LocalDate earliest = existing.getFirst().getBaseDate();
-    if (earliest.isAfter(requestedFrom.plusDays(START_DATE_TOLERANCE_DAYS))) {
+    boolean historyCovered =
+        asset.getPriceHistoryFrom() != null && !asset.getPriceHistoryFrom().isAfter(requestedFrom);
+    if (!historyCovered && earliest.isAfter(requestedFrom.plusDays(START_DATE_TOLERANCE_DAYS))) {
       return requestedFrom;
     }
     LocalDate latest = existing.getLast().getBaseDate();

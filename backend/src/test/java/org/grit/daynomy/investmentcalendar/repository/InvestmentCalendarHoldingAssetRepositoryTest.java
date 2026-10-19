@@ -59,6 +59,7 @@ class InvestmentCalendarHoldingAssetRepositoryTest {
         Asset.listedStock("상장폐지주", "000001", StockMarket.KOSPI, "KR7000000000", baseDate);
     delisted.delist();
     Asset crypto = new Asset("비트코인", AssetCategory.VIRTUAL_ASSET, "BTC");
+    stock.recordPriceHistoryBackfill(baseDate.minusYears(5));
     entityManager.persist(stock);
     entityManager.persist(etf);
     entityManager.persist(delisted);
@@ -72,6 +73,7 @@ class InvestmentCalendarHoldingAssetRepositoryTest {
     entityManager.persist(new PortfolioHolding(firstPortfolio, crypto, 1L, BigDecimal.ONE));
     entityManager.persist(new PortfolioHolding(secondPortfolio, stock, 1L, BigDecimal.ONE));
     entityManager.flush();
+    entityManager.clear();
 
     var assets =
         repository.findDistinctListedAssetsByCategories(
@@ -80,6 +82,13 @@ class InvestmentCalendarHoldingAssetRepositoryTest {
     assertThat(assets)
         .extracting(Asset::getAssetCode)
         .containsExactlyInAnyOrder("005930", "069500");
+    assertThat(
+            assets.stream()
+                .filter(asset -> asset.getAssetCode().equals("005930"))
+                .findFirst()
+                .orElseThrow()
+                .getPriceHistoryFrom())
+        .isEqualTo(baseDate.minusYears(5));
   }
 
   private Portfolio portfolio(String providerId, String nickname) {
