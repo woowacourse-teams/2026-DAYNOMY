@@ -12,7 +12,8 @@ body:has(.portfolio-page) .daynomy-footer {
   padding-block: 32px;
 }
 .portfolio-canvas {
-  display: contents;
+  display: block;
+  min-width: 0;
 }
 .portfolio-page .portfolio-page-title {
   display: flex;
@@ -58,23 +59,23 @@ body:has(.portfolio-page) .daynomy-footer {
   background: var(--button-primary);
   min-height: 44px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 10px;
   padding: 0 18px;
   color: #fff;
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
 }
 .portfolio-page .portfolio-secondary-button,
 .portfolio-sheet .portfolio-secondary-button {
   min-height: 44px;
-  border: 1px solid #dfe5ee;
-  border-radius: 9px;
+  border: 0;
+  border-radius: 10px;
   padding: 0 16px;
-  background: #fff;
-  color: #526078;
-  font-size: 13px;
-  font-weight: 550;
+  background: #f2f4f6;
+  color: #4e5968;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
 }
 .portfolio-page button,
@@ -95,6 +96,20 @@ body:has(.portfolio-page) .daynomy-footer {
 .portfolio-page .portfolio-secondary-button:hover:not(:disabled),
 .portfolio-sheet .portfolio-secondary-button:hover:not(:disabled) {
   background: #f5f7fb;
+}
+.portfolio-page .portfolio-page-actions > .portfolio-primary-button {
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: #0a0a0a;
+}
+.portfolio-page .portfolio-page-actions > .portfolio-primary-button:hover:not(:disabled) {
+  background: #252525;
+}
+.portfolio-page .portfolio-page-actions > .portfolio-news-tab {
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 999px;
 }
 .portfolio-page :is(button, summary, input, select):focus-visible,
 .portfolio-sheet :is(button, summary, input):focus-visible {
@@ -147,10 +162,10 @@ body:has(.portfolio-page) .daynomy-footer {
 .portfolio-page .portfolio-overview .portfolio-balance-value {
   font-size: clamp(28px, 2.8vw, 40px);
   font-weight: 700;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.035em;
   line-height: 1.25;
   overflow-wrap: anywhere;
-  margin: 16px 0 12px;
+  margin: 12px 0;
 }
 .portfolio-page .portfolio-overview > div:not(.portfolio-summary-total) > dd {
   margin: 12px 0 5px;
@@ -211,8 +226,8 @@ body:has(.portfolio-page) .daynomy-footer {
   color: #3174cd;
 }
 .portfolio-page .portfolio-privacy-button {
-  min-height: 28px;
-  padding: 0 7px;
+  min-height: 36px;
+  padding: 0 10px;
   border: 0;
   background: #f3f5f8;
   color: #52647f;
@@ -241,8 +256,8 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
+  gap: 20px;
 }
 .portfolio-page .portfolio-return-dashboard,
 .portfolio-page .portfolio-composition {
@@ -754,7 +769,7 @@ body:has(.portfolio-page) .daynomy-footer {
   width: 100%;
   min-height: 50px;
   border: 1px solid #dee5ef;
-  border-radius: 9px;
+  border-radius: 10px;
   padding: 12px 14px;
   background: #fff;
   color: #2a3850;
@@ -1026,7 +1041,7 @@ body:has(.portfolio-page) .daynomy-footer {
   color: white;
   padding: 0 18px;
   min-height: 44px;
-  border-radius: 9px;
+  border-radius: 10px;
   font-size: 13px;
   cursor: pointer;
 }
@@ -1046,7 +1061,7 @@ body:has(.portfolio-page) .daynomy-footer {
   max-width: 340px;
   line-height: 1.8;
 }
-@media (max-width: 1000px) {
+@container portfolio-dashboard (max-width: 900px) {
   .portfolio-page .portfolio-overview {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 24px 0;
@@ -1068,7 +1083,7 @@ body:has(.portfolio-page) .daynomy-footer {
     padding: 22px;
   }
 }
-@media (max-width: 1023px) {
+@container portfolio-dashboard (max-width: 940px) {
   .portfolio-page .portfolio-table-wrap {
     contain: none;
     overflow: visible;
@@ -1089,13 +1104,15 @@ body:has(.portfolio-page) .daynomy-footer {
   }
   .portfolio-page .portfolio-table-wrap tr {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 14px 16px;
     padding: 22px 0;
     border-bottom: 1px solid #e6ebf2;
   }
   .portfolio-page .portfolio-table-wrap td {
     display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
     padding: 0;
     border: 0;
     text-align: left;
@@ -1108,7 +1125,7 @@ body:has(.portfolio-page) .daynomy-footer {
   .portfolio-page .portfolio-table-wrap td::before {
     content: attr(data-label);
     display: block;
-    color: #8a95a6;
+    color: #667085;
     font-size: 10px;
     margin-bottom: 6px;
   }
@@ -2034,7 +2051,35 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-return-dashboard .portfolio-trend-controls {
   width: auto;
-  gap: 8px;
+  gap: 2px;
+}
+.portfolio-return-dashboard .portfolio-trend-period-select select {
+  min-width: 74px;
+  height: 44px;
+  padding: 0 22px 0 6px;
+  border: 0;
+  border-radius: 8px;
+  color: #333d4b;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+}
+.portfolio-return-dashboard .portfolio-trend-period-select select:hover {
+  background: #f2f4f6;
+}
+.portfolio-return-dashboard .portfolio-trend-period-select svg {
+  right: 4px;
+  stroke: #6b7684;
+}
+.portfolio-return-dashboard .portfolio-trend-expand {
+  border: 0;
+  border-radius: 8px;
+  color: #4e5968;
+  background: transparent;
+}
+.portfolio-return-dashboard .portfolio-trend-expand:hover:not(:disabled) {
+  color: #333d4b;
+  background: #f2f4f6;
 }
 .portfolio-trend-summary {
   display: grid;
@@ -2347,7 +2392,7 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-return-dashboard.is-compact .portfolio-trend-plot {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 18px 40px;
+  grid-template-rows: minmax(0, 1fr) 40px;
   min-height: 0;
   margin-top: 12px;
 }
@@ -2421,43 +2466,150 @@ body:has(.portfolio-page) .daynomy-footer {
   }
 }
 
-/* Keep the desktop body layout within the shared page width; titles stay unscaled. */
-@media (min-width: 1024px) {
-  .portfolio-page {
-    max-width: none;
-  }
-  .portfolio-canvas {
-    display: block;
-    width: max(1324.8px, 100%);
-    zoom: var(--portfolio-desktop-scale, 1);
-  }
-  .portfolio-page .portfolio-overview .portfolio-balance-value {
-    font-size: 40px;
-  }
-  .portfolio-page .portfolio-overview > div:not(.portfolio-summary-total) > dd {
-    font-size: 23px;
-  }
-  .portfolio-page .portfolio-overview > div {
-    padding-inline: 14px;
-  }
-  .portfolio-page .portfolio-overview > div:first-child {
-    padding: 0 20px 0 0;
+/* Controls stay readable while the content reflows into the available space. */
+.portfolio-page .portfolio-primary-button,
+.portfolio-sheet .portfolio-primary-button,
+.portfolio-page .portfolio-secondary-button,
+.portfolio-sheet .portfolio-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+.portfolio-page-actions > button > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.portfolio-page .portfolio-dashboard-heading,
+.portfolio-page .portfolio-section-title,
+.portfolio-news-heading {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.portfolio-page .portfolio-return-dashboard,
+.portfolio-page .portfolio-holdings,
+.portfolio-page .portfolio-asset-name,
+.portfolio-page .portfolio-asset-name > div,
+.portfolio-page .portfolio-trend-title {
+  min-width: 0;
+}
+.portfolio-page .portfolio-asset-trigger {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: left;
+}
+.portfolio-page .portfolio-asset-trigger svg {
+  flex: none;
+}
+.portfolio-page .portfolio-dashboard-layout.has-news {
+  gap: 24px;
+}
+.portfolio-page .portfolio-table-wrap {
+  scrollbar-width: thin;
+  scrollbar-color: #c8cdd5 transparent;
+}
+.portfolio-page ::selection,
+.portfolio-sheet ::selection {
+  background: #dce9ff;
+  color: #193b70;
+}
+@media (max-width: 1023px) {
+  .portfolio-page .portfolio-dashboard-layout.has-news {
+    grid-template-columns: minmax(0, 1fr);
   }
   .portfolio-news {
-    top: calc(64px / var(--portfolio-desktop-scale, 1));
-    max-height: calc((100dvh - 96px) / var(--portfolio-desktop-scale, 1));
+    position: static;
+    max-height: none;
+    padding: 24px 0 0;
+    border-left: 0;
+    border-top: 1px solid #e5e9ee;
   }
-  .portfolio-news-heading {
-    gap: 8px;
+}
+@media (max-width: 620px) {
+  .portfolio-page .portfolio-overview .portfolio-balance-value {
+    font-size: clamp(28px, 8vw, 36px);
   }
-  .portfolio-news-heading h2 {
-    font-size: 20px;
-    white-space: nowrap;
+  .portfolio-page .portfolio-primary-button,
+  .portfolio-page .portfolio-secondary-button {
+    min-height: 48px;
   }
-  .portfolio-news-heading-actions {
-    gap: 4px;
-    font-size: 11px;
-    white-space: nowrap;
+  .portfolio-page .portfolio-section-title {
+    align-items: stretch;
+  }
+  .portfolio-page .portfolio-holdings-actions {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .portfolio-trend-metric-tabs button {
+    white-space: normal;
+  }
+  .portfolio-trend-date-detail label {
+    width: 100%;
+  }
+  .portfolio-trend-date-detail input {
+    flex: 1;
+  }
+}
+
+/* Keep filters and sorting aligned even in a narrow dashboard column. */
+.portfolio-page .portfolio-holdings-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 128px);
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 16px;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-filters {
+  display: flex;
+  width: min(100%, 184px);
+  min-width: 0;
+  padding: 3px;
+  box-sizing: border-box;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-filters button {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-holdings-actions {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-sort-control {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-sort-control select {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding-left: 10px;
+  padding-right: 24px;
+  text-overflow: ellipsis;
+}
+.portfolio-trend-carry-note {
+  margin: -4px 0 10px;
+  color: #63738a;
+  font-size: 11px;
+  line-height: 1.5;
+}
+@container portfolio-dashboard (max-width: 360px) {
+  .portfolio-page .portfolio-holdings-toolbar {
+    grid-template-columns: minmax(0, 1fr) 112px;
   }
 }
 
