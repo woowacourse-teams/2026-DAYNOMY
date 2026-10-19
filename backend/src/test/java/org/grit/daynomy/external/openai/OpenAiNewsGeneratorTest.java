@@ -93,6 +93,8 @@ class OpenAiNewsGeneratorTest {
         .contains("최근 미국 경제와 금융시장")
         .contains("미국 현지 언론")
         .contains("연방준비제도")
+        .contains("미국 주식시장 전체")
+        .contains("일반적인 분기 실적 발표")
         .doesNotContain("한국에서 발행된 주요 언론사");
     String writerRequest = server.takeRequest().getBody().readUtf8();
     assertThat(writerRequest).contains("조사 자료 묶음").contains("첫 번째 뉴스").contains("해라체");
