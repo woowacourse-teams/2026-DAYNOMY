@@ -7,7 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.TransactionLog;
 import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
@@ -29,6 +32,7 @@ import org.grit.daynomy.member.repository.MemberRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class InvestmentDecisionService {
@@ -83,6 +87,12 @@ public class InvestmentDecisionService {
               request.decision().maximumAcceptableLossRate())) {
         throw new BusinessException(LeagueErrorCode.DECISION_REQUEST_CONFLICT);
       }
+      log.atDebug()
+          .addKeyValue("event", LogEvent.LEAGUE_DECISION_REPLAYED.code())
+          .addKeyValue("memberId", memberId)
+          .addKeyValue("portfolioId", portfolio.getId())
+          .addKeyValue("decisionId", existing.getId())
+          .log(LogEvent.LEAGUE_DECISION_REPLAYED.message());
       return DecisionResponse.from(
           existing, reviewRepository.findAllByTransactionIdOrderByCreatedAtAsc(existing.getId()));
     }
@@ -108,6 +118,13 @@ public class InvestmentDecisionService {
                 decision.invalidationCondition(),
                 decision.maximumAcceptableLossRate(),
                 true));
+    TransactionLog.afterCommit(
+        LogEvent.LEAGUE_DECISION_RECORDED,
+        log.atInfo()
+            .addKeyValue("memberId", memberId)
+            .addKeyValue("portfolioId", portfolio.getId())
+            .addKeyValue("decisionId", transaction.getId())
+            .addKeyValue("transactionType", transaction.getTransactionType()));
     return DecisionResponse.from(transaction, List.of());
   }
 
@@ -117,13 +134,20 @@ public class InvestmentDecisionService {
         decisionRepository
             .findByIdAndPortfolioMemberId(transactionId, memberId)
             .orElseThrow(() -> new BusinessException(LeagueErrorCode.TRANSACTION_NOT_FOUND));
-    return ReviewResponse.from(
+    InvestmentReview saved =
         reviewRepository.save(
             new InvestmentReview(
                 transaction,
                 request.actualResult(),
                 request.differenceFromExpectation(),
-                request.nextAction())));
+                request.nextAction()));
+    TransactionLog.afterCommit(
+        LogEvent.LEAGUE_REVIEW_CREATED,
+        log.atInfo()
+            .addKeyValue("memberId", memberId)
+            .addKeyValue("decisionId", transactionId)
+            .addKeyValue("reviewId", saved.getId()));
+    return ReviewResponse.from(saved);
   }
 
   @Transactional
@@ -137,6 +161,12 @@ public class InvestmentDecisionService {
     review.revise(
         request.actualResult(), request.differenceFromExpectation(), request.nextAction());
     reviewRepository.flush();
+    TransactionLog.afterCommit(
+        LogEvent.LEAGUE_REVIEW_REVISED,
+        log.atInfo()
+            .addKeyValue("memberId", memberId)
+            .addKeyValue("decisionId", transactionId)
+            .addKeyValue("reviewId", reviewId));
     return ReviewResponse.from(review);
   }
 

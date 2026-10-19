@@ -6,11 +6,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
@@ -19,6 +21,7 @@ import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.domain.LeagueParticipation;
 import org.grit.daynomy.league.domain.PortfolioDailyReturn;
@@ -63,6 +66,18 @@ public class LeagueReturnService {
   private int recalculateSince(LocalDate from, boolean incremental) {
     long started = metrics.startRun();
     boolean completed = false;
+    String mode = !incremental ? "FULL" : from == null ? "PENDING" : "FROM_DATE";
+    String phase = "LOAD_CALENDAR";
+    int calculated = 0;
+    int failed = 0;
+    int succeeded = 0;
+    int target = 0;
+    Map<String, Integer> outcomeCounts = new HashMap<>();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_STARTED.code())
+        .addKeyValue("mode", mode)
+        .addKeyValue("fromDate", from)
+        .log(LogEvent.LEAGUE_CALCULATION_STARTED.message());
     try {
       List<MarketTradingDay> days =
           tradingDayRepository
@@ -70,11 +85,12 @@ public class LeagueReturnService {
               .stream()
               .filter(day -> !day.closesAt().isAfter(Instant.now()))
               .toList();
-      int calculated = 0;
-      int failed = 0;
       LocalDate firstCalculated = null;
+      phase = "LOAD_PROFILES";
       List<InvestorProfile> profiles = profileRepository.findAllByLeagueEnabledAtIsNotNull();
+      target = profiles.size();
       metrics.resetProfiles(profiles.size());
+      phase = "CALCULATE_PROFILES";
       for (InvestorProfile candidate : profiles) {
         Map<String, Integer> outcomes = new HashMap<>();
         try {
@@ -94,30 +110,89 @@ public class LeagueReturnService {
             }
           }
           metrics.profileSucceeded(outcomes);
+          succeeded++;
+          outcomes.forEach((reason, count) -> outcomeCounts.merge(reason, count, Integer::sum));
+          log.atDebug()
+              .addKeyValue("event", LogEvent.LEAGUE_PROFILE_CALCULATION_COMPLETED.code())
+              .addKeyValue("profileId", candidate.getId())
+              .addKeyValue("mode", mode)
+              .addKeyValue("fromDate", calculation == null ? null : calculation.firstDate())
+              .addKeyValue("processedDayCount", calculation == null ? 0 : calculation.days())
+              .addKeyValue("outcomeCounts", outcomes)
+              .log(LogEvent.LEAGUE_PROFILE_CALCULATION_COMPLETED.message());
         } catch (RuntimeException exception) {
           metrics.profileFailed();
           failed++;
           // 한 포트폴리오 실패는 해당 트랜잭션만 롤백하고 다른 참가자 집계를 계속한다.
+          // 예외 메시지의 입력값 노출을 피하고 호출 위치만 기록한다.
           log.atError()
-              .addKeyValue(
-                  "event",
-                  org.grit.daynomy.common.logging.LogEvent.LEAGUE_CALCULATION_FAILED.code())
+              .addKeyValue("event", LogEvent.LEAGUE_PROFILE_CALCULATION_FAILED.code())
               .addKeyValue("profileId", candidate.getId())
+              .addKeyValue("mode", mode)
+              .addKeyValue("fromDate", from)
               .addKeyValue("exception", exception.getClass().getSimpleName())
-              .log("투자 리그 참가자 집계 실패");
+              .addKeyValue(
+                  "causeType",
+                  exception.getCause() == null
+                      ? null
+                      : exception.getCause().getClass().getSimpleName())
+              .addKeyValue("stackTrace", Arrays.toString(exception.getStackTrace()))
+              .log(LogEvent.LEAGUE_PROFILE_CALCULATION_FAILED.message());
         }
       }
       if (failed > 0) {
         throw new IllegalStateException("투자 리그 참가자 집계 실패: " + failed + "건");
       }
+      phase = "FINALIZE_WEEKS";
       if (incremental) {
         leagueService.finalizeWeeks(
             firstCalculated == null ? LocalDate.now(SEOUL) : firstCalculated);
       } else {
         leagueService.finalizeWeeks();
       }
+      int missingPrices = outcomeCounts.getOrDefault("MISSING_PRICE", 0);
+      int unsupportedAssets = outcomeCounts.getOrDefault("UNSUPPORTED_ASSET", 0);
+      if (missingPrices > 0 || unsupportedAssets > 0) {
+        log.atWarn()
+            .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_INCOMPLETE.code())
+            .addKeyValue("mode", mode)
+            .addKeyValue("fromDate", firstCalculated)
+            .addKeyValue("missingPriceDayCount", missingPrices)
+            .addKeyValue("unsupportedAssetDayCount", unsupportedAssets)
+            .log(LogEvent.LEAGUE_CALCULATION_INCOMPLETE.message());
+      }
+      log.atInfo()
+          .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_COMPLETED.code())
+          .addKeyValue("mode", mode)
+          .addKeyValue("requestedFromDate", from)
+          .addKeyValue("fromDate", firstCalculated)
+          .addKeyValue("toDate", days.isEmpty() ? null : days.getLast().getBaseDate())
+          .addKeyValue("targetProfileCount", target)
+          .addKeyValue("succeededProfileCount", succeeded)
+          .addKeyValue("processedDayCount", calculated)
+          .addKeyValue("outcomeCounts", outcomeCounts)
+          .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
+          .log(LogEvent.LEAGUE_CALCULATION_COMPLETED.message());
       completed = true;
       return calculated;
+    } catch (RuntimeException exception) {
+      log.atError()
+          .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_FAILED.code())
+          .addKeyValue("mode", mode)
+          .addKeyValue("phase", phase)
+          .addKeyValue("fromDate", from)
+          .addKeyValue("targetProfileCount", target)
+          .addKeyValue("succeededProfileCount", succeeded)
+          .addKeyValue("failedProfileCount", failed)
+          .addKeyValue("processedDayCount", calculated)
+          .addKeyValue("exception", exception.getClass().getSimpleName())
+          .addKeyValue(
+              "causeType",
+              exception.getCause() == null ? null : exception.getCause().getClass().getSimpleName())
+          .addKeyValue("stackTrace", Arrays.toString(exception.getStackTrace()))
+          .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
+          .log(LogEvent.LEAGUE_CALCULATION_FAILED.message());
+      throw exception;
     } finally {
       metrics.finishRun(started, completed);
     }
