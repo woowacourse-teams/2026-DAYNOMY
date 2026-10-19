@@ -97,7 +97,8 @@
   padding: 8px 14px;
   font: inherit;
   font-size: 12px;
-  border-radius: 10px;
+  border-radius: 999px;
+  font-weight: 600;
   cursor: pointer;
 }
 .portfolio-tour .portfolio-tour-navigation .portfolio-primary-button {
@@ -113,7 +114,7 @@
 .portfolio-tour-skip {
   border: 0;
   background: transparent;
-  color: #626262;
+  color: #172033;
 }
 .portfolio-tour button:focus-visible {
   outline: 2px solid #172033;
@@ -139,8 +140,34 @@
 .portfolio-tour-demo-label {
   display: block;
   margin-bottom: 10px;
+  padding-right: 32px;
   font-size: 11px;
   color: #626262;
+}
+.portfolio-tour-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #617087;
+  cursor: pointer;
+}
+.portfolio-tour-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.portfolio-tour-close:hover {
+  background: #f2f4f7;
 }
 
 :root.portfolio-tour-active {
@@ -261,35 +288,94 @@
   outline-offset: 3px;
   border-radius: 6px;
 }
+.portfolio-guide-anchor {
+  position: relative;
+}
 .portfolio-guide-invitation {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 18px 20px;
-  margin-bottom: 24px;
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 16px);
+  left: calc(100% - 12px);
+  width: 320px;
+  box-sizing: border-box;
+  padding: 20px;
   border: 1px solid #dfe8fa;
   border-radius: 12px;
   background: #f5f8ff;
+  box-shadow: 0 6px 18px rgb(36 59 96 / 8%);
+}
+.portfolio-guide-invitation::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 14px;
+  width: 12px;
+  height: 12px;
+  background: #f5f8ff;
+  border-top: 1px solid #dfe8fa;
+  border-left: 1px solid #dfe8fa;
+  transform: rotate(45deg);
 }
 .portfolio-guide-invitation strong {
+  display: block;
+  padding-right: 28px;
   color: #243b60;
-  font-size: 14px;
+  font-size: 15px;
 }
 .portfolio-guide-invitation p {
-  margin: 6px 0 0;
-  color: #617087;
+  margin: 12px 0 0;
+  color: #52647f;
   font-size: 13px;
   line-height: 1.6;
   word-break: keep-all;
 }
-.portfolio-guide-invitation button {
-  flex-shrink: 0;
+.portfolio-guide-invitation .portfolio-guide-invitation-lead {
+  margin-top: 4px;
+  color: #243b60;
+  font-size: 14px;
 }
-@media (max-width: 599px) {
+.portfolio-guide-dismiss {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #617087;
+  cursor: pointer;
+}
+.portfolio-guide-dismiss svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.portfolio-guide-dismiss:hover {
+  background: #e8effc;
+}
+.portfolio-guide-dismiss:focus-visible {
+  outline: 2px solid #3869d4;
+}
+@media (max-width: 767px) {
+  .portfolio-title-with-guide {
+    position: relative;
+  }
+  .portfolio-guide-anchor {
+    position: static;
+  }
   .portfolio-guide-invitation {
-    align-items: flex-start;
-    flex-direction: column;
+    top: calc(100% + 42px);
+    left: 0;
+    width: min(320px, calc(100vw - 40px));
     padding: 16px;
+  }
+  .portfolio-guide-invitation::before {
+    left: 190px;
   }
 }
