@@ -739,7 +739,7 @@ class LeagueServiceTest {
 
   @Test
   void participationStartsOnEnrollmentAndMissingPricesDoNotInventDates() {
-    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
     dailyProfile(week);
     calendar(week, List.of(week));
 
