@@ -12,7 +12,7 @@ import {
 import { SocialPostEmbed } from '../../people/SocialPostEmbed';
 import { IssuePagination } from './IssuePagination';
 import { trackLoadResult, useContentView } from './analytics';
-import { feedDate, youtubeId } from './feed';
+import { feedDate, youtubeId, youtubeThumbnail } from './feed';
 import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import './issue.css';
@@ -348,8 +348,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                   const key = `${item.assetId}-${item.id}`;
                   const videoId = item.sourceType === 'YOUTUBE' ? youtubeId(item.url) : null;
                   const image =
-                    item.imageUrl ??
-                    (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null);
+                    item.sourceType === 'YOUTUBE' ? youtubeThumbnail(item.url) : item.imageUrl;
                   const label =
                     item.sourceType === 'INTERNAL_NEWS'
                       ? '데이노미'
