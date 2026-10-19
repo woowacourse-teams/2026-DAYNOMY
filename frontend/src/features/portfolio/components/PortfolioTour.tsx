@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import './portfolioTour.css';
 
 const STORAGE_KEY = 'daynomy:portfolio-tour:v1';
+const INVITATION_KEY = 'daynomy:portfolio-guide-seen:v1';
 const target = (name: string) => `[data-portfolio-tour="${name}"]`;
 const steps = [
   {
@@ -99,29 +100,43 @@ const steps = [
 ];
 const groups = ['자산 등록', '소식 확인', '포폴 분석'];
 const groupIds = ['registration', 'news', 'analysis'] as const;
-type TourSource = 'automatic' | 'title' | 'empty_state';
+type TourSource = 'automatic' | 'title';
 
 export function PortfolioTour({
   ready,
   onRegister,
   onStepChange,
-  startRequest = 0,
+  isGuest = false,
 }: {
   ready: boolean;
-  startRequest?: number;
+  isGuest?: boolean;
   onRegister?: () => void;
   onStepChange?: (step: number | null) => void;
 }) {
+  const [invitationVisible, setInvitationVisible] = useState(() => {
+    try {
+      return !localStorage.getItem(INVITATION_KEY) && localStorage.getItem(STORAGE_KEY) !== 'done';
+    } catch {
+      return true;
+    }
+  });
+  const showInvitation = isGuest && ready && invitationVisible;
+  useLayoutEffect(() => {
+    if (!showInvitation) return;
+    try {
+      localStorage.setItem(INVITATION_KEY, '1');
+    } catch {
+      /* Storage may be disabled; the invitation still closes for this visit. */
+    }
+  }, [showInvitation]);
   const [step, setStep] = useState<number | null>(() => {
+    if (isGuest) return null;
     try {
       return localStorage.getItem(STORAGE_KEY) === 'done' ? null : 0;
     } catch {
       return 0;
     }
   });
-  useLayoutEffect(() => {
-    if (startRequest > 0) start('empty_state');
-  }, [startRequest]);
   const [position, setPosition] = useState({
     left: 0,
     top: 0,
@@ -153,6 +168,7 @@ export function PortfolioTour({
   }
   function start(source: TourSource) {
     if (trackedStepRef.current !== null) return;
+    setInvitationVisible(false);
     sourceRef.current = source;
     setStep(0);
   }
@@ -211,7 +227,7 @@ export function PortfolioTour({
       }
       if (event.key === 'Tab' && navigationRef.current) {
         const controls = Array.from(
-          navigationRef.current.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
+          layerRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
         );
         const index = controls.indexOf(document.activeElement as HTMLButtonElement);
         event.preventDefault();
@@ -303,16 +319,47 @@ export function PortfolioTour({
   const current = step === null ? null : steps[step];
   return (
     <>
-      <button
-        data-tour-trigger
-        ref={triggerRef}
-        type="button"
-        className="portfolio-guide-trigger"
-        disabled={!ready}
-        onClick={() => start('title')}
-      >
-        <span aria-hidden="true">ⓘ</span> 사용 가이드
-      </button>
+      <div className="portfolio-guide-anchor">
+        <button
+          aria-describedby={showInvitation ? 'portfolio-guide-invitation' : undefined}
+          data-tour-trigger
+          ref={triggerRef}
+          type="button"
+          className="portfolio-guide-trigger"
+          disabled={!ready}
+          onClick={() => start('title')}
+        >
+          <span aria-hidden="true">ⓘ</span> 사용 가이드
+        </button>
+        {showInvitation && (
+          <aside
+            className="portfolio-guide-invitation"
+            id="portfolio-guide-invitation"
+            aria-label="처음 이용 안내"
+          >
+            <button
+              type="button"
+              className="portfolio-guide-dismiss"
+              aria-label="처음 이용 안내 닫기"
+              onClick={() => {
+                setInvitationVisible(false);
+                triggerRef.current?.focus();
+              }}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
+            </button>
+            <strong>처음이신가요?</strong>
+            <p className="portfolio-guide-invitation-lead">여기서 예시로 따라 해보세요.</p>
+            <p>
+              자산 등록부터 소식 확인,
+              <br />
+              포트폴리오 분석까지 함께 살펴봐요.
+            </p>
+          </aside>
+        )}
+      </div>
       {open &&
         current &&
         createPortal(
@@ -333,6 +380,16 @@ export function PortfolioTour({
               aria-label="포트폴리오 사용 안내"
               style={{ left: position.panelLeft, top: position.panelTop }}
             >
+              <button
+                type="button"
+                className="portfolio-tour-close"
+                aria-label="가이드 닫기"
+                onClick={() => finish()}
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
               <span className="portfolio-tour-demo-label">체험용 예시 · 저장되지 않아요</span>
               <div className="portfolio-tour-copy" aria-live="polite" aria-atomic="true">
                 <h2>{current.title}</h2>
