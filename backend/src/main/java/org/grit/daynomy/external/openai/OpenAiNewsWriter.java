@@ -81,12 +81,20 @@ public class OpenAiNewsWriter {
           generatedNews.set(pendingIndexes.get(entry.getKey()), entry.getValue());
         }
         if (parsedWriting.failures().isEmpty()) {
-          return List.copyOf(generatedNews);
+          List<GeneratedEconomicNews> result = List.copyOf(generatedNews);
+          log.atInfo()
+              .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_COMPLETED.code())
+              .addKeyValue("api", "OpenAI")
+              .addKeyValue("operation", "economic-news-writing")
+              .addKeyValue("attempt", attempt)
+              .addKeyValue("articleCount", result.size())
+              .log(LogEvent.AI_NEWS_GENERATION_COMPLETED.message());
+          return result;
         }
 
         logValidationFailures(parsedWriting.failures(), attempt);
         if (attempt == MAX_ATTEMPTS) {
-          return validArticlesOrFail(generatedNews);
+          return validArticlesOrFail(generatedNews, attempt);
         }
         List<Integer> currentPendingIndexes = pendingIndexes;
         retryReason =
@@ -106,14 +114,14 @@ public class OpenAiNewsWriter {
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", "economic-news-writing")
             .addKeyValue("attempt", attempt)
-            .addKeyValue("reason", exception.getMessage())
+            .addKeyValue("errorType", exception.getClass().getSimpleName())
             .log(LogEvent.AI_NEWS_VALIDATION_FAILED.message());
         if (attempt == MAX_ATTEMPTS) {
-          return validArticlesOrFail(generatedNews);
+          return validArticlesOrFail(generatedNews, attempt);
         }
         retryReason = exception.getMessage();
       } catch (HttpStatusCodeException exception) {
-        log.atWarn()
+        log.atError()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", "economic-news-writing")
@@ -121,7 +129,7 @@ public class OpenAiNewsWriter {
             .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
         throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
       } catch (RestClientException exception) {
-        log.atWarn()
+        log.atError()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", "economic-news-writing")
@@ -130,7 +138,7 @@ public class OpenAiNewsWriter {
         throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
       }
     }
-    return validArticlesOrFail(generatedNews);
+    return validArticlesOrFail(generatedNews, MAX_ATTEMPTS);
   }
 
   private String requestContent(
@@ -288,12 +296,27 @@ public class OpenAiNewsWriter {
   }
 
   private List<GeneratedEconomicNews> validArticlesOrFail(
-      List<GeneratedEconomicNews> generatedNews) {
+      List<GeneratedEconomicNews> generatedNews, int attempt) {
     List<GeneratedEconomicNews> validArticles =
         generatedNews.stream().filter(Objects::nonNull).toList();
     if (validArticles.isEmpty()) {
+      log.atError()
+          .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+          .addKeyValue("api", "OpenAI")
+          .addKeyValue("operation", "economic-news-writing")
+          .addKeyValue("attempt", attempt)
+          .addKeyValue("errorType", "CONTENT_VALIDATION_FAILED")
+          .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     }
+    log.atInfo()
+        .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_COMPLETED.code())
+        .addKeyValue("api", "OpenAI")
+        .addKeyValue("operation", "economic-news-writing")
+        .addKeyValue("attempt", attempt)
+        .addKeyValue("articleCount", validArticles.size())
+        .addKeyValue("partial", true)
+        .log(LogEvent.AI_NEWS_GENERATION_COMPLETED.message());
     return validArticles;
   }
 

@@ -78,20 +78,36 @@ public class OpenAiNewsResearcher {
 
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        return parseResearch(requestResearch(prompt, retryInstruction, attempt));
+        List<EconomicNewsResearch> result =
+            parseResearch(requestResearch(prompt, retryInstruction, attempt));
+        log.atInfo()
+            .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_COMPLETED.code())
+            .addKeyValue("api", "OpenAI")
+            .addKeyValue("operation", operation)
+            .addKeyValue("attempt", attempt)
+            .addKeyValue("articleCount", result.size())
+            .log(LogEvent.AI_NEWS_GENERATION_COMPLETED.message());
+        return result;
       } catch (InvalidResearchException exception) {
         log.atWarn()
             .addKeyValue("event", LogEvent.AI_NEWS_VALIDATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", operation)
             .addKeyValue("attempt", attempt)
-            .addKeyValue("reason", exception.getMessage())
+            .addKeyValue("errorType", exception.getClass().getSimpleName())
             .log(LogEvent.AI_NEWS_VALIDATION_FAILED.message());
         if (attempt == MAX_ATTEMPTS) {
+          log.atError()
+              .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+              .addKeyValue("api", "OpenAI")
+              .addKeyValue("operation", operation)
+              .addKeyValue("attempt", attempt)
+              .addKeyValue("errorType", exception.getClass().getSimpleName())
+              .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
           throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
         }
       } catch (HttpStatusCodeException exception) {
-        log.atWarn()
+        log.atError()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", operation)
@@ -99,7 +115,7 @@ public class OpenAiNewsResearcher {
             .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
         throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
       } catch (RestClientException exception) {
-        log.atWarn()
+        log.atError()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", operation)
