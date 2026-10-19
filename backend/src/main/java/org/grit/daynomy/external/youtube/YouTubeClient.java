@@ -21,6 +21,8 @@ public class YouTubeClient {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final int SEARCH_LIMIT = 10;
+  private static final int PROFILE_SEARCH_LIMIT = 50;
+  private static final int MAX_PROFILE_SEARCH_PAGES = 10;
 
   private final YouTubeProperties properties;
   private final RestClient restClient;
@@ -78,13 +80,18 @@ public class YouTubeClient {
     try {
       String channelId = resolveChannelId(profileUrl);
       if (channelId == null) {
+        log.warn("YouTube channel ID could not be resolved for configured profile");
         return List.of();
       }
-      String response =
-          restClient
-              .get()
-              .uri(
-                  builder ->
+      List<YouTubeVideoCandidate> candidates = new ArrayList<>();
+      String pageToken = null;
+      for (int page = 0; page < MAX_PROFILE_SEARCH_PAGES; page++) {
+        String currentPageToken = pageToken;
+        String response =
+            restClient
+                .get()
+                .uri(
+                    builder -> {
                       builder
                           .path("/search")
                           .queryParam("part", "snippet")
@@ -93,13 +100,23 @@ public class YouTubeClient {
                           .queryParam("order", "date")
                           .queryParam("publishedAfter", fromInclusive.toString())
                           .queryParam("publishedBefore", toExclusive.toString())
-                          .queryParam("maxResults", SEARCH_LIMIT)
+                          .queryParam("maxResults", PROFILE_SEARCH_LIMIT)
                           .queryParam("safeSearch", "moderate")
-                          .queryParam("key", properties.apiKey())
-                          .build())
-              .retrieve()
-              .body(String.class);
-      return parseCandidates(response).stream()
+                          .queryParam("key", properties.apiKey());
+                      if (currentPageToken != null) {
+                        builder.queryParam("pageToken", currentPageToken);
+                      }
+                      return builder.build();
+                    })
+                .retrieve()
+                .body(String.class);
+        candidates.addAll(parseCandidates(response));
+        pageToken = readTree(response).path("nextPageToken").asText();
+        if (pageToken.isBlank()) {
+          break;
+        }
+      }
+      return candidates.stream()
           .filter(candidate -> isWithinPeriod(candidate.publishedAt(), fromInclusive, toExclusive))
           .toList();
     } catch (BusinessException exception) {

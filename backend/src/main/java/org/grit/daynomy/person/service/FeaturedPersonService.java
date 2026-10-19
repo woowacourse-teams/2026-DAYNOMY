@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Service
 public class FeaturedPersonService {
+
+  private static final Pattern YOUTUBE_VIDEO_ID_PARAMETER =
+      Pattern.compile("(?:^|&)v=([A-Za-z0-9_-]{11})(?:&|$)");
 
   private final FeaturedPersonRepository personRepository;
   private final FeaturedPersonPostRepository postRepository;
@@ -190,15 +195,8 @@ public class FeaturedPersonService {
     if (!valid) {
       throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL);
     }
-    if (sourceType == ContentSourceType.YOUTUBE
-        && uri.getPath().equals("/watch")
-        && uri.getQuery() != null) {
-      for (String parameter : uri.getQuery().split("&")) {
-        String[] entry = parameter.split("=", 2);
-        if (entry.length == 2 && entry[0].equals("v")) {
-          return "https://www.youtube.com/watch?v=" + entry[1];
-        }
-      }
+    if (sourceType == ContentSourceType.YOUTUBE && uri.getPath().equals("/watch")) {
+      return "https://www.youtube.com/watch?v=" + extractYouTubeVideoId(uri);
     }
     return normalize(uri);
   }
@@ -242,7 +240,8 @@ public class FeaturedPersonService {
 
   private boolean isThreadsPost(URI uri) {
     return isThreadsHost(uri)
-        && (uri.getPath().matches("/@[^/]+/post/[^/]+/?") || uri.getPath().matches("/t/[^/]+/?"));
+        && (uri.getPath().matches("(?i)/@[^/]+/post/[^/]+/?")
+            || uri.getPath().matches("(?i)/t/[^/]+/?"));
   }
 
   private boolean isXHost(URI uri) {
@@ -266,9 +265,14 @@ public class FeaturedPersonService {
     if (host.equals("youtu.be")) return uri.getPath().matches("/[A-Za-z0-9_-]{11}/?");
     if (!host.equals("youtube.com")) return false;
     return uri.getPath().matches("/(embed|shorts|live)/[A-Za-z0-9_-]{11}/?")
-        || (uri.getPath().equals("/watch")
-            && uri.getQuery() != null
-            && uri.getQuery().matches(".*(^|&)v=[A-Za-z0-9_-]{11}(&|$).*"));
+        || (uri.getPath().equals("/watch") && extractYouTubeVideoId(uri) != null);
+  }
+
+  private String extractYouTubeVideoId(URI uri) {
+    String query = uri.getRawQuery();
+    if (query == null) return null;
+    Matcher matcher = YOUTUBE_VIDEO_ID_PARAMETER.matcher(query);
+    return matcher.find() ? matcher.group(1) : null;
   }
 
   private boolean isYouTubeProfile(URI uri) {

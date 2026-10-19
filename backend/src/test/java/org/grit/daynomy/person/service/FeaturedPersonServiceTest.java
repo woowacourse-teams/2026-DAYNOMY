@@ -196,6 +196,29 @@ class FeaturedPersonServiceTest {
   }
 
   @Test
+  @DisplayName("YouTube watch URL은 검증된 영상 식별자만 정규화한다")
+  void createPostUsesValidatedYouTubeWatchVideoId() {
+    FeaturedPerson person = mock(FeaturedPerson.class);
+    given(person.getName()).willReturn("일론 머스크");
+    given(personRepository.findById(1L)).willReturn(Optional.of(person));
+    given(postRepository.existsByPersonIdAndUrl(1L, "https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
+        .willReturn(false);
+    given(postRepository.saveAndFlush(any(FeaturedPersonPost.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    var response =
+        featuredPersonService.createPost(
+            1L,
+            new FeaturedPersonPostRequest(
+                ContentSourceType.YOUTUBE,
+                null,
+                "https://www.youtube.com/watch?v=invalid&v=dQw4w9WgXcQ",
+                null));
+
+    assertThat(response.url()).isEqualTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  }
+
+  @Test
   @DisplayName("Wikimedia Commons 프로필 이미지는 내려받아 S3에 저장한다")
   void createPersonStoresSelectedWikimediaImage() {
     given(personRepository.existsByName("일론 머스크")).willReturn(false);

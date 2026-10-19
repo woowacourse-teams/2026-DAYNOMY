@@ -105,6 +105,46 @@ class FeaturedPersonPostCollectionServiceTest {
   }
 
   @Test
+  void collectSkipsOnlyCandidatesWithInvalidUrls() {
+    FeaturedPerson person = org.mockito.Mockito.mock(FeaturedPerson.class);
+    given(person.getXProfileUrl()).willReturn("https://x.com/elonmusk");
+    given(personRepository.findById(1L)).willReturn(Optional.of(person));
+    given(
+            socialPostSearchClient.searchProfiles(
+                "https://x.com/elonmusk",
+                null,
+                LocalDate.parse("2026-10-10"),
+                LocalDate.parse("2026-10-12")))
+        .willReturn(
+            List.of(
+                new SocialPostCandidate(
+                    SocialPostCandidate.Platform.X,
+                    "유효한 글",
+                    "https://x.com/elonmusk/status/12345",
+                    "2026-10-12"),
+                new SocialPostCandidate(
+                    SocialPostCandidate.Platform.X,
+                    "잘못된 글",
+                    "https://x.com/elonmusk/not-a-post",
+                    "2026-10-12")));
+    given(
+            featuredPersonService.normalizePostUrl(
+                "https://x.com/elonmusk/status/12345", ContentSourceType.X))
+        .willReturn("https://x.com/elonmusk/status/12345");
+    given(
+            featuredPersonService.normalizePostUrl(
+                "https://x.com/elonmusk/not-a-post", ContentSourceType.X))
+        .willThrow(
+            new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL));
+    given(postRepository.findByPersonIdAndStatusOrderByCreatedAtDescIdDesc(any(), any()))
+        .willReturn(List.of());
+
+    collectionService.collect(1L, LocalDate.parse("2026-10-10"), LocalDate.parse("2026-10-12"));
+
+    then(postRepository).should().save(any(FeaturedPersonPost.class));
+  }
+
+  @Test
   void approveMarksPostApproved() {
     FeaturedPersonPost candidate = org.mockito.Mockito.mock(FeaturedPersonPost.class);
     given(candidate.getStatus()).willReturn(FeaturedPersonPostStatus.PENDING);

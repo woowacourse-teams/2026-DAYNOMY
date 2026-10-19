@@ -99,13 +99,22 @@ public class FeaturedPersonPostCollectionService {
     }
 
     for (CollectedPost post : collected) {
-      String normalizedUrl = featuredPersonService.normalizePostUrl(post.url(), post.sourceType());
-      if (postRepository.existsByPersonIdAndUrl(personId, normalizedUrl)) {
-        continue;
+      try {
+        String normalizedUrl =
+            featuredPersonService.normalizePostUrl(post.url(), post.sourceType());
+        if (postRepository.existsByPersonIdAndUrl(personId, normalizedUrl)) {
+          continue;
+        }
+        postRepository.save(
+            FeaturedPersonPost.createPending(
+                person, post.sourceType(), post.title(), normalizedUrl, post.publishedAt()));
+      } catch (BusinessException exception) {
+        log.atWarn()
+            .addKeyValue("personId", personId)
+            .addKeyValue("sourceType", post.sourceType())
+            .addKeyValue("errorCode", exception.errorCode().code())
+            .log("Featured person post candidate skipped because its URL is invalid");
       }
-      postRepository.save(
-          FeaturedPersonPost.createPending(
-              person, post.sourceType(), post.title(), normalizedUrl, post.publishedAt()));
     }
     postRepository.flush();
     return pendingCandidates(personId);

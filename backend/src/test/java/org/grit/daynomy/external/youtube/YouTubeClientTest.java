@@ -49,7 +49,6 @@ class YouTubeClientTest {
                   ]
                 }
                 """));
-
     YouTubeClient client =
         new YouTubeClient(
             new YouTubeProperties(
@@ -90,6 +89,7 @@ class YouTubeClientTest {
             .setBody(
                 """
                 {
+                  "nextPageToken": "next-page",
                   "items": [
                     {
                       "id": {"videoId": "abcdefghijk"},
@@ -112,6 +112,25 @@ class YouTubeClientTest {
                   ]
                 }
                 """));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {
+                  "items": [
+                    {
+                      "id": {"videoId": "lmnopqrstuv"},
+                      "snippet": {
+                        "title": "다음 페이지 공식 영상",
+                        "channelTitle": "Tesla",
+                        "publishedAt": "2026-10-12T01:00:00Z",
+                        "thumbnails": {}
+                      }
+                    }
+                  ]
+                }
+                """));
     YouTubeClient client = newClient("test-api-key");
 
     var candidates =
@@ -121,9 +140,8 @@ class YouTubeClientTest {
             java.time.Instant.parse("2026-10-13T00:00:00Z"));
 
     assertThat(candidates)
-        .singleElement()
         .extracting(YouTubeVideoCandidate::title)
-        .isEqualTo("공식 채널 영상");
+        .containsExactly("공식 채널 영상", "다음 페이지 공식 영상");
     RecordedRequest channelRequest = server.takeRequest();
     assertThat(channelRequest.getRequestUrl().queryParameter("forHandle")).isEqualTo("Tesla");
     RecordedRequest videoRequest = server.takeRequest();
@@ -133,6 +151,9 @@ class YouTubeClientTest {
         .isEqualTo("2026-10-11T00:00:00Z");
     assertThat(videoRequest.getRequestUrl().queryParameter("publishedBefore"))
         .isEqualTo("2026-10-13T00:00:00Z");
+    assertThat(videoRequest.getRequestUrl().queryParameter("maxResults")).isEqualTo("50");
+    RecordedRequest nextPageRequest = server.takeRequest();
+    assertThat(nextPageRequest.getRequestUrl().queryParameter("pageToken")).isEqualTo("next-page");
   }
 
   @Test
