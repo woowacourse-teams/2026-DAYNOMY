@@ -97,6 +97,30 @@ it('이미지가 있는 소식에는 원본 썸네일을, 없는 소식에는 �
     view.container.querySelector('.source-youtube .portfolio-news-thumbnail-fallback svg'),
   ).toBeTruthy();
 });
+
+it('YouTube 이미지가 없으면 영상 URL에서 썸네일을 만든다', async () => {
+  vi.mocked(getStockRelatedContents).mockResolvedValue({
+    assetId: 1,
+    assetCode: '1',
+    assetName: '종목1',
+    contents: [
+      {
+        ...content,
+        sourceType: 'YOUTUBE',
+        url: 'https://www.youtube.com/watch?v=gLniGzh7oWo',
+      },
+    ],
+  });
+  const view = render(<PortfolioNews holdings={[{ assetId: 1, name: '종목1' }]} />);
+
+  await view.findByText('공통 소식');
+  expect(
+    view.container
+      .querySelector('.portfolio-news-thumbnail.source-youtube > img')
+      ?.getAttribute('src'),
+  ).toBe('https://i.ytimg.com/vi/gLniGzh7oWo/hqdefault.jpg');
+});
+
 it('일부 종목 조회가 실패해도 성공한 소식은 유지하고 재시도한다', async () => {
   vi.mocked(getStockRelatedContents).mockImplementation(async (id) => {
     if (id === 2) throw new Error('failed');
