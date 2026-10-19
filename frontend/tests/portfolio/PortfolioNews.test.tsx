@@ -288,3 +288,16 @@ it.each([
   expect(links[1].querySelector('time')?.getAttribute('datetime')).toBe('2026-10-15');
   expect(links[1].textContent).toContain('종목1 · 종목2');
 });
+
+it('체험 모드의 더보기는 보유 종목 없이 전체 소식으로 연결하고 분석 목적지를 구분한다', () => {
+  const view = render(<PortfolioNews demo holdings={[]} />);
+  const link = view.getByRole('link', { name: '모든 소식 보기' });
+  expect(link.getAttribute('href')).toBe('/news');
+  expect(view.queryByRole('link', { name: /보유 종목 소식 더 보기/ })).toBeNull();
+  fireEvent.click(link);
+  expect(trackEvent).toHaveBeenCalledWith('click_content_more', {
+    surface: 'portfolio_news',
+    destination: 'news_home',
+  });
+  expect(getStockRelatedContents).not.toHaveBeenCalled();
+});
