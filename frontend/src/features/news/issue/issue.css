@@ -83,32 +83,6 @@
   font-size: 13px;
   color: var(--issue-muted);
 }
-.issue-lead {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 160px;
-  align-items: center;
-  gap: 28px;
-  min-height: 190px;
-}
-.issue-lead time {
-  font-size: 13px;
-  color: var(--issue-muted);
-}
-.issue-lead h3 {
-  font-size: 25px;
-  line-height: 1.55;
-  letter-spacing: -0.04em;
-  margin: 12px 0 20px;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-.issue-lead img {
-  width: 160px;
-  height: 160px;
-  object-fit: cover;
-  border-radius: 3px;
-  background: #f4f6f8;
-}
 .issue-read {
   display: inline-flex;
   gap: 16px;
@@ -168,7 +142,11 @@
 .issue-feed-heading {
   flex-direction: column;
   align-items: stretch;
-  gap: 16px;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+.issue-feed-heading h2 {
+  margin: 0;
 }
 .issue-feed-controls > span {
   flex-shrink: 0;
@@ -266,37 +244,6 @@
 .issue-story-meta {
   margin-top: 10px;
 }
-.issue-embed {
-  max-width: 640px;
-  margin: 24px auto 0;
-}
-.issue-embed[hidden] {
-  display: none;
-}
-.issue-embed .people-social-embed {
-  width: 100%;
-  min-width: 0;
-}
-.issue-embed iframe {
-  max-width: 100% !important;
-}
-.issue-more {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  min-height: 52px;
-  margin-top: 24px;
-  border: 1px solid var(--issue-line);
-  border-radius: 4px;
-  background: white;
-  font-size: 14px;
-}
-.issue-more:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
 .issue-state {
   color: var(--issue-muted);
   line-height: 1.8;
@@ -327,28 +274,6 @@
 .issue-people-page {
   max-width: none;
 }
-.issue-people-tools {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--issue-line);
-}
-.issue-search input {
-  width: 260px;
-  max-width: 100%;
-  min-height: 40px;
-  padding: 8px 12px;
-  border: 1px solid var(--issue-line);
-  border-radius: 4px;
-  background: white;
-}
-.issue-sort {
-  color: var(--issue-muted);
-  font-size: 13px;
-  margin-left: auto;
-  white-space: nowrap;
-}
 @media (max-width: 1000px) {
   .issue-briefing {
     gap: 28px;
@@ -356,17 +281,6 @@
   }
   .issue-people {
     padding-left: 28px;
-  }
-  .issue-lead {
-    grid-template-columns: minmax(0, 1fr) 112px;
-    gap: 18px;
-  }
-  .issue-lead img {
-    width: 112px;
-    height: 138px;
-  }
-  .issue-lead h3 {
-    font-size: 22px;
   }
 }
 @media (max-width: 720px) {
@@ -397,20 +311,12 @@
   .issue-section-heading {
     margin-bottom: 16px;
   }
+  .issue-feed-heading {
+    gap: 20px;
+    margin-bottom: 12px;
+  }
   .issue-section-heading h2 {
     font-size: var(--page-title-size);
-  }
-  .issue-lead {
-    min-height: 150px;
-    grid-template-columns: minmax(0, 1fr) 108px;
-  }
-  .issue-lead img {
-    width: 108px;
-    height: 128px;
-  }
-  .issue-lead h3 {
-    font-size: 21px;
-    margin: 8px 0 16px;
   }
   .issue-people-preview > a {
     padding-bottom: 16px;
@@ -433,19 +339,6 @@
   }
   .issue-feed-controls > span {
     display: none;
-  }
-  .issue-people-tools {
-    flex-wrap: wrap;
-  }
-  .issue-search {
-    flex: 1;
-    min-width: 140px;
-  }
-  .issue-search input {
-    width: 100%;
-  }
-  .issue-sort {
-    width: 100%;
   }
 }
 .issue-page {
@@ -505,17 +398,6 @@
   gap: 16px;
   align-items: center;
 }
-.issue-person-initial {
-  display: grid;
-  width: 52px;
-  height: 58px;
-  place-items: center;
-  border-radius: 3px;
-  background: #eef1f5;
-  color: #53647a;
-  font-size: 23px;
-  font-weight: 600;
-}
 .issue-feed-row {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
@@ -543,10 +425,6 @@
 .issue-feed-row > .issue-meta,
 .issue-feed-row > .issue-row-title {
   grid-column: 2;
-}
-.issue-feed-row > .issue-embed {
-  grid-column: 1 / -1;
-  width: 100%;
 }
 .issue-feed-row--visual {
   grid-template-columns: 144px minmax(0, 1fr);
@@ -598,16 +476,20 @@
 .issue-feed-row--visual > .issue-inline-post {
   grid-column: 1 / -1;
 }
+.issue-row-title h3,
 .issue-post-title {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  min-width: 0;
+  max-width: 100%;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.issue-row-title[aria-expanded='true'] .issue-post-title {
-  display: block;
-}
 @media (max-width: 720px) {
+  .issue-row-title h3,
+  .issue-post-title {
+    -webkit-line-clamp: 2;
+  }
   .issue-feed-row {
     grid-template-columns: 44px minmax(0, 1fr);
     column-gap: 12px;
@@ -640,11 +522,6 @@
     grid-template-columns: 42px minmax(0, 1fr);
     gap: 12px;
   }
-  .issue-person-initial {
-    width: 42px;
-    height: 48px;
-    font-size: 20px;
-  }
 }
 
 .issue-platform-mark img {
@@ -664,12 +541,6 @@
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 24px;
-}
-
-.issue-period {
-  color: var(--issue-muted);
-  font-size: 13px;
-  padding-bottom: 4px;
 }
 .issue-people-heading .issue-profile-links {
   flex-basis: 100%;
@@ -722,38 +593,6 @@
 .issue-today {
   padding-bottom: 0;
 }
-.issue-story-tools {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.issue-story-tools input {
-  min-height: 40px;
-  max-width: 160px;
-  padding: 6px 10px;
-  border: 1px solid var(--issue-line);
-  border-radius: 4px;
-  background: white;
-  font-size: 13px;
-}
-.issue-story-tools button {
-  min-height: 40px;
-  padding: 0 10px;
-  border: 0;
-  background: none;
-  font-size: 13px;
-}
-.issue-story-rail {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: calc((100% - 20px) / 2);
-  gap: 20px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: thin;
-  scrollbar-color: #c5cdd7 transparent;
-  padding-bottom: 12px;
-}
 .issue-story-card {
   min-width: 0;
   scroll-snap-align: start;
@@ -777,38 +616,11 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.issue-story-note,
-.issue-feed-note {
+.issue-story-note {
   margin: -8px 0 16px;
   color: var(--issue-muted);
   font-size: 13px;
   line-height: 1.6;
-}
-.issue-feed-heading .issue-feed-note {
-  margin: -8px 0 0;
-}
-.issue-story-paging {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  align-items: center;
-  margin-top: 8px;
-}
-.issue-story-paging > span {
-  margin-right: 8px;
-  font-size: 13px;
-  color: var(--issue-muted);
-}
-.issue-story-paging button {
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--issue-line);
-  border-radius: 4px;
-  background: white;
-}
-.issue-story-paging button:disabled {
-  color: #9ba3af;
-  cursor: default;
 }
 .issue-story-empty {
   padding: 24px 0 12px;
@@ -971,18 +783,11 @@
   background: white;
 }
 @media (max-width: 720px) {
-  .issue-story-rail {
-    grid-auto-columns: 86%;
-    gap: 16px;
-  }
   .issue-story-card h3 {
     font-size: 19px;
   }
   .issue-today .issue-section-heading {
     flex-wrap: wrap;
-  }
-  .issue-story-tools {
-    gap: 4px;
   }
   .issue-people-preview {
     grid-template-columns: 1fr;
@@ -998,28 +803,6 @@
   .issue-platform-youtube svg {
     width: 24px;
   }
-}
-
-.issue-person-nav {
-  display: flex;
-  gap: 24px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--issue-line);
-  margin-bottom: 8px;
-}
-.issue-person-nav button {
-  flex-shrink: 0;
-  min-height: 48px;
-  padding: 8px 0;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--issue-muted);
-}
-.issue-person-nav button[aria-pressed='true'] {
-  border-bottom-color: var(--issue-ink);
-  color: var(--issue-ink);
-  font-weight: 650;
 }
 .issue-pagination {
   display: flex;
@@ -1756,11 +1539,10 @@
 }
 .portfolio-content-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--issue-line);
+  padding-bottom: 0;
 }
 .portfolio-content-heading h1 {
   margin: 0;
@@ -1820,7 +1602,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 16px 0 0;
+  padding: 24px 0 0;
 }
 .portfolio-content-toolbar .issue-source-filters {
   min-width: 0;
@@ -1877,10 +1659,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .portfolio-content-heading {
-    align-items: flex-start;
-    padding-bottom: 16px;
   }
   .portfolio-content-heading > a {
     font-size: 12px;

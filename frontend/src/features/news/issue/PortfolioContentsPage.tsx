@@ -177,10 +177,10 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
         <section className="portfolio-company-content" aria-labelledby="portfolio-content-title">
           <header className="portfolio-content-heading">
             <div>
-              <p className="portfolio-content-eyebrow">보유 종목 소식</p>
+              <p className="portfolio-content-eyebrow">내 종목 소식</p>
               <h1 id="portfolio-content-title">{selectedHolding?.name ?? '전체 보유 종목'}</h1>
             </div>
-            <Link to="/news/contents">
+            <Link to="/news">
               <span>모든 소식 보기</span>
               <svg
                 viewBox="0 0 24 24"
