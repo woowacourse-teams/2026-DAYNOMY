@@ -115,7 +115,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
         timestamp(b.post.publishedAt ?? b.post.createdAt) -
         timestamp(a.post.publishedAt ?? a.post.createdAt),
     )
-    .slice(0, 2);
+    .slice(0, 3);
   const settled = !loading && !contentsLoading && !people.loading;
   const failedAreas = [error, contentsError, people.error].filter(Boolean).length;
   const listStatus = failedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
