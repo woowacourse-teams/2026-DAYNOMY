@@ -42,6 +42,9 @@ spring:
         format_sql: true
 
 management:
+  observations:
+    annotations:
+      enabled: true
   otlp:
     metrics:
       export:
@@ -159,6 +162,12 @@ news:
     us:
       enabled: ${US_NEWS_GENERATION_ENABLED:false}
       cron: ${US_NEWS_GENERATION_CRON:0 0 9 * * *}
+
+person:
+  post-collection:
+    enabled: ${PERSON_POST_COLLECTION_ENABLED:false}
+    cron: ${PERSON_POST_COLLECTION_CRON:0 0 6 * * *}
+    lookback-days: ${PERSON_POST_COLLECTION_LOOKBACK_DAYS:3}
 
 stock:
   calendar:

@@ -41,13 +41,13 @@ public class OpenAiNewsWriter {
   private final OpenAiProperties openAiProperties;
   private final RestClient restClient;
 
-  public OpenAiNewsWriter(OpenAiProperties openAiProperties) {
+  public OpenAiNewsWriter(OpenAiProperties openAiProperties, RestClient.Builder restClientBuilder) {
     this.openAiProperties = openAiProperties;
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(toMillis(openAiProperties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(openAiProperties.readTimeout()));
     this.restClient =
-        RestClient.builder()
+        restClientBuilder
             .baseUrl(openAiProperties.baseUrl())
             .requestFactory(requestFactory)
             .build();

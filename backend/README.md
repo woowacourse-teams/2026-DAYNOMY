@@ -64,6 +64,14 @@ COOKIE_SECURE=false
 Google 로그인 리디렉션 URI는 `http://localhost:8080/login/oauth2/code/google`입니다.
 AI 분석에는 `OPENAI_API_KEY`, 이미지 업로드에는 `AWS_REGION`, `AWS_S3_BUCKET`과
 실행 환경의 AWS 인증이 필요합니다. 상세 설정 이름과 기본값은 `application.yaml`을 따릅니다.
+주요 인물 게시물은 운영 환경에서 매일 오전 6시(Asia/Seoul)에 등록된 X·Threads·YouTube
+공식 프로필을 수집해 승인 대기 후보로 저장합니다. `PERSON_POST_COLLECTION_ENABLED`와
+`PERSON_POST_COLLECTION_CRON`으로 실행 여부와 시각을 변경합니다. 자동 수집은 기본적으로
+오늘을 포함한 최근 3일만 조회하며 `PERSON_POST_COLLECTION_LOOKBACK_DAYS`로 기간을 바꿀 수
+있습니다. 관리자 수동 수집은 시작일과 종료일을 지정하되 최대 31일까지 조회합니다. X·Threads에는
+`OPENAI_API_KEY`, YouTube에는 `YOUTUBE_API_KEY`가 필요합니다. 후보는 관리자가 승인해야
+공개 게시물로 전환됩니다. 관리자는 후보를 개별 처리하거나 한 번에 최대 100개까지 선택해
+일괄 승인·거절할 수 있으며, 일부 후보가 실패해도 나머지 후보는 계속 처리됩니다.
 
 ---
 
@@ -246,7 +254,7 @@ dev의 과거 매수 거래 등록 V1/V2 비교는 [부하테스트 문서](load
 | 거래·계산의 예상하지 못한 예외 | `http.request.failed` (ERROR)의 `errorCode`, `errorType`, 호출 스택. 동일 `requestId`·`traceId`의 `http.request.completed`에서 메서드·URI·HTTP 상태·처리 시간을 확인한다. |
 | 잘못된 입력·보유 수량 부족·존재하지 않는 거래 | 기존 `http.request.completed` (INFO)에 `errorCode`를 추가한다. 예상 가능한 4xx에 별도 WARN/ERROR를 중복 기록하지 않는다. |
 | 스냅샷 개별 생성·종가 수집 후 갱신 | `portfolio.snapshot.failed` (ERROR), 개별 생성은 `portfolioId`·`baseDate` 포함. 다른 포트폴리오 처리는 계속하고 완료 로그의 `failureCount`로 실패 건수를 확인한다. 스케줄러 작업에는 HTTP 요청 ID가 없을 수 있다. |
-| 공통 비동기 HTTP 요청 | 최초 요청·작업·ASYNC 재디스패치에서 같은 MDC 식별자를 사용한다. 완료 로그는 AsyncListener에서 한 번만 남긴다. |
+| 공통 비동기 HTTP 요청 | ASYNC 재디스패치에서 최초 요청의 `requestId`·`automation`을 복원한다. `traceId`·`spanId`는 Micrometer가 제공한 값을 유지한다. 완료 로그는 최초 요청의 MDC를 사용해 AsyncListener에서 한 번만 남긴다. |
 
 스냅샷 스케줄러는 실패 로그를 남긴 뒤 원래 예외를 그대로 다시 던져 기존 예외 전파 동작을 유지한다.
 

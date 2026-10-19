@@ -134,7 +134,7 @@ npm run dev
 - 통합 검색은 `GET /api/search/contents?q=...&source=ALL&page=1&size=12`를 사용합니다. 출처는 `ALL`, `DAYNOMY`, `X`, `THREADS`, `YOUTUBE`이며 기사 제목·본문과 인물 글·외부 자료의 제목을 검색합니다. 검색어·출처·페이지를 URL과 동기화하고 로딩·빈 결과·오류·재시도를 구분합니다.
 - 검색 결과는 서버가 페이지를 나누며 기사 발행 시각·외부 자료 등록 시각 기준으로 정렬합니다. 원문 게시일 정렬을 적용한 소식 피드와 검색의 정렬 기준은 다릅니다. 종목 상세와 보유 자산 소식도 기존 등록일 정렬을 유지합니다.
 - 동일 URL의 종목 외부 자료를 합치고 인물 글과 겹치면 인물 글을 우선합니다. 기사 링크는 상세로 이동하고 X·Threads·YouTube 자료는 목록에서 펼쳐 원문과 임베드를 확인합니다.
-- 인물은 등록된 프로필 이미지를 표시하고 이미지가 없으면 기본 아이콘을 사용합니다. 관리자는 Wikimedia Commons 이미지 선택과 X·Threads·YouTube 프로필 URL 등록, 세 플랫폼의 게시물 등록을 사용할 수 있습니다.
+- 인물은 등록된 프로필 이미지를 표시하고 이미지가 없으면 기본 아이콘을 사용합니다. 관리자는 Wikimedia Commons 이미지 선택과 X·Threads·YouTube 프로필 URL 등록, 세 플랫폼의 게시물 직접 등록을 사용할 수 있습니다. 서버가 하루 한 번 공식 프로필에서 수집한 게시물은 관리자 화면의 최상위 `수집 후보` 탭에서 대기 건수를 확인하고 개별 또는 선택 일괄 승인·거절하며, 승인한 후보만 공개 게시물에 반영됩니다.
 
 ---
 
@@ -515,3 +515,15 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 공통 속성: `tour_version`, `tour_source` (`automatic` / `title`), `step_number` (1부터), `step_id`, `step_group` (`registration` / `news` / `analysis`), `total_steps`. 이동에는 `direction`, `to_step`, 중도 종료에는 `exit_reason` (`button` / `escape`)을 추가합니다. 재렌더링·팝오버 이동만으로 조회 이벤트를 반복하지 않습니다. 실제 종목명·수량·매수가 등 입력값은 가이드 이벤트에 포함하지 않습니다. 실제 거래 저장 성공은 기존 `portfolio_save_succeeded` 이벤트로 기록합니다.
 
 가이드 10단계 버전은 `tour_version: v2`로 전송합니다. 추가된 단계 ID는 `asset_trend_composition`, `asset_holdings_history`이며, 기존 완료 저장 키는 유지합니다.
+
+### 포트폴리오 대시보드·거래 이벤트 점검 (#550)
+
+이번 변경은 대시보드와 거래 이벤트의 코드·로컬 테스트 점검이다. AI 분석 결과·조회 실패·출처 클릭과 공통 이벤트 전송 코드는 변경하지 않는다.
+
+| 흐름                | 이벤트와 검증 기준                                                                                                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 대시보드            | `portfolio_dashboard_viewed`·`portfolio_dashboard_loaded`는 마운트당 한 번. 보유정보와 계산 완료 후 로딩 성공을 기록하며 빈 포트폴리오도 정상이다. 추이·내역 실패는 `portfolio_dashboard_load_failed`의 `stage`로 구분한다.                                   |
+| 거래 진입·등록·수정 | `portfolio_editor_opened`의 `mode`·`entry_point`, `portfolio_save_submitted` → `portfolio_save_succeeded` 또는 `portfolio_save_failed`. 서버 응답 검증 또는 브라우저 임시 저장이 끝나야 성공이다. 실패 후 재시도는 별도 제출이며 렌더링은 제출로 세지 않는다. |
+| 거래 삭제           | `portfolio_delete_succeeded`·`portfolio_delete_failed`. 실패 중에는 성공이 없고 재시도 성공은 한 번만 기록한다.                                                                                                                                               |
+
+기존 `tests/portfolio/PortfolioPage.test.tsx`, `GuestPortfolioTransactions.test.tsx`, `tests/monitoring/portfolioAnalytics.test.tsx`를 확인하고 `PortfolioTransactions.test.tsx`에 회원 거래 등록·수정·삭제 실패 및 재시도 시 이벤트 순서·횟수와 민감정보 제외 검증을 보강했다. 실제 PostHog 수신 대조는 포함하지 않는다.

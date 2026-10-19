@@ -60,7 +60,8 @@ class PublicDataEtfPriceClientTest {
                 server.url("/etf-prices").toString(),
                 "https://example.com/listed-stocks",
                 null,
-                null));
+                null),
+            org.springframework.web.client.RestClient.builder());
 
     var response = client.getEtfPrices(LocalDate.of(2026, 9, 18), 2, 1000);
 

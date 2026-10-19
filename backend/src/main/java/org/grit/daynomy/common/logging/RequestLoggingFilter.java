@@ -19,14 +19,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Slf4j
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(Ordered.HIGHEST_PRECEDENCE + 2)
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
   public static final String ERROR_CODE_ATTRIBUTE =
       RequestLoggingFilter.class.getName() + ".errorCode";
 
   private static final String REQUEST_ID = "requestId";
-  private static final String TRACE_ID = "traceId";
   private static final String AUTOMATION = "automation";
 
   @Override
@@ -41,7 +40,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     if (isAsyncDispatch(request)) {
       var previous = MDC.getCopyOfContextMap();
       try {
-        for (String key : new String[] {REQUEST_ID, TRACE_ID, AUTOMATION}) {
+        for (String key : new String[] {REQUEST_ID, AUTOMATION}) {
           MDC.put(
               key, (String) request.getAttribute(RequestLoggingFilter.class.getName() + "." + key));
         }
@@ -56,9 +55,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     long startedAt = System.nanoTime();
 
     MDC.put(REQUEST_ID, UUID.randomUUID().toString());
-    MDC.put(TRACE_ID, UUID.randomUUID().toString());
     MDC.put(AUTOMATION, detectAutomation(request).code());
-    for (String key : new String[] {REQUEST_ID, TRACE_ID, AUTOMATION}) {
+    for (String key : new String[] {REQUEST_ID, AUTOMATION}) {
       request.setAttribute(RequestLoggingFilter.class.getName() + "." + key, MDC.get(key));
     }
 
@@ -106,7 +104,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
       } finally {
         MDC.remove(REQUEST_ID);
-        MDC.remove(TRACE_ID);
         MDC.remove(AUTOMATION);
       }
     }

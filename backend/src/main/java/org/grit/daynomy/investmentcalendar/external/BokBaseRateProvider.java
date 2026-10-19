@@ -38,12 +38,15 @@ public class BokBaseRateProvider implements InvestmentCalendarProvider {
   private final RestClient bokClient;
   private final RestClient ecosClient;
 
-  public BokBaseRateProvider(InvestmentCalendarExternalProperties properties) {
+  public BokBaseRateProvider(
+      InvestmentCalendarExternalProperties properties, RestClient.Builder restClientBuilder) {
     this.properties = properties;
     this.bokClient =
-        InvestmentCalendarHttpClientFactory.create(properties.bokBaseUrl(), properties);
+        InvestmentCalendarHttpClientFactory.create(
+            properties.bokBaseUrl(), properties, restClientBuilder);
     this.ecosClient =
-        InvestmentCalendarHttpClientFactory.create(properties.ecosBaseUrl(), properties);
+        InvestmentCalendarHttpClientFactory.create(
+            properties.ecosBaseUrl(), properties, restClientBuilder);
   }
 
   @Override

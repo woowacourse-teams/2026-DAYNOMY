@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -59,12 +60,17 @@ class GlobalExceptionHandlerTest {
     handlerLogger.detachAppender(appender);
     requestLogger.detachAppender(appender);
     appender.stop();
+    MDC.clear();
   }
 
   @ParameterizedTest
   @ValueSource(strings = {"POST", "PATCH", "DELETE"})
   void logsUnexpectedTransactionFailureOnceWithCorrelatedSafeStackTrace(String method)
       throws Exception {
+    String traceId = "0123456789abcdef0123456789abcdef";
+    String spanId = "0123456789abcdef";
+    MDC.put("traceId", traceId);
+    MDC.put("spanId", spanId);
     mockMvc
         .perform(
             request(HttpMethod.valueOf(method), URI.create("/test/transactions"))
@@ -88,8 +94,13 @@ class GlobalExceptionHandlerTest {
         .isNotBlank()
         .isEqualTo(completion.getMDCPropertyMap().get("requestId"));
     assertThat(failure.getMDCPropertyMap().get("traceId"))
-        .isNotBlank()
+        .isEqualTo(traceId)
         .isEqualTo(completion.getMDCPropertyMap().get("traceId"));
+    assertThat(failure.getMDCPropertyMap().get("spanId"))
+        .isEqualTo(spanId)
+        .isEqualTo(completion.getMDCPropertyMap().get("spanId"));
+    assertThat(MDC.get("traceId")).isEqualTo(traceId);
+    assertThat(MDC.get("spanId")).isEqualTo(spanId);
     String stack = ThrowableProxyUtil.asString(failure.getThrowableProxy());
     assertThat(stack)
         .contains("IllegalStateException", "IllegalArgumentException", "transactions")

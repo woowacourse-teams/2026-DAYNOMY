@@ -28,6 +28,7 @@ public class ContentSearchRepository {
                CAST(NULL AS date) AS published_date
         FROM featured_person_posts p
         JOIN featured_people person ON person.id = p.person_id
+        WHERE p.status = 'APPROVED'
         UNION ALL
         SELECT 'ASSET_CONTENT', c.id, c.source_type, c.title, CAST(NULL AS text),
                c.created_at, c.url, CAST(NULL AS bigint), CAST(NULL AS text), c.asset_id,
