@@ -14,6 +14,8 @@ import okio.Buffer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class OpenDartEarningsProviderTest {
 
@@ -84,6 +86,35 @@ class OpenDartEarningsProviderTest {
     assertThat(entries.getFirst().previousValue()).isEqualByComparingTo("120000");
     assertThat(entries.getFirst().actualValue()).isEqualByComparingTo("135000");
     assertThat(entries.getFirst().valueUnit()).isEqualTo("백만원");
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {200, 500})
+  void keepsValidDisclosuresBeforeAndAfterFailedDocument(int status) throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {"status":"000","total_page":1,"list":[
+                  {"corp_name":"첫 기업","stock_code":"000001",
+                   "report_nm":"결산실적공시예고","rcept_no":"first","rcept_dt":"20261006"},
+                  {"corp_name":"실패 기업","stock_code":"000002",
+                   "report_nm":"결산실적공시예고","rcept_no":"failed","rcept_dt":"20261006"},
+                  {"corp_name":"다음 기업","stock_code":"000003",
+                   "report_nm":"결산실적공시예고","rcept_no":"last","rcept_dt":"20261006"}
+                ]}
+                """));
+    server.enqueue(zipResponse(advanceDocument()));
+    server.enqueue(new MockResponse().setResponseCode(status).setBody("<result>error</result>"));
+    server.enqueue(zipResponse(advanceDocument()));
+
+    var entries =
+        new OpenDartEarningsProvider(properties()).fetch(LocalDate.of(2026, 10, 6), 5, 30);
+
+    assertThat(entries)
+        .extracting(entry -> entry.relatedAssetCode())
+        .containsExactly("000001", "000003");
   }
 
   private MockResponse zipResponse(String document) throws Exception {

@@ -114,7 +114,16 @@ public class OpenDartEarningsProvider implements InvestmentCalendarProvider {
       return Optional.empty();
     }
 
-    Document document = fetchDocument(disclosure.receiptNumber());
+    Document document;
+    try {
+      document = fetchDocument(disclosure.receiptNumber());
+    } catch (RuntimeException exception) {
+      log.warn(
+          "Skipped OpenDART document that could not be fetched: receiptNumber={}, errorType={}",
+          disclosure.receiptNumber(),
+          exception.getClass().getSimpleName());
+      return Optional.empty();
+    }
     Optional<InvestmentEventEntry> entry =
         reportName.contains("결산실적공시예고")
             ? parseAdvanceNotice(disclosure, document)
