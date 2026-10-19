@@ -2421,3 +2421,52 @@ body:has(.portfolio-page) .daynomy-footer {
     white-space: nowrap;
   }
 }
+
+/* Keep all six holding fields visible beside the news panel. */
+@media (min-width: 1024px) {
+  .portfolio-page .has-news .portfolio-table-wrap table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])) {
+    padding-inline: 6px;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):first-child {
+    width: 22%;
+    padding-left: 0;
+    white-space: normal;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(2) {
+    width: 10%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(3) {
+    width: 16%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(4) {
+    width: 16%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(5) {
+    width: 18%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(6) {
+    width: 18%;
+    padding-right: 0;
+  }
+  .portfolio-page .has-news .portfolio-asset {
+    min-width: 0;
+  }
+  .portfolio-page .has-news .portfolio-asset > div {
+    min-width: 0;
+  }
+  .portfolio-page .has-news .portfolio-asset-link {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+  .portfolio-page .has-news .portfolio-asset small {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
