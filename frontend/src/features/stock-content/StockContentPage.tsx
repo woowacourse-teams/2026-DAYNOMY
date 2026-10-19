@@ -354,7 +354,7 @@ export function StockContentPage() {
   );
 
   const settled = !loading && !error && response?.assetId === assetId;
-  useContentView(settled, 'view_stock_contents', {
+  useContentView(settled, 'view_content_list', {
     surface: 'stock_contents',
     source_type: selectedSource === 'INTERNAL_NEWS' ? 'DAYNOMY' : selectedSource,
     result_count: visibleContents.length,

@@ -37,7 +37,7 @@ type Operation = 'holding_update' | 'transaction_create' | 'transaction_update';
 type ErrorType = 'unauthorized' | 'client_error' | 'server_error' | 'network_or_unknown';
 type PortfolioEventParams = {
   tour_version?: string;
-  tour_source?: 'automatic' | 'title' | 'empty_state';
+  tour_source?: 'automatic' | 'title';
   step_number?: number;
   step_id?: string;
   step_group?: 'registration' | 'news' | 'analysis';
