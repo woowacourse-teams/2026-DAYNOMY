@@ -61,6 +61,7 @@ class SavedPortfolioServiceTest {
     Asset asset = asset();
     PortfolioHolding holding = new PortfolioHolding(portfolio, asset, 3L, new BigDecimal("10000"));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
 
     service.update(1L, 2L, new SavedPortfolioHoldingUpdateRequest(quantity, new BigDecimal(price)));
@@ -82,6 +83,7 @@ class SavedPortfolioServiceTest {
     PortfolioHolding holding =
         new PortfolioHolding(portfolio, asset(), 3L, new BigDecimal("10000"));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
 
     assertThat(
@@ -103,6 +105,7 @@ class SavedPortfolioServiceTest {
     given(holding.getQuantity()).willReturn(3L);
     given(holding.getAveragePurchasePrice()).willReturn(new BigDecimal("10000"));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
 
     service.remove(1L, 2L);
@@ -128,6 +131,7 @@ class SavedPortfolioServiceTest {
     given(holding.getAveragePurchasePrice()).willReturn(new BigDecimal("70000"));
     given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(assetRepository.findById(2L)).willReturn(Optional.of(asset));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
     given(historyRepository.saveAndFlush(any(PortfolioHoldingHistory.class)))
@@ -185,6 +189,7 @@ class SavedPortfolioServiceTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(history));
     given(historyRepository.saveAndFlush(history)).willReturn(history);
     given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
@@ -222,6 +227,7 @@ class SavedPortfolioServiceTest {
     Portfolio portfolio = mock(Portfolio.class);
     given(portfolio.getId()).willReturn(10L);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.empty());
     var request = transactionUpdateRequest(3L);
 
@@ -243,6 +249,7 @@ class SavedPortfolioServiceTest {
             3L,
             new BigDecimal("70000"));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L))
         .willReturn(Optional.of(openingBalance));
 
@@ -258,6 +265,7 @@ class SavedPortfolioServiceTest {
     given(portfolio.getId()).willReturn(10L);
     PortfolioHoldingHistory history = transactionHistory(portfolio, PortfolioHoldingChangeType.BUY);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(history));
     given(historyRepository.saveAndFlush(history)).willReturn(history);
     given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
@@ -291,6 +299,7 @@ class SavedPortfolioServiceTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(history));
     given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
         .willReturn(List.of());
@@ -322,6 +331,7 @@ class SavedPortfolioServiceTest {
     given(portfolio.getId()).willReturn(10L);
     PortfolioHoldingHistory buy = transactionHistory(portfolio, PortfolioHoldingChangeType.BUY);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(buy));
     given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
         .willReturn(List.of());
@@ -389,8 +399,10 @@ class SavedPortfolioServiceTest {
     Member member = mock(Member.class);
     given(member.getId()).willReturn(1L);
     Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
     given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     Asset apple =
         Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, LocalDate.of(2026, 10, 16));
     given(assetRepository.findById(2L)).willReturn(Optional.of(apple));

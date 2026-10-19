@@ -59,6 +59,7 @@ class SavedPortfolioTransactionDateTest {
     given(portfolio.getId()).willReturn(10L);
     given(asset.getId()).willReturn(2L);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
   }
 
   @ParameterizedTest

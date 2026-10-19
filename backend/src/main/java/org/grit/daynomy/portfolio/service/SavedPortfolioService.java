@@ -64,7 +64,7 @@ public class SavedPortfolioService {
   @Transactional
   public SavedPortfolioHoldingResponse update(
       Long memberId, Long assetId, SavedPortfolioHoldingUpdateRequest request) {
-    Portfolio portfolio = getPortfolio(memberId);
+    Portfolio portfolio = getPortfolioForUpdate(memberId);
     PortfolioHolding holding = getHolding(portfolio.getId(), assetId);
     if (holding.change(request.quantity(), request.averagePurchasePrice())) {
       historyRepository.save(
@@ -75,7 +75,7 @@ public class SavedPortfolioService {
 
   @Transactional
   public void remove(Long memberId, Long assetId) {
-    Portfolio portfolio = getPortfolio(memberId);
+    Portfolio portfolio = getPortfolioForUpdate(memberId);
     PortfolioHolding holding = getHolding(portfolio.getId(), assetId);
     historyRepository.save(
         new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.REMOVED));
@@ -132,7 +132,7 @@ public class SavedPortfolioService {
   @Transactional
   public PortfolioTransactionResponse updateTransaction(
       Long memberId, Long transactionId, PortfolioTransactionUpdateRequest request) {
-    Portfolio portfolio = getPortfolio(memberId);
+    Portfolio portfolio = getPortfolioForUpdate(memberId);
     PortfolioHoldingHistory history = getTransaction(portfolio.getId(), transactionId);
     validateTradeDate(portfolio.getId(), history.getAsset().getId(), request.tradeDate());
     LocalDate previousTradeDate = history.getEffectiveDate();
@@ -158,7 +158,7 @@ public class SavedPortfolioService {
 
   @Transactional
   public PortfolioTransactionResponse deleteTransaction(Long memberId, Long transactionId) {
-    Portfolio portfolio = getPortfolio(memberId);
+    Portfolio portfolio = getPortfolioForUpdate(memberId);
     PortfolioHoldingHistory history = getTransaction(portfolio.getId(), transactionId);
     Asset asset = history.getAsset();
     historyRepository.delete(history);
@@ -194,7 +194,19 @@ public class SavedPortfolioService {
   private Portfolio getOrCreatePortfolio(Member member) {
     return portfolioRepository
         .findByMemberId(member.getId())
+        .map(this::lockPortfolio)
         .orElseGet(() -> portfolioRepository.save(Portfolio.create(member)));
+  }
+
+  private Portfolio getPortfolioForUpdate(Long memberId) {
+    return lockPortfolio(getPortfolio(memberId));
+  }
+
+  private Portfolio lockPortfolio(Portfolio portfolio) {
+    // Lock before loading ledger or holdings so concurrent mutations replay committed history.
+    return portfolioRepository
+        .findByIdForUpdate(portfolio.getId())
+        .orElseThrow(() -> new BusinessException(PortfolioErrorCode.PORTFOLIO_NOT_FOUND));
   }
 
   private Portfolio getPortfolio(Long memberId) {
