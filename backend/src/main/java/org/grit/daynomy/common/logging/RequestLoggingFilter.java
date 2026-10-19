@@ -19,11 +19,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Slf4j
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(Ordered.HIGHEST_PRECEDENCE + 2)
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
   private static final String REQUEST_ID = "requestId";
-  private static final String TRACE_ID = "traceId";
   private static final String AUTOMATION = "automation";
 
   @Override
@@ -33,7 +32,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     long startedAt = System.nanoTime();
 
     MDC.put(REQUEST_ID, UUID.randomUUID().toString());
-    MDC.put(TRACE_ID, UUID.randomUUID().toString());
     MDC.put(AUTOMATION, detectAutomation(request).code());
 
     log.atDebug()
@@ -80,7 +78,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
       } finally {
         MDC.remove(REQUEST_ID);
-        MDC.remove(TRACE_ID);
         MDC.remove(AUTOMATION);
       }
     }
