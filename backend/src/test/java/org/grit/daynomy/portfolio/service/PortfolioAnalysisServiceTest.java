@@ -7,8 +7,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.aop.ObservedAspect;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -27,6 +32,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioAnalysisServiceTest {
@@ -37,6 +43,33 @@ class PortfolioAnalysisServiceTest {
   @Spy private GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
   @InjectMocks private PortfolioAnalysisService portfolioAnalysisService;
+
+  @Test
+  void createsAnObservationForPortfolioAnalysis() {
+    var stoppedObservation = new AtomicReference<String>();
+    var registry = ObservationRegistry.create();
+    registry
+        .observationConfig()
+        .observationHandler(
+            new ObservationHandler<Observation.Context>() {
+              @Override
+              public void onStop(Observation.Context context) {
+                stoppedObservation.set(context.getName());
+              }
+
+              @Override
+              public boolean supportsContext(Observation.Context context) {
+                return true;
+              }
+            });
+    var proxyFactory = new AspectJProxyFactory(portfolioAnalysisService);
+    proxyFactory.addAspect(new ObservedAspect(registry));
+    PortfolioAnalysisService observedService = proxyFactory.getProxy();
+
+    observedService.analyze(new PortfolioAnalysisRequest(List.of()), true);
+
+    assertThat(stoppedObservation).hasValue("portfolio.analysis");
+  }
 
   @Test
   @DisplayName("요청한 포트폴리오 자산을 AI로 분석하고 응답 DTO로 변환한다")
