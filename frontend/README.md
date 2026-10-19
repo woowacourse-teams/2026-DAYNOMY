@@ -515,3 +515,15 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 공통 속성: `tour_version`, `tour_source` (`automatic` / `title`), `step_number` (1부터), `step_id`, `step_group` (`registration` / `news` / `analysis`), `total_steps`. 이동에는 `direction`, `to_step`, 중도 종료에는 `exit_reason` (`button` / `escape`)을 추가합니다. 재렌더링·팝오버 이동만으로 조회 이벤트를 반복하지 않습니다. 실제 종목명·수량·매수가 등 입력값은 가이드 이벤트에 포함하지 않습니다. 실제 거래 저장 성공은 기존 `portfolio_save_succeeded` 이벤트로 기록합니다.
 
 가이드 10단계 버전은 `tour_version: v2`로 전송합니다. 추가된 단계 ID는 `asset_trend_composition`, `asset_holdings_history`이며, 기존 완료 저장 키는 유지합니다.
+
+### 포트폴리오 대시보드·거래 이벤트 점검 (#550)
+
+이번 변경은 대시보드와 거래 이벤트의 코드·로컬 테스트 점검이다. AI 분석 결과·조회 실패·출처 클릭과 공통 이벤트 전송 코드는 변경하지 않는다.
+
+| 흐름                | 이벤트와 검증 기준                                                                                                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 대시보드            | `portfolio_dashboard_viewed`·`portfolio_dashboard_loaded`는 마운트당 한 번. 보유정보와 계산 완료 후 로딩 성공을 기록하며 빈 포트폴리오도 정상이다. 추이·내역 실패는 `portfolio_dashboard_load_failed`의 `stage`로 구분한다.                                   |
+| 거래 진입·등록·수정 | `portfolio_editor_opened`의 `mode`·`entry_point`, `portfolio_save_submitted` → `portfolio_save_succeeded` 또는 `portfolio_save_failed`. 서버 응답 검증 또는 브라우저 임시 저장이 끝나야 성공이다. 실패 후 재시도는 별도 제출이며 렌더링은 제출로 세지 않는다. |
+| 거래 삭제           | `portfolio_delete_succeeded`·`portfolio_delete_failed`. 실패 중에는 성공이 없고 재시도 성공은 한 번만 기록한다.                                                                                                                                               |
+
+기존 `tests/portfolio/PortfolioPage.test.tsx`, `GuestPortfolioTransactions.test.tsx`, `tests/monitoring/portfolioAnalytics.test.tsx`를 확인하고 `PortfolioTransactions.test.tsx`에 회원 거래 등록·수정·삭제 실패 및 재시도 시 이벤트 순서·횟수와 민감정보 제외 검증을 보강했다. 실제 PostHog 수신 대조는 포함하지 않는다.
