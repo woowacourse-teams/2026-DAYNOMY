@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.exchangerate.domain.UsdKrwRate;
@@ -53,5 +54,32 @@ class ExchangeRateServiceTest {
 
   private EodhdDailyPrice row(String date, String rate) {
     return new EodhdDailyPrice(null, null, LocalDate.parse(date), new BigDecimal(rate));
+  }
+
+  @Test
+  void scheduledRefreshBypassesFreshCacheAndPreservesExistingRateOnFailure() {
+    var repository = mock(UsdKrwRateRepository.class);
+    var client = mock(EodhdClient.class);
+    var service = new ExchangeRateService(repository, client);
+    var today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    var cutoff = LocalDate.now(ZoneId.of("America/New_York")).minusDays(1);
+    var cached = new UsdKrwRate(today, cutoff.minusDays(1), new BigDecimal("1300"));
+    when(repository.findById(today)).thenReturn(Optional.of(cached));
+    when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+    when(client.getUsdKrwRates(cutoff.minusDays(14), cutoff))
+        .thenReturn(List.of(row(cutoff.toString(), "1400")))
+        .thenThrow(new IllegalStateException("unavailable"));
+
+    assertThat(service.quote(today).rate()).isEqualByComparingTo("1300");
+    verifyNoInteractions(client);
+    var refreshed = service.refreshToday();
+    assertThat(refreshed.requestedDate()).isEqualTo(today);
+    assertThat(refreshed.baseDate()).isEqualTo(cutoff);
+    assertThat(refreshed.rate()).isEqualByComparingTo("1400");
+
+    clearInvocations(repository);
+    assertThatThrownBy(service::refreshToday).isInstanceOf(IllegalStateException.class);
+    verify(repository, never()).save(any());
+    assertThat(cached.getRate()).isEqualByComparingTo("1300");
   }
 }

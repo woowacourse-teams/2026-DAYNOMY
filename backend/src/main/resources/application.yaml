@@ -192,6 +192,11 @@ stock:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
       cron: ${STOCK_PRICE_SYNC_CRON:0 30 13,18 * * MON-FRI}
 
+exchange-rate:
+  sync:
+    enabled: ${EXCHANGE_RATE_SYNC_ENABLED:false}
+    cron: ${EXCHANGE_RATE_SYNC_CRON:0 10 6 * * *}
+
 portfolio:
   analysis:
     cache-ttl: ${PORTFOLIO_ANALYSIS_CACHE_TTL:30m}

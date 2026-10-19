@@ -54,6 +54,10 @@ external:
   public-data:
     service-key: test-service-key
 
+exchange-rate:
+  sync:
+    enabled: false
+
 investment-calendar:
   sync:
     enabled: false

@@ -23,12 +23,22 @@ public class ExchangeRateService {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public ExchangeRateResponse quote(LocalDate requestedDate) {
+    return loadQuote(requestedDate, false);
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public ExchangeRateResponse refreshToday() {
+    return loadQuote(LocalDate.now(ZoneId.of("Asia/Seoul")), true);
+  }
+
+  private ExchangeRateResponse loadQuote(LocalDate requestedDate, boolean refresh) {
     if (requestedDate == null || requestedDate.isAfter(LocalDate.now(ZoneId.of("Asia/Seoul"))))
       throw new BusinessException(ExchangeRateErrorCode.INVALID_EXCHANGE_RATE_DATE);
     LocalDate cutoff = LocalDate.now(ZoneId.of("America/New_York")).minusDays(1);
     LocalDate through = requestedDate.isBefore(cutoff) ? requestedDate : cutoff;
     var cached = repository.findById(requestedDate);
-    if (cached.isPresent()
+    if (!refresh
+        && cached.isPresent()
         && (requestedDate.isBefore(cutoff)
             || cached.get().getFetchedAt().isAfter(Instant.now().minus(Duration.ofHours(6)))))
       return ExchangeRateResponse.from(cached.get());
