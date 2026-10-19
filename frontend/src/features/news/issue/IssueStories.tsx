@@ -77,17 +77,6 @@ export function IssueStories({
       ) : !articles.length ? (
         <div className="issue-story-empty">
           <p>표시할 데이노미 이슈가 없습니다.</p>
-          <Link
-            onClick={() =>
-              trackEvent('click_content_more', {
-                surface: 'today_story_empty',
-                destination: 'news_contents',
-              })
-            }
-            to="/news/contents"
-          >
-            전체 콘텐츠에서 지난 이슈 보기 ↗
-          </Link>
         </div>
       ) : (
         <>

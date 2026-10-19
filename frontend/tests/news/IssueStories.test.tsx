@@ -69,3 +69,13 @@ it('오늘 이슈가 없으면 최근 이슈를 최대 네 개 표시한다', ()
   expect(view.getAllByRole('link')).toHaveLength(1);
   expect(view.getByRole('heading', { name: '최근 기사 1' })).toBeTruthy();
 });
+
+it('이슈가 없으면 빈 상태만 표시하고 전체 콘텐츠로 가는 링크는 표시하지 않는다', () => {
+  const view = render(
+    <MemoryRouter>
+      <IssueStories news={[]} loading={false} error="" onRetry={() => {}} />
+    </MemoryRouter>,
+  );
+  expect(view.getByText('표시할 데이노미 이슈가 없습니다.')).toBeTruthy();
+  expect(view.queryByRole('link')).toBeNull();
+});

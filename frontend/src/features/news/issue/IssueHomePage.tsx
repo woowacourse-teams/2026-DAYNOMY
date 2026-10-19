@@ -11,9 +11,9 @@ import { IssueStories } from './IssueStories';
 import { getSampleNews, SAMPLE_NEWS_ID, showSampleNews } from './sampleNews';
 import type { NewsListItem } from '../newslist/types';
 import { createFeed, feedDate, isToday, sourceLabel, timestamp, type FeedItem } from './feed';
-import { getContentsThroughToday } from './contents';
+import { getAllContents } from './contents';
 import type { ExternalContent } from './feed';
-import { getNewsThroughToday } from './todayNews';
+import { getAllNews } from './todayNews';
 import { IssueFeed } from './IssueFeed';
 import '../../people/people.css';
 import './issue.css';
@@ -54,7 +54,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     let ignore = false;
     setLoading(true);
     setError('');
-    getNewsThroughToday(fullFeed)
+    getAllNews()
       .then((result) => {
         if (ignore) return;
         setNews(result.content);
@@ -79,7 +79,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     const controller = new AbortController();
     setContentsLoading(true);
     setContentsError('');
-    getContentsThroughToday(controller.signal, fullFeed)
+    getAllContents(controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
         setContents(result.items);
@@ -98,12 +98,9 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   }, [attempt, fullFeed, surface]);
 
   // shortcut: full archive is merged client-side; use a unified paginated API when the archive grows.
-  const sourceItems = createFeed(news, people.people, contents).filter(
+  const items = createFeed(news, people.people, contents).filter(
     (item) => source === 'ALL' || item.source === source,
   );
-  const todayItems = sourceItems.filter((item) => isToday(item.date));
-  const showingRecentFeed = !fullFeed && !todayItems.length && !!sourceItems.length;
-  const items = fullFeed ? sourceItems : (todayItems.length ? todayItems : sourceItems).slice(0, 8);
   const totalPages = Math.max(1, Math.ceil(items.length / 12));
   const currentPage = Math.min(page, totalPages);
   const featured = people.people
@@ -134,7 +131,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   useContentView(settled && listStatus === 'ready' && !items.length, 'view_content_empty', {
     surface,
     source_type: source,
-    reason: source !== 'ALL' ? 'filter_empty' : fullFeed ? 'no_content' : 'no_today_content',
+    reason: source !== 'ALL' ? 'filter_empty' : 'no_content',
   });
   useContentView(
     !people.loading && !people.error && !featured.length && !fullFeed,
@@ -272,12 +269,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       )}
       <section aria-labelledby="issue-feed-heading">
         <div className="issue-section-heading issue-feed-heading">
-          <h2 id="issue-feed-heading">
-            {fullFeed ? '콘텐츠 목록' : showingRecentFeed ? '최근 올라온 글' : '오늘 올라온 글'}
-          </h2>
-          {showingRecentFeed && (
-            <p className="issue-feed-note">오늘 새로 올라온 글이 없어 최신 글을 보여드려요.</p>
-          )}
+          <h2 id="issue-feed-heading">{fullFeed ? '콘텐츠 목록' : '전체 콘텐츠'}</h2>
           <div className="issue-feed-controls">
             <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
               {(
@@ -300,9 +292,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                       previous_source: source,
                       source_type: value,
                       result_count: createFeed(news, people.people, contents).filter(
-                        (item) =>
-                          (value === 'ALL' || item.source === value) &&
-                          (fullFeed || isToday(item.date)),
+                        (item) => value === 'ALL' || item.source === value,
                       ).length,
                     });
                     setSource(value);
@@ -339,33 +329,15 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
           !items.length &&
           !error &&
           !people.error &&
-          !contentsError && (
-            <p className="issue-state">
-              {fullFeed
-                ? '표시할 콘텐츠가 없습니다.'
-                : '오늘 등록된 글이 없습니다. 전체 콘텐츠에서 지난 글을 확인하세요.'}
-            </p>
-          )
+          !contentsError && <p className="issue-state">표시할 콘텐츠가 없습니다.</p>
         )}
         <IssueFeed
           surface={surface}
-          offset={fullFeed ? (currentPage - 1) * 12 : 0}
+          offset={(currentPage - 1) * 12}
           key={`${source}-${currentPage}`}
-          items={fullFeed ? items.slice((currentPage - 1) * 12, currentPage * 12) : items}
+          items={items.slice((currentPage - 1) * 12, currentPage * 12)}
         />
-        {!fullFeed && (
-          <Link
-            onClick={() =>
-              trackEvent('click_content_more', { surface, destination: 'news_contents' })
-            }
-            className="issue-more"
-            to="/news/contents"
-          >
-            전체 콘텐츠 더 보기 <span aria-hidden="true">↓</span>
-          </Link>
-        )}
-        {fullFeed &&
-          !loading &&
+        {!loading &&
           !contentsLoading &&
           !people.loading &&
           !error &&
