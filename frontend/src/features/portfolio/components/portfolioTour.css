@@ -140,8 +140,34 @@
 .portfolio-tour-demo-label {
   display: block;
   margin-bottom: 10px;
+  padding-right: 32px;
   font-size: 11px;
   color: #626262;
+}
+.portfolio-tour-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #617087;
+  cursor: pointer;
+}
+.portfolio-tour-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.portfolio-tour-close:hover {
+  background: #f2f4f7;
 }
 
 :root.portfolio-tour-active {

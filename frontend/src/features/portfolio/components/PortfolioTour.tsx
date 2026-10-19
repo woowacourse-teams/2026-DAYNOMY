@@ -227,7 +227,7 @@ export function PortfolioTour({
       }
       if (event.key === 'Tab' && navigationRef.current) {
         const controls = Array.from(
-          navigationRef.current.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
+          layerRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
         );
         const index = controls.indexOf(document.activeElement as HTMLButtonElement);
         event.preventDefault();
@@ -380,6 +380,16 @@ export function PortfolioTour({
               aria-label="포트폴리오 사용 안내"
               style={{ left: position.panelLeft, top: position.panelTop }}
             >
+              <button
+                type="button"
+                className="portfolio-tour-close"
+                aria-label="가이드 닫기"
+                onClick={() => finish()}
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
               <span className="portfolio-tour-demo-label">체험용 예시 · 저장되지 않아요</span>
               <div className="portfolio-tour-copy" aria-live="polite" aria-atomic="true">
                 <h2>{current.title}</h2>
