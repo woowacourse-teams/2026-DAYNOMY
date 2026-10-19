@@ -21,11 +21,12 @@ public class PortfolioSnapshotScheduler {
     try {
       snapshotService.createLatestSnapshots();
     } catch (RuntimeException exception) {
-      // 개별 생성 이전의 조회 실패도 같은 이벤트로 남기고 다음 예약 실행은 유지한다.
+      // 개별 생성 이전의 조회 실패를 기록하고 기존 예외 전파 동작을 유지한다.
       log.atError()
           .setCause(SanitizedLogException.from(exception))
           .addKeyValue("event", LogEvent.PORTFOLIO_SNAPSHOT_FAILED.code())
           .log("예약 포트폴리오 스냅샷 갱신 실패");
+      throw exception;
     }
   }
 }

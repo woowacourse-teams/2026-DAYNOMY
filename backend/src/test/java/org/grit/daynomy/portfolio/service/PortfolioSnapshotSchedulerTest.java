@@ -1,6 +1,7 @@
 package org.grit.daynomy.portfolio.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import ch.qos.logback.classic.Level;
@@ -13,18 +14,17 @@ import org.slf4j.LoggerFactory;
 
 class PortfolioSnapshotSchedulerTest {
   @Test
-  void logsFailureBeforeIndividualSnapshotsWithoutSensitiveMessageAndAllowsNextRun() {
+  void logsFailureWithoutSensitiveMessageAndRethrowsOriginalException() {
     var service = mock(PortfolioSnapshotService.class);
-    when(service.createLatestSnapshots())
-        .thenThrow(new IllegalStateException("private-database-value"))
-        .thenReturn(1);
+    var exception = new IllegalStateException("private-database-value");
+    when(service.createLatestSnapshots()).thenThrow(exception).thenReturn(1);
     var scheduler = new PortfolioSnapshotScheduler(service);
     var logger = (Logger) LoggerFactory.getLogger(PortfolioSnapshotScheduler.class);
     var appender = new ListAppender<ILoggingEvent>();
     appender.start();
     logger.addAppender(appender);
     try {
-      scheduler.createSnapshots();
+      assertThatThrownBy(scheduler::createSnapshots).isSameAs(exception);
       scheduler.createSnapshots();
       verify(service, times(2)).createLatestSnapshots();
       assertThat(appender.list).hasSize(1);

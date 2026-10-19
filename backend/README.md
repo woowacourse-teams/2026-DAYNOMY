@@ -248,7 +248,9 @@ dev의 과거 매수 거래 등록 V1/V2 비교는 [부하테스트 문서](load
 | 스냅샷 개별 생성·종가 수집 후 갱신 | `portfolio.snapshot.failed` (ERROR), 개별 생성은 `portfolioId`·`baseDate` 포함. 다른 포트폴리오 처리는 계속하고 완료 로그의 `failureCount`로 실패 건수를 확인한다. 스케줄러 작업에는 HTTP 요청 ID가 없을 수 있다. |
 | 공통 비동기 HTTP 요청 | 최초 요청·작업·ASYNC 재디스패치에서 같은 MDC 식별자를 사용한다. 완료 로그는 AsyncListener에서 한 번만 남긴다. |
 
-공통 예외와 스냅샷 스택은 예외 메시지를 제외하고 타입·프레임·원인·suppressed 예외의 호출 위치만 기록한다. SQL에 포함된 거래값이나 예외 메시지의 토큰이 그대로 출력되지 않도록 한다. 요청 본문·헤더·쿼리 문자열도 로그에 추가하지 않는다.
+스냅샷 스케줄러는 실패 로그를 남긴 뒤 원래 예외를 그대로 다시 던져 기존 예외 전파 동작을 유지한다.
+
+공통 예외와 스냅샷의 애플리케이션 로그는 예외 메시지를 제외하고 타입·프레임·원인·suppressed 예외의 호출 위치만 기록한다. 이 로그에 SQL 값이나 토큰이 그대로 출력되지 않도록 한다. 스케줄러에서 전파한 원래 예외를 기록하는 Spring 기본 오류 로그는 기존 동작을 유지한다. 요청 본문·헤더·쿼리 문자열도 로그에 추가하지 않는다.
 
 로컬 재현은 `GlobalExceptionHandlerTest`의 POST/PATCH/DELETE 500 및 400, `RequestLoggingFilterTest`의 비동기 상관관계, `PortfolioSnapshotServiceTest`·`PortfolioSnapshotSchedulerTest`의 스냅샷 실패를 실행한다. 가짜 입력과 Mock으로 재현하며 운영 실패를 유발하지 않는다.
 
