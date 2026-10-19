@@ -95,8 +95,10 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
     const first = vi.mocked(api.recordDecision).mock.calls[0][0];
     fireEvent.click(view.getByRole('button', { name: '보유 이유 저장' }));
     expect(await view.findByRole('button', { name: '삼성전자 투자 기록 추가' })).toBeTruthy();
-    expect(document.activeElement).toBe(
-      view.getByRole('button', { name: '삼성전자 투자 기록 추가' }),
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        view.getByRole('button', { name: '삼성전자 투자 기록 추가' }),
+      ),
     );
     expect(vi.mocked(api.recordDecision).mock.calls[1][0]).toEqual(first);
     expect(first.decision.expectedHoldingPeriod).toBeNull();
