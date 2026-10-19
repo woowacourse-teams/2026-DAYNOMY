@@ -156,7 +156,9 @@ class OpenAiNewsGeneratorTest {
     assertThat(server.getRequestCount()).isEqualTo(2);
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8())
-        .contains("이전 요청에서 전달한 본문만 수정하라")
+        .contains("제공된 조사 자료를 바탕으로 본문을 처음부터 다시 작성하라")
+        .contains("뉴스 제목")
+        .doesNotContain("이전 요청에서 전달한 본문만 수정하라")
         .contains("900~1,100자를 목표");
   }
 
