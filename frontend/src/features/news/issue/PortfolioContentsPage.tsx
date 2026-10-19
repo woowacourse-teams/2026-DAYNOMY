@@ -50,7 +50,13 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [companySearch, setCompanySearch] = useState('');
   const assetKey = JSON.stringify(
-    [...new Set(portfolio.holdings.map((item) => item.assetId))].sort((a, b) => a - b),
+    [
+      ...new Set(
+        portfolio.holdings
+          .filter((item) => selectedAsset === 'ALL' || String(item.assetId) === selectedAsset)
+          .map((item) => item.assetId),
+      ),
+    ].sort((a, b) => a - b),
   );
 
   useEffect(() => {
