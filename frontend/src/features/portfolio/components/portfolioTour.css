@@ -210,7 +210,7 @@
   height: auto;
   min-height: 44px;
 }
-.portfolio-page-title > .portfolio-title-group {
+.portfolio-page-title > .portfolio-title-group:first-child {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -219,7 +219,7 @@
 }
 .portfolio-title-with-guide {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   flex-wrap: wrap;
   gap: 8px 14px;
 }
