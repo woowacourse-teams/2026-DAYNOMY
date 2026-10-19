@@ -7,6 +7,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import java.util.Map;
@@ -105,10 +106,24 @@ class RequestLoggingFilterTest {
         });
     assertThat(appender.list).hasSize(1);
     assertThat(MDC.get("requestId")).isNull();
+    request.setDispatcherType(DispatcherType.ASYNC);
+    requestLoggingFilter.doFilter(
+        request,
+        response,
+        (req, res) -> {
+          assertThat(MDC.get("requestId")).isEqualTo(requestId.get());
+          assertThat(MDC.get("traceId")).isNotBlank();
+          request.setAttribute(
+              RequestLoggingFilter.ERROR_CODE_ATTRIBUTE, "AI_PORTFOLIO_ANALYSIS_FAILED");
+        });
+    assertThat(appender.list).hasSize(1);
+    assertThat(MDC.get("requestId")).isNull();
     response.setStatus(502);
     request.getAsyncContext().complete();
     assertThat(appender.list).hasSize(2);
     assertThat(keyValues(appender.list.get(1))).containsEntry("httpStatus", 502);
+    assertThat(keyValues(appender.list.get(1)))
+        .containsEntry("errorCode", "AI_PORTFOLIO_ANALYSIS_FAILED");
     assertThat(appender.list.get(1).getMDCPropertyMap())
         .containsEntry("requestId", requestId.get());
     assertThat(MDC.get("requestId")).isNull();

@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -27,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class PortfolioAssetAnalysisService {
   static final String ANALYSIS_VERSION = "asset-v2-batch5";
@@ -160,9 +162,16 @@ public class PortfolioAssetAnalysisService {
       return future.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
     } catch (InterruptedException exception) {
       Thread.currentThread().interrupt();
+      log.atWarn()
+          .addKeyValue("event", "portfolio.analysis.wait.interrupted")
+          .log("공유 종목 분석 대기 중단");
       throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
     } catch (TimeoutException exception) {
       // 기다리는 요청만 종료한다. 진행 중인 원래 작업을 지우면 중복 AI 호출이 발생한다.
+      log.atError()
+          .addKeyValue("event", "portfolio.analysis.wait.timeout")
+          .addKeyValue("timeoutMs", waitTimeout.toMillis())
+          .log("공유 종목 분석 대기 시간 초과");
       throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
     } catch (ExecutionException exception) {
       if (exception.getCause() instanceof RuntimeException cause) throw cause;

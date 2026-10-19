@@ -3,6 +3,7 @@ package org.grit.daynomy.common.logging;
 public enum LogEvent {
   HTTP_REQUEST_STARTED("http.request.started", "HTTP 요청 시작"),
   HTTP_REQUEST_COMPLETED("http.request.completed", "HTTP 요청 완료"),
+  HTTP_REQUEST_FAILED("http.request.failed", "HTTP 요청 처리 실패"),
 
   NEWS_GENERATION_COMPLETED("news.generation.completed", "경제 뉴스 자동 생성 완료"),
   NEWS_DRAFT_CREATED("news.draft.created", "관리자 뉴스 초안 생성 완료"),

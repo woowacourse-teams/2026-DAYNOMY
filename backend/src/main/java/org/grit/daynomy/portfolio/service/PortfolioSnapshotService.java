@@ -12,6 +12,7 @@ import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.asset.service.StockPriceSyncResult;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.SanitizedLogException;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
@@ -70,7 +71,7 @@ public class PortfolioSnapshotService {
         } catch (RuntimeException exception) {
           failureCount++;
           log.atError()
-              .setCause(exception)
+              .setCause(SanitizedLogException.from(exception))
               .addKeyValue("event", LogEvent.PORTFOLIO_SNAPSHOT_FAILED.code())
               .addKeyValue("portfolioId", portfolio.getId())
               .addKeyValue("baseDate", baseDate)
@@ -95,7 +96,7 @@ public class PortfolioSnapshotService {
     } catch (RuntimeException exception) {
       // 종가 저장은 이미 커밋됐다. 스냅샷 실패는 종가 수집 성공을 취소하지 않는다.
       log.atError()
-          .setCause(exception)
+          .setCause(SanitizedLogException.from(exception))
           .addKeyValue("event", LogEvent.PORTFOLIO_SNAPSHOT_FAILED.code())
           .log("종가 동기화 후 포트폴리오 스냅샷 갱신 실패");
     }

@@ -6,6 +6,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
@@ -25,6 +29,7 @@ import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult.AssetImpactResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
 import org.grit.daynomy.portfolio.domain.PortfolioAssetAnalysis;
 import org.grit.daynomy.portfolio.repository.PortfolioAssetAnalysisRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,19 +38,31 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioAssetAnalysisServiceTest {
   @Mock private PortfolioAssetAnalysisRepository repository;
   @Mock private PortfolioAnalysisAiClient ai;
   private PortfolioAssetAnalysisService service;
+  private final Logger logger =
+      (Logger) LoggerFactory.getLogger(PortfolioAssetAnalysisService.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
   private final List<PortfolioAnalysisTarget> targets =
       List.of(new PortfolioAnalysisTarget("삼성전자"), new PortfolioAnalysisTarget("SK하이닉스"));
 
   @BeforeEach
   void setUp() {
+    appender.start();
+    logger.addAppender(appender);
     service =
         new PortfolioAssetAnalysisService(repository, ai, "test-model", Duration.ofMinutes(30));
+  }
+
+  @AfterEach
+  void releaseLogs() {
+    logger.detachAppender(appender);
+    appender.stop();
   }
 
   @Test
@@ -313,6 +330,15 @@ class PortfolioAssetAnalysisServiceTest {
       }
     }
     verify(ai).analyze(targets);
+    assertThat(appender.list)
+        .hasSize(2)
+        .allSatisfy(
+            event -> {
+              assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+              assertThat(event.getKeyValuePairs().toString())
+                  .contains("portfolio.analysis.wait.timeout")
+                  .doesNotContain("삼성전자", "SK하이닉스");
+            });
   }
 
   @Test
