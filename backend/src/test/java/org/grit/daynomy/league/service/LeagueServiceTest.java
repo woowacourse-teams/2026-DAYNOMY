@@ -738,8 +738,11 @@ class LeagueServiceTest {
   }
 
   @Test
-  void participationStartsOnEnrollmentAndMissingPricesDoNotInventDates() {
-    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
+  void participationStartsOnEnrollmentAndMissingPricesDoNotInventDates(
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates) {
+    LocalDate today = LocalDate.of(2026, 10, 8);
+    dates.when(() -> LocalDate.now(ZoneId.of("Asia/Seoul"))).thenReturn(today);
+    LocalDate week = today.with(DayOfWeek.MONDAY);
     dailyProfile(week);
     calendar(week, List.of(week));
 
