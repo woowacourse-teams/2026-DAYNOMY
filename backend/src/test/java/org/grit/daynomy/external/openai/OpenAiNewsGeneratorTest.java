@@ -1,6 +1,7 @@
 package org.grit.daynomy.external.openai;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
@@ -111,8 +113,28 @@ class OpenAiNewsGeneratorTest {
   }
 
   @Test
-  void writerRetriesWhenContentValidationFails() throws Exception {
-    server.enqueue(jsonResponse(writerResponse(List.of("짧은 본문"))));
+  void writerRetriesOnlyInvalidArticles() throws Exception {
+    server.enqueue(
+        jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of(validContent("수정된 뉴스")))));
+
+    List<GeneratedEconomicNews> generated =
+        new OpenAiNewsWriter(properties())
+            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+
+    assertThat(generated).hasSize(2);
+    assertThat(generated.get(0).content()).hasSizeBetween(800, 1_500);
+    assertThat(generated.get(1).content()).hasSizeBetween(800, 1_500);
+    assertThat(server.getRequestCount()).isEqualTo(2);
+    server.takeRequest();
+    assertThat(server.takeRequest().getBody().readUtf8())
+        .contains("두 번째 뉴스")
+        .doesNotContain("첫 번째 뉴스");
+  }
+
+  @Test
+  void writerRetriesWhenContentIsBlank() throws Exception {
+    server.enqueue(jsonResponse(writerResponse(List.of(" "))));
     server.enqueue(jsonResponse(writerResponse(List.of(validContent("재작성된 뉴스")))));
     EconomicNewsResearch research =
         new EconomicNewsResearch(
@@ -128,13 +150,50 @@ class OpenAiNewsGeneratorTest {
         new OpenAiNewsWriter(properties()).write(List.of(research));
 
     assertThat(generated).hasSize(1);
-    assertThat(generated.getFirst().title()).isEqualTo("뉴스 제목");
     assertThat(generated.getFirst().content()).hasSizeBetween(800, 1_500);
     assertThat(server.getRequestCount()).isEqualTo(2);
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8())
-        .contains("이전 본문 묶음이 형식 검증에 실패했다")
-        .contains("1,200~1,300자를 목표");
+        .contains("이전 요청에서 전달한 본문만 수정하라")
+        .contains("900~1,100자를 목표");
+  }
+
+  @Test
+  void writerDoesNotReturnArticlesWhenRepairStillFails() throws Exception {
+    server.enqueue(jsonResponse(writerResponse(List.of("짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
+
+    assertThatThrownBy(
+            () -> new OpenAiNewsWriter(properties()).write(List.of(research("뉴스 제목"))))
+        .isInstanceOf(BusinessException.class);
+
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void writerReturnsValidArticlesWhenRepairOfAnotherArticleStillFails() throws Exception {
+    server.enqueue(
+        jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
+
+    List<GeneratedEconomicNews> generated =
+        new OpenAiNewsWriter(properties())
+            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+
+    assertThat(generated).hasSize(1);
+    assertThat(generated.getFirst().title()).isEqualTo("첫 번째 뉴스");
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  private EconomicNewsResearch research(String title) {
+    return new EconomicNewsResearch(
+        title,
+        LocalDate.now(ZoneId.of("Asia/Seoul")),
+        Category.STOCK,
+        List.of("첫 번째 확인 사실", "두 번째 확인 사실", "세 번째 확인 사실"),
+        List.of(
+            new NewsSourceInfo("출처 1", "https://example.com/1"),
+            new NewsSourceInfo("출처 2", "https://example.com/2")));
   }
 
   @Test
