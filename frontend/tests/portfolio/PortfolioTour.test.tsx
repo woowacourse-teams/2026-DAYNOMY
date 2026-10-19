@@ -82,16 +82,21 @@ describe('포트폴리오 가이드 투어', () => {
     fireEvent.click(screen.getByRole('button', { name: '사용 가이드' }));
     await screen.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
   });
-  it.each(['skip', 'escape'])('%s로 종료하면 재방문 시 자동 노출하지 않는다', async (action) => {
-    const { unmount } = render(<PortfolioTour ready />);
-    await screen.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
-    if (action === 'skip') fireEvent.click(screen.getByRole('button', { name: '종료' }));
-    else fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
-    unmount();
-    render(<PortfolioTour ready />);
-    expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
-  });
+  it.each(['skip', 'close', 'escape'])(
+    '%s로 종료하면 재방문 시 자동 노출하지 않는다',
+    async (action) => {
+      const { unmount } = render(<PortfolioTour ready />);
+      await screen.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
+      if (action === 'skip') fireEvent.click(screen.getByRole('button', { name: '종료' }));
+      else if (action === 'close')
+        fireEvent.click(screen.getByRole('button', { name: '가이드 닫기' }));
+      else fireEvent.keyDown(document, { key: 'Escape' });
+      expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
+      unmount();
+      render(<PortfolioTour ready />);
+      expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
+    },
+  );
   it('저장소를 사용할 수 없어도 안내를 닫을 수 있다', async () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked');
