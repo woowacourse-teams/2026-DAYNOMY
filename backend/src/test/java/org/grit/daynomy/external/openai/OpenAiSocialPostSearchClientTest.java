@@ -123,6 +123,82 @@ class OpenAiSocialPostSearchClientTest {
   }
 
   @Test
+  void profileSearchKeepsOnlyPostsAuthoredByConfiguredProfiles() throws Exception {
+    server.enqueue(
+        jsonResponse(
+            searchResponse(
+                List.of(
+                    Map.of("title", "official", "url", "https://x.com/elonmusk/status/12345"),
+                    Map.of("title", "old", "url", "https://x.com/elonmusk/status/11111"),
+                    Map.of("title", "unknown", "url", "https://x.com/elonmusk/status/22222"),
+                    Map.of("title", "mention", "url", "https://x.com/other/status/67890"),
+                    Map.of("title", "threads", "url", "https://www.threads.net/@elonmusk/post/ABC"),
+                    Map.of("title", "short", "url", "https://www.threads.net/t/DEF")),
+                List.of(
+                    Map.of(
+                        "title",
+                        "official",
+                        "url",
+                        "https://x.com/elonmusk/status/12345",
+                        "publishedDate",
+                        "2026-10-12"),
+                    Map.of(
+                        "title",
+                        "old",
+                        "url",
+                        "https://x.com/elonmusk/status/11111",
+                        "publishedDate",
+                        "2026-10-09"),
+                    Map.of(
+                        "title",
+                        "unknown",
+                        "url",
+                        "https://x.com/elonmusk/status/22222",
+                        "publishedDate",
+                        ""),
+                    Map.of(
+                        "title",
+                        "mention",
+                        "url",
+                        "https://x.com/other/status/67890",
+                        "publishedDate",
+                        "2026-10-12"),
+                    Map.of(
+                        "title",
+                        "threads",
+                        "url",
+                        "https://www.threads.net/@elonmusk/post/ABC",
+                        "publishedDate",
+                        "2026-10-12"),
+                    Map.of(
+                        "title",
+                        "short",
+                        "url",
+                        "https://www.threads.net/t/DEF",
+                        "publishedDate",
+                        "2026-10-12")))));
+    OpenAiSocialPostSearchClient client = newClient("test-key");
+
+    var candidates =
+        client.searchProfiles(
+            "https://x.com/elonmusk",
+            "https://www.threads.net/@elonmusk",
+            LocalDate.parse("2026-10-10"),
+            LocalDate.parse("2026-10-12"));
+
+    assertThat(candidates)
+        .extracting(SocialPostCandidate::url)
+        .containsExactly(
+            "https://x.com/elonmusk/status/12345", "https://www.threads.net/@elonmusk/post/ABC");
+    JsonNode requestBody = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(requestBody.path("input").asText())
+        .contains("authored only by these exact official profiles")
+        .contains("https://x.com/elonmusk")
+        .contains("https://www.threads.net/@elonmusk")
+        .contains("2026-10-10", "2026-10-12");
+  }
+
+  @Test
   void blankKeywordDoesNotCallOpenAi() {
     assertThat(newClient("test-key").search("  ")).isEmpty();
     assertThat(server.getRequestCount()).isZero();

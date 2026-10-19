@@ -79,6 +79,63 @@ class YouTubeClientTest {
   }
 
   @Test
+  void profileSearchResolvesHandleAndRestrictsVideosToChannel() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("{\"items\":[{\"id\":\"channel-123\"}]}"));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {
+                  "items": [
+                    {
+                      "id": {"videoId": "abcdefghijk"},
+                      "snippet": {
+                        "title": "공식 채널 영상",
+                        "channelTitle": "Tesla",
+                        "publishedAt": "2026-10-12T00:00:00Z",
+                        "thumbnails": {}
+                      }
+                    },
+                    {
+                      "id": {"videoId": "zzzzzzzzzzz"},
+                      "snippet": {
+                        "title": "기간 밖 영상",
+                        "channelTitle": "Tesla",
+                        "publishedAt": "2026-10-10T23:59:59Z",
+                        "thumbnails": {}
+                      }
+                    }
+                  ]
+                }
+                """));
+    YouTubeClient client = newClient("test-api-key");
+
+    var candidates =
+        client.searchProfile(
+            "https://www.youtube.com/@Tesla",
+            java.time.Instant.parse("2026-10-11T00:00:00Z"),
+            java.time.Instant.parse("2026-10-13T00:00:00Z"));
+
+    assertThat(candidates)
+        .singleElement()
+        .extracting(YouTubeVideoCandidate::title)
+        .isEqualTo("공식 채널 영상");
+    RecordedRequest channelRequest = server.takeRequest();
+    assertThat(channelRequest.getRequestUrl().queryParameter("forHandle")).isEqualTo("Tesla");
+    RecordedRequest videoRequest = server.takeRequest();
+    assertThat(videoRequest.getRequestUrl().queryParameter("channelId")).isEqualTo("channel-123");
+    assertThat(videoRequest.getRequestUrl().queryParameter("q")).isNull();
+    assertThat(videoRequest.getRequestUrl().queryParameter("publishedAfter"))
+        .isEqualTo("2026-10-11T00:00:00Z");
+    assertThat(videoRequest.getRequestUrl().queryParameter("publishedBefore"))
+        .isEqualTo("2026-10-13T00:00:00Z");
+  }
+
+  @Test
   void blankSearchDoesNotCallYouTube() {
     YouTubeClient client = newClient("test-api-key");
 
