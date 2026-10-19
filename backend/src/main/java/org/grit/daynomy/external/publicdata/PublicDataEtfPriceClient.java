@@ -32,10 +32,7 @@ public class PublicDataEtfPriceClient {
     requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
     this.restClient =
-        restClientBuilder
-            .baseUrl(properties.etfPriceUrl())
-            .requestFactory(requestFactory)
-            .build();
+        restClientBuilder.baseUrl(properties.etfPriceUrl()).requestFactory(requestFactory).build();
   }
 
   public PublicDataEtfPriceResponse getEtfPrices(LocalDate baseDate, int pageNo, int numOfRows) {

@@ -44,8 +44,7 @@ class BokBaseRateProviderTest {
                 """));
 
     var provider =
-        new BokBaseRateProvider(
-            properties(), org.springframework.web.client.RestClient.builder());
+        new BokBaseRateProvider(properties(), org.springframework.web.client.RestClient.builder());
 
     var entries = provider.fetch(LocalDate.of(2026, 10, 6), 0, 30);
 
