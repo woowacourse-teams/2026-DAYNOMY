@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getNews, getTodayNews } from '../../src/features/news/newslist/api.ts';
+import { getNews } from '../../src/features/news/newslist/api.ts';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -111,47 +111,4 @@ test('뉴스 목록의 모든 항목과 총 건수를 유지한다', async () =>
     [24, 25],
   );
   assert.equal(page.totalElements, 2);
-});
-
-test('오늘의 뉴스 API 응답에서 여러 건을 매핑한다', async () => {
-  const calls: string[] = [];
-  globalThis.fetch = async (input) => {
-    calls.push(String(input));
-    return jsonResponse({
-      items: [
-        {
-          id: 1,
-          title: 'today news',
-          imageUrl: null,
-          category: 'ECONOMY',
-          publishedAt: '2026-08-28T10:00:00Z',
-        },
-        {
-          id: 2,
-          title: 'another today news',
-          imageUrl: null,
-          category: 'STOCK',
-          publishedAt: '2026-08-28T09:00:00Z',
-        },
-      ],
-      page: 1,
-      size: 9,
-      totalPages: 1,
-      totalElements: 2,
-      hasNext: false,
-    });
-  };
-
-  const page = await getTodayNews();
-
-  assert.equal(calls[0], '/api/news/today');
-  assert.equal(page.content.length, 2);
-  assert.equal(page.content[0].title, 'today news');
-  assert.equal(page.content[1].title, 'another today news');
-});
-
-test('오늘의 뉴스 응답에 페이지 정보가 없으면 거부한다', async () => {
-  globalThis.fetch = async () => jsonResponse({ items: [] });
-
-  await assert.rejects(() => getTodayNews(), /응답 형식이 올바르지 않습니다/);
 });

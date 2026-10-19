@@ -115,12 +115,12 @@ it('현재 페이지 재클릭은 집계하지 않고 실제 페이지 변경만
   );
   fireEvent.click(view.getByRole('button', { name: '1페이지' }));
   expect(trackEvent).not.toHaveBeenCalled();
-  fireEvent.click(view.getByRole('button', { name: '다음 페이지' }));
+  fireEvent.click(view.getByRole('button', { name: '다음 방향 3페이지로 이동' }));
   expect(trackEvent).toHaveBeenCalledWith('change_content_page', {
     surface: 'people',
     person_id: 1,
     previous_page: 1,
-    page_number: 2,
+    page_number: 3,
   });
-  expect(onChange).toHaveBeenCalledWith(2);
+  expect(onChange).toHaveBeenCalledWith(3);
 });

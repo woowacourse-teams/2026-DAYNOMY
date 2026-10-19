@@ -210,7 +210,7 @@
   height: auto;
   min-height: 44px;
 }
-.portfolio-page-title > .portfolio-title-group {
+.portfolio-page-title > .portfolio-title-group:first-child {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -219,16 +219,17 @@
 }
 .portfolio-title-with-guide {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   flex-wrap: wrap;
   gap: 8px 14px;
 }
 .portfolio-guide-trigger {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 44px;
-  padding: 8px 4px;
+  min-height: 0;
+  padding: 0 4px;
   border: 0;
   background: transparent;
   color: #3869d4;
@@ -237,6 +238,15 @@
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
+}
+.portfolio-guide-trigger::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: max(100%, 44px);
+  transform: translateY(-50%);
 }
 .portfolio-guide-trigger:hover {
   text-decoration: underline;

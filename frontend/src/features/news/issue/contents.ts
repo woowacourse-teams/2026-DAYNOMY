@@ -1,6 +1,6 @@
 import { request } from '../../../api/client';
 import { isRelatedContent } from '../../stock-content/api';
-import { isToday, type ExternalContent } from './feed';
+import type { ExternalContent } from './feed';
 
 type ContentPage = { items: ExternalContent[]; page: number; totalPages: number };
 export async function getPublicContents(
@@ -24,16 +24,10 @@ export async function getPublicContents(
   return data as ContentPage;
 }
 
-export async function getContentsThroughToday(signal?: AbortSignal, includeHistory = false) {
-  const now = new Date();
+export async function getAllContents(signal?: AbortSignal) {
   let current = await getPublicContents(1, 100, signal);
   const items = [...current.items];
-  while (
-    current.page < current.totalPages &&
-    current.items.length &&
-    (includeHistory ||
-      current.items.every((item) => isToday(item.publishedDate ?? item.createdAt, now)))
-  ) {
+  while (current.page < current.totalPages && current.items.length) {
     current = await getPublicContents(current.page + 1, 100, signal);
     items.push(...current.items);
   }
