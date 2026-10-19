@@ -4,7 +4,7 @@ import { trackLoadResult, useContentImpression, useContentView } from '../../new
 import { useEffect, useRef, useState } from 'react';
 import { getStockRelatedContents } from '../../stock-content/api';
 import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../../stock-content/types';
-import { feedDate, youtubeId } from '../../news/issue/feed';
+import { feedDate, youtubeThumbnail } from '../../news/issue/feed';
 import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 
@@ -12,9 +12,7 @@ type NewsItem = StockRelatedContent & { assets: string[] };
 
 function NewsThumbnail({ item }: { item: NewsItem }) {
   const sourceName = STOCK_CONTENT_SOURCE_LABELS[item.sourceType];
-  const videoId = item.sourceType === 'YOUTUBE' ? youtubeId(item.url) : null;
-  const imageUrl =
-    item.imageUrl ?? (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null);
+  const imageUrl = item.sourceType === 'YOUTUBE' ? youtubeThumbnail(item.url) : item.imageUrl;
 
   return (
     <span
