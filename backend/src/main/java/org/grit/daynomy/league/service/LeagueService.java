@@ -552,7 +552,7 @@ public class LeagueService {
   }
 
   private LocalDate calculationEnd(LocalDate week) {
-    return week.equals(normalizeWeek(null)) ? asOfDate(week) : week.plusDays(6);
+    return asOfDate(week);
   }
 
   private boolean participates(InvestorProfile profile, LocalDate date) {
