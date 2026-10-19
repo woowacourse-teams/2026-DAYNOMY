@@ -19,7 +19,9 @@ public record PortfolioHoldingHistoryResponse(
     BigDecimal unitPrice,
     BigDecimal fee,
     BigDecimal tax,
-    Instant occurredAt) {
+    Instant occurredAt,
+    String currency,
+    BigDecimal exchangeRate) {
 
   public static PortfolioHoldingHistoryResponse from(PortfolioHoldingHistory history) {
     return new PortfolioHoldingHistoryResponse(
@@ -35,6 +37,8 @@ public record PortfolioHoldingHistoryResponse(
         history.getUnitPrice(),
         history.getFee(),
         history.getTax(),
-        history.getCreatedAt());
+        history.getCreatedAt(),
+        history.getAsset().getCurrency(),
+        history.getExchangeRate());
   }
 }

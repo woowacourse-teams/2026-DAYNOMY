@@ -383,4 +383,33 @@ class SavedPortfolioServiceTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO);
   }
+
+  @Test
+  void rejectsUsdTradeWithoutExchangeRateBeforeWritingLedger() {
+    Member member = mock(Member.class);
+    given(member.getId()).willReturn(1L);
+    Portfolio portfolio = mock(Portfolio.class);
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    Asset apple =
+        Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, LocalDate.of(2026, 10, 16));
+    given(assetRepository.findById(2L)).willReturn(Optional.of(apple));
+    var request =
+        new PortfolioTransactionRequest(
+            2L,
+            PortfolioTransactionType.BUY,
+            LocalDate.of(2026, 10, 16),
+            1L,
+            new BigDecimal("245"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    assertThatThrownBy(() -> service.transact(1L, request))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            e ->
+                assertThat(e.errorCode())
+                    .isEqualTo(PortfolioErrorCode.INVALID_TRANSACTION_EXCHANGE_RATE));
+    org.mockito.Mockito.verifyNoInteractions(
+        historyRepository, holdingRepository, snapshotTransactionService);
+  }
 }

@@ -93,6 +93,7 @@ public class SavedPortfolioService {
         assetRepository
             .findById(request.assetId())
             .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
+    PortfolioHoldingHistory.validateExchangeRate(asset, request.exchangeRate());
     validateTradeDate(portfolio.getId(), asset.getId(), request.tradeDate());
     PortfolioHolding current =
         holdingRepository
@@ -106,18 +107,19 @@ public class SavedPortfolioService {
             ? PortfolioHoldingChangeType.BUY
             : PortfolioHoldingChangeType.SELL;
     PortfolioHoldingHistory history =
-        historyRepository.saveAndFlush(
-            new PortfolioHoldingHistory(
-                portfolio,
-                asset,
-                changeType,
-                currentQuantity,
-                currentAverage,
-                request.tradeDate(),
-                request.quantity(),
-                request.unitPrice(),
-                request.fee(),
-                request.tax()));
+        new PortfolioHoldingHistory(
+            portfolio,
+            asset,
+            changeType,
+            currentQuantity,
+            currentAverage,
+            request.tradeDate(),
+            request.quantity(),
+            request.unitPrice(),
+            request.fee(),
+            request.tax());
+    history.applyExchangeRate(request.exchangeRate());
+    historyRepository.saveAndFlush(history);
 
     PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
     SavedPortfolioHoldingResponse responseHolding =
@@ -134,6 +136,7 @@ public class SavedPortfolioService {
     PortfolioHoldingHistory history = getTransaction(portfolio.getId(), transactionId);
     validateTradeDate(portfolio.getId(), history.getAsset().getId(), request.tradeDate());
     LocalDate previousTradeDate = history.getEffectiveDate();
+    history.applyExchangeRate(request.exchangeRate());
     history.updateTransaction(
         request.tradeDate(), request.quantity(), request.unitPrice(), request.fee(), request.tax());
     historyRepository.saveAndFlush(history);

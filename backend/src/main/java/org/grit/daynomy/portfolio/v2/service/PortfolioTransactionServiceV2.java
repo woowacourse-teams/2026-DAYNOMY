@@ -63,6 +63,7 @@ public class PortfolioTransactionServiceV2 {
         assetRepository
             .findById(request.assetId())
             .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
+    PortfolioHoldingHistory.validateExchangeRate(asset, request.exchangeRate());
     if (historyRepository.existsByPortfolioIdAndAssetIdAndChangeTypeInAndEffectiveDateAfter(
         portfolio.getId(), asset.getId(), BALANCE_TYPES, request.tradeDate())) {
       throw new BusinessException(PortfolioErrorCode.INVALID_PORTFOLIO_TRADE_DATE);
@@ -76,18 +77,19 @@ public class PortfolioTransactionServiceV2 {
             ? PortfolioHoldingChangeType.BUY
             : PortfolioHoldingChangeType.SELL;
     PortfolioHoldingHistory transaction =
-        historyRepository.saveAndFlush(
-            new PortfolioHoldingHistory(
-                portfolio,
-                asset,
-                type,
-                current == null ? 0 : current.getQuantity(),
-                current == null ? BigDecimal.ZERO.setScale(2) : current.getAveragePurchasePrice(),
-                request.tradeDate(),
-                request.quantity(),
-                request.unitPrice(),
-                request.fee(),
-                request.tax()));
+        new PortfolioHoldingHistory(
+            portfolio,
+            asset,
+            type,
+            current == null ? 0 : current.getQuantity(),
+            current == null ? BigDecimal.ZERO.setScale(2) : current.getAveragePurchasePrice(),
+            request.tradeDate(),
+            request.quantity(),
+            request.unitPrice(),
+            request.fee(),
+            request.tax());
+    transaction.applyExchangeRate(request.exchangeRate());
+    historyRepository.saveAndFlush(transaction);
 
     List<PortfolioHoldingHistory> histories =
         historyRepository.findOrderedWithAssetsByPortfolioId(portfolio.getId());
