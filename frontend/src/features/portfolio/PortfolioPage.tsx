@@ -39,7 +39,6 @@ const compactWonFormatter = new Intl.NumberFormat('ko-KR', {
   maximumFractionDigits: 1,
 });
 const HIDDEN_AMOUNT = '••••••원';
-const DESKTOP_CANVAS_WIDTH = 1324.8;
 const EMPTY_PORTFOLIO_CALCULATION: PortfolioCalculation = {
   baseDate: null,
   pricingStatus: 'COMPLETE',
@@ -834,9 +833,7 @@ type PortfolioPageProps = {
 };
 
 export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
-  const pageRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [desktopScale, setDesktopScale] = useState(1);
   useEffect(() => {
     const previousTitle = document.title;
     document.title = '내 포트폴리오 | DAYNOMY';
@@ -844,16 +841,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     return () => {
       document.title = previousTitle;
     };
-  }, []);
-  useEffect(() => {
-    const page = pageRef.current;
-    if (!page || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry.contentRect.width > 0)
-        setDesktopScale(Math.min(1, entry.contentRect.width / DESKTOP_CANVAS_WIDTH));
-    });
-    observer.observe(page);
-    return () => observer.disconnect();
   }, []);
   const {
     holdings,
@@ -1135,8 +1122,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
         }
       }}
       className="portfolio-page"
-      ref={pageRef}
-      style={{ '--portfolio-desktop-scale': desktopScale } as CSSProperties}
     >
       <header className="portfolio-page-title">
         <div className="portfolio-title-group">
@@ -1183,7 +1168,10 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             data-portfolio-tour="trade"
             onClick={() => openAdd('header')}
           >
-            <span aria-hidden="true">＋</span> 거래 기록
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            거래 기록
           </button>
         </div>
       </header>

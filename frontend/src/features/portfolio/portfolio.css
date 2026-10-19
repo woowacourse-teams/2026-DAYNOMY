@@ -801,7 +801,6 @@
 
 .portfolio-primary-button:hover {
   background: var(--button-primary-hover);
-  transform: translateY(-1px);
 }
 
 .portfolio-primary-button:disabled {
@@ -2151,8 +2150,8 @@
   height: 44px;
   padding: 0 30px 0 12px;
   appearance: none;
-  border: 1px solid #e1e5eb;
-  border-radius: 9px;
+  border: 0;
+  border-radius: 10px;
   color: #3e4856;
   background: #f3f5f8;
   font: inherit;
@@ -2201,7 +2200,6 @@
 .portfolio-trend-dialog-close:hover {
   color: #333d4b;
   background: #e5e8eb;
-  transform: translateY(-1px);
 }
 
 .portfolio-trend-expand:focus-visible,
