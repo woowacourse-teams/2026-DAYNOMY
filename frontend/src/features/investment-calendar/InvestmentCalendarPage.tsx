@@ -114,15 +114,28 @@ function directionLabel(type: InvestmentEventType, direction: InvestmentEventDir
     InvestmentEventType,
     Record<Exclude<InvestmentEventDirection, 'UNAVAILABLE'>, string>
   > = {
-    US_CPI: { DECREASED: '하락', UNCHANGED: '비슷', INCREASED: '상승' },
+    US_CPI: { DECREASED: '하락', UNCHANGED: '동일', INCREASED: '상승' },
     KOREA_BASE_RATE: { DECREASED: '인하', UNCHANGED: '동결', INCREASED: '인상' },
-    CORPORATE_EARNINGS: { DECREASED: '감소', UNCHANGED: '비슷', INCREASED: '증가' },
+    CORPORATE_EARNINGS: { DECREASED: '감소', UNCHANGED: '동일', INCREASED: '증가' },
   };
   return labels[type][direction];
 }
 
 function resultColumnTitle(type: InvestmentEventType) {
   return type === 'KOREA_BASE_RATE' ? '금리 결정' : '발표 결과';
+}
+
+function rateDecisionCaseLabel(direction: InvestmentEventDirection) {
+  return `금리 ${directionLabel('KOREA_BASE_RATE', direction)} 사례`;
+}
+
+function typicalRate(value: number | null) {
+  return value === null ? '표본 부족' : `보통 ${formatRate(value)}`;
+}
+
+function estimatedRange(statistics: PortfolioReactionStatistics) {
+  const range = formatRange(statistics);
+  return range === '-' ? range : `약 ${range}`;
 }
 
 function rateTone(value: number | null) {
@@ -281,7 +294,19 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
       ) : (
         <>
           <div className="investment-calendar-impact-head">
-            <h3>과거 내 자산 반응</h3>
+            <div>
+              <h3>
+                {event.type === 'KOREA_BASE_RATE'
+                  ? '금리 결정별 내 자산의 과거 움직임'
+                  : '과거 내 자산 반응'}
+              </h3>
+              {event.type === 'KOREA_BASE_RATE' ? (
+                <p>
+                  기준금리가 인하·동결·인상됐던 과거 다음 거래일에, 지금과 같은 내 자산이 얼마나
+                  움직였는지 보여드려요.
+                </p>
+              ) : null}
+            </div>
             <span>{analysis.totalEvaluationAmount.toLocaleString('ko-KR')}원 기준</span>
           </div>
           <div className="investment-calendar-table-wrap">
@@ -296,12 +321,20 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
               <tbody>
                 {analysis.historicalReactions.map((statistics) => (
                   <tr key={statistics.direction}>
-                    <td>{directionLabel(event.type, statistics.direction)}</td>
-                    <td className={rateTone(statistics.medianReturnRate)}>
-                      {formatRate(statistics.medianReturnRate)}
+                    <td>
+                      {event.type === 'KOREA_BASE_RATE'
+                        ? rateDecisionCaseLabel(statistics.direction)
+                        : directionLabel(event.type, statistics.direction)}
                     </td>
                     <td className={rateTone(statistics.medianReturnRate)}>
-                      {formatRange(statistics)}
+                      {event.type === 'KOREA_BASE_RATE'
+                        ? typicalRate(statistics.medianReturnRate)
+                        : formatRate(statistics.medianReturnRate)}
+                    </td>
+                    <td className={rateTone(statistics.medianReturnRate)}>
+                      {event.type === 'KOREA_BASE_RATE'
+                        ? estimatedRange(statistics)
+                        : formatRange(statistics)}
                     </td>
                   </tr>
                 ))}

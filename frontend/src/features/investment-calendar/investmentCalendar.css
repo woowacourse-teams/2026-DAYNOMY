@@ -796,7 +796,15 @@
   font-size: 17px;
 }
 
-.investment-calendar-impact-head span {
+.investment-calendar-impact-head p {
+  max-width: 62ch;
+  margin: 7px 0 0;
+  color: var(--calendar-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.investment-calendar-impact-head > span {
   color: var(--calendar-muted);
   font-size: 12px;
   white-space: nowrap;
@@ -836,11 +844,11 @@
 }
 
 .investment-calendar-table-wrap th:first-child {
-  width: 24%;
+  width: 32%;
 }
 
 .investment-calendar-table-wrap th:nth-child(2) {
-  width: 24%;
+  width: 32%;
 }
 
 .investment-calendar-table-wrap th:nth-child(n + 2),
@@ -848,9 +856,14 @@
   text-align: right;
 }
 
+.investment-calendar-table-wrap th:nth-child(2),
+.investment-calendar-table-wrap td:nth-child(2) {
+  text-align: center;
+}
+
 .investment-calendar-table-wrap th:last-child,
 .investment-calendar-table-wrap td:last-child {
-  width: 52%;
+  width: 36%;
   white-space: nowrap;
 }
 
@@ -1114,6 +1127,11 @@
 
   .investment-calendar-table-wrap td {
     font-size: 12px;
+  }
+
+  .investment-calendar-table-wrap th:last-child,
+  .investment-calendar-table-wrap td:last-child {
+    white-space: normal;
   }
 
   .investment-calendar-last-result {

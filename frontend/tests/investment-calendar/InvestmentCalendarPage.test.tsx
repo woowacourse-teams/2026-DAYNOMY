@@ -96,6 +96,15 @@ describe('투자 캘린더 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '10월 22일 한국 기준금리 결정' }));
 
     expect(view.getByText('내 자산은 기준금리가 오른 뒤 약세였던 경우가 많았습니다.')).toBeTruthy();
+    expect(view.getByText('금리 결정별 내 자산의 과거 움직임')).toBeTruthy();
+    expect(
+      view.getByText(
+        '기준금리가 인하·동결·인상됐던 과거 다음 거래일에, 지금과 같은 내 자산이 얼마나 움직였는지 보여드려요.',
+      ),
+    ).toBeTruthy();
+    expect(view.getByText('금리 인하 사례')).toBeTruthy();
+    expect(view.getByText('보통 +0.4%')).toBeTruthy();
+    expect(view.getByText('약 6만원 ~ 21만원 증가')).toBeTruthy();
   });
 
   it('다음 달에 일정이 없으면 빈 화면을 안내한다', async () => {
