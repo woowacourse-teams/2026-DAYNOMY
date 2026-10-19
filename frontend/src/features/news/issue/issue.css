@@ -650,8 +650,8 @@
 .issue-people-preview > a,
 .issue-people-preview > a + a {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  align-items: start;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
   gap: 12px;
   padding: 20px 0;
   border: 0;
@@ -664,8 +664,8 @@
 .issue-person-avatar {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   overflow: hidden;
   border-radius: 50%;
   background: #eef2f6;
@@ -684,11 +684,12 @@
   min-width: 0;
 }
 .issue-people-preview .issue-meta {
-  justify-content: flex-start;
-  gap: 8px 16px;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
 }
 .issue-people-preview .issue-meta strong {
-  font-size: 14px;
+  font-size: 16px;
 }
 .issue-person-platform {
   display: inline-flex;
@@ -708,12 +709,12 @@
 }
 .issue-person-footer {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 14px;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 6px;
+  margin-top: -4px;
   color: var(--issue-muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
 }
 .issue-people-preview > a:hover .issue-person-title h3 {
@@ -721,6 +722,7 @@
   text-underline-offset: 3px;
 }
 .issue-person-title {
+  grid-column: 1 / -1;
   min-width: 0;
 }
 .issue-person-title h3 {
@@ -729,11 +731,19 @@
   -webkit-box-orient: vertical;
   min-width: 0;
   overflow: hidden;
-  margin-top: 6px;
+  margin-top: 0;
   margin-bottom: 0;
   color: var(--issue-ink);
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 450;
+  line-height: 1.5;
+}
+.issue-person-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   line-height: 1.5;
 }
 .issue-inline-post {
