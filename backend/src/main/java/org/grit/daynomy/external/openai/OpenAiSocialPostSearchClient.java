@@ -51,6 +51,57 @@ public class OpenAiSocialPostSearchClient {
     if (keyword == null || keyword.isBlank()) {
       return List.of();
     }
+    return execute(
+        "Find up to 10 public Threads and X posts directly related to this search target: "
+            + keyword.strip()
+            + ". The target may be a person, company, topic, or include official profile URLs."
+            + " Search both platforms and prioritize posts from the supplied profile URLs when"
+            + " present. Do not return profiles, search pages, or home pages. For each post, return"
+            + " publishedDate as YYYY-MM-DD only when the date is clearly confirmed; otherwise"
+            + " return an empty string. Never guess a date.");
+  }
+
+  public List<SocialPostCandidate> searchProfiles(
+      String xProfileUrl, String threadsProfileUrl, LocalDate from, LocalDate to) {
+    String xHandle = profileHandle(xProfileUrl, SocialPostCandidate.Platform.X);
+    String threadsHandle = profileHandle(threadsProfileUrl, SocialPostCandidate.Platform.THREADS);
+    if (xHandle == null && threadsHandle == null) {
+      return List.of();
+    }
+    String target =
+        List.of(
+                xProfileUrl == null ? "" : xProfileUrl,
+                threadsProfileUrl == null ? "" : threadsProfileUrl)
+            .stream()
+            .filter(value -> !value.isBlank())
+            .reduce((left, right) -> left + " " + right)
+            .orElse("");
+    return execute(
+            "Find up to 10 public posts authored only by these exact official profiles: "
+                + target
+                + ". Return a post only when the author handle in its URL exactly matches one of"
+                + " the supplied profiles. Do not return mentions, reposts from other accounts,"
+                + " profiles, search pages, or home pages. For each post, return publishedDate as"
+                + " YYYY-MM-DD only when clearly confirmed. Search only posts published from "
+                + from
+                + " through "
+                + to
+                + " inclusive. Never guess a date, and exclude posts whose date cannot be"
+                + " confirmed.")
+        .stream()
+        .filter(candidate -> belongsToProfile(candidate, xHandle, threadsHandle))
+        .filter(candidate -> isWithinPeriod(candidate.publishedDate(), from, to))
+        .toList();
+  }
+
+  private boolean isWithinPeriod(String value, LocalDate from, LocalDate to) {
+    Optional<LocalDate> publishedDate = parsePublishedDate(value);
+    return publishedDate.isPresent()
+        && !publishedDate.get().isBefore(from)
+        && !publishedDate.get().isAfter(to);
+  }
+
+  private List<SocialPostCandidate> execute(String input) {
     if (properties.apiKey() == null || properties.apiKey().isBlank()) {
       throw searchFailed();
     }
@@ -62,7 +113,7 @@ public class OpenAiSocialPostSearchClient {
               .uri("/responses")
               .contentType(MediaType.APPLICATION_JSON)
               .headers(headers -> headers.setBearerAuth(properties.apiKey()))
-              .body(requestBody(keyword.strip()))
+              .body(requestBody(input))
               .retrieve()
               .body(String.class);
       return parseCandidates(response);
@@ -74,7 +125,7 @@ public class OpenAiSocialPostSearchClient {
     }
   }
 
-  private Map<String, Object> requestBody(String keyword) {
+  private Map<String, Object> requestBody(String input) {
     return Map.of(
         "model",
         properties.socialSearchModel(),
@@ -86,13 +137,7 @@ public class OpenAiSocialPostSearchClient {
         "include",
         List.of("web_search_call.action.sources"),
         "input",
-        "Find up to 10 public Threads and X posts directly related to this search target: "
-            + keyword
-            + ". The target may be a person, company, topic, or include official profile URLs."
-            + " Search both platforms and prioritize posts from the supplied profile URLs when"
-            + " present. Do not return profiles, search pages, or home pages. For each post, return"
-            + " publishedDate as YYYY-MM-DD only when the date is clearly confirmed; otherwise"
-            + " return an empty string. Never guess a date.",
+        input,
         "text",
         Map.of("format", responseFormat()));
   }
@@ -270,6 +315,51 @@ public class OpenAiSocialPostSearchClient {
       return SocialPostCandidate.Platform.X;
     }
     return null;
+  }
+
+  private boolean belongsToProfile(
+      SocialPostCandidate candidate, String xHandle, String threadsHandle) {
+    String expectedHandle =
+        candidate.platform() == SocialPostCandidate.Platform.X ? xHandle : threadsHandle;
+    if (expectedHandle == null) {
+      return false;
+    }
+    try {
+      String path = URI.create(candidate.url()).getPath();
+      String[] segments = path.split("/");
+      if (candidate.platform() == SocialPostCandidate.Platform.X) {
+        return segments.length >= 4 && expectedHandle.equalsIgnoreCase(segments[1]);
+      }
+      return segments.length >= 4
+          && segments[1].startsWith("@")
+          && expectedHandle.equalsIgnoreCase(segments[1].substring(1));
+    } catch (IllegalArgumentException exception) {
+      return false;
+    }
+  }
+
+  private String profileHandle(String profileUrl, SocialPostCandidate.Platform platform) {
+    if (profileUrl == null || profileUrl.isBlank()) {
+      return null;
+    }
+    try {
+      String path = URI.create(profileUrl).getPath();
+      if (path == null) {
+        return null;
+      }
+      String[] segments = path.split("/");
+      if (segments.length < 2 || segments[1].isBlank()) {
+        return null;
+      }
+      if (platform == SocialPostCandidate.Platform.THREADS && !segments[1].startsWith("@")) {
+        return null;
+      }
+      return platform == SocialPostCandidate.Platform.THREADS
+          ? segments[1].substring(1)
+          : segments[1];
+    } catch (IllegalArgumentException exception) {
+      return null;
+    }
   }
 
   private BusinessException searchFailed() {

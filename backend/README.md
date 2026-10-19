@@ -64,6 +64,14 @@ COOKIE_SECURE=false
 Google 로그인 리디렉션 URI는 `http://localhost:8080/login/oauth2/code/google`입니다.
 AI 분석에는 `OPENAI_API_KEY`, 이미지 업로드에는 `AWS_REGION`, `AWS_S3_BUCKET`과
 실행 환경의 AWS 인증이 필요합니다. 상세 설정 이름과 기본값은 `application.yaml`을 따릅니다.
+주요 인물 게시물은 운영 환경에서 매일 오전 6시(Asia/Seoul)에 등록된 X·Threads·YouTube
+공식 프로필을 수집해 승인 대기 후보로 저장합니다. `PERSON_POST_COLLECTION_ENABLED`와
+`PERSON_POST_COLLECTION_CRON`으로 실행 여부와 시각을 변경합니다. 자동 수집은 기본적으로
+오늘을 포함한 최근 3일만 조회하며 `PERSON_POST_COLLECTION_LOOKBACK_DAYS`로 기간을 바꿀 수
+있습니다. 관리자 수동 수집은 시작일과 종료일을 지정하되 최대 31일까지 조회합니다. X·Threads에는
+`OPENAI_API_KEY`, YouTube에는 `YOUTUBE_API_KEY`가 필요합니다. 후보는 관리자가 승인해야
+공개 게시물로 전환됩니다. 관리자는 후보를 개별 처리하거나 한 번에 최대 100개까지 선택해
+일괄 승인·거절할 수 있으며, 일부 후보가 실패해도 나머지 후보는 계속 처리됩니다.
 
 ---
 
