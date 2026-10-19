@@ -11,6 +11,7 @@ export type PortfolioTrendPeriod = 'YTD' | '1M' | '6M' | '1Y' | '5Y';
 export type PortfolioTransactionType = 'BUY' | 'SELL';
 export type PortfolioTransactionUpdateRequest = {
   tradeDate: string;
+  exchangeRate?: number;
   quantity: number;
   unitPrice: number;
   fee: number;
@@ -39,6 +40,8 @@ export type PortfolioHoldingHistory = {
   fee: number;
   tax: number;
   occurredAt: string;
+  currency?: 'KRW' | 'USD';
+  exchangeRate?: number;
 };
 
 export type PortfolioPerformancePoint = {
