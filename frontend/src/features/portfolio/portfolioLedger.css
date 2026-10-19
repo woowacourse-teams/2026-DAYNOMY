@@ -3,8 +3,13 @@
   --portfolio-accent: #326bd5;
   --portfolio-side-padding: var(--page-side-padding);
   width: var(--page-content-width);
-  padding: 52px 0 88px;
+  padding: 52px 0 32px;
   color: #253047;
+}
+body:has(.portfolio-page) .daynomy-footer {
+  min-height: 144px;
+  margin-top: 8px;
+  padding-block: 32px;
 }
 .portfolio-canvas {
   display: contents;
@@ -465,6 +470,17 @@
   font-variant-numeric: tabular-nums;
   padding: 0 10px;
 }
+.portfolio-history-filter select {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23526078' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+}
+
 .portfolio-history-toolbar input:focus-visible,
 .portfolio-history-toolbar select:focus-visible {
   outline: 2px solid var(--button-primary);
@@ -857,9 +873,37 @@
   border-radius: 10px;
   margin-bottom: 20px;
 }
-.portfolio-trade-stock button {
+.portfolio-sheet .portfolio-trade-stock > button {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #526078;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
 }
+.portfolio-sheet .portfolio-trade-stock > button:hover:not(:disabled) {
+  background: #edf3fc;
+  border-color: #b5c8e8;
+  color: #2459b9;
+}
+.portfolio-sheet .portfolio-trade-stock > div {
+  min-width: 0;
+}
+.portfolio-sheet .portfolio-trade-stock strong {
+  overflow-wrap: anywhere;
+}
+
 .portfolio-trade-types {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2373,7 +2417,7 @@
 
 @media (max-width: 720px) {
   .portfolio-page {
-    padding: 28px 0 56px;
+    padding: 28px 0 32px;
   }
 }
 
@@ -2414,5 +2458,56 @@
     gap: 4px;
     font-size: 11px;
     white-space: nowrap;
+  }
+}
+
+/* Keep all six holding fields visible beside the news panel. */
+@media (min-width: 1024px) {
+  .portfolio-page .has-news .portfolio-table-wrap table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])) {
+    padding-inline: 6px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):first-child {
+    width: 22%;
+    padding-left: 0;
+    white-space: normal;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(2) {
+    width: 10%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(3) {
+    width: 16%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(4) {
+    width: 16%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(5) {
+    width: 18%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(6) {
+    width: 18%;
+    padding-right: 0;
+  }
+  .portfolio-page .has-news .portfolio-asset {
+    min-width: 0;
+  }
+  .portfolio-page .has-news .portfolio-asset > div {
+    min-width: 0;
+  }
+  .portfolio-page .has-news .portfolio-asset-link {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+  .portfolio-page .has-news .portfolio-asset small {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }

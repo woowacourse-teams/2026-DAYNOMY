@@ -1508,7 +1508,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                                   <th scope="col">최근 종가</th>
                                   <th scope="col">평가금액</th>
                                   <th scope="col">손익 · 수익률</th>
-                                  <th scope="col">비중</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -1589,16 +1588,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                                         <small>{formatPercent(holding.returnRate, true)}</small>
                                       )}
                                     </td>
-                                    <td data-label="비중">
-                                      {holding.weight === null
-                                        ? '-'
-                                        : formatPercent(holding.weight)}
-                                    </td>
                                   </tr>
                                 ))}
                                 {visibleHoldings.length === 0 ? (
                                   <tr>
-                                    <td className="portfolio-no-results" colSpan={7}>
+                                    <td className="portfolio-no-results" colSpan={6}>
                                       {dashboardCalculation.holdings.length === 0
                                         ? '표시할 자산이 없습니다'
                                         : '선택한 유형의 보유 자산이 없습니다.'}
