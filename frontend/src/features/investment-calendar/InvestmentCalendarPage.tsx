@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { loadGuestPortfolioHoldings } from '../portfolio/portfolioHoldingsStorage';
 import { getInvestmentCalendar } from './api';
-import { InvestmentCalendarNotification } from './InvestmentCalendarNotification';
 import type {
   InvestmentCalendarEvent,
   InvestmentCalendarScope,
@@ -445,7 +444,6 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
           </div>
           <p>다가오는 발표 전, 내 자산이 과거에 어떻게 움직였는지 확인하세요.</p>
         </div>
-        <InvestmentCalendarNotification isLoggedIn={isLoggedIn} authLoading={authLoading} />
       </header>
 
       <section className="investment-calendar-workspace" aria-label="투자 일정과 내 자산 영향">
