@@ -118,13 +118,11 @@ class OpenAiNewsGeneratorTest {
 
   @Test
   void writerRetriesOnlyInvalidArticles() throws Exception {
-    server.enqueue(
-        jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
     server.enqueue(jsonResponse(writerResponse(List.of(validContent("수정된 뉴스")))));
 
     List<GeneratedEconomicNews> generated =
-        new OpenAiNewsWriter(properties())
-            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+        new OpenAiNewsWriter(properties()).write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
 
     assertThat(generated).hasSize(2);
     assertThat(generated.get(0).content()).hasSizeBetween(800, 1_500);
@@ -167,8 +165,7 @@ class OpenAiNewsGeneratorTest {
     server.enqueue(jsonResponse(writerResponse(List.of("짧은 본문"))));
     server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
 
-    assertThatThrownBy(
-            () -> new OpenAiNewsWriter(properties()).write(List.of(research("뉴스 제목"))))
+    assertThatThrownBy(() -> new OpenAiNewsWriter(properties()).write(List.of(research("뉴스 제목"))))
         .isInstanceOf(BusinessException.class);
 
     assertThat(server.getRequestCount()).isEqualTo(2);
@@ -176,13 +173,11 @@ class OpenAiNewsGeneratorTest {
 
   @Test
   void writerReturnsValidArticlesWhenRepairOfAnotherArticleStillFails() throws Exception {
-    server.enqueue(
-        jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
     server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
 
     List<GeneratedEconomicNews> generated =
-        new OpenAiNewsWriter(properties())
-            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+        new OpenAiNewsWriter(properties()).write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
 
     assertThat(generated).hasSize(1);
     assertThat(generated.getFirst().title()).isEqualTo("첫 번째 뉴스");

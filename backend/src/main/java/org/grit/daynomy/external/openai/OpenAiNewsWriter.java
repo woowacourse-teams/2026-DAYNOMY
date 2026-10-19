@@ -35,8 +35,8 @@ public class OpenAiNewsWriter {
   private static final String RETRY_INSTRUCTION =
       """
 
-      이전 요청에서 전달한 본문만 수정하라. 조사 자료에 없는 사실을 추가하지 말고, 각 본문은 공백 포함 900~1,100자를 목표로 800~1,500자 범위를 반드시 지켜라. 반환 전 각 본문의 글자 수를 확인하고, 4~6개 문단과 해라체를 정확히 지키며 시장 분석·전망·투자 의견을 제외하라.
-      """;
+이전 요청에서 전달한 본문만 수정하라. 조사 자료에 없는 사실을 추가하지 말고, 각 본문은 공백 포함 900~1,100자를 목표로 800~1,500자 범위를 반드시 지켜라. 반환 전 각 본문의 글자 수를 확인하고, 4~6개 문단과 해라체를 정확히 지키며 시장 분석·전망·투자 의견을 제외하라.
+""";
 
   private final OpenAiProperties openAiProperties;
   private final RestClient restClient;
@@ -74,8 +74,7 @@ public class OpenAiNewsWriter {
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         ParsedWriting parsedWriting =
-            parseContents(
-                requestContent(pendingResearch, attempt, retryReason), pendingResearch);
+            parseContents(requestContent(pendingResearch, attempt, retryReason), pendingResearch);
         for (Map.Entry<Integer, GeneratedEconomicNews> entry :
             parsedWriting.generatedNews().entrySet()) {
           generatedNews.set(pendingIndexes.get(entry.getKey()), entry.getValue());
@@ -222,8 +221,7 @@ public class OpenAiNewsWriter {
             List.of("articles")));
   }
 
-  private ParsedWriting parseContents(
-      String response, List<EconomicNewsResearch> research) {
+  private ParsedWriting parseContents(String response, List<EconomicNewsResearch> research) {
     try {
       JsonNode responseJson = OBJECT_MAPPER.readTree(response);
       JsonNode articles = OBJECT_MAPPER.readTree(extractOutputText(responseJson)).path("articles");
