@@ -3,8 +3,13 @@
   --portfolio-accent: #326bd5;
   --portfolio-side-padding: var(--page-side-padding);
   width: var(--page-content-width);
-  padding: 52px 0 88px;
+  padding: 52px 0 32px;
   color: #253047;
+}
+body:has(.portfolio-page) .daynomy-footer {
+  min-height: 144px;
+  margin-top: 8px;
+  padding-block: 32px;
 }
 .portfolio-canvas {
   display: contents;
@@ -2373,7 +2378,7 @@
 
 @media (max-width: 720px) {
   .portfolio-page {
-    padding: 28px 0 56px;
+    padding: 28px 0 32px;
   }
 }
 
