@@ -406,6 +406,45 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 - `/login`·`/admin`에서는 수집하지 않으며 해당 경로에 진입한 뒤에는 같은 앱 세션의 수집을 중지합니다. 분석 SDK 로딩·전송 실패는 사용자 작업을 중단하지 않습니다.
 - 로컬 `.env`와 배포 Environment에서 두 값을 비워 두면 PostHog를 초기화하지 않습니다. 변경 시 다시 빌드하고 해당 환경의 이벤트 수신 여부를 확인합니다.
 
+#### 개인정보처리방침 근거와 운영 확인
+
+2026-10-19 공식 문서와 `src/analytics.ts`를 대조했습니다. 브라우저에서 확인한 DAYNOMY
+프로젝트는 `us.posthog.com`의 US Cloud이며, 운영자가 현재 무료 플랜 사용을 확인했습니다.
+대시보드 접속 확인은 실제 운영 이벤트 수신이나 배포 환경 변수 검증을 의미하지 않습니다.
+
+- `/privacy`에는 이용 목적, 이벤트 발생 시각·브라우저 생성 식별자·기기 환경·기능 사용 상태,
+  수집 제외 항목, 미국 Cloud 이용, 무료 플랜의 1년 이벤트 보관 정책과 문의 방법을 안내합니다.
+  브라우저·기기 정보는 `posthogProperties`가 전송을 허용하는 SDK 속성을 기준으로 합니다.
+- 무료 플랜의 이벤트 보관 기간은 1년, 유료 플랜은 7년입니다. 보관 기간은 즉시 삭제를
+  보장하지 않으므로 “1년 뒤 자동 파기”라고 안내하지 않습니다. 브라우저 저장소 삭제는 서버
+  이벤트 삭제나 이후 수집 거부가 아니며 새 방문 식별자가 생성될 수 있습니다.
+- 현재 SDK의 `ip: false`는 효과가 없는 폐기 예정 옵션입니다. `before_send`의 클라이언트 속성
+  필터도 수신 서버의 IP 처리·GeoIP 변환을 제어하지 않습니다. IP 미수집·위치 정보 미수집을
+  단정하지 않으며, 프로젝트의 `IP data capture configuration → Discard client IP data` 및
+  GeoIP 변환을 확인해야 합니다. IP 폐기를 켜도 폐기 전 GeoIP 변환에서 IP를 사용할 수 있습니다.
+- Google Analytics 차단 부가기능은 PostHog를 차단하지 않습니다. 현재 서비스 내 PostHog
+  거부 버튼은 없으며, 방침에는 PostHog 분석 요청을 차단하는 브라우저 기능·확장 기능과
+  DAYNOMY 문의 주소를 안내합니다. SDK의 `opt_out_capturing()` 연결은 별도 기능 변경입니다.
+
+배포 전 확인할 항목:
+
+- [ ] 개발·운영의 `VITE_POSTHOG_HOST`와 연결 프로젝트가 고지한 미국 Cloud와 일치하는지 확인
+- [ ] 실제 이벤트에서 허용 속성·수집 제외 항목·로그인/관리자 경로의 전송 중지 확인
+- [ ] 프로젝트 IP 폐기·GeoIP 변환 설정을 확인하고 실제 서버 처리 항목을 방침과 대조
+- [ ] 개인정보 처리위탁 계약과 국외 이전의 법적 근거, 필요한 동의·고지 절차 확인
+- [ ] 브라우저 식별자 기반 처리 중지·삭제 요청을 실제 처리할 수 있는 절차 확인
+- [ ] 플랜·저장 지역·수집 범위 변경 시 방침과 적용일·변경 공지를 함께 갱신
+
+공식 근거:
+[Cloud 지역과 주소](https://posthog.com/docs/api),
+[개인정보처리방침·연락처](https://posthog.com/privacy),
+[이벤트 보관](https://posthog.com/docs/data/events-retention),
+[요금제별 보관 기준](https://posthog.com/pricing),
+[수집·거부 제어](https://posthog.com/docs/privacy/data-collection),
+[서버 저장·IP 처리](https://posthog.com/docs/privacy/data-storage),
+[SDK 설정의 ip 옵션](https://posthog.com/docs/references/posthog-js/types/PostHogConfig),
+[개인정보 보호법 제28조의8](https://www.law.go.kr/LSW/lsLinkCommonInfo.do?chrClsCd=010202&lsJoLnkSeq=1029334957).
+
 ### Looker Studio
 
 현재는 Sentry와 GA4, 설정된 경우 PostHog를 각각 확인합니다. 운영 데이터가 충분히 쌓인 뒤
