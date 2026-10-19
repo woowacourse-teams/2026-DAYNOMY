@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.person.dto.FeaturedPersonPostCandidateBulkResponse;
 import org.grit.daynomy.person.dto.FeaturedPersonPostCandidateBulkResponse.Failure;
 import org.grit.daynomy.person.dto.FeaturedPersonPostCandidateBulkResponse.Success;
@@ -94,10 +95,12 @@ public class FeaturedPersonPostCandidateBulkService {
   private void logUnexpectedFailure(
       Long personId, Long candidateId, String action, RuntimeException exception) {
     log.atError()
+        .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_CANDIDATE_PROCESSING_FAILED.code())
         .addKeyValue("personId", personId)
         .addKeyValue("candidateId", candidateId)
         .addKeyValue("action", action)
         .addKeyValue("exceptionType", exception.getClass().getSimpleName())
-        .log("Featured person post candidate bulk processing failed unexpectedly");
+        .setCause(exception)
+        .log(LogEvent.FEATURED_PERSON_POST_CANDIDATE_PROCESSING_FAILED.message());
   }
 }
