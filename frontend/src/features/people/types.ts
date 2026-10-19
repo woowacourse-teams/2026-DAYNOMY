@@ -36,6 +36,7 @@ export type FeaturedPersonPostRequest = {
   sourceType: SocialPlatform;
   title: string | null;
   url: string;
+  publishedAt?: string | null;
 };
 
 export type SocialPostSearchItem = {
@@ -43,6 +44,42 @@ export type SocialPostSearchItem = {
   title: string;
   url: string;
   publishedDate: string;
+};
+
+export type FeaturedPersonPostCandidate = {
+  id: number;
+  sourceType: SocialPlatform;
+  title: string;
+  url: string;
+  publishedAt: string | null;
+  status: 'PENDING';
+  createdAt: string | null;
+};
+
+export type FeaturedPersonPostCandidateInboxItem = FeaturedPersonPostCandidate & {
+  personId: number;
+  personName: string;
+  personProfileImageUrl: string | null;
+};
+
+export type FeaturedPersonPostCandidatePage = {
+  candidates: FeaturedPersonPostCandidateInboxItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
+export type FeaturedPersonPostCandidateBulkResponse = {
+  succeeded: Array<{
+    candidateId: number;
+    post: FeaturedPersonPost | null;
+  }>;
+  failed: Array<{
+    candidateId: number;
+    errorCode: string;
+    message: string;
+  }>;
 };
 
 export function platformLabel(platform: SocialPlatform) {

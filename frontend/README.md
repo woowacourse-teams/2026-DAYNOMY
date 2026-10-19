@@ -134,7 +134,7 @@ npm run dev
 - 통합 검색은 `GET /api/search/contents?q=...&source=ALL&page=1&size=12`를 사용합니다. 출처는 `ALL`, `DAYNOMY`, `X`, `THREADS`, `YOUTUBE`이며 기사 제목·본문과 인물 글·외부 자료의 제목을 검색합니다. 검색어·출처·페이지를 URL과 동기화하고 로딩·빈 결과·오류·재시도를 구분합니다.
 - 검색 결과는 서버가 페이지를 나누며 기사 발행 시각·외부 자료 등록 시각 기준으로 정렬합니다. 원문 게시일 정렬을 적용한 소식 피드와 검색의 정렬 기준은 다릅니다. 종목 상세와 보유 자산 소식도 기존 등록일 정렬을 유지합니다.
 - 동일 URL의 종목 외부 자료를 합치고 인물 글과 겹치면 인물 글을 우선합니다. 기사 링크는 상세로 이동하고 X·Threads·YouTube 자료는 목록에서 펼쳐 원문과 임베드를 확인합니다.
-- 인물은 등록된 프로필 이미지를 표시하고 이미지가 없으면 기본 아이콘을 사용합니다. 관리자는 Wikimedia Commons 이미지 선택과 X·Threads·YouTube 프로필 URL 등록, 세 플랫폼의 게시물 등록을 사용할 수 있습니다.
+- 인물은 등록된 프로필 이미지를 표시하고 이미지가 없으면 기본 아이콘을 사용합니다. 관리자는 Wikimedia Commons 이미지 선택과 X·Threads·YouTube 프로필 URL 등록, 세 플랫폼의 게시물 직접 등록을 사용할 수 있습니다. 서버가 하루 한 번 공식 프로필에서 수집한 게시물은 관리자 화면의 최상위 `수집 후보` 탭에서 대기 건수를 확인하고 개별 또는 선택 일괄 승인·거절하며, 승인한 후보만 공개 게시물에 반영됩니다.
 
 ---
 
@@ -343,27 +343,27 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 
 #### 이벤트
 
-| 이벤트                                                                            | 발생 시점                                                | 주요 파라미터                                                                       |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `page_view`                                                                       | 공개 화면의 경로 변경                                    | `page_path` (쿼리 없는 경로)                                                        |
-| `view_news_list`                                                                  | 뉴스 목록 진입·카테고리 변경                             | `category` (뉴스 카테고리 코드)                                                     |
-| `view_news_detail`                                                                | 뉴스 상세 진입                                           | `news_id` (기사 식별 번호)                                                          |
-| `search_news`                                                                     | 검색어 변경                                              | `search_length` (검색어 글자 수)                                                    |
-| `click_search_open`                                                               | 검색 열기 버튼 클릭                                      | 없음                                                                                |
-| `start_portfolio_analysis`                                                        | 포트폴리오 분석·갱신 요청 시작                           | `action`, `user_type`, `asset_count`                                                |
-| `portfolio_analysis_result`                                                       | 사용자가 시작한 분석·갱신 요청 결과                      | `action`, `user_type`, `asset_count`, `status`, `last_check_outcome`, `duration_ms` |
-| `view_portfolio_analysis`                                                         | 결과 상단 점수 영역이 50% 이상 노출                      | `surface`, `user_type`, `analyzed_asset_count`                                      |
-| `select_portfolio_analysis_asset`                                                 | 차트·목록에서 전체 또는 자산별 결과로 선택 변경          | `surface`, `scope`, `position`                                                      |
-| `expand_portfolio_analysis_sources`                                               | 분석 출처 펼치기                                         | `surface`, `scope`, `source_count`                                                  |
-| `content_load_result`                                                             | 소식·인물·종목 콘텐츠·보유 자산 소식·뉴스 분석 조회 결과 | `surface`, `area`, `status`, `result_count`, `attempt`, `duration_ms`               |
-| `view_content_list`, `view_content_empty`                                         | 콘텐츠 목록 또는 빈 상태 확인                            | `surface`, `source_type`, `result_count`, `page_number`, `status`, `reason`         |
-| `click_content`, `click_content_original`, `expand_content`, `open_content_video` | 콘텐츠 선택·원문 이동·글 펼치기·종목 영상 열기           | `surface`, `source_type`, `content_id`, `position`                                  |
-| `filter_content_source`, `change_content_page`                                    | 출처 필터·페이지 변경                                    | `surface`, `source_type`, `previous_source`, `previous_page`, `page_number`         |
-| `click_content_more`, `retry_content_load`                                        | 더 보기 이동·조회 재시도                                 | `surface`, `destination`, `area`, `attempt`                                         |
-| `click_person_preview`, `select_featured_person`                                  | 인물 미리보기·인물 선택                                  | `surface`, `person_id`, `position`                                                  |
-| `view_portfolio_news`                                                             | 보유 자산 소식 제목이 50% 이상 노출                      | `surface=portfolio_news`, `status`, `result_count`                                  |
-| `open_keyword_analysis`                                                           | 키워드 설명이 닫힘에서 열림으로 전환                     | `news_id`, `keyword_category`, `trigger`                                            |
-| `view_market_analysis`                                                            | 정상 시장 분석의 제목이 50% 이상 노출                    | `surface=news_detail`, `news_id`                                                    |
+| 이벤트                                                                            | 발생 시점                                                | 주요 파라미터                                                                             |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `page_view`                                                                       | 공개 화면의 경로 변경                                    | `page_path` (쿼리 없는 경로)                                                              |
+| `view_news_list`                                                                  | 뉴스 목록 진입·카테고리 변경                             | `category` (뉴스 카테고리 코드)                                                           |
+| `view_news_detail`                                                                | 뉴스 상세 진입                                           | `news_id` (기사 식별 번호)                                                                |
+| `search_news`                                                                     | 검색어 변경                                              | `search_length` (검색어 글자 수)                                                          |
+| `click_search_open`                                                               | 검색 열기 버튼 클릭                                      | 없음                                                                                      |
+| `start_portfolio_analysis`                                                        | 포트폴리오 분석·갱신 요청 시작                           | `action`, `user_type`, `asset_count`                                                      |
+| `portfolio_analysis_result`                                                       | 사용자가 시작한 분석·갱신 요청 결과                      | `action`, `user_type`, `asset_count`, `status`, `last_check_outcome`, `duration_ms`       |
+| `view_portfolio_analysis`                                                         | 결과 상단 점수 영역이 50% 이상 노출                      | `surface`, `user_type`, `analyzed_asset_count`                                            |
+| `select_portfolio_analysis_asset`                                                 | 차트·목록에서 전체 또는 자산별 결과로 선택 변경          | `surface`, `scope`, `position`                                                            |
+| `expand_portfolio_analysis_sources`                                               | 분석 출처 펼치기                                         | `surface`, `scope`, `source_count`                                                        |
+| `content_load_result`                                                             | 소식·인물·종목 콘텐츠·보유 자산 소식·뉴스 분석 조회 결과 | `surface`, `area`, `status`, `result_count`, `attempt`, `duration_ms`                     |
+| `view_content`, `view_content_list`, `view_content_empty`                         | 대표 콘텐츠·콘텐츠 목록 또는 빈 상태 확인                | `surface`, `source_type`, `content_id`, `result_count`, `page_number`, `status`, `reason` |
+| `click_content`, `click_content_original`, `expand_content`, `open_content_video` | 콘텐츠 선택·원문 이동·글 펼치기·종목 영상 열기           | `surface`, `source_type`, `content_id`, `position`                                        |
+| `filter_content_source`, `change_content_page`                                    | 출처 필터·페이지 변경                                    | `surface`, `source_type`, `previous_source`, `previous_page`, `page_number`               |
+| `click_content_more`, `retry_content_load`                                        | 더 보기 이동·조회 재시도                                 | `surface`, `destination`, `area`, `attempt`                                               |
+| `click_person_preview`, `select_featured_person`                                  | 인물 미리보기·인물 선택                                  | `surface`, `person_id`, `position`                                                        |
+| `view_portfolio_news`                                                             | 보유 자산 소식 제목이 50% 이상 노출                      | `surface=portfolio_news`, `status`, `result_count`                                        |
+| `open_keyword_analysis`                                                           | 키워드 설명이 닫힘에서 열림으로 전환                     | `news_id`, `keyword_category`, `trigger`                                                  |
+| `view_market_analysis`                                                            | 정상 시장 분석의 제목이 50% 이상 노출                    | `surface=news_detail`, `news_id`                                                          |
 
 포트폴리오 대시보드는 `/`에서 다음 이벤트를 수집합니다. 로그인 여부·시세 상태·입력
 방식·정렬·조회 기간·실패 유형만 허용하며 종목 이름·금액·수량은 전송하지 않습니다.
@@ -405,6 +405,45 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 - 익명 식별은 브라우저 `localStorage`를 사용합니다. URL·referrer에서 쿼리·fragment를 제거하고 투자자 공개 ID 경로를 일반 경로로 치환합니다.
 - `/login`·`/admin`에서는 수집하지 않으며 해당 경로에 진입한 뒤에는 같은 앱 세션의 수집을 중지합니다. 분석 SDK 로딩·전송 실패는 사용자 작업을 중단하지 않습니다.
 - 로컬 `.env`와 배포 Environment에서 두 값을 비워 두면 PostHog를 초기화하지 않습니다. 변경 시 다시 빌드하고 해당 환경의 이벤트 수신 여부를 확인합니다.
+
+#### 개인정보처리방침 근거와 운영 확인
+
+2026-10-19 공식 문서와 `src/analytics.ts`를 대조했습니다. 브라우저에서 확인한 DAYNOMY
+프로젝트는 `us.posthog.com`의 US Cloud이며, 운영자가 현재 무료 플랜 사용을 확인했습니다.
+대시보드 접속 확인은 실제 운영 이벤트 수신이나 배포 환경 변수 검증을 의미하지 않습니다.
+
+- `/privacy`에는 이용 목적, 이벤트 발생 시각·브라우저 생성 식별자·기기 환경·기능 사용 상태,
+  수집 제외 항목, 미국 Cloud 이용, 무료 플랜의 1년 이벤트 보관 정책과 문의 방법을 안내합니다.
+  브라우저·기기 정보는 `posthogProperties`가 전송을 허용하는 SDK 속성을 기준으로 합니다.
+- 무료 플랜의 이벤트 보관 기간은 1년, 유료 플랜은 7년입니다. 보관 기간은 즉시 삭제를
+  보장하지 않으므로 “1년 뒤 자동 파기”라고 안내하지 않습니다. 브라우저 저장소 삭제는 서버
+  이벤트 삭제나 이후 수집 거부가 아니며 새 방문 식별자가 생성될 수 있습니다.
+- 현재 SDK의 `ip: false`는 효과가 없는 폐기 예정 옵션입니다. `before_send`의 클라이언트 속성
+  필터도 수신 서버의 IP 처리·GeoIP 변환을 제어하지 않습니다. IP 미수집·위치 정보 미수집을
+  단정하지 않으며, 프로젝트의 `IP data capture configuration → Discard client IP data` 및
+  GeoIP 변환을 확인해야 합니다. IP 폐기를 켜도 폐기 전 GeoIP 변환에서 IP를 사용할 수 있습니다.
+- Google Analytics 차단 부가기능은 PostHog를 차단하지 않습니다. 현재 서비스 내 PostHog
+  거부 버튼은 없으며, 방침에는 PostHog 분석 요청을 차단하는 브라우저 기능·확장 기능과
+  DAYNOMY 문의 주소를 안내합니다. SDK의 `opt_out_capturing()` 연결은 별도 기능 변경입니다.
+
+배포 전 확인할 항목:
+
+- [ ] 개발·운영의 `VITE_POSTHOG_HOST`와 연결 프로젝트가 고지한 미국 Cloud와 일치하는지 확인
+- [ ] 실제 이벤트에서 허용 속성·수집 제외 항목·로그인/관리자 경로의 전송 중지 확인
+- [ ] 프로젝트 IP 폐기·GeoIP 변환 설정을 확인하고 실제 서버 처리 항목을 방침과 대조
+- [ ] 개인정보 처리위탁 계약과 국외 이전의 법적 근거, 필요한 동의·고지 절차 확인
+- [ ] 브라우저 식별자 기반 처리 중지·삭제 요청을 실제 처리할 수 있는 절차 확인
+- [ ] 플랜·저장 지역·수집 범위 변경 시 방침과 적용일·변경 공지를 함께 갱신
+
+공식 근거:
+[Cloud 지역과 주소](https://posthog.com/docs/api),
+[개인정보처리방침·연락처](https://posthog.com/privacy),
+[이벤트 보관](https://posthog.com/docs/data/events-retention),
+[요금제별 보관 기준](https://posthog.com/pricing),
+[수집·거부 제어](https://posthog.com/docs/privacy/data-collection),
+[서버 저장·IP 처리](https://posthog.com/docs/privacy/data-storage),
+[SDK 설정의 ip 옵션](https://posthog.com/docs/references/posthog-js/types/PostHogConfig),
+[개인정보 보호법 제28조의8](https://www.law.go.kr/LSW/lsLinkCommonInfo.do?chrClsCd=010202&lsJoLnkSeq=1029334957).
 
 ### Looker Studio
 
@@ -473,6 +512,6 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 | `portfolio_tour_completed`        | 마지막 단계의 완료 동작                                |
 | `portfolio_tour_register_clicked` | 마지막 ‘내 자산 등록하기’ 클릭 (실제 저장 성공과 구분) |
 
-공통 속성: `tour_version`, `tour_source` (`automatic` / `title` / `empty_state`), `step_number` (1부터), `step_id`, `step_group` (`registration` / `news` / `analysis`), `total_steps`. 이동에는 `direction`, `to_step`, 중도 종료에는 `exit_reason` (`button` / `escape`)을 추가합니다. 재렌더링·팝오버 이동만으로 조회 이벤트를 반복하지 않습니다. 실제 종목명·수량·매수가 등 입력값은 가이드 이벤트에 포함하지 않습니다. 실제 거래 저장 성공은 기존 `portfolio_save_succeeded` 이벤트로 기록합니다.
+공통 속성: `tour_version`, `tour_source` (`automatic` / `title`), `step_number` (1부터), `step_id`, `step_group` (`registration` / `news` / `analysis`), `total_steps`. 이동에는 `direction`, `to_step`, 중도 종료에는 `exit_reason` (`button` / `escape`)을 추가합니다. 재렌더링·팝오버 이동만으로 조회 이벤트를 반복하지 않습니다. 실제 종목명·수량·매수가 등 입력값은 가이드 이벤트에 포함하지 않습니다. 실제 거래 저장 성공은 기존 `portfolio_save_succeeded` 이벤트로 기록합니다.
 
 가이드 10단계 버전은 `tour_version: v2`로 전송합니다. 추가된 단계 ID는 `asset_trend_composition`, `asset_holdings_history`이며, 기존 완료 저장 키는 유지합니다.

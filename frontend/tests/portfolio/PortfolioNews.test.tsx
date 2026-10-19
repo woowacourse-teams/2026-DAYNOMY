@@ -164,7 +164,7 @@ it('일부 종목 조회가 실패해도 성공한 소식은 유지하고 재시
   );
   fireEvent.click(view.getByRole('link', { name: /공통 소식/ }));
   expect(trackEvent).toHaveBeenCalledWith(
-    'click_content',
+    'click_content_original',
     expect.objectContaining({ surface: 'portfolio_news', position: 1 }),
   );
   expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('종목1');
