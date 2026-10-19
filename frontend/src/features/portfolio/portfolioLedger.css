@@ -2470,6 +2470,8 @@ body:has(.portfolio-page) .daynomy-footer {
   }
   .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])) {
     padding-inline: 6px;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):first-child {
     width: 22%;
