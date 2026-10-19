@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getLatestStockPrice, searchStocks } from '../../src/features/portfolio/api';
+import { getLatestStockPrice, searchStocks } from '../../src/features/stocks/api';
 import { PortfolioTransactionEditor } from '../../src/features/portfolio/components/PortfolioTransactionEditor';
-import type { PortfolioHoldingHistory, StockPrice } from '../../src/features/portfolio/types';
+import type { PortfolioHoldingHistory } from '../../src/features/portfolio/types';
+import type { StockPrice } from '../../src/features/stocks/types';
 
-vi.mock('../../src/features/portfolio/api', () => ({
+vi.mock('../../src/features/stocks/api', () => ({
   getLatestStockPrice: vi.fn(),
   searchStocks: vi.fn(),
 }));
@@ -35,6 +36,35 @@ afterEach(() => {
 });
 
 describe('거래 단가의 최근 종가 기본값', () => {
+  it.each([
+    ['거래일', '9999-01-01', '2026-01-01'],
+    ['수량 (주)', '0', '1'],
+    ['거래 단가 (원)', '0', '70000'],
+    ['수수료 (원)', '-1', '0'],
+    ['세금 (원)', '-1', '0'],
+  ])('%s 오류를 입력창에 연결하고 초점을 옮겨 수정 후 저장한다', async (label, invalid, valid) => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const view = render(
+      <PortfolioTransactionEditor stock={samsung} onClose={vi.fn()} onSave={save} />,
+    );
+    await waitFor(() =>
+      expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '75200'),
+    );
+    fireEvent.change(view.getByLabelText('수량 (주)'), { target: { value: '1' } });
+    const input = view.getByLabelText(label);
+    fireEvent.change(input, { target: { value: invalid } });
+    fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')).toBe(view.getByRole('alert').id);
+    if (input.closest('details')) expect(input.closest('details')?.open).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: valid } });
+    expect(input.getAttribute('aria-invalid')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+  });
+
   it.each(['BUY', 'SELL'] as const)(
     '%s 거래에 최근 종가를 채우고 직접 수정한 단가로 저장한다',
     async (type) => {

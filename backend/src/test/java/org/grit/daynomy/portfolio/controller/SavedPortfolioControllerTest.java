@@ -21,8 +21,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
-import org.grit.daynomy.asset.domain.AssetCategory;
-import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -37,8 +35,6 @@ import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
-import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
-import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.service.PortfolioSnapshotService;
 import org.grit.daynomy.portfolio.service.SavedPortfolioService;
@@ -96,33 +92,20 @@ class SavedPortfolioControllerTest {
     clocks.close();
   }
 
-  @Test
-  void addHoldingUsesAuthenticatedMember() throws Exception {
-    var request = new SavedPortfolioHoldingCreateRequest(1L, 10L, new BigDecimal("65000"));
-    given(savedPortfolioService.add(3L, request))
-        .willReturn(
-            new SavedPortfolioHoldingResponse(
-                1L,
-                "005930",
-                "삼성전자",
-                AssetCategory.STOCK,
-                StockMarket.KOSPI,
-                10L,
-                new BigDecimal("65000")));
-
+  @ParameterizedTest
+  @ValueSource(strings = {"/api/portfolio/holdings", "/api/users/me/portfolio/holdings"})
+  void retiredHoldingCreationApiIsNotFound(String path) throws Exception {
     mockMvc
         .perform(
-            post("/api/portfolio/holdings")
+            post(path)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
                     {"assetId":1,"quantity":10,"averagePurchasePrice":65000}
                     """))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.assetId").value(1))
-        .andExpect(jsonPath("$.quantity").value(10));
+        .andExpect(status().isNotFound());
 
-    then(savedPortfolioService).should().add(3L, request);
+    then(savedPortfolioService).shouldHaveNoInteractions();
   }
 
   @Test

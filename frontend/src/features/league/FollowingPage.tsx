@@ -4,8 +4,10 @@ import { getFollowSummary } from './api';
 import { formatRate } from './labels';
 import type { FollowSummary } from './types';
 import './league.css';
+import { useLeaguePageHeading } from './useLeaguePageHeading';
 
 export function FollowingPage() {
+  const heading = useLeaguePageHeading('팔로잉');
   const [investors, setInvestors] = useState<FollowSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -34,11 +36,17 @@ export function FollowingPage() {
     <main className="league-page league-following-page">
       <header className="league-page-heading">
         <div>
-          <h1>팔로잉</h1>
+          <h1 ref={heading} tabIndex={-1}>
+            팔로잉
+          </h1>
         </div>
         <Link to="/league">투자자 찾기</Link>
       </header>
-      {loading ? <p className="league-state">주간 요약을 불러오고 있습니다.</p> : null}
+      {loading ? (
+        <p className="league-state" role="status">
+          주간 요약을 불러오고 있습니다.
+        </p>
+      ) : null}
       {error ? (
         <div className="league-state" role="alert">
           <p>{error}</p>
@@ -48,7 +56,7 @@ export function FollowingPage() {
         </div>
       ) : null}
       {!loading && !error && investors.length === 0 ? (
-        <section className="league-empty">
+        <section className="league-empty" role="status">
           <strong>팔로우한 투자자가 없습니다</strong>
         </section>
       ) : null}

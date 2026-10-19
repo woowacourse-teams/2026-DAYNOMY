@@ -1,6 +1,6 @@
 import { request, requestWithCsrf } from '../../api/client';
 import { isCategory } from '../news/newslist/types';
-import type { StockSearchItem } from '../portfolio/types';
+import { isStock } from '../stocks/api';
 import type {
   AdminNewsFilterCategory,
   AdminNewsFilterStatus,
@@ -16,6 +16,8 @@ import type {
   AdminWikimediaImageCandidate,
   AdminStockPriceSyncResponse,
   AdminStockSyncResponse,
+  AdminStockPriceBackfillResponse,
+  AdminLeagueRecalculationResponse,
 } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -31,17 +33,6 @@ function isNullableString(value: unknown): value is string | null {
 
 function isAdminNewsStatus(value: unknown): value is AdminNewsStatus {
   return value === 'DRAFT' || value === 'PUBLISHED' || value === 'REJECTED' || value === 'DELETED';
-}
-
-function isStockSearchItem(value: unknown): value is StockSearchItem {
-  return (
-    isRecord(value) &&
-    typeof value.assetId === 'number' &&
-    typeof value.assetCode === 'string' &&
-    typeof value.name === 'string' &&
-    (value.category === 'STOCK' || value.category === 'ETF') &&
-    (value.market === 'KOSPI' || value.market === 'KOSDAQ')
-  );
 }
 
 function isAdminNewsSource(value: unknown): value is AdminNewsSource {
@@ -122,7 +113,7 @@ function isAdminNewsResponse(value: unknown): value is AdminNewsResponse {
     isNullableString(value.publishedAt) &&
     isAdminNewsStatus(value.status) &&
     (value.relatedAssets === undefined ||
-      (Array.isArray(value.relatedAssets) && value.relatedAssets.every(isStockSearchItem)))
+      (Array.isArray(value.relatedAssets) && value.relatedAssets.every(isStock)))
   );
 }
 
@@ -152,11 +143,17 @@ function isAdminStockSyncResponse(value: unknown): value is AdminStockSyncRespon
 function isAdminStockPriceSyncResponse(value: unknown): value is AdminStockPriceSyncResponse {
   return (
     isRecord(value) &&
-    typeof value.baseDate === 'string' &&
+    (value.baseDate === null || typeof value.baseDate === 'string') &&
     typeof value.receivedCount === 'number' &&
     typeof value.createdCount === 'number' &&
     typeof value.updatedCount === 'number' &&
-    typeof value.skippedCount === 'number'
+    typeof value.skippedCount === 'number' &&
+    Number.isInteger(value.synchronizedDateCount) &&
+    Number(value.synchronizedDateCount) >= 0 &&
+    Number.isInteger(value.pendingDateCount) &&
+    Number(value.pendingDateCount) >= 0 &&
+    Number.isInteger(value.failedDateCount) &&
+    Number(value.failedDateCount) >= 0
   );
 }
 
@@ -272,8 +269,16 @@ export async function generateAdminNewsImage(id: number) {
   return assertResponse(response, isAdminNewsResponse);
 }
 
-export async function generateAdminEconomyNewsDrafts(): Promise<AdminNewsGenerationResponse> {
-  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy', {
+export async function generateAdminKoreanEconomicNewsDrafts(): Promise<AdminNewsGenerationResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy/korea', {
+    method: 'POST',
+  });
+
+  return assertResponse(response, isAdminNewsGenerationResponse);
+}
+
+export async function generateAdminUsEconomicNewsDrafts(): Promise<AdminNewsGenerationResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy/us', {
     method: 'POST',
   });
 
@@ -298,4 +303,50 @@ export async function syncAdminStockPrices(): Promise<AdminStockPriceSyncRespons
   });
 
   return assertResponse(response, isAdminStockPriceSyncResponse);
+}
+
+export async function backfillAdminStockPrices(from: string, to: string) {
+  const dates = [from, to].map((value) => new Date(value));
+  if (
+    [from, to].some(
+      (value, index) =>
+        !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+        !Number.isFinite(dates[index].getTime()) ||
+        dates[index].toISOString().slice(0, 10) !== value,
+    ) ||
+    from > to ||
+    dates[1].getTime() - dates[0].getTime() > 30 * 86_400_000
+  )
+    throw new Error('시작일과 종료일을 포함해 31일 이내의 올바른 기간을 선택해 주세요.');
+  const query = new URLSearchParams({ from, to });
+  const response = await requestWithCsrf<unknown>(`/api/admin/stocks/prices/backfill?${query}`, {
+    method: 'POST',
+  });
+  return assertResponse(
+    response,
+    (value): value is AdminStockPriceBackfillResponse =>
+      isRecord(value) &&
+      value.from === from &&
+      value.to === to &&
+      [
+        'synchronizedDateCount',
+        'receivedCount',
+        'createdCount',
+        'updatedCount',
+        'skippedCount',
+      ].every((key) => Number.isSafeInteger(value[key]) && Number(value[key]) >= 0),
+  );
+}
+
+export async function recalculateAdminLeague() {
+  const response = await requestWithCsrf<unknown>('/api/admin/league/recalculate', {
+    method: 'POST',
+  });
+  return assertResponse(
+    response,
+    (value): value is AdminLeagueRecalculationResponse =>
+      isRecord(value) &&
+      Number.isSafeInteger(value.calculatedCount) &&
+      Number(value.calculatedCount) >= 0,
+  );
 }

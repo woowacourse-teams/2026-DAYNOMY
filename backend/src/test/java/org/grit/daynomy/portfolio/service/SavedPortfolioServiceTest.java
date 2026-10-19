@@ -26,7 +26,6 @@ import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
-import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
@@ -53,32 +52,6 @@ class SavedPortfolioServiceTest {
   @Mock private PortfolioLedgerCalculator ledgerCalculator;
   @Mock private PortfolioSnapshotTransactionService snapshotTransactionService;
   @InjectMocks private SavedPortfolioService service;
-
-  @Test
-  void addHoldingSavesCurrentStateAndHistory() {
-    Member member = mock(Member.class);
-    given(member.getId()).willReturn(1L);
-    Portfolio portfolio = mock(Portfolio.class);
-    given(portfolio.getId()).willReturn(10L);
-    Asset asset = asset();
-    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
-    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
-    given(holdingRepository.existsByPortfolioIdAndAssetId(10L, 2L)).willReturn(false);
-    given(assetRepository.findById(2L)).willReturn(Optional.of(asset));
-    given(holdingRepository.save(any(PortfolioHolding.class)))
-        .willAnswer(invocation -> invocation.getArgument(0));
-
-    var response =
-        service.add(1L, new SavedPortfolioHoldingCreateRequest(2L, 3L, new BigDecimal("10000")));
-
-    assertThat(response.assetId()).isEqualTo(2L);
-    assertThat(response.quantity()).isEqualTo(3L);
-    ArgumentCaptor<PortfolioHoldingHistory> historyCaptor =
-        ArgumentCaptor.forClass(PortfolioHoldingHistory.class);
-    then(historyRepository).should().save(historyCaptor.capture());
-    assertThat(historyCaptor.getValue().getChangeType())
-        .isEqualTo(PortfolioHoldingChangeType.OPENING_BALANCE);
-  }
 
   @ParameterizedTest
   @CsvSource({"5,10000", "3,11000", "5,11000"})

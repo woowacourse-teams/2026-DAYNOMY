@@ -24,6 +24,7 @@ dependencies {
     implementation("software.amazon.awssdk:s3")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
@@ -38,7 +39,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.security:spring-security-test")
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.3.2")
     testImplementation("io.rest-assured:rest-assured:6.0.1")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
     testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
@@ -54,6 +55,13 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
     if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
+}
+
+// Manual dev load-test preparation only; no Spring server or schedulers are started.
+tasks.register<JavaExec>("portfolioLoadtest") {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("org.grit.daynomy.loadtest.PortfolioLoadtestTool")
 }
 
 spotless {

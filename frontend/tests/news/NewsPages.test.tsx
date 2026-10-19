@@ -196,7 +196,7 @@ describe('뉴스 탐색 화면', () => {
     );
   });
 
-  it('오늘의 뉴스가 없으면 최신 글을 대신 보여준다', async () => {
+  it('오늘의 뉴스가 없어도 전체 콘텐츠에서 최신 글을 보여준다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) =>
@@ -221,12 +221,13 @@ describe('뉴스 탐색 화면', () => {
     );
 
     const view = renderPage(<IssueHomePage />);
-    await view.findByText('오늘 새로 올라온 글이 없어 최신 글을 보여드려요.');
-    const recentIssues = view.getByRole('heading', { name: '최근 올라온 글' }).closest('section')!;
+    const allContents = (await view.findByRole('heading', { name: '전체 콘텐츠' })).closest(
+      'section',
+    )!;
 
-    expect(recentIssues.querySelector('input[type="date"]')).toBeNull();
-    expect(recentIssues.querySelector('a[href="/news/contents"]')).toBeTruthy();
-    expect(recentIssues.querySelector(`a[href="/news/${article.id}"]`)).toBeTruthy();
+    expect(allContents.querySelector('input[type="date"]')).toBeNull();
+    expect(allContents.querySelector('a[href="/news/contents"]')).toBeNull();
+    expect(allContents.querySelector(`a[href="/news/${article.id}"]`)).toBeTruthy();
   });
 
   it('뉴스 목록 오류를 소식 홈에 표시한다', async () => {

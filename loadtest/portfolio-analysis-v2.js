@@ -1,0 +1,236 @@
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Counter, Rate, Trend } from 'k6/metrics';
+
+// loadtest 폴더에서 실행: k6 run -e BASE_URL=https://개발서버 -e USERS=1 portfolio-analysis-v2.js
+// CASE/API_MODE는 기록용이다. DB 준비 상태와 서버의 AI 연결은 별도로 맞춘다.
+// accounts.json의 warmup: true 회원 1명으로 먼저 워밍업한다. USERS에는 포함하지 않는다.
+// 반복 전 새 회원 파일(ACCOUNTS_FILE)을 쓰거나 테스트 분석 상태를 초기화한다.
+const BASE_URL = (__ENV.BASE_URL || '').replace(/\/$/, '');
+const USERS = Number(__ENV.USERS || 1);
+const CASE = __ENV.CASE || 'B1';
+const API_MODE = __ENV.API_MODE || 'fake';
+const RUN = __ENV.RUN || '1';
+
+if (!/^https?:\/\/[^/?#]+$/.test(BASE_URL)) {
+  throw new Error('BASE_URL에 개발 서버 주소를 입력하세요. 예: https://dev.example.com');
+}
+if (!Number.isSafeInteger(USERS) || USERS < 1) {
+  throw new Error('USERS는 1 이상의 정수여야 합니다.');
+}
+if (!['B1', 'B2', 'B3', 'B4'].includes(CASE) || !['real', 'fake'].includes(API_MODE)) {
+  throw new Error('CASE는 B1~B4, API_MODE는 real 또는 fake로 지정하세요.');
+}
+
+let accountData;
+try {
+  accountData = JSON.parse(open(__ENV.ACCOUNTS_FILE || './accounts.json'));
+} catch (_) {
+  throw new Error('계정 JSON 파일을 준비하고 형식을 확인하세요.');
+}
+if (!Array.isArray(accountData)) throw new Error('계정 파일은 JSON 배열이어야 합니다.');
+const warmupAccounts = accountData.filter((account) => account.warmup === true);
+if (warmupAccounts.length !== 1) {
+  throw new Error('계정 파일에 warmup: true인 워밍업 회원을 정확히 1명 지정하세요.');
+}
+const warmupAccount = warmupAccounts[0];
+const accounts = accountData.filter((account) => account.warmup !== true).slice(0, USERS);
+const participants = [warmupAccount, ...accounts];
+if (
+  accounts.length !== USERS ||
+  new Set(participants.map((a) => a.memberId)).size !== USERS + 1 ||
+  new Set(participants.map((a) => a.accessToken)).size !== USERS + 1
+) {
+  throw new Error('본 측정 인원과 별도 워밍업 회원의 ID·토큰은 서로 달라야 합니다.');
+}
+if (participants.some((a) =>
+  !Number.isSafeInteger(a.memberId) || a.memberId < 1 ||
+  typeof a.accessToken !== 'string' || a.accessToken.split('.').length !== 3 ||
+  !Array.isArray(a.assetNames) || !a.assetNames.length ||
+  a.assetNames.some((name) => typeof name !== 'string' || !name.trim()) ||
+  new Set(a.assetNames).size !== a.assetNames.length
+)) {
+  throw new Error('회원 ID·실제 access_token·보유 종목명을 입력하세요.');
+}
+
+if (warmupAccount.assetNames.some((name) => accounts.some((a) => a.assetNames.includes(name)))) {
+  throw new Error('워밍업 종목과 본 측정 종목은 겹치면 안 됩니다.');
+}
+
+const requests = new Counter('analysis_requests');
+const success = new Rate('analysis_success');
+const duration = new Trend('analysis_duration_ms', true);
+// 정상 응답의 분석 완성도는 요청 성공률과 별도로 기록한다.
+const insufficientAssets = new Rate('analysis_insufficient_assets');
+const completeCoverage = new Rate('analysis_complete_coverage');
+
+export const options = {
+  scenarios: {
+    analysis: {
+      executor: 'per-vu-iterations',
+      vus: USERS,
+      iterations: 1,
+      maxDuration: '6m',
+      gracefulStop: '0s',
+    },
+  },
+  setupTimeout: '8m',
+  maxRedirects: 0,
+  tags: { version: 'v2', condition: CASE, api_mode: API_MODE, run: RUN },
+  summaryTrendStats: ['avg', 'med', 'p(95)', 'max'],
+  thresholds: {
+    analysis_requests: [`count==${USERS}`],
+    analysis_success: ['rate==1'],
+  },
+};
+
+function readCsrf(response) {
+  let body;
+  try {
+    body = response.json();
+  } catch (_) {
+    throw new Error('CSRF 응답 오류. 서버 주소와 인증 정보를 확인하세요.');
+  }
+  const cookie = response.cookies['XSRF-TOKEN']?.[0]?.value;
+  if (response.status !== 200 || !body?.token || !body?.headerName || !cookie) {
+    throw new Error('CSRF 준비 실패. 인증 정보를 확인하세요.');
+  }
+  return { token: body.token, headerName: body.headerName, cookie };
+}
+
+// 워밍업과 인증 준비는 본 측정의 건수·성공률·분석 시간에 포함하지 않는다.
+// 반복 시 저장된 워밍업 결과가 재사용될 수 있다. 전체 경로 재실행이 필요하면 전용 분석 결과도 초기화한다.
+export function setup() {
+  const jar = new http.CookieJar();
+  jar.set(BASE_URL, 'access_token', warmupAccount.accessToken);
+  const warmupCsrf = readCsrf(http.get(`${BASE_URL}/api/auth/csrf`, {
+    jar, timeout: '15s', tags: { name: 'csrf_prepare', phase: 'warmup' },
+  }));
+  const response = http.post(`${BASE_URL}/api/v2/users/me/portfolio/analysis`, null, {
+    jar,
+    cookies: { access_token: warmupAccount.accessToken, 'XSRF-TOKEN': warmupCsrf.cookie },
+    headers: { [warmupCsrf.headerName]: warmupCsrf.token },
+    timeout: '300s',
+    tags: { name: 'portfolio_analysis_v2_warmup', phase: 'warmup' },
+  });
+  let body;
+  try { body = response.json(); } catch (_) { /* 정상 분석 응답이 아니면 본 측정을 시작하지 않는다. */ }
+  const impacts = body?.analysis?.impacts;
+  if (response.status !== 200 || body?.status !== 'READY' ||
+      !Number.isSafeInteger(body?.analysisId) || body?.matchesCurrentPortfolio !== true ||
+      body?.analysis?.totalAssetCount !== warmupAccount.assetNames.length ||
+      !Array.isArray(impacts) || impacts.length !== warmupAccount.assetNames.length ||
+      new Set(impacts.map((i) => i.assetName)).size !== impacts.length ||
+      impacts.some((i) => !warmupAccount.assetNames.includes(i.assetName))) {
+    throw new Error(`워밍업 실패: HTTP ${response.status}. 본 측정은 시작하지 않습니다.`);
+  }
+  console.info('워밍업 완료. 지금부터 본 측정을 준비합니다.');
+
+  const responses = http.batch(
+    accounts.map((account) => {
+      const jar = new http.CookieJar();
+      jar.set(BASE_URL, 'access_token', account.accessToken);
+      return {
+        method: 'GET',
+        url: `${BASE_URL}/api/auth/csrf`,
+        params: { jar, timeout: '15s', tags: { name: 'csrf_prepare', phase: 'measurement' } },
+      };
+    }),
+  );
+  const csrf = responses.map(readCsrf);
+  return { csrf, startAt: Date.now() + 2000 };
+}
+
+export default function (data) {
+  const account = accounts[__VU - 1];
+  const csrf = data.csrf[__VU - 1];
+  const wait = (data.startAt - Date.now()) / 1000;
+  if (wait > 0) sleep(wait);
+
+  requests.add(1);
+  const startedAt = Date.now();
+  const response = http.post(
+    `${BASE_URL}/api/v2/users/me/portfolio/analysis`,
+    null,
+    {
+      cookies: {
+        access_token: account.accessToken,
+        'XSRF-TOKEN': csrf.cookie,
+      },
+      headers: { [csrf.headerName]: csrf.token },
+      timeout: '300s',
+      tags: { name: 'portfolio_analysis_v2', phase: 'measurement' },
+    },
+  );
+  duration.add(Date.now() - startedAt);
+
+  let body = null;
+  try { body = response.json(); } catch (_) { /* JSON이 아닌 오류도 실패로 집계한다. */ }
+  const analysis = body?.analysis;
+  const impacts = analysis?.impacts;
+  const assetsValid = Array.isArray(impacts) &&
+    impacts.length === account.assetNames.length &&
+    new Set(impacts.map((i) => i.assetName)).size === impacts.length &&
+    impacts.every((i) => account.assetNames.includes(i.assetName));
+  const weightsValid = assetsValid &&
+    impacts.every((i) => typeof i.weight === 'number' && i.weight > 0) &&
+    Math.abs(impacts.reduce((sum, i) => sum + i.weight, 0) - 100) < 0.02;
+
+  const analyzedCount = assetsValid ? impacts.filter((i) => i.direction != null).length : 0;
+  const expectedCoverage = analyzedCount === 0 ? 'INSUFFICIENT'
+    : analyzedCount === impacts?.length ? 'COMPLETE' : 'PARTIAL';
+  const passed = check(response, {
+    'HTTP 200': (r) => r.status === 200,
+    '분석 저장 완료': () => body?.status === 'READY' &&
+      Number.isSafeInteger(body?.analysisId) && body?.matchesCurrentPortfolio === true,
+    '종목·비중 정상': () => assetsValid && weightsValid &&
+      analysis?.totalAssetCount === account.assetNames.length,
+    '근거 상태·전체 설명 정상': () => assetsValid &&
+      analysis?.analyzedAssetCount === analyzedCount && analysis?.coverage === expectedCoverage &&
+      typeof analysis?.overallImpact === 'string' && analysis.overallImpact.trim().length > 0,
+  });
+  success.add(passed);
+  if (passed) {
+    completeCoverage.add(analysis.coverage === 'COMPLETE');
+    impacts.forEach((impact) => insufficientAssets.add(impact.direction == null));
+  }
+  if (!passed) console.error(`v2 검증 실패: HTTP ${response.status}, 상태=${body?.status || '없음'}, 근거=${analysis?.coverage || '없음'}`);
+}
+
+export function handleSummary(data) {
+  const requestCount = data.metrics.analysis_requests?.values?.count || 0;
+  const successValues = data.metrics.analysis_success?.values;
+  const latency = data.metrics.analysis_duration_ms?.values;
+  const insufficient = data.metrics.analysis_insufficient_assets?.values;
+  const qualityRate = (value) => Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : 'N/A';
+  const milliseconds = (value) => Number.isFinite(value) ? `${value.toFixed(2)} ms` : 'N/A';
+  const failureRate = Number.isFinite(successValues?.rate)
+    ? `${((1 - successValues.rate) * 100).toFixed(2)}%`
+    : 'N/A';
+  const result = JSON.stringify({
+    finishedAt: new Date().toISOString(),
+    version: 'v2', condition: CASE, apiMode: API_MODE, users: USERS, run: RUN,
+    requests: data.metrics.analysis_requests,
+    success: data.metrics.analysis_success,
+    durationMs: data.metrics.analysis_duration_ms,
+    insufficientAssets: data.metrics.analysis_insufficient_assets,
+    completeCoverage: data.metrics.analysis_complete_coverage,
+  }, null, 2);
+  const summary = [
+    `포트폴리오 분석 V2 / ${CASE} / ${API_MODE} / ${USERS}명 / 실행 ${RUN}`,
+    `정상 완료: ${successValues?.passes || 0} / ${requestCount}건 (예정 ${USERS}건)`,
+    '워밍업 요청은 아래 결과에서 제외됩니다.',
+    `실패율: ${failureRate}`,
+    `근거 부족 종목 비율: ${qualityRate(insufficient?.rate)} (정상 응답의 종목 기준)`,
+    `전체 종목 근거 확보 요청 비율: ${qualityRate(data.metrics.analysis_complete_coverage?.values?.rate)}`,
+    `평균 분석 시간: ${milliseconds(latency?.avg)}`,
+    `p95 분석 시간: ${milliseconds(latency?.['p(95)'])}`,
+    `최대 분석 시간: ${milliseconds(latency?.max)}`,
+    `결과 파일: result-v2-${CASE}-${API_MODE}-${USERS}users-${RUN}.json`,
+    '',
+  ].join('\n');
+  return {
+    stdout: summary,
+    [`result-v2-${CASE}-${API_MODE}-${USERS}users-${RUN}.json`]: result,
+  };
+}

@@ -56,7 +56,7 @@ export function peopleFeed(people: FeaturedPerson[]): FeedItem[] {
       key: `person-${person.id}-${post.id}`,
       source: post.sourceType,
       title: post.title,
-      date: post.createdAt,
+      date: post.publishedAt ?? post.createdAt,
       person,
       post,
     })),
@@ -134,7 +134,12 @@ export function sourceLabel(source: FeedItem['source']) {
         : 'X';
 }
 
-export function feedDate(date: string | null) {
+export function feedDate(date: string | null, label?: '발행' | '등록') {
+  if (label) {
+    return date && !Number.isNaN(Date.parse(date))
+      ? `${seoulDate.format(new Date(date)).slice(5).replace('-', '.')} ${label}`
+      : `${label}일 미제공`;
+  }
   return date && !Number.isNaN(Date.parse(date))
     ? new Intl.DateTimeFormat('ko-KR', {
         timeZone: 'Asia/Seoul',

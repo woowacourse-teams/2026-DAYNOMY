@@ -1,18 +1,12 @@
+import { tourNews } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { trackLoadResult, useContentImpression, useContentView } from '../../news/issue/analytics';
 import { useEffect, useRef, useState } from 'react';
 import { getStockRelatedContents } from '../../stock-content/api';
 import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../../stock-content/types';
-
-function accountName(item: StockRelatedContent) {
-  if (!['X', 'THREADS'].includes(item.sourceType)) return '';
-  try {
-    const name = new URL(item.url).pathname.split('/').filter(Boolean)[0];
-    return name ? `@${name.replace(/^@/, '')}` : '';
-  } catch {
-    return '';
-  }
-}
+import { feedDate } from '../../news/issue/feed';
+import xMark from '../../../assets/platform-x.svg';
+import threadsMark from '../../../assets/platform-threads.svg';
 
 type NewsItem = StockRelatedContent & { assets: string[] };
 
@@ -25,7 +19,17 @@ function NewsThumbnail({ item }: { item: NewsItem }) {
       aria-hidden="true"
     >
       <span className="portfolio-news-thumbnail-fallback">
-        <span className="portfolio-news-thumbnail-source">{sourceName}</span>
+        {item.sourceType === 'X' || item.sourceType === 'THREADS' ? (
+          <img src={item.sourceType === 'X' ? xMark : threadsMark} alt="" />
+        ) : item.sourceType === 'YOUTUBE' ? (
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.6 4.6 12 4.6 12 4.6s-5.6 0-7.5.5a3 3 0 0 0-2.1 2.1C2 9.1 2 12 2 12s0 2.9.4 4.8a3 3 0 0 0 2.1 2.1c1.9.5 7.5.5 7.5.5s5.6 0 7.5-.5a3 3 0 0 0 2.1-2.1c.4-1.9.4-4.8.4-4.8s0-2.9-.4-4.8ZM10 15.5v-7l6 3.5-6 3.5Z" />
+          </svg>
+        ) : (
+          <span className="portfolio-news-thumbnail-source">
+            {item.sourceType === 'INTERNAL_NEWS' ? '데이노미' : sourceName}
+          </span>
+        )}
       </span>
       {item.imageUrl && (
         <img
@@ -42,11 +46,13 @@ function NewsThumbnail({ item }: { item: NewsItem }) {
 }
 
 export function PortfolioNews({
+  demo = false,
   holdings,
   hidden = false,
   onClose,
 }: {
   holdings: { assetId: number; name: string }[];
+  demo?: boolean;
   hidden?: boolean;
   onClose?: () => void;
 }) {
@@ -61,6 +67,7 @@ export function PortfolioNews({
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (demo) return;
     const startedAt = performance.now();
     setLoadedKey(null);
     const controller = new AbortController();
@@ -83,6 +90,11 @@ export function PortfolioNews({
             const existing = unique.get(content.url);
             if (existing) {
               if (
+                (Date.parse(content.publishedDate ?? '') || 0) >
+                (Date.parse(existing.publishedDate ?? '') || 0)
+              )
+                existing.publishedDate = content.publishedDate;
+              if (
                 (Date.parse(content.createdAt ?? '') || 0) >
                 (Date.parse(existing.createdAt ?? '') || 0)
               )
@@ -104,7 +116,10 @@ export function PortfolioNews({
         setLoadedKey(assetKey);
         setItems(
           [...unique.values()].sort(
-            (a, b) => (Date.parse(b.createdAt ?? '') || 0) - (Date.parse(a.createdAt ?? '') || 0),
+            (a, b) =>
+              (Date.parse(b.publishedDate ?? b.createdAt ?? '') || 0) -
+                (Date.parse(a.publishedDate ?? a.createdAt ?? '') || 0) ||
+              (Date.parse(b.createdAt ?? '') || 0) - (Date.parse(a.createdAt ?? '') || 0),
           ),
         );
         setFailed(results.filter((result) => result.status === 'rejected').length);
@@ -112,8 +127,9 @@ export function PortfolioNews({
       },
     );
     return () => controller.abort();
-  }, [assetKey, attempt]);
+  }, [assetKey, attempt, demo]);
 
+  const displayItems = demo ? tourNews : items;
   const settled = !loading && loadedKey === assetKey;
   const status = failed
     ? failed === JSON.parse(assetKey).length
@@ -127,9 +143,9 @@ export function PortfolioNews({
     assetKey,
     'view_portfolio_news',
     { surface: 'portfolio_news', status, result_count: items.length },
-    settled && !hidden,
+    settled && !hidden && !demo,
   );
-  useContentView(settled && !hidden && status === 'empty', 'view_content_empty', {
+  useContentView(settled && !hidden && !demo && status === 'empty', 'view_content_empty', {
     surface: 'portfolio_news',
     reason: holdings.length ? 'no_linked_content' : 'no_holdings',
   });
@@ -159,13 +175,17 @@ export function PortfolioNews({
           )}
         </div>
       </div>
-      <p className="portfolio-news-description">보유 종목과 연결된 뉴스와 이야기</p>
-      {loading && (
+      <p className="portfolio-news-description">
+        {demo
+          ? '체험용 가상 소식 · 신제품 수요가 늘었다고 가정해요. 다음 단계에서 내 자산에 미칠 영향을 확인해요.'
+          : '내 종목과 연결된 이야기'}
+      </p>
+      {!demo && loading && (
         <p role="status" className="portfolio-news-state">
           소식을 불러오는 중입니다.
         </p>
       )}
-      {failed > 0 && (
+      {!demo && failed > 0 && (
         <p role="alert" className="portfolio-news-state">
           {failed}개 종목의 소식을 불러오지 못했습니다.{' '}
           <button
@@ -183,7 +203,7 @@ export function PortfolioNews({
           </button>
         </p>
       )}
-      {!loading && !failed && !items.length && (
+      {!demo && !loading && !failed && !items.length && (
         <p className="portfolio-news-state">
           {holdings.length
             ? '보유 자산에 등록된 소식이 없습니다.'
@@ -191,7 +211,7 @@ export function PortfolioNews({
         </p>
       )}
       <ul className="portfolio-news-list">
-        {items.map((item, index) => (
+        {displayItems.map((item, index) => (
           <li key={item.url}>
             <a
               onClick={() =>
@@ -211,30 +231,32 @@ export function PortfolioNews({
                 <NewsThumbnail item={item} />
                 <div className="portfolio-news-content">
                   <div className="portfolio-news-meta">
-                    <span
-                      className={`portfolio-news-source source-${item.sourceType.toLowerCase()}`}
-                    >
-                      {STOCK_CONTENT_SOURCE_LABELS[item.sourceType]}
+                    <span className="portfolio-news-assets" title={item.assets.join(' · ')}>
+                      {item.assets.join(' · ')}
                     </span>
-                    {accountName(item) && (
-                      <span className="portfolio-news-account">{accountName(item)}</span>
-                    )}
-                    {item.createdAt && Number.isFinite(Date.parse(item.createdAt)) && (
-                      <time dateTime={item.createdAt}>
-                        {new Intl.DateTimeFormat('ko-KR', {
-                          month: 'numeric',
-                          day: 'numeric',
-                          timeZone: 'Asia/Seoul',
-                        }).format(new Date(item.createdAt))}
-                      </time>
-                    )}
+                    <span aria-hidden="true">·</span>
+                    <span className="portfolio-news-source">
+                      {item.sourceType === 'INTERNAL_NEWS'
+                        ? '데이노미'
+                        : STOCK_CONTENT_SOURCE_LABELS[item.sourceType]}
+                    </span>
                   </div>
                   <strong>
                     {['X 게시물', 'Threads 게시물'].includes(item.title.trim())
                       ? '본문 미리보기가 없는 글입니다. 원문에서 확인하세요.'
                       : item.title.replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1')}
                   </strong>
-                  <span className="portfolio-news-assets">{item.assets.join(' · ')}</span>
+                  {Number.isFinite(Date.parse(item.publishedDate ?? item.createdAt ?? '')) && (
+                    <time
+                      className="portfolio-news-date"
+                      dateTime={item.publishedDate ?? item.createdAt ?? undefined}
+                    >
+                      {feedDate(
+                        item.publishedDate ?? item.createdAt,
+                        item.publishedDate ? '발행' : '등록',
+                      )}
+                    </time>
+                  )}
                 </div>
               </div>
             </a>
@@ -245,13 +267,24 @@ export function PortfolioNews({
         onClick={() =>
           trackEvent('click_content_more', {
             surface: 'portfolio_news',
-            destination: 'news_contents',
+            destination: demo ? 'news_home' : 'portfolio_contents',
           })
         }
         className="portfolio-news-more"
-        href="/news/contents"
+        href={demo ? '/news' : '/news/contents?scope=portfolio'}
       >
-        전체 콘텐츠 더 보기 <span aria-hidden="true">→</span>
+        {demo ? '모든 소식 보기' : '보유 종목 소식 더 보기'}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 12h16m-6-6 6 6-6 6" />
+        </svg>
       </a>
     </aside>
   );

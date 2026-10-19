@@ -8,14 +8,44 @@ public record StockPriceSyncResult(
     int createdCount,
     int updatedCount,
     int skippedCount,
-    LocalDate earliestBaseDate) {
+    LocalDate earliestBaseDate,
+    int synchronizedDateCount,
+    long pendingDateCount,
+    int failedDateCount) {
   public StockPriceSyncResult(
       LocalDate baseDate, int receivedCount, int createdCount, int updatedCount, int skippedCount) {
-    this(baseDate, receivedCount, createdCount, updatedCount, skippedCount, baseDate);
+    this(baseDate, receivedCount, createdCount, updatedCount, skippedCount, baseDate, 1, 0, 0);
+  }
+
+  public StockPriceSyncResult(
+      LocalDate baseDate,
+      int receivedCount,
+      int createdCount,
+      int updatedCount,
+      int skippedCount,
+      LocalDate earliestBaseDate) {
+    this(
+        baseDate,
+        receivedCount,
+        createdCount,
+        updatedCount,
+        skippedCount,
+        earliestBaseDate,
+        1,
+        0,
+        0);
   }
 
   public StockPriceSyncResult withEarliestBaseDate(LocalDate date) {
     return new StockPriceSyncResult(
-        baseDate, receivedCount, createdCount, updatedCount, skippedCount, date);
+        baseDate,
+        receivedCount,
+        createdCount,
+        updatedCount,
+        skippedCount,
+        date,
+        synchronizedDateCount,
+        pendingDateCount,
+        failedDateCount);
   }
 }

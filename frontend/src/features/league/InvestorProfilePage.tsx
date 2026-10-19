@@ -4,10 +4,13 @@ import { trackEvent } from '../../analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { followInvestor, getInvestorDetail, getPublicInvestor, unfollowInvestor } from './api';
 import { collectionLabels, formatRate, transactionLabels } from './labels';
+import { ReturnLine } from './ReturnLine';
 import { DailyReturns } from './DailyReturns';
 import { InvestorAvatar } from './InvestorAvatar';
 import type { InvestorDetail, PublicInvestor, InvestorProfile } from './types';
+import { LEAGUE_FIRST_WEEK } from './weeks';
 import './league.css';
+import { useLeaguePageHeading } from './useLeaguePageHeading';
 
 export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfile } = {}) {
   const params = useParams();
@@ -27,7 +30,11 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
   const [retry, setRetry] = useState(0);
   const [detailError, setDetailError] = useState('');
   const [weekStart, setWeekStart] = useState('');
-  const [dailyOpen, setDailyOpen] = useState(false);
+  const [dailyOpen, setDailyOpen] = useState(true);
+  const heading = useLeaguePageHeading(
+    investor ? `${investor.displayName} 공개 프로필` : '투자자 프로필',
+    !loading,
+  );
 
   const dailyContent = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -51,7 +58,7 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
     setError('');
     setInvestor(null);
     setWeekStart('');
-    setDailyOpen(false);
+    setDailyOpen(true);
     setDetail(null);
     setDetailError('');
     setDetailLoading(false);
@@ -98,10 +105,20 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
   }
 
   if (loading)
-    return <main className="league-page league-state">투자 기록을 불러오고 있습니다.</main>;
+    return (
+      <main className="league-page league-state">
+        <h1 ref={heading} tabIndex={-1}>
+          투자자 프로필
+        </h1>
+        <p role="status">투자 기록을 불러오고 있습니다.</p>
+      </main>
+    );
   if (error && !investor)
     return (
       <main className="league-page league-state" role="alert">
+        <h1 ref={heading} tabIndex={-1}>
+          투자자 프로필
+        </h1>
         <p>{error}</p>
         <button type="button" onClick={() => setRetry((n) => n + 1)}>
           다시 불러오기
@@ -110,13 +127,10 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
     );
   if (!investor) return null;
 
-  const history = [...investor.history]
+  const history = investor.history
+    .filter((point) => point.weekStart >= LEAGUE_FIRST_WEEK)
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
     .slice(-3);
-  const historyRange = Math.max(
-    1,
-    ...history.map((point) => Math.abs(point.weeklyReturnRate ?? 0)),
-  );
   function historyLabel(point: PublicInvestor['history'][number]) {
     if (
       point.collectionStatus === 'CALENDAR_PENDING' ||
@@ -140,7 +154,9 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
         <div>
           <InvestorAvatar name={investor.displayName} imageUrl={investor.profileImageUrl} />
           <div>
-            <h1>{investor.displayName}</h1>
+            <h1 ref={heading} tabIndex={-1}>
+              {investor.displayName}
+            </h1>
             {investor.bio ? <p>{investor.bio}</p> : null}
           </div>
         </div>
@@ -149,7 +165,13 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
             프로필 설정
           </Link>
         ) : isLoggedIn ? (
-          <button type="button" disabled={followSaving} onClick={() => void toggleFollow()}>
+          <button
+            type="button"
+            disabled={followSaving}
+            aria-pressed={investor.followed}
+            aria-label={`${investor.displayName} ${investor.followed ? '팔로잉 취소' : '팔로우'}`}
+            onClick={() => void toggleFollow()}
+          >
             {investor.followed ? '팔로잉' : '팔로우'}
           </button>
         ) : (
@@ -194,62 +216,40 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
           </div>
         </section>
 
-        <div className="league-chart-switch" aria-label="수익률 조회 단위">
-          <button type="button" aria-pressed={!dailyOpen} onClick={() => setDailyOpen(false)}>
-            주간
-          </button>
+        <div className="league-chart-switch" role="group" aria-label="수익률 조회 단위">
           <button type="button" aria-pressed={dailyOpen} onClick={() => setDailyOpen(true)}>
             일별
+          </button>
+          <button type="button" aria-pressed={!dailyOpen} onClick={() => setDailyOpen(false)}>
+            주간
           </button>
         </div>
         <section className="league-history-card" hidden={dailyOpen}>
           <header>
             <h2>주간 수익률</h2>
-            <span>최근 3주</span>
+            <span>{history.length <= 1 ? '이번 주' : `최근 ${history.length}주`}</span>
           </header>
           {history.length === 0 ? (
             <p className="league-history-empty">아직 집계된 주간 기록이 없어요.</p>
-          ) : history.length === 1 ? (
-            <button
-              type="button"
-              className="league-history-single"
-              aria-label={`${history[0].weekStart} 주간 ${historyLabel(history[0])} 일별 기록 보기`}
-              onClick={() => showDaily(history[0].weekStart)}
-            >
-              <span>
-                <small>첫 주 기록</small>
-                <time>{history[0].weekStart} 주</time>
-              </span>
-              <strong
-                className={
-                  (history[0].weeklyReturnRate ?? 0) > 0
-                    ? 'positive'
-                    : (history[0].weeklyReturnRate ?? 0) < 0
-                      ? 'negative'
-                      : ''
-                }
-              >
-                {historyLabel(history[0])}
-                {history[0].weeklyRank != null ? <small> · {history[0].weeklyRank}위</small> : null}
-              </strong>
-              <span className="league-history-action">일별 보기 →</span>
-            </button>
           ) : (
             <div className="league-history-scroll" aria-label="주간 수익률 그래프 탐색">
               <div
                 className="league-history-chart"
-                aria-label="최근 3주 주간 수익률"
+                role="group"
+                aria-label={
+                  history.length === 1 ? '이번 주 주간 수익률 그래프' : '최근 3주 주간 수익률'
+                }
                 style={{
                   gridTemplateColumns: `repeat(${history.length}, minmax(0, 1fr))`,
                   minWidth: `${history.length * 68}px`,
                 }}
               >
+                <ReturnLine rates={history.map((point) => point.weeklyReturnRate)} />
                 {history.map((point) => (
                   <button
                     type="button"
                     key={point.weekStart}
                     aria-label={`${point.weekStart} 주간 ${historyLabel(point)} 일별 기록 보기`}
-                    aria-pressed={weekStart === point.weekStart}
                     aria-controls="league-daily-details"
                     onClick={() => showDaily(point.weekStart)}
                   >
@@ -268,25 +268,14 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                         {historyLabel(point)}
                       </strong>
                       <span className="league-week-meta">
+                        {history.length === 1 ? <small>첫 주 기록</small> : null}
                         {point.weeklyRank != null ? <small>{point.weeklyRank}위</small> : null}
                         {point.weeklyReturnRate !== null && point.confirmed !== undefined ? (
                           <small>{point.confirmed ? '확정' : '집계 중'}</small>
                         ) : null}
                       </span>
                     </span>
-                    <span className="league-week-track" aria-hidden="true">
-                      {point.weeklyReturnRate !== null ? (
-                        <span
-                          className={`league-week-bar ${point.weeklyReturnRate < 0 ? 'negative' : point.weeklyReturnRate > 0 ? 'positive' : 'zero'}`}
-                          style={{
-                            height: `${(Math.abs(point.weeklyReturnRate ?? 0) / historyRange) * 50}%`,
-                            [(point.weeklyReturnRate ?? 0) >= 0 ? 'bottom' : 'top']: '50%',
-                          }}
-                        />
-                      ) : (
-                        <span className="league-week-missing">—</span>
-                      )}
-                    </span>
+                    <span aria-hidden="true" />
                     <time>{point.weekStart.slice(5)}</time>
                   </button>
                 ))}
@@ -369,6 +358,13 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                       <p>{review.actualResult}</p>
                       <p>예상과 달랐던 점: {review.differenceFromExpectation}</p>
                       <small>다음 행동: {review.nextAction}</small>
+                      {review.updatedAt ? (
+                        <small>
+                          {' '}
+                          · 작성 {review.createdAt.slice(0, 10)} · 마지막 저장{' '}
+                          {review.updatedAt.slice(0, 10)}
+                        </small>
+                      ) : null}
                     </blockquote>
                   ))}
                 </li>

@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getDailyHistory, getLeagueWeeks } from './api';
+import { recentLeagueWeeks } from './weeks';
+import { ReturnLine } from './ReturnLine';
+import { LeagueWeekNavigation } from './LeagueWeekNavigation';
 import { formatRate, collectionLabels } from './labels';
 import type { DailyHistory, DailyReturnPoint, LeagueWeek } from './types';
 
@@ -29,6 +32,10 @@ function statusLabel(day: DailyReturnPoint) {
   }
 }
 
+function rateClass(rate: number | null) {
+  return rate === null || rate === 0 ? '' : rate > 0 ? 'positive' : 'negative';
+}
+
 export function DailyReturns({
   publicId,
   weekStart,
@@ -45,6 +52,14 @@ export function DailyReturns({
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') setRetry((value) => value + 1);
+    }
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError('');
@@ -52,9 +67,7 @@ export function DailyReturns({
     getLeagueWeeks(controller.signal)
       .then(async (availableWeeks) => {
         if (controller.signal.aborted) return;
-        const recentWeeks = [...availableWeeks]
-          .sort((a, b) => b.weekStart.localeCompare(a.weekStart))
-          .slice(0, 3);
+        const recentWeeks = recentLeagueWeeks(availableWeeks);
         setWeeks(recentWeeks);
         const selectedWeek = recentWeeks.some((week) => week.weekStart === weekStart)
           ? weekStart
@@ -73,20 +86,18 @@ export function DailyReturns({
 
   const days = history?.days ?? [];
   const hasReturns = days.some((day) => day.dailyReturnRate !== null);
+  const participatingDays = days.filter((day) => day.status !== 'NOT_PARTICIPATING');
+  const pendingClose = participatingDays.find((day) => day.reason === 'PRICE_COLLECTION_PENDING');
   const emptyDetail =
     days.length > 0
-      ? days.every((day) => day.status === 'NOT_PARTICIPATING')
+      ? participatingDays.length === 0
         ? '이 주에는 참여 기록이 없어요.'
-        : [...new Set(days.map(statusLabel))].join(', ')
+        : pendingClose
+          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기 · 다음 영업일 오후 1시 이후 제공됩니다.`
+          : [...new Set(participatingDays.map(statusLabel))].join(', ')
       : history?.collectionStatus
         ? collectionLabels[history.collectionStatus]
         : '거래일 기록 없음';
-  const rates = days.map((day) => day.cumulativeReturnRate ?? 0);
-  const min = Math.min(0, ...rates);
-  const max = Math.max(0, ...rates);
-  const range = Math.max(max - min, 1);
-  const x = (index: number) => 28 + (index * 344) / Math.max(days.length - 1, 1);
-  const y = (rate: number) => 126 - ((rate - min) / range) * 104;
 
   return (
     <section
@@ -95,26 +106,11 @@ export function DailyReturns({
     >
       <header>
         <h2 id="daily-history-title">일별 수익률</h2>
-        <label>
-          <span className="league-sr-only">조회 주차</span>
-          <select
-            value={
-              weeks.some((week) => week.weekStart === weekStart)
-                ? weekStart
-                : weeks[0]?.weekStart || ''
-            }
-            disabled={weeks.length === 0}
-            onChange={(event) => onWeekChange(event.target.value)}
-          >
-            {weeks.length === 0 ? <option value="">이번 주</option> : null}
-            {weeks.map((week, index) => (
-              <option key={week.weekStart} value={week.weekStart}>
-                {['이번 주', '지난주', '지지난주'][index]} · {week.weekStart.slice(5)} ~{' '}
-                {week.weekEnd.slice(5)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <LeagueWeekNavigation
+          weeks={weeks}
+          selected={weeks.some((week) => week.weekStart === weekStart) ? weekStart : ''}
+          onChange={onWeekChange}
+        />
       </header>
       {loading ? (
         <p role="status">일별 기록을 불러오고 있습니다.</p>
@@ -131,94 +127,47 @@ export function DailyReturns({
             <div className="league-daily-empty">
               <p>아직 집계된 수익률이 없어요.</p>
               <small>{emptyDetail}</small>
+              {participatingDays.length > 0 ? (
+                <button type="button" onClick={() => setRetry((value) => value + 1)}>
+                  일별 기록 다시 확인
+                </button>
+              ) : null}
             </div>
           ) : (
             <>
-              {history.weeklyReturnRate !== null ? (
+              {history.asOfDate ? (
                 <p className="league-daily-summary">
-                  <strong>주간 누적 {formatRate(history.weeklyReturnRate)}</strong>
-                  {history.asOfDate ? (
-                    <small>
-                      {history.asOfDate} 종가 기준{history.confirmed ? ' · 확정' : ''}
-                    </small>
-                  ) : null}
+                  {history.asOfDate} 종가 기준 · {history.confirmed ? '확정' : '집계 중'}
                 </p>
               ) : null}
-              {days.filter((day) => day.cumulativeReturnRate !== null).length >= 2 ? (
-                <svg
-                  className="league-daily-chart"
-                  viewBox="0 0 400 156"
-                  role="img"
-                  aria-label={`${history.weekStart} 주간 누적 수익률 그래프`}
+              <div className="league-history-scroll">
+                <div
+                  className="league-history-chart"
+                  role="group"
+                  aria-label="일별 수익률 그래프"
+                  style={{
+                    gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
+                    minWidth: `${days.length * 56}px`,
+                  }}
                 >
-                  <line x1="20" x2="380" y1={y(0)} y2={y(0)} className="league-chart-baseline" />
-                  <text x="20" y={Math.max(14, y(0) - 6)}>
-                    0%
-                  </text>
-                  {days.map((day, index) => {
-                    const previous = days[index - 1];
-                    const rate = day.cumulativeReturnRate;
-                    return (
-                      <g key={day.baseDate}>
-                        {rate !== null && previous?.cumulativeReturnRate != null ? (
-                          <line
-                            x1={x(index - 1)}
-                            y1={y(previous.cumulativeReturnRate)}
-                            x2={x(index)}
-                            y2={y(rate)}
-                            className="league-chart-line"
-                          />
-                        ) : null}
-                        {rate !== null ? (
-                          <circle cx={x(index)} cy={y(rate)} r="4">
-                            <title>
-                              {day.baseDate}: {formatRate(rate)}
-                            </title>
-                          </circle>
-                        ) : null}
-                        <text x={x(index)} y="151" textAnchor="middle">
-                          {day.baseDate.slice(5)}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-              ) : null}
-              <div className="league-daily-table-wrap">
-                <table className="league-daily-table">
-                  <caption className="league-sr-only">
-                    거래일별 수익률과 해당 주의 누적 수익률
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">날짜</th>
-                      <th scope="col">하루 수익률</th>
-                      <th scope="col">주간 누적</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {days.map((day) => (
-                      <tr key={day.baseDate}>
-                        <th scope="row">
-                          <time dateTime={day.baseDate}>
-                            {dayFormatter.format(new Date(day.baseDate))}
-                          </time>
-                          {day.status !== 'CALCULATED' || day.reason === 'TRACKING_BASELINE' ? (
-                            <small>{statusLabel(day)}</small>
-                          ) : null}
-                        </th>
-                        <td>
+                  <ReturnLine rates={days.map((day) => day.dailyReturnRate)} />
+                  {days.map((day) => (
+                    <div
+                      role="group"
+                      key={day.baseDate}
+                      aria-label={`${dayFormatter.format(new Date(day.baseDate))} 하루 수익률 ${day.dailyReturnRate === null ? statusLabel(day) : formatRate(day.dailyReturnRate)}`}
+                    >
+                      <span className="league-week-label">
+                        <strong className={rateClass(day.dailyReturnRate)}>
                           {day.dailyReturnRate === null ? '—' : formatRate(day.dailyReturnRate)}
-                        </td>
-                        <td>
-                          {day.cumulativeReturnRate === null
-                            ? '—'
-                            : formatRate(day.cumulativeReturnRate)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </strong>
+                        <span className="league-week-meta">{statusLabel(day)}</span>
+                      </span>
+                      <span aria-hidden="true" />
+                      <time dateTime={day.baseDate}>{day.baseDate.slice(5)}</time>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}

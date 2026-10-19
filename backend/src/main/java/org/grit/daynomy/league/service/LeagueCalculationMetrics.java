@@ -30,7 +30,7 @@ public class LeagueCalculationMetrics {
   private final AtomicLong latestRunFailed = new AtomicLong();
   private final AtomicLong calendarMissingDays = new AtomicLong();
   private final AtomicLong pendingWeeks = new AtomicLong();
-  private final AtomicLong oldestPendingClose = new AtomicLong();
+  private final AtomicLong expectedCollection = new AtomicLong();
   private final AtomicLong latestWeeksScanned = new AtomicLong();
   private final Counter profileFailures;
   private final Counter runFailures;
@@ -108,10 +108,10 @@ public class LeagueCalculationMetrics {
     profileFailures.increment();
   }
 
-  public void finalizationState(int missingDays, int pending, Instant oldestClose) {
+  public void finalizationState(int missingDays, int pending, Instant expectedAt) {
     calendarMissingDays.set(missingDays);
     pendingWeeks.set(pending);
-    oldestPendingClose.set(oldestClose == null ? 0 : oldestClose.getEpochSecond());
+    expectedCollection.set(expectedAt == null ? 0 : expectedAt.getEpochSecond());
   }
 
   public void finalizationMeasured(long started, int weeks, boolean full) {
@@ -121,7 +121,7 @@ public class LeagueCalculationMetrics {
   }
 
   private double finalizationDelay() {
-    long close = oldestPendingClose.get();
-    return close == 0 ? 0 : Math.max(0, Instant.now().getEpochSecond() - close);
+    long expected = expectedCollection.get();
+    return expected == 0 ? 0 : Math.max(0, Instant.now().getEpochSecond() - expected);
   }
 }

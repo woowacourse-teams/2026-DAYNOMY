@@ -3,6 +3,11 @@ spring:
     activate:
       on-profile: dev
 
+server:
+  tomcat:
+    mbeanregistry:
+      enabled: true
+
 news:
   generation:
     economy:
@@ -28,3 +33,16 @@ management:
   metrics:
     tags:
       environment: dev
+  opentelemetry:
+    resource-attributes:
+      deployment.environment.name: dev
+    tracing:
+      export:
+        otlp:
+          endpoint: ${TEMPO_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+  tracing:
+    sampling:
+      probability: ${TEMPO_OTEL_SAMPLING_PROBABILITY:1.0}
+    export:
+      otlp:
+        enabled: ${TEMPO_OTEL_ENABLED:false}

@@ -11,8 +11,9 @@ import {
 } from './constants';
 import {
   deleteAdminNews,
-  generateAdminEconomyNewsDrafts,
+  generateAdminKoreanEconomicNewsDrafts,
   generateAdminNewsImage,
+  generateAdminUsEconomicNewsDrafts,
   getAdminNews,
   publishAdminNews,
   rejectAdminNews,
@@ -23,6 +24,8 @@ import type {
   AdminNewsListItemResponse,
 } from './types';
 import './admin.css';
+
+type NewsGenerationRegion = 'korea' | 'us';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError || error instanceof Error ? error.message : fallback;
@@ -50,7 +53,6 @@ function AdminAccessDeniedPage() {
   return (
     <main className="admin-state-page">
       <section className="admin-state-panel">
-        <p className="admin-kicker">DAYNOMY 관리자</p>
         <h1>관리자 권한이 필요합니다.</h1>
         <p>관리자 계정으로 로그인한 뒤 다시 시도해 주세요.</p>
         <Link className="admin-secondary-button" to="/">
@@ -78,9 +80,17 @@ export function AdminNewsPage() {
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [generatingImageId, setGeneratingImageId] = useState<number | null>(null);
-  const [generatingDrafts, setGeneratingDrafts] = useState(false);
-  const [generatedDraftCount, setGeneratedDraftCount] = useState<number | null>(null);
-  const [generationErrorMessage, setGenerationErrorMessage] = useState<string | null>(null);
+  const [generatingDraftRegion, setGeneratingDraftRegion] = useState<NewsGenerationRegion | null>(
+    null,
+  );
+  const [generatedDraftResult, setGeneratedDraftResult] = useState<{
+    region: NewsGenerationRegion;
+    savedCount: number;
+  } | null>(null);
+  const [generationError, setGenerationError] = useState<{
+    region: NewsGenerationRegion;
+    message: string;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -142,19 +152,26 @@ export function AdminNewsPage() {
     setPage(1);
   }
 
-  async function handleGenerateDrafts() {
-    setGeneratingDrafts(true);
-    setGeneratedDraftCount(null);
-    setGenerationErrorMessage(null);
+  async function handleGenerateDrafts(region: NewsGenerationRegion) {
+    setGeneratingDraftRegion(region);
+    setGeneratedDraftResult(null);
+    setGenerationError(null);
 
     try {
-      const response = await generateAdminEconomyNewsDrafts();
-      setGeneratedDraftCount(response.savedCount);
+      const response =
+        region === 'korea'
+          ? await generateAdminKoreanEconomicNewsDrafts()
+          : await generateAdminUsEconomicNewsDrafts();
+      setGeneratedDraftResult({ region, savedCount: response.savedCount });
       setReloadKey((current) => current + 1);
     } catch (error) {
-      setGenerationErrorMessage(getErrorMessage(error, '경제 뉴스 초안을 생성하지 못했습니다.'));
+      const country = region === 'korea' ? '한국' : '미국';
+      setGenerationError({
+        region,
+        message: getErrorMessage(error, `${country} 뉴스 초안을 생성하지 못했습니다.`),
+      });
     } finally {
-      setGeneratingDrafts(false);
+      setGeneratingDraftRegion(null);
     }
   }
 
@@ -224,7 +241,6 @@ export function AdminNewsPage() {
     <main className="admin-content">
       <div className="admin-page-heading">
         <div>
-          <p className="admin-kicker">콘텐츠 운영</p>
           <h1>뉴스 관리</h1>
           <p>뉴스를 등록하고 서비스에 노출되는 콘텐츠를 관리하세요.</p>
         </div>
@@ -235,36 +251,49 @@ export function AdminNewsPage() {
 
       <section className="admin-action-panel" aria-labelledby="economy-news-generation-title">
         <div>
-          <p className="admin-panel-eyebrow">뉴스 자동 생성</p>
-          <h2 id="economy-news-generation-title">예약 생성 또는 지금 생성</h2>
-          <p>
-            예약 생성은 기존 스케줄에 따라 실행됩니다. 필요하면 버튼을 눌러 경제 뉴스 초안을 즉시
-            추가 생성할 수 있습니다.
-          </p>
+          <h2 id="economy-news-generation-title">경제 뉴스 초안 생성</h2>
+          <p>한국 뉴스와 미국 뉴스는 각각 별도 예약 및 수동 실행으로 초안을 생성합니다.</p>
         </div>
-        <button
-          type="button"
-          className="admin-primary-button"
-          disabled={generatingDrafts}
-          onClick={handleGenerateDrafts}
-        >
-          {generatingDrafts ? '생성 중…' : '지금 초안 생성'}
-        </button>
+        <div className="admin-action-panel-buttons">
+          <button
+            type="button"
+            className="admin-secondary-button"
+            disabled={generatingDraftRegion !== null}
+            onClick={() => void handleGenerateDrafts('korea')}
+          >
+            {generatingDraftRegion === 'korea' ? '한국 뉴스 생성 중…' : '한국 뉴스 지금 생성'}
+          </button>
+          <button
+            type="button"
+            className="admin-secondary-button"
+            disabled={generatingDraftRegion !== null}
+            onClick={() => void handleGenerateDrafts('us')}
+          >
+            {generatingDraftRegion === 'us' ? '미국 뉴스 생성 중…' : '미국 뉴스 지금 생성'}
+          </button>
+        </div>
       </section>
 
-      {generatedDraftCount !== null ? (
+      {generatedDraftResult ? (
         <section className="admin-success-panel" role="status" aria-live="polite">
-          <strong>경제 뉴스 초안 생성이 완료되었습니다.</strong>
+          <strong>
+            {generatedDraftResult.region === 'korea' ? '한국' : '미국'} 뉴스 초안 생성이
+            완료되었습니다.
+          </strong>
           <p>
-            저장된 초안 수 <span>{generatedDraftCount.toLocaleString('ko-KR')}</span>건
+            저장된 초안 수 <span>{generatedDraftResult.savedCount.toLocaleString('ko-KR')}</span>건
           </p>
         </section>
       ) : null}
 
-      {generationErrorMessage ? (
+      {generationError ? (
         <section className="admin-alert" role="alert">
-          <strong>{generationErrorMessage}</strong>
-          <button type="button" onClick={handleGenerateDrafts} disabled={generatingDrafts}>
+          <strong>{generationError.message}</strong>
+          <button
+            type="button"
+            onClick={() => void handleGenerateDrafts(generationError.region)}
+            disabled={generatingDraftRegion !== null}
+          >
             다시 시도
           </button>
         </section>
@@ -365,9 +394,7 @@ export function AdminNewsPage() {
                   <th scope="col">카테고리</th>
                   <th scope="col">상태</th>
                   <th scope="col">등록일</th>
-                  <th scope="col">
-                    <span className="sr-only">관리</span>
-                  </th>
+                  <th scope="col">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -381,17 +408,29 @@ export function AdminNewsPage() {
                   return (
                     <tr key={item.id}>
                       <td data-label="뉴스">
-                        <Link
-                          className="admin-news-title"
-                          to={`/admin/news/${item.id}/edit`}
-                          aria-disabled={isProcessing}
-                          tabIndex={isProcessing ? -1 : undefined}
-                          onClick={(event) => {
-                            if (isProcessing) event.preventDefault();
-                          }}
-                        >
-                          {item.title}
-                        </Link>
+                        <div className="admin-news-summary">
+                          {item.imageUrl ? (
+                            <img
+                              className="admin-news-thumbnail"
+                              src={item.imageUrl}
+                              alt=""
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="admin-news-no-image">이미지 없음</span>
+                          )}
+                          <Link
+                            className="admin-news-title"
+                            to={`/admin/news/${item.id}/edit`}
+                            aria-disabled={isProcessing}
+                            tabIndex={isProcessing ? -1 : undefined}
+                            onClick={(event) => {
+                              if (isProcessing) event.preventDefault();
+                            }}
+                          >
+                            {item.title}
+                          </Link>
+                        </div>
                       </td>
                       <td data-label="카테고리">{CATEGORY_LABELS[item.category]}</td>
                       <td data-label="상태">
@@ -408,10 +447,10 @@ export function AdminNewsPage() {
                             >
                               {generatingImageId === item.id
                                 ? item.imageUrl
-                                  ? '이미지 수정 중'
+                                  ? '이미지 재생성 중'
                                   : '이미지 생성 중'
                                 : item.imageUrl
-                                  ? '이미지 수정'
+                                  ? '이미지 재생성'
                                   : '이미지 생성'}
                             </button>
                           ) : null}

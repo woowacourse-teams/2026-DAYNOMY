@@ -16,13 +16,14 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.grit.daynomy.common.BaseEntity;
 
 /** 변화 없는 재확인마다 행을 추가하지 않고 최근 확인 상태만 보관한다. */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "portfolio_analysis_checks")
-public class PortfolioAnalysisCheck {
+public class PortfolioAnalysisCheck extends BaseEntity {
 
   @Id
   @Column(name = "portfolio_id")

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { getTransactions, recordDecision } from './api';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { getInvestmentDecisions, recordDecision } from './api';
 import type { SharedHolding } from './sharedPortfolioApi';
-import type { InvestmentTransaction } from './types';
+import type { InvestmentDecisionRecord } from './types';
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
 
@@ -19,11 +19,11 @@ export function HoldingDecisions({
   publicationStatus: string;
   onVisibilityChange: (assetId: number, hidden: boolean) => void;
   onRemove: (assetId: number) => Promise<boolean>;
-  onRecordsChange: (records: InvestmentTransaction[] | null) => void;
+  onRecordsChange: (records: InvestmentDecisionRecord[] | null) => void;
   refreshKey: number;
 }) {
   const [removing, setRemoving] = useState<number | null>(null);
-  const [records, setRecords] = useState<InvestmentTransaction[] | null>(null);
+  const [records, setRecords] = useState<InvestmentDecisionRecord[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
@@ -34,12 +34,30 @@ export function HoldingDecisions({
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const requestKey = useRef('');
+  const errorId = useId();
+  const reasonInput = useRef<HTMLTextAreaElement>(null);
+  const errorNotice = useRef<HTMLParagraphElement>(null);
+  const decisionTrigger = useRef<HTMLButtonElement>(null);
+  const removeTrigger = useRef<HTMLButtonElement>(null);
+  const removeCancel = useRef<HTMLButtonElement>(null);
+  const recordsSection = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!writing) decisionTrigger.current?.focus();
+  }, [writing]);
+  useEffect(() => {
+    if (removing !== null) removeCancel.current?.focus();
+    else if (removeTrigger.current) {
+      (removeTrigger.current.isConnected ? removeTrigger.current : recordsSection.current)?.focus();
+      removeTrigger.current = null;
+    }
+  }, [removing]);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setLoadError('');
-    getTransactions(controller.signal)
+    getInvestmentDecisions(controller.signal)
       .then((values) => {
         if (!controller.signal.aborted) setRecords(values);
       })
@@ -56,6 +74,11 @@ export function HoldingDecisions({
     onRecordsChange(loading || loadError ? null : records);
   }, [records, loading, loadError, onRecordsChange]);
   const locked = busy || portfolioBusy;
+  useEffect(() => {
+    if (error && !locked) {
+      (!reasonInput.current?.value.trim() ? reasonInput.current : errorNotice.current)?.focus();
+    }
+  }, [error, locked]);
 
   async function saveDecision(event: FormEvent) {
     event.preventDefault();
@@ -112,18 +135,24 @@ export function HoldingDecisions({
         <label className="shared-reason">
           보유하는 이유
           <textarea
+            ref={reasonInput}
             autoFocus
             required
+            aria-invalid={(Boolean(error) && !reason.trim()) || undefined}
+            aria-describedby={error ? errorId : undefined}
             maxLength={500}
             rows={3}
             value={reason}
             placeholder="예: 실적이 좋아지고 있어 다음 분기까지 보유하려고 해요."
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => {
+              setReason(event.target.value);
+              setError('');
+            }}
           />
         </label>
       </fieldset>
       {error ? (
-        <p role="alert" className="league-form-error">
+        <p id={errorId} ref={errorNotice} tabIndex={-1} role="alert" className="league-form-error">
           {error}
         </p>
       ) : null}
@@ -145,7 +174,7 @@ export function HoldingDecisions({
     </form>
   );
   return (
-    <section aria-label="종목별 투자 기록">
+    <section ref={recordsSection} tabIndex={-1} aria-label="종목별 투자 기록">
       {loading ? (
         <p role="status">투자 기록을 불러오는 중이에요.</p>
       ) : loadError ? (
@@ -180,6 +209,7 @@ export function HoldingDecisions({
             </p>
             {!completed ? (
               <button
+                ref={assetId === String(h.assetId) ? decisionTrigger : undefined}
                 type="button"
                 aria-label={`${h.assetName} 보유 이유 작성`}
                 disabled={locked || loading || Boolean(loadError) || writing}
@@ -192,6 +222,7 @@ export function HoldingDecisions({
             <div className="shared-holding-actions">
               {completed ? (
                 <button
+                  ref={assetId === String(h.assetId) ? decisionTrigger : undefined}
                   type="button"
                   aria-label={`${h.assetName} 투자 기록 추가`}
                   disabled={locked || loading || Boolean(loadError) || writing}
@@ -215,7 +246,10 @@ export function HoldingDecisions({
                 className="shared-remove-button"
                 aria-label={`${h.assetName} 리그에서 삭제`}
                 disabled={locked || writing}
-                onClick={() => setRemoving(h.assetId)}
+                onClick={(event) => {
+                  removeTrigger.current = event.currentTarget;
+                  setRemoving(h.assetId);
+                }}
               >
                 삭제
               </button>
@@ -240,7 +274,7 @@ export function HoldingDecisions({
                 >
                   삭제 확인
                 </button>
-                <button disabled={locked} onClick={() => setRemoving(null)}>
+                <button ref={removeCancel} disabled={locked} onClick={() => setRemoving(null)}>
                   취소
                 </button>
               </div>

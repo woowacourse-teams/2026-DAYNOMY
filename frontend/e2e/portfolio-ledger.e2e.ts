@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('daynomy:service-started:v1', '1');
+    localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
+  });
+});
+
 const stocks = [
   {
     assetId: 1,
@@ -73,6 +80,28 @@ for (const viewport of [
   { name: 'desktop', width: 1440, height: 1050 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
+  test(`비회원 빈 자산 분석 카드에 과도한 여백이 없다: ${viewport.name}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await page.route('**/api/**', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
+    );
+    await page.goto('/');
+    const trend = page.locator('.portfolio-return-dashboard');
+    const composition = page.locator('.portfolio-composition');
+    await expect(trend.getByRole('link', { name: '로그인하기' })).toBeVisible();
+    await expect(composition.getByText('표시할 자산이 없습니다')).toBeVisible();
+    for (const card of [trend, composition]) {
+      const height = await card.evaluate((element) => parseFloat(getComputedStyle(element).height));
+      expect(height).toBeLessThanOrEqual(340);
+      expect(height).toBeGreaterThanOrEqual(250);
+    }
+    await page.locator('.portfolio-dashboard-grid').screenshot({
+      path: testInfo.outputPath('empty-asset-analysis.png'),
+    });
+  });
+
   test(`비회원 잠금 안내와 종목 상세 진입: ${viewport.name}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     const guestHolding = {
@@ -339,7 +368,7 @@ for (const viewport of [
     });
     await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
-    const assetTrigger = page.getByRole('button', { name: '자산 추가', exact: true });
+    const assetTrigger = page.getByRole('button', { name: '거래 기록', exact: true });
     await assetTrigger.click();
     const assetEditor = page.getByRole('dialog', { name: '거래 기록' });
     await expect(assetEditor).toBeVisible();
@@ -389,6 +418,7 @@ for (const viewport of [
     let largeChart = false;
     let chartState: 'normal' | 'single' | 'empty' | 'error' = 'normal';
     let pendingPerformance: Promise<void> | null = null;
+    let pendingStockSearch: Promise<void> | null = null;
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.route('**/api/**', async (route) => {
@@ -499,7 +529,10 @@ for (const viewport of [
         });
       }
       if (path === '/api/portfolio/histories') return fulfill(history);
-      if (path === '/api/stocks') return fulfill({ stocks });
+      if (path === '/api/stocks') {
+        if (pendingStockSearch) await pendingStockSearch;
+        return fulfill({ stocks });
+      }
       if (path === '/api/portfolio/transactions' && route.request().method() === 'POST') {
         const body = route.request().postDataJSON();
         history = [
@@ -1079,7 +1112,7 @@ for (const viewport of [
     await expect(detail).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
-    const trigger = page.getByRole('button', { name: '자산 추가', exact: true });
+    const trigger = page.getByRole('button', { name: '거래 기록', exact: true });
     await trigger.click();
     await expect(
       page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
@@ -1106,7 +1139,30 @@ for (const viewport of [
         );
       }),
     ).toBe(true);
+    const searchBounds = await dialog.boundingBox();
+    expect(searchBounds!.height).toBeLessThanOrEqual(500);
+    let finishStockSearch!: () => void;
+    pendingStockSearch = new Promise<void>((resolve) => {
+      finishStockSearch = resolve;
+    });
     await dialog.getByRole('searchbox').fill('삼성');
+    const stockLoading = dialog.getByRole('status');
+    await expect(stockLoading).toHaveText('종목 검색 중');
+    await expect(stockLoading.locator('.portfolio-stock-search-spinner')).toBeVisible();
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    await dialog.screenshot({ path: testInfo.outputPath('stock-search-loading.png') });
+    finishStockSearch();
+    pendingStockSearch = null;
+    await expect(dialog.getByRole('button', { name: /삼성전자/ })).toBeVisible();
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    pendingStockSearch = new Promise<void>((resolve) => {
+      finishStockSearch = resolve;
+    });
+    await dialog.getByRole('searchbox').fill('하이닉스');
+    await expect(stockLoading).toHaveText('종목 검색 중');
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    finishStockSearch();
+    pendingStockSearch = null;
     await dialog.getByRole('button', { name: /삼성전자/ }).click();
     await expect(dialog.getByLabel('거래일', { exact: true })).toBeFocused();
     await expect(dialog.getByLabel('거래 단가 (원)')).toHaveValue('75200');

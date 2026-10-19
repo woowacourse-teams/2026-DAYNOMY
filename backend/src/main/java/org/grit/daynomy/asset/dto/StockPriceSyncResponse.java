@@ -4,7 +4,14 @@ import java.time.LocalDate;
 import org.grit.daynomy.asset.service.StockPriceSyncResult;
 
 public record StockPriceSyncResponse(
-    LocalDate baseDate, int receivedCount, int createdCount, int updatedCount, int skippedCount) {
+    LocalDate baseDate,
+    int receivedCount,
+    int createdCount,
+    int updatedCount,
+    int skippedCount,
+    int synchronizedDateCount,
+    long pendingDateCount,
+    int failedDateCount) {
 
   public static StockPriceSyncResponse from(StockPriceSyncResult result) {
     return new StockPriceSyncResponse(
@@ -12,6 +19,9 @@ public record StockPriceSyncResponse(
         result.receivedCount(),
         result.createdCount(),
         result.updatedCount(),
-        result.skippedCount());
+        result.skippedCount(),
+        result.synchronizedDateCount(),
+        result.pendingDateCount(),
+        result.failedDateCount());
   }
 }

@@ -5,14 +5,18 @@ import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import { Link } from 'react-router-dom';
 import { SocialPostEmbed } from '../../people/SocialPostEmbed';
-import { getNewsImage } from '../newslist/newsImage';
-import { feedDate, isToday, sourceLabel, youtubeId, type FeedItem } from './feed';
+import { getCategoryLabel } from '../newslist/types';
+import { feedDate, isToday, sourceLabel, timestamp, youtubeId, type FeedItem } from './feed';
 
 type ReadingItem = Exclude<FeedItem, { source: 'DAYNOMY' }>;
 
 function thumbnailImage(item: FeedItem) {
-  if ('article' in item) return getNewsImage(item.article);
+  if ('article' in item) return item.article.imageUrl;
   if ('content' in item) return item.content.imageUrl;
+  if (item.post.sourceType === 'YOUTUBE') {
+    const video = youtubeId(item.post.url);
+    return video ? `https://i.ytimg.com/vi/${video}/hqdefault.jpg` : null;
+  }
   return null;
 }
 
@@ -23,7 +27,19 @@ function FeedThumbnail({ item }: { item: FeedItem }) {
       className={`issue-feed-thumbnail issue-feed-thumbnail-${item.source.toLowerCase()}`}
       aria-hidden="true"
     >
-      <span className="issue-feed-thumbnail-fallback">{sourceLabel(item.source)}</span>
+      <span className="issue-feed-thumbnail-fallback">
+        {item.source !== 'DAYNOMY' && <span className="sr-only">{sourceLabel(item.source)}</span>}
+        {item.source === 'X' || item.source === 'THREADS' ? (
+          <img src={item.source === 'X' ? xMark : threadsMark} alt="" />
+        ) : item.source === 'YOUTUBE' ? (
+          <svg viewBox="0 0 28 20" aria-hidden="true">
+            <rect x="1" y="1" width="26" height="18" rx="5" fill="currentColor" />
+            <path d="m11 6 7 4-7 4z" fill="#f1f3f5" />
+          </svg>
+        ) : (
+          <span>데이노미</span>
+        )}
+      </span>
       {imageUrl && (
         <img
           src={imageUrl}
@@ -84,13 +100,37 @@ export function IssueFeed({
   const [selected, setSelected] = useState<ReadingItem | null>(null);
   const id = useId();
   const triggers = useRef(new Map<string, HTMLButtonElement>());
+  const peopleTimeline = surface === 'people';
+  const compactNews = surface === 'news_home' || surface === 'news_contents' || peopleTimeline;
   const showThumbnails = ['news_home', 'news_contents', 'people'].includes(surface);
   return (
     <>
-      <ul className={`issue-feed${showThumbnails ? ' issue-feed--visual' : ''}`}>
+      <ul
+        className={`issue-feed${showThumbnails ? ' issue-feed--visual' : ''}${peopleTimeline ? ' people-timeline' : ''}`}
+      >
         {items.map((item, index) => (
-          <li key={item.key}>
-            <article className={`issue-feed-row${showThumbnails ? ' issue-feed-row--visual' : ''}`}>
+          <li
+            key={item.key}
+            className={
+              peopleTimeline &&
+              (index === 0 || timestamp(items[index - 1].date) !== timestamp(item.date))
+                ? 'people-date-start'
+                : undefined
+            }
+          >
+            {peopleTimeline &&
+              (index === 0 || timestamp(items[index - 1].date) !== timestamp(item.date)) && (
+                <div className="people-date-marker">
+                  <time dateTime={item.date ?? undefined} title={item.date ?? undefined}>
+                    {timestamp(item.date)
+                      ? feedDate(item.date, '발행').replace(' 발행', '')
+                      : '날짜 미제공'}
+                  </time>
+                </div>
+              )}
+            <article
+              className={`issue-feed-row${showThumbnails ? ' issue-feed-row--visual' : ''}${compactNews ? ' issue-feed-row--news' : ''}`}
+            >
               {showThumbnails && <FeedThumbnail item={item} />}
               <span
                 className={`issue-platform-mark issue-platform-${item.source.toLowerCase()}`}
@@ -126,7 +166,30 @@ export function IssueFeed({
                     {item.person.name}
                   </Link>
                 )}
-                <time dateTime={item.date ?? undefined}>{feedDate(item.date)}</time>
+                {compactNews && item.source === 'DAYNOMY' && item.article.category !== 'ALL' && (
+                  <span>{getCategoryLabel(item.article.category)}</span>
+                )}
+                {!peopleTimeline &&
+                  (compactNews ? (
+                    <time
+                      dateTime={
+                        (item.source === 'DAYNOMY'
+                          ? item.date
+                          : 'post' in item
+                            ? item.post.createdAt
+                            : item.content.createdAt) ?? undefined
+                      }
+                    >
+                      {item.source === 'DAYNOMY'
+                        ? feedDate(item.date, '발행')
+                        : feedDate(
+                            'post' in item ? item.post.createdAt : item.content.createdAt,
+                            '등록',
+                          )}
+                    </time>
+                  ) : (
+                    <time dateTime={item.date ?? undefined}>{feedDate(item.date)}</time>
+                  ))}
               </div>
               {item.source === 'DAYNOMY' ? (
                 <Link
@@ -137,7 +200,21 @@ export function IssueFeed({
                   to={`/news/${item.article.id}`}
                 >
                   <h3>{item.title}</h3>
-                  <span aria-hidden="true">↗</span>
+                  {compactNews ? (
+                    <span className="issue-expand-label">
+                      기사 읽기
+                      <svg className="issue-expand-chevron" viewBox="0 0 16 16" aria-hidden="true">
+                        <path
+                          d="M3 8h10m-4-4 4 4-4 4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                        />
+                      </svg>
+                    </span>
+                  ) : (
+                    <span aria-hidden="true">↗</span>
+                  )}
                 </Link>
               ) : (
                 <button
@@ -162,10 +239,13 @@ export function IssueFeed({
                   <span className="issue-post-title">{item.title}</span>
                   <span className="issue-expand-label">
                     {selected?.key === item.key
-                      ? '접기 −'
+                      ? '접기'
                       : item.source === 'YOUTUBE'
-                        ? '영상 보기 +'
-                        : '글 펼치기 +'}
+                        ? '영상 보기'
+                        : '글 펼치기'}
+                    <svg className="issue-expand-chevron" viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
                   </span>
                 </button>
               )}

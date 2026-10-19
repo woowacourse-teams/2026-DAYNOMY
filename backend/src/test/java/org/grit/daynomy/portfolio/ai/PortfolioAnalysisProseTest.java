@@ -59,6 +59,23 @@ class PortfolioAnalysisProseTest {
   }
 
   @Test
+  void permitsAnEnglishAwardNameInsideAKoreanExplanation() {
+    String text = "IONIQ 6 N이 German Car of the Year의 Performance 부문을 수상했다고 발표했어요.";
+    assertThat(PortfolioAnalysisProse.normalize(text)).isEqualTo(text);
+  }
+
+  @Test
+  void stillRejectsEnglishSentencesAndTitleCaseTextWithOnlyAFriendlySuffix() {
+    for (String text :
+        List.of(
+            "German Car of the Year 해요.",
+            "Samsung Electronics Reports Higher Quarterly Earnings 해요.",
+            "Samsung Electronics reports higher quarterly earnings라고 발표했어요.")) {
+      assertThatIllegalArgumentException().isThrownBy(() -> PortfolioAnalysisProse.normalize(text));
+    }
+  }
+
+  @Test
   void rejectsEventDateNotPresentInConnectedEvidence() {
     assertThatIllegalArgumentException()
         .isThrownBy(
