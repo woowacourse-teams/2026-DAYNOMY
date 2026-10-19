@@ -5,6 +5,8 @@ import {
   recalculateAdminLeague,
   syncAdminStockPrices,
   syncAdminStocks,
+  syncAdminUsStocks,
+  syncAdminUsStockPrices,
 } from '../../src/features/admin/api.ts';
 
 function jsonResponse(body: unknown): Response {
@@ -149,4 +151,84 @@ test('복구 응답의 누락·음수·문자열 건수를 거부하고 0건은 
     body = invalid;
     await assert.rejects(backfillAdminStockPrices(valid.from, valid.to), /응답 형식/);
   }
+});
+
+test('미국 종목·최근 종가·지정일 종가는 각각 CSRF POST로 요청한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    calls.push({ url, init });
+    if (url === '/api/auth/csrf')
+      return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+    return jsonResponse(
+      url.includes('/prices/')
+        ? {
+            baseDate: '2020-10-16',
+            receivedCount: 10,
+            createdCount: 8,
+            updatedCount: 1,
+            skippedCount: 1,
+            synchronizedDateCount: 1,
+            pendingDateCount: 0,
+            failedDateCount: 0,
+          }
+        : {
+            baseDate: '2020-10-16',
+            syncedCount: 20,
+            createdCount: 15,
+            updatedCount: 4,
+            delistedCount: 1,
+          },
+    );
+  };
+  assert.equal((await syncAdminUsStocks()).syncedCount, 20);
+  assert.equal((await syncAdminUsStockPrices()).receivedCount, 10);
+  assert.equal((await syncAdminUsStockPrices('2020-10-16')).baseDate, '2020-10-16');
+  const writes = calls.filter((call) => call.url !== '/api/auth/csrf');
+  assert.deepEqual(
+    writes.map((call) => call.url),
+    [
+      '/api/admin/stocks/us/sync',
+      '/api/admin/stocks/us/prices/sync',
+      '/api/admin/stocks/us/prices/sync?date=2020-10-16',
+    ],
+  );
+  for (const call of writes) {
+    assert.equal(call.init?.method, 'POST');
+    assert.equal(new Headers(call.init?.headers).get('X-CSRF-TOKEN'), 'token');
+  }
+});
+
+test('미국 종가의 잘못된 날짜·미래 날짜와 잘못된 응답을 거부한다', async () => {
+  globalThis.fetch = async () => {
+    throw new Error('호출되면 안 됨');
+  };
+  for (const date of ['2020-02-30', '2020-2-1', 'invalid', '2999-01-01']) {
+    await assert.rejects(syncAdminUsStockPrices(date), /뉴욕 기준 오늘 이전/);
+  }
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' })
+      : jsonResponse({});
+  await assert.rejects(syncAdminUsStocks(), /응답 형식/);
+  await assert.rejects(syncAdminUsStockPrices(), /응답 형식/);
+});
+
+test('미국 종가 날짜는 한국 날짜가 아닌 뉴욕의 오늘을 기준으로 제한한다', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-20T01:00:00+09:00') });
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' })
+      : jsonResponse({
+          baseDate: '2026-10-18',
+          receivedCount: 1,
+          createdCount: 1,
+          updatedCount: 0,
+          skippedCount: 0,
+          synchronizedDateCount: 1,
+          pendingDateCount: 0,
+          failedDateCount: 0,
+        });
+  await assert.rejects(syncAdminUsStockPrices('2026-10-19'), /뉴욕 기준 오늘 이전/);
+  assert.equal((await syncAdminUsStockPrices('2026-10-18')).baseDate, '2026-10-18');
 });
