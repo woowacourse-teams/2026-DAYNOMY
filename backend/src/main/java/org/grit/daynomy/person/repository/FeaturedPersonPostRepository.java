@@ -12,7 +12,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface FeaturedPersonPostRepository extends JpaRepository<FeaturedPersonPost, Long> {
 
-  List<FeaturedPersonPost> findAllByStatusOrderByCreatedAtDescIdDesc(FeaturedPersonPostStatus status);
+  List<FeaturedPersonPost> findAllByStatusOrderByCreatedAtDescIdDesc(
+      FeaturedPersonPostStatus status);
 
   List<FeaturedPersonPost> findByPersonIdAndStatusOrderByCreatedAtDescIdDesc(
       Long personId, FeaturedPersonPostStatus status);

@@ -109,7 +109,8 @@ public class FeaturedPersonPost extends BaseEntity {
 
   private void requirePending() {
     if (status != FeaturedPersonPostStatus.PENDING) {
-      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_POST_CANDIDATE_NOT_PENDING);
+      throw new BusinessException(
+          FeaturedPersonErrorCode.FEATURED_PERSON_POST_CANDIDATE_NOT_PENDING);
     }
   }
 }

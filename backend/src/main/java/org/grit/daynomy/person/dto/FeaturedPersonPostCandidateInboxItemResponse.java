@@ -17,8 +17,7 @@ public record FeaturedPersonPostCandidateInboxItemResponse(
     FeaturedPersonPostStatus status,
     Instant createdAt) {
 
-  public static FeaturedPersonPostCandidateInboxItemResponse from(
-      FeaturedPersonPost candidate) {
+  public static FeaturedPersonPostCandidateInboxItemResponse from(FeaturedPersonPost candidate) {
     return new FeaturedPersonPostCandidateInboxItemResponse(
         candidate.getId(),
         candidate.getPerson().getId(),

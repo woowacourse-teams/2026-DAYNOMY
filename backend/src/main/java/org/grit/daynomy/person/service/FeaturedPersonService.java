@@ -44,7 +44,9 @@ public class FeaturedPersonService {
 
   public FeaturedPeopleResponse getPeople() {
     Map<Long, List<FeaturedPersonPost>> postsByPersonId =
-        postRepository.findAllByStatusOrderByCreatedAtDescIdDesc(FeaturedPersonPostStatus.APPROVED).stream()
+        postRepository
+            .findAllByStatusOrderByCreatedAtDescIdDesc(FeaturedPersonPostStatus.APPROVED)
+            .stream()
             .sorted(
                 Comparator.comparing(
                     FeaturedPersonPost::getPublishedAt,

@@ -45,7 +45,9 @@ class FeaturedPersonServiceTest {
   @Test
   @DisplayName("주요 인물 공개 게시물은 승인된 항목만 조회한다")
   void getPeopleUsesOnlyApprovedPosts() {
-    given(postRepository.findAllByStatusOrderByCreatedAtDescIdDesc(FeaturedPersonPostStatus.APPROVED))
+    given(
+            postRepository.findAllByStatusOrderByCreatedAtDescIdDesc(
+                FeaturedPersonPostStatus.APPROVED))
         .willReturn(List.of());
     given(personRepository.findAllByOrderByCreatedAtAscIdAsc()).willReturn(List.of());
 

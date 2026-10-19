@@ -11,8 +11,7 @@ public record FeaturedPersonPostCandidatePageResponse(
     long totalElements,
     int totalPages) {
 
-  public static FeaturedPersonPostCandidatePageResponse from(
-      Page<FeaturedPersonPost> candidates) {
+  public static FeaturedPersonPostCandidatePageResponse from(Page<FeaturedPersonPost> candidates) {
     return new FeaturedPersonPostCandidatePageResponse(
         candidates.stream().map(FeaturedPersonPostCandidateInboxItemResponse::from).toList(),
         candidates.getNumber() + 1,
