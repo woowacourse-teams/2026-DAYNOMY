@@ -94,6 +94,8 @@ class OpenAiNewsGeneratorTest {
         .contains("미국 현지 언론")
         .contains("연방준비제도")
         .contains("미국 주식시장 전체")
+        .contains("한 기업의 주가에 직접적이고 구체적인 영향을 줄 수 있는 중요한 사건")
+        .contains("기업의 대규모·전략적 계약")
         .contains("일반적인 분기 실적 발표")
         .doesNotContain("한국에서 발행된 주요 언론사");
     String writerRequest = server.takeRequest().getBody().readUtf8();
