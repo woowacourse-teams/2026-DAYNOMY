@@ -2303,7 +2303,7 @@
 }
 .portfolio-return-dashboard.is-compact .portfolio-trend-plot {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 18px 40px;
+  grid-template-rows: minmax(0, 1fr) 40px;
   min-height: 0;
   margin-top: 12px;
 }

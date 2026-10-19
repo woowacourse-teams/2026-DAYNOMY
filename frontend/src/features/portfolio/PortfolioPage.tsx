@@ -25,6 +25,7 @@ import { PortfolioDialog } from './components/PortfolioDialog';
 import { PortfolioHoldingDetail } from './components/PortfolioHoldingDetail';
 import { PortfolioConfirmDialog } from './components/PortfolioConfirmDialog';
 import { todayInSeoul } from './transactionForm';
+import { fillTrendDates, getTrendPeriodStart } from './trendDates';
 import type { PortfolioHoldingHistory, PortfolioTransactionType } from './types';
 import type { StockSearchItem } from '../stocks/types';
 
@@ -203,23 +204,6 @@ const TREND_METRICS = [
   { value: 'return', label: '평가수익률' },
 ] as const;
 
-function getTrendPeriodStart(baseDate: string, period: TrendPeriod) {
-  const date = new Date(`${baseDate}T00:00:00Z`);
-  if (period === 'YTD') {
-    date.setUTCMonth(0, 1);
-  } else {
-    const months = period === '1M' ? 1 : period === '6M' ? 6 : period === '1Y' ? 12 : 60;
-    const day = date.getUTCDate();
-    date.setUTCDate(1);
-    date.setUTCMonth(date.getUTCMonth() - months);
-    const lastDay = new Date(
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
-    ).getUTCDate();
-    date.setUTCDate(Math.min(day, lastDay));
-  }
-  return date.toISOString().slice(0, 10);
-}
-
 function formatTrendAxisDate(value: string, period: TrendPeriod) {
   return period === '1Y' || period === '5Y'
     ? value.slice(0, 7).replace('-', '.')
@@ -260,10 +244,10 @@ function PortfolioAssetTrendChart({
   const latestAvailablePoint = points.at(-1);
   const visiblePoints = useMemo(() => {
     if (!latestAvailablePoint) return [];
-    const cutoffDate = getTrendPeriodStart(latestAvailablePoint.baseDate, period);
-    return points.filter((point) => point.baseDate >= cutoffDate);
+    const cutoffDate = getTrendPeriodStart(todayInSeoul(), period);
+    return fillTrendDates(points).filter((point) => point.baseDate >= cutoffDate);
   }, [latestAvailablePoint, period, points]);
-  const cutoffDate = getTrendPeriodStart(latestAvailablePoint?.baseDate ?? todayInSeoul(), period);
+  const cutoffDate = getTrendPeriodStart(todayInSeoul(), period);
   const firstDate = visiblePoints.at(0)?.baseDate;
   const lastDate = visiblePoints.at(-1)?.baseDate;
   const dateSpan = firstDate && lastDate ? Date.parse(lastDate) - Date.parse(firstDate) : 0;
@@ -346,6 +330,11 @@ function PortfolioAssetTrendChart({
         .filter((point): point is PortfolioPerformancePoint => Boolean(point))
         .map((point) => point.baseDate),
     ),
+  ).filter(
+    (date, index, labels) =>
+      index === 0 ||
+      index === labels.length - 1 ||
+      (dateX(date) - dateX(labels[0]) >= 56 && dateX(labels.at(-1)!) - dateX(date) >= 56),
   );
 
   function selectNearestPoint(clientX: number, chart: SVGSVGElement, clearSelection = false) {
@@ -485,7 +474,7 @@ function PortfolioAssetTrendChart({
             </button>
           </div>
         ) : null}
-        {!loading && !error && points.length === 0 ? (
+        {!loading && !error && visiblePoints.length === 0 ? (
           <div className="portfolio-tracking-state is-empty" role="status">
             <strong>선택한 기간에 표시할 추이가 없어요</strong>
             <p>기간을 바꾸거나 거래를 기록해 주세요. 가격 데이터가 준비되면 추이가 표시됩니다.</p>
@@ -566,6 +555,18 @@ function PortfolioAssetTrendChart({
                         />
                       </g>
                     ))}
+                    {visiblePoints.length > 1 &&
+                      visiblePoints.length <= 62 &&
+                      chartPoints.map((point, index) => (
+                        <circle
+                          key={visiblePoints[index].baseDate}
+                          className="portfolio-return-daily-point"
+                          cx={point.x}
+                          cy={point.evaluationY}
+                          r="2.5"
+                          fill={`var(--portfolio-trend-${trendTone(point.difference)})`}
+                        />
+                      ))}
                     {hasSinglePoint ? (
                       <polyline
                         className="portfolio-return-line evaluation"
@@ -626,6 +627,20 @@ function PortfolioAssetTrendChart({
                     />
                   </g>
                 ) : null}
+                <g className="portfolio-return-dates" aria-hidden="true">
+                  {dateLabels.map((baseDate, index) => (
+                    <text
+                      key={baseDate}
+                      x={dateX(baseDate)}
+                      y={height - 5}
+                      textAnchor={
+                        index === 0 ? 'start' : index === dateLabels.length - 1 ? 'end' : 'middle'
+                      }
+                    >
+                      {formatTrendAxisDate(baseDate, period)}
+                    </text>
+                  ))}
+                </g>
               </svg>
               {hoveredIndex !== null && activePoint && activeX !== null ? (
                 <div
@@ -640,6 +655,11 @@ function PortfolioAssetTrendChart({
                   <time dateTime={activePoint.baseDate}>
                     {formatTrendDate(activePoint.baseDate)}
                   </time>
+                  {activePoint.carriedFrom ? (
+                    <p className="portfolio-trend-carry-note">
+                      {formatTrendDate(activePoint.carriedFrom)} 기록 유지 · 당일 평가 미확인
+                    </p>
+                  ) : null}
                   <dl>
                     <div className="principal">
                       <dt>매입원금</dt>
@@ -671,23 +691,11 @@ function PortfolioAssetTrendChart({
                 </div>
               ) : null}
             </div>
-            <div
-              className="portfolio-return-dates"
-              aria-hidden="true"
-              style={{
-                paddingLeft: `${(padding.left / width) * 100}%`,
-                paddingRight: `${(padding.right / width) * 100}%`,
-              }}
-            >
-              {dateLabels.map((baseDate) => (
-                <span key={baseDate}>{formatTrendAxisDate(baseDate, period)}</span>
-              ))}
-            </div>
-            {visiblePoints.length === 1 && (
-              <p className="portfolio-trend-note">
-                표시할 평가 데이터가 하루뿐이에요. 기록이 쌓이면 선으로 연결됩니다.
-              </p>
-            )}
+            <p className="portfolio-trend-note">
+              {visiblePoints.length === 1
+                ? '표시할 평가 데이터가 하루뿐이에요. 기록이 쌓이면 선으로 연결됩니다.'
+                : '기록이 없는 날은 이전 평가금액을 유지해요. 오늘은 최근 종가로 계산해요.'}
+            </p>
           </>
         ) : null}
       </div>
@@ -714,6 +722,11 @@ function PortfolioAssetTrendChart({
             {!loading && !error && detailDate && (
               <span className="portfolio-visually-hidden">{formatTrendDate(detailDate)}</span>
             )}
+            {!loading && !error && detailPoint?.carriedFrom ? (
+              <p className="portfolio-trend-note">
+                {formatTrendDate(detailPoint.carriedFrom)} 기록 유지 · 당일 평가 미확인
+              </p>
+            ) : null}
             {!loading && !error && detailPoint ? (
               <dl className="portfolio-trend-date-values">
                 <div>

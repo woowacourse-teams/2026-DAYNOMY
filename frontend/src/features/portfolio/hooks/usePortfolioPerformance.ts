@@ -2,34 +2,12 @@ import { useEffect, useState } from 'react';
 import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import { getPortfolioPerformance } from '../api';
 import { todayInSeoul } from '../transactionForm';
+import { getTrendPeriodStart } from '../trendDates';
 import type {
   PortfolioHoldingInput,
   PortfolioPerformancePoint,
   PortfolioTrendPeriod,
 } from '../types';
-
-function formatDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getPeriodStart(to: Date, period: PortfolioTrendPeriod) {
-  const from = new Date(to);
-  if (period === 'YTD') {
-    from.setMonth(0, 1);
-    return from;
-  }
-
-  const months = period === '1M' ? 1 : period === '6M' ? 6 : period === '1Y' ? 12 : 60;
-  const day = from.getDate();
-  from.setDate(1);
-  from.setMonth(from.getMonth() - months);
-  const lastDay = new Date(from.getFullYear(), from.getMonth() + 1, 0).getDate();
-  from.setDate(Math.min(day, lastDay));
-  return from;
-}
 
 export function usePortfolioPerformance(
   period: PortfolioTrendPeriod,
@@ -55,8 +33,26 @@ export function usePortfolioPerformance(
       if (document.visibilityState === 'visible') setRetryCount((count) => count + 1);
     }
 
+    // A visible dashboard must pick up a new Seoul date and newly saved snapshots.
+    let lastDate = todayInSeoul();
+    let elapsedMinutes = 0;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      elapsedMinutes += 1;
+      const date = todayInSeoul();
+      if (date !== lastDate || elapsedMinutes >= 5) {
+        lastDate = date;
+        elapsedMinutes = 0;
+        refreshWhenVisible();
+      }
+    }, 60_000);
     document.addEventListener('visibilitychange', refreshWhenVisible);
-    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('online', refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('online', refreshWhenVisible);
+    };
   }, [enabled]);
 
   useEffect(() => {
@@ -68,12 +64,12 @@ export function usePortfolioPerformance(
     }
 
     const controller = new AbortController();
-    const to = new Date(`${todayInSeoul()}T12:00:00`);
-    const from = getPeriodStart(to, period);
+    const to = todayInSeoul();
+    const from = getTrendPeriodStart(to, period);
     setLoading(true);
     setError('');
 
-    getPortfolioPerformance(formatDate(from), formatDate(to), controller.signal)
+    getPortfolioPerformance(from, to, controller.signal)
       .then((response) => {
         if (controller.signal.aborted) return;
         setPoints(

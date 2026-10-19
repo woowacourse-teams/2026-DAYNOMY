@@ -2418,11 +2418,11 @@
   z-index: 2;
   width: min(300px, calc(100% - 16px));
   padding: 14px 16px;
-  border: 1px solid #dce4ed;
+  border: 0;
   border-radius: 12px;
   color: #263449;
-  background: rgb(255 255 255 / 97%);
-  box-shadow: 0 14px 36px rgb(32 52 78 / 18%);
+  background: #fff;
+  box-shadow: 0 6px 24px rgb(32 52 78 / 14%);
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 14px));
 }
@@ -2503,29 +2503,9 @@
 }
 
 .portfolio-return-dates {
-  display: flex;
-  justify-content: space-between;
-  color: #52647f;
+  fill: #596779;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  padding-right: 1.7%;
-  padding-left: 8.1%;
-}
-
-.portfolio-return-dates span {
-  text-align: center;
-}
-
-.portfolio-return-dates span:first-child {
-  text-align: left;
-}
-
-.portfolio-return-dates span:last-child {
-  text-align: right;
-}
-
-.portfolio-return-dates span:only-child {
-  text-align: center;
 }
 
 .portfolio-trend-dialog::backdrop {

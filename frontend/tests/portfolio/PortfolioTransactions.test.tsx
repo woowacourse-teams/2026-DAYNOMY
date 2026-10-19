@@ -273,9 +273,9 @@ describe('거래 원장 화면', () => {
       .getAttribute('points')!
       .split(' ')
       .map((pair) => pair.split(',').map(Number));
-    // 1일과 9일의 공백을 같은 너비로 그리지 않는다.
+    // 빈 날짜를 채워도 10월 3일은 전체 10일 구간의 1/10 위치에 놓인다.
     expect(
-      (coordinates[1][0] - coordinates[0][0]) / (coordinates[2][0] - coordinates[0][0]),
+      (coordinates[1][0] - coordinates[0][0]) / (coordinates.at(-1)![0] - coordinates[0][0]),
     ).toBeCloseTo(0.1);
     fireEvent.click(within(dialog).getByRole('button', { name: '평가손익' }));
     const profitChart = within(dialog).getByRole('img', { name: /평가손익 −50,000원/ });
