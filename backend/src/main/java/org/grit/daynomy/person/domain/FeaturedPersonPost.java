@@ -17,7 +17,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.grit.daynomy.common.BaseEntity;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.ContentSourceType;
+import org.grit.daynomy.person.exception.FeaturedPersonErrorCode;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -51,17 +53,26 @@ public class FeaturedPersonPost extends BaseEntity {
   @Column(name = "published_at")
   private Instant publishedAt;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false, length = 20)
+  private FeaturedPersonPostStatus status;
+
+  @Column(name = "reviewed_at")
+  private Instant reviewedAt;
+
   private FeaturedPersonPost(
       FeaturedPerson person,
       ContentSourceType sourceType,
       String title,
       String url,
-      Instant publishedAt) {
+      Instant publishedAt,
+      FeaturedPersonPostStatus status) {
     this.person = person;
     this.sourceType = sourceType;
     this.title = title;
     this.url = url;
     this.publishedAt = publishedAt;
+    this.status = status;
   }
 
   public static FeaturedPersonPost create(
@@ -70,6 +81,35 @@ public class FeaturedPersonPost extends BaseEntity {
       String title,
       String url,
       Instant publishedAt) {
-    return new FeaturedPersonPost(person, sourceType, title, url, publishedAt);
+    return new FeaturedPersonPost(
+        person, sourceType, title, url, publishedAt, FeaturedPersonPostStatus.APPROVED);
+  }
+
+  public static FeaturedPersonPost createPending(
+      FeaturedPerson person,
+      ContentSourceType sourceType,
+      String title,
+      String url,
+      Instant publishedAt) {
+    return new FeaturedPersonPost(
+        person, sourceType, title, url, publishedAt, FeaturedPersonPostStatus.PENDING);
+  }
+
+  public void approve(Instant reviewedAt) {
+    requirePending();
+    status = FeaturedPersonPostStatus.APPROVED;
+    this.reviewedAt = reviewedAt;
+  }
+
+  public void reject(Instant reviewedAt) {
+    requirePending();
+    status = FeaturedPersonPostStatus.REJECTED;
+    this.reviewedAt = reviewedAt;
+  }
+
+  private void requirePending() {
+    if (status != FeaturedPersonPostStatus.PENDING) {
+      throw new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_POST_CANDIDATE_NOT_PENDING);
+    }
   }
 }

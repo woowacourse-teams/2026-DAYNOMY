@@ -18,6 +18,7 @@ import org.grit.daynomy.external.wikimedia.WikimediaImageCandidate;
 import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.person.domain.FeaturedPerson;
 import org.grit.daynomy.person.domain.FeaturedPersonPost;
+import org.grit.daynomy.person.domain.FeaturedPersonPostStatus;
 import org.grit.daynomy.person.dto.FeaturedPersonImageSelectionRequest;
 import org.grit.daynomy.person.dto.FeaturedPersonPostRequest;
 import org.grit.daynomy.person.dto.FeaturedPersonRequest;
@@ -40,6 +41,21 @@ class FeaturedPersonServiceTest {
   @Mock private WikimediaImageClient wikimediaImageClient;
   @Mock private S3ImageStorage s3ImageStorage;
   @InjectMocks private FeaturedPersonService featuredPersonService;
+
+  @Test
+  @DisplayName("주요 인물 공개 게시물은 승인된 항목만 조회한다")
+  void getPeopleUsesOnlyApprovedPosts() {
+    given(postRepository.findAllByStatusOrderByCreatedAtDescIdDesc(FeaturedPersonPostStatus.APPROVED))
+        .willReturn(List.of());
+    given(personRepository.findAllByOrderByCreatedAtAscIdAsc()).willReturn(List.of());
+
+    var response = featuredPersonService.getPeople();
+
+    assertThat(response.people()).isEmpty();
+    then(postRepository)
+        .should()
+        .findAllByStatusOrderByCreatedAtDescIdDesc(FeaturedPersonPostStatus.APPROVED);
+  }
 
   @Test
   @DisplayName("주요 인물 등록은 공식 프로필 URL을 정규화한다")
@@ -152,6 +168,29 @@ class FeaturedPersonServiceTest {
 
     assertThat(response.title()).isEqualTo("일론 머스크 YouTube 게시물");
     assertThat(response.url()).isEqualTo("https://youtu.be/dQw4w9WgXcQ");
+  }
+
+  @Test
+  @DisplayName("YouTube watch URL은 영상 식별자를 보존해 정규화한다")
+  void createPostPreservesYouTubeWatchVideoId() {
+    FeaturedPerson person = mock(FeaturedPerson.class);
+    given(person.getName()).willReturn("일론 머스크");
+    given(personRepository.findById(1L)).willReturn(Optional.of(person));
+    given(postRepository.existsByPersonIdAndUrl(1L, "https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
+        .willReturn(false);
+    given(postRepository.saveAndFlush(any(FeaturedPersonPost.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    var response =
+        featuredPersonService.createPost(
+            1L,
+            new FeaturedPersonPostRequest(
+                ContentSourceType.YOUTUBE,
+                null,
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1",
+                null));
+
+    assertThat(response.url()).isEqualTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   }
 
   @Test
