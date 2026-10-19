@@ -13,13 +13,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
@@ -52,6 +55,7 @@ public class OpenAiSocialPostSearchClient {
       return List.of();
     }
     return execute(
+        "searchPosts",
         "Find up to 10 public Threads and X posts directly related to this search target: "
             + keyword.strip()
             + ". The target may be a person, company, topic, or include official profile URLs."
@@ -77,6 +81,7 @@ public class OpenAiSocialPostSearchClient {
             .reduce((left, right) -> left + " " + right)
             .orElse("");
     return execute(
+            "searchProfilePosts",
             "Find up to 10 public posts authored only by these exact official profiles: "
                 + target
                 + ". Return a post only when the author handle in its URL exactly matches one of"
@@ -101,11 +106,17 @@ public class OpenAiSocialPostSearchClient {
         && !publishedDate.get().isAfter(to);
   }
 
-  private List<SocialPostCandidate> execute(String input) {
+  private List<SocialPostCandidate> execute(String operation, String input) {
     if (properties.apiKey() == null || properties.apiKey().isBlank()) {
       throw searchFailed();
     }
 
+    long startedAt = System.nanoTime();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_REQUESTED.code())
+        .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+        .addKeyValue("operation", operation)
+        .log(LogEvent.EXTERNAL_API_REQUESTED.message());
     try {
       String response =
           restClient
@@ -116,11 +127,45 @@ public class OpenAiSocialPostSearchClient {
               .body(requestBody(input))
               .retrieve()
               .body(String.class);
-      return parseCandidates(response);
+      List<SocialPostCandidate> candidates = parseCandidates(response);
+      log.atInfo()
+          .addKeyValue("event", LogEvent.EXTERNAL_API_COMPLETED.code())
+          .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+          .addKeyValue("operation", operation)
+          .addKeyValue("responseCount", candidates.size())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.EXTERNAL_API_COMPLETED.message());
+      return candidates;
+    } catch (HttpStatusCodeException exception) {
+      log.atError()
+          .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+          .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+          .addKeyValue("operation", operation)
+          .addKeyValue("responseStatus", exception.getStatusCode().value())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("errorCode", ExternalErrorCode.AI_SOCIAL_SEARCH_FAILED.code())
+          .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+          .log(LogEvent.EXTERNAL_API_FAILED.message());
+      throw searchFailed();
     } catch (BusinessException exception) {
+      log.atError()
+          .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+          .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+          .addKeyValue("operation", operation)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("errorCode", exception.errorCode().code())
+          .addKeyValue("reasonCode", "INVALID_RESPONSE")
+          .log(LogEvent.EXTERNAL_API_FAILED.message());
       throw exception;
     } catch (RuntimeException exception) {
-      log.warn("OpenAI social post search failed: {}", exception.getClass().getSimpleName());
+      log.atError()
+          .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+          .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+          .addKeyValue("operation", operation)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("errorCode", ExternalErrorCode.AI_SOCIAL_SEARCH_FAILED.code())
+          .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+          .log(LogEvent.EXTERNAL_API_FAILED.message());
       throw searchFailed();
     }
   }
@@ -368,5 +413,9 @@ public class OpenAiSocialPostSearchClient {
 
   private static int toMillis(Duration duration) {
     return Math.toIntExact(duration.toMillis());
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 }

@@ -9,9 +9,11 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -61,6 +63,8 @@ public class WikimediaImageClient {
       return List.of();
     }
 
+    long startedAt = System.nanoTime();
+    logRequest("searchImages");
     try {
       String response =
           restClient
@@ -83,17 +87,24 @@ public class WikimediaImageClient {
               .header(HttpHeaders.USER_AGENT, userAgent())
               .retrieve()
               .body(String.class);
-      return parseCandidates(response);
+      List<WikimediaImageCandidate> candidates = parseCandidates(response);
+      logCompleted("searchImages", candidates.size(), null, startedAt);
+      return candidates;
+    } catch (BusinessException exception) {
+      logFailed("searchImages", null, exception, startedAt);
+      throw exception;
     } catch (HttpStatusCodeException exception) {
-      log.warn("Wikimedia Commons image search failed", exception);
+      logFailed("searchImages", exception.getStatusCode().value(), exception, startedAt);
       throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
     } catch (RestClientException exception) {
-      log.warn("Wikimedia Commons image search failed", exception);
+      logFailed("searchImages", null, exception, startedAt);
       throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
     }
   }
 
   public ImportedImage download(String title) {
+    long startedAt = System.nanoTime();
+    logRequest("downloadImage");
     try {
       WikimediaImageCandidate candidate = findCandidate(title);
       DownloadedImage downloadedImage =
@@ -113,18 +124,22 @@ public class WikimediaImageClient {
                         content,
                         resolveContentType(response.getHeaders().getContentType(), content));
                   });
-      return new ImportedImage(
-          candidate,
-          downloadedImage.content(),
-          downloadedImage.contentType(),
-          extension(downloadedImage.contentType()));
+      ImportedImage importedImage =
+          new ImportedImage(
+              candidate,
+              downloadedImage.content(),
+              downloadedImage.contentType(),
+              extension(downloadedImage.contentType()));
+      logCompleted("downloadImage", null, importedImage.content().length, startedAt);
+      return importedImage;
     } catch (BusinessException exception) {
+      logFailed("downloadImage", null, exception, startedAt);
       throw exception;
     } catch (HttpStatusCodeException exception) {
-      log.warn("Wikimedia Commons image download failed", exception);
+      logFailed("downloadImage", exception.getStatusCode().value(), exception, startedAt);
       throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
     } catch (RestClientException | IllegalArgumentException exception) {
-      log.warn("Wikimedia Commons image download failed", exception);
+      logFailed("downloadImage", null, exception, startedAt);
       throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
     }
   }
@@ -313,6 +328,51 @@ public class WikimediaImageClient {
 
   private int toMillis(java.time.Duration timeout) {
     return Math.toIntExact(timeout.toMillis());
+  }
+
+  private void logRequest(String operation) {
+    log.atDebug()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_REQUESTED.code())
+        .addKeyValue("api", "WIKIMEDIA_COMMONS")
+        .addKeyValue("operation", operation)
+        .log(LogEvent.EXTERNAL_API_REQUESTED.message());
+  }
+
+  private void logCompleted(
+      String operation, Integer responseCount, Integer contentLength, long startedAt) {
+    var event =
+        log.atInfo()
+            .addKeyValue("event", LogEvent.EXTERNAL_API_COMPLETED.code())
+            .addKeyValue("api", "WIKIMEDIA_COMMONS")
+            .addKeyValue("operation", operation)
+            .addKeyValue("durationMs", elapsedMillis(startedAt));
+    if (responseCount != null) {
+      event.addKeyValue("responseCount", responseCount);
+    }
+    if (contentLength != null) {
+      event.addKeyValue("contentLength", contentLength);
+    }
+    event.log(LogEvent.EXTERNAL_API_COMPLETED.message());
+  }
+
+  private void logFailed(
+      String operation, Integer responseStatus, RuntimeException exception, long startedAt) {
+    var event =
+        log.atError()
+            .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+            .addKeyValue("api", "WIKIMEDIA_COMMONS")
+            .addKeyValue("operation", operation)
+            .addKeyValue("durationMs", elapsedMillis(startedAt))
+            .addKeyValue("errorCode", ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED.code())
+            .addKeyValue("exceptionType", exception.getClass().getSimpleName());
+    if (responseStatus != null) {
+      event.addKeyValue("responseStatus", responseStatus);
+    }
+    event.log(LogEvent.EXTERNAL_API_FAILED.message());
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
   private record DownloadedImage(byte[] content, String contentType) {}

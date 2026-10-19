@@ -8,11 +8,14 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
@@ -44,6 +47,8 @@ public class YouTubeClient {
       throw new BusinessException(ExternalErrorCode.YOUTUBE_API_NOT_CONFIGURED);
     }
 
+    long startedAt = System.nanoTime();
+    logRequest("searchVideos");
     try {
       String response =
           restClient
@@ -62,11 +67,17 @@ public class YouTubeClient {
                           .build())
               .retrieve()
               .body(String.class);
-      return parseCandidates(response);
+      List<YouTubeVideoCandidate> candidates = parseCandidates(response);
+      logCompleted("searchVideos", candidates.size(), startedAt);
+      return candidates;
+    } catch (HttpStatusCodeException exception) {
+      logFailed("searchVideos", exception.getStatusCode().value(), exception, startedAt);
+      throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     } catch (BusinessException exception) {
+      logFailed("searchVideos", null, exception, startedAt);
       throw exception;
     } catch (RuntimeException exception) {
-      log.warn("YouTube search failed: {}", exception.getClass().getSimpleName());
+      logFailed("searchVideos", null, exception, startedAt);
       throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     }
   }
@@ -77,14 +88,23 @@ public class YouTubeClient {
       return List.of();
     }
     requireApiKey();
+    long startedAt = System.nanoTime();
+    logRequest("searchProfileVideos");
     try {
       String channelId = resolveChannelId(profileUrl);
       if (channelId == null) {
-        log.warn("YouTube channel ID could not be resolved for configured profile");
+        log.atWarn()
+            .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+            .addKeyValue("api", "YOUTUBE")
+            .addKeyValue("operation", "searchProfileVideos")
+            .addKeyValue("reasonCode", "CHANNEL_NOT_FOUND")
+            .addKeyValue("durationMs", elapsedMillis(startedAt))
+            .log(LogEvent.EXTERNAL_API_FAILED.message());
         return List.of();
       }
       List<YouTubeVideoCandidate> candidates = new ArrayList<>();
       String pageToken = null;
+      int pageCount = 0;
       for (int page = 0; page < MAX_PROFILE_SEARCH_PAGES; page++) {
         String currentPageToken = pageToken;
         String response =
@@ -110,19 +130,35 @@ public class YouTubeClient {
                     })
                 .retrieve()
                 .body(String.class);
+        pageCount++;
         candidates.addAll(parseCandidates(response));
         pageToken = readTree(response).path("nextPageToken").asText();
         if (pageToken.isBlank()) {
           break;
         }
       }
-      return candidates.stream()
-          .filter(candidate -> isWithinPeriod(candidate.publishedAt(), fromInclusive, toExclusive))
-          .toList();
+      List<YouTubeVideoCandidate> filteredCandidates =
+          candidates.stream()
+              .filter(
+                  candidate -> isWithinPeriod(candidate.publishedAt(), fromInclusive, toExclusive))
+              .toList();
+      log.atInfo()
+          .addKeyValue("event", LogEvent.EXTERNAL_API_COMPLETED.code())
+          .addKeyValue("api", "YOUTUBE")
+          .addKeyValue("operation", "searchProfileVideos")
+          .addKeyValue("pageCount", pageCount)
+          .addKeyValue("responseCount", filteredCandidates.size())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.EXTERNAL_API_COMPLETED.message());
+      return filteredCandidates;
+    } catch (HttpStatusCodeException exception) {
+      logFailed("searchProfileVideos", exception.getStatusCode().value(), exception, startedAt);
+      throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     } catch (BusinessException exception) {
+      logFailed("searchProfileVideos", null, exception, startedAt);
       throw exception;
     } catch (RuntimeException exception) {
-      log.warn("YouTube profile search failed: {}", exception.getClass().getSimpleName());
+      logFailed("searchProfileVideos", null, exception, startedAt);
       throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     }
   }
@@ -228,5 +264,43 @@ public class YouTubeClient {
 
   private static int toMillis(Duration duration) {
     return Math.toIntExact(duration.toMillis());
+  }
+
+  private void logRequest(String operation) {
+    log.atDebug()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_REQUESTED.code())
+        .addKeyValue("api", "YOUTUBE")
+        .addKeyValue("operation", operation)
+        .log(LogEvent.EXTERNAL_API_REQUESTED.message());
+  }
+
+  private void logCompleted(String operation, int responseCount, long startedAt) {
+    log.atInfo()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_COMPLETED.code())
+        .addKeyValue("api", "YOUTUBE")
+        .addKeyValue("operation", operation)
+        .addKeyValue("responseCount", responseCount)
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
+        .log(LogEvent.EXTERNAL_API_COMPLETED.message());
+  }
+
+  private void logFailed(
+      String operation, Integer responseStatus, RuntimeException exception, long startedAt) {
+    var event =
+        log.atError()
+            .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+            .addKeyValue("api", "YOUTUBE")
+            .addKeyValue("operation", operation)
+            .addKeyValue("durationMs", elapsedMillis(startedAt))
+            .addKeyValue("errorCode", ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED.code())
+            .addKeyValue("exceptionType", exception.getClass().getSimpleName());
+    if (responseStatus != null) {
+      event.addKeyValue("responseStatus", responseStatus);
+    }
+    event.log(LogEvent.EXTERNAL_API_FAILED.message());
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 }
