@@ -10,6 +10,7 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,9 +26,24 @@ public class StockMasterPersistenceService {
 
   @Transactional
   public StockSyncResult synchronize(LocalDate baseDate, List<StockMasterEntry> entries) {
+    return synchronizeMarkets(baseDate, entries, StockMarket.domesticMarkets());
+  }
+
+  @Transactional
+  public StockSyncResult synchronizeUs(LocalDate baseDate, List<StockMasterEntry> entries) {
+    return synchronizeMarkets(baseDate, entries, StockMarket.usMarkets());
+  }
+
+  private StockSyncResult synchronizeMarkets(
+      LocalDate baseDate, List<StockMasterEntry> entries, Set<StockMarket> markets) {
+    if (entries.stream().anyMatch(entry -> !markets.contains(entry.market()))) {
+      throw new IllegalArgumentException("동기화 범위 밖의 시장입니다.");
+    }
     Map<AssetKey, Asset> existingByKey = new HashMap<>();
     for (Asset asset : assetRepository.findAllByCategoryIn(SUPPORTED_CATEGORIES)) {
-      existingByKey.put(new AssetKey(asset.getCategory(), asset.getAssetCode()), asset);
+      if (asset.getMarket() != null && markets.contains(asset.getMarket())) {
+        existingByKey.put(new AssetKey(asset.getCategory(), asset.getAssetCode()), asset);
+      }
     }
 
     Set<AssetKey> synchronizedKeys = new HashSet<>();

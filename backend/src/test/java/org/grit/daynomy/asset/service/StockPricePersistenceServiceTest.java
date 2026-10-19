@@ -80,6 +80,30 @@ class StockPricePersistenceServiceTest {
     given(asset.getAssetCode()).willReturn(code);
     given(asset.getCategory()).willReturn(category);
     given(asset.isListed()).willReturn(listed);
+    given(asset.getMarket()).willReturn(org.grit.daynomy.asset.domain.StockMarket.KOSPI);
     return asset;
+  }
+
+  @Test
+  void usPricesDoNotMarkKoreanTradingDayCollectedAndCanBeRepeated() {
+    LocalDate date = LocalDate.of(2026, 10, 16);
+    Asset apple =
+        Asset.listedStock(
+            "Apple", "AAPL.US", org.grit.daynomy.asset.domain.StockMarket.NASDAQ, null, date);
+    given(assetRepository.findAllByCategoryIn(Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .willReturn(List.of(apple));
+    StockDailyPrice existing = new StockDailyPrice(apple, date, new BigDecimal("245.1234"));
+    given(stockDailyPriceRepository.findAllByBaseDate(date)).willReturn(List.of(existing));
+    var result =
+        persistenceService.synchronizeUs(
+            date,
+            List.of(
+                new StockPriceEntry(
+                    "AAPL.US", AssetCategory.STOCK, date, new BigDecimal("245.1234")),
+                new StockPriceEntry("005930", AssetCategory.STOCK, date, new BigDecimal("82000"))));
+    assertThat(result.createdCount()).isZero();
+    assertThat(result.updatedCount()).isZero();
+    assertThat(result.skippedCount()).isEqualTo(2);
+    org.mockito.Mockito.verifyNoInteractions(tradingDayRepository);
   }
 }

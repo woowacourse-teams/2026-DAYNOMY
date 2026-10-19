@@ -111,4 +111,29 @@ class StockMasterPersistenceServiceTest {
     assertThat(missingStock.isListed()).isFalse();
     assertThat(existingEtf.isListed()).isTrue();
   }
+
+  @Test
+  void domesticAndUsSyncNeverDelistEachOther() {
+    LocalDate date = LocalDate.of(2026, 10, 16);
+    Asset korean = Asset.listedStock("삼성전자", "005930", StockMarket.KOSPI, null, date);
+    Asset apple = Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, date);
+    Asset missingUs = Asset.listedStock("Missing", "MISS.US", StockMarket.NYSE, null, date);
+    given(assetRepository.findAllByCategoryIn(Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .willReturn(List.of(korean, apple, missingUs));
+    persistenceService.synchronize(
+        date,
+        List.of(
+            new StockMasterEntry(
+                "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI, null, date)));
+    assertThat(apple.isListed()).isTrue();
+    assertThat(missingUs.isListed()).isTrue();
+    persistenceService.synchronizeUs(
+        date,
+        List.of(
+            new StockMasterEntry(
+                "AAPL.US", "Apple", AssetCategory.STOCK, StockMarket.NASDAQ, null, date)));
+    assertThat(korean.isListed()).isTrue();
+    assertThat(apple.isListed()).isTrue();
+    assertThat(missingUs.isListed()).isFalse();
+  }
 }

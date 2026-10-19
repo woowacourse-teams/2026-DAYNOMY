@@ -57,3 +57,8 @@ external:
 investment-calendar:
   sync:
     enabled: false
+
+stock:
+  us:
+    sync:
+      enabled: false

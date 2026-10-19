@@ -176,6 +176,10 @@ person:
     lookback-days: ${PERSON_POST_COLLECTION_LOOKBACK_DAYS:3}
 
 stock:
+  us:
+    sync:
+      enabled: ${US_STOCK_SYNC_ENABLED:false}
+      cron: ${US_STOCK_SYNC_CRON:0 15 6 * * *}
   calendar:
     sync:
       enabled: ${MARKET_CALENDAR_SYNC_ENABLED:false}
