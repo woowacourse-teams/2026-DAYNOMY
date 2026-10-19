@@ -746,6 +746,24 @@
   font-size: 12px;
   line-height: 1.5;
 }
+.issue-people .issue-people-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--issue-line);
+  border-radius: 6px;
+  background: white;
+  color: var(--issue-ink);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.issue-people .issue-people-more:hover {
+  background: #f6f8fb;
+  border-color: #a5b0bf;
+}
 .issue-inline-post {
   grid-column: 2;
   min-width: 0;

@@ -179,6 +179,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                   })
                 }
                 to="/people"
+                className="issue-people-more"
                 aria-label="주목받는 인물의 글 전체 보기"
               >
                 전체 보기
