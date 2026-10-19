@@ -1,5 +1,6 @@
 package org.grit.daynomy.portfolio.ai;
 
+import io.micrometer.context.ContextSnapshotFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,20 +43,26 @@ public final class PortfolioAnalysisBatches {
     }
     var completed = new TreeMap<Integer, PortfolioAnalysisResult>();
     var loggingContext = MDC.getCopyOfContextMap();
+    var contextSnapshotFactory = ContextSnapshotFactory.builder().build();
     var executor = Executors.newFixedThreadPool(CONCURRENCY);
     var completion = new ExecutorCompletionService<CompletedBatch>(executor);
     var futures = new ArrayList<Future<CompletedBatch>>();
     java.util.function.IntFunction<Future<CompletedBatch>> submit =
         index ->
             completion.submit(
-                () -> {
-                  if (loggingContext != null) MDC.setContextMap(loggingContext);
-                  try {
-                    return new CompletedBatch(index, request.apply(batches.get(index)));
-                  } finally {
-                    MDC.clear();
-                  }
-                });
+                contextSnapshotFactory
+                    .captureAll()
+                    .wrap(
+                        () -> {
+                          var previous = MDC.getCopyOfContextMap();
+                          try {
+                            if (loggingContext != null) MDC.setContextMap(loggingContext);
+                            return new CompletedBatch(index, request.apply(batches.get(index)));
+                          } finally {
+                            if (previous == null) MDC.clear();
+                            else MDC.setContextMap(previous);
+                          }
+                        }));
     try {
       int next = 0;
       while (next < Math.min(CONCURRENCY, batches.size())) futures.add(submit.apply(next++));

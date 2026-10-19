@@ -232,7 +232,8 @@ class OpenAiSocialPostSearchClientTest {
             "test-news-model",
             "test-social-model",
             Duration.ofSeconds(1),
-            Duration.ofSeconds(1)));
+            Duration.ofSeconds(1)),
+        org.springframework.web.client.RestClient.builder());
   }
 
   private MockResponse jsonResponse(String body) {

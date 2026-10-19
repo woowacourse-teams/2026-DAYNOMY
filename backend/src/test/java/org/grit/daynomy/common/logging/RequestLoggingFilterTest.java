@@ -50,11 +50,9 @@ class RequestLoggingFilterTest {
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/news");
     MockHttpServletResponse response = new MockHttpServletResponse();
     AtomicReference<String> requestId = new AtomicReference<>();
-    AtomicReference<String> traceId = new AtomicReference<>();
     FilterChain filterChain =
         (servletRequest, servletResponse) -> {
           requestId.set(MDC.get("requestId"));
-          traceId.set(MDC.get("traceId"));
           assertThat(MDC.get("automation")).isEqualTo("unknown");
           ((MockHttpServletResponse) servletResponse).setStatus(201);
         };
@@ -62,7 +60,6 @@ class RequestLoggingFilterTest {
     requestLoggingFilter.doFilter(request, response, filterChain);
 
     assertThat(requestId).hasValueSatisfying(value -> assertThat(value).isNotBlank());
-    assertThat(traceId).hasValueSatisfying(value -> assertThat(value).isNotBlank());
     assertThat(MDC.get("requestId")).isNull();
     assertThat(MDC.get("traceId")).isNull();
     assertThat(MDC.get("automation")).isNull();
@@ -112,6 +109,26 @@ class RequestLoggingFilterTest {
     assertThat(appender.list.get(1).getMDCPropertyMap())
         .containsEntry("requestId", requestId.get());
     assertThat(MDC.get("requestId")).isNull();
+  }
+
+  @Test
+  void preservesTracingContextProvidedByMicrometer() throws Exception {
+    MDC.put("traceId", "0123456789abcdef0123456789abcdef");
+    MDC.put("spanId", "0123456789abcdef");
+
+    requestLoggingFilter.doFilter(
+        new MockHttpServletRequest("GET", "/api/news"),
+        new MockHttpServletResponse(),
+        new MockFilterChain());
+
+    assertThat(appender.list)
+        .allSatisfy(
+            loggingEvent ->
+                assertThat(loggingEvent.getMDCPropertyMap())
+                    .containsEntry("traceId", "0123456789abcdef0123456789abcdef")
+                    .containsEntry("spanId", "0123456789abcdef"));
+    assertThat(MDC.get("traceId")).isEqualTo("0123456789abcdef0123456789abcdef");
+    assertThat(MDC.get("spanId")).isEqualTo("0123456789abcdef");
   }
 
   @Test

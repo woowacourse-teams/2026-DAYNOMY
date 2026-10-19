@@ -55,7 +55,8 @@ class YouTubeClientTest {
                 "test-api-key",
                 server.url("/").toString(),
                 Duration.ofSeconds(1),
-                Duration.ofSeconds(1)));
+                Duration.ofSeconds(1)),
+            org.springframework.web.client.RestClient.builder());
 
     var candidates = client.search("삼성전자 005930");
 
@@ -178,6 +179,7 @@ class YouTubeClientTest {
   private YouTubeClient newClient(String apiKey) {
     return new YouTubeClient(
         new YouTubeProperties(
-            apiKey, server.url("/").toString(), Duration.ofSeconds(1), Duration.ofSeconds(1)));
+            apiKey, server.url("/").toString(), Duration.ofSeconds(1), Duration.ofSeconds(1)),
+        org.springframework.web.client.RestClient.builder());
   }
 }

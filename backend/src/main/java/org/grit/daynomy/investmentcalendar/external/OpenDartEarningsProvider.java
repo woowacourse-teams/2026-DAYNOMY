@@ -39,10 +39,12 @@ public class OpenDartEarningsProvider implements InvestmentCalendarProvider {
   private final InvestmentCalendarExternalProperties properties;
   private final RestClient restClient;
 
-  public OpenDartEarningsProvider(InvestmentCalendarExternalProperties properties) {
+  public OpenDartEarningsProvider(
+      InvestmentCalendarExternalProperties properties, RestClient.Builder restClientBuilder) {
     this.properties = properties;
     this.restClient =
-        InvestmentCalendarHttpClientFactory.create(properties.dartBaseUrl(), properties);
+        InvestmentCalendarHttpClientFactory.create(
+            properties.dartBaseUrl(), properties, restClientBuilder);
   }
 
   @Override

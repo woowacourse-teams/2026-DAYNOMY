@@ -8,9 +8,11 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
 import org.grit.daynomy.external.youtube.YouTubeClient;
@@ -48,10 +50,18 @@ public class FeaturedPersonPostCollectionService {
 
   @Transactional
   public FeaturedPersonPostCandidatesResponse collect(Long personId, LocalDate from, LocalDate to) {
+    long startedAt = System.nanoTime();
     validatePeriod(from, to);
     FeaturedPerson person = getPerson(personId);
     List<CollectedPost> collected = new ArrayList<>();
     BusinessException firstFailure = null;
+    int sourceFailureCount = 0;
+    log.atDebug()
+        .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_COLLECTION_STARTED.code())
+        .addKeyValue("personId", personId)
+        .addKeyValue("from", from)
+        .addKeyValue("to", to)
+        .log(LogEvent.FEATURED_PERSON_POST_COLLECTION_STARTED.message());
 
     if (person.getXProfileUrl() != null || person.getThreadsProfileUrl() != null) {
       try {
@@ -67,6 +77,7 @@ public class FeaturedPersonPostCollectionService {
                             parseDate(post.publishedDate()))));
       } catch (BusinessException exception) {
         firstFailure = exception;
+        sourceFailureCount++;
         logCollectionFailure(personId, "social", exception);
       }
     }
@@ -90,6 +101,7 @@ public class FeaturedPersonPostCollectionService {
         if (firstFailure == null) {
           firstFailure = exception;
         }
+        sourceFailureCount++;
         logCollectionFailure(personId, "youtube", exception);
       }
     }
@@ -98,32 +110,52 @@ public class FeaturedPersonPostCollectionService {
       throw firstFailure;
     }
 
+    int createdCount = 0;
+    int skippedCount = 0;
     for (CollectedPost post : collected) {
       try {
         String normalizedUrl =
             featuredPersonService.normalizePostUrl(post.url(), post.sourceType());
         if (postRepository.existsByPersonIdAndUrl(personId, normalizedUrl)) {
+          skippedCount++;
           continue;
         }
         postRepository.save(
             FeaturedPersonPost.createPending(
                 person, post.sourceType(), post.title(), normalizedUrl, post.publishedAt()));
+        createdCount++;
       } catch (BusinessException exception) {
+        skippedCount++;
         log.atWarn()
+            .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_COLLECTION_SKIPPED.code())
             .addKeyValue("personId", personId)
             .addKeyValue("sourceType", post.sourceType())
             .addKeyValue("errorCode", exception.errorCode().code())
-            .log("Featured person post candidate skipped because its URL is invalid");
+            .addKeyValue("reasonCode", "INVALID_URL")
+            .log(LogEvent.FEATURED_PERSON_POST_COLLECTION_SKIPPED.message());
       }
     }
     postRepository.flush();
-    return pendingCandidates(personId);
+    FeaturedPersonPostCandidatesResponse response = pendingCandidates(personId);
+    log.atInfo()
+        .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_COLLECTION_COMPLETED.code())
+        .addKeyValue("personId", personId)
+        .addKeyValue("collectedCount", collected.size())
+        .addKeyValue("createdCount", createdCount)
+        .addKeyValue("skippedCount", skippedCount)
+        .addKeyValue("sourceFailureCount", sourceFailureCount)
+        .addKeyValue("pendingCount", response.candidates().size())
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
+        .log(LogEvent.FEATURED_PERSON_POST_COLLECTION_COMPLETED.message());
+    return response;
   }
 
   @Transactional
   public FeaturedPersonPostResponse approve(Long personId, Long candidateId) {
     FeaturedPersonPost candidate = getPendingCandidate(personId, candidateId);
     candidate.approve(Instant.now());
+    logCandidateStatusChanged(
+        LogEvent.FEATURED_PERSON_POST_CANDIDATE_APPROVED, personId, candidate);
     return FeaturedPersonPostResponse.from(candidate);
   }
 
@@ -131,17 +163,29 @@ public class FeaturedPersonPostCollectionService {
   public FeaturedPersonPostResponse approve(Long candidateId) {
     FeaturedPersonPost candidate = getPendingCandidate(candidateId);
     candidate.approve(Instant.now());
+    logCandidateStatusChanged(
+        LogEvent.FEATURED_PERSON_POST_CANDIDATE_APPROVED,
+        candidate.getPerson() == null ? null : candidate.getPerson().getId(),
+        candidate);
     return FeaturedPersonPostResponse.from(candidate);
   }
 
   @Transactional
   public void reject(Long personId, Long candidateId) {
-    getPendingCandidate(personId, candidateId).reject(Instant.now());
+    FeaturedPersonPost candidate = getPendingCandidate(personId, candidateId);
+    candidate.reject(Instant.now());
+    logCandidateStatusChanged(
+        LogEvent.FEATURED_PERSON_POST_CANDIDATE_REJECTED, personId, candidate);
   }
 
   @Transactional
   public void reject(Long candidateId) {
-    getPendingCandidate(candidateId).reject(Instant.now());
+    FeaturedPersonPost candidate = getPendingCandidate(candidateId);
+    candidate.reject(Instant.now());
+    logCandidateStatusChanged(
+        LogEvent.FEATURED_PERSON_POST_CANDIDATE_REJECTED,
+        candidate.getPerson() == null ? null : candidate.getPerson().getId(),
+        candidate);
   }
 
   private FeaturedPersonPostCandidatesResponse pendingCandidates(Long personId) {
@@ -221,10 +265,28 @@ public class FeaturedPersonPostCollectionService {
 
   private void logCollectionFailure(Long personId, String source, BusinessException exception) {
     log.atWarn()
+        .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_COLLECTION_FAILED.code())
         .addKeyValue("personId", personId)
         .addKeyValue("source", source)
         .addKeyValue("errorCode", exception.errorCode().code())
-        .log("Featured person post collection source failed");
+        .log(LogEvent.FEATURED_PERSON_POST_COLLECTION_FAILED.message());
+  }
+
+  private void logCandidateStatusChanged(
+      LogEvent logEvent, Long personId, FeaturedPersonPost candidate) {
+    var event =
+        log.atInfo()
+            .addKeyValue("event", logEvent.code())
+            .addKeyValue("candidateId", candidate.getId())
+            .addKeyValue("sourceType", candidate.getSourceType());
+    if (personId != null) {
+      event.addKeyValue("personId", personId);
+    }
+    event.log(logEvent.message());
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
   private record CollectedPost(

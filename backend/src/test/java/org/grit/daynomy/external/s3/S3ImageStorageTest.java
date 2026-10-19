@@ -87,6 +87,10 @@ class S3ImageStorageTest {
     assertThat(storedImage.relativeKey()).endsWith(".webp");
     assertThat(storedImage.publicUrl())
         .startsWith("https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/");
+    assertThat(keyValues(logEvent(LogEvent.EXTERNAL_UPLOAD_COMPLETED)))
+        .containsEntry("provider", "s3")
+        .containsEntry("contentLength", 3)
+        .containsKey("durationMs");
   }
 
   @Test
@@ -122,6 +126,10 @@ class S3ImageStorageTest {
     DeleteObjectRequest request = requestCaptor.getValue();
     assertThat(request.bucket()).isEqualTo(BUCKET);
     assertThat(request.key()).isEqualTo("daynomy/news-image.webp");
+    assertThat(keyValues(logEvent(LogEvent.EXTERNAL_DELETE_COMPLETED)))
+        .containsEntry("provider", "s3")
+        .containsEntry("relativeKey", "news-image.webp")
+        .containsKey("durationMs");
   }
 
   @Test
@@ -177,7 +185,7 @@ class S3ImageStorageTest {
     assertThatThrownBy(() -> storage.upload(new byte[] {1}, "webp", "image/webp"))
         .isInstanceOf(BusinessException.class);
 
-    ILoggingEvent log = appender.list.getFirst();
+    ILoggingEvent log = logEvent(LogEvent.EXTERNAL_UPLOAD_FAILED);
     assertThat(log.getLevel()).isEqualTo(Level.WARN);
     assertThat(log.getFormattedMessage()).isEqualTo(LogEvent.EXTERNAL_UPLOAD_FAILED.message());
     assertThat(keyValues(log))
@@ -200,7 +208,7 @@ class S3ImageStorageTest {
                         "news-image.webp", "https://cdn.example.com/news-image.webp")))
         .isInstanceOf(BusinessException.class);
 
-    ILoggingEvent log = appender.list.getFirst();
+    ILoggingEvent log = logEvent(LogEvent.EXTERNAL_DELETE_FAILED);
     assertThat(log.getLevel()).isEqualTo(Level.WARN);
     assertThat(log.getFormattedMessage()).isEqualTo(LogEvent.EXTERNAL_DELETE_FAILED.message());
     assertThat(keyValues(log))
@@ -214,5 +222,12 @@ class S3ImageStorageTest {
     Map<String, Object> values = new HashMap<>();
     loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
     return values;
+  }
+
+  private ILoggingEvent logEvent(LogEvent event) {
+    return appender.list.stream()
+        .filter(loggingEvent -> event.code().equals(keyValues(loggingEvent).get("event")))
+        .findFirst()
+        .orElseThrow();
   }
 }

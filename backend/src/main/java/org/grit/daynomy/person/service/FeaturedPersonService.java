@@ -12,7 +12,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.SocialPostResponse;
 import org.grit.daynomy.content.dto.SocialPostSearchResponse;
@@ -34,6 +36,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional(readOnly = true)
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class FeaturedPersonService {
@@ -91,7 +94,12 @@ public class FeaturedPersonService {
             normalizeProfileUrl(request.threadsProfileUrl(), this::isThreadsProfile),
             normalizeProfileUrl(request.youtubeProfileUrl(), this::isYouTubeProfile),
             uploadProfileImage(request));
-    return FeaturedPersonResponse.from(personRepository.saveAndFlush(person), List.of());
+    FeaturedPerson savedPerson = personRepository.saveAndFlush(person);
+    log.atInfo()
+        .addKeyValue("event", LogEvent.FEATURED_PERSON_CREATED.code())
+        .addKeyValue("personId", savedPerson.getId())
+        .log(LogEvent.FEATURED_PERSON_CREATED.message());
+    return FeaturedPersonResponse.from(savedPerson, List.of());
   }
 
   @Transactional
@@ -113,6 +121,11 @@ public class FeaturedPersonService {
     if (request.profileImageSelection() != null) {
       s3ImageStorage.deleteIfManaged(oldProfileImageUrl);
     }
+    log.atInfo()
+        .addKeyValue("event", LogEvent.FEATURED_PERSON_UPDATED.code())
+        .addKeyValue("personId", personId)
+        .addKeyValue("profileImageChanged", request.profileImageSelection() != null)
+        .log(LogEvent.FEATURED_PERSON_UPDATED.message());
     return FeaturedPersonResponse.from(person, postsFor(personId));
   }
 
@@ -121,6 +134,10 @@ public class FeaturedPersonService {
     FeaturedPerson person = getPerson(personId);
     personRepository.delete(person);
     s3ImageStorage.deleteIfManaged(person.getProfileImageUrl());
+    log.atInfo()
+        .addKeyValue("event", LogEvent.FEATURED_PERSON_DELETED.code())
+        .addKeyValue("personId", personId)
+        .log(LogEvent.FEATURED_PERSON_DELETED.message());
   }
 
   @Transactional
@@ -137,7 +154,14 @@ public class FeaturedPersonService {
     }
     FeaturedPersonPost post =
         FeaturedPersonPost.create(person, sourceType, title, url, request.publishedAt());
-    return FeaturedPersonPostResponse.from(postRepository.saveAndFlush(post));
+    FeaturedPersonPost savedPost = postRepository.saveAndFlush(post);
+    log.atInfo()
+        .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_CREATED.code())
+        .addKeyValue("personId", personId)
+        .addKeyValue("postId", savedPost.getId())
+        .addKeyValue("sourceType", sourceType)
+        .log(LogEvent.FEATURED_PERSON_POST_CREATED.message());
+    return FeaturedPersonPostResponse.from(savedPost);
   }
 
   @Transactional
@@ -150,6 +174,12 @@ public class FeaturedPersonService {
                 () ->
                     new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_POST_NOT_FOUND));
     postRepository.delete(post);
+    log.atInfo()
+        .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_DELETED.code())
+        .addKeyValue("personId", personId)
+        .addKeyValue("postId", postId)
+        .addKeyValue("sourceType", post.getSourceType())
+        .log(LogEvent.FEATURED_PERSON_POST_DELETED.message());
   }
 
   private FeaturedPerson getPerson(Long personId) {
