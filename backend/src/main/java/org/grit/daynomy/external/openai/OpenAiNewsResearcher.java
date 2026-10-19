@@ -94,6 +94,7 @@ public class OpenAiNewsResearcher {
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", operation)
             .addKeyValue("attempt", attempt)
+            .addKeyValue("reason", exception.getMessage())
             .addKeyValue("errorType", exception.getClass().getSimpleName())
             .log(LogEvent.AI_NEWS_VALIDATION_FAILED.message());
         if (attempt == MAX_ATTEMPTS) {
@@ -102,6 +103,7 @@ public class OpenAiNewsResearcher {
               .addKeyValue("api", "OpenAI")
               .addKeyValue("operation", operation)
               .addKeyValue("attempt", attempt)
+              .addKeyValue("reason", exception.getMessage())
               .addKeyValue("errorType", exception.getClass().getSimpleName())
               .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
           throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
