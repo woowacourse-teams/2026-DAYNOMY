@@ -218,13 +218,16 @@ export function PortfolioNews({
           <li key={item.url}>
             <a
               onClick={() =>
-                trackEvent('click_content', {
-                  surface: 'portfolio_news',
-                  content_id: `content-${item.id}`,
-                  content_type: item.sourceType === 'INTERNAL_NEWS' ? 'news' : 'external',
-                  source_type: item.sourceType === 'INTERNAL_NEWS' ? 'DAYNOMY' : item.sourceType,
-                  position: index + 1,
-                })
+                trackEvent(
+                  item.sourceType === 'INTERNAL_NEWS' ? 'click_content' : 'click_content_original',
+                  {
+                    surface: 'portfolio_news',
+                    content_id: `content-${item.id}`,
+                    content_type: item.sourceType === 'INTERNAL_NEWS' ? 'news' : 'external',
+                    source_type: item.sourceType === 'INTERNAL_NEWS' ? 'DAYNOMY' : item.sourceType,
+                    position: index + 1,
+                  },
+                )
               }
               href={item.url}
               target={item.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}

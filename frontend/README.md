@@ -343,27 +343,27 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 
 #### 이벤트
 
-| 이벤트                                                                            | 발생 시점                                                | 주요 파라미터                                                                       |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `page_view`                                                                       | 공개 화면의 경로 변경                                    | `page_path` (쿼리 없는 경로)                                                        |
-| `view_news_list`                                                                  | 뉴스 목록 진입·카테고리 변경                             | `category` (뉴스 카테고리 코드)                                                     |
-| `view_news_detail`                                                                | 뉴스 상세 진입                                           | `news_id` (기사 식별 번호)                                                          |
-| `search_news`                                                                     | 검색어 변경                                              | `search_length` (검색어 글자 수)                                                    |
-| `click_search_open`                                                               | 검색 열기 버튼 클릭                                      | 없음                                                                                |
-| `start_portfolio_analysis`                                                        | 포트폴리오 분석·갱신 요청 시작                           | `action`, `user_type`, `asset_count`                                                |
-| `portfolio_analysis_result`                                                       | 사용자가 시작한 분석·갱신 요청 결과                      | `action`, `user_type`, `asset_count`, `status`, `last_check_outcome`, `duration_ms` |
-| `view_portfolio_analysis`                                                         | 결과 상단 점수 영역이 50% 이상 노출                      | `surface`, `user_type`, `analyzed_asset_count`                                      |
-| `select_portfolio_analysis_asset`                                                 | 차트·목록에서 전체 또는 자산별 결과로 선택 변경          | `surface`, `scope`, `position`                                                      |
-| `expand_portfolio_analysis_sources`                                               | 분석 출처 펼치기                                         | `surface`, `scope`, `source_count`                                                  |
-| `content_load_result`                                                             | 소식·인물·종목 콘텐츠·보유 자산 소식·뉴스 분석 조회 결과 | `surface`, `area`, `status`, `result_count`, `attempt`, `duration_ms`               |
-| `view_content_list`, `view_content_empty`                                         | 콘텐츠 목록 또는 빈 상태 확인                            | `surface`, `source_type`, `result_count`, `page_number`, `status`, `reason`         |
-| `click_content`, `click_content_original`, `expand_content`, `open_content_video` | 콘텐츠 선택·원문 이동·글 펼치기·종목 영상 열기           | `surface`, `source_type`, `content_id`, `position`                                  |
-| `filter_content_source`, `change_content_page`                                    | 출처 필터·페이지 변경                                    | `surface`, `source_type`, `previous_source`, `previous_page`, `page_number`         |
-| `click_content_more`, `retry_content_load`                                        | 더 보기 이동·조회 재시도                                 | `surface`, `destination`, `area`, `attempt`                                         |
-| `click_person_preview`, `select_featured_person`                                  | 인물 미리보기·인물 선택                                  | `surface`, `person_id`, `position`                                                  |
-| `view_portfolio_news`                                                             | 보유 자산 소식 제목이 50% 이상 노출                      | `surface=portfolio_news`, `status`, `result_count`                                  |
-| `open_keyword_analysis`                                                           | 키워드 설명이 닫힘에서 열림으로 전환                     | `news_id`, `keyword_category`, `trigger`                                            |
-| `view_market_analysis`                                                            | 정상 시장 분석의 제목이 50% 이상 노출                    | `surface=news_detail`, `news_id`                                                    |
+| 이벤트                                                                            | 발생 시점                                                | 주요 파라미터                                                                             |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `page_view`                                                                       | 공개 화면의 경로 변경                                    | `page_path` (쿼리 없는 경로)                                                              |
+| `view_news_list`                                                                  | 뉴스 목록 진입·카테고리 변경                             | `category` (뉴스 카테고리 코드)                                                           |
+| `view_news_detail`                                                                | 뉴스 상세 진입                                           | `news_id` (기사 식별 번호)                                                                |
+| `search_news`                                                                     | 검색어 변경                                              | `search_length` (검색어 글자 수)                                                          |
+| `click_search_open`                                                               | 검색 열기 버튼 클릭                                      | 없음                                                                                      |
+| `start_portfolio_analysis`                                                        | 포트폴리오 분석·갱신 요청 시작                           | `action`, `user_type`, `asset_count`                                                      |
+| `portfolio_analysis_result`                                                       | 사용자가 시작한 분석·갱신 요청 결과                      | `action`, `user_type`, `asset_count`, `status`, `last_check_outcome`, `duration_ms`       |
+| `view_portfolio_analysis`                                                         | 결과 상단 점수 영역이 50% 이상 노출                      | `surface`, `user_type`, `analyzed_asset_count`                                            |
+| `select_portfolio_analysis_asset`                                                 | 차트·목록에서 전체 또는 자산별 결과로 선택 변경          | `surface`, `scope`, `position`                                                            |
+| `expand_portfolio_analysis_sources`                                               | 분석 출처 펼치기                                         | `surface`, `scope`, `source_count`                                                        |
+| `content_load_result`                                                             | 소식·인물·종목 콘텐츠·보유 자산 소식·뉴스 분석 조회 결과 | `surface`, `area`, `status`, `result_count`, `attempt`, `duration_ms`                     |
+| `view_content`, `view_content_list`, `view_content_empty`                         | 대표 콘텐츠·콘텐츠 목록 또는 빈 상태 확인                | `surface`, `source_type`, `content_id`, `result_count`, `page_number`, `status`, `reason` |
+| `click_content`, `click_content_original`, `expand_content`, `open_content_video` | 콘텐츠 선택·원문 이동·글 펼치기·종목 영상 열기           | `surface`, `source_type`, `content_id`, `position`                                        |
+| `filter_content_source`, `change_content_page`                                    | 출처 필터·페이지 변경                                    | `surface`, `source_type`, `previous_source`, `previous_page`, `page_number`               |
+| `click_content_more`, `retry_content_load`                                        | 더 보기 이동·조회 재시도                                 | `surface`, `destination`, `area`, `attempt`                                               |
+| `click_person_preview`, `select_featured_person`                                  | 인물 미리보기·인물 선택                                  | `surface`, `person_id`, `position`                                                        |
+| `view_portfolio_news`                                                             | 보유 자산 소식 제목이 50% 이상 노출                      | `surface=portfolio_news`, `status`, `result_count`                                        |
+| `open_keyword_analysis`                                                           | 키워드 설명이 닫힘에서 열림으로 전환                     | `news_id`, `keyword_category`, `trigger`                                                  |
+| `view_market_analysis`                                                            | 정상 시장 분석의 제목이 50% 이상 노출                    | `surface=news_detail`, `news_id`                                                          |
 
 포트폴리오 대시보드는 `/`에서 다음 이벤트를 수집합니다. 로그인 여부·시세 상태·입력
 방식·정렬·조회 기간·실패 유형만 허용하며 종목 이름·금액·수량은 전송하지 않습니다.
@@ -473,6 +473,6 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 | `portfolio_tour_completed`        | 마지막 단계의 완료 동작                                |
 | `portfolio_tour_register_clicked` | 마지막 ‘내 자산 등록하기’ 클릭 (실제 저장 성공과 구분) |
 
-공통 속성: `tour_version`, `tour_source` (`automatic` / `title` / `empty_state`), `step_number` (1부터), `step_id`, `step_group` (`registration` / `news` / `analysis`), `total_steps`. 이동에는 `direction`, `to_step`, 중도 종료에는 `exit_reason` (`button` / `escape`)을 추가합니다. 재렌더링·팝오버 이동만으로 조회 이벤트를 반복하지 않습니다. 실제 종목명·수량·매수가 등 입력값은 가이드 이벤트에 포함하지 않습니다. 실제 거래 저장 성공은 기존 `portfolio_save_succeeded` 이벤트로 기록합니다.
+공통 속성: `tour_version`, `tour_source` (`automatic` / `title`), `step_number` (1부터), `step_id`, `step_group` (`registration` / `news` / `analysis`), `total_steps`. 이동에는 `direction`, `to_step`, 중도 종료에는 `exit_reason` (`button` / `escape`)을 추가합니다. 재렌더링·팝오버 이동만으로 조회 이벤트를 반복하지 않습니다. 실제 종목명·수량·매수가 등 입력값은 가이드 이벤트에 포함하지 않습니다. 실제 거래 저장 성공은 기존 `portfolio_save_succeeded` 이벤트로 기록합니다.
 
 가이드 10단계 버전은 `tour_version: v2`로 전송합니다. 추가된 단계 ID는 `asset_trend_composition`, `asset_holdings_history`이며, 기존 완료 저장 키는 유지합니다.
