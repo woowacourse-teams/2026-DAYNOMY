@@ -99,8 +99,8 @@
 
 .service-profile-link {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border-radius: 50%;
   color: #fff;
@@ -141,33 +141,6 @@
 .service-search-link:focus-visible,
 .service-brand:focus-visible {
   outline: 2px solid var(--button-primary);
-  outline-offset: 3px;
-}
-
-.league-feature-nav {
-  display: flex;
-  width: min(1120px, calc(100% - 40px));
-  margin: 4px auto 0;
-}
-
-.league-feature-nav a {
-  display: block;
-  min-height: 44px;
-  padding: 10px 0;
-  color: #505767;
-  background: #fff;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.league-feature-nav a:hover {
-  color: #171821;
-}
-
-.league-feature-nav a:focus-visible {
-  outline: 2px solid #5144d8;
   outline-offset: 3px;
 }
 
@@ -216,17 +189,6 @@
 
   .service-header-tab {
     padding: 8px 0;
-  }
-
-  .league-feature-nav {
-    width: calc(100% - 32px);
-    margin: 0 auto;
-    gap: 18px;
-  }
-
-  .league-feature-nav a {
-    padding: 10px 0;
-    font-size: 13px;
   }
 }
 

@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/re
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
-import { Header } from '../../src/components/Header';
+import { ServiceHeader } from '../../src/features/navigation/ServiceHeader';
 
 const originalShowModal = HTMLDialogElement.prototype.showModal;
 const originalClose = HTMLDialogElement.prototype.close;
@@ -36,7 +36,7 @@ function renderHeader() {
         path: '*',
         element: (
           <>
-            <Header />
+            <ServiceHeader />
             <input aria-label="다른 입력창" />
           </>
         ),
