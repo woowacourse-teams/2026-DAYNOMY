@@ -7,8 +7,10 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -136,7 +138,7 @@ public class LeagueReturnService {
                   exception.getCause() == null
                       ? null
                       : exception.getCause().getClass().getSimpleName())
-              .addKeyValue("stackTrace", Arrays.toString(exception.getStackTrace()))
+              .addKeyValue("stackTrace", stackTraceWithoutMessages(exception))
               .log(LogEvent.LEAGUE_PROFILE_CALCULATION_FAILED.message());
         }
       }
@@ -189,13 +191,25 @@ public class LeagueReturnService {
           .addKeyValue(
               "causeType",
               exception.getCause() == null ? null : exception.getCause().getClass().getSimpleName())
-          .addKeyValue("stackTrace", Arrays.toString(exception.getStackTrace()))
+          .addKeyValue("stackTrace", stackTraceWithoutMessages(exception))
           .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
           .log(LogEvent.LEAGUE_CALCULATION_FAILED.message());
       throw exception;
     } finally {
       metrics.finishRun(started, completed);
     }
+  }
+
+  private static String stackTraceWithoutMessages(Throwable exception) {
+    StringBuilder value = new StringBuilder();
+    Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+    for (Throwable current = exception;
+        current != null && seen.add(current);
+        current = current.getCause()) {
+      if (value.length() > 0) value.append(" <- caused by ");
+      value.append(current.getClass().getName()).append(Arrays.toString(current.getStackTrace()));
+    }
+    return value.toString();
   }
 
   private ProfileCalculation calculateProfile(

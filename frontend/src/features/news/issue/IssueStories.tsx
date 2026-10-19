@@ -2,8 +2,8 @@ import { trackEvent } from '../../../analytics';
 import { useContentImpression, useContentView } from './analytics';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getNewsImage } from '../newslist/newsImage';
-import type { NewsListItem } from '../newslist/types';
+import { getCategoryLabel, type NewsListItem } from '../newslist/types';
+import { feedDate } from './feed';
 import { newsDate } from './todayNews';
 
 export function IssueStories({
@@ -77,17 +77,6 @@ export function IssueStories({
       ) : !articles.length ? (
         <div className="issue-story-empty">
           <p>표시할 데이노미 이슈가 없습니다.</p>
-          <Link
-            onClick={() =>
-              trackEvent('click_content_more', {
-                surface: 'today_story_empty',
-                destination: 'news_contents',
-              })
-            }
-            to="/news/contents"
-          >
-            전체 콘텐츠에서 지난 이슈 보기 ↗
-          </Link>
         </div>
       ) : (
         <>
@@ -103,16 +92,25 @@ export function IssueStories({
                 key={article.id}
                 to={`/news/${article.id}`}
               >
-                <img
-                  src={getNewsImage(article)}
-                  alt=""
-                  onError={(event) => {
-                    const fallback = getNewsImage({ ...article, imageUrl: null });
-                    if (event.currentTarget.getAttribute('src') !== fallback)
-                      event.currentTarget.src = fallback;
-                  }}
-                />
+                <span className="issue-story-image" aria-hidden="true">
+                  <span>데이노미</span>
+                  {article.imageUrl && (
+                    <img
+                      src={article.imageUrl}
+                      alt=""
+                      onError={(event) => {
+                        event.currentTarget.hidden = true;
+                      }}
+                    />
+                  )}
+                </span>
                 <h3>{article.title}</h3>
+                <div className="issue-meta issue-story-meta">
+                  {article.category !== 'ALL' && <span>{getCategoryLabel(article.category)}</span>}
+                  <time dateTime={article.publishedAt ?? undefined}>
+                    {feedDate(article.publishedAt, '발행')}
+                  </time>
+                </div>
               </Link>
             ))}
           </div>

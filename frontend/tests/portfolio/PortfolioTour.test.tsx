@@ -82,16 +82,21 @@ describe('포트폴리오 가이드 투어', () => {
     fireEvent.click(screen.getByRole('button', { name: '사용 가이드' }));
     await screen.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
   });
-  it.each(['skip', 'escape'])('%s로 종료하면 재방문 시 자동 노출하지 않는다', async (action) => {
-    const { unmount } = render(<PortfolioTour ready />);
-    await screen.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
-    if (action === 'skip') fireEvent.click(screen.getByRole('button', { name: '종료' }));
-    else fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
-    unmount();
-    render(<PortfolioTour ready />);
-    expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
-  });
+  it.each(['skip', 'close', 'escape'])(
+    '%s로 종료하면 재방문 시 자동 노출하지 않는다',
+    async (action) => {
+      const { unmount } = render(<PortfolioTour ready />);
+      await screen.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
+      if (action === 'skip') fireEvent.click(screen.getByRole('button', { name: '종료' }));
+      else if (action === 'close')
+        fireEvent.click(screen.getByRole('button', { name: '가이드 닫기' }));
+      else fireEvent.keyDown(document, { key: 'Escape' });
+      expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
+      unmount();
+      render(<PortfolioTour ready />);
+      expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
+    },
+  );
   it('저장소를 사용할 수 없어도 안내를 닫을 수 있다', async () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked');
@@ -103,5 +108,54 @@ describe('포트폴리오 가이드 투어', () => {
     await screen.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
     fireEvent.click(screen.getByRole('button', { name: '종료' }));
     expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
+  });
+});
+
+describe('비회원 첫 방문 말풍선', () => {
+  it.each(['close', 'start', 'leave'])('%s 후 재방문하면 안내를 반복하지 않는다', (action) => {
+    const view = render(<PortfolioTour ready isGuest />);
+    expect(screen.getByRole('complementary', { name: '처음 이용 안내' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
+    if (action === 'close') {
+      fireEvent.click(screen.getByRole('button', { name: '처음 이용 안내 닫기' }));
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: '사용 가이드' }));
+    } else if (action === 'start') {
+      fireEvent.click(screen.getByRole('button', { name: '사용 가이드' }));
+      expect(screen.getByRole('region', { name: '포트폴리오 사용 안내' })).toBeTruthy();
+    }
+    if (action !== 'leave') expect(screen.queryByRole('complementary')).toBeNull();
+    view.unmount();
+    render(<PortfolioTour ready isGuest />);
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(screen.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
+  });
+  it('로딩 중에는 방문을 기록하지 않고 준비가 끝나면 표시한다', () => {
+    const view = render(<PortfolioTour ready={false} isGuest />);
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(localStorage.getItem('daynomy:portfolio-guide-seen:v1')).toBeNull();
+    view.rerender(<PortfolioTour ready isGuest />);
+    expect(screen.getByRole('complementary')).toBeTruthy();
+  });
+  it('회원이나 기존 가이드 이용자에게는 표시하지 않는다', () => {
+    const view = render(<PortfolioTour ready />);
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(localStorage.getItem('daynomy:portfolio-guide-seen:v1')).toBeNull();
+    view.unmount();
+    localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
+    render(<PortfolioTour ready isGuest />);
+    expect(screen.queryByRole('complementary')).toBeNull();
+  });
+  it('저장소가 차단되어도 닫고 가이드를 시작할 수 있다', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    render(<PortfolioTour ready isGuest />);
+    fireEvent.click(screen.getByRole('button', { name: '처음 이용 안내 닫기' }));
+    expect(screen.queryByRole('complementary')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '사용 가이드' }));
+    expect(screen.getByRole('region', { name: '포트폴리오 사용 안내' })).toBeTruthy();
   });
 });

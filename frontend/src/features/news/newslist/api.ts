@@ -84,15 +84,3 @@ export async function getNews(
 
   return normalizeNewsPage(data);
 }
-
-export async function getTodayNews(): Promise<NewsPage> {
-  const response = await fetch('/api/news/today');
-
-  if (!response.ok) {
-    throw new Error('오늘의 이슈를 불러오지 못했습니다.');
-  }
-
-  const data: unknown = await response.json();
-
-  return normalizeNewsPage(data);
-}

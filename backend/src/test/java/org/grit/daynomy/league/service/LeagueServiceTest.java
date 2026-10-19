@@ -760,9 +760,10 @@ class LeagueServiceTest {
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {
     ZoneId seoul = ZoneId.of("Asia/Seoul");
-    LocalDate week = LocalDate.of(2026, 9, 21);
-    dates.when(() -> LocalDate.now(seoul)).thenReturn(week);
-    Instant now = week.atTime(18, 0).atZone(seoul).toInstant();
+    LocalDate today = LocalDate.of(2026, 10, 8);
+    LocalDate week = today.with(DayOfWeek.MONDAY);
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(today);
+    Instant now = today.atTime(18, 0).atZone(seoul).toInstant();
     instants.when(Instant::now).thenReturn(now);
     dailyProfile(week);
     calendar(week, List.of(week));

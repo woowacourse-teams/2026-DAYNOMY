@@ -422,6 +422,46 @@ class LeagueLoggingTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
+  void failureLogsKeepCauseFramesWithoutMessagesAndStopAtCauseCycles(boolean profileFailure) {
+    var cause = new IllegalArgumentException(PRIVATE_TEXT);
+    cause.setStackTrace(
+        new StackTraceElement[] {
+          new StackTraceElement("PricingClient", "load", "PricingClient.java", 42)
+        });
+    var failure = new IllegalStateException(PRIVATE_KEY, cause);
+    cause.initCause(failure);
+    if (profileFailure) {
+      given(profiles.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile()));
+      given(profiles.findByIdForUpdate(3L))
+          .willAnswer(
+              call -> {
+                throw failure;
+              });
+    } else {
+      given(
+              calendar.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
+                  any(LocalDate.class)))
+          .willAnswer(
+              call -> {
+                throw failure;
+              });
+    }
+
+    assertThatThrownBy(returnService::recalculate).isInstanceOf(IllegalStateException.class);
+
+    var failedEvent =
+        profileFailure
+            ? LogEvent.LEAGUE_PROFILE_CALCULATION_FAILED
+            : LogEvent.LEAGUE_CALCULATION_FAILED;
+    assertThat(fields(event(failedEvent)).get("stackTrace").toString())
+        .contains(IllegalStateException.class.getName(), IllegalArgumentException.class.getName())
+        .containsOnlyOnce("PricingClient.load(PricingClient.java:42)")
+        .doesNotContain(PRIVATE_NAME, PRIVATE_TEXT, PRIVATE_KEY);
+    assertPrivateTextAbsent();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
   void automaticRunsKeepAnExistingTraceOrCleanUpTheirGeneratedTrace(boolean existingTrace) {
     String previousTrace = MDC.get("traceId");
     if (existingTrace) MDC.put("traceId", "request-trace");
