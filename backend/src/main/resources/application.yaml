@@ -129,6 +129,12 @@ external:
     connect-timeout: ${YOUTUBE_CONNECT_TIMEOUT:3s}
     read-timeout: ${YOUTUBE_READ_TIMEOUT:10s}
 
+  eodhd:
+    api-token: ${EODHD_API_TOKEN:}
+    base-url: https://eodhd.com/api
+    connect-timeout: 3s
+    read-timeout: 60s
+
   public-data:
     service-key: ${PUBLIC_DATA_SERVICE_KEY}
     stock-price-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo
