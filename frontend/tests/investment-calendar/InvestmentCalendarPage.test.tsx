@@ -27,6 +27,8 @@ function renderCalendar(
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-06T09:00:00+09:00'));
   localStorage.clear();
   sessionStorage.clear();
   mockedGetInvestmentCalendar.mockResolvedValue({
@@ -38,6 +40,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  vi.useRealTimers();
 });
 
 describe('투자 캘린더 화면', () => {
