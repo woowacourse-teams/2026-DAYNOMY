@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.StockMarket;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -24,6 +25,7 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
       FROM Asset a
       WHERE a.category IN :categories
         AND a.listed = true
+        AND a.market IN :markets
         AND (
           LOWER(a.name) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
           OR LOWER(a.assetCode) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
@@ -42,5 +44,6 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
   List<Asset> searchListedSecurities(
       @Param("keyword") String keyword,
       @Param("categories") Set<AssetCategory> categories,
+      @Param("markets") Set<StockMarket> markets,
       Pageable pageable);
 }

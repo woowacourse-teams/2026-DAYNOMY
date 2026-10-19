@@ -5,7 +5,12 @@ import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
 
 public record StockSearchItemResponse(
-    Long assetId, String assetCode, String name, AssetCategory category, StockMarket market) {
+    Long assetId,
+    String assetCode,
+    String name,
+    AssetCategory category,
+    StockMarket market,
+    String currency) {
 
   public static StockSearchItemResponse from(Asset asset) {
     return new StockSearchItemResponse(
@@ -13,6 +18,7 @@ public record StockSearchItemResponse(
         asset.getAssetCode(),
         asset.getName(),
         asset.getCategory(),
-        asset.getMarket());
+        asset.getMarket(),
+        asset.getCurrency());
   }
 }

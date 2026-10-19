@@ -57,6 +57,10 @@ public class Asset extends BaseEntity {
   @Column(name = "price_history_from")
   private LocalDate priceHistoryFrom;
 
+  public String getCurrency() {
+    return market == null ? "KRW" : market.currency();
+  }
+
   public void recordPriceHistoryBackfill(LocalDate from) {
     if (priceHistoryFrom == null || from.isBefore(priceHistoryFrom)) {
       priceHistoryFrom = from;

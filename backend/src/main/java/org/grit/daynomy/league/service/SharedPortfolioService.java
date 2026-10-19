@@ -157,6 +157,7 @@ public class SharedPortfolioService {
     Asset asset = assetRepository.findById(assetId).orElse(null);
     if (asset == null
         || !asset.isListed()
+        || "USD".equals(asset.getCurrency())
         || (asset.getCategory() != AssetCategory.STOCK
             && asset.getCategory() != AssetCategory.ETF)) {
       throw new BusinessException(LeagueErrorCode.INVALID_LEAGUE_ASSET);
