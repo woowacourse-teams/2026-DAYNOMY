@@ -1,5 +1,6 @@
 package org.grit.daynomy.investmentcalendar.service;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -8,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -21,11 +23,12 @@ public class InvestmentCalendarDataSyncScheduler {
 
   private final InvestmentCalendarDataSyncService syncService;
   private final InvestmentCalendarPriceBackfillService priceBackfillService;
+  private final TaskScheduler taskScheduler;
   private final AtomicBoolean running = new AtomicBoolean();
 
   @EventListener(ApplicationReadyEvent.class)
   public void synchronizeOnStartup() {
-    synchronize();
+    taskScheduler.schedule(this::synchronize, Instant.now());
   }
 
   @Scheduled(cron = "${investment-calendar.sync.cron}", zone = "Asia/Seoul")
