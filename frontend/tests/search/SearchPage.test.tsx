@@ -79,6 +79,9 @@ describe('소식 검색 화면', () => {
     const view = renderSearch();
 
     expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();
+    expect(view.container.querySelectorAll('.issue-feed-row--news')).toHaveLength(3);
+    expect(view.container.querySelectorAll('.issue-feed-thumbnail')).toHaveLength(3);
+    expect(view.container.querySelector('.issue-feed-thumbnail-youtube svg')).toBeTruthy();
     expect(view.getByRole('link', { name: '경제 연구원' })).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: /기준금리 해설 영상/ }));
     expect(view.getByTitle('기준금리 해설 영상')).toBeTruthy();
