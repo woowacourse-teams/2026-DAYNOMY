@@ -476,9 +476,22 @@ function AnalysisSources({
       </summary>
       {sources.length ? (
         <ul className="portfolio-evidence-sources">
-          {sources.map((source) => (
+          {sources.map((source, index) => (
             <li key={source.url}>
-              <a href={source.url} target="_blank" rel="noopener noreferrer">
+              <a
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  if (!demo)
+                    trackEvent('click_portfolio_analysis_source', {
+                      surface: 'portfolio_analysis',
+                      scope,
+                      position: index + 1,
+                      source_count: sources.length,
+                    });
+                }}
+              >
                 {source.title}
                 <ExternalLinkIcon />
               </a>

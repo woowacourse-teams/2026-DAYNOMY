@@ -645,7 +645,6 @@ function memberFetch(respond: (url: string, init?: RequestInit) => unknown) {
 describe('포트폴리오 분석 이벤트', () => {
   it.each([
     ['READY', 'READY'],
-    ['PROCESSING', 'PROCESSING'],
     ['RECHECK_REQUIRED', 'RECHECK_REQUIRED'],
     ['FAILED', 'ERROR'],
   ])('504 이후 서버 상태 %s를 복구하면 결과를 %s로 한 번 기록한다', async (status, expected) => {
@@ -670,7 +669,7 @@ describe('포트폴리오 분석 이벤트', () => {
     if (expected !== 'ERROR') expect(view.queryByRole('alert')).toBeNull();
   });
 
-  it.each(['READY', 'PROCESSING', 'RECHECK_REQUIRED', 'FAILED'])(
+  it.each(['READY', 'RECHECK_REQUIRED', 'FAILED'])(
     '복원은 시작으로 세지 않고 갱신 결과 %s를 그대로 기록한다',
     async (status) => {
       memberFetch((url) =>
@@ -712,6 +711,123 @@ describe('포트폴리오 분석 이벤트', () => {
     expect(
       vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_result'),
     ).toHaveLength(1);
+  });
+
+  it.each(['READY', 'FAILED', 'RECHECK_REQUIRED'])(
+    '504 뒤 PROCESSING에서 %s로 바뀌면 최종 결과를 한 번만 기록한다',
+    async (status) => {
+      let reads = 0;
+      memberFetch((_url, init) => {
+        if (init?.method === 'POST') return jsonResponse({}, 504);
+        reads += 1;
+        if (reads === 1) return saved({ analysis: null, status: 'EMPTY', analysisId: null });
+        if (reads === 2) return saved({ analysis: null, status: 'PROCESSING', analysisId: null });
+        return saved({ status });
+      });
+      const view = render(<PortfolioAnalysis assets={assets} />);
+      fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
+      await waitFor(() => expect(reads).toBe(2));
+      expect(
+        vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_result'),
+      ).toHaveLength(0);
+      await waitFor(
+        () =>
+          expect(trackEvent).toHaveBeenCalledWith(
+            'portfolio_analysis_result',
+            expect.objectContaining({ status, action: 'analyze' }),
+          ),
+        { timeout: 5000 },
+      );
+      view.rerender(<PortfolioAnalysis assets={[...assets]} />);
+      expect(
+        vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_result'),
+      ).toHaveLength(1);
+      expect(
+        vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'start_portfolio_analysis'),
+      ).toHaveLength(1);
+    },
+  );
+
+  it('PROCESSING 응답 뒤 폴링 실패·수동 재시도를 최종 분석 결과와 구분한다', async () => {
+    let reads = 0;
+    memberFetch((_url, init) => {
+      if (init?.method === 'POST')
+        return saved({ analysis: null, status: 'PROCESSING', analysisId: null });
+      reads += 1;
+      if (reads === 1) return saved({ analysis: null, status: 'EMPTY', analysisId: null });
+      if (reads === 2) return jsonResponse({ message: 'private-response' }, 503);
+      return saved();
+    });
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
+    await waitFor(
+      () =>
+        expect(trackEvent).toHaveBeenCalledWith('portfolio_analysis_load_failed', {
+          user_type: 'member',
+          stage: 'poll',
+          error_type: 'server_error',
+        }),
+      { timeout: 5000 },
+    );
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_result'),
+    ).toHaveLength(0);
+    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    await waitFor(() =>
+      expect(trackEvent).toHaveBeenCalledWith(
+        'portfolio_analysis_result',
+        expect.objectContaining({ status: 'READY' }),
+      ),
+    );
+    expect(trackEvent).toHaveBeenCalledWith('portfolio_retry_clicked', { target: 'analysis' });
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'start_portfolio_analysis'),
+    ).toHaveLength(1);
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('private-response');
+  });
+
+  it('저장 분석 조회 실패·재시도는 새 분석 요청으로 집계하지 않는다', async () => {
+    let failed = true;
+    memberFetch(() => (failed ? jsonResponse({}, 503) : saved()));
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    await waitFor(() =>
+      expect(trackEvent).toHaveBeenCalledWith('portfolio_analysis_load_failed', {
+        user_type: 'member',
+        stage: 'restore',
+        error_type: 'server_error',
+      }),
+    );
+    failed = false;
+    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    await view.findByText(analysisResponse.overallImpact);
+    expect(trackEvent).toHaveBeenCalledWith('portfolio_retry_clicked', { target: 'analysis' });
+    expect(
+      vi
+        .mocked(trackEvent)
+        .mock.calls.filter(
+          ([name]) => name === 'start_portfolio_analysis' || name === 'portfolio_analysis_result',
+        ),
+    ).toHaveLength(0);
+  });
+
+  it('이탈 후 완료되는 PROCESSING 요청과 복원된 기존 분석은 결과로 중복 집계하지 않는다', async () => {
+    memberFetch((_url, init) =>
+      saved(
+        init?.method === 'POST'
+          ? { status: 'PROCESSING', analysis: null, analysisId: null }
+          : { status: 'EMPTY', analysis: null, analysisId: null },
+      ),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
+    await view.findByRole('button', { name: '진행 상태 확인' });
+    view.unmount();
+    memberFetch(() => saved());
+    const restored = render(<PortfolioAnalysis assets={assets} />);
+    await restored.findByText(analysisResponse.overallImpact);
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_result'),
+    ).toHaveLength(0);
   });
 
   it('화면 이탈로 취소된 분석은 결과로 집계하지 않는다', async () => {
@@ -782,6 +898,23 @@ describe('포트폴리오 분석 이벤트', () => {
     expect(trackEvent).toHaveBeenCalledWith(
       'expand_portfolio_analysis_sources',
       expect.objectContaining({ scope: 'asset', source_count: 1 }),
+    );
+    const sourceLink = details.querySelector<HTMLAnchorElement>('a')!;
+    sourceLink.addEventListener('click', (event) => event.preventDefault());
+    fireEvent.click(sourceLink);
+    expect(trackEvent).toHaveBeenCalledWith('click_portfolio_analysis_source', {
+      surface: 'portfolio_analysis',
+      scope: 'asset',
+      position: 1,
+      source_count: 1,
+    });
+    expect(
+      vi
+        .mocked(trackEvent)
+        .mock.calls.filter(([name]) => name === 'click_portfolio_analysis_source'),
+    ).toHaveLength(1);
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toMatch(
+      /삼성전자|semiconductor|반도체 산업 동향/,
     );
   });
 });

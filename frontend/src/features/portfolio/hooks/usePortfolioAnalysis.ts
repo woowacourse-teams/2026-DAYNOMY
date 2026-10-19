@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { trackEvent } from '../../../analytics';
 import { ApiError } from '../../../api/client';
+import { portfolioErrorType } from '../analytics';
 import {
   analyzePortfolio,
   createPortfolioSnapshotKey,
@@ -35,7 +36,24 @@ export function usePortfolioAnalysis(
     () => !isLoggedIn && hasGuestPortfolioAnalysisTrialBeenUsed(),
   );
   const active = useRef<AbortController | null>(null);
+  const pendingResult = useRef<{
+    startedAt: number;
+    properties: { action: string; user_type: string; asset_count: number };
+  } | null>(null);
   const snapshotKey = createPortfolioSnapshotKey(assets);
+
+  const recordResult = useCallback((status: string, outcome?: string | null) => {
+    // PROCESSING은 중간 상태다. 이 화면에서 시작한 요청의 최종 결과만 한 번 기록한다.
+    const pending = pendingResult.current;
+    if (!pending || status === 'PROCESSING') return;
+    pendingResult.current = null;
+    trackEvent('portfolio_analysis_result', {
+      ...pending.properties,
+      status,
+      last_check_outcome: outcome ?? undefined,
+      duration_ms: Math.max(0, Math.round(performance.now() - pending.startedAt)),
+    });
+  }, []);
 
   const accept = useCallback(
     (response: SavedPortfolioAnalysisResponse) => {
@@ -64,10 +82,19 @@ export function usePortfolioAnalysis(
       setError(null);
       try {
         const response = await getSavedPortfolioAnalysis(controller.signal);
-        if (!controller.signal.aborted) accept(response);
-      } catch {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
+          accept(response);
+          recordResult(response.status, response.lastCheckOutcome);
+        }
+      } catch (caught) {
+        if (!controller.signal.aborted) {
+          trackEvent('portfolio_analysis_load_failed', {
+            user_type: 'member',
+            stage: background ? 'poll' : 'restore',
+            error_type: portfolioErrorType(caught),
+          });
           setError('저장된 분석을 불러오지 못했어요. 다시 시도해 주세요.');
+        }
       } finally {
         if (active.current === controller) {
           active.current = null;
@@ -75,7 +102,7 @@ export function usePortfolioAnalysis(
         }
       }
     },
-    [accept],
+    [accept, recordResult],
   );
 
   useEffect(() => {
@@ -95,6 +122,7 @@ export function usePortfolioAnalysis(
     return () => {
       active.current?.abort();
       active.current = null;
+      pendingResult.current = null;
     };
   }, [isLoggedIn, snapshotKey, restore, holdingsKey]);
 
@@ -114,6 +142,7 @@ export function usePortfolioAnalysis(
   const analyze = async () => {
     if (active.current) return;
     if (isLoggedIn && (!loaded || saved?.status === 'PROCESSING')) {
+      trackEvent('portfolio_retry_clicked', { target: 'analysis' });
       await restore();
       return;
     }
@@ -128,15 +157,7 @@ export function usePortfolioAnalysis(
       user_type: isLoggedIn ? 'member' : 'guest',
       asset_count: assets.length,
     };
-    const recordResult = (status: string, outcome?: string | null) => {
-      if (controller.signal.aborted) return;
-      trackEvent('portfolio_analysis_result', {
-        ...properties,
-        status,
-        last_check_outcome: outcome ?? undefined,
-        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
-      });
-    };
+    pendingResult.current = { startedAt, properties };
     trackEvent('start_portfolio_analysis', properties);
     try {
       if (isLoggedIn) {
@@ -173,9 +194,15 @@ export function usePortfolioAnalysis(
         try {
           const response = await getSavedPortfolioAnalysis(controller.signal);
           if (!controller.signal.aborted) accept(response);
-        } catch {
-          if (!controller.signal.aborted)
+        } catch (recoveryError) {
+          if (!controller.signal.aborted) {
+            trackEvent('portfolio_analysis_load_failed', {
+              user_type: 'member',
+              stage: 'recovery',
+              error_type: portfolioErrorType(recoveryError),
+            });
             setError('분석 진행 상태를 확인하지 못했어요. 다시 시도해 주세요.');
+          }
         }
       } else {
         // 연결 실패 뒤에도 서버 작업은 계속될 수 있으므로 최종 상태부터 확인한다.
@@ -194,8 +221,13 @@ export function usePortfolioAnalysis(
               recordResult(response.status, response.lastCheckOutcome);
               return;
             }
-          } catch {
+          } catch (recoveryError) {
             if (controller.signal.aborted) return;
+            trackEvent('portfolio_analysis_load_failed', {
+              user_type: 'member',
+              stage: 'recovery',
+              error_type: portfolioErrorType(recoveryError),
+            });
           }
         }
         recordResult('ERROR');
