@@ -207,38 +207,121 @@ test('모바일: 삭제된 돈 관리의 기존 주소는 비회원 포트폴리
   await expect(page.getByRole('heading', { name: 'DAYNOMY 로그인' })).toBeVisible();
 });
 
-test('모바일: 로그인한 사용자가 종목·공개 설정·프로필과 첫 일별 성과를 조회한다', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await mockLeagueApi(page);
-  await page.route('**/api/users/me', (route) =>
-    route.fulfill({ json: { id: 2, email: 'ux@example.invalid', nickname: '초보', role: 'USER' } }),
-  );
-  for (const [path, heading] of [
-    ['/league/portfolio', '종목 관리'],
-    ['/portfolio/publication?join=true', '주간 리그 참여'],
-    ['/league/profile', '리그 투자자'],
-    ['/league/investor-1', '리그 투자자'],
-  ]) {
-    await page.goto(path);
-    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeFocused();
-    await expect(page.getByRole('link', { name: '← 주간 리그' })).toBeVisible();
-    await expect(page.getByRole('alert')).toHaveCount(0);
+for (const width of [390, 1440]) {
+  test(`${width}px: 로그인한 사용자가 리그 하위 화면과 첫 일별 성과를 조회한다`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await mockLeagueApi(page);
+    await page.route('**/api/users/me', (route) =>
+      route.fulfill({
+        json: { id: 2, email: 'ux@example.invalid', nickname: '초보', role: 'USER' },
+      }),
+    );
+    await page.route('**/api/users/me/portfolio/transactions', (route) =>
+      route.fulfill({
+        json: {
+          transactions: [
+            {
+              id: 1,
+              assetId: 1,
+              assetCode: '005930',
+              assetName: '삼성전자',
+              category: 'STOCK',
+              transactionType: 'HOLD',
+              quantity: 1,
+              unitPrice: 100,
+              fee: 0,
+              tradedOn: '2026-10-13',
+              reason: '실적의 변화와 산업의 흐름을 살펴보며 보유합니다.',
+              expectedHoldingPeriod: null,
+              expectedChange: '',
+              invalidationCondition: '',
+              maximumAcceptableLossRate: null,
+              writtenAfterTrade: false,
+              reviews: [],
+            },
+          ],
+        },
+      }),
+    );
+    for (const [path, heading] of [
+      ['/league', '주간 리그'],
+      ['/league/portfolio', '종목 관리'],
+      ['/portfolio/publication?join=true', '주간 리그 참여'],
+      ['/league/following', '팔로잉'],
+      ['/league/reviews', '투자 복기'],
+      ['/league/profile', '리그 투자자'],
+      ['/league/investor-1', '리그 투자자'],
+    ]) {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: heading, exact: true })).toBeFocused();
+      if (path === '/league') {
+        await expect(page.getByRole('link', { name: '종목 관리하기' })).toBeVisible();
+        await expect(page.getByRole('navigation', { name: '내 리그' })).toBeVisible();
+      } else {
+        await expect(page.getByRole('link', { name: '← 주간 리그' })).toBeVisible();
+      }
+      await expect(page.getByRole('alert')).toHaveCount(0);
+      if (path === '/league/portfolio') {
+        await page.getByRole('button', { name: '삼성전자 투자 기록 추가' }).click();
+        await expect(page.getByRole('textbox', { name: '보유하는 이유' })).toBeFocused();
+      }
+      if (path === '/league/reviews') {
+        await page.getByRole('button', { name: /복기하기/ }).click();
+        await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeFocused();
+      }
+      await checkWidth(page);
+      const smallButtons = await page
+        .locator('main button:visible')
+        .evaluateAll((buttons) =>
+          buttons
+            .filter((button) => button.getBoundingClientRect().height < 44)
+            .map((button) => button.textContent),
+        );
+      expect(smallButtons, `${path} 터치 영역`).toEqual([]);
+      await page.screenshot({
+        path: testInfo.outputPath(`${path.split('?')[0].replaceAll('/', '-')}-${width}.png`),
+        fullPage: true,
+      });
+      if (path === '/league/portfolio' || path === '/league/reviews') {
+        await page.getByRole('button', { name: '취소', exact: true }).click();
+        await expect(page.locator('main textarea')).toHaveCount(0);
+      }
+      if (path === '/league/portfolio') {
+        await page.getByRole('button', { name: /복기하기/ }).click();
+        await expect(page).toHaveURL('/league/portfolio');
+        await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeFocused();
+        await checkWidth(page);
+        await page.screenshot({
+          path: testInfo.outputPath(`inline-review-${width}.png`),
+          fullPage: true,
+        });
+        await page.getByRole('button', { name: '취소', exact: true }).click();
+        await expect(page.getByRole('button', { name: /복기하기/ })).toBeFocused();
+      }
+    }
+    await expect(page.getByRole('button', { name: '일별', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(
+      page.getByRole('group', { name: '일별 수익률 그래프', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('group', { name: '일별 수익률 그래프', exact: true }),
+    ).toContainText('0.00%');
+    const lastDay = page
+      .getByRole('group', { name: '일별 수익률 그래프', exact: true })
+      .locator('time')
+      .last();
+    await lastDay.scrollIntoViewIfNeeded();
+    await expect(lastDay).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole('table')).toHaveCount(0);
     await checkWidth(page);
-  }
-  await expect(page.getByRole('button', { name: '일별', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await expect(page.getByRole('group', { name: '일별 수익률 그래프', exact: true })).toBeVisible();
-  await expect(page.getByRole('group', { name: '일별 수익률 그래프', exact: true })).toContainText(
-    '0.00%',
-  );
-  await expect(page.getByRole('table')).toHaveCount(0);
-  await checkWidth(page);
-});
+  });
+}
 
 for (const width of [1440, 390]) {
   test(`${width}px: 관리자 화면에서 기간별 종가 복구와 리그 재집계를 실행한다`, async ({

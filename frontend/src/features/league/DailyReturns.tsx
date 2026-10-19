@@ -170,7 +170,7 @@ export function DailyReturns({
             <>
               {history.asOfDate ? (
                 <p className="league-daily-summary">
-                  {history.asOfDate} 종가 기준 · {history.confirmed ? '확정' : '집계 중'}
+                  {history.asOfDate} 종가 기준 · {history.confirmed ? '순위 확정' : '잠정 수익률'}
                 </p>
               ) : null}
               <div className="league-history-scroll">
@@ -180,7 +180,7 @@ export function DailyReturns({
                   aria-label="일별 수익률 그래프"
                   style={{
                     gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
-                    minWidth: `${days.length * 56}px`,
+                    minWidth: `${days.length * 72}px`,
                   }}
                 >
                   <ReturnLine rates={days.map((day) => day.dailyReturnRate)} />

@@ -3,6 +3,7 @@ import { getInvestmentDecisions, recordDecision } from './api';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import type { SharedHolding } from './sharedPortfolioApi';
 import type { InvestmentDecisionRecord } from './types';
+import { InvestmentRecords } from './InvestmentRecords';
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
 
@@ -23,6 +24,7 @@ export function HoldingDecisions({
   onRecordsChange: (records: InvestmentDecisionRecord[] | null) => void;
   refreshKey: number;
 }) {
+  const [reviewId, setReviewId] = useState<number | null>(null);
   const [removing, setRemoving] = useState<number | null>(null);
   const [records, setRecords] = useState<InvestmentDecisionRecord[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,7 +89,7 @@ export function HoldingDecisions({
   useEffect(() => {
     onRecordsChange(loading || loadError ? null : records);
   }, [records, loading, loadError, onRecordsChange]);
-  const locked = busy || portfolioBusy;
+  const locked = busy || portfolioBusy || reviewId !== null;
   useEffect(() => {
     if (error && !locked) {
       (!reasonInput.current?.value.trim() ? reasonInput.current : errorNotice.current)?.focus();
@@ -203,6 +205,26 @@ export function HoldingDecisions({
       </div>
     </form>
   );
+  function renderRecords(values: InvestmentDecisionRecord[]) {
+    return (
+      <InvestmentRecords
+        records={values}
+        reviewId={reviewId}
+        setReviewId={setReviewId}
+        disabled={
+          busy || portfolioBusy || writing || removing !== null || loading || Boolean(loadError)
+        }
+        onRecordChange={(saved) =>
+          setRecords((values) =>
+            (values ?? []).map((record) => (record.id === saved.id ? saved : record)),
+          )
+        }
+      />
+    );
+  }
+  const previousHoldings = (records ?? []).filter(
+    (record) => !holdings.some((holding) => holding.assetId === record.assetId),
+  );
   return (
     <section ref={recordsSection} tabIndex={-1} aria-label="종목별 투자 기록">
       {loading ? (
@@ -225,7 +247,9 @@ export function HoldingDecisions({
         </div>
       ) : null}
       {holdings.map((h) => {
-        const ownRecords = (records ?? []).filter((r) => r.assetId === h.assetId);
+        const ownRecords = (records ?? [])
+          .filter((r) => r.assetId === h.assetId)
+          .sort((a, b) => b.tradedOn.localeCompare(a.tradedOn) || b.id - a.id);
         const completed = Boolean(h.reason.trim() || ownRecords.some((r) => r.reason.trim()));
         return (
           <article key={h.assetId} className="shared-holding">
@@ -245,9 +269,16 @@ export function HoldingDecisions({
               {h.quantity.toLocaleString()}주 · 평균 매수가{' '}
               {h.averagePurchasePrice.toLocaleString()}원
             </p>
-            <p className="shared-reason-preview">
-              {ownRecords.find((r) => r.reason.trim())?.reason || h.reason}
-            </p>
+            {ownRecords.length === 0 && h.reason ? (
+              <p className="shared-reason-preview">{h.reason}</p>
+            ) : null}
+            {renderRecords(ownRecords.slice(0, 1))}
+            {ownRecords.length > 1 ? (
+              <details className="shared-previous-records">
+                <summary>이전 기록 {ownRecords.length - 1}개</summary>
+                {renderRecords(ownRecords.slice(1))}
+              </details>
+            ) : null}
             {!completed ? (
               <button
                 ref={assetId === String(h.assetId) ? decisionTrigger : undefined}
@@ -269,7 +300,7 @@ export function HoldingDecisions({
                   disabled={locked || loading || Boolean(loadError) || writing}
                   onClick={() => startDecision(h.assetId)}
                 >
-                  기록 추가
+                  기록 남기기
                 </button>
               ) : null}
               <label className="shared-visibility-choice">
@@ -323,6 +354,12 @@ export function HoldingDecisions({
           </article>
         );
       })}
+      {previousHoldings.length > 0 ? (
+        <details className="shared-previous-records">
+          <summary>지난 종목의 기록 {previousHoldings.length}개</summary>
+          {renderRecords(previousHoldings)}
+        </details>
+      ) : null}
       {message ? (
         <p role="status" className="shared-feedback">
           {message}

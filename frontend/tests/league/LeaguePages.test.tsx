@@ -126,7 +126,7 @@ afterEach(() => {
 });
 
 describe('투자 리그 화면', () => {
-  it('StrictMode에서도 진입·조회 완료·상세 지표 이벤트를 한 번 기록한다', async () => {
+  it('StrictMode에서도 진입·조회 완료를 한 번 기록하고 잠정 순위와 상세 지표 동작을 구분한다', async () => {
     vi.mocked(leagueApi.getRankings).mockResolvedValue({
       ...ranking,
       confirmed: false,
@@ -141,7 +141,9 @@ describe('투자 리그 화면', () => {
         </AuthContext.Provider>
       </StrictMode>,
     );
-    await view.findByRole('button', { name: '차분한초보 상세 지표' });
+    await view.findByText('잠정 순위');
+    expect(view.getByText('종가 수집 대기')).toBeTruthy();
+    expect(view.getByText(/집계된 종가 기준의 잠정 순위/)).toBeTruthy();
     expect(
       vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'view_league'),
     ).toHaveLength(1);
@@ -276,7 +278,7 @@ describe('투자 리그 화면', () => {
     expect(view.queryByRole('navigation', { name: '조회 주차' })).toBeNull();
     expect(view.queryByRole('combobox')).toBeNull();
     expect(view.queryByText(/지난주/)).toBeNull();
-    expect(view.container.querySelector('details')).toBeNull();
+    expect(view.container.querySelector('.league-controls details')).toBeNull();
     view.unmount();
     const dailyView = render(
       <DailyReturns publicId="investor-1" weekStart="2026-10-05" onWeekChange={vi.fn()} />,
@@ -519,7 +521,7 @@ describe('투자 리그 화면', () => {
     const graph = view.container.querySelector('.league-return-line')!;
     expect(graph.querySelectorAll('circle')).toHaveLength(3);
     expect(graph.querySelectorAll('g line')).toHaveLength(2);
-    expect(view.getByText('2026-12-09 종가 기준 · 집계 중')).toBeTruthy();
+    expect(view.getByText('2026-12-09 종가 기준 · 잠정 수익률')).toBeTruthy();
     expect(view.queryByRole('table')).toBeNull();
   });
 
@@ -555,7 +557,7 @@ describe('투자 리그 화면', () => {
     view.rerender(
       <DailyReturns publicId="investor-1" weekStart="2026-11-30" onWeekChange={onWeekChange} />,
     );
-    await view.findByText('2026-11-30 종가 기준 · 확정');
+    await view.findByText('2026-11-30 종가 기준 · 순위 확정');
     await act(async () => resolvePrevious(daily));
     expect(
       within(view.getByRole('group', { name: '일별 수익률 그래프' })).getByText('-3.00%'),

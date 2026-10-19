@@ -22,7 +22,7 @@ const emptyCollectionStates: Partial<
 > = {
   COLLECTION_PENDING: {
     title: '종가 수집을 기다리고 있어요',
-    description: '필요한 종가가 모두 확보되면 순위를 확인할 수 있어요.',
+    description: '종가가 수집·집계되는 대로 순위가 반영됩니다.',
   },
   CALENDAR_PENDING: {
     title: '거래일 정보를 확인하고 있어요',
@@ -209,7 +209,7 @@ export function LeaguePage() {
             </Link>
           )}
           {isLoggedIn ? (
-            <>
+            <nav className="league-personal-links" aria-label="내 리그">
               <Link
                 className="league-text-link"
                 to="/league/profile"
@@ -236,7 +236,7 @@ export function LeaguePage() {
               >
                 팔로잉
               </Link>
-            </>
+            </nav>
           ) : null}
         </div>
       </header>
@@ -258,19 +258,28 @@ export function LeaguePage() {
           <div className="league-ranking-meta">
             {ranking.asOfDate ? <span>{ranking.asOfDate} 종가 기준</span> : null}
             <span className={`league-status-badge${ranking.confirmed ? ' is-confirmed' : ''}`}>
-              {ranking.confirmed
-                ? '순위 확정'
-                : collectionLabels[ranking.collectionStatus ?? 'IN_PROGRESS']}
+              {ranking.confirmed ? '순위 확정' : '잠정 순위'}
             </span>
+            {!ranking.confirmed ? (
+              <span>{collectionLabels[ranking.collectionStatus ?? 'IN_PROGRESS']}</span>
+            ) : null}
           </div>
         ) : null}
       </section>
 
       {!loading && !error && ranking ? (
         <aside className="league-update-notice" aria-label="순위 갱신 안내">
-          <p>종가는 다음 영업일 오후 1시 이후 제공되며, 수집·집계 후 반영됩니다.</p>
-          <p>같은 순위 기준 점수는 공동 순위로 표시합니다.</p>
-          <p>사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다.</p>
+          {!ranking.confirmed && ranking.rankings.length > 0 ? (
+            <p className="league-provisional-note">
+              집계된 종가 기준의 잠정 순위예요. 최종 집계 후 달라질 수 있어요.
+            </p>
+          ) : null}
+          <details className="league-calculation-details">
+            <summary>집계 기준 안내</summary>
+            <p>종가는 다음 영업일 오후 1시 이후 제공되며, 수집·집계 후 반영됩니다.</p>
+            <p>같은 순위 기준 점수는 공동 순위로 표시합니다.</p>
+            <p>사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다.</p>
+          </details>
         </aside>
       ) : null}
 

@@ -259,8 +259,8 @@ export function SharedPortfolioPage() {
         <h1 ref={holdingsHeading} tabIndex={-1}>
           종목 관리
         </h1>
-        <Link className="league-text-link" to="/league/reviews">
-          투자 기록·복기
+        <Link className="league-text-link" to="/portfolio/publication">
+          공개 설정
         </Link>
       </header>
       {loading ? (

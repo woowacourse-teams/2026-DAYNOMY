@@ -133,8 +133,8 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       /삼성전자|장기 성장 기대|70000/,
     );
     expect(localStorage.getItem(storageKey)).toBe(original);
-    expect(view.getByRole('link', { name: '투자 기록·복기' }).getAttribute('href')).toBe(
-      '/league/reviews',
+    expect(view.getByRole('link', { name: '공개 설정' }).getAttribute('href')).toBe(
+      '/portfolio/publication',
     );
     expect(view.queryByRole('region', { name: '공유 방법과 리그 참여' })).toBeNull();
     expect(view.queryByRole('link', { name: '공개 설정 확인 →' })).toBeNull();
@@ -296,8 +296,8 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       true,
     );
     expect(view.getByText('주식 · 005930 · 비공개')).toBeTruthy();
-    expect(view.getByRole('link', { name: '투자 기록·복기' }).getAttribute('href')).toBe(
-      '/league/reviews',
+    expect(view.getByRole('link', { name: '공개 설정' }).getAttribute('href')).toBe(
+      '/portfolio/publication',
     );
     fireEvent.click(await importButton(view));
     await view.findByRole('heading', { name: '종목 추가' });
@@ -348,7 +348,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       });
       const view = renderPage();
       expect(await view.findByText(`주식 · 005930 · ${holdingStatus}`)).toBeTruthy();
-      expect(view.getByRole('link', { name: '투자 기록·복기' })).toBeTruthy();
+      expect(view.getByRole('link', { name: '공개 설정' })).toBeTruthy();
       fireEvent.click(await importButton(view));
       await view.findByRole('heading', { name: '종목 추가' });
       expect(Boolean(view.queryByText('추가한 종목과 보유 이유가 공개됩니다.'))).toBe(
@@ -426,7 +426,7 @@ it('처음 참여하는 사용자는 종목과 보유 이유 준비를 마친 �
     expect.stringContaining('/portfolio/publication?join=true'),
   );
   expect(view.queryByRole('link', { name: '공개 프로필 보기' })).toBeNull();
-  expect(view.queryByRole('button', { name: '결과 복기 추가' })).toBeNull();
+  expect(view.queryByRole('link', { name: '투자 기록·복기' })).toBeNull();
 });
 
 it('종목 빼기는 확인 후 실행하고 실패 시 종목과 원본을 보존한 채 재시도한다', async () => {
