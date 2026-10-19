@@ -108,6 +108,13 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
         if (source !== 'ALL' && item.sourceType !== source) continue;
         const existing = unique.get(item.url);
         if (existing) {
+          if (
+            (Date.parse(item.publishedDate ?? '') || 0) >
+            (Date.parse(existing.publishedDate ?? '') || 0)
+          )
+            existing.publishedDate = item.publishedDate;
+          if ((Date.parse(item.createdAt ?? '') || 0) > (Date.parse(existing.createdAt ?? '') || 0))
+            existing.createdAt = item.createdAt;
           if (!existing.companies.includes(response.assetName))
             existing.companies.push(response.assetName);
         } else unique.set(item.url, { ...item, companies: [response.assetName] });
