@@ -24,11 +24,19 @@ export function PeoplePage() {
 
   function updateScrollEdges() {
     const strip = peopleStripRef.current;
-    if (strip)
-      setScrollEdges({
-        previous: strip.scrollLeft > 1,
-        next: strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1,
-      });
+    if (!strip) return;
+    const bar = strip.parentElement!;
+    const gap = parseFloat(getComputedStyle(bar).columnGap) || 0;
+    const arrowSpace = Array.from(bar.querySelectorAll<HTMLElement>('.people-scroll-arrow')).reduce(
+      (space, arrow) => space + (arrow.offsetWidth ? arrow.offsetWidth + gap : 0),
+      0,
+    );
+    // Measure the room available without arrows so resizing can hide them again.
+    const overflows = strip.scrollWidth > strip.clientWidth + arrowSpace + 1;
+    setScrollEdges({
+      previous: overflows && strip.scrollLeft > 1,
+      next: overflows && strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1,
+    });
   }
 
   function scrollPeople(direction: number) {
@@ -163,6 +171,7 @@ export function PeoplePage() {
         <div className="people-selector-bar">
           <button
             className="people-scroll-arrow"
+            hidden={!scrollEdges.previous && !scrollEdges.next}
             aria-label="이전 인물 보기"
             aria-controls="people-strip"
             disabled={!scrollEdges.previous}
@@ -218,6 +227,7 @@ export function PeoplePage() {
           </nav>
           <button
             className="people-scroll-arrow"
+            hidden={!scrollEdges.previous && !scrollEdges.next}
             aria-label="다음 인물 보기"
             aria-controls="people-strip"
             disabled={!scrollEdges.next}

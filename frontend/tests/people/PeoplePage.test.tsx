@@ -78,6 +78,33 @@ afterEach(() => {
 });
 
 describe('인물의 글 화면', () => {
+  it('목록이 화면에 들어오면 화살표를 숨기고 넘치면 표시한다', async () => {
+    const view = render(
+      <MemoryRouter>
+        <PeoplePage />
+      </MemoryRouter>,
+    );
+    await view.findByRole('button', { name: '일론 머스크' });
+    const strip = view.getByRole('navigation', { name: '인물 선택' });
+    strip.scrollLeft = 0;
+    fireEvent.scroll(strip);
+    expect(view.queryByRole('button', { name: '이전 인물 보기' })).toBeNull();
+    expect(view.queryByRole('button', { name: '다음 인물 보기' })).toBeNull();
+    Object.defineProperty(strip, 'clientWidth', { configurable: true, value: 300 });
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, value: 600 });
+    fireEvent.scroll(strip);
+    expect(view.getByRole('button', { name: '다음 인물 보기' })).toBeTruthy();
+    expect(
+      (view.getByRole('button', { name: '이전 인물 보기' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    view.container.querySelectorAll('.people-scroll-arrow').forEach((arrow) => {
+      Object.defineProperty(arrow, 'offsetWidth', { configurable: true, value: 32 });
+    });
+    Object.defineProperty(strip, 'clientWidth', { configurable: true, value: 536 });
+    fireEvent.scroll(strip);
+    expect(view.queryByRole('button', { name: '다음 인물 보기' })).toBeNull();
+  });
+
   it('최근 등록순으로 글을 보여주고 선택한 글만 원문을 펼친다', async () => {
     const view = render(
       <MemoryRouter initialEntries={['/people?view=all']}>

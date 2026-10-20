@@ -1404,13 +1404,14 @@
 
 .people-selector-bar {
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid var(--issue-line, #dfe4eb);
   margin-bottom: 24px;
 }
 .people-selector-bar .people-selector {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   justify-content: flex-start;
   margin: 0;
@@ -1441,6 +1442,9 @@
   color: #26354b;
   font-size: 26px;
   cursor: pointer;
+}
+.people-scroll-arrow[hidden] {
+  display: none;
 }
 .people-scroll-arrow:disabled {
   opacity: 0.25;
