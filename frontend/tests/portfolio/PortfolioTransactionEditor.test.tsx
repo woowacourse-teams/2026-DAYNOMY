@@ -37,6 +37,18 @@ afterEach(() => {
 });
 
 describe('거래 단가의 최근 종가 기본값', () => {
+  it('과거 거래일로 바꿔도 최근 종가 참고 단가를 유지한다', async () => {
+    const view = render(
+      <PortfolioTransactionEditor stock={samsung} onClose={vi.fn()} onSave={vi.fn()} />,
+    );
+    const input = view.getByLabelText('거래 단가 (원)');
+    await waitFor(() => expect(input).toHaveProperty('value', '75200'));
+    fireEvent.change(view.getByLabelText('거래일'), { target: { value: '2026-01-01' } });
+    expect(input).toHaveProperty('value', '75200');
+    expect(view.getByText(/과거 거래일에도 참고 단가로 유지됩니다/)).toBeTruthy();
+    expect(getLatestStockPrice).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['거래일', '9999-01-01', '2026-01-01'],
     ['수량 (주)', '0', '1'],
