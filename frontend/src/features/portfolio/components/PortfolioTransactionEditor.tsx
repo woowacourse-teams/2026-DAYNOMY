@@ -248,22 +248,6 @@ export function PortfolioTransactionEditor({
         >
           {!selected ? (
             <>
-              <div className="portfolio-trade-types" role="group" aria-label="종목 국가">
-                {(['KR', 'US'] as const).map((value) => (
-                  <button
-                    type="button"
-                    key={value}
-                    aria-pressed={country === value}
-                    onClick={() => {
-                      setCountry(value);
-                      setResults([]);
-                      setSearchError('');
-                    }}
-                  >
-                    {value === 'KR' ? '국내' : '미국'}
-                  </button>
-                ))}
-              </div>
               <label className="portfolio-ledger-field">
                 종목 검색
                 <input
@@ -277,17 +261,35 @@ export function PortfolioTransactionEditor({
                   onChange={(event) => setKeyword(event.target.value)}
                 />
               </label>
-              <div className="portfolio-market-tabs" role="group" aria-label="자산 유형 필터">
-                {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    aria-pressed={categoryFilter === category}
-                    onClick={() => setCategoryFilter(category)}
-                  >
-                    {category === 'ALL' ? '전체' : category === 'STOCK' ? '주식' : 'ETF'}
-                  </button>
-                ))}
+              <div className="portfolio-stock-filters">
+                <div className="portfolio-trade-types" role="group" aria-label="종목 국가">
+                  {(['KR', 'US'] as const).map((value) => (
+                    <button
+                      type="button"
+                      key={value}
+                      aria-pressed={country === value}
+                      onClick={() => {
+                        setCountry(value);
+                        setResults([]);
+                        setSearchError('');
+                      }}
+                    >
+                      {value === 'KR' ? '국내' : '미국'}
+                    </button>
+                  ))}
+                </div>
+                <div className="portfolio-market-tabs" role="group" aria-label="자산 유형 필터">
+                  {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      aria-pressed={categoryFilter === category}
+                      onClick={() => setCategoryFilter(category)}
+                    >
+                      {category === 'ALL' ? '전체' : category === 'STOCK' ? '주식' : 'ETF'}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div
                 data-portfolio-tour="search-results"
