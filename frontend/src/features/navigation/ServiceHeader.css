@@ -234,6 +234,6 @@
   .service-login-link {
     font-weight: var(--button-weight);
     border: 1px solid var(--button-outline);
-    height: var(--button-height);
+    height: 32px;
   }
 }
