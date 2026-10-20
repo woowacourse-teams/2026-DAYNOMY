@@ -17,6 +17,7 @@ import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionListResponse;
+import org.grit.daynomy.league.dto.LeagueDto.DecisionReasonRequest;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionResponse;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewRequest;
@@ -126,6 +127,22 @@ public class InvestmentDecisionService {
             .addKeyValue("decisionId", transaction.getId())
             .addKeyValue("transactionType", transaction.getTransactionType()));
     return DecisionResponse.from(transaction, List.of());
+  }
+
+  @Transactional
+  public DecisionResponse reviseReason(
+      Long memberId, Long transactionId, DecisionReasonRequest request) {
+    getMemberForUpdate(memberId);
+    InvestmentDecision transaction =
+        decisionRepository
+            .findByIdAndPortfolioMemberId(transactionId, memberId)
+            .orElseThrow(() -> new BusinessException(LeagueErrorCode.TRANSACTION_NOT_FOUND));
+    transaction.reviseReason(request.reason());
+    TransactionLog.afterCommit(
+        LogEvent.LEAGUE_DECISION_REASON_REVISED,
+        log.atInfo().addKeyValue("memberId", memberId).addKeyValue("decisionId", transactionId));
+    return DecisionResponse.from(
+        transaction, reviewRepository.findAllByTransactionIdOrderByCreatedAtAsc(transactionId));
   }
 
   @Transactional

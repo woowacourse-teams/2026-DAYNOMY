@@ -122,6 +122,10 @@ public class InvestmentDecision extends BaseEntity {
     this.writtenAfterTrade = writtenAfterTrade;
   }
 
+  public void reviseReason(String reason) {
+    this.decisionReason = requireText(reason);
+  }
+
   private String requireText(String value) {
     if (value == null || value.isBlank()) {
       throw new IllegalArgumentException("투자 판단은 비어 있을 수 없습니다.");

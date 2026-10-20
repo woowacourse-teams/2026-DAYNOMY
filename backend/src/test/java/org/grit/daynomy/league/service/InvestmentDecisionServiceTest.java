@@ -11,6 +11,7 @@ import static org.mockito.Mockito.times;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -21,8 +22,10 @@ import org.grit.daynomy.league.domain.LeagueTypes.HoldingPeriod;
 import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedPortfolio;
+import org.grit.daynomy.league.dto.LeagueDto.DecisionReasonRequest;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRequest;
+import org.grit.daynomy.league.dto.LeagueDto.DecisionResponse;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewRequest;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
 import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
@@ -33,6 +36,10 @@ import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -198,6 +205,50 @@ class InvestmentDecisionServiceTest {
   private DecisionRequest decision() {
     return new DecisionRequest(
         "장기 성장", HoldingPeriod.OVER_SIX_MONTHS, "매출 성장", "실적 역성장", new BigDecimal("10"));
+  }
+
+  @ParameterizedTest
+  @EnumSource(TransactionType.class)
+  void revisesOnlyReasonAndPreservesPositionAndReviews(TransactionType type) {
+    var existing = transaction(SharedPortfolio.create(mock(Member.class)), type);
+    var review = new InvestmentReview(existing, "결과", "차이", "다음 행동");
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(mock(Member.class)));
+    given(decisionRepository.findByIdAndPortfolioMemberId(7L, 1L))
+        .willReturn(Optional.of(existing));
+    given(reviewRepository.findAllByTransactionIdOrderByCreatedAtAsc(7L))
+        .willReturn(List.of(review));
+    var original = DecisionResponse.from(existing, List.of(review));
+
+    var response = service.reviseReason(1L, 7L, new DecisionReasonRequest(" 수정한 이유 "));
+
+    assertThat(response.reason()).isEqualTo("수정한 이유");
+    assertThat(response).usingRecursiveComparison().ignoringFields("reason").isEqualTo(original);
+    then(holdingRepository).shouldHaveNoInteractions();
+    then(portfolioRepository).shouldHaveNoInteractions();
+    then(decisionRepository).should().findByIdAndPortfolioMemberId(7L, 1L);
+    then(decisionRepository).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
+  void cannotReviseMissingOrAnotherMembersDecision() {
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(mock(Member.class)));
+    assertThatThrownBy(() -> service.reviseReason(1L, 7L, new DecisionReasonRequest("수정한 이유")))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error ->
+                assertThat(error.errorCode()).isEqualTo(LeagueErrorCode.TRANSACTION_NOT_FOUND));
+    then(decisionRepository).should().findByIdAndPortfolioMemberId(7L, 1L);
+    then(reviewRepository).shouldHaveNoInteractions();
+  }
+
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = {" ", "\t\n"})
+  void blankReasonDoesNotOverwriteOriginal(String reason) {
+    var existing = transaction(SharedPortfolio.create(mock(Member.class)), TransactionType.HOLD);
+    assertThatThrownBy(() -> existing.reviseReason(reason))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(existing.getDecisionReason()).isEqualTo("장기 성장");
   }
 
   @Test
