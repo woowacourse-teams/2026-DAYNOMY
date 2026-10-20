@@ -1,4 +1,5 @@
 import http from 'k6/http';
+import { validateSelection } from './portfolio-analysis-v2-validation.js';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 
@@ -63,6 +64,10 @@ const duration = new Trend('analysis_duration_ms', true);
 // 정상 응답의 분석 완성도는 요청 성공률과 별도로 기록한다.
 const insufficientAssets = new Rate('analysis_insufficient_assets');
 const completeCoverage = new Rate('analysis_complete_coverage');
+const selectedCoverage = new Rate('analysis_selected_complete_coverage');
+const selectedCount = new Trend('analysis_selected_assets');
+const excludedCount = new Trend('analysis_excluded_assets');
+const analyzedWeight = new Trend('analysis_analyzed_weight');
 
 export const options = {
   scenarios: {
@@ -115,13 +120,12 @@ export function setup() {
   });
   let body;
   try { body = response.json(); } catch (_) { /* 정상 분석 응답이 아니면 본 측정을 시작하지 않는다. */ }
-  const impacts = body?.analysis?.impacts;
+  const warmup = validateSelection(body?.analysis, warmupAccount.assetNames);
   if (response.status !== 200 || body?.status !== 'READY' ||
       !Number.isSafeInteger(body?.analysisId) || body?.matchesCurrentPortfolio !== true ||
-      body?.analysis?.totalAssetCount !== warmupAccount.assetNames.length ||
-      !Array.isArray(impacts) || impacts.length !== warmupAccount.assetNames.length ||
-      new Set(impacts.map((i) => i.assetName)).size !== impacts.length ||
-      impacts.some((i) => !warmupAccount.assetNames.includes(i.assetName))) {
+      !warmup.assetsValid || !warmup.weightsValid ||
+      body.analysis.analyzedAssetCount !== warmup.analyzedCount ||
+      body.analysis.coverage !== warmup.expectedCoverage) {
     throw new Error(`워밍업 실패: HTTP ${response.status}. 본 측정은 시작하지 않습니다.`);
   }
   console.info('워밍업 완료. 지금부터 본 측정을 준비합니다.');
@@ -168,17 +172,8 @@ export default function (data) {
   try { body = response.json(); } catch (_) { /* JSON이 아닌 오류도 실패로 집계한다. */ }
   const analysis = body?.analysis;
   const impacts = analysis?.impacts;
-  const assetsValid = Array.isArray(impacts) &&
-    impacts.length === account.assetNames.length &&
-    new Set(impacts.map((i) => i.assetName)).size === impacts.length &&
-    impacts.every((i) => account.assetNames.includes(i.assetName));
-  const weightsValid = assetsValid &&
-    impacts.every((i) => typeof i.weight === 'number' && i.weight > 0) &&
-    Math.abs(impacts.reduce((sum, i) => sum + i.weight, 0) - 100) < 0.02;
-
-  const analyzedCount = assetsValid ? impacts.filter((i) => i.direction != null).length : 0;
-  const expectedCoverage = analyzedCount === 0 ? 'INSUFFICIENT'
-    : analyzedCount === impacts?.length ? 'COMPLETE' : 'PARTIAL';
+  const { assetsValid, weightsValid, analyzedCount, expectedCoverage } =
+    validateSelection(analysis, account.assetNames);
   const passed = check(response, {
     'HTTP 200': (r) => r.status === 200,
     '분석 저장 완료': () => body?.status === 'READY' &&
@@ -192,6 +187,10 @@ export default function (data) {
   success.add(passed);
   if (passed) {
     completeCoverage.add(analysis.coverage === 'COMPLETE');
+    selectedCoverage.add(analyzedCount === impacts.length);
+    selectedCount.add(impacts.length);
+    excludedCount.add(analysis.excludedAssets.length);
+    analyzedWeight.add(analysis.analyzedWeight);
     impacts.forEach((impact) => insufficientAssets.add(impact.direction == null));
   }
   if (!passed) console.error(`v2 검증 실패: HTTP ${response.status}, 상태=${body?.status || '없음'}, 근거=${analysis?.coverage || '없음'}`);
@@ -215,6 +214,12 @@ export function handleSummary(data) {
     durationMs: data.metrics.analysis_duration_ms,
     insufficientAssets: data.metrics.analysis_insufficient_assets,
     completeCoverage: data.metrics.analysis_complete_coverage,
+    selectedCompleteCoverage: data.metrics.analysis_selected_complete_coverage,
+    selectedAssets: data.metrics.analysis_selected_assets,
+    excludedAssets: data.metrics.analysis_excluded_assets,
+    analyzedWeight: data.metrics.analysis_analyzed_weight,
+    selectionPolicy: 'weight-top3-cached-high2-fill-weight-v1',
+    maxSelectedAssets: 5,
   }, null, 2);
   const summary = [
     `포트폴리오 분석 V2 / ${CASE} / ${API_MODE} / ${USERS}명 / 실행 ${RUN}`,
@@ -222,6 +227,9 @@ export function handleSummary(data) {
     '워밍업 요청은 아래 결과에서 제외됩니다.',
     `실패율: ${failureRate}`,
     `근거 부족 종목 비율: ${qualityRate(insufficient?.rate)} (정상 응답의 종목 기준)`,
+    `선택 종목 전체 근거 확보 요청 비율: ${qualityRate(data.metrics.analysis_selected_complete_coverage?.values?.rate)}`,
+    `평균 선택 종목 수: ${data.metrics.analysis_selected_assets?.values?.avg ?? 'N/A'}`,
+    `평균 제외 종목 수: ${data.metrics.analysis_excluded_assets?.values?.avg ?? 'N/A'}`,
     `전체 종목 근거 확보 요청 비율: ${qualityRate(data.metrics.analysis_complete_coverage?.values?.rate)}`,
     `평균 분석 시간: ${milliseconds(latency?.avg)}`,
     `p95 분석 시간: ${milliseconds(latency?.['p(95)'])}`,

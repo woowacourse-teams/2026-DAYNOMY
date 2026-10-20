@@ -179,7 +179,8 @@ public class PortfolioAnalysisService {
         .collect(Collectors.toMap(PortfolioAssetRequest::assetName, PortfolioAssetRequest::weight));
   }
 
-  private List<PortfolioAnalysisTarget> createTargets(List<PortfolioAssetRequest> portfolioAssets) {
+  protected List<PortfolioAnalysisTarget> createTargets(
+      List<PortfolioAssetRequest> portfolioAssets) {
     return portfolioAssets.stream()
         .map(portfolioAsset -> new PortfolioAnalysisTarget(portfolioAsset.assetName()))
         .toList();
