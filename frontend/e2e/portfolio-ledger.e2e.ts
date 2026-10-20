@@ -490,6 +490,11 @@ for (const viewport of [
             { market: 'KOSPI', evaluationAmount: sum('closePrice'), weight: 100 },
           ],
         });
+      if (
+        path === '/api/users/me/portfolio/performance/prepare' &&
+        route.request().method() === 'POST'
+      )
+        return fulfill({ status: 'READY' });
       if (path === '/api/users/me/portfolio/performance') {
         await pendingPerformance;
         if (chartState === 'error') return fulfill({ message: '추이 조회 실패' }, 500);
