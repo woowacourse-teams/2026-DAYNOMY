@@ -2,8 +2,15 @@ import { youtubeThumbnail } from '../news/issue/feed';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { trackEvent, type AnalyticsParams } from '../../analytics';
 import { trackLoadResult, useContentView } from '../news/issue/analytics';
+import {
+  getContentPopularity,
+  recordContentInteraction,
+  sortByPopularity,
+  stockContentReference,
+  type PopularityScores,
+} from '../news/issue/popularity';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import defaultNewsImage from '../../assets/default-news-real-estate.webp';
 import { usePortfolioHoldings } from '../portfolio/hooks/usePortfolioHoldings';
 import { getStockRelatedContents } from './api';
@@ -120,9 +127,11 @@ function YouTubeThumbnail({ content }: { content: StockRelatedContent }) {
 function SocialPostEmbed({
   content,
   analytics,
+  onOriginalClick,
 }: {
   content: StockRelatedContent;
   analytics: AnalyticsParams;
+  onOriginalClick: () => void;
 }) {
   const isThreads = content.sourceType === 'THREADS';
 
@@ -135,7 +144,10 @@ function SocialPostEmbed({
           data-text-post-version="0"
         >
           <a
-            onClick={() => trackEvent('click_content_original', analytics)}
+            onClick={() => {
+              trackEvent('click_content_original', analytics);
+              onOriginalClick();
+            }}
             href={content.url}
             target="_blank"
             rel="noreferrer"
@@ -146,7 +158,10 @@ function SocialPostEmbed({
       ) : (
         <blockquote className="twitter-tweet" data-dnt="true">
           <a
-            onClick={() => trackEvent('click_content_original', analytics)}
+            onClick={() => {
+              trackEvent('click_content_original', analytics);
+              onOriginalClick();
+            }}
             href={content.url}
             target="_blank"
             rel="noreferrer"
@@ -156,7 +171,10 @@ function SocialPostEmbed({
         </blockquote>
       )}
       <a
-        onClick={() => trackEvent('click_content_original', analytics)}
+        onClick={() => {
+          trackEvent('click_content_original', analytics);
+          onOriginalClick();
+        }}
         className="stock-content-social-fallback"
         href={content.url}
         target="_blank"
@@ -177,6 +195,7 @@ function getYouTubeEmbedUrl(rawUrl: string) {
 export function StockContentPage() {
   const { assetId: assetIdParam } = useParams();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const assetId = Number(assetIdParam);
   const { isLoggedIn, loading: authLoading } = useAuth();
   const { holdings, loading: holdingsLoading } = usePortfolioHoldings(isLoggedIn);
@@ -187,6 +206,10 @@ export function StockContentPage() {
   const [error, setError] = useState('');
   const [selectedSource, setSelectedSource] = useState<ContentFilter>('ALL');
   const [activeVideoId, setActiveVideoId] = useState<number | null>(null);
+  const [popularity, setPopularity] = useState<PopularityScores>(new Map());
+  const [popularityLoading, setPopularityLoading] = useState(false);
+  const [popularityError, setPopularityError] = useState('');
+  const sort = params.get('sort') === 'popular' ? 'popular' : 'latest';
   const activeVideoTriggerRef = useRef<HTMLButtonElement | null>(null);
   const modalDialogRef = useRef<HTMLElement | null>(null);
   const modalCloseButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -233,6 +256,29 @@ export function StockContentPage() {
 
     return () => controller.abort();
   }, [assetId]);
+
+  useEffect(() => {
+    if (sort !== 'popular') {
+      setPopularityLoading(false);
+      setPopularityError('');
+      return;
+    }
+    const controller = new AbortController();
+    setPopularityLoading(true);
+    setPopularityError('');
+    setPopularity(new Map());
+    getContentPopularity(controller.signal)
+      .then((scores) => {
+        if (!controller.signal.aborted) setPopularity(scores);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPopularityError('인기순을 불러오지 못했습니다.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPopularityLoading(false);
+      });
+    return () => controller.abort();
+  }, [sort]);
 
   useEffect(() => {
     const socialContents = (response?.contents ?? []).filter(
@@ -331,13 +377,14 @@ export function StockContentPage() {
       ? [...filters, { value: 'OTHER' as const, label: '기타', count: otherCount }]
       : filters;
   }, [response]);
-  const visibleContents = useMemo(
-    () =>
-      (response?.contents ?? []).filter(
-        (content) => selectedSource === 'ALL' || content.sourceType === selectedSource,
-      ),
-    [response, selectedSource],
-  );
+  const visibleContents = useMemo(() => {
+    const latestContents = (response?.contents ?? []).filter(
+      (content) => selectedSource === 'ALL' || content.sourceType === selectedSource,
+    );
+    return sort === 'popular'
+      ? sortByPopularity(latestContents, stockContentReference, popularity)
+      : latestContents;
+  }, [popularity, response, selectedSource, sort]);
   const contentCount = response?.contents.length ?? 0;
   const selectedSourceLabel =
     sourceFilters.find((filter) => filter.value === selectedSource)?.label ?? '전체';
@@ -352,7 +399,7 @@ export function StockContentPage() {
     [activeVideoId, response],
   );
 
-  const settled = !loading && !error && response?.assetId === assetId;
+  const settled = !loading && !popularityLoading && !error && response?.assetId === assetId;
   useContentView(settled, 'view_content_list', {
     surface: 'stock_contents',
     source_type: selectedSource === 'INTERNAL_NEWS' ? 'DAYNOMY' : selectedSource,
@@ -429,7 +476,7 @@ export function StockContentPage() {
                             ? 'stock-content-asset is-active'
                             : 'stock-content-asset'
                         }
-                        to={`/stocks/${holding.assetId}`}
+                        to={`/stocks/${holding.assetId}${sort === 'popular' ? '?sort=popular' : ''}`}
                         aria-current={holding.assetId === assetId ? 'page' : undefined}
                         key={holding.assetId}
                       >
@@ -455,7 +502,11 @@ export function StockContentPage() {
                   <span>종목 선택</span>
                   <select
                     value={assetId}
-                    onChange={(event) => navigate(`/stocks/${event.currentTarget.value}`)}
+                    onChange={(event) =>
+                      navigate(
+                        `/stocks/${event.currentTarget.value}${sort === 'popular' ? '?sort=popular' : ''}`,
+                      )
+                    }
                   >
                     {holdings.map((holding) => (
                       <option value={holding.assetId} key={holding.assetId}>
@@ -478,35 +529,72 @@ export function StockContentPage() {
                 </div>
               </header>
 
-              <div className="stock-content-source-tabs" aria-label="소식 출처">
-                {sourceFilters.map((filter) => (
+              <div className="stock-content-controls">
+                <div className="stock-content-source-tabs" aria-label="소식 출처">
+                  {sourceFilters.map((filter) => (
+                    <button
+                      className={
+                        selectedSource === filter.value
+                          ? 'stock-content-source-tab is-active'
+                          : 'stock-content-source-tab'
+                      }
+                      type="button"
+                      aria-label={`${filter.label} ${filter.count}개`}
+                      aria-pressed={selectedSource === filter.value}
+                      onClick={() => {
+                        if (filter.value === selectedSource) return;
+                        trackEvent('filter_content_source', {
+                          surface: 'stock_contents',
+                          previous_source:
+                            selectedSource === 'INTERNAL_NEWS' ? 'DAYNOMY' : selectedSource,
+                          source_type: filter.value === 'INTERNAL_NEWS' ? 'DAYNOMY' : filter.value,
+                          result_count: filter.count,
+                        });
+                        setSelectedSource(filter.value);
+                      }}
+                      key={filter.value}
+                    >
+                      <span>{filter.label}</span>
+                      <small>{filter.count}</small>
+                    </button>
+                  ))}
+                </div>
+                <div className="stock-content-sort" role="group" aria-label="콘텐츠 정렬">
                   <button
-                    className={
-                      selectedSource === filter.value
-                        ? 'stock-content-source-tab is-active'
-                        : 'stock-content-source-tab'
-                    }
                     type="button"
-                    aria-label={`${filter.label} ${filter.count}개`}
-                    aria-pressed={selectedSource === filter.value}
+                    aria-pressed={sort === 'latest'}
                     onClick={() => {
-                      if (filter.value === selectedSource) return;
-                      trackEvent('filter_content_source', {
-                        surface: 'stock_contents',
-                        previous_source:
-                          selectedSource === 'INTERNAL_NEWS' ? 'DAYNOMY' : selectedSource,
-                        source_type: filter.value === 'INTERNAL_NEWS' ? 'DAYNOMY' : filter.value,
-                        result_count: filter.count,
-                      });
-                      setSelectedSource(filter.value);
+                      const next = new URLSearchParams(params);
+                      next.delete('sort');
+                      setParams(next);
                     }}
-                    key={filter.value}
                   >
-                    <span>{filter.label}</span>
-                    <small>{filter.count}</small>
+                    최신순
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    aria-pressed={sort === 'popular'}
+                    onClick={() => {
+                      const next = new URLSearchParams(params);
+                      next.set('sort', 'popular');
+                      setParams(next);
+                    }}
+                  >
+                    인기순
+                  </button>
+                </div>
               </div>
+
+              {popularityLoading ? (
+                <p className="stock-content-sort-state" role="status">
+                  인기순을 불러오는 중입니다.
+                </p>
+              ) : null}
+              {popularityError ? (
+                <p className="stock-content-sort-state" role="alert">
+                  {popularityError} 최신순으로 표시합니다.
+                </p>
+              ) : null}
 
               {visibleContents.length === 0 ? (
                 <section className="stock-content-empty">
@@ -544,6 +632,10 @@ export function StockContentPage() {
                                 aria-label={`${content.title} 크게 재생`}
                                 onClick={(event) => {
                                   trackEvent('open_content_video', analytics);
+                                  void recordContentInteraction(
+                                    stockContentReference(content),
+                                    'OPEN',
+                                  );
                                   activeVideoTriggerRef.current = event.currentTarget;
                                   setActiveVideoId(content.id);
                                 }}
@@ -557,7 +649,13 @@ export function StockContentPage() {
                             <div className="stock-content-video-caption">
                               <strong>{content.title}</strong>
                               <a
-                                onClick={() => trackEvent('click_content_original', analytics)}
+                                onClick={() => {
+                                  trackEvent('click_content_original', analytics);
+                                  void recordContentInteraction(
+                                    stockContentReference(content),
+                                    'OUTBOUND_CLICK',
+                                  );
+                                }}
                                 href={content.url}
                                 target="_blank"
                                 rel="noreferrer"
@@ -569,7 +667,10 @@ export function StockContentPage() {
                           </article>
                         ) : isNews ? (
                           <a
-                            onClick={() => trackEvent('click_content', analytics)}
+                            onClick={() => {
+                              trackEvent('click_content', analytics);
+                              void recordContentInteraction(stockContentReference(content), 'OPEN');
+                            }}
                             className="stock-content-news-card"
                             href={content.url}
                             target="_blank"
@@ -583,10 +684,25 @@ export function StockContentPage() {
                             <ArrowUpRightIcon />
                           </a>
                         ) : isSocial ? (
-                          <SocialPostEmbed content={content} analytics={analytics} />
+                          <SocialPostEmbed
+                            content={content}
+                            analytics={analytics}
+                            onOriginalClick={() =>
+                              void recordContentInteraction(
+                                stockContentReference(content),
+                                'OUTBOUND_CLICK',
+                              )
+                            }
+                          />
                         ) : (
                           <a
-                            onClick={() => trackEvent('click_content_original', analytics)}
+                            onClick={() => {
+                              trackEvent('click_content_original', analytics);
+                              void recordContentInteraction(
+                                stockContentReference(content),
+                                'OUTBOUND_CLICK',
+                              );
+                            }}
                             className="stock-content-link-card"
                             href={content.url}
                             target="_blank"

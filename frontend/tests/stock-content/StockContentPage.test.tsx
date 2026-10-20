@@ -70,6 +70,20 @@ beforeEach(() => {
         });
       }
 
+      if (url.includes('/api/content-rankings')) {
+        return jsonResponse({
+          periodDays: 7,
+          items: [
+            {
+              contentType: 'ASSET_CONTENT',
+              contentId: 14,
+              score: 9,
+              lastInteractedAt: '2026-10-20T02:00:00Z',
+            },
+          ],
+        });
+      }
+
       return jsonResponse({
         assetId: 1,
         assetCode: '005930',
@@ -139,6 +153,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   sessionStorage.clear();
+  localStorage.clear();
   vi.mocked(trackEvent).mockClear();
   document.getElementById('daynomy-threads-embed-script')?.remove();
   document.getElementById('daynomy-x-embed-script')?.remove();
@@ -192,6 +207,20 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
 
     expect(view.getByText('삼성전자 X 게시물')).toBeTruthy();
     expect(view.queryByText('삼성전자 관련 DAYNOMY 이슈')).toBeNull();
+  });
+
+  it('종목 자료를 최근 7일 인기 점수순으로 정렬한다', async () => {
+    const view = renderPage();
+
+    await view.findByRole('heading', { name: '삼성전자 소식' });
+    fireEvent.click(view.getByRole('button', { name: '인기순' }));
+
+    expect(await view.findByRole('button', { name: '인기순', pressed: true })).toBeTruthy();
+    await waitFor(() =>
+      expect(view.container.querySelector('.stock-content-feed > li')?.textContent).toContain(
+        '삼성전자 X 게시물',
+      ),
+    );
   });
 
   it('DAYNOMY 이슈는 응답 이미지 URL을 썸네일로 표시한다', async () => {
