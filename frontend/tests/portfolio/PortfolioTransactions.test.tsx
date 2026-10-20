@@ -679,7 +679,7 @@ describe('거래 원장 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '보유 상세 닫기' }));
     expect(view.queryByText('포트폴리오 계산 응답 형식이 올바르지 않습니다.')).toBeNull();
     expect(await view.findByRole('img', { name: /평가금액 750,000원/ })).toBeTruthy();
-    expect(view.queryByRole('button', { name: '분석하기' })).toBeNull();
+    expect(view.queryByRole('button', { name: 'AI 분석하기' })).toBeNull();
     const summary = within(view.getByLabelText('자산 요약'));
     expect(
       summary.getByText('시세 확인된 자산 평가금액').parentElement?.parentElement?.textContent,

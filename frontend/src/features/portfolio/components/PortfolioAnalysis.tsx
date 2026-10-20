@@ -1,7 +1,7 @@
 import { tourAnalysis } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { useContentImpression } from '../../news/issue/analytics';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
 import type {
   PortfolioAsset,
@@ -176,19 +176,70 @@ function ExternalLinkIcon() {
   );
 }
 
+function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
+  const previewImpacts: PortfolioAssetImpactResponse[] = [
+    {
+      ...tourAnalysis.impacts[0],
+      assetName: '예시 자산 A',
+      weight: 60,
+      direction: 'POSITIVE',
+      rank: 1,
+    },
+    {
+      ...tourAnalysis.impacts[0],
+      assetName: '예시 자산 B',
+      weight: 40,
+      direction: 'NEUTRAL',
+      rank: 2,
+    },
+  ];
+  return (
+    <div className="portfolio-analysis-preview" role="region" aria-label="가상 분석 미리보기">
+      <div className="portfolio-analysis-layout portfolio-preview-layout">
+        <div className="portfolio-impact-detail">
+          <h3>반도체 수요 회복에 따른 긍정적 영향</h3>
+          <div className="portfolio-preview-blur" aria-hidden="true">
+            <p>
+              보유 비중이 높은 종목의 실적 개선 기대가 전체 포트폴리오에 긍정적으로 반영될 수
+              있습니다.
+            </p>
+            <p>원자재 가격과 환율에 따라 종목별 영향은 달라질 수 있습니다.</p>
+          </div>
+        </div>
+        <div className="portfolio-analysis-overview" inert aria-hidden="true">
+          <PortfolioDonut
+            preview
+            assets={previewImpacts}
+            impactByAssetName={
+              new Map(
+                previewImpacts.map((impact) => [normalizeAssetName(impact.assetName), impact]),
+              )
+            }
+            overallDirection={tourAnalysis.overallDirection}
+            onSelect={() => {}}
+            onSelectOverall={() => {}}
+          />
+        </div>
+      </div>
+      <div className="portfolio-preview-action">{action}</div>
+    </div>
+  );
+}
+
 function PortfolioEmpty({ onAddAsset }: { onAddAsset?: () => void }) {
   return (
-    <div className="portfolio-analysis-state portfolio-analysis-empty">
-      <p>자산을 추가하고 AI로 포트폴리오를 분석해 보세요.</p>
-      <button
-        type="button"
-        className="portfolio-analysis-button"
-        onClick={onAddAsset}
-        disabled={!onAddAsset}
-      >
-        자산 추가하기
-      </button>
-    </div>
+    <PortfolioAnalysisPreview
+      action={
+        <button
+          type="button"
+          className="portfolio-analysis-button"
+          onClick={onAddAsset}
+          disabled={!onAddAsset}
+        >
+          자산 추가하기
+        </button>
+      }
+    />
   );
 }
 
@@ -242,6 +293,7 @@ function PortfolioAnalysisTrialExhausted() {
 }
 
 type PortfolioDonutProps = {
+  preview?: boolean;
   assets: PortfolioAsset[];
   impactByAssetName: Map<string, PortfolioAssetImpactResponse>;
   selectedImpact?: PortfolioAssetImpactResponse;
@@ -251,6 +303,7 @@ type PortfolioDonutProps = {
 };
 
 function PortfolioDonut({
+  preview = false,
   assets,
   impactByAssetName,
   selectedImpact,
@@ -271,7 +324,7 @@ function PortfolioDonut({
         role="group"
         aria-label="전체 포트폴리오의 자산별 보유 비중"
       >
-        {isOverallSelected ? (
+        {isOverallSelected && !preview ? (
           <path
             aria-label={`전체 포트폴리오, ${directionLabel(overallDirection)} 영향`}
             className="portfolio-donut-segment is-overall"
@@ -284,7 +337,7 @@ function PortfolioDonut({
             const impact = impactByAssetName.get(normalizeAssetName(asset.assetName));
             const percentage = totalWeight > 0 ? (asset.weight / totalWeight) * 100 : 0;
             const segmentOffset = offset;
-            const isSelected = impact?.assetName === selectedImpact.assetName;
+            const isSelected = impact?.assetName === selectedImpact?.assetName;
             const segmentThickness = isSelected ? 41 : 38;
             offset += percentage;
 
@@ -300,7 +353,9 @@ function PortfolioDonut({
                 d={createDonutSegmentPath(segmentOffset, percentage, segmentThickness)}
                 data-thickness={segmentThickness}
                 fill={
-                  impact && isSelected ? directionColor(impact.direction) : INACTIVE_ASSET_COLOR
+                  impact && (preview || isSelected)
+                    ? directionColor(impact.direction)
+                    : INACTIVE_ASSET_COLOR
                 }
                 key={asset.assetName}
                 onClick={impact ? () => onSelect(impact.assetName) : undefined}
@@ -703,6 +758,40 @@ function PortfolioAnalysisView({
   const canAnalyze =
     !loading && (assets.length > 0 || (isLoggedIn && (!loaded || saved?.status === 'PROCESSING')));
 
+  const showIntroduction =
+    hasAnalysisTarget &&
+    !analysis &&
+    !loading &&
+    !error &&
+    !trialExhausted &&
+    saved?.status !== 'PROCESSING';
+  const analysisAction = !hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
+    <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
+      로그인하고 다시 분석하기
+    </a>
+  ) : !error ? (
+    <button
+      className={`portfolio-analysis-button${!isLoggedIn && !analysis && !loading && !portfolioChanged && saved?.status !== 'PROCESSING' ? ' is-trial' : ''}`}
+      type="button"
+      disabled={!canAnalyze}
+      onClick={analyze}
+    >
+      {loading
+        ? analysis
+          ? '확인 중'
+          : '분석 중'
+        : saved?.status === 'PROCESSING'
+          ? '진행 상태 확인'
+          : portfolioChanged
+            ? '현재 자산으로 분석하기'
+            : analysis
+              ? '새 소식 확인'
+              : isLoggedIn
+                ? 'AI 분석하기'
+                : '1회 분석 체험하기'}
+    </button>
+  ) : null;
+
   return (
     <section
       data-tour-state={
@@ -712,45 +801,18 @@ function PortfolioAnalysisView({
       aria-labelledby="portfolio-ai-analysis-title"
     >
       <div
-        data-portfolio-tour="impact"
+        data-portfolio-tour={showIntroduction ? undefined : 'impact'}
         className={`portfolio-analysis-heading${hasAnalysis ? ' has-analysis' : ''}`}
       >
         <div>
-          <h2 id="portfolio-ai-analysis-title">
-            {hasAnalysis ? '포트폴리오 분석' : '포트폴리오 AI 분석'}
-          </h2>
-          <p>
-            {analysis
-              ? `보유 자산 ${analysis.totalAssetCount}개 중 ${analysis.analyzedAssetCount}개의 영향을 분석했어요.`
-              : '오늘의 경제·금융·산업 이슈가 보유 자산에 미칠 영향을 확인해 보세요.'}
-          </p>
+          <h2 id="portfolio-ai-analysis-title">포트폴리오 AI 분석</h2>
+          {analysis ? (
+            <p>
+              보유 자산 {analysis.totalAssetCount}개 중 {analysis.analyzedAssetCount}개 분석
+            </p>
+          ) : null}
         </div>
-        {!hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
-          <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
-            로그인하고 다시 분석하기
-          </a>
-        ) : !error ? (
-          <button
-            className="portfolio-analysis-button"
-            type="button"
-            disabled={!canAnalyze}
-            onClick={analyze}
-          >
-            {loading
-              ? analysis
-                ? '확인 중'
-                : '분석 중'
-              : saved?.status === 'PROCESSING'
-                ? '진행 상태 확인'
-                : portfolioChanged
-                  ? '현재 자산으로 분석하기'
-                  : analysis
-                    ? '새 소식 확인'
-                    : isLoggedIn
-                      ? '분석하기'
-                      : '1회 분석 체험하기'}
-          </button>
-        ) : null}
+        {!showIntroduction ? analysisAction : null}
       </div>
 
       <div className="portfolio-analysis-meta">
@@ -759,9 +821,7 @@ function PortfolioAnalysisView({
             자산 구성이 바뀌어 이전 분석을 숨겼어요. 현재 보유 자산으로 다시 분석해 주세요.
           </p>
         ) : null}
-        {!analysis && assets.length > 0 ? (
-          <p>분석 대상: {assets.map((asset) => asset.assetName).join(', ')}</p>
-        ) : null}
+
         {analysis && loading ? <p role="status">기존 분석을 유지하며 확인하고 있어요.</p> : null}
         {analysis && !loading && saved?.status === 'RECHECK_REQUIRED' ? (
           <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
@@ -800,6 +860,12 @@ function PortfolioAnalysisView({
       ) : null}
       {!hasAnalysisTarget ? <PortfolioEmpty onAddAsset={onAddAsset} /> : null}
 
+      {showIntroduction ? (
+        <div data-portfolio-tour="impact">
+          <PortfolioAnalysisPreview action={analysisAction} />
+        </div>
+      ) : null}
+
       {hasAnalysisTarget && loading && !hasAnalysis ? <PortfolioAnalysisLoading /> : null}
 
       {hasAnalysisTarget && !loading && error ? (
@@ -816,37 +882,23 @@ function PortfolioAnalysisView({
 
       {hasAnalysisTarget && analysis && sortedImpacts.length > 0 ? (
         <>
-          <div ref={resultRef} className="portfolio-score-panel">
-            <details className="portfolio-score-guide">
-              <summary>영향 점수 산정 기준</summary>
-              <p>
-                보유 비중과 자산별 영향 방향·수준을 합산한 -100~100 지표예요. 예상 수익률이나 상승
-                확률은 아니에요.
-              </p>
-              <p>
-                최근 자료를 우선 확인하고, 여전히 유효한 과거 발표는 날짜를 밝혀 배경 근거로
-                활용해요. 근거가 부족한 종목은 중립으로 간주하지 않고 영향 점수 산정에서 제외해요.
-              </p>
-              <dl>
-                <div>
-                  <dt>긍정 기여</dt>
-                  <dd>{formatImpactScore(analysis.positiveImpactScore)}</dd>
-                </div>
-                <div>
-                  <dt>부정 기여</dt>
-                  <dd>{`−${Math.abs(analysis.negativeImpactScore).toFixed(2)}점`}</dd>
-                </div>
-                <div>
-                  <dt>전체 영향</dt>
-                  <dd>{formatImpactScore(analysis.overallScore)}</dd>
-                </div>
-              </dl>
-            </details>
-          </div>
-          <div className="portfolio-analysis-layout">
+          <div ref={resultRef} className="portfolio-analysis-layout">
+            {selectedImpact ? (
+              <PortfolioImpactDetail
+                demo={demoStep !== undefined}
+                impact={selectedImpact}
+                analyzedAssetCount={analysis.analyzedAssetCount}
+              />
+            ) : (
+              <PortfolioOverallImpactDetail
+                demo={demoStep !== undefined}
+                analysis={analysis}
+                analyzedAtLabel={analyzedAtLabel}
+              />
+            )}
             <div className="portfolio-analysis-overview">
               <div className="portfolio-analysis-overview-heading">
-                <h3>내 포트폴리오</h3>
+                <h3>자산별 영향</h3>
               </div>
 
               <PortfolioDonut
@@ -872,20 +924,33 @@ function PortfolioAnalysisView({
                   : '색상은 각 자산에 예상되는 영향 방향을 나타내요.'}
               </p>
             </div>
-
-            {selectedImpact ? (
-              <PortfolioImpactDetail
-                demo={demoStep !== undefined}
-                impact={selectedImpact}
-                analyzedAssetCount={analysis.analyzedAssetCount}
-              />
-            ) : (
-              <PortfolioOverallImpactDetail
-                demo={demoStep !== undefined}
-                analysis={analysis}
-                analyzedAtLabel={analyzedAtLabel}
-              />
-            )}
+          </div>
+          <div className="portfolio-score-panel">
+            <div className="portfolio-score-guide">
+              <h3>영향 점수 산정 기준</h3>
+              <p>
+                보유 비중과 자산별 영향 방향·수준을 합산한 -100~100 지표예요. 예상 수익률이나 상승
+                확률은 아니에요.
+              </p>
+              <p>
+                최근 자료를 우선 확인하고, 여전히 유효한 과거 발표는 날짜를 밝혀 배경 근거로
+                활용해요. 근거가 부족한 종목은 중립으로 간주하지 않고 영향 점수 산정에서 제외해요.
+              </p>
+              <dl>
+                <div>
+                  <dt>긍정 기여</dt>
+                  <dd>{formatImpactScore(analysis.positiveImpactScore)}</dd>
+                </div>
+                <div>
+                  <dt>부정 기여</dt>
+                  <dd>{`−${Math.abs(analysis.negativeImpactScore).toFixed(2)}점`}</dd>
+                </div>
+                <div>
+                  <dt>전체 영향</dt>
+                  <dd>{formatImpactScore(analysis.overallScore)}</dd>
+                </div>
+              </dl>
+            </div>
           </div>
         </>
       ) : null}
