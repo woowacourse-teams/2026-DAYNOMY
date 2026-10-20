@@ -14,12 +14,14 @@ export function InvestmentRecords({
   reviewId,
   setReviewId,
   disabled = false,
+  surface = 'reviews',
 }: {
   records: InvestmentDecisionRecord[];
   onRecordChange: (record: InvestmentDecisionRecord) => void;
   reviewId: number | null;
   setReviewId: (id: number | null) => void;
   disabled?: boolean;
+  surface?: 'reviews' | 'decisions';
 }) {
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
   const [review, setReview] = useState(blankReview);
@@ -52,7 +54,7 @@ export function InvestmentRecords({
     }
     setBusy(true);
     trackLeagueEvent('league_action', {
-      surface: 'reviews',
+      surface,
       action: editingReviewId === null ? 'save_review' : 'edit_review',
       status: 'submitted',
     });
@@ -78,7 +80,7 @@ export function InvestmentRecords({
     } catch (caught) {
       setError(messageOf(caught));
       trackLeagueEvent('league_action', {
-        surface: 'reviews',
+        surface,
         action: editingReviewId === null ? 'save_review' : 'edit_review',
         status: 'error',
         error_type: leagueErrorType(caught),
@@ -156,7 +158,7 @@ export function InvestmentRecords({
               disabled={disabled || busy || reviewId !== null}
               onClick={(event) => {
                 trackLeagueEvent('league_action', {
-                  surface: 'reviews',
+                  surface,
                   action: 'open_review',
                   status: 'clicked',
                 });
@@ -183,7 +185,7 @@ export function InvestmentRecords({
           disabled={disabled || busy || reviewId !== null}
           onClick={(event) => {
             trackLeagueEvent('league_action', {
-              surface: 'reviews',
+              surface,
               action: 'open_review',
               status: 'clicked',
             });

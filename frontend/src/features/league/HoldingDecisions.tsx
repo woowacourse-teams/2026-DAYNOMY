@@ -209,6 +209,7 @@ export function HoldingDecisions({
     return (
       <InvestmentRecords
         records={values}
+        surface="decisions"
         reviewId={reviewId}
         setReviewId={setReviewId}
         disabled={

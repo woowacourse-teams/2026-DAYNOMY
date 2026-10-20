@@ -6,6 +6,9 @@ import { InvestmentReviewsPage } from '../../src/features/league/InvestmentRevie
 import { HoldingDecisions } from '../../src/features/league/HoldingDecisions';
 import * as api from '../../src/features/league/api';
 import type { InvestmentDecisionRecord } from '../../src/features/league/types';
+import { trackEvent } from '../../src/analytics';
+
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 
 vi.mock('../../src/features/league/api', () => ({
   getInvestmentDecisions: vi.fn(),
@@ -125,6 +128,16 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
       differenceFromExpectation: '주가 하락',
       nextAction: '다음 실적 확인',
     });
+    expect(trackEvent).toHaveBeenCalledWith('league_action', {
+      surface: 'decisions',
+      action: 'open_review',
+      status: 'clicked',
+    });
+    expect(trackEvent).toHaveBeenCalledWith('league_action', {
+      surface: 'decisions',
+      action: 'save_review',
+      status: 'submitted',
+    });
   });
 
   it('조회 실패를 빈 기록으로 숨기지 않고 재시도하며 자산 없이 작성하지 않는다', async () => {
@@ -160,46 +173,72 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
     await waitFor(() => expect(document.activeElement).toBe(view.getByRole('alert')));
     expect(view.getByLabelText('다음 행동')).toHaveProperty('value', '행동');
     expect(view.getByText(saved.reason)).toBeTruthy();
+    expect(trackEvent).toHaveBeenCalledWith('league_action', {
+      surface: 'decisions',
+      action: 'save_review',
+      status: 'error',
+      error_type: 'network_or_unknown',
+    });
   });
 
-  it('기존 복기를 수정하고 작성 시각과 판단은 유지한다', async () => {
-    const original = {
-      id: 2,
-      actualResult: '기존 결과',
-      differenceFromExpectation: '기존 차이',
-      nextAction: '기존 행동',
-      createdAt: '2026-10-06T00:00:00Z',
-    };
-    vi.mocked(api.getInvestmentDecisions).mockResolvedValue([{ ...saved, reviews: [original] }]);
-    vi.mocked(api.updateReview).mockResolvedValue({
-      ...original,
-      actualResult: '수정한 결과',
-      updatedAt: '2026-10-07T00:00:00Z',
-    });
-    const view = renderRecords([holding]);
-    const trigger = await view.findByRole('button', {
-      name: '삼성전자 2026-10-06 보유 기록 복기 수정',
-    });
-    fireEvent.click(trigger);
-    expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    fireEvent.click(view.getByRole('button', { name: '취소' }));
-    expect(document.activeElement).toBe(trigger);
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    fireEvent.click(trigger);
-    expect(view.getByLabelText('다음 행동')).toHaveProperty('value', '기존 행동');
-    fireEvent.change(view.getByLabelText('실제 결과'), { target: { value: '수정한 결과' } });
-    fireEvent.click(view.getByRole('button', { name: '수정 저장' }));
-    expect(await view.findByText('수정한 결과')).toBeTruthy();
-    expect(view.getByText(saved.reason)).toBeTruthy();
-    expect(view.getByText('작성 2026-10-06 · 마지막 저장 2026-10-07')).toBeTruthy();
-    await waitFor(() => expect(document.activeElement).toBe(trigger));
-    expect(api.updateReview).toHaveBeenCalledWith(1, 2, {
-      actualResult: '수정한 결과',
-      differenceFromExpectation: '기존 차이',
-      nextAction: '기존 행동',
-    });
-    expect(api.createReview).not.toHaveBeenCalled();
-  });
+  it.each(['decisions', 'reviews'] as const)(
+    '%s 화면에서 기존 복기를 수정하고 작성 시각과 판단은 유지한다',
+    async (surface) => {
+      const original = {
+        id: 2,
+        actualResult: '기존 결과',
+        differenceFromExpectation: '기존 차이',
+        nextAction: '기존 행동',
+        createdAt: '2026-10-06T00:00:00Z',
+      };
+      vi.mocked(api.getInvestmentDecisions).mockResolvedValue([{ ...saved, reviews: [original] }]);
+      vi.mocked(api.updateReview).mockResolvedValue({
+        ...original,
+        actualResult: '수정한 결과',
+        updatedAt: '2026-10-07T00:00:00Z',
+      });
+      const view =
+        surface === 'decisions'
+          ? renderRecords([holding])
+          : render(
+              <MemoryRouter>
+                <InvestmentReviewsPage />
+              </MemoryRouter>,
+            );
+      const trigger = await view.findByRole('button', {
+        name: '삼성전자 2026-10-06 보유 기록 복기 수정',
+      });
+      fireEvent.click(trigger);
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      fireEvent.click(view.getByRole('button', { name: '취소' }));
+      expect(document.activeElement).toBe(trigger);
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      fireEvent.click(trigger);
+      expect(view.getByLabelText('다음 행동')).toHaveProperty('value', '기존 행동');
+      fireEvent.change(view.getByLabelText('실제 결과'), { target: { value: '수정한 결과' } });
+      fireEvent.click(view.getByRole('button', { name: '수정 저장' }));
+      expect(await view.findByText('수정한 결과')).toBeTruthy();
+      expect(view.getByText(saved.reason)).toBeTruthy();
+      expect(view.getByText('작성 2026-10-06 · 마지막 저장 2026-10-07')).toBeTruthy();
+      await waitFor(() => expect(document.activeElement).toBe(trigger));
+      expect(api.updateReview).toHaveBeenCalledWith(1, 2, {
+        actualResult: '수정한 결과',
+        differenceFromExpectation: '기존 차이',
+        nextAction: '기존 행동',
+      });
+      expect(api.createReview).not.toHaveBeenCalled();
+      expect(trackEvent).toHaveBeenCalledWith('league_action', {
+        surface,
+        action: 'open_review',
+        status: 'clicked',
+      });
+      expect(trackEvent).toHaveBeenCalledWith('league_action', {
+        surface,
+        action: 'edit_review',
+        status: 'submitted',
+      });
+    },
+  );
   it('보유 이유만 저장하고 선택 항목을 임의의 기간이나 하락률로 채우지 않는다', async () => {
     vi.mocked(api.recordDecision).mockResolvedValue({
       ...saved,

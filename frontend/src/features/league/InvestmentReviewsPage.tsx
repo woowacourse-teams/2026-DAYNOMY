@@ -78,6 +78,7 @@ export function InvestmentReviewsPage() {
         <section className="league-review-list" aria-label="복기할 투자 기록">
           <InvestmentRecords
             records={records}
+            surface="reviews"
             reviewId={reviewId}
             setReviewId={setReviewId}
             onRecordChange={(saved) =>
