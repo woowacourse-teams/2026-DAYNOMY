@@ -56,26 +56,26 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-primary-button,
 .portfolio-sheet .portfolio-primary-button {
-  background: var(--button-primary);
-  min-height: 44px;
+  background: var(--button-action);
+  min-height: var(--button-height);
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   padding: 0 18px;
   color: #fff;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 .portfolio-page .portfolio-secondary-button,
 .portfolio-sheet .portfolio-secondary-button {
-  min-height: 44px;
-  border: 0;
-  border-radius: 10px;
+  min-height: var(--button-height);
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
   padding: 0 16px;
-  background: #f2f4f6;
-  color: #4e5968;
+  background: #fff;
+  color: var(--button-label);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 .portfolio-page button,
@@ -91,23 +91,32 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-primary-button:hover:not(:disabled),
 .portfolio-sheet .portfolio-primary-button:hover:not(:disabled) {
-  background: var(--button-primary-hover);
+  background: var(--button-action-hover);
+}
+
+.portfolio-page .portfolio-primary-button:active:not(:disabled),
+.portfolio-sheet .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 .portfolio-page .portfolio-secondary-button:hover:not(:disabled),
 .portfolio-sheet .portfolio-secondary-button:hover:not(:disabled) {
-  background: #f5f7fb;
+  background: var(--button-secondary-hover);
 }
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button {
-  min-height: 48px;
+  min-height: var(--button-height);
   padding: 0 22px;
   border-radius: 999px;
-  background: #0a0a0a;
+  background: var(--button-action);
 }
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button:hover:not(:disabled) {
-  background: #252525;
+  background: var(--button-action-hover);
+}
+
+.portfolio-page .portfolio-page-actions > .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 .portfolio-page .portfolio-page-actions > .portfolio-news-tab {
-  min-height: 48px;
+  min-height: var(--button-height);
   padding: 0 20px;
   border-radius: 999px;
 }
@@ -354,7 +363,7 @@ body:has(.portfolio-page) .daynomy-footer {
   contain: inline-size;
 }
 .portfolio-page .portfolio-table-wrap table {
-  min-width: 940px;
+  min-width: 760px;
   font-size: 13px;
 }
 .portfolio-page .portfolio-table-wrap th {
@@ -363,6 +372,7 @@ body:has(.portfolio-page) .daynomy-footer {
   background: #f8f9fc;
 }
 .portfolio-page .portfolio-table-wrap td {
+  white-space: nowrap;
   padding: 22px 12px;
 }
 .portfolio-price-date {
@@ -1055,7 +1065,7 @@ body:has(.portfolio-page) .daynomy-footer {
   color: white;
   padding: 0 18px;
   min-height: 44px;
-  border-radius: 10px;
+  border-radius: 999px;
   font-size: 13px;
   cursor: pointer;
 }
@@ -1098,51 +1108,6 @@ body:has(.portfolio-page) .daynomy-footer {
   }
 }
 @container portfolio-dashboard (max-width: 940px) {
-  .portfolio-page .portfolio-table-wrap {
-    contain: none;
-    overflow: visible;
-  }
-  .portfolio-page .portfolio-table-wrap table {
-    min-width: 0;
-    width: 100%;
-  }
-  .portfolio-page .portfolio-table-wrap thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-  .portfolio-page .portfolio-table-wrap tbody {
-    display: block;
-  }
-  .portfolio-page .portfolio-table-wrap tr {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 14px 16px;
-    padding: 22px 0;
-    border-bottom: 1px solid #e6ebf2;
-  }
-  .portfolio-page .portfolio-table-wrap td {
-    display: block;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    padding: 0;
-    border: 0;
-    text-align: left;
-    white-space: normal;
-  }
-  .portfolio-page .portfolio-table-wrap td:first-child {
-    grid-column: 1 / -1;
-    margin-bottom: 6px;
-  }
-  .portfolio-page .portfolio-table-wrap td::before {
-    content: attr(data-label);
-    display: block;
-    color: #667085;
-    font-size: 10px;
-    margin-bottom: 6px;
-  }
   .portfolio-row-menu .portfolio-row-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1774,7 +1739,7 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-news {
   position: sticky;
-  top: 64px;
+  top: 80px;
   margin-top: 32px;
   display: block;
   opacity: 1;
@@ -1782,10 +1747,7 @@ body:has(.portfolio-page) .daynomy-footer {
   min-width: 0;
   padding: 0 12px 0 28px;
   border-left: 1px solid #e5e9ee;
-  max-height: calc(100dvh - 96px);
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
+  align-self: start;
 }
 .portfolio-news-heading {
   display: flex;
@@ -1959,19 +1921,18 @@ body:has(.portfolio-page) .daynomy-footer {
   border-bottom: 0;
 }
 .portfolio-news-more {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
-  min-height: 44px;
+  min-height: var(--button-height);
   margin-top: 16px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: #0a0a0a;
+  padding: 10px 0;
+  background: transparent;
   text-decoration: none;
-  color: #fff;
+  color: var(--button-label);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
 }
 .portfolio-news-more svg {
   width: 18px;
@@ -1979,7 +1940,7 @@ body:has(.portfolio-page) .daynomy-footer {
   flex-shrink: 0;
 }
 .portfolio-news-more:hover {
-  background: #252525;
+  color: var(--button-action-active);
 }
 .portfolio-news-more:focus-visible {
   outline: 2px solid #326bd5;
@@ -2554,7 +2515,7 @@ body:has(.portfolio-page) .daynomy-footer {
   }
   .portfolio-page .portfolio-primary-button,
   .portfolio-page .portfolio-secondary-button {
-    min-height: 48px;
+    min-height: var(--button-height);
   }
   .portfolio-page .portfolio-section-title {
     align-items: stretch;
@@ -2627,8 +2588,8 @@ body:has(.portfolio-page) .daynomy-footer {
   }
 }
 
-/* Keep all six holding fields visible beside the news panel. */
-@media (min-width: 1024px) {
+/* Use proportional columns when the holdings area has enough room. */
+@container portfolio-dashboard (min-width: 941px) {
   .portfolio-page .has-news .portfolio-table-wrap table {
     min-width: 0;
     width: 100%;
@@ -2636,8 +2597,7 @@ body:has(.portfolio-page) .daynomy-footer {
   }
   .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])) {
     padding-inline: 6px;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
   }
   .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):first-child {
     width: 22%;

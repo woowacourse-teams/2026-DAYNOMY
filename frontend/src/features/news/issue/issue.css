@@ -251,10 +251,14 @@
   font-size: 14px;
 }
 .issue-state button {
-  border: 0;
-  background: none;
-  text-decoration: underline;
-  padding: 12px;
+  border: 1px solid var(--button-outline);
+  background: #fff;
+  text-decoration: none;
+  padding: 0 16px;
+  min-height: var(--button-height);
+  border-radius: 999px;
+  color: var(--button-label);
+  font-weight: var(--button-weight);
 }
 .issue-state a {
   text-decoration: underline;
@@ -750,14 +754,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
+  min-height: var(--button-height);
   padding: 4px 12px;
-  border: 1px solid var(--issue-line);
-  border-radius: 6px;
-  background: white;
-  color: var(--issue-ink);
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--button-label);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--button-weight);
   white-space: nowrap;
 }
 .issue-people .issue-people-more:hover {
@@ -844,11 +848,12 @@
   min-width: 36px;
   min-height: 44px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 999px;
   background: transparent;
+  font-weight: var(--button-weight);
 }
 .issue-pagination button[aria-current='page'] {
-  background: var(--issue-ink);
+  background: var(--button-action);
   color: white;
 }
 .issue-pagination button:disabled {
@@ -1217,13 +1222,15 @@
   display: block;
   margin: 28px auto 0;
   padding: 12px 24px;
-  border: 0;
-  border-radius: 5px;
-  background: #f1f3f5;
-  color: #526177;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--button-label);
   font: inherit;
   font-size: 14px;
   cursor: pointer;
+  min-height: var(--button-height);
+  font-weight: var(--button-weight);
 }
 .people-selector-item:focus-visible,
 .people-load-more:focus-visible,
@@ -1694,5 +1701,58 @@
     font-size: 12px;
     min-height: 36px;
     padding: 0 12px;
+  }
+}
+
+/* Let the calendar determine the row height; scroll the matching preview. */
+@media (min-width: 1121px) {
+  .issue-briefing > .issue-people {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-bottom: 0;
+  }
+
+  .issue-briefing:has(.investment-calendar-disclaimer) > .issue-people {
+    padding-bottom: 36px;
+  }
+
+  .issue-people .issue-section-heading {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    min-height: calc(var(--page-title-size) * var(--page-title-line-height) + 32px);
+    margin-bottom: 24px;
+  }
+
+  .issue-people-preview {
+    flex: 1 1 0;
+    height: 0;
+    min-height: 0;
+    contain: size;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    scrollbar-gutter: stable;
+  }
+
+  .issue-people-preview > a,
+  .issue-people-preview > a + a {
+    flex: 0 0 calc(100% / 3);
+    min-height: 132px;
+    box-sizing: border-box;
+    align-content: center;
+    gap: 8px 12px;
+    padding: 12px 0;
+  }
+}
+
+.issue-people-preview:focus-visible {
+  outline: 2px solid var(--issue-ink);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1120px) {
+  .issue-people-preview > a:nth-child(n + 4) {
+    display: none;
   }
 }

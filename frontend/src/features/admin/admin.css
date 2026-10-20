@@ -38,6 +38,7 @@
 .admin-back-link,
 .admin-primary-button,
 .admin-secondary-button {
+  border: 1px solid var(--button-outline);
   text-decoration: none;
 }
 
@@ -134,14 +135,14 @@
 .admin-primary-button,
 .admin-secondary-button {
   display: inline-flex;
-  min-height: 44px;
+  min-height: var(--button-height);
   align-items: center;
   justify-content: center;
   padding: 0 18px;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: var(--button-weight);
   line-height: 20px;
   cursor: pointer;
   transition:
@@ -153,23 +154,27 @@
 
 .admin-primary-button {
   color: #ffffff;
-  background: var(--button-primary);
+  background: var(--button-action);
 }
 
 .admin-primary-button:hover {
-  background: var(--button-primary-hover);
+  background: var(--button-action-hover);
+}
+
+.admin-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
 .admin-secondary-button {
-  border-color: #dfe3ec;
-  color: #4b5563;
-  background: #ffffff;
+  border-color: var(--button-outline);
+  color: var(--button-label);
+  background: #fff;
 }
 
 .admin-secondary-button:hover {
-  border-color: #c7cce0;
-  color: #111827;
-  background: #fafbff;
+  border-color: var(--button-label);
+  color: var(--button-label);
+  background: var(--button-secondary-hover);
 }
 
 .admin-primary-button:focus-visible,
@@ -501,7 +506,7 @@
 
 .admin-stock-search-results button:hover {
   border-color: var(--button-primary-hover);
-  background: var(--button-primary-soft);
+  background: var(--button-secondary-hover);
 }
 
 .admin-stock-search-results span,
@@ -2788,7 +2793,7 @@
 
 .admin-row-actions button.publish {
   color: #fff;
-  background: #2459b9;
+  background: var(--button-action);
   padding-inline: 12px;
 }
 

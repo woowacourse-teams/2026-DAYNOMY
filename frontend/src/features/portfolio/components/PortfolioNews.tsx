@@ -130,7 +130,7 @@ export function PortfolioNews({
     return () => controller.abort();
   }, [assetKey, attempt, demo]);
 
-  const displayItems = demo ? tourNews : items;
+  const displayItems = (demo ? tourNews : items).slice(0, 5);
   const settled = !loading && loadedKey === assetKey;
   const status = failed
     ? failed === JSON.parse(assetKey).length

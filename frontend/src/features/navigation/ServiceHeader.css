@@ -79,20 +79,25 @@
 }
 
 .service-login-link {
+  border: 1px solid var(--button-outline);
   display: inline-flex;
   min-width: 68px;
-  height: 34px;
+  height: var(--button-height);
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
-  color: #fff;
-  background: var(--button-primary);
+  border-radius: 999px;
+  color: var(--button-label);
+  background: #fff;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: var(--button-weight);
   text-decoration: none;
 }
 
-.service-login-link:hover,
+.service-login-link:hover {
+  background: var(--button-secondary-hover);
+  border-color: var(--button-label);
+}
+
 .service-profile-link:hover {
   background: var(--button-primary-hover);
 }
@@ -227,6 +232,8 @@
   }
 
   .service-login-link {
+    font-weight: var(--button-weight);
+    border: 1px solid var(--button-outline);
     height: 32px;
   }
 }

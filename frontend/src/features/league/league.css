@@ -1,4 +1,5 @@
 .league-page {
+  --button-height: 44px;
   --league-ink: #0a0a0a;
   --league-muted: #6b6b6b;
   --league-line: #e8e8e8;
@@ -147,20 +148,21 @@
 .league-page-heading > a,
 .league-investor-header > button,
 .league-investor-header > a {
+  border: 1px solid var(--button-outline);
   display: inline-flex;
-  min-height: 48px;
-  padding: 10px 22px;
+  min-height: var(--button-height);
+  padding: 0 18px;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: var(--button-weight);
   text-decoration: none;
 }
 
 .league-primary-link {
   color: #fff;
-  background: var(--button-primary);
+  background: var(--button-action);
 }
 
 .league-hero-actions .league-primary-link {
@@ -170,8 +172,11 @@
 }
 
 .league-primary-link:hover {
-  background: var(--button-primary-hover);
-  box-shadow: 0 4px 20px #0000001f;
+  background: var(--button-action-hover);
+}
+
+.league-primary-link:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
 .league-controls {
@@ -212,21 +217,23 @@
 }
 
 .league-empty a {
+  font-weight: var(--button-weight);
   display: inline-flex;
-  min-height: 44px;
+  min-height: var(--button-height);
   align-items: center;
   justify-content: center;
   padding: 10px 16px;
-  border: 0;
+  border: 1px solid var(--button-outline);
   border-radius: 999px;
-  color: #fff;
-  background: var(--button-primary);
+  color: var(--button-label);
+  background: #fff;
   text-decoration: none;
   cursor: pointer;
 }
 
 .league-empty a:hover {
-  background: var(--button-primary-hover);
+  background: var(--button-secondary-hover);
+  border-color: var(--button-label);
 }
 
 .league-empty strong {
@@ -310,12 +317,12 @@
 
 .league-ranking-empty button,
 .league-daily-empty button {
-  min-height: 44px;
+  min-height: var(--button-height);
   padding: 8px 16px;
-  border: 0;
-  border-radius: 4px;
-  color: var(--league-ink);
-  background: transparent;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  color: var(--button-label);
+  background: #fff;
   cursor: pointer;
 }
 
@@ -395,23 +402,26 @@
   align-items: center;
   gap: 8px;
 }
-.league-metrics-trigger {
+.league-page .league-metrics-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--league-muted);
+  min-height: var(--button-height);
+  padding: 0 12px;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--button-label);
   font-size: 13px;
   white-space: nowrap;
   cursor: pointer;
+  font-weight: var(--button-weight);
 }
 .league-metrics-trigger:hover {
-  color: var(--league-ink);
+  color: var(--button-label);
+  border-color: var(--button-label);
+  background: var(--button-secondary-hover);
 }
 
 .league-person:hover strong {
@@ -500,8 +510,8 @@
 .league-page-heading > a,
 .league-investor-header > button,
 .league-investor-header > a {
-  border: 1px solid var(--league-line);
-  color: var(--league-ink);
+  border: 1px solid var(--button-outline);
+  color: var(--button-label);
   background: #fff;
   cursor: pointer;
 }
@@ -1049,9 +1059,9 @@
     grid-column: 2 / -1;
     justify-content: flex-end;
   }
-  .league-metrics-trigger {
-    padding: 8px 14px;
-    font-size: 14px;
+  .league-page .league-metrics-trigger {
+    padding: 6px 8px;
+    font-size: 12px;
   }
 
   .league-form-grid,
@@ -1135,13 +1145,14 @@
   padding: 16px;
 }
 .league-pagination button {
-  min-height: 44px;
+  min-height: var(--button-height);
   padding: 8px 16px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--league-ink);
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--button-label);
   cursor: pointer;
+  font-weight: var(--button-weight);
 }
 .league-pagination button:disabled {
   opacity: 0.45;
@@ -1198,10 +1209,10 @@ body:has(.league-metrics-dialog[open]) {
   width: 44px;
   height: 44px;
   padding: 0;
-  border: 1px solid var(--league-line);
+  border: 1px solid var(--button-outline);
   border-radius: 999px;
   background: #fff;
-  color: var(--league-ink);
+  color: var(--button-label);
   font-size: 24px;
   cursor: pointer;
 }
@@ -1283,20 +1294,21 @@ body:has(.league-metrics-dialog[open]) {
   margin-top: 24px;
 }
 .league-chart-switch button {
-  min-height: 44px;
+  min-height: var(--button-height);
   min-width: 72px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--league-muted);
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--button-label);
   font: inherit;
   cursor: pointer;
+  font-weight: var(--button-weight);
 }
 .league-chart-switch button[aria-pressed='true'] {
-  border-bottom-color: var(--league-ink);
-  color: var(--league-ink);
-  font-weight: 600;
+  background: var(--button-action);
+  color: #fff;
+  font-weight: var(--button-weight);
+  border-color: var(--button-action);
 }
 .league-investor-page .league-detail-decisions blockquote {
   padding: 16px;

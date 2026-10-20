@@ -781,12 +781,12 @@
 
 .portfolio-primary-button,
 .portfolio-secondary-button {
-  min-height: 40px;
+  min-height: var(--button-height);
   padding: 0 16px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: var(--button-weight);
   cursor: pointer;
   transition:
     background-color 150ms ease,
@@ -796,11 +796,15 @@
 
 .portfolio-primary-button {
   color: #fff;
-  background: var(--button-primary);
+  background: var(--button-action);
 }
 
 .portfolio-primary-button:hover {
-  background: var(--button-primary-hover);
+  background: var(--button-action-hover);
+}
+
+.portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
 .portfolio-primary-button:disabled {
@@ -811,13 +815,14 @@
 }
 
 .portfolio-secondary-button {
-  color: #4e5968;
-  background: #f2f4f6;
+  border: 1px solid var(--button-outline);
+  color: var(--button-label);
+  background: #fff;
 }
 
 .portfolio-secondary-button:hover {
-  color: #333d4b;
-  background: #e5e8eb;
+  color: var(--button-label);
+  background: var(--button-secondary-hover);
 }
 
 .portfolio-filters {
@@ -2198,8 +2203,8 @@
 
 .portfolio-trend-expand:hover,
 .portfolio-trend-dialog-close:hover {
-  color: #333d4b;
-  background: #e5e8eb;
+  color: var(--button-label);
+  background: #f5f7fb;
 }
 
 .portfolio-trend-expand:focus-visible,
@@ -2654,17 +2659,21 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 38px;
+  min-height: var(--button-height);
   padding: 0 14px;
-  border-radius: 10px;
-  background: var(--button-primary);
+  border-radius: 999px;
+  background: var(--button-action);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
   line-height: 1;
 }
 
 .portfolio-holdings-actions > .portfolio-primary-button:hover {
-  background: var(--button-primary-hover);
+  background: var(--button-action-hover);
+}
+
+.portfolio-holdings-actions > .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
 .portfolio-holdings-actions > .portfolio-primary-button svg {

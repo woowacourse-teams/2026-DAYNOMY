@@ -461,3 +461,67 @@ it('출처별 빈 결과를 기록하고 같은 필터의 반복 선택은 중�
   fireEvent.click(view.getByRole('button', { name: 'YouTube' }));
   expect(vi.mocked(trackEvent).mock.calls).toHaveLength(count);
 });
+
+it('주목받는 인물의 글은 같은 인물도 포함해 전체 글을 최신순으로 제공한다', async () => {
+  const people = [
+    {
+      ...person,
+      posts: [
+        {
+          ...person.posts[0],
+          id: 11,
+          title: '최신 글',
+          publishedAt: '2026-10-12T09:00:00Z',
+          createdAt: '2026-10-10T00:00:00Z',
+        },
+        { ...person.posts[0], id: 12, title: '세 번째 글', createdAt: '2026-10-12T07:00:00Z' },
+        {
+          ...person.posts[0],
+          id: 13,
+          title: '네 번째 글',
+          createdAt: '2026-10-11T07:00:00Z',
+        },
+      ],
+    },
+    {
+      ...person,
+      id: 2,
+      name: '다른 인물',
+      posts: [
+        { ...person.posts[0], id: 21, title: '두 번째 글', createdAt: '2026-10-12T08:00:00Z' },
+      ],
+    },
+    { ...person, id: 3, posts: [] },
+  ];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) =>
+      new URL(String(input), 'http://localhost').pathname === '/api/people'
+        ? json({ people })
+        : json(newsPage([])),
+    ),
+  );
+  const view = render(
+    <MemoryRouter>
+      <IssueHomePage />
+    </MemoryRouter>,
+  );
+  await waitFor(() =>
+    expect(view.container.querySelectorAll('.issue-people-preview > a')).toHaveLength(4),
+  );
+  expect(
+    [...view.container.querySelectorAll('.issue-people-preview h3')].map(
+      (node) => node.textContent,
+    ),
+  ).toEqual(['최신 글', '두 번째 글', '세 번째 글', '네 번째 글']);
+  expect(
+    [...view.container.querySelectorAll('.issue-people-preview > a')].map((node) =>
+      node.getAttribute('href'),
+    ),
+  ).toEqual([
+    '/people?person=1&view=all',
+    '/people?person=2',
+    '/people?person=1',
+    '/people?person=1&view=all',
+  ]);
+});

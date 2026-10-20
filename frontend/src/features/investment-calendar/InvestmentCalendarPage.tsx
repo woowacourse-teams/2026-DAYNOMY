@@ -257,108 +257,124 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
 
   return (
     <article className="investment-calendar-detail" aria-live="polite">
-      <div className="investment-calendar-event-status">
-        <span>{date.label}</span>
-        <span className="investment-calendar-dday">{dDayLabel(event.daysUntil)}</span>
-      </div>
-      <h2>{event.title}</h2>
-      <div className="investment-calendar-relevance">
-        <span>
-          내 자산 영향 <strong>{impactLabel(analysis.impactLevel)}</strong>
-        </span>
-        <span>{copy.relatedLabel}</span>
-      </div>
-
-      <section className="investment-calendar-watch" aria-label="이번 일정에서 확인할 내용">
-        <h3>{copy.takeaway}</h3>
-        <p>{copy.watchMessage}</p>
-        <div className="investment-calendar-reference">
-          <span>{copy.previousLabel}</span>
-          <strong>{formatValue(event.value.previousValue, event.value.unit)}</strong>
-          <small>{copy.sourceLabel}</small>
+      <header className="investment-calendar-detail-header">
+        <div className="investment-calendar-event-status">
+          <span>{date.label}</span>
+          <span className="investment-calendar-dday">{dDayLabel(event.daysUntil)}</span>
         </div>
-      </section>
-
-      {analysis.status === 'NO_PORTFOLIO' ? (
-        <div className="investment-calendar-analysis-state">
-          {event.type === 'CORPORATE_EARNINGS' && analysis.relatedAssetCount === 0
-            ? '내 포트폴리오와 직접 관련 없는 기업 일정입니다.'
-            : '포트폴리오에 자산을 추가하면 과거 반응을 확인할 수 있어요.'}
+        <h2>{event.title}</h2>
+        <div className="investment-calendar-relevance">
+          <span>
+            내 자산 영향 <strong>{impactLabel(analysis.impactLevel)}</strong>
+          </span>
+          <span>{copy.relatedLabel}</span>
         </div>
-      ) : analysis.status === 'INSUFFICIENT_DATA' ? (
-        <div className="investment-calendar-analysis-state">
-          <strong>아직 비교할 과거 사례가 부족해요.</strong>
-          <span>표본이 3회 이상 쌓이면 내 자산의 반응 범위를 보여드릴게요.</span>
-        </div>
-      ) : (
-        <>
-          <div className="investment-calendar-impact-head">
-            <div>
-              <h3>
-                {event.type === 'KOREA_BASE_RATE'
-                  ? '금리 결정별 내 자산의 과거 움직임'
-                  : '과거 내 자산 반응'}
-              </h3>
-              {event.type === 'KOREA_BASE_RATE' ? (
-                <p>
-                  기준금리가 인하·동결·인상됐던 과거 다음 거래일에, 지금과 같은 내 자산이 얼마나
-                  움직였는지 보여드려요.
-                </p>
-              ) : null}
-            </div>
-            <span>{analysis.totalEvaluationAmount.toLocaleString('ko-KR')}원 기준</span>
-          </div>
-          <div className="investment-calendar-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{resultColumnTitle(event.type)}</th>
-                  <th>중앙값</th>
-                  <th>내 자산 변화</th>
-                </tr>
-              </thead>
-              <tbody>
-                {analysis.historicalReactions.map((statistics) => (
-                  <tr key={statistics.direction}>
-                    <td>
-                      {event.type === 'KOREA_BASE_RATE'
-                        ? rateDecisionCaseLabel(statistics.direction)
-                        : directionLabel(event.type, statistics.direction)}
-                    </td>
-                    <td className={rateTone(statistics.medianReturnRate)}>
-                      {event.type === 'KOREA_BASE_RATE'
-                        ? typicalRate(statistics.medianReturnRate)
-                        : formatRate(statistics.medianReturnRate)}
-                    </td>
-                    <td className={rateTone(statistics.medianReturnRate)}>
-                      {event.type === 'KOREA_BASE_RATE'
-                        ? estimatedRange(statistics)
-                        : formatRange(statistics)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="investment-calendar-basis">
-            {totalSamples}회 표본 · 다음 거래일 · 예측 아님
-          </p>
-        </>
-      )}
-
-      {copy.latestResult && copy.latestAssetReaction ? (
-        <section className="investment-calendar-last-result" aria-label="지난 발표 결과">
-          <h3>지난 발표 결과</h3>
-          <div>
-            <span>
-              발표 결과<strong>{copy.latestResult}</strong>
-            </span>
-            <span>
-              내 자산<strong>{copy.latestAssetReaction}</strong>
-            </span>
+      </header>
+      <div
+        key={event.id}
+        className="investment-calendar-detail-body"
+        tabIndex={0}
+        role="region"
+        aria-label={`${event.title} 상세 내용`}
+      >
+        <section className="investment-calendar-watch" aria-label="이번 일정에서 확인할 내용">
+          <h3>{copy.takeaway}</h3>
+          <p>{copy.watchMessage}</p>
+          <div className="investment-calendar-reference">
+            <span>{copy.previousLabel}</span>
+            <strong>{formatValue(event.value.previousValue, event.value.unit)}</strong>
+            <small>{copy.sourceLabel}</small>
           </div>
         </section>
-      ) : null}
+
+        {analysis.status === 'NO_PORTFOLIO' ? (
+          <div className="investment-calendar-analysis-state">
+            {event.type === 'CORPORATE_EARNINGS' && analysis.relatedAssetCount === 0
+              ? '내 포트폴리오와 직접 관련 없는 기업 일정입니다.'
+              : '포트폴리오에 자산을 추가하면 과거 반응을 확인할 수 있어요.'}
+          </div>
+        ) : analysis.status === 'INSUFFICIENT_DATA' ? (
+          <div className="investment-calendar-analysis-state investment-calendar-analysis-insufficient">
+            <strong>아직 비교할 과거 사례가 부족해요.</strong>
+            <span>표본이 3회 이상 쌓이면 내 자산의 반응 범위를 보여드릴게요.</span>
+          </div>
+        ) : (
+          <details className="investment-calendar-impact">
+            <summary className="investment-calendar-impact-head">
+              <div>
+                <h3>
+                  {event.type === 'KOREA_BASE_RATE'
+                    ? '금리 결정별 내 자산의 과거 움직임'
+                    : '과거 내 자산 반응'}
+                </h3>
+              </div>
+              <span>{analysis.totalEvaluationAmount.toLocaleString('ko-KR')}원 기준</span>
+              <svg
+                className="investment-calendar-impact-chevron"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </summary>
+            {event.type === 'KOREA_BASE_RATE' ? (
+              <p className="investment-calendar-impact-description">
+                기준금리가 인하·동결·인상됐던 과거 다음 거래일에, 지금과 같은 내 자산이 얼마나
+                움직였는지 보여드려요.
+              </p>
+            ) : null}
+            <div className="investment-calendar-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{resultColumnTitle(event.type)}</th>
+                    <th>중앙값</th>
+                    <th>내 자산 변화</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analysis.historicalReactions.map((statistics) => (
+                    <tr key={statistics.direction}>
+                      <td>
+                        {event.type === 'KOREA_BASE_RATE'
+                          ? rateDecisionCaseLabel(statistics.direction)
+                          : directionLabel(event.type, statistics.direction)}
+                      </td>
+                      <td className={rateTone(statistics.medianReturnRate)}>
+                        {event.type === 'KOREA_BASE_RATE'
+                          ? typicalRate(statistics.medianReturnRate)
+                          : formatRate(statistics.medianReturnRate)}
+                      </td>
+                      <td className={rateTone(statistics.medianReturnRate)}>
+                        {event.type === 'KOREA_BASE_RATE'
+                          ? estimatedRange(statistics)
+                          : formatRange(statistics)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="investment-calendar-basis">
+              {totalSamples}회 표본 · 다음 거래일 · 예측 아님
+            </p>
+          </details>
+        )}
+
+        {copy.latestResult && copy.latestAssetReaction ? (
+          <section className="investment-calendar-last-result" aria-label="지난 발표 결과">
+            <h3>지난 발표 결과</h3>
+            <div>
+              <span>
+                발표 결과<strong>{copy.latestResult}</strong>
+              </span>
+              <span>
+                내 자산<strong>{copy.latestAssetReaction}</strong>
+              </span>
+            </div>
+          </section>
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -554,10 +570,9 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
           </div>
         )}
       </section>
-      <p className="investment-calendar-disclaimer">
-        과거 반응은 미래 수익률을 보장하지 않습니다.
-        {isDemo ? ' · 현재 화면의 수치는 데모 데이터입니다.' : ''}
-      </p>
+      {isDemo ? (
+        <p className="investment-calendar-disclaimer">현재 화면의 수치는 데모 데이터입니다.</p>
+      ) : null}
     </CalendarRoot>
   );
 }

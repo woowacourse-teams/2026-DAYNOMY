@@ -46,7 +46,7 @@
 }
 
 .category-tabs button.active {
-  color: #394fc4;
+  color: var(--button-action);
   font-weight: 700;
 }
 .category-tabs button:focus-visible,

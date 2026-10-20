@@ -622,9 +622,8 @@ for (const viewport of [
             width <= 900
               ? cards[1].top >= cards[0].bottom
               : Math.abs(cards[0].top - cards[1].top) < 1,
-          tableReflows:
-            getComputedStyle(main.querySelector('.portfolio-holding-row')!).display ===
-            (width <= 940 ? 'grid' : 'table-row'),
+          tableStaysTabular:
+            getComputedStyle(main.querySelector('.portfolio-holding-row')!).display === 'table-row',
           pageFits: document.documentElement.scrollWidth <= innerWidth,
           controlsFit: [
             ...main.querySelectorAll(
@@ -645,7 +644,7 @@ for (const viewport of [
         donutReadable: true,
         cardsFit: true,
         cardsReflow: true,
-        tableReflows: true,
+        tableStaysTabular: true,
         pageFits: true,
         controlsFit: true,
         readableControls: true,
@@ -694,8 +693,9 @@ for (const viewport of [
           fullSizeDonut: donut.width >= 135,
           centeredDonut:
             Math.abs(donut.left + donut.width / 2 - (cards[1].left + cards[1].width / 2)) < 1,
-          tableReflows:
-            getComputedStyle(canvas.querySelector('.portfolio-holding-row')!).display === 'grid',
+          tableStaysTabular:
+            getComputedStyle(canvas.querySelector('.portfolio-holding-row')!).display ===
+            'table-row',
           pageFits: document.documentElement.scrollWidth <= innerWidth,
         };
       });
@@ -703,7 +703,7 @@ for (const viewport of [
         cardsStacked: true,
         fullSizeDonut: true,
         centeredDonut: true,
-        tableReflows: true,
+        tableStaysTabular: true,
         pageFits: true,
       });
       await page.locator('.portfolio-page').screenshot({
