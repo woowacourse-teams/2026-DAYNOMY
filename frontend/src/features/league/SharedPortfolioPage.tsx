@@ -441,12 +441,10 @@ export function SharedPortfolioPage() {
             <section className="shared-list" aria-labelledby="shared-holdings-title">
               <header className="shared-section-heading">
                 <div>
-                  <h2 id="shared-holdings-title" className="league-sr-only">
-                    등록한 종목 {data.holdings.length}개
-                  </h2>
+                  <h2 id="shared-holdings-title">등록한 종목 {data.holdings.length}개</h2>
                   <p>
                     {data.holdings.length
-                      ? `총 ${data.holdings.length}개`
+                      ? '보유 이유와 복기를 종목별로 관리하세요.'
                       : '아직 등록한 종목이 없어요.'}
                   </p>
                 </div>
