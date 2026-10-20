@@ -56,12 +56,12 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-primary-button,
 .portfolio-sheet .portfolio-primary-button {
-  background: var(--button-action);
+  background: #fff;
   min-height: var(--button-height);
-  border: 0;
+  border: 1px solid #0a0a0a;
   border-radius: 999px;
   padding: 0 18px;
-  color: #fff;
+  color: #0a0a0a;
   font-size: 14px;
   font-weight: var(--button-weight);
   cursor: pointer;
@@ -69,11 +69,11 @@ body:has(.portfolio-page) .daynomy-footer {
 .portfolio-page .portfolio-secondary-button,
 .portfolio-sheet .portfolio-secondary-button {
   min-height: var(--button-height);
-  border: 1px solid var(--button-outline);
+  border: 1px solid var(--button-action);
   border-radius: 999px;
   padding: 0 16px;
   background: #fff;
-  color: var(--button-label);
+  color: #0a0a0a;
   font-size: 14px;
   font-weight: var(--button-weight);
   cursor: pointer;
@@ -91,33 +91,35 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-primary-button:hover:not(:disabled),
 .portfolio-sheet .portfolio-primary-button:hover:not(:disabled) {
-  background: var(--button-action-hover);
+  background: #f5f5f5;
 }
 
 .portfolio-page .portfolio-primary-button:active:not(:disabled),
 .portfolio-sheet .portfolio-primary-button:active:not(:disabled) {
-  background: var(--button-action-active);
+  background: #ececec;
 }
 .portfolio-page .portfolio-secondary-button:hover:not(:disabled),
 .portfolio-sheet .portfolio-secondary-button:hover:not(:disabled) {
-  background: var(--button-secondary-hover);
+  background: #f5f5f5;
 }
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button {
-  min-height: var(--button-height);
-  padding: 0 22px;
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
   border-radius: 999px;
-  background: var(--button-action);
+  background: #fff;
 }
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button:hover:not(:disabled) {
-  background: var(--button-action-hover);
+  background: #f5f5f5;
 }
 
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button:active:not(:disabled) {
-  background: var(--button-action-active);
+  background: #ececec;
 }
 .portfolio-page .portfolio-page-actions > .portfolio-news-tab {
-  min-height: var(--button-height);
-  padding: 0 20px;
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
   border-radius: 999px;
 }
 .portfolio-page :is(button, summary, input, select):focus-visible,
@@ -132,16 +134,17 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-save-notice.is-guest {
   margin: 0;
-  color: #326bd5;
-  font-size: 14px;
-  font-weight: 700;
+  color: #68778d;
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.6;
 }
 .portfolio-page .portfolio-overview {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
-  padding: 28px 0;
+  margin: 0;
+  padding: 16px 0 20px;
   border: 0;
   border-bottom: 1px solid #e9edf3;
   background: transparent;
@@ -151,12 +154,12 @@ body:has(.portfolio-page) .daynomy-footer {
   text-align: left;
   min-width: 0;
   min-height: 0;
-  padding: 12px 24px;
+  padding: 0 16px;
   border: 0;
   border-left: 1px solid #e9edf3;
 }
 .portfolio-page .portfolio-overview > div:first-child {
-  padding: 0 28px 0 0;
+  padding: 0 16px 0 0;
   border: 0;
 }
 .portfolio-page .portfolio-overview .portfolio-balance-label {
@@ -164,12 +167,15 @@ body:has(.portfolio-page) .daynomy-footer {
   gap: 10px;
 }
 .portfolio-page .portfolio-overview dt {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
   color: #52647f;
   font-size: 12px;
   font-weight: 500;
 }
 .portfolio-page .portfolio-overview .portfolio-balance-value {
-  font-size: clamp(28px, 2.8vw, 40px);
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.035em;
   line-height: 1.25;
@@ -178,7 +184,7 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-overview > div:not(.portfolio-summary-total) > dd {
   margin: 12px 0 5px;
-  font-size: clamp(17px, 1.6vw, 23px);
+  font-size: 22px;
   letter-spacing: -0.035em;
   font-weight: 650;
   overflow: visible;
@@ -237,13 +243,13 @@ body:has(.portfolio-page) .daynomy-footer {
 .portfolio-page .portfolio-privacy-button {
   min-height: 36px;
   padding: 0 10px;
-  border: 0;
-  background: #f3f5f8;
-  color: #52647f;
+  border: 1px solid #0a0a0a;
+  background: #fff;
+  color: #0a0a0a;
   font-size: 12px;
 }
 .portfolio-price-status {
-  margin: 6px 0 26px;
+  margin: 8px 0 16px;
   font-size: 11px;
   color: #52647f;
   line-height: 1.7;
@@ -1093,13 +1099,13 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 @container portfolio-dashboard (max-width: 900px) {
   .portfolio-page .portfolio-overview {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 24px 0;
   }
   .portfolio-page .portfolio-overview > div:first-child {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
-  .portfolio-page .portfolio-overview > div:nth-child(2) {
+  .portfolio-page .portfolio-overview > div:nth-child(3) {
     border: 0;
     padding-left: 0;
   }
@@ -1153,14 +1159,9 @@ body:has(.portfolio-page) .daynomy-footer {
   .portfolio-page .portfolio-overview > div:first-child {
     padding: 0;
   }
-  .portfolio-page .portfolio-overview > div:nth-child(4) {
-    grid-column: 1 / -1;
-    border-left: 0;
-    border-top: 1px solid #e9edf3;
-    padding-top: 16px;
-  }
+
   .portfolio-page .portfolio-overview > div:not(.portfolio-summary-total) > dd {
-    font-size: 15px;
+    font-size: 20px;
     overflow-wrap: anywhere;
   }
   .portfolio-page
@@ -1170,7 +1171,7 @@ body:has(.portfolio-page) .daynomy-footer {
     font-size: 14px;
   }
   .portfolio-page .portfolio-overview .portfolio-balance-value {
-    font-size: 36px;
+    font-size: 20px;
   }
   .portfolio-page .portfolio-overview dt {
     font-size: 12px;
@@ -2517,7 +2518,7 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 @media (max-width: 620px) {
   .portfolio-page .portfolio-overview .portfolio-balance-value {
-    font-size: clamp(28px, 8vw, 36px);
+    font-size: 20px;
   }
   .portfolio-page .portfolio-primary-button,
   .portfolio-page .portfolio-secondary-button {
@@ -2607,7 +2608,7 @@ body:has(.portfolio-page) .daynomy-footer {
   }
   .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):first-child {
     width: 22%;
-    padding-left: 0;
+    padding-left: 20px;
     white-space: normal;
   }
   .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(2) {
@@ -2624,7 +2625,7 @@ body:has(.portfolio-page) .daynomy-footer {
   }
   .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(6) {
     width: 18%;
-    padding-right: 0;
+    padding-right: 20px;
   }
   .portfolio-page .has-news .portfolio-asset {
     min-width: 0;
