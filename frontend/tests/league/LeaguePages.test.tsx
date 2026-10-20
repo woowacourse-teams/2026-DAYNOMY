@@ -1,5 +1,6 @@
 import { concentrationLabel } from '../../src/features/league/labels';
 /** @vitest-environment jsdom */
+import { StrictMode } from 'react';
 
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { BrowserRouter, MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -125,6 +126,74 @@ afterEach(() => {
 });
 
 describe('투자 리그 화면', () => {
+  it('StrictMode에서도 진입·조회 완료를 한 번 기록하고 잠정 순위와 상세 지표 동작을 구분한다', async () => {
+    vi.mocked(leagueApi.getRankings).mockResolvedValue({
+      ...ranking,
+      confirmed: false,
+      collectionStatus: 'COLLECTION_PENDING',
+    });
+    const view = render(
+      <StrictMode>
+        <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+          <MemoryRouter>
+            <LeaguePage />
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </StrictMode>,
+    );
+    await view.findByText('잠정 순위');
+    expect(view.getByText('종가 수집 대기')).toBeTruthy();
+    expect(view.getByText(/집계된 종가 기준의 잠정 순위/)).toBeTruthy();
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'view_league'),
+    ).toHaveLength(1);
+    expect(
+      vi
+        .mocked(trackEvent)
+        .mock.calls.filter(
+          ([name, params]) => name === 'league_load_result' && params?.surface === 'ranking',
+        ),
+    ).toHaveLength(1);
+    expect(leagueApi.getRankings).toHaveBeenCalledTimes(1);
+    fireEvent.click(view.getByRole('button', { name: '차분한초보 상세 지표' }));
+    expect(trackEvent).toHaveBeenCalledWith('league_action', {
+      surface: 'ranking',
+      action: 'open_metrics',
+      status: 'clicked',
+      rank_bucket: 'top_3',
+    });
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('investor-1');
+  });
+
+  it('팔로우 실패는 성공으로 기록하지 않고 원문 오류와 투자자 식별자를 전송하지 않는다', async () => {
+    vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
+      ...investor,
+      detailAvailable: false,
+    });
+    vi.mocked(leagueApi.followInvestor).mockRejectedValueOnce(new Error('private-error'));
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'USER' }}>
+        <MemoryRouter initialEntries={['/league/investor-1']}>
+          <Routes>
+            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    fireEvent.click(await view.findByRole('button', { name: '차분한초보 팔로우' }));
+    await view.findByRole('alert');
+    const actions = vi
+      .mocked(trackEvent)
+      .mock.calls.filter(
+        ([name, params]) => name === 'league_action' && params?.action === 'follow',
+      );
+    expect(actions.map(([, params]) => params?.status)).toEqual(['submitted', 'error']);
+    expect(
+      view.getByRole('button', { name: '차분한초보 팔로우' }).getAttribute('aria-pressed'),
+    ).toBe('false');
+    expect(JSON.stringify(actions)).not.toMatch(/investor-1|private-error|차분한초보/);
+  });
+
   it('투자자 이름과 팔로우 상태를 전달하고 화면을 닫으면 원래 제목을 복원한다', async () => {
     const previousTitle = document.title;
     vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
@@ -209,7 +278,7 @@ describe('투자 리그 화면', () => {
     expect(view.queryByRole('navigation', { name: '조회 주차' })).toBeNull();
     expect(view.queryByRole('combobox')).toBeNull();
     expect(view.queryByText(/지난주/)).toBeNull();
-    expect(view.container.querySelector('details')).toBeNull();
+    expect(view.container.querySelector('.league-controls details')).toBeNull();
     view.unmount();
     const dailyView = render(
       <DailyReturns publicId="investor-1" weekStart="2026-10-05" onWeekChange={vi.fn()} />,
@@ -452,7 +521,7 @@ describe('투자 리그 화면', () => {
     const graph = view.container.querySelector('.league-return-line')!;
     expect(graph.querySelectorAll('circle')).toHaveLength(3);
     expect(graph.querySelectorAll('g line')).toHaveLength(2);
-    expect(view.getByText('2026-12-09 종가 기준 · 집계 중')).toBeTruthy();
+    expect(view.getByText('2026-12-09 종가 기준 · 잠정 수익률')).toBeTruthy();
     expect(view.queryByRole('table')).toBeNull();
   });
 
@@ -488,7 +557,7 @@ describe('투자 리그 화면', () => {
     view.rerender(
       <DailyReturns publicId="investor-1" weekStart="2026-11-30" onWeekChange={onWeekChange} />,
     );
-    await view.findByText('2026-11-30 종가 기준 · 확정');
+    await view.findByText('2026-11-30 종가 기준 · 순위 확정');
     await act(async () => resolvePrevious(daily));
     expect(
       within(view.getByRole('group', { name: '일별 수익률 그래프' })).getByText('-3.00%'),
@@ -1106,7 +1175,9 @@ describe('투자 리그 화면', () => {
         );
         window.dispatchEvent(new PopStateEvent('popstate'));
       });
-      expect(trackEvent).toHaveBeenCalledTimes(1);
+      const views = () =>
+        vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'view_investor_profile');
+      expect(views()).toHaveLength(1);
       expect(trackEvent).toHaveBeenCalledWith('view_investor_profile', {
         source,
         rank_bucket: 'top_3',
@@ -1116,11 +1187,14 @@ describe('투자 리그 화면', () => {
         window.history.pushState({ usr: { source: 'direct' } }, '', '/league/investor-1');
         window.dispatchEvent(new PopStateEvent('popstate'));
       });
-      expect(trackEvent).toHaveBeenCalledTimes(2);
-      expect(trackEvent).toHaveBeenLastCalledWith('view_investor_profile', {
-        source: 'direct',
-        rank_bucket: 'unknown',
-      });
+      expect(views()).toHaveLength(2);
+      expect(views().at(-1)).toEqual([
+        'view_investor_profile',
+        {
+          source: 'direct',
+          rank_bucket: 'unknown',
+        },
+      ]);
     },
   );
 

@@ -14,8 +14,14 @@ esac
 staged_files=$(git diff --cached --name-only --diff-filter=ACMR)
 [ -z "$staged_files" ] && exit 0
 
-if printf '%s\n' "$staged_files" | grep -Eq '(^|/)(\.env|\.env\..*|.*\.(pem|key|p12|jks))$'; then
-  fail "환경변수 또는 키 파일은 커밋할 수 없습니다."
+sensitive_files=$(printf '%s\n' "$staged_files" | grep -E '(^|/)(\.env|\.env\..*|.*\.(pem|key|p12|jks))$' | grep -vFx 'frontend/.env.example' || true)
+[ -z "$sensitive_files" ] || fail "환경변수 또는 키 파일은 커밋할 수 없습니다."
+
+if printf '%s\n' "$staged_files" | grep -qFx 'frontend/.env.example'; then
+  example=$(git show ':frontend/.env.example') || fail "환경변수 예시를 확인할 수 없습니다."
+  if printf '%s\n' "$example" | grep -Ev '^[[:space:]]*(#.*)?$|^[A-Z][A-Z0-9_]*=$|^VITE_API_BASE_URL=http://localhost:8080$|^SENTRY_ENVIRONMENT=local$' | grep -q .; then
+    fail "환경변수 예시는 로컬 기본값 외의 실제 값을 포함할 수 없습니다."
+  fi
 fi
 
 if git diff --cached --check; then

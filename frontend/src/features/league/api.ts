@@ -1,5 +1,5 @@
 import { request, requestWithCsrf } from '../../api/client';
-import { trackEvent } from '../../analytics';
+import { trackLeagueEvent } from './analytics';
 import type {
   DailyHistory,
   ExperienceLevel,
@@ -460,7 +460,7 @@ export async function recordDecision(input: {
     body: JSON.stringify(input),
   });
   if (!isDecisionRecord(response)) throw new Error('판단 기록 응답 형식이 올바르지 않습니다.');
-  trackEvent('save_investment_decision', { record_type: response.transactionType });
+  trackLeagueEvent('save_investment_decision', { record_type: response.transactionType });
   return response;
 }
 
@@ -477,7 +477,7 @@ export async function createReview(
     },
   );
   if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
-  trackEvent('save_investment_review', { origin: 'shared_portfolio' });
+  trackLeagueEvent('save_investment_review', { origin: 'shared_portfolio' });
   return response;
 }
 
@@ -495,7 +495,7 @@ export async function updateReview(
     },
   );
   if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
-  trackEvent('edit_investment_review', { origin: 'shared_portfolio' });
+  trackLeagueEvent('edit_investment_review', { origin: 'shared_portfolio' });
   return response;
 }
 
