@@ -73,7 +73,8 @@ async function fixture(overrides = {}, mutate = () => {}, version = 'v1') {
     ...overrides,
   };
   const requests = [],
-    metrics = [];
+    metrics = [],
+    openedFiles = [];
   const execution = {
     scenario: { iterationInTest: 0, startTime: Date.now() },
     test: {
@@ -241,7 +242,13 @@ async function fixture(overrides = {}, mutate = () => {}, version = 'v1') {
       metrics.push({ name: this.name, value, tags });
     }
   }
-  const context = vm.createContext({ __ENV: environment, open: () => JSON.stringify(data) });
+  const context = vm.createContext({
+    __ENV: environment,
+    open: (path) => {
+      openedFiles.push(path);
+      return JSON.stringify(data);
+    },
+  });
   const builtins = {
     'k6/http': {
       default: { request, get: (url, params) => request('GET', url, null, params), CookieJar },
@@ -280,6 +287,7 @@ async function fixture(overrides = {}, mutate = () => {}, version = 'v1') {
     requests,
     state,
     metrics,
+    openedFiles,
     execution,
     intercept: (fn) => {
       overrideResponse = fn;
@@ -390,6 +398,38 @@ test('V1/V2 use identical request sequence, accounts and payloads', async () => 
   assert.equal(options[1].tags.version, 'v2');
   for (const option of options) delete option.tags.version;
   assert.deepEqual(options[0], options[1]);
+});
+
+test('reads the league fixture path independently of the workflow-managed analysis accounts', async () => {
+  const path = '/home/ubuntu/loadtest-fixtures/accounts-league.json';
+  const result = await fixture({
+    GITHUB_ACTIONS: 'true',
+    LEAGUE_FIXTURE_FILE: path,
+    ACCOUNTS_FILE: './accounts.json',
+    LOADTEST_ID: '123-1',
+  });
+  assert.deepEqual(result.openedFiles, [path]);
+  result.script.default(result.script.setup());
+  const local = await fixture({ ACCOUNTS_FILE: './accounts.json' });
+  assert.deepEqual(local.openedFiles, ['./accounts-league.json']);
+  for (const value of [undefined, './accounts-league.json'])
+    await assert.rejects(
+      fixture({ GITHUB_ACTIONS: 'true', LEAGUE_FIXTURE_FILE: value }),
+      /Set LEAGUE_FIXTURE_FILE/,
+    );
+});
+
+test('blocks both global recalculation cases in Actions even with an isolated fixture and ADMIN token', async () => {
+  for (const name of ['recalculate', 'mixed-with-recalculate'])
+    await assert.rejects(
+      fixture({
+        CASE: name,
+        GITHUB_ACTIONS: 'true',
+        LEAGUE_FIXTURE_FILE: '/private/accounts-league.json',
+        ISOLATED: 'true',
+      }),
+      /Global recalculation requires a separate backend\/DB clone/,
+    );
 });
 
 test('rejects unsafe cohorts, expired/wrong-role tokens, invalid configuration and global recalculation on shared dev', async () => {

@@ -29,6 +29,14 @@ export function createScenario(version) {
     if (!condition) throw new Error(message);
   };
   ensure(CASES.includes(config.case), 'Unknown CASE');
+  const batch = ['recalculate', 'mixed-with-recalculate'].includes(config.case);
+  if (__ENV.GITHUB_ACTIONS === 'true') {
+    ensure(!batch, 'Global recalculation requires a separate backend/DB clone; run it locally');
+    ensure(
+      __ENV.LEAGUE_FIXTURE_FILE?.startsWith('/'),
+      'Set LEAGUE_FIXTURE_FILE to the private fixture path outside the runner checkout',
+    );
+  }
   ensure(
     ['true', 'false'].includes(__ENV.AUTHENTICATED || 'false'),
     'AUTHENTICATED must be true or false',
@@ -81,9 +89,9 @@ export function createScenario(version) {
 
   let fixture;
   try {
-    fixture = JSON.parse(open(__ENV.ACCOUNTS_FILE || './accounts-league.json'));
+    fixture = JSON.parse(open(__ENV.LEAGUE_FIXTURE_FILE || './accounts-league.json'));
   } catch (_) {
-    throw new Error('Prepare the private league accounts file');
+    throw new Error('Prepare the private league accounts file via LEAGUE_FIXTURE_FILE');
   }
   ensure(
     fixture.schemaVersion === 1 &&
@@ -183,7 +191,6 @@ export function createScenario(version) {
       ),
     'Use separate, nonempty public targets',
   );
-  const batch = ['recalculate', 'mixed-with-recalculate'].includes(config.case);
   if (batch) {
     ensure(
       fixture.isolated === true &&

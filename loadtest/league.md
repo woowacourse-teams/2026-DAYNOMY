@@ -57,17 +57,17 @@
 
 ## GitHub Actions 첫 실행
 
-스크립트와 테스트를 실행 가능한 브랜치에 반영한 뒤 기존 **k6 development smoke test**를 사용한다.
-`DEV_BASE_URL`, `K6_PROMETHEUS_RW_SERVER_URL`과 기존 runner를 사용한다.
-리그 계정은 분석/거래 계정 Secret과 분리한다.
+기존 `.github/workflows/k6-dev.yml`은 수정하지 않는다. 실행 가능한 브랜치에 스크립트를 반영한 뒤
+**k6 development smoke test**의 기존 `script`/`params` 입력을 사용한다.
+`DEV_BASE_URL`, `K6_PROMETHEUS_RW_SERVER_URL`, runner, Prometheus 출력과 결과 artifact 설정을 그대로 사용한다.
 
-```bash
-umask 077
-gzip -c loadtest/accounts-league.json | base64 > /private/tmp/league-accounts.secret
-```
+기존 워크플로는 `portfolio-analysis-*.js`와 거래 스크립트에만 계정 Secret을 파일로 풀어 준다.
+리그 계정은 `LEAGUE_FIXTURE_FILE`에 지정한 비공개 파일에서 읽는다. 분석/거래 계정 파일이나 Secret은 사용하지 않는다.
 
-`development` Environment Secret **`LEAGUE_ACCOUNTS_JSON_GZ_BASE64`**에 결과를 저장한다. 파일과 토큰은 Git·이슈·채팅에 올리지 않는다.
-runner의 계정 파일은 실행 후 삭제하며 artifact에는 `result-*.json`만 보관한다.
+1. 실제 테스트 계정으로 채운 `accounts-league.json`을 runner의 checkout 디렉터리 **밖에** 준비한다. 예: `/home/ubuntu/loadtest-fixtures/accounts-league.json`. checkout은 작업 디렉터리의 비공개 파일을 지울 수 있다.
+2. 디렉터리는 runner 사용자만 접근하도록 700, 파일은 600 권한으로 둔다. 새 리그 Secret이나 워크플로 변경은 필요 없다.
+3. `params`에는 절대 파일 경로만 넣는다. 토큰·fixture 본문을 입력하거나 Git·로그·artifact에 올리지 않는다. `BASE_URL`/`ACCOUNTS_FILE`은 기존 워크플로가 관리하므로 넣지 않는다.
+4. 외부 fixture는 워크플로가 생성하거나 삭제하지 않는다. 실행자가 계정·토큰을 갱신하고 사용 후 정리한다. 결과 artifact에는 기존 규칙대로 `result-*.json`만 포함된다.
 
 script:
 
@@ -80,6 +80,7 @@ params 예시 — SHA·월요일·확정 여부는 실제 환경 값으로 바�
 ```json
 {
   "CASE": "browse",
+  "LEAGUE_FIXTURE_FILE": "/home/ubuntu/loadtest-fixtures/accounts-league.json",
   "DEPLOYED_SHA": "0123456",
   "WEEK_START": "2026-10-19",
   "EXPECTED_CONFIRMED": false,
@@ -91,23 +92,23 @@ params 예시 — SHA·월요일·확정 여부는 실제 환경 값으로 바�
 V2는 script를 `loadtest/league-v2.js`로, SHA를 개선 배포 값으로 바꾸고 나머지 조건을 유지한다.
 `CASE=rankings`에는 `EXPECTED_TOTAL`도 필요하다. `AUTHENTICATED=true`로 로그인 순위·투자자 조회를 비교할 수 있다.
 
-| 입력                                               | 기본값 / 의미                                                                  |
-| -------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `CASE`                                             | `browse`. 위 표에서 선택                                                       |
-| `DEPLOYED_SHA`, `WEEK_START`, `EXPECTED_CONFIRMED` | 필수. 실제 배포·월요일·해당 주차 확정 여부                                     |
-| `LEAGUE_TYPE`, `PAGE`                              | `WEEKLY_RETURN`, `0`. 같은 조건으로 유형·주차·페이지별 비교                    |
-| `EXPECTED_TOTAL`                                   | rankings에서 필수. 선택 페이지가 비어 있지 않은 전체 참가자 수                 |
-| `AUTHENTICATED`                                    | 기본 false. browse/순위/투자자 조회에 로그인 쿠키 적용                         |
-| `RPS`, `DURATION`, `VUS`                           | 기본 `1`, `30s`, `20`. RPS는 **사용자 흐름 시작률**, 실제 HTTP 요청률과 다르다 |
-| `REQUEST_TIMEOUT_SECONDS`                          | 기본 10, 최대 60                                                               |
-| `TARGET_P95_MS`                                    | 기본 1000. 일반 API 각각에 적용하며 두 버전에 같은 기준 사용                   |
-| `RUN`                                              | Actions 실행 ID, 로컬 `local`. 로컬 반복 시 다른 이름 사용                     |
-| `ACCOUNTS_FILE`                                    | 로컬 기본 `./accounts-league.json`. Actions가 관리하므로 params에 넣지 않음    |
-| `ISOLATED`, `BATCH_TIMEOUT_SECONDS`                | 로컬 집계 전용. 아래 참고                                                      |
+| 입력                                               | 기본값 / 의미                                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `CASE`                                             | `browse`. 위 표에서 선택                                                              |
+| `DEPLOYED_SHA`, `WEEK_START`, `EXPECTED_CONFIRMED` | 필수. 실제 배포·월요일·해당 주차 확정 여부                                            |
+| `LEAGUE_TYPE`, `PAGE`                              | `WEEKLY_RETURN`, `0`. 같은 조건으로 유형·주차·페이지별 비교                           |
+| `EXPECTED_TOTAL`                                   | rankings에서 필수. 선택 페이지가 비어 있지 않은 전체 참가자 수                        |
+| `AUTHENTICATED`                                    | 기본 false. browse/순위/투자자 조회에 로그인 쿠키 적용                                |
+| `RPS`, `DURATION`, `VUS`                           | 기본 `1`, `30s`, `20`. RPS는 **사용자 흐름 시작률**, 실제 HTTP 요청률과 다르다        |
+| `REQUEST_TIMEOUT_SECONDS`                          | 기본 10, 최대 60                                                                      |
+| `TARGET_P95_MS`                                    | 기본 1000. 일반 API 각각에 적용하며 두 버전에 같은 기준 사용                          |
+| `RUN`                                              | Actions 실행 ID, 로컬 `local`. 로컬 반복 시 다른 이름 사용                            |
+| `LEAGUE_FIXTURE_FILE`                              | 로컬 기본 `./accounts-league.json`. Actions에서는 runner checkout 밖의 절대 경로 필수 |
+| `ISOLATED`, `BATCH_TIMEOUT_SECONDS`                | 로컬 집계 전용. 아래 참고                                                             |
 
 ## 집계와 동시 부하
 
-관리자 재집계는 테스트 회원 외 모든 참가자도 처리한다. **공유 dev Actions에서는 집계 CASE를 실행하지 않는다.**
+관리자 재집계는 테스트 회원 외 모든 참가자도 처리한다. **스크립트가 `GITHUB_ACTIONS=true`에서 집계 CASE를 차단한다.**
 전용 backend/DB 복제 환경에서 fixture의 `isolated=true`, 해당 환경에서만 유효한 `admin` 회원 ID·ADMIN 토큰,
 그리고 `ISOLATED=true`를 모두 준비한다. 일반 사용자 계정에 관리자 토큰을 재사용하지 않는다.
 
@@ -136,4 +137,6 @@ HTTP 요청 타임아웃은 서버의 진행 중인 집계를 취소하지 않�
 node --experimental-vm-modules --test loadtest/tests/*.test.mjs backend/loadtest/tests/transactions.test.mjs
 ```
 
-Backend CI에서 실행한다. HTTP mock 테스트는 흐름·인증·검증·V1/V2 조건의 동등성을 확인하며 실제 서버 성능·동시 DB 정합성을 증명하지 않는다.
+위 명령으로 로컬에서 실행한다. 기존 Backend CI 워크플로는 수정하지 않으며 이 검증 명령을 새로 연결하지 않는다.
+워크플로 호환 테스트는 기존 k6 실행 셸을 그대로 실행해 파일 경로·인수 전달과 기존 분석 계정 처리를 확인한다.
+HTTP mock 테스트는 흐름·인증·검증·V1/V2 조건의 동등성을 확인하며 실제 서버 성능·동시 DB 정합성을 증명하지 않는다.
