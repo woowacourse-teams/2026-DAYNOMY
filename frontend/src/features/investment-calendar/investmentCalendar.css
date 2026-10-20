@@ -1295,7 +1295,7 @@
 /* Keep sibling content steady only while the calendar uses two columns. */
 @media (min-width: 821px) {
   .investment-calendar-page:not(.investment-calendar-embedded) {
-    --calendar-workspace-height: clamp(460px, 70svh, 680px);
+    --calendar-workspace-height: clamp(396px, 46svh, 400px);
     --calendar-scroll-overflow: auto;
     --calendar-state-min-height: 0;
   }
@@ -1303,7 +1303,7 @@
 
 @container (min-width: 721px) {
   .investment-calendar-embedded .investment-calendar-workspace {
-    --calendar-workspace-height: clamp(460px, 70svh, 680px);
+    --calendar-workspace-height: clamp(396px, 46svh, 400px);
     --calendar-scroll-overflow: auto;
     --calendar-state-min-height: 0;
   }

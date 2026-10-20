@@ -1733,8 +1733,8 @@
 
   .issue-people-preview > a,
   .issue-people-preview > a + a {
-    flex: 0 0 25%;
-    min-height: 144px;
+    flex: 0 0 calc(100% / 3);
+    min-height: 132px;
     box-sizing: border-box;
     align-content: center;
     gap: 8px 12px;
@@ -1748,7 +1748,7 @@
 }
 
 @media (max-width: 1120px) {
-  .issue-people-preview > a:nth-child(n + 5) {
+  .issue-people-preview > a:nth-child(n + 4) {
     display: none;
   }
 }
