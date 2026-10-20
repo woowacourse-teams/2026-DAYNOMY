@@ -196,7 +196,7 @@ describe('뉴스 탐색 화면', () => {
     );
   });
 
-  it('오늘의 뉴스가 없어도 전체 콘텐츠에서 최신 글을 보여준다', async () => {
+  it('오늘의 뉴스가 없어도 최근 콘텐츠를 보여준다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) =>
@@ -221,7 +221,7 @@ describe('뉴스 탐색 화면', () => {
     );
 
     const view = renderPage(<IssueHomePage />);
-    const allContents = (await view.findByRole('heading', { name: '전체 콘텐츠' })).closest(
+    const allContents = (await view.findByRole('heading', { name: '최근 올라온 콘텐츠' })).closest(
       'section',
     )!;
 
