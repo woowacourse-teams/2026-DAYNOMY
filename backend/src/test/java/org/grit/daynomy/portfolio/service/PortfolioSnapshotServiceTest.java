@@ -94,7 +94,9 @@ class PortfolioSnapshotServiceTest {
 
   @Test
   void logsPriceSyncSnapshotFailureWithoutRawDatabaseValues() {
-    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+    Portfolio portfolio = portfolio(10L);
+    given(portfolioRepository.findAll()).willReturn(List.of(portfolio));
+    given(stockPriceRepository.findBaseDatesByPortfolioId(10L))
         .willThrow(new IllegalStateException("private-sql-values"));
     service.refreshAfterPriceSync();
     assertThat(appender.list).hasSize(1);
