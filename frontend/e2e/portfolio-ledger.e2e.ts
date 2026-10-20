@@ -1123,6 +1123,15 @@ for (const viewport of [
     ).toBe(true);
     const searchBounds = await dialog.boundingBox();
     expect(searchBounds!.height).toBeLessThanOrEqual(500);
+    const countryFilter = dialog.getByRole('group', { name: '종목 국가' });
+    await countryFilter.getByRole('button', { name: '미국', exact: true }).click();
+    await expect(countryFilter.getByRole('button', { name: '미국', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    await countryFilter.getByRole('button', { name: '국내', exact: true }).click();
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
     let finishStockSearch!: () => void;
     pendingStockSearch = new Promise<void>((resolve) => {
       finishStockSearch = resolve;

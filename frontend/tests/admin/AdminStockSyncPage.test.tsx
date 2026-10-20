@@ -275,3 +275,97 @@ it('리그 재집계 실패를 표시하고 다시 실행한다', async () => {
   expect(await view.findByText('일간 기록 0건 처리')).toBeTruthy();
   expect(view.queryByRole('alert')).toBeNull();
 });
+
+it('미국 종목 적재와 최신·지정일 종가 수집을 국내 요청과 구분하고 결과를 표시한다', async () => {
+  const calls: string[] = [];
+  let finish!: (response: Response) => void;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith('/api/auth/csrf'))
+        return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      if (url.endsWith('/us/sync'))
+        return new Promise<Response>((resolve) => {
+          finish = resolve;
+        });
+      return jsonResponse({
+        baseDate: '2020-10-16',
+        receivedCount: 11439,
+        createdCount: 11400,
+        updatedCount: 9,
+        skippedCount: 30,
+        synchronizedDateCount: 1,
+        pendingDateCount: 0,
+        failedDateCount: 0,
+      });
+    }),
+  );
+  const view = render(<AdminStockSyncPage />);
+  fireEvent.click(view.getByRole('button', { name: '미국 종목 적재' }));
+  await waitFor(() => expect(finish).toBeTypeOf('function'));
+  for (const button of view.getAllByRole('button')) expect(button).toHaveProperty('disabled', true);
+  expect(view.getByLabelText('미국 거래일 (선택)')).toHaveProperty('disabled', true);
+  finish(
+    jsonResponse({
+      baseDate: '2020-10-19',
+      syncedCount: 11559,
+      createdCount: 11500,
+      updatedCount: 59,
+      delistedCount: 0,
+    }),
+  );
+  expect(await view.findByText('11,559개')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '미국 종가 가져오기' }));
+  expect(await view.findByText('2020.10.16 기준 미국 종가 수집 완료 · USD')).toBeTruthy();
+  expect(view.getByText('11,439건')).toBeTruthy();
+  fireEvent.change(view.getByLabelText('미국 거래일 (선택)'), { target: { value: '2020-10-16' } });
+  expect(view.queryByText('11,439건')).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '미국 종가 가져오기' }));
+  expect(await view.findByText('11,439건')).toBeTruthy();
+  expect(
+    calls
+      .filter((url) => !url.endsWith('/csrf'))
+      .map((url) => {
+        const parsed = new URL(url, 'http://localhost');
+        return parsed.pathname + parsed.search;
+      }),
+  ).toEqual([
+    '/api/admin/stocks/us/sync',
+    '/api/admin/stocks/us/prices/sync',
+    '/api/admin/stocks/us/prices/sync?date=2020-10-16',
+  ]);
+});
+
+it('미국 종가 실패 후 날짜를 유지하고 같은 날짜로 다시 수집한다', async () => {
+  let writes = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/csrf'))
+        return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      return ++writes === 1
+        ? jsonResponse({ message: '미국 종목 목록을 먼저 동기화해주세요.' }, 409)
+        : jsonResponse({
+            baseDate: '2020-10-16',
+            receivedCount: 5,
+            createdCount: 5,
+            updatedCount: 0,
+            skippedCount: 0,
+            synchronizedDateCount: 1,
+            pendingDateCount: 0,
+            failedDateCount: 0,
+          });
+    }),
+  );
+  const view = render(<AdminStockSyncPage />);
+  const date = view.getByLabelText('미국 거래일 (선택)');
+  fireEvent.change(date, { target: { value: '2020-10-16' } });
+  fireEvent.click(view.getByRole('button', { name: '미국 종가 가져오기' }));
+  expect((await view.findByRole('alert')).textContent).toContain('미국 종목 목록을 먼저');
+  expect(date).toHaveProperty('value', '2020-10-16');
+  fireEvent.click(view.getByRole('button', { name: '미국 종가 가져오기' }));
+  expect(await view.findByText('2020.10.16 기준 미국 종가 수집 완료 · USD')).toBeTruthy();
+  expect(view.queryByRole('alert')).toBeNull();
+});

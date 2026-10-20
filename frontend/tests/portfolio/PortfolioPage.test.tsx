@@ -949,6 +949,7 @@ describe('포트폴리오 화면', () => {
   });
 
   it('날짜별 매입금액을 기준으로 상승·하락·동일 구간을 나누고 교차 지점에서 색을 연결한다', async () => {
+    localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     const points = [
       [700000, 650000],
@@ -981,7 +982,10 @@ describe('포트폴리오 화면', () => {
       }
       return originalImplementation?.(input, init) ?? jsonResponse({}, 404);
     });
-    const view = render(<PortfolioPage />);
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(<PortfolioPage />);
+    });
     const chart = await view.findByRole('img', { name: /평가금액 800,000원, 매입원금 800,000원/ });
     const lines = [
       ...chart.querySelectorAll<SVGPolylineElement>('.portfolio-return-line.evaluation'),
@@ -1529,7 +1533,7 @@ describe('포트폴리오 화면', () => {
     await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull());
     expect(
       within(dialog).getByText(
-        '국내 주식과 ETF를 검색하세요. 과거에 매도한 종목도 기록할 수 있어요.',
+        '국내·미국 주식과 ETF를 검색하세요. 과거에 매도한 종목도 기록할 수 있어요.',
       ),
     ).toBeTruthy();
   });

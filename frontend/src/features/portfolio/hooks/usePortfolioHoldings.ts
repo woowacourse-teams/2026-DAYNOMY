@@ -17,6 +17,7 @@ import {
 import {
   guestHoldingHistory,
   guestTransactionHistory,
+  guestRealizedProfitLoss,
   replayGuestPortfolio,
   type GuestPortfolioLedger,
 } from '../guestPortfolioLedger';
@@ -40,9 +41,10 @@ export function usePortfolioHoldings(isLoggedIn: boolean) {
 
   useEffect(() => {
     if (!isLoggedIn) {
-      setGuestLedger(loadGuestPortfolioLedger());
+      const ledger = loadGuestPortfolioLedger();
+      setGuestLedger(ledger);
       setHoldings(loadGuestPortfolioHoldings());
-      setTotalRealizedProfitLoss(0);
+      setTotalRealizedProfitLoss(ledger ? guestRealizedProfitLoss(ledger) : 0);
       setLoading(false);
       setError('');
       return;
@@ -82,6 +84,7 @@ export function usePortfolioHoldings(isLoggedIn: boolean) {
     saveGuestPortfolioLedger(next);
     setGuestLedger(next);
     setHoldings(nextHoldings);
+    setTotalRealizedProfitLoss(guestRealizedProfitLoss(next));
     setRevision((value) => value + 1);
   }, []);
 

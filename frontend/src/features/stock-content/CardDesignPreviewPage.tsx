@@ -1,3 +1,4 @@
+import { youtubeThumbnail } from '../news/issue/feed';
 import { useState } from 'react';
 import defaultNewsImage from '../../assets/default-news-real-estate.webp';
 import './card-design-preview.css';
@@ -29,7 +30,7 @@ const previewCards: PreviewCard[] = [
     type: 'youtube',
     title: '삼성전자 005930 뉴스 요약 #Shorts',
     meta: 'YouTube · 반도체 주식 전문',
-    image: 'https://i.ytimg.com/vi/5qRYLp9z05M/hqdefault.jpg',
+    image: youtubeThumbnail('https://www.youtube.com/watch?v=5qRYLp9z05M')!,
   },
 ];
 

@@ -163,3 +163,56 @@ it('손상된 임시 거래 기록은 실행하지 않는다', async () => {
   expect(loadGuestPortfolioHoldings()).toEqual([]);
   expect(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)).toBeNull();
 });
+
+it('미국 거래의 달러와 환율을 유지하고 원화 원가·실현손익을 재생한다', async () => {
+  sessionStorage.clear();
+  const tesla = {
+    ...stock,
+    assetId: 10,
+    assetCode: 'TSLA.US',
+    name: 'Tesla',
+    market: 'NASDAQ',
+    currency: 'USD',
+  } as const;
+  const view = renderHook(() => usePortfolioHoldings(false));
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  await act(async () =>
+    view.result.current.createTransaction(
+      { ...buy, assetId: 10, quantity: 2, unitPrice: 100.1234, fee: 1, tax: 0, exchangeRate: 1300 },
+      tesla,
+    ),
+  );
+  expect(view.result.current.holdings[0].averagePurchasePrice).toBe(130810.42);
+  await act(async () =>
+    view.result.current.createTransaction(
+      {
+        ...buy,
+        assetId: 10,
+        type: 'SELL',
+        quantity: 1,
+        unitPrice: 110,
+        fee: 1,
+        tax: 0.5,
+        exchangeRate: 1400,
+      },
+      tesla,
+    ),
+  );
+  expect(view.result.current.holdings[0].quantity).toBe(1);
+  expect(view.result.current.totalRealizedProfitLoss).toBe(21089.58);
+  expect(loadGuestPortfolioHoldings()[0].averagePurchasePrice).toBe(130810.42);
+});
+
+it('달러 금액을 원화로 환산한 중간 값은 반올림하지 않고 평균 원가에서 반올림한다', async () => {
+  sessionStorage.clear();
+  const tesla = { ...stock, assetCode: 'TSLA.US', market: 'NASDAQ', currency: 'USD' } as const;
+  const view = renderHook(() => usePortfolioHoldings(false));
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  await act(async () =>
+    view.result.current.createTransaction(
+      { ...buy, quantity: 2, unitPrice: 100.1234, fee: 0.01, tax: 0, exchangeRate: 1334.61 },
+      tesla,
+    ),
+  );
+  expect(view.result.current.holdings[0].averagePurchasePrice).toBe(133632.36);
+});

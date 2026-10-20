@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { trackEvent } from '../../analytics';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import {
   getMyInvestorProfile,
@@ -43,9 +43,17 @@ export function PublicationSettingsPage() {
         ).length;
         setProfile(saved);
         setReadiness({ ready: portfolio.holdings.length > 0 && missing === 0, missing });
+        trackLeagueEvent('league_load_result', { surface: 'publication', status: 'success' });
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setLoadFailed(true);
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) {
+          setLoadFailed(true);
+          trackLeagueEvent('league_load_result', {
+            surface: 'publication',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -66,7 +74,14 @@ export function PublicationSettingsPage() {
         profile={profile}
         loading={loading}
         loadFailed={loadFailed}
-        onRetry={() => setRetry((value) => value + 1)}
+        onRetry={() => {
+          trackLeagueEvent('league_action', {
+            surface: 'publication',
+            action: 'retry',
+            status: 'clicked',
+          });
+          setRetry((value) => value + 1);
+        }}
         onSaved={() => navigate('/league/profile')}
         joining={joining}
         recordsReady={readiness.ready}
@@ -135,6 +150,11 @@ export function PortfolioSharingSettings({
       return;
     }
     setSaving(true);
+    trackLeagueEvent('league_action', {
+      surface: 'publication',
+      action: 'save_publication',
+      status: 'submitted',
+    });
     setError('');
     try {
       const savedProfile = await saveInvestorProfile(form);
@@ -147,11 +167,17 @@ export function PortfolioSharingSettings({
         detailPublic: participating,
         allocationPublic: participating,
       });
-      onSaved({ ...savedProfile, ...saved });
-      trackEvent('publish_portfolio', {
+      trackLeagueEvent('publish_portfolio', {
         scope: saved.profilePublic ? 'details' : 'private',
       });
+      onSaved({ ...savedProfile, ...saved });
     } catch (caught) {
+      trackLeagueEvent('league_action', {
+        surface: 'publication',
+        action: 'save_publication',
+        status: 'error',
+        error_type: leagueErrorType(caught),
+      });
       setError(
         caught instanceof Error
           ? caught.message

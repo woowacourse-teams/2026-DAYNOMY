@@ -758,9 +758,6 @@ function PortfolioAnalysisView({
           <p>분석 대상: {assets.map((asset) => asset.assetName).join(', ')}</p>
         ) : null}
         {analysis && loading ? <p role="status">기존 분석을 유지하며 확인하고 있어요.</p> : null}
-        {!loading && saved?.status === 'PROCESSING' ? (
-          <p role="status">서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.</p>
-        ) : null}
         {analysis && !loading && saved?.status === 'RECHECK_REQUIRED' ? (
           <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
         ) : null}
@@ -786,6 +783,16 @@ function PortfolioAnalysisView({
           </p>
         ) : null}
       </div>
+      {!loading && saved?.status === 'PROCESSING' ? (
+        <div
+          className="portfolio-analysis-state portfolio-analysis-empty"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="portfolio-analysis-spinner" aria-hidden="true" />
+          <p>서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.</p>
+        </div>
+      ) : null}
       {!hasAnalysisTarget && !loading && !error ? <PortfolioEmpty /> : null}
 
       {hasAnalysisTarget && loading && !hasAnalysis ? <PortfolioAnalysisLoading /> : null}

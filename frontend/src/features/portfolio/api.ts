@@ -1,5 +1,5 @@
 import { ApiError, request, requestWithCsrf } from '../../api/client';
-import { isStock } from '../stocks/api';
+import { isStock, isStockMarket } from '../stocks/api';
 import type {
   PortfolioHoldingHistory,
   PortfolioTransactionRequest,
@@ -60,7 +60,7 @@ function isHoldingResult(value: unknown): value is PortfolioHoldingResult {
 function isMarketAllocation(value: unknown): value is MarketAllocation {
   return (
     isRecord(value) &&
-    (value.market === 'KOSPI' || value.market === 'KOSDAQ') &&
+    isStockMarket(value.market) &&
     hasNumber(value, 'evaluationAmount') &&
     hasNumber(value, 'weight')
   );
@@ -324,6 +324,10 @@ function isHistory(value: unknown): value is PortfolioHoldingHistory {
     typeof value.occurredAt === 'string' &&
     hasNumber(value, 'fee') &&
     hasNumber(value, 'tax') &&
+    (!String(value.assetCode).endsWith('.US') ||
+      (value.currency === 'USD' &&
+        hasNumber(value, 'exchangeRate') &&
+        Number(value.exchangeRate) > 0)) &&
     (transaction
       ? Number.isSafeInteger(value.transactionQuantity) &&
         Number(value.transactionQuantity) > 0 &&

@@ -179,3 +179,8 @@ export function youtubeId(value: string) {
     return null;
   }
 }
+
+export function youtubeThumbnail(value: string) {
+  const id = youtubeId(value);
+  return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
+}
