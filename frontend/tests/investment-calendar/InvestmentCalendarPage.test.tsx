@@ -80,6 +80,18 @@ describe('투자 캘린더 화면', () => {
     );
   });
 
+  it('과거 반응은 기본으로 접고 다른 일정을 선택해도 접힌 상태로 시작한다', async () => {
+    const view = renderCalendar();
+    await view.findByText('미국 소비자물가지수 발표');
+    const impact = view.container.querySelector('details')!;
+    expect(impact.open).toBe(false);
+    impact.open = true;
+
+    fireEvent.click(view.getByRole('button', { name: /두산 3분기 실적/ }));
+
+    expect(view.container.querySelector('details')!.open).toBe(false);
+  });
+
   it('목록과 달력을 전환하고 달력에서 일정을 선택한다', async () => {
     const view = renderCalendar();
     await view.findByText('미국 소비자물가지수 발표');

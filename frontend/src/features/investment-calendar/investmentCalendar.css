@@ -825,6 +825,9 @@
 }
 
 .investment-calendar-impact-head {
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -836,7 +839,7 @@
   font-size: 17px;
 }
 
-.investment-calendar-impact-head p {
+.investment-calendar-impact-description {
   max-width: 62ch;
   margin: 7px 0 0;
   color: var(--calendar-muted);
@@ -1303,5 +1306,49 @@
     --calendar-workspace-height: clamp(460px, 70svh, 680px);
     --calendar-scroll-overflow: auto;
     --calendar-state-min-height: 0;
+  }
+}
+
+.investment-calendar-impact-head::-webkit-details-marker {
+  display: none;
+}
+
+.investment-calendar-impact-head:focus-visible {
+  outline: 2px solid var(--calendar-blue);
+  outline-offset: 3px;
+}
+
+.investment-calendar-impact-head > span {
+  margin-left: auto;
+}
+
+.investment-calendar-impact-chevron {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.investment-calendar-impact[open] .investment-calendar-impact-chevron {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 560px) {
+  .investment-calendar-impact-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .investment-calendar-impact-head > span {
+    grid-row: 2;
+    margin-left: 0;
+  }
+
+  .investment-calendar-impact-chevron {
+    grid-column: 2;
+    grid-row: 1;
   }
 }

@@ -299,23 +299,30 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
             <span>표본이 3회 이상 쌓이면 내 자산의 반응 범위를 보여드릴게요.</span>
           </div>
         ) : (
-          <>
-            <div className="investment-calendar-impact-head">
+          <details className="investment-calendar-impact">
+            <summary className="investment-calendar-impact-head">
               <div>
                 <h3>
                   {event.type === 'KOREA_BASE_RATE'
                     ? '금리 결정별 내 자산의 과거 움직임'
                     : '과거 내 자산 반응'}
                 </h3>
-                {event.type === 'KOREA_BASE_RATE' ? (
-                  <p>
-                    기준금리가 인하·동결·인상됐던 과거 다음 거래일에, 지금과 같은 내 자산이 얼마나
-                    움직였는지 보여드려요.
-                  </p>
-                ) : null}
               </div>
               <span>{analysis.totalEvaluationAmount.toLocaleString('ko-KR')}원 기준</span>
-            </div>
+              <svg
+                className="investment-calendar-impact-chevron"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </summary>
+            {event.type === 'KOREA_BASE_RATE' ? (
+              <p className="investment-calendar-impact-description">
+                기준금리가 인하·동결·인상됐던 과거 다음 거래일에, 지금과 같은 내 자산이 얼마나
+                움직였는지 보여드려요.
+              </p>
+            ) : null}
             <div className="investment-calendar-table-wrap">
               <table>
                 <thead>
@@ -351,7 +358,7 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
             <p className="investment-calendar-basis">
               {totalSamples}회 표본 · 다음 거래일 · 예측 아님
             </p>
-          </>
+          </details>
         )}
 
         {copy.latestResult && copy.latestAssetReaction ? (
