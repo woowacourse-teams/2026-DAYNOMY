@@ -151,6 +151,21 @@ export function SharedPortfolioPage() {
         result_count: result.holdings.length,
         ...context,
       });
+      if (
+        operation === 'import_holdings' &&
+        hash === '#select' &&
+        !profileLoading &&
+        !profileError &&
+        !profile?.leagueEnabled &&
+        result.holdings.length > 0 &&
+        result.holdings.every(
+          (h) =>
+            h.reason.trim() ||
+            hasReason(h.assetId) ||
+            (selection.includes(h.assetId) && importReasons[h.assetId]?.trim()),
+        )
+      )
+        navigate('/portfolio/publication?join=true');
       setMessage(success);
       setSource(null);
       return true;
@@ -239,17 +254,6 @@ export function SharedPortfolioPage() {
         };
     const saved = await importSharedHoldings(selected, overwrite, decisions);
     setRecordRefresh((value) => value + 1);
-    if (
-      hash === '#select' &&
-      !profileLoading &&
-      !profileError &&
-      !profile?.leagueEnabled &&
-      saved.holdings.length > 0 &&
-      saved.holdings.every(
-        (h) => h.reason.trim() || hasReason(h.assetId) || decisions[h.assetId]?.reason.trim(),
-      )
-    )
-      navigate('/portfolio/publication?join=true');
     return saved;
   }
   if (hash === '#league-settings') return <Navigate to="/portfolio/publication" replace />;

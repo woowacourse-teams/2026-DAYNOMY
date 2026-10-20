@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SharedPortfolioPage } from '../../src/features/league/SharedPortfolioPage';
 import * as api from '../../src/features/league/sharedPortfolioApi';
@@ -75,6 +75,7 @@ afterEach(() => {
   cleanup();
   vi.resetAllMocks();
   localStorage.clear();
+  window.history.replaceState(null, '', '/');
 });
 function renderPage() {
   return render(
@@ -417,6 +418,64 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     );
   });
 });
+
+it.each([false, true])(
+  '가져오기 성공 이벤트는 종목 관리에서 한 번 기록한 뒤 이동한다 (덮어쓰기: %s)',
+  async (overwrite) => {
+    window.history.replaceState(null, '', '/league/portfolio#select');
+    if (overwrite) vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
+    vi.mocked(api.importSharedHoldings)
+      .mockRejectedValueOnce(new Error('가져오기 실패'))
+      .mockResolvedValueOnce(portfolio);
+    const successLocations: string[] = [];
+    vi.mocked(trackEvent).mockImplementation((name, params) => {
+      if (
+        name === 'league_action' &&
+        params?.action === 'import_holdings' &&
+        params.status === 'success'
+      ) {
+        successLocations.push(window.location.pathname);
+      }
+    });
+    const view = render(
+      <BrowserRouter>
+        <Routes>
+          <Route path="/league/portfolio" element={<SharedPortfolioPage />} />
+          <Route path="/portfolio/publication" element={<h1>참여 설정 화면</h1>} />
+        </Routes>
+      </BrowserRouter>,
+    );
+    await view.findByRole('heading', { name: '종목 추가' });
+    if (overwrite) {
+      fireEvent.click(view.getByRole('checkbox', { name: /삼성전자/ }));
+      fireEvent.click(view.getByRole('checkbox', { name: /등록된 1개 종목/ }));
+    } else {
+      fireEvent.change(view.getByLabelText('삼성전자 보유 이유'), {
+        target: { value: '장기 성장 기대' },
+      });
+    }
+    const submit = view.getByRole('button', { name: '1개 종목 추가' });
+    await waitFor(() => expect(submit).toHaveProperty('disabled', false));
+    fireEvent.click(submit);
+    expect(await view.findByRole('alert')).toHaveProperty('textContent', '가져오기 실패');
+    expect(window.location.pathname).toBe('/league/portfolio');
+    expect(successLocations).toEqual([]);
+    await waitFor(() => expect(submit).toHaveProperty('disabled', false));
+    fireEvent.click(submit);
+    await view.findByRole('heading', { name: '참여 설정 화면' });
+    expect(window.location.pathname + window.location.search).toBe(
+      '/portfolio/publication?join=true',
+    );
+    expect(successLocations).toEqual(['/league/portfolio']);
+    expect(trackEvent).toHaveBeenCalledWith('league_action', {
+      surface: 'holdings',
+      action: 'import_holdings',
+      status: 'success',
+      result_count: 1,
+      overwrite_existing: overwrite,
+    });
+  },
+);
 
 it('처음 참여하는 사용자는 종목과 보유 이유 준비를 마친 뒤 참여 설정으로 이동한다', async () => {
   vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
