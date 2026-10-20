@@ -2,6 +2,7 @@ package org.grit.daynomy.league.domain;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -68,6 +69,10 @@ public class SharedHolding extends BaseEntity {
     if (text.length() > 500) throw new IllegalArgumentException("판단 근거는 500자 이하로 작성해 주세요.");
     this.hidden = hidden;
     this.reason = text;
+  }
+
+  public String reasonFrom(Map<Long, String> recordedReasons) {
+    return recordedReasons.getOrDefault(asset.getId(), reason);
   }
 
   public void changeVisibility(boolean hidden) {

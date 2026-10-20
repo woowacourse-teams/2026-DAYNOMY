@@ -1,11 +1,12 @@
+import { stockCurrency } from '../../stocks/types';
 import { PortfolioHistory } from './PortfolioHistory';
 import type {
   PortfolioHoldingHistory,
   PortfolioHoldingInput,
   PortfolioHoldingResult,
   PortfolioTransactionType,
-  StockSearchItem,
 } from '../types';
+import type { StockSearchItem } from '../../stocks/types';
 
 type Props = {
   stock: StockSearchItem;
@@ -110,7 +111,7 @@ export function PortfolioHoldingDetail({
               <dd>{amountsHidden ? '•••' : (holding?.quantity ?? 0).toLocaleString('ko-KR')}주</dd>
             </div>
             <div>
-              <dt>평균 매수가</dt>
+              <dt>평균 매수가{stockCurrency(stock) === 'USD' ? ' (원화)' : ''}</dt>
               <dd>{won(holding?.averagePurchasePrice ?? 0)}</dd>
             </div>
             <div>
@@ -118,7 +119,7 @@ export function PortfolioHoldingDetail({
               <dd>
                 {valuation?.closePrice == null
                   ? '—'
-                  : `${valuation.closePrice.toLocaleString('ko-KR')}원`}
+                  : `${valuation.closePrice.toLocaleString('ko-KR', { maximumFractionDigits: 4 })}${stockCurrency(stock) === 'USD' ? ' USD' : '원'}`}
               </dd>
             </div>
             <div className={profitClass}>
@@ -144,7 +145,7 @@ export function PortfolioHoldingDetail({
             {!holding
               ? '현재 보유 중인 수량이 없어요. 이전 거래 내역은 계속 확인할 수 있어요.'
               : valuation?.priceAvailable
-                ? `${valuation.baseDate?.replaceAll('-', '.')} 종가 기준`
+                ? `${valuation.baseDate?.replaceAll('-', '.')} 종가 기준${stockCurrency(stock) === 'USD' ? ' · 원화 평가는 참고 환율을 적용합니다.' : ''}`
                 : '시세를 확인할 수 없어 평가금액과 손익을 표시하지 않았어요.'}
           </p>
         </section>

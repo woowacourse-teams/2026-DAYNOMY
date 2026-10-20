@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/App';
 import {
   hasStartedService,
@@ -31,6 +31,21 @@ function response(body: unknown, status = 200) {
     headers: { 'content-type': 'application/json' },
   });
 }
+
+const originalShowModal = HTMLDialogElement.prototype.showModal;
+const originalClose = HTMLDialogElement.prototype.close;
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false;
+  };
+});
+afterAll(() => {
+  HTMLDialogElement.prototype.showModal = originalShowModal;
+  HTMLDialogElement.prototype.close = originalClose;
+});
 
 beforeEach(() => {
   window.history.replaceState(null, '', '/');
@@ -66,14 +81,19 @@ describe('첫 방문 서비스 소개', () => {
     const start = await view.findByRole('button', { name: '시작하기' });
     expect(window.location.pathname).toBe('/');
     fireEvent.click(start);
-    const heading = await view.findByRole('heading', { name: '내 포트폴리오' });
-    expect(document.activeElement).toBe(heading);
+    await view.findByRole('complementary', { name: '처음 이용 안내' });
+    fireEvent.click(view.getByRole('button', { name: '사용 가이드' }));
+    expect(await view.findByRole('region', { name: '포트폴리오 사용 안내' })).toBeTruthy();
+    await waitFor(() =>
+      expect(document.activeElement).toBe(view.getByRole('button', { name: '다음' })),
+    );
     expect(document.title).toBe('내 포트폴리오 | DAYNOMY');
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' });
     expect(view.container.querySelector('.service-header')).not.toBeNull();
     expect(view.container.querySelector('.daynomy-footer')).not.toBeNull();
     expect(window.location.pathname).toBe('/');
     expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1');
+    fireEvent.click(view.getByRole('button', { name: '종료' }));
     cleanup();
     const revisit = render(<App />);
     expect(await revisit.findByRole('button', { name: '거래 기록' })).toBeTruthy();

@@ -24,6 +24,18 @@ afterEach(() => {
 });
 
 describe('GA4 수집 경계', () => {
+  it.each(['/league/profile', '/league/reviews', '/league/portfolio', '/league/following'])(
+    '고정된 리그 화면 %s를 투자자 식별자로 바꾸지 않는다',
+    async (path) => {
+      window.history.replaceState({}, '', `${path}?private=query#private-fragment`);
+      const { trackPageView } = await import('../../src/analytics');
+      trackPageView(window.location.href);
+      expect(
+        commands().find(([kind, name]) => kind === 'event' && name === 'page_view')?.[2],
+      ).toMatchObject({ page_path: path });
+      expect(JSON.stringify(commands())).not.toContain('private');
+    },
+  );
   it('투자자 식별자는 페이지 URL과 이벤트에서 제거한다', async () => {
     const { trackEvent, trackPageView } = await import('../../src/analytics');
     for (const path of [
@@ -117,14 +129,40 @@ vi.mock('posthog-js', () => ({ default: posthog }));
 beforeEach(() => {
   posthog.init.mockReset();
   posthog.capture.mockReset();
-  vi.stubEnv('VITE_POSTHOG_KEY', '');
+  vi.stubEnv('VITE_POSTHOG_PROJECT_TOKEN', '');
   vi.stubEnv('VITE_POSTHOG_HOST', '');
 });
 
 function enablePostHog() {
-  vi.stubEnv('VITE_POSTHOG_KEY', 'phc_test');
+  vi.stubEnv('VITE_POSTHOG_PROJECT_TOKEN', 'phc_test');
   vi.stubEnv('VITE_POSTHOG_HOST', 'https://example.posthog.test');
 }
+
+it('리그 행동을 GA4와 PostHog에 같은 속성으로 한 번씩 전송하고 식별자를 제거한다', async () => {
+  enablePostHog();
+  window.history.replaceState({}, '', '/league/private-id?secret=query#private-fragment');
+  const { trackLeagueEvent } = await import('../../src/features/league/analytics');
+  trackLeagueEvent('league_action', { surface: 'investor', action: 'follow', status: 'success' });
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(1));
+  const events = commands().filter(([kind, name]) => kind === 'event' && name === 'league_action');
+  expect(posthog.init).toHaveBeenCalledWith(
+    'phc_test',
+    expect.objectContaining({ api_host: 'https://example.posthog.test' }),
+  );
+  expect(events).toHaveLength(1);
+  expect(events[0][2]).toMatchObject({
+    page_path: '/league/investor',
+    action: 'follow',
+    status: 'success',
+  });
+  expect(posthog.capture).toHaveBeenCalledWith(
+    'league_action',
+    expect.objectContaining(events[0][2]),
+  );
+  expect(JSON.stringify([commands(), posthog.capture.mock.calls])).not.toMatch(
+    /private-id|secret|private-fragment/,
+  );
+});
 
 it('같은 행동은 두 공급자에 전송하고 페이지 조회만 공급자 표준 이름으로 한 번 보낸다', async () => {
   enablePostHog();
@@ -155,10 +193,10 @@ it('GA4 없이 PostHog만 설정해도 수집하며 GA 태그를 로드하지 �
   expect(commands()).toHaveLength(0);
 });
 
-it.each(['none', 'key_only', 'host_only'])(
+it.each(['none', 'token_only', 'host_only'])(
   'PostHog 설정이 불완전하면 초기화하지 않는다 (%s)',
   async (mode) => {
-    if (mode === 'key_only') vi.stubEnv('VITE_POSTHOG_KEY', 'phc_test');
+    if (mode === 'token_only') vi.stubEnv('VITE_POSTHOG_PROJECT_TOKEN', 'phc_test');
     if (mode === 'host_only') vi.stubEnv('VITE_POSTHOG_HOST', 'https://example.posthog.test');
     const { trackEvent } = await import('../../src/analytics');
     trackEvent('click_content');
@@ -210,6 +248,33 @@ it('SDK 기본 속성의 원문 URL·본문·프로필 정보를 제거하고 �
     $referrer: 'https://example.com/',
   });
   expect(config.before_send({ event: '$autocapture', properties: {} })).toBeNull();
+});
+
+it('허용 목록에 없는 이벤트 속성은 GA4와 PostHog에서 모두 제거한다', async () => {
+  enablePostHog();
+  const { trackEvent } = await import('../../src/analytics');
+  trackEvent('change_content_page', {
+    surface: 'portfolio_contents',
+    page_number: 2,
+    selection_valid: true,
+    asset_id: 123,
+  });
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(1));
+
+  expect(
+    commands().find(([kind, name]) => kind === 'event' && name === 'change_content_page')?.[2],
+  ).toMatchObject({ surface: 'portfolio_contents', page_number: 2, selection_valid: true });
+  expect(JSON.stringify(commands())).not.toContain('asset_id');
+
+  const config = posthog.init.mock.calls[0][1];
+  const result = config.before_send({
+    event: 'change_content_page',
+    properties: {
+      ...posthog.capture.mock.calls[0][1],
+      asset_id: 123,
+    },
+  });
+  expect(result.properties).not.toHaveProperty('asset_id');
 });
 
 it.each(['/admin/news', '/login'])(

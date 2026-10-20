@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('daynomy:service-started:v1', '1'));
+  await page.addInitScript(() => {
+    localStorage.setItem('daynomy:service-started:v1', '1');
+    localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
+  });
 });
 
 const stocks = [
@@ -176,10 +179,7 @@ for (const viewport of [
     const panelBox = (await newsPanel.boundingBox())!;
     if (viewport.name === 'desktop') {
       expect(panelBox.x).toBeGreaterThanOrEqual(mainWithNews.x + mainWithNews.width);
-      const canvasScale = await page
-        .locator('.portfolio-canvas')
-        .evaluate((canvas) => canvas.getBoundingClientRect().width / canvas.clientWidth);
-      expect((panelBox.y - mainWithNews.y) / canvasScale).toBeCloseTo(32, 0);
+      expect(panelBox.y - mainWithNews.y).toBeCloseTo(32, 0);
     } else {
       expect(panelBox.y).toBeGreaterThanOrEqual(mainWithNews.y + mainWithNews.height);
     }
@@ -192,7 +192,7 @@ for (const viewport of [
     await expect(newsTab).toHaveAttribute('aria-expanded', 'false');
     await expect(newsTab).toBeFocused();
     await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
-      await Promise.all(
+      await Promise.allSettled(
         layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
       );
     });
@@ -224,7 +224,7 @@ for (const viewport of [
       await newsTab.click();
       await expect(newsPanel).toBeVisible();
       await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
-        await Promise.all(
+        await Promise.allSettled(
           layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
         );
       });
@@ -234,7 +234,7 @@ for (const viewport of [
       await newsTab.click();
       await expect(newsPanel).toBeHidden();
       await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
-        await Promise.all(
+        await Promise.allSettled(
           layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
         );
       });
@@ -567,10 +567,7 @@ for (const viewport of [
     const panelBox = (await newsPanel.boundingBox())!;
     if (viewport.name === 'desktop') {
       expect(panelBox.x).toBeGreaterThanOrEqual(mainWithNews.x + mainWithNews.width);
-      const canvasScale = await page
-        .locator('.portfolio-canvas')
-        .evaluate((canvas) => canvas.getBoundingClientRect().width / canvas.clientWidth);
-      expect((panelBox.y - mainWithNews.y) / canvasScale).toBeCloseTo(32, 0);
+      expect(panelBox.y - mainWithNews.y).toBeCloseTo(32, 0);
     } else {
       expect(panelBox.y).toBeGreaterThanOrEqual(mainWithNews.y + mainWithNews.height);
     }
@@ -583,7 +580,7 @@ for (const viewport of [
     await expect(newsTab).toHaveAttribute('aria-expanded', 'false');
     await expect(newsTab).toBeFocused();
     await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
-      await Promise.all(
+      await Promise.allSettled(
         layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
       );
     });
@@ -596,8 +593,7 @@ for (const viewport of [
     await newsTab.press('Space');
     await expect(newsPanel).toBeHidden();
     await expect(newsTab).toHaveAttribute('aria-expanded', 'false');
-    // Laptop widths scale the same desktop canvas, including the news sidebar.
-    let desktopProportions: number[] | undefined;
+    // Narrow content reflows at readable sizes, including when the news sidebar is open.
     for (const size of [
       { width: 1440, height: 900 },
       { width: 1024, height: 768 },
@@ -609,7 +605,7 @@ for (const viewport of [
       await newsTab.click();
       await expect(newsPanel).toBeVisible();
       await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
-        await Promise.all(
+        await Promise.allSettled(
           layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
         );
       });
@@ -617,82 +613,42 @@ for (const viewport of [
         const cards = [...main.querySelectorAll('.portfolio-dashboard-grid > section')].map(
           (card) => card.getBoundingClientRect(),
         );
-        const summaryItems = [...main.querySelectorAll('.portfolio-overview > div')].map((item) =>
-          item.getBoundingClientRect(),
-        );
-        const table = main.querySelector('.portfolio-table-wrap table')!;
-        const row = main.querySelector('.portfolio-holding-row')!;
-        const canvas = main.closest('.portfolio-canvas')!;
-        const scale = canvas.getBoundingClientRect().width / canvas.clientWidth;
+        const width = main.getBoundingClientRect().width;
         const donut = main.querySelector('.portfolio-donut-wrap')!.getBoundingClientRect();
-        const breakdown = main
-          .querySelector('.portfolio-composition-breakdown')!
-          .getBoundingClientRect();
         return {
-          compositionFits:
-            donut.width / scale >= 135 &&
-            Math.abs(donut.width - donut.height) < 1 &&
-            breakdown.left >= donut.right + 12 * scale &&
-            [...main.querySelectorAll('.portfolio-category-list > div > div')].every(
-              (item) => item.scrollWidth <= item.clientWidth + 1,
-            ),
-          cardsSideBySide:
-            cards.length === 2 &&
-            Math.abs(cards[0].top - cards[1].top) < 1 &&
-            cards[1].left >= cards[0].right,
-          summaryInOneRow: summaryItems.every(
-            (item) => Math.abs(item.top - summaryItems[0].top) < 1,
-          ),
-          tableVisible:
-            getComputedStyle(table.querySelector('thead')!).position !== 'absolute' &&
-            getComputedStyle(row).display === 'table-row',
+          donutReadable: donut.width >= 135 && Math.abs(donut.width - donut.height) < 1,
+          cardsFit: cards.every((card) => card.width <= width + 1),
+          cardsReflow:
+            width <= 900
+              ? cards[1].top >= cards[0].bottom
+              : Math.abs(cards[0].top - cards[1].top) < 1,
+          tableStaysTabular:
+            getComputedStyle(main.querySelector('.portfolio-holding-row')!).display === 'table-row',
           pageFits: document.documentElement.scrollWidth <= innerWidth,
           controlsFit: [
             ...main.querySelectorAll(
               '.portfolio-trend-controls, .portfolio-composition-content, .portfolio-overview dd',
             ),
           ].every((item) => item.scrollWidth <= item.clientWidth + 1),
+          readableControls:
+            parseFloat(
+              getComputedStyle(main.querySelector('.portfolio-trend-period-select select')!)
+                .fontSize,
+            ) >= 12,
         };
       });
       expect(
         desktopLayout,
-        `소식 패널이 열린 ${size.width}px 노트북 화면도 데스크톱 배치를 유지해야 합니다.`,
+        `${size.width}px에서 콘텐츠가 읽을 수 있는 크기로 재배치돼야 합니다.`,
       ).toEqual({
-        compositionFits: true,
-        cardsSideBySide: true,
-        summaryInOneRow: true,
-        tableVisible: true,
+        donutReadable: true,
+        cardsFit: true,
+        cardsReflow: true,
+        tableStaysTabular: true,
         pageFits: true,
         controlsFit: true,
+        readableControls: true,
       });
-      const proportions = await page.locator('.portfolio-canvas').evaluate((canvas) => {
-        const bounds = canvas.getBoundingClientRect();
-        return [
-          ...canvas.querySelectorAll(
-            '.portfolio-overview, .portfolio-dashboard-grid > section, .portfolio-donut-wrap, .portfolio-table-wrap',
-          ),
-        ].flatMap((element) => {
-          const rect = element.getBoundingClientRect();
-          return [
-            (rect.left - bounds.left) / bounds.width,
-            (rect.top - bounds.top) / bounds.width,
-            rect.width / bounds.width,
-            rect.height / bounds.width,
-          ];
-        });
-      });
-      const bodyWidth = await page
-        .locator('.portfolio-canvas')
-        .evaluate((canvas) => canvas.clientWidth);
-      if (bodyWidth <= 1325) {
-        if (!desktopProportions) desktopProportions = proportions;
-        for (const [index, value] of proportions.entries()) {
-          expect(
-            value,
-            `${size.width}px에서도 카드와 도넛의 배치·비율을 유지해야 합니다.`,
-          ).toBeCloseTo(desktopProportions[index], 2);
-        }
-      }
       if (size.width === 1024) {
         await page.getByRole('button', { name: '자산 추이 크게 보기', exact: true }).click();
         const detail = page.getByRole('dialog', { name: '자산 추이 상세' });
@@ -712,10 +668,18 @@ for (const viewport of [
       }
       await newsPanel.getByRole('button', { name: '소식 접기' }).click();
       await expect(newsPanel).toBeHidden();
-      const cards = await page
-        .locator('.portfolio-dashboard-grid > section')
-        .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top));
-      expect(Math.abs(cards[0] - cards[1])).toBeLessThan(1);
+      await expect
+        .poll(() =>
+          page.locator('.portfolio-dashboard-main').evaluate((main) => {
+            const cards = [...main.querySelectorAll('.portfolio-dashboard-grid > section')].map(
+              (element) => element.getBoundingClientRect(),
+            );
+            return main.clientWidth <= 900
+              ? cards[1].top >= cards[0].bottom
+              : Math.abs(cards[0].top - cards[1].top) < 1;
+          }),
+        )
+        .toBe(true);
     }
     await page.setViewportSize(viewport);
     if (viewport.name === 'mobile') {
@@ -729,8 +693,9 @@ for (const viewport of [
           fullSizeDonut: donut.width >= 135,
           centeredDonut:
             Math.abs(donut.left + donut.width / 2 - (cards[1].left + cards[1].width / 2)) < 1,
-          tableReflows:
-            getComputedStyle(canvas.querySelector('.portfolio-holding-row')!).display === 'grid',
+          tableStaysTabular:
+            getComputedStyle(canvas.querySelector('.portfolio-holding-row')!).display ===
+            'table-row',
           pageFits: document.documentElement.scrollWidth <= innerWidth,
         };
       });
@@ -738,7 +703,7 @@ for (const viewport of [
         cardsStacked: true,
         fullSizeDonut: true,
         centeredDonut: true,
-        tableReflows: true,
+        tableStaysTabular: true,
         pageFits: true,
       });
       await page.locator('.portfolio-page').screenshot({
@@ -847,6 +812,18 @@ for (const viewport of [
     await expect(trendDetail.getByText('매수·매도', { exact: true })).toHaveCount(0);
     await trendDetail.getByRole('button', { name: '평가금액', exact: true }).click();
     const trendSvg = trendDetail.locator('.portfolio-return-chart');
+    const axisAlignment = await trendSvg.evaluate((svg) => {
+      const dates = [...svg.querySelectorAll('.portfolio-return-dates text')];
+      const line = svg.querySelector<SVGPolylineElement>('.portfolio-return-line.principal')!;
+      const first = line.points.getItem(0).x;
+      const last = line.points.getItem(line.points.numberOfItems - 1).x;
+      return {
+        first: Number(dates[0].getAttribute('x')) === first,
+        last: Number(dates.at(-1)!.getAttribute('x')) === last,
+        dailyPoints: svg.querySelectorAll('.portfolio-return-daily-point').length,
+      };
+    });
+    expect(axisAlignment).toEqual({ first: true, last: true, dailyPoints: 61 });
     const chartBox = (await trendSvg.boundingBox())!;
     const chartWidth = await trendSvg.evaluate(
       (svg) => (svg as SVGSVGElement).viewBox.baseVal.width,
@@ -955,6 +932,14 @@ for (const viewport of [
         }),
         `포트폴리오 본문이 ${width}px에서 잘리지 않아야 합니다.`,
       ).toBe(true);
+      const toolbarAlignment = await page
+        .locator('.portfolio-holdings-toolbar')
+        .evaluate((toolbar) => {
+          const filters = toolbar.querySelector('.portfolio-filters')!.getBoundingClientRect();
+          const sort = toolbar.querySelector('select')!.getBoundingClientRect();
+          return Math.abs(filters.top - sort.top) <= 1 && filters.right <= sort.left;
+        });
+      expect(toolbarAlignment, `필터와 정렬은 ${width}px에서도 같은 줄이어야 합니다.`).toBe(true);
       const headerSize = await page.locator('.service-header').evaluate((header) => {
         const box = header.getBoundingClientRect();
         return {
@@ -1138,6 +1123,15 @@ for (const viewport of [
     ).toBe(true);
     const searchBounds = await dialog.boundingBox();
     expect(searchBounds!.height).toBeLessThanOrEqual(500);
+    const countryFilter = dialog.getByRole('group', { name: '종목 국가' });
+    await countryFilter.getByRole('button', { name: '미국', exact: true }).click();
+    await expect(countryFilter.getByRole('button', { name: '미국', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    await countryFilter.getByRole('button', { name: '국내', exact: true }).click();
+    expect(await dialog.boundingBox()).toEqual(searchBounds);
     let finishStockSearch!: () => void;
     pendingStockSearch = new Promise<void>((resolve) => {
       finishStockSearch = resolve;

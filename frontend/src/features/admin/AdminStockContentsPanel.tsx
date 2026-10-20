@@ -1,10 +1,11 @@
+import { youtubeThumbnail } from '../news/issue/feed';
 import { getAdminNewsDetail, updateAdminNews } from './api';
 import { AdminDaynomyNewsSearch } from './components/AdminDaynomyNewsSearch';
 import { getPublishedDate } from '../stock-content/publishedDate';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
-import { searchStocks } from '../portfolio/api';
-import type { StockSearchItem } from '../portfolio/types';
+import { searchStocks } from '../stocks/api';
+import type { StockSearchItem } from '../stocks/types';
 import {
   createAdminStockRelatedContent,
   deleteAdminStockRelatedContent,
@@ -259,7 +260,7 @@ export function AdminStockContentsPanel() {
         sourceType: 'YOUTUBE',
         title: video.title,
         url: video.url,
-        imageUrl: video.thumbnailUrl,
+        imageUrl: youtubeThumbnail(video.url),
         publishedDate: getPublishedDate(video.publishedAt),
       });
       if (selectedStockRef.current?.assetId !== assetId) return;
@@ -636,25 +637,35 @@ export function AdminStockContentsPanel() {
                       ) : null}
                       {youtubeResults.length > 0 ? (
                         <ul className="admin-youtube-results">
-                          {youtubeResults.map((video) => (
-                            <li key={video.url}>
-                              {video.thumbnailUrl ? (
-                                <img src={video.thumbnailUrl} alt="" loading="lazy" />
-                              ) : null}
-                              <div>
-                                <strong>{video.title}</strong>
-                                <span>{video.channelTitle}</span>
-                              </div>
-                              <button
-                                type="button"
-                                className="admin-secondary-button"
-                                onClick={() => void saveYouTube(video)}
-                                disabled={saving || isRegistered(video.url)}
-                              >
-                                {isRegistered(video.url) ? '등록됨' : '등록'}
-                              </button>
-                            </li>
-                          ))}
+                          {youtubeResults.map((video) => {
+                            const image = youtubeThumbnail(video.url);
+                            return (
+                              <li key={video.url}>
+                                {image ? (
+                                  <img
+                                    src={image}
+                                    alt=""
+                                    loading="lazy"
+                                    onError={(event) => {
+                                      event.currentTarget.hidden = true;
+                                    }}
+                                  />
+                                ) : null}
+                                <div>
+                                  <strong>{video.title}</strong>
+                                  <span>{video.channelTitle}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="admin-secondary-button"
+                                  onClick={() => void saveYouTube(video)}
+                                  disabled={saving || isRegistered(video.url)}
+                                >
+                                  {isRegistered(video.url) ? '등록됨' : '등록'}
+                                </button>
+                              </li>
+                            );
+                          })}
                         </ul>
                       ) : null}
                       {youtubeSearched && !youtubeError && youtubeResults.length === 0 ? (
@@ -819,32 +830,45 @@ export function AdminStockContentsPanel() {
                   ) : null}
 
                   <ul className="admin-related-content-list">
-                    {visibleContents.map((content) => (
-                      <li key={content.id}>
-                        {content.imageUrl ? (
-                          <img src={content.imageUrl} alt="" loading="lazy" />
-                        ) : null}
-                        <div>
-                          <span>{STOCK_CONTENT_SOURCE_LABELS[content.sourceType]}</span>
-                          <strong>{content.title}</strong>
-                          {content.publishedDate ? (
-                            <time dateTime={content.publishedDate}>
-                              게시일 {content.publishedDate.replaceAll('-', '.')}
-                            </time>
+                    {visibleContents.map((content) => {
+                      const image =
+                        content.sourceType === 'YOUTUBE'
+                          ? youtubeThumbnail(content.url)
+                          : content.imageUrl;
+                      return (
+                        <li key={content.id}>
+                          {image ? (
+                            <img
+                              src={image}
+                              alt=""
+                              loading="lazy"
+                              onError={(event) => {
+                                event.currentTarget.hidden = true;
+                              }}
+                            />
                           ) : null}
-                          <a href={content.url} target="_blank" rel="noreferrer">
-                            {content.url}
-                          </a>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => void removeContent(content.id)}
-                        >
-                          삭제
-                        </button>
-                      </li>
-                    ))}
+                          <div>
+                            <span>{STOCK_CONTENT_SOURCE_LABELS[content.sourceType]}</span>
+                            <strong>{content.title}</strong>
+                            {content.publishedDate ? (
+                              <time dateTime={content.publishedDate}>
+                                게시일 {content.publishedDate.replaceAll('-', '.')}
+                              </time>
+                            ) : null}
+                            <a href={content.url} target="_blank" rel="noreferrer">
+                              {content.url}
+                            </a>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => void removeContent(content.id)}
+                          >
+                            삭제
+                          </button>
+                        </li>
+                      );
+                    })}
                     {contents && visibleContents.length === 0 ? (
                       <li className="admin-related-empty">
                         {contentFilter === 'ALL'

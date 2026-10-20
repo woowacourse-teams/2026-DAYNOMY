@@ -1,21 +1,4 @@
-export type StockMarket = 'KOSPI' | 'KOSDAQ';
-export type AssetCategory = 'STOCK' | 'ETF';
-
-export type StockSearchItem = {
-  assetId: number;
-  assetCode: string;
-  name: string;
-  category: AssetCategory;
-  market: StockMarket;
-};
-
-export type StockPrice = {
-  assetId: number;
-  assetCode: string;
-  name: string;
-  baseDate: string;
-  closePrice: number;
-};
+import type { StockMarket, StockSearchItem } from '../stocks/types';
 
 export type PortfolioHoldingInput = StockSearchItem & {
   quantity: number;
@@ -28,6 +11,7 @@ export type PortfolioTrendPeriod = 'YTD' | '1M' | '6M' | '1Y' | '5Y';
 export type PortfolioTransactionType = 'BUY' | 'SELL';
 export type PortfolioTransactionUpdateRequest = {
   tradeDate: string;
+  exchangeRate?: number;
   quantity: number;
   unitPrice: number;
   fee: number;
@@ -56,6 +40,8 @@ export type PortfolioHoldingHistory = {
   fee: number;
   tax: number;
   occurredAt: string;
+  currency?: 'KRW' | 'USD';
+  exchangeRate?: number;
 };
 
 export type PortfolioPerformancePoint = {

@@ -9,6 +9,17 @@ import org.junit.jupiter.api.Test;
 
 class LeagueCalculationMetricsTest {
   @Test
+  void sourcePublicationWaitIsNotCountedAsFinalizationDelay() {
+    var registry = new SimpleMeterRegistry();
+    var metrics = new LeagueCalculationMetrics(registry);
+    metrics.finalizationState(0, 1, Instant.now().plusSeconds(86400));
+
+    assertThat(registry.get("daynomy.league.finalization.delay.seconds").gauge().value()).isZero();
+    assertThat(registry.get("daynomy.league.finalization.pending.weeks").gauge().value())
+        .isEqualTo(1);
+  }
+
+  @Test
   void ignoresUnknownReasonsWithoutFailingCommittedProfileMetrics() {
     var registry = new SimpleMeterRegistry();
     var metrics = new LeagueCalculationMetrics(registry);

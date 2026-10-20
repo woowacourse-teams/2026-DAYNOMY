@@ -1,5 +1,6 @@
 package org.grit.daynomy.portfolio.service;
 
+import io.micrometer.observation.annotation.Observed;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashSet;
@@ -33,6 +34,7 @@ public class PortfolioAnalysisService {
   private final org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
   private final GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
+  @Observed(name = "portfolio.analysis", contextualName = "portfolio-analysis")
   public PortfolioAnalysisResponse analyze(
       PortfolioAnalysisRequest request, boolean authenticatedMember) {
     validateDistinctAssets(request.assets());
@@ -54,6 +56,7 @@ public class PortfolioAnalysisService {
     return result.withOverallImpact(narrative.summarize(result));
   }
 
+  @Observed(name = "portfolio.analysis.refresh", contextualName = "portfolio-analysis-refresh")
   public PortfolioAnalysisResponse refresh(
       PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous) {
     validateDistinctAssets(request.assets());
@@ -176,7 +179,8 @@ public class PortfolioAnalysisService {
         .collect(Collectors.toMap(PortfolioAssetRequest::assetName, PortfolioAssetRequest::weight));
   }
 
-  private List<PortfolioAnalysisTarget> createTargets(List<PortfolioAssetRequest> portfolioAssets) {
+  protected List<PortfolioAnalysisTarget> createTargets(
+      List<PortfolioAssetRequest> portfolioAssets) {
     return portfolioAssets.stream()
         .map(portfolioAsset -> new PortfolioAnalysisTarget(portfolioAsset.assetName()))
         .toList();

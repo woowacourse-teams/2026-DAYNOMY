@@ -174,7 +174,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .isEqualTo(
             version.equals("v1")
                 ? "portfolio-v7-batch-price-v1"
-                : "portfolio-v7-batch-price-ai-v2");
+                : "portfolio-v8-select5-price-ai-v2");
     if (version.equals("v1")) {
       // prepare와 complete에서 각각 현재 포트폴리오 가격을 확인한다.
       verify(prices, times(assetCount * 2))
@@ -192,7 +192,28 @@ class SavedPortfolioAnalysisAcceptanceTest {
     } else {
       verify(ai).analyze(anyList());
       verifyNoInteractions(v1Ai);
-      assertThat(assetAnalyses.count()).isEqualTo(assetCount);
+      assertThat(assetAnalyses.count()).isEqualTo(Math.min(5, assetCount));
+      assertThat(response.jsonPath().getInt("analysis.selectedAssetCount"))
+          .isEqualTo(Math.min(5, assetCount));
+      assertThat(response.jsonPath().getList("analysis.excludedAssets"))
+          .hasSize(Math.max(0, assetCount - 5));
+      assertThat(stored.getSnapshot().assets()).hasSize(assetCount);
+      assertThat(stored.getSnapshot().impacts()).hasSize(Math.min(5, assetCount));
+      if (assetCount > 5) {
+        assertThat(response.jsonPath().getString("analysis.coverage")).isEqualTo("PARTIAL");
+        assertThat((Object) response.jsonPath().get("analysis.overallScore")).isNull();
+      }
+      long analysisId = response.jsonPath().getLong("analysisId");
+      var repeated =
+          client(member)
+              .post("/api/v2/users/me/portfolio/analysis")
+              .then()
+              .statusCode(200)
+              .extract()
+              .response();
+      assertThat(repeated.jsonPath().getLong("analysisId")).isEqualTo(analysisId);
+      assertThat(repeated.jsonPath().getList("analysis.excludedAssets"))
+          .hasSize(Math.max(0, assetCount - 5));
     }
   }
 

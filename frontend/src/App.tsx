@@ -9,12 +9,19 @@ import { IssueHomePage } from './features/news/issue/IssueHomePage';
 import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
 import SearchPage from './features/search/SearchPage';
 import { PortfolioPage } from './features/portfolio/PortfolioPage';
-import { LeagueComingSoonPage } from './features/league/LeagueComingSoonPage';
+import { LeaguePage } from './features/league/LeaguePage';
+import { InvestorProfilePage } from './features/league/InvestorProfilePage';
+import { PublicationSettingsPage } from './features/league/PublicationSettingsPage';
+import { LeagueProfilePage } from './features/league/LeagueProfilePage';
+import { SharedPortfolioPage } from './features/league/SharedPortfolioPage';
+import { FollowingPage } from './features/league/FollowingPage';
+import { InvestmentReviewsPage } from './features/league/InvestmentReviewsPage';
 import { MyPage } from './features/account/MyPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { safeReturnPath } from './auth/returnPath';
 import { ServiceHeader } from './features/navigation/ServiceHeader';
+import { LeagueNavigation } from './features/league/LeagueNavigation';
 import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
 import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
@@ -216,6 +223,7 @@ function AppContent() {
       <PostLoginRedirect />
       <div className="app-shell">
         {!awaitingWelcome && <AppHeader />}
+        <LeagueNavigation />
         <div className="app-content">
           <Routes>
             <Route
@@ -232,13 +240,53 @@ function AppContent() {
             />
 
             <Route path="/portfolio" element={<Navigate to="/" replace />} />
+            <Route path="/investment-calendar" element={<Navigate to="/news" replace />} />
             <Route
               path="/portfolio/records"
               element={<Navigate to="/league/portfolio" replace />}
             />
-            {/* shortcut: 화면 안내만으로 API 직접 접근은 막지 못한다. 접근 제한이 필요하면 서버 권한을 추가한다. */}
-            <Route path="/league/*" element={<LeagueComingSoonPage />} />
-            <Route path="/portfolio/publication" element={<LeagueComingSoonPage />} />
+            <Route path="/league" element={<LeaguePage />} />
+            <Route
+              path="/league/profile"
+              element={
+                <AuthenticatedRoute>
+                  <LeagueProfilePage />
+                </AuthenticatedRoute>
+              }
+            />
+            <Route
+              path="/league/portfolio"
+              element={
+                <AuthenticatedRoute>
+                  <SharedPortfolioPage />
+                </AuthenticatedRoute>
+              }
+            />
+            <Route
+              path="/portfolio/publication"
+              element={
+                <AuthenticatedRoute>
+                  <PublicationSettingsPage />
+                </AuthenticatedRoute>
+              }
+            />
+            <Route
+              path="/league/following"
+              element={
+                <AuthenticatedRoute>
+                  <FollowingPage />
+                </AuthenticatedRoute>
+              }
+            />
+            <Route
+              path="/league/reviews"
+              element={
+                <AuthenticatedRoute>
+                  <InvestmentReviewsPage />
+                </AuthenticatedRoute>
+              }
+            />
+            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
             <Route path="/membership" element={<Navigate to="/league" replace />} />
             <Route
               path="/mypage"

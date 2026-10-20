@@ -111,4 +111,51 @@ class StockMasterPersistenceServiceTest {
     assertThat(missingStock.isListed()).isFalse();
     assertThat(existingEtf.isListed()).isTrue();
   }
+
+  @Test
+  void domesticAndUsSyncNeverDelistEachOther() {
+    LocalDate date = LocalDate.of(2026, 10, 16);
+    Asset korean = Asset.listedStock("삼성전자", "005930", StockMarket.KOSPI, null, date);
+    Asset apple = Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, date);
+    Asset missingUs = Asset.listedStock("Missing", "MISS.US", StockMarket.NYSE, null, date);
+    given(assetRepository.findAllByCategoryIn(Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .willReturn(List.of(korean, apple, missingUs));
+    persistenceService.synchronize(
+        date,
+        List.of(
+            new StockMasterEntry(
+                "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI, null, date)));
+    assertThat(apple.isListed()).isTrue();
+    assertThat(missingUs.isListed()).isTrue();
+    persistenceService.synchronizeUs(
+        date,
+        List.of(
+            new StockMasterEntry(
+                "AAPL.US", "Apple", AssetCategory.STOCK, StockMarket.NASDAQ, null, date)));
+    assertThat(korean.isListed()).isTrue();
+    assertThat(apple.isListed()).isTrue();
+    assertThat(missingUs.isListed()).isFalse();
+  }
+
+  @Test
+  void domesticSyncReusesAndDelistsLegacyAssetsWithoutMarket() {
+    LocalDate date = LocalDate.of(2026, 10, 16);
+    Asset legacy = Asset.listedStock("기존", "005930", StockMarket.KOSPI, null, date);
+    Asset missing = Asset.listedStock("누락", "000660", StockMarket.KOSPI, null, date);
+    org.springframework.test.util.ReflectionTestUtils.setField(legacy, "market", null);
+    org.springframework.test.util.ReflectionTestUtils.setField(missing, "market", null);
+    given(assetRepository.findAllByCategoryIn(Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .willReturn(List.of(legacy, missing));
+    var result =
+        persistenceService.synchronize(
+            date,
+            List.of(
+                new StockMasterEntry(
+                    "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI, null, date)));
+    assertThat(result.createdCount()).isZero();
+    assertThat(result.updatedCount()).isEqualTo(1);
+    assertThat(result.delistedCount()).isEqualTo(1);
+    assertThat(legacy.getMarket()).isEqualTo(StockMarket.KOSPI);
+    assertThat(missing.isListed()).isFalse();
+  }
 }

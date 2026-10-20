@@ -11,7 +11,7 @@ import * as sharedApi from '../../src/features/league/sharedPortfolioApi';
 import { AuthContext } from '../../src/auth/AuthContext';
 vi.mock('../../src/features/league/api', () => ({
   getMyInvestorProfile: vi.fn(),
-  getTransactions: vi.fn(),
+  getInvestmentDecisions: vi.fn(),
   saveInvestorProfile: vi.fn(),
   savePublication: vi.fn(),
 }));
@@ -77,7 +77,7 @@ it.each([false, true])(
       totalReturnRate: null,
       pricesComplete: true,
     });
-    vi.mocked(api.getTransactions).mockResolvedValue([]);
+    vi.mocked(api.getInvestmentDecisions).mockResolvedValue([]);
     vi.mocked(api.saveInvestorProfile).mockResolvedValue(profile);
     vi.mocked(api.savePublication).mockResolvedValue({ ...profile, allocationPublic: false });
     const view = render(
@@ -93,6 +93,8 @@ it.each([false, true])(
       </MemoryRouter>,
     );
     await view.findByLabelText('공개 닉네임');
+    expect(document.title).toBe('프로필 설정 | DAYNOMY');
+    expect(document.activeElement).toBe(view.getByRole('heading', { name: '프로필 설정' }));
     expect(view.getByRole('link', { name: '← 내 프로필' })).toHaveProperty(
       'href',
       expect.stringContaining('/league/profile'),
@@ -141,7 +143,7 @@ it('독립 설정 화면에서 숨긴 종목의 필수 기록을 확인하고 �
     totalReturnRate: null,
     pricesComplete: false,
   });
-  vi.mocked(api.getTransactions)
+  vi.mocked(api.getInvestmentDecisions)
     .mockRejectedValueOnce(new Error('기록 조회 실패'))
     .mockResolvedValue([]);
   const view = render(
@@ -243,6 +245,7 @@ it('새 프로필은 계정 닉네임으로 시작하고 저장 실패 후 선�
   fireEvent.click(view.getByRole('radio', { name: /주간 리그 참여/ }));
   fireEvent.click(view.getByRole('button', { name: /^(저장|공개에 동의하고 저장)$/ }));
   await view.findByRole('alert');
+  await waitFor(() => expect(document.activeElement).toBe(view.getByRole('alert')));
   expect(view.getByLabelText('공개 닉네임')).toHaveProperty('value', saved.displayName);
   expect(view.queryByRole('checkbox')).toBeNull();
   expect(view.getByRole('radio', { name: '투자 3년 이상' })).toHaveProperty('checked', true);
@@ -254,6 +257,19 @@ it('새 프로필은 계정 닉네임으로 시작하고 저장 실패 후 선�
   fireEvent.click(view.getByRole('button', { name: /^(저장|공개에 동의하고 저장)$/ }));
   await waitFor(() => expect(onSaved).toHaveBeenCalledWith(saved));
   expect(updateNickname).toHaveBeenCalledWith(saved.displayName);
+});
+
+it('닉네임은 기본 필수 입력과 공백 검증을 사용하며 저장 버튼을 탐색할 수 있다', () => {
+  const view = renderSettings({ saved: null });
+  const input = view.getByRole('textbox', { name: '공개 닉네임' }) as HTMLInputElement;
+  for (const value of ['', '   ']) {
+    fireEvent.change(input, { target: { value } });
+    expect(input.checkValidity()).toBe(false);
+    expect(view.getByRole('button', { name: '저장' })).toHaveProperty('disabled', false);
+  }
+  fireEvent.change(input, { target: { value: '새닉네임' } });
+  expect(input.checkValidity()).toBe(true);
+  expect(api.saveInvestorProfile).not.toHaveBeenCalled();
 });
 
 it('기존 프로필만 공개한 계정은 자동 가입 없이 비공개 선택으로 시작한다', async () => {

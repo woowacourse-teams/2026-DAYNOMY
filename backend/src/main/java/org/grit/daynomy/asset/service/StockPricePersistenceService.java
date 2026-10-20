@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
+import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.springframework.stereotype.Service;
@@ -30,9 +31,27 @@ public class StockPricePersistenceService {
 
   @Transactional
   public StockPriceSyncResult synchronize(LocalDate baseDate, List<StockPriceEntry> entries) {
+    return synchronizeMarkets(baseDate, entries, StockMarket.domesticMarkets(), true);
+  }
+
+  @Transactional
+  public StockPriceSyncResult synchronizeUs(LocalDate baseDate, List<StockPriceEntry> entries) {
+    return synchronizeMarkets(baseDate, entries, StockMarket.usMarkets(), false);
+  }
+
+  private StockPriceSyncResult synchronizeMarkets(
+      LocalDate baseDate,
+      List<StockPriceEntry> entries,
+      Set<StockMarket> markets,
+      boolean markDomesticCalendar) {
     Map<AssetKey, Asset> listedAssetsByKey =
         assetRepository.findAllByCategoryIn(SUPPORTED_CATEGORIES).stream()
             .filter(Asset::isListed)
+            .filter(
+                asset ->
+                    asset.getMarket() == null
+                        ? markets.equals(StockMarket.domesticMarkets())
+                        : markets.contains(asset.getMarket()))
             .collect(
                 Collectors.toMap(
                     asset -> new AssetKey(asset.getCategory(), asset.getAssetCode()),
@@ -68,9 +87,11 @@ public class StockPricePersistenceService {
 
     stockDailyPriceRepository.saveAll(pricesToSave);
     // 수집 성공은 가격 저장과 함께 커밋한다. 달력상 휴장일을 빈 응답으로 추정하지 않는다.
-    tradingDayRepository
-        .findByIdForUpdate(baseDate)
-        .ifPresent(day -> day.collected(java.time.Instant.now()));
+    if (markDomesticCalendar) {
+      tradingDayRepository
+          .findByIdForUpdate(baseDate)
+          .ifPresent(day -> day.collected(java.time.Instant.now()));
+    }
     return new StockPriceSyncResult(
         baseDate, entries.size(), createdCount, updatedCount, skippedCount);
   }

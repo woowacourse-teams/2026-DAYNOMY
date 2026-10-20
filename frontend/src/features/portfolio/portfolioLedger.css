@@ -3,11 +3,17 @@
   --portfolio-accent: #326bd5;
   --portfolio-side-padding: var(--page-side-padding);
   width: var(--page-content-width);
-  padding: 52px 0 88px;
+  padding: 52px 0 32px;
   color: #253047;
 }
+body:has(.portfolio-page) .daynomy-footer {
+  min-height: 144px;
+  margin-top: 8px;
+  padding-block: 32px;
+}
 .portfolio-canvas {
-  display: contents;
+  display: block;
+  min-width: 0;
 }
 .portfolio-page .portfolio-page-title {
   display: flex;
@@ -50,26 +56,26 @@
 }
 .portfolio-page .portfolio-primary-button,
 .portfolio-sheet .portfolio-primary-button {
-  background: var(--button-primary);
-  min-height: 44px;
+  background: var(--button-action);
+  min-height: var(--button-height);
   border: 0;
-  border-radius: 9px;
+  border-radius: 999px;
   padding: 0 18px;
   color: #fff;
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 .portfolio-page .portfolio-secondary-button,
 .portfolio-sheet .portfolio-secondary-button {
-  min-height: 44px;
-  border: 1px solid #dfe5ee;
-  border-radius: 9px;
+  min-height: var(--button-height);
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
   padding: 0 16px;
   background: #fff;
-  color: #526078;
-  font-size: 13px;
-  font-weight: 550;
+  color: var(--button-label);
+  font-size: 14px;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 .portfolio-page button,
@@ -85,11 +91,34 @@
 }
 .portfolio-page .portfolio-primary-button:hover:not(:disabled),
 .portfolio-sheet .portfolio-primary-button:hover:not(:disabled) {
-  background: var(--button-primary-hover);
+  background: var(--button-action-hover);
+}
+
+.portfolio-page .portfolio-primary-button:active:not(:disabled),
+.portfolio-sheet .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 .portfolio-page .portfolio-secondary-button:hover:not(:disabled),
 .portfolio-sheet .portfolio-secondary-button:hover:not(:disabled) {
-  background: #f5f7fb;
+  background: var(--button-secondary-hover);
+}
+.portfolio-page .portfolio-page-actions > .portfolio-primary-button {
+  min-height: var(--button-height);
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--button-action);
+}
+.portfolio-page .portfolio-page-actions > .portfolio-primary-button:hover:not(:disabled) {
+  background: var(--button-action-hover);
+}
+
+.portfolio-page .portfolio-page-actions > .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
+}
+.portfolio-page .portfolio-page-actions > .portfolio-news-tab {
+  min-height: var(--button-height);
+  padding: 0 20px;
+  border-radius: 999px;
 }
 .portfolio-page :is(button, summary, input, select):focus-visible,
 .portfolio-sheet :is(button, summary, input):focus-visible {
@@ -142,10 +171,10 @@
 .portfolio-page .portfolio-overview .portfolio-balance-value {
   font-size: clamp(28px, 2.8vw, 40px);
   font-weight: 700;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.035em;
   line-height: 1.25;
   overflow-wrap: anywhere;
-  margin: 16px 0 12px;
+  margin: 12px 0;
 }
 .portfolio-page .portfolio-overview > div:not(.portfolio-summary-total) > dd {
   margin: 12px 0 5px;
@@ -206,8 +235,8 @@
   color: #3174cd;
 }
 .portfolio-page .portfolio-privacy-button {
-  min-height: 28px;
-  padding: 0 7px;
+  min-height: 36px;
+  padding: 0 10px;
   border: 0;
   background: #f3f5f8;
   color: #52647f;
@@ -236,8 +265,8 @@
 }
 .portfolio-page .portfolio-dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
+  gap: 20px;
 }
 .portfolio-page .portfolio-return-dashboard,
 .portfolio-page .portfolio-composition {
@@ -334,7 +363,7 @@
   contain: inline-size;
 }
 .portfolio-page .portfolio-table-wrap table {
-  min-width: 940px;
+  min-width: 760px;
   font-size: 13px;
 }
 .portfolio-page .portfolio-table-wrap th {
@@ -343,6 +372,7 @@
   background: #f8f9fc;
 }
 .portfolio-page .portfolio-table-wrap td {
+  white-space: nowrap;
   padding: 22px 12px;
 }
 .portfolio-price-date {
@@ -465,6 +495,17 @@
   font-variant-numeric: tabular-nums;
   padding: 0 10px;
 }
+.portfolio-history-filter select {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23526078' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+}
+
 .portfolio-history-toolbar input:focus-visible,
 .portfolio-history-toolbar select:focus-visible {
   outline: 2px solid var(--button-primary);
@@ -738,7 +779,7 @@
   width: 100%;
   min-height: 50px;
   border: 1px solid #dee5ef;
-  border-radius: 9px;
+  border-radius: 10px;
   padding: 12px 14px;
   background: #fff;
   color: #2a3850;
@@ -753,6 +794,20 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+.portfolio-stock-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.portfolio-stock-filters .portfolio-trade-types {
+  flex: 0 0 112px;
+  margin-bottom: 0;
+}
+.portfolio-stock-filters .portfolio-market-tabs {
+  gap: 16px;
+  margin-top: 0;
 }
 .portfolio-stock-results {
   block-size: 160px;
@@ -857,9 +912,37 @@
   border-radius: 10px;
   margin-bottom: 20px;
 }
-.portfolio-trade-stock button {
+.portfolio-sheet .portfolio-trade-stock > button {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #526078;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
 }
+.portfolio-sheet .portfolio-trade-stock > button:hover:not(:disabled) {
+  background: #edf3fc;
+  border-color: #b5c8e8;
+  color: #2459b9;
+}
+.portfolio-sheet .portfolio-trade-stock > div {
+  min-width: 0;
+}
+.portfolio-sheet .portfolio-trade-stock strong {
+  overflow-wrap: anywhere;
+}
+
 .portfolio-trade-types {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -982,7 +1065,7 @@
   color: white;
   padding: 0 18px;
   min-height: 44px;
-  border-radius: 9px;
+  border-radius: 999px;
   font-size: 13px;
   cursor: pointer;
 }
@@ -1002,7 +1085,7 @@
   max-width: 340px;
   line-height: 1.8;
 }
-@media (max-width: 1000px) {
+@container portfolio-dashboard (max-width: 900px) {
   .portfolio-page .portfolio-overview {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 24px 0;
@@ -1024,50 +1107,7 @@
     padding: 22px;
   }
 }
-@media (max-width: 1023px) {
-  .portfolio-page .portfolio-table-wrap {
-    contain: none;
-    overflow: visible;
-  }
-  .portfolio-page .portfolio-table-wrap table {
-    min-width: 0;
-    width: 100%;
-  }
-  .portfolio-page .portfolio-table-wrap thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-  .portfolio-page .portfolio-table-wrap tbody {
-    display: block;
-  }
-  .portfolio-page .portfolio-table-wrap tr {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px 16px;
-    padding: 22px 0;
-    border-bottom: 1px solid #e6ebf2;
-  }
-  .portfolio-page .portfolio-table-wrap td {
-    display: block;
-    padding: 0;
-    border: 0;
-    text-align: left;
-    white-space: normal;
-  }
-  .portfolio-page .portfolio-table-wrap td:first-child {
-    grid-column: 1 / -1;
-    margin-bottom: 6px;
-  }
-  .portfolio-page .portfolio-table-wrap td::before {
-    content: attr(data-label);
-    display: block;
-    color: #8a95a6;
-    font-size: 10px;
-    margin-bottom: 6px;
-  }
+@container portfolio-dashboard (max-width: 940px) {
   .portfolio-row-menu .portfolio-row-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1699,7 +1739,7 @@
 }
 .portfolio-news {
   position: sticky;
-  top: 64px;
+  top: 80px;
   margin-top: 32px;
   display: block;
   opacity: 1;
@@ -1707,10 +1747,7 @@
   min-width: 0;
   padding: 0 12px 0 28px;
   border-left: 1px solid #e5e9ee;
-  max-height: calc(100dvh - 96px);
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
+  align-self: start;
 }
 .portfolio-news-heading {
   display: flex;
@@ -1720,7 +1757,7 @@
 }
 .portfolio-news-heading h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 22px;
   letter-spacing: -0.03em;
 }
 .portfolio-news-heading > span,
@@ -1731,7 +1768,7 @@
   color: #606b7a;
 }
 .portfolio-news-description {
-  margin: 8px 0 16px;
+  margin: 8px 0 20px;
 }
 .portfolio-news-list {
   list-style: none;
@@ -1743,7 +1780,7 @@
 }
 .portfolio-news-list a {
   display: block;
-  padding: 16px 0;
+  padding: 22px 0;
   color: inherit;
   text-decoration: none;
 }
@@ -1764,35 +1801,36 @@
 .portfolio-news-copy {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 16px;
 }
 .portfolio-news-copy strong {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 16px;
+  line-height: 1.65;
+  word-break: keep-all;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 .portfolio-news-thumbnail {
   position: relative;
   display: grid;
-  width: 84px;
+  width: 88px;
   height: 64px;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 4px;
   flex-shrink: 0;
-  background: #eef2f8;
+  background: #f1f3f5;
 }
 .portfolio-news-thumbnail-fallback,
-.portfolio-news-thumbnail img {
+.portfolio-news-thumbnail > img {
   grid-area: 1 / 1;
   width: 100%;
   height: 100%;
 }
-.portfolio-news-thumbnail img {
+.portfolio-news-thumbnail > img {
   position: relative;
   z-index: 1;
   object-fit: cover;
@@ -1803,20 +1841,22 @@
   align-items: center;
   justify-content: center;
   padding: 8px;
-  background: #eef2f8;
-  color: #435779;
+  background: #f1f3f5;
+  color: #667383;
 }
-.portfolio-news-thumbnail.source-x .portfolio-news-thumbnail-fallback {
-  background: #222c3b;
-  color: #f8fafc;
+.portfolio-news-thumbnail-fallback img,
+.portfolio-news-thumbnail-fallback svg {
+  width: 18px;
+  height: 18px;
 }
-.portfolio-news-thumbnail.source-threads .portfolio-news-thumbnail-fallback {
-  background: #f0edff;
-  color: #5449c7;
+.portfolio-news-thumbnail-fallback img {
+  filter: brightness(0);
+  opacity: 0.55;
 }
-.portfolio-news-thumbnail.source-youtube .portfolio-news-thumbnail-fallback {
-  background: #fff0f0;
-  color: #ba2d2d;
+@media (max-width: 720px) {
+  .portfolio-news-copy strong {
+    -webkit-line-clamp: 2;
+  }
 }
 .portfolio-news-thumbnail-source {
   font-size: 11px;
@@ -1828,8 +1868,10 @@
   flex: 1;
 }
 .portfolio-news-assets {
-  display: block;
-  margin-top: 7px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .portfolio-news-state {
   font-size: 14px;
@@ -1860,62 +1902,45 @@
 }
 
 .portfolio-news-source {
-  font-weight: 650;
-  color: #253047;
-}
-.portfolio-news-source::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: #253047;
-  vertical-align: middle;
-}
-.portfolio-news-source.source-youtube::before {
-  background: #d92828;
-}
-.portfolio-news-source.source-internal_news::before {
-  background: #326bd5;
-}
-.portfolio-news-account {
-  min-width: 0;
-  overflow: hidden;
-  color: #606b7a;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.portfolio-news-account::after {
-  content: ' ·';
-}
-.portfolio-news-account + time {
   flex-shrink: 0;
+  color: #606b7a;
+  font-weight: 400;
 }
 .portfolio-news-content .portfolio-news-assets {
   font-weight: 600;
-  color: #435779;
+  color: #253047;
 }
-.portfolio-news-meta time {
-  font-size: 11px;
-  white-space: nowrap;
+.portfolio-news-date {
+  display: block;
+  margin-top: 8px;
+  color: #778296;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.portfolio-news-list li:last-child {
+  border-bottom: 0;
 }
 .portfolio-news-more {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: 48px;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: var(--button-height);
   margin-top: 16px;
-  padding: 0 12px;
-  border: 1px solid #e5e9ee;
-  border-radius: 4px;
+  padding: 10px 0;
+  background: transparent;
   text-decoration: none;
-  color: #253047;
+  color: var(--button-label);
   font-size: 13px;
+  font-weight: var(--button-weight);
+}
+.portfolio-news-more svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 .portfolio-news-more:hover {
-  background: #f6f8fb;
+  color: var(--button-action-active);
 }
 .portfolio-news-more:focus-visible {
   outline: 2px solid #326bd5;
@@ -2001,7 +2026,35 @@
 }
 .portfolio-return-dashboard .portfolio-trend-controls {
   width: auto;
-  gap: 8px;
+  gap: 2px;
+}
+.portfolio-return-dashboard .portfolio-trend-period-select select {
+  min-width: 74px;
+  height: 44px;
+  padding: 0 22px 0 6px;
+  border: 0;
+  border-radius: 8px;
+  color: #333d4b;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+}
+.portfolio-return-dashboard .portfolio-trend-period-select select:hover {
+  background: #f2f4f6;
+}
+.portfolio-return-dashboard .portfolio-trend-period-select svg {
+  right: 4px;
+  stroke: #6b7684;
+}
+.portfolio-return-dashboard .portfolio-trend-expand {
+  border: 0;
+  border-radius: 8px;
+  color: #4e5968;
+  background: transparent;
+}
+.portfolio-return-dashboard .portfolio-trend-expand:hover:not(:disabled) {
+  color: #333d4b;
+  background: #f2f4f6;
 }
 .portfolio-trend-summary {
   display: grid;
@@ -2314,7 +2367,7 @@
 }
 .portfolio-return-dashboard.is-compact .portfolio-trend-plot {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 18px 40px;
+  grid-template-rows: minmax(0, 1fr) 40px;
   min-height: 0;
   margin-top: 12px;
 }
@@ -2384,46 +2437,203 @@
 
 @media (max-width: 720px) {
   .portfolio-page {
-    padding: 28px 0 56px;
+    padding: 28px 0 32px;
   }
 }
 
-/* Keep the desktop body layout within the shared page width; titles stay unscaled. */
-@media (min-width: 1024px) {
-  .portfolio-page {
-    max-width: none;
-  }
-  .portfolio-canvas {
-    display: block;
-    width: max(1324.8px, 100%);
-    zoom: var(--portfolio-desktop-scale, 1);
-  }
-  .portfolio-page .portfolio-overview .portfolio-balance-value {
-    font-size: 40px;
-  }
-  .portfolio-page .portfolio-overview > div:not(.portfolio-summary-total) > dd {
-    font-size: 23px;
-  }
-  .portfolio-page .portfolio-overview > div {
-    padding-inline: 14px;
-  }
-  .portfolio-page .portfolio-overview > div:first-child {
-    padding: 0 20px 0 0;
+/* Controls stay readable while the content reflows into the available space. */
+.portfolio-page .portfolio-primary-button,
+.portfolio-sheet .portfolio-primary-button,
+.portfolio-page .portfolio-secondary-button,
+.portfolio-sheet .portfolio-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+.portfolio-page-actions > button > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.portfolio-page .portfolio-dashboard-heading,
+.portfolio-page .portfolio-section-title,
+.portfolio-news-heading {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.portfolio-page .portfolio-return-dashboard,
+.portfolio-page .portfolio-holdings,
+.portfolio-page .portfolio-asset-name,
+.portfolio-page .portfolio-asset-name > div,
+.portfolio-page .portfolio-trend-title {
+  min-width: 0;
+}
+.portfolio-page .portfolio-asset-trigger {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: left;
+}
+.portfolio-page .portfolio-asset-trigger svg {
+  flex: none;
+}
+.portfolio-page .portfolio-dashboard-layout.has-news {
+  gap: 24px;
+}
+.portfolio-page .portfolio-table-wrap {
+  scrollbar-width: thin;
+  scrollbar-color: #c8cdd5 transparent;
+}
+.portfolio-page ::selection,
+.portfolio-sheet ::selection {
+  background: #dce9ff;
+  color: #193b70;
+}
+@media (max-width: 1023px) {
+  .portfolio-page .portfolio-dashboard-layout.has-news {
+    grid-template-columns: minmax(0, 1fr);
   }
   .portfolio-news {
-    top: calc(64px / var(--portfolio-desktop-scale, 1));
-    max-height: calc((100dvh - 96px) / var(--portfolio-desktop-scale, 1));
+    position: static;
+    max-height: none;
+    padding: 24px 0 0;
+    border-left: 0;
+    border-top: 1px solid #e5e9ee;
   }
-  .portfolio-news-heading {
-    gap: 8px;
+}
+@media (max-width: 620px) {
+  .portfolio-page .portfolio-overview .portfolio-balance-value {
+    font-size: clamp(28px, 8vw, 36px);
   }
-  .portfolio-news-heading h2 {
-    font-size: 16px;
+  .portfolio-page .portfolio-primary-button,
+  .portfolio-page .portfolio-secondary-button {
+    min-height: var(--button-height);
+  }
+  .portfolio-page .portfolio-section-title {
+    align-items: stretch;
+  }
+  .portfolio-page .portfolio-holdings-actions {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .portfolio-trend-metric-tabs button {
+    white-space: normal;
+  }
+  .portfolio-trend-date-detail label {
+    width: 100%;
+  }
+  .portfolio-trend-date-detail input {
+    flex: 1;
+  }
+}
+
+/* Keep filters and sorting aligned even in a narrow dashboard column. */
+.portfolio-page .portfolio-holdings-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 128px);
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 16px;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-filters {
+  display: flex;
+  width: min(100%, 184px);
+  min-width: 0;
+  padding: 3px;
+  box-sizing: border-box;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-filters button {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-holdings-actions {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-sort-control {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+.portfolio-page .portfolio-holdings-toolbar .portfolio-sort-control select {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding-left: 10px;
+  padding-right: 24px;
+  text-overflow: ellipsis;
+}
+.portfolio-trend-carry-note {
+  margin: -4px 0 10px;
+  color: #63738a;
+  font-size: 11px;
+  line-height: 1.5;
+}
+@container portfolio-dashboard (max-width: 360px) {
+  .portfolio-page .portfolio-holdings-toolbar {
+    grid-template-columns: minmax(0, 1fr) 112px;
+  }
+}
+
+/* Use proportional columns when the holdings area has enough room. */
+@container portfolio-dashboard (min-width: 941px) {
+  .portfolio-page .has-news .portfolio-table-wrap table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])) {
+    padding-inline: 6px;
     white-space: nowrap;
   }
-  .portfolio-news-heading-actions {
-    gap: 4px;
-    font-size: 11px;
-    white-space: nowrap;
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):first-child {
+    width: 22%;
+    padding-left: 0;
+    white-space: normal;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(2) {
+    width: 10%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(3) {
+    width: 16%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(4) {
+    width: 16%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(5) {
+    width: 18%;
+  }
+  .portfolio-page .has-news .portfolio-table-wrap :is(th, td:not([colspan])):nth-child(6) {
+    width: 18%;
+    padding-right: 0;
+  }
+  .portfolio-page .has-news .portfolio-asset {
+    min-width: 0;
+  }
+  .portfolio-page .has-news .portfolio-asset > div {
+    min-width: 0;
+  }
+  .portfolio-page .has-news .portfolio-asset-link {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+  .portfolio-page .has-news .portfolio-asset small {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }

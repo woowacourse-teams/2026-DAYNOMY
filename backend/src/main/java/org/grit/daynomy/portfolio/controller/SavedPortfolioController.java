@@ -13,7 +13,6 @@ import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
-import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingCreateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioResponse;
@@ -47,15 +46,6 @@ public class SavedPortfolioController {
   public SavedPortfolioResponse get(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
     return savedPortfolioService.get(member.memberId());
-  }
-
-  @Operation(summary = "보유자산 추가")
-  @PostMapping("/holdings")
-  public ResponseEntity<SavedPortfolioHoldingResponse> add(
-      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
-      @Valid @RequestBody SavedPortfolioHoldingCreateRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED)
-        .body(savedPortfolioService.add(member.memberId(), request));
   }
 
   @Operation(summary = "매수·매도 거래 등록", description = "거래일은 해당 종목의 마지막 보유 수량 등록·조정일 이후(당일 포함)여야 합니다.")

@@ -29,7 +29,7 @@ export type RankingEntry = {
   experienceLevel: ExperienceLevel;
   riskProfile: RiskProfile;
   weeklyReturnRate: number;
-  eightWeekReturnRate: number | null;
+  threeWeekReturnRate: number | null;
   maxDrawdownRate: number | null;
   volatilityRate: number | null;
   maxHoldingWeight: number | null;
@@ -65,7 +65,7 @@ export type LeagueWeek = {
 
 export type Performance = {
   weeklyReturnRate: number | null;
-  eightWeekReturnRate: number | null;
+  threeWeekReturnRate: number | null;
   maxDrawdownRate: number | null;
   volatilityRate: number | null;
   maxHoldingWeight: number | null;
@@ -126,6 +126,7 @@ export type InvestmentReview = {
   differenceFromExpectation: string;
   nextAction: string;
   createdAt: string;
+  updatedAt?: string | null;
 };
 
 export type InvestmentDecisionInput = {
@@ -136,7 +137,7 @@ export type InvestmentDecisionInput = {
   maximumAcceptableLossRate: number | null;
 };
 
-export type InvestmentTransaction = {
+export type InvestmentDecisionRecord = {
   id: number;
   assetId: number;
   assetCode: string;
@@ -157,7 +158,7 @@ export type InvestmentTransaction = {
 };
 
 export type PublicDecision = Omit<
-  InvestmentTransaction,
+  InvestmentDecisionRecord,
   'id' | 'assetId' | 'assetCode' | 'quantity' | 'unitPrice' | 'fee'
 > & { transactionId: number };
 

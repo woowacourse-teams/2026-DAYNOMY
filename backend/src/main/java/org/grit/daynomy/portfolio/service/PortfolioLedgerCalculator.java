@@ -39,7 +39,8 @@ public class PortfolioLedgerCalculator {
                 .getUnitPrice()
                 .multiply(BigDecimal.valueOf(history.getTransactionQuantity()))
                 .add(history.getFee())
-                .add(history.getTax());
+                .add(history.getTax())
+                .multiply(history.getExchangeRate());
         BigDecimal averagePrice =
             currentCost
                 .add(transactionCost)
@@ -54,10 +55,11 @@ public class PortfolioLedgerCalculator {
         BigDecimal proceeds =
             history
                 .getUnitPrice()
+                .multiply(history.getExchangeRate())
                 .subtract(current.averagePurchasePrice())
                 .multiply(BigDecimal.valueOf(history.getTransactionQuantity()))
-                .subtract(history.getFee())
-                .subtract(history.getTax());
+                .subtract(history.getFee().multiply(history.getExchangeRate()))
+                .subtract(history.getTax().multiply(history.getExchangeRate()));
         realizedProfitLoss = realizedProfitLoss.add(proceeds);
         if (nextQuantity == 0) {
           positions.remove(assetId);

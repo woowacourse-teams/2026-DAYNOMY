@@ -152,24 +152,6 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
     savedHoldings = [...savedHoldings, holding];
     return jsonResponse({ transactionId: 1, holding, totalRealizedProfitLoss: 0 }, 201);
   }
-  if (url.endsWith('/api/users/me/portfolio/holdings') && method === 'POST') {
-    const body = JSON.parse(String(init?.body)) as {
-      assetId: number;
-      quantity: number;
-      averagePurchasePrice: number;
-    };
-    const asset = [stock, secondStock, kosdaqStock, etf].find(
-      (candidate) => candidate.assetId === body.assetId,
-    );
-    if (!asset) return jsonResponse({}, 404);
-    const holding = {
-      ...asset,
-      quantity: body.quantity,
-      averagePurchasePrice: body.averagePurchasePrice,
-    };
-    savedHoldings = [...savedHoldings, holding];
-    return jsonResponse(holding, 201);
-  }
   const holdingMatch = url.match(/\/api\/users\/me\/portfolio\/holdings\/(\d+)$/);
   if (holdingMatch && method === 'PATCH') {
     const assetId = Number(holdingMatch[1]);
@@ -317,6 +299,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   localStorage.clear();
+  localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
   sessionStorage.clear();
   window.history.replaceState(null, '', '/');
   vi.unstubAllGlobals();
@@ -324,6 +307,19 @@ afterEach(() => {
 });
 
 describe('포트폴리오 화면', () => {
+  it('첫 방문 체험을 마치면 빈 실제 거래 입력 창을 연다', async () => {
+    localStorage.removeItem('daynomy:portfolio-tour:v1');
+    const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findByRole('complementary', { name: '처음 이용 안내' });
+    fireEvent.click(view.getByRole('button', { name: '사용 가이드' }));
+    await view.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
+    for (let i = 0; i < 9; i++) fireEvent.click(view.getByRole('button', { name: '다음' }));
+    fireEvent.click(view.getByRole('button', { name: '내 자산 등록하기' }));
+    const search = await view.findByRole('searchbox', { name: '종목 검색' });
+    expect((search as HTMLInputElement).value).toBe('');
+    expect(view.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
+  });
+
   it('StrictMode에서도 진입은 한 번 수집하고 실제 계산 완료 전에는 loaded를 보내지 않는다', async () => {
     let finishHoldings!: () => void;
     let finishCalculation!: () => void;
@@ -931,7 +927,29 @@ describe('포트폴리오 화면', () => {
     expect(within(trendDialog).queryByText(/최근 1개월.*거래일 종가 기준/)).toBeNull();
   });
 
+  it('휴장일로 간격이 달라도 날짜 라벨은 해당 그래프 점과 같은 위치에 놓인다', async () => {
+    savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
+    savedPerformancePoints = ['2026-09-01', '2026-09-05', '2026-10-05'].map((baseDate) => ({
+      baseDate,
+      totalPurchaseAmount: 700000,
+      totalEvaluationAmount: 750000,
+      totalProfitLoss: 50000,
+      totalReturnRate: 7.14,
+      dailyProfitLoss: null,
+      dailyReturnRate: null,
+    }));
+    mockPortfolioApi();
+    const view = render(<PortfolioPage />);
+    const chart = await view.findByRole('img', { name: /포트폴리오 자산 추이/ });
+    const labels = [...chart.querySelectorAll('.portfolio-return-dates text')];
+    const middle = labels.find((label) => label.textContent === '09.18')!;
+    // October 6 is the current point; September 18 is 17/35 across the calendar.
+    expect(Number(middle.getAttribute('x'))).toBeCloseTo(58 + (17 / 35) * 650);
+    expect(Number(middle.getAttribute('x'))).not.toBeCloseTo(383);
+  });
+
   it('날짜별 매입금액을 기준으로 상승·하락·동일 구간을 나누고 교차 지점에서 색을 연결한다', async () => {
+    localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     const points = [
       [700000, 650000],
@@ -964,7 +982,10 @@ describe('포트폴리오 화면', () => {
       }
       return originalImplementation?.(input, init) ?? jsonResponse({}, 404);
     });
-    const view = render(<PortfolioPage />);
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(<PortfolioPage />);
+    });
     const chart = await view.findByRole('img', { name: /평가금액 800,000원, 매입원금 800,000원/ });
     const lines = [
       ...chart.querySelectorAll<SVGPolylineElement>('.portfolio-return-line.evaluation'),
@@ -1203,8 +1224,9 @@ describe('포트폴리오 화면', () => {
     expect(within(dialog).queryByRole('tooltip')).toBeNull();
     expect(date).toHaveProperty('value', '2026-10-06');
     fireEvent.keyDown(chart.parentElement!, { key: 'ArrowLeft' });
-    expect(within(dialog).getByRole('tooltip').querySelector('time')?.dateTime).toBe('2026-09-30');
-    expect(date).toHaveProperty('value', '2026-09-30');
+    expect(within(dialog).getByRole('tooltip').querySelector('time')?.dateTime).toBe('2026-10-05');
+    expect(within(dialog).getByRole('tooltip').textContent).toContain('기록 유지');
+    expect(date).toHaveProperty('value', '2026-10-05');
   });
 
   it('자산 추이 그래프를 상세 화면으로 확장하고 닫는다', async () => {
@@ -1322,12 +1344,16 @@ describe('포트폴리오 화면', () => {
     );
     const view = render(<PortfolioPage />);
     const table = await view.findByRole('region', { name: /보유 자산 표/ });
+    await within(table).findByText('900,000원');
 
     fireEvent.change(view.getByRole('combobox', { name: '보유 자산 정렬' }), {
       target: { value: 'EVALUATION' },
     });
     let rows = within(table).getAllByRole('row');
-    expect(within(rows[1]).getByText('KODEX 200')).toBeTruthy();
+    await waitFor(() => {
+      rows = within(table).getAllByRole('row');
+      expect(within(rows[1]).getByText('KODEX 200')).toBeTruthy();
+    });
 
     fireEvent.click(view.getByRole('button', { name: '주식' }));
     rows = within(table).getAllByRole('row');
@@ -1507,7 +1533,7 @@ describe('포트폴리오 화면', () => {
     await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull());
     expect(
       within(dialog).getByText(
-        '국내 주식과 ETF를 검색하세요. 과거에 매도한 종목도 기록할 수 있어요.',
+        '국내·미국 주식과 ETF를 검색하세요. 과거에 매도한 종목도 기록할 수 있어요.',
       ),
     ).toBeTruthy();
   });

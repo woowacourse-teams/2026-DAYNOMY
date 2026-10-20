@@ -1,6 +1,7 @@
 package org.grit.daynomy.external.openai;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
@@ -91,6 +93,10 @@ class OpenAiNewsGeneratorTest {
         .contains("최근 미국 경제와 금융시장")
         .contains("미국 현지 언론")
         .contains("연방준비제도")
+        .contains("미국 주식시장 전체")
+        .contains("한 기업의 주가에 직접적이고 구체적인 영향을 줄 수 있는 중요한 사건")
+        .contains("기업의 대규모·전략적 계약")
+        .contains("일반적인 분기 실적 발표")
         .doesNotContain("한국에서 발행된 주요 언론사");
     String writerRequest = server.takeRequest().getBody().readUtf8();
     assertThat(writerRequest).contains("조사 자료 묶음").contains("첫 번째 뉴스").contains("해라체");
@@ -103,7 +109,8 @@ class OpenAiNewsGeneratorTest {
     server.enqueue(
         jsonResponse(researchResponse(LocalDate.now(ZoneId.of("Asia/Seoul")).toString())));
 
-    new OpenAiNewsResearcher(properties()).researchEconomicNews();
+    new OpenAiNewsResearcher(properties(), org.springframework.web.client.RestClient.builder())
+        .researchEconomicNews();
 
     assertThat(server.getRequestCount()).isEqualTo(2);
     assertThat(server.takeRequest()).isNotNull();
@@ -111,8 +118,27 @@ class OpenAiNewsGeneratorTest {
   }
 
   @Test
-  void writerRetriesWhenContentValidationFails() throws Exception {
-    server.enqueue(jsonResponse(writerResponse(List.of("짧은 본문"))));
+  void writerRetriesOnlyInvalidArticles() throws Exception {
+    server.enqueue(jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of(validContent("수정된 뉴스")))));
+
+    List<GeneratedEconomicNews> generated =
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+
+    assertThat(generated).hasSize(2);
+    assertThat(generated.get(0).content()).hasSizeBetween(800, 1_500);
+    assertThat(generated.get(1).content()).hasSizeBetween(800, 1_500);
+    assertThat(server.getRequestCount()).isEqualTo(2);
+    server.takeRequest();
+    assertThat(server.takeRequest().getBody().readUtf8())
+        .contains("두 번째 뉴스")
+        .doesNotContain("첫 번째 뉴스");
+  }
+
+  @Test
+  void writerRetriesWhenContentIsBlank() throws Exception {
+    server.enqueue(jsonResponse(writerResponse(List.of(" "))));
     server.enqueue(jsonResponse(writerResponse(List.of(validContent("재작성된 뉴스")))));
     EconomicNewsResearch research =
         new EconomicNewsResearch(
@@ -125,16 +151,58 @@ class OpenAiNewsGeneratorTest {
                 new NewsSourceInfo("출처 2", "https://example.com/2")));
 
     List<GeneratedEconomicNews> generated =
-        new OpenAiNewsWriter(properties()).write(List.of(research));
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(research));
 
     assertThat(generated).hasSize(1);
-    assertThat(generated.getFirst().title()).isEqualTo("뉴스 제목");
     assertThat(generated.getFirst().content()).hasSizeBetween(800, 1_500);
     assertThat(server.getRequestCount()).isEqualTo(2);
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8())
-        .contains("이전 본문 묶음이 형식 검증에 실패했다")
-        .contains("1,200~1,300자를 목표");
+        .contains("제공된 조사 자료를 바탕으로 본문을 처음부터 다시 작성하라")
+        .contains("뉴스 제목")
+        .doesNotContain("이전 요청에서 전달한 본문만 수정하라")
+        .contains("900~1,100자를 목표");
+  }
+
+  @Test
+  void writerDoesNotReturnArticlesWhenRepairStillFails() throws Exception {
+    server.enqueue(jsonResponse(writerResponse(List.of("짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
+
+    assertThatThrownBy(
+            () ->
+                new OpenAiNewsWriter(
+                        properties(), org.springframework.web.client.RestClient.builder())
+                    .write(List.of(research("뉴스 제목"))))
+        .isInstanceOf(BusinessException.class);
+
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void writerReturnsValidArticlesWhenRepairOfAnotherArticleStillFails() throws Exception {
+    server.enqueue(jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
+
+    List<GeneratedEconomicNews> generated =
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+
+    assertThat(generated).hasSize(1);
+    assertThat(generated.getFirst().title()).isEqualTo("첫 번째 뉴스");
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  private EconomicNewsResearch research(String title) {
+    return new EconomicNewsResearch(
+        title,
+        LocalDate.now(ZoneId.of("Asia/Seoul")),
+        Category.STOCK,
+        List.of("첫 번째 확인 사실", "두 번째 확인 사실", "세 번째 확인 사실"),
+        List.of(
+            new NewsSourceInfo("출처 1", "https://example.com/1"),
+            new NewsSourceInfo("출처 2", "https://example.com/2")));
   }
 
   @Test
@@ -151,7 +219,8 @@ class OpenAiNewsGeneratorTest {
                 new NewsSourceInfo("출처 2", "https://example.com/2")));
 
     List<GeneratedEconomicNews> generated =
-        new OpenAiNewsWriter(properties()).write(List.of(research));
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(research));
 
     assertThat(generated).hasSize(1);
     assertThat(server.getRequestCount()).isEqualTo(1);
@@ -160,7 +229,8 @@ class OpenAiNewsGeneratorTest {
   private OpenAiNewsGenerator newGenerator() {
     OpenAiProperties properties = properties();
     return new OpenAiNewsGenerator(
-        new OpenAiNewsResearcher(properties), new OpenAiNewsWriter(properties));
+        new OpenAiNewsResearcher(properties, org.springframework.web.client.RestClient.builder()),
+        new OpenAiNewsWriter(properties, org.springframework.web.client.RestClient.builder()));
   }
 
   private OpenAiProperties properties() {

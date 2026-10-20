@@ -521,13 +521,16 @@ describe('포트폴리오 분석 화면', () => {
     });
     const view = render(<PortfolioAnalysis assets={assets} />);
     fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
-    expect(
-      await view.findByText('서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.'),
-    ).toBeTruthy();
+    const processingMessage = await view.findByText(
+      '서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.',
+    );
+    const processingStatus = processingMessage.closest('[role="status"]');
+    expect(processingStatus?.querySelector('.portfolio-analysis-spinner')).toBeTruthy();
     expect(view.queryByRole('alert')).toBeNull();
     expect(
       await view.findByText(analysisResponse.overallImpact, {}, { timeout: 4500 }),
     ).toBeTruthy();
+    expect(view.queryByText(processingMessage.textContent!)).toBeNull();
     expect(
       fetchMock.mock.calls.filter(
         ([url, init]) => String(url).endsWith('/analysis') && init?.method === 'POST',

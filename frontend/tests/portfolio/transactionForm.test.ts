@@ -35,10 +35,23 @@ test('미래일·존재하지 않는 날짜·소수 수량·음수 비용을 거
     { quantity: '0' },
     { quantity: '9007199254740992' },
     { fee: '-1' },
-    { unitPrice: '1.234' },
+    { unitPrice: '1.23456' },
     { unitPrice: '0' },
     { unitPrice: '1000000000000000' },
   ]) {
     assert.notEqual(validateTransaction({ ...valid, ...change }), null, JSON.stringify(change));
+  }
+});
+
+test('미국 거래는 소수점 네 자리 단가와 여섯 자리 환율을 허용하고 환율 누락을 거부한다', () => {
+  assert.equal(
+    validateTransaction({ ...valid, unitPrice: '100.1234', exchangeRate: '1300.123456' }, 'USD'),
+    null,
+  );
+  for (const exchangeRate of [undefined, '0', '-1', '1300.1234567', 'NaN']) {
+    assert.equal(
+      getTransactionValidationError({ ...valid, exchangeRate }, 'USD')?.field,
+      'exchangeRate',
+    );
   }
 });

@@ -1,3 +1,4 @@
+import { tourAnalysis } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { useContentImpression } from '../../news/issue/analytics';
 import { useMemo, useRef, useState } from 'react';
@@ -449,15 +450,18 @@ function AnalysisParagraph({ text }: { text: string }) {
 function AnalysisSources({
   sources,
   scope,
+  demo = false,
 }: {
   sources: PortfolioAnalysisSource[];
   scope: 'overall' | 'asset';
+  demo?: boolean;
 }) {
   return (
     <details
       className="portfolio-evidence"
+      open={demo ? true : undefined}
       onToggle={(event) => {
-        if (event.currentTarget.open)
+        if (!demo && event.currentTarget.open)
           trackEvent('expand_portfolio_analysis_sources', {
             surface: 'portfolio_analysis',
             scope,
@@ -506,9 +510,11 @@ function AnalysisSources({
 function PortfolioOverallImpactDetail({
   analysis,
   analyzedAtLabel,
+  demo,
 }: {
   analysis: PortfolioAnalysisResponse;
   analyzedAtLabel: string | null;
+  demo?: boolean;
 }) {
   return (
     <article
@@ -543,7 +549,7 @@ function PortfolioOverallImpactDetail({
         </time>
       ) : null}
 
-      <AnalysisSources scope="overall" sources={analysis.sources} />
+      <AnalysisSources demo={demo} scope="overall" sources={analysis.sources} />
     </article>
   );
 }
@@ -551,9 +557,11 @@ function PortfolioOverallImpactDetail({
 function PortfolioImpactDetail({
   impact,
   analyzedAssetCount,
+  demo,
 }: {
   impact: PortfolioAssetImpactResponse;
   analyzedAssetCount: number;
+  demo?: boolean;
 }) {
   return (
     <article className={`portfolio-impact-detail ${directionClass(impact.direction)}`}>
@@ -587,12 +595,13 @@ function PortfolioImpactDetail({
         )}
       </div>
 
-      <AnalysisSources scope="asset" sources={impact.sources} />
+      <AnalysisSources demo={demo} scope="asset" sources={impact.sources} />
     </article>
   );
 }
 
 type PortfolioAnalysisProps = {
+  demoStep?: number;
   assets: PortfolioAsset[];
   isLoggedIn?: boolean;
   memberId?: number;
@@ -600,6 +609,22 @@ type PortfolioAnalysisProps = {
 };
 
 export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
+  if (props.demoStep !== undefined)
+    return (
+      <PortfolioAnalysisView
+        {...props}
+        state={{
+          analysis: props.demoStep >= 12 ? tourAnalysis : null,
+          saved: null,
+          loading: false,
+          loaded: true,
+          error: null,
+          trialExhausted: false,
+          portfolioChanged: false,
+          analyze: async () => {},
+        }}
+      />
+    );
   return (
     <PortfolioAnalysisContent
       key={`${props.isLoggedIn === false ? 'guest' : `member:${props.memberId ?? 'current'}`}:${props.holdingsKey ?? ''}`}
@@ -608,13 +633,18 @@ export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
   );
 }
 
-function PortfolioAnalysisContent({
+function PortfolioAnalysisContent(props: PortfolioAnalysisProps) {
+  const state = usePortfolioAnalysis(props.assets, props.isLoggedIn ?? true, props.holdingsKey);
+  return <PortfolioAnalysisView {...props} state={state} />;
+}
+function PortfolioAnalysisView({
   assets,
   isLoggedIn = true,
-  holdingsKey,
-}: PortfolioAnalysisProps) {
+  demoStep,
+  state,
+}: PortfolioAnalysisProps & { state: ReturnType<typeof usePortfolioAnalysis> }) {
   const { analysis, saved, loading, loaded, error, trialExhausted, portfolioChanged, analyze } =
-    usePortfolioAnalysis(assets, isLoggedIn, holdingsKey);
+    state;
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const sortedImpacts = useMemo(
     () => [...(analysis?.impacts ?? [])].sort((left, right) => left.rank - right.rank),
@@ -624,9 +654,12 @@ function PortfolioAnalysisContent({
     () => new Map(sortedImpacts.map((impact) => [normalizeAssetName(impact.assetName), impact])),
     [sortedImpacts],
   );
-  const selectedImpact = selectedAssetName
-    ? sortedImpacts.find((impact) => impact.assetName === selectedAssetName)
-    : undefined;
+  const selectedImpact =
+    demoStep !== undefined && demoStep >= 14
+      ? sortedImpacts[0]
+      : selectedAssetName
+        ? sortedImpacts.find((impact) => impact.assetName === selectedAssetName)
+        : undefined;
   const analyzedAtLabel = formatAnalyzedAt(analysis?.analyzedAt ?? null);
 
   const handleRetry = () => {
@@ -644,10 +677,10 @@ function PortfolioAnalysisContent({
       user_type: isLoggedIn ? 'member' : 'guest',
       analyzed_asset_count: analysis?.analyzedAssetCount,
     },
-    hasAnalysis,
+    hasAnalysis && demoStep === undefined,
   );
   const selectAsset = (assetName: string | null, surface: string) => {
-    if (assetName === selectedAssetName) return;
+    if (demoStep !== undefined || assetName === selectedAssetName) return;
     setSelectedAssetName(assetName);
     trackEvent('select_portfolio_analysis_asset', {
       surface,
@@ -666,8 +699,17 @@ function PortfolioAnalysisContent({
     !loading && (assets.length > 0 || (isLoggedIn && (!loaded || saved?.status === 'PROCESSING')));
 
   return (
-    <section className="portfolio-analysis-section" aria-labelledby="portfolio-ai-analysis-title">
-      <div className={`portfolio-analysis-heading${hasAnalysis ? ' has-analysis' : ''}`}>
+    <section
+      data-tour-state={
+        loading ? 'loading' : error ? 'error' : trialExhausted && !analysis ? 'exhausted' : 'ready'
+      }
+      className="portfolio-analysis-section"
+      aria-labelledby="portfolio-ai-analysis-title"
+    >
+      <div
+        data-portfolio-tour="impact"
+        className={`portfolio-analysis-heading${hasAnalysis ? ' has-analysis' : ''}`}
+      >
         <div>
           <h2 id="portfolio-ai-analysis-title">
             {hasAnalysis ? '포트폴리오 분석' : '포트폴리오 AI 분석'}
@@ -716,9 +758,6 @@ function PortfolioAnalysisContent({
           <p>분석 대상: {assets.map((asset) => asset.assetName).join(', ')}</p>
         ) : null}
         {analysis && loading ? <p role="status">기존 분석을 유지하며 확인하고 있어요.</p> : null}
-        {!loading && saved?.status === 'PROCESSING' ? (
-          <p role="status">서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.</p>
-        ) : null}
         {analysis && !loading && saved?.status === 'RECHECK_REQUIRED' ? (
           <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
         ) : null}
@@ -744,6 +783,16 @@ function PortfolioAnalysisContent({
           </p>
         ) : null}
       </div>
+      {!loading && saved?.status === 'PROCESSING' ? (
+        <div
+          className="portfolio-analysis-state portfolio-analysis-empty"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="portfolio-analysis-spinner" aria-hidden="true" />
+          <p>서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.</p>
+        </div>
+      ) : null}
       {!hasAnalysisTarget && !loading && !error ? <PortfolioEmpty /> : null}
 
       {hasAnalysisTarget && loading && !hasAnalysis ? <PortfolioAnalysisLoading /> : null}
@@ -821,11 +870,16 @@ function PortfolioAnalysisContent({
 
             {selectedImpact ? (
               <PortfolioImpactDetail
+                demo={demoStep !== undefined}
                 impact={selectedImpact}
                 analyzedAssetCount={analysis.analyzedAssetCount}
               />
             ) : (
-              <PortfolioOverallImpactDetail analysis={analysis} analyzedAtLabel={analyzedAtLabel} />
+              <PortfolioOverallImpactDetail
+                demo={demoStep !== undefined}
+                analysis={analysis}
+                analyzedAtLabel={analyzedAtLabel}
+              />
             )}
           </div>
         </>

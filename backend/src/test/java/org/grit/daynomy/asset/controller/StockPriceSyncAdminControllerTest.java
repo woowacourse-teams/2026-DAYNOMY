@@ -45,7 +45,10 @@ class StockPriceSyncAdminControllerTest {
         .andExpect(jsonPath("$.receivedCount").value(2500))
         .andExpect(jsonPath("$.createdCount").value(2400))
         .andExpect(jsonPath("$.updatedCount").value(50))
-        .andExpect(jsonPath("$.skippedCount").value(50));
+        .andExpect(jsonPath("$.skippedCount").value(50))
+        .andExpect(jsonPath("$.synchronizedDateCount").value(1))
+        .andExpect(jsonPath("$.pendingDateCount").value(0))
+        .andExpect(jsonPath("$.failedDateCount").value(0));
 
     then(stockPriceSyncService).should().synchronize();
   }

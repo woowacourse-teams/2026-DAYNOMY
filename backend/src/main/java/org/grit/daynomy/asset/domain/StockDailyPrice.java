@@ -40,7 +40,7 @@ public class StockDailyPrice extends BaseEntity {
   @Column(name = "base_date", nullable = false)
   private LocalDate baseDate;
 
-  @Column(name = "close_price", nullable = false, precision = 19, scale = 2)
+  @Column(name = "close_price", nullable = false, precision = 21, scale = 4)
   private BigDecimal closePrice;
 
   public StockDailyPrice(Asset asset, LocalDate baseDate, BigDecimal closePrice) {

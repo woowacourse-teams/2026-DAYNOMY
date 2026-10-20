@@ -152,29 +152,34 @@
 }
 .mypage button {
   flex-shrink: 0;
-  min-height: 44px;
+  min-height: var(--button-height);
   padding: 10px 16px;
-  border: 1px solid var(--mypage-line);
-  border-radius: 8px;
-  color: var(--mypage-ink);
-  background: #f5f7fa;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  color: var(--button-label);
+  background: #fff;
   font: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 .mypage button:hover:not(:disabled) {
-  border-color: #cbd3de;
-  background: #edf1f6;
+  border-color: var(--button-label);
+  background: var(--button-secondary-hover);
 }
 .mypage button[type='submit'] {
-  border-color: var(--button-primary);
+  border-color: var(--button-action);
   color: #fff;
-  background: var(--button-primary);
+  background: var(--button-action);
 }
 .mypage button[type='submit']:hover:not(:disabled) {
-  background: var(--button-primary-hover);
-  border-color: var(--button-primary-hover);
+  background: var(--button-action-hover);
+  border-color: var(--button-action-hover);
+}
+
+.mypage button[type='submit']:active:not(:disabled) {
+  background: var(--button-action-active);
+  border-color: var(--button-action-active);
 }
 .mypage button:disabled {
   cursor: not-allowed;

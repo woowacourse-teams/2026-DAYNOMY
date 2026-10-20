@@ -5,12 +5,14 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.exchangerate.service.ExchangeRateService;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
@@ -18,8 +20,10 @@ import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @RequiredArgsConstructor
 @Service
@@ -35,30 +39,40 @@ public class PortfolioSnapshotTransactionService {
   private final PortfolioDailySnapshotRepository snapshotRepository;
   private final StockDailyPriceRepository stockPriceRepository;
   private final PortfolioLedgerCalculator ledgerCalculator;
+  private final PortfolioExchangeRateService exchangeRates;
+  private final PlatformTransactionManager transactionManager;
 
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public boolean createSnapshot(Long portfolioId, LocalDate baseDate, LocalDate previousBaseDate) {
-    return upsertSnapshot(portfolioId, baseDate, previousBaseDate);
+    if (!baseDate.isBefore(LocalDate.now(SEOUL))) return false;
+    var rates = exchangeRates.forSnapshot(portfolioId, baseDate, previousBaseDate);
+    return Boolean.TRUE.equals(
+        new TransactionTemplate(transactionManager)
+            .execute(status -> upsertSnapshot(portfolioId, baseDate, previousBaseDate, rates)));
   }
 
   @Transactional(propagation = Propagation.MANDATORY)
-  public void refreshSnapshotsFrom(Long portfolioId, LocalDate fromDate) {
+  public void refreshSnapshotsFrom(
+      Long portfolioId, LocalDate fromDate, Map<LocalDate, BigDecimal> rates) {
     LocalDate today = LocalDate.now(SEOUL);
     NavigableSet<LocalDate> priceDates =
-        new TreeSet<>(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate());
+        new TreeSet<>(stockPriceRepository.findBaseDatesByPortfolioId(portfolioId));
     NavigableSet<LocalDate> candidateDates = new TreeSet<>(priceDates);
-    candidateDates.addAll(snapshotRepository.findDistinctBaseDatesOrderByBaseDate());
+    candidateDates.addAll(snapshotRepository.findBaseDatesByPortfolioId(portfolioId));
     List<LocalDate> baseDates = candidateDates.headSet(today, false).stream().toList();
     for (LocalDate baseDate : baseDates) {
       if (baseDate.isBefore(fromDate)) {
         continue;
       }
       LocalDate previousBaseDate = priceDates.lower(baseDate);
-      upsertSnapshot(portfolioId, baseDate, previousBaseDate);
+      upsertSnapshot(portfolioId, baseDate, previousBaseDate, rates);
     }
   }
 
-  private boolean upsertSnapshot(Long portfolioId, LocalDate baseDate, LocalDate previousBaseDate) {
+  private boolean upsertSnapshot(
+      Long portfolioId,
+      LocalDate baseDate,
+      LocalDate previousBaseDate,
+      Map<LocalDate, BigDecimal> rates) {
     if (!baseDate.isBefore(LocalDate.now(SEOUL))) {
       return false;
     }
@@ -75,9 +89,8 @@ public class PortfolioSnapshotTransactionService {
       return false;
     }
 
-    SnapshotAmounts amounts = calculateAmounts(holdings, baseDate, previousBaseDate);
+    SnapshotAmounts amounts = calculateAmounts(holdings, baseDate, previousBaseDate, rates);
     if (amounts == null) {
-      deleteExisting(existing);
       return false;
     }
 
@@ -118,7 +131,10 @@ public class PortfolioSnapshotTransactionService {
   }
 
   private SnapshotAmounts calculateAmounts(
-      List<HistoricalHolding> holdings, LocalDate baseDate, LocalDate previousBaseDate) {
+      List<HistoricalHolding> holdings,
+      LocalDate baseDate,
+      LocalDate previousBaseDate,
+      Map<LocalDate, BigDecimal> rates) {
     BigDecimal purchase = BigDecimal.ZERO;
     BigDecimal evaluation = BigDecimal.ZERO;
     BigDecimal previousEvaluation = BigDecimal.ZERO;
@@ -130,15 +146,18 @@ public class PortfolioSnapshotTransactionService {
       }
       BigDecimal quantity = BigDecimal.valueOf(holding.quantity());
       purchase = purchase.add(holding.averagePurchasePrice().multiply(quantity));
-      evaluation = evaluation.add(price.getClosePrice().multiply(quantity));
+      BigDecimal converted = convertedPrice(price, rates);
+      if (converted == null) return null;
+      evaluation = evaluation.add(converted.multiply(quantity));
 
       if (previousBaseDate != null) {
         StockDailyPrice previousPrice = findPrice(holding.asset().getId(), previousBaseDate);
         if (previousPrice == null) {
           return null;
         }
-        previousEvaluation =
-            previousEvaluation.add(previousPrice.getClosePrice().multiply(quantity));
+        BigDecimal previousConverted = convertedPrice(previousPrice, rates);
+        if (previousConverted == null) return null;
+        previousEvaluation = previousEvaluation.add(previousConverted.multiply(quantity));
       }
     }
 
@@ -160,6 +179,10 @@ public class PortfolioSnapshotTransactionService {
         totalReturnRate,
         dailyProfitLoss,
         dailyReturnRate);
+  }
+
+  private BigDecimal convertedPrice(StockDailyPrice price, Map<LocalDate, BigDecimal> rates) {
+    return ExchangeRateService.priceInKrwOrNull(price, rates);
   }
 
   private StockDailyPrice findPrice(Long assetId, LocalDate baseDate) {

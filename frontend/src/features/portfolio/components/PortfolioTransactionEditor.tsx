@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { getLatestStockPrice, searchStocks } from '../api';
+import { tourStock } from './portfolioTourExample';
+import { getLatestStockPrice, searchStocks, getUsdKrwRate } from '../../stocks/api';
 import { trackPortfolioEvent } from '../analytics';
 import {
   todayInSeoul,
@@ -8,14 +9,15 @@ import {
   type TransactionFields,
 } from '../transactionForm';
 import type {
-  AssetCategory,
   PortfolioHoldingHistory,
   PortfolioTransactionRequest,
   PortfolioTransactionType,
-  StockSearchItem,
 } from '../types';
+import { stockCurrency } from '../../stocks/types';
+import type { AssetCategory, StockSearchItem } from '../../stocks/types';
 
 type Props = {
+  demoStep?: number;
   stock?: StockSearchItem;
   type?: PortfolioTransactionType;
   transaction?: PortfolioHoldingHistory;
@@ -24,6 +26,7 @@ type Props = {
   onSave: (request: PortfolioTransactionRequest, stock?: StockSearchItem) => Promise<void>;
 };
 export function PortfolioTransactionEditor({
+  demoStep,
   stock,
   type = 'BUY',
   transaction,
@@ -34,23 +37,31 @@ export function PortfolioTransactionEditor({
   const formRef = useRef<HTMLFormElement>(null);
   const errorId = useId();
   const [selected, setSelected] = useState<StockSearchItem | PortfolioHoldingHistory | null>(
-    transaction ?? stock ?? null,
+    demoStep !== undefined ? (demoStep >= 6 ? tourStock : null) : (transaction ?? stock ?? null),
   );
   const [transactionType, setTransactionType] = useState<PortfolioTransactionType>(
     transaction?.changeType === 'SELL' ? 'SELL' : type,
   );
   const [fields, setFields] = useState<TransactionFields>({
     tradeDate: transaction?.effectiveDate ?? todayInSeoul(),
-    quantity: transaction?.transactionQuantity?.toString() ?? '',
-    unitPrice: transaction?.unitPrice?.toString() ?? '',
+    quantity: demoStep !== undefined ? '10' : (transaction?.transactionQuantity?.toString() ?? ''),
+    unitPrice: demoStep !== undefined ? '70000' : (transaction?.unitPrice?.toString() ?? ''),
+    exchangeRate: transaction?.exchangeRate?.toString(),
     fee: String(transaction?.fee ?? 0),
     tax: String(transaction?.tax ?? 0),
   });
+  const currency = selected ? stockCurrency(selected) : 'KRW';
+  const [country, setCountry] = useState<'KR' | 'US'>('KR');
+  const [priceBaseDate, setPriceBaseDate] = useState('');
+  const [rateBaseDate, setRateBaseDate] = useState('');
+  const [rateLoading, setRateLoading] = useState(false);
+  const [rateError, setRateError] = useState('');
+  const rateEdited = useRef(false);
   const priceEdited = useRef(false);
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const [results, setResults] = useState<StockSearchItem[]>([]);
+  const [keyword, setKeyword] = useState(demoStep === 2 ? '삼성전자' : '');
+  const [results, setResults] = useState<StockSearchItem[]>(demoStep === 2 ? [tourStock] : []);
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | AssetCategory>('ALL');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
@@ -58,6 +69,7 @@ export function PortfolioTransactionEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
+    if (demoStep !== undefined) return;
     if (selected || !keyword.trim()) {
       setResults([]);
       setSearchLoading(false);
@@ -69,7 +81,10 @@ export function PortfolioTransactionEditor({
     setSearchLoading(true);
     setSearchError('');
     const timer = window.setTimeout(() => {
-      searchStocks(keyword.trim(), controller.signal)
+      (country === 'US'
+        ? searchStocks(keyword.trim(), controller.signal, country)
+        : searchStocks(keyword.trim(), controller.signal)
+      )
         .then((items) => {
           if (!controller.signal.aborted) setResults(items);
         })
@@ -84,8 +99,9 @@ export function PortfolioTransactionEditor({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [keyword, selected, searchRetry]);
+  }, [keyword, selected, searchRetry, demoStep, country]);
   useEffect(() => {
+    if (demoStep !== undefined) return;
     if (transaction || !selected) {
       setPriceLoading(false);
       setPriceError('');
@@ -97,6 +113,7 @@ export function PortfolioTransactionEditor({
     getLatestStockPrice(selected.assetId, controller.signal)
       .then((price) => {
         if (controller.signal.aborted) return;
+        setPriceBaseDate(price.baseDate);
         if (price.closePrice <= 0) throw new Error('최근 종가가 없습니다.');
         setFields((current) =>
           controller.signal.aborted || priceEdited.current || current.unitPrice
@@ -112,8 +129,38 @@ export function PortfolioTransactionEditor({
         if (!controller.signal.aborted) setPriceLoading(false);
       });
     return () => controller.abort();
-  }, [selected, transaction]);
-  const invalid = getTransactionValidationError(fields);
+  }, [selected, transaction, demoStep]);
+  useEffect(() => {
+    if (demoStep !== undefined || currency !== 'USD' || !selected) return;
+    if (transaction && fields.tradeDate === transaction.effectiveDate) {
+      setRateLoading(false);
+      setRateError('');
+      setRateBaseDate('');
+      if (!rateEdited.current && transaction.exchangeRate)
+        setFields((current) => ({ ...current, exchangeRate: String(transaction.exchangeRate) }));
+      return;
+    }
+    const controller = new AbortController();
+    setRateLoading(true);
+    setRateError('');
+    setRateBaseDate('');
+    getUsdKrwRate(fields.tradeDate, controller.signal)
+      .then((quote) => {
+        if (controller.signal.aborted) return;
+        setRateBaseDate(quote.baseDate);
+        if (!rateEdited.current)
+          setFields((current) => ({ ...current, exchangeRate: String(quote.rate) }));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setRateError('환율을 가져오지 못했어요. 실제 적용 환율을 직접 입력해 주세요.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setRateLoading(false);
+      });
+    return () => controller.abort();
+  }, [selected, currency, fields.tradeDate, transaction, demoStep]);
+  const invalid = getTransactionValidationError(fields, currency);
   const invalidField = error === invalid?.message ? invalid?.field : undefined;
   const filteredResults = results.filter(
     (item) => categoryFilter === 'ALL' || item.category === categoryFilter,
@@ -122,15 +169,20 @@ export function PortfolioTransactionEditor({
   const costs = Number(fields.fee) + Number(fields.tax);
   const amount = transactionType === 'BUY' ? gross + costs : gross - costs;
   const format = (value: number) =>
-    `${value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`;
+    `${value.toLocaleString('ko-KR', { maximumFractionDigits: 4 })}${currency === 'USD' ? ' USD' : '원'}`;
   function change(key: keyof TransactionFields, value: string) {
     if (key === 'unitPrice') priceEdited.current = true;
+    if (key === 'exchangeRate') rateEdited.current = true;
+    if (key === 'tradeDate' && currency === 'USD') {
+      rateEdited.current = false;
+      setFields((current) => ({ ...current, exchangeRate: '' }));
+    }
     setFields((current) => ({ ...current, [key]: value }));
     setError('');
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (saving || !selected) return;
+    if (demoStep !== undefined || saving || !selected) return;
     if (invalid) {
       setError(invalid.message);
       window.requestAnimationFrame(() => {
@@ -147,7 +199,9 @@ export function PortfolioTransactionEditor({
     try {
       await onSave(
         {
-          ...toTransactionRequest(fields),
+          ...toTransactionRequest(
+            currency === 'USD' ? fields : { ...fields, exchangeRate: undefined },
+          ),
           assetId: selected.assetId,
           type: transactionType,
         },
@@ -187,33 +241,62 @@ export function PortfolioTransactionEditor({
             ×
           </button>
         </header>
-        <fieldset disabled={saving} className="portfolio-sheet-fields">
+        <fieldset
+          data-portfolio-tour="trade-fields"
+          disabled={saving}
+          className="portfolio-sheet-fields"
+        >
           {!selected ? (
             <>
               <label className="portfolio-ledger-field">
                 종목 검색
                 <input
+                  readOnly={demoStep !== undefined}
                   autoFocus
                   data-autofocus
                   type="search"
+                  data-portfolio-tour="search"
                   placeholder="종목명 또는 종목코드"
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
                 />
               </label>
-              <div className="portfolio-market-tabs" role="group" aria-label="자산 유형 필터">
-                {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    aria-pressed={categoryFilter === category}
-                    onClick={() => setCategoryFilter(category)}
-                  >
-                    {category === 'ALL' ? '전체' : category === 'STOCK' ? '주식' : 'ETF'}
-                  </button>
-                ))}
+              <div className="portfolio-stock-filters">
+                <div className="portfolio-trade-types" role="group" aria-label="종목 국가">
+                  {(['KR', 'US'] as const).map((value) => (
+                    <button
+                      type="button"
+                      key={value}
+                      aria-pressed={country === value}
+                      onClick={() => {
+                        setCountry(value);
+                        setResults([]);
+                        setSearchError('');
+                      }}
+                    >
+                      {value === 'KR' ? '국내' : '미국'}
+                    </button>
+                  ))}
+                </div>
+                <div className="portfolio-market-tabs" role="group" aria-label="자산 유형 필터">
+                  {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      aria-pressed={categoryFilter === category}
+                      onClick={() => setCategoryFilter(category)}
+                    >
+                      {category === 'ALL' ? '전체' : category === 'STOCK' ? '주식' : 'ETF'}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="portfolio-stock-results" aria-live="polite" aria-busy={searchLoading}>
+              <div
+                data-portfolio-tour="search-results"
+                className="portfolio-stock-results"
+                aria-live="polite"
+                aria-busy={searchLoading}
+              >
                 {searchLoading ? (
                   <div className="portfolio-stock-search-loading" role="status">
                     <span
@@ -269,7 +352,7 @@ export function PortfolioTransactionEditor({
                       '검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.'
                     ) : (
                       <>
-                        국내 주식과 ETF를 검색하세요. <br />
+                        국내·미국 주식과 ETF를 검색하세요. <br />
                         과거에 매도한 종목도 기록할 수 있어요.
                       </>
                     )}
@@ -291,7 +374,11 @@ export function PortfolioTransactionEditor({
                     onClick={() => {
                       setSelected(null);
                       priceEdited.current = false;
-                      setFields((current) => ({ ...current, unitPrice: '' }));
+                      setFields((current) => ({ ...current, unitPrice: '', exchangeRate: '' }));
+                      rateEdited.current = false;
+                      setRateBaseDate('');
+                      setRateError('');
+                      setPriceBaseDate('');
                     }}
                   >
                     종목 변경
@@ -303,11 +390,17 @@ export function PortfolioTransactionEditor({
                   {transactionType === 'BUY' ? '매수' : '매도'} 거래
                 </span>
               ) : (
-                <div className="portfolio-trade-types" role="group" aria-label="거래 구분">
+                <div
+                  data-portfolio-tour="trade-type"
+                  className="portfolio-trade-types"
+                  role="group"
+                  aria-label="거래 구분"
+                >
                   {(['BUY', 'SELL'] as const).map((value) => (
                     <button
                       key={value}
                       type="button"
+                      data-tour-buy={value === 'BUY' ? '' : undefined}
                       aria-pressed={transactionType === value}
                       onClick={() => setTransactionType(value)}
                     >
@@ -320,10 +413,12 @@ export function PortfolioTransactionEditor({
                 <label className="portfolio-ledger-field">
                   거래일
                   <input
+                    readOnly={demoStep !== undefined}
                     autoFocus={!transaction}
                     data-autofocus={!transaction || undefined}
                     type="date"
                     name="tradeDate"
+                    data-portfolio-tour="trade-date"
                     aria-invalid={invalidField === 'tradeDate' || undefined}
                     aria-describedby={invalidField === 'tradeDate' ? errorId : undefined}
                     required
@@ -337,9 +432,11 @@ export function PortfolioTransactionEditor({
                 <label className="portfolio-ledger-field">
                   수량 (주)
                   <input
+                    readOnly={demoStep !== undefined}
                     type="text"
                     inputMode="numeric"
                     name="quantity"
+                    data-portfolio-tour="trade-quantity"
                     aria-invalid={invalidField === 'quantity' || undefined}
                     aria-describedby={invalidField === 'quantity' ? errorId : undefined}
                     autoFocus={!!transaction}
@@ -350,11 +447,13 @@ export function PortfolioTransactionEditor({
                   />
                 </label>
                 <label className="portfolio-ledger-field">
-                  거래 단가 (원)
+                  거래 단가 ({currency === 'USD' ? 'USD' : '원'})
                   <input
+                    readOnly={demoStep !== undefined}
                     type="text"
                     inputMode="decimal"
                     name="unitPrice"
+                    data-portfolio-tour="trade-price"
                     aria-invalid={invalidField === 'unitPrice' || undefined}
                     aria-describedby={invalidField === 'unitPrice' ? errorId : undefined}
                     placeholder="0"
@@ -368,10 +467,12 @@ export function PortfolioTransactionEditor({
                 <label className="portfolio-ledger-field">
                   거래일
                   <input
+                    readOnly={demoStep !== undefined}
                     autoFocus={!transaction}
                     data-autofocus={!transaction || undefined}
                     type="date"
                     name="tradeDate"
+                    data-portfolio-tour="trade-date"
                     aria-invalid={invalidField === 'tradeDate' || undefined}
                     aria-describedby={invalidField === 'tradeDate' ? errorId : undefined}
                     required
@@ -379,6 +480,35 @@ export function PortfolioTransactionEditor({
                     value={fields.tradeDate}
                     onChange={(event) => change('tradeDate', event.target.value)}
                   />
+                </label>
+              )}
+              {priceBaseDate && (
+                <p className="portfolio-field-note">
+                  {priceBaseDate} 최근 종가 · {currency} · 과거 거래는 당시 실제 거래 단가로 수정해
+                  주세요.
+                </p>
+              )}
+              {currency === 'USD' && (
+                <label className="portfolio-ledger-field">
+                  적용 환율 (1 USD당 원)
+                  <input
+                    type="text"
+                    name="exchangeRate"
+                    inputMode="decimal"
+                    value={fields.exchangeRate ?? ''}
+                    aria-busy={rateLoading}
+                    aria-invalid={invalidField === 'exchangeRate' || undefined}
+                    aria-describedby={invalidField === 'exchangeRate' ? errorId : undefined}
+                    onChange={(event) => change('exchangeRate', event.target.value)}
+                  />
+                  <small>
+                    {rateLoading
+                      ? '거래일 참고 환율을 불러오고 있어요.'
+                      : rateError ||
+                        (rateBaseDate
+                          ? `${rateBaseDate} 참고 환율 · 증권사의 실제 적용 환율로 수정할 수 있어요.`
+                          : '저장할 거래의 실제 적용 환율을 입력해 주세요.')}
+                  </small>
                 </label>
               )}
               {(priceLoading || priceError) && (
@@ -397,8 +527,9 @@ export function PortfolioTransactionEditor({
                 </summary>
                 <div className="portfolio-two-fields">
                   <label className="portfolio-ledger-field">
-                    수수료 (원)
+                    수수료 ({currency === 'USD' ? 'USD' : '원'})
                     <input
+                      readOnly={demoStep !== undefined}
                       type="text"
                       inputMode="decimal"
                       name="fee"
@@ -409,8 +540,9 @@ export function PortfolioTransactionEditor({
                     />
                   </label>
                   <label className="portfolio-ledger-field">
-                    세금 (원)
+                    세금 ({currency === 'USD' ? 'USD' : '원'})
                     <input
+                      readOnly={demoStep !== undefined}
                       type="text"
                       inputMode="decimal"
                       name="tax"
@@ -424,8 +556,15 @@ export function PortfolioTransactionEditor({
               </details>
               <div className="portfolio-trade-total">
                 <span>{transactionType === 'BUY' ? '총 매수 지출액' : '총 매도 수령액'}</span>
-                <strong>{invalid ? '—' : format(amount)}</strong>
+                <strong>
+                  {invalid
+                    ? '—'
+                    : currency === 'USD'
+                      ? `${(amount * Number(fields.exchangeRate)).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`
+                      : format(amount)}
+                </strong>
                 <small>입력한 수수료와 세금을 반영한 금액</small>
+                {currency === 'USD' && <small>달러 합계: {invalid ? '—' : format(amount)}</small>}
               </div>
               <p className="portfolio-field-note">
                 {transaction
@@ -465,7 +604,12 @@ export function PortfolioTransactionEditor({
                 취소
               </button>
             )}
-            <button type="submit" className="portfolio-primary-button" disabled={saving}>
+            <button
+              data-portfolio-tour="trade-submit"
+              type="submit"
+              className="portfolio-primary-button"
+              disabled={saving}
+            >
               {saving
                 ? '저장 중…'
                 : transaction

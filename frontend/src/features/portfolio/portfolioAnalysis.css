@@ -103,35 +103,39 @@
   line-height: 1.6;
 }
 
-.portfolio-analysis-button {
+.portfolio-page .portfolio-analysis-button {
   display: inline-flex;
   min-height: 40px;
   align-items: center;
   flex: 0 0 auto;
-  padding: 0 18px;
+  padding: 0 14px;
   border: 0;
-  border-radius: 10px;
-  background: var(--button-primary);
+  border-radius: 999px;
+  background: var(--button-action);
   color: #fff;
   font: inherit;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: var(--button-weight);
   text-decoration: none;
   cursor: pointer;
 }
 
-.portfolio-analysis-button:hover:not(:disabled) {
-  background: var(--button-primary-hover);
+.portfolio-page .portfolio-analysis-button:hover:not(:disabled) {
+  background: var(--button-action-hover);
 }
 
-.portfolio-analysis-button:focus-visible {
-  outline: 2px solid var(--button-primary);
+.portfolio-page .portfolio-analysis-button:active:not(:disabled) {
+  background: var(--button-action-active);
+}
+
+.portfolio-page .portfolio-analysis-button:focus-visible {
+  outline: 2px solid #000;
   outline-offset: 2px;
 }
 
-.portfolio-analysis-button:disabled {
-  background: #e8effb;
-  color: #6d84ad;
+.portfolio-page .portfolio-analysis-button:disabled {
+  background: #e5e8eb;
+  color: #8b95a1;
   cursor: not-allowed;
 }
 
@@ -167,8 +171,8 @@
 .portfolio-analysis-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #dce6f2;
-  border-top-color: var(--portfolio-accent, #326bd5);
+  border: 3px solid #e5e7eb;
+  border-top-color: #000;
   border-radius: 50%;
   animation: portfolio-analysis-spin 800ms linear infinite;
 }
@@ -178,25 +182,26 @@
   font-size: 15px;
 }
 
-.portfolio-analysis-retry-button {
-  min-height: 40px;
+.portfolio-page .portfolio-analysis-retry-button {
+  min-height: var(--button-height);
   padding: 0 18px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--button-primary);
-  color: #fff;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--button-label);
   font: inherit;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 
-.portfolio-analysis-retry-button:hover {
-  background: var(--button-primary-hover);
+.portfolio-page .portfolio-analysis-retry-button:hover {
+  background: var(--button-secondary-hover);
+  border-color: var(--button-label);
 }
 
 .portfolio-analysis-retry-button:focus-visible {
-  outline: 2px solid var(--button-primary);
+  outline: 2px solid #000;
   outline-offset: 2px;
 }
 
@@ -661,15 +666,15 @@ button.portfolio-asset-row:focus-visible {
   gap: 6px;
   padding: 0 12px;
   border-radius: 8px;
-  background: #eef5fd;
-  color: #256fc3;
+  background: #000;
+  color: #fff;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
 }
 
 .portfolio-evidence-sources a:hover {
-  background: #e2effd;
+  background: #262626;
 }
 
 .portfolio-evidence-sources a svg {

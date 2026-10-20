@@ -240,6 +240,21 @@ class SharedPortfolioAcceptanceTest {
         "UPDATE shared_holding_histories SET created_at=? WHERE portfolio_id=(SELECT id FROM shared_portfolios WHERE member_id=?)",
         java.sql.Timestamp.from(enrolledAt),
         owner.getId());
+    jdbc.update(
+        "UPDATE market_trading_days SET collected_at=NULL WHERE base_date BETWEEN ? AND ?",
+        enrolled,
+        week.plusDays(6));
+    leagueReturns.recalculate();
+    given()
+        .port(port)
+        .queryParam("weekStart", week.toString())
+        .get("/api/league/investors/" + publicId + "/daily-history")
+        .then()
+        .statusCode(200)
+        .body("weeklyReturnRate", nullValue())
+        .body(
+            "days.find { it.baseDate == '" + enrolled + "' }.reason",
+            equalTo("PRICE_COLLECTION_PENDING"));
     for (LocalDate date : trading) {
       if (!date.isBefore(enrolled))
         prices.save(new StockDailyPrice(asset, date, new BigDecimal("100")));
@@ -247,7 +262,7 @@ class SharedPortfolioAcceptanceTest {
           "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
           date);
     }
-    leagueReturns.recalculate();
+    leagueReturns.recalculateFrom(enrolled);
 
     given()
         .port(port)
@@ -270,6 +285,27 @@ class SharedPortfolioAcceptanceTest {
         .body(
             "days.find { it.baseDate == '" + enrolled + "' }.reason", equalTo("TRACKING_BASELINE"))
         .body("$", not(hasKey("participationReturnRate")));
+    var laterCollections =
+        jdbc.queryForList(
+            "SELECT base_date, collected_at FROM market_trading_days WHERE base_date > ? AND collected_at IS NOT NULL",
+            week.plusDays(6));
+    jdbc.update(
+        "UPDATE market_trading_days SET collected_at=NULL WHERE base_date > ?", week.plusDays(6));
+    try {
+      given()
+          .port(port)
+          .get("/api/league/investors/" + publicId + "/details")
+          .then()
+          .statusCode(200)
+          .body("holdings[0].weeklyContributionRate", equalTo(0.0f));
+    } finally {
+      laterCollections.forEach(
+          row ->
+              jdbc.update(
+                  "UPDATE market_trading_days SET collected_at=? WHERE base_date=?",
+                  row.get("collected_at"),
+                  row.get("base_date")));
+    }
     given()
         .port(port)
         .get("/api/league/investors/" + publicId)
@@ -349,9 +385,19 @@ class SharedPortfolioAcceptanceTest {
             .statusCode(200)
             .extract()
             .path("publicId");
-    // 2026 추석에는 목·금요일이 휴장하므로 수요일 종가가 주간 마감이다.
-    LocalDate week = LocalDate.of(2026, 9, 21);
+    // 최근 3주 안의 목·금 휴장 주차를 만들어 수요일 종가 마감을 검증한다.
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
     LocalDate baseline = week.minusDays(3);
+    jdbc.update(
+        "UPDATE market_trading_days SET trading=true WHERE base_date IN (?, ?, ?, ?)",
+        baseline,
+        week,
+        week.plusDays(1),
+        week.plusDays(2));
+    jdbc.update(
+        "UPDATE market_trading_days SET trading=false, collected_at=NULL WHERE base_date IN (?, ?)",
+        week.plusDays(3),
+        week.plusDays(4));
     Instant enrolled = baseline.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
     jdbc.update(
         "UPDATE public_investor_profiles SET league_enabled_at=? WHERE member_id=?",
@@ -956,7 +1002,12 @@ class SharedPortfolioAcceptanceTest {
         .post("/api/users/me/portfolio/decisions")
         .then()
         .statusCode(409);
-    client(owner).get(SHARED).then().statusCode(200).body("holdings[0].quantity", equalTo(10));
+    client(owner)
+        .get(SHARED)
+        .then()
+        .statusCode(200)
+        .body("holdings[0].quantity", equalTo(10))
+        .body("holdings[0].reason", equalTo("실적을 확인한 보유 판단"));
     client(viewer).body(decision).post("/api/users/me/portfolio/decisions").then().statusCode(404);
     String review =
         """
@@ -967,17 +1018,34 @@ class SharedPortfolioAcceptanceTest {
         .post("/api/users/me/portfolio/decisions/" + id + "/reviews")
         .then()
         .statusCode(404);
+    var savedReview =
+        client(owner)
+            .body(review)
+            .post("/api/users/me/portfolio/decisions/" + id + "/reviews")
+            .then()
+            .statusCode(201)
+            .extract();
+    long reviewId = savedReview.jsonPath().getLong("id");
+    String createdAt = savedReview.path("createdAt");
+    String reviewPath = "/api/users/me/portfolio/decisions/" + id + "/reviews/" + reviewId;
+    String revisedReview = review.replace("예상을 점검했습니다", "결과를 다시 확인했습니다");
+    client(viewer).body(revisedReview).put(reviewPath).then().statusCode(404);
     client(owner)
-        .body(review)
-        .post("/api/users/me/portfolio/decisions/" + id + "/reviews")
+        .body(revisedReview)
+        .put(reviewPath)
         .then()
-        .statusCode(201);
+        .statusCode(200)
+        .header("Cache-Control", "no-store")
+        .body("actualResult", equalTo("결과를 다시 확인했습니다"))
+        .body("createdAt", equalTo(createdAt))
+        .body("updatedAt", notNullValue());
     client(owner)
         .get("/api/users/me/portfolio/transactions")
         .then()
         .statusCode(200)
         .body("transactions", hasSize(1))
-        .body("transactions[0].reviews", hasSize(1));
+        .body("transactions[0].reviews", hasSize(1))
+        .body("transactions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"));
     String publicId =
         client(owner)
             .body(
@@ -1029,8 +1097,10 @@ class SharedPortfolioAcceptanceTest {
         .body("holdings[0].weight", nullValue())
         .body("holdings[0].weeklyContributionRate", nullValue())
         .body("decisions", hasSize(1))
+        .body("holdings[0].reason", equalTo("실적을 확인한 보유 판단"))
         .body("decisions[0].reason", equalTo("실적을 확인한 보유 판단"))
         .body("decisions[0].reviews", hasSize(1))
+        .body("decisions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"))
         .body("email", nullValue())
         .body("name", nullValue());
     client(viewer).get(detail).then().statusCode(200).body("decisions", hasSize(1));
@@ -1230,10 +1300,11 @@ class SharedPortfolioAcceptanceTest {
     client(owner)
         .body(
             """
-        {"assetId":%d,"quantity":10,"averagePurchasePrice":70000}
+        {"assetId":%d,"type":"BUY","tradeDate":"%s",
+         "quantity":10,"unitPrice":70000,"fee":0,"tax":0}
         """
-                .formatted(asset.getId()))
-        .post("/api/users/me/portfolio/holdings")
+                .formatted(asset.getId(), LocalDate.now(ZoneId.of("Asia/Seoul"))))
+        .post("/api/users/me/portfolio/transactions")
         .then()
         .statusCode(201);
     var logout =

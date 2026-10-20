@@ -19,6 +19,16 @@ final class PortfolioAnalysisRefresh {
   record Revision(Outcome outcome, PortfolioAnalysisResponse analysis, String reason) {}
 
   static Revision compare(PortfolioAnalysisResponse previous, PortfolioAnalysisResponse candidate) {
+    var previousNames =
+        previous.impacts().stream()
+            .map(PortfolioAssetImpactResponse::assetName)
+            .collect(Collectors.toSet());
+    boolean selectionChanged =
+        (!previous.excludedAssets().isEmpty() || !candidate.excludedAssets().isEmpty())
+            && !previousNames.equals(
+                candidate.impacts().stream()
+                    .map(PortfolioAssetImpactResponse::assetName)
+                    .collect(Collectors.toSet()));
     var byName =
         candidate.impacts().stream()
             .collect(
@@ -29,6 +39,7 @@ final class PortfolioAnalysisRefresh {
     for (var old : previous.impacts()) {
       var current = byName.get(old.assetName());
       if (current == null) {
+        if (selectionChanged) continue;
         return new Revision(Outcome.UNCONFIRMED, previous, "");
       }
       // 근거 부족 종목은 보존하되 다른 종목의 새 근거 반영을 막지 않는다.
@@ -54,6 +65,12 @@ final class PortfolioAnalysisRefresh {
         merged.add(current);
         reasons.add(current.assetName());
       }
+    }
+    if (selectionChanged) {
+      candidate.impacts().stream()
+          .filter(i -> !previousNames.contains(i.assetName()))
+          .forEach(merged::add);
+      reasons.add("중점 분석 대상");
     }
     boolean repairSummary =
         previous.analyzedAssetCount() > 0
@@ -114,8 +131,18 @@ final class PortfolioAnalysisRefresh {
             .toList();
     return new Revision(
         Outcome.UPDATED,
-        PortfolioAnalysisResponse.of(
-            previous.totalAssetCount(), summary, candidate.analyzedAt(), "", merged, sources),
+        new PortfolioAnalysisResponse(
+            previous.totalAssetCount(),
+            (int) merged.stream().filter(i -> i.direction() != null).count(),
+            merged.size() == previous.totalAssetCount() ? summary.direction() : null,
+            merged.size() == previous.totalAssetCount() ? summary.score() : null,
+            summary.positiveScore(),
+            summary.negativeScore(),
+            candidate.analyzedAt(),
+            "",
+            merged,
+            sources,
+            candidate.excludedAssets()),
         reasons.isEmpty()
             ? "종목별 판단은 유지하고 전체 설명을 정리했어요."
             : String.join(", ", reasons) + "의 근거와 설명을 갱신했어요.");

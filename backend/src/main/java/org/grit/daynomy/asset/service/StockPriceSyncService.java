@@ -1,12 +1,14 @@
 package org.grit.daynomy.asset.service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,8 +18,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
+import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.publicdata.PublicDataEtfPriceClient;
@@ -36,8 +40,6 @@ public class StockPriceSyncService {
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
   private static final DateTimeFormatter BASIC_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
   private static final int PAGE_SIZE = 1000;
-  private static final int LOOKBACK_DAYS = 10;
-  private static final int REQUIRED_SNAPSHOT_COUNT = 2;
   private static final Pattern STOCK_CODE = Pattern.compile("\\d{6}");
 
   private final PublicDataStockPriceClient stockPriceClient;
@@ -45,6 +47,7 @@ public class StockPriceSyncService {
   private final StockPricePersistenceService persistenceService;
   private final StockPriceSyncMetrics syncMetrics;
   private final ApplicationEventPublisher eventPublisher;
+  private final MarketTradingDayRepository tradingDayRepository;
   private final AtomicBoolean running = new AtomicBoolean(false);
 
   public StockPriceSyncService(
@@ -52,12 +55,14 @@ public class StockPriceSyncService {
       PublicDataEtfPriceClient etfPriceClient,
       StockPricePersistenceService persistenceService,
       StockPriceSyncMetrics syncMetrics,
-      ApplicationEventPublisher eventPublisher) {
+      ApplicationEventPublisher eventPublisher,
+      MarketTradingDayRepository tradingDayRepository) {
     this.stockPriceClient = stockPriceClient;
     this.etfPriceClient = etfPriceClient;
     this.persistenceService = persistenceService;
     this.syncMetrics = syncMetrics;
     this.eventPublisher = eventPublisher;
+    this.tradingDayRepository = tradingDayRepository;
   }
 
   public StockPriceSyncResult synchronize() {
@@ -80,14 +85,72 @@ public class StockPriceSyncService {
         .log(LogEvent.STOCK_PRICE_SYNC_STARTED.message());
 
     try {
-      List<StockPriceSnapshot> snapshots = findLatestSnapshots(today);
-      for (int index = snapshots.size() - 1; index > 0; index--) {
-        StockPriceSnapshot snapshot = snapshots.get(index);
-        persistenceService.synchronize(snapshot.baseDate(), snapshot.entries());
+      StockPriceSelection selection = findSnapshotsToSynchronize(today);
+      List<StockPriceSnapshot> snapshots = selection.snapshots();
+      if (snapshots.isEmpty()) {
+        LocalDate latestCollected =
+            tradingDayRepository
+                .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
+                    today)
+                .map(MarketTradingDay::getBaseDate)
+                .orElse(null);
+        StockPriceSyncResult empty =
+            new StockPriceSyncResult(
+                latestCollected,
+                0,
+                0,
+                0,
+                0,
+                latestCollected,
+                0,
+                tradingDayRepository.countByTradingTrueAndCollectedAtIsNullAndBaseDateLessThanEqual(
+                    today),
+                0);
+        if (latestCollected != null) syncMetrics.recordSuccess(empty);
+        return empty;
       }
-      StockPriceSnapshot latestSnapshot = snapshots.getFirst();
+      StockPriceSyncResult latest = null;
+      LocalDate earliest = null;
+      int synchronizedDates = 0;
+      int received = 0;
+      int created = 0;
+      int updated = 0;
+      int skipped = 0;
+      int failed = selection.failedDateCount();
+      RuntimeException firstPersistenceFailure = null;
+      for (StockPriceSnapshot snapshot : snapshots) {
+        try {
+          StockPriceSyncResult saved =
+              persistenceService.synchronize(snapshot.baseDate(), snapshot.entries());
+          latest = saved;
+          if (earliest == null) earliest = snapshot.baseDate();
+          synchronizedDates++;
+          received += saved.receivedCount();
+          created += saved.createdCount();
+          updated += saved.updatedCount();
+          skipped += saved.skippedCount();
+        } catch (RuntimeException exception) {
+          if (firstPersistenceFailure == null) firstPersistenceFailure = exception;
+          failed++;
+          log.atWarn()
+              .addKeyValue("baseDate", snapshot.baseDate())
+              .addKeyValue("exception", exception.getClass().getSimpleName())
+              .log("종가 저장 실패, 다음 실행에서 재시도합니다.");
+        }
+      }
+      if (latest == null) throw firstPersistenceFailure;
       StockPriceSyncResult result =
-          persistenceService.synchronize(latestSnapshot.baseDate(), latestSnapshot.entries());
+          new StockPriceSyncResult(
+              latest.baseDate(),
+              received,
+              created,
+              updated,
+              skipped,
+              earliest,
+              synchronizedDates,
+              tradingDayRepository.countByTradingTrueAndCollectedAtIsNullAndBaseDateLessThanEqual(
+                  today),
+              failed);
       syncMetrics.recordSuccess(result);
       log.atInfo()
           .addKeyValue("event", LogEvent.STOCK_PRICE_SYNC_COMPLETED.code())
@@ -96,10 +159,13 @@ public class StockPriceSyncService {
           .addKeyValue("createdCount", result.createdCount())
           .addKeyValue("updatedCount", result.updatedCount())
           .addKeyValue("skippedCount", result.skippedCount())
+          .addKeyValue("synchronizedDateCount", result.synchronizedDateCount())
+          .addKeyValue("pendingDateCount", result.pendingDateCount())
+          .addKeyValue("failedDateCount", result.failedDateCount())
           .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.STOCK_PRICE_SYNC_COMPLETED.message());
       // 각 날짜의 저장 트랜잭션이 커밋된 뒤에만 후속 집계를 실행한다.
-      eventPublisher.publishEvent(result.withEarliestBaseDate(snapshots.getLast().baseDate()));
+      eventPublisher.publishEvent(result);
       return result;
     } catch (BusinessException exception) {
       log.atError()
@@ -127,14 +193,14 @@ public class StockPriceSyncService {
     if (!running.compareAndSet(false, true)) {
       throw new BusinessException(AssetErrorCode.STOCK_PRICE_SYNC_ALREADY_RUNNING);
     }
+    int synchronizedDates = 0;
+    int received = 0;
+    int created = 0;
+    int updated = 0;
+    int skipped = 0;
+    StockPriceSyncResult latest = null;
+    LocalDate earliest = null;
     try {
-      int synchronizedDates = 0;
-      int received = 0;
-      int created = 0;
-      int updated = 0;
-      int skipped = 0;
-      StockPriceSyncResult latest = null;
-      LocalDate earliest = null;
       for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
         Optional<StockPriceSnapshot> snapshot = findSnapshot(date);
         if (snapshot.isEmpty()) {
@@ -152,39 +218,70 @@ public class StockPriceSyncService {
           latest = result;
         }
       }
-      if (latest != null) {
-        syncMetrics.recordSuccess(latest);
-        eventPublisher.publishEvent(latest.withEarliestBaseDate(earliest));
-      }
       return new StockPriceBackfillResult(
           from, to, synchronizedDates, received, created, updated, skipped);
     } finally {
-      running.set(false);
+      try {
+        if (latest != null) {
+          syncMetrics.recordSuccess(latest);
+          eventPublisher.publishEvent(latest.withEarliestBaseDate(earliest));
+        }
+      } finally {
+        running.set(false);
+      }
     }
   }
 
-  private List<StockPriceSnapshot> findLatestSnapshots(LocalDate today) {
+  private StockPriceSelection findSnapshotsToSynchronize(LocalDate today) {
     List<StockPriceSnapshot> snapshots = new ArrayList<>();
-    for (int daysAgo = 0; daysAgo <= LOOKBACK_DAYS; daysAgo++) {
-      LocalDate requestedDate = today.minusDays(daysAgo);
-      Optional<StockPriceSnapshot> snapshot = findSnapshot(requestedDate);
-      if (snapshot.isPresent()) {
-        snapshots.add(snapshot.get());
-        if (snapshots.size() == REQUIRED_SNAPSHOT_COUNT) {
-          return List.copyOf(snapshots);
-        }
+    Instant now = Instant.now();
+    List<MarketTradingDay> calendar =
+        tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(today);
+    List<MarketTradingDay> eligible = new ArrayList<>();
+    for (int index = 0; index < calendar.size() - 1; index++) {
+      MarketTradingDay day = calendar.get(index);
+      MarketTradingDay next = calendar.get(index + 1);
+      if (day.getCollectedAt() == null
+          && !now.isBefore(next.getBaseDate().atTime(13, 0).atZone(SEOUL).toInstant())) {
+        eligible.add(day);
       }
     }
+    if (eligible.isEmpty()) return new StockPriceSelection(snapshots, 0);
 
-    if (snapshots.isEmpty()) {
-      throw new BusinessException(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
+    List<MarketTradingDay> selected = new ArrayList<>();
+    selected.add(eligible.getLast());
+    eligible.subList(0, eligible.size() - 1).stream()
+        .sorted(
+            Comparator.comparing(
+                    MarketTradingDay::getLastAttemptedAt,
+                    Comparator.nullsFirst(Comparator.naturalOrder()))
+                .thenComparing(MarketTradingDay::getBaseDate, Comparator.reverseOrder()))
+        .limit(9)
+        .forEach(selected::add);
+    BusinessException failure = null;
+    for (MarketTradingDay day : selected) {
+      try {
+        findSnapshot(day.getBaseDate()).ifPresent(snapshots::add);
+      } catch (BusinessException exception) {
+        if (failure == null) failure = exception;
+        log.atWarn()
+            .addKeyValue("baseDate", day.getBaseDate())
+            .addKeyValue("errorCode", exception.errorCode().code())
+            .log("종가 수집 실패, 다음 실행에서 재시도합니다.");
+      } finally {
+        day.attempted(now);
+        tradingDayRepository.save(day);
+      }
     }
-    return List.copyOf(snapshots);
+    if (snapshots.isEmpty() && failure != null) throw failure;
+    if (snapshots.isEmpty()) throw new BusinessException(AssetErrorCode.STOCK_PRICE_DATA_NOT_FOUND);
+    snapshots.sort(Comparator.comparing(StockPriceSnapshot::baseDate));
+    return new StockPriceSelection(snapshots, selected.size() - snapshots.size());
   }
 
   private Optional<StockPriceSnapshot> findSnapshot(LocalDate requestedDate) {
     List<PublicDataStockPriceItem> items = new ArrayList<>();
-    for (StockMarket market : StockMarket.values()) {
+    for (StockMarket market : List.of(StockMarket.KOSPI, StockMarket.KOSDAQ)) {
       List<PublicDataStockPriceItem> marketItems = getAllPages(requestedDate, market);
       if (marketItems.isEmpty()) {
         return Optional.empty();
@@ -192,6 +289,7 @@ public class StockPriceSyncService {
       items.addAll(marketItems);
     }
     List<PublicDataEtfPriceItem> etfItems = getAllEtfPages(requestedDate);
+    if (etfItems.isEmpty()) return Optional.empty();
     List<StockPriceEntry> entries = new ArrayList<>(toStockEntries(items, requestedDate));
     entries.addAll(toEtfEntries(etfItems, requestedDate));
     if (entries.isEmpty()) {
@@ -319,4 +417,6 @@ public class StockPriceSyncService {
   }
 
   private record StockPriceSnapshot(LocalDate baseDate, List<StockPriceEntry> entries) {}
+
+  private record StockPriceSelection(List<StockPriceSnapshot> snapshots, int failedDateCount) {}
 }

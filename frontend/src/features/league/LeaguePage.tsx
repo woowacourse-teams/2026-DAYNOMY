@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { InvestorAvatar } from './InvestorAvatar';
 import { Link } from 'react-router-dom';
-import { trackEvent } from '../../analytics';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
-import { getLeagueWeeks, getRankings } from './api';
+import { getLeagueWeeks, getMyInvestorProfile, getRankings } from './api';
 import {
   collectionLabels,
   concentrationLabel,
@@ -11,12 +11,37 @@ import {
   formatRate,
   riskLabels,
 } from './labels';
-import type { LeagueWeek, RankingEntry, RankingResponse } from './types';
+import type { CollectionStatus, LeagueWeek, RankingEntry, RankingResponse } from './types';
+import { recentLeagueWeeks } from './weeks';
+import { LeagueWeekNavigation } from './LeagueWeekNavigation';
 import './league.css';
+import { useLeaguePageHeading } from './useLeaguePageHeading';
+
+const emptyCollectionStates: Partial<
+  Record<CollectionStatus, { title: string; description: string }>
+> = {
+  COLLECTION_PENDING: {
+    title: '종가 수집을 기다리고 있어요',
+    description: '종가가 수집·집계되는 대로 순위가 반영됩니다.',
+  },
+  CALENDAR_PENDING: {
+    title: '거래일 정보를 확인하고 있어요',
+    description: '선택한 주차의 거래일이 확인되면 종가 수집과 순위 집계가 진행됩니다.',
+  },
+  NO_TRADING_DAYS: {
+    title: '이 주에는 거래일이 없어요',
+    description: '거래일이 있는 주에 성과를 집계합니다.',
+  },
+};
 
 export function LeaguePage() {
-  const { isLoggedIn } = useAuth();
+  const heading = useLeaguePageHeading('주간 리그');
+  const { isLoggedIn, memberId } = useAuth();
+  const [leagueEnabled, setLeagueEnabled] = useState<boolean | null>(null);
+  const [profileError, setProfileError] = useState(false);
+  const [profileRetry, setProfileRetry] = useState(0);
   const [weeks, setWeeks] = useState<LeagueWeek[]>([]);
+  const [weeksReady, setWeeksReady] = useState(false);
   const [weekStart, setWeekStart] = useState('');
   const [ranking, setRanking] = useState<RankingResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,6 +51,52 @@ export function LeaguePage() {
   const [page, setPage] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<RankingEntry | null>(null);
   const metricsDialog = useRef<HTMLDialogElement>(null);
+  const pageStatus = useRef<HTMLSpanElement>(null);
+  const changingPage = useRef(false);
+  const viewed = useRef(false);
+
+  function retryLoad() {
+    trackLeagueEvent('league_action', { surface: 'ranking', action: 'retry', status: 'clicked' });
+    setRetry((value) => value + 1);
+  }
+
+  useEffect(() => {
+    if (!loading && changingPage.current) {
+      (pageStatus.current ?? heading.current)?.focus();
+      changingPage.current = false;
+    }
+  }, [loading, heading]);
+  const emptyCollectionState = emptyCollectionStates[ranking?.collectionStatus ?? 'IN_PROGRESS'];
+  const isCurrentWeek = !weekStart || weekStart === weeks[0]?.weekStart;
+  const participationPath = isLoggedIn
+    ? leagueEnabled
+      ? '/league/portfolio'
+      : '/league/portfolio#select'
+    : `/login?returnTo=${encodeURIComponent('/league/portfolio#select')}`;
+
+  useEffect(() => {
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') setRetry((value) => value + 1);
+    }
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLeagueEnabled(null);
+    setProfileError(false);
+    if (isLoggedIn) {
+      getMyInvestorProfile(controller.signal)
+        .then((profile) => {
+          if (!controller.signal.aborted) setLeagueEnabled(profile?.leagueEnabled ?? false);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setProfileError(true);
+        });
+    }
+    return () => controller.abort();
+  }, [isLoggedIn, memberId, profileRetry]);
 
   useEffect(() => {
     const dialog = metricsDialog.current;
@@ -35,7 +106,9 @@ export function LeaguePage() {
   }, [selectedEntry]);
 
   useEffect(() => {
-    trackEvent('view_league', { league_type: 'WEEKLY_RETURN', week_state: 'current' });
+    if (viewed.current) return;
+    viewed.current = true;
+    trackLeagueEvent('view_league', { league_type: 'WEEKLY_RETURN', week_state: 'current' });
   }, []);
 
   useEffect(() => {
@@ -44,96 +117,170 @@ export function LeaguePage() {
     getLeagueWeeks(controller.signal)
       .then((availableWeeks) => {
         if (controller.signal.aborted) return;
-        const recentWeeks = [...availableWeeks]
-          .sort((a, b) => b.weekStart.localeCompare(a.weekStart))
-          .slice(0, 3);
+        const recentWeeks = recentLeagueWeeks(availableWeeks);
         setWeeks(recentWeeks);
         setWeekStart((current) =>
           recentWeeks.some((week) => week.weekStart === current)
             ? current
             : recentWeeks[0]?.weekStart || '',
         );
+        setWeeksReady(true);
+        trackLeagueEvent('league_load_result', {
+          surface: 'ranking_weeks',
+          status: 'success',
+          result_count: recentWeeks.length,
+        });
       })
-      .catch(() => {
-        if (!controller.signal.aborted)
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) {
           setWeekError('조회 주차를 불러오지 못했습니다. 다시 불러와 주세요.');
+          setWeeksReady(true);
+          trackLeagueEvent('league_load_result', {
+            surface: 'ranking_weeks',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       });
     return () => controller.abort();
   }, [retry]);
 
   useEffect(() => {
+    if (!weeksReady) return;
     const controller = new AbortController();
     setLoading(true);
     setError('');
     getRankings('WEEKLY_RETURN', weekStart || undefined, controller.signal, page)
       .then((value) => {
-        if (!controller.signal.aborted) setRanking(value);
+        if (controller.signal.aborted) return;
+        setRanking(value);
+        trackLeagueEvent('league_load_result', {
+          surface: 'ranking',
+          status: 'success',
+          page,
+          result_count: value.rankings.length,
+          confirmed: value.confirmed,
+          collection_status: value.collectionStatus,
+        });
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) {
           setError(caught instanceof Error ? caught.message : '리그를 불러오지 못했습니다.');
+          trackLeagueEvent('league_load_result', {
+            surface: 'ranking',
+            status: 'error',
+            page,
+            error_type: leagueErrorType(caught),
+          });
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [retry, weekStart, page]);
+  }, [retry, weekStart, page, weeksReady]);
 
   return (
     <main className="league-page">
       <header className="league-hero">
-        <h1>주간 리그</h1>
-        {isLoggedIn ? (
-          <div className="league-hero-actions">
-            <Link className="league-primary-link" to="/league/portfolio">
-              종목 관리
+        <h1 ref={heading} tabIndex={-1}>
+          주간 리그
+        </h1>
+        <div className="league-hero-actions">
+          {isLoggedIn && profileError ? (
+            <button type="button" onClick={() => setProfileRetry((value) => value + 1)}>
+              참여 상태 다시 확인
+            </button>
+          ) : isLoggedIn && leagueEnabled === null ? (
+            <span role="status">참여 상태 확인 중</span>
+          ) : (
+            <Link
+              className="league-primary-link"
+              to={participationPath}
+              onClick={() =>
+                trackLeagueEvent('league_action', {
+                  surface: 'ranking',
+                  action: leagueEnabled ? 'manage_holdings' : 'participate',
+                  status: 'clicked',
+                })
+              }
+            >
+              {isLoggedIn && leagueEnabled ? '종목 관리하기' : '투자리그 참여하기'}
             </Link>
-            <Link className="league-text-link" to="/league/profile">
-              내 프로필
-            </Link>
-            <Link className="league-text-link" to="/league/following">
-              팔로잉
-            </Link>
-          </div>
-        ) : (
-          <Link className="league-primary-link" to="/login?returnTo=/league/profile">
-            로그인하고 참여하기
-          </Link>
-        )}
+          )}
+          {isLoggedIn ? (
+            <nav className="league-personal-links" aria-label="내 리그">
+              <Link
+                className="league-text-link"
+                to="/league/profile"
+                onClick={() =>
+                  trackLeagueEvent('league_action', {
+                    surface: 'ranking',
+                    action: 'open_profile',
+                    status: 'clicked',
+                  })
+                }
+              >
+                내 프로필
+              </Link>
+              <Link
+                className="league-text-link"
+                to="/league/following"
+                onClick={() =>
+                  trackLeagueEvent('league_action', {
+                    surface: 'ranking',
+                    action: 'open_following',
+                    status: 'clicked',
+                  })
+                }
+              >
+                팔로잉
+              </Link>
+            </nav>
+          ) : null}
+        </div>
       </header>
       <section className="league-controls" aria-label="리그 조회 조건">
-        <label className="league-week-filter">
-          <span>조회 주차</span>
-          <select
-            value={weekStart}
-            onChange={(event) => {
-              setWeekStart(event.target.value);
-              setPage(0);
-              const index = weeks.findIndex((week) => week.weekStart === event.target.value);
-              trackEvent('change_league_week', {
-                relative_week: -index,
-                week_state: weeks[index]?.confirmed ? 'confirmed' : 'in_progress',
-              });
-            }}
-          >
-            {weeks.length === 0 ? <option value="">이번 주</option> : null}
-            {weeks.map((week, index) => (
-              <option key={week.weekStart} value={week.weekStart}>
-                {['이번 주', '지난주', '지지난주'][index]} · {week.weekStart.slice(5)} ~{' '}
-                {week.weekEnd.slice(5)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <LeagueWeekNavigation
+          weeks={weeks}
+          selected={weekStart}
+          onChange={(value) => {
+            setWeekStart(value);
+            setPage(0);
+            const index = weeks.findIndex((week) => week.weekStart === value);
+            trackLeagueEvent('change_league_week', {
+              relative_week: -index,
+              week_state: weeks[index]?.confirmed ? 'confirmed' : 'in_progress',
+            });
+          }}
+        />
+        {!loading && !error && ranking && (ranking.asOfDate || ranking.rankings.length > 0) ? (
+          <div className="league-ranking-meta">
+            {ranking.asOfDate ? <span>{ranking.asOfDate} 종가 기준</span> : null}
+            <span className={`league-status-badge${ranking.confirmed ? ' is-confirmed' : ''}`}>
+              {ranking.confirmed ? '순위 확정' : '잠정 순위'}
+            </span>
+            {!ranking.confirmed ? (
+              <span>{collectionLabels[ranking.collectionStatus ?? 'IN_PROGRESS']}</span>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {!loading && !error && ranking ? (
-        <p className="league-calculation-note">
-          {ranking.asOfDate ? `${ranking.asOfDate} 종가 기준` : '종가 수집 대기'} · 주간 수익률순
-          <br />
-          종가 기준의 가상 성과로, 실제 투자 수익률과 다를 수 있습니다.
-        </p>
+        <aside className="league-update-notice" aria-label="순위 갱신 안내">
+          {!ranking.confirmed && ranking.rankings.length > 0 ? (
+            <p className="league-provisional-note">
+              집계된 종가 기준의 잠정 순위예요. 최종 집계 후 달라질 수 있어요.
+            </p>
+          ) : null}
+          <details className="league-calculation-details">
+            <summary>집계 기준 안내</summary>
+            <p>종가는 다음 영업일 오후 1시 이후 제공되며, 수집·집계 후 반영됩니다.</p>
+            <p>같은 순위 기준 점수는 공동 순위로 표시합니다.</p>
+            <p>사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다.</p>
+          </details>
+        </aside>
       ) : null}
 
       {loading ? (
@@ -144,7 +291,7 @@ export function LeaguePage() {
       {weekError ? (
         <div className="league-state" role="alert">
           <p>{weekError}</p>
-          <button type="button" onClick={() => setRetry((v) => v + 1)}>
+          <button type="button" onClick={retryLoad}>
             주차 다시 불러오기
           </button>
         </div>
@@ -152,14 +299,31 @@ export function LeaguePage() {
       {!loading && error ? (
         <div className="league-state" role="alert">
           <p>{error}</p>
-          <button type="button" onClick={() => setRetry((value) => value + 1)}>
+          <button type="button" onClick={retryLoad}>
             다시 시도
           </button>
         </div>
       ) : null}
       {!loading && !error && ranking?.rankings.length === 0 ? (
-        <section className="league-empty">
-          <strong>아직 이 주차에 집계된 투자자가 없습니다</strong>
+        <section
+          className="league-empty league-ranking-empty"
+          role="status"
+          aria-label="순위 조회 결과"
+        >
+          <strong>
+            {emptyCollectionState?.title ?? '아직 이 주차에 집계된 투자자가 없습니다'}
+          </strong>
+          <p>
+            {emptyCollectionState?.description ??
+              (isCurrentWeek
+                ? '종가 수집과 참여자 집계가 끝나면 순위를 확인할 수 있어요.'
+                : '이 주차에 표시할 순위가 없어요. 다른 주차를 선택해 보세요.')}
+          </p>
+          {ranking.collectionStatus === 'NO_TRADING_DAYS' ? null : emptyCollectionState ? (
+            <button type="button" onClick={retryLoad}>
+              순위 다시 확인
+            </button>
+          ) : null}
         </section>
       ) : null}
 
@@ -169,14 +333,9 @@ export function LeaguePage() {
             <div>
               <h2 id="league-board-title">주간 순위</h2>
             </div>
-            <p>
-              {ranking.totalCount}명 ·{' '}
-              {ranking.confirmed
-                ? '순위 확정'
-                : collectionLabels[ranking.collectionStatus ?? 'IN_PROGRESS']}
-            </p>
+            <p>{ranking.totalCount}명 · 주간 수익률순</p>
           </header>
-          <ol>
+          <ol start={page * 20 + 1}>
             {ranking.rankings.map((entry) => (
               <li key={entry.publicId}>
                 <span className="league-rank">{entry.rank}</span>
@@ -207,7 +366,16 @@ export function LeaguePage() {
                     aria-label={`${entry.displayName} 상세 지표`}
                     aria-haspopup="dialog"
                     aria-expanded={selectedEntry?.publicId === entry.publicId}
-                    onClick={() => setSelectedEntry(entry)}
+                    onClick={() => {
+                      setSelectedEntry(entry);
+                      trackLeagueEvent('league_action', {
+                        surface: 'ranking',
+                        action: 'open_metrics',
+                        status: 'clicked',
+                        rank_bucket:
+                          entry.rank <= 3 ? 'top_3' : entry.rank <= 10 ? 'top_10' : 'other',
+                      });
+                    }}
                   >
                     상세 지표
                   </button>
@@ -231,17 +399,40 @@ export function LeaguePage() {
               <button
                 type="button"
                 disabled={page === 0}
-                onClick={() => setPage((value) => value - 1)}
+                onClick={() => {
+                  changingPage.current = true;
+                  trackLeagueEvent('league_action', {
+                    surface: 'ranking',
+                    action: 'change_page',
+                    status: 'clicked',
+                    page: page - 1,
+                  });
+                  setPage((value) => value - 1);
+                }}
               >
                 이전
               </button>
-              <span>
+              <span
+                ref={pageStatus}
+                tabIndex={-1}
+                role="status"
+                aria-label={`전체 ${Math.ceil(ranking.totalCount / 20)}페이지 중 ${page + 1}페이지`}
+              >
                 {page + 1} / {Math.ceil(ranking.totalCount / 20)}
               </span>
               <button
                 type="button"
                 disabled={(page + 1) * 20 >= ranking.totalCount}
-                onClick={() => setPage((value) => value + 1)}
+                onClick={() => {
+                  changingPage.current = true;
+                  trackLeagueEvent('league_action', {
+                    surface: 'ranking',
+                    action: 'change_page',
+                    status: 'clicked',
+                    page: page + 1,
+                  });
+                  setPage((value) => value + 1);
+                }}
               >
                 다음
               </button>
@@ -301,8 +492,8 @@ export function LeaguePage() {
                   </dd>
                 </div>
                 <div>
-                  <dt>최근 8주 수익률</dt>
-                  <dd>{formatRate(selectedEntry.eightWeekReturnRate)}</dd>
+                  <dt>최근 3주 수익률</dt>
+                  <dd>{formatRate(selectedEntry.threeWeekReturnRate)}</dd>
                 </div>
               </dl>
             </section>
@@ -310,7 +501,7 @@ export function LeaguePage() {
               <h3>위험 지표</h3>
               <dl className="league-risk-grid">
                 <div>
-                  <dt>최대 하락률 · 8주</dt>
+                  <dt>최대 하락률 · 3주</dt>
                   <dd>{formatRate(selectedEntry.maxDrawdownRate, false)}</dd>
                 </div>
                 <div>
@@ -318,7 +509,7 @@ export function LeaguePage() {
                   <dd>{formatRate(selectedEntry.volatilityRate, false)}</dd>
                 </div>
                 <div>
-                  <dt>최대 종목 비중 · 8주</dt>
+                  <dt>최대 종목 비중 · 3주</dt>
                   <dd>
                     {formatRate(selectedEntry.maxHoldingWeight, false)}
                     {selectedEntry.maxHoldingWeight != null ? (

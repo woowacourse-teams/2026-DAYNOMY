@@ -7,9 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.league.service.InvestmentDecisionService;
 import org.grit.daynomy.league.service.InvestorProfileService;
 import org.grit.daynomy.league.service.LeagueService;
-import org.grit.daynomy.league.service.PortfolioTransactionService;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class MyLeagueControllerTest {
   @Autowired private MockMvc mvc;
   @MockitoBean private InvestorProfileService profiles;
-  @MockitoBean private PortfolioTransactionService transactions;
+  @MockitoBean private InvestmentDecisionService transactions;
   @MockitoBean private LeagueService league;
 
   @ParameterizedTest

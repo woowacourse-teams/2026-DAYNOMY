@@ -51,6 +51,50 @@ class PortfolioLedgerCalculatorTest {
         .isEqualTo(PortfolioErrorCode.INSUFFICIENT_PORTFOLIO_QUANTITY);
   }
 
+  @Test
+  void usdBuyAndSellUseTheirOwnExchangeRatesForKrwCostAndRealizedProfit() {
+    var asset =
+        org.grit.daynomy.asset.domain.Asset.listedStock(
+            "Tesla",
+            "TSLA.US",
+            org.grit.daynomy.asset.domain.StockMarket.NASDAQ,
+            null,
+            LocalDate.of(2020, 1, 1));
+    org.springframework.test.util.ReflectionTestUtils.setField(asset, "id", 99L);
+    var buy =
+        new PortfolioHoldingHistory(
+            null,
+            asset,
+            PortfolioHoldingChangeType.BUY,
+            0,
+            BigDecimal.ZERO,
+            LocalDate.of(2020, 1, 2),
+            2L,
+            new BigDecimal("100.1234"),
+            new BigDecimal("1"),
+            BigDecimal.ZERO);
+    buy.applyExchangeRate(new BigDecimal("1300"));
+    var sell =
+        new PortfolioHoldingHistory(
+            null,
+            asset,
+            PortfolioHoldingChangeType.SELL,
+            2,
+            BigDecimal.ZERO,
+            LocalDate.of(2020, 1, 3),
+            1L,
+            new BigDecimal("110"),
+            new BigDecimal("1"),
+            new BigDecimal("0.5"));
+    sell.applyExchangeRate(new BigDecimal("1400"));
+    var result = calculator.replay(List.of(buy, sell));
+    assertThat(result.positions().get(99L).averagePurchasePrice())
+        .isEqualByComparingTo("130810.42");
+    assertThat(result.positions().get(99L).quantity()).isEqualTo(1);
+    assertThat(result.realizedProfitLoss()).isEqualByComparingTo("21089.58");
+    assertThatThrownBy(() -> buy.applyExchangeRate(null)).isInstanceOf(BusinessException.class);
+  }
+
   private PortfolioHoldingHistory transaction(
       Asset asset,
       PortfolioHoldingChangeType type,
@@ -63,6 +107,7 @@ class PortfolioLedgerCalculatorTest {
     given(history.getChangeType()).willReturn(type);
     given(history.getTransactionQuantity()).willReturn(quantity);
     given(history.getUnitPrice()).willReturn(new BigDecimal(unitPrice));
+    given(history.getExchangeRate()).willReturn(BigDecimal.ONE);
     given(history.getFee()).willReturn(new BigDecimal(fee));
     given(history.getTax()).willReturn(new BigDecimal(tax));
     given(history.getEffectiveDate()).willReturn(LocalDate.of(2026, 9, 30));

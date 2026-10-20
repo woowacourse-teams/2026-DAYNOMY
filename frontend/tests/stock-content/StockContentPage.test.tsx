@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+import { useAuth } from '../../src/hooks/useLoginStatus';
+vi.mock('../../src/hooks/useLoginStatus', () => ({ useAuth: vi.fn() }));
 import { trackEvent } from '../../src/analytics';
 vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 
@@ -25,6 +27,9 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  vi.mocked(useAuth).mockReturnValue({ isLoggedIn: true, loading: false } as ReturnType<
+    typeof useAuth
+  >);
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
@@ -133,6 +138,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
   vi.mocked(trackEvent).mockClear();
   document.getElementById('daynomy-threads-embed-script')?.remove();
   document.getElementById('daynomy-x-embed-script')?.remove();
@@ -147,6 +153,10 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
     expect(date.getAttribute('datetime')).toBe('2020-04-05');
     expect(view.getByText('삼성전자 분석 영상')).toBeTruthy();
     expect(view.container.querySelectorAll('time')).toHaveLength(1);
+    expect(trackEvent).toHaveBeenCalledWith(
+      'view_content_list',
+      expect.objectContaining({ surface: 'stock_contents', source_type: 'ALL' }),
+    );
   });
   it('보유 종목을 사이드바에 표시하고 다른 종목 소식으로 이동한다', async () => {
     const view = renderPage();
@@ -288,4 +298,48 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
       );
     });
   });
+});
+
+it('비회원 종목 화면은 임시 보유 종목을 표시하고 회원 API를 호출하지 않는다', async () => {
+  vi.mocked(useAuth).mockReturnValue({ isLoggedIn: false, loading: false } as ReturnType<
+    typeof useAuth
+  >);
+  sessionStorage.setItem(
+    'daynomy:guest-portfolio-holdings:v1',
+    JSON.stringify([
+      {
+        assetId: 1,
+        assetCode: '005930',
+        name: '삼성전자',
+        category: 'STOCK',
+        market: 'KOSPI',
+        quantity: 1,
+        averagePurchasePrice: 70000,
+      },
+    ]),
+  );
+  const view = renderPage();
+  const sidebar = await view.findByRole('complementary', { name: '내 포트폴리오 종목' });
+  expect(within(sidebar).getByText('삼성전자')).toBeTruthy();
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.some(([input]) => String(input).includes('/api/users/me/portfolio')),
+  ).toBe(false);
+  vi.mocked(useAuth).mockReturnValue({ isLoggedIn: true, loading: false } as ReturnType<
+    typeof useAuth
+  >);
+  view.rerender(
+    <MemoryRouter initialEntries={['/stocks/1']}>
+      <Routes>
+        <Route path="/stocks/:assetId" element={<StockContentPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(await within(sidebar).findByText('SK하이닉스')).toBeTruthy();
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.some(([input]) => String(input).includes('/api/users/me/portfolio')),
+  ).toBe(true);
 });

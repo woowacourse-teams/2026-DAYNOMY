@@ -18,13 +18,20 @@ export function IssuePagination({
     onChange(next);
   }
   const first = Math.floor((page - 1) / 6) * 6 + 1;
+  const last = Math.min(first + 5, totalPages);
+  const previous = page > first ? first : Math.max(1, first - 1);
+  const next = page < last ? last : Math.min(totalPages, last + 1);
   const numbers = Array.from(
     { length: Math.min(6, totalPages - first + 1) },
     (_, index) => first + index,
   );
   return (
     <nav className="issue-pagination" aria-label="콘텐츠 페이지">
-      <button aria-label="이전 페이지" disabled={page === 1} onClick={() => changePage(page - 1)}>
+      <button
+        aria-label={`이전 방향 ${previous}페이지로 이동`}
+        disabled={page === 1}
+        onClick={() => changePage(previous)}
+      >
         〈
       </button>
       {numbers.map((number) => (
@@ -38,9 +45,9 @@ export function IssuePagination({
         </button>
       ))}
       <button
-        aria-label="다음 페이지"
+        aria-label={`다음 방향 ${next}페이지로 이동`}
         disabled={page === totalPages}
-        onClick={() => changePage(page + 1)}
+        onClick={() => changePage(next)}
       >
         〉
       </button>

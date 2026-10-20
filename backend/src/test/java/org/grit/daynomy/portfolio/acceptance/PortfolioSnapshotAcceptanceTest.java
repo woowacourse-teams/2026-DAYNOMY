@@ -166,7 +166,7 @@ class PortfolioSnapshotAcceptanceTest {
   }
 
   @Test
-  void anyHoldingWithMissingClosingPricePreventsPartialSnapshotStorage() {
+  void missingHoldingPricePreservesExistingSnapshotsUntilCompletePricesArrive() {
     Member member = member();
     Asset firstAsset = asset();
     Asset secondAsset = asset();
@@ -175,11 +175,11 @@ class PortfolioSnapshotAcceptanceTest {
     buy(member, firstAsset, FIRST, 1, 100);
     buy(member, secondAsset, FIRST, 1, 100);
     Portfolio portfolio = portfolios.findByMemberId(member.getId()).orElseThrow();
-    assertThat(points(portfolio)).isEmpty();
+    assertPerformance(member, List.of(110f, 120f));
 
     price(secondAsset, FIRST, 90);
     priceSynced();
-    assertPerformance(member, List.of(200f));
+    assertPerformance(member, List.of(200f, 120f));
 
     price(secondAsset, SECOND, 95);
     priceSynced();
@@ -236,7 +236,7 @@ class PortfolioSnapshotAcceptanceTest {
   }
 
   @Test
-  void staleSnapshotWithoutAnyClosingPricesIsRemovedAndDoesNotChangePreviousTradingDate() {
+  void snapshotWithoutClosingPricesIsPreservedAndDoesNotChangePreviousTradingDate() {
     Member member = member();
     Asset asset = asset();
     Portfolio portfolio = legacyHolding(member, asset, FIRST.minusDays(1));
@@ -250,10 +250,35 @@ class PortfolioSnapshotAcceptanceTest {
     snapshotService.createLatestSnapshots();
 
     assertThat(snapshots.findByPortfolioIdAndBaseDate(portfolio.getId(), FIRST.minusDays(1)))
-        .isEmpty();
+        .isPresent();
     assertThat(points(portfolio)).hasSize(2);
     assertThat(points(portfolio).getFirst().getDailyProfitLoss()).isNull();
     assertThat(points(portfolio).getLast().getDailyProfitLoss()).isEqualByComparingTo("20");
+  }
+
+  @Test
+  void unrelatedUsTradingDayDoesNotChangeDomesticSnapshotDatesOrPreviousPrice() {
+    Member member = member();
+    Asset domestic = asset();
+    Portfolio portfolio = legacyHolding(member, domestic, FIRST);
+    price(domestic, FIRST, 100);
+    price(domestic, THIRD, 120);
+    Asset us =
+        assets.save(
+            Asset.listedStock("US", UUID.randomUUID().toString(), StockMarket.NASDAQ, null, FIRST));
+    price(us, SECOND, 999);
+
+    snapshotService.createLatestSnapshots();
+
+    assertThat(points(portfolio))
+        .extracting(PortfolioDailySnapshot::getBaseDate)
+        .containsExactly(FIRST, THIRD);
+    assertThat(points(portfolio).getLast().getDailyProfitLoss()).isEqualByComparingTo("40");
+    buy(member, domestic, FIRST, 1, 100);
+    assertThat(points(portfolio))
+        .extracting(PortfolioDailySnapshot::getBaseDate)
+        .containsExactly(FIRST, THIRD);
+    assertThat(points(portfolio).getLast().getDailyProfitLoss()).isEqualByComparingTo("60");
   }
 
   private Member member() {

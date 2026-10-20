@@ -17,18 +17,19 @@ import {
 import {
   guestHoldingHistory,
   guestTransactionHistory,
+  guestRealizedProfitLoss,
   replayGuestPortfolio,
   type GuestPortfolioLedger,
 } from '../guestPortfolioLedger';
 import type {
-  StockSearchItem,
   PortfolioHoldingInput,
   PortfolioTransactionRequest,
   PortfolioTransactionUpdateRequest,
   PortfolioTransactionResponse,
 } from '../types';
+import type { StockSearchItem } from '../../stocks/types';
 
-export function usePortfolioHoldings(isLoggedIn = true) {
+export function usePortfolioHoldings(isLoggedIn: boolean) {
   const [guestLedger, setGuestLedger] = useState<GuestPortfolioLedger | null>(null);
   const [holdings, setHoldings] = useState<PortfolioHoldingInput[]>([]);
   const [totalRealizedProfitLoss, setTotalRealizedProfitLoss] = useState(0);
@@ -40,9 +41,10 @@ export function usePortfolioHoldings(isLoggedIn = true) {
 
   useEffect(() => {
     if (!isLoggedIn) {
-      setGuestLedger(loadGuestPortfolioLedger());
+      const ledger = loadGuestPortfolioLedger();
+      setGuestLedger(ledger);
       setHoldings(loadGuestPortfolioHoldings());
-      setTotalRealizedProfitLoss(0);
+      setTotalRealizedProfitLoss(ledger ? guestRealizedProfitLoss(ledger) : 0);
       setLoading(false);
       setError('');
       return;
@@ -82,6 +84,7 @@ export function usePortfolioHoldings(isLoggedIn = true) {
     saveGuestPortfolioLedger(next);
     setGuestLedger(next);
     setHoldings(nextHoldings);
+    setTotalRealizedProfitLoss(guestRealizedProfitLoss(next));
     setRevision((value) => value + 1);
   }, []);
 

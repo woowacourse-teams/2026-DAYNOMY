@@ -28,7 +28,17 @@ for (const width of [1440, 390]) {
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
     await start.click();
     await expect(page).toHaveURL('/');
-    await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
+    await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({ path: `/tmp/daynomy-guide-${width}.png` });
+    await page.getByRole('button', { name: '사용 가이드', exact: true }).click();
+    await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '다음', exact: true })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toBeHidden();
+    await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toBeFocused();
     await expect(page).toHaveTitle('내 포트폴리오 | DAYNOMY');
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     await expect(page.getByRole('button', { name: '거래 기록', exact: true })).toBeVisible();
@@ -38,6 +48,7 @@ for (const width of [1440, 390]) {
       width === 390 ? '22px' : '24px',
     );
     await page.reload();
+    await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '거래 기록', exact: true })).toBeVisible();
     await expect(page.locator('.landing-page')).toHaveCount(0);
     await page.getByRole('link', { name: '서비스 소개', exact: true }).click();
@@ -132,7 +143,13 @@ test('키보드로 메뉴·FAQ·시작하기·거래 기록을 사용하고 닫�
   await expect(page.locator('details').first()).toHaveAttribute('open', '');
   await page.locator('.hero .primary-cta').focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
+  await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toBeVisible();
+  await page.getByRole('button', { name: '사용 가이드', exact: true }).click();
+  await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '다음', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toBeHidden();
+  await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toBeFocused();
   const add = page.getByRole('button', { name: '거래 기록', exact: true });
   await add.focus();
   await page.keyboard.press('Enter');
@@ -209,4 +226,20 @@ test('공유 뉴스 상세는 소개를 거치지 않고 원래 주소로 열린
   await page.getByRole('link', { name: '포트폴리오', exact: true }).click();
   await expect(page).toHaveURL('/');
   await expect(page.getByRole('button', { name: '거래 기록', exact: true })).toBeVisible();
+});
+
+test('비회원 안내를 닫으면 새로고침 후에도 숨기고 가이드는 직접 시작할 수 있다', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.locator('.hero .primary-cta').click();
+  await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toBeVisible();
+  await page.getByRole('button', { name: '처음 이용 안내 닫기' }).click();
+  await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toBeFocused();
+  await page.reload();
+  await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toBeEnabled();
+  await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toHaveCount(0);
+  await page.getByRole('button', { name: '사용 가이드', exact: true }).click();
+  await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toBeVisible();
 });

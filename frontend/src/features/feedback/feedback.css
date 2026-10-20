@@ -10,14 +10,15 @@
   padding: 0 16px;
   border: 1px solid var(--button-primary);
   border-radius: 24px;
-  color: #ffffff;
+  color: #fff;
   background: var(--button-primary);
-  box-shadow: 0 2px 8px rgb(16 24 40 / 8%);
+  box-shadow: 0 2px 6px rgb(16 24 40 / 5%);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition:
+    color 160ms ease,
     background-color 160ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease;
@@ -33,10 +34,19 @@
   stroke-width: 1.8;
 }
 
-.feedback-trigger:hover {
-  border-color: var(--button-primary-hover);
-  background: var(--button-primary-hover);
-  box-shadow: 0 3px 10px rgb(16 24 40 / 10%);
+@media (hover: hover) {
+  .feedback-trigger:hover {
+    border-color: var(--button-primary-hover);
+    color: #fff;
+    background: var(--button-primary-hover);
+  }
+}
+
+.feedback-trigger:active {
+  border-color: var(--button-primary-active);
+  color: #fff;
+  background: var(--button-primary-active);
+  box-shadow: none;
 }
 
 .feedback-trigger:focus-visible,
@@ -179,22 +189,36 @@
 
 .feedback-submit,
 .feedback-success button {
-  min-height: 46px;
+  min-height: var(--button-height);
   margin-top: 6px;
   padding: 0 18px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   color: #ffffff;
   background: var(--button-primary);
   font: inherit;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 
-.feedback-submit:hover:not(:disabled),
-.feedback-success button:hover {
+.feedback-submit:hover:not(:disabled) {
   background: var(--button-primary-hover);
+}
+
+.feedback-submit:active:not(:disabled) {
+  background: var(--button-primary-active);
+}
+
+.feedback-success button {
+  border: 1px solid var(--button-outline);
+  background: #fff;
+  color: var(--button-label);
+}
+
+.feedback-success button:hover {
+  border-color: var(--button-label);
+  background: var(--button-secondary-hover);
 }
 
 .feedback-submit:disabled,

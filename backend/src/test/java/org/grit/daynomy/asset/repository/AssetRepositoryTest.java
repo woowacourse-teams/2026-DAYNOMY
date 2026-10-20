@@ -68,14 +68,72 @@ class AssetRepositoryTest {
 
     var nameResults =
         assetRepository.searchListedSecurities(
-            "삼성", Set.of(AssetCategory.STOCK, AssetCategory.ETF), PageRequest.of(0, 20));
+            "삼성",
+            Set.of(AssetCategory.STOCK, AssetCategory.ETF),
+            StockMarket.domesticMarkets(),
+            PageRequest.of(0, 20));
     var codeResults =
         assetRepository.searchListedSecurities(
-            "005930", Set.of(AssetCategory.STOCK, AssetCategory.ETF), PageRequest.of(0, 20));
+            "005930",
+            Set.of(AssetCategory.STOCK, AssetCategory.ETF),
+            StockMarket.domesticMarkets(),
+            PageRequest.of(0, 20));
 
     assertThat(nameResults)
         .extracting(Asset::getAssetCode)
         .containsExactly("005930", "005935", "102780");
     assertThat(codeResults).singleElement().isSameAs(samsung);
+  }
+
+  @Test
+  void searchKeepsCountriesSeparate() {
+    LocalDate date = LocalDate.of(2026, 10, 16);
+    entityManager.persist(
+        Asset.listedStock("Apple Korea", "123456", StockMarket.KOSPI, null, date));
+    entityManager.persist(Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, date));
+    entityManager.persist(
+        Asset.listedSecurity(
+            "Apple ETF", AssetCategory.ETF, "AAPF.US", StockMarket.BATS, null, date));
+    entityManager.flush();
+    var categories = Set.of(AssetCategory.STOCK, AssetCategory.ETF);
+    assertThat(
+            assetRepository.searchListedSecurities(
+                "Apple", categories, StockMarket.domesticMarkets(), PageRequest.of(0, 20)))
+        .extracting(Asset::getAssetCode)
+        .containsExactly("123456");
+    assertThat(
+            assetRepository.searchListedSecurities(
+                "Apple", categories, StockMarket.usMarkets(), PageRequest.of(0, 20)))
+        .extracting(Asset::getAssetCode)
+        .containsExactly("AAPL.US", "AAPF.US");
+  }
+
+  @Test
+  void usTickerRowsCanShareProviderIsin() {
+    LocalDate date = LocalDate.of(2026, 10, 16);
+    String isin = "US0000000001";
+    entityManager.persist(
+        Asset.listedSecurity(
+            "Old ticker", AssetCategory.ETF, "OLD.US", StockMarket.NASDAQ, isin, date));
+    entityManager.persist(
+        Asset.listedSecurity(
+            "New ticker", AssetCategory.ETF, "NEW.US", StockMarket.NASDAQ, isin, date));
+    entityManager.flush();
+    entityManager.clear();
+    assertThat(assetRepository.findByCategoryAndAssetCode(AssetCategory.ETF, "OLD.US")).isPresent();
+    assertThat(assetRepository.findByCategoryAndAssetCode(AssetCategory.ETF, "NEW.US")).isPresent();
+  }
+
+  @Test
+  void domesticIsinRemainsUnique() {
+    LocalDate date = LocalDate.of(2026, 10, 16);
+    entityManager.persistAndFlush(
+        Asset.listedStock("First", "123450", StockMarket.KOSPI, "KR0000000001", date));
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> {
+              entityManager.persistAndFlush(
+                  Asset.listedStock("Second", "123451", StockMarket.KOSDAQ, "KR0000000001", date));
+            })
+        .isInstanceOf(jakarta.persistence.PersistenceException.class);
   }
 }

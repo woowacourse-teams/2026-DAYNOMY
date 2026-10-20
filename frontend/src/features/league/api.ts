@@ -1,5 +1,5 @@
 import { request, requestWithCsrf } from '../../api/client';
-import { trackEvent } from '../../analytics';
+import { trackLeagueEvent } from './analytics';
 import type {
   DailyHistory,
   ExperienceLevel,
@@ -7,7 +7,7 @@ import type {
   HoldingPeriod,
   InvestmentReview,
   InvestmentDecisionInput,
-  InvestmentTransaction,
+  InvestmentDecisionRecord,
   InvestorProfile,
   LeagueType,
   LeagueWeek,
@@ -119,7 +119,7 @@ function isRankingEntry(value: unknown): value is RankingEntry {
     experienceLevels.has(value.experienceLevel as ExperienceLevel) &&
     riskProfiles.has(value.riskProfile as RiskProfile) &&
     isNumber(value.weeklyReturnRate) &&
-    isNullableNumber(value.eightWeekReturnRate) &&
+    optionalNumber(value.threeWeekReturnRate) &&
     isNullableNumber(value.maxDrawdownRate) &&
     isNullableNumber(value.volatilityRate) &&
     isNullableNumber(value.maxHoldingWeight) &&
@@ -164,7 +164,7 @@ function isPublicInvestor(value: unknown): value is PublicInvestor {
     experienceLevels.has(value.experienceLevel as ExperienceLevel) &&
     riskProfiles.has(value.riskProfile as RiskProfile) &&
     isNullableNumber(performance.weeklyReturnRate) &&
-    isNullableNumber(performance.eightWeekReturnRate) &&
+    optionalNumber(performance.threeWeekReturnRate) &&
     isNullableNumber(performance.maxDrawdownRate) &&
     isNullableNumber(performance.volatilityRate) &&
     isNullableNumber(performance.maxHoldingWeight) &&
@@ -210,11 +210,14 @@ function isReview(value: unknown): value is InvestmentReview {
     typeof value.actualResult === 'string' &&
     typeof value.differenceFromExpectation === 'string' &&
     typeof value.nextAction === 'string' &&
-    typeof value.createdAt === 'string'
+    typeof value.createdAt === 'string' &&
+    (value.updatedAt === undefined ||
+      value.updatedAt === null ||
+      typeof value.updatedAt === 'string')
   );
 }
 
-export function isTransaction(value: unknown): value is InvestmentTransaction {
+export function isDecisionRecord(value: unknown): value is InvestmentDecisionRecord {
   return (
     isRecord(value) &&
     Number.isInteger(value.id) &&
@@ -309,7 +312,13 @@ export async function getRankings(
   if (weekStart) query.set('weekStart', weekStart);
   const response = await request<unknown>(`/api/league/rankings?${query.toString()}`, { signal });
   if (!isRankingResponse(response)) throw new Error('리그 응답 형식이 올바르지 않습니다.');
-  return response;
+  return {
+    ...response,
+    rankings: response.rankings.map((entry) => ({
+      ...entry,
+      threeWeekReturnRate: entry.threeWeekReturnRate ?? null,
+    })),
+  };
 }
 
 export async function getPublicInvestor(publicId: string, signal?: AbortSignal) {
@@ -317,7 +326,13 @@ export async function getPublicInvestor(publicId: string, signal?: AbortSignal) 
     signal,
   });
   if (!isPublicInvestor(response)) throw new Error('투자자 응답 형식이 올바르지 않습니다.');
-  return response;
+  return {
+    ...response,
+    performance: {
+      ...response.performance,
+      threeWeekReturnRate: response.performance.threeWeekReturnRate ?? null,
+    },
+  };
 }
 
 function isDailyHistory(value: unknown): value is DailyHistory {
@@ -340,6 +355,7 @@ function isDailyHistory(value: unknown): value is DailyHistory {
   let complete = true;
   let begun = false;
   let asOfDate: string | null = null;
+  let latestCumulativeReturnRate: number | null = null;
   for (const day of value.days) {
     if (
       !isRecord(day) ||
@@ -359,13 +375,16 @@ function isDailyHistory(value: unknown): value is DailyHistory {
     if (calculated) begun = true;
     if (!calculated && (begun || day.status !== 'NOT_PARTICIPATING')) complete = false;
     if ((complete && calculated) !== (day.cumulativeReturnRate !== null)) return false;
-    if (calculated) asOfDate = day.baseDate;
+    if (calculated) {
+      asOfDate = day.baseDate;
+      latestCumulativeReturnRate = day.cumulativeReturnRate;
+    }
   }
-  const last = value.days.at(-1);
   return (
     value.asOfDate === asOfDate &&
-    value.weeklyReturnRate === (last?.cumulativeReturnRate ?? null) &&
-    (!value.confirmed || value.weeklyReturnRate !== null)
+    (value.weeklyReturnRate === latestCumulativeReturnRate ||
+      (!complete && value.weeklyReturnRate === null)) &&
+    (!value.confirmed || (complete && value.weeklyReturnRate !== null))
   );
 }
 
@@ -418,12 +437,12 @@ export async function savePublication(input: {
   return response;
 }
 
-export async function getTransactions(signal?: AbortSignal) {
+export async function getInvestmentDecisions(signal?: AbortSignal) {
   const response = await request<unknown>('/api/users/me/portfolio/transactions', { signal });
   if (
     !isRecord(response) ||
     !Array.isArray(response.transactions) ||
-    !response.transactions.every(isTransaction)
+    !response.transactions.every(isDecisionRecord)
   ) {
     throw new Error('투자 기록 응답 형식이 올바르지 않습니다.');
   }
@@ -440,8 +459,8 @@ export async function recordDecision(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!isTransaction(response)) throw new Error('판단 기록 응답 형식이 올바르지 않습니다.');
-  trackEvent('save_investment_decision', { record_type: response.transactionType });
+  if (!isDecisionRecord(response)) throw new Error('판단 기록 응답 형식이 올바르지 않습니다.');
+  trackLeagueEvent('save_investment_decision', { record_type: response.transactionType });
   return response;
 }
 
@@ -458,7 +477,25 @@ export async function createReview(
     },
   );
   if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
-  trackEvent('save_investment_review', { origin: 'shared_portfolio' });
+  trackLeagueEvent('save_investment_review', { origin: 'shared_portfolio' });
+  return response;
+}
+
+export async function updateReview(
+  transactionId: number,
+  reviewId: number,
+  input: { actualResult: string; differenceFromExpectation: string; nextAction: string },
+) {
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/decisions/${transactionId}/reviews/${reviewId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
+  trackLeagueEvent('edit_investment_review', { origin: 'shared_portfolio' });
   return response;
 }
 

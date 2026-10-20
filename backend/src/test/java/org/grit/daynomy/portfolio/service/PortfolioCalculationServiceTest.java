@@ -44,6 +44,8 @@ class PortfolioCalculationServiceTest {
 
   @Mock private StockDailyPriceRepository stockDailyPriceRepository;
   @Mock private AssetRepository assetRepository;
+  @Mock private org.grit.daynomy.exchangerate.service.ExchangeRateService exchangeRates;
+  @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
   @InjectMocks private PortfolioCalculationService calculationService;
 
   private final Logger logger = (Logger) LoggerFactory.getLogger(PortfolioCalculationService.class);
@@ -267,5 +269,40 @@ class PortfolioCalculationServiceTest {
     Map<String, Object> values = new HashMap<>();
     loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
     return values;
+  }
+
+  @Test
+  void usdPricesAreConvertedBeforeKrwPortfolioCalculation() {
+    Asset apple =
+        Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, LocalDate.of(2026, 10, 16));
+    org.springframework.test.util.ReflectionTestUtils.setField(apple, "id", 1L);
+    given(stockDailyPriceRepository.findLatestTwoByAssetIds(List.of(1L)))
+        .willReturn(
+            List.of(
+                new StockDailyPrice(
+                    apple, LocalDate.of(2026, 10, 16), new BigDecimal("245.1234"))));
+    var request =
+        new PortfolioCalculateRequest(
+            List.of(new PortfolioHoldingRequest(1L, 1L, new BigDecimal("200"))));
+    given(exchangeRates.ratesForDates(List.of(LocalDate.of(2026, 10, 16))))
+        .willReturn(Map.of(LocalDate.of(2026, 10, 16), new BigDecimal("1300")));
+    var result = calculationService.calculate(request);
+    assertThat(result.totalEvaluationAmount()).isEqualByComparingTo("318660.42");
+    assertThat(result.holdings().getFirst().closePrice()).isEqualByComparingTo("245.1234");
+  }
+
+  @Test
+  void usdAssetWithoutPriceRemainsUnpriced() {
+    Asset apple =
+        Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, LocalDate.of(2026, 10, 16));
+    org.springframework.test.util.ReflectionTestUtils.setField(apple, "id", 1L);
+    given(stockDailyPriceRepository.findLatestTwoByAssetIds(List.of(1L))).willReturn(List.of());
+    given(assetRepository.findById(1L)).willReturn(java.util.Optional.of(apple));
+    var request =
+        new PortfolioCalculateRequest(
+            List.of(new PortfolioHoldingRequest(1L, 1L, new BigDecimal("200"))));
+    var result = calculationService.calculate(request);
+    assertThat(result.unpricedHoldingCount()).isEqualTo(1);
+    assertThat(result.totalProfitLoss()).isNull();
   }
 }

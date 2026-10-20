@@ -1,0 +1,189 @@
+package org.grit.daynomy.league.domain;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.common.BaseEntity;
+import org.grit.daynomy.league.domain.LeagueTypes.HoldingPeriod;
+import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
+
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Entity
+@Table(
+    name = "portfolio_transactions",
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "uk_portfolio_transactions_request",
+            columnNames = {"portfolio_id", "request_key"}))
+public class InvestmentDecision extends BaseEntity {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "portfolio_id", nullable = false)
+  private SharedPortfolio portfolio;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "asset_id", nullable = false)
+  private Asset asset;
+
+  @Column(name = "request_key", nullable = false, length = 80)
+  private String requestKey;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "transaction_type", nullable = false, length = 10)
+  private TransactionType transactionType;
+
+  @Column(nullable = false)
+  private long quantity;
+
+  @Column(name = "unit_price", nullable = false, precision = 19, scale = 2)
+  private BigDecimal unitPrice;
+
+  @Column(nullable = false, precision = 19, scale = 2)
+  private BigDecimal fee;
+
+  @Column(name = "traded_on", nullable = false)
+  private LocalDate tradedOn;
+
+  @Column(name = "decision_reason", nullable = false, length = 500)
+  private String decisionReason;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "expected_holding_period", length = 30)
+  private HoldingPeriod expectedHoldingPeriod;
+
+  @Column(name = "expected_change", nullable = false, length = 300)
+  private String expectedChange;
+
+  @Column(name = "invalidation_condition", nullable = false, length = 300)
+  private String invalidationCondition;
+
+  @Column(name = "maximum_acceptable_loss_rate", precision = 5, scale = 2)
+  private BigDecimal maximumAcceptableLossRate;
+
+  @Column(name = "written_after_trade", nullable = false)
+  private boolean writtenAfterTrade;
+
+  @Column(nullable = false, length = 20)
+  private String status = "ACTIVE";
+
+  public InvestmentDecision(
+      SharedPortfolio portfolio,
+      Asset asset,
+      String requestKey,
+      TransactionType transactionType,
+      long quantity,
+      BigDecimal unitPrice,
+      BigDecimal fee,
+      LocalDate tradedOn,
+      String decisionReason,
+      HoldingPeriod expectedHoldingPeriod,
+      String expectedChange,
+      String invalidationCondition,
+      BigDecimal maximumAcceptableLossRate,
+      boolean writtenAfterTrade) {
+    this.portfolio = Objects.requireNonNull(portfolio);
+    this.asset = Objects.requireNonNull(asset);
+    this.requestKey = requireText(requestKey);
+    this.transactionType = Objects.requireNonNull(transactionType);
+    this.quantity = requirePositive(quantity);
+    this.unitPrice = requirePositive(unitPrice);
+    this.fee = requireNonNegative(fee);
+    this.tradedOn = Objects.requireNonNull(tradedOn);
+    this.decisionReason = requireText(decisionReason);
+    this.expectedHoldingPeriod = expectedHoldingPeriod;
+    this.expectedChange = optionalText(expectedChange);
+    this.invalidationCondition = optionalText(invalidationCondition);
+    this.maximumAcceptableLossRate =
+        maximumAcceptableLossRate == null ? null : requireRate(maximumAcceptableLossRate);
+    this.writtenAfterTrade = writtenAfterTrade;
+  }
+
+  private String requireText(String value) {
+    if (value == null || value.isBlank()) {
+      throw new IllegalArgumentException("투자 판단은 비어 있을 수 없습니다.");
+    }
+    return value.trim();
+  }
+
+  /** 최신순 판단에서 종목별 마지막 보유 이유를 선택한다. 과거 매수·매도 판단도 보존한다. */
+  public static Map<Long, String> latestReasons(List<InvestmentDecision> decisions) {
+    Map<Long, String> reasons = new LinkedHashMap<>();
+    for (InvestmentDecision decision : decisions) {
+      if (!decision.getDecisionReason().isBlank()) {
+        reasons.putIfAbsent(decision.getAsset().getId(), decision.getDecisionReason());
+      }
+    }
+    return reasons;
+  }
+
+  public boolean matchesDecision(
+      String reason,
+      HoldingPeriod period,
+      String expected,
+      String invalidation,
+      BigDecimal lossRate) {
+    return decisionReason.equals(reason.trim())
+        && expectedHoldingPeriod == period
+        && expectedChange.equals(optionalText(expected))
+        && invalidationCondition.equals(optionalText(invalidation))
+        && (maximumAcceptableLossRate == null
+            ? lossRate == null
+            : lossRate != null && maximumAcceptableLossRate.compareTo(lossRate) == 0);
+  }
+
+  private String optionalText(String value) {
+    return value == null ? "" : value.trim();
+  }
+
+  private long requirePositive(long value) {
+    if (value <= 0) {
+      throw new IllegalArgumentException("거래 수량은 0보다 커야 합니다.");
+    }
+    return value;
+  }
+
+  private BigDecimal requirePositive(BigDecimal value) {
+    if (value == null || value.signum() <= 0) {
+      throw new IllegalArgumentException("거래 단가는 0보다 커야 합니다.");
+    }
+    return value;
+  }
+
+  private BigDecimal requireNonNegative(BigDecimal value) {
+    if (value == null || value.signum() < 0) {
+      throw new IllegalArgumentException("수수료는 0보다 작을 수 없습니다.");
+    }
+    return value;
+  }
+
+  private BigDecimal requireRate(BigDecimal value) {
+    if (value == null || value.signum() < 0 || value.compareTo(BigDecimal.valueOf(100)) > 0) {
+      throw new IllegalArgumentException("허용 손실률은 0에서 100 사이여야 합니다.");
+    }
+    return value;
+  }
+}

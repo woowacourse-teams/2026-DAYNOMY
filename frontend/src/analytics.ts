@@ -1,5 +1,74 @@
 export type AnalyticsParams = Record<string, string | number | boolean | undefined>;
 
+const analyticsPropertyKeys = new Set([
+  'action',
+  'analyzed_asset_count',
+  'area',
+  'asset_count',
+  'attempt',
+  'category',
+  'content_id',
+  'content_type',
+  'destination',
+  'direction',
+  'duration_ms',
+  'entry_point',
+  'error_type',
+  'exit_reason',
+  'expanded',
+  'filter',
+  'has_holdings',
+  'hidden',
+  'is_logged_in',
+  'keyword_category',
+  'last_check_outcome',
+  'league_type',
+  'market',
+  'mode',
+  'news_id',
+  'operation',
+  'origin',
+  'page_number',
+  'person_id',
+  'period',
+  'position',
+  'previous_page',
+  'previous_source',
+  'pricing_status',
+  'range_days',
+  'rank_bucket',
+  'reason',
+  'record_type',
+  'relative_week',
+  'result_count',
+  'scope',
+  'search_length',
+  'selection_valid',
+  'sort',
+  'source',
+  'source_count',
+  'source_type',
+  'stage',
+  'status',
+  'status_code',
+  'step_group',
+  'step_id',
+  'step_number',
+  'storage',
+  'surface',
+  'tab',
+  'target',
+  'to_step',
+  'total_steps',
+  'tour_source',
+  'tour_version',
+  'transaction_type',
+  'trigger',
+  'user_type',
+  'view',
+  'week_state',
+]);
+
 declare global {
   interface Window {
     dataLayer: unknown[];
@@ -7,7 +76,7 @@ declare global {
   }
 }
 
-const posthogKey = import.meta.env?.VITE_POSTHOG_KEY;
+const posthogToken = import.meta.env?.VITE_POSTHOG_PROJECT_TOKEN;
 const posthogHost = import.meta.env?.VITE_POSTHOG_HOST;
 let stopped = false;
 let posthogClient: Promise<(typeof import('posthog-js'))['default'] | null> | undefined;
@@ -26,7 +95,7 @@ function cleanUrl(value: string) {
   if (!value) return '';
   const url = new URL(value, window.location.origin);
   const path = url.pathname.replace(
-    /^\/league\/(?!(?:following|portfolio)\/*$)[^/]+\/*$/i,
+    /^\/league\/(?!(?:following|portfolio|profile|reviews)\/*$)[^/]+\/*$/i,
     '/league/investor',
   );
   return `${url.origin}${path}`;
@@ -42,7 +111,7 @@ function canTrack() {
   }
   return (
     !stopped &&
-    (Boolean(measurementId) || Boolean(posthogKey && posthogHost)) &&
+    (Boolean(measurementId) || Boolean(posthogToken && posthogHost)) &&
     Reflect.get(window, disableKey) !== true
   );
 }
@@ -96,7 +165,11 @@ export function trackEvent(name: string, params: AnalyticsParams = {}) {
   if (!canTrack()) return;
   initAnalytics();
   const properties = {
-    ...params,
+    ...Object.fromEntries(
+      Object.entries(params).filter(
+        ([key, value]) => analyticsPropertyKeys.has(key) && value !== undefined,
+      ),
+    ),
     page_path: new URL(cleanUrl(window.location.href)).pathname,
     page_location: cleanUrl(window.location.href),
     page_referrer: currentPageReferrer || cleanUrl(document.referrer),
@@ -107,6 +180,10 @@ export function trackEvent(name: string, params: AnalyticsParams = {}) {
 
 // Explicit events only: SDK-generated properties are filtered before delivery as well.
 const posthogProperties = new Set([
+  ...analyticsPropertyKeys,
+  'page_path',
+  'page_location',
+  'page_referrer',
   'distinct_id',
   '$device_id',
   '$session_id',
@@ -129,13 +206,12 @@ const posthogProperties = new Set([
 ]);
 const sentEvents = new Set<string>();
 function capturePostHog(name: string, properties: AnalyticsParams) {
-  if (!posthogKey || !posthogHost || !canTrack()) return;
+  if (!posthogToken || !posthogHost || !canTrack()) return;
   sentEvents.add(name);
-  Object.keys(properties).forEach((key) => posthogProperties.add(key));
   posthogClient ??= import('posthog-js')
     .then(({ default: client }) => {
       if (!canTrack()) return null;
-      client.init(posthogKey, {
+      client.init(posthogToken, {
         api_host: posthogHost,
         autocapture: false,
         capture_pageview: false,

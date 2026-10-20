@@ -1,3 +1,5 @@
+import { youtubeThumbnail } from '../news/issue/feed';
+import { useAuth } from '../../hooks/useLoginStatus';
 import { trackEvent, type AnalyticsParams } from '../../analytics';
 import { trackLoadResult, useContentView } from '../news/issue/analytics';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -96,12 +98,10 @@ function getYouTubeVideoId(rawUrl: string) {
 }
 
 function YouTubeThumbnail({ content }: { content: StockRelatedContent }) {
-  const videoId = getYouTubeVideoId(content.url);
-  const [source, setSource] = useState(
-    content.imageUrl ?? (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null),
-  );
+  const source = youtubeThumbnail(content.url);
+  const [failedSource, setFailedSource] = useState<string | null>(null);
 
-  if (!source) {
+  if (!source || source === failedSource) {
     return <span className="stock-content-video-thumbnail-fallback">YouTube</span>;
   }
 
@@ -112,7 +112,7 @@ function YouTubeThumbnail({ content }: { content: StockRelatedContent }) {
       alt=""
       loading="lazy"
       decoding="async"
-      onError={() => setSource(null)}
+      onError={() => setFailedSource(source)}
     />
   );
 }
@@ -178,7 +178,8 @@ export function StockContentPage() {
   const { assetId: assetIdParam } = useParams();
   const navigate = useNavigate();
   const assetId = Number(assetIdParam);
-  const { holdings, loading: holdingsLoading } = usePortfolioHoldings();
+  const { isLoggedIn, loading: authLoading } = useAuth();
+  const { holdings, loading: holdingsLoading } = usePortfolioHoldings(isLoggedIn);
   const [response, setResponse] = useState<Awaited<
     ReturnType<typeof getStockRelatedContents>
   > | null>(null);
@@ -352,7 +353,7 @@ export function StockContentPage() {
   );
 
   const settled = !loading && !error && response?.assetId === assetId;
-  useContentView(settled, 'view_stock_contents', {
+  useContentView(settled, 'view_content_list', {
     surface: 'stock_contents',
     source_type: selectedSource === 'INTERNAL_NEWS' ? 'DAYNOMY' : selectedSource,
     result_count: visibleContents.length,
@@ -402,12 +403,12 @@ export function StockContentPage() {
         {!loading && !error && response ? (
           <div
             className={
-              holdingsLoading || holdings.length > 0
+              authLoading || holdingsLoading || holdings.length > 0
                 ? 'stock-content-layout'
                 : 'stock-content-layout stock-content-layout--without-sidebar'
             }
           >
-            {holdingsLoading || holdings.length > 0 ? (
+            {authLoading || holdingsLoading || holdings.length > 0 ? (
               <aside className="stock-content-assets" aria-label="내 포트폴리오 종목">
                 <div className="stock-content-assets-heading">
                   <strong>내 포트폴리오</strong>

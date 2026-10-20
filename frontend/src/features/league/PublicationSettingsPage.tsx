@@ -1,17 +1,24 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { trackEvent } from '../../analytics';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
-import { getMyInvestorProfile, getTransactions, saveInvestorProfile, savePublication } from './api';
+import {
+  getMyInvestorProfile,
+  getInvestmentDecisions,
+  saveInvestorProfile,
+  savePublication,
+} from './api';
 import { getSharedPortfolio } from './sharedPortfolioApi';
 import { experienceLabels, riskLabels } from './labels';
 import type { ExperienceLevel, InvestorProfile, RiskProfile } from './types';
 import './league.css';
 import './shared-portfolio.css';
+import { useLeaguePageHeading } from './useLeaguePageHeading';
 
 export function PublicationSettingsPage() {
   const [searchParams] = useSearchParams();
   const joining = searchParams.get('join') === 'true';
+  const heading = useLeaguePageHeading(joining ? '주간 리그 참여' : '프로필 설정');
   const navigate = useNavigate();
   const [profile, setProfile] = useState<InvestorProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,7 +32,7 @@ export function PublicationSettingsPage() {
     Promise.all([
       getMyInvestorProfile(controller.signal),
       getSharedPortfolio(controller.signal),
-      getTransactions(controller.signal),
+      getInvestmentDecisions(controller.signal),
     ])
       .then(([saved, portfolio, records]) => {
         if (controller.signal.aborted) return;
@@ -36,9 +43,17 @@ export function PublicationSettingsPage() {
         ).length;
         setProfile(saved);
         setReadiness({ ready: portfolio.holdings.length > 0 && missing === 0, missing });
+        trackLeagueEvent('league_load_result', { surface: 'publication', status: 'success' });
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setLoadFailed(true);
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) {
+          setLoadFailed(true);
+          trackLeagueEvent('league_load_result', {
+            surface: 'publication',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -48,7 +63,9 @@ export function PublicationSettingsPage() {
   return (
     <main className="league-page shared-page league-settings-page">
       <header className="league-hero">
-        <h1>{joining ? '주간 리그 참여' : '프로필 설정'}</h1>
+        <h1 ref={heading} tabIndex={-1}>
+          {joining ? '주간 리그 참여' : '프로필 설정'}
+        </h1>
         <Link className="league-text-link" to={joining ? '/league/portfolio' : '/league/profile'}>
           {joining ? '← 종목 관리' : '← 내 프로필'}
         </Link>
@@ -57,7 +74,14 @@ export function PublicationSettingsPage() {
         profile={profile}
         loading={loading}
         loadFailed={loadFailed}
-        onRetry={() => setRetry((value) => value + 1)}
+        onRetry={() => {
+          trackLeagueEvent('league_action', {
+            surface: 'publication',
+            action: 'retry',
+            status: 'clicked',
+          });
+          setRetry((value) => value + 1);
+        }}
         onSaved={() => navigate('/league/profile')}
         joining={joining}
         recordsReady={readiness.ready}
@@ -96,6 +120,14 @@ export function PortfolioSharingSettings({
   const [leagueEnabled, setLeagueEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const errorId = useId();
+  const nicknameInput = useRef<HTMLInputElement>(null);
+  const errorNotice = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error && !saving) {
+      (!nicknameInput.current?.value.trim() ? nicknameInput.current : errorNotice.current)?.focus();
+    }
+  }, [error, saving]);
   useEffect(() => {
     if (!profile) return;
     setForm({
@@ -108,12 +140,21 @@ export function PortfolioSharingSettings({
   }, [profile]);
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (saving || !form.displayName.trim()) return;
+    if (saving) return;
+    if (!form.displayName.trim()) {
+      setError('공개 닉네임을 입력해 주세요. 공백만으로는 저장할 수 없습니다.');
+      return;
+    }
     if ((joining || leagueEnabled) && !recordsReady) {
       setError('모든 종목의 보유 이유를 작성한 뒤 리그에 참여할 수 있어요.');
       return;
     }
     setSaving(true);
+    trackLeagueEvent('league_action', {
+      surface: 'publication',
+      action: 'save_publication',
+      status: 'submitted',
+    });
     setError('');
     try {
       const savedProfile = await saveInvestorProfile(form);
@@ -126,11 +167,17 @@ export function PortfolioSharingSettings({
         detailPublic: participating,
         allocationPublic: participating,
       });
-      onSaved({ ...savedProfile, ...saved });
-      trackEvent('publish_portfolio', {
+      trackLeagueEvent('publish_portfolio', {
         scope: saved.profilePublic ? 'details' : 'private',
       });
+      onSaved({ ...savedProfile, ...saved });
     } catch (caught) {
+      trackLeagueEvent('league_action', {
+        surface: 'publication',
+        action: 'save_publication',
+        status: 'error',
+        error_type: leagueErrorType(caught),
+      });
       setError(
         caught instanceof Error
           ? caught.message
@@ -166,11 +213,19 @@ export function PortfolioSharingSettings({
           <label className="shared-nickname">
             공개 닉네임
             <input
+              ref={nicknameInput}
               required
+              pattern=".*\S.*"
+              title="공백을 제외한 글자를 1자 이상 입력해 주세요."
+              aria-invalid={(Boolean(error) && !form.displayName.trim()) || undefined}
+              aria-describedby={error ? errorId : undefined}
               maxLength={20}
               disabled={saving}
               value={form.displayName}
-              onChange={(event) => setForm({ ...form, displayName: event.target.value })}
+              onChange={(event) => {
+                setForm({ ...form, displayName: event.target.value });
+                setError('');
+              }}
             />
           </label>
           {!joining ? (
@@ -267,16 +322,20 @@ export function PortfolioSharingSettings({
             </details>
           ) : null}
           {error ? (
-            <p role="alert" className="league-form-error">
+            <p
+              id={errorId}
+              ref={errorNotice}
+              tabIndex={-1}
+              role="alert"
+              className="league-form-error"
+            >
               {error}
             </p>
           ) : null}
           <div className="shared-form-actions shared-settings-actions">
             <button
               className="shared-primary-button"
-              disabled={
-                saving || !form.displayName.trim() || ((joining || leagueEnabled) && !recordsReady)
-              }
+              disabled={saving || ((joining || leagueEnabled) && !recordsReady)}
             >
               {saving
                 ? '저장 중…'

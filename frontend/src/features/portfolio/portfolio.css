@@ -781,12 +781,12 @@
 
 .portfolio-primary-button,
 .portfolio-secondary-button {
-  min-height: 40px;
+  min-height: var(--button-height);
   padding: 0 16px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: var(--button-weight);
   cursor: pointer;
   transition:
     background-color 150ms ease,
@@ -796,12 +796,15 @@
 
 .portfolio-primary-button {
   color: #fff;
-  background: var(--button-primary);
+  background: var(--button-action);
 }
 
 .portfolio-primary-button:hover {
-  background: var(--button-primary-hover);
-  transform: translateY(-1px);
+  background: var(--button-action-hover);
+}
+
+.portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
 .portfolio-primary-button:disabled {
@@ -812,13 +815,14 @@
 }
 
 .portfolio-secondary-button {
-  color: #4e5968;
-  background: #f2f4f6;
+  border: 1px solid var(--button-outline);
+  color: var(--button-label);
+  background: #fff;
 }
 
 .portfolio-secondary-button:hover {
-  color: #333d4b;
-  background: #e5e8eb;
+  color: var(--button-label);
+  background: var(--button-secondary-hover);
 }
 
 .portfolio-filters {
@@ -2151,8 +2155,8 @@
   height: 44px;
   padding: 0 30px 0 12px;
   appearance: none;
-  border: 1px solid #e1e5eb;
-  border-radius: 9px;
+  border: 0;
+  border-radius: 10px;
   color: #3e4856;
   background: #f3f5f8;
   font: inherit;
@@ -2199,9 +2203,8 @@
 
 .portfolio-trend-expand:hover,
 .portfolio-trend-dialog-close:hover {
-  color: #333d4b;
-  background: #e5e8eb;
-  transform: translateY(-1px);
+  color: var(--button-label);
+  background: #f5f7fb;
 }
 
 .portfolio-trend-expand:focus-visible,
@@ -2418,11 +2421,11 @@
   z-index: 2;
   width: min(300px, calc(100% - 16px));
   padding: 14px 16px;
-  border: 1px solid #dce4ed;
+  border: 0;
   border-radius: 12px;
   color: #263449;
-  background: rgb(255 255 255 / 97%);
-  box-shadow: 0 14px 36px rgb(32 52 78 / 18%);
+  background: #fff;
+  box-shadow: 0 6px 24px rgb(32 52 78 / 14%);
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 14px));
 }
@@ -2503,29 +2506,9 @@
 }
 
 .portfolio-return-dates {
-  display: flex;
-  justify-content: space-between;
-  color: #52647f;
+  fill: #596779;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  padding-right: 1.7%;
-  padding-left: 8.1%;
-}
-
-.portfolio-return-dates span {
-  text-align: center;
-}
-
-.portfolio-return-dates span:first-child {
-  text-align: left;
-}
-
-.portfolio-return-dates span:last-child {
-  text-align: right;
-}
-
-.portfolio-return-dates span:only-child {
-  text-align: center;
 }
 
 .portfolio-trend-dialog::backdrop {
@@ -2614,17 +2597,37 @@
 }
 
 .portfolio-sort-control {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
   padding: 0;
 }
 
 .portfolio-sort-control select {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: 38px;
   min-height: 38px;
-  padding-right: 34px;
-  border-color: var(--portfolio-demo-line);
-  border-radius: 5px;
-  color: #27354a;
+  padding: 0 42px 0 16px;
   font-size: 12px;
-  line-height: 1;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.portfolio-sort-control::after {
+  content: '';
+  position: absolute;
+  right: 17px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 1.7px solid #526078;
+  border-bottom: 1.7px solid #526078;
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
 }
 
 .portfolio-holdings-actions {
@@ -2634,10 +2637,10 @@
 }
 
 .portfolio-holdings-actions .portfolio-sort-control select {
-  min-width: 150px;
-  border: 0;
+  min-width: 176px;
+  border: 1px solid #e3e6ea;
   border-radius: 10px;
-  color: #4e5968;
+  color: #333d4b;
   background: #f2f4f6;
   font-weight: 600;
 }
@@ -2656,17 +2659,21 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 38px;
+  min-height: var(--button-height);
   padding: 0 14px;
-  border-radius: 10px;
-  background: var(--button-primary);
+  border-radius: 999px;
+  background: var(--button-action);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
   line-height: 1;
 }
 
 .portfolio-holdings-actions > .portfolio-primary-button:hover {
-  background: var(--button-primary-hover);
+  background: var(--button-action-hover);
+}
+
+.portfolio-holdings-actions > .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
 .portfolio-holdings-actions > .portfolio-primary-button svg {
@@ -2988,6 +2995,7 @@
 
   .portfolio-holdings-actions .portfolio-sort-control select {
     width: 100%;
+    height: 44px;
   }
 
   .portfolio-holdings-toolbar {
