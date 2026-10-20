@@ -9,7 +9,7 @@ import { PortfolioContentsPage } from './PortfolioContentsPage';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
 import { InvestmentCalendarPage } from '../../investment-calendar/InvestmentCalendarPage';
 import type { NewsListItem } from '../newslist/types';
-import { createFeed, feedDate, isToday, sourceLabel, timestamp, type FeedItem } from './feed';
+import { createFeed, feedDate, isToday, sourceLabel, type FeedItem } from './feed';
 import { getAllContents } from './contents';
 import type { ExternalContent } from './feed';
 import { getAllNews } from './todayNews';
@@ -103,17 +103,11 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   const totalPages = Math.max(1, Math.ceil(items.length / 12));
   const currentPage = Math.min(page, totalPages);
   const featured = people.people
-    .map((person) => ({
-      person,
-      post: [...person.posts].sort(
-        (a, b) => timestamp(b.publishedAt ?? b.createdAt) - timestamp(a.publishedAt ?? a.createdAt),
-      )[0],
-    }))
-    .filter((entry) => entry.post)
+    .flatMap((person) => person.posts.map((post) => ({ person, post })))
     .sort(
       (a, b) =>
-        timestamp(b.post.publishedAt ?? b.post.createdAt) -
-        timestamp(a.post.publishedAt ?? a.post.createdAt),
+        (Date.parse(b.post.publishedAt ?? b.post.createdAt ?? '') || 0) -
+        (Date.parse(a.post.publishedAt ?? a.post.createdAt ?? '') || 0),
     )
     .slice(0, 3);
   const settled = !loading && !contentsLoading && !people.loading;
@@ -205,7 +199,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                       })
                     }
                     to={`/people?person=${person.id}${isToday(post.createdAt) ? '' : '&view=all'}`}
-                    key={person.id}
+                    key={`${person.id}-${post.id}`}
                   >
                     <span className="issue-person-avatar" aria-hidden="true">
                       {person.profileImageUrl ? (
