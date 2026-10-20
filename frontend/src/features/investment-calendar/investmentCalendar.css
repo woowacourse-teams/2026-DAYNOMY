@@ -726,6 +726,8 @@
 }
 
 .investment-calendar-detail-body {
+  min-width: 0;
+  overflow-wrap: anywhere;
   min-height: 0;
   overflow-y: var(--calendar-scroll-overflow);
   scrollbar-gutter: stable;
@@ -804,6 +806,7 @@
 
 .investment-calendar-reference {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 7px 10px;
   margin-top: 12px;
@@ -834,6 +837,10 @@
   gap: 20px;
 }
 
+.investment-calendar-impact-head > div {
+  min-width: 0;
+}
+
 .investment-calendar-impact-head h3 {
   margin: 0;
   font-size: 17px;
@@ -850,7 +857,7 @@
 .investment-calendar-impact-head > span {
   color: var(--calendar-muted);
   font-size: 12px;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .investment-calendar-table-wrap {
@@ -907,7 +914,8 @@
 .investment-calendar-table-wrap th:last-child,
 .investment-calendar-table-wrap td:last-child {
   width: 36%;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .investment-calendar-table-wrap td:first-child {
