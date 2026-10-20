@@ -190,9 +190,9 @@ test('투자 캘린더에서 일정과 내 자산의 과거 반응을 확인한�
   const calendar = page.getByRole('region', { name: '투자 캘린더' });
   await expect(calendar.getByRole('heading', { name: '투자 캘린더' })).toBeVisible();
   await expect(calendar.getByRole('heading', { name: '한국 기준금리 결정' })).toBeVisible();
-  await expect(calendar.getByRole('region', { name: '이번 일정에서 확인할 내용' })).toContainText(
-    '직전 3.50%',
-  );
+  const eventDetail = calendar.getByRole('region', { name: '이번 일정에서 확인할 내용' });
+  await expect(eventDetail.getByText('직전', { exact: true })).toBeVisible();
+  await expect(eventDetail.getByText('3.50%', { exact: true })).toBeVisible();
   await expect(calendar).toContainText('금리 동결 사례');
 
   await calendar.getByRole('button', { name: '달력으로 보기' }).click();
