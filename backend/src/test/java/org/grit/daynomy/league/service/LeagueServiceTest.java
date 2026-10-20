@@ -339,6 +339,8 @@ class LeagueServiceTest {
                 week.plusWeeks(1), week.plusWeeks(1).plusDays(6)))
         .willReturn(List.of());
     calendar(week, List.of(week, week.plusDays(1)));
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(week, week.plusDays(1)))
+        .willReturn(List.of(tradingDay(week), tradingDay(week.plusDays(1))));
     var excluded = new PortfolioDailyReturn(portfolio, week);
     excluded.exclude("NO_HOLDINGS", Instant.now());
     var next = new PortfolioDailyReturn(portfolio, week.plusDays(1));
@@ -351,7 +353,7 @@ class LeagueServiceTest {
         .willReturn(List.of(excluded, next));
     given(
             tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
-                week.minusWeeks(1), week.plusDays(6)))
+                week.minusWeeks(1), week.plusDays(1)))
         .willReturn(List.of());
     given(
             leaderboardRepository.findFirstByWeekStartAndLeagueTypeOrderByCalculationVersionDesc(
@@ -573,8 +575,10 @@ class LeagueServiceTest {
         .containsExactly(1, 1, 1, 2);
   }
 
-  @Test
-  void pendingLatestCloseKeepsTheLastRankButAnEarlierGapDoesNot(
+  @ParameterizedTest
+  @ValueSource(ints = {0, 4, 11})
+  void pendingClosesKeepTheLastRankAcrossWeeksButAnEarlierGapDoesNot(
+      int daysAfterThursday,
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {
     ZoneId seoul = ZoneId.of("Asia/Seoul");
@@ -582,14 +586,16 @@ class LeagueServiceTest {
     LocalDate wednesday = week.plusDays(2);
     LocalDate thursday = week.plusDays(3);
     LocalDate friday = week.plusDays(4);
-    dates.when(() -> LocalDate.now(seoul)).thenReturn(thursday);
-    Instant thursdayClose = thursday.atTime(18, 0).atZone(seoul).toInstant();
-    instants.when(Instant::now).thenReturn(thursdayClose);
+    LocalDate today = thursday.plusDays(daysAfterThursday);
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(today);
+    Instant close = today.atTime(18, 0).atZone(seoul).toInstant();
+    instants.when(Instant::now).thenReturn(close);
     SharedPortfolio portfolio = dailyProfile(week);
     InvestorProfile profile =
         profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
     given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
         .willReturn(List.of(profile));
+    given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
     List<LocalDate> collected = new ArrayList<>(List.of(week, week.plusDays(1), wednesday));
     given(
             tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
@@ -632,16 +638,28 @@ class LeagueServiceTest {
                     .toList());
 
     var ranking = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
+    assertThat(ranking.confirmed()).isFalse();
+    assertThat(ranking.collectionStatus())
+        .isEqualTo(
+            daysAfterThursday == 0
+                ? LeagueTypes.CollectionStatus.IN_PROGRESS
+                : LeagueTypes.CollectionStatus.COLLECTION_PENDING);
     assertThat(ranking.asOfDate()).isEqualTo(wednesday);
     assertThat(ranking.rankings()).hasSize(1);
     assertThat(ranking.rankings().getFirst().weeklyReturnRate()).isEqualByComparingTo("21");
     var history = service.dailyHistory("investor-1", week);
+    assertThat(history.confirmed()).isFalse();
+    assertThat(history.collectionStatus()).isEqualTo(ranking.collectionStatus());
     assertThat(history.asOfDate()).isEqualTo(wednesday);
     assertThat(history.weeklyReturnRate()).isEqualByComparingTo("21");
-    assertThat(history.days().getLast().status()).isEqualTo(LeagueTypes.DailyReturnStatus.EXCLUDED);
+    assertThat(history.days().get(3).status()).isEqualTo(LeagueTypes.DailyReturnStatus.EXCLUDED);
 
-    dates.when(() -> LocalDate.now(seoul)).thenReturn(friday);
-    Instant fridayClose = friday.atTime(18, 0).atZone(seoul).toInstant();
+    service.finalizeWeeks();
+    then(leaderboardRepository).should(never()).save(any());
+
+    LocalDate nextDay = friday.plusDays(daysAfterThursday);
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(nextDay);
+    Instant fridayClose = nextDay.atTime(18, 0).atZone(seoul).toInstant();
     instants.when(Instant::now).thenReturn(fridayClose);
     collected.add(friday);
     values.add(dailyReturn(portfolio, friday, "5"));
@@ -739,10 +757,14 @@ class LeagueServiceTest {
 
   @Test
   void participationStartsOnEnrollmentAndMissingPricesDoNotInventDates(
-      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates) {
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {
+    ZoneId seoul = ZoneId.of("Asia/Seoul");
     LocalDate today = LocalDate.of(2026, 10, 8);
-    dates.when(() -> LocalDate.now(ZoneId.of("Asia/Seoul"))).thenReturn(today);
     LocalDate week = today.with(DayOfWeek.MONDAY);
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(today);
+    Instant now = today.atTime(18, 0).atZone(seoul).toInstant();
+    instants.when(Instant::now).thenReturn(now);
     dailyProfile(week);
     calendar(week, List.of(week));
 

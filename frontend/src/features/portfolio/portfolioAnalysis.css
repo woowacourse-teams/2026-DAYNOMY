@@ -129,7 +129,7 @@
 }
 
 .portfolio-analysis-button:focus-visible {
-  outline: 2px solid var(--button-primary);
+  outline: 2px solid #000;
   outline-offset: 2px;
 }
 
@@ -171,8 +171,8 @@
 .portfolio-analysis-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #dce6f2;
-  border-top-color: var(--portfolio-accent, #326bd5);
+  border: 3px solid #e5e7eb;
+  border-top-color: #000;
   border-radius: 50%;
   animation: portfolio-analysis-spin 800ms linear infinite;
 }
@@ -201,7 +201,7 @@
 }
 
 .portfolio-analysis-retry-button:focus-visible {
-  outline: 2px solid var(--button-primary);
+  outline: 2px solid #000;
   outline-offset: 2px;
 }
 
@@ -666,15 +666,15 @@ button.portfolio-asset-row:focus-visible {
   gap: 6px;
   padding: 0 12px;
   border-radius: 8px;
-  background: #eef5fd;
-  color: #256fc3;
+  background: #000;
+  color: #fff;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
 }
 
 .portfolio-evidence-sources a:hover {
-  background: #e2effd;
+  background: #262626;
 }
 
 .portfolio-evidence-sources a svg {

@@ -18,8 +18,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
@@ -27,6 +29,8 @@ import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.TransactionLog;
 import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.grit.daynomy.league.domain.InvestorFollow;
@@ -74,6 +78,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class LeagueService {
@@ -162,18 +167,31 @@ public class LeagueService {
     }
     int from = (int) Math.min((long) Math.max(0, page) * size, entries.size());
     int to = Math.min(from + size, entries.size());
-    return new RankingResponse(
-        weekStart,
-        weekEnd,
-        leagueType,
-        finalResult != null,
-        entries.size(),
-        entries.subList(from, to),
-        finalResult == null ? asOfDate(weekStart) : finalResult.getAsOfDate(),
-        finalResult == null ? null : finalResult.getCalculationVersion(),
-        finalResult == null ? null : finalResult.getFinalizedAt(),
-        finalResult == null ? null : finalResult.getChangeReason(),
-        collectionStatus(weekStart));
+    RankingResponse result =
+        new RankingResponse(
+            weekStart,
+            weekEnd,
+            leagueType,
+            finalResult != null,
+            entries.size(),
+            entries.subList(from, to),
+            finalResult == null ? asOfDate(weekStart) : finalResult.getAsOfDate(),
+            finalResult == null ? null : finalResult.getCalculationVersion(),
+            finalResult == null ? null : finalResult.getFinalizedAt(),
+            finalResult == null ? null : finalResult.getChangeReason(),
+            collectionStatus(weekStart));
+    log.atDebug()
+        .addKeyValue("event", LogEvent.LEAGUE_RANKINGS_LOADED.code())
+        .addKeyValue("weekStart", weekStart)
+        .addKeyValue("leagueType", leagueType)
+        .addKeyValue("confirmed", result.confirmed())
+        .addKeyValue("asOfDate", result.asOfDate())
+        .addKeyValue("collectionStatus", result.collectionStatus())
+        .addKeyValue("totalCount", result.totalCount())
+        .addKeyValue("page", page)
+        .addKeyValue("size", size)
+        .log(LogEvent.LEAGUE_RANKINGS_LOADED.message());
+    return result;
   }
 
   private List<RankedProfile> rankedProfiles(LocalDate week, LeagueType type, boolean publicOnly) {
@@ -214,6 +232,11 @@ public class LeagueService {
                 synchronized (LeagueService.this) {
                   finalizationStatesInitialized = false;
                 }
+                log.atWarn()
+                    .addKeyValue("event", LogEvent.LEAGUE_FINALIZATION_ROLLED_BACK.code())
+                    .addKeyValue("fromDate", from)
+                    .addKeyValue("transactionStatus", status)
+                    .log(LogEvent.LEAGUE_FINALIZATION_ROLLED_BACK.message());
               }
             }
           });
@@ -241,6 +264,17 @@ public class LeagueService {
       finalizationStatesInitialized = true;
       calculationMetrics.finalizationState(0, 0, null);
       calculationMetrics.finalizationMeasured(started, 0, true);
+      TransactionLog.afterCommit(
+          LogEvent.LEAGUE_FINALIZATION_COMPLETED,
+          log.atInfo()
+              .addKeyValue("full", true)
+              .addKeyValue("profileCount", profiles.size())
+              .addKeyValue("scannedWeekCount", 0)
+              .addKeyValue("snapshotCount", 0)
+              .addKeyValue("pendingWeekCount", 0)
+              .addKeyValue("missingCalendarDayCount", 0)
+              .addKeyValue(
+                  "durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)));
       return;
     }
     boolean full = from == null || !finalizationStatesInitialized;
@@ -248,6 +282,7 @@ public class LeagueService {
     if (start.isBefore(first)) start = first;
     Map<LocalDate, WeekState> states = full ? new HashMap<>() : new HashMap<>(finalizationStates);
     int scanned = 0;
+    int snapshotCount = 0;
     for (LocalDate week = start; !week.isAfter(normalizeWeek(null)); week = week.plusWeeks(1)) {
       scanned++;
       List<MarketTradingDay> calendar = calendar(week, week.plusDays(6));
@@ -257,18 +292,40 @@ public class LeagueService {
       boolean participating =
           profiles.stream().anyMatch(profile -> participatesInWeek(profile, weekStart));
       if (calendar.size() != 7) {
-        if (participating) states.put(week, new WeekState(7 - calendar.size(), null));
-        else states.remove(week);
+        if (participating) {
+          states.put(week, new WeekState(7 - calendar.size(), null));
+          TransactionLog.afterCommit(
+              LogEvent.LEAGUE_FINALIZATION_PENDING,
+              log.atWarn()
+                  .addKeyValue("weekStart", week)
+                  .addKeyValue("reason", "CALENDAR_PENDING")
+                  .addKeyValue("missingCalendarDayCount", 7 - calendar.size()));
+        } else states.remove(week);
         continue;
       }
       if (trading.isEmpty() || trading.getLast().closesAt().isAfter(Instant.now())) {
         states.remove(week);
+        TransactionLog.afterCommit(
+            LogEvent.LEAGUE_FINALIZATION_SKIPPED,
+            log.atDebug()
+                .addKeyValue("weekStart", week)
+                .addKeyValue(
+                    "reason", trading.isEmpty() ? "NO_TRADING_DAYS" : "MARKET_NOT_CLOSED"));
         continue;
       }
-      if (trading.stream().anyMatch(day -> day.getCollectedAt() == null)
-          || !calculationsComplete(profiles, week)) {
-        if (participating) states.put(week, new WeekState(0, trading.getLast().closesAt()));
-        else states.remove(week);
+      boolean pricePending = trading.stream().anyMatch(day -> day.getCollectedAt() == null);
+      if (pricePending || !calculationsComplete(profiles, week)) {
+        if (participating) {
+          states.put(week, new WeekState(0, trading.getLast().closesAt()));
+          TransactionLog.afterCommit(
+              LogEvent.LEAGUE_FINALIZATION_PENDING,
+              log.atDebug()
+                  .addKeyValue("weekStart", week)
+                  .addKeyValue("lastTradingDate", trading.getLast().getBaseDate())
+                  .addKeyValue("asOfDate", asOfDate(week))
+                  .addKeyValue(
+                      "reason", pricePending ? "PRICE_COLLECTION_PENDING" : "CALCULATION_PENDING"));
+        } else states.remove(week);
         continue;
       }
       states.remove(week);
@@ -324,8 +381,17 @@ public class LeagueService {
                 .orElse(null);
         if (previous != null
             && previous.getEntries().equals(entries)
-            && previous.getAsOfDate().equals(trading.getLast().getBaseDate())) continue;
-        leaderboardRepository.save(
+            && previous.getAsOfDate().equals(trading.getLast().getBaseDate())) {
+          TransactionLog.afterCommit(
+              LogEvent.LEAGUE_FINALIZATION_SKIPPED,
+              log.atDebug()
+                  .addKeyValue("weekStart", week)
+                  .addKeyValue("leagueType", type)
+                  .addKeyValue("calculationVersion", previous.getCalculationVersion())
+                  .addKeyValue("reason", "UNCHANGED"));
+          continue;
+        }
+        WeeklyLeaderboard snapshot =
             new WeeklyLeaderboard(
                 week,
                 type,
@@ -336,7 +402,21 @@ public class LeagueService {
                     : !previous.getAsOfDate().equals(trading.getLast().getBaseDate())
                         ? "CALENDAR_RECALCULATION"
                         : "PRICE_RECALCULATION",
-                entries));
+                entries);
+        leaderboardRepository.save(snapshot);
+        snapshotCount++;
+        TransactionLog.afterCommit(
+            LogEvent.LEAGUE_WEEK_FINALIZED,
+            log.atInfo()
+                .addKeyValue("weekStart", week)
+                .addKeyValue("leagueType", type)
+                .addKeyValue("asOfDate", snapshot.getAsOfDate())
+                .addKeyValue(
+                    "previousCalculationVersion",
+                    previous == null ? 0 : previous.getCalculationVersion())
+                .addKeyValue("calculationVersion", snapshot.getCalculationVersion())
+                .addKeyValue("changeReason", snapshot.getChangeReason())
+                .addKeyValue("rankedProfileCount", entries.size()));
       }
     }
     finalizationStates = states;
@@ -362,6 +442,18 @@ public class LeagueService {
     }
     calculationMetrics.finalizationState(missingCalendarDays, pendingWeeks, expectedCollection);
     calculationMetrics.finalizationMeasured(started, scanned, full);
+    TransactionLog.afterCommit(
+        LogEvent.LEAGUE_FINALIZATION_COMPLETED,
+        log.atInfo()
+            .addKeyValue("full", full)
+            .addKeyValue("fromWeek", start)
+            .addKeyValue("profileCount", profiles.size())
+            .addKeyValue("scannedWeekCount", scanned)
+            .addKeyValue("snapshotCount", snapshotCount)
+            .addKeyValue("pendingWeekCount", pendingWeeks)
+            .addKeyValue("missingCalendarDayCount", missingCalendarDays)
+            .addKeyValue("expectedCollectionAt", expectedCollection)
+            .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)));
   }
 
   private record WeekState(int missingDays, Instant pendingClose) {}
@@ -382,7 +474,22 @@ public class LeagueService {
         if (value == null
             || (value.isEligible() && value.getDailyReturnRate() == null)
             || "MISSING_PRICE".equals(value.getIneligibleReason())
-            || "PRICE_COLLECTION_PENDING".equals(value.getIneligibleReason())) return false;
+            || "PRICE_COLLECTION_PENDING".equals(value.getIneligibleReason())) {
+          TransactionLog.afterCommit(
+              LogEvent.LEAGUE_PROFILE_CALCULATION_PENDING,
+              log.atDebug()
+                  .addKeyValue("profileId", profile.getId())
+                  .addKeyValue("portfolioId", portfolio.getId())
+                  .addKeyValue("baseDate", date)
+                  .addKeyValue(
+                      "reason",
+                      value == null
+                          ? "NOT_CALCULATED"
+                          : value.getIneligibleReason() == null
+                              ? "RETURN_RATE_MISSING"
+                              : value.getIneligibleReason()));
+          return false;
+        }
       }
       values.values().forEach(entityManager::detach);
     }
@@ -507,16 +614,28 @@ public class LeagueService {
                     entry ->
                         entry.profileId().equals(profile.getId())
                             && entry.weeklyReturnRate().compareTo(weekly) == 0);
-    return new DailyHistoryResponse(
-        weekStart,
-        weekEnd,
-        asOf,
-        eligibleFrom,
-        confirmed,
-        weekly,
-        days,
-        profile.getTrackingStartedOn(),
-        collectionStatus(weekStart));
+    DailyHistoryResponse response =
+        new DailyHistoryResponse(
+            weekStart,
+            weekEnd,
+            asOf,
+            eligibleFrom,
+            confirmed,
+            weekly,
+            days,
+            profile.getTrackingStartedOn(),
+            collectionStatus(weekStart));
+    log.atDebug()
+        .addKeyValue("event", LogEvent.LEAGUE_DAILY_HISTORY_LOADED.code())
+        .addKeyValue("profileId", profile.getId())
+        .addKeyValue("weekStart", weekStart)
+        .addKeyValue("asOfDate", response.asOfDate())
+        .addKeyValue("confirmed", response.confirmed())
+        .addKeyValue("collectionStatus", response.collectionStatus())
+        .addKeyValue("tradingDayCount", days.size())
+        .addKeyValue("calculatedDayCount", calculated.size())
+        .log(LogEvent.LEAGUE_DAILY_HISTORY_LOADED.message());
+    return response;
   }
 
   private void validateWeek(LocalDate week) {
@@ -552,7 +671,7 @@ public class LeagueService {
   }
 
   private LocalDate calculationEnd(LocalDate week) {
-    return week.equals(normalizeWeek(null)) ? asOfDate(week) : week.plusDays(6);
+    return asOfDate(week);
   }
 
   private boolean participates(InvestorProfile profile, LocalDate date) {
@@ -795,17 +914,32 @@ public class LeagueService {
     if (profile.getMember().getId().equals(memberId)) {
       throw new BusinessException(LeagueErrorCode.SELF_FOLLOW_NOT_ALLOWED);
     }
-    if (followRepository.findByFollowerIdAndProfileId(memberId, profile.getId()).isEmpty()) {
+    boolean changed =
+        followRepository.findByFollowerIdAndProfileId(memberId, profile.getId()).isEmpty();
+    if (changed) {
       followRepository.save(new InvestorFollow(member, profile));
     }
+    TransactionLog.afterCommit(
+        LogEvent.LEAGUE_FOLLOW_CHANGED,
+        (changed ? log.atInfo() : log.atDebug())
+            .addKeyValue("memberId", memberId)
+            .addKeyValue("profileId", profile.getId())
+            .addKeyValue("following", true)
+            .addKeyValue("changed", changed));
   }
 
   @Transactional
   public void unfollow(Long memberId, String publicId) {
     InvestorProfile profile = getPublicProfile(publicId);
-    followRepository
-        .findByFollowerIdAndProfileId(memberId, profile.getId())
-        .ifPresent(followRepository::delete);
+    var existing = followRepository.findByFollowerIdAndProfileId(memberId, profile.getId());
+    existing.ifPresent(followRepository::delete);
+    TransactionLog.afterCommit(
+        LogEvent.LEAGUE_FOLLOW_CHANGED,
+        (existing.isPresent() ? log.atInfo() : log.atDebug())
+            .addKeyValue("memberId", memberId)
+            .addKeyValue("profileId", profile.getId())
+            .addKeyValue("following", false)
+            .addKeyValue("changed", existing.isPresent()));
   }
 
   @Transactional(readOnly = true)

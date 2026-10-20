@@ -428,6 +428,59 @@ describe('거래 원장 화면', () => {
       /삼성|005930|quantity|unitPrice|tradeDate|75000/,
     );
   });
+  it.each(['transaction_create', 'transaction_update'] as const)(
+    '%s 저장 실패를 성공으로 세지 않고 재시도 결과를 각각 한 번 기록한다',
+    async (operation) => {
+      const view = await ready();
+      let dialog: HTMLElement;
+      if (operation === 'transaction_create') {
+        fireEvent.click(view.getByRole('button', { name: '거래 기록' }));
+        dialog = view.getByRole('dialog', { name: '거래 기록' });
+        fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
+        fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));
+      } else {
+        fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
+        fireEvent.click(await view.findByRole('button', { name: /2026\.10\.01.*매수.*삼성전자/ }));
+        dialog = view.getByRole('dialog', { name: '거래 수정' });
+      }
+      fill(dialog);
+      rejectMutation = true;
+      const save = within(dialog).getByRole('button', {
+        name: operation === 'transaction_create' ? '매수 기록하기' : '수정하기',
+      });
+      fireEvent.click(save);
+      await within(dialog).findByRole('alert');
+      expect(
+        vi
+          .mocked(trackPortfolioEvent)
+          .mock.calls.filter(([name]) => name === 'portfolio_save_succeeded'),
+      ).toHaveLength(0);
+      expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_save_failed', {
+        operation,
+        storage: 'server',
+        transaction_type: 'BUY',
+        error_type: 'client_error',
+      });
+      rejectMutation = false;
+      fireEvent.click(save);
+      await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+      expect(
+        vi
+          .mocked(trackPortfolioEvent)
+          .mock.calls.filter(([name]) => name.startsWith('portfolio_save_'))
+          .map(([name]) => name),
+      ).toEqual([
+        'portfolio_save_submitted',
+        'portfolio_save_failed',
+        'portfolio_save_submitted',
+        'portfolio_save_succeeded',
+      ]);
+      expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
+        /삼성|005930|quantity|unitPrice|tradeDate|75000/,
+      );
+    },
+  );
+
   it('보유수량이 그대로인 과거 거래일 수정 후 재계산된 추이와 내역을 표시한다', async () => {
     const view = await ready();
     fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
@@ -542,6 +595,16 @@ describe('거래 원장 화면', () => {
       '매도 수량이 해당 시점의 보유 수량보다 많습니다.',
     );
     expect(histories).toHaveLength(1);
+    expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_delete_failed', {
+      target: 'transaction',
+      storage: 'server',
+      error_type: 'client_error',
+    });
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_delete_succeeded'),
+    ).toHaveLength(0);
     rejectMutation = false;
     performancePoint = {
       ...historical,
@@ -553,6 +616,16 @@ describe('거래 원장 화면', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '거래 삭제' }));
     await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
     expect(await view.findByText('이 기간에 표시할 내역이 없어요')).toBeTruthy();
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_delete_failed'),
+    ).toHaveLength(1);
+    expect(
+      vi
+        .mocked(trackPortfolioEvent)
+        .mock.calls.filter(([name]) => name === 'portfolio_delete_succeeded'),
+    ).toHaveLength(1);
     expect(
       await view.findByRole('img', { name: /평가금액 720,000원, 매입원금 600,000원/ }),
     ).toBeTruthy();

@@ -260,6 +260,12 @@ for (const width of [1440, 390]) {
           'page',
         );
       }
+      const metricsTrigger = page.getByRole('button', { name: '리그 투자자 상세 지표' });
+      await metricsTrigger.click();
+      await expect(page.getByRole('dialog', { name: '리그 투자자 상세 지표' })).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).not.toBeVisible();
+      await expect(metricsTrigger).toBeFocused();
       await page.getByRole('link', { name: '리그 투자자 공개 프로필 보기' }).click();
       await expect(page.getByRole('heading', { name: '리그 투자자', exact: true })).toBeVisible();
       await expect(page).toHaveTitle('리그 투자자 공개 프로필 | DAYNOMY');
@@ -272,7 +278,7 @@ for (const width of [1440, 390]) {
       const dailyChart = page.getByRole('group', { name: '일별 수익률 그래프', exact: true });
       await expect(dailyChart).toBeVisible();
       await expect(dailyChart.locator('.league-return-line circle')).toHaveCount(1);
-      await expect(page.getByText('2026-10-13 종가 기준 · 집계 중')).toBeVisible();
+      await expect(page.getByText('2026-10-13 종가 기준 · 잠정 수익률')).toBeVisible();
       await expect(dailyChart).toContainText('성과 시작 종가 · 0%');
       await expect(dailyChart).toContainText('종가 수집 대기');
       await expect(page.getByRole('group', { name: '선택한 날짜의 성과' })).toHaveCount(0);
