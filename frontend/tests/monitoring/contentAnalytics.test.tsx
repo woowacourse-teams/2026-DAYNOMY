@@ -64,45 +64,48 @@ it('실제 노출 전에는 보내지 않고 StrictMode·재렌더·순환 재�
   );
   expect(trackEvent).toHaveBeenCalledTimes(2);
 });
-it('피드 펼치기와 원문 클릭은 종류·위치만 보내고 제목·URL은 보내지 않는다', () => {
-  const view = render(
-    <MemoryRouter>
-      <IssueFeed
-        surface="news_contents"
-        offset={12}
-        items={[
-          {
-            key: 'content-9',
-            source: 'YOUTUBE',
-            title: 'private-title',
-            date: null,
-            content: {
-              id: 9,
-              assetId: 2,
+it.each(['news_contents', 'search_results'])(
+  '%s 피드 펼치기와 원문 클릭은 종류·위치만 보내고 제목·URL은 보내지 않는다',
+  (surface) => {
+    const view = render(
+      <MemoryRouter>
+        <IssueFeed
+          surface={surface}
+          offset={12}
+          items={[
+            {
+              key: 'content-9',
+              source: 'YOUTUBE',
               title: 'private-title',
-              sourceType: 'YOUTUBE',
-              url: 'https://youtu.be/abcdefghijk?private-query',
-              imageUrl: null,
-              createdAt: null,
+              date: null,
+              content: {
+                id: 9,
+                assetId: 2,
+                title: 'private-title',
+                sourceType: 'YOUTUBE',
+                url: 'https://youtu.be/abcdefghijk?private-query',
+                imageUrl: null,
+                createdAt: null,
+              },
             },
-          },
-        ]}
-      />
-    </MemoryRouter>,
-  );
-  fireEvent.click(view.getByRole('button', { name: /private-title/ }));
-  expect(trackEvent).toHaveBeenCalledWith('expand_content', {
-    surface: 'news_contents',
-    content_id: 'content-9',
-    content_type: 'external',
-    source_type: 'YOUTUBE',
-    position: 13,
-  });
-  fireEvent.click(view.getByRole('link', { name: /원문 보기/ }));
-  fireEvent.click(view.getByRole('button', { name: /글 접기/ }));
-  expect(trackEvent).toHaveBeenCalledTimes(2);
-  expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('private-');
-});
+          ]}
+        />
+      </MemoryRouter>,
+    );
+    fireEvent.click(view.getByRole('button', { name: /private-title/ }));
+    expect(trackEvent).toHaveBeenCalledWith('expand_content', {
+      surface,
+      content_id: 'content-9',
+      content_type: 'external',
+      source_type: 'YOUTUBE',
+      position: 13,
+    });
+    fireEvent.click(view.getByRole('link', { name: /원문 보기/ }));
+    fireEvent.click(view.getByRole('button', { name: /글 접기/ }));
+    expect(trackEvent).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('private-');
+  },
+);
 it('현재 페이지 재클릭은 집계하지 않고 실제 페이지 변경만 기록한다', () => {
   const onChange = vi.fn();
   const view = render(
