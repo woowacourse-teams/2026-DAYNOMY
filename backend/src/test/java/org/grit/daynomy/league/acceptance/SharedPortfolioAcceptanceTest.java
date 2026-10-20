@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.*;
 import io.restassured.specification.RequestSpecification;
 import java.math.BigDecimal;
 import java.sql.DriverManager;
+import java.sql.Timestamp;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -157,6 +158,97 @@ class SharedPortfolioAcceptanceTest {
                 Integer.class,
                 owner.getId()))
         .isEqualTo(last ? 0 : 1);
+  }
+
+  @Test
+  void editsOwnedReasonAndPreservesRecordReviewsAndHoldings() {
+    Member owner = member();
+    Asset asset = asset();
+    client(owner)
+        .body(
+            Map.of(
+                "holdings",
+                List.of(
+                    Map.of(
+                        "assetId",
+                        asset.getId(),
+                        "quantity",
+                        2,
+                        "averagePurchasePrice",
+                        100,
+                        "decision",
+                        Map.of("reason", "기존 보유 이유"))),
+                "overwriteExisting",
+                false))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    Map<String, Object> record =
+        client(owner)
+            .get("/api/users/me/portfolio/transactions")
+            .then()
+            .statusCode(200)
+            .extract()
+            .path("transactions[0]");
+    Number id = (Number) record.get("id");
+    String path = "/api/users/me/portfolio/decisions/" + id;
+    client(owner)
+        .body(
+            Map.of("actualResult", "결과", "differenceFromExpectation", "차이", "nextAction", "다음 행동"))
+        .post(path + "/reviews")
+        .then()
+        .statusCode(201);
+    Map<String, Object> before =
+        client(owner)
+            .get("/api/users/me/portfolio/transactions")
+            .then()
+            .statusCode(200)
+            .extract()
+            .path("transactions[0]");
+    var createdAt =
+        jdbc.queryForObject(
+            "SELECT created_at FROM portfolio_transactions WHERE id=?", Timestamp.class, id);
+    Map<String, Object> holdings =
+        client(owner).get(SHARED).then().statusCode(200).extract().path("holdings[0]");
+
+    given()
+        .port(port)
+        .contentType("application/json")
+        .body(Map.of("reason", "다른 이유"))
+        .put(path + "/reason")
+        .then()
+        .statusCode(anyOf(is(401), is(403)));
+    client(member()).body(Map.of("reason", "다른 이유")).put(path + "/reason").then().statusCode(404);
+    Map<String, Object> edited =
+        client(owner)
+            .body(Map.of("reason", " 수정한 보유 이유 "))
+            .put(path + "/reason")
+            .then()
+            .statusCode(200)
+            .header("Cache-Control", "no-store")
+            .extract()
+            .jsonPath()
+            .getMap("$");
+
+    before.put("reason", "수정한 보유 이유");
+    assertThat(edited).isEqualTo(before);
+    Map<String, Object> reloaded =
+        client(owner)
+            .get("/api/users/me/portfolio/transactions")
+            .then()
+            .statusCode(200)
+            .body("transactions", hasSize(1))
+            .extract()
+            .path("transactions[0]");
+    assertThat(reloaded).isEqualTo(edited);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT created_at FROM portfolio_transactions WHERE id=?", Timestamp.class, id))
+        .isEqualTo(createdAt);
+    Map<String, Object> after =
+        client(owner).get(SHARED).then().statusCode(200).extract().path("holdings[0]");
+    holdings.put("reason", "수정한 보유 이유");
+    assertThat(after).isEqualTo(holdings);
   }
 
   @Test
