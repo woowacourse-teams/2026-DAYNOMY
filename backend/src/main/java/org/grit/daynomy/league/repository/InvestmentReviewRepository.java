@@ -1,8 +1,10 @@
 package org.grit.daynomy.league.repository;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -14,6 +16,14 @@ public interface InvestmentReviewRepository extends JpaRepository<InvestmentRevi
   List<InvestmentReview> findAllByTransactionIdOrderByCreatedAtAsc(Long transactionId);
 
   List<InvestmentReview> findAllByTransactionIdInOrderByCreatedAtAsc(List<Long> transactionIds);
+
+  @Query(
+      """
+      select distinct review.transaction.id from InvestmentReview review
+      where review.transaction.portfolio.id in :portfolioIds
+        and review.transaction.tradedOn <= :tradedOn
+      """)
+  Set<Long> findReviewedTransactionIds(List<Long> portfolioIds, LocalDate tradedOn);
 
   @Query(
       """

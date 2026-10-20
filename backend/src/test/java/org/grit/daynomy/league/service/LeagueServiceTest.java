@@ -437,6 +437,7 @@ class LeagueServiceTest {
                         value -> !value.getBaseDate().isAfter(call.getArgument(2, LocalDate.class)))
                     .toList());
 
+    rankingInputs(List.of(profile), List.of(portfolio), java.util.Map.of(3L, values));
     var first = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
     assertThat(first.confirmed()).isFalse();
     assertThat(first.asOfDate()).isEqualTo(enrolled);
@@ -499,6 +500,7 @@ class LeagueServiceTest {
     LocalDate week = LocalDate.now(seoul).with(DayOfWeek.MONDAY).minusWeeks(1);
     List<InvestorProfile> profiles = new ArrayList<>();
     java.util.Map<Long, List<PortfolioDailyReturn>> returns = new java.util.HashMap<>();
+    List<SharedPortfolio> portfolios = new ArrayList<>();
     for (int index = 0; index < 4; index++) {
       long memberId = index + 1L;
       long portfolioId = index + 10L;
@@ -526,6 +528,7 @@ class LeagueServiceTest {
         values.add(dailyReturn(portfolio, week.plusDays(day), index == 3 && day == 4 ? "-1" : "0"));
       }
       returns.put(portfolioId, values);
+      portfolios.add(portfolio);
     }
     given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue()).willReturn(profiles);
     given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(profiles);
@@ -559,6 +562,7 @@ class LeagueServiceTest {
                   .toList();
             });
 
+    rankingInputs(profiles, portfolios, returns);
     assertThat(service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20).rankings())
         .extracting(value -> value.rank())
         .containsExactly(1, 1, 1, 2);
@@ -637,6 +641,7 @@ class LeagueServiceTest {
                         value -> !value.getBaseDate().isAfter(call.getArgument(2, LocalDate.class)))
                     .toList());
 
+    rankingInputs(List.of(profile), List.of(portfolio), java.util.Map.of(3L, values));
     var ranking = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
     assertThat(ranking.confirmed()).isFalse();
     assertThat(ranking.collectionStatus())
@@ -902,6 +907,7 @@ class LeagueServiceTest {
         .willReturn(values);
     given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
         .willReturn(List.of(profile));
+    rankingInputs(List.of(profile), List.of(portfolio), java.util.Map.of(3L, values));
     var performance = service.publicInvestor(null, "investor-1").performance();
     Integer expectedRank =
         values.stream().anyMatch(value -> !value.getBaseDate().isBefore(currentWeek)) ? 1 : null;
@@ -921,6 +927,27 @@ class LeagueServiceTest {
     assertThat(missing.threeWeekReturnRate()).isNull();
     assertThat(missing.maxDrawdownRate()).isNull();
     assertThat(missing.volatilityRate()).isNull();
+  }
+
+  private void rankingInputs(
+      List<InvestorProfile> profiles,
+      List<SharedPortfolio> portfolios,
+      java.util.Map<Long, List<PortfolioDailyReturn>> returns) {
+    for (int i = 0; i < portfolios.size(); i++) {
+      given(portfolios.get(i).getMember()).willReturn(profiles.get(i).getMember());
+    }
+    given(portfolioRepository.findAllByMemberIdIn(any())).willReturn(portfolios);
+    given(returnRepository.findLatestByPortfolioIdInAndBaseDateBetween(any(), any(), any()))
+        .willAnswer(
+            call ->
+                returns.values().stream()
+                    .flatMap(List::stream)
+                    .filter(
+                        value ->
+                            !value.getBaseDate().isBefore(call.getArgument(1, LocalDate.class)))
+                    .filter(
+                        value -> !value.getBaseDate().isAfter(call.getArgument(2, LocalDate.class)))
+                    .toList());
   }
 
   private MarketTradingDay tradingDay(LocalDate date) {

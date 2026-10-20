@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -86,6 +87,7 @@ public class LeagueService {
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
   private static final BigDecimal HUNDRED = new BigDecimal("100");
   private static final BigDecimal ONE = BigDecimal.ONE;
+  private static final int RANKING_BATCH_SIZE = 500;
 
   private final InvestorProfileRepository profileRepository;
   private final SharedPortfolioRepository portfolioRepository;
@@ -105,6 +107,8 @@ public class LeagueService {
   private Map<LocalDate, WeekState> finalizationStates = new HashMap<>();
   private boolean finalizationStatesInitialized;
   private final ThreadLocal<Map<CalendarRange, List<MarketTradingDay>>> finalizationCalendarCache =
+      new ThreadLocal<>();
+  private final ThreadLocal<Map<CalendarRange, List<MarketTradingDay>>> rankingCalendarCache =
       new ThreadLocal<>();
 
   @Transactional(readOnly = true)
@@ -195,25 +199,86 @@ public class LeagueService {
   }
 
   private List<RankedProfile> rankedProfiles(LocalDate week, LeagueType type, boolean publicOnly) {
-    return (publicOnly
-            ? profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue()
-            : profileRepository.findAllByLeagueEnabledAtIsNotNull())
-        .stream()
-            .filter(
+    rankingCalendarCache.set(new HashMap<>());
+    try {
+      List<InvestorProfile> profiles =
+          (publicOnly
+                  ? profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue()
+                  : profileRepository.findAllByLeagueEnabledAtIsNotNull())
+              .stream()
+                  .filter(
+                      profile ->
+                          type != LeagueType.BEGINNER
+                              || profile.getExperienceLevel() == ExperienceLevel.BEGINNER)
+                  .filter(profile -> participatesInWeek(profile, week))
+                  .toList();
+      List<RankedProfile> results = new ArrayList<>();
+      for (int from = 0; from < profiles.size(); from += RANKING_BATCH_SIZE) {
+        results.addAll(
+            metrics(
+                profiles.subList(from, Math.min(from + RANKING_BATCH_SIZE, profiles.size())),
+                week));
+      }
+      return results.stream()
+          .filter(ranked -> ranked.metric() != null && ranked.metric().weeklyReturnRate() != null)
+          .filter(
+              ranked ->
+                  type != LeagueType.STABLE
+                      || (ranked.metric().volatilityRate() != null
+                          && ranked.metric().threeWeekReturnRate() != null
+                          && ranked.metric().maxDrawdownRate() != null))
+          .sorted(comparator(type))
+          .toList();
+    } finally {
+      rankingCalendarCache.remove();
+    }
+  }
+
+  private List<RankedProfile> metrics(List<InvestorProfile> profiles, LocalDate week) {
+    List<SharedPortfolio> portfolios =
+        portfolioRepository.findAllByMemberIdIn(
+            profiles.stream().map(profile -> profile.getMember().getId()).toList());
+    Map<Long, SharedPortfolio> byMember =
+        portfolios.stream()
+            .collect(
+                Collectors.toMap(
+                    portfolio -> portfolio.getMember().getId(), portfolio -> portfolio));
+    List<Long> ids = portfolios.stream().map(SharedPortfolio::getId).toList();
+    if (ids.isEmpty()) return List.of();
+    LocalDate from =
+        profiles.stream()
+            .map(
                 profile ->
-                    type != LeagueType.BEGINNER
-                        || profile.getExperienceLevel() == ExperienceLevel.BEGINNER)
-            .filter(profile -> participatesInWeek(profile, week))
-            .map(profile -> metrics(profile, week))
-            .filter(ranked -> ranked.metric() != null && ranked.metric().weeklyReturnRate() != null)
-            .filter(
-                ranked ->
-                    type != LeagueType.STABLE
-                        || (ranked.metric().volatilityRate() != null
-                            && ranked.metric().threeWeekReturnRate() != null
-                            && ranked.metric().maxDrawdownRate() != null))
-            .sorted(comparator(type))
-            .toList();
+                    profile.getTrackingStartedOn() == null ? week : profile.getTrackingStartedOn())
+            .min(LocalDate::compareTo)
+            .orElse(week);
+    LocalDate end = week.plusDays(6);
+    Map<Long, List<PortfolioDailyReturn>> returns =
+        (from.isAfter(end)
+                ? List.<PortfolioDailyReturn>of()
+                : returnRepository.findLatestByPortfolioIdInAndBaseDateBetween(ids, from, end))
+            .stream().collect(Collectors.groupingBy(value -> value.getPortfolio().getId()));
+    Map<Long, List<InvestmentDecision>> decisions =
+        decisionRepository
+            .findAllByPortfolioIdInAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(ids, end)
+            .stream()
+            .collect(Collectors.groupingBy(value -> value.getPortfolio().getId()));
+    Set<Long> reviewed = reviewRepository.findReviewedTransactionIds(ids, end);
+    return profiles.stream()
+        .filter(profile -> byMember.containsKey(profile.getMember().getId()))
+        .map(
+            profile -> {
+              Long id = byMember.get(profile.getMember().getId()).getId();
+              LocalDate started =
+                  profile.getTrackingStartedOn() == null ? week : profile.getTrackingStartedOn();
+              List<PortfolioDailyReturn> values =
+                  returns.getOrDefault(id, List.of()).stream()
+                      .filter(value -> !value.getBaseDate().isBefore(started))
+                      .toList();
+              return metrics(
+                  profile, week, values, decisions.getOrDefault(id, List.of()), reviewed);
+            })
+        .toList();
   }
 
   @Transactional
@@ -645,7 +710,8 @@ public class LeagueService {
   }
 
   private List<MarketTradingDay> calendar(LocalDate from, LocalDate to) {
-    Map<CalendarRange, List<MarketTradingDay>> cache = finalizationCalendarCache.get();
+    Map<CalendarRange, List<MarketTradingDay>> cache = rankingCalendarCache.get();
+    if (cache == null) cache = finalizationCalendarCache.get();
     if (cache == null)
       return tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(from, to);
     return cache.computeIfAbsent(
@@ -1002,15 +1068,26 @@ public class LeagueService {
             ? List.of()
             : returnRepository.findLatestByPortfolioIdAndBaseDateBetween(
                 portfolio.getId(), from, weekStart.plusDays(6));
-    Metric metric = calculateMetric(profile, returns, weekStart);
-    if (finalizationCalendarCache.get() != null) returns.forEach(entityManager::detach);
     List<InvestmentDecision> transactions =
         decisionRepository.findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
             portfolio.getId(), weekStart.plusDays(6));
-    Map<Long, List<InvestmentReview>> reviews = reviewsByTransaction(transactions);
+    RankedProfile result =
+        metrics(
+            profile, weekStart, returns, transactions, reviewsByTransaction(transactions).keySet());
+    if (finalizationCalendarCache.get() != null) returns.forEach(entityManager::detach);
+    return result;
+  }
+
+  private RankedProfile metrics(
+      InvestorProfile profile,
+      LocalDate weekStart,
+      List<PortfolioDailyReturn> returns,
+      List<InvestmentDecision> transactions,
+      Set<Long> reviewedIds) {
+    Metric metric = calculateMetric(profile, returns, weekStart);
     long reviewed =
         transactions.stream()
-            .filter(transaction -> !reviews.getOrDefault(transaction.getId(), List.of()).isEmpty())
+            .filter(transaction -> reviewedIds.contains(transaction.getId()))
             .count();
     BigDecimal completion =
         transactions.isEmpty()
