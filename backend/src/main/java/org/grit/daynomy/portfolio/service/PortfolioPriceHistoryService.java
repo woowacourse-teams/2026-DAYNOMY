@@ -1,23 +1,29 @@
 package org.grit.daynomy.portfolio.service;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.eodhd.EodhdClient;
+import org.grit.daynomy.external.krx.KrxCalendarClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient.HistoricalPrice;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
@@ -41,8 +47,10 @@ public class PortfolioPriceHistoryService {
   private final PortfolioLedgerCalculator ledgerCalculator;
   private final AssetRepository assetRepository;
   private final StockDailyPriceRepository priceRepository;
+  private final MarketTradingDayRepository tradingDayRepository;
   private final InvestmentCalendarHistoricalPriceClient domesticClient;
   private final EodhdClient usClient;
+  private final KrxCalendarClient krxCalendarClient;
   private final PortfolioSnapshotTransactionService snapshotService;
   private final TaskScheduler taskScheduler;
   private final PlatformTransactionManager transactionManager;
@@ -224,44 +232,95 @@ public class PortfolioPriceHistoryService {
           to = target.to();
         }
       }
-      List<HistoricalPrice> fetched = fetch(asset, from, to);
       LocalDate fetchFrom = from;
       LocalDate fetchTo = to;
-      if (fetched.stream()
-          .noneMatch(
-              price ->
-                  price.baseDate() != null
-                      && !price.baseDate().isBefore(fetchFrom)
-                      && !price.baseDate().isAfter(fetchTo)
-                      && price.closePrice() != null
-                      && price.closePrice().signum() > 0)) {
-        throw new IllegalStateException("No historical prices returned");
+      List<LocalDate> tradingDates = tradingDates(asset, fetchFrom, fetchTo);
+      Set<LocalDate> storedDates = new HashSet<>();
+      priceRepository
+          .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+              List.of(target.assetId()), fetchFrom, fetchTo)
+          .forEach(price -> storedDates.add(price.getBaseDate()));
+      List<HistoricalPrice> fetched =
+          tradingDates.stream().allMatch(storedDates::contains)
+              ? List.of()
+              : fetch(asset, fetchFrom, fetchTo);
+      Boolean complete =
+          new TransactionTemplate(transactionManager)
+              .execute(
+                  status -> {
+                    Asset storedAsset = assetRepository.findById(target.assetId()).orElseThrow();
+                    Set<LocalDate> present = new HashSet<>();
+                    priceRepository
+                        .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+                            List.of(target.assetId()), fetchFrom, fetchTo)
+                        .forEach(price -> present.add(price.getBaseDate()));
+                    List<StockDailyPrice> additions = new ArrayList<>();
+                    for (HistoricalPrice price : fetched) {
+                      if (price.baseDate() == null
+                          || price.baseDate().isBefore(fetchFrom)
+                          || price.baseDate().isAfter(fetchTo)
+                          || price.closePrice() == null
+                          || price.closePrice().signum() <= 0) continue;
+                      if (present.add(price.baseDate())) {
+                        additions.add(
+                            new StockDailyPrice(storedAsset, price.baseDate(), price.closePrice()));
+                      }
+                    }
+                    priceRepository.saveAll(additions);
+                    List<LocalDate> missing =
+                        tradingDates.stream().filter(date -> !present.contains(date)).toList();
+                    LocalDate coveredFrom = fetchFrom;
+                    LocalDate coveredTo = fetchTo;
+                    if (!missing.isEmpty()) {
+                      if (storedAsset.getPortfolioPriceHistoryFrom() != null
+                          && fetchTo.isBefore(storedAsset.getPortfolioPriceHistoryFrom())) {
+                        coveredFrom = missing.getLast().plusDays(1);
+                      } else if (storedAsset.getPortfolioPriceHistoryThrough() == null
+                          || fetchFrom.isAfter(storedAsset.getPortfolioPriceHistoryThrough())) {
+                        coveredTo = missing.getFirst().minusDays(1);
+                      } else {
+                        coveredFrom = fetchTo.plusDays(1);
+                      }
+                    }
+                    if (!coveredFrom.isAfter(coveredTo)) {
+                      storedAsset.recordPriceHistoryCoverage(coveredFrom, coveredTo);
+                    }
+                    return missing.isEmpty();
+                  });
+      if (!Boolean.TRUE.equals(complete)) {
+        throw new IllegalStateException("Missing historical prices for trading dates");
       }
-      new TransactionTemplate(transactionManager)
-          .executeWithoutResult(
-              status -> {
-                Asset storedAsset = assetRepository.findById(target.assetId()).orElseThrow();
-                Map<LocalDate, StockDailyPrice> existing = new HashMap<>();
-                priceRepository
-                    .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
-                        List.of(target.assetId()), fetchFrom, fetchTo)
-                    .forEach(price -> existing.put(price.getBaseDate(), price));
-                List<StockDailyPrice> additions = new ArrayList<>();
-                for (HistoricalPrice price : fetched) {
-                  if (price.baseDate() == null
-                      || price.baseDate().isBefore(fetchFrom)
-                      || price.baseDate().isAfter(fetchTo)
-                      || price.closePrice() == null
-                      || price.closePrice().signum() <= 0) continue;
-                  if (!existing.containsKey(price.baseDate())) {
-                    additions.add(
-                        new StockDailyPrice(storedAsset, price.baseDate(), price.closePrice()));
-                  }
-                }
-                priceRepository.saveAll(additions);
-                storedAsset.recordPriceHistoryCoverage(fetchFrom, fetchTo);
-              });
     }
+  }
+
+  private List<LocalDate> tradingDates(Asset asset, LocalDate from, LocalDate to) {
+    List<LocalDate> weekdays =
+        from.datesUntil(to.plusDays(1))
+            .filter(date -> date.getDayOfWeek().getValue() <= DayOfWeek.FRIDAY.getValue())
+            .toList();
+    if (weekdays.isEmpty()) return List.of();
+    if (asset.getMarket() != null && asset.getMarket().isUs()) {
+      Set<LocalDate> holidays = usClient.getUsMarketHolidays(from, to);
+      return weekdays.stream().filter(date -> !holidays.contains(date)).toList();
+    }
+    Map<LocalDate, Boolean> calendar = new HashMap<>();
+    for (MarketTradingDay day :
+        tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(from, to)) {
+      calendar.put(day.getBaseDate(), day.isTrading());
+    }
+    Map<Integer, Set<LocalDate>> missingYears = new HashMap<>();
+    List<LocalDate> tradingDates = new ArrayList<>();
+    for (LocalDate date : weekdays) {
+      Boolean trading = calendar.get(date);
+      if (trading == null) {
+        trading =
+            !missingYears
+                .computeIfAbsent(date.getYear(), krxCalendarClient::holidays)
+                .contains(date);
+      }
+      if (trading) tradingDates.add(date);
+    }
+    return tradingDates;
   }
 
   private List<HistoricalPrice> fetch(Asset asset, LocalDate from, LocalDate to) {

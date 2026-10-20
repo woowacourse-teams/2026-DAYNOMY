@@ -1,9 +1,15 @@
 package org.grit.daynomy.external.eodhd;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.eodhd.dto.EodhdDailyPrice;
@@ -15,6 +21,7 @@ import org.springframework.web.client.RestClientException;
 
 @Component
 public class EodhdClient {
+  private static final ObjectMapper JSON = new ObjectMapper();
   private final EodhdProperties properties;
   private final RestClient restClient;
 
@@ -89,6 +96,43 @@ public class EodhdClient {
               .body(EodhdDailyPrice[].class);
       return validatedList(result);
     } catch (RestClientException exception) {
+      throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+    }
+  }
+
+  public Set<LocalDate> getUsMarketHolidays(LocalDate from, LocalDate to) {
+    requireToken();
+    try {
+      String body =
+          restClient
+              .get()
+              .uri(
+                  builder ->
+                      builder
+                          .path("/exchange-details/US")
+                          .queryParam("api_token", "{token}")
+                          .queryParam("fmt", "json")
+                          .queryParam("from", from)
+                          .queryParam("to", to)
+                          .build(properties.apiToken()))
+              .retrieve()
+              .body(String.class);
+      JsonNode response = body == null ? null : JSON.readTree(body);
+      JsonNode holidays = response == null ? null : response.get("ExchangeHolidays");
+      if (response == null
+          || !"US".equalsIgnoreCase(response.path("Code").asText())
+          || holidays == null
+          || !holidays.isContainerNode()) {
+        throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+      }
+      Set<LocalDate> dates = new HashSet<>();
+      for (JsonNode holiday : holidays) {
+        if (!"official".equalsIgnoreCase(holiday.path("Type").asText())) continue;
+        LocalDate date = LocalDate.parse(holiday.path("Date").asText());
+        if (!date.isBefore(from) && !date.isAfter(to)) dates.add(date);
+      }
+      return Set.copyOf(dates);
+    } catch (RestClientException | DateTimeException | IOException exception) {
       throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
     }
   }
