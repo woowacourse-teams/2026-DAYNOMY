@@ -159,6 +159,47 @@ class PortfolioAnalysisNarrativeTest {
     assertThatThrownBy(() -> client.summarize(analysis())).isInstanceOf(BusinessException.class);
   }
 
+  @Test
+  void selectedPortfolioKeepsFullCompositionAndDoesNotTreatExclusionsAsInsufficient()
+      throws Exception {
+    var selected = List.of(impact("삼성전자", "60", true), impact("SK하이닉스", "20", true));
+    var value =
+        PortfolioAnalysisResponse.of(
+                4,
+                PortfolioImpactSummary.calculate(
+                    selected.stream()
+                        .map(
+                            i ->
+                                new PortfolioImpactSummary.AssetImpact(
+                                    i.weight(), i.direction(), i.impactLevel()))
+                        .toList()),
+                Instant.now(),
+                "",
+                selected,
+                List.of())
+            .withExcludedAssets(
+                List.of(
+                    new org.grit.daynomy.portfolio.dto.PortfolioAssetRequest(
+                        "삼성전자", new BigDecimal("60")),
+                    new org.grit.daynomy.portfolio.dto.PortfolioAssetRequest(
+                        "SK하이닉스", new BigDecimal("20")),
+                    new org.grit.daynomy.portfolio.dto.PortfolioAssetRequest(
+                        "기타1", new BigDecimal("15")),
+                    new org.grit.daynomy.portfolio.dto.PortfolioAssetRequest(
+                        "기타2", new BigDecimal("5"))));
+    enqueue(Map.of("impact", "확인된 실적이 선택 종목에 유리해요.", "priority", "새 발표를 확인해야 해요."));
+
+    var summary = client.summarize(value);
+
+    assertThat(summary)
+        .contains("4개 종목", "2개 종목을 선별", "나머지 2개 종목은 분석하지 않았어요", "80%", "전체 영향은 판단을 보류해요");
+    var request = mapper.readTree(server.takeRequest().getBody().readUtf8());
+    var input = mapper.readTree(request.path("input").get(1).path("content").asText());
+    assertThat(input.path("assets").size()).isEqualTo(2);
+    assertThat(input.path("excludedAssets").size()).isEqualTo(2);
+    assertThat(input.path("excludedAssets").get(0).has("direction")).isFalse();
+  }
+
   private void enqueue(Map<String, String> output) throws Exception {
     String text = mapper.writeValueAsString(output);
     String response =

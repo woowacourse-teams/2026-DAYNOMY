@@ -65,6 +65,23 @@ public class PortfolioAssetAnalysisService {
     this.ttl = ttl;
   }
 
+  // 신규 검색 없이 현재 모델·버전의 유효한 공통 분석만 선별 신호로 사용한다.
+  public Map<String, org.grit.daynomy.market.domain.asset.ImpactLevel> cachedImpactLevels(
+      List<String> assetNames) {
+    return repository
+        .findAllByAssetNameInAndAnalysisVersionAndModelAndExpiresAtAfter(
+            assetNames, ANALYSIS_VERSION, model, Instant.now())
+        .stream()
+        .filter(
+            saved ->
+                saved.getSnapshot().direction() != null
+                    && saved.getSnapshot().impactLevel() != null
+                    && !saved.getSnapshot().sources().isEmpty())
+        .collect(
+            java.util.stream.Collectors.toMap(
+                saved -> saved.getAssetName(), saved -> saved.getSnapshot().impactLevel()));
+  }
+
   // 외부 AI 호출 중 DB 트랜잭션을 유지하지 않는다.
   public PortfolioAnalysisResult analyze(List<PortfolioAnalysisTarget> targets) {
     if (targets.isEmpty()) return new PortfolioAnalysisResult("", List.of(), List.of());

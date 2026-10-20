@@ -35,7 +35,10 @@ public class SavedPortfolioAnalysisV2Controller {
     this.executor = executor;
   }
 
-  @Operation(summary = "포트폴리오 분석 V2: 가격 일괄 조회 및 종목 AI 결과 재사용")
+  @Operation(
+      summary = "포트폴리오 분석 V2: 가격 일괄 조회 및 최대 5종목 선별 분석",
+      description =
+          "비중 상위 3종목과 유효한 공통 분석에서 HIGH인 최대 2종목을 선택하고 빈자리는 비중순으로 채웁니다. 동률은 종목명순입니다. 새 이슈를 탐지하지 않으며 저장 분석이 없으면 비중 상위 5개를 선택합니다. 제외 종목은 excludedAssets로 반환하며 원래 비중을 유지합니다. 일부만 분석하면 전체 방향·점수는 null입니다.")
   @PostMapping
   public WebAsyncTask<SavedPortfolioAnalysisResponse> analyze(
       @AuthenticationPrincipal AuthenticatedMember member,
