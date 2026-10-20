@@ -26,7 +26,8 @@ class KrxCalendarClientTest {
     client =
         new KrxCalendarClient(
             new KrxCalendarProperties(
-                server.url("/").toString(), Duration.ofSeconds(1), Duration.ofSeconds(1)));
+                server.url("/").toString(), Duration.ofSeconds(1), Duration.ofSeconds(1)),
+            org.springframework.web.client.RestClient.builder());
   }
 
   @AfterEach
@@ -103,7 +104,8 @@ class KrxCalendarClientTest {
     client =
         new KrxCalendarClient(
             new KrxCalendarProperties(
-                server.url("/").toString(), Duration.ofMillis(100), Duration.ofMillis(100)));
+                server.url("/").toString(), Duration.ofMillis(100), Duration.ofMillis(100)),
+            org.springframework.web.client.RestClient.builder());
     server.enqueue(new MockResponse().setBody("late response").setBodyDelay(1, TimeUnit.SECONDS));
     assertThatThrownBy(client::publishedYears).isInstanceOf(BusinessException.class);
   }

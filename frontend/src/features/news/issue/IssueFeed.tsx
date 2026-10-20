@@ -6,17 +6,24 @@ import threadsMark from '../../../assets/platform-threads.svg';
 import { Link } from 'react-router-dom';
 import { SocialPostEmbed } from '../../people/SocialPostEmbed';
 import { getCategoryLabel } from '../newslist/types';
-import { feedDate, isToday, sourceLabel, timestamp, youtubeId, type FeedItem } from './feed';
+import {
+  feedDate,
+  isToday,
+  sourceLabel,
+  timestamp,
+  youtubeId,
+  youtubeThumbnail,
+  type FeedItem,
+} from './feed';
 
 type ReadingItem = Exclude<FeedItem, { source: 'DAYNOMY' }>;
 
 function thumbnailImage(item: FeedItem) {
   if ('article' in item) return item.article.imageUrl;
-  if ('content' in item) return item.content.imageUrl;
-  if (item.post.sourceType === 'YOUTUBE') {
-    const video = youtubeId(item.post.url);
-    return video ? `https://i.ytimg.com/vi/${video}/hqdefault.jpg` : null;
+  if (item.source === 'YOUTUBE') {
+    return youtubeThumbnail('content' in item ? item.content.url : item.post.url);
   }
+  if ('content' in item) return item.content.imageUrl;
   return null;
 }
 

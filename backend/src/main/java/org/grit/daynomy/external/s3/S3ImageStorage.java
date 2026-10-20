@@ -1,6 +1,7 @@
 package org.grit.daynomy.external.s3;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -37,6 +38,13 @@ public class S3ImageStorage {
   }
 
   private void put(String relativeKey, byte[] content, String contentType) {
+    long startedAt = System.nanoTime();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_REQUESTED.code())
+        .addKeyValue("api", "S3")
+        .addKeyValue("operation", "uploadImage")
+        .addKeyValue("contentLength", content.length)
+        .log(LogEvent.EXTERNAL_API_REQUESTED.message());
     try {
       s3Client.putObject(
           PutObjectRequest.builder()
@@ -47,11 +55,20 @@ public class S3ImageStorage {
               .contentLength((long) content.length)
               .build(),
           RequestBody.fromBytes(content));
+      log.atInfo()
+          .addKeyValue("event", LogEvent.EXTERNAL_UPLOAD_COMPLETED.code())
+          .addKeyValue("provider", "s3")
+          .addKeyValue("relativeKey", relativeKey)
+          .addKeyValue("contentLength", content.length)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.EXTERNAL_UPLOAD_COMPLETED.message());
     } catch (S3Exception | SdkClientException exception) {
       log.atWarn()
           .addKeyValue("event", LogEvent.EXTERNAL_UPLOAD_FAILED.code())
           .addKeyValue("provider", "s3")
           .addKeyValue("relativeKey", relativeKey)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("exceptionType", exception.getClass().getSimpleName())
           .setCause(exception)
           .log(LogEvent.EXTERNAL_UPLOAD_FAILED.message());
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
@@ -86,14 +103,28 @@ public class S3ImageStorage {
   }
 
   private void deleteByRelativeKey(String relativeKey) {
+    long startedAt = System.nanoTime();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_REQUESTED.code())
+        .addKeyValue("api", "S3")
+        .addKeyValue("operation", "deleteImage")
+        .log(LogEvent.EXTERNAL_API_REQUESTED.message());
     try {
       s3Client.deleteObject(
           DeleteObjectRequest.builder().bucket(bucket()).key(fullObjectKey(relativeKey)).build());
+      log.atInfo()
+          .addKeyValue("event", LogEvent.EXTERNAL_DELETE_COMPLETED.code())
+          .addKeyValue("provider", "s3")
+          .addKeyValue("relativeKey", relativeKey)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.EXTERNAL_DELETE_COMPLETED.message());
     } catch (S3Exception | SdkClientException exception) {
       log.atWarn()
           .addKeyValue("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
           .addKeyValue("provider", "s3")
           .addKeyValue("relativeKey", relativeKey)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .addKeyValue("exceptionType", exception.getClass().getSimpleName())
           .setCause(exception)
           .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
@@ -155,6 +186,10 @@ public class S3ImageStorage {
       return null;
     }
     return value.startsWith("/") ? value.substring(1) : value;
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
   public record StoredImage(String relativeKey, String publicUrl) {}

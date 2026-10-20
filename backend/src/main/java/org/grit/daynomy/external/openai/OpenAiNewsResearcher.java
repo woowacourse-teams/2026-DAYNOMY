@@ -36,19 +36,20 @@ public class OpenAiNewsResearcher {
   private static final String RETRY_INSTRUCTION =
       """
 
-      이전 조사 결과가 최신성, 독립 출처, 날짜 또는 기사 수 검증에 실패했다. 처음부터 다시 검색하라. 최근 3일 이내의 사건만 선택하고, 한국 출처를 우선하며, 이슈마다 독립된 출처를 2개 이상 확인하라. 본문이나 시장 분석은 작성하지 말고 검증된 facts만 반환하라.
-      """;
+이전 조사 결과가 최신성, 독립 출처, 날짜 또는 기사 수 검증에 실패했다. 처음부터 다시 검색하라. 최근 3일 이내의 사건만 선택하고, 한국 출처를 우선하며, 이슈마다 독립된 출처를 2개 이상 확인하라. 본문이나 시장 분석은 작성하지 말고 검증된 facts만 반환하라.
+""";
 
   private final OpenAiProperties openAiProperties;
   private final RestClient restClient;
 
-  public OpenAiNewsResearcher(OpenAiProperties openAiProperties) {
+  public OpenAiNewsResearcher(
+      OpenAiProperties openAiProperties, RestClient.Builder restClientBuilder) {
     this.openAiProperties = openAiProperties;
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(toMillis(openAiProperties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(openAiProperties.readTimeout()));
     this.restClient =
-        RestClient.builder()
+        restClientBuilder
             .baseUrl(openAiProperties.baseUrl())
             .requestFactory(requestFactory)
             .build();
@@ -62,7 +63,7 @@ public class OpenAiNewsResearcher {
     String retryInstruction =
         """
 
-        이전 조사 결과가 최신성, 독립 출처, 날짜 또는 기사 수 검증에 실패했다. 처음부터 다시 검색하라. 최근 3일 이내의 미국 경제·금융시장 사건만 선택하고, 미국 공식기관 또는 신뢰할 수 있는 미국 현지 언론의 독립 출처를 이슈마다 2곳 이상 확인하라. 본문이나 시장 분석은 작성하지 말고 검증된 facts만 반환하라.
+        이전 조사 결과가 최신성, 독립 출처, 날짜 또는 기사 수 검증에 실패했다. 처음부터 다시 검색하라. 최근 3일 이내의 미국 주식시장 전체, 주요 지수, 여러 기업 또는 산업에 영향을 줄 수 있는 사건을 우선 선택하되, 한 기업의 주가에 직접적이고 구체적인 영향을 줄 수 있는 중요한 계약·규제·소송·제품·공급망 사건도 포함하라. 단순 공시나 평범한 계약이라는 이유만으로 제외하지 말고 계약 규모, 상대방, 사업상 의미 또는 확인된 시장 반응을 근거로 판단하라. 일반적인 개별 기업 실적 발표나 영향이 불분명한 계약은 제외하라. 미국 공식기관 또는 신뢰할 수 있는 미국 현지 언론의 독립 출처를 이슈마다 2곳 이상 확인하라. 본문이나 시장 분석은 작성하지 말고 검증된 facts만 반환하라.
         """;
     return researchEconomicNews(US_PROMPT, "us-economic-news-research", retryInstruction);
   }
@@ -78,7 +79,16 @@ public class OpenAiNewsResearcher {
 
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        return parseResearch(requestResearch(prompt, retryInstruction, attempt));
+        List<EconomicNewsResearch> result =
+            parseResearch(requestResearch(prompt, retryInstruction, attempt));
+        log.atInfo()
+            .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_COMPLETED.code())
+            .addKeyValue("api", "OpenAI")
+            .addKeyValue("operation", operation)
+            .addKeyValue("attempt", attempt)
+            .addKeyValue("articleCount", result.size())
+            .log(LogEvent.AI_NEWS_GENERATION_COMPLETED.message());
+        return result;
       } catch (InvalidResearchException exception) {
         log.atWarn()
             .addKeyValue("event", LogEvent.AI_NEWS_VALIDATION_FAILED.code())
@@ -86,12 +96,21 @@ public class OpenAiNewsResearcher {
             .addKeyValue("operation", operation)
             .addKeyValue("attempt", attempt)
             .addKeyValue("reason", exception.getMessage())
+            .addKeyValue("errorType", exception.getClass().getSimpleName())
             .log(LogEvent.AI_NEWS_VALIDATION_FAILED.message());
         if (attempt == MAX_ATTEMPTS) {
+          log.atError()
+              .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+              .addKeyValue("api", "OpenAI")
+              .addKeyValue("operation", operation)
+              .addKeyValue("attempt", attempt)
+              .addKeyValue("reason", exception.getMessage())
+              .addKeyValue("errorType", exception.getClass().getSimpleName())
+              .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
           throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
         }
       } catch (HttpStatusCodeException exception) {
-        log.atWarn()
+        log.atError()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", operation)
@@ -99,7 +118,7 @@ public class OpenAiNewsResearcher {
             .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
         throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
       } catch (RestClientException exception) {
-        log.atWarn()
+        log.atError()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", operation)

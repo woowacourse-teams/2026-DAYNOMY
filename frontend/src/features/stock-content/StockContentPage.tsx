@@ -1,3 +1,4 @@
+import { youtubeThumbnail } from '../news/issue/feed';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { trackEvent, type AnalyticsParams } from '../../analytics';
 import { trackLoadResult, useContentView } from '../news/issue/analytics';
@@ -97,12 +98,10 @@ function getYouTubeVideoId(rawUrl: string) {
 }
 
 function YouTubeThumbnail({ content }: { content: StockRelatedContent }) {
-  const videoId = getYouTubeVideoId(content.url);
-  const [source, setSource] = useState(
-    content.imageUrl ?? (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null),
-  );
+  const source = youtubeThumbnail(content.url);
+  const [failedSource, setFailedSource] = useState<string | null>(null);
 
-  if (!source) {
+  if (!source || source === failedSource) {
     return <span className="stock-content-video-thumbnail-fallback">YouTube</span>;
   }
 
@@ -113,7 +112,7 @@ function YouTubeThumbnail({ content }: { content: StockRelatedContent }) {
       alt=""
       loading="lazy"
       decoding="async"
-      onError={() => setSource(null)}
+      onError={() => setFailedSource(source)}
     />
   );
 }
@@ -354,7 +353,7 @@ export function StockContentPage() {
   );
 
   const settled = !loading && !error && response?.assetId === assetId;
-  useContentView(settled, 'view_stock_contents', {
+  useContentView(settled, 'view_content_list', {
     surface: 'stock_contents',
     source_type: selectedSource === 'INTERNAL_NEWS' ? 'DAYNOMY' : selectedSource,
     result_count: visibleContents.length,

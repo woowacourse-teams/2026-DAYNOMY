@@ -5,6 +5,14 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IssueHomePage } from '../../src/features/news/issue/IssueHomePage';
+
+vi.mock('../../src/features/investment-calendar/InvestmentCalendarPage', () => ({
+  InvestmentCalendarPage: () => (
+    <section aria-labelledby="test-investment-calendar-title">
+      <h2 id="test-investment-calendar-title">투자 캘린더</h2>
+    </section>
+  ),
+}));
 const article = {
   id: 7,
   title: '오늘의 데이노미 이슈',
@@ -82,7 +90,7 @@ afterEach(() => {
   document.getElementById('daynomy-threads-embed-script')?.remove();
 });
 describe('이슈 홈과 전체 목록', () => {
-  it('오늘의 이슈와 인물 미리보기 아래에 전체 콘텐츠를 바로 표시한다', async () => {
+  it('투자 캘린더와 인물 글을 함께 표시하고 콘텐츠 경로를 제공한다', async () => {
     mockApi();
     const view = render(
       <MemoryRouter>
@@ -90,8 +98,8 @@ describe('이슈 홈과 전체 목록', () => {
       </MemoryRouter>,
     );
     await view.findByRole('button', { name: /첫 번째 인물 글/ });
-    expect(view.queryByRole('link', { name: '오늘의 이슈 더 보기' })).toBeNull();
-    expect(view.container.querySelector('.issue-story-card')?.getAttribute('href')).toBe('/news/7');
+    expect(view.getByRole('heading', { name: '투자 캘린더' })).toBeTruthy();
+    expect(view.queryByText('최근 이슈')).toBeNull();
     expect(
       view.getByRole('link', { name: '주목받는 인물의 글 전체 보기' }).getAttribute('href'),
     ).toBe('/people');
@@ -330,7 +338,7 @@ it('외부 자료 수집이 실패하면 번호 이동을 막고 재시도한다
   expect(requestedPages).toEqual([1, 2, 1, 2, 3]);
 });
 
-it('홈의 대표 이슈에는 오늘 기사를, 전체 목록에는 지난 기사도 보여준다', async () => {
+it('홈은 투자 캘린더와 전체 기사 목록을 함께 보여준다', async () => {
   const older = { ...article, id: 8, title: '지난 날짜 기사', publishedAt: '2026-10-11T09:00:00Z' };
   vi.stubGlobal(
     'fetch',
@@ -346,11 +354,9 @@ it('홈의 대표 이슈에는 오늘 기사를, 전체 목록에는 지난 기�
       <IssueHomePage />
     </MemoryRouter>,
   );
-  await waitFor(() =>
-    expect(view.container.querySelector('.issue-story-card')?.textContent).toContain(article.title),
-  );
+  expect(await view.findByRole('heading', { name: '투자 캘린더' })).toBeTruthy();
+  expect(await view.findByRole('link', { name: /오늘의 데이노미 이슈/ })).toBeTruthy();
   expect(view.queryByLabelText('이슈 날짜')).toBeNull();
-  expect(view.container.querySelector('.issue-story-card')?.textContent).not.toContain(older.title);
   expect(view.container.querySelector('.issue-feed')?.textContent).toContain(older.title);
 });
 
@@ -367,13 +373,10 @@ it('홈과 전체 콘텐츠에서 기사와 외부 글의 썸네일 및 날짜�
   expect(home.container.querySelector('.issue-feed-thumbnail-daynomy')?.textContent).toBe(
     '데이노미',
   );
-  expect(home.container.querySelector('.issue-story-image')?.textContent).toBe('데이노미');
   expect(home.container.querySelector('.issue-feed-thumbnail-x')?.textContent).toBe('X');
   const externalRow = home.getByRole('button', { name: /첫 번째 인물 글/ }).closest('article')!;
   expect(externalRow.querySelector('time')?.textContent).toBe('10.12 등록');
   expect(externalRow.querySelector('.issue-feed-thumbnail')).toBeTruthy();
-  expect(home.container.querySelector('.issue-story-meta')?.textContent).toContain('주식');
-  expect(home.container.querySelector('.issue-story-meta time')?.textContent).toBe('10.12 발행');
   fireEvent.click(home.getByRole('button', { name: /첫 번째 인물 글/ }));
   expect(home.getByRole('button', { name: /첫 번째 인물 글/ }).getAttribute('aria-expanded')).toBe(
     'true',

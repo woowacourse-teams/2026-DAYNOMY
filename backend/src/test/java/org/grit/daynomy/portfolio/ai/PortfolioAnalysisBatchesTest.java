@@ -3,6 +3,9 @@ package org.grit.daynomy.portfolio.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -150,6 +153,32 @@ class PortfolioAnalysisBatchesTest {
       assertThat(MDC.get("requestId")).isEqualTo("batch-test-request");
     } finally {
       MDC.remove("requestId");
+    }
+  }
+
+  @Test
+  void propagatesTheCurrentObservationToWorkerThreads() {
+    var registry = ObservationRegistry.create();
+    registry.observationConfig().observationHandler(new RecordingObservationHandler());
+    var observation = Observation.start("portfolio.analysis.test", registry);
+    try (var scope = observation.openScope()) {
+      PortfolioAnalysisBatches.analyze(
+          IntStream.range(0, 6).boxed().toList(),
+          batch -> {
+            assertThat(registry.getCurrentObservation()).isSameAs(observation);
+            return new PortfolioAnalysisResult(
+                "", batch.stream().map(this::impact).toList(), List.of());
+          });
+    } finally {
+      observation.stop();
+    }
+  }
+
+  private static class RecordingObservationHandler
+      implements ObservationHandler<Observation.Context> {
+    @Override
+    public boolean supportsContext(Observation.Context context) {
+      return true;
     }
   }
 

@@ -11,7 +11,8 @@ import {
 } from '../../stock-content/types';
 import { SocialPostEmbed } from '../../people/SocialPostEmbed';
 import { IssuePagination } from './IssuePagination';
-import { feedDate, youtubeId } from './feed';
+import { trackLoadResult, useContentView } from './analytics';
+import { feedDate, youtubeId, youtubeThumbnail } from './feed';
 import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import './issue.css';
@@ -69,23 +70,43 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   useEffect(() => {
     if (portfolio.loading || portfolio.error) return;
+    const startedAt = performance.now();
     const controller = new AbortController();
     const ids: number[] = JSON.parse(assetKey);
     setLoadedKey(null);
     setResponses([]);
     setFailedIds([]);
+    if (!ids.length) {
+      setLoadedKey(assetKey);
+      return () => controller.abort();
+    }
     Promise.allSettled(ids.map((id) => getStockRelatedContents(id, controller.signal))).then(
       (results) => {
         if (controller.signal.aborted) return;
-        setResponses(
-          results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : [])),
+        const nextResponses = results.flatMap((result) =>
+          result.status === 'fulfilled' ? [result.value] : [],
         );
-        setFailedIds(ids.filter((_, index) => results[index].status === 'rejected'));
+        const nextFailedIds = ids.filter((_, index) => results[index].status === 'rejected');
+        trackLoadResult(
+          'portfolio_contents',
+          selectedAsset === 'ALL' ? 'all' : 'selected',
+          startedAt,
+          nextFailedIds.length === ids.length
+            ? 'error'
+            : nextFailedIds.length
+              ? 'partial_error'
+              : 'success',
+          new Set(nextResponses.flatMap((response) => response.contents.map((item) => item.url)))
+            .size,
+          attempt,
+        );
+        setResponses(nextResponses);
+        setFailedIds(nextFailedIds);
         setLoadedKey(assetKey);
       },
     );
     return () => controller.abort();
-  }, [assetKey, portfolio.loading, portfolio.error, attempt]);
+  }, [assetKey, portfolio.loading, portfolio.error, attempt, selectedAsset]);
 
   function filter(key: 'asset' | 'source' | 'page', value: string) {
     const next = new URLSearchParams(params);
@@ -132,6 +153,30 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
     selectedAsset === 'ALL'
       ? failedIds.length > 0
       : failedIds.some((id) => String(id) === selectedAsset);
+  const requestedAssetCount = (JSON.parse(assetKey) as number[]).length;
+  const settled = !loading && !portfolio.error && validSelection;
+  const listStatus = failedIds.length
+    ? failedIds.length === requestedAssetCount
+      ? 'error'
+      : 'partial_error'
+    : 'ready';
+  const sourceType = source === 'INTERNAL_NEWS' ? 'DAYNOMY' : source;
+  useContentView(settled, 'view_content_list', {
+    surface: 'portfolio_contents',
+    source_type: sourceType,
+    result_count: items.length,
+    page_number: currentPage,
+    status: listStatus,
+  });
+  useContentView(settled && listStatus === 'ready' && !items.length, 'view_content_empty', {
+    surface: 'portfolio_contents',
+    source_type: sourceType,
+    reason: !portfolio.holdings.length
+      ? 'no_holdings'
+      : source !== 'ALL'
+        ? 'filter_empty'
+        : 'no_linked_content',
+  });
 
   const matchingHoldings = portfolio.holdings.filter((holding) =>
     holding.name.toLocaleLowerCase().includes(companySearch.trim().toLocaleLowerCase()),
@@ -219,7 +264,22 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                       key={value}
                       type="button"
                       aria-pressed={source === value}
-                      onClick={() => filter('source', value)}
+                      onClick={() => {
+                        if (value === source) return;
+                        trackEvent('filter_content_source', {
+                          surface: 'portfolio_contents',
+                          previous_source: sourceType,
+                          source_type: value === 'INTERNAL_NEWS' ? 'DAYNOMY' : value,
+                          result_count: new Set(
+                            responses.flatMap((response) =>
+                              response.contents
+                                .filter((item) => value === 'ALL' || item.sourceType === value)
+                                .map((item) => item.url),
+                            ),
+                          ).size,
+                        });
+                        filter('source', value);
+                      }}
                     >
                       {label}
                     </button>
@@ -234,7 +294,18 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
             </p>
           ) : portfolio.error ? (
             <p className="issue-state" role="alert">
-              {portfolio.error} <button onClick={portfolio.retry}>다시 시도</button>
+              {portfolio.error}{' '}
+              <button
+                onClick={() => {
+                  trackEvent('retry_content_load', {
+                    surface: 'portfolio_contents',
+                    area: 'holdings',
+                  });
+                  portfolio.retry();
+                }}
+              >
+                다시 시도
+              </button>
             </p>
           ) : !validSelection ? (
             <p className="issue-state">
@@ -246,7 +317,18 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
               {selectionFailed && (
                 <p className="issue-state" role="alert">
                   일부 종목의 소식을 불러오지 못했습니다.{' '}
-                  <button onClick={() => setAttempt((value) => value + 1)}>다시 시도</button>
+                  <button
+                    onClick={() => {
+                      trackEvent('retry_content_load', {
+                        surface: 'portfolio_contents',
+                        area: 'all',
+                        attempt: attempt + 1,
+                      });
+                      setAttempt((value) => value + 1);
+                    }}
+                  >
+                    다시 시도
+                  </button>
                 </p>
               )}
               {!portfolio.holdings.length ? (
@@ -266,12 +348,18 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                   const key = `${item.assetId}-${item.id}`;
                   const videoId = item.sourceType === 'YOUTUBE' ? youtubeId(item.url) : null;
                   const image =
-                    item.imageUrl ??
-                    (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null);
+                    item.sourceType === 'YOUTUBE' ? youtubeThumbnail(item.url) : item.imageUrl;
                   const label =
                     item.sourceType === 'INTERNAL_NEWS'
                       ? '데이노미'
                       : STOCK_CONTENT_SOURCE_LABELS[item.sourceType];
+                  const analytics = {
+                    surface: 'portfolio_contents',
+                    content_id: `content-${item.id}`,
+                    content_type: item.sourceType === 'INTERNAL_NEWS' ? 'news' : 'external',
+                    source_type: item.sourceType === 'INTERNAL_NEWS' ? 'DAYNOMY' : item.sourceType,
+                    position: (currentPage - 1) * 12 + index + 1,
+                  };
                   return (
                     <li key={key}>
                       <article className="issue-feed-row issue-feed-row--visual issue-feed-row--news">
@@ -307,13 +395,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                             aria-expanded={expanded === key}
                             aria-controls={`portfolio-post-${key}`}
                             onClick={() => {
-                              if (expanded !== key)
-                                trackEvent('expand_content', {
-                                  surface: 'portfolio_contents',
-                                  content_id: item.id,
-                                  source_type: item.sourceType,
-                                  position: (currentPage - 1) * 12 + index + 1,
-                                });
+                              if (expanded !== key) trackEvent('expand_content', analytics);
                               setExpanded(expanded === key ? null : key);
                             }}
                           >
@@ -340,6 +422,14 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                           </button>
                         ) : (
                           <a
+                            onClick={() =>
+                              trackEvent(
+                                item.sourceType === 'INTERNAL_NEWS'
+                                  ? 'click_content'
+                                  : 'click_content_original',
+                                analytics,
+                              )
+                            }
                             className="issue-row-title"
                             href={item.url}
                             target={item.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}
@@ -374,6 +464,9 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                                         <p>이 영상은 YouTube에서 확인해 주세요.</p>
                                       )}
                                       <a
+                                        onClick={() =>
+                                          trackEvent('click_content_original', analytics)
+                                        }
                                         className="issue-video-link"
                                         href={item.url}
                                         target="_blank"
@@ -385,6 +478,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                                   ) : (
                                     (item.sourceType === 'X' || item.sourceType === 'THREADS') && (
                                       <SocialPostEmbed
+                                        analytics={analytics}
                                         post={{
                                           sourceType: item.sourceType,
                                           title: item.title,
@@ -419,8 +513,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                   onChange={(next) => filter('page', String(next))}
                   analytics={{
                     surface: 'portfolio_contents',
-                    asset_id: selectedAsset,
-                    source_type: source,
+                    source_type: sourceType,
                   }}
                 />
               )}

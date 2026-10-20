@@ -7,8 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PortfolioContentsPage } from './PortfolioContentsPage';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
-import { IssueStories } from './IssueStories';
-import { getSampleNews, SAMPLE_NEWS_ID, showSampleNews } from './sampleNews';
+import { InvestmentCalendarPage } from '../../investment-calendar/InvestmentCalendarPage';
 import type { NewsListItem } from '../newslist/types';
 import { createFeed, feedDate, isToday, sourceLabel, timestamp, type FeedItem } from './feed';
 import { getAllContents } from './contents';
@@ -116,8 +115,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
         timestamp(b.post.publishedAt ?? b.post.createdAt) -
         timestamp(a.post.publishedAt ?? a.post.createdAt),
     )
-    .slice(0, 2);
-  const sampleNews = showSampleNews ? getSampleNews().news : null;
+    .slice(0, 3);
   const settled = !loading && !contentsLoading && !people.loading;
   const failedAreas = [error, contentsError, people.error].filter(Boolean).length;
   const listStatus = failedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
@@ -169,19 +167,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       )}
       {!fullFeed && (
         <div className="issue-briefing">
-          <IssueStories
-            news={
-              sampleNews
-                ? [
-                    { ...sampleNews, id: SAMPLE_NEWS_ID, imageUrl: sampleNews.imageUrl ?? null },
-                    ...news,
-                  ]
-                : news
-            }
-            loading={sampleNews ? false : loading}
-            error={sampleNews ? '' : error}
-            onRetry={retry}
-          />
+          <InvestmentCalendarPage embedded />
           <section className="issue-people" aria-labelledby="issue-people-heading">
             <div className="issue-section-heading">
               <h2 id="issue-people-heading">주목받는 인물의 글</h2>
@@ -193,6 +179,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                   })
                 }
                 to="/people"
+                className="issue-people-more"
                 aria-label="주목받는 인물의 글 전체 보기"
               >
                 전체 보기
@@ -233,31 +220,46 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                     <div className="issue-person-content">
                       <div className="issue-meta">
                         <strong>{person.name}</strong>
-                        <span className="issue-person-platform">
-                          {post.sourceType === 'YOUTUBE' ? (
-                            <svg viewBox="0 0 28 20" aria-label="YouTube">
-                              <path
-                                fill="#f03"
-                                d="M27.4 3.1A3.5 3.5 0 0 0 24.9.6C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5C5.3 20 14 20s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"
+                        <div className="issue-person-details">
+                          <span className="issue-person-platform">
+                            {post.sourceType === 'YOUTUBE' ? (
+                              <svg viewBox="0 0 28 20" aria-label="YouTube">
+                                <path
+                                  fill="#f03"
+                                  d="M27.4 3.1A3.5 3.5 0 0 0 24.9.6C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5C5.3 20 14 20s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"
+                                />
+                                <path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3z" />
+                              </svg>
+                            ) : (
+                              <img
+                                src={post.sourceType === 'X' ? xMark : threadsMark}
+                                alt={post.sourceType === 'X' ? 'X' : ''}
                               />
-                              <path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3z" />
-                            </svg>
-                          ) : (
-                            <img
-                              src={post.sourceType === 'X' ? xMark : threadsMark}
-                              alt={post.sourceType === 'X' ? 'X' : ''}
-                            />
-                          )}
-                          {post.sourceType !== 'X' && sourceLabel(post.sourceType)}
-                        </span>
-                      </div>
-                      <div className="issue-person-title">
-                        <h3>{post.title}</h3>
-                      </div>
-                      <div className="issue-person-footer">
-                        <span>{feedDate(post.createdAt, '등록')}</span>
+                            )}
+                            {post.sourceType !== 'X' && sourceLabel(post.sourceType)}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>{feedDate(post.createdAt, '등록')}</span>
+                        </div>
                       </div>
                     </div>
+                    <div className="issue-person-title">
+                      <h3>{post.title}</h3>
+                    </div>
+                    <span className="issue-person-footer">
+                      이 인물의 글 보기
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        aria-hidden="true"
+                      >
+                        <path d="M4 12h16m-6-6 6 6-6 6" />
+                      </svg>
+                    </span>
                   </Link>
                 ))}
               </div>

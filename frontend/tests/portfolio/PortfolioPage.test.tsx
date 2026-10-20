@@ -310,6 +310,8 @@ describe('포트폴리오 화면', () => {
   it('첫 방문 체험을 마치면 빈 실제 거래 입력 창을 연다', async () => {
     localStorage.removeItem('daynomy:portfolio-tour:v1');
     const view = render(<PortfolioPage isLoggedIn={false} />);
+    await view.findByRole('complementary', { name: '처음 이용 안내' });
+    fireEvent.click(view.getByRole('button', { name: '사용 가이드' }));
     await view.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
     for (let i = 0; i < 9; i++) fireEvent.click(view.getByRole('button', { name: '다음' }));
     fireEvent.click(view.getByRole('button', { name: '내 자산 등록하기' }));
@@ -925,6 +927,27 @@ describe('포트폴리오 화면', () => {
     expect(within(trendDialog).queryByText(/최근 1개월.*거래일 종가 기준/)).toBeNull();
   });
 
+  it('휴장일로 간격이 달라도 날짜 라벨은 해당 그래프 점과 같은 위치에 놓인다', async () => {
+    savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
+    savedPerformancePoints = ['2026-09-01', '2026-09-05', '2026-10-05'].map((baseDate) => ({
+      baseDate,
+      totalPurchaseAmount: 700000,
+      totalEvaluationAmount: 750000,
+      totalProfitLoss: 50000,
+      totalReturnRate: 7.14,
+      dailyProfitLoss: null,
+      dailyReturnRate: null,
+    }));
+    mockPortfolioApi();
+    const view = render(<PortfolioPage />);
+    const chart = await view.findByRole('img', { name: /포트폴리오 자산 추이/ });
+    const labels = [...chart.querySelectorAll('.portfolio-return-dates text')];
+    const middle = labels.find((label) => label.textContent === '09.18')!;
+    // October 6 is the current point; September 18 is 17/35 across the calendar.
+    expect(Number(middle.getAttribute('x'))).toBeCloseTo(58 + (17 / 35) * 650);
+    expect(Number(middle.getAttribute('x'))).not.toBeCloseTo(383);
+  });
+
   it('날짜별 매입금액을 기준으로 상승·하락·동일 구간을 나누고 교차 지점에서 색을 연결한다', async () => {
     localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
@@ -1201,8 +1224,9 @@ describe('포트폴리오 화면', () => {
     expect(within(dialog).queryByRole('tooltip')).toBeNull();
     expect(date).toHaveProperty('value', '2026-10-06');
     fireEvent.keyDown(chart.parentElement!, { key: 'ArrowLeft' });
-    expect(within(dialog).getByRole('tooltip').querySelector('time')?.dateTime).toBe('2026-09-30');
-    expect(date).toHaveProperty('value', '2026-09-30');
+    expect(within(dialog).getByRole('tooltip').querySelector('time')?.dateTime).toBe('2026-10-05');
+    expect(within(dialog).getByRole('tooltip').textContent).toContain('기록 유지');
+    expect(date).toHaveProperty('value', '2026-10-05');
   });
 
   it('자산 추이 그래프를 상세 화면으로 확장하고 닫는다', async () => {

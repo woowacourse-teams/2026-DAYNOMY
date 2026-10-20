@@ -49,14 +49,14 @@ class YouTubeClientTest {
                   ]
                 }
                 """));
-
     YouTubeClient client =
         new YouTubeClient(
             new YouTubeProperties(
                 "test-api-key",
                 server.url("/").toString(),
                 Duration.ofSeconds(1),
-                Duration.ofSeconds(1)));
+                Duration.ofSeconds(1)),
+            org.springframework.web.client.RestClient.builder());
 
     var candidates = client.search("삼성전자 005930");
 
@@ -76,6 +76,85 @@ class YouTubeClientTest {
     assertThat(request.getRequestUrl().queryParameter("order")).isEqualTo("date");
     assertThat(request.getRequestUrl().queryParameter("maxResults")).isEqualTo("10");
     assertThat(request.getRequestUrl().queryParameter("key")).isEqualTo("test-api-key");
+  }
+
+  @Test
+  void profileSearchResolvesHandleAndRestrictsVideosToChannel() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("{\"items\":[{\"id\":\"channel-123\"}]}"));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {
+                  "nextPageToken": "next-page",
+                  "items": [
+                    {
+                      "id": {"videoId": "abcdefghijk"},
+                      "snippet": {
+                        "title": "공식 채널 영상",
+                        "channelTitle": "Tesla",
+                        "publishedAt": "2026-10-12T00:00:00Z",
+                        "thumbnails": {}
+                      }
+                    },
+                    {
+                      "id": {"videoId": "zzzzzzzzzzz"},
+                      "snippet": {
+                        "title": "기간 밖 영상",
+                        "channelTitle": "Tesla",
+                        "publishedAt": "2026-10-10T23:59:59Z",
+                        "thumbnails": {}
+                      }
+                    }
+                  ]
+                }
+                """));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {
+                  "items": [
+                    {
+                      "id": {"videoId": "lmnopqrstuv"},
+                      "snippet": {
+                        "title": "다음 페이지 공식 영상",
+                        "channelTitle": "Tesla",
+                        "publishedAt": "2026-10-12T01:00:00Z",
+                        "thumbnails": {}
+                      }
+                    }
+                  ]
+                }
+                """));
+    YouTubeClient client = newClient("test-api-key");
+
+    var candidates =
+        client.searchProfile(
+            "https://www.youtube.com/@Tesla",
+            java.time.Instant.parse("2026-10-11T00:00:00Z"),
+            java.time.Instant.parse("2026-10-13T00:00:00Z"));
+
+    assertThat(candidates)
+        .extracting(YouTubeVideoCandidate::title)
+        .containsExactly("공식 채널 영상", "다음 페이지 공식 영상");
+    RecordedRequest channelRequest = server.takeRequest();
+    assertThat(channelRequest.getRequestUrl().queryParameter("forHandle")).isEqualTo("Tesla");
+    RecordedRequest videoRequest = server.takeRequest();
+    assertThat(videoRequest.getRequestUrl().queryParameter("channelId")).isEqualTo("channel-123");
+    assertThat(videoRequest.getRequestUrl().queryParameter("q")).isNull();
+    assertThat(videoRequest.getRequestUrl().queryParameter("publishedAfter"))
+        .isEqualTo("2026-10-11T00:00:00Z");
+    assertThat(videoRequest.getRequestUrl().queryParameter("publishedBefore"))
+        .isEqualTo("2026-10-13T00:00:00Z");
+    assertThat(videoRequest.getRequestUrl().queryParameter("maxResults")).isEqualTo("50");
+    RecordedRequest nextPageRequest = server.takeRequest();
+    assertThat(nextPageRequest.getRequestUrl().queryParameter("pageToken")).isEqualTo("next-page");
   }
 
   @Test
@@ -100,6 +179,7 @@ class YouTubeClientTest {
   private YouTubeClient newClient(String apiKey) {
     return new YouTubeClient(
         new YouTubeProperties(
-            apiKey, server.url("/").toString(), Duration.ofSeconds(1), Duration.ofSeconds(1)));
+            apiKey, server.url("/").toString(), Duration.ofSeconds(1), Duration.ofSeconds(1)),
+        org.springframework.web.client.RestClient.builder());
   }
 }

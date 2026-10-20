@@ -25,16 +25,14 @@ public class PublicDataEtfPriceClient {
   private final PublicDataProperties properties;
   private final RestClient restClient;
 
-  public PublicDataEtfPriceClient(PublicDataProperties properties) {
+  public PublicDataEtfPriceClient(
+      PublicDataProperties properties, RestClient.Builder restClientBuilder) {
     this.properties = properties;
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
     this.restClient =
-        RestClient.builder()
-            .baseUrl(properties.etfPriceUrl())
-            .requestFactory(requestFactory)
-            .build();
+        restClientBuilder.baseUrl(properties.etfPriceUrl()).requestFactory(requestFactory).build();
   }
 
   public PublicDataEtfPriceResponse getEtfPrices(LocalDate baseDate, int pageNo, int numOfRows) {

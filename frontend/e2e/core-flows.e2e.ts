@@ -18,6 +18,46 @@ const newsPage = {
   hasNext: false,
 };
 
+const investmentCalendar = {
+  year: 2026,
+  month: 9,
+  events: [
+    {
+      id: 22,
+      type: 'KOREA_BASE_RATE',
+      title: '한국 기준금리 결정',
+      announcedAt: '2026-09-22T00:00:00Z',
+      daysUntil: 21,
+      upcoming: true,
+      value: {
+        previousValue: 3.5,
+        actualValue: null,
+        unit: '%',
+        direction: 'UNAVAILABLE',
+      },
+      source: { name: '한국은행', url: 'https://www.bok.or.kr' },
+      portfolioAnalysis: {
+        status: 'READY',
+        impactLevel: 'HIGH',
+        relatedAssetCount: 1,
+        totalEvaluationAmount: 1_000_000,
+        priceBaseDate: '2026-09-18',
+        historicalReactions: [
+          {
+            direction: 'UNCHANGED',
+            sampleCount: 3,
+            medianReturnRate: 1.2,
+            lowerReturnRate: -0.4,
+            upperReturnRate: 2.1,
+            lowerEstimatedAmount: -4_000,
+            upperEstimatedAmount: 21_000,
+          },
+        ],
+      },
+    },
+  ],
+};
+
 async function mockNewsApi(page: Page) {
   await page.route('**/api/people', (route) => route.fulfill({ json: { people: [] } }));
   await page.route('**/api/contents?**', (route) =>
@@ -140,23 +180,24 @@ test('검색어 입력에서 뉴스 결과와 상세 화면까지 이동한다',
   await expect(page.getByRole('heading', { name: article.title, level: 1 })).toBeVisible();
 });
 
-test('오늘의 이슈에서 상세 본문을 읽고 소식 홈으로 돌아온다', async ({ page }) => {
+test('투자 캘린더에서 일정과 내 자산의 과거 반응을 확인한다', async ({ page }) => {
   await page.clock.setFixedTime(new Date(article.publishedAt));
-  await mockNewsApi(page);
+  await page.route('**/api/investment-calendar?**', (route) =>
+    route.fulfill({ json: investmentCalendar }),
+  );
 
   await page.goto('/news');
-  await page
-    .getByRole('region', { name: '오늘의 이슈' })
-    .getByRole('link', { name: /기준금리 동결 가능성 확대/ })
-    .click();
-
-  await expect(page.getByRole('heading', { name: article.title, level: 1 })).toBeVisible();
-  await expect(page.getByRole('region', { name: '뉴스 본문' })).toContainText(
-    '기준금리는 당분간 동결될 전망입니다.',
+  const calendar = page.getByRole('region', { name: '투자 캘린더' });
+  await expect(calendar.getByRole('heading', { name: '투자 캘린더' })).toBeVisible();
+  await expect(calendar.getByRole('heading', { name: '한국 기준금리 결정' })).toBeVisible();
+  await expect(calendar.getByRole('region', { name: '이번 일정에서 확인할 내용' })).toContainText(
+    '직전 3.50%',
   );
-  await page.getByRole('button', { name: '전 페이지로 돌아가기' }).click();
-  await expect(page).toHaveURL('/news');
-  await expect(page.getByRole('region', { name: '오늘의 이슈' })).toContainText(article.title);
+  await expect(calendar).toContainText('금리 동결 사례');
+
+  await calendar.getByRole('button', { name: '달력으로 보기' }).click();
+  await expect(calendar.getByLabel('일정 범위')).toBeVisible();
+  await expect(calendar.getByLabel('2026년 9월 일정')).toBeVisible();
 });
 
 test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 메뉴는 분리된다', async ({ page }) => {

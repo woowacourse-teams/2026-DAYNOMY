@@ -1,0 +1,251 @@
+package org.grit.daynomy.investmentcalendar.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.investmentcalendar.domain.InvestmentCalendarScope;
+import org.grit.daynomy.investmentcalendar.domain.InvestmentEvent;
+import org.grit.daynomy.investmentcalendar.domain.InvestmentEventType;
+import org.grit.daynomy.investmentcalendar.domain.PortfolioEventAnalysis;
+import org.grit.daynomy.investmentcalendar.dto.InvestmentCalendarResponse;
+import org.grit.daynomy.investmentcalendar.repository.InvestmentEventRepository;
+import org.grit.daynomy.member.domain.Member;
+import org.grit.daynomy.portfolio.domain.Portfolio;
+import org.grit.daynomy.portfolio.domain.PortfolioHolding;
+import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+@ExtendWith(MockitoExtension.class)
+class InvestmentCalendarServiceTest {
+
+  @Mock InvestmentEventRepository eventRepository;
+  @Mock InvestmentCalendarPortfolioAnalysisService portfolioAnalysisService;
+  @Mock PortfolioRepository portfolioRepository;
+  @Mock PortfolioHoldingRepository holdingRepository;
+  @Mock AssetRepository assetRepository;
+
+  @Test
+  void returnsEventsWithinRequestedSeoulMonth() {
+    InvestmentEvent event =
+        new InvestmentEvent(
+            InvestmentEventType.US_CPI,
+            "미국 소비자물가지수 발표",
+            Instant.parse("2026-10-13T12:30:00Z"),
+            new BigDecimal("2.90"),
+            null,
+            "%",
+            "미국 노동통계국",
+            "https://www.bls.gov/cpi/",
+            "BLS-CPI-2026-10",
+            null);
+    ReflectionTestUtils.setField(event, "id", 1L);
+    Instant from = Instant.parse("2026-09-30T15:00:00Z");
+    Instant to = Instant.parse("2026-10-31T15:00:00Z");
+    given(
+            eventRepository
+                .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(
+                    from, to))
+        .willReturn(List.of(event));
+    given(portfolioAnalysisService.analyze(List.of(), List.of(event)))
+        .willReturn(Map.of(event, PortfolioEventAnalysis.noPortfolio()));
+
+    InvestmentCalendarResponse response =
+        new InvestmentCalendarService(
+                eventRepository,
+                portfolioAnalysisService,
+                portfolioRepository,
+                holdingRepository,
+                assetRepository)
+            .get(3L, YearMonth.of(2026, 10), InvestmentCalendarScope.ALL);
+
+    assertThat(response.year()).isEqualTo(2026);
+    assertThat(response.month()).isEqualTo(10);
+    assertThat(response.events()).hasSize(1);
+    assertThat(response.events().getFirst().id()).isEqualTo(1L);
+  }
+
+  @Test
+  void hidesUnrelatedCorporateEventsFromPortfolioScope() {
+    InvestmentEvent event =
+        new InvestmentEvent(
+            InvestmentEventType.CORPORATE_EARNINGS,
+            "두산 3분기 실적 발표",
+            Instant.parse("2026-10-21T00:00:00Z"),
+            null,
+            null,
+            "백만원",
+            "전자공시시스템(DART)",
+            "https://dart.fss.or.kr/example",
+            "DART-EARNINGS-000150-2026-09-30",
+            "000150");
+    Instant from = Instant.parse("2026-09-30T15:00:00Z");
+    Instant to = Instant.parse("2026-10-31T15:00:00Z");
+    given(
+            eventRepository
+                .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(
+                    from, to))
+        .willReturn(List.of(event));
+    given(portfolioRepository.findByMemberId(3L)).willReturn(Optional.empty());
+
+    InvestmentCalendarResponse response =
+        new InvestmentCalendarService(
+                eventRepository,
+                portfolioAnalysisService,
+                portfolioRepository,
+                holdingRepository,
+                assetRepository)
+            .get(3L, YearMonth.of(2026, 10), InvestmentCalendarScope.PORTFOLIO);
+
+    assertThat(response.events()).isEmpty();
+  }
+
+  @Test
+  void returnsRelatedCorporateEventForGuestHolding() {
+    InvestmentEvent event =
+        new InvestmentEvent(
+            InvestmentEventType.CORPORATE_EARNINGS,
+            "두산 3분기 실적 발표",
+            Instant.parse("2026-10-21T00:00:00Z"),
+            null,
+            null,
+            "백만원",
+            "전자공시시스템(DART)",
+            "https://dart.fss.or.kr/example",
+            "DART-EARNINGS-000150-2026-09-30",
+            "000150");
+    ReflectionTestUtils.setField(event, "id", 2L);
+    Asset asset = new Asset("두산", AssetCategory.STOCK, "000150");
+    ReflectionTestUtils.setField(asset, "id", 100L);
+    Instant from = Instant.parse("2026-09-30T15:00:00Z");
+    Instant to = Instant.parse("2026-10-31T15:00:00Z");
+    given(
+            eventRepository
+                .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(
+                    from, to))
+        .willReturn(List.of(event));
+    given(assetRepository.findAllById(Set.of(100L))).willReturn(List.of(asset));
+    InvestmentCalendarHolding holding = new InvestmentCalendarHolding(100L, "000150", 3L);
+    given(portfolioAnalysisService.analyze(List.of(holding), List.of(event)))
+        .willReturn(Map.of(event, PortfolioEventAnalysis.noPortfolio()));
+
+    InvestmentCalendarResponse response =
+        service()
+            .getForGuest(
+                YearMonth.of(2026, 10), InvestmentCalendarScope.PORTFOLIO, Map.of(100L, 3L));
+
+    assertThat(response.events()).extracting("id").containsExactly(2L);
+  }
+
+  @Test
+  void returnsAllEventsForGuestWithoutHoldings() {
+    InvestmentEvent event =
+        new InvestmentEvent(
+            InvestmentEventType.CORPORATE_EARNINGS,
+            "두산 3분기 실적 발표",
+            Instant.parse("2026-10-21T00:00:00Z"),
+            null,
+            null,
+            "백만원",
+            "전자공시시스템(DART)",
+            "https://dart.fss.or.kr/example",
+            "DART-EARNINGS-000150-2026-09-30",
+            "000150");
+    ReflectionTestUtils.setField(event, "id", 2L);
+    given(
+            eventRepository
+                .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(
+                    Instant.parse("2026-09-30T15:00:00Z"), Instant.parse("2026-10-31T15:00:00Z")))
+        .willReturn(List.of(event));
+    given(portfolioAnalysisService.analyze(List.of(), List.of(event)))
+        .willReturn(Map.of(event, PortfolioEventAnalysis.noPortfolio()));
+
+    InvestmentCalendarResponse response =
+        service().getForGuest(YearMonth.of(2026, 10), InvestmentCalendarScope.ALL, Map.of());
+
+    assertThat(response.events()).extracting("id").containsExactly(2L);
+  }
+
+  @Test
+  void resolvesMemberHoldingsOnceForTheMonthlyAnalysis() {
+    Member member = Member.createGoogleMember("provider", "user@example.com", "사용자", null);
+    Portfolio portfolio = Portfolio.create(member);
+    ReflectionTestUtils.setField(portfolio, "id", 10L);
+    Asset asset = new Asset("두산", AssetCategory.STOCK, "000150");
+    ReflectionTestUtils.setField(asset, "id", 100L);
+    given(portfolioRepository.findByMemberId(3L)).willReturn(Optional.of(portfolio));
+    given(holdingRepository.findAllByPortfolioIdOrderById(10L))
+        .willReturn(List.of(new PortfolioHolding(portfolio, asset, 3L, BigDecimal.TEN)));
+    InvestmentEvent first =
+        new InvestmentEvent(
+            InvestmentEventType.US_CPI,
+            "물가 발표",
+            Instant.parse("2026-10-13T00:00:00Z"),
+            BigDecimal.ONE,
+            null,
+            "%",
+            "BLS",
+            "https://www.bls.gov/",
+            "first",
+            null);
+    InvestmentEvent second =
+        new InvestmentEvent(
+            InvestmentEventType.CORPORATE_EARNINGS,
+            "실적 발표",
+            Instant.parse("2026-10-21T00:00:00Z"),
+            BigDecimal.ONE,
+            null,
+            "원",
+            "DART",
+            "https://dart.fss.or.kr/",
+            "second",
+            "000150");
+    given(
+            eventRepository
+                .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(
+                    Instant.parse("2026-09-30T15:00:00Z"), Instant.parse("2026-10-31T15:00:00Z")))
+        .willReturn(List.of(first, second));
+    List<InvestmentCalendarHolding> holdings =
+        List.of(new InvestmentCalendarHolding(100L, "000150", 3L));
+    given(portfolioAnalysisService.analyze(holdings, List.of(first, second)))
+        .willReturn(
+            Map.of(
+                first,
+                PortfolioEventAnalysis.noPortfolio(),
+                second,
+                PortfolioEventAnalysis.noPortfolio()));
+
+    var response = service().get(3L, YearMonth.of(2026, 10), InvestmentCalendarScope.PORTFOLIO);
+
+    assertThat(response.events()).hasSize(2);
+    then(portfolioRepository).should().findByMemberId(3L);
+    then(holdingRepository).should().findAllByPortfolioIdOrderById(10L);
+    then(portfolioAnalysisService).should().analyze(holdings, List.of(first, second));
+    then(portfolioRepository).shouldHaveNoMoreInteractions();
+    then(holdingRepository).shouldHaveNoMoreInteractions();
+  }
+
+  private InvestmentCalendarService service() {
+    return new InvestmentCalendarService(
+        eventRepository,
+        portfolioAnalysisService,
+        portfolioRepository,
+        holdingRepository,
+        assetRepository);
+  }
+}

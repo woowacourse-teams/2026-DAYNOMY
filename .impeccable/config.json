@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-10-05T15:52:27.797Z",
+        "reason": "Existing DAYNOMY header typography predates this feature; user requested no unrelated changes."
+      }
+    ]
+  }
+}
