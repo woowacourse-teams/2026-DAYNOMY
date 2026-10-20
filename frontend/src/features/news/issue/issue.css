@@ -657,7 +657,7 @@
   grid-template-columns: 48px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
-  padding: 20px 0;
+  padding: 24px 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -688,9 +688,10 @@
   min-width: 0;
 }
 .issue-people-preview .issue-meta {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px 10px;
 }
 .issue-people-preview .issue-meta strong {
   font-size: 16px;
@@ -744,7 +745,8 @@
 }
 .issue-person-details {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  white-space: nowrap;
   align-items: center;
   gap: 6px;
   font-size: 12px;
@@ -1725,8 +1727,7 @@
   }
 
   .issue-people-preview {
-    flex: 1 1 0;
-    min-height: 0;
+    flex: 1 0 auto;
     display: flex;
     flex-direction: column;
   }
@@ -1738,6 +1739,14 @@
     box-sizing: border-box;
     align-content: center;
     gap: 8px 12px;
-    padding: 12px 0;
+    padding: 16px 0;
+  }
+
+  .issue-people-preview > a:first-child {
+    padding-top: 0;
+  }
+
+  .issue-people-preview > a:last-child {
+    padding-bottom: 0;
   }
 }
