@@ -1725,7 +1725,7 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-news {
   position: sticky;
-  top: 64px;
+  top: 80px;
   margin-top: 32px;
   display: block;
   opacity: 1;
@@ -1733,10 +1733,7 @@ body:has(.portfolio-page) .daynomy-footer {
   min-width: 0;
   padding: 0 12px 0 28px;
   border-left: 1px solid #e5e9ee;
-  max-height: calc(100dvh - 96px);
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
+  align-self: start;
 }
 .portfolio-news-heading {
   display: flex;

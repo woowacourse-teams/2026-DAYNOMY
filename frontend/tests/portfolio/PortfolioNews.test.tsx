@@ -325,3 +325,29 @@ it('체험 모드의 더보기는 보유 종목 없이 전체 소식으로 연�
   });
   expect(getStockRelatedContents).not.toHaveBeenCalled();
 });
+
+it('최신 소식 5개만 보여주고 나머지는 보유 종목 소식 더보기로 연결한다', async () => {
+  vi.mocked(getStockRelatedContents).mockResolvedValue({
+    assetId: 1,
+    assetCode: '1',
+    assetName: '종목1',
+    contents: [1, 4, 2, 5, 3, 7, 6].map((id) => ({
+      ...content,
+      id,
+      title: `소식 ${id}`,
+      url: `https://x.com/test/status/${id}`,
+      createdAt: `2026-10-12T0${id}:00:00Z`,
+    })),
+  });
+  const view = render(<PortfolioNews holdings={[{ assetId: 1, name: '종목1' }]} />);
+  await view.findByText('소식 7');
+  expect(
+    [...view.container.querySelectorAll('.portfolio-news-list strong')].map(
+      (item) => item.textContent,
+    ),
+  ).toEqual(['소식 7', '소식 6', '소식 5', '소식 4', '소식 3']);
+  expect(view.queryByText('소식 2')).toBeNull();
+  expect(view.getByRole('link', { name: /보유 종목 소식 더 보기/ }).getAttribute('href')).toBe(
+    '/news/contents?scope=portfolio',
+  );
+});
