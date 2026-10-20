@@ -92,24 +92,29 @@
 .league-page-heading > a,
 .league-investor-header > button,
 .league-investor-header > a {
+  border: 1px solid var(--button-outline);
   display: inline-flex;
-  min-height: 44px;
+  min-height: var(--button-height);
   padding: 0 18px;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 999px;
   font-size: 14px;
-  font-weight: 750;
+  font-weight: var(--button-weight);
   text-decoration: none;
 }
 
 .league-primary-link {
   color: #fff;
-  background: var(--button-primary);
+  background: var(--button-action);
 }
 
 .league-primary-link:hover {
-  background: var(--button-primary-hover);
+  background: var(--button-action-hover);
+}
+
+.league-primary-link:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
 .league-controls {
@@ -151,22 +156,24 @@
 
 .league-state button,
 .league-empty a {
+  font-weight: var(--button-weight);
   display: inline-flex;
-  min-height: 44px;
+  min-height: var(--button-height);
   align-items: center;
   justify-content: center;
   padding: 10px 16px;
-  border: 0;
-  border-radius: 8px;
-  color: #fff;
-  background: var(--button-primary);
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  color: var(--button-label);
+  background: #fff;
   text-decoration: none;
   cursor: pointer;
 }
 
 .league-state button:hover:not(:disabled),
 .league-empty a:hover {
-  background: var(--button-primary-hover);
+  background: var(--button-secondary-hover);
+  border-color: var(--button-label);
 }
 
 .league-empty strong {
@@ -229,11 +236,11 @@
 
 .league-ranking-empty button,
 .league-daily-empty button {
-  min-height: 44px;
+  min-height: var(--button-height);
   padding: 8px 16px;
-  border: 1px solid #cbd5e5;
-  border-radius: 8px;
-  color: var(--league-ink);
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  color: var(--button-label);
   background: #fff;
   cursor: pointer;
 }
@@ -314,25 +321,26 @@
   align-items: center;
   gap: 8px;
 }
-.league-metrics-trigger {
+.league-page .league-metrics-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--league-line);
-  border-radius: 8px;
+  min-height: var(--button-height);
+  padding: 0 12px;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
   background: #fff;
-  color: var(--league-muted);
+  color: var(--button-label);
   font-size: 13px;
   white-space: nowrap;
   cursor: pointer;
+  font-weight: var(--button-weight);
 }
 .league-metrics-trigger:hover {
-  color: var(--button-primary);
-  border-color: var(--button-primary);
-  background: var(--button-primary-soft);
+  color: var(--button-label);
+  border-color: var(--button-label);
+  background: var(--button-secondary-hover);
 }
 
 .league-person:hover strong {
@@ -416,8 +424,8 @@
 .league-page-heading > a,
 .league-investor-header > button,
 .league-investor-header > a {
-  border: 1px solid var(--league-line);
-  color: var(--league-ink);
+  border: 1px solid var(--button-outline);
+  color: var(--button-label);
   background: #fff;
   cursor: pointer;
 }
@@ -965,7 +973,7 @@
     grid-column: 2 / -1;
     justify-content: flex-end;
   }
-  .league-metrics-trigger {
+  .league-page .league-metrics-trigger {
     padding: 6px 8px;
     font-size: 12px;
   }
@@ -1051,13 +1059,14 @@
   padding: 16px;
 }
 .league-pagination button {
-  min-height: 44px;
+  min-height: var(--button-height);
   padding: 8px 16px;
-  border: 1px solid var(--league-line);
-  border-radius: 8px;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
   background: #fff;
-  color: var(--league-ink);
+  color: var(--button-label);
   cursor: pointer;
+  font-weight: var(--button-weight);
 }
 .league-pagination button:disabled {
   opacity: 0.45;
@@ -1113,10 +1122,10 @@ body:has(.league-metrics-dialog[open]) {
   flex-shrink: 0;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--league-line);
-  border-radius: 8px;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
   background: #fff;
-  color: var(--league-ink);
+  color: var(--button-label);
   font-size: 24px;
   cursor: pointer;
 }
@@ -1201,19 +1210,21 @@ body:has(.league-metrics-dialog[open]) {
   margin-top: 24px;
 }
 .league-chart-switch button {
-  min-height: 44px;
+  min-height: var(--button-height);
   min-width: 72px;
-  border: 0;
-  border-radius: 6px;
-  background: #f3f4f7;
-  color: var(--league-muted);
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--button-label);
   font: inherit;
   cursor: pointer;
+  font-weight: var(--button-weight);
 }
 .league-chart-switch button[aria-pressed='true'] {
-  background: var(--button-primary-soft);
-  color: var(--button-primary-hover);
-  font-weight: 700;
+  background: var(--button-action);
+  color: #fff;
+  font-weight: var(--button-weight);
+  border-color: var(--button-action);
 }
 .league-investor-page .league-detail-decisions blockquote {
   padding: 16px;

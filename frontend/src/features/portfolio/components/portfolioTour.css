@@ -93,23 +93,32 @@
   white-space: nowrap;
 }
 .portfolio-tour .portfolio-tour-navigation button {
-  min-height: 44px;
+  min-height: var(--button-height);
   padding: 8px 14px;
   font: inherit;
   font-size: 12px;
   border-radius: 999px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 .portfolio-tour .portfolio-tour-navigation .portfolio-primary-button {
-  background: #3869d4;
-  border: 1px solid #3869d4;
+  background: var(--button-action);
+  border: 1px solid var(--button-action);
   color: white;
 }
+.portfolio-tour .portfolio-tour-navigation .portfolio-primary-button:hover:not(:disabled) {
+  background: var(--button-action-hover);
+  border-color: var(--button-action-hover);
+}
+
+.portfolio-tour .portfolio-tour-navigation .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
+  border-color: var(--button-action-active);
+}
 .portfolio-tour .portfolio-tour-navigation .portfolio-secondary-button {
-  background: white;
-  border: 1px solid #dededb;
-  color: #172033;
+  background: #fff;
+  border: 1px solid var(--button-outline);
+  color: var(--button-label);
 }
 .portfolio-tour-skip {
   border: 0;

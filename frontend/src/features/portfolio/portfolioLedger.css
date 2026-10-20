@@ -56,26 +56,26 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-primary-button,
 .portfolio-sheet .portfolio-primary-button {
-  background: var(--button-primary);
-  min-height: 44px;
+  background: var(--button-action);
+  min-height: var(--button-height);
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   padding: 0 18px;
   color: #fff;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 .portfolio-page .portfolio-secondary-button,
 .portfolio-sheet .portfolio-secondary-button {
-  min-height: 44px;
-  border: 0;
-  border-radius: 10px;
+  min-height: var(--button-height);
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
   padding: 0 16px;
-  background: #f2f4f6;
-  color: #4e5968;
+  background: #fff;
+  color: var(--button-label);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 .portfolio-page button,
@@ -91,23 +91,32 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-primary-button:hover:not(:disabled),
 .portfolio-sheet .portfolio-primary-button:hover:not(:disabled) {
-  background: var(--button-primary-hover);
+  background: var(--button-action-hover);
+}
+
+.portfolio-page .portfolio-primary-button:active:not(:disabled),
+.portfolio-sheet .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 .portfolio-page .portfolio-secondary-button:hover:not(:disabled),
 .portfolio-sheet .portfolio-secondary-button:hover:not(:disabled) {
-  background: #f5f7fb;
+  background: var(--button-secondary-hover);
 }
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button {
-  min-height: 48px;
+  min-height: var(--button-height);
   padding: 0 22px;
   border-radius: 999px;
-  background: #0a0a0a;
+  background: var(--button-action);
 }
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button:hover:not(:disabled) {
-  background: #252525;
+  background: var(--button-action-hover);
+}
+
+.portfolio-page .portfolio-page-actions > .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 .portfolio-page .portfolio-page-actions > .portfolio-news-tab {
-  min-height: 48px;
+  min-height: var(--button-height);
   padding: 0 20px;
   border-radius: 999px;
 }
@@ -1042,7 +1051,7 @@ body:has(.portfolio-page) .daynomy-footer {
   color: white;
   padding: 0 18px;
   min-height: 44px;
-  border-radius: 10px;
+  border-radius: 999px;
   font-size: 13px;
   cursor: pointer;
 }
@@ -1901,19 +1910,18 @@ body:has(.portfolio-page) .daynomy-footer {
   border-bottom: 0;
 }
 .portfolio-news-more {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
-  min-height: 44px;
+  min-height: var(--button-height);
   margin-top: 16px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: #0a0a0a;
+  padding: 10px 0;
+  background: transparent;
   text-decoration: none;
-  color: #fff;
+  color: var(--button-label);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--button-weight);
 }
 .portfolio-news-more svg {
   width: 18px;
@@ -1921,7 +1929,7 @@ body:has(.portfolio-page) .daynomy-footer {
   flex-shrink: 0;
 }
 .portfolio-news-more:hover {
-  background: #252525;
+  color: var(--button-action-active);
 }
 .portfolio-news-more:focus-visible {
   outline: 2px solid #326bd5;
@@ -2496,7 +2504,7 @@ body:has(.portfolio-page) .daynomy-footer {
   }
   .portfolio-page .portfolio-primary-button,
   .portfolio-page .portfolio-secondary-button {
-    min-height: 48px;
+    min-height: var(--button-height);
   }
   .portfolio-page .portfolio-section-title {
     align-items: stretch;

@@ -7,26 +7,32 @@
   align-items: center;
 }
 .shared-page button {
-  min-height: 44px;
+  min-height: var(--button-height);
   padding: 9px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: white;
-  color: #182231;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--button-label);
   cursor: pointer;
   font: inherit;
+  font-size: 14px;
+  font-weight: var(--button-weight);
+  line-height: 20px;
 }
-.shared-page button.shared-primary-button,
-.shared-page .league-state button {
-  border-color: var(--button-primary);
-  background: var(--button-primary);
+.shared-page button.shared-primary-button {
+  border-color: var(--button-action);
+  background: var(--button-action);
   color: #fff;
-  font-weight: 700;
+  font-weight: var(--button-weight);
 }
-.shared-page button.shared-primary-button:hover:not(:disabled),
-.shared-page .league-state button:hover:not(:disabled) {
-  border-color: var(--button-primary-hover);
-  background: var(--button-primary-hover);
+.shared-page button.shared-primary-button:hover:not(:disabled) {
+  border-color: var(--button-action-hover);
+  background: var(--button-action-hover);
+}
+
+.shared-page button.shared-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
+  border-color: var(--button-action-active);
 }
 .shared-page button:disabled {
   opacity: 0.5;
@@ -283,7 +289,7 @@
 }
 .shared-sharing-options label:has(input:checked) {
   border-color: var(--button-primary);
-  background: var(--button-primary-soft);
+  background: var(--button-secondary-hover);
 }
 .shared-page input[type='radio'] {
   width: 18px;
@@ -403,7 +409,7 @@
   cursor: pointer;
 }
 .shared-choice-options label:has(input:checked) {
-  background: var(--button-primary-soft);
+  background: var(--button-secondary-hover);
   color: var(--button-primary-hover);
 }
 .shared-choice-options label:has(input:focus-visible) {
@@ -529,7 +535,7 @@
   padding: 0 4px;
   border: 0;
   background: transparent;
-  color: var(--button-primary);
+  color: var(--button-label);
   font-size: 14px;
 }
 .shared-holding-actions > .shared-remove-button {

@@ -103,25 +103,29 @@
   line-height: 1.6;
 }
 
-.portfolio-analysis-button {
+.portfolio-page .portfolio-analysis-button {
   display: inline-flex;
-  min-height: 48px;
+  min-height: var(--button-height);
   align-items: center;
   flex: 0 0 auto;
   padding: 0 22px;
   border: 0;
   border-radius: 999px;
-  background: #0a0a0a;
+  background: var(--button-primary);
   color: #fff;
   font: inherit;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: var(--button-weight);
   text-decoration: none;
   cursor: pointer;
 }
 
 .portfolio-analysis-button:hover:not(:disabled) {
-  background: #252525;
+  background: var(--button-primary-hover);
+}
+
+.portfolio-analysis-button:active:not(:disabled) {
+  background: var(--button-primary-active);
 }
 
 .portfolio-analysis-button:focus-visible {
@@ -178,21 +182,22 @@
   font-size: 15px;
 }
 
-.portfolio-analysis-retry-button {
-  min-height: 40px;
+.portfolio-page .portfolio-analysis-retry-button {
+  min-height: var(--button-height);
   padding: 0 18px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--button-primary);
-  color: #fff;
+  border: 1px solid var(--button-outline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--button-label);
   font: inherit;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 
-.portfolio-analysis-retry-button:hover {
-  background: var(--button-primary-hover);
+.portfolio-page .portfolio-analysis-retry-button:hover {
+  background: var(--button-secondary-hover);
+  border-color: var(--button-label);
 }
 
 .portfolio-analysis-retry-button:focus-visible {
