@@ -1016,6 +1016,11 @@
   font-size: 14px;
 }
 
+.investment-calendar-analysis-insufficient {
+  margin-top: 48px;
+  border: 0;
+}
+
 .investment-calendar-analysis-state strong {
   margin-bottom: 7px;
   color: var(--calendar-text);
