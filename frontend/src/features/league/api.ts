@@ -459,8 +459,21 @@ export async function recordDecision(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!isDecisionRecord(response)) throw new Error('판단 기록 응답 형식이 올바르지 않습니다.');
+  if (!isDecisionRecord(response)) throw new Error('투자 기록 응답 형식이 올바르지 않습니다.');
   trackLeagueEvent('save_investment_decision', { record_type: response.transactionType });
+  return response;
+}
+
+export async function updateDecisionReason(transactionId: number, reason: string) {
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/decisions/${transactionId}/reason`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  if (!isDecisionRecord(response)) throw new Error('투자 기록 응답 형식이 올바르지 않습니다.');
   return response;
 }
 

@@ -31,6 +31,8 @@ type Action =
   | 'remove_holding'
   | 'open_decision'
   | 'save_decision'
+  | 'open_reason'
+  | 'edit_reason'
   | 'open_review'
   | 'save_review'
   | 'edit_review'

@@ -8,6 +8,7 @@ import {
   getDailyHistory,
   getFollowSummary,
   updateReview,
+  updateDecisionReason,
 } from '../../src/features/league/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -329,6 +330,45 @@ test('내 복기 수정은 해당 판단과 복기 ID로 PUT 요청한다', asyn
   assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
   assert.equal(result.createdAt, '2026-10-06T00:00:00Z');
   assert.equal(result.updatedAt, '2026-10-07T00:00:00Z');
+});
+
+test('보유 이유 수정은 해당 기록에 이유만 PUT하고 응답을 검증한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const record = {
+    id: 7,
+    assetId: 2,
+    assetCode: '005930',
+    assetName: '삼성전자',
+    category: 'STOCK',
+    transactionType: 'HOLD',
+    quantity: 1,
+    unitPrice: 70000,
+    fee: 0,
+    tradedOn: '2026-10-02',
+    reason: '수정한 이유',
+    expectedHoldingPeriod: null,
+    expectedChange: '',
+    invalidationCondition: '',
+    maximumAcceptableLossRate: null,
+    writtenAfterTrade: true,
+    reviews: [],
+  };
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    return String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse(record);
+  };
+  assert.deepEqual(await updateDecisionReason(7, '수정한 이유'), record);
+  assert.equal(calls[1]?.url, '/api/users/me/portfolio/decisions/7/reason');
+  assert.equal(calls[1]?.init?.method, 'PUT');
+  assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), { reason: '수정한 이유' });
+  assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({ ...record, reviews: [{}] });
+  await assert.rejects(updateDecisionReason(7, '수정한 이유'), /응답 형식/);
 });
 
 test('주중 참여는 기준 종가부터 0%로 이번 주 누적 순위에 반영한다', async () => {
