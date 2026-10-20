@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.then;
 import java.util.List;
 import java.util.Set;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,10 +27,29 @@ class StockSearchServiceTest {
   void searchNormalizesKeywordAndLimitsResults() {
     PageRequest limit = PageRequest.of(0, 20);
     Set<AssetCategory> categories = Set.of(AssetCategory.STOCK, AssetCategory.ETF);
-    given(assetRepository.searchListedSecurities("삼성!%", categories, limit)).willReturn(List.of());
+    given(
+            assetRepository.searchListedSecurities(
+                "삼성!%", categories, StockMarket.domesticMarkets(), limit))
+        .willReturn(List.of());
 
     stockSearchService.search("  삼성%  ");
 
-    then(assetRepository).should().searchListedSecurities("삼성!%", categories, limit);
+    then(assetRepository)
+        .should()
+        .searchListedSecurities("삼성!%", categories, StockMarket.domesticMarkets(), limit);
+  }
+
+  @Test
+  void usSearchUsesOnlyUsMarkets() {
+    var categories = Set.of(AssetCategory.STOCK, AssetCategory.ETF);
+    var limit = PageRequest.of(0, 20);
+    given(
+            assetRepository.searchListedSecurities(
+                "AAPL", categories, StockMarket.usMarkets(), limit))
+        .willReturn(List.of());
+    stockSearchService.search(" AAPL ", "US");
+    then(assetRepository)
+        .should()
+        .searchListedSecurities("AAPL", categories, StockMarket.usMarkets(), limit);
   }
 }

@@ -74,10 +74,10 @@ class StockDailyPriceRepositoryTest {
     assertThat(result)
         .extracting(StockDailyPrice::getClosePrice)
         .containsExactly(
-            new BigDecimal("108.00"),
-            new BigDecimal("104.00"),
-            new BigDecimal("106.00"),
-            new BigDecimal("102.00"));
+            new BigDecimal("108.0000"),
+            new BigDecimal("104.0000"),
+            new BigDecimal("106.0000"),
+            new BigDecimal("102.0000"));
   }
 
   @Test

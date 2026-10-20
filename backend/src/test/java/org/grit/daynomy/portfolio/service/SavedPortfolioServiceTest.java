@@ -51,6 +51,8 @@ class SavedPortfolioServiceTest {
   @Mock private AssetRepository assetRepository;
   @Mock private PortfolioLedgerCalculator ledgerCalculator;
   @Mock private PortfolioSnapshotTransactionService snapshotTransactionService;
+  @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
+  @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
   @InjectMocks private SavedPortfolioService service;
 
   @ParameterizedTest
@@ -61,6 +63,7 @@ class SavedPortfolioServiceTest {
     Asset asset = asset();
     PortfolioHolding holding = new PortfolioHolding(portfolio, asset, 3L, new BigDecimal("10000"));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
 
     service.update(1L, 2L, new SavedPortfolioHoldingUpdateRequest(quantity, new BigDecimal(price)));
@@ -82,6 +85,7 @@ class SavedPortfolioServiceTest {
     PortfolioHolding holding =
         new PortfolioHolding(portfolio, asset(), 3L, new BigDecimal("10000"));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
 
     assertThat(
@@ -103,6 +107,7 @@ class SavedPortfolioServiceTest {
     given(holding.getQuantity()).willReturn(3L);
     given(holding.getAveragePurchasePrice()).willReturn(new BigDecimal("10000"));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
 
     service.remove(1L, 2L);
@@ -128,6 +133,7 @@ class SavedPortfolioServiceTest {
     given(holding.getAveragePurchasePrice()).willReturn(new BigDecimal("70000"));
     given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(assetRepository.findById(2L)).willReturn(Optional.of(asset));
     given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(holding));
     given(historyRepository.saveAndFlush(any(PortfolioHoldingHistory.class)))
@@ -163,7 +169,9 @@ class SavedPortfolioServiceTest {
     assertThat(historyCaptor.getValue().getTransactionQuantity()).isEqualTo(2L);
     assertThat(historyCaptor.getValue().getFee()).isEqualByComparingTo("100");
     assertThat(historyCaptor.getValue().getTax()).isEqualByComparingTo("200");
-    then(snapshotTransactionService).should().refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30));
+    then(snapshotTransactionService)
+        .should()
+        .refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30), java.util.Map.of());
   }
 
   @Test
@@ -185,6 +193,7 @@ class SavedPortfolioServiceTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(history));
     given(historyRepository.saveAndFlush(history)).willReturn(history);
     given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
@@ -214,7 +223,9 @@ class SavedPortfolioServiceTest {
     assertThat(history.getTransactionQuantity()).isEqualTo(3L);
     assertThat(history.getUnitPrice()).isEqualByComparingTo("81000");
     then(holding).should().change(3L, new BigDecimal("81000.00"));
-    then(snapshotTransactionService).should().refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30));
+    then(snapshotTransactionService)
+        .should()
+        .refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30), java.util.Map.of());
   }
 
   @Test
@@ -222,6 +233,7 @@ class SavedPortfolioServiceTest {
     Portfolio portfolio = mock(Portfolio.class);
     given(portfolio.getId()).willReturn(10L);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.empty());
     var request = transactionUpdateRequest(3L);
 
@@ -243,6 +255,7 @@ class SavedPortfolioServiceTest {
             3L,
             new BigDecimal("70000"));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L))
         .willReturn(Optional.of(openingBalance));
 
@@ -258,6 +271,7 @@ class SavedPortfolioServiceTest {
     given(portfolio.getId()).willReturn(10L);
     PortfolioHoldingHistory history = transactionHistory(portfolio, PortfolioHoldingChangeType.BUY);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(history));
     given(historyRepository.saveAndFlush(history)).willReturn(history);
     given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
@@ -291,6 +305,7 @@ class SavedPortfolioServiceTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(history));
     given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
         .willReturn(List.of());
@@ -313,7 +328,9 @@ class SavedPortfolioServiceTest {
     then(holding).should().change(5L, new BigDecimal("70000.00"));
     assertThat(response.transactionId()).isEqualTo(7L);
     assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("0");
-    then(snapshotTransactionService).should().refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30));
+    then(snapshotTransactionService)
+        .should()
+        .refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30), java.util.Map.of());
   }
 
   @Test
@@ -322,6 +339,7 @@ class SavedPortfolioServiceTest {
     given(portfolio.getId()).willReturn(10L);
     PortfolioHoldingHistory buy = transactionHistory(portfolio, PortfolioHoldingChangeType.BUY);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(historyRepository.findByIdAndPortfolioId(7L, 10L)).willReturn(Optional.of(buy));
     given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
         .willReturn(List.of());
@@ -382,5 +400,36 @@ class SavedPortfolioServiceTest {
         new BigDecimal("70000"),
         BigDecimal.ZERO,
         BigDecimal.ZERO);
+  }
+
+  @Test
+  void rejectsUsdTradeWithoutExchangeRateBeforeWritingLedger() {
+    Member member = mock(Member.class);
+    given(member.getId()).willReturn(1L);
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
+    Asset apple =
+        Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, LocalDate.of(2026, 10, 16));
+    given(assetRepository.findById(2L)).willReturn(Optional.of(apple));
+    var request =
+        new PortfolioTransactionRequest(
+            2L,
+            PortfolioTransactionType.BUY,
+            LocalDate.of(2026, 10, 16),
+            1L,
+            new BigDecimal("245"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    assertThatThrownBy(() -> service.transact(1L, request))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            e ->
+                assertThat(e.errorCode())
+                    .isEqualTo(PortfolioErrorCode.INVALID_TRANSACTION_EXCHANGE_RATE));
+    org.mockito.Mockito.verifyNoInteractions(
+        historyRepository, holdingRepository, snapshotTransactionService);
   }
 }

@@ -47,12 +47,12 @@ class StockControllerTest {
   @Test
   @DisplayName("국내 주식 검색 API는 종목 검색 결과를 반환한다")
   void searchStocks() throws Exception {
-    given(stockSearchService.search("삼성"))
+    given(stockSearchService.search("삼성", "KR"))
         .willReturn(
             new StockSearchResponse(
                 List.of(
                     new StockSearchItemResponse(
-                        1L, "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI))));
+                        1L, "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI, "KRW"))));
 
     mockMvc
         .perform(get("/api/stocks").param("q", "삼성"))
@@ -63,7 +63,7 @@ class StockControllerTest {
         .andExpect(jsonPath("$.stocks[0].category").value("STOCK"))
         .andExpect(jsonPath("$.stocks[0].market").value("KOSPI"));
 
-    then(stockSearchService).should().search("삼성");
+    then(stockSearchService).should().search("삼성", "KR");
   }
 
   @Test
@@ -85,7 +85,12 @@ class StockControllerTest {
     given(stockPriceService.getLatestPrice(1L))
         .willReturn(
             new StockPriceResponse(
-                1L, "005930", "삼성전자", LocalDate.of(2026, 9, 18), new BigDecimal("82000.00")));
+                1L,
+                "005930",
+                "삼성전자",
+                LocalDate.of(2026, 9, 18),
+                new BigDecimal("82000.00"),
+                "KRW"));
 
     mockMvc
         .perform(get("/api/stocks/{assetId}/price", 1L))
@@ -111,5 +116,27 @@ class StockControllerTest {
         .andExpect(status().isNotFound());
 
     verifyNoInteractions(stockSearchService, stockPriceService);
+  }
+
+  @Test
+  void searchUsStocksReturnsCurrency() throws Exception {
+    given(stockSearchService.search("AAPL", "US"))
+        .willReturn(
+            new StockSearchResponse(
+                List.of(
+                    new StockSearchItemResponse(
+                        2L, "AAPL.US", "Apple", AssetCategory.STOCK, StockMarket.NASDAQ, "USD"))));
+    mockMvc
+        .perform(get("/api/stocks").param("q", "AAPL").param("country", "US"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.stocks[0].currency").value("USD"));
+  }
+
+  @Test
+  void rejectsUnsupportedCountry() throws Exception {
+    mockMvc
+        .perform(get("/api/stocks").param("q", "AAPL").param("country", "JP"))
+        .andExpect(status().isBadRequest());
+    verifyNoInteractions(stockSearchService);
   }
 }

@@ -47,6 +47,8 @@ class SavedPortfolioTransactionDateTest {
   @Mock private AssetRepository assetRepository;
   @Mock private PortfolioLedgerCalculator ledgerCalculator;
   @Mock private PortfolioSnapshotTransactionService snapshotTransactionService;
+  @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
+  @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
   @InjectMocks private SavedPortfolioService service;
 
   private Portfolio portfolio;
@@ -59,6 +61,7 @@ class SavedPortfolioTransactionDateTest {
     given(portfolio.getId()).willReturn(10L);
     given(asset.getId()).willReturn(2L);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
   }
 
   @ParameterizedTest
@@ -141,7 +144,9 @@ class SavedPortfolioTransactionDateTest {
       service.transact(1L, request(PortfolioTransactionType.BUY, tradeDate));
     }
     then(historyRepository).should().saveAndFlush(any());
-    then(snapshotTransactionService).should().refreshSnapshotsFrom(10L, tradeDate);
+    then(snapshotTransactionService)
+        .should()
+        .refreshSnapshotsFrom(10L, tradeDate, java.util.Map.of());
   }
 
   private void prepareRegistration() {

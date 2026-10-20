@@ -4,13 +4,18 @@ import org.grit.daynomy.common.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 public enum AssetErrorCode implements ErrorCode {
+  US_STOCK_SYNC_ALREADY_RUNNING(HttpStatus.CONFLICT, "미국 종목 또는 종가 동기화가 이미 진행 중입니다."),
+  US_STOCK_MASTER_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 미국 종목 데이터를 확인하지 못했습니다."),
+  US_STOCK_PRICE_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 미국 종가 데이터를 확인하지 못했습니다."),
+  US_STOCK_MASTER_REQUIRED(HttpStatus.CONFLICT, "미국 종목 목록을 먼저 동기화해주세요."),
+  INVALID_US_STOCK_PRICE_DATE(HttpStatus.BAD_REQUEST, "미국 종가는 뉴욕 기준 오늘 이전 날짜로 요청해주세요."),
   ASSET_NOT_FOUND(HttpStatus.NOT_FOUND, "자산을 찾을 수 없습니다."),
   STOCK_SYNC_ALREADY_RUNNING(HttpStatus.CONFLICT, "국내 주식 종목 동기화가 이미 진행 중입니다."),
   STOCK_MASTER_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 국내 주식 종목 데이터를 찾지 못했습니다."),
   STOCK_PRICE_SYNC_ALREADY_RUNNING(HttpStatus.CONFLICT, "국내 주식 종가 동기화가 이미 진행 중입니다."),
   INVALID_STOCK_PRICE_BACKFILL_RANGE(HttpStatus.BAD_REQUEST, "종가 백필 기간은 31일 이내여야 합니다."),
   STOCK_PRICE_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 국내 주식 종가 데이터를 찾지 못했습니다."),
-  STOCK_PRICE_NOT_FOUND(HttpStatus.NOT_FOUND, "국내 주식 종가를 찾을 수 없습니다.");
+  STOCK_PRICE_NOT_FOUND(HttpStatus.NOT_FOUND, "주식·ETF 종가를 찾을 수 없습니다.");
 
   private final HttpStatus status;
   private final String message;

@@ -281,7 +281,7 @@ public class StockPriceSyncService {
 
   private Optional<StockPriceSnapshot> findSnapshot(LocalDate requestedDate) {
     List<PublicDataStockPriceItem> items = new ArrayList<>();
-    for (StockMarket market : StockMarket.values()) {
+    for (StockMarket market : List.of(StockMarket.KOSPI, StockMarket.KOSDAQ)) {
       List<PublicDataStockPriceItem> marketItems = getAllPages(requestedDate, market);
       if (marketItems.isEmpty()) {
         return Optional.empty();

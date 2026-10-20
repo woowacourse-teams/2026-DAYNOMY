@@ -129,6 +129,12 @@ external:
     connect-timeout: ${YOUTUBE_CONNECT_TIMEOUT:3s}
     read-timeout: ${YOUTUBE_READ_TIMEOUT:10s}
 
+  eodhd:
+    api-token: ${EODHD_API_TOKEN:}
+    base-url: https://eodhd.com/api
+    connect-timeout: 3s
+    read-timeout: 60s
+
   public-data:
     service-key: ${PUBLIC_DATA_SERVICE_KEY}
     stock-price-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo
@@ -170,6 +176,10 @@ person:
     lookback-days: ${PERSON_POST_COLLECTION_LOOKBACK_DAYS:3}
 
 stock:
+  us:
+    sync:
+      enabled: ${US_STOCK_SYNC_ENABLED:false}
+      cron: ${US_STOCK_SYNC_CRON:0 15 6 * * *}
   calendar:
     sync:
       enabled: ${MARKET_CALENDAR_SYNC_ENABLED:false}
@@ -181,6 +191,11 @@ stock:
     sync:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
       cron: ${STOCK_PRICE_SYNC_CRON:0 30 13,18 * * MON-FRI}
+
+exchange-rate:
+  sync:
+    enabled: ${EXCHANGE_RATE_SYNC_ENABLED:false}
+    cron: ${EXCHANGE_RATE_SYNC_CRON:0 10 6 * * *}
 
 portfolio:
   analysis:

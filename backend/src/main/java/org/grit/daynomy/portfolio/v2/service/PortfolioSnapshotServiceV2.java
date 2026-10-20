@@ -12,6 +12,7 @@ import java.util.TreeSet;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.exchangerate.service.ExchangeRateService;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
@@ -37,7 +38,10 @@ public class PortfolioSnapshotServiceV2 {
   // 호출자는 회원 → 포트폴리오 순서로 잠금을 확보한 뒤 같은 트랜잭션에서 호출한다.
   @Transactional(propagation = Propagation.MANDATORY)
   public void refresh(
-      Portfolio portfolio, List<PortfolioHoldingHistory> histories, LocalDate fromDate) {
+      Portfolio portfolio,
+      List<PortfolioHoldingHistory> histories,
+      LocalDate fromDate,
+      Map<LocalDate, BigDecimal> rates) {
     LocalDate today = LocalDate.now(SEOUL);
     if (!fromDate.isBefore(today)) {
       return;
@@ -47,13 +51,14 @@ public class PortfolioSnapshotServiceV2 {
             portfolio.getId(), fromDate, today.minusDays(1));
     Map<LocalDate, PortfolioDailySnapshot> existingByDate = new HashMap<>();
     existing.forEach(snapshot -> existingByDate.put(snapshot.getBaseDate(), snapshot));
+    List<Long> assetIds =
+        histories.stream().map(history -> history.getAsset().getId()).distinct().toList();
     NavigableSet<LocalDate> priceDates =
-        new TreeSet<>(priceRepository.findDistinctBaseDatesOrderByBaseDate());
+        new TreeSet<>(
+            assetIds.isEmpty() ? List.of() : priceRepository.findBaseDatesByAssetIds(assetIds));
     NavigableSet<LocalDate> candidates = new TreeSet<>(priceDates);
     candidates.addAll(existingByDate.keySet());
     List<LocalDate> dates = candidates.subSet(fromDate, true, today, false).stream().toList();
-    List<Long> assetIds =
-        histories.stream().map(history -> history.getAsset().getId()).distinct().toList();
 
     for (int offset = 0; offset < dates.size(); offset += DATES_PER_BATCH) {
       List<LocalDate> batch =
@@ -65,9 +70,11 @@ public class PortfolioSnapshotServiceV2 {
         for (StockDailyPrice price :
             priceRepository.findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
                 assetIds, priceFrom, batch.getLast())) {
+          BigDecimal converted = ExchangeRateService.priceInKrwOrNull(price, rates);
+          if (converted == null) continue;
           prices
               .computeIfAbsent(price.getBaseDate(), ignored -> new HashMap<>())
-              .put(price.getAsset().getId(), price.getClosePrice());
+              .put(price.getAsset().getId(), converted);
         }
       }
       List<PortfolioDailySnapshot> additions = new ArrayList<>();
@@ -89,7 +96,7 @@ public class PortfolioSnapshotServiceV2 {
                 previousDay != null);
         PortfolioDailySnapshot snapshot = existingByDate.get(day);
         if (amounts.isEmpty()) {
-          if (snapshot != null) {
+          if (positions.isEmpty() && snapshot != null) {
             removals.add(snapshot);
           }
           continue;
