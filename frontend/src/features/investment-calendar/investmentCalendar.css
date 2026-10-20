@@ -1,4 +1,7 @@
 .investment-calendar-page {
+  --calendar-workspace-height: auto;
+  --calendar-scroll-overflow: visible;
+  --calendar-state-min-height: 520px;
   --calendar-line: #dbe2ec;
   --calendar-text: #111827;
   --calendar-muted: #65738a;
@@ -484,6 +487,7 @@
 }
 
 .investment-calendar-workspace {
+  height: var(--calendar-workspace-height);
   display: grid;
   grid-template-columns: 336px minmax(0, 1fr);
   overflow: hidden;
@@ -493,6 +497,8 @@
 }
 
 .investment-calendar-schedule {
+  min-height: 0;
+  overflow-y: var(--calendar-scroll-overflow);
   min-width: 0;
 }
 
@@ -707,8 +713,27 @@
 }
 
 .investment-calendar-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
   padding: 26px 32px 28px;
   border-left: 1px solid var(--calendar-line);
+}
+
+.investment-calendar-detail-header {
+  flex: 0 0 auto;
+}
+
+.investment-calendar-detail-body {
+  min-height: 0;
+  overflow-y: var(--calendar-scroll-overflow);
+  scrollbar-gutter: stable;
+}
+
+.investment-calendar-detail-body:focus-visible {
+  outline: 2px solid var(--calendar-blue);
+  outline-offset: -2px;
 }
 
 .investment-calendar-event-status {
@@ -729,7 +754,7 @@
   font-weight: 750;
 }
 
-.investment-calendar-detail > h2 {
+.investment-calendar-detail-header > h2 {
   margin: 0;
   font-size: 24px;
   line-height: 1.35;
@@ -977,7 +1002,7 @@
 }
 
 .investment-calendar-detail-state {
-  min-height: 520px;
+  min-height: var(--calendar-state-min-height);
   padding: 32px;
   border-left: 1px solid var(--calendar-line);
   font-size: 14px;
@@ -1199,7 +1224,7 @@
   padding: 24px;
 }
 
-.investment-calendar-embedded .investment-calendar-detail > h2 {
+.investment-calendar-embedded .investment-calendar-detail-header > h2 {
   font-size: 22px;
 }
 
@@ -1256,5 +1281,22 @@
 
   .investment-calendar-embedded .investment-calendar-detail {
     padding: 22px 18px 24px;
+  }
+}
+
+/* Keep sibling content steady only while the calendar uses two columns. */
+@media (min-width: 821px) {
+  .investment-calendar-page:not(.investment-calendar-embedded) {
+    --calendar-workspace-height: clamp(460px, 70svh, 680px);
+    --calendar-scroll-overflow: auto;
+    --calendar-state-min-height: 0;
+  }
+}
+
+@container (min-width: 721px) {
+  .investment-calendar-embedded .investment-calendar-workspace {
+    --calendar-workspace-height: clamp(460px, 70svh, 680px);
+    --calendar-scroll-overflow: auto;
+    --calendar-state-min-height: 0;
   }
 }

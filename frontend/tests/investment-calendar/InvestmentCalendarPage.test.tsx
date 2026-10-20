@@ -67,6 +67,19 @@ describe('투자 캘린더 화면', () => {
     expect(view.getByText('직접 관련')).toBeTruthy();
   });
 
+  it('다른 일정을 선택하면 상세 본문을 처음부터 보여준다', async () => {
+    const view = renderCalendar();
+    const body = await view.findByRole('region', { name: '미국 소비자물가지수 발표 상세 내용' });
+    body.scrollTop = 120;
+
+    fireEvent.click(view.getByRole('button', { name: /두산 3분기 실적/ }));
+
+    expect(view.getByRole('region', { name: '두산 3분기 실적 발표 상세 내용' }).scrollTop).toBe(0);
+    expect(view.getByRole('button', { name: /두산 3분기 실적/ }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+  });
+
   it('목록과 달력을 전환하고 달력에서 일정을 선택한다', async () => {
     const view = renderCalendar();
     await view.findByText('미국 소비자물가지수 발표');
