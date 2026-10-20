@@ -1703,3 +1703,52 @@
     padding: 0 12px;
   }
 }
+
+/* Let the calendar determine the row height; scroll the matching preview. */
+@media (min-width: 1121px) {
+  .issue-briefing > .issue-people {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-bottom: 36px;
+  }
+
+  .issue-people .issue-section-heading {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    min-height: calc(var(--page-title-size) * var(--page-title-line-height) + 32px);
+    margin-bottom: 24px;
+  }
+
+  .issue-people-preview {
+    flex: 1 1 0;
+    height: 0;
+    min-height: 0;
+    contain: size;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    scrollbar-gutter: stable;
+  }
+
+  .issue-people-preview > a,
+  .issue-people-preview > a + a {
+    flex: 0 0 25%;
+    min-height: 144px;
+    box-sizing: border-box;
+    align-content: center;
+    gap: 8px 12px;
+    padding: 12px 0;
+  }
+}
+
+.issue-people-preview:focus-visible {
+  outline: 2px solid var(--issue-ink);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1120px) {
+  .issue-people-preview > a:nth-child(n + 5) {
+    display: none;
+  }
+}

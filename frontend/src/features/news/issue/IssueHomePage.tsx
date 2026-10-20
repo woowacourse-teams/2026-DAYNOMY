@@ -108,8 +108,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       (a, b) =>
         (Date.parse(b.post.publishedAt ?? b.post.createdAt ?? '') || 0) -
         (Date.parse(a.post.publishedAt ?? a.post.createdAt ?? '') || 0),
-    )
-    .slice(0, 3);
+    );
   const settled = !loading && !contentsLoading && !people.loading;
   const failedAreas = [error, contentsError, people.error].filter(Boolean).length;
   const listStatus = failedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
@@ -188,7 +187,12 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                 {people.error} <button onClick={retryPeople}>다시 시도</button>
               </p>
             ) : featured.length ? (
-              <div className="issue-people-preview">
+              <div
+                className="issue-people-preview"
+                role="region"
+                aria-label="주목받는 인물의 글 목록"
+                tabIndex={0}
+              >
                 {featured.map(({ person, post }, index) => (
                   <Link
                     onClick={() =>

@@ -462,7 +462,7 @@ it('출처별 빈 결과를 기록하고 같은 필터의 반복 선택은 중�
   expect(vi.mocked(trackEvent).mock.calls).toHaveLength(count);
 });
 
-it('주목받는 인물의 글은 같은 인물도 포함해 전체 최신 글 3개를 표시한다', async () => {
+it('주목받는 인물의 글은 같은 인물도 포함해 전체 글을 최신순으로 제공한다', async () => {
   const people = [
     {
       ...person,
@@ -478,7 +478,7 @@ it('주목받는 인물의 글은 같은 인물도 포함해 전체 최신 글 3
         {
           ...person.posts[0],
           id: 13,
-          title: '제외할 오래된 글',
+          title: '네 번째 글',
           createdAt: '2026-10-11T07:00:00Z',
         },
       ],
@@ -507,16 +507,21 @@ it('주목받는 인물의 글은 같은 인물도 포함해 전체 최신 글 3
     </MemoryRouter>,
   );
   await waitFor(() =>
-    expect(view.container.querySelectorAll('.issue-people-preview > a')).toHaveLength(3),
+    expect(view.container.querySelectorAll('.issue-people-preview > a')).toHaveLength(4),
   );
   expect(
     [...view.container.querySelectorAll('.issue-people-preview h3')].map(
       (node) => node.textContent,
     ),
-  ).toEqual(['최신 글', '두 번째 글', '세 번째 글']);
+  ).toEqual(['최신 글', '두 번째 글', '세 번째 글', '네 번째 글']);
   expect(
     [...view.container.querySelectorAll('.issue-people-preview > a')].map((node) =>
       node.getAttribute('href'),
     ),
-  ).toEqual(['/people?person=1&view=all', '/people?person=2', '/people?person=1']);
+  ).toEqual([
+    '/people?person=1&view=all',
+    '/people?person=2',
+    '/people?person=1',
+    '/people?person=1&view=all',
+  ]);
 });
