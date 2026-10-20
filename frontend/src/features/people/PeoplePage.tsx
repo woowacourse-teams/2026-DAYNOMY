@@ -141,7 +141,7 @@ export function PeoplePage() {
     setParams(next);
     setPagination({ person: id || null, page: 1 });
   }
-  const totalPages = Math.max(1, Math.ceil(items.length / 12));
+  const totalPages = Math.max(1, Math.ceil(items.length / 6));
   const currentPage = Math.min(page, totalPages);
 
   useContentView(!loading && !error, 'view_content_list', {
@@ -424,8 +424,8 @@ export function PeoplePage() {
               <IssueFeed
                 surface="people"
                 key={`${selectedId ?? 'all'}-${currentPage}`}
-                offset={(currentPage - 1) * 12}
-                items={items.slice((currentPage - 1) * 12, currentPage * 12)}
+                offset={(currentPage - 1) * 6}
+                items={items.slice((currentPage - 1) * 6, currentPage * 6)}
               />
             </>
           ) : (

@@ -214,8 +214,13 @@ it('URL로 인물을 변경하거나 뒤로 가면 해당 인물의 첫 페이�
       <PeoplePage />
     </MemoryRouter>,
   );
-  await view.findByRole('button', { name: '3페이지' });
+  await view.findByRole('button', { name: '5페이지' });
+  expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(6);
+  expect(view.queryByRole('button', { name: '6페이지' })).toBeNull();
   fireEvent.click(view.getByRole('button', { name: '3페이지' }));
+  expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(6);
+  expect(view.getByText('인물1 글18', { exact: true })).toBeTruthy();
+  expect(view.queryByText('인물1 글30', { exact: true })).toBeNull();
   expect(view.getByRole('button', { name: '3페이지' }).getAttribute('aria-current')).toBe('page');
   fireEvent.click(view.getByRole('link', { name: '다른 인물 URL로 이동' }));
   expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');

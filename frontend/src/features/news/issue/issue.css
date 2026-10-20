@@ -838,7 +838,7 @@
   min-width: 36px;
   min-height: 44px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 4px;
   background: transparent;
   font-weight: var(--button-weight);
 }

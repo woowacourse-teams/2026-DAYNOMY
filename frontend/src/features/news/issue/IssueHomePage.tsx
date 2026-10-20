@@ -100,7 +100,8 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   const items = createFeed(news, people.people, contents).filter(
     (item) => source === 'ALL' || item.source === source,
   );
-  const totalPages = Math.max(1, Math.ceil(items.length / 12));
+  const pageSize = fullFeed ? 12 : 6;
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const featured = people.people
     .flatMap((person) => person.posts.map((post) => ({ person, post })))
@@ -254,7 +255,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       )}
       <section aria-labelledby="issue-feed-heading">
         <div className="issue-section-heading issue-feed-heading">
-          <h2 id="issue-feed-heading">{fullFeed ? '콘텐츠 목록' : '전체 콘텐츠'}</h2>
+          <h2 id="issue-feed-heading">{fullFeed ? '콘텐츠 목록' : '최근 올라온 콘텐츠'}</h2>
           <div className="issue-feed-controls">
             <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
               {(
@@ -318,9 +319,9 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
         )}
         <IssueFeed
           surface={surface}
-          offset={(currentPage - 1) * 12}
+          offset={(currentPage - 1) * pageSize}
           key={`${source}-${currentPage}`}
-          items={items.slice((currentPage - 1) * 12, currentPage * 12)}
+          items={items.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
         />
         {!loading &&
           !contentsLoading &&
