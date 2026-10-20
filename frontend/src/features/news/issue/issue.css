@@ -1710,6 +1710,10 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    padding-bottom: 0;
+  }
+
+  .issue-briefing:has(.investment-calendar-disclaimer) > .issue-people {
     padding-bottom: 36px;
   }
 

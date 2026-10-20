@@ -570,10 +570,9 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
           </div>
         )}
       </section>
-      <p className="investment-calendar-disclaimer">
-        과거 반응은 미래 수익률을 보장하지 않습니다.
-        {isDemo ? ' · 현재 화면의 수치는 데모 데이터입니다.' : ''}
-      </p>
+      {isDemo ? (
+        <p className="investment-calendar-disclaimer">현재 화면의 수치는 데모 데이터입니다.</p>
+      ) : null}
     </CalendarRoot>
   );
 }
