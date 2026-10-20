@@ -215,7 +215,7 @@ it('SDK 기본 속성의 원문 URL·본문·프로필 정보를 제거하고 �
     value: 'https://example.com/?email=private-email',
   });
   const { trackEvent } = await import('../../src/analytics');
-  trackEvent('filter_content_source', { source_type: 'X' });
+  trackEvent('filter_content_source', { source_type: 'X', token: 'private-input-token' });
   await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(1));
   const config = posthog.init.mock.calls[0][1];
   expect(config).toMatchObject({
@@ -231,6 +231,7 @@ it('SDK 기본 속성의 원문 URL·본문·프로필 정보를 제거하고 �
     event: 'filter_content_source',
     properties: {
       ...posthog.capture.mock.calls[0][1],
+      token: 'phc_test',
       $current_url: window.location.href,
       $referrer: document.referrer,
       $initial_current_url: window.location.href,
@@ -240,9 +241,11 @@ it('SDK 기본 속성의 원문 URL·본문·프로필 정보를 제거하고 �
       distinct_id: 'anonymous-id',
     },
   });
+  expect(JSON.stringify([commands(), posthog.capture.mock.calls])).not.toContain('private-');
   expect(JSON.stringify(result)).not.toContain('private-');
   expect(result.properties).toMatchObject({
     source_type: 'X',
+    token: 'phc_test',
     distinct_id: 'anonymous-id',
     $current_url: 'http://localhost:3000/search',
     $referrer: 'https://example.com/',

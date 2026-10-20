@@ -181,6 +181,8 @@ export function trackEvent(name: string, params: AnalyticsParams = {}) {
 // Explicit events only: SDK-generated properties are filtered before delivery as well.
 const posthogProperties = new Set([
   ...analyticsPropertyKeys,
+  // PostHog SDK가 추가한 수집용 프로젝트 토큰은 전송에 필수다.
+  'token',
   'page_path',
   'page_location',
   'page_referrer',
