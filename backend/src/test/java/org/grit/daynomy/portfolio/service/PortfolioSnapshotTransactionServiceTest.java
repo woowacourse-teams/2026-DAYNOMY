@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
@@ -84,6 +85,48 @@ class PortfolioSnapshotTransactionServiceTest {
     assertThat(snapshot.getDailyProfitLoss()).isEqualByComparingTo("2000.00");
     assertThat(snapshot.getDailyReturnRate()).isEqualByComparingTo("9.09");
     then(stockPriceRepository).should(never()).findByAssetIdAndBaseDate(3L, baseDate);
+  }
+
+  @Test
+  void createSnapshotConvertsUsPricesWithEachHistoricalDatesRate() {
+    LocalDate previousDate = LocalDate.of(2026, 9, 28);
+    LocalDate baseDate = LocalDate.of(2026, 9, 30);
+    Portfolio portfolio = mock(Portfolio.class);
+    Asset asset = asset(2L);
+    StockDailyPrice currentPrice = mock(StockDailyPrice.class);
+    StockDailyPrice previousPrice = mock(StockDailyPrice.class);
+    given(asset.getCurrency()).willReturn("USD");
+    given(currentPrice.getAsset()).willReturn(asset);
+    given(currentPrice.getBaseDate()).willReturn(baseDate);
+    given(currentPrice.getClosePrice()).willReturn(new BigDecimal("100"));
+    given(previousPrice.getAsset()).willReturn(asset);
+    given(previousPrice.getBaseDate()).willReturn(previousDate);
+    given(previousPrice.getClosePrice()).willReturn(new BigDecimal("90"));
+    given(exchangeRates.forSnapshot(10L, baseDate, previousDate))
+        .willReturn(
+            Map.of(
+                previousDate, new BigDecimal("1320"),
+                baseDate, new BigDecimal("1300")));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
+    given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
+        .willReturn(Optional.empty());
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, baseDate))
+        .willReturn(List.of(history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000")));
+    given(stockPriceRepository.findByAssetIdAndBaseDate(2L, baseDate))
+        .willReturn(Optional.of(currentPrice));
+    given(stockPriceRepository.findByAssetIdAndBaseDate(2L, previousDate))
+        .willReturn(Optional.of(previousPrice));
+
+    assertThat(service.createSnapshot(10L, baseDate, previousDate)).isTrue();
+
+    ArgumentCaptor<PortfolioDailySnapshot> captor =
+        ArgumentCaptor.forClass(PortfolioDailySnapshot.class);
+    then(snapshotRepository).should().saveAndFlush(captor.capture());
+    assertThat(captor.getValue().getTotalEvaluationAmount()).isEqualByComparingTo("260000.00");
+    assertThat(captor.getValue().getDailyProfitLoss()).isEqualByComparingTo("22400.00");
   }
 
   @Test
