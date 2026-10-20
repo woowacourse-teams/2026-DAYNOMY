@@ -113,6 +113,53 @@ class InvestmentDecisionServiceTest {
   }
 
   @Test
+  void originalRequestCanBeRetriedAfterMultipleReasonEdits() {
+    Member member = mock(Member.class);
+    SharedPortfolio portfolio = SharedPortfolio.create(member);
+    var existing = transaction(portfolio, TransactionType.HOLD);
+    existing.reviseReason("수정한 이유");
+    existing.reviseReason("최종 이유");
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(decisionRepository.findByPortfolioIdAndRequestKey(null, "decision-1"))
+        .willReturn(Optional.of(existing));
+
+    var response =
+        service.recordDecision(1L, new DecisionRecordRequest("decision-1", 2L, decision()));
+
+    assertThat(response.reason()).isEqualTo("최종 이유");
+    then(holdingRepository).shouldHaveNoInteractions();
+    then(decisionRepository).should().findByPortfolioIdAndRequestKey(null, "decision-1");
+    then(decisionRepository).shouldHaveNoMoreInteractions();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"수정한 이유", "최종 이유"})
+  void editedReasonCannotReuseOriginalRequestKey(String reason) {
+    Member member = mock(Member.class);
+    SharedPortfolio portfolio = SharedPortfolio.create(member);
+    var existing = transaction(portfolio, TransactionType.HOLD);
+    existing.reviseReason("수정한 이유");
+    existing.reviseReason("최종 이유");
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(decisionRepository.findByPortfolioIdAndRequestKey(null, "decision-1"))
+        .willReturn(Optional.of(existing));
+    var changed =
+        new DecisionRequest(
+            reason, HoldingPeriod.OVER_SIX_MONTHS, "매출 성장", "실적 역성장", new BigDecimal("10"));
+
+    assertThatThrownBy(
+            () -> service.recordDecision(1L, new DecisionRecordRequest("decision-1", 2L, changed)))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            error ->
+                assertThat(error.errorCode()).isEqualTo(LeagueErrorCode.DECISION_REQUEST_CONFLICT));
+    assertThat(existing.getDecisionReason()).isEqualTo("최종 이유");
+    then(holdingRepository).shouldHaveNoInteractions();
+  }
+
+  @Test
   void reviewAddsResultsWithoutRewritingTheInitialDecision() {
     var existing = transaction(SharedPortfolio.create(mock(Member.class)), TransactionType.HOLD);
     given(decisionRepository.findByIdAndPortfolioMemberId(7L, 1L))
@@ -249,6 +296,7 @@ class InvestmentDecisionServiceTest {
     assertThatThrownBy(() -> existing.reviseReason(reason))
         .isInstanceOf(IllegalArgumentException.class);
     assertThat(existing.getDecisionReason()).isEqualTo("장기 성장");
+    assertThat(existing.getOriginalDecisionReason()).isNull();
   }
 
   @Test

@@ -252,6 +252,95 @@ class SharedPortfolioAcceptanceTest {
   }
 
   @Test
+  void reasonEditsPreserveOriginalRequestAcrossDatabaseReloads() {
+    Member owner = member();
+    Asset asset = asset();
+    client(owner)
+        .body(
+            Map.of(
+                "holdings",
+                List.of(
+                    Map.of("assetId", asset.getId(), "quantity", 2, "averagePurchasePrice", 100)),
+                "overwriteExisting",
+                false))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    String endpoint = "/api/users/me/portfolio/decisions";
+    var original =
+        Map.of(
+            "requestKey",
+            "original-request",
+            "assetId",
+            asset.getId(),
+            "decision",
+            Map.of("reason", "최초 이유"));
+    long id =
+        client(owner)
+            .body(original)
+            .post(endpoint)
+            .then()
+            .statusCode(201)
+            .extract()
+            .jsonPath()
+            .getLong("id");
+
+    for (String reason : List.of("수정한 이유", "최종 이유")) {
+      client(owner)
+          .body(Map.of("reason", " " + reason + " "))
+          .put(endpoint + "/" + id + "/reason")
+          .then()
+          .statusCode(200);
+      client(owner)
+          .body(original)
+          .post(endpoint)
+          .then()
+          .statusCode(201)
+          .body("id", equalTo((int) id))
+          .body("reason", equalTo(reason));
+      client(owner)
+          .body(
+              Map.of(
+                  "requestKey",
+                  "original-request",
+                  "assetId",
+                  asset.getId(),
+                  "decision",
+                  Map.of("reason", reason)))
+          .post(endpoint)
+          .then()
+          .statusCode(409)
+          .body("code", equalTo("DECISION_REQUEST_CONFLICT"));
+    }
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT original_decision_reason FROM portfolio_transactions WHERE id=?",
+                String.class,
+                id))
+        .isEqualTo("최초 이유");
+    client(owner)
+        .get("/api/users/me/portfolio/transactions")
+        .then()
+        .statusCode(200)
+        .body("transactions", hasSize(1))
+        .body("transactions[0].reason", equalTo("최종 이유"));
+    client(owner)
+        .body(
+            Map.of(
+                "requestKey",
+                "new-request",
+                "assetId",
+                asset.getId(),
+                "decision",
+                Map.of("reason", "최종 이유")))
+        .post(endpoint)
+        .then()
+        .statusCode(201)
+        .body("id", not(equalTo((int) id)));
+    client(owner).get(SHARED).then().statusCode(200).body("holdings[0].quantity", equalTo(2));
+  }
+
+  @Test
   void removedLeagueTypeIsRejected() {
     given()
         .port(port)
