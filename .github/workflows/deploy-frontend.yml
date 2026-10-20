@@ -123,6 +123,8 @@ jobs:
           SENTRY_RELEASE: ${{ steps.release.outputs.image_tag }}
         run: |
           : "${SENTRY_ENVIRONMENT:?SENTRY_ENVIRONMENT is required}"
+          : "${VITE_POSTHOG_PROJECT_TOKEN:?VITE_POSTHOG_PROJECT_TOKEN is required}"
+          : "${VITE_POSTHOG_HOST:?VITE_POSTHOG_HOST is required}"
 
           if [ "$DEPLOY_ENV" = "production" ]; then
             : "${SENTRY_DSN:?SENTRY_DSN is required}"
