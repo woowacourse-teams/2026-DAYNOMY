@@ -22,9 +22,14 @@ public class UsdKrwRate {
   private Instant fetchedAt;
 
   public UsdKrwRate(LocalDate requestedDate, LocalDate baseDate, BigDecimal rate) {
+    this(requestedDate, baseDate, rate, Instant.now());
+  }
+
+  public UsdKrwRate(
+      LocalDate requestedDate, LocalDate baseDate, BigDecimal rate, Instant fetchedAt) {
     this.requestedDate = requestedDate;
     this.baseDate = baseDate;
     this.rate = rate.setScale(6, java.math.RoundingMode.HALF_UP);
-    this.fetchedAt = Instant.now();
+    this.fetchedAt = fetchedAt;
   }
 }

@@ -22,6 +22,10 @@ public record PortfolioHoldingHistoryResponse(
     Instant occurredAt,
     String currency,
     BigDecimal exchangeRate) {
+  @com.fasterxml.jackson.annotation.JsonProperty("averagePurchasePriceCurrency")
+  public String averagePurchasePriceCurrency() {
+    return "KRW";
+  }
 
   public static PortfolioHoldingHistoryResponse from(PortfolioHoldingHistory history) {
     return new PortfolioHoldingHistoryResponse(

@@ -21,6 +21,11 @@ public record PortfolioHoldingResponse(
     BigDecimal profitLoss,
     BigDecimal returnRate,
     BigDecimal weight) {
+  @com.fasterxml.jackson.annotation.JsonProperty("averagePurchasePriceCurrency")
+  public String averagePurchasePriceCurrency() {
+    return "KRW";
+  }
+
   @com.fasterxml.jackson.annotation.JsonProperty("currency")
   public String currency() {
     return market == null ? "KRW" : market.currency();

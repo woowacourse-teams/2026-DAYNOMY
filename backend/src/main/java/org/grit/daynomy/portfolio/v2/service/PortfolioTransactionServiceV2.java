@@ -1,7 +1,9 @@
 package org.grit.daynomy.portfolio.v2.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
@@ -22,9 +24,11 @@ import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
+import org.grit.daynomy.portfolio.service.PortfolioExchangeRateService;
 import org.grit.daynomy.portfolio.service.PortfolioLedgerCalculator;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @RequiredArgsConstructor
 @Service
@@ -42,9 +46,17 @@ public class PortfolioTransactionServiceV2 {
   private final PortfolioHoldingHistoryRepository historyRepository;
   private final PortfolioLedgerCalculator ledgerCalculator;
   private final PortfolioSnapshotServiceV2 snapshotService;
+  private final PortfolioExchangeRateService exchangeRates;
+  private final PlatformTransactionManager transactionManager;
 
-  @Transactional
   public PortfolioTransactionResponse transact(Long memberId, PortfolioTransactionRequest request) {
+    var rates = exchangeRates.forMember(memberId, request.assetId(), request.tradeDate());
+    return new TransactionTemplate(transactionManager)
+        .execute(status -> transactInTransaction(memberId, request, rates));
+  }
+
+  private PortfolioTransactionResponse transactInTransaction(
+      Long memberId, PortfolioTransactionRequest request, Map<LocalDate, BigDecimal> rates) {
     Member member =
         memberRepository
             .findByIdForUpdate(memberId)
@@ -95,7 +107,7 @@ public class PortfolioTransactionServiceV2 {
         historyRepository.findOrderedWithAssetsByPortfolioId(portfolio.getId());
     PortfolioLedgerCalculator.LedgerResult ledger = ledgerCalculator.replay(histories);
     SavedPortfolioHoldingResponse holding = applyPosition(portfolio, asset, current, ledger);
-    snapshotService.refresh(portfolio, histories, request.tradeDate());
+    snapshotService.refresh(portfolio, histories, request.tradeDate(), rates);
     return new PortfolioTransactionResponse(
         transaction.getId(), holding, ledger.realizedProfitLoss());
   }

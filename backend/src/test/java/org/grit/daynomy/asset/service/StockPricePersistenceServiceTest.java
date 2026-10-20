@@ -106,4 +106,19 @@ class StockPricePersistenceServiceTest {
     assertThat(result.skippedCount()).isEqualTo(2);
     org.mockito.Mockito.verifyNoInteractions(tradingDayRepository);
   }
+
+  @Test
+  void onlyDomesticSyncIncludesLegacyAssetWithoutMarket() {
+    LocalDate date = LocalDate.of(2026, 10, 16);
+    Asset legacy =
+        Asset.listedStock(
+            "삼성전자", "005930", org.grit.daynomy.asset.domain.StockMarket.KOSPI, null, date);
+    org.springframework.test.util.ReflectionTestUtils.setField(legacy, "market", null);
+    given(assetRepository.findAllByCategoryIn(Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .willReturn(List.of(legacy));
+    var entries =
+        List.of(new StockPriceEntry("005930", AssetCategory.STOCK, date, new BigDecimal("100")));
+    assertThat(persistenceService.synchronize(date, entries).createdCount()).isEqualTo(1);
+    assertThat(persistenceService.synchronizeUs(date, entries).createdCount()).isZero();
+  }
 }

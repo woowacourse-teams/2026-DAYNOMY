@@ -13,6 +13,10 @@ public record SavedPortfolioHoldingResponse(
     StockMarket market,
     long quantity,
     BigDecimal averagePurchasePrice) {
+  @com.fasterxml.jackson.annotation.JsonProperty("averagePurchasePriceCurrency")
+  public String averagePurchasePriceCurrency() {
+    return "KRW";
+  }
 
   @com.fasterxml.jackson.annotation.JsonProperty("currency")
   public String currency() {

@@ -33,6 +33,8 @@ class PortfolioTransactionServiceV2Test {
   @Mock PortfolioHoldingHistoryRepository historyRepository;
   @Mock PortfolioLedgerCalculator ledgerCalculator;
   @Mock PortfolioSnapshotServiceV2 snapshotService;
+  @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
+  @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
   @InjectMocks PortfolioTransactionServiceV2 service;
 
   @Test

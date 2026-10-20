@@ -41,7 +41,9 @@ public class StockMasterPersistenceService {
     }
     Map<AssetKey, Asset> existingByKey = new HashMap<>();
     for (Asset asset : assetRepository.findAllByCategoryIn(SUPPORTED_CATEGORIES)) {
-      if (asset.getMarket() != null && markets.contains(asset.getMarket())) {
+      if (asset.getMarket() == null
+          ? markets.equals(StockMarket.domesticMarkets())
+          : markets.contains(asset.getMarket())) {
         existingByKey.put(new AssetKey(asset.getCategory(), asset.getAssetCode()), asset);
       }
     }

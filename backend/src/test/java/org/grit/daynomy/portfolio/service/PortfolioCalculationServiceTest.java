@@ -45,6 +45,7 @@ class PortfolioCalculationServiceTest {
   @Mock private StockDailyPriceRepository stockDailyPriceRepository;
   @Mock private AssetRepository assetRepository;
   @Mock private org.grit.daynomy.exchangerate.service.ExchangeRateService exchangeRates;
+  @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
   @InjectMocks private PortfolioCalculationService calculationService;
 
   private final Logger logger = (Logger) LoggerFactory.getLogger(PortfolioCalculationService.class);
@@ -283,8 +284,8 @@ class PortfolioCalculationServiceTest {
     var request =
         new PortfolioCalculateRequest(
             List.of(new PortfolioHoldingRequest(1L, 1L, new BigDecimal("200"))));
-    given(exchangeRates.priceInKrwOrNull(org.mockito.ArgumentMatchers.any()))
-        .willReturn(new BigDecimal("318660.42"));
+    given(exchangeRates.ratesForDates(List.of(LocalDate.of(2026, 10, 16))))
+        .willReturn(Map.of(LocalDate.of(2026, 10, 16), new BigDecimal("1300")));
     var result = calculationService.calculate(request);
     assertThat(result.totalEvaluationAmount()).isEqualByComparingTo("318660.42");
     assertThat(result.holdings().getFirst().closePrice()).isEqualByComparingTo("245.1234");

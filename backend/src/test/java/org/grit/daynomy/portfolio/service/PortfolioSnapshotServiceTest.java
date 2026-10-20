@@ -50,7 +50,7 @@ class PortfolioSnapshotServiceTest {
     LocalDate secondDate = LocalDate.of(2026, 9, 30);
     Portfolio firstPortfolio = portfolio(10L);
     Portfolio secondPortfolio = portfolio(20L);
-    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+    given(stockPriceRepository.findBaseDatesByPortfolioId(org.mockito.ArgumentMatchers.anyLong()))
         .willReturn(List.of(firstDate, secondDate));
     given(portfolioRepository.findAll()).willReturn(List.of(firstPortfolio, secondPortfolio));
     given(snapshotTransactionService.createSnapshot(10L, firstDate, null)).willReturn(true);
@@ -220,7 +220,7 @@ class PortfolioSnapshotServiceTest {
     LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
     LocalDate yesterday = today.minusDays(1);
     Portfolio portfolio = portfolio(10L);
-    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+    given(stockPriceRepository.findBaseDatesByPortfolioId(org.mockito.ArgumentMatchers.anyLong()))
         .willReturn(List.of(yesterday, today));
     given(portfolioRepository.findAll()).willReturn(List.of(portfolio));
     given(snapshotTransactionService.createSnapshot(10L, yesterday, null)).willReturn(true);

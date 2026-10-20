@@ -38,6 +38,8 @@ class PortfolioSnapshotTransactionServiceTest {
   @Mock private PortfolioDailySnapshotRepository snapshotRepository;
   @Mock private StockDailyPriceRepository stockPriceRepository;
   @Spy private PortfolioLedgerCalculator ledgerCalculator = new PortfolioLedgerCalculator();
+  @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
+  @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
   @InjectMocks private PortfolioSnapshotTransactionService service;
 
   @Test
@@ -85,7 +87,7 @@ class PortfolioSnapshotTransactionServiceTest {
   }
 
   @Test
-  void createSnapshotRemovesPastSnapshotWhenClosingPriceIsMissing() {
+  void createSnapshotPreservesPastSnapshotWhenClosingPriceIsMissing() {
     LocalDate baseDate = LocalDate.now().minusDays(1);
     Portfolio portfolio = mock(Portfolio.class);
     PortfolioDailySnapshot existing = mock(PortfolioDailySnapshot.class);
@@ -101,7 +103,7 @@ class PortfolioSnapshotTransactionServiceTest {
 
     assertThat(service.createSnapshot(10L, baseDate, baseDate.minusDays(1))).isFalse();
 
-    then(snapshotRepository).should().delete(existing);
+    then(snapshotRepository).should(never()).delete(existing);
     then(snapshotRepository).should(never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
   }
 
@@ -152,7 +154,7 @@ class PortfolioSnapshotTransactionServiceTest {
     StockDailyPrice currentPrice = price("12000");
     StockDailyPrice previousPrice = price("11000");
     PortfolioHoldingHistory history = history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000");
-    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+    given(stockPriceRepository.findBaseDatesByPortfolioId(10L))
         .willReturn(List.of(previousDate, baseDate));
     given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
@@ -167,7 +169,7 @@ class PortfolioSnapshotTransactionServiceTest {
     given(stockPriceRepository.findByAssetIdAndBaseDate(2L, previousDate))
         .willReturn(Optional.of(previousPrice));
 
-    service.refreshSnapshotsFrom(10L, baseDate);
+    service.refreshSnapshotsFrom(10L, baseDate, java.util.Map.of());
 
     assertThat(existing.getTotalPurchaseAmount()).isEqualByComparingTo("20000.00");
     assertThat(existing.getTotalEvaluationAmount()).isEqualByComparingTo("24000.00");
@@ -183,7 +185,7 @@ class PortfolioSnapshotTransactionServiceTest {
     Portfolio portfolio = mock(Portfolio.class);
     PortfolioDailySnapshot fromSnapshot = mock(PortfolioDailySnapshot.class);
     PortfolioDailySnapshot afterSnapshot = mock(PortfolioDailySnapshot.class);
-    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+    given(stockPriceRepository.findBaseDatesByPortfolioId(10L))
         .willReturn(List.of(beforeDate, fromDate, afterDate));
     given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, fromDate))
@@ -201,7 +203,7 @@ class PortfolioSnapshotTransactionServiceTest {
                     10L, afterDate))
         .willReturn(List.of());
 
-    service.refreshSnapshotsFrom(10L, fromDate);
+    service.refreshSnapshotsFrom(10L, fromDate, java.util.Map.of());
 
     then(snapshotRepository).should(never()).findByPortfolioIdAndBaseDate(10L, beforeDate);
     then(snapshotRepository).should().delete(fromSnapshot);

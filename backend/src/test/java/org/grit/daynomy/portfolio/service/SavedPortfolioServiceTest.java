@@ -51,6 +51,8 @@ class SavedPortfolioServiceTest {
   @Mock private AssetRepository assetRepository;
   @Mock private PortfolioLedgerCalculator ledgerCalculator;
   @Mock private PortfolioSnapshotTransactionService snapshotTransactionService;
+  @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
+  @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
   @InjectMocks private SavedPortfolioService service;
 
   @ParameterizedTest
@@ -167,7 +169,9 @@ class SavedPortfolioServiceTest {
     assertThat(historyCaptor.getValue().getTransactionQuantity()).isEqualTo(2L);
     assertThat(historyCaptor.getValue().getFee()).isEqualByComparingTo("100");
     assertThat(historyCaptor.getValue().getTax()).isEqualByComparingTo("200");
-    then(snapshotTransactionService).should().refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30));
+    then(snapshotTransactionService)
+        .should()
+        .refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30), java.util.Map.of());
   }
 
   @Test
@@ -219,7 +223,9 @@ class SavedPortfolioServiceTest {
     assertThat(history.getTransactionQuantity()).isEqualTo(3L);
     assertThat(history.getUnitPrice()).isEqualByComparingTo("81000");
     then(holding).should().change(3L, new BigDecimal("81000.00"));
-    then(snapshotTransactionService).should().refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30));
+    then(snapshotTransactionService)
+        .should()
+        .refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30), java.util.Map.of());
   }
 
   @Test
@@ -322,7 +328,9 @@ class SavedPortfolioServiceTest {
     then(holding).should().change(5L, new BigDecimal("70000.00"));
     assertThat(response.transactionId()).isEqualTo(7L);
     assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("0");
-    then(snapshotTransactionService).should().refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30));
+    then(snapshotTransactionService)
+        .should()
+        .refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30), java.util.Map.of());
   }
 
   @Test

@@ -71,8 +71,33 @@ class UsPortfolioAcceptanceTest {
   @Autowired JwtTokenProvider tokens;
   @Autowired org.grit.daynomy.exchangerate.service.ExchangeRateService exchangeRates;
 
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  org.grit.daynomy.external.eodhd.EodhdClient provider;
+
+  @Autowired org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository rates;
+  @Autowired org.grit.daynomy.portfolio.repository.PortfolioRepository portfolios;
+  @Autowired org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository holdings;
+  @Autowired org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository histories;
+  @Autowired org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository snapshots;
+  @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+  @BeforeEach
+  void externalRateRequestsNeverHoldATransaction() {
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              assertThat(
+                      org.springframework.transaction.support.TransactionSynchronizationManager
+                          .isActualTransactionActive())
+                  .isFalse();
+              return invocation.callRealMethod();
+            })
+        .when(provider)
+        .getUsdKrwRates(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+  }
+
   @Test
   void stockAndEtfTradesPersistUsdPricesAndRatesAndRecalculateKrwCostAndProfit() {
+    int initialRequests = UPSTREAM.getRequestCount();
     for (var date : java.util.List.of("2020-10-15", "2020-10-16")) {
       UPSTREAM.enqueue(
           new MockResponse()
@@ -117,6 +142,7 @@ class UsPortfolioAcceptanceTest {
               .statusCode(201)
               .body("holding.averagePurchasePrice", equalTo(130810.42f))
               .body("holding.currency", equalTo("USD"))
+              .body("holding.averagePurchasePriceCurrency", equalTo("KRW"))
               .extract()
               .jsonPath()
               .getLong("transactionId");
@@ -137,6 +163,7 @@ class UsPortfolioAcceptanceTest {
           .then()
           .statusCode(200)
           .body("totalEvaluationAmount", equalTo(292600.0f))
+          .body("holdings[0].averagePurchasePriceCurrency", equalTo("KRW"))
           .body("holdings[0].closePrice", equalTo(110.0f));
       client(member)
           .queryParam("from", "2020-10-16")
@@ -171,6 +198,7 @@ class UsPortfolioAcceptanceTest {
           .then()
           .statusCode(200)
           .body("currency", everyItem(equalTo("USD")))
+          .body("averagePurchasePriceCurrency", everyItem(equalTo("KRW")))
           .body("exchangeRate", hasItems(1300.0f, 1400.0f))
           .body("unitPrice", hasItems(100.1234f, 110.0f));
       client(member)
@@ -206,7 +234,157 @@ class UsPortfolioAcceptanceTest {
           .statusCode(400)
           .body("code", equalTo("INSUFFICIENT_PORTFOLIO_QUANTITY"));
     }
-    assertThat(UPSTREAM.getRequestCount()).isEqualTo(4);
+    assertThat(UPSTREAM.getRequestCount() - initialRequests).isEqualTo(4);
+  }
+
+  @Test
+  void concurrentFirstQuotesUseAtomicUpsertWithoutDuplicateKeyFailures() throws Exception {
+    var date = LocalDate.of(2020, 9, 1);
+    rates.deleteById(date);
+    var barrier = new java.util.concurrent.CyclicBarrier(2);
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              assertThat(
+                      org.springframework.transaction.support.TransactionSynchronizationManager
+                          .isActualTransactionActive())
+                  .isFalse();
+              barrier.await(10, java.util.concurrent.TimeUnit.SECONDS);
+              return invocation.callRealMethod();
+            })
+        .when(provider)
+        .getUsdKrwRates(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    for (int i = 0; i < 2; i++)
+      UPSTREAM.enqueue(
+          new MockResponse()
+              .setHeader("Content-Type", "application/json")
+              .setBody("[{\"date\":\"2020-09-01\",\"close\":1300}]"));
+    try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var first = executor.submit(() -> exchangeRates.quote(date));
+      var second = executor.submit(() -> exchangeRates.quote(date));
+      assertThat(first.get(15, java.util.concurrent.TimeUnit.SECONDS).rate())
+          .isEqualByComparingTo("1300");
+      assertThat(second.get(15, java.util.concurrent.TimeUnit.SECONDS).rate())
+          .isEqualByComparingTo("1300");
+    }
+    assertThat(rates.findById(date)).isPresent();
+    assertThat(
+            jdbc.queryForObject(
+                "select count(*) from usd_krw_rates where requested_date = ?", Integer.class, date))
+        .isEqualTo(1);
+    // A late response from an earlier request must not overwrite a newer value.
+    rates.upsert(
+        date, date, new BigDecimal("1400"), java.time.Instant.parse("2030-01-01T00:00:00Z"));
+    rates.upsert(
+        date, date, new BigDecimal("1200"), java.time.Instant.parse("2029-01-01T00:00:00Z"));
+    assertThat(rates.findById(date).orElseThrow().getRate()).isEqualByComparingTo("1400");
+  }
+
+  @Test
+  void providerFailurePreservesLedgerAndSnapshotsForV1V2UpdateAndDelete() {
+    var date = LocalDate.of(2020, 8, 3);
+    String key = java.util.UUID.randomUUID().toString();
+    var member =
+        members.saveAndFlush(
+            Member.createGoogleMember(key, key + "@example.invalid", "review", null));
+    var asset =
+        assets.saveAndFlush(Asset.listedStock("Review US", key, StockMarket.NASDAQ, null, date));
+    prices.saveAndFlush(new StockDailyPrice(asset, date, new BigDecimal("100")));
+    var portfolio =
+        portfolios.saveAndFlush(org.grit.daynomy.portfolio.domain.Portfolio.create(member));
+    holdings.saveAndFlush(
+        new org.grit.daynomy.portfolio.domain.PortfolioHolding(
+            portfolio, asset, 1, new BigDecimal("130000")));
+    var history =
+        new org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory(
+            portfolio,
+            asset,
+            org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType.BUY,
+            0,
+            BigDecimal.ZERO,
+            date,
+            1L,
+            new BigDecimal("100"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    history.applyExchangeRate(new BigDecimal("1300"));
+    histories.saveAndFlush(history);
+    var snapshot = new org.grit.daynomy.portfolio.domain.PortfolioDailySnapshot(portfolio, date);
+    snapshot.update(
+        new BigDecimal("130000"),
+        new BigDecimal("130000"),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        null,
+        null);
+    snapshots.saveAndFlush(snapshot);
+    var payload =
+        Map.of(
+            "assetId",
+            asset.getId(),
+            "type",
+            "BUY",
+            "tradeDate",
+            date.toString(),
+            "quantity",
+            1,
+            "unitPrice",
+            100,
+            "exchangeRate",
+            1300,
+            "fee",
+            0,
+            "tax",
+            0);
+    for (String path :
+        java.util.List.of(
+            "/api/users/me/portfolio/transactions", "/api/v2/users/me/portfolio/transactions")) {
+      UPSTREAM.enqueue(new MockResponse().setResponseCode(503));
+      client(member)
+          .body(payload)
+          .post(path)
+          .then()
+          .statusCode(502)
+          .body("code", equalTo("EODHD_API_REQUEST_FAILED"));
+    }
+    UPSTREAM.enqueue(new MockResponse().setResponseCode(503));
+    client(member)
+        .body(
+            Map.of(
+                "tradeDate",
+                date.toString(),
+                "quantity",
+                2,
+                "unitPrice",
+                100,
+                "exchangeRate",
+                1300,
+                "fee",
+                0,
+                "tax",
+                0))
+        .patch("/api/portfolio/transactions/" + history.getId())
+        .then()
+        .statusCode(502)
+        .body("code", equalTo("EODHD_API_REQUEST_FAILED"));
+    UPSTREAM.enqueue(new MockResponse().setResponseCode(503));
+    client(member)
+        .delete("/api/portfolio/transactions/" + history.getId())
+        .then()
+        .statusCode(502)
+        .body("code", equalTo("EODHD_API_REQUEST_FAILED"));
+    assertThat(histories.findOrderedWithAssetsByPortfolioId(portfolio.getId())).hasSize(1);
+    assertThat(
+            holdings
+                .findByPortfolioIdAndAssetId(portfolio.getId(), asset.getId())
+                .orElseThrow()
+                .getQuantity())
+        .isEqualTo(1);
+    assertThat(
+            snapshots
+                .findByPortfolioIdAndBaseDate(portfolio.getId(), date)
+                .orElseThrow()
+                .getTotalEvaluationAmount())
+        .isEqualByComparingTo("130000");
   }
 
   Map<String, Object> body(

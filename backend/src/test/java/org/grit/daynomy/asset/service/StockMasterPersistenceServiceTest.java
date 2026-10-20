@@ -136,4 +136,26 @@ class StockMasterPersistenceServiceTest {
     assertThat(apple.isListed()).isTrue();
     assertThat(missingUs.isListed()).isFalse();
   }
+
+  @Test
+  void domesticSyncReusesAndDelistsLegacyAssetsWithoutMarket() {
+    LocalDate date = LocalDate.of(2026, 10, 16);
+    Asset legacy = Asset.listedStock("기존", "005930", StockMarket.KOSPI, null, date);
+    Asset missing = Asset.listedStock("누락", "000660", StockMarket.KOSPI, null, date);
+    org.springframework.test.util.ReflectionTestUtils.setField(legacy, "market", null);
+    org.springframework.test.util.ReflectionTestUtils.setField(missing, "market", null);
+    given(assetRepository.findAllByCategoryIn(Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .willReturn(List.of(legacy, missing));
+    var result =
+        persistenceService.synchronize(
+            date,
+            List.of(
+                new StockMasterEntry(
+                    "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI, null, date)));
+    assertThat(result.createdCount()).isZero();
+    assertThat(result.updatedCount()).isEqualTo(1);
+    assertThat(result.delistedCount()).isEqualTo(1);
+    assertThat(legacy.getMarket()).isEqualTo(StockMarket.KOSPI);
+    assertThat(missing.isListed()).isFalse();
+  }
 }

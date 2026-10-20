@@ -47,7 +47,11 @@ public class StockPricePersistenceService {
     Map<AssetKey, Asset> listedAssetsByKey =
         assetRepository.findAllByCategoryIn(SUPPORTED_CATEGORIES).stream()
             .filter(Asset::isListed)
-            .filter(asset -> asset.getMarket() != null && markets.contains(asset.getMarket()))
+            .filter(
+                asset ->
+                    asset.getMarket() == null
+                        ? markets.equals(StockMarket.domesticMarkets())
+                        : markets.contains(asset.getMarket()))
             .collect(
                 Collectors.toMap(
                     asset -> new AssetKey(asset.getCategory(), asset.getAssetCode()),

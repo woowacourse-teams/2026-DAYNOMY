@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
@@ -29,7 +30,9 @@ import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @RequiredArgsConstructor
 @Service
@@ -44,6 +47,8 @@ public class SavedPortfolioService {
   private final AssetRepository assetRepository;
   private final PortfolioLedgerCalculator ledgerCalculator;
   private final PortfolioSnapshotTransactionService snapshotTransactionService;
+  private final PortfolioExchangeRateService exchangeRates;
+  private final PlatformTransactionManager transactionManager;
 
   @Transactional(readOnly = true)
   public SavedPortfolioResponse get(Long memberId) {
@@ -82,8 +87,14 @@ public class SavedPortfolioService {
     holdingRepository.delete(holding);
   }
 
-  @Transactional
   public PortfolioTransactionResponse transact(Long memberId, PortfolioTransactionRequest request) {
+    var rates = exchangeRates.forMember(memberId, request.assetId(), request.tradeDate());
+    return new TransactionTemplate(transactionManager)
+        .execute(status -> transactInTransaction(memberId, request, rates));
+  }
+
+  private PortfolioTransactionResponse transactInTransaction(
+      Long memberId, PortfolioTransactionRequest request, Map<LocalDate, BigDecimal> rates) {
     Member member =
         memberRepository
             .findByIdForUpdate(memberId)
@@ -124,14 +135,23 @@ public class SavedPortfolioService {
     PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
     SavedPortfolioHoldingResponse responseHolding =
         applyLedgerPosition(portfolio, asset, current, ledger);
-    snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), request.tradeDate());
+    snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), request.tradeDate(), rates);
     return new PortfolioTransactionResponse(
         history.getId(), responseHolding, ledger.realizedProfitLoss());
   }
 
-  @Transactional
   public PortfolioTransactionResponse updateTransaction(
       Long memberId, Long transactionId, PortfolioTransactionUpdateRequest request) {
+    var rates = exchangeRates.forTransaction(memberId, transactionId, request.tradeDate());
+    return new TransactionTemplate(transactionManager)
+        .execute(status -> updateTransactionInTransaction(memberId, transactionId, request, rates));
+  }
+
+  private PortfolioTransactionResponse updateTransactionInTransaction(
+      Long memberId,
+      Long transactionId,
+      PortfolioTransactionUpdateRequest request,
+      Map<LocalDate, BigDecimal> rates) {
     Portfolio portfolio = getPortfolioForUpdate(memberId);
     PortfolioHoldingHistory history = getTransaction(portfolio.getId(), transactionId);
     validateTradeDate(portfolio.getId(), history.getAsset().getId(), request.tradeDate());
@@ -151,13 +171,19 @@ public class SavedPortfolioService {
         applyLedgerPosition(portfolio, asset, current, ledger);
     LocalDate refreshFrom =
         previousTradeDate.isBefore(request.tradeDate()) ? previousTradeDate : request.tradeDate();
-    snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), refreshFrom);
+    snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), refreshFrom, rates);
     return new PortfolioTransactionResponse(
         history.getId(), responseHolding, ledger.realizedProfitLoss());
   }
 
-  @Transactional
   public PortfolioTransactionResponse deleteTransaction(Long memberId, Long transactionId) {
+    var rates = exchangeRates.forTransaction(memberId, transactionId, null);
+    return new TransactionTemplate(transactionManager)
+        .execute(status -> deleteTransactionInTransaction(memberId, transactionId, rates));
+  }
+
+  private PortfolioTransactionResponse deleteTransactionInTransaction(
+      Long memberId, Long transactionId, Map<LocalDate, BigDecimal> rates) {
     Portfolio portfolio = getPortfolioForUpdate(memberId);
     PortfolioHoldingHistory history = getTransaction(portfolio.getId(), transactionId);
     Asset asset = history.getAsset();
@@ -171,7 +197,8 @@ public class SavedPortfolioService {
             .orElse(null);
     SavedPortfolioHoldingResponse responseHolding =
         applyLedgerPosition(portfolio, asset, current, ledger);
-    snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), history.getEffectiveDate());
+    snapshotTransactionService.refreshSnapshotsFrom(
+        portfolio.getId(), history.getEffectiveDate(), rates);
     return new PortfolioTransactionResponse(
         transactionId, responseHolding, ledger.realizedProfitLoss());
   }
