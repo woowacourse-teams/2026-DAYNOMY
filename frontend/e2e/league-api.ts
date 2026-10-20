@@ -90,6 +90,20 @@ export async function mockLeagueApi(page: Page) {
               status: 'EXCLUDED',
               reason: 'PRICE_COLLECTION_PENDING',
             },
+            {
+              baseDate: '2026-10-15',
+              dailyReturnRate: null,
+              cumulativeReturnRate: null,
+              status: 'PENDING',
+              reason: null,
+            },
+            {
+              baseDate: '2026-10-16',
+              dailyReturnRate: null,
+              cumulativeReturnRate: null,
+              status: 'PENDING',
+              reason: null,
+            },
           ],
         },
       });

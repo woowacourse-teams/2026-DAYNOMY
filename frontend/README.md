@@ -237,22 +237,22 @@ E2E 실패 시 스크린샷과 trace를 Actions 아티팩트에서 확인할 수
 
 GitHub의 `development`, `production` Environment에는 다음 값을 각각 설정합니다.
 
-| 종류     | 이름                 | 용도                                         |
-| -------- | -------------------- | -------------------------------------------- |
-| Variable | `GA_MEASUREMENT_ID`  | 환경별 별도 GA4 웹 데이터 스트림 ID          |
-| Variable | `VITE_POSTHOG_KEY`   | PostHog 공개 프로젝트 토큰                   |
-| Variable | `VITE_POSTHOG_HOST`  | PostHog 이벤트 수집 호스트                   |
-| Variable | `SENTRY_DSN`         | 환경별 별도 Sentry 프로젝트 DSN              |
-| Variable | `SENTRY_ENVIRONMENT` | development는 `staging`, 운영은 `production` |
-| Variable | `SENTRY_ORG`         | Sentry 조직 slug                             |
-| Variable | `SENTRY_PROJECT`     | Sentry 프로젝트 slug                         |
-| Secret   | `SENTRY_AUTH_TOKEN`  | 소스맵 업로드 토큰                           |
+| 종류     | 이름                         | 용도                                         |
+| -------- | ---------------------------- | -------------------------------------------- |
+| Variable | `GA_MEASUREMENT_ID`          | 환경별 별도 GA4 웹 데이터 스트림 ID          |
+| Variable | `VITE_POSTHOG_PROJECT_TOKEN` | PostHog 공개 프로젝트 토큰                   |
+| Variable | `VITE_POSTHOG_HOST`          | PostHog 이벤트 수집 호스트                   |
+| Variable | `SENTRY_DSN`                 | 환경별 별도 Sentry 프로젝트 DSN              |
+| Variable | `SENTRY_ENVIRONMENT`         | development는 `staging`, 운영은 `production` |
+| Variable | `SENTRY_ORG`                 | Sentry 조직 slug                             |
+| Variable | `SENTRY_PROJECT`             | Sentry 프로젝트 slug                         |
+| Secret   | `SENTRY_AUTH_TOKEN`          | 소스맵 업로드 토큰                           |
 
 개발·운영은 각각 다른 GA4 Measurement ID와 Sentry 프로젝트 DSN을 사용합니다.
 개발 Sentry 이벤트는 `staging`, 운영 이벤트는 `production`으로 구분합니다.
 각 Environment의 `SENTRY_AUTH_TOKEN` Secret은 빌드 중 소스맵 업로드에 사용하며,
 설정 변경 후에는 프론트를 다시 빌드·배포해야 합니다.
-PostHog는 `VITE_POSTHOG_KEY`와 `VITE_POSTHOG_HOST`가 모두 있어야 활성화됩니다.
+PostHog는 `VITE_POSTHOG_PROJECT_TOKEN`과 `VITE_POSTHOG_HOST`가 모두 있어야 활성화됩니다.
 두 값은 빌드에 포함되는 공개 클라이언트 설정이며 개인 API 키를 사용하지 않습니다.
 
 각 EC2의 호스트 Nginx는 화면 요청을 프론트엔드 컨테이너로, `/api`와 OAuth 요청을
@@ -379,6 +379,25 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 | `portfolio_delete_succeeded`, `portfolio_delete_failed`                                                           | 보유 종목·거래 삭제 결과                |
 | `portfolio_history_filter_changed`, `portfolio_history_range_changed`                                             | 거래 유형·조회 기간 필터 변경           |
 
+리그는 `src/features/league/analytics.ts`의 허용 목록을 거쳐 같은 공통 전송 경로를 사용합니다.
+화면·동작·처리 상태·상대 주차·건수·공개 여부·실패 유형만 전송합니다. 투자자 ID·닉네임·종목·
+금액·수량·수익률·보유 이유·복기 본문·요청 키·원문 오류는 전송하지 않습니다.
+
+| 이벤트                                                                                              | 발생 시점                                                                                                  |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `view_league`, `view_investor_profile`                                                              | 리그·투자자 화면 진입. StrictMode 재실행과 동일한 프로필의 fragment 이동은 중복 집계하지 않음              |
+| `change_league_week`                                                                                | 순위 조회 주차 변경                                                                                        |
+| `league_load_result`                                                                                | 순위·주차·프로필·팔로잉·종목·일별 기록·판단·복기·설정의 조회 성공 또는 실패                                |
+| `league_action`                                                                                     | 참여·페이지·상세 지표·조회 단위·재시도·팔로우·가져오기·숨김·삭제·판단/복기 작성·설정 저장 동작과 처리 상태 |
+| `publish_portfolio`, `save_investment_decision`, `save_investment_review`, `edit_investment_review` | 기존 공개 설정·판단·복기 저장 완료 이벤트 유지                                                             |
+
+`league_action`은 `surface`, `action`, `status`로 구분합니다. `status`는 `clicked`,
+`submitted`, `success`, `error`이며 저장 완료는 위의 기존 이벤트를 사용하는 경우도 있습니다.
+조회 결과는 취소되지 않은 요청마다 기록하며, 재시도·탭 복귀에 따른 실제 재조회는 포함합니다.
+분석 전송 실패는 저장 결과나 사용자 동작에 영향을 주지 않습니다.
+URL에서 쿼리·fragment와 공개 투자자 ID를 제거하되 `/league/profile`, `/league/reviews`,
+`/league/following`, `/league/portfolio`는 각각의 화면 경로를 유지합니다.
+
 #### GA4 관리 화면 설정
 
 개발·운영 웹 스트림 각각에서 확인합니다.
@@ -400,7 +419,7 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 
 ### PostHog 사용자 행동 분석
 
-- `VITE_POSTHOG_KEY`·`VITE_POSTHOG_HOST`가 모두 설정되면 GA4와 같은 명시적 사용자 행동 이벤트를 전송하며 페이지 조회는 `$pageview` 이름을 사용합니다. GA4 설정 없이 PostHog만 사용할 수도 있습니다.
+- `VITE_POSTHOG_PROJECT_TOKEN`·`VITE_POSTHOG_HOST`가 모두 설정되면 GA4와 같은 명시적 사용자 행동 이벤트를 전송하며 페이지 조회는 `$pageview` 이름을 사용합니다. GA4 설정 없이 PostHog만 사용할 수도 있습니다.
 - 자동 클릭·페이지 조회·페이지 이탈·성능·오류 수집, 세션 녹화·설문·기능 플래그 자동 조회와 개인 프로필 생성을 끕니다. 이벤트 속성은 코드의 허용 목록으로 제한하며 검색어 원문·보유 종목·금액·수량은 전송하지 않습니다.
 - 익명 식별은 브라우저 `localStorage`를 사용합니다. URL·referrer에서 쿼리·fragment를 제거하고 투자자 공개 ID 경로를 일반 경로로 치환합니다.
 - `/login`·`/admin`에서는 수집하지 않으며 해당 경로에 진입한 뒤에는 같은 앱 세션의 수집을 중지합니다. 분석 SDK 로딩·전송 실패는 사용자 작업을 중단하지 않습니다.

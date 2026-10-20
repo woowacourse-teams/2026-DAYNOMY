@@ -76,7 +76,7 @@ declare global {
   }
 }
 
-const posthogKey = import.meta.env?.VITE_POSTHOG_KEY;
+const posthogToken = import.meta.env?.VITE_POSTHOG_PROJECT_TOKEN;
 const posthogHost = import.meta.env?.VITE_POSTHOG_HOST;
 let stopped = false;
 let posthogClient: Promise<(typeof import('posthog-js'))['default'] | null> | undefined;
@@ -95,7 +95,7 @@ function cleanUrl(value: string) {
   if (!value) return '';
   const url = new URL(value, window.location.origin);
   const path = url.pathname.replace(
-    /^\/league\/(?!(?:following|portfolio)\/*$)[^/]+\/*$/i,
+    /^\/league\/(?!(?:following|portfolio|profile|reviews)\/*$)[^/]+\/*$/i,
     '/league/investor',
   );
   return `${url.origin}${path}`;
@@ -111,7 +111,7 @@ function canTrack() {
   }
   return (
     !stopped &&
-    (Boolean(measurementId) || Boolean(posthogKey && posthogHost)) &&
+    (Boolean(measurementId) || Boolean(posthogToken && posthogHost)) &&
     Reflect.get(window, disableKey) !== true
   );
 }
@@ -206,12 +206,12 @@ const posthogProperties = new Set([
 ]);
 const sentEvents = new Set<string>();
 function capturePostHog(name: string, properties: AnalyticsParams) {
-  if (!posthogKey || !posthogHost || !canTrack()) return;
+  if (!posthogToken || !posthogHost || !canTrack()) return;
   sentEvents.add(name);
   posthogClient ??= import('posthog-js')
     .then(({ default: client }) => {
       if (!canTrack()) return null;
-      client.init(posthogKey, {
+      client.init(posthogToken, {
         api_host: posthogHost,
         autocapture: false,
         capture_pageview: false,

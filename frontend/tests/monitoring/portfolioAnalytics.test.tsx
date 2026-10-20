@@ -5,7 +5,7 @@ const posthog = vi.hoisted(() => ({ init: vi.fn(), capture: vi.fn() }));
 vi.mock('posthog-js', () => ({ default: posthog }));
 
 function enablePostHog() {
-  vi.stubEnv('VITE_POSTHOG_KEY', 'phc_test');
+  vi.stubEnv('VITE_POSTHOG_PROJECT_TOKEN', 'phc_test');
   vi.stubEnv('VITE_POSTHOG_HOST', 'https://example.posthog.test');
 }
 
@@ -18,7 +18,7 @@ function gaEvents() {
 beforeEach(() => {
   vi.resetModules();
   vi.stubEnv('GA_MEASUREMENT_ID', 'G-TEST');
-  vi.stubEnv('VITE_POSTHOG_KEY', '');
+  vi.stubEnv('VITE_POSTHOG_PROJECT_TOKEN', '');
   vi.stubEnv('VITE_POSTHOG_HOST', '');
   posthog.init.mockReset();
   posthog.capture.mockReset();
