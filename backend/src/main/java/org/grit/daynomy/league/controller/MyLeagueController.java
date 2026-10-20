@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionListResponse;
+import org.grit.daynomy.league.dto.LeagueDto.DecisionReasonRequest;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionResponse;
 import org.grit.daynomy.league.dto.LeagueDto.FollowSummaryListResponse;
@@ -107,6 +108,17 @@ public class MyLeagueController {
     return ResponseEntity.status(HttpStatus.CREATED)
         .cacheControl(CacheControl.noStore())
         .body(decisionService.recordDecision(member.memberId(), request));
+  }
+
+  @Operation(summary = "내 투자 기록의 보유 이유 수정 (수량·가격·복기 유지)")
+  @PutMapping("/portfolio/decisions/{transactionId}/reason")
+  public ResponseEntity<DecisionResponse> reviseReason(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId,
+      @Valid @RequestBody DecisionReasonRequest request) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(decisionService.reviseReason(member.memberId(), transactionId, request));
   }
 
   @Operation(summary = "공개 투자자 팔로우")
