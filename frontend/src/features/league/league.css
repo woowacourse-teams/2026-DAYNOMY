@@ -957,18 +957,16 @@
 }
 
 .league-follow-grid {
-  display: grid;
   margin-top: 26px;
-  grid-template-columns: 1fr;
+  padding: 0;
+  list-style: none;
 }
 
 .league-follow-grid a {
-  display: grid;
+  display: flex;
   min-height: 72px;
   padding: 16px 0;
-  grid-template-columns: 60px minmax(0, 1fr) 150px 110px;
   align-items: center;
-  gap: 9px;
   border-bottom: 1px solid var(--league-line);
   color: inherit;
   text-decoration: none;
@@ -978,23 +976,9 @@
   background: #fafafa;
 }
 
-.league-follow-grid span,
-.league-follow-grid small {
-  color: var(--league-muted);
-  font-size: 13px;
-}
-
 .league-follow-grid strong {
   font-size: 18px;
-}
-.league-follow-person {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.league-follow-grid p {
-  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 980px) {
@@ -1065,8 +1049,7 @@
   }
 
   .league-form-grid,
-  .league-detail-decisions dl,
-  .league-follow-grid {
+  .league-detail-decisions dl {
     grid-template-columns: 1fr;
   }
 
@@ -1099,14 +1082,6 @@
   .league-detail-holdings li > div,
   .league-detail-holdings li > strong {
     grid-column: 1 / -1;
-  }
-
-  .league-follow-grid a {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
-  }
-
-  .league-follow-grid a > small {
-    grid-column: 2 / -1;
   }
 }
 

@@ -13,6 +13,7 @@ vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 vi.mock('../../src/features/league/api', () => ({
   getInvestmentDecisions: vi.fn(),
   recordDecision: vi.fn(),
+  updateDecisionReason: vi.fn(),
   createReview: vi.fn(),
   updateReview: vi.fn(),
 }));
@@ -73,10 +74,134 @@ function renderRecords(holdings: (typeof holding)[]) {
 }
 
 function fillDecision(view: ReturnType<typeof render>) {
-  fireEvent.change(view.getByLabelText('보유하는 이유'), { target: { value: saved.reason } });
+  fireEvent.change(view.getByRole('textbox', { name: '보유 이유' }), {
+    target: { value: saved.reason },
+  });
 }
 
 describe('종목별 기록과 바로 작성하는 복기', () => {
+  it.each(['decisions', 'reviews'] as const)(
+    '%s 화면에서 이유 수정 초안을 보존하고 기존 기록과 복기를 유지한다',
+    async (surface) => {
+      const review = {
+        id: 2,
+        actualResult: '기존 결과',
+        differenceFromExpectation: '기존 차이',
+        nextAction: '기존 행동',
+        createdAt: '2026-10-06T00:00:00Z',
+      };
+      const original = { ...saved, reviews: [review] };
+      const revised = { ...original, reason: '수정한 보유 이유' };
+      let finishSave!: (value: InvestmentDecisionRecord) => void;
+      vi.mocked(api.getInvestmentDecisions).mockResolvedValue([original]);
+      vi.mocked(api.updateDecisionReason)
+        .mockRejectedValueOnce(new Error('이유 수정 실패'))
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishSave = resolve;
+            }),
+        );
+      const view =
+        surface === 'decisions'
+          ? renderRecords([holding])
+          : render(
+              <MemoryRouter>
+                <InvestmentReviewsPage />
+              </MemoryRouter>,
+            );
+      const trigger = await view.findByRole('button', {
+        name: '삼성전자 2026-10-06 보유 기록 보유 이유 수정',
+      });
+      fireEvent.click(trigger);
+      expect(view.getByRole('textbox', { name: '보유 이유' })).toHaveProperty(
+        'value',
+        saved.reason,
+      );
+      expect(view.getByRole('textbox', { name: '보유 이유' })).toHaveProperty('maxLength', 500);
+      fireEvent.change(view.getByRole('textbox', { name: '보유 이유' }), {
+        target: { value: '취소할 이유' },
+      });
+      fireEvent.click(view.getByRole('button', { name: '취소' }));
+      expect(api.updateDecisionReason).not.toHaveBeenCalled();
+      await waitFor(() => expect(document.activeElement).toBe(trigger));
+      fireEvent.click(trigger);
+      expect(view.getByRole('textbox', { name: '보유 이유' })).toHaveProperty(
+        'value',
+        saved.reason,
+      );
+      fireEvent.change(view.getByRole('textbox', { name: '보유 이유' }), {
+        target: { value: revised.reason },
+      });
+      fireEvent.click(view.getByRole('button', { name: '보유 이유 수정 저장' }));
+      expect(await view.findByRole('alert')).toHaveProperty('textContent', '이유 수정 실패');
+      expect(view.getByRole('textbox', { name: '보유 이유' })).toHaveProperty(
+        'value',
+        revised.reason,
+      );
+      const submit = view.getByRole('button', { name: '보유 이유 수정 저장' });
+      fireEvent.click(submit);
+      fireEvent.click(submit);
+      expect(api.updateDecisionReason).toHaveBeenCalledTimes(2);
+      expect(submit).toHaveProperty('disabled', true);
+      expect(view.getByRole('button', { name: '취소' })).toHaveProperty('disabled', true);
+      finishSave(revised);
+      expect(await view.findByText(revised.reason)).toBeTruthy();
+      expect(view.getByText('매출 성장')).toBeTruthy();
+      expect(view.getByText('2026-10-06 · 보유 기록')).toBeTruthy();
+      expect(view.getByRole('status').textContent).toBe('보유 이유를 수정했습니다.');
+      await waitFor(() => expect(document.activeElement).toBe(trigger));
+      expect(api.updateDecisionReason).toHaveBeenLastCalledWith(saved.id, revised.reason);
+      expect(api.recordDecision).not.toHaveBeenCalled();
+      expect(api.createReview).not.toHaveBeenCalled();
+      expect(api.updateReview).not.toHaveBeenCalled();
+      expect(view.getByText('기존 결과')).toBeTruthy();
+    },
+  );
+
+  it.each(['   ', '가'.repeat(501)])(
+    '유효하지 않은 이유는 서버에 전송하지 않는다 (%#)',
+    async (reason) => {
+      vi.mocked(api.getInvestmentDecisions).mockResolvedValue([saved]);
+      const view = renderRecords([holding]);
+      fireEvent.click(
+        await view.findByRole('button', {
+          name: '삼성전자 2026-10-06 보유 기록 보유 이유 수정',
+        }),
+      );
+      fireEvent.change(view.getByRole('textbox', { name: '보유 이유' }), {
+        target: { value: reason },
+      });
+      fireEvent.submit(view.getByRole('textbox', { name: '보유 이유' }).closest('form')!);
+      expect(await view.findByRole('alert')).toHaveProperty(
+        'textContent',
+        '보유 이유를 1~500자로 작성해 주세요.',
+      );
+      expect(api.updateDecisionReason).not.toHaveBeenCalled();
+      expect(view.getByRole('textbox', { name: '보유 이유' })).toHaveProperty('value', reason);
+    },
+  );
+
+  it('지난 종목의 이전 기록만 수정하고 다른 기록을 보존한다', async () => {
+    const newer = { ...saved, id: 3, tradedOn: '2026-10-10', reason: '최신 이유' };
+    vi.mocked(api.getInvestmentDecisions).mockResolvedValue([newer, saved]);
+    vi.mocked(api.updateDecisionReason).mockResolvedValue({ ...saved, reason: '수정한 이전 이유' });
+    const view = renderRecords([]);
+    await view.findByText('지난 종목의 투자 기록 2개');
+    fireEvent.click(
+      view.getByRole('button', {
+        name: '삼성전자 2026-10-06 보유 기록 보유 이유 수정',
+      }),
+    );
+    fireEvent.change(view.getByRole('textbox', { name: '보유 이유' }), {
+      target: { value: '수정한 이전 이유' },
+    });
+    fireEvent.click(view.getByRole('button', { name: '보유 이유 수정 저장' }));
+    expect(await view.findByText('수정한 이전 이유')).toBeTruthy();
+    expect(view.getByText('최신 이유')).toBeTruthy();
+    expect(api.updateDecisionReason).toHaveBeenCalledWith(saved.id, '수정한 이전 이유');
+  });
+
   it('저장 실패 시 입력과 요청 키를 유지하고 같은 종목에서 바로 복기를 작성한다', async () => {
     vi.mocked(api.recordDecision)
       .mockRejectedValueOnce(new Error('저장 실패'))
@@ -94,7 +219,7 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
     fireEvent.click(view.getByRole('button', { name: '보유 이유 저장' }));
     expect(await view.findByRole('alert')).toHaveProperty('textContent', '저장 실패');
     await waitFor(() => expect(document.activeElement).toBe(view.getByRole('alert')));
-    expect(view.getByLabelText('보유하는 이유')).toHaveProperty('value', saved.reason);
+    expect(view.getByRole('textbox', { name: '보유 이유' })).toHaveProperty('value', saved.reason);
     const first = vi.mocked(api.recordDecision).mock.calls[0][0];
     fireEvent.click(view.getByRole('button', { name: '보유 이유 저장' }));
     expect(await view.findByRole('button', { name: '삼성전자 투자 기록 추가' })).toBeTruthy();
@@ -111,7 +236,7 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
     const reviews = view;
     expect(api.getInvestmentDecisions).toHaveBeenCalledTimes(1);
     const reviewTrigger = await reviews.findByRole('button', {
-      name: '삼성전자 2026-10-06 보유 기록 복기하기',
+      name: '삼성전자 2026-10-06 보유 기록 복기 작성',
     });
     fireEvent.click(reviewTrigger);
     fireEvent.change(reviews.getByLabelText('실제 결과'), { target: { value: '예상과 다릅니다' } });
@@ -149,8 +274,8 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
       'textContent',
       expect.stringContaining('기록이 없는 것은 아니에요'),
     );
-    expect(view.queryByRole('textbox', { name: '보유하는 이유' })).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: '판단 기록 다시 불러오기' }));
+    expect(view.queryByRole('textbox', { name: '보유 이유' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '투자 기록 다시 불러오기' }));
     await waitFor(() =>
       expect(view.queryByRole('button', { name: '삼성전자 보유 이유 작성' })).toBeNull(),
     );
@@ -161,9 +286,9 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
     vi.mocked(api.getInvestmentDecisions).mockResolvedValue([saved]);
     vi.mocked(api.createReview).mockRejectedValue(new Error('복기 실패'));
     const view = renderRecords([]);
-    fireEvent.click(await view.findByText('지난 종목의 기록 1개'));
+    await view.findByText('지난 종목의 투자 기록 1개');
     fireEvent.click(
-      await view.findByRole('button', { name: '삼성전자 2026-10-06 보유 기록 복기하기' }),
+      await view.findByRole('button', { name: '삼성전자 2026-10-06 보유 기록 복기 작성' }),
     );
     fireEvent.change(view.getByLabelText('실제 결과'), { target: { value: '결과' } });
     fireEvent.change(view.getByLabelText('예상과 달랐던 점'), { target: { value: '차이' } });
@@ -211,14 +336,13 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
       fireEvent.click(trigger);
       expect(trigger.getAttribute('aria-expanded')).toBe('true');
       fireEvent.click(view.getByRole('button', { name: '취소' }));
-      expect(document.activeElement).toBe(trigger);
+      await waitFor(() => expect(document.activeElement).toBe(trigger));
       expect(trigger.getAttribute('aria-expanded')).toBe('false');
       fireEvent.click(trigger);
       expect(view.getByLabelText('다음 행동')).toHaveProperty('value', '기존 행동');
       fireEvent.change(view.getByLabelText('실제 결과'), { target: { value: '수정한 결과' } });
       fireEvent.click(view.getByRole('button', { name: '수정 저장' }));
       expect(await view.findByText('수정한 결과')).toBeTruthy();
-      expect(view.getByText(saved.reason)).toBeTruthy();
       expect(view.getByText('작성 2026-10-06 · 마지막 저장 2026-10-07')).toBeTruthy();
       await waitFor(() => expect(document.activeElement).toBe(trigger));
       expect(api.updateReview).toHaveBeenCalledWith(1, 2, {
@@ -237,6 +361,7 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
         action: 'edit_review',
         status: 'submitted',
       });
+      expect(view.getByText(saved.reason)).toBeTruthy();
     },
   );
   it('보유 이유만 저장하고 선택 항목을 임의의 기간이나 하락률로 채우지 않는다', async () => {
@@ -249,7 +374,9 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
     });
     const view = renderRecords([holding]);
     fireEvent.click(await view.findByRole('button', { name: '삼성전자 보유 이유 작성' }));
-    fireEvent.change(view.getByLabelText('보유하는 이유'), { target: { value: '장기 실적 성장' } });
+    fireEvent.change(view.getByRole('textbox', { name: '보유 이유' }), {
+      target: { value: '장기 실적 성장' },
+    });
     fireEvent.click(view.getByRole('button', { name: '보유 이유 저장' }));
     await view.findByText('장기 실적 성장');
     expect(api.recordDecision).toHaveBeenCalledWith(
@@ -291,7 +418,7 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
 it('공백뿐인 보유 이유는 오류와 연결하고 취소하면 작성 버튼으로 돌아간다', async () => {
   const view = renderRecords([holding]);
   fireEvent.click(await view.findByRole('button', { name: '삼성전자 보유 이유 작성' }));
-  const input = view.getByLabelText('보유하는 이유');
+  const input = view.getByRole('textbox', { name: '보유 이유' });
   fireEvent.change(input, { target: { value: '   ' } });
   fireEvent.click(view.getByRole('button', { name: '보유 이유 저장' }));
   const error = view.getByRole('alert');
@@ -324,7 +451,7 @@ it('복기 오류는 첫 미작성 항목으로 이동하고 취소 후 원래 �
     </MemoryRouter>,
   );
   const trigger = await view.findByRole('button', {
-    name: '삼성전자 2026-10-06 보유 기록 복기하기',
+    name: '삼성전자 2026-10-06 보유 기록 복기 작성',
   });
   fireEvent.click(trigger);
   fireEvent.change(view.getByLabelText('실제 결과'), { target: { value: '결과' } });
@@ -377,12 +504,11 @@ it('최신 기록을 먼저 보여주고 이전 기록에만 복기를 연결하
   });
   const view = renderRecords([holding]);
   const latest = await view.findByRole('button', {
-    name: '삼성전자 2026-10-10 보유 기록 복기하기',
+    name: '삼성전자 2026-10-10 보유 기록 복기 작성',
   });
   expect(latest).toBeTruthy();
-  expect(view.getByText('이전 기록 1개').closest('details')?.hasAttribute('open')).toBe(false);
-  fireEvent.click(view.getByText('이전 기록 1개'));
-  const previous = view.getByRole('button', { name: '삼성전자 2026-10-06 보유 기록 복기하기' });
+  expect(view.container.querySelector('details')).toBeNull();
+  const previous = view.getByRole('button', { name: '삼성전자 2026-10-06 보유 기록 복기 작성' });
   fireEvent.click(previous);
   expect(view.getByRole('button', { name: '삼성전자 리그에서 삭제' })).toHaveProperty(
     'disabled',
@@ -396,8 +522,43 @@ it('최신 기록을 먼저 보여주고 이전 기록에만 복기를 연결하
   expect(await view.findByText('지난 결과')).toBeTruthy();
   expect(api.createReview).toHaveBeenCalledWith(1, expect.any(Object));
   expect(view.getByText('새 판단')).toBeTruthy();
-  fireEvent.click(view.getByText('지난 종목의 기록 1개'));
   expect(
-    view.getByRole('button', { name: '다른 종목 2026-10-06 보유 기록 복기하기' }),
+    view.getByRole('button', { name: '다른 종목 2026-10-06 보유 기록 복기 작성' }),
   ).toBeTruthy();
+});
+
+it('5개부터 카드를 4개씩 표시하고 편집 중 이동과 삭제 후 빈 페이지를 방지한다', async () => {
+  const holdings = Array.from({ length: 5 }, (_, index) => ({
+    ...holding,
+    assetId: index + 1,
+    assetName: `종목 ${index + 1}`,
+  }));
+  const view = renderRecords(holdings);
+  await waitFor(() => expect(view.queryByText('투자 기록을 불러오는 중이에요.')).toBeNull());
+  expect(view.getAllByRole('article', { name: /기록 상세$/ })).toHaveLength(4);
+  expect(view.getByRole('article', { name: '종목 1 기록 상세' })).toBeTruthy();
+  expect(view.queryByRole('tablist')).toBeNull();
+  expect(view.getByRole('article', { name: '종목 2 기록 상세' })).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '종목 2 보유 이유 작성' }));
+  for (const name of ['다음 페이지', '종목 1 보유 이유 작성'])
+    expect(view.getByRole('button', { name })).toHaveProperty('disabled', true);
+  fireEvent.click(view.getByRole('button', { name: '취소' }));
+  fireEvent.click(view.getByRole('button', { name: '다음 페이지' }));
+  expect(view.getAllByRole('article', { name: /기록 상세$/ })).toHaveLength(1);
+  expect(view.getByRole('article', { name: '종목 5 기록 상세' })).toBeTruthy();
+  expect(view.getByRole('button', { name: '2페이지' }).getAttribute('aria-current')).toBe('page');
+  view.rerender(
+    <HoldingDecisions
+      holdings={holdings.slice(0, 4)}
+      portfolioBusy={false}
+      publicationStatus="공개 후보"
+      onVisibilityChange={vi.fn()}
+      onRemove={vi.fn()}
+      onRecordsChange={vi.fn()}
+      refreshKey={0}
+    />,
+  );
+  expect(view.queryByRole('navigation', { name: '종목 목록 페이지' })).toBeNull();
+  expect(view.getByRole('article', { name: '종목 1 기록 상세' })).toBeTruthy();
+  expect(view.getAllByRole('article', { name: /기록 상세$/ })).toHaveLength(4);
 });

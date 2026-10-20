@@ -163,13 +163,13 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       .mockRejectedValueOnce(new Error('저장 실패'))
       .mockResolvedValueOnce({ ...portfolio, holdings: [{ ...holding, hidden: true }] });
     const view = renderPage();
-    const choice = await view.findByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' });
+    const choice = await view.findByRole('button', { name: '삼성전자 숨기기' });
     fireEvent.click(choice);
     expect(await view.findByRole('alert')).toHaveProperty('textContent', '저장 실패');
-    expect(choice).toHaveProperty('checked', true);
+    expect(choice).toHaveProperty('textContent', '숨기기');
     expect(view.getByText('2주 · 평균 매수가 70,000원')).toBeTruthy();
     fireEvent.click(choice);
-    await waitFor(() => expect(choice).toHaveProperty('checked', false));
+    await waitFor(() => expect(choice).toHaveProperty('textContent', '공개하기'));
     expect(api.changeSharedHoldingVisibility).toHaveBeenLastCalledWith(1, true);
     expect(api.changeSharedHoldingVisibility).toHaveBeenCalledTimes(2);
   });
@@ -219,11 +219,11 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       .mockResolvedValueOnce(portfolio);
     const original = localStorage.getItem(storageKey);
     const view = renderPage();
-    const choice = await view.findByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' });
+    const choice = await view.findByRole('button', { name: '삼성전자 숨기기' });
     fireEvent.click(choice);
-    await waitFor(() => expect(choice).toHaveProperty('checked', false));
+    await waitFor(() => expect(choice).toHaveProperty('textContent', '공개하기'));
     fireEvent.click(choice);
-    await waitFor(() => expect(choice).toHaveProperty('checked', true));
+    await waitFor(() => expect(choice).toHaveProperty('textContent', '숨기기'));
     expect(api.changeSharedHoldingVisibility).toHaveBeenLastCalledWith(1, false);
     expect(view.getByText('2주 · 평균 매수가 70,000원')).toBeTruthy();
     expect(view.container.querySelector('.shared-reason-preview')).toHaveProperty(
@@ -270,10 +270,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     );
     expect(api.importSharedHoldings).toHaveBeenCalledTimes(1);
     await act(async () => resolveImport(portfolio));
-    expect(view.getByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' })).toHaveProperty(
-      'disabled',
-      false,
-    );
+    expect(view.getByRole('button', { name: '삼성전자 숨기기' })).toHaveProperty('disabled', false);
   });
 
   it('종목을 선택한 상태와 실제 공개 범위를 구분한다', async () => {
@@ -292,9 +289,9 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     });
     const view = renderPage();
     await view.findByText('주식 · 005930 · 비공개');
-    expect(view.getByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' })).toHaveProperty(
-      'checked',
-      true,
+    expect(view.getByRole('button', { name: '삼성전자 숨기기' })).toHaveProperty(
+      'textContent',
+      '숨기기',
     );
     expect(view.getByText('주식 · 005930 · 비공개')).toBeTruthy();
     expect(view.getByRole('link', { name: '공개 설정' }).getAttribute('href')).toBe(
@@ -304,9 +301,9 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     await view.findByRole('heading', { name: '종목 추가' });
     expect(view.queryByRole('heading', { name: '등록한 종목 1개' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '취소' }));
-    expect(view.getByRole('checkbox', { name: '삼성전자 공개할 종목으로 선택' })).toHaveProperty(
-      'checked',
-      true,
+    expect(view.getByRole('button', { name: '삼성전자 숨기기' })).toHaveProperty(
+      'textContent',
+      '숨기기',
     );
   });
 
@@ -401,7 +398,9 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     const writeReason = await view.findByRole('button', { name: '삼성전자 보유 이유 작성' });
     await waitFor(() => expect(writeReason).toHaveProperty('disabled', false));
     fireEvent.click(writeReason);
-    fireEvent.change(view.getByLabelText('보유하는 이유'), { target: { value: '장기 성장' } });
+    fireEvent.change(view.getByRole('textbox', { name: '보유 이유' }), {
+      target: { value: '장기 성장' },
+    });
     fireEvent.click(view.getByRole('button', { name: '보유 이유 저장' }));
     await view.findByText('장기 성장');
     await waitFor(() => expect(view.queryByText('보유 이유 미작성')).toBeNull());
