@@ -1,7 +1,7 @@
 # 투자리그 전체 API V1/V2 부하테스트 (#601)
 
 브랜치: `chore/BE/#601`. 프론트엔드나 운영 API 구현은 변경하지 않는다.
-`league-v1.js`는 개선 전 배포, `league-v2.js`는 개선 후 배포를 측정한다.
+[league-v1.js](../../loadtest/league-v1.js)는 개선 전 배포, [league-v2.js](../../loadtest/league-v2.js)는 개선 후 배포를 측정한다.
 두 파일은 동일한 API 경로·요청·판정을 사용하므로 실제 백엔드 배포를 바꾼 뒤 각각 실행해야 한다.
 
 ## 실행 파일과 시나리오
@@ -33,7 +33,7 @@
 
 ## 계정·데이터 준비
 
-1. `league-fixture.example.json`을 비공개 `loadtest/accounts-league.json`으로 복사하고 실제 테스트 데이터로 채운다. 예시는 실행 가능한 계정이나 토큰이 아니다.
+1. 아래 계정 파일 형식에 따라 실제 테스트 계정·토큰·기준 데이터를 채운 비공개 JSON 파일을 준비한다. 형식 예시는 실행 가능한 계정이나 토큰이 아니다.
 2. `namespace`는 `lt601-YYYYMMDD`, 프로필 이름은 `<namespace>-번호`로 한다. 쓰기 전에 모든 측정·워밍업 계정의 실제 공개 ID와 이름을 확인하며, 일치하지 않으면 요청을 중단한다.
 3. `users`는 측정 전용, `warmup`은 별도 워밍업 전용이다. ID·토큰이 겹치면 실행하지 않는다. `targets`는 두 그룹과 다른 공개 투자자로 준비하고 종목·상세 공개를 허용한다.
 4. 각 계정에는 fixture에 적힌 공유 보유 자산·판단·복기를 미리 준비한다. `decisionId`/`reviewId`는 해당 계정 소유여야 한다. 공개 타깃의 `holdingCount`와 선택 주차의 `dailyPointCount`를 실제 조회로 확인한다. 종목 수가 0인 상세나 빈 순위로 성능을 측정하지 않는다.
@@ -43,6 +43,100 @@
 
 **이 스크립트는 데이터 적재·토큰 발급·DB 복원을 자동으로 수행하지 않는다.**
 테스트 계정과 기준 데이터를 먼저 준비해야 하며, 이를 완료하지 않은 상태로 #601을 완료 처리하지 않는다.
+
+## 계정 파일 형식
+
+아래 내용은 runner에 별도로 준비할 비공개 JSON 파일의 구조를 설명한다.
+각 ID·토큰·종목·기준 데이터 해시는 실제 테스트 환경 값으로 바꾼다. 이 예시를 실행 파일로 저장소에 두지 않는다.
+
+```json
+{
+  "schemaVersion": 1,
+  "namespace": "lt601-20261020",
+  "baseUrl": "https://dev.daynomy.com",
+  "baselineHash": "REPLACE_WITH_SHA256_OF_PRIVATE_BASELINE",
+  "isolated": false,
+  "users": [
+    {
+      "memberId": 10001,
+      "publicId": "REPLACE_WITH_MEASUREMENT_PUBLIC_ID",
+      "accessToken": "REPLACE_WITH_MEASUREMENT_ACCESS_TOKEN",
+      "profile": {
+        "displayName": "lt601-20261020-1",
+        "bio": "",
+        "experienceLevel": "BEGINNER",
+        "riskProfile": "BALANCED"
+      },
+      "publication": {
+        "profilePublic": true,
+        "leagueEnabled": true,
+        "allocationPublic": true,
+        "detailPublic": true
+      },
+      "holdings": [
+        {
+          "assetId": 1,
+          "assetName": "REPLACE_WITH_ACTUAL_ASSET_NAME",
+          "quantity": 10,
+          "averagePurchasePrice": 100,
+          "decision": {
+            "reason": "loadtest fixture reason",
+            "expectedHoldingPeriod": "OVER_SIX_MONTHS",
+            "expectedChange": "",
+            "invalidationCondition": "",
+            "maximumAcceptableLossRate": 10
+          }
+        }
+      ],
+      "decisionId": 20001,
+      "reviewId": 30001
+    }
+  ],
+  "warmup": [
+    {
+      "memberId": 10002,
+      "publicId": "REPLACE_WITH_WARMUP_PUBLIC_ID",
+      "accessToken": "REPLACE_WITH_WARMUP_ACCESS_TOKEN",
+      "profile": {
+        "displayName": "lt601-20261020-2",
+        "bio": "",
+        "experienceLevel": "BEGINNER",
+        "riskProfile": "BALANCED"
+      },
+      "publication": {
+        "profilePublic": true,
+        "leagueEnabled": true,
+        "allocationPublic": true,
+        "detailPublic": true
+      },
+      "holdings": [
+        {
+          "assetId": 1,
+          "assetName": "REPLACE_WITH_ACTUAL_ASSET_NAME",
+          "quantity": 10,
+          "averagePurchasePrice": 100,
+          "decision": {
+            "reason": "loadtest fixture reason",
+            "expectedHoldingPeriod": "OVER_SIX_MONTHS",
+            "expectedChange": "",
+            "invalidationCondition": "",
+            "maximumAcceptableLossRate": 10
+          }
+        }
+      ],
+      "decisionId": 20002,
+      "reviewId": 30002
+    }
+  ],
+  "targets": [
+    {
+      "publicId": "REPLACE_WITH_SEPARATE_PUBLIC_TARGET_ID",
+      "holdingCount": 1,
+      "dailyPointCount": 1
+    }
+  ]
+}
+```
 
 ## 초기 상태와 반복 비교
 
@@ -130,13 +224,3 @@ HTTP 요청 타임아웃은 서버의 진행 중인 집계를 취소하지 않�
 - `result-league-<version>-<case>-<run>.json`에 API별 건수·p95/p99와 **미실행 API 목록**을 보관한다. 한 CASE 통과는 전체 API 검증 완료를 뜻하지 않는다. 이슈의 모든 CASE/조건별 결과를 연결한다.
 - `mixed` 10회 미만은 일부 흐름을 실행하지 못한다. 30초 확인 후 각 API와 혼합 부하를 별도로 측정하고, API마다 목표 요청률을 정해 증가시킨다.
 - Grafana에서 CPU·메모리·GC·DB 연결/잠금 대기·SQL 수/시간과 집계 성공/실패·확정 지연을 함께 확인한다. 자원 포화나 오류가 지속되면 중단하고 서버·DB 작업 종료와 회복 후 복원한다.
-
-## 실제 API 요청 없는 검증
-
-```bash
-node --experimental-vm-modules --test loadtest/tests/*.test.mjs backend/loadtest/tests/transactions.test.mjs
-```
-
-위 명령으로 로컬에서 실행한다. 기존 Backend CI 워크플로는 수정하지 않으며 이 검증 명령을 새로 연결하지 않는다.
-워크플로 호환 테스트는 기존 k6 실행 셸을 그대로 실행해 파일 경로·인수 전달과 기존 분석 계정 처리를 확인한다.
-HTTP mock 테스트는 흐름·인증·검증·V1/V2 조건의 동등성을 확인하며 실제 서버 성능·동시 DB 정합성을 증명하지 않는다.

@@ -2,8 +2,8 @@
 
 전체 리그 API·혼합 부하·집계 시나리오는 [league.md](./league.md)를 따른다. 이 문서는 계정 없는 순위 조회 확인용이다.
 
-- `league-rankings-v1.js`: 개선 전 백엔드 배포를 측정한다.
-- `league-rankings-v2.js`: 개선 후 백엔드 배포를 측정한다.
+- [league-rankings-v1.js](../../loadtest/league-rankings-v1.js): 개선 전 백엔드 배포를 측정한다.
+- [league-rankings-v2.js](../../loadtest/league-rankings-v2.js): 개선 후 백엔드 배포를 측정한다.
 - 두 파일은 동일한 요청·검증·판정 코드를 사용하고 버전 라벨만 다르다.
 
 **두 파일 모두 `/api/league/rankings`를 호출한다. 파일 선택으로 서버 구현이 바뀌지 않는다.**
@@ -62,16 +62,6 @@ V2는 script를 `loadtest/league-rankings-v2.js`로, `DEPLOYED_SHA`를 개선 �
 | `TARGET_P95_MS`      | p95 미만 목표. 기본 1000ms                                |
 | `RUN`                | 결과 파일 구분. 로컬 기본 `local`; 반복 시 다른 값을 지정 |
 
-로컬에 k6가 설치되어 있으면 저장소 루트에서 같은 조건으로 실행할 수도 있다:
-
-```bash
-k6 run -e BASE_URL=https://dev.daynomy.com \
-  -e DEPLOYED_SHA=0123456 -e WEEK_START=2026-10-19 \
-  -e EXPECTED_TOTAL=100 -e EXPECTED_CONFIRMED=false \
-  -e RPS=1 -e DURATION=30s -e RUN=smoke-01 \
-  loadtest/league-rankings-v1.js
-```
-
 ## 측정과 결과
 
 - 첫 `1 RPS × 30초`는 통신·데이터 확인용이다. 첫 검증 GET 1건은 별도 `phase=preflight`로 기록하고 `league_*` 측정 지표에서 제외한다. 이 요청은 워밍업을 대체하지 않는다.
@@ -86,9 +76,3 @@ k6 run -e BASE_URL=https://dev.daynomy.com \
 동일한 스크립트 버전·DB·서버 사양·워밍업 조건으로 비교하고, 배포 후 기동 재집계와 다른 배치가 겹쳤는지도 기록한다.
 공개 설정 변경으로 확정 순위에 빈 순번이 생길 수 있어 순번의 연속성은 요구하지 않는다.
 이 테스트는 처리 성능과 기본 응답 계약을 확인하며, V1/V2 전체 응답의 동등성을 증명하지는 않는다.
-
-## 실제 API 요청 없는 검증
-
-```bash
-node --experimental-vm-modules --test loadtest/tests/league-rankings.test.mjs
-```
