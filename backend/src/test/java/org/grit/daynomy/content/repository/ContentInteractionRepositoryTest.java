@@ -49,8 +49,7 @@ class ContentInteractionRepositoryTest {
     repository.save(interaction(ContentType.NEWS, 1L, ContentInteractionType.OPEN, today));
     repository.save(
         interaction(ContentType.NEWS, 1L, ContentInteractionType.OUTBOUND_CLICK, today));
-    repository.save(
-        interaction(ContentType.PERSON_POST, 2L, ContentInteractionType.OPEN, today));
+    repository.save(interaction(ContentType.PERSON_POST, 2L, ContentInteractionType.OPEN, today));
     repository.save(
         interaction(
             ContentType.ASSET_CONTENT,
