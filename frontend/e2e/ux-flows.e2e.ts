@@ -260,10 +260,17 @@ for (const width of [390, 1440]) {
       if (path === '/league') {
         await expect(page.getByRole('link', { name: '종목 관리하기' })).toBeVisible();
         await expect(page.getByRole('navigation', { name: '내 리그' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: '주간 순위', exact: true })).toBeVisible();
       } else {
         await expect(page.getByRole('link', { name: '← 주간 리그' })).toBeVisible();
       }
       await expect(page.getByRole('alert')).toHaveCount(0);
+      if (path === '/portfolio/publication?join=true') {
+        await expect(page.getByLabel('공개 닉네임', { exact: true })).toBeVisible();
+      }
+      if (path === '/league/following') {
+        await expect(page.getByText('팔로우한 투자자가 없습니다', { exact: true })).toBeVisible();
+      }
       if (path === '/league/portfolio') {
         await page.getByRole('button', { name: '삼성전자 투자 기록 추가' }).click();
         await expect(page.getByRole('textbox', { name: '보유하는 이유' })).toBeFocused();
