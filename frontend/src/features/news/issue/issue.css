@@ -152,6 +152,38 @@
   flex-shrink: 0;
   margin-left: auto;
 }
+.issue-sort-options {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+.issue-sort-options button {
+  min-height: 36px;
+  padding: 7px 1px 5px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--issue-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.issue-sort-options button:hover {
+  color: var(--issue-ink);
+}
+.issue-sort-options button[aria-pressed='true'] {
+  border-bottom-color: var(--issue-ink);
+  color: var(--issue-ink);
+  font-weight: 700;
+}
+.issue-sort-options button:focus-visible {
+  outline: 2px solid #1764df;
+  outline-offset: 2px;
+}
 .issue-source-filters {
   display: flex;
   min-width: 0;
@@ -1640,10 +1672,8 @@
   flex-wrap: wrap;
   overflow: visible;
 }
-.portfolio-content-toolbar > span {
-  flex-shrink: 0;
-  color: var(--issue-muted);
-  font-size: 12px;
+.portfolio-content-toolbar .issue-sort-options {
+  margin-left: 0;
 }
 .portfolio-content-companies button:focus-visible,
 .portfolio-company-search:focus-within,

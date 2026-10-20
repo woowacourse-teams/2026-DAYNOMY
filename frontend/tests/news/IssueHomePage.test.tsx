@@ -90,6 +90,47 @@ afterEach(() => {
   document.getElementById('daynomy-threads-embed-script')?.remove();
 });
 describe('이슈 홈과 전체 목록', () => {
+  it.each([false, true])(
+    '홈과 전체 콘텐츠를 최근 7일 인기 점수순으로 정렬한다 (fullFeed=%s)',
+    async (fullFeed) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: RequestInfo | URL) => {
+          const url = new URL(String(input), 'http://localhost');
+          if (url.pathname === '/api/content-rankings')
+            return json({
+              periodDays: 7,
+              items: [
+                {
+                  contentType: 'PERSON_POST',
+                  contentId: 2,
+                  score: 10,
+                  lastInteractedAt: '2026-10-20T02:00:00Z',
+                },
+              ],
+            });
+          if (url.pathname === '/api/contents') return json(newsPage([]));
+          if (url.pathname === '/api/people') return json({ people: [person] });
+          return json(newsPage());
+        }),
+      );
+      const view = render(
+        <MemoryRouter
+          initialEntries={[fullFeed ? '/news/contents?sort=popular' : '/news?sort=popular']}
+        >
+          <IssueHomePage fullFeed={fullFeed} />
+        </MemoryRouter>,
+      );
+
+      expect(await view.findByRole('button', { name: '인기순', pressed: true })).toBeTruthy();
+      await waitFor(() =>
+        expect(view.container.querySelector('.issue-feed > li')?.textContent).toContain(
+          '두 번째 인물 글',
+        ),
+      );
+    },
+  );
+
   it('투자 캘린더와 인물 글을 함께 표시하고 콘텐츠 경로를 제공한다', async () => {
     mockApi();
     const view = render(
