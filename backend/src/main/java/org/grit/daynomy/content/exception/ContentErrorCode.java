@@ -5,7 +5,8 @@ import org.springframework.http.HttpStatus;
 
 public enum ContentErrorCode implements ErrorCode {
   ASSET_CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "종목 관련 자료를 찾을 수 없습니다."),
-  ASSET_CONTENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 URL입니다.");
+  ASSET_CONTENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 URL입니다."),
+  CONTENT_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "공개된 콘텐츠를 찾을 수 없습니다.");
 
   private final HttpStatus status;
   private final String message;
