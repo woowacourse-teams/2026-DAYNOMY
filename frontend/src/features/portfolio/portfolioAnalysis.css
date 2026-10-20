@@ -105,13 +105,13 @@
 
 .portfolio-page .portfolio-analysis-button {
   display: inline-flex;
-  min-height: var(--button-height);
+  min-height: 40px;
   align-items: center;
   flex: 0 0 auto;
-  padding: 0 22px;
+  padding: 0 14px;
   border: 0;
   border-radius: 999px;
-  background: var(--button-primary);
+  background: var(--button-action);
   color: #fff;
   font: inherit;
   font-size: 14px;
@@ -120,20 +120,20 @@
   cursor: pointer;
 }
 
-.portfolio-analysis-button:hover:not(:disabled) {
-  background: var(--button-primary-hover);
+.portfolio-page .portfolio-analysis-button:hover:not(:disabled) {
+  background: var(--button-action-hover);
 }
 
-.portfolio-analysis-button:active:not(:disabled) {
-  background: var(--button-primary-active);
+.portfolio-page .portfolio-analysis-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
-.portfolio-analysis-button:focus-visible {
+.portfolio-page .portfolio-analysis-button:focus-visible {
   outline: 2px solid #000;
   outline-offset: 2px;
 }
 
-.portfolio-analysis-button:disabled {
+.portfolio-page .portfolio-analysis-button:disabled {
   background: #e5e8eb;
   color: #8b95a1;
   cursor: not-allowed;
