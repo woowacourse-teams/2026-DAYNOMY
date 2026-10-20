@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       script:
-        description: "k6 script under loadtest/, or backend/loadtest/transactions-v1.js / transactions-v2.js"
+        description: 'k6 script under loadtest/, or backend/loadtest/transactions-v1.js / transactions-v2.js'
         required: true
         type: string
         default: loadtest/load-test.js
       params:
-        description: 'JSON k6 parameters: CASE/API_MODE/USERS for analysis; REFERENCE_DATE/TRADE_MONTHS_AGO/RPS/DURATION/VUS for transactions'
+        description: 'JSON k6 parameters: CASE/DEPLOYED_SHA/WEEK_START/EXPECTED_CONFIRMED for league; analysis/transaction parameters unchanged'
         required: true
         type: string
         default: '{"CASE":"B1","API_MODE":"real","USERS":1,"RUN":"1"}'
@@ -46,6 +46,7 @@ jobs:
           K6_PARAMS_JSON: ${{ inputs.params }}
           K6_ACCOUNTS_JSON_GZ_BASE64: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64 }}
           PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64: ${{ secrets.PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64 }}
+          LEAGUE_ACCOUNTS_JSON_GZ_BASE64: ${{ secrets.LEAGUE_ACCOUNTS_JSON_GZ_BASE64 }}
           LOADTEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -Eeuo pipefail
@@ -78,9 +79,17 @@ jobs:
               accounts_file="$workdir/accounts.json"
               trap 'rm -f "$accounts_file"' EXIT
               printf '%s' "$K6_ACCOUNTS_JSON_GZ_BASE64" | base64 --decode | gzip --decompress > "$accounts_file"
+            elif [[ "$script_name" == league-v1.js || "$script_name" == league-v2.js ]]; then
+              if [[ -z "$LEAGUE_ACCOUNTS_JSON_GZ_BASE64" ]]; then
+                echo "Prepare league test accounts in LEAGUE_ACCOUNTS_JSON_GZ_BASE64."
+                exit 1
+              fi
+              accounts_file="$workdir/accounts-league.json"
+              trap 'rm -f "$accounts_file"' EXIT
+              printf '%s' "$LEAGUE_ACCOUNTS_JSON_GZ_BASE64" | base64 --decode | gzip --decompress > "$accounts_file"
             fi
           fi
-          unset K6_ACCOUNTS_JSON_GZ_BASE64 PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64
+          unset K6_ACCOUNTS_JSON_GZ_BASE64 PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64 LEAGUE_ACCOUNTS_JSON_GZ_BASE64
           if [[ ! -f "$workdir/$script_name" ]]; then
             echo "Selected script does not exist on this branch."
             exit 1
@@ -121,7 +130,11 @@ jobs:
               params["ACCOUNTS_FILE"] = "./.local/accounts.json"
           else:
               args.extend(["--tag", f"testid={os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"])
-              if os.path.isfile("accounts.json"):
+              if os.environ["K6_SCRIPT_NAME"] in {"league-v1.js", "league-v2.js"}:
+                  if params.get("CASE") in {"recalculate", "mixed-with-recalculate"}:
+                      raise SystemExit("Global league recalculation requires a separate backend/DB clone; run it locally, not against shared dev.")
+                  params["ACCOUNTS_FILE"] = "./accounts-league.json"
+              elif os.path.isfile("accounts.json"):
                   params["ACCOUNTS_FILE"] = "./accounts.json"
           params["BASE_URL"] = os.environ["BASE_URL"]
 
