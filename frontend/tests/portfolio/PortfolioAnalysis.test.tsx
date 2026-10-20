@@ -275,15 +275,34 @@ describe('포트폴리오 분석 화면', () => {
     expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY)).toBe('used');
   });
 
-  it('자산이 없으면 비회원 분석 요청을 막는다', () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    const view = render(<PortfolioAnalysis assets={[]} isLoggedIn={false} />);
-    expect(
-      (view.getByRole('button', { name: '1회 분석 체험하기' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
+  it.each([false, true])(
+    '자산이 없으면 추가를 안내하고 분석 요청을 막는다 (로그인: %s)',
+    async (isLoggedIn) => {
+      const fetchMock = isLoggedIn
+        ? memberFetch(() => saved({ status: 'EMPTY', analysis: null }))
+        : vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const onAddAsset = vi.fn();
+      const view = render(
+        <PortfolioAnalysis assets={[]} isLoggedIn={isLoggedIn} onAddAsset={onAddAsset} />,
+      );
+      expect(view.getByText('자산을 추가하고 AI로 포트폴리오를 분석해 보세요.')).toBeTruthy();
+      expect(view.queryByRole('button', { name: '1회 분석 체험하기' })).toBeNull();
+      expect(view.queryByRole('button', { name: '분석하기' })).toBeNull();
+      fireEvent.click(view.getByRole('button', { name: '자산 추가하기' }));
+      expect(onAddAsset).toHaveBeenCalledTimes(1);
+      if (!isLoggedIn) expect(fetchMock).not.toHaveBeenCalled();
+      view.rerender(
+        <PortfolioAnalysis assets={assets} isLoggedIn={isLoggedIn} onAddAsset={onAddAsset} />,
+      );
+      expect(
+        await view.findByRole('button', {
+          name: isLoggedIn ? '분석하기' : '1회 분석 체험하기',
+        }),
+      ).toBeTruthy();
+      expect(view.queryByRole('button', { name: '자산 추가하기' })).toBeNull();
+    },
+  );
 
   it('회원은 과거 localStorage 대신 서버 결과를 재접속할 때마다 복원한다', async () => {
     localStorage.setItem(

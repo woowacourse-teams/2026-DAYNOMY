@@ -176,15 +176,18 @@ function ExternalLinkIcon() {
   );
 }
 
-function PortfolioEmpty() {
+function PortfolioEmpty({ onAddAsset }: { onAddAsset?: () => void }) {
   return (
     <div className="portfolio-analysis-state portfolio-analysis-empty">
-      <span className="portfolio-analysis-state-icon" aria-hidden="true">
-        −
-      </span>
-      <p>
-        포트폴리오에 자산을 등록하면 오늘의 주요 이슈가 내 자산에 미치는 영향을 확인할 수 있어요.
-      </p>
+      <p>자산을 추가하고 AI로 포트폴리오를 분석해 보세요.</p>
+      <button
+        type="button"
+        className="portfolio-analysis-button"
+        onClick={onAddAsset}
+        disabled={!onAddAsset}
+      >
+        자산 추가하기
+      </button>
     </div>
   );
 }
@@ -606,6 +609,7 @@ type PortfolioAnalysisProps = {
   isLoggedIn?: boolean;
   memberId?: number;
   holdingsKey?: string;
+  onAddAsset?: () => void;
 };
 
 export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
@@ -641,6 +645,7 @@ function PortfolioAnalysisView({
   assets,
   isLoggedIn = true,
   demoStep,
+  onAddAsset,
   state,
 }: PortfolioAnalysisProps & { state: ReturnType<typeof usePortfolioAnalysis> }) {
   const { analysis, saved, loading, loaded, error, trialExhausted, portfolioChanged, analyze } =
@@ -720,7 +725,7 @@ function PortfolioAnalysisView({
               : '오늘의 경제·금융·산업 이슈가 보유 자산에 미칠 영향을 확인해 보세요.'}
           </p>
         </div>
-        {!isLoggedIn && trialExhausted ? (
+        {!hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
           <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
             로그인하고 다시 분석하기
           </a>
@@ -793,11 +798,11 @@ function PortfolioAnalysisView({
           <p>서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.</p>
         </div>
       ) : null}
-      {!hasAnalysisTarget && !loading && !error ? <PortfolioEmpty /> : null}
+      {!hasAnalysisTarget ? <PortfolioEmpty onAddAsset={onAddAsset} /> : null}
 
       {hasAnalysisTarget && loading && !hasAnalysis ? <PortfolioAnalysisLoading /> : null}
 
-      {(hasAnalysisTarget || isLoggedIn) && !loading && error ? (
+      {hasAnalysisTarget && !loading && error ? (
         <PortfolioAnalysisError onRetry={handleRetry} message={error} />
       ) : null}
 

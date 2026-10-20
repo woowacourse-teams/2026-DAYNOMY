@@ -1228,6 +1228,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 <PortfolioAnalysis
                   demoStep={tourStep ?? undefined}
                   assets={analysisAssets}
+                  onAddAsset={() => openAdd('empty_state')}
                   isLoggedIn={isLoggedIn}
                   holdingsKey={JSON.stringify(
                     holdings
