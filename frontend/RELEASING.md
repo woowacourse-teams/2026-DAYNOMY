@@ -11,32 +11,32 @@
 | Patch | 기존 기능의 오류 수정                                    |
 
 1. `dev` 기준의 작업 브랜치에서 `package.json`·`package-lock.json` 버전을 올리고
-   [CHANGELOG.md](CHANGELOG.md)를 갱신합니다. 이번 릴리스 대상은 `1.1.4`입니다.
+   [CHANGELOG.md](CHANGELOG.md)를 갱신합니다. 이번 릴리스 대상은 `2.0.0`입니다.
 
    ```bash
    cd frontend
-   npm version 1.1.4 --no-git-tag-version
+   npm version 2.0.0 --no-git-tag-version
    ```
 
 2. `dev`에서 확인한 뒤 `main`에 병합합니다. 포맷·린트·타입 검사·테스트·빌드와
-   배포 검증이 모두 성공하면 해당 커밋에 `v1.1.4` Git tag를 생성합니다.
+   배포 검증이 모두 성공하면 해당 커밋에 `v2.0.0` Git tag를 생성합니다.
 3. Git tag·이미지 버전·Sentry release가 일치하는지 확인하고 공개 기능을 직접 확인합니다.
    자동 검사는 프론트 HTML, `/api/news`, `/api/auth/csrf`, Google 로그인 리디렉션까지입니다.
 
 실패하면 Git tag를 만들지 않습니다. 재시도 시 같은 커밋의 기존 버전 이미지를 재사용합니다.
 버전은 개발자가 올리며, 이미 태그가 있는 버전의 후속 변경은 SHA 이미지로 배포합니다.
 
-## v1.1.4 반영 순서
+## v2.0.0 반영 순서
 
-이번 버전 준비 작업은 이슈 #530과 `chore/FE/#530` 브랜치에서 진행합니다. 버전 파일·CHANGELOG만으로 운영 배포 완료를
+이번 버전 준비 작업은 이슈 #590과 `chore/FE/#590` 브랜치에서 진행합니다. 버전 파일·CHANGELOG만으로 운영 배포 완료를
 판단하지 않으며 다음 순서로 확인합니다.
 
-1. `package.json`과 `package-lock.json`의 최상위·루트 패키지 버전이 모두 `1.1.4`인지 확인합니다. 이미 변경되었다면 `npm version`을 다시 실행하지 않습니다.
-2. `CHANGELOG.md`의 `## v1.1.4`에 v1.1.3 이후 변경을 정리하고, `Unreleased`는 다음 릴리스용으로 유지합니다.
-3. 작업 브랜치에서 포맷·린트·타입 검사·테스트·빌드와 릴리스 스크립트 검사를 완료하고, `chore/FE/#530 → dev` PR의 CI 결과를 확인합니다.
+1. `package.json`과 `package-lock.json`의 최상위·루트 패키지 버전이 모두 `2.0.0`인지 확인합니다. 이미 변경되었다면 `npm version`을 다시 실행하지 않습니다.
+2. `CHANGELOG.md`의 `## v2.0.0`에 v1.1.3 이후 변경을 정리하고, `Unreleased`는 다음 릴리스용으로 유지합니다.
+3. 작업 브랜치에서 포맷·린트·타입 검사·테스트·빌드와 릴리스 스크립트 검사를 완료하고, `chore/FE/#590 → dev` PR의 CI 결과를 확인합니다.
 4. 개발 배포에서 스크린 리더·키보드 접근성, 첫 방문 랜딩·사용 가이드, 미국 종목·달러 거래, 투자 캘린더, 소식·인물 탐색, 리그 기록·복기와 관리자 수집 화면을 확인합니다.
 5. `dev → main` 릴리스 PR에 버전·변경 내용·실제 검증 결과를 적습니다. 미국 종목·환율·달러 거래, 투자 캘린더, 리그와 인물 게시물 검토에 필요한 백엔드 API가 대상 환경에 반영되어 있는지 확인합니다. 현재 저장소의 Flyway 최신 버전은 V53이며, 대상 DB의 적용 이력과 비교해 누락된 마이그레이션을 백엔드 배포 절차로 적용합니다. 미국 시세·환율 설정과 V51 배포 전 확인은 [백엔드 README](../backend/README.md#미국-주식etf-종목-및-일별-종가-eodhd)를 따릅니다.
-6. 운영 프론트 배포·라우팅 검증과 자동 `v1.1.4` 태그 발행을 확인합니다. 태그·GHCR 이미지·Sentry release가 같은 배포 커밋을 가리키는지 확인하고 운영 기능을 직접 점검합니다.
+6. 운영 프론트 배포·라우팅 검증과 자동 `v2.0.0` 태그 발행을 확인합니다. 태그·GHCR 이미지·Sentry release가 같은 배포 커밋을 가리키는지 확인하고 운영 기능을 직접 점검합니다.
 
 개발·운영 GitHub Environment에는 `VITE_POSTHOG_PROJECT_TOKEN`·`VITE_POSTHOG_HOST`를 각각
 설정할 수 있습니다. 두 값이 모두 있을 때만 PostHog를 사용하고, 값 변경 후 다시 빌드합니다.
@@ -59,11 +59,11 @@ bash scripts/test-deploy-frontend.sh
 
 일반 `npm run build`의 정적 파일에는 릴리스 버전이 별도로 표시되지 않습니다. 운영 CI는
 `resolve-release-version.sh`의 `image_tag`를 Docker 이미지 태그·`org.opencontainers.image.version`
-라벨과 `SENTRY_RELEASE`에 공통으로 사용합니다. 새 릴리스에서는 세 값이 `v1.1.4`인지 확인합니다.
+라벨과 `SENTRY_RELEASE`에 공통으로 사용합니다. 새 릴리스에서는 세 값이 `v2.0.0`인지 확인합니다.
 HTML의 `daynomy-deployment` 메타 태그는 버전 대신 환경·커밋을 기록하므로 같은 이미지의
 `org.opencontainers.image.revision`과 커밋이 일치하는지 대조합니다.
 
-프론트 `v1.1.4` 버전은 백엔드 Gradle 버전, OpenAPI 버전, 분석 스키마·알고리즘 버전,
+프론트 `v2.0.0` 버전은 백엔드 Gradle 버전, OpenAPI 버전, 분석 스키마·알고리즘 버전,
 브라우저 저장 키 버전과 독립적입니다. 이 값들은 단순 릴리스 번호 변경에 맞춰 올리지 않습니다.
 
 ## 무중단 배포와 자동 롤백
