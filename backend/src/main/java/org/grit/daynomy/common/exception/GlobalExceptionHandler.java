@@ -1,8 +1,13 @@
 package org.grit.daynomy.common.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.RequestLoggingFilter;
+import org.grit.daynomy.common.logging.SanitizedLogException;
 import org.grit.daynomy.common.response.ErrorResponse;
 import org.grit.daynomy.common.response.ValidationErrorField;
 import org.springframework.context.MessageSourceResolvable;
@@ -20,35 +25,49 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
   @ExceptionHandler(BusinessException.class)
-  public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException exception) {
+  public ResponseEntity<ErrorResponse> handleBusinessException(
+      BusinessException exception, HttpServletRequest request) {
     ErrorCode errorCode = exception.errorCode();
+    request.setAttribute(RequestLoggingFilter.ERROR_CODE_ATTRIBUTE, errorCode.code());
     return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
   }
 
   @ExceptionHandler(ConstraintViolationException.class)
   public ResponseEntity<ErrorResponse> handleConstraintViolation(
-      ConstraintViolationException exception) {
+      ConstraintViolationException exception, HttpServletRequest request) {
     return invalidRequest(
-        exception.getConstraintViolations().stream().map(this::toValidationErrorField).toList());
+        exception.getConstraintViolations().stream().map(this::toValidationErrorField).toList(),
+        request);
   }
 
   @ExceptionHandler(MethodArgumentTypeMismatchException.class)
   public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(
-      MethodArgumentTypeMismatchException exception) {
+      MethodArgumentTypeMismatchException exception, HttpServletRequest request) {
     String reason =
         exception.getRequiredType() != null && exception.getRequiredType().isEnum()
             ? "지원하지 않는 값입니다."
             : "타입이 올바르지 않습니다.";
-    return invalidRequest(List.of(ValidationErrorField.of(exception.getName(), reason)));
+    return invalidRequest(List.of(ValidationErrorField.of(exception.getName(), reason)), request);
   }
 
   @ExceptionHandler(Exception.class)
-  public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception) {
+  public ResponseEntity<ErrorResponse> handleUnexpected(
+      Exception exception, HttpServletRequest request) {
     ErrorCode errorCode = CommonErrorCode.INTERNAL_SERVER_ERROR;
+    request.setAttribute(RequestLoggingFilter.ERROR_CODE_ATTRIBUTE, errorCode.code());
+    log.atError()
+        .setCause(SanitizedLogException.from(exception))
+        .addKeyValue("event", LogEvent.HTTP_REQUEST_FAILED.code())
+        .addKeyValue("errorCode", errorCode.code())
+        .addKeyValue("errorType", exception.getClass().getSimpleName())
+        .addKeyValue("method", request.getMethod())
+        .addKeyValue("uri", request.getRequestURI())
+        .log(LogEvent.HTTP_REQUEST_FAILED.message());
     return ResponseEntity.status(errorCode.status()).body(ErrorResponse.from(errorCode));
   }
 
@@ -63,6 +82,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             .map(this::toValidationErrorField)
             .toList();
 
+    request.setAttribute(
+        RequestLoggingFilter.ERROR_CODE_ATTRIBUTE,
+        CommonErrorCode.INVALID_REQUEST.code(),
+        WebRequest.SCOPE_REQUEST);
     return super.handleExceptionInternal(
         exception,
         ErrorResponse.of(CommonErrorCode.INVALID_REQUEST, errors),
@@ -83,6 +106,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             .flatMap(List::stream)
             .toList();
 
+    request.setAttribute(
+        RequestLoggingFilter.ERROR_CODE_ATTRIBUTE,
+        CommonErrorCode.INVALID_REQUEST.code(),
+        WebRequest.SCOPE_REQUEST);
     return super.handleExceptionInternal(
         exception,
         ErrorResponse.of(CommonErrorCode.INVALID_REQUEST, errors),
@@ -100,6 +127,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     List<ValidationErrorField> errors =
         List.of(ValidationErrorField.of("requestBody", "요청 본문을 읽을 수 없습니다."));
 
+    request.setAttribute(
+        RequestLoggingFilter.ERROR_CODE_ATTRIBUTE,
+        CommonErrorCode.INVALID_REQUEST.code(),
+        WebRequest.SCOPE_REQUEST);
     return super.handleExceptionInternal(
         exception,
         ErrorResponse.of(CommonErrorCode.INVALID_REQUEST, errors),
@@ -108,8 +139,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         request);
   }
 
-  private ResponseEntity<ErrorResponse> invalidRequest(List<ValidationErrorField> errors) {
+  private ResponseEntity<ErrorResponse> invalidRequest(
+      List<ValidationErrorField> errors, HttpServletRequest request) {
     ErrorCode errorCode = CommonErrorCode.INVALID_REQUEST;
+    request.setAttribute(RequestLoggingFilter.ERROR_CODE_ATTRIBUTE, errorCode.code());
     return ResponseEntity.status(errorCode.status()).body(ErrorResponse.of(errorCode, errors));
   }
 
