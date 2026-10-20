@@ -170,6 +170,9 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
     savedHoldings = savedHoldings.filter((holding) => holding.assetId !== assetId);
     return new Response(null, { status: 204 });
   }
+  if (url.includes('/api/users/me/portfolio/performance/prepare?')) {
+    return jsonResponse({ status: 'READY' });
+  }
   if (url.includes('/api/users/me/portfolio/performance?')) {
     const requestUrl = new URL(url, 'http://localhost');
     const from = requestUrl.searchParams.get('from') ?? '';

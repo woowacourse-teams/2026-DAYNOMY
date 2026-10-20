@@ -484,8 +484,8 @@ export function PortfolioTransactionEditor({
               )}
               {priceBaseDate && (
                 <p className="portfolio-field-note">
-                  {priceBaseDate} 최근 종가 · {currency} · 과거 거래는 당시 실제 거래 단가로 수정해
-                  주세요.
+                  {priceBaseDate} 최근 종가 · {currency} · 과거 거래일에도 참고 단가로 유지됩니다.
+                  실제 체결가와 다르면 수정해 주세요.
                 </p>
               )}
               {currency === 'USD' && (
