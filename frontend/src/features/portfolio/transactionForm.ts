@@ -12,9 +12,13 @@ export function todayInSeoul() {
     .join('-');
 }
 
-export type TransactionFields = Record<keyof PortfolioTransactionUpdateRequest, string>;
+export type TransactionFields = Record<
+  Exclude<keyof PortfolioTransactionUpdateRequest, 'exchangeRate'>,
+  string
+> & { exchangeRate?: string };
 export function getTransactionValidationError(
   fields: TransactionFields,
+  currency: 'KRW' | 'USD' = 'KRW',
 ): { field: keyof TransactionFields; message: string } | null {
   const date = new Date(`${fields.tradeDate}T00:00:00Z`);
   if (
@@ -35,27 +39,46 @@ export function getTransactionValidationError(
   ) {
     return { field: 'quantity', message: '수량은 1주 이상의 정수로 입력해 주세요.' };
   }
+  if (
+    currency === 'USD' &&
+    (!fields.exchangeRate ||
+      !/^\d{1,10}(\.\d{1,6})?$/.test(fields.exchangeRate) ||
+      Number(fields.exchangeRate) <= 0)
+  ) {
+    return { field: 'exchangeRate', message: '1 USD당 원화 환율을 0보다 크게 입력해 주세요.' };
+  }
   for (const key of ['unitPrice', 'fee', 'tax'] as const) {
-    const minimum = key === 'unitPrice' ? 0.01 : 0;
-    if (!/^\d{1,15}(\.\d{1,2})?$/.test(fields[key]) || Number(fields[key]) < minimum) {
+    const minimum = key === 'unitPrice' ? (currency === 'USD' ? 0.0001 : 0.01) : 0;
+    if (
+      !(key === 'unitPrice' ? /^\d{1,15}(\.\d{1,4})?$/ : /^\d{1,15}(\.\d{1,2})?$/).test(
+        fields[key],
+      ) ||
+      Number(fields[key]) < minimum
+    ) {
       return {
         field: key,
         message:
           key === 'unitPrice'
-            ? '거래 단가는 0.01원 이상, 소수점 둘째 자리까지 입력해 주세요.'
-            : '수수료와 세금은 0원 이상, 소수점 둘째 자리까지 입력해 주세요.',
+            ? `거래 단가는 ${currency === 'USD' ? '0.0001' : '0.01'} ${currency} 이상, 소수점 넷째 자리까지 입력해 주세요.`
+            : currency === 'KRW'
+              ? '수수료와 세금은 0원 이상, 소수점 둘째 자리까지 입력해 주세요.'
+              : '수수료와 세금은 0 USD 이상, 소수점 둘째 자리까지 입력해 주세요.',
       };
     }
   }
   return null;
 }
 
-export function validateTransaction(fields: TransactionFields): string | null {
-  return getTransactionValidationError(fields)?.message ?? null;
+export function validateTransaction(
+  fields: TransactionFields,
+  currency: 'KRW' | 'USD' = 'KRW',
+): string | null {
+  return getTransactionValidationError(fields, currency)?.message ?? null;
 }
 
 export function toTransactionRequest(fields: TransactionFields): PortfolioTransactionUpdateRequest {
   return {
+    ...(fields.exchangeRate ? { exchangeRate: Number(fields.exchangeRate) } : {}),
     tradeDate: fields.tradeDate,
     quantity: Number(fields.quantity),
     unitPrice: Number(fields.unitPrice),

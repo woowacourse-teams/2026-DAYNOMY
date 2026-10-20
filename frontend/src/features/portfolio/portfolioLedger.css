@@ -785,6 +785,20 @@ body:has(.portfolio-page) .daynomy-footer {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
+.portfolio-stock-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.portfolio-stock-filters .portfolio-trade-types {
+  flex: 0 0 112px;
+  margin-bottom: 0;
+}
+.portfolio-stock-filters .portfolio-market-tabs {
+  gap: 16px;
+  margin-top: 0;
+}
 .portfolio-stock-results {
   block-size: 160px;
   padding-block: 16px;

@@ -1563,7 +1563,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                                       <span>
                                         {holding.closePrice === null
                                           ? '-'
-                                          : formatWon(holding.closePrice)}
+                                          : holding.assetCode.endsWith('.US')
+                                            ? amountsHidden
+                                              ? '•••••• USD'
+                                              : `${holding.closePrice.toLocaleString('ko-KR', { maximumFractionDigits: 4 })} USD`
+                                            : formatWon(holding.closePrice)}
                                       </span>
                                       {holding.priceAvailable && holding.baseDate && (
                                         <small className="portfolio-price-date">
@@ -1811,7 +1815,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     {removing.transaction.effectiveDate} ·{' '}
                     {removing.transaction.changeType === 'BUY' ? '매수' : '매도'} ·{' '}
                     {removing.transaction.transactionQuantity}주 ·{' '}
-                    {displayWon(removing.transaction.unitPrice)}
+                    {removing.transaction.assetCode.endsWith('.US')
+                      ? amountsHidden
+                        ? '•••••• USD'
+                        : `${removing.transaction.unitPrice?.toLocaleString('ko-KR')} USD`
+                      : displayWon(removing.transaction.unitPrice)}
                   </p>
                   <p>
                     이 거래를 삭제하면 이후 보유 수량, 평균 매입가, 실현손익과 자산 추이가 다시
