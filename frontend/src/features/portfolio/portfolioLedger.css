@@ -325,10 +325,10 @@ body:has(.portfolio-page) .daynomy-footer {
   aspect-ratio: 1;
 }
 .portfolio-page .portfolio-analysis-section {
-  margin-top: 36px;
+  margin: 0;
   border: 0;
-  border-top: 1px solid #e9edf3;
-  padding: 28px 0 0;
+  border-bottom: 1px solid #e9edf3;
+  padding: 0 0 28px;
 }
 .portfolio-ledger-tabs {
   display: flex;
