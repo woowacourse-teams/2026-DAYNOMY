@@ -212,6 +212,33 @@ it('SDK 기본 속성의 원문 URL·본문·프로필 정보를 제거하고 �
   expect(config.before_send({ event: '$autocapture', properties: {} })).toBeNull();
 });
 
+it('허용 목록에 없는 이벤트 속성은 GA4와 PostHog에서 모두 제거한다', async () => {
+  enablePostHog();
+  const { trackEvent } = await import('../../src/analytics');
+  trackEvent('change_content_page', {
+    surface: 'portfolio_contents',
+    page_number: 2,
+    selection_valid: true,
+    asset_id: 123,
+  });
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(1));
+
+  expect(
+    commands().find(([kind, name]) => kind === 'event' && name === 'change_content_page')?.[2],
+  ).toMatchObject({ surface: 'portfolio_contents', page_number: 2, selection_valid: true });
+  expect(JSON.stringify(commands())).not.toContain('asset_id');
+
+  const config = posthog.init.mock.calls[0][1];
+  const result = config.before_send({
+    event: 'change_content_page',
+    properties: {
+      ...posthog.capture.mock.calls[0][1],
+      asset_id: 123,
+    },
+  });
+  expect(result.properties).not.toHaveProperty('asset_id');
+});
+
 it.each(['/admin/news', '/login'])(
   '보호 경로에서는 지연 중인 PostHog 이벤트도 보내지 않는다 (%s)',
   async (path) => {

@@ -4,11 +4,13 @@ import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.dto.StockSearchItemResponse;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.AssetContentRequest;
@@ -31,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Transactional(readOnly = true)
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class AssetContentService {
@@ -98,6 +101,11 @@ public class AssetContentService {
     contentRepository.flush();
     contentRepository.saveAll(
         assets.stream().map(asset -> AssetContent.createInternalNews(asset, news)).toList());
+    log.atInfo()
+        .addKeyValue("event", LogEvent.ASSET_CONTENT_SYNC_COMPLETED.code())
+        .addKeyValue("newsId", news.getId())
+        .addKeyValue("assetCount", assets.size())
+        .log(LogEvent.ASSET_CONTENT_SYNC_COMPLETED.message());
   }
 
   @Transactional
@@ -121,6 +129,12 @@ public class AssetContentService {
       if (saved.getPublishedDate() == null) {
         saved.fillPublishedDateIfMissing(saved.getCreatedAt().atZone(SEOUL).toLocalDate());
       }
+      log.atInfo()
+          .addKeyValue("event", LogEvent.ASSET_CONTENT_CREATED.code())
+          .addKeyValue("assetId", assetId)
+          .addKeyValue("contentId", saved.getId())
+          .addKeyValue("sourceType", saved.getSourceType())
+          .log(LogEvent.ASSET_CONTENT_CREATED.message());
       return AssetContentResponse.from(saved);
     } catch (DataIntegrityViolationException exception) {
       if (isAssetContentUrlUniqueConstraintViolation(exception)) {
@@ -138,6 +152,12 @@ public class AssetContentService {
             .findByIdAndAsset_Id(contentId, assetId)
             .orElseThrow(() -> new BusinessException(ContentErrorCode.ASSET_CONTENT_NOT_FOUND));
     contentRepository.delete(content);
+    log.atInfo()
+        .addKeyValue("event", LogEvent.ASSET_CONTENT_DELETED.code())
+        .addKeyValue("assetId", assetId)
+        .addKeyValue("contentId", contentId)
+        .addKeyValue("sourceType", content.getSourceType())
+        .log(LogEvent.ASSET_CONTENT_DELETED.message());
   }
 
   private Asset getAsset(Long assetId) {

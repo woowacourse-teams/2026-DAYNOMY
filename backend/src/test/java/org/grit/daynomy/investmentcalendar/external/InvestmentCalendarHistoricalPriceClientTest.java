@@ -82,7 +82,10 @@ class InvestmentCalendarHistoricalPriceClientTest {
             "ecos-key",
             baseUrl,
             "dart-key");
-    return new InvestmentCalendarHistoricalPriceClient(publicDataProperties, calendarProperties);
+    return new InvestmentCalendarHistoricalPriceClient(
+        publicDataProperties,
+        calendarProperties,
+        org.springframework.web.client.RestClient.builder());
   }
 
   private MockResponse successResponse(

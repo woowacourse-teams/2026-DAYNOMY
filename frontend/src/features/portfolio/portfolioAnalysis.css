@@ -105,13 +105,13 @@
 
 .portfolio-analysis-button {
   display: inline-flex;
-  min-height: 40px;
+  min-height: 48px;
   align-items: center;
   flex: 0 0 auto;
-  padding: 0 18px;
+  padding: 0 22px;
   border: 0;
-  border-radius: 10px;
-  background: #000;
+  border-radius: 999px;
+  background: #0a0a0a;
   color: #fff;
   font: inherit;
   font-size: 14px;
@@ -121,7 +121,7 @@
 }
 
 .portfolio-analysis-button:hover:not(:disabled) {
-  background: #262626;
+  background: #252525;
 }
 
 .portfolio-analysis-button:focus-visible {
@@ -130,8 +130,8 @@
 }
 
 .portfolio-analysis-button:disabled {
-  background: #e5e7eb;
-  color: #6b7280;
+  background: #e5e8eb;
+  color: #8b95a1;
   cursor: not-allowed;
 }
 

@@ -109,7 +109,8 @@ class OpenAiNewsGeneratorTest {
     server.enqueue(
         jsonResponse(researchResponse(LocalDate.now(ZoneId.of("Asia/Seoul")).toString())));
 
-    new OpenAiNewsResearcher(properties()).researchEconomicNews();
+    new OpenAiNewsResearcher(properties(), org.springframework.web.client.RestClient.builder())
+        .researchEconomicNews();
 
     assertThat(server.getRequestCount()).isEqualTo(2);
     assertThat(server.takeRequest()).isNotNull();
@@ -122,7 +123,8 @@ class OpenAiNewsGeneratorTest {
     server.enqueue(jsonResponse(writerResponse(List.of(validContent("수정된 뉴스")))));
 
     List<GeneratedEconomicNews> generated =
-        new OpenAiNewsWriter(properties()).write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
 
     assertThat(generated).hasSize(2);
     assertThat(generated.get(0).content()).hasSizeBetween(800, 1_500);
@@ -149,7 +151,8 @@ class OpenAiNewsGeneratorTest {
                 new NewsSourceInfo("출처 2", "https://example.com/2")));
 
     List<GeneratedEconomicNews> generated =
-        new OpenAiNewsWriter(properties()).write(List.of(research));
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(research));
 
     assertThat(generated).hasSize(1);
     assertThat(generated.getFirst().content()).hasSizeBetween(800, 1_500);
@@ -167,7 +170,11 @@ class OpenAiNewsGeneratorTest {
     server.enqueue(jsonResponse(writerResponse(List.of("짧은 본문"))));
     server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
 
-    assertThatThrownBy(() -> new OpenAiNewsWriter(properties()).write(List.of(research("뉴스 제목"))))
+    assertThatThrownBy(
+            () ->
+                new OpenAiNewsWriter(
+                        properties(), org.springframework.web.client.RestClient.builder())
+                    .write(List.of(research("뉴스 제목"))))
         .isInstanceOf(BusinessException.class);
 
     assertThat(server.getRequestCount()).isEqualTo(2);
@@ -179,7 +186,8 @@ class OpenAiNewsGeneratorTest {
     server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
 
     List<GeneratedEconomicNews> generated =
-        new OpenAiNewsWriter(properties()).write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
 
     assertThat(generated).hasSize(1);
     assertThat(generated.getFirst().title()).isEqualTo("첫 번째 뉴스");
@@ -211,7 +219,8 @@ class OpenAiNewsGeneratorTest {
                 new NewsSourceInfo("출처 2", "https://example.com/2")));
 
     List<GeneratedEconomicNews> generated =
-        new OpenAiNewsWriter(properties()).write(List.of(research));
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(research));
 
     assertThat(generated).hasSize(1);
     assertThat(server.getRequestCount()).isEqualTo(1);
@@ -220,7 +229,8 @@ class OpenAiNewsGeneratorTest {
   private OpenAiNewsGenerator newGenerator() {
     OpenAiProperties properties = properties();
     return new OpenAiNewsGenerator(
-        new OpenAiNewsResearcher(properties), new OpenAiNewsWriter(properties));
+        new OpenAiNewsResearcher(properties, org.springframework.web.client.RestClient.builder()),
+        new OpenAiNewsWriter(properties, org.springframework.web.client.RestClient.builder()));
   }
 
   private OpenAiProperties properties() {

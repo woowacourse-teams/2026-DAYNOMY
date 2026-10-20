@@ -30,14 +30,15 @@ public class InvestmentCalendarHistoricalPriceClient {
 
   public InvestmentCalendarHistoricalPriceClient(
       PublicDataProperties publicDataProperties,
-      InvestmentCalendarExternalProperties calendarProperties) {
+      InvestmentCalendarExternalProperties calendarProperties,
+      RestClient.Builder restClientBuilder) {
     this.publicDataProperties = publicDataProperties;
     this.stockClient =
         InvestmentCalendarHttpClientFactory.create(
-            publicDataProperties.stockPriceUrl(), calendarProperties);
+            publicDataProperties.stockPriceUrl(), calendarProperties, restClientBuilder);
     this.etfClient =
         InvestmentCalendarHttpClientFactory.create(
-            publicDataProperties.etfPriceUrl(), calendarProperties);
+            publicDataProperties.etfPriceUrl(), calendarProperties, restClientBuilder);
   }
 
   public List<HistoricalPrice> fetch(

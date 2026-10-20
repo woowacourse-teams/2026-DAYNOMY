@@ -50,7 +50,9 @@ class OpenDartEarningsProviderTest {
                 """));
     server.enqueue(zipResponse(advanceDocument()));
 
-    var provider = new OpenDartEarningsProvider(properties());
+    var provider =
+        new OpenDartEarningsProvider(
+            properties(), org.springframework.web.client.RestClient.builder());
 
     var entries = provider.fetch(LocalDate.of(2026, 10, 6), 5, 30);
 
@@ -78,7 +80,9 @@ class OpenDartEarningsProviderTest {
                 """));
     server.enqueue(zipResponse(resultDocument()));
 
-    var provider = new OpenDartEarningsProvider(properties());
+    var provider =
+        new OpenDartEarningsProvider(
+            properties(), org.springframework.web.client.RestClient.builder());
 
     var entries = provider.fetch(LocalDate.of(2026, 10, 21), 5, 30);
 
@@ -110,7 +114,9 @@ class OpenDartEarningsProviderTest {
     server.enqueue(zipResponse(advanceDocument()));
 
     var entries =
-        new OpenDartEarningsProvider(properties()).fetch(LocalDate.of(2026, 10, 6), 5, 30);
+        new OpenDartEarningsProvider(
+                properties(), org.springframework.web.client.RestClient.builder())
+            .fetch(LocalDate.of(2026, 10, 6), 5, 30);
 
     assertThat(entries)
         .extracting(entry -> entry.relatedAssetCode())

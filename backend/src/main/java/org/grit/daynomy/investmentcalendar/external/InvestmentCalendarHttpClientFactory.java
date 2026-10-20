@@ -10,11 +10,15 @@ final class InvestmentCalendarHttpClientFactory {
 
   private InvestmentCalendarHttpClientFactory() {}
 
-  static RestClient create(String baseUrl, InvestmentCalendarExternalProperties properties) {
+  static RestClient create(
+      String baseUrl,
+      InvestmentCalendarExternalProperties properties,
+      RestClient.Builder restClientBuilder) {
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(Math.toIntExact(properties.connectTimeout().toMillis()));
     requestFactory.setReadTimeout(Math.toIntExact(properties.readTimeout().toMillis()));
-    return RestClient.builder()
+    return restClientBuilder
+        .clone()
         .baseUrl(baseUrl)
         .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
         .requestFactory(requestFactory)

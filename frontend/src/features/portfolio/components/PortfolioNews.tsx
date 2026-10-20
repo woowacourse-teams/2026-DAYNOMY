@@ -4,7 +4,7 @@ import { trackLoadResult, useContentImpression, useContentView } from '../../new
 import { useEffect, useRef, useState } from 'react';
 import { getStockRelatedContents } from '../../stock-content/api';
 import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../../stock-content/types';
-import { feedDate, youtubeId } from '../../news/issue/feed';
+import { feedDate, youtubeThumbnail } from '../../news/issue/feed';
 import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 
@@ -12,9 +12,7 @@ type NewsItem = StockRelatedContent & { assets: string[] };
 
 function NewsThumbnail({ item }: { item: NewsItem }) {
   const sourceName = STOCK_CONTENT_SOURCE_LABELS[item.sourceType];
-  const videoId = item.sourceType === 'YOUTUBE' ? youtubeId(item.url) : null;
-  const imageUrl =
-    item.imageUrl ?? (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null);
+  const imageUrl = item.sourceType === 'YOUTUBE' ? youtubeThumbnail(item.url) : item.imageUrl;
 
   return (
     <span
@@ -218,13 +216,16 @@ export function PortfolioNews({
           <li key={item.url}>
             <a
               onClick={() =>
-                trackEvent('click_content', {
-                  surface: 'portfolio_news',
-                  content_id: `content-${item.id}`,
-                  content_type: item.sourceType === 'INTERNAL_NEWS' ? 'news' : 'external',
-                  source_type: item.sourceType === 'INTERNAL_NEWS' ? 'DAYNOMY' : item.sourceType,
-                  position: index + 1,
-                })
+                trackEvent(
+                  item.sourceType === 'INTERNAL_NEWS' ? 'click_content' : 'click_content_original',
+                  {
+                    surface: 'portfolio_news',
+                    content_id: `content-${item.id}`,
+                    content_type: item.sourceType === 'INTERNAL_NEWS' ? 'news' : 'external',
+                    source_type: item.sourceType === 'INTERNAL_NEWS' ? 'DAYNOMY' : item.sourceType,
+                    position: index + 1,
+                  },
+                )
               }
               href={item.url}
               target={item.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}

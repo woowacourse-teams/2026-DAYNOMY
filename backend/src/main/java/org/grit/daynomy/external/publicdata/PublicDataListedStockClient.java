@@ -20,13 +20,14 @@ public class PublicDataListedStockClient {
   private final PublicDataProperties properties;
   private final RestClient restClient;
 
-  public PublicDataListedStockClient(PublicDataProperties properties) {
+  public PublicDataListedStockClient(
+      PublicDataProperties properties, RestClient.Builder restClientBuilder) {
     this.properties = properties;
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(toMillis(properties.connectTimeout()));
     requestFactory.setReadTimeout(toMillis(properties.readTimeout()));
     this.restClient =
-        RestClient.builder()
+        restClientBuilder
             .baseUrl(properties.listedStockUrl())
             .requestFactory(requestFactory)
             .build();

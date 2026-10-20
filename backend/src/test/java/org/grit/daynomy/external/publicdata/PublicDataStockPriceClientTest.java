@@ -65,7 +65,8 @@ class PublicDataStockPriceClientTest {
                 "https://example.com/etf-prices",
                 "https://example.com/listed-stocks",
                 null,
-                null));
+                null),
+            org.springframework.web.client.RestClient.builder());
 
     var response = client.getStockPrices(LocalDate.of(2026, 9, 18), StockMarket.KOSPI, 2, 1000);
 
@@ -116,7 +117,8 @@ class PublicDataStockPriceClientTest {
                 "https://example.com/etf-prices",
                 "https://example.com/listed-stocks",
                 null,
-                null));
+                null),
+            org.springframework.web.client.RestClient.builder());
 
     assertThatThrownBy(
             () -> client.getStockPrices(LocalDate.of(2026, 9, 18), StockMarket.KOSPI, 1, 1000))
@@ -145,7 +147,8 @@ class PublicDataStockPriceClientTest {
         new PublicDataStockPriceClient(
             new PublicDataProperties(
                 "abc%2Fdef%2Bghi%3D%3D",
-                "https://example.com", "https://example.com", "https://example.com", null, null));
+                "https://example.com", "https://example.com", "https://example.com", null, null),
+            org.springframework.web.client.RestClient.builder());
 
     assertThat(client.normalizedServiceKey()).isEqualTo("abc/def+ghi==");
   }
@@ -160,7 +163,8 @@ class PublicDataStockPriceClientTest {
                 "https://example.com",
                 "https://example.com",
                 null,
-                null));
+                null),
+            org.springframework.web.client.RestClient.builder());
 
     assertThat(client.normalizedServiceKey()).isEqualTo("abc/def+ghi==");
   }
