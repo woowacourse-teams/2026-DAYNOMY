@@ -36,6 +36,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
+import org.grit.daynomy.portfolio.service.PortfolioPriceHistoryService;
 import org.grit.daynomy.portfolio.service.PortfolioSnapshotService;
 import org.grit.daynomy.portfolio.service.SavedPortfolioService;
 import org.junit.jupiter.api.AfterEach;
@@ -69,6 +70,7 @@ class SavedPortfolioControllerTest {
   @Autowired private MockMvc mockMvc;
   @MockitoBean private SavedPortfolioService savedPortfolioService;
   @MockitoBean private PortfolioSnapshotService snapshotService;
+  @MockitoBean private PortfolioPriceHistoryService priceHistoryService;
   private MockedStatic<Clock> clocks;
 
   @BeforeEach
@@ -84,6 +86,21 @@ class SavedPortfolioControllerTest {
     var member = new AuthenticatedMember(3L, MemberRole.USER);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken(member, null, List.of()));
+  }
+
+  @Test
+  void preparePerformanceUsesAuthenticatedMemberAndReturnsCollectionStatus() throws Exception {
+    given(
+            priceHistoryService.prepare(
+                3L, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 14), true))
+        .willReturn(PortfolioPriceHistoryService.Status.PROCESSING);
+
+    mockMvc
+        .perform(
+            post(
+                "/api/users/me/portfolio/performance/prepare?from=2026-10-01&to=2026-10-14&retry=true"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("PROCESSING"));
   }
 
   @AfterEach

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -66,6 +67,51 @@ class EodhdClientTest {
     var request = server.takeRequest();
     assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/api/eod-bulk-last-day/US");
     assertThat(request.getRequestUrl().queryParameter("date")).isEqualTo("2026-10-16");
+  }
+
+  @Test
+  void fetchesUsHistoricalCloseForRequestedDateRange() throws Exception {
+    json(
+        """
+        [{"date":"2026-01-02","close":271.1234,"adjusted_close":260.0}]
+        """);
+
+    assertThat(
+            client.getHistoricalPrices("AAPL", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 9)))
+        .singleElement()
+        .satisfies(price -> assertThat(price.close()).isEqualByComparingTo("271.1234"));
+    var request = server.takeRequest();
+    assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/api/eod/AAPL");
+    assertThat(request.getRequestUrl().queryParameter("from")).isEqualTo("2026-01-01");
+    assertThat(request.getRequestUrl().queryParameter("to")).isEqualTo("2026-01-09");
+  }
+
+  @Test
+  void fetchesOnlyOfficialUsMarketClosures() throws Exception {
+    json(
+        """
+        {"Code":"US","ExchangeHolidays":{
+          "0":{"Date":"2026-01-01","Type":"official"},
+          "1":{"Date":"2026-01-02","Type":"Bank"},
+          "2":{"Date":"2026-01-05","Type":"EarlyClose"}
+        }}
+        """);
+
+    assertThat(client.getUsMarketHolidays(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 9)))
+        .isEqualTo(Set.of(LocalDate.of(2026, 1, 1)));
+    var request = server.takeRequest();
+    assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/api/exchange-details/US");
+    assertThat(request.getRequestUrl().queryParameter("from")).isEqualTo("2026-01-01");
+    assertThat(request.getRequestUrl().queryParameter("to")).isEqualTo("2026-01-09");
+  }
+
+  @Test
+  void rejectsMissingUsHolidayCalendar() {
+    json("{\"Code\":\"US\"}");
+
+    assertThatThrownBy(
+            () -> client.getUsMarketHolidays(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 9)))
+        .isInstanceOf(BusinessException.class);
   }
 
   @ParameterizedTest

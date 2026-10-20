@@ -41,4 +41,23 @@ class PortfolioExchangeRateServiceTest {
         .isEmpty();
     verifyNoInteractions(prices, rates);
   }
+
+  @Test
+  void snapshotUsesOnlyCurrentAndPreviousHistoricalRateDates() {
+    var prices = mock(StockDailyPriceRepository.class);
+    var histories = mock(PortfolioHoldingHistoryRepository.class);
+    var rates = mock(ExchangeRateService.class);
+    var service = new PortfolioExchangeRateService(prices, histories, rates);
+    LocalDate previous = LocalDate.of(2026, 9, 28);
+    LocalDate current = LocalDate.of(2026, 9, 30);
+    var expectedDates = List.of(previous, current);
+    var expectedRates = Map.of(previous, new BigDecimal("1320"), current, new BigDecimal("1300"));
+    when(histories.findAssetIdsByPortfolioId(10L)).thenReturn(List.of(2L));
+    when(prices.findBaseDatesByAssetIdsAndMarkets(List.of(2L), StockMarket.usMarkets()))
+        .thenReturn(List.of(previous.minusDays(1), previous, current));
+    when(rates.ratesForDates(expectedDates)).thenReturn(expectedRates);
+
+    assertThat(service.forSnapshot(10L, current, previous)).isEqualTo(expectedRates);
+    verify(rates).ratesForDates(expectedDates);
+  }
 }
