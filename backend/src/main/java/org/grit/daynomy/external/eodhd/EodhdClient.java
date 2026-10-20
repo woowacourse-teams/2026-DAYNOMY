@@ -3,6 +3,7 @@ package org.grit.daynomy.external.eodhd;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.eodhd.dto.EodhdDailyPrice;
@@ -61,6 +62,29 @@ public class EodhdClient {
                           .queryParam("fmt", "json")
                           .queryParam("date", date)
                           .build(properties.apiToken()))
+              .retrieve()
+              .body(EodhdDailyPrice[].class);
+      return validatedList(result);
+    } catch (RestClientException exception) {
+      throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+    }
+  }
+
+  public List<EodhdDailyPrice> getHistoricalPrices(String assetCode, LocalDate from, LocalDate to) {
+    requireToken();
+    try {
+      EodhdDailyPrice[] result =
+          restClient
+              .get()
+              .uri(
+                  builder ->
+                      builder
+                          .path("/eod/{assetCode}")
+                          .queryParam("api_token", "{token}")
+                          .queryParam("fmt", "json")
+                          .queryParam("from", from)
+                          .queryParam("to", to)
+                          .build(Map.of("assetCode", assetCode, "token", properties.apiToken())))
               .retrieve()
               .body(EodhdDailyPrice[].class);
       return validatedList(result);

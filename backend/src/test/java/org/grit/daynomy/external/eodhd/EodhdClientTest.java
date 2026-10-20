@@ -68,6 +68,23 @@ class EodhdClientTest {
     assertThat(request.getRequestUrl().queryParameter("date")).isEqualTo("2026-10-16");
   }
 
+  @Test
+  void fetchesUsHistoricalCloseForRequestedDateRange() throws Exception {
+    json(
+        """
+        [{"date":"2026-01-02","close":271.1234,"adjusted_close":260.0}]
+        """);
+
+    assertThat(
+            client.getHistoricalPrices("AAPL", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 9)))
+        .singleElement()
+        .satisfies(price -> assertThat(price.close()).isEqualByComparingTo("271.1234"));
+    var request = server.takeRequest();
+    assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/api/eod/AAPL");
+    assertThat(request.getRequestUrl().queryParameter("from")).isEqualTo("2026-01-01");
+    assertThat(request.getRequestUrl().queryParameter("to")).isEqualTo("2026-01-09");
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {401, 403, 429, 500})
   void hidesTokenAndBodyWhenRequestFails(int status) {
