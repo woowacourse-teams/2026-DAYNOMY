@@ -284,6 +284,28 @@ export async function getPortfolioPerformance(from: string, to: string, signal?:
   return response as PortfolioPerformanceResponse;
 }
 
+export async function preparePortfolioPerformance(
+  from: string,
+  to: string,
+  retry = false,
+  signal?: AbortSignal,
+): Promise<'READY' | 'PROCESSING' | 'FAILED'> {
+  const query = new URLSearchParams({ from, to, ...(retry ? { retry: 'true' } : {}) });
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/performance/prepare?${query}`,
+    { method: 'POST', signal },
+  );
+  if (
+    !isRecord(response) ||
+    (response.status !== 'READY' &&
+      response.status !== 'PROCESSING' &&
+      response.status !== 'FAILED')
+  ) {
+    throw new Error('종가 수집 상태를 확인하지 못했습니다.');
+  }
+  return response.status;
+}
+
 export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortSignal) {
   const analysisRequest: PortfolioAnalysisRequest = { assets };
   const response = await request<unknown>('/api/portfolio/analysis', {

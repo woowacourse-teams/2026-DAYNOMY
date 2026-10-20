@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
-import { getPortfolioPerformance } from '../api';
+import { getPortfolioPerformance, preparePortfolioPerformance } from '../api';
 import { todayInSeoul } from '../transactionForm';
 import { getTrendPeriodStart } from '../trendDates';
 import type {
@@ -64,13 +64,26 @@ export function usePortfolioPerformance(
     }
 
     const controller = new AbortController();
+    let pollTimer: number | undefined;
     const to = todayInSeoul();
     const from = getTrendPeriodStart(to, period);
     setLoading(true);
     setError('');
 
-    getPortfolioPerformance(from, to, controller.signal)
-      .then((response) => {
+    async function load(retry = false) {
+      let pending = false;
+      try {
+        const status = await preparePortfolioPerformance(from, to, retry, controller.signal);
+        if (controller.signal.aborted) return;
+        if (status === 'PROCESSING') {
+          pending = true;
+          pollTimer = window.setTimeout(() => void load(), 2_000);
+          return;
+        }
+        if (status === 'FAILED') {
+          throw new Error('과거 종가를 가져오지 못했습니다. 다시 시도해 주세요.');
+        }
+        const response = await getPortfolioPerformance(from, to, controller.signal);
         if (controller.signal.aborted) return;
         setPoints(
           [
@@ -80,8 +93,7 @@ export function usePortfolioPerformance(
             ...(response.currentPoint ? [response.currentPoint] : []),
           ].sort((left, right) => left.baseDate.localeCompare(right.baseDate)),
         );
-      })
-      .catch((caughtError: unknown) => {
+      } catch (caughtError) {
         if (controller.signal.aborted) return;
         trackPortfolioEvent('portfolio_dashboard_load_failed', {
           stage: 'chart',
@@ -91,12 +103,17 @@ export function usePortfolioPerformance(
         setError(
           caughtError instanceof Error ? caughtError.message : '자산 추이를 불러오지 못했습니다.',
         );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+      } finally {
+        if (!controller.signal.aborted && !pending) setLoading(false);
+      }
+    }
 
-    return () => controller.abort();
+    void load(retryCount > 0);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(pollTimer);
+    };
   }, [enabled, holdingKey, holdings.length, period, retryCount, revision]);
 
   return {

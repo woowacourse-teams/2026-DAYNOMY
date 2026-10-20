@@ -1,10 +1,16 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getPortfolioPerformance } from '../../src/features/portfolio/api';
+import {
+  getPortfolioPerformance,
+  preparePortfolioPerformance,
+} from '../../src/features/portfolio/api';
 import { usePortfolioPerformance } from '../../src/features/portfolio/hooks/usePortfolioPerformance';
 
-vi.mock('../../src/features/portfolio/api', () => ({ getPortfolioPerformance: vi.fn() }));
+vi.mock('../../src/features/portfolio/api', () => ({
+  getPortfolioPerformance: vi.fn(),
+  preparePortfolioPerformance: vi.fn(),
+}));
 vi.mock('../../src/features/portfolio/analytics', () => ({
   trackPortfolioEvent: vi.fn(),
   portfolioErrorType: vi.fn(),
@@ -36,6 +42,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-10-19T14:59:30Z'));
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
   vi.mocked(getPortfolioPerformance).mockResolvedValue(response);
+  vi.mocked(preparePortfolioPerformance).mockResolvedValue('READY');
 });
 afterEach(() => {
   cleanup();
@@ -45,6 +52,42 @@ afterEach(() => {
 });
 
 describe('자산 추이 자동 갱신', () => {
+  it('과거 종가 수집이 끝날 때까지 기다린 뒤 차트를 조회한다', async () => {
+    vi.mocked(preparePortfolioPerformance)
+      .mockResolvedValueOnce('PROCESSING')
+      .mockResolvedValueOnce('READY');
+    const { result } = renderHook(() => usePortfolioPerformance('1M', []));
+    await flush();
+    expect(result.current.loading).toBe(true);
+    expect(getPortfolioPerformance).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(getPortfolioPerformance).toHaveBeenCalledTimes(1);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('수집 실패를 표시하고 다시 시도할 수 있다', async () => {
+    vi.mocked(preparePortfolioPerformance)
+      .mockResolvedValueOnce('FAILED')
+      .mockResolvedValueOnce('READY');
+    const { result } = renderHook(() => usePortfolioPerformance('1M', []));
+    await flush();
+    expect(result.current.error).toContain('과거 종가');
+    expect(getPortfolioPerformance).not.toHaveBeenCalled();
+
+    await act(async () => result.current.retry());
+    await flush();
+    expect(preparePortfolioPerformance).toHaveBeenLastCalledWith(
+      '2026-09-19',
+      '2026-10-19',
+      true,
+      expect.any(AbortSignal),
+    );
+    expect(getPortfolioPerformance).toHaveBeenCalledTimes(1);
+  });
+
   it('서울 자정이 지나면 새 날짜 범위로 스냅샷을 다시 조회한다', async () => {
     renderHook(() => usePortfolioPerformance('1M', []));
     await flush();

@@ -101,6 +101,8 @@ beforeEach(() => {
       if (url.includes('/api/stocks?')) return json({ stocks: [stock] });
       if (url.includes('/api/portfolio/histories?'))
         return failedHistories ? json({ message: '거래 조회 실패' }, 503) : json(histories);
+      if (url.includes('/api/users/me/portfolio/performance/prepare?'))
+        return json({ status: 'READY' });
       if (url.includes('/api/users/me/portfolio/performance?'))
         return failedPerformance
           ? json({ message: '추이 조회 실패' }, 503)
@@ -750,12 +752,17 @@ describe('거래 원장 화면', () => {
     const view = await ready();
     await view.findByRole('img', { name: /평가금액 750,000원/ });
     let resolvePrevious!: (response: Response) => void;
-    vi.mocked(fetch).mockImplementationOnce(
-      () =>
-        new Promise<Response>((resolve) => {
+    const regularFetch = vi.mocked(fetch).getMockImplementation()!;
+    let delayNextPerformance = true;
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      if (delayNextPerformance && String(input).includes('/performance?')) {
+        delayNextPerformance = false;
+        return new Promise<Response>((resolve) => {
           resolvePrevious = resolve;
-        }),
-    );
+        });
+      }
+      return regularFetch(input, init);
+    });
     const before = performanceRequests();
     fireEvent.click(view.getByRole('button', { name: '자산 추이 새로고침' }));
     await waitFor(() => expect(performanceRequests()).toBeGreaterThan(before));
