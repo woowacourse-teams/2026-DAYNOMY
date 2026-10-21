@@ -1,6 +1,7 @@
 package org.grit.daynomy.portfolio.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -15,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
+import java.util.stream.Stream;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.MarketTradingDay;
@@ -23,6 +25,8 @@ import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.eodhd.EodhdClient;
 import org.grit.daynomy.external.eodhd.dto.EodhdDailyPrice;
 import org.grit.daynomy.external.krx.KrxCalendarClient;
@@ -35,6 +39,8 @@ import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -209,6 +215,55 @@ class PortfolioPriceHistoryServiceTest {
     then(domesticClient).should().fetch(AssetCategory.STOCK, "AAPL", from, to);
     then(usClient).shouldHaveNoInteractions();
     then(snapshotService).should().createSnapshot(3L, from, null);
+  }
+
+  @Test
+  void reportsCalendarFailureEvenForCoveredPricesAndRecoversOnExplicitRetry() {
+    ReflectionTestUtils.setField(asset, "market", StockMarket.KOSPI);
+    asset.recordPriceHistoryCoverage(from, to);
+    given(krxCalendarClient.holidays(to.plusDays(1).getYear()))
+        .willThrow(new BusinessException(ExternalErrorCode.KRX_CALENDAR_REQUEST_FAILED))
+        .willReturn(Set.of());
+
+    assertThat(service.prepare(2L, from, to, false))
+        .isEqualTo(PortfolioPriceHistoryService.Status.FAILED);
+    assertThat(service.prepare(2L, from, to, false))
+        .isEqualTo(PortfolioPriceHistoryService.Status.FAILED);
+    then(krxCalendarClient).should().holidays(to.plusDays(1).getYear());
+    then(assetRepository).shouldHaveNoInteractions();
+    then(taskScheduler).shouldHaveNoInteractions();
+    then(domesticClient).shouldHaveNoInteractions();
+    then(priceRepository).shouldHaveNoInteractions();
+
+    assertThat(service.prepare(2L, from, to, true))
+        .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
+    ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
+    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    job.getValue().run();
+
+    assertThat(service.prepare(2L, from, to, false))
+        .isEqualTo(PortfolioPriceHistoryService.Status.READY);
+    then(domesticClient).shouldHaveNoInteractions();
+  }
+
+  @ParameterizedTest
+  @MethodSource("unrelatedPreparationFailures")
+  void propagatesUnrelatedFailuresWithoutMarkingJobFailed(RuntimeException failure) {
+    ReflectionTestUtils.setField(asset, "market", StockMarket.KOSPI);
+    given(krxCalendarClient.holidays(to.plusDays(1).getYear()))
+        .willThrow(failure)
+        .willReturn(Set.of());
+
+    assertThatThrownBy(() -> service.prepare(2L, from, to, false)).isSameAs(failure);
+    then(taskScheduler).shouldHaveNoInteractions();
+    assertThat(service.prepare(2L, from, to, false))
+        .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
+  }
+
+  private static Stream<RuntimeException> unrelatedPreparationFailures() {
+    return Stream.of(
+        new BusinessException(ExternalErrorCode.PUBLIC_DATA_API_REQUEST_FAILED),
+        new IllegalStateException("Unexpected calendar failure"));
   }
 
   @Test

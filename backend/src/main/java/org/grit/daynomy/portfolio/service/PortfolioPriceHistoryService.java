@@ -23,6 +23,7 @@ import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.eodhd.EodhdClient;
 import org.grit.daynomy.external.krx.KrxCalendarClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient;
@@ -82,7 +83,14 @@ public class PortfolioPriceHistoryService {
     if (job == JobStatus.PROCESSING) return Status.PROCESSING;
     if (job == JobStatus.FAILED && !retry) return Status.FAILED;
 
-    List<Target> targets = targets(portfolioId, from, to);
+    List<Target> targets;
+    try {
+      targets = targets(portfolioId, from, to);
+    } catch (BusinessException exception) {
+      if (exception.errorCode() != ExternalErrorCode.KRX_CALENDAR_REQUEST_FAILED) throw exception;
+      jobs.put(portfolioId, JobStatus.FAILED);
+      return Status.FAILED;
+    }
     boolean hasMissingCoverage =
         targets.stream()
             .anyMatch(
