@@ -1208,25 +1208,38 @@ class SharedPortfolioAcceptanceTest {
             .extract();
     long reviewId = savedReview.jsonPath().getLong("id");
     String createdAt = savedReview.path("createdAt");
+    assertThat(savedReview.<String>path("updatedAt")).isEqualTo(createdAt);
     String reviewPath = "/api/users/me/portfolio/decisions/" + id + "/reviews/" + reviewId;
-    String revisedReview = review.replace("예상을 점검했습니다", "결과를 다시 확인했습니다");
-    client(viewer).body(revisedReview).put(reviewPath).then().statusCode(404);
     client(owner)
-        .body(revisedReview)
+        .body(review)
         .put(reviewPath)
         .then()
         .statusCode(200)
-        .header("Cache-Control", "no-store")
-        .body("actualResult", equalTo("결과를 다시 확인했습니다"))
         .body("createdAt", equalTo(createdAt))
-        .body("updatedAt", notNullValue());
+        .body("updatedAt", equalTo(createdAt));
+    String revisedReview = review.replace("예상을 점검했습니다", "결과를 다시 확인했습니다");
+    client(viewer).body(revisedReview).put(reviewPath).then().statusCode(404);
+    String updatedAt =
+        client(owner)
+            .body(revisedReview)
+            .put(reviewPath)
+            .then()
+            .statusCode(200)
+            .header("Cache-Control", "no-store")
+            .body("actualResult", equalTo("결과를 다시 확인했습니다"))
+            .body("createdAt", equalTo(createdAt))
+            .extract()
+            .path("updatedAt");
+    assertThat(Instant.parse(updatedAt)).isAfter(Instant.parse(createdAt));
     client(owner)
         .get("/api/users/me/portfolio/transactions")
         .then()
         .statusCode(200)
         .body("transactions", hasSize(1))
         .body("transactions[0].reviews", hasSize(1))
-        .body("transactions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"));
+        .body("transactions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"))
+        .body("transactions[0].reviews[0].createdAt", equalTo(createdAt))
+        .body("transactions[0].reviews[0].updatedAt", equalTo(updatedAt));
     String publicId =
         client(owner)
             .body(
@@ -1282,6 +1295,8 @@ class SharedPortfolioAcceptanceTest {
         .body("decisions[0].reason", equalTo("실적을 확인한 보유 판단"))
         .body("decisions[0].reviews", hasSize(1))
         .body("decisions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"))
+        .body("decisions[0].reviews[0].createdAt", equalTo(createdAt))
+        .body("decisions[0].reviews[0].updatedAt", equalTo(updatedAt))
         .body("email", nullValue())
         .body("name", nullValue());
     client(viewer).get(detail).then().statusCode(200).body("decisions", hasSize(1));

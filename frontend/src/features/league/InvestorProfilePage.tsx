@@ -3,7 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { followInvestor, getInvestorDetail, getPublicInvestor, unfollowInvestor } from './api';
-import { collectionLabels, formatRate, transactionLabels } from './labels';
+import { collectionLabels, formatRate, reviewDateLabel, transactionLabels } from './labels';
 import { ReturnLine } from './ReturnLine';
 import { DailyReturns } from './DailyReturns';
 import { InvestorAvatar } from './InvestorAvatar';
@@ -431,13 +431,7 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                       <p>{review.actualResult}</p>
                       <p>예상과 달랐던 점: {review.differenceFromExpectation}</p>
                       <small>다음 행동: {review.nextAction}</small>
-                      {review.updatedAt ? (
-                        <small>
-                          {' '}
-                          · 작성 {review.createdAt.slice(0, 10)} · 마지막 저장{' '}
-                          {review.updatedAt.slice(0, 10)}
-                        </small>
-                      ) : null}
+                      <small> · {reviewDateLabel(review)}</small>
                     </blockquote>
                   ))}
                 </li>

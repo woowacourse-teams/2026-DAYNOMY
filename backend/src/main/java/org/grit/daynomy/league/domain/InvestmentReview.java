@@ -8,18 +8,21 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.grit.daynomy.common.BaseEntity;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "investment_reviews")
-public class InvestmentReview extends BaseEntity {
+public class InvestmentReview {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,6 +40,24 @@ public class InvestmentReview extends BaseEntity {
 
   @Column(name = "next_action", nullable = false, length = 500)
   private String nextAction;
+
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt;
+
+  @Column(name = "updated_at", nullable = false)
+  private Instant updatedAt;
+
+  // 최초 작성 시 생성·수정 시각의 차이로 수정됨을 오인하지 않도록 함께 설정한다.
+  @PrePersist
+  void initializeTimestamps() {
+    createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+    updatedAt = createdAt;
+  }
+
+  @PreUpdate
+  void updateTimestamp() {
+    updatedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+  }
 
   public InvestmentReview(
       InvestmentDecision transaction,
