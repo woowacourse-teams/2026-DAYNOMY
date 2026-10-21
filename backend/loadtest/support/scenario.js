@@ -3,12 +3,14 @@ import { check, sleep } from "k6";
 import exec from "k6/execution";
 import { prepare } from "./prepare.js";
 import { createReport } from "./report.js";
+import { createStressVerification } from "./stress-verification.js";
 
 // Both entry files use the same workload, validation and stop conditions.
 export function createScenario(config, users, warmups) {
   const context = prepare(config, users, warmups);
-  const { version, origin, tradeDate, rps, rpm, expected } = context;
+  const { version, origin, tradeDate, rps, rpm, expected, stress } = context;
   const report = createReport(context);
+  const verification = stress ? createStressVerification(context) : null;
   const {
     duration,
     warmupDuration,
@@ -89,7 +91,12 @@ export function createScenario(config, users, warmups) {
           Number.isInteger(body.transactionId) &&
           body.transactionId > 0 &&
           body.holding?.assetId === user.assetId &&
-          body.holding?.quantity === user.initialQuantity + completed + 1,
+          (stress && phase === "measure"
+            ? Number.isInteger(body.holding?.quantity) &&
+              body.holding.quantity > user.initialQuantity &&
+              body.holding.quantity <=
+                user.initialQuantity + Math.ceil(expected / users.length)
+            : body.holding?.quantity === user.initialQuantity + completed + 1),
       },
       tags,
     );
@@ -98,7 +105,14 @@ export function createScenario(config, users, warmups) {
       success.add(valid ? 1 : 0, tags);
     }
     if (phase === "warmup" && valid) warmupCompleted.add(1, tags);
-    if (!valid)
+    if (
+      !valid &&
+      (!stress ||
+        phase === "warmup" ||
+        response.status === 201 ||
+        response.status === 401 ||
+        response.status === 403)
+    )
       abort(
         response.status === 201
           ? "response_mismatch"
@@ -125,6 +139,7 @@ export function createScenario(config, users, warmups) {
       response.cookies["XSRF-TOKEN"]?.[0]?.value !== csrf.token
     )
       abort("csrf_invalid");
+    const baseline = verification?.capture();
     // CookieCsrfTokenRepository is cookie-based, not member-session based.
     // Each VU receives the matching CSRF cookie/header; auth cookies are switched per planned account.
     const deadline = Date.now() + config.warmupSeconds * 1000;
@@ -142,6 +157,7 @@ export function createScenario(config, users, warmups) {
       csrf: { token: csrf.token, headerName: csrf.headerName },
       warmupCounts: counts,
       measurementStartedAt: new Date().toISOString(),
+      ...(stress ? { baseline } : {}),
     };
   }
   function run(data) {
@@ -164,11 +180,13 @@ export function createScenario(config, users, warmups) {
       trade_date: tradeDate,
       rps: String(rps),
       run: config.run,
+      ...(stress ? { workload: "stress_hot_accounts" } : {}),
       ...(__ENV.LOADTEST_ID
         ? { testid: __ENV.LOADTEST_ID, environment: "dev", service: "k6" }
         : {}),
     },
-    setupTimeout: `${config.warmupSeconds + 4 * config.requestTimeoutSeconds + 10}s`,
+    setupTimeout: `${config.warmupSeconds + (stress ? 120 : 4 * config.requestTimeoutSeconds + 10)}s`,
+    ...(stress ? { teardownTimeout: "3m" } : {}),
     noCookiesReset: true,
     summaryTrendStats: ["min", "avg", "med", "p(95)", "p(99)", "max"],
     scenarios: {
@@ -184,5 +202,16 @@ export function createScenario(config, users, warmups) {
     },
     thresholds: report.thresholds,
   };
-  return { setup, run, options, handleSummary: report.handleSummary };
+  function teardown(data) {
+    // A client timeout does not cancel server work. Such runs remain inconclusive.
+    sleep(2 * config.requestTimeoutSeconds);
+    verification.verify(data?.baseline);
+  }
+  return {
+    setup,
+    run,
+    options,
+    handleSummary: report.handleSummary,
+    ...(stress ? { teardown } : {}),
+  };
 }
