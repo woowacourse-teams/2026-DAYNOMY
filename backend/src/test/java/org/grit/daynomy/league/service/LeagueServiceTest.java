@@ -181,7 +181,7 @@ class LeagueServiceTest {
 
     then(calculationMetrics)
         .should()
-        .finalizationState(0, 1, tuesday.atTime(13, 0).atZone(seoul).toInstant());
+        .finalizationState(0, 1, tuesday.atTime(14, 0).atZone(seoul).toInstant());
     given(
             tradingDayRepository.findFirstByTradingTrueAndBaseDateGreaterThanOrderByBaseDateAsc(
                 friday))
