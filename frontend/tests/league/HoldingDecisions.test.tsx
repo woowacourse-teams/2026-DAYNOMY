@@ -306,9 +306,14 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
     });
   });
 
-  it.each(['decisions', 'reviews'] as const)(
-    '%s 화면에서 기존 복기를 수정하고 작성 시각과 판단은 유지한다',
-    async (surface) => {
+  it.each([
+    ['decisions', '2026-10-06T01:00:00Z', '2026-10-06'],
+    ['reviews', '2026-10-06T01:00:00Z', '2026-10-06'],
+    ['decisions', '2026-10-06T15:00:00Z', '2026-10-07'],
+    ['reviews', '2026-10-06T15:00:00Z', '2026-10-07'],
+  ] as const)(
+    '%s 화면에서 %s에 수정한 복기는 최신 수정일을 표시하고 판단을 유지한다',
+    async (surface, updatedAt, date) => {
       const original = {
         id: 2,
         actualResult: '기존 결과',
@@ -320,7 +325,7 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
       vi.mocked(api.updateReview).mockResolvedValue({
         ...original,
         actualResult: '수정한 결과',
-        updatedAt: '2026-10-07T00:00:00Z',
+        updatedAt,
       });
       const view =
         surface === 'decisions'
@@ -333,6 +338,7 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
       const trigger = await view.findByRole('button', {
         name: '삼성전자 2026-10-06 보유 기록 복기 수정',
       });
+      expect(view.getByText('작성 · 2026-10-06')).toBeTruthy();
       fireEvent.click(trigger);
       expect(trigger.getAttribute('aria-expanded')).toBe('true');
       fireEvent.click(view.getByRole('button', { name: '취소' }));
@@ -343,7 +349,7 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
       fireEvent.change(view.getByLabelText('실제 결과'), { target: { value: '수정한 결과' } });
       fireEvent.click(view.getByRole('button', { name: '수정 저장' }));
       expect(await view.findByText('수정한 결과')).toBeTruthy();
-      expect(view.getByText('작성 2026-10-06 · 마지막 저장 2026-10-07')).toBeTruthy();
+      expect(view.getByText(`수정됨 · ${date}`)).toBeTruthy();
       await waitFor(() => expect(document.activeElement).toBe(trigger));
       expect(api.updateReview).toHaveBeenCalledWith(1, 2, {
         actualResult: '수정한 결과',
@@ -362,6 +368,22 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
         status: 'submitted',
       });
       expect(view.getByText(saved.reason)).toBeTruthy();
+      vi.mocked(api.getInvestmentDecisions).mockResolvedValue([
+        {
+          ...saved,
+          reviews: [{ ...original, actualResult: '수정한 결과', updatedAt }],
+        },
+      ]);
+      view.unmount();
+      const reloaded =
+        surface === 'decisions'
+          ? renderRecords([holding])
+          : render(
+              <MemoryRouter>
+                <InvestmentReviewsPage />
+              </MemoryRouter>,
+            );
+      expect(await reloaded.findByText(`수정됨 · ${date}`)).toBeTruthy();
     },
   );
   it('보유 이유만 저장하고 선택 항목을 임의의 기간이나 하락률로 채우지 않는다', async () => {
