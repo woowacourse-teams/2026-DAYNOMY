@@ -645,27 +645,18 @@
   margin-top: 0;
 }
 
-.holding-pagination {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
-  margin: 20px 0 12px;
-}
-.shared-page .holding-pagination button {
-  min-width: 44px;
-  min-height: 44px;
-  padding: 8px;
+.shared-page .issue-pagination button {
+  padding: 0;
   border: 0;
-  border-radius: 6px;
+  background: transparent;
 }
-.shared-page .holding-pagination button[aria-current='page'] {
-  background: #edf1f8;
-  font-weight: 700;
+.shared-page .issue-pagination button[aria-current='page'] {
+  background: var(--button-action);
+  color: #fff;
 }
-.holding-page-status {
-  margin: 12px 0 0;
-  text-align: center;
+.shared-page .issue-pagination button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .holding-cards {
