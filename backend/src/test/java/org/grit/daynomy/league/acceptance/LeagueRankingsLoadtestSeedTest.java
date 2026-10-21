@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 
 import jakarta.persistence.EntityManagerFactory;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
@@ -16,7 +17,10 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.service.LeagueReturnService;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.BeforeEach;
@@ -129,6 +133,21 @@ class LeagueRankingsLoadtestSeedTest {
     assertThat(count("investment_reviews")).isBetween(1, 999);
     assertThat(count("portfolio_daily_returns")).isEqualTo(500);
     var publicIds = new HashSet<String>();
+    var reviewedIds =
+        new HashSet<>(
+            jdbc.queryForList("SELECT transaction_id FROM investment_reviews", Long.class));
+    Map<String, Integer> reviewedByInvestor = new HashMap<>();
+    jdbc.query(
+        """
+        SELECT profile.public_id, decision.id
+        FROM portfolio_transactions decision
+        JOIN shared_portfolios portfolio ON portfolio.id = decision.portfolio_id
+        JOIN public_investor_profiles profile ON profile.member_id = portfolio.member_id
+        """,
+        row -> {
+          reviewedByInvestor.merge(
+              row.getString(1), reviewedIds.contains(row.getLong(2)) ? 1 : 0, Integer::sum);
+        });
     var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
     for (int page = 0; page < 5; page++) {
       statistics.clear();
@@ -149,6 +168,14 @@ class LeagueRankingsLoadtestSeedTest {
               .extract()
               .response();
       assertThat(statistics.getPrepareStatementCount()).isBetween(1L, 20L);
+      assertThat(statistics.getEntityStatistics(InvestmentDecision.class.getName()).getLoadCount())
+          .isZero();
+      for (Map<String, Object> entry :
+          response.jsonPath().<Map<String, Object>>getList("rankings")) {
+        assertThat(new BigDecimal(entry.get("reviewCompletionRate").toString()))
+            .isEqualByComparingTo(
+                BigDecimal.valueOf(reviewedByInvestor.get(entry.get("publicId")) * 10L));
+      }
       publicIds.addAll(response.jsonPath().getList("rankings.publicId", String.class));
     }
     assertThat(publicIds).hasSize(100);

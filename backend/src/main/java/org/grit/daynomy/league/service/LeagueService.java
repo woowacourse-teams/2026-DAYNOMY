@@ -62,6 +62,7 @@ import org.grit.daynomy.league.dto.LeagueDto.ReviewResponse;
 import org.grit.daynomy.league.dto.LeagueDto.WeekResponse;
 import org.grit.daynomy.league.dto.LeagueDto.WeeksResponse;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionCounts;
 import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestmentReviewRepository;
 import org.grit.daynomy.league.repository.InvestorFollowRepository;
@@ -141,16 +142,32 @@ public class LeagueService {
             .orElse(null);
     Set<Long> followed = followedProfileIds(viewerMemberId);
     List<RankingEntryResponse> entries;
+    int totalCount;
     if (finalResult == null) {
       List<RankedProfile> profiles = rankedProfiles(weekStart, leagueType, true);
       List<Integer> ranks = ranks(profiles, leagueType);
+      totalCount = profiles.size();
+      int from = (int) Math.min((long) Math.max(0, page) * size, totalCount);
+      int to = Math.min(from + size, totalCount);
+      List<Long> memberIds =
+          profiles.subList(from, to).stream()
+              .map(ranked -> ranked.profile().getMember().getId())
+              .toList();
+      Map<Long, InvestmentDecisionCounts> counts =
+          memberIds.isEmpty()
+              ? Map.of()
+              : decisionRepository
+                  .findCountsByMemberIdInAndTradedOnLessThanEqual(memberIds, weekEnd)
+                  .stream()
+                  .collect(Collectors.toMap(InvestmentDecisionCounts::getMemberId, value -> value));
       entries =
-          IntStream.range(0, profiles.size())
+          IntStream.range(from, to)
               .mapToObj(
                   index ->
                       rankingEntry(
                           ranks.get(index),
                           profiles.get(index),
+                          counts.get(profiles.get(index).profile().getMember().getId()),
                           followed.contains(profiles.get(index).profile().getId())))
               .toList();
     } else {
@@ -168,17 +185,19 @@ public class LeagueService {
                           .orElse(null))
               .filter(Objects::nonNull)
               .toList();
+      totalCount = entries.size();
+      int from = (int) Math.min((long) Math.max(0, page) * size, totalCount);
+      int to = Math.min(from + size, totalCount);
+      entries = entries.subList(from, to);
     }
-    int from = (int) Math.min((long) Math.max(0, page) * size, entries.size());
-    int to = Math.min(from + size, entries.size());
     RankingResponse result =
         new RankingResponse(
             weekStart,
             weekEnd,
             leagueType,
             finalResult != null,
-            entries.size(),
-            entries.subList(from, to),
+            totalCount,
+            entries,
             finalResult == null ? asOfDate(weekStart) : finalResult.getAsOfDate(),
             finalResult == null ? null : finalResult.getCalculationVersion(),
             finalResult == null ? null : finalResult.getFinalizedAt(),
@@ -258,12 +277,7 @@ public class LeagueService {
                 ? List.<PortfolioDailyReturn>of()
                 : returnRepository.findLatestByPortfolioIdInAndBaseDateBetween(ids, from, end))
             .stream().collect(Collectors.groupingBy(value -> value.getPortfolio().getId()));
-    Map<Long, List<InvestmentDecision>> decisions =
-        decisionRepository
-            .findAllByPortfolioIdInAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(ids, end)
-            .stream()
-            .collect(Collectors.groupingBy(value -> value.getPortfolio().getId()));
-    Set<Long> reviewed = reviewRepository.findReviewedTransactionIds(ids, end);
+    // 순위와 무관한 판단·복기 통계는 페이지를 선택한 뒤 조회한다.
     return profiles.stream()
         .filter(profile -> byMember.containsKey(profile.getMember().getId()))
         .map(
@@ -275,8 +289,8 @@ public class LeagueService {
                   returns.getOrDefault(id, List.of()).stream()
                       .filter(value -> !value.getBaseDate().isBefore(started))
                       .toList();
-              return metrics(
-                  profile, week, values, decisions.getOrDefault(id, List.of()), reviewed);
+              return new RankedProfile(
+                  profile, calculateMetric(profile, values, week), 0, BigDecimal.ZERO);
             })
         .toList();
   }
@@ -1089,13 +1103,16 @@ public class LeagueService {
         transactions.stream()
             .filter(transaction -> reviewedIds.contains(transaction.getId()))
             .count();
-    BigDecimal completion =
-        transactions.isEmpty()
-            ? BigDecimal.ZERO.setScale(2)
-            : BigDecimal.valueOf(reviewed)
-                .multiply(HUNDRED)
-                .divide(BigDecimal.valueOf(transactions.size()), 2, RoundingMode.HALF_UP);
-    return new RankedProfile(profile, metric, transactions.size(), completion);
+    return new RankedProfile(
+        profile, metric, transactions.size(), reviewCompletionRate(transactions.size(), reviewed));
+  }
+
+  private BigDecimal reviewCompletionRate(long decisionCount, long reviewedCount) {
+    return decisionCount == 0
+        ? BigDecimal.ZERO.setScale(2)
+        : BigDecimal.valueOf(reviewedCount)
+            .multiply(HUNDRED)
+            .divide(BigDecimal.valueOf(decisionCount), 2, RoundingMode.HALF_UP);
   }
 
   private Metric calculateMetric(
@@ -1277,9 +1294,11 @@ public class LeagueService {
     return ranks;
   }
 
-  private RankingEntryResponse rankingEntry(int rank, RankedProfile ranked, boolean followed) {
+  private RankingEntryResponse rankingEntry(
+      int rank, RankedProfile ranked, InvestmentDecisionCounts counts, boolean followed) {
     InvestorProfile profile = ranked.profile();
     Metric metric = ranked.metric();
+    int decisionCount = counts == null ? 0 : Math.toIntExact(counts.getDecisionCount());
     return new RankingEntryResponse(
         rank,
         profile.getPublicId(),
@@ -1291,8 +1310,8 @@ public class LeagueService {
         metric.maxDrawdownRate(),
         metric.volatilityRate(),
         metric.maxHoldingWeight(),
-        ranked.decisionCount(),
-        ranked.reviewCompletionRate(),
+        decisionCount,
+        reviewCompletionRate(decisionCount, counts == null ? 0 : counts.getReviewedCount()),
         followed,
         profile.getMember().getProfileImageUrl(),
         profile.getTrackingStartedOn(),
