@@ -1046,6 +1046,32 @@ describe('포트폴리오 화면', () => {
     ).toBe('var(--portfolio-trend-neutral)');
   });
 
+  it.each(['PROCESSING', 'FAILED'])(
+    '과거 종가 준비가 %s여도 저장된 그래프와 안내를 함께 표시한다',
+    async (status) => {
+      savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
+      mockPortfolioApi();
+      const mockedFetch = vi.mocked(fetch);
+      const originalImplementation = mockedFetch.getMockImplementation()!;
+      mockedFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('/api/users/me/portfolio/performance/prepare?')) {
+          return jsonResponse({ status });
+        }
+        return originalImplementation(input, init);
+      });
+      const view = render(<PortfolioPage />);
+      expect(await view.findByRole('img', { name: /포트폴리오 자산 추이/ })).toBeTruthy();
+      expect(
+        await view.findByText(
+          status === 'PROCESSING' ? /과거 종가를 추가로 수집하고/ : /일부 과거 종가를 가져오지/,
+        ),
+      ).toBeTruthy();
+      fireEvent.click(view.getByRole('button', { name: '자산 추이 크게 보기' }));
+      const dialog = within(view.getByRole('dialog', { name: '자산 추이 상세' }));
+      expect(dialog.getByRole('img', { name: /포트폴리오 자산 추이/ })).toBeTruthy();
+    },
+  );
+
   it('기간별 종가 기록이 없어도 현재 계산 결과로 자산 추이를 표시한다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     mockPortfolioApi();
