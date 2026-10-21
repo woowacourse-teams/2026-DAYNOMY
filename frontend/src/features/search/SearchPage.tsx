@@ -5,7 +5,11 @@ import { IssueFeed } from '../news/issue/IssueFeed';
 import { IssuePagination } from '../news/issue/IssuePagination';
 import type { FeedItem } from '../news/issue/feed';
 import { searchContents } from './api';
-import { isContentSearchSource, type ContentSearchSource } from './response';
+import {
+  isContentSearchSource,
+  type ContentSearchSource,
+  type ContentSearchSort,
+} from './response';
 import '../news/issue/issue.css';
 
 const PAGE_SIZE = 12;
@@ -24,6 +28,7 @@ function SearchPage() {
   const [params, setParams] = useSearchParams();
   const keyword = params.get('q')?.trim() ?? '';
   const source = getSource(params);
+  const sort = params.get('sort') === 'popular' ? 'POPULAR' : 'LATEST';
   const page = getPage(params);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [totalPages, setTotalPages] = useState(0);
@@ -46,11 +51,19 @@ function SearchPage() {
     let ignore = false;
     setLoading(true);
     setError(null);
-    searchContents(keyword, source, page, PAGE_SIZE)
+    searchContents(keyword, source, page, PAGE_SIZE, sort)
       .then((result) => {
         if (ignore) return;
         if (result.totalPages > 0 && page > result.totalPages) {
-          setParams({ q: keyword, source, page: String(result.totalPages) }, { replace: true });
+          setParams(
+            {
+              q: keyword,
+              source,
+              page: String(result.totalPages),
+              ...(sort === 'POPULAR' ? { sort: 'popular' } : {}),
+            },
+            { replace: true },
+          );
           return;
         }
         setItems(result.items);
@@ -68,7 +81,7 @@ function SearchPage() {
     return () => {
       ignore = true;
     };
-  }, [keyword, source, page, attempt, setParams]);
+  }, [keyword, source, page, sort, attempt, setParams]);
 
   useEffect(() => {
     if (keyword) trackEvent('search_news', { search_length: keyword.length });
@@ -76,11 +89,25 @@ function SearchPage() {
 
   function changeSource(nextSource: ContentSearchSource) {
     if (nextSource === source) return;
-    setParams({ q: keyword, source: nextSource, page: '1' });
+    const next = new URLSearchParams(params);
+    next.set('source', nextSource);
+    next.set('page', '1');
+    setParams(next);
+  }
+
+  function changeSort(nextSort: ContentSearchSort) {
+    if (nextSort === sort) return;
+    const next = new URLSearchParams(params);
+    if (nextSort === 'POPULAR') next.set('sort', 'popular');
+    else next.delete('sort');
+    next.set('page', '1');
+    setParams(next);
   }
 
   function changePage(nextPage: number) {
-    setParams({ q: keyword, source, page: String(nextPage) });
+    const next = new URLSearchParams(params);
+    next.set('page', String(nextPage));
+    setParams(next);
     document.getElementById('search-results')?.scrollIntoView({ behavior: 'smooth' });
   }
 
@@ -117,7 +144,22 @@ function SearchPage() {
                   </button>
                 ))}
               </div>
-              <span>최신순</span>
+              <div className="issue-sort-options" role="group" aria-label="검색 결과 정렬">
+                <button
+                  type="button"
+                  aria-pressed={sort === 'LATEST'}
+                  onClick={() => changeSort('LATEST')}
+                >
+                  최신순
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={sort === 'POPULAR'}
+                  onClick={() => changeSort('POPULAR')}
+                >
+                  인기순
+                </button>
+              </div>
             </div>
           </div>
           {loading && (
@@ -136,7 +178,7 @@ function SearchPage() {
           {!loading && !error && items.length > 0 && (
             <>
               <IssueFeed
-                key={`${source}-${page}`}
+                key={`${keyword}-${source}-${sort}-${page}`}
                 items={items}
                 surface="search_results"
                 offset={(page - 1) * PAGE_SIZE}
