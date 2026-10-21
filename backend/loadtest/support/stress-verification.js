@@ -88,11 +88,20 @@ export function createStressVerification(context) {
         );
         added = state.rows.filter((row) => !oldRows.has(row.historyId));
         valid =
-          original.rows.every(
-            (row) =>
-              JSON.stringify(row) ===
-              JSON.stringify(currentRows.get(row.historyId)),
-          ) &&
+          original.rows.every((row) => {
+            const current = currentRows.get(row.historyId);
+            const keys = Object.keys(row);
+            // k6 can reorder JSON keys when transferring setup data to teardown.
+            return (
+              current &&
+              keys.length === Object.keys(current).length &&
+              keys.every(
+                (key) =>
+                  Object.prototype.hasOwnProperty.call(current, key) &&
+                  row[key] === current[key],
+              )
+            );
+          }) &&
           added.length <= Math.ceil(expected / users.length) &&
           added.every(
             (row) =>

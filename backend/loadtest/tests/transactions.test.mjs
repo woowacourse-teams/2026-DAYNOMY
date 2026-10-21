@@ -567,6 +567,26 @@ test("stress rejects changed initial quantities before submitting trades", async
   assert.equal(f.requests.length, 0);
 });
 
+test("stress history comparison ignores JSON key order changed by k6 setup serialization", async () => {
+  const f = await fixture({ rps: 10, warmupSeconds: 1 }, () => {}, {
+    MODE: "stress",
+  });
+  f.histories.set(1, [
+    { historyId: 999999, assetId: 1, transactionQuantity: 1, fee: 0 },
+  ]);
+  const scenario = f.build();
+  const data = scenario.setup();
+  const original = data.baseline[0].rows[0];
+  const reordered = Object.fromEntries(Object.entries(original).reverse());
+  assert.notEqual(JSON.stringify(original), JSON.stringify(reordered));
+  data.baseline[0].rows[0] = reordered;
+  scenario.run(data);
+  scenario.teardown(data);
+  assert.equal(f.counters.get("stress_verification_checked"), 50);
+  assert.equal(f.counters.get("stress_verification_failed"), 0);
+  assert.equal(f.counters.get("stress_committed{account:lt-001}"), 1);
+});
+
 test("stress detects lost quantities, modified original histories and unavailable verification reads", async () => {
   for (const failure of ["quantity", "history", "read"]) {
     const f = await fixture({ rps: 10, warmupSeconds: 1 }, () => {}, {
