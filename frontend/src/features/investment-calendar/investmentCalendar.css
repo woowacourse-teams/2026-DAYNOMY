@@ -894,11 +894,7 @@
 }
 
 .investment-calendar-table-wrap th:first-child {
-  width: 32%;
-}
-
-.investment-calendar-table-wrap th:nth-child(2) {
-  width: 32%;
+  width: 40%;
 }
 
 .investment-calendar-table-wrap th:nth-child(n + 2),
@@ -906,14 +902,9 @@
   text-align: right;
 }
 
-.investment-calendar-table-wrap th:nth-child(2),
-.investment-calendar-table-wrap td:nth-child(2) {
-  text-align: center;
-}
-
 .investment-calendar-table-wrap th:last-child,
 .investment-calendar-table-wrap td:last-child {
-  width: 36%;
+  width: 60%;
   white-space: normal;
   overflow-wrap: anywhere;
 }

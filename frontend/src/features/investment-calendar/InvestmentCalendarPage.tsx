@@ -72,11 +72,6 @@ function formatValue(value: number | null, unit: string) {
   })}${unit}`;
 }
 
-function formatRate(value: number | null) {
-  if (value === null) return '표본 부족';
-  return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
-}
-
 function compactWonMagnitude(value: number) {
   const absolute = Math.abs(value);
   if (absolute >= 100_000_000) return `${(absolute / 100_000_000).toFixed(1)}억원`;
@@ -126,10 +121,6 @@ function resultColumnTitle(type: InvestmentEventType) {
 
 function rateDecisionCaseLabel(direction: InvestmentEventDirection) {
   return `금리 ${directionLabel('KOREA_BASE_RATE', direction)} 사례`;
-}
-
-function typicalRate(value: number | null) {
-  return value === null ? '표본 부족' : `보통 ${formatRate(value)}`;
 }
 
 function estimatedRange(statistics: PortfolioReactionStatistics) {
@@ -327,7 +318,6 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
                 <thead>
                   <tr>
                     <th>{resultColumnTitle(event.type)}</th>
-                    <th>중앙값</th>
                     <th>내 자산 변화</th>
                   </tr>
                 </thead>
@@ -338,11 +328,6 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
                         {event.type === 'KOREA_BASE_RATE'
                           ? rateDecisionCaseLabel(statistics.direction)
                           : directionLabel(event.type, statistics.direction)}
-                      </td>
-                      <td className={rateTone(statistics.medianReturnRate)}>
-                        {event.type === 'KOREA_BASE_RATE'
-                          ? typicalRate(statistics.medianReturnRate)
-                          : formatRate(statistics.medianReturnRate)}
                       </td>
                       <td className={rateTone(statistics.medianReturnRate)}>
                         {event.type === 'KOREA_BASE_RATE'

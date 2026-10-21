@@ -204,20 +204,14 @@ export function IssueFeed({
                 )}
                 {!peopleTimeline &&
                   (compactNews ? (
-                    <time
-                      dateTime={
-                        (item.source === 'DAYNOMY'
-                          ? item.date
-                          : 'post' in item
-                            ? item.post.createdAt
-                            : item.content.createdAt) ?? undefined
-                      }
-                    >
+                    <time dateTime={item.date ?? undefined}>
                       {item.source === 'DAYNOMY'
                         ? feedDate(item.date, '발행')
                         : feedDate(
-                            'post' in item ? item.post.createdAt : item.content.createdAt,
-                            '등록',
+                            item.date,
+                            ('post' in item ? item.post.publishedAt : item.content.publishedDate)
+                              ? '게시'
+                              : '등록',
                           )}
                     </time>
                   ) : (
