@@ -16,13 +16,17 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.TreeSet;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.member.domain.MemberRole;
 
@@ -153,8 +157,9 @@ public final class PortfolioLoadtestTool {
         System.out.println(
             "Restored only the captured test holdings, histories and snapshots. Sequences unchanged.");
       } else {
-        require(
-            sameData(readData(connection, namespace), data),
+        requireSameData(
+            readData(connection, namespace),
+            data,
             "DB differs from baseline; restore before issuing tokens");
         JwtTokenProvider issuer =
             new JwtTokenProvider(
@@ -250,6 +255,112 @@ public final class PortfolioLoadtestTool {
           return a.equals(b) ? 0 : 1;
         },
         right);
+  }
+
+  static void requireSameData(JsonNode actual, JsonNode baseline, String message) {
+    if (sameData(actual, baseline)) return;
+    System.err.println("Baseline mismatch summary (values and row identifiers omitted):");
+    dataDifferences(actual, baseline).forEach(System.err::println);
+    throw new IllegalArgumentException(message);
+  }
+
+  static List<String> dataDifferences(JsonNode actual, JsonNode baseline) {
+    Map<String, Integer> differences = new LinkedHashMap<>();
+    for (String group :
+        List.of(
+            "members",
+            "portfolios",
+            "holdings",
+            "histories",
+            "snapshots",
+            "prices",
+            "priceDates")) {
+      JsonNode live = actual.path(group);
+      JsonNode saved = baseline.path(group);
+      if (sameData(live, saved)) continue;
+      String table =
+          SQL_TABLES.getOrDefault(
+              group,
+              List.of("prices", "priceDates").contains(group) ? "stock_daily_prices" : group);
+      if (!live.isArray() || !saved.isArray()) {
+        difference(differences, table, "<table>", "STRUCTURE", 1);
+        continue;
+      }
+      if (live.size() != saved.size()) {
+        difference(
+            differences,
+            table,
+            "<row>",
+            live.size() > saved.size() ? "EXTRA_ROWS_IN_DB" : "MISSING_ROWS_IN_DB",
+            Math.abs(live.size() - saved.size()));
+        // Rows are ordered by ID; unequal sizes can shift every subsequent comparison.
+        continue;
+      }
+      for (int i = 0; i < live.size(); i++) {
+        JsonNode row = live.get(i);
+        JsonNode original = saved.get(i);
+        if (sameData(row, original)) continue;
+        if (!row.isObject() || !original.isObject()) {
+          difference(
+              differences,
+              table,
+              group.equals("priceDates") ? "base_date" : "<row>",
+              differenceKind(row, original),
+              1);
+          continue;
+        }
+        if (!sameData(row.path("id"), original.path("id"))) {
+          difference(differences, table, "id", "ROW_ID_MISMATCH", 1);
+          continue;
+        }
+        var columns = new TreeSet<String>();
+        row.fieldNames().forEachRemaining(columns::add);
+        original.fieldNames().forEachRemaining(columns::add);
+        for (String column : columns) {
+          JsonNode value = row.path(column);
+          JsonNode previous = original.path(column);
+          if (sameData(value, previous)) continue;
+          // Only DB-provided SQL identifiers may appear as column names in diagnostics.
+          String safeColumn =
+              row.has(column) && column.matches("[a-z][a-z0-9_]{0,62}")
+                  ? column
+                  : "<unknown_column>";
+          difference(differences, table, safeColumn, differenceKind(value, previous), 1);
+        }
+      }
+    }
+    if (differences.isEmpty() && !sameData(actual, baseline)) {
+      difference(differences, "<dataset>", "<structure>", "STRUCTURE", 1);
+    }
+    return differences.entrySet().stream()
+        .map(entry -> entry.getKey() + " count=" + entry.getValue())
+        .toList();
+  }
+
+  private static void difference(
+      Map<String, Integer> differences, String table, String column, String kind, int count) {
+    differences.merge(
+        "table=" + table + " column=" + column + " kind=" + kind, count, Integer::sum);
+  }
+
+  private static String differenceKind(JsonNode actual, JsonNode baseline) {
+    if (actual.isMissingNode()) return "COLUMN_MISSING_IN_DB";
+    if (baseline.isMissingNode()) return "COLUMN_MISSING_IN_BASELINE";
+    if (actual.isNull() || baseline.isNull()) return "NULL_MISMATCH";
+    if (actual.isNumber() && baseline.isNumber()) return "NUMERIC_VALUE";
+    if (actual.getNodeType() != baseline.getNodeType()) return "TYPE_MISMATCH";
+    if (actual.isTextual() && baseline.isTextual()) {
+      try {
+        if (OffsetDateTime.parse(actual.textValue())
+            .toInstant()
+            .equals(OffsetDateTime.parse(baseline.textValue()).toInstant())) {
+          return "TIMESTAMP_REPRESENTATION";
+        }
+      } catch (DateTimeParseException ignored) {
+        // Non-timestamp strings still use the existing strict value comparison.
+      }
+    }
+    return "VALUE_MISMATCH";
   }
 
   static JsonNode readData(Connection connection, String namespace) throws Exception {
@@ -385,8 +496,9 @@ public final class PortfolioLoadtestTool {
         statement.executeUpdate();
       }
     }
-    require(
-        sameData(readData(connection, namespace), baseline),
+    requireSameData(
+        readData(connection, namespace),
+        baseline,
         "Restored data differs; transaction will be rolled back");
   }
 

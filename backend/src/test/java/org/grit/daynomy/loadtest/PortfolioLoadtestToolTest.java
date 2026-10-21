@@ -12,8 +12,12 @@ import java.util.Base64;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
+@ExtendWith(OutputCaptureExtension.class)
 class PortfolioLoadtestToolTest {
   private static final String NAMESPACE = "lt496-20261015";
   @TempDir Path temporary;
@@ -104,6 +108,88 @@ class PortfolioLoadtestToolTest {
     Files.writeString(file, "# comment\nLOADTEST_VALUE='$(do-not-execute)'\n");
     assertThat(PortfolioLoadtestTool.readEnvironment(file.toString()).get("LOADTEST_VALUE"))
         .isEqualTo("$(do-not-execute)");
+  }
+
+  @Test
+  void reportsAggregatedDifferencesWithoutPrintingValuesOrIdentifiers(CapturedOutput output)
+      throws Exception {
+    JsonNode baseline = fixture();
+    ObjectNode actual = baseline.deepCopy();
+    for (int i = 0; i < 2; i++) {
+      ((ObjectNode) actual.path("holdings").get(i)).put("quantity", 987654321);
+    }
+    ((ObjectNode) actual.path("members").get(0)).put("email", "private@example.invalid");
+    ((ObjectNode) baseline.path("holdings").get(0))
+        .put("secret_key_from_snapshot", "private-value");
+
+    assertThatThrownBy(() -> PortfolioLoadtestTool.requireSameData(actual, baseline, "mismatch"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("mismatch");
+    assertThat(output.getErr())
+        .contains("table=portfolio_holdings column=quantity kind=NUMERIC_VALUE count=2")
+        .contains("table=members column=email kind=VALUE_MISMATCH count=1")
+        .contains("column=<unknown_column> kind=COLUMN_MISSING_IN_DB count=1")
+        .doesNotContain(
+            "987654321",
+            "private@example.invalid",
+            "private-value",
+            "secret_key_from_snapshot",
+            NAMESPACE);
+  }
+
+  @Test
+  void distinguishesMissingColumnsNullTypesAndTimestampRepresentation() throws Exception {
+    JsonNode baseline =
+        PortfolioLoadtestTool.JSON.readTree(
+            """
+        {"histories":[{"id":1,"exchange_rate":1,"unit_price":null,"quantity":5,
+        "created_at":"2026-10-16T00:00:00Z"}]}
+        """);
+    JsonNode actual =
+        PortfolioLoadtestTool.JSON.readTree(
+            """
+        {"histories":[{"id":1,"exchange_rate":1.000000,"unit_price":12,"quantity":"5",
+        "created_at":"2026-10-16T09:00:00+09:00","new_column":null}]}
+        """);
+    assertThat(PortfolioLoadtestTool.dataDifferences(actual, baseline))
+        .containsExactly(
+            "table=portfolio_holding_histories column=created_at kind=TIMESTAMP_REPRESENTATION count=1",
+            "table=portfolio_holding_histories column=new_column kind=COLUMN_MISSING_IN_BASELINE count=1",
+            "table=portfolio_holding_histories column=quantity kind=TYPE_MISMATCH count=1",
+            "table=portfolio_holding_histories column=unit_price kind=NULL_MISMATCH count=1");
+    assertThat(PortfolioLoadtestTool.sameData(actual, baseline)).isFalse();
+  }
+
+  @Test
+  void reportsRowCountOrIdentityDifferencesWithoutComparingShiftedRows() throws Exception {
+    JsonNode baseline =
+        PortfolioLoadtestTool.JSON.readTree(
+            """
+        {"holdings":[{"id":1,"quantity":100},{"id":2,"quantity":200}]}
+        """);
+    JsonNode fewerRows =
+        PortfolioLoadtestTool.JSON.readTree(
+            """
+        {"holdings":[{"id":2,"quantity":200}]}
+        """);
+    assertThat(PortfolioLoadtestTool.dataDifferences(fewerRows, baseline))
+        .containsExactly("table=portfolio_holdings column=<row> kind=MISSING_ROWS_IN_DB count=1");
+    ObjectNode changedIdentity = baseline.deepCopy();
+    ((ObjectNode) changedIdentity.path("holdings").get(0)).put("id", 3);
+    assertThat(PortfolioLoadtestTool.dataDifferences(changedIdentity, baseline))
+        .containsExactly("table=portfolio_holdings column=id kind=ROW_ID_MISMATCH count=1");
+  }
+
+  @Test
+  void acceptsEquivalentNumericRepresentationsWithoutDiagnostics(CapturedOutput output)
+      throws Exception {
+    JsonNode baseline =
+        PortfolioLoadtestTool.JSON.readTree("{\"histories\":[{\"exchange_rate\":1}]}");
+    JsonNode actual =
+        PortfolioLoadtestTool.JSON.readTree("{\"histories\":[{\"exchange_rate\":1.000000}]}");
+    PortfolioLoadtestTool.requireSameData(actual, baseline, "mismatch");
+    assertThat(PortfolioLoadtestTool.dataDifferences(actual, baseline)).isEmpty();
+    assertThat(output.getErr()).isEmpty();
   }
 
   static JsonNode fixture() throws Exception {

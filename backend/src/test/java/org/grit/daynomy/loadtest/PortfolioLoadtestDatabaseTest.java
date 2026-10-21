@@ -4,18 +4,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
+@ExtendWith(OutputCaptureExtension.class)
 class PortfolioLoadtestDatabaseTest {
   private static final String NS = "lt496-20261015";
 
@@ -40,7 +45,9 @@ class PortfolioLoadtestDatabaseTest {
             "V12__create_stock_daily_prices.sql",
             "V15__create_portfolio_tracking.sql",
             "V30__separate_private_google_name.sql",
-            "V33__add_portfolio_transaction_ledger.sql"
+            "V33__add_portfolio_transaction_ledger.sql",
+            "V51__preserve_us_stock_price_precision.sql",
+            "V53__support_usd_portfolio_transactions.sql"
           }) {
         s.execute(Files.readString(Path.of("src/main/resources/db/migration", migration)));
       }
@@ -189,6 +196,52 @@ class PortfolioLoadtestDatabaseTest {
       c.rollback();
       assertThat(scalar(c, "SELECT quantity FROM portfolio_holdings WHERE portfolio_id=1"))
           .isEqualTo(200);
+    }
+  }
+
+  @Test
+  void reportsChangedRestoredValuesAndPreservesPreRestoreDataOnRollback(CapturedOutput output)
+      throws Exception {
+    try (Connection c = connect()) {
+      JsonNode baseline = PortfolioLoadtestTool.readData(c, NS);
+      try (var s = c.createStatement()) {
+        s.execute(
+            """
+            UPDATE portfolio_holdings SET quantity=200 WHERE portfolio_id=1;
+            CREATE FUNCTION change_restored_quantity() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN NEW.quantity := NEW.quantity + 1; RETURN NEW; END $$;
+            CREATE TRIGGER change_restored_quantity BEFORE INSERT ON portfolio_holdings
+            FOR EACH ROW WHEN (NEW.portfolio_id = 1) EXECUTE FUNCTION change_restored_quantity();
+            """);
+      }
+      JsonNode beforeRestore = PortfolioLoadtestTool.readData(c, NS);
+      c.setAutoCommit(false);
+      assertThatThrownBy(() -> PortfolioLoadtestTool.restore(c, NS, baseline))
+          .hasMessage("Restored data differs; transaction will be rolled back");
+      assertThat(output.getErr())
+          .contains("table=portfolio_holdings column=quantity kind=NUMERIC_VALUE count=1");
+      c.rollback();
+      assertThat(PortfolioLoadtestTool.readData(c, NS)).isEqualTo(beforeRestore);
+      assertThat(scalar(c, "SELECT quantity FROM portfolio_holdings WHERE portfolio_id=3"))
+          .isEqualTo(100);
+    }
+  }
+
+  @Test
+  void reportsSchemaColumnAbsentFromBaselineWithoutSilentlyAcceptingIt(CapturedOutput output)
+      throws Exception {
+    try (Connection c = connect()) {
+      JsonNode original = PortfolioLoadtestTool.readData(c, NS);
+      JsonNode baseline = original.deepCopy();
+      baseline.path("histories").forEach(row -> ((ObjectNode) row).remove("unit_price"));
+      c.setAutoCommit(false);
+      assertThatThrownBy(() -> PortfolioLoadtestTool.restore(c, NS, baseline))
+          .hasMessage("Restored data differs; transaction will be rolled back");
+      assertThat(output.getErr())
+          .contains(
+              "table=portfolio_holding_histories column=unit_price kind=COLUMN_MISSING_IN_BASELINE count=2");
+      c.rollback();
+      assertThat(PortfolioLoadtestTool.readData(c, NS)).isEqualTo(original);
     }
   }
 
