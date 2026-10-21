@@ -7,7 +7,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Objects;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.domain.ContentType;
@@ -17,6 +20,7 @@ import org.grit.daynomy.content.dto.ContentPopularityResponse;
 import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.content.repository.ContentInteractionRepository;
+import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.person.domain.FeaturedPersonPostStatus;
@@ -35,16 +39,23 @@ public class ContentInteractionService {
   private final NewsRepository newsRepository;
   private final FeaturedPersonPostRepository personPostRepository;
   private final AssetContentRepository assetContentRepository;
+  private final ContentInteractionRateLimiter rateLimiter;
   private final Clock clock;
 
   @Transactional
-  public void record(ContentInteractionRequest request) {
+  public void record(
+      ContentInteractionRequest request, AuthenticatedMember member, UUID anonymousVisitorId) {
+    if (member != null && member.role() == MemberRole.ADMIN) {
+      return;
+    }
+    String actor = interactionActor(member, anonymousVisitorId);
+    rateLimiter.acquire(actor);
     validatePublicContent(request.contentType(), request.contentId());
     Instant now = Instant.now(clock);
     LocalDate interactionDate = now.atZone(SEOUL).toLocalDate();
     interactionRepository.insertIfAbsent(
         request.eventId(),
-        deduplicationKey(request, interactionDate),
+        deduplicationKey(actor, request, interactionDate),
         request.contentType().name(),
         request.contentId(),
         request.interactionType().name(),
@@ -87,9 +98,17 @@ public class ContentInteractionService {
     }
   }
 
-  private String deduplicationKey(ContentInteractionRequest request, LocalDate interactionDate) {
+  private String interactionActor(AuthenticatedMember member, UUID anonymousVisitorId) {
+    if (member != null) {
+      return "member:" + member.memberId();
+    }
+    return "anonymous:" + Objects.requireNonNull(anonymousVisitorId);
+  }
+
+  private String deduplicationKey(
+      String actor, ContentInteractionRequest request, LocalDate interactionDate) {
     String value =
-        request.visitorId()
+        actor
             + ":"
             + request.contentType()
             + ":"

@@ -1,15 +1,21 @@
 package org.grit.daynomy.content.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.content.dto.ContentInteractionRequest;
 import org.grit.daynomy.content.dto.ContentPopularityResponse;
 import org.grit.daynomy.content.service.ContentInteractionService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,11 +30,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class ContentInteractionController {
 
   private final ContentInteractionService contentInteractionService;
+  private final AnonymousContentVisitorCookieManager anonymousVisitorCookieManager;
 
   @Operation(summary = "콘텐츠 반응 기록")
   @PostMapping("/api/content-interactions")
-  public ResponseEntity<Void> record(@Valid @RequestBody ContentInteractionRequest request) {
-    contentInteractionService.record(request);
+  public ResponseEntity<Void> record(
+      @Valid @RequestBody ContentInteractionRequest request,
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      HttpServletRequest servletRequest,
+      HttpServletResponse servletResponse) {
+    UUID anonymousVisitorId =
+        member == null
+            ? anonymousVisitorCookieManager.getOrCreate(servletRequest, servletResponse)
+            : null;
+    contentInteractionService.record(request, member, anonymousVisitorId);
     return ResponseEntity.noContent().build();
   }
 

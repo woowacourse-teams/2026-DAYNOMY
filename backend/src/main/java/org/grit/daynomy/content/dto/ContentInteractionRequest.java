@@ -8,7 +8,6 @@ import org.grit.daynomy.content.domain.ContentType;
 
 public record ContentInteractionRequest(
     @NotNull UUID eventId,
-    @NotNull UUID visitorId,
     @NotNull ContentType contentType,
     @NotNull @Positive Long contentId,
     @NotNull ContentInteractionType interactionType) {}

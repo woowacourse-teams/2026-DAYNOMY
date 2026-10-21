@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.ContentInteractionType;
 import org.grit.daynomy.content.domain.ContentType;
@@ -24,6 +25,7 @@ import org.grit.daynomy.content.repository.ContentInteractionRepository;
 import org.grit.daynomy.content.repository.ContentPopularityProjection;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.person.repository.FeaturedPersonPostRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,7 @@ class ContentInteractionServiceTest {
   @Mock private NewsRepository newsRepository;
   @Mock private FeaturedPersonPostRepository personPostRepository;
   @Mock private AssetContentRepository assetContentRepository;
+  @Mock private ContentInteractionRateLimiter rateLimiter;
 
   private ContentInteractionService service;
 
@@ -51,6 +54,7 @@ class ContentInteractionServiceTest {
             newsRepository,
             personPostRepository,
             assetContentRepository,
+            rateLimiter,
             Clock.fixed(Instant.parse("2026-10-20T03:00:00Z"), ZoneOffset.UTC));
   }
 
@@ -61,9 +65,11 @@ class ContentInteractionServiceTest {
     given(newsRepository.existsByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(true);
 
     service.record(
-        new ContentInteractionRequest(
-            eventId, visitorId, ContentType.NEWS, 1L, ContentInteractionType.OPEN));
+        new ContentInteractionRequest(eventId, ContentType.NEWS, 1L, ContentInteractionType.OPEN),
+        null,
+        visitorId);
 
+    then(rateLimiter).should().acquire("anonymous:" + visitorId);
     then(interactionRepository)
         .should()
         .insertIfAbsent(
@@ -82,17 +88,52 @@ class ContentInteractionServiceTest {
     ContentInteractionRequest request =
         new ContentInteractionRequest(
             UUID.randomUUID(),
-            UUID.randomUUID(),
             ContentType.NEWS,
             1L,
             ContentInteractionType.OPEN);
 
-    assertThatThrownBy(() -> service.record(request))
+    assertThatThrownBy(() -> service.record(request, null, UUID.randomUUID()))
         .isInstanceOf(BusinessException.class)
         .extracting(error -> ((BusinessException) error).errorCode())
         .isEqualTo(ContentErrorCode.CONTENT_NOT_AVAILABLE);
 
     then(interactionRepository).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void ignoresAdminInteraction() {
+    ContentInteractionRequest request =
+        new ContentInteractionRequest(
+            UUID.randomUUID(), ContentType.NEWS, 1L, ContentInteractionType.OPEN);
+
+    service.record(request, new AuthenticatedMember(1L, MemberRole.ADMIN), null);
+
+    then(rateLimiter).shouldHaveNoInteractions();
+    then(newsRepository).shouldHaveNoInteractions();
+    then(interactionRepository).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void usesAuthenticatedMemberAsInteractionActor() {
+    UUID eventId = UUID.randomUUID();
+    given(newsRepository.existsByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(true);
+
+    service.record(
+        new ContentInteractionRequest(eventId, ContentType.NEWS, 1L, ContentInteractionType.EXPAND),
+        new AuthenticatedMember(7L, MemberRole.USER),
+        null);
+
+    then(rateLimiter).should().acquire("member:7");
+    then(interactionRepository)
+        .should()
+        .insertIfAbsent(
+            eq(eventId),
+            argThat(value -> value.matches("[0-9a-f]{64}")),
+            eq("NEWS"),
+            eq(1L),
+            eq("EXPAND"),
+            eq(LocalDate.of(2026, 10, 20)),
+            eq(Instant.parse("2026-10-20T03:00:00Z")));
   }
 
   @Test

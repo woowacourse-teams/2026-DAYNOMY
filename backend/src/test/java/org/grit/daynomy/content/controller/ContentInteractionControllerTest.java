@@ -1,5 +1,6 @@
 package org.grit.daynomy.content.controller;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -11,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.content.domain.ContentInteractionType;
@@ -19,6 +21,8 @@ import org.grit.daynomy.content.dto.ContentInteractionRequest;
 import org.grit.daynomy.content.dto.ContentPopularityItemResponse;
 import org.grit.daynomy.content.dto.ContentPopularityResponse;
 import org.grit.daynomy.content.service.ContentInteractionService;
+import org.grit.daynomy.member.domain.MemberRole;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -26,6 +30,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.ComponentScan.Filter;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,21 +44,26 @@ import org.springframework.test.web.servlet.MockMvc;
         @Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthenticationFilter.class))
 @AutoConfigureMockMvc(addFilters = false)
 @org.springframework.context.annotation.Import(GlobalExceptionHandler.class)
+@EnableWebSecurity
 class ContentInteractionControllerTest {
 
   @Autowired private MockMvc mockMvc;
   private final ObjectMapper objectMapper = new ObjectMapper();
   @MockitoBean private ContentInteractionService service;
+  @MockitoBean private AnonymousContentVisitorCookieManager anonymousVisitorCookieManager;
+
+  @AfterEach
+  void clearAuthentication() {
+    SecurityContextHolder.clearContext();
+  }
 
   @Test
   void recordsValidInteraction() throws Exception {
+    UUID visitorId = UUID.randomUUID();
     ContentInteractionRequest request =
         new ContentInteractionRequest(
-            UUID.randomUUID(),
-            UUID.randomUUID(),
-            ContentType.NEWS,
-            1L,
-            ContentInteractionType.OPEN);
+            UUID.randomUUID(), ContentType.NEWS, 1L, ContentInteractionType.OPEN);
+    given(anonymousVisitorCookieManager.getOrCreate(any(), any())).willReturn(visitorId);
 
     mockMvc
         .perform(
@@ -60,7 +72,7 @@ class ContentInteractionControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
         .andExpect(status().isNoContent());
 
-    then(service).should().record(request);
+    then(service).should().record(request, null, visitorId);
   }
 
   @Test
@@ -71,6 +83,26 @@ class ContentInteractionControllerTest {
         .andExpect(status().isBadRequest());
 
     then(service).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void recordsAuthenticatedInteractionWithoutAnonymousCookie() throws Exception {
+    AuthenticatedMember member = new AuthenticatedMember(7L, MemberRole.USER);
+    ContentInteractionRequest request =
+        new ContentInteractionRequest(
+            UUID.randomUUID(), ContentType.NEWS, 1L, ContentInteractionType.EXPAND);
+    SecurityContextHolder.getContext()
+        .setAuthentication(new UsernamePasswordAuthenticationToken(member, null, List.of()));
+
+    mockMvc
+        .perform(
+            post("/api/content-interactions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isNoContent());
+
+    then(anonymousVisitorCookieManager).shouldHaveNoInteractions();
+    then(service).should().record(request, member, null);
   }
 
   @Test
