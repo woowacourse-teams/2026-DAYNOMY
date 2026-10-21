@@ -1,6 +1,7 @@
 package org.grit.daynomy.league.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -47,7 +48,7 @@ class LeagueRankingRepositoryTest {
 
   @Autowired private TestEntityManager entityManager;
   @Autowired private PortfolioDailyReturnRepository returns;
-  @Autowired private InvestmentReviewRepository reviews;
+  @Autowired private InvestmentDecisionRepository decisions;
 
   @Test
   void
@@ -73,15 +74,17 @@ class LeagueRankingRepositoryTest {
   }
 
   @Test
-  void reviewedTransactionIdsAreDistinctAndRespectPortfolioAndTradeDate() {
+  void decisionCountsDoNotDuplicateReviewsAndRespectMemberAndTradeDate() {
     var first = portfolio("first");
     var second = portfolio("second");
     var other = portfolio("other");
+    var empty = portfolio("empty");
     var asset = entityManager.persist(new Asset("test", AssetCategory.STOCK, "TEST"));
     LocalDate cutoff = LocalDate.of(2026, 10, 25);
     var reviewed = decision(first, asset, cutoff, "reviewed");
     entityManager.persist(new InvestmentReview(reviewed, "result", "difference", "next"));
     entityManager.persist(new InvestmentReview(reviewed, "second", "difference", "next"));
+    decision(first, asset, cutoff.minusDays(1), "earlier-unreviewed");
     decision(second, asset, cutoff, "unreviewed");
     var future = decision(second, asset, cutoff.plusDays(1), "future");
     entityManager.persist(new InvestmentReview(future, "result", "difference", "next"));
@@ -90,8 +93,19 @@ class LeagueRankingRepositoryTest {
     entityManager.flush();
     entityManager.clear();
 
-    assertThat(reviews.findReviewedTransactionIds(List.of(first.getId(), second.getId()), cutoff))
-        .containsExactly(reviewed.getId());
+    assertThat(
+            decisions.findCountsByMemberIdInAndTradedOnLessThanEqual(
+                List.of(
+                    first.getMember().getId(),
+                    second.getMember().getId(),
+                    empty.getMember().getId()),
+                cutoff))
+        .extracting(
+            InvestmentDecisionCounts::getMemberId,
+            InvestmentDecisionCounts::getDecisionCount,
+            InvestmentDecisionCounts::getReviewedCount)
+        .containsExactlyInAnyOrder(
+            tuple(first.getMember().getId(), 2L, 1L), tuple(second.getMember().getId(), 1L, 0L));
   }
 
   private SharedPortfolio portfolio(String name) {

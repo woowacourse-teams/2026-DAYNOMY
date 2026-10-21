@@ -58,6 +58,7 @@ export const options = {
     http_req_failed: ['rate==0'],
     checks: ['rate==1'],
     dropped_iterations: ['count==0'],
+    league_rankings_load_target_duration_ms: ['p(95)<100'],
     ...Object.fromEntries(phases.map(({ name }) => [`http_reqs{phase:${name}}`, ['count>0']])),
   },
 };
