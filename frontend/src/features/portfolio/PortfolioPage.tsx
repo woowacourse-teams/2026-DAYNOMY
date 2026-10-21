@@ -30,6 +30,7 @@ import type { PortfolioHoldingHistory, PortfolioTransactionType } from './types'
 import type { StockSearchItem } from '../stocks/types';
 
 const numberFormatter = new Intl.NumberFormat('ko-KR');
+const SHOW_PORTFOLIO_GUIDE = false;
 const percentFormatter = new Intl.NumberFormat('ko-KR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -1168,18 +1169,20 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 <h1 ref={headingRef} tabIndex={-1}>
                   내 포트폴리오
                 </h1>
-                <PortfolioTour
-                  isGuest={!isLoggedIn}
-                  onStepChange={setTourStep}
-                  onRegister={() => openAdd('header')}
-                  ready={
-                    !holdingsLoading &&
-                    !loading &&
-                    !holdingsError &&
-                    !error &&
-                    !!dashboardCalculation
-                  }
-                />
+                {SHOW_PORTFOLIO_GUIDE && (
+                  <PortfolioTour
+                    isGuest={!isLoggedIn}
+                    onStepChange={setTourStep}
+                    onRegister={() => openAdd('header')}
+                    ready={
+                      !holdingsLoading &&
+                      !loading &&
+                      !holdingsError &&
+                      !error &&
+                      !!dashboardCalculation
+                    }
+                  />
+                )}
               </div>
               {!isLoggedIn && (
                 <p className="portfolio-save-notice is-guest" role="status">
@@ -1489,7 +1492,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                           </p>
                           <button
                             type="button"
-                            className="portfolio-secondary-button"
+                            className="portfolio-secondary-button is-primary"
                             onClick={() => openAdd('empty_state')}
                           >
                             거래 기록하기

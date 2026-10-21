@@ -310,16 +310,16 @@ afterEach(() => {
 });
 
 describe('포트폴리오 화면', () => {
-  it('첫 방문 체험을 마치면 빈 실제 거래 입력 창을 연다', async () => {
+  it('사용 가이드의 진입점과 자동 안내를 화면에 표시하지 않는다', async () => {
     localStorage.removeItem('daynomy:portfolio-tour:v1');
     const view = render(<PortfolioPage isLoggedIn={false} />);
-    await view.findByRole('complementary', { name: '처음 이용 안내' });
-    fireEvent.click(view.getByRole('button', { name: '사용 가이드' }));
-    await view.findByRole('heading', { name: '예시로 자산 등록을 시작해요' });
-    for (let i = 0; i < 9; i++) fireEvent.click(view.getByRole('button', { name: '다음' }));
-    fireEvent.click(view.getByRole('button', { name: '내 자산 등록하기' }));
-    const search = await view.findByRole('searchbox', { name: '종목 검색' });
-    expect((search as HTMLInputElement).value).toBe('');
+    await waitFor(() =>
+      expect((view.getByRole('button', { name: '거래 기록' }) as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    );
+    expect(view.queryByRole('button', { name: '사용 가이드' })).toBeNull();
+    expect(view.queryByRole('complementary', { name: '처음 이용 안내' })).toBeNull();
     expect(view.queryByRole('region', { name: '포트폴리오 사용 안내' })).toBeNull();
   });
 

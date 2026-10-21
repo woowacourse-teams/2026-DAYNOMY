@@ -37,6 +37,9 @@ body:has(.portfolio-page) .daynomy-footer {
   letter-spacing: var(--page-title-letter-spacing);
   line-height: var(--page-title-line-height);
 }
+.portfolio-page .portfolio-page-title h1:focus {
+  outline: none;
+}
 .portfolio-page-title p {
   color: #778296;
   font-size: 13px;
@@ -107,14 +110,28 @@ body:has(.portfolio-page) .daynomy-footer {
   padding: 0 16px;
   font-size: 13px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--button-action);
+  color: #fff;
 }
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button:hover:not(:disabled) {
-  background: #f5f5f5;
+  background: var(--button-action-hover);
 }
 
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button:active:not(:disabled) {
-  background: #ececec;
+  background: var(--button-action-active);
+}
+
+.portfolio-page .portfolio-secondary-button.is-primary {
+  background: var(--button-action);
+  color: #fff;
+}
+
+.portfolio-page .portfolio-secondary-button.is-primary:hover:not(:disabled) {
+  background: var(--button-action-hover);
+}
+
+.portfolio-page .portfolio-secondary-button.is-primary:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 .portfolio-page .portfolio-page-actions > .portfolio-news-tab {
   min-height: 36px;
@@ -1934,10 +1951,12 @@ body:has(.portfolio-page) .daynomy-footer {
   gap: 10px;
   min-height: var(--button-height);
   margin-top: 16px;
-  padding: 10px 0;
-  background: transparent;
+  padding: 10px 18px;
+  border: 1px solid var(--button-action);
+  border-radius: 999px;
+  background: #fff;
   text-decoration: none;
-  color: var(--button-label);
+  color: #0a0a0a;
   font-size: 13px;
   font-weight: var(--button-weight);
 }
@@ -1947,7 +1966,10 @@ body:has(.portfolio-page) .daynomy-footer {
   flex-shrink: 0;
 }
 .portfolio-news-more:hover {
-  color: var(--button-action-active);
+  background: #f5f5f5;
+}
+.portfolio-news-more:active {
+  background: #ececec;
 }
 .portfolio-news-more:focus-visible {
   outline: 2px solid #326bd5;
