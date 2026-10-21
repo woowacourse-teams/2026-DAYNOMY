@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { InvestmentReviewsPage } from '../../src/features/league/InvestmentReviewsPage';
@@ -102,14 +102,15 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
               finishSave = resolve;
             }),
         );
-      const view =
+      const view = await act(async () =>
         surface === 'decisions'
           ? renderRecords([holding])
           : render(
               <MemoryRouter>
                 <InvestmentReviewsPage />
               </MemoryRouter>,
-            );
+            ),
+      );
       const trigger = await view.findByRole('button', {
         name: '삼성전자 2026-10-06 보유 기록 보유 이유 수정',
       });
@@ -322,14 +323,15 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
         actualResult: '수정한 결과',
         updatedAt: '2026-10-07T00:00:00Z',
       });
-      const view =
+      const view = await act(async () =>
         surface === 'decisions'
           ? renderRecords([holding])
           : render(
               <MemoryRouter>
                 <InvestmentReviewsPage />
               </MemoryRouter>,
-            );
+            ),
+      );
       const trigger = await view.findByRole('button', {
         name: '삼성전자 2026-10-06 보유 기록 복기 수정',
       });

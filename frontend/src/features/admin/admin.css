@@ -34,7 +34,11 @@
 }
 
 .admin-brand,
-.admin-navigation,
+.admin-navigation {
+  border: 0;
+  text-decoration: none;
+}
+
 .admin-back-link,
 .admin-primary-button,
 .admin-secondary-button {

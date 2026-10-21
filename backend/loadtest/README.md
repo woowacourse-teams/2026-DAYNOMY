@@ -68,6 +68,72 @@ LOADTEST_ENVIRONMENT=dev ./gradlew -q portfolioLoadtest --args="tokens --env-fil
 기존 분석 테스트의 계정·토큰은 이번에 적재한 53명과 다르므로 그대로 쓰지 않는다.
 수동으로 파일을 준비해도 같은 53명·필드가 필요하고, 만료되면 다시 발급해야 한다.
 
+### 복원 후 데이터 비교가 실패할 때
+
+준비 도구는 복원 후 또는 토큰 발급 전 DB가 원본과 다르면 테이블·컬럼·차이 유형·건수를 표준 오류로 출력한다.
+실제 값, 회원·행 ID, 토큰, 접속 정보는 출력하지 않는다. 다음은 출력 형식의 예시이며 실제 서버 진단 결과는 아니다.
+
+```text
+Baseline mismatch summary (values and row identifiers omitted):
+table=portfolio_holding_histories column=unit_price kind=COLUMN_MISSING_IN_BASELINE count=14800
+```
+
+| kind | 의미 |
+| --- | --- |
+| `COLUMN_MISSING_IN_BASELINE` / `COLUMN_MISSING_IN_DB` | 원본 / DB 행에 컬럼이 없음. 원본에만 있는 컬럼 이름은 `<unknown_column>`으로 가림 |
+| `NULL_MISMATCH` | 한쪽 값만 null |
+| `NUMERIC_VALUE` / `TYPE_MISMATCH` / `VALUE_MISMATCH` | 숫자 값 / JSON 자료형 / 그 외 값이 다름 |
+| `TIMESTAMP_REPRESENTATION` | 동일 시각을 나타내지만 타임존 등 문자열 표기가 다름 |
+| `EXTRA_ROWS_IN_DB` / `MISSING_ROWS_IN_DB` | 원본과 DB 행 수 차이. 이 경우 해당 테이블의 컬럼 비교는 생략 |
+| `ROW_ID_MISMATCH` / `STRUCTURE` | 같은 순서의 행 ID / JSON 구조가 다름 |
+
+`1`과 `1.000000`은 기존처럼 같은 숫자로 비교한다. 시간 표기 차이 등 다른 불일치는 자동 보정하지 않으며,
+복원 검증이 실패하면 커밋하지 않고 연결 종료 시 롤백한다. 원본 파일도 수정하지 않는다.
+원본에 현재 스키마의 필수 컬럼 값이 없어 SQL 삽입 자체가 실패하면 이 비교 단계에 도달하지 않으므로 별도 SQL 진단이 필요하다.
+
+#### 서버에서 독립 `tool.jar`를 사용 중인 경우
+
+소스만 수정해도 기존 서버 JAR은 바뀌지 않는다. 수정한 체크아웃의 `backend/`에서 다음과 같이 도구 클래스만 묶는다.
+앱 JAR과 의존 라이브러리는 포함하지 않으며, 기존 `runtime/classes:runtime/lib/*`와 함께 사용한다.
+
+```bash
+./gradlew testClasses
+mkdir -p build/loadtest-tool
+jar --create --file build/loadtest-tool/tool.jar \
+  -C build/classes/java/test org/grit/daynomy/loadtest/PortfolioLoadtestTool.class
+```
+
+`build/loadtest-tool/tool.jar`를 dev 서버 `/home/ubuntu/loadtest-496/tool-next.jar`로 전송한 뒤,
+서버에서 기존 파일을 보관하고 교체한다. 아래는 현재 스키마용으로 별도 생성해 둔 원본을 지정한 예시다.
+
+```bash
+cd /home/ubuntu/loadtest-496
+cp -p tool.jar "tool.before-diagnostics.$(date +%Y%m%d%H%M%S).jar"
+chmod 600 tool-next.jar
+mv tool-next.jar tool.jar
+LOADTEST_ENVIRONMENT=dev java \
+  -Duser.timezone=Asia/Seoul -Xms32m -Xmx512m -XX:+UseSerialGC \
+  -cp 'tool.jar:runtime/classes:runtime/lib/*' \
+  org.grit.daynomy.loadtest.PortfolioLoadtestTool restore \
+  --env-file /home/ubuntu/backend/daynomy.env \
+  --namespace lt496-20261016 --base-url https://dev.daynomy.com \
+  --snapshot baseline-current-schema-20261021.json
+```
+
+복원이 성공한 경우에만 토큰과 Actions 전달 파일을 갱신한다. 실패하면 위 진단 요약으로 원인을 먼저 확인한다.
+
+```bash
+umask 077
+LOADTEST_ENVIRONMENT=dev java \
+  -Duser.timezone=Asia/Seoul -Xms32m -Xmx512m -XX:+UseSerialGC \
+  -cp 'tool.jar:runtime/classes:runtime/lib/*' \
+  org.grit.daynomy.loadtest.PortfolioLoadtestTool tokens \
+  --env-file /home/ubuntu/backend/daynomy.env \
+  --namespace lt496-20261016 --base-url https://dev.daynomy.com \
+  --snapshot baseline-current-schema-20261021.json --token-seconds 3600 && \
+gzip -c loadtest/.local/accounts.json | base64 > accounts.secret
+```
+
 ### 3. 토큰 파일을 Actions에 전달
 
 기존 분석 테스트와 같은 gzip+Base64 전달 방식을 사용하되, 분석용 Secret은 덮어쓰지 않는다.
