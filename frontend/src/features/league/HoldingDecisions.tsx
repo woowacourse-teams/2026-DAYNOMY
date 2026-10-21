@@ -4,6 +4,8 @@ import { leagueErrorType, trackLeagueEvent } from './analytics';
 import type { SharedHolding } from './sharedPortfolioApi';
 import type { InvestmentDecisionRecord } from './types';
 import { InvestmentRecords } from './InvestmentRecords';
+import { IssuePagination } from '../news/issue/IssuePagination';
+import '../news/issue/issue.css';
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
 
@@ -375,45 +377,14 @@ export function HoldingDecisions({
           );
         })}
       </div>
-      {holdings.length > 0 ? (
-        <>
-          {pageCount > 1 ? (
-            <nav className="holding-pagination" aria-label="종목 목록 페이지">
-              <button
-                type="button"
-                aria-label="이전 페이지"
-                disabled={navigationLocked || currentPage === 0}
-                onClick={() => changePage(currentPage - 1)}
-              >
-                이전
-              </button>
-              {Array.from({ length: pageCount }, (_, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  aria-label={`${index + 1}페이지`}
-                  aria-current={index === currentPage ? 'page' : undefined}
-                  disabled={navigationLocked}
-                  onClick={() => changePage(index)}
-                >
-                  {index + 1}
-                </button>
-              ))}
-              <button
-                type="button"
-                aria-label="다음 페이지"
-                disabled={navigationLocked || currentPage === pageCount - 1}
-                onClick={() => changePage(currentPage + 1)}
-              >
-                다음
-              </button>
-            </nav>
-          ) : null}
-          <p className="holding-page-status">
-            {currentPage * 4 + 1}–{Math.min((currentPage + 1) * 4, holdings.length)} /{' '}
-            {holdings.length}개 종목
-          </p>
-        </>
+      {pageCount > 1 ? (
+        <IssuePagination
+          page={currentPage + 1}
+          totalPages={pageCount}
+          onChange={(nextPage) => changePage(nextPage - 1)}
+          disabled={navigationLocked}
+          ariaLabel="종목 목록 페이지"
+        />
       ) : null}
       {previousHoldings.length > 0 ? (
         <section className="shared-previous-records">

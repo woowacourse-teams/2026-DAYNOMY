@@ -118,10 +118,10 @@ for (const width of [390, 1440]) {
 
     await page.goto('/league/portfolio');
     await expect(page.getByRole('article', { name: /기록 상세$/ })).toHaveCount(4);
-    await page.getByRole('button', { name: '다음 페이지' }).click();
+    await page.getByRole('button', { name: '다음 방향 2페이지로 이동' }).click();
     await expect(page.getByRole('article', { name: /기록 상세$/ })).toHaveCount(1);
     await expect(page.getByRole('article', { name: '테스트 종목 5 기록 상세' })).toBeVisible();
-    await page.getByRole('button', { name: '이전 페이지' }).click();
+    await page.getByRole('button', { name: '이전 방향 1페이지로 이동' }).click();
     await page.screenshot({ path: testInfo.outputPath('holding-cards.png'), fullPage: true });
     const edit = page.getByRole('button', { name: '삼성전자 2026-10-13 보유 기록 보유 이유 수정' });
     await expect(edit).toHaveCSS('border-top-width', '0px');
@@ -130,7 +130,7 @@ for (const width of [390, 1440]) {
     const input = page.getByRole('textbox', { name: '보유 이유', exact: true });
     await expect(input).toHaveValue(record.reason);
     await expect(input).toBeFocused();
-    await expect(page.getByRole('button', { name: '다음 페이지' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: '다음 방향 2페이지로 이동' })).toBeDisabled();
     await input.fill('수정한 보유 이유');
     await page.getByRole('button', { name: '보유 이유 수정 저장' }).click();
     await expect(page.getByRole('alert')).toContainText('저장 실패');
