@@ -595,7 +595,7 @@ describe('투자 리그 화면', () => {
     fireEvent.click(dialog);
     expect(view.queryByRole('dialog')).toBeNull();
   });
-  it('관심 투자자의 순위 상승·하락·동일·비교 기록 없음을 구분한다', async () => {
+  it('팔로잉에는 순위와 성과 없이 투자자 이름과 프로필 링크만 표시한다', async () => {
     vi.mocked(leagueApi.getFollowSummary).mockResolvedValue([
       {
         publicId: 'up',
@@ -639,12 +639,22 @@ describe('투자 리그 화면', () => {
         <FollowingPage />
       </MemoryRouter>,
     );
-    await view.findByText('지난주 대비 2위 상승');
+    await view.findByRole('link', { name: '상승 사용자' });
     expect(document.title).toBe('팔로잉 | DAYNOMY');
     expect(document.activeElement).toBe(view.getByRole('heading', { name: '팔로잉' }));
-    expect(view.getByText('지난주 대비 2위 하락')).toBeTruthy();
-    expect(view.getByText('지난주와 동일')).toBeTruthy();
-    expect(view.getByText('비교 기록 없음')).toBeTruthy();
+    const list = view.getByRole('list', { name: '팔로우한 투자자' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(4);
+    for (const [id, name] of [
+      ['up', '상승 사용자'],
+      ['down', '하락 사용자'],
+      ['same', '동일 사용자'],
+      ['new', '신규 사용자'],
+    ]) {
+      const link = within(list).getByRole('link', { name });
+      expect(link.getAttribute('href')).toBe(`/league/${id}`);
+      expect(link.textContent?.trim()).toBe(name);
+    }
+    expect(list.textContent).not.toMatch(/위|수익률|복기|집계|비교 기록/);
   });
 
   it('최대 종목 비중의 30%·50% 경계와 데이터 부족을 명세대로 구분한다', () => {

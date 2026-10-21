@@ -273,10 +273,10 @@ for (const width of [390, 1440]) {
       }
       if (path === '/league/portfolio') {
         await page.getByRole('button', { name: '삼성전자 투자 기록 추가' }).click();
-        await expect(page.getByRole('textbox', { name: '보유하는 이유' })).toBeFocused();
+        await expect(page.getByRole('textbox', { name: '보유 이유' })).toBeFocused();
       }
       if (path === '/league/reviews') {
-        await page.getByRole('button', { name: /복기하기/ }).click();
+        await page.getByRole('button', { name: /복기 작성/ }).click();
         await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeFocused();
       }
       await checkWidth(page);
@@ -297,7 +297,7 @@ for (const width of [390, 1440]) {
         await expect(page.locator('main textarea')).toHaveCount(0);
       }
       if (path === '/league/portfolio') {
-        await page.getByRole('button', { name: /복기하기/ }).click();
+        await page.getByRole('button', { name: /복기 작성/ }).click();
         await expect(page).toHaveURL('/league/portfolio');
         await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeFocused();
         await checkWidth(page);
@@ -306,7 +306,7 @@ for (const width of [390, 1440]) {
           fullPage: true,
         });
         await page.getByRole('button', { name: '취소', exact: true }).click();
-        await expect(page.getByRole('button', { name: /복기하기/ })).toBeFocused();
+        await expect(page.getByRole('button', { name: /복기 작성/ })).toBeFocused();
       }
     }
     await expect(page.getByRole('button', { name: '일별', exact: true })).toHaveAttribute(

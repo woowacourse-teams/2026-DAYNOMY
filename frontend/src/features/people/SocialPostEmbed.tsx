@@ -17,8 +17,10 @@ function ArrowUpRightIcon() {
 export function SocialPostEmbed({
   post,
   analytics,
+  onOriginalClick,
 }: {
   analytics?: AnalyticsParams;
+  onOriginalClick?: () => void;
   post: Pick<FeaturedPersonPost, 'sourceType' | 'title' | 'url'>;
 }) {
   const rootRef = useRef<HTMLElement>(null);
@@ -78,6 +80,7 @@ export function SocialPostEmbed({
           <a
             onClick={() => {
               if (analytics) trackEvent('click_content_original', analytics);
+              onOriginalClick?.();
             }}
             href={post.url}
             target="_blank"
@@ -91,6 +94,7 @@ export function SocialPostEmbed({
           <a
             onClick={() => {
               if (analytics) trackEvent('click_content_original', analytics);
+              onOriginalClick?.();
             }}
             href={post.url}
             target="_blank"
@@ -103,6 +107,7 @@ export function SocialPostEmbed({
       <a
         onClick={() => {
           if (analytics) trackEvent('click_content_original', analytics);
+          onOriginalClick?.();
         }}
         className="people-social-fallback"
         href={post.url}

@@ -373,7 +373,7 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
         </div>
       ) : detailLoading ? (
         <p className="league-state" role="status">
-          공개 투자 판단을 불러오고 있습니다.
+          공개 투자 기록을 불러오고 있습니다.
         </p>
       ) : detail ? (
         <>
@@ -427,7 +427,7 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                   <p>{decision.reason}</p>
                   {decision.reviews.map((review) => (
                     <blockquote key={review.id}>
-                      <strong>결과 복기</strong>
+                      <strong>복기</strong>
                       <p>{review.actualResult}</p>
                       <p>예상과 달랐던 점: {review.differenceFromExpectation}</p>
                       <small>다음 행동: {review.nextAction}</small>

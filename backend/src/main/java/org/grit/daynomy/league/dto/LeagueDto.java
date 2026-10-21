@@ -82,6 +82,8 @@ public final class LeagueDto {
       @NotNull @Min(1) Long assetId,
       @NotNull @Valid DecisionRequest decision) {}
 
+  public record DecisionReasonRequest(@NotBlank @Size(max = 500) String reason) {}
+
   public record ReviewRequest(
       @NotBlank @Size(max = 500) String actualResult,
       @NotBlank @Size(max = 500) String differenceFromExpectation,

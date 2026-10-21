@@ -99,3 +99,36 @@ it('전체 조회가 느려도 종목을 선택하면 새 결과를 표시하고
   expect(view.queryByRole('button', { name: /종목2 소식/ })).toBeNull();
   expect(view.getByRole('button', { name: /종목1 소식/ })).toBeTruthy();
 });
+
+it('종목별 콘텐츠에서도 인기순을 선택할 수 있다', async () => {
+  state.holdings = [
+    { assetId: 1, name: '종목1' },
+    { assetId: 2, name: '종목2' },
+  ];
+  vi.mocked(getStockRelatedContents).mockImplementation((id) => Promise.resolve(response(id)));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            periodDays: 7,
+            items: [
+              {
+                contentType: 'ASSET_CONTENT',
+                contentId: 1,
+                score: 8,
+                lastInteractedAt: '2026-10-20T02:00:00Z',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    ),
+  );
+  const view = show('&sort=popular');
+
+  expect(await view.findByRole('button', { name: '인기순', pressed: true })).toBeTruthy();
+  await waitFor(() => expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(2));
+  expect(view.container.querySelector('.issue-feed > li')?.textContent).toContain('종목1 소식');
+});

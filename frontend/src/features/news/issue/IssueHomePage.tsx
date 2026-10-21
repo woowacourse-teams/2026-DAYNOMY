@@ -14,6 +14,12 @@ import { getAllContents } from './contents';
 import type { ExternalContent } from './feed';
 import { getAllNews } from './todayNews';
 import { IssueFeed } from './IssueFeed';
+import {
+  feedContentReference,
+  getContentPopularity,
+  sortByPopularity,
+  type PopularityScores,
+} from './popularity';
 import '../../people/people.css';
 import './issue.css';
 
@@ -27,6 +33,7 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
 }
 
 function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
+  const [params, setParams] = useSearchParams();
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     const previousTitle = document.title;
@@ -47,6 +54,10 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   const [attempt, setAttempt] = useState(0);
   const [page, setPage] = useState(1);
   const [source, setSource] = useState<'ALL' | FeedItem['source']>('ALL');
+  const [popularity, setPopularity] = useState<PopularityScores>(new Map());
+  const [popularityLoading, setPopularityLoading] = useState(false);
+  const [popularityError, setPopularityError] = useState('');
+  const sort = params.get('sort') === 'popular' ? 'popular' : 'latest';
 
   useEffect(() => {
     const startedAt = performance.now();
@@ -96,11 +107,39 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     return () => controller.abort();
   }, [attempt, fullFeed, surface]);
 
+  useEffect(() => {
+    if (sort !== 'popular') {
+      setPopularityLoading(false);
+      setPopularityError('');
+      return;
+    }
+    const controller = new AbortController();
+    setPopularityLoading(true);
+    setPopularityError('');
+    setPopularity(new Map());
+    getContentPopularity(controller.signal)
+      .then((scores) => {
+        if (!controller.signal.aborted) setPopularity(scores);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPopularityError('인기순을 불러오지 못했습니다.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPopularityLoading(false);
+      });
+    return () => controller.abort();
+  }, [attempt, sort]);
+
   // shortcut: full archive is merged client-side; use a unified paginated API when the archive grows.
-  const items = createFeed(news, people.people, contents).filter(
+  const latestItems = createFeed(news, people.people, contents).filter(
     (item) => source === 'ALL' || item.source === source,
   );
-  const totalPages = Math.max(1, Math.ceil(items.length / 12));
+  const items =
+    sort === 'popular'
+      ? sortByPopularity(latestItems, feedContentReference, popularity)
+      : latestItems;
+  const pageSize = fullFeed ? 12 : 6;
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const featured = people.people
     .flatMap((person) => person.posts.map((post) => ({ person, post })))
@@ -110,9 +149,10 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
         (Date.parse(a.post.publishedAt ?? a.post.createdAt ?? '') || 0),
     )
     .slice(0, 3);
-  const settled = !loading && !contentsLoading && !people.loading;
-  const failedAreas = [error, contentsError, people.error].filter(Boolean).length;
-  const listStatus = failedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
+  const settled = !loading && !contentsLoading && !people.loading && !popularityLoading;
+  const failedAreas = [error, contentsError, people.error, popularityError].filter(Boolean).length;
+  const contentFailedAreas = [error, contentsError, people.error].filter(Boolean).length;
+  const listStatus = contentFailedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
   useContentView(settled, 'view_content_list', {
     surface,
     source_type: source,
@@ -138,6 +178,14 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     trackEvent('retry_content_load', { surface, area: 'all', attempt: attempt + 1 });
     setAttempt((value) => value + 1);
     people.retry();
+  };
+  const selectSort = (nextSort: 'latest' | 'popular') => {
+    if (sort === nextSort) return;
+    const next = new URLSearchParams(params);
+    if (nextSort === 'popular') next.set('sort', 'popular');
+    else next.delete('sort');
+    setParams(next);
+    setPage(1);
   };
 
   return (
@@ -218,46 +266,31 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                     <div className="issue-person-content">
                       <div className="issue-meta">
                         <strong>{person.name}</strong>
-                        <div className="issue-person-details">
-                          <span className="issue-person-platform">
-                            {post.sourceType === 'YOUTUBE' ? (
-                              <svg viewBox="0 0 28 20" aria-label="YouTube">
-                                <path
-                                  fill="#f03"
-                                  d="M27.4 3.1A3.5 3.5 0 0 0 24.9.6C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5C5.3 20 14 20s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"
-                                />
-                                <path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3z" />
-                              </svg>
-                            ) : (
-                              <img
-                                src={post.sourceType === 'X' ? xMark : threadsMark}
-                                alt={post.sourceType === 'X' ? 'X' : ''}
+                        <span className="issue-person-platform">
+                          {post.sourceType === 'YOUTUBE' ? (
+                            <svg viewBox="0 0 28 20" aria-label="YouTube">
+                              <path
+                                fill="#f03"
+                                d="M27.4 3.1A3.5 3.5 0 0 0 24.9.6C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5C5.3 20 14 20s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"
                               />
-                            )}
-                            {post.sourceType !== 'X' && sourceLabel(post.sourceType)}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span>{feedDate(post.createdAt, '등록')}</span>
-                        </div>
+                              <path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3z" />
+                            </svg>
+                          ) : (
+                            <img
+                              src={post.sourceType === 'X' ? xMark : threadsMark}
+                              alt={post.sourceType === 'X' ? 'X' : ''}
+                            />
+                          )}
+                          {post.sourceType !== 'X' && sourceLabel(post.sourceType)}
+                        </span>
+                      </div>
+                      <div className="issue-person-title">
+                        <h3>{post.title}</h3>
+                      </div>
+                      <div className="issue-person-footer">
+                        <span>{feedDate(post.createdAt, '등록')}</span>
                       </div>
                     </div>
-                    <div className="issue-person-title">
-                      <h3>{post.title}</h3>
-                    </div>
-                    <span className="issue-person-footer">
-                      이 인물의 글 보기
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        aria-hidden="true"
-                      >
-                        <path d="M4 12h16m-6-6 6 6-6 6" />
-                      </svg>
-                    </span>
                   </Link>
                 ))}
               </div>
@@ -269,7 +302,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       )}
       <section aria-labelledby="issue-feed-heading">
         <div className="issue-section-heading issue-feed-heading">
-          <h2 id="issue-feed-heading">{fullFeed ? '콘텐츠 목록' : '전체 콘텐츠'}</h2>
+          <h2 id="issue-feed-heading">{fullFeed ? '콘텐츠 목록' : '최근 올라온 콘텐츠'}</h2>
           <div className="issue-feed-controls">
             <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
               {(
@@ -303,7 +336,22 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                 </button>
               ))}
             </div>
-            <span>최신순</span>
+            <div className="issue-sort-options" role="group" aria-label="콘텐츠 정렬">
+              <button
+                type="button"
+                aria-pressed={sort === 'latest'}
+                onClick={() => selectSort('latest')}
+              >
+                최신순
+              </button>
+              <button
+                type="button"
+                aria-pressed={sort === 'popular'}
+                onClick={() => selectSort('popular')}
+              >
+                인기순
+              </button>
+            </div>
           </div>
         </div>
         {contentsError && (
@@ -321,7 +369,12 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
             {people.error} <button onClick={retryPeople}>다시 시도</button>
           </p>
         )}
-        {loading || people.loading || contentsLoading ? (
+        {popularityError && (
+          <p className="issue-state" role="alert">
+            {popularityError} <button onClick={retry}>다시 시도</button>
+          </p>
+        )}
+        {loading || people.loading || contentsLoading || popularityLoading ? (
           <p className="issue-state" role="status">
             콘텐츠를 불러오는 중입니다.
           </p>
@@ -333,13 +386,14 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
         )}
         <IssueFeed
           surface={surface}
-          offset={(currentPage - 1) * 12}
+          offset={(currentPage - 1) * pageSize}
           key={`${source}-${currentPage}`}
-          items={items.slice((currentPage - 1) * 12, currentPage * 12)}
+          items={items.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
         />
         {!loading &&
           !contentsLoading &&
           !people.loading &&
+          !popularityLoading &&
           !error &&
           !contentsError &&
           !people.error &&

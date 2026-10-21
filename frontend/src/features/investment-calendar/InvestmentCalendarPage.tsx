@@ -148,7 +148,6 @@ function dDayLabel(daysUntil: number) {
 }
 
 function defaultCopy(event: InvestmentCalendarEvent) {
-  const previous = formatValue(event.value.previousValue, event.value.unit);
   return {
     shortTitle: event.title.replace(' 발표', ''),
     relatedLabel: `관련 ${event.portfolioAnalysis.relatedAssetCount}종목`,
@@ -156,7 +155,7 @@ function defaultCopy(event: InvestmentCalendarEvent) {
       event.portfolioAnalysis.status === 'READY'
         ? '발표 결과에 따라 내 자산이 달라졌던 범위를 확인해 보세요.'
         : '아직 내 자산의 과거 반응을 계산할 표본이 부족합니다.',
-    watchMessage: `이번 발표 결과가 직전 ${previous}와 어떻게 달라졌는지 확인하세요.`,
+    watchMessage: '',
     previousLabel: '직전',
     sourceLabel: event.source.name,
     latestResult: '',
@@ -279,7 +278,7 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
       >
         <section className="investment-calendar-watch" aria-label="이번 일정에서 확인할 내용">
           <h3>{copy.takeaway}</h3>
-          <p>{copy.watchMessage}</p>
+          {copy.watchMessage && <p>{copy.watchMessage}</p>}
           <div className="investment-calendar-reference">
             <span>{copy.previousLabel}</span>
             <strong>{formatValue(event.value.previousValue, event.value.unit)}</strong>
