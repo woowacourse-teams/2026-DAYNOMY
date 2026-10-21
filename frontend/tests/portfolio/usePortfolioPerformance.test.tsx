@@ -52,19 +52,22 @@ afterEach(() => {
 });
 
 describe('자산 추이 자동 갱신', () => {
-  it('과거 종가 수집이 끝날 때까지 기다린 뒤 차트를 조회한다', async () => {
+  it('과거 종가 수집 중에도 저장된 차트를 표시하고 완료되면 갱신한다', async () => {
     vi.mocked(preparePortfolioPerformance)
       .mockResolvedValueOnce('PROCESSING')
       .mockResolvedValueOnce('READY');
     const { result } = renderHook(() => usePortfolioPerformance('1M', []));
     await flush();
-    expect(result.current.loading).toBe(true);
-    expect(getPortfolioPerformance).not.toHaveBeenCalled();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.points).toEqual([point]);
+    expect(result.current.notice).toContain('수집하고');
+    expect(getPortfolioPerformance).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_000);
     });
-    expect(getPortfolioPerformance).toHaveBeenCalledTimes(1);
+    expect(getPortfolioPerformance).toHaveBeenCalledTimes(2);
+    expect(result.current.notice).toBe('');
     expect(result.current.loading).toBe(false);
   });
 
@@ -74,8 +77,10 @@ describe('자산 추이 자동 갱신', () => {
       .mockResolvedValueOnce('READY');
     const { result } = renderHook(() => usePortfolioPerformance('1M', []));
     await flush();
-    expect(result.current.error).toContain('과거 종가');
-    expect(getPortfolioPerformance).not.toHaveBeenCalled();
+    expect(result.current.error).toBe('');
+    expect(result.current.notice).toContain('과거 종가');
+    expect(result.current.points).toEqual([point]);
+    expect(getPortfolioPerformance).toHaveBeenCalledTimes(1);
 
     await act(async () => result.current.retry());
     await flush();
@@ -85,7 +90,62 @@ describe('자산 추이 자동 갱신', () => {
       true,
       expect.any(AbortSignal),
     );
-    expect(getPortfolioPerformance).toHaveBeenCalledTimes(1);
+    expect(getPortfolioPerformance).toHaveBeenCalledTimes(2);
+  });
+
+  it('수집 API가 오류를 반환해도 저장된 차트를 표시한다', async () => {
+    vi.mocked(preparePortfolioPerformance).mockRejectedValueOnce(new Error('HTTP 502'));
+    const { result } = renderHook(() => usePortfolioPerformance('1M', []));
+    await flush();
+    expect(result.current.points).toEqual([point]);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.notice).toContain('확인하지 못했어요');
+  });
+
+  it('재조회가 실패해도 이전에 불러온 그래프를 유지한다', async () => {
+    const { result } = renderHook(() => usePortfolioPerformance('1M', []));
+    await flush();
+    vi.mocked(getPortfolioPerformance).mockRejectedValueOnce(new Error('일시적 조회 실패'));
+    await act(async () => result.current.retry());
+    await flush();
+    expect(result.current.points).toEqual([point]);
+    expect(result.current.error).toBe('일시적 조회 실패');
+  });
+
+  it('부분 수집 후 실패하더라도 새로 저장된 기록을 반영한다', async () => {
+    vi.mocked(preparePortfolioPerformance)
+      .mockResolvedValueOnce('PROCESSING')
+      .mockResolvedValueOnce('FAILED');
+    const { result } = renderHook(() => usePortfolioPerformance('1M', []));
+    await flush();
+    const older = { ...point, baseDate: '2026-10-16' };
+    vi.mocked(getPortfolioPerformance).mockResolvedValueOnce({
+      ...response,
+      points: [older, point],
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(result.current.points).toEqual([older, point]);
+    expect(result.current.notice).toContain('일부 과거 종가');
+  });
+
+  it('기간 변경 시 이전 요청과 수집 확인을 취소한다', async () => {
+    vi.mocked(preparePortfolioPerformance).mockResolvedValue('PROCESSING');
+    const { rerender, unmount } = renderHook(({ period }) => usePortfolioPerformance(period, []), {
+      initialProps: { period: '1M' as '1M' | '1Y' },
+    });
+    await flush();
+    const signal = vi.mocked(getPortfolioPerformance).mock.calls[0][2]!;
+    rerender({ period: '1Y' });
+    await flush();
+    expect(signal.aborted).toBe(true);
+    unmount();
+    const calls = vi.mocked(preparePortfolioPerformance).mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(preparePortfolioPerformance).toHaveBeenCalledTimes(calls);
   });
 
   it('서울 자정이 지나면 새 날짜 범위로 스냅샷을 다시 조회한다', async () => {

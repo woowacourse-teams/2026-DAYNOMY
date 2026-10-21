@@ -18,6 +18,7 @@ export function usePortfolioPerformance(
   const [points, setPoints] = useState<PortfolioPerformancePoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const holdingKey = holdings
     .map(({ assetId, quantity, averagePurchasePrice }) =>
@@ -56,10 +57,14 @@ export function usePortfolioPerformance(
   }, [enabled]);
 
   useEffect(() => {
+    setPoints([]);
+  }, [enabled, holdingKey, period, revision]);
+
+  useEffect(() => {
     if (!enabled) {
-      setPoints([]);
       setLoading(false);
       setError('');
+      setNotice('');
       return;
     }
 
@@ -69,20 +74,10 @@ export function usePortfolioPerformance(
     const from = getTrendPeriodStart(to, period);
     setLoading(true);
     setError('');
+    setNotice('');
 
-    async function load(retry = false) {
-      let pending = false;
+    async function loadSaved() {
       try {
-        const status = await preparePortfolioPerformance(from, to, retry, controller.signal);
-        if (controller.signal.aborted) return;
-        if (status === 'PROCESSING') {
-          pending = true;
-          pollTimer = window.setTimeout(() => void load(), 2_000);
-          return;
-        }
-        if (status === 'FAILED') {
-          throw new Error('과거 종가를 가져오지 못했습니다. 다시 시도해 주세요.');
-        }
         const response = await getPortfolioPerformance(from, to, controller.signal);
         if (controller.signal.aborted) return;
         setPoints(
@@ -93,23 +88,48 @@ export function usePortfolioPerformance(
             ...(response.currentPoint ? [response.currentPoint] : []),
           ].sort((left, right) => left.baseDate.localeCompare(right.baseDate)),
         );
+        setError('');
       } catch (caughtError) {
         if (controller.signal.aborted) return;
         trackPortfolioEvent('portfolio_dashboard_load_failed', {
           stage: 'chart',
           error_type: portfolioErrorType(caughtError),
         });
-        setPoints([]);
         setError(
           caughtError instanceof Error ? caughtError.message : '자산 추이를 불러오지 못했습니다.',
         );
       } finally {
-        if (!controller.signal.aborted && !pending) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
-    void load(retryCount > 0);
+    const savedRequest = loadSaved();
+    async function prepare(retry = false, wasProcessing = false) {
+      try {
+        const status = await preparePortfolioPerformance(from, to, retry, controller.signal);
+        if (controller.signal.aborted) return;
+        if (status === 'PROCESSING') {
+          setNotice('과거 종가를 추가로 수집하고 있어요. 준비된 데이터부터 표시합니다.');
+          pollTimer = window.setTimeout(() => void prepare(false, true), 2_000);
+          return;
+        }
+        setNotice(
+          status === 'FAILED'
+            ? '일부 과거 종가를 가져오지 못했어요. 준비된 데이터만 표시합니다. 새로고침으로 다시 시도할 수 있어요.'
+            : '',
+        );
+        if (wasProcessing) {
+          // Do not let the initial response overwrite freshly collected snapshots.
+          await savedRequest;
+          if (!controller.signal.aborted) await loadSaved();
+        }
+      } catch {
+        if (!controller.signal.aborted)
+          setNotice('과거 종가 수집 상태를 확인하지 못했어요. 준비된 데이터만 표시합니다.');
+      }
+    }
 
+    void prepare(retryCount > 0);
     return () => {
       controller.abort();
       window.clearTimeout(pollTimer);
@@ -120,6 +140,7 @@ export function usePortfolioPerformance(
     points,
     loading,
     error,
+    notice,
     retry: () => setRetryCount((count) => count + 1),
   };
 }

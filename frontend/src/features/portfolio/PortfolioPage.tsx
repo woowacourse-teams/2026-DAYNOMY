@@ -180,6 +180,7 @@ type PortfolioAssetTrendChartProps = {
   points: PortfolioPerformancePoint[];
   loading: boolean;
   error: string;
+  notice?: string;
   onRetry: () => void;
   amountsHidden: boolean;
   period: TrendPeriod;
@@ -213,6 +214,7 @@ function PortfolioAssetTrendChart({
   points,
   loading,
   error,
+  notice = '',
   onRetry,
   amountsHidden,
   period,
@@ -427,7 +429,7 @@ function PortfolioAssetTrendChart({
           ) : null}
         </div>
       </div>
-      {!loading && !error && latest && expanded ? (
+      {latest && expanded ? (
         <div className="portfolio-trend-summary" aria-label="자산 추이 요약">
           <span>평가금액 · {latest.baseDate.replaceAll('-', '.')}</span>
           <strong>{amountsHidden ? HIDDEN_AMOUNT : formatWon(latest.totalEvaluationAmount)}</strong>
@@ -459,6 +461,11 @@ function PortfolioAssetTrendChart({
         </span>
         <span className="principal">{metric === 'evaluation' ? '매입금액' : '0 기준선'}</span>
       </div>
+      {notice ? (
+        <p className="portfolio-trend-note" role="status">
+          {notice}
+        </p>
+      ) : null}
       <div className="portfolio-trend-plot">
         {loading ? (
           <p className="portfolio-tracking-state" role="status">
@@ -479,7 +486,7 @@ function PortfolioAssetTrendChart({
             <p>기간을 바꾸거나 거래를 기록해 주세요. 가격 데이터가 준비되면 추이가 표시됩니다.</p>
           </div>
         ) : null}
-        {!loading && !error && visiblePoints.length >= 1 && latest ? (
+        {visiblePoints.length >= 1 && latest ? (
           <>
             <div
               ref={chartRef}
@@ -1348,6 +1355,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                         points={touring ? tourTrendPoints : trendPoints}
                         loading={!touring && performance.loading}
                         error={touring ? '' : performance.error}
+                        notice={touring ? '' : performance.notice}
                         onRetry={retryChart}
                         amountsHidden={!touring && amountsHidden}
                         period={trendPeriod}
@@ -1655,6 +1663,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           points={trendPoints}
           loading={performance.loading}
           error={performance.error}
+          notice={performance.notice}
           onRetry={retryChart}
           amountsHidden={amountsHidden}
           period={trendPeriod}

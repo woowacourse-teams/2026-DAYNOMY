@@ -118,7 +118,7 @@ export function DailyReturns({
       ? participatingDays.length === 0
         ? '이 주에는 참여 기록이 없어요.'
         : pendingClose
-          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기 · 다음 영업일 오후 1시 이후 제공됩니다.`
+          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기 · 다음 영업일 오후 2시 이후 제공됩니다.`
           : [...new Set(participatingDays.map(statusLabel))].join(', ')
       : history?.collectionStatus
         ? collectionLabels[history.collectionStatus]
