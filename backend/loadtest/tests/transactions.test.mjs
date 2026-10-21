@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import vm from "node:vm";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -87,6 +88,7 @@ async function fixture(
   const requests = [];
   const cookies = {};
   const quantities = new Map();
+  const histories = new Map();
   const exec = {
     scenario: { iterationInTest: 0, startTime: Date.now() },
     test: {
@@ -101,11 +103,29 @@ async function fixture(
         cookies[name] = value;
       },
     }),
-    get: () => ({
-      status: 200,
-      cookies: { "XSRF-TOKEN": [{ value: "csrf" }] },
-      json: () => ({ token: "csrf", headerName: "X-XSRF-TOKEN" }),
-    }),
+    get: (url) => {
+      if (url.endsWith("/api/auth/csrf"))
+        return {
+          status: 200,
+          cookies: { "XSRF-TOKEN": [{ value: "csrf" }] },
+          json: () => ({ token: "csrf", headerName: "X-XSRF-TOKEN" }),
+        };
+      const member = Number(
+        JSON.parse(Buffer.from(cookies.access_token.split(".")[1], "base64url"))
+          .sub,
+      );
+      return {
+        status: 200,
+        json: () =>
+          url.includes("/histories?")
+            ? structuredClone(histories.get(member) || [])
+            : {
+                holdings: [
+                  { assetId: member, quantity: quantities.get(member) || 100 },
+                ],
+              },
+      };
+    },
     post: (url, payload, options) => {
       assert.equal(cookies["XSRF-TOKEN"], options.headers["X-XSRF-TOKEN"]);
       clock += 10;
@@ -117,6 +137,18 @@ async function fixture(
       const quantity = (quantities.get(member) || 100) + 1;
       quantities.set(member, quantity);
       requests.push({ member, url, body, options });
+      const rows = histories.get(member) || [];
+      rows.push({
+        historyId: requests.length,
+        assetId: body.assetId,
+        changeType: "BUY",
+        transactionQuantity: 1,
+        unitPrice: body.unitPrice,
+        fee: 0,
+        tax: 0,
+        effectiveDate: body.tradeDate,
+      });
+      histories.set(member, rows);
       return {
         status: 201,
         json: () => ({
@@ -206,6 +238,7 @@ async function fixture(
     build: () => ({
       options: module.namespace.options,
       setup: module.namespace.setup,
+      teardown: module.namespace.teardown,
       run: module.namespace.default,
       handleSummary: module.namespace.handleSummary,
     }),
@@ -214,6 +247,8 @@ async function fixture(
     counters,
     requests,
     http,
+    quantities,
+    histories,
   };
 }
 
@@ -454,5 +489,186 @@ test("request errors or unexpected quantities stop the test without retrying", a
     );
     assert.equal(f.counters.get("transaction_failed"), 1);
     assert.equal(f.counters.get("transaction_success"), 0);
+  }
+});
+
+test("stress mode permits five high rates with 50 accounts; default mode still rejects overlaps", async () => {
+  for (const rps of [10, 20, 50, 100, 200]) {
+    const f = await fixture(
+      { rps, vus: 500 },
+      () => {},
+      { MODE: "stress" },
+      "v2",
+    );
+    const scenario = f.build();
+    assert.equal(scenario.options.scenarios.transactions.rate, rps * 60);
+    assert.equal(scenario.options.scenarios.transactions.maxVUs, 500);
+    assert.equal(scenario.options.tags.workload, "stress_hot_accounts");
+    assert.deepEqual(
+      [...scenario.options.thresholds.stress_committed],
+      [`count==${rps * 120}`],
+    );
+  }
+  await assert.rejects(() =>
+    fixture({ rps: 201 }, () => {}, { MODE: "stress" }),
+  );
+  await assert.rejects(() => fixture({ rps: 10 }));
+  await assert.rejects(() => fixture({}, () => {}, { MODE: "invalid" }));
+});
+
+test("stress accepts out-of-order requests for one account and verifies persisted writes", async () => {
+  const f = await fixture(
+    { rps: 10, warmupSeconds: 1 },
+    () => {},
+    { MODE: "stress" },
+    "v2",
+  );
+  const scenario = f.build();
+  const data = scenario.setup();
+  for (const index of [50, 0]) {
+    f.exec.scenario.iterationInTest = index;
+    scenario.run(data);
+  }
+  scenario.teardown(data);
+  assert.equal(f.counters.get("transaction_success"), 2);
+  assert.equal(f.counters.get("transaction_failed"), 0);
+  assert.equal(f.counters.get("stress_verification_checked"), 50);
+  assert.equal(f.counters.get("stress_verification_failed"), 0);
+  assert.equal(f.counters.get("stress_committed{account:lt-001}"), 2);
+});
+
+test("stress records overload errors once and continues, but malformed successes and auth errors abort", async () => {
+  const f = await fixture({ rps: 10 }, () => {}, { MODE: "stress" });
+  const scenario = f.build();
+  const original = f.http.post;
+  const data = { csrf: { token: "csrf", headerName: "X-XSRF-TOKEN" } };
+  let calls = 0;
+  f.http.post = () => {
+    calls++;
+    return { status: 503, json: () => ({}) };
+  };
+  scenario.run(data);
+  assert.equal(calls, 1);
+  assert.equal(f.counters.get("transaction_failed"), 1);
+  f.http.post = original;
+  f.exec.scenario.iterationInTest = 1;
+  scenario.run(data);
+  assert.equal(f.counters.get("transaction_success"), 1);
+  for (const status of [401, 403, 201]) {
+    f.http.post = () => ({ status, json: () => ({}) });
+    assert.throws(() => scenario.run(data), /Stopped:/);
+  }
+});
+
+test("stress rejects changed initial quantities before submitting trades", async () => {
+  const f = await fixture({ rps: 10 }, () => {}, { MODE: "stress" });
+  f.quantities.set(1, 200);
+  assert.throws(() => f.build().setup(), /baseline unavailable or changed/);
+  assert.equal(f.requests.length, 0);
+});
+
+test("stress detects lost quantities, modified original histories and unavailable verification reads", async () => {
+  for (const failure of ["quantity", "history", "read"]) {
+    const f = await fixture({ rps: 10, warmupSeconds: 1 }, () => {}, {
+      MODE: "stress",
+    });
+    f.histories.set(1, [
+      { historyId: 999999, assetId: 1, transactionQuantity: 1 },
+    ]);
+    const scenario = f.build();
+    const data = scenario.setup();
+    scenario.run(data);
+    if (failure === "quantity") f.quantities.set(1, 100);
+    if (failure === "history") f.histories.get(1)[0].transactionQuantity = 2;
+    if (failure === "read")
+      f.http.get = () => ({ status: 503, json: () => ({}) });
+    scenario.teardown(data);
+    assert.ok(f.counters.get("stress_verification_failed") > 0);
+    assert.equal(f.counters.get("stress_verification_checked"), 50);
+  }
+});
+
+test("stress cannot pass lost commits, missing verification, drops or uncertain server outcomes", async () => {
+  const f = await fixture({ rps: 10 }, () => {}, { MODE: "stress" });
+  const scenario = f.build();
+  const metrics = {
+    transaction_started: { values: { count: 1200 } },
+    transaction_success: { values: { count: 1200 } },
+    transaction_duration: { values: { "p(95)": 500 } },
+    stress_verification_checked: { values: { count: 50 } },
+    stress_verification_failed: { values: { count: 0 } },
+    stress_committed: { values: { count: 1200 } },
+  };
+  for (let i = 1; i <= 50; i++) {
+    const account = `lt-${String(i).padStart(3, "0")}`;
+    for (const name of [
+      "transaction_started",
+      "transaction_success",
+      "stress_committed",
+    ])
+      metrics[`${name}{account:${account}}`] = { values: { count: 24 } };
+  }
+  let report = readReport(scenario, metrics);
+  assert.equal(report.outcome, "exploratory_pass");
+  assert.equal(report.integrity.status, "passed");
+  assert.equal(report.accounts[49].committed, 24);
+  assert.ok(!JSON.stringify(report).includes("accessToken"));
+  metrics.stress_committed.values.count = 1199;
+  assert.equal(readReport(scenario, metrics).outcome, "integrity_failed");
+  metrics.stress_committed.values.count = 1200;
+  metrics.dropped_iterations = { values: { count: 1 } };
+  assert.equal(readReport(scenario, metrics).outcome, "incomplete");
+  delete metrics.dropped_iterations;
+  metrics.transaction_success.values.count = 1199;
+  metrics.transaction_failed = { values: { count: 1 } };
+  report = readReport(scenario, metrics);
+  assert.equal(report.outcome, "target_exceeded");
+  assert.equal(report.integrity.status, "inconclusive");
+  assert.equal(report.integrity.requiresServerDrain, true);
+  delete metrics.stress_verification_checked;
+  assert.equal(readReport(scenario, metrics).outcome, "incomplete");
+});
+
+test("Actions forwards MODE=stress and all five saved presets initialize successfully", async () => {
+  const workflow = fs.readFileSync(
+    path.join(root, "../../.github/workflows/k6-dev.yml"),
+    "utf8",
+  );
+  const script = workflow
+    .split(
+      '          PORTFOLIO_TEST="$portfolio" K6_SCRIPT_NAME="$script_name" python3 - <<\'PY\'\n',
+    )[1]
+    .split("          PY")[0]
+    .split("\n")
+    .map((line) => line.slice(10))
+    .join("\n");
+  const wrapper =
+    `import os, sys, json\nfrom unittest.mock import patch\n` +
+    `with patch('subprocess.run') as run:\n run.return_value.returncode = 0\n try:\n  exec(${JSON.stringify(script)})\n except SystemExit as error:\n  if error.code: raise\n print(json.dumps(run.call_args.args[0]))\n`;
+  for (const rps of [10, 20, 50, 100, 200]) {
+    const params = JSON.parse(
+      fs.readFileSync(
+        path.join(root, `params/stress-v2-${rps}rps.json`),
+        "utf8",
+      ),
+    );
+    const result = spawnSync("python3", ["-c", wrapper], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PORTFOLIO_TEST: "true",
+        K6_SCRIPT_NAME: "transactions-v2.js",
+        K6_PARAMS_JSON: JSON.stringify(params),
+        BASE_URL: template.baseUrl,
+        LOADTEST_ID: "stress-workflow-test",
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const args = JSON.parse(result.stdout);
+    assert.ok(args.includes("MODE=stress"));
+    assert.ok(args.includes("testid=stress-workflow-test"));
+    assert.equal(args.at(-1), "transactions-v2.js");
+    const f = await fixture({}, () => {}, params, "v2");
+    assert.equal(f.build().options.scenarios.transactions.rate, rps * 60);
   }
 });

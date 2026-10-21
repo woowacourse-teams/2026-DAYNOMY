@@ -1,0 +1,12 @@
+{
+  "REFERENCE_DATE": "2026-10-16",
+  "TRADE_MONTHS_AGO": 1,
+  "MODE": "stress",
+  "RPS": 100,
+  "DURATION": "2m",
+  "WARMUP_DURATION": "2m",
+  "VUS": 500,
+  "REQUEST_TIMEOUT_SECONDS": 10,
+  "TARGET_P95_MS": 3000,
+  "RUN": "v2-stress-100rps-01"
+}
