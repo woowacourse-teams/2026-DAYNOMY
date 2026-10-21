@@ -181,7 +181,7 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
     {
       ...tourAnalysis.impacts[0],
       assetName: '예시 자산 A',
-      weight: 60,
+      weight: 40,
       direction: 'POSITIVE',
       rank: 1,
     },
@@ -192,6 +192,13 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
       direction: 'NEUTRAL',
       rank: 2,
     },
+    {
+      ...tourAnalysis.impacts[0],
+      assetName: '예시 자산 C',
+      weight: 20,
+      direction: 'POSITIVE',
+      rank: 3,
+    },
   ];
   return (
     <div className="portfolio-analysis-preview" role="region" aria-label="가상 분석 미리보기">
@@ -200,10 +207,20 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
           <h3>반도체 수요 회복에 따른 긍정적 영향</h3>
           <div className="portfolio-preview-blur" aria-hidden="true">
             <p>
-              보유 비중이 높은 종목의 실적 개선 기대가 전체 포트폴리오에 긍정적으로 반영될 수
-              있습니다.
+              전체 포트폴리오에서 반도체 관련 자산이 차지하는 비중이 높아, 반도체 수요 회복과 실적
+              개선 기대가 보유 자산 전반에 긍정적으로 반영될 수 있습니다. 자산별 비중과 최근 소식을
+              함께 살펴 전체 포트폴리오에 미치는 영향을 분석합니다.
             </p>
-            <p>원자재 가격과 환율에 따라 종목별 영향은 달라질 수 있습니다.</p>
+            <p>
+              긍정적인 영향이 예상되는 자산의 비중이 크지만, 원자재 가격과 환율 변화에 따라 종목별
+              영향은 달라질 수 있습니다. 비중이 높은 자산부터 실적 발표와 주요 공시를 확인하고, 다른
+              보유 자산과의 연관성도 함께 살펴볼 필요가 있습니다.
+            </p>
+            <p>
+              자산별 영향과 보유 비중을 함께 반영하면 전체 포트폴리오의 변화 방향을 확인할 수
+              있습니다. 새로운 소식이 반영될 때마다 주요 자산의 영향이 어떻게 달라지는지 살펴봅니다.
+            </p>
+            <p>보유 비중이 큰 자산의 변화가 전체 포트폴리오에 미치는 영향을 함께 확인합니다.</p>
           </div>
         </div>
         <div className="portfolio-analysis-overview" inert aria-hidden="true">
@@ -771,7 +788,7 @@ function PortfolioAnalysisView({
     </a>
   ) : !error ? (
     <button
-      className={`portfolio-analysis-button${!portfolioChanged && saved?.status !== 'PROCESSING' && (analysis || (!isLoggedIn && !loading)) ? ' is-primary' : ''}`}
+      className={`portfolio-analysis-button${saved?.status !== 'PROCESSING' && (portfolioChanged || analysis || (!isLoggedIn && !loading)) ? ' is-primary' : ''}`}
       type="button"
       disabled={!canAnalyze}
       onClick={analyze}

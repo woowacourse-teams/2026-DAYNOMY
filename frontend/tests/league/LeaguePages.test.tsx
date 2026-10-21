@@ -754,7 +754,7 @@ describe('투자 리그 화면', () => {
       ),
     );
     const pageStatus = await view.findByRole('status', { name: '전체 3페이지 중 2페이지' });
-    expect(document.activeElement).toBe(pageStatus);
+    await waitFor(() => expect(document.activeElement).toBe(pageStatus));
     expect(view.getByRole('list').getAttribute('start')).toBe('21');
     fireEvent.change(view.getByRole('combobox', { name: '조회 주차' }), {
       target: { value: '2026-11-30' },

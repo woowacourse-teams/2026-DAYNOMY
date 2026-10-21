@@ -444,7 +444,9 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.queryByText('삼성전자')).toBeNull();
     expect(view.getByRole('region', { name: '가상 분석 미리보기' })).toBeTruthy();
     expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: '현재 자산으로 분석하기' }));
+    const analyzeCurrentAssets = view.getByRole('button', { name: '현재 자산으로 분석하기' });
+    expect(analyzeCurrentAssets.classList.contains('is-primary')).toBe(true);
+    fireEvent.click(analyzeCurrentAssets);
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(
