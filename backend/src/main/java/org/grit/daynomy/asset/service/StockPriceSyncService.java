@@ -242,7 +242,7 @@ public class StockPriceSyncService {
       MarketTradingDay day = calendar.get(index);
       MarketTradingDay next = calendar.get(index + 1);
       if (day.getCollectedAt() == null
-          && !now.isBefore(next.getBaseDate().atTime(13, 0).atZone(SEOUL).toInstant())) {
+          && !now.isBefore(next.getBaseDate().atTime(14, 0).atZone(SEOUL).toInstant())) {
         eligible.add(day);
       }
     }

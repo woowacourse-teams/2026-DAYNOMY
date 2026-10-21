@@ -438,7 +438,7 @@ public class LeagueService {
                   oldestPendingClose.atZone(SEOUL).toLocalDate())
               .orElse(null);
       if (nextDay == null) missingCalendarDays++;
-      else expectedCollection = nextDay.getBaseDate().atTime(13, 0).atZone(SEOUL).toInstant();
+      else expectedCollection = nextDay.getBaseDate().atTime(14, 0).atZone(SEOUL).toInstant();
     }
     calculationMetrics.finalizationState(missingCalendarDays, pendingWeeks, expectedCollection);
     calculationMetrics.finalizationMeasured(started, scanned, full);

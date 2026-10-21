@@ -278,7 +278,7 @@ class PortfolioPriceHistoryServiceTest {
 
     assertThat(asset.hasPriceHistory(friday, friday)).isTrue();
     then(domesticClient).shouldHaveNoInteractions();
-    then(krxCalendarClient).shouldHaveNoInteractions();
+    then(krxCalendarClient).should().holidays(friday.plusDays(3).getYear());
   }
 
   @Test

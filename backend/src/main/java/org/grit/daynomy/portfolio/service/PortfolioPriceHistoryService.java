@@ -4,6 +4,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -152,7 +153,7 @@ public class PortfolioPriceHistoryService {
     LocalDate availableTo =
         asset.getMarket() != null && asset.getMarket().isUs()
             ? LocalDate.now(NEW_YORK).minusDays(1)
-            : LocalDate.now(SEOUL).minusDays(1);
+            : availableDomesticThrough(to, ZonedDateTime.now(SEOUL));
     LocalDate end = to.isBefore(availableTo) ? to : availableTo;
     if (from.isAfter(end)) return;
     targets.merge(
@@ -163,6 +164,33 @@ public class PortfolioPriceHistoryService {
                 asset.getId(),
                 old.from().isBefore(next.from()) ? old.from() : next.from(),
                 old.to().isAfter(next.to()) ? old.to() : next.to()));
+  }
+
+  LocalDate availableDomesticThrough(LocalDate requestedTo, ZonedDateTime now) {
+    Map<Integer, Set<LocalDate>> holidays = new HashMap<>();
+    LocalDate through = requestedTo;
+    while (true) {
+      LocalDate next = through.plusDays(1);
+      while (!isDomesticTradingDay(next, holidays)) {
+        next = next.plusDays(1);
+      }
+      if (!now.toInstant().isBefore(next.atTime(14, 0).atZone(SEOUL).toInstant())) {
+        return through;
+      }
+      through = through.minusDays(1);
+    }
+  }
+
+  private boolean isDomesticTradingDay(LocalDate date, Map<Integer, Set<LocalDate>> holidays) {
+    if (date.getDayOfWeek().getValue() > DayOfWeek.FRIDAY.getValue()) return false;
+    return tradingDayRepository
+        .findById(date)
+        .map(MarketTradingDay::isTrading)
+        .orElseGet(
+            () ->
+                !holidays
+                    .computeIfAbsent(date.getYear(), krxCalendarClient::holidays)
+                    .contains(date));
   }
 
   private void collect(Long portfolioId, LocalDate from, LocalDate to, List<Target> targets) {

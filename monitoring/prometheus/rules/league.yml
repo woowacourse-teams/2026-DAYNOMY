@@ -36,4 +36,4 @@ groups:
           severity: warning
         annotations:
           summary: '운영 투자 리그 주간 확정 지연'
-          description: '{{ $labels.instance }}에서 다음 거래일 종가 제공 예정 시각(13시) 후 2시간 넘게 확정이 지연됐습니다. 종가 수집과 참가자 계산 상태를 확인합니다.'
+          description: '{{ $labels.instance }}에서 다음 거래일 종가 제공 예정 시각(14시) 후 2시간 넘게 확정이 지연됐습니다. 종가 수집과 참가자 계산 상태를 확인합니다.'
