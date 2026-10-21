@@ -259,11 +259,18 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
 
     fireEvent.click(view.getByRole('button', { name: '1회 분석 체험하기' }));
-    expect(await view.findByText('영향 점수 산정 기준')).toBeTruthy();
+    const guideTitle = await view.findByText('영향 점수 산정 기준');
+    const guide = guideTitle.closest('details')!;
+    const toggle = guideTitle.closest('summary')!;
+    expect(guide.open).toBe(false);
+    fireEvent.click(toggle);
+    expect(guide.open).toBe(true);
 
     expect(view.getByText(/예상 수익률이나 상승 확률은 아니에요/)).toBeTruthy();
     expect(view.getByText('+60.00점')).toBeTruthy();
     expect(view.getByText('−9.00점')).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(guide.open).toBe(false);
   });
 
   it('비회원이 모든 자산을 삭제하면 저장된 분석 결과만 제거한다', async () => {

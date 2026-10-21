@@ -883,19 +883,6 @@ function PortfolioAnalysisView({
       {hasAnalysisTarget && analysis && sortedImpacts.length > 0 ? (
         <>
           <div ref={resultRef} className="portfolio-analysis-layout">
-            {selectedImpact ? (
-              <PortfolioImpactDetail
-                demo={demoStep !== undefined}
-                impact={selectedImpact}
-                analyzedAssetCount={analysis.analyzedAssetCount}
-              />
-            ) : (
-              <PortfolioOverallImpactDetail
-                demo={demoStep !== undefined}
-                analysis={analysis}
-                analyzedAtLabel={analyzedAtLabel}
-              />
-            )}
             <div className="portfolio-analysis-overview">
               <div className="portfolio-analysis-overview-heading">
                 <h3>자산별 영향</h3>
@@ -924,10 +911,28 @@ function PortfolioAnalysisView({
                   : '색상은 각 자산에 예상되는 영향 방향을 나타내요.'}
               </p>
             </div>
+            {selectedImpact ? (
+              <PortfolioImpactDetail
+                demo={demoStep !== undefined}
+                impact={selectedImpact}
+                analyzedAssetCount={analysis.analyzedAssetCount}
+              />
+            ) : (
+              <PortfolioOverallImpactDetail
+                demo={demoStep !== undefined}
+                analysis={analysis}
+                analyzedAtLabel={analyzedAtLabel}
+              />
+            )}
           </div>
           <div className="portfolio-score-panel">
-            <div className="portfolio-score-guide">
-              <h3>영향 점수 산정 기준</h3>
+            <details className="portfolio-score-guide">
+              <summary>
+                <svg className="portfolio-score-toggle" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 3 21 12 6 21Z" />
+                </svg>
+                <h3>영향 점수 산정 기준</h3>
+              </summary>
               <p>
                 보유 비중과 자산별 영향 방향·수준을 합산한 -100~100 지표예요. 예상 수익률이나 상승
                 확률은 아니에요.
@@ -950,7 +955,7 @@ function PortfolioAnalysisView({
                   <dd>{formatImpactScore(analysis.overallScore)}</dd>
                 </div>
               </dl>
-            </div>
+            </details>
           </div>
         </>
       ) : null}
