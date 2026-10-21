@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface NewsRepository extends JpaRepository<News, Long> {
 
+  boolean existsByIdAndStatus(Long id, NewsStatus status);
+
   Page<News> findByStatusOrderByPublishedAtDescIdDesc(NewsStatus status, Pageable pageable);
 
   Page<News> findByStatusAndCategoryOrderByPublishedAtDescIdDesc(

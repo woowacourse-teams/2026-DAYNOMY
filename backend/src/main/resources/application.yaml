@@ -97,6 +97,10 @@ jwt:
 cookie:
   secure: ${COOKIE_SECURE:false}
 
+content-interaction:
+  anonymous-token-secret: ${CONTENT_INTERACTION_ANONYMOUS_TOKEN_SECRET:${jwt.secret}}
+  rate-limit-per-minute: ${CONTENT_INTERACTION_RATE_LIMIT_PER_MINUTE:60}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
