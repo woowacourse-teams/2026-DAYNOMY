@@ -17,6 +17,9 @@ public interface InvestmentDecisionRepository extends JpaRepository<InvestmentDe
   List<InvestmentDecision> findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
       Long portfolioId, LocalDate tradedOn);
 
+  List<InvestmentDecision> findAllByPortfolioIdInAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
+      List<Long> portfolioIds, LocalDate tradedOn);
+
   List<InvestmentDecision>
       findAllByPortfolioIdAndTradedOnLessThanEqualAndCreatedAtLessThanOrderByTradedOnDescIdDesc(
           Long portfolioId, LocalDate tradedOn, Instant createdBefore);

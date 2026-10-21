@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 
+import jakarta.persistence.EntityManagerFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
@@ -17,6 +18,7 @@ import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.HashSet;
 import org.grit.daynomy.league.service.LeagueReturnService;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +35,13 @@ import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
 @ActiveProfiles("test")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = {
+      "spring.jpa.properties.hibernate.generate_statistics=true",
+      "logging.level.org.hibernate.stat=OFF",
+      "logging.level.org.hibernate.engine.internal.StatisticalLoggingSessionEventListener=OFF"
+    })
 class LeagueRankingsLoadtestSeedTest {
   @Container
   static final PostgreSQLContainer POSTGRESQL =
@@ -49,6 +57,7 @@ class LeagueRankingsLoadtestSeedTest {
 
   @LocalServerPort private int port;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private EntityManagerFactory entityManagerFactory;
   @Autowired private LeagueReturnService leagueReturns;
   private LocalDate week;
   private String sql;
@@ -120,7 +129,9 @@ class LeagueRankingsLoadtestSeedTest {
     assertThat(count("investment_reviews")).isBetween(1, 999);
     assertThat(count("portfolio_daily_returns")).isEqualTo(500);
     var publicIds = new HashSet<String>();
+    var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
     for (int page = 0; page < 5; page++) {
+      statistics.clear();
       var response =
           given()
               .port(port)
@@ -137,6 +148,7 @@ class LeagueRankingsLoadtestSeedTest {
               .body("rankings.decisionCount", everyItem(equalTo(10)))
               .extract()
               .response();
+      assertThat(statistics.getPrepareStatementCount()).isBetween(1L, 20L);
       publicIds.addAll(response.jsonPath().getList("rankings.publicId", String.class));
     }
     assertThat(publicIds).hasSize(100);
