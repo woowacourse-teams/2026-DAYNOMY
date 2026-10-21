@@ -112,17 +112,16 @@ jobs:
           if "BASE_URL" in params or "ACCOUNTS_FILE" in params:
               raise SystemExit("BASE_URL and ACCOUNTS_FILE are managed by the workflow.")
 
-          args = ["k6", "run", "-o", "experimental-prometheus-rw"]
+          args = ["k6", "run", "-o", "experimental-prometheus-rw", "--tag",
+                  f"testid={os.environ['LOADTEST_ID']}"]
           if os.environ["PORTFOLIO_TEST"] == "true":
               allowed = {"REFERENCE_DATE", "TRADE_MONTHS_AGO", "RPS", "DURATION", "WARMUP_DURATION",
                          "VUS", "REQUEST_TIMEOUT_SECONDS", "TARGET_P95_MS", "RUN"}
               if set(params) - allowed or not params.get("REFERENCE_DATE"):
                   raise SystemExit("Use REFERENCE_DATE and scalar RPS/DURATION params. ACTION/RPS_STEPS are no longer supported.")
               params["ACCOUNTS_FILE"] = "./.local/accounts.json"
-          else:
-              args.extend(["--tag", f"testid={os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"])
-              if os.path.isfile("accounts.json"):
-                  params["ACCOUNTS_FILE"] = "./accounts.json"
+          elif os.path.isfile("accounts.json"):
+              params["ACCOUNTS_FILE"] = "./accounts.json"
           params["BASE_URL"] = os.environ["BASE_URL"]
 
           for key, value in params.items():
