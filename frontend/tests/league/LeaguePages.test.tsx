@@ -1208,7 +1208,7 @@ describe('투자 리그 화면', () => {
     },
   );
 
-  it('일반 회원도 서버가 공개한 판단을 바로 보여준다', async () => {
+  it('공개 판단의 복기에 작성일과 한국 시간 기준 수정일을 표시한다', async () => {
     vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue(investor);
     vi.mocked(leagueApi.getInvestorDetail).mockResolvedValue({
       publicId: 'investor-1',
@@ -1234,7 +1234,24 @@ describe('투자 리그 화면', () => {
           invalidationCondition: '실적 역성장',
           maximumAcceptableLossRate: 10,
           writtenAfterTrade: false,
-          reviews: [],
+          reviews: [
+            {
+              id: 1,
+              actualResult: '수정한 복기 결과',
+              differenceFromExpectation: '수정한 차이',
+              nextAction: '다음 실적 확인',
+              createdAt: '2026-10-06T00:00:00Z',
+              updatedAt: '2026-10-06T15:30:00Z',
+            },
+            {
+              id: 2,
+              actualResult: '처음 작성한 복기',
+              differenceFromExpectation: '기존 차이',
+              nextAction: '기록 유지',
+              createdAt: '2026-10-06T00:00:00Z',
+              updatedAt: '2026-10-06T00:00:00Z',
+            },
+          ],
         },
       ],
     });
@@ -1250,6 +1267,8 @@ describe('투자 리그 화면', () => {
     );
 
     expect(await view.findByText('실적 성장 기대')).toBeTruthy();
+    expect(view.getByText('· 수정됨 · 2026-10-07')).toBeTruthy();
+    expect(view.getByText('· 작성 · 2026-10-06')).toBeTruthy();
     expect(view.queryByText('+1.20% 기여')).toBeNull();
     expect(view.queryByText('결과가 아니라 판단 과정을 더 깊게 보세요')).toBeNull();
   });

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { createReview, updateDecisionReason, updateReview } from './api';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
-import { holdingPeriodLabels, transactionLabels } from './labels';
+import { holdingPeriodLabels, reviewDateLabel, transactionLabels } from './labels';
 import type { InvestmentDecisionRecord } from './types';
 
 const blankReview = () => ({ actualResult: '', differenceFromExpectation: '', nextAction: '' });
@@ -366,12 +366,7 @@ export function InvestmentRecords({
                         <dd>{item.nextAction}</dd>
                       </div>
                     </dl>
-                    {item.updatedAt ? (
-                      <small>
-                        작성 {item.createdAt.slice(0, 10)} · 마지막 저장{' '}
-                        {item.updatedAt.slice(0, 10)}
-                      </small>
-                    ) : null}
+                    <small>{reviewDateLabel(item)}</small>
                   </>
                 )}
               </div>

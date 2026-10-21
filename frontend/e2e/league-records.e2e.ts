@@ -102,6 +102,17 @@ for (const width of [390, 1440]) {
       saved = { ...saved, reason: route.request().postDataJSON().reason };
       return route.fulfill({ json: saved });
     });
+    await page.route('**/api/users/me/portfolio/decisions/7/reviews/2', (route) => {
+      expect(route.request().method()).toBe('PUT');
+      expect(route.request().headers()['x-csrf-token']).toBe('test-token');
+      const revised = {
+        ...saved.reviews[0],
+        ...route.request().postDataJSON(),
+        updatedAt: '2026-10-14T15:30:00Z',
+      };
+      saved = { ...saved, reviews: [revised] };
+      return route.fulfill({ json: revised });
+    });
 
     await page.goto('/league/following');
     const list = page.getByRole('list', { name: '팔로우한 투자자' });
@@ -142,6 +153,14 @@ for (const width of [390, 1440]) {
     await page.reload();
     await expect(page.getByText('수정한 보유 이유', { exact: false })).toBeVisible();
     await expect(page.getByText('기존 복기 결과')).toBeVisible();
+    await expect(page.getByText('작성 · 2026-10-14')).toBeVisible();
+    await page.getByRole('button', { name: '삼성전자 2026-10-13 보유 기록 복기 수정' }).click();
+    await page.getByRole('textbox', { name: '실제 결과', exact: true }).fill('수정한 복기 결과');
+    await page.getByRole('button', { name: '수정 저장', exact: true }).click();
+    await expect(page.getByText('수정됨 · 2026-10-15')).toBeVisible();
+    await page.reload();
+    await expect(page.getByText('수정됨 · 2026-10-15')).toBeVisible();
+    await expect(page.getByText('수정한 복기 결과')).toBeVisible();
     expect(attempts).toBe(2);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
