@@ -84,10 +84,13 @@ describe('포트폴리오 분석 화면', () => {
     const fetchMock = vi.fn(async () => jsonResponse(analysisResponse));
     vi.stubGlobal('fetch', fetchMock);
     const firstView = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
+    expect(firstView.getByRole('region', { name: '가상 분석 미리보기' })).toBeTruthy();
+    expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
 
     fireEvent.click(firstView.getByRole('button', { name: '1회 분석 체험하기' }));
 
     expect(await firstView.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
+    expect(firstView.queryByRole('region', { name: '가상 분석 미리보기' })).toBeNull();
     expect(
       firstView.getByRole('link', { name: '로그인하고 다시 분석하기' }).getAttribute('href'),
     ).toBe('/login?returnTo=%2F');
@@ -256,11 +259,18 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
 
     fireEvent.click(view.getByRole('button', { name: '1회 분석 체험하기' }));
-    fireEvent.click(await view.findByText('영향 점수 산정 기준'));
+    const guideTitle = await view.findByText('영향 점수 산정 기준');
+    const guide = guideTitle.closest('details')!;
+    const toggle = guideTitle.closest('summary')!;
+    expect(guide.open).toBe(false);
+    fireEvent.click(toggle);
+    expect(guide.open).toBe(true);
 
     expect(view.getByText(/예상 수익률이나 상승 확률은 아니에요/)).toBeTruthy();
     expect(view.getByText('+60.00점')).toBeTruthy();
     expect(view.getByText('−9.00점')).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(guide.open).toBe(false);
   });
 
   it('비회원이 모든 자산을 삭제하면 저장된 분석 결과만 제거한다', async () => {
@@ -275,15 +285,41 @@ describe('포트폴리오 분석 화면', () => {
     expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY)).toBe('used');
   });
 
-  it('자산이 없으면 비회원 분석 요청을 막는다', () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    const view = render(<PortfolioAnalysis assets={[]} isLoggedIn={false} />);
-    expect(
-      (view.getByRole('button', { name: '1회 분석 체험하기' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
+  it.each([false, true])(
+    '자산이 없으면 추가를 안내하고 분석 요청을 막는다 (로그인: %s)',
+    async (isLoggedIn) => {
+      const fetchMock = isLoggedIn
+        ? memberFetch(() => saved({ status: 'EMPTY', analysis: null }))
+        : vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const onAddAsset = vi.fn();
+      const view = render(
+        <PortfolioAnalysis assets={[]} isLoggedIn={isLoggedIn} onAddAsset={onAddAsset} />,
+      );
+      expect(view.getByRole('region', { name: '가상 분석 미리보기' })).toBeTruthy();
+      expect(
+        view.container.querySelector('.portfolio-preview-layout .portfolio-analysis-donut'),
+      ).toBeTruthy();
+      expect(view.container.querySelector('.portfolio-preview-layout [inert]')).toBeTruthy();
+      expect(
+        view.container.querySelector('.portfolio-preview-blur')?.getAttribute('aria-hidden'),
+      ).toBe('true');
+      expect(view.queryByRole('button', { name: '1회 분석 체험하기' })).toBeNull();
+      expect(view.queryByRole('button', { name: 'AI 분석하기' })).toBeNull();
+      fireEvent.click(view.getByRole('button', { name: '자산 추가하기' }));
+      expect(onAddAsset).toHaveBeenCalledTimes(1);
+      if (!isLoggedIn) expect(fetchMock).not.toHaveBeenCalled();
+      view.rerender(
+        <PortfolioAnalysis assets={assets} isLoggedIn={isLoggedIn} onAddAsset={onAddAsset} />,
+      );
+      expect(
+        await view.findByRole('button', {
+          name: isLoggedIn ? 'AI 분석하기' : '1회 분석 체험하기',
+        }),
+      ).toBeTruthy();
+      expect(view.queryByRole('button', { name: '자산 추가하기' })).toBeNull();
+    },
+  );
 
   it('회원은 과거 localStorage 대신 서버 결과를 재접속할 때마다 복원한다', async () => {
     localStorage.setItem(
@@ -406,7 +442,7 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={[{ assetName: '현대차', weight: 100 }]} />);
     expect(await view.findByText(/자산 구성이 바뀌어 이전 분석을 숨겼어요/)).toBeTruthy();
     expect(view.queryByText('삼성전자')).toBeNull();
-    expect(view.getByText('분석 대상: 현대차')).toBeTruthy();
+    expect(view.getByRole('region', { name: '가상 분석 미리보기' })).toBeTruthy();
     expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '현재 자산으로 분석하기' }));
     await waitFor(() =>
@@ -429,7 +465,7 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={currentAssets} />);
     fireEvent.click(await view.findByRole('button', { name: '현재 자산으로 분석하기' }));
     expect(await view.findByRole('alert')).toBeTruthy();
-    expect(view.getByText('분석 대상: 삼성전자, 포스코인터내셔널')).toBeTruthy();
+    expect(view.getByRole('button', { name: '다시 시도' })).toBeTruthy();
     expect(view.queryByText('SK하이닉스')).toBeNull();
     expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
     expect(view.queryByRole('heading', { name: '전체 포트폴리오' })).toBeNull();
@@ -505,7 +541,7 @@ describe('포트폴리오 분석 화면', () => {
         : saved({ status: 'RECHECK_REQUIRED' });
     });
     const view = render(<PortfolioAnalysis assets={assets} />);
-    fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
+    fireEvent.click(await view.findByRole('button', { name: 'AI 분석하기' }));
     expect(await view.findByText(analysisResponse.overallImpact)).toBeTruthy();
     expect(view.queryByRole('alert')).toBeNull();
   });
@@ -520,7 +556,7 @@ describe('포트폴리오 분석 화면', () => {
       return saved();
     });
     const view = render(<PortfolioAnalysis assets={assets} />);
-    fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
+    fireEvent.click(await view.findByRole('button', { name: 'AI 분석하기' }));
     const processingMessage = await view.findByText(
       '서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.',
     );
@@ -660,7 +696,7 @@ describe('포트폴리오 분석 이벤트', () => {
         : saved({ status });
     });
     const view = render(<PortfolioAnalysis assets={assets} />);
-    fireEvent.click(await view.findByRole('button', { name: '분석하기' }));
+    fireEvent.click(await view.findByRole('button', { name: 'AI 분석하기' }));
     await waitFor(() =>
       expect(trackEvent).toHaveBeenCalledWith(
         'portfolio_analysis_result',
@@ -755,7 +791,9 @@ describe('포트폴리오 분석 이벤트', () => {
     await view.findByText(analysisResponse.overallImpact);
     // 결과 렌더링 이후 실제 관찰 대상 등록까지 기다린다.
     await waitFor(() =>
-      expect(observe).toHaveBeenCalledWith(view.container.querySelector('.portfolio-score-panel')),
+      expect(observe).toHaveBeenCalledWith(
+        view.container.querySelector('.portfolio-analysis-layout'),
+      ),
     );
     expect(trackEvent).not.toHaveBeenCalled();
     act(() =>

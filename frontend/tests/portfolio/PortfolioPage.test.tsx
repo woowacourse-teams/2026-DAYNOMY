@@ -827,10 +827,7 @@ describe('포트폴리오 화면', () => {
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
     mockPortfolioApi();
     const view = render(<PortfolioPage />);
-    await waitFor(() =>
-      expect(view.getByRole('button', { name: '거래 기록' })).toHaveProperty('disabled', false),
-    );
-    fireEvent.click(view.getByRole('button', { name: '거래 기록' }));
+    fireEvent.click(await view.findByRole('button', { name: '자산 추가하기' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 
@@ -880,7 +877,7 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('heading', { name: '자산 추이' })).toBeTruthy();
     expect(view.queryByRole('heading', { name: '포트폴리오 요약' })).toBeNull();
     expect(view.getByRole('heading', { name: '포트폴리오 AI 분석' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '분석하기' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'AI 분석하기' })).toBeTruthy();
     expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
     expect(savedHoldings).toContainEqual(expect.objectContaining({ assetCode: '005930' }));
   });
