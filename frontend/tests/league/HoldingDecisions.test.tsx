@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { InvestmentReviewsPage } from '../../src/features/league/InvestmentReviewsPage';
@@ -539,13 +539,17 @@ it('5개부터 카드를 4개씩 표시하고 편집 중 이동과 삭제 후 �
   await waitFor(() => expect(view.queryByText('투자 기록을 불러오는 중이에요.')).toBeNull());
   expect(view.getAllByRole('article', { name: /기록 상세$/ })).toHaveLength(4);
   expect(view.getByRole('article', { name: '종목 1 기록 상세' })).toBeTruthy();
+  expect(view.queryByText(/\d+–\d+ \/ \d+개 종목/)).toBeNull();
   expect(view.queryByRole('tablist')).toBeNull();
   expect(view.getByRole('article', { name: '종목 2 기록 상세' })).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '종목 2 보유 이유 작성' }));
-  for (const name of ['다음 페이지', '종목 1 보유 이유 작성'])
+  for (const name of ['1페이지', '2페이지', '다음 방향 2페이지로 이동', '종목 1 보유 이유 작성'])
     expect(view.getByRole('button', { name })).toHaveProperty('disabled', true);
+  fireEvent.click(view.getByRole('button', { name: '2페이지' }));
+  expect(view.getByLabelText('보유 이유')).toBeTruthy();
+  expect(view.getByRole('article', { name: '종목 1 기록 상세' })).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '취소' }));
-  fireEvent.click(view.getByRole('button', { name: '다음 페이지' }));
+  fireEvent.click(view.getByRole('button', { name: '다음 방향 2페이지로 이동' }));
   expect(view.getAllByRole('article', { name: /기록 상세$/ })).toHaveLength(1);
   expect(view.getByRole('article', { name: '종목 5 기록 상세' })).toBeTruthy();
   expect(view.getByRole('button', { name: '2페이지' }).getAttribute('aria-current')).toBe('page');
@@ -563,4 +567,47 @@ it('5개부터 카드를 4개씩 표시하고 편집 중 이동과 삭제 후 �
   expect(view.queryByRole('navigation', { name: '종목 목록 페이지' })).toBeNull();
   expect(view.getByRole('article', { name: '종목 1 기록 상세' })).toBeTruthy();
   expect(view.getAllByRole('article', { name: /기록 상세$/ })).toHaveLength(4);
+});
+
+it.each([0, 1, 4])('%i개 종목은 페이지 버튼과 종목 범위 표시를 숨긴다', async (count) => {
+  const view = renderRecords(
+    Array.from({ length: count }, (_, index) => ({ ...holding, assetId: index + 1 })),
+  );
+  await waitFor(() => expect(view.queryByText('투자 기록을 불러오는 중이에요.')).toBeNull());
+  expect(view.queryByRole('navigation', { name: '종목 목록 페이지' })).toBeNull();
+  expect(view.queryByText(/\d+–\d+ \/ \d+개 종목/)).toBeNull();
+});
+
+it('소식처럼 번호를 6개씩 표시하고 번호와 화살표로 종목 페이지를 이동한다', async () => {
+  const view = renderRecords(
+    Array.from({ length: 29 }, (_, index) => ({
+      ...holding,
+      assetId: index + 1,
+      assetName: `종목 ${index + 1}`,
+    })),
+  );
+  await waitFor(() => expect(view.queryByText('투자 기록을 불러오는 중이에요.')).toBeNull());
+  const pagination = within(view.getByRole('navigation', { name: '종목 목록 페이지' }));
+  expect(pagination.getAllByRole('button')).toHaveLength(8);
+  expect(pagination.getByRole('button', { name: '이전 방향 1페이지로 이동' })).toHaveProperty(
+    'disabled',
+    true,
+  );
+  fireEvent.click(pagination.getByRole('button', { name: '6페이지' }));
+  expect(view.getByRole('article', { name: '종목 21 기록 상세' })).toBeTruthy();
+  fireEvent.click(pagination.getByRole('button', { name: '다음 방향 7페이지로 이동' }));
+  expect(view.getByRole('article', { name: '종목 25 기록 상세' })).toBeTruthy();
+  expect(pagination.getByRole('button', { name: '7페이지' })).toHaveProperty('ariaCurrent', 'page');
+  expect(pagination.queryByRole('button', { name: '6페이지' })).toBeNull();
+  fireEvent.click(pagination.getByRole('button', { name: '8페이지' }));
+  expect(view.getAllByRole('article', { name: /기록 상세$/ })).toHaveLength(1);
+  expect(view.getByRole('article', { name: '종목 29 기록 상세' })).toBeTruthy();
+  expect(pagination.getByRole('button', { name: '다음 방향 8페이지로 이동' })).toHaveProperty(
+    'disabled',
+    true,
+  );
+  fireEvent.click(pagination.getByRole('button', { name: '이전 방향 7페이지로 이동' }));
+  fireEvent.click(pagination.getByRole('button', { name: '이전 방향 6페이지로 이동' }));
+  expect(view.getByRole('article', { name: '종목 21 기록 상세' })).toBeTruthy();
+  expect(document.activeElement).toBe(view.getByRole('region', { name: '종목별 투자 기록' }));
 });
