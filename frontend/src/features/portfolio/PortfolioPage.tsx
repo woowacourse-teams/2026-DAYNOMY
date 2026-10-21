@@ -455,17 +455,19 @@ function PortfolioAssetTrendChart({
           ))}
         </div>
       ) : null}
-      <div className="portfolio-trend-legend" aria-label="자산 추이 범례">
-        <span className="evaluation" title="평가이익은 빨강, 평가손실은 파랑">
-          {TREND_METRICS.find((item) => item.value === metric)?.label}
-        </span>
-        <span className="principal">{metric === 'evaluation' ? '매입금액' : '0 기준선'}</span>
+      <div>
+        <div className="portfolio-trend-legend" aria-label="자산 추이 범례">
+          <span className="evaluation" title="평가이익은 빨강, 평가손실은 파랑">
+            {TREND_METRICS.find((item) => item.value === metric)?.label}
+          </span>
+          <span className="principal">{metric === 'evaluation' ? '매입금액' : '0 기준선'}</span>
+        </div>
+        {notice ? (
+          <p className="portfolio-trend-note" role="status">
+            {notice}
+          </p>
+        ) : null}
       </div>
-      {notice ? (
-        <p className="portfolio-trend-note" role="status">
-          {notice}
-        </p>
-      ) : null}
       <div className="portfolio-trend-plot">
         {loading ? (
           <p className="portfolio-tracking-state" role="status">
