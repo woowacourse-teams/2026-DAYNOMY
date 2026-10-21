@@ -125,13 +125,17 @@
   background: #ececec;
 }
 
-.portfolio-page .portfolio-analysis-button.is-trial:not(:disabled) {
+.portfolio-page .portfolio-analysis-button.is-primary:not(:disabled) {
   background: var(--button-action);
   color: #fff;
 }
 
-.portfolio-page .portfolio-analysis-button.is-trial:hover:not(:disabled) {
+.portfolio-page .portfolio-analysis-button.is-primary:hover:not(:disabled) {
   background: var(--button-action-hover);
+}
+
+.portfolio-page .portfolio-analysis-button.is-primary:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
 .portfolio-page .portfolio-analysis-button:focus-visible {

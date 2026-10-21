@@ -232,7 +232,7 @@ function PortfolioEmpty({ onAddAsset }: { onAddAsset?: () => void }) {
       action={
         <button
           type="button"
-          className="portfolio-analysis-button"
+          className="portfolio-analysis-button is-primary"
           onClick={onAddAsset}
           disabled={!onAddAsset}
         >
@@ -771,7 +771,7 @@ function PortfolioAnalysisView({
     </a>
   ) : !error ? (
     <button
-      className={`portfolio-analysis-button${!isLoggedIn && !analysis && !loading && !portfolioChanged && saved?.status !== 'PROCESSING' ? ' is-trial' : ''}`}
+      className={`portfolio-analysis-button${!portfolioChanged && saved?.status !== 'PROCESSING' && (analysis || (!isLoggedIn && !loading)) ? ' is-primary' : ''}`}
       type="button"
       disabled={!canAnalyze}
       onClick={analyze}
