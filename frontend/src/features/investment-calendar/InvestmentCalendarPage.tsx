@@ -72,11 +72,6 @@ function formatValue(value: number | null, unit: string) {
   })}${unit}`;
 }
 
-function formatRate(value: number | null) {
-  if (value === null) return '표본 부족';
-  return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
-}
-
 function compactWonMagnitude(value: number) {
   const absolute = Math.abs(value);
   if (absolute >= 100_000_000) return `${(absolute / 100_000_000).toFixed(1)}억원`;
@@ -128,10 +123,6 @@ function rateDecisionCaseLabel(direction: InvestmentEventDirection) {
   return `금리 ${directionLabel('KOREA_BASE_RATE', direction)} 사례`;
 }
 
-function typicalRate(value: number | null) {
-  return value === null ? '표본 부족' : `보통 ${formatRate(value)}`;
-}
-
 function estimatedRange(statistics: PortfolioReactionStatistics) {
   const range = formatRange(statistics);
   return range === '-' ? range : `약 ${range}`;
@@ -148,7 +139,6 @@ function dDayLabel(daysUntil: number) {
 }
 
 function defaultCopy(event: InvestmentCalendarEvent) {
-  const previous = formatValue(event.value.previousValue, event.value.unit);
   return {
     shortTitle: event.title.replace(' 발표', ''),
     relatedLabel: `관련 ${event.portfolioAnalysis.relatedAssetCount}종목`,
@@ -156,7 +146,7 @@ function defaultCopy(event: InvestmentCalendarEvent) {
       event.portfolioAnalysis.status === 'READY'
         ? '발표 결과에 따라 내 자산이 달라졌던 범위를 확인해 보세요.'
         : '아직 내 자산의 과거 반응을 계산할 표본이 부족합니다.',
-    watchMessage: `이번 발표 결과가 직전 ${previous}와 어떻게 달라졌는지 확인하세요.`,
+    watchMessage: '',
     previousLabel: '직전',
     sourceLabel: event.source.name,
     latestResult: '',
@@ -279,7 +269,7 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
       >
         <section className="investment-calendar-watch" aria-label="이번 일정에서 확인할 내용">
           <h3>{copy.takeaway}</h3>
-          <p>{copy.watchMessage}</p>
+          {copy.watchMessage && <p>{copy.watchMessage}</p>}
           <div className="investment-calendar-reference">
             <span>{copy.previousLabel}</span>
             <strong>{formatValue(event.value.previousValue, event.value.unit)}</strong>
@@ -328,7 +318,6 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
                 <thead>
                   <tr>
                     <th>{resultColumnTitle(event.type)}</th>
-                    <th>중앙값</th>
                     <th>내 자산 변화</th>
                   </tr>
                 </thead>
@@ -339,11 +328,6 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
                         {event.type === 'KOREA_BASE_RATE'
                           ? rateDecisionCaseLabel(statistics.direction)
                           : directionLabel(event.type, statistics.direction)}
-                      </td>
-                      <td className={rateTone(statistics.medianReturnRate)}>
-                        {event.type === 'KOREA_BASE_RATE'
-                          ? typicalRate(statistics.medianReturnRate)
-                          : formatRate(statistics.medianReturnRate)}
                       </td>
                       <td className={rateTone(statistics.medianReturnRate)}>
                         {event.type === 'KOREA_BASE_RATE'

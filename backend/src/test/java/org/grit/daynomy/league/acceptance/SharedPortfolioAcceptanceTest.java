@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.*;
 import io.restassured.specification.RequestSpecification;
 import java.math.BigDecimal;
 import java.sql.DriverManager;
+import java.sql.Timestamp;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -157,6 +158,186 @@ class SharedPortfolioAcceptanceTest {
                 Integer.class,
                 owner.getId()))
         .isEqualTo(last ? 0 : 1);
+  }
+
+  @Test
+  void editsOwnedReasonAndPreservesRecordReviewsAndHoldings() {
+    Member owner = member();
+    Asset asset = asset();
+    client(owner)
+        .body(
+            Map.of(
+                "holdings",
+                List.of(
+                    Map.of(
+                        "assetId",
+                        asset.getId(),
+                        "quantity",
+                        2,
+                        "averagePurchasePrice",
+                        100,
+                        "decision",
+                        Map.of("reason", "기존 보유 이유"))),
+                "overwriteExisting",
+                false))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    Map<String, Object> record =
+        client(owner)
+            .get("/api/users/me/portfolio/transactions")
+            .then()
+            .statusCode(200)
+            .extract()
+            .path("transactions[0]");
+    Number id = (Number) record.get("id");
+    String path = "/api/users/me/portfolio/decisions/" + id;
+    client(owner)
+        .body(
+            Map.of("actualResult", "결과", "differenceFromExpectation", "차이", "nextAction", "다음 행동"))
+        .post(path + "/reviews")
+        .then()
+        .statusCode(201);
+    Map<String, Object> before =
+        client(owner)
+            .get("/api/users/me/portfolio/transactions")
+            .then()
+            .statusCode(200)
+            .extract()
+            .path("transactions[0]");
+    var createdAt =
+        jdbc.queryForObject(
+            "SELECT created_at FROM portfolio_transactions WHERE id=?", Timestamp.class, id);
+    Map<String, Object> holdings =
+        client(owner).get(SHARED).then().statusCode(200).extract().path("holdings[0]");
+
+    given()
+        .port(port)
+        .contentType("application/json")
+        .body(Map.of("reason", "다른 이유"))
+        .put(path + "/reason")
+        .then()
+        .statusCode(anyOf(is(401), is(403)));
+    client(member()).body(Map.of("reason", "다른 이유")).put(path + "/reason").then().statusCode(404);
+    Map<String, Object> edited =
+        client(owner)
+            .body(Map.of("reason", " 수정한 보유 이유 "))
+            .put(path + "/reason")
+            .then()
+            .statusCode(200)
+            .header("Cache-Control", "no-store")
+            .extract()
+            .jsonPath()
+            .getMap("$");
+
+    before.put("reason", "수정한 보유 이유");
+    assertThat(edited).isEqualTo(before);
+    Map<String, Object> reloaded =
+        client(owner)
+            .get("/api/users/me/portfolio/transactions")
+            .then()
+            .statusCode(200)
+            .body("transactions", hasSize(1))
+            .extract()
+            .path("transactions[0]");
+    assertThat(reloaded).isEqualTo(edited);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT created_at FROM portfolio_transactions WHERE id=?", Timestamp.class, id))
+        .isEqualTo(createdAt);
+    Map<String, Object> after =
+        client(owner).get(SHARED).then().statusCode(200).extract().path("holdings[0]");
+    holdings.put("reason", "수정한 보유 이유");
+    assertThat(after).isEqualTo(holdings);
+  }
+
+  @Test
+  void reasonEditsPreserveOriginalRequestAcrossDatabaseReloads() {
+    Member owner = member();
+    Asset asset = asset();
+    client(owner)
+        .body(
+            Map.of(
+                "holdings",
+                List.of(
+                    Map.of("assetId", asset.getId(), "quantity", 2, "averagePurchasePrice", 100)),
+                "overwriteExisting",
+                false))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    String endpoint = "/api/users/me/portfolio/decisions";
+    var original =
+        Map.of(
+            "requestKey",
+            "original-request",
+            "assetId",
+            asset.getId(),
+            "decision",
+            Map.of("reason", "최초 이유"));
+    long id =
+        client(owner)
+            .body(original)
+            .post(endpoint)
+            .then()
+            .statusCode(201)
+            .extract()
+            .jsonPath()
+            .getLong("id");
+
+    for (String reason : List.of("수정한 이유", "최종 이유")) {
+      client(owner)
+          .body(Map.of("reason", " " + reason + " "))
+          .put(endpoint + "/" + id + "/reason")
+          .then()
+          .statusCode(200);
+      client(owner)
+          .body(original)
+          .post(endpoint)
+          .then()
+          .statusCode(201)
+          .body("id", equalTo((int) id))
+          .body("reason", equalTo(reason));
+      client(owner)
+          .body(
+              Map.of(
+                  "requestKey",
+                  "original-request",
+                  "assetId",
+                  asset.getId(),
+                  "decision",
+                  Map.of("reason", reason)))
+          .post(endpoint)
+          .then()
+          .statusCode(409)
+          .body("code", equalTo("DECISION_REQUEST_CONFLICT"));
+    }
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT original_decision_reason FROM portfolio_transactions WHERE id=?",
+                String.class,
+                id))
+        .isEqualTo("최초 이유");
+    client(owner)
+        .get("/api/users/me/portfolio/transactions")
+        .then()
+        .statusCode(200)
+        .body("transactions", hasSize(1))
+        .body("transactions[0].reason", equalTo("최종 이유"));
+    client(owner)
+        .body(
+            Map.of(
+                "requestKey",
+                "new-request",
+                "assetId",
+                asset.getId(),
+                "decision",
+                Map.of("reason", "최종 이유")))
+        .post(endpoint)
+        .then()
+        .statusCode(201)
+        .body("id", not(equalTo((int) id)));
+    client(owner).get(SHARED).then().statusCode(200).body("holdings[0].quantity", equalTo(2));
   }
 
   @Test
@@ -1027,25 +1208,38 @@ class SharedPortfolioAcceptanceTest {
             .extract();
     long reviewId = savedReview.jsonPath().getLong("id");
     String createdAt = savedReview.path("createdAt");
+    assertThat(savedReview.<String>path("updatedAt")).isEqualTo(createdAt);
     String reviewPath = "/api/users/me/portfolio/decisions/" + id + "/reviews/" + reviewId;
-    String revisedReview = review.replace("예상을 점검했습니다", "결과를 다시 확인했습니다");
-    client(viewer).body(revisedReview).put(reviewPath).then().statusCode(404);
     client(owner)
-        .body(revisedReview)
+        .body(review)
         .put(reviewPath)
         .then()
         .statusCode(200)
-        .header("Cache-Control", "no-store")
-        .body("actualResult", equalTo("결과를 다시 확인했습니다"))
         .body("createdAt", equalTo(createdAt))
-        .body("updatedAt", notNullValue());
+        .body("updatedAt", equalTo(createdAt));
+    String revisedReview = review.replace("예상을 점검했습니다", "결과를 다시 확인했습니다");
+    client(viewer).body(revisedReview).put(reviewPath).then().statusCode(404);
+    String updatedAt =
+        client(owner)
+            .body(revisedReview)
+            .put(reviewPath)
+            .then()
+            .statusCode(200)
+            .header("Cache-Control", "no-store")
+            .body("actualResult", equalTo("결과를 다시 확인했습니다"))
+            .body("createdAt", equalTo(createdAt))
+            .extract()
+            .path("updatedAt");
+    assertThat(Instant.parse(updatedAt)).isAfter(Instant.parse(createdAt));
     client(owner)
         .get("/api/users/me/portfolio/transactions")
         .then()
         .statusCode(200)
         .body("transactions", hasSize(1))
         .body("transactions[0].reviews", hasSize(1))
-        .body("transactions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"));
+        .body("transactions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"))
+        .body("transactions[0].reviews[0].createdAt", equalTo(createdAt))
+        .body("transactions[0].reviews[0].updatedAt", equalTo(updatedAt));
     String publicId =
         client(owner)
             .body(
@@ -1101,6 +1295,8 @@ class SharedPortfolioAcceptanceTest {
         .body("decisions[0].reason", equalTo("실적을 확인한 보유 판단"))
         .body("decisions[0].reviews", hasSize(1))
         .body("decisions[0].reviews[0].actualResult", equalTo("결과를 다시 확인했습니다"))
+        .body("decisions[0].reviews[0].createdAt", equalTo(createdAt))
+        .body("decisions[0].reviews[0].updatedAt", equalTo(updatedAt))
         .body("email", nullValue())
         .body("name", nullValue());
     client(viewer).get(detail).then().statusCode(200).body("decisions", hasSize(1));

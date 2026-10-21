@@ -2,10 +2,12 @@ package org.grit.daynomy.search.repository;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.search.domain.ContentSearchSort;
 import org.grit.daynomy.search.domain.ContentSearchSource;
 import org.grit.daynomy.search.domain.NewsSearchTerms;
 import org.grit.daynomy.search.dto.ContentSearchItemResponse;
@@ -107,8 +109,9 @@ public class ContentSearchRepository {
       SELECT total.total_elements, item.*
       FROM (SELECT count(*) AS total_elements FROM matched) total
       LEFT JOIN LATERAL (
-        SELECT * FROM matched
-        ORDER BY occurred_at DESC NULLS LAST, kind, id
+        SELECT matched.* FROM matched
+        /* POPULARITY_JOIN */
+        ORDER BY /* POPULARITY_ORDER */ matched.occurred_at DESC NULLS LAST, matched.kind, matched.id
         LIMIT :size OFFSET :offset
       ) item ON true
       """;
@@ -116,10 +119,16 @@ public class ContentSearchRepository {
   private final NamedParameterJdbcTemplate jdbc;
 
   public ContentSearchResponse search(
-      NewsSearchTerms terms, ContentSearchSource source, int page, int size) {
+      NewsSearchTerms terms,
+      ContentSearchSource source,
+      int page,
+      int size,
+      ContentSearchSort sort,
+      LocalDate fromDate) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("source", source.name())
+            .addValue("fromDate", fromDate)
             .addValue("size", size)
             .addValue("offset", (long) (page - 1) * size);
     StringBuilder conditions = new StringBuilder();
@@ -138,8 +147,27 @@ public class ContentSearchRepository {
           .append(" ESCAPE '!')");
     }
 
+    String popularityJoin =
+        sort == ContentSearchSort.POPULAR
+            ? """
+              LEFT JOIN (
+                SELECT content_type, content_id,
+                       SUM(CASE WHEN interaction_type IN ('OPEN', 'EXPAND') THEN 1 ELSE 3 END) AS score
+                FROM content_interactions
+                WHERE interaction_date >= :fromDate
+                GROUP BY content_type, content_id
+              ) popularity ON popularity.content_type = matched.kind AND popularity.content_id = matched.id
+              """
+            : "";
+    String query =
+        QUERY
+            .replace("/* SEARCH_TERMS */", conditions.toString())
+            .replace("/* POPULARITY_JOIN */", popularityJoin)
+            .replace(
+                "/* POPULARITY_ORDER */",
+                sort == ContentSearchSort.POPULAR ? "COALESCE(popularity.score, 0) DESC," : "");
     return jdbc.query(
-        QUERY.replace("/* SEARCH_TERMS */", conditions.toString()),
+        query,
         params,
         result -> {
           List<ContentSearchItemResponse> items = new ArrayList<>();

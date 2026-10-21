@@ -581,14 +581,140 @@
   margin-top: 12px;
 }
 
-.shared-previous-records > summary {
+.shared-previous-records > h3,
+.shared-previous-records > h4 {
   min-height: 44px;
   padding: 12px 0;
   color: var(--league-muted);
   font-size: 14px;
-  cursor: pointer;
+  font-weight: 500;
+  margin: 0;
 }
 
 .shared-holding-actions {
   column-gap: 20px;
+}
+
+/* Keep secondary actions beside the content they edit. */
+.shared-record-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+}
+.shared-page button.shared-text-action,
+.shared-page .shared-holding-actions > button,
+.shared-page .shared-form-actions > button[type='button'] {
+  min-height: 44px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--league-muted);
+  font-size: 14px;
+}
+.shared-page button.shared-text-action:hover:not(:disabled),
+.shared-page .shared-holding-actions > button:hover:not(:disabled) {
+  color: var(--button-label);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.shared-page .shared-holding-actions > .shared-remove-button {
+  color: #b42318;
+  margin-left: auto;
+}
+.shared-holding > .shared-holding-actions {
+  border-top: 1px solid var(--league-line);
+  padding-top: 8px;
+  margin-top: 16px;
+}
+.shared-holding > header h3 {
+  font-size: 20px;
+}
+.shared-review {
+  border-left: 0;
+  border-top: 1px solid var(--league-line);
+  padding: 0;
+  margin: 20px 0 0;
+}
+.shared-decision .shared-edit-form {
+  margin: 8px 0 20px;
+}
+.shared-record-heading + p {
+  margin-top: 0;
+}
+
+.shared-page .issue-pagination button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.shared-page .issue-pagination button[aria-current='page'] {
+  background: var(--button-action);
+  color: #fff;
+}
+.shared-page .issue-pagination button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.holding-cards {
+  display: grid;
+  gap: 20px;
+}
+.shared-holding.holding-card {
+  margin: 0;
+  padding: 24px;
+  min-width: 0;
+  border-radius: 12px;
+}
+.holding-card > header {
+  align-items: baseline;
+}
+.holding-card > .shared-holding-meta {
+  margin-bottom: 16px;
+}
+.holding-card .shared-decision {
+  border-top: 1px solid var(--league-line);
+  padding: 16px 0 0;
+}
+.holding-card .shared-record-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 32px;
+}
+.holding-card .shared-record-reason,
+.holding-card .shared-record-reviews {
+  min-width: 0;
+}
+.holding-card .shared-record-reviews {
+  border-left: 1px solid var(--league-line);
+  padding-left: 24px;
+}
+.holding-card .shared-review:first-child {
+  margin: 0;
+  border-top: 0;
+}
+.shared-review-empty {
+  color: var(--league-muted);
+  font-size: 14px;
+  margin: 20px 0 8px;
+}
+.holding-card > .shared-holding-actions {
+  margin-top: 20px;
+}
+@media (max-width: 760px) {
+  .shared-holding.holding-card {
+    padding: 20px;
+  }
+  .holding-card .shared-record-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .holding-card .shared-record-reviews {
+    border-left: 0;
+    border-top: 1px solid var(--league-line);
+    padding-left: 0;
+  }
 }

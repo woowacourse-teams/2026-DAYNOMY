@@ -3,7 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { followInvestor, getInvestorDetail, getPublicInvestor, unfollowInvestor } from './api';
-import { collectionLabels, formatRate, transactionLabels } from './labels';
+import { collectionLabels, formatRate, reviewDateLabel, transactionLabels } from './labels';
 import { ReturnLine } from './ReturnLine';
 import { DailyReturns } from './DailyReturns';
 import { InvestorAvatar } from './InvestorAvatar';
@@ -373,7 +373,7 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
         </div>
       ) : detailLoading ? (
         <p className="league-state" role="status">
-          공개 투자 판단을 불러오고 있습니다.
+          공개 투자 기록을 불러오고 있습니다.
         </p>
       ) : detail ? (
         <>
@@ -427,17 +427,11 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                   <p>{decision.reason}</p>
                   {decision.reviews.map((review) => (
                     <blockquote key={review.id}>
-                      <strong>결과 복기</strong>
+                      <strong>복기</strong>
                       <p>{review.actualResult}</p>
                       <p>예상과 달랐던 점: {review.differenceFromExpectation}</p>
                       <small>다음 행동: {review.nextAction}</small>
-                      {review.updatedAt ? (
-                        <small>
-                          {' '}
-                          · 작성 {review.createdAt.slice(0, 10)} · 마지막 저장{' '}
-                          {review.updatedAt.slice(0, 10)}
-                        </small>
-                      ) : null}
+                      <small> · {reviewDateLabel(review)}</small>
                     </blockquote>
                   ))}
                 </li>

@@ -13,6 +13,13 @@ import { SocialPostEmbed } from '../../people/SocialPostEmbed';
 import { IssuePagination } from './IssuePagination';
 import { trackLoadResult, useContentView } from './analytics';
 import { feedDate, youtubeId, youtubeThumbnail } from './feed';
+import {
+  getContentPopularity,
+  recordContentInteraction,
+  sortByPopularity,
+  stockContentReference,
+  type PopularityScores,
+} from './popularity';
 import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import './issue.css';
@@ -44,12 +51,16 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
   const requestedSource = params.get('source') ?? 'ALL';
   const source = sources.some(([value]) => value === requestedSource) ? requestedSource : 'ALL';
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
+  const sort = params.get('sort') === 'popular' ? 'popular' : 'latest';
   const [responses, setResponses] = useState<StockRelatedContentsResponse[]>([]);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [failedIds, setFailedIds] = useState<number[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [companySearch, setCompanySearch] = useState('');
+  const [popularity, setPopularity] = useState<PopularityScores>(new Map());
+  const [popularityLoading, setPopularityLoading] = useState(false);
+  const [popularityError, setPopularityError] = useState('');
   const assetKey = JSON.stringify(
     [
       ...new Set(
@@ -108,9 +119,33 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
     return () => controller.abort();
   }, [assetKey, portfolio.loading, portfolio.error, attempt, selectedAsset]);
 
-  function filter(key: 'asset' | 'source' | 'page', value: string) {
+  useEffect(() => {
+    if (sort !== 'popular') {
+      setPopularityLoading(false);
+      setPopularityError('');
+      return;
+    }
+    const controller = new AbortController();
+    setPopularityLoading(true);
+    setPopularityError('');
+    setPopularity(new Map());
+    getContentPopularity(controller.signal)
+      .then((scores) => {
+        if (!controller.signal.aborted) setPopularity(scores);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPopularityError('인기순을 불러오지 못했습니다.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPopularityLoading(false);
+      });
+    return () => controller.abort();
+  }, [attempt, sort]);
+
+  function filter(key: 'asset' | 'source' | 'page' | 'sort', value: string) {
     const next = new URLSearchParams(params);
-    next.set(key, value);
+    if (key === 'sort' && value === 'latest') next.delete('sort');
+    else next.set(key, value);
     if (key !== 'page') next.delete('page');
     setExpanded(null);
     setParams(next);
@@ -142,11 +177,15 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
       }
     }
   }
-  const items = [...unique.values()].sort(
+  const latestItems = [...unique.values()].sort(
     (a, b) =>
       (Date.parse(b.publishedDate ?? b.createdAt ?? '') || 0) -
         (Date.parse(a.publishedDate ?? a.createdAt ?? '') || 0) || b.id - a.id,
   );
+  const items =
+    sort === 'popular'
+      ? sortByPopularity(latestItems, stockContentReference, popularity)
+      : latestItems;
   const totalPages = Math.max(1, Math.ceil(items.length / 12));
   const currentPage = Math.min(page, totalPages);
   const selectionFailed =
@@ -154,12 +193,14 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
       ? failedIds.length > 0
       : failedIds.some((id) => String(id) === selectedAsset);
   const requestedAssetCount = (JSON.parse(assetKey) as number[]).length;
-  const settled = !loading && !portfolio.error && validSelection;
+  const settled = !loading && !popularityLoading && !portfolio.error && validSelection;
   const listStatus = failedIds.length
     ? failedIds.length === requestedAssetCount
       ? 'error'
       : 'partial_error'
-    : 'ready';
+    : popularityError
+      ? 'partial_error'
+      : 'ready';
   const sourceType = source === 'INTERNAL_NEWS' ? 'DAYNOMY' : source;
   useContentView(settled, 'view_content_list', {
     surface: 'portfolio_contents',
@@ -285,10 +326,25 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                     </button>
                   ))}
                 </div>
-                <span>최근순</span>
+                <div className="issue-sort-options" role="group" aria-label="콘텐츠 정렬">
+                  <button
+                    type="button"
+                    aria-pressed={sort === 'latest'}
+                    onClick={() => filter('sort', 'latest')}
+                  >
+                    최신순
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={sort === 'popular'}
+                    onClick={() => filter('sort', 'popular')}
+                  >
+                    인기순
+                  </button>
+                </div>
               </div>
             )}
-          {loading ? (
+          {loading || popularityLoading ? (
             <p className="issue-state" role="status">
               보유 종목 소식을 불러오는 중입니다.
             </p>
@@ -314,6 +370,12 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
             </p>
           ) : (
             <>
+              {popularityError && (
+                <p className="issue-state" role="alert">
+                  {popularityError}{' '}
+                  <button onClick={() => setAttempt((value) => value + 1)}>다시 시도</button>
+                </p>
+              )}
               {selectionFailed && (
                 <p className="issue-state" role="alert">
                   일부 종목의 소식을 불러오지 못했습니다.{' '}
@@ -395,7 +457,10 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                             aria-expanded={expanded === key}
                             aria-controls={`portfolio-post-${key}`}
                             onClick={() => {
-                              if (expanded !== key) trackEvent('expand_content', analytics);
+                              if (expanded !== key) {
+                                trackEvent('expand_content', analytics);
+                                void recordContentInteraction(stockContentReference(item), 'OPEN');
+                              }
                               setExpanded(expanded === key ? null : key);
                             }}
                           >
@@ -422,14 +487,18 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                           </button>
                         ) : (
                           <a
-                            onClick={() =>
+                            onClick={() => {
                               trackEvent(
                                 item.sourceType === 'INTERNAL_NEWS'
                                   ? 'click_content'
                                   : 'click_content_original',
                                 analytics,
-                              )
-                            }
+                              );
+                              void recordContentInteraction(
+                                stockContentReference(item),
+                                item.sourceType === 'INTERNAL_NEWS' ? 'OPEN' : 'OUTBOUND_CLICK',
+                              );
+                            }}
                             className="issue-row-title"
                             href={item.url}
                             target={item.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}
@@ -464,9 +533,13 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                                         <p>이 영상은 YouTube에서 확인해 주세요.</p>
                                       )}
                                       <a
-                                        onClick={() =>
-                                          trackEvent('click_content_original', analytics)
-                                        }
+                                        onClick={() => {
+                                          trackEvent('click_content_original', analytics);
+                                          void recordContentInteraction(
+                                            stockContentReference(item),
+                                            'OUTBOUND_CLICK',
+                                          );
+                                        }}
                                         className="issue-video-link"
                                         href={item.url}
                                         target="_blank"
@@ -479,6 +552,12 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                                     (item.sourceType === 'X' || item.sourceType === 'THREADS') && (
                                       <SocialPostEmbed
                                         analytics={analytics}
+                                        onOriginalClick={() =>
+                                          void recordContentInteraction(
+                                            stockContentReference(item),
+                                            'OUTBOUND_CLICK',
+                                          )
+                                        }
                                         post={{
                                           sourceType: item.sourceType,
                                           title: item.title,

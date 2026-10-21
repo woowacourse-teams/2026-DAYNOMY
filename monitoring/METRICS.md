@@ -117,7 +117,7 @@ Actuator에서는 아래 Prometheus 이름으로 조회한다. 라벨은 고정�
 | `daynomy_league_finalization_latest_weeks_scanned`                                                    | 최근 주간 확정에서 확인한 주차 수                                                                                                      |
 | `daynomy_league_calendar_missing_days`                                                                | 공식 참여자가 있는 주차의 미등록 달력 날짜 수                                                                                          |
 | `daynomy_league_finalization_pending_weeks`                                                           | 마지막 실제 거래일 장 마감 후 수집·계산을 기다리는 주차 수                                                                             |
-| `daynomy_league_finalization_delay_seconds`                                                           | 가장 오래된 미확정 주의 다음 거래일 13시(종가 제공 예정)부터 경과한 초. 제공 전·미확정 주가 없으면 0                                                             |
+| `daynomy_league_finalization_delay_seconds`                                                           | 가장 오래된 미확정 주의 다음 거래일 14시(종가 제공 예정)부터 경과한 초. 제공 전·미확정 주가 없으면 0                                                             |
 
 일수는 같은 결과를 재검증한 날도 포함하는 최근 실행의 처리량이며 새 DB 행 수가 아니다. 참가자 트랜잭션이 롤백된 일수는 제외한다. 지표는 프로세스 재시작 때 초기화되며 다음 자동 실행에서 다시 채워진다. 수집이 끝난 과거 주차의 동일 입력 재시도는 확정 버전을 늘리지 않는다.
 

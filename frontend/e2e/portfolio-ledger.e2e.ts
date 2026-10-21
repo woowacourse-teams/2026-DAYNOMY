@@ -413,6 +413,7 @@ for (const viewport of [
       },
     ];
     let largeChart = false;
+    let preparationStatus: 'READY' | 'PROCESSING' | 'FAILED' = 'READY';
     let chartState: 'normal' | 'single' | 'empty' | 'error' = 'normal';
     let pendingPerformance: Promise<void> | null = null;
     let pendingStockSearch: Promise<void> | null = null;
@@ -490,6 +491,11 @@ for (const viewport of [
             { market: 'KOSPI', evaluationAmount: sum('closePrice'), weight: 100 },
           ],
         });
+      if (
+        path === '/api/users/me/portfolio/performance/prepare' &&
+        route.request().method() === 'POST'
+      )
+        return fulfill({ status: preparationStatus });
       if (path === '/api/users/me/portfolio/performance') {
         await pendingPerformance;
         if (chartState === 'error') return fulfill({ message: '추이 조회 실패' }, 500);
@@ -763,6 +769,43 @@ for (const viewport of [
     const initialHeights = await cardHeights();
     const initialPlotHeight = (await compactChart.locator('.portfolio-return-chart').boundingBox())!
       .height;
+    for (const status of ['PROCESSING', 'FAILED', 'READY'] as const) {
+      preparationStatus = status;
+      await compactChart.getByRole('button', { name: '자산 추이 새로고침' }).click();
+      await expect(compactChart.getByRole('button', { name: '자산 추이 새로고침' })).toBeEnabled();
+      if (status === 'READY') {
+        await expect(compactChart.getByRole('status')).toHaveCount(0);
+        expect(await cardHeights()).toEqual(initialHeights);
+        continue;
+      }
+      const message = status === 'PROCESSING' ? '추가로 수집하고' : '가져오지 못했어요';
+      const notice = compactChart.getByRole('status');
+      await expect(notice).toContainText(message);
+      const noticeBox = (await notice.boundingBox())!;
+      const plotBox = (await compactChart.locator('.portfolio-return-chart').boundingBox())!;
+      expect(plotBox.height).toBe(initialPlotHeight);
+      expect(plotBox.y - (noticeBox.y + noticeBox.height)).toBeGreaterThanOrEqual(0);
+      expect(plotBox.y - (noticeBox.y + noticeBox.height)).toBeLessThanOrEqual(24);
+      const heights = await cardHeights();
+      for (const [index, height] of heights.entries()) {
+        expect(height - initialHeights[index]).toBeLessThanOrEqual(noticeBox.height + 8);
+      }
+      await compactChart.screenshot({
+        path: testInfo.outputPath(`asset-trend-${status.toLowerCase()}.png`),
+      });
+      await compactChart.getByRole('button', { name: '자산 추이 크게 보기' }).click();
+      const detail = page.getByRole('dialog', { name: '자산 추이 상세' });
+      const detailNotice = detail.getByRole('status').filter({ hasText: message });
+      await expect(detailNotice).toBeVisible();
+      const expandedNotice = (await detailNotice.boundingBox())!;
+      const expandedPlot = (await detail.locator('.portfolio-return-chart').boundingBox())!;
+      expect(expandedPlot.y - (expandedNotice.y + expandedNotice.height)).toBeGreaterThanOrEqual(0);
+      expect(expandedPlot.y - (expandedNotice.y + expandedNotice.height)).toBeLessThanOrEqual(32);
+      expect(await detail.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await detail.getByRole('button', { name: '자산 추이 상세 닫기' }).click();
+    }
     for (const nextState of ['single', 'empty', 'error', 'normal'] as const) {
       chartState = nextState;
       let releasePerformance!: () => void;

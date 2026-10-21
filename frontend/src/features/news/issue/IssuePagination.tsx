@@ -5,14 +5,18 @@ export function IssuePagination({
   totalPages,
   onChange,
   analytics,
+  disabled = false,
+  ariaLabel = '콘텐츠 페이지',
 }: {
   analytics?: AnalyticsParams;
+  disabled?: boolean;
+  ariaLabel?: string;
   page: number;
   totalPages: number;
   onChange: (page: number) => void;
 }) {
   function changePage(next: number) {
-    if (next === page) return;
+    if (disabled || next === page) return;
     if (analytics)
       trackEvent('change_content_page', { ...analytics, previous_page: page, page_number: next });
     onChange(next);
@@ -26,10 +30,11 @@ export function IssuePagination({
     (_, index) => first + index,
   );
   return (
-    <nav className="issue-pagination" aria-label="콘텐츠 페이지">
+    <nav className="issue-pagination" aria-label={ariaLabel}>
       <button
+        type="button"
         aria-label={`이전 방향 ${previous}페이지로 이동`}
-        disabled={page === 1}
+        disabled={disabled || page === 1}
         onClick={() => changePage(previous)}
       >
         〈
@@ -37,16 +42,19 @@ export function IssuePagination({
       {numbers.map((number) => (
         <button
           key={number}
+          type="button"
           aria-label={`${number}페이지`}
           aria-current={page === number ? 'page' : undefined}
+          disabled={disabled}
           onClick={() => changePage(number)}
         >
           {number}
         </button>
       ))}
       <button
+        type="button"
         aria-label={`다음 방향 ${next}페이지로 이동`}
-        disabled={page === totalPages}
+        disabled={disabled || page === totalPages}
         onClick={() => changePage(next)}
       >
         〉

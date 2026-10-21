@@ -108,7 +108,8 @@ describe('투자 캘린더 화면', () => {
       ),
     ).toBeTruthy();
     expect(view.getByText('금리 인하 사례')).toBeTruthy();
-    expect(view.getByText('보통 +0.4%')).toBeTruthy();
+    expect(view.queryByRole('columnheader', { name: '중앙값' })).toBeNull();
+    expect(view.getAllByRole('columnheader')).toHaveLength(2);
     expect(view.getByText('약 6만원 ~ 21만원 증가')).toBeTruthy();
   });
 

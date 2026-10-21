@@ -9,7 +9,7 @@ on:
         type: string
         default: loadtest/load-test.js
       params:
-        description: 'JSON k6 parameters: CASE/API_MODE/USERS for analysis; REFERENCE_DATE/TRADE_MONTHS_AGO/RPS/DURATION/VUS for transactions'
+        description: 'JSON k6 parameters: CASE/API_MODE/USERS for analysis; REFERENCE_DATE/TRADE_MONTHS_AGO/MODE/RPS/DURATION/VUS for transactions'
         required: true
         type: string
         default: '{"CASE":"B1","API_MODE":"real","USERS":1,"RUN":"1"}'
@@ -112,17 +112,16 @@ jobs:
           if "BASE_URL" in params or "ACCOUNTS_FILE" in params:
               raise SystemExit("BASE_URL and ACCOUNTS_FILE are managed by the workflow.")
 
-          args = ["k6", "run", "-o", "experimental-prometheus-rw"]
+          args = ["k6", "run", "-o", "experimental-prometheus-rw", "--tag",
+                  f"testid={os.environ['LOADTEST_ID']}"]
           if os.environ["PORTFOLIO_TEST"] == "true":
-              allowed = {"REFERENCE_DATE", "TRADE_MONTHS_AGO", "RPS", "DURATION", "WARMUP_DURATION",
+              allowed = {"REFERENCE_DATE", "TRADE_MONTHS_AGO", "MODE", "RPS", "DURATION", "WARMUP_DURATION",
                          "VUS", "REQUEST_TIMEOUT_SECONDS", "TARGET_P95_MS", "RUN"}
               if set(params) - allowed or not params.get("REFERENCE_DATE"):
                   raise SystemExit("Use REFERENCE_DATE and scalar RPS/DURATION params. ACTION/RPS_STEPS are no longer supported.")
               params["ACCOUNTS_FILE"] = "./.local/accounts.json"
-          else:
-              args.extend(["--tag", f"testid={os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"])
-              if os.path.isfile("accounts.json"):
-                  params["ACCOUNTS_FILE"] = "./accounts.json"
+          elif os.path.isfile("accounts.json"):
+              params["ACCOUNTS_FILE"] = "./accounts.json"
           params["BASE_URL"] = os.environ["BASE_URL"]
 
           for key, value in params.items():
@@ -148,11 +147,11 @@ jobs:
           import json
           import os
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
-              output.write("| Version | Trade date | RPS | Success / planned | p95 (ms) | Result |\n| --- | --- | --- | --- | --- | --- |\n")
+              output.write("| Version | Workload | Trade date | RPS | Success / planned | p95 (ms) | Result | Integrity |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n")
               for path in sorted(glob.glob("backend/loadtest/result-transactions-*.json")):
                   report = json.load(open(path))
-                  output.write(f"| {report['version']} | {report['tradeDate']} | {report['rps']} | "
-                               f"{report['successful']} / {report['expected']} | {report['latency'].get('p(95)', 'n/a')} | {report['outcome']} |\n")
+                  output.write(f"| {report['version']} | {report.get('workload', 'sequential_accounts')} | {report['tradeDate']} | {report['rps']} | "
+                               f"{report['successful']} / {report['expected']} | {report['latency'].get('p(95)', 'n/a')} | {report['outcome']} | {report.get('integrity', {}).get('status', 'n/a')} |\n")
           PY
 
       - name: Upload load test results

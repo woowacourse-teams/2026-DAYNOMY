@@ -55,3 +55,39 @@ it.each([null, 'https://example.com/stale.jpg'])(
     expect(view.container.querySelector('.issue-feed-thumbnail-fallback')).toBeTruthy();
   },
 );
+
+it('전체 콘텐츠에서 원문 게시일을 우선 표시하고 없으면 등록일을 표시한다', () => {
+  const items = createFeed(
+    [],
+    [],
+    [
+      {
+        id: 1,
+        assetId: 1,
+        sourceType: 'X',
+        title: '게시일이 있는 글',
+        url: 'https://x.com/example/status/1',
+        imageUrl: null,
+        publishedDate: '2026-10-20',
+        createdAt: '2026-10-21T09:00:00Z',
+      },
+      {
+        id: 2,
+        assetId: 1,
+        sourceType: 'X',
+        title: '게시일이 없는 글',
+        url: 'https://x.com/example/status/2',
+        imageUrl: null,
+        createdAt: '2026-10-19T09:00:00Z',
+      },
+    ],
+  );
+  const view = render(
+    <MemoryRouter>
+      <IssueFeed items={items} surface="news_contents" />
+    </MemoryRouter>,
+  );
+
+  expect(view.getByText('10.20 게시')).toBeTruthy();
+  expect(view.getByText('10.19 등록')).toBeTruthy();
+});

@@ -10,12 +10,14 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingHistoryResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioPriceHistoryResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioResponse;
+import org.grit.daynomy.portfolio.service.PortfolioPriceHistoryService;
 import org.grit.daynomy.portfolio.service.PortfolioSnapshotService;
 import org.grit.daynomy.portfolio.service.SavedPortfolioService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -40,6 +42,7 @@ public class SavedPortfolioController {
 
   private final SavedPortfolioService savedPortfolioService;
   private final PortfolioSnapshotService snapshotService;
+  private final PortfolioPriceHistoryService priceHistoryService;
 
   @Operation(summary = "내 포트폴리오 조회")
   @GetMapping
@@ -101,6 +104,17 @@ public class SavedPortfolioController {
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
     return snapshotService.performance(member.memberId(), from, to);
+  }
+
+  @Operation(summary = "포트폴리오 과거 종가 준비", description = "차트 기간에 필요한 국내·미국 종가를 수집하고 스냅샷을 갱신합니다.")
+  @PostMapping("/performance/prepare")
+  public PortfolioPriceHistoryResponse preparePerformance(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+      @RequestParam(defaultValue = "false") boolean retry) {
+    return PortfolioPriceHistoryResponse.from(
+        priceHistoryService.prepare(member.memberId(), from, to, retry));
   }
 
   @Operation(summary = "보유자산 변경 이력 조회")

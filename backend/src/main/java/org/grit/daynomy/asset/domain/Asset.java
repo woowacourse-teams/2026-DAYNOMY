@@ -57,6 +57,12 @@ public class Asset extends BaseEntity {
   @Column(name = "price_history_from")
   private LocalDate priceHistoryFrom;
 
+  @Column(name = "portfolio_price_history_from")
+  private LocalDate portfolioPriceHistoryFrom;
+
+  @Column(name = "portfolio_price_history_through")
+  private LocalDate portfolioPriceHistoryThrough;
+
   public String getCurrency() {
     return market == null ? "KRW" : market.currency();
   }
@@ -64,6 +70,22 @@ public class Asset extends BaseEntity {
   public void recordPriceHistoryBackfill(LocalDate from) {
     if (priceHistoryFrom == null || from.isBefore(priceHistoryFrom)) {
       priceHistoryFrom = from;
+    }
+  }
+
+  public boolean hasPriceHistory(LocalDate from, LocalDate through) {
+    return portfolioPriceHistoryFrom != null
+        && portfolioPriceHistoryThrough != null
+        && !portfolioPriceHistoryFrom.isAfter(from)
+        && !portfolioPriceHistoryThrough.isBefore(through);
+  }
+
+  public void recordPriceHistoryCoverage(LocalDate from, LocalDate through) {
+    if (portfolioPriceHistoryFrom == null || from.isBefore(portfolioPriceHistoryFrom)) {
+      portfolioPriceHistoryFrom = from;
+    }
+    if (portfolioPriceHistoryThrough == null || through.isAfter(portfolioPriceHistoryThrough)) {
+      portfolioPriceHistoryThrough = through;
     }
   }
 

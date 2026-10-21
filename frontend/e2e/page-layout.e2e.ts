@@ -13,7 +13,7 @@ test('투자 캘린더·포트폴리오·주간 리그 본문을 같은 너비�
     let reference: { left: number; width: number; top: number; fontSize: string } | undefined;
     for (const [url, main, heading] of [
       ['/news', '.issue-page', '#investment-calendar-title'],
-      ['/', '.portfolio-page', '.portfolio-page-title h1'],
+      ['/', '.portfolio-page', '#portfolio-ai-analysis-title'],
     ]) {
       await page.goto(url);
       await expect(page.locator(heading)).toBeVisible();

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getFollowSummary } from './api';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
-import { formatRate } from './labels';
 import type { FollowSummary } from './types';
 import './league.css';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
@@ -32,7 +31,7 @@ export function FollowingPage() {
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) {
-          setError(caught instanceof Error ? caught.message : '팔로우 요약을 불러오지 못했습니다.');
+          setError(caught instanceof Error ? caught.message : '팔로잉 목록을 불러오지 못했습니다.');
           trackLeagueEvent('league_load_result', {
             surface: 'following',
             status: 'error',
@@ -58,7 +57,7 @@ export function FollowingPage() {
       </header>
       {loading ? (
         <p className="league-state" role="status">
-          주간 요약을 불러오고 있습니다.
+          팔로잉 목록을 불러오고 있습니다.
         </p>
       ) : null}
       {error ? (
@@ -84,34 +83,15 @@ export function FollowingPage() {
           <strong>팔로우한 투자자가 없습니다</strong>
         </section>
       ) : null}
-      <div className="league-follow-grid">
+      <ul className="league-follow-grid" aria-label="팔로우한 투자자">
         {investors.map((investor) => (
-          <Link
-            key={investor.publicId}
-            to={`/league/${investor.publicId}`}
-            state={{ source: 'following' }}
-          >
-            <span>{investor.rank ? `${investor.rank}위` : '집계 전'}</span>
-            <div className="league-follow-person">
+          <li key={investor.publicId}>
+            <Link to={`/league/${investor.publicId}`} state={{ source: 'following' }}>
               <strong>{investor.displayName}</strong>
-              <small>
-                {investor.rankChange == null
-                  ? '비교 기록 없음'
-                  : investor.rankChange === 0
-                    ? '지난주와 동일'
-                    : `지난주 대비 ${Math.abs(investor.rankChange)}위 ${investor.rankChange > 0 ? '상승' : '하락'}`}
-              </small>
-            </div>
-            <p>
-              이번 주 수익률{' '}
-              {investor.weeklyReturnRate === null
-                ? '기록 없음'
-                : formatRate(investor.weeklyReturnRate)}
-            </p>
-            <small>이번 주 복기 {investor.newReviewCount}개</small>
-          </Link>
+            </Link>
+          </li>
         ))}
-      </div>
+      </ul>
     </main>
   );
 }

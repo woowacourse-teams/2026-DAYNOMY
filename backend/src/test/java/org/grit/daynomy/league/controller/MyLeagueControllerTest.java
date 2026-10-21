@@ -2,6 +2,7 @@ package org.grit.daynomy.league.controller;
 
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +11,7 @@ import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.league.service.InvestmentDecisionService;
 import org.grit.daynomy.league.service.InvestorProfileService;
 import org.grit.daynomy.league.service.LeagueService;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +67,29 @@ class MyLeagueControllerTest {
             post("/api/users/me/portfolio/decisions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    verifyNoInteractions(transactions);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"{}", "{\"reason\":null}", "{\"reason\":\"\"}", "{\"reason\":\"   \"}"})
+  void rejectsBlankReasonBeforeWriting(String body) throws Exception {
+    mvc.perform(
+            put("/api/users/me/portfolio/decisions/7/reason")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    verifyNoInteractions(transactions);
+  }
+
+  @Test
+  void rejectsReasonLongerThan500CharactersBeforeWriting() throws Exception {
+    mvc.perform(
+            put("/api/users/me/portfolio/decisions/7/reason")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"" + "가".repeat(501) + "\"}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     verifyNoInteractions(transactions);

@@ -59,6 +59,7 @@ public enum LogEvent {
   LEAGUE_HOLDING_REMOVED("league.holding.removed", "투자 리그 종목 삭제 완료"),
   LEAGUE_PARTICIPATION_ENDED("league.participation.ended", "투자 리그 참여 자동 종료"),
   LEAGUE_DECISION_RECORDED("league.decision.recorded", "투자 리그 판단 기록 생성 완료"),
+  LEAGUE_DECISION_REASON_REVISED("league.decision.reason_revised", "투자 리그 보유 이유 수정 완료"),
   LEAGUE_DECISION_REPLAYED("league.decision.replayed", "투자 리그 판단 기록 중복 요청 처리"),
   LEAGUE_REVIEW_CREATED("league.review.created", "투자 리그 복기 생성 완료"),
   LEAGUE_REVIEW_REVISED("league.review.revised", "투자 리그 복기 수정 완료"),

@@ -97,6 +97,10 @@ jwt:
 cookie:
   secure: ${COOKIE_SECURE:false}
 
+content-interaction:
+  anonymous-token-secret: ${CONTENT_INTERACTION_ANONYMOUS_TOKEN_SECRET:${jwt.secret}}
+  rate-limit-per-minute: ${CONTENT_INTERACTION_RATE_LIMIT_PER_MINUTE:60}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -190,7 +194,7 @@ stock:
   price:
     sync:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
-      cron: ${STOCK_PRICE_SYNC_CRON:0 30 13,18 * * MON-FRI}
+      cron: ${STOCK_PRICE_SYNC_CRON:0 30 14,18 * * MON-FRI}
 
 exchange-rate:
   sync:

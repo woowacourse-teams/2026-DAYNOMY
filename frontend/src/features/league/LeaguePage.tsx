@@ -276,7 +276,7 @@ export function LeaguePage() {
           ) : null}
           <details className="league-calculation-details">
             <summary>집계 기준 안내</summary>
-            <p>종가는 다음 영업일 오후 1시 이후 제공되며, 수집·집계 후 반영됩니다.</p>
+            <p>종가는 다음 영업일 오후 2시 이후 제공되며, 수집·집계 후 반영됩니다.</p>
             <p>같은 순위 기준 점수는 공동 순위로 표시합니다.</p>
             <p>사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다.</p>
           </details>

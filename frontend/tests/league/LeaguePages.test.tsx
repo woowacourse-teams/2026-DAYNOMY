@@ -595,7 +595,7 @@ describe('투자 리그 화면', () => {
     fireEvent.click(dialog);
     expect(view.queryByRole('dialog')).toBeNull();
   });
-  it('관심 투자자의 순위 상승·하락·동일·비교 기록 없음을 구분한다', async () => {
+  it('팔로잉에는 순위와 성과 없이 투자자 이름과 프로필 링크만 표시한다', async () => {
     vi.mocked(leagueApi.getFollowSummary).mockResolvedValue([
       {
         publicId: 'up',
@@ -639,12 +639,22 @@ describe('투자 리그 화면', () => {
         <FollowingPage />
       </MemoryRouter>,
     );
-    await view.findByText('지난주 대비 2위 상승');
+    await view.findByRole('link', { name: '상승 사용자' });
     expect(document.title).toBe('팔로잉 | DAYNOMY');
     expect(document.activeElement).toBe(view.getByRole('heading', { name: '팔로잉' }));
-    expect(view.getByText('지난주 대비 2위 하락')).toBeTruthy();
-    expect(view.getByText('지난주와 동일')).toBeTruthy();
-    expect(view.getByText('비교 기록 없음')).toBeTruthy();
+    const list = view.getByRole('list', { name: '팔로우한 투자자' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(4);
+    for (const [id, name] of [
+      ['up', '상승 사용자'],
+      ['down', '하락 사용자'],
+      ['same', '동일 사용자'],
+      ['new', '신규 사용자'],
+    ]) {
+      const link = within(list).getByRole('link', { name });
+      expect(link.getAttribute('href')).toBe(`/league/${id}`);
+      expect(link.textContent?.trim()).toBe(name);
+    }
+    expect(list.textContent).not.toMatch(/위|수익률|복기|집계|비교 기록/);
   });
 
   it('최대 종목 비중의 30%·50% 경계와 데이터 부족을 명세대로 구분한다', () => {
@@ -744,7 +754,7 @@ describe('투자 리그 화면', () => {
       ),
     );
     const pageStatus = await view.findByRole('status', { name: '전체 3페이지 중 2페이지' });
-    expect(document.activeElement).toBe(pageStatus);
+    await waitFor(() => expect(document.activeElement).toBe(pageStatus));
     expect(view.getByRole('list').getAttribute('start')).toBe('21');
     fireEvent.change(view.getByRole('combobox', { name: '조회 주차' }), {
       target: { value: '2026-11-30' },
@@ -1198,7 +1208,7 @@ describe('투자 리그 화면', () => {
     },
   );
 
-  it('일반 회원도 서버가 공개한 판단을 바로 보여준다', async () => {
+  it('공개 판단의 복기에 작성일과 한국 시간 기준 수정일을 표시한다', async () => {
     vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue(investor);
     vi.mocked(leagueApi.getInvestorDetail).mockResolvedValue({
       publicId: 'investor-1',
@@ -1224,7 +1234,24 @@ describe('투자 리그 화면', () => {
           invalidationCondition: '실적 역성장',
           maximumAcceptableLossRate: 10,
           writtenAfterTrade: false,
-          reviews: [],
+          reviews: [
+            {
+              id: 1,
+              actualResult: '수정한 복기 결과',
+              differenceFromExpectation: '수정한 차이',
+              nextAction: '다음 실적 확인',
+              createdAt: '2026-10-06T00:00:00Z',
+              updatedAt: '2026-10-06T15:30:00Z',
+            },
+            {
+              id: 2,
+              actualResult: '처음 작성한 복기',
+              differenceFromExpectation: '기존 차이',
+              nextAction: '기록 유지',
+              createdAt: '2026-10-06T00:00:00Z',
+              updatedAt: '2026-10-06T00:00:00Z',
+            },
+          ],
         },
       ],
     });
@@ -1240,6 +1267,8 @@ describe('투자 리그 화면', () => {
     );
 
     expect(await view.findByText('실적 성장 기대')).toBeTruthy();
+    expect(view.getByText('· 수정됨 · 2026-10-07')).toBeTruthy();
+    expect(view.getByText('· 작성 · 2026-10-06')).toBeTruthy();
     expect(view.queryByText('+1.20% 기여')).toBeNull();
     expect(view.queryByText('결과가 아니라 판단 과정을 더 깊게 보세요')).toBeNull();
   });

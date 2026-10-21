@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.search.domain.ContentSearchSort;
 import org.grit.daynomy.search.domain.ContentSearchSource;
 import org.grit.daynomy.search.dto.ContentSearchResponse;
 import org.grit.daynomy.search.service.ContentSearchService;
@@ -35,7 +36,7 @@ class ContentSearchControllerTest {
 
   @Test
   void appliesSourceAndPageParameters() throws Exception {
-    given(service.search("금리", ContentSearchSource.YOUTUBE, 2, 10))
+    given(service.search("금리", ContentSearchSource.YOUTUBE, 2, 10, ContentSearchSort.LATEST))
         .willReturn(new ContentSearchResponse(List.of(), 2, 10, 0, 0));
 
     mockMvc
@@ -49,7 +50,21 @@ class ContentSearchControllerTest {
         .andExpect(jsonPath("$.items").isArray())
         .andExpect(jsonPath("$.page").value(2));
 
-    then(service).should().search("금리", ContentSearchSource.YOUTUBE, 2, 10);
+    then(service)
+        .should()
+        .search("금리", ContentSearchSource.YOUTUBE, 2, 10, ContentSearchSort.LATEST);
+  }
+
+  @Test
+  void acceptsPopularitySort() throws Exception {
+    given(service.search("금리", ContentSearchSource.ALL, 1, 12, ContentSearchSort.POPULAR))
+        .willReturn(new ContentSearchResponse(List.of(), 1, 12, 0, 0));
+
+    mockMvc
+        .perform(get("/api/search/contents").param("q", "금리").param("sort", "POPULAR"))
+        .andExpect(status().isOk());
+
+    then(service).should().search("금리", ContentSearchSource.ALL, 1, 12, ContentSearchSort.POPULAR);
   }
 
   @Test
@@ -62,6 +77,9 @@ class ContentSearchControllerTest {
         .andExpect(status().isBadRequest());
     mockMvc
         .perform(get("/api/search/contents").param("q", "금리").param("page", "0"))
+        .andExpect(status().isBadRequest());
+    mockMvc
+        .perform(get("/api/search/contents").param("q", "금리").param("sort", "UNKNOWN"))
         .andExpect(status().isBadRequest());
     verifyNoInteractions(service);
   }

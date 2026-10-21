@@ -12,6 +12,8 @@ Actions는 DB 복원이나 토큰 발급을 하지 않는다. `run-loadtest.py`,
 | `support/scenario.js` | CSRF 준비·워밍업·과거 매수 등록 |
 | `support/prepare.js` | params 해석·53명 계정·토큰 검증 |
 | `support/report.js` | 전체·그룹별·계정별 지표와 결과 JSON |
+| `support/stress-verification.js` | 스트레스 모드의 실행 전 상태 보관·실행 후 거래 이력과 수량 검증 |
+| `params/stress-v2-*rps.json` | Actions에 붙여 넣는 10·20·50·100·200 RPS 입력값 |
 | `sql/seed-portfolios.sql` | 초기 데이터 직접 적재 |
 | `tests/transactions.test.mjs` | 통신 없는 k6 시나리오 회귀 검증 |
 
@@ -68,6 +70,72 @@ LOADTEST_ENVIRONMENT=dev ./gradlew -q portfolioLoadtest --args="tokens --env-fil
 기존 분석 테스트의 계정·토큰은 이번에 적재한 53명과 다르므로 그대로 쓰지 않는다.
 수동으로 파일을 준비해도 같은 53명·필드가 필요하고, 만료되면 다시 발급해야 한다.
 
+### 복원 후 데이터 비교가 실패할 때
+
+준비 도구는 복원 후 또는 토큰 발급 전 DB가 원본과 다르면 테이블·컬럼·차이 유형·건수를 표준 오류로 출력한다.
+실제 값, 회원·행 ID, 토큰, 접속 정보는 출력하지 않는다. 다음은 출력 형식의 예시이며 실제 서버 진단 결과는 아니다.
+
+```text
+Baseline mismatch summary (values and row identifiers omitted):
+table=portfolio_holding_histories column=unit_price kind=COLUMN_MISSING_IN_BASELINE count=14800
+```
+
+| kind | 의미 |
+| --- | --- |
+| `COLUMN_MISSING_IN_BASELINE` / `COLUMN_MISSING_IN_DB` | 원본 / DB 행에 컬럼이 없음. 원본에만 있는 컬럼 이름은 `<unknown_column>`으로 가림 |
+| `NULL_MISMATCH` | 한쪽 값만 null |
+| `NUMERIC_VALUE` / `TYPE_MISMATCH` / `VALUE_MISMATCH` | 숫자 값 / JSON 자료형 / 그 외 값이 다름 |
+| `TIMESTAMP_REPRESENTATION` | 동일 시각을 나타내지만 타임존 등 문자열 표기가 다름 |
+| `EXTRA_ROWS_IN_DB` / `MISSING_ROWS_IN_DB` | 원본과 DB 행 수 차이. 이 경우 해당 테이블의 컬럼 비교는 생략 |
+| `ROW_ID_MISMATCH` / `STRUCTURE` | 같은 순서의 행 ID / JSON 구조가 다름 |
+
+`1`과 `1.000000`은 기존처럼 같은 숫자로 비교한다. 시간 표기 차이 등 다른 불일치는 자동 보정하지 않으며,
+복원 검증이 실패하면 커밋하지 않고 연결 종료 시 롤백한다. 원본 파일도 수정하지 않는다.
+원본에 현재 스키마의 필수 컬럼 값이 없어 SQL 삽입 자체가 실패하면 이 비교 단계에 도달하지 않으므로 별도 SQL 진단이 필요하다.
+
+#### 서버에서 독립 `tool.jar`를 사용 중인 경우
+
+소스만 수정해도 기존 서버 JAR은 바뀌지 않는다. 수정한 체크아웃의 `backend/`에서 다음과 같이 도구 클래스만 묶는다.
+앱 JAR과 의존 라이브러리는 포함하지 않으며, 기존 `runtime/classes:runtime/lib/*`와 함께 사용한다.
+
+```bash
+./gradlew testClasses
+mkdir -p build/loadtest-tool
+jar --create --file build/loadtest-tool/tool.jar \
+  -C build/classes/java/test org/grit/daynomy/loadtest/PortfolioLoadtestTool.class
+```
+
+`build/loadtest-tool/tool.jar`를 dev 서버 `/home/ubuntu/loadtest-496/tool-next.jar`로 전송한 뒤,
+서버에서 기존 파일을 보관하고 교체한다. 아래는 현재 스키마용으로 별도 생성해 둔 원본을 지정한 예시다.
+
+```bash
+cd /home/ubuntu/loadtest-496
+cp -p tool.jar "tool.before-diagnostics.$(date +%Y%m%d%H%M%S).jar"
+chmod 600 tool-next.jar
+mv tool-next.jar tool.jar
+LOADTEST_ENVIRONMENT=dev java \
+  -Duser.timezone=Asia/Seoul -Xms32m -Xmx512m -XX:+UseSerialGC \
+  -cp 'tool.jar:runtime/classes:runtime/lib/*' \
+  org.grit.daynomy.loadtest.PortfolioLoadtestTool restore \
+  --env-file /home/ubuntu/backend/daynomy.env \
+  --namespace lt496-20261016 --base-url https://dev.daynomy.com \
+  --snapshot baseline-current-schema-20261021.json
+```
+
+복원이 성공한 경우에만 토큰과 Actions 전달 파일을 갱신한다. 실패하면 위 진단 요약으로 원인을 먼저 확인한다.
+
+```bash
+umask 077
+LOADTEST_ENVIRONMENT=dev java \
+  -Duser.timezone=Asia/Seoul -Xms32m -Xmx512m -XX:+UseSerialGC \
+  -cp 'tool.jar:runtime/classes:runtime/lib/*' \
+  org.grit.daynomy.loadtest.PortfolioLoadtestTool tokens \
+  --env-file /home/ubuntu/backend/daynomy.env \
+  --namespace lt496-20261016 --base-url https://dev.daynomy.com \
+  --snapshot baseline-current-schema-20261021.json --token-seconds 3600 && \
+gzip -c loadtest/.local/accounts.json | base64 > accounts.secret
+```
+
 ### 3. 토큰 파일을 Actions에 전달
 
 기존 분석 테스트와 같은 gzip+Base64 전달 방식을 사용하되, 분석용 Secret은 덮어쓰지 않는다.
@@ -114,6 +182,7 @@ backend/loadtest/transactions-v2.js
 | --- | --- |
 | `REFERENCE_DATE` | 필수. SQL과 원본을 보관한 기준일 |
 | `TRADE_MONTHS_AGO` | 기준일로부터 과거 개월 수. 기본 1, 추가 비교는 6 |
+| `MODE` | 기본 `sequential`. 같은 계정에 동시 거래를 보내는 스트레스 시험은 `stress` |
 | `RPS` | 측정 POST 시작 요청률. 기본 0.1 |
 | `DURATION` | 본 측정 시간. 기본 `2m`, 재검증 `5m`/`10m` (10~600초) |
 | `WARMUP_DURATION` | 별도 3명 워밍업. 기본 `2m` (1~300초) |
@@ -123,9 +192,41 @@ backend/loadtest/transactions-v2.js
 | `RUN` | 결과 구분용 이름. 생략하면 Actions 실행 ID |
 
 `ACTION`, `RPS_STEPS`, `VERSION`은 받지 않는다. 버전은 script 파일로 정한다.
-RPS는 분당 정수·예정 요청 수도 정수여야 하고, 한 실행 최대 5,000건이다.
-계정 중첩을 피하기 위해 `RPS × (타임아웃+1초) < 50`을 검사한다. 50 VU가 부족하면 `dropped_iterations`로 드러나며 목표 요청률을 달성한 결과로 인정하지 않는다.
+RPS는 분당 정수·예정 요청 수도 정수여야 한다. 일반 모드는 최대 20 RPS·5,000건이며, 스트레스 모드는 최대 200 RPS·120,000건이다.
+일반 모드는 계정 중첩을 피하기 위해 `RPS × (타임아웃+1초) < 50`을 검사한다. VU가 부족하면 `dropped_iterations`로 드러나며 목표 요청률을 달성한 결과로 인정하지 않는다.
 계정은 빈 VU 번호와 무관하게 전역 요청 순번으로 순환한다. V1/V2는 같은 회원·요청 순서를 사용한다.
+
+## 50개 계정으로 높은 RPS 시험
+
+script는 기존 `backend/loadtest/transactions-v2.js`를 그대로 사용한다. `MODE: "stress"`를 추가하면
+측정 회원 50명·워밍업 회원 3명을 유지하면서 같은 계정에 여러 거래를 동시에 보낼 수 있다.
+계정별 요청이 순차 완료된다고 가정하는 일반 모드와 다른 부하이며, 결과에는 `workload=stress_hot_accounts`를 표시한다.
+이 시험은 50개 포트폴리오에 거래가 집중되는 조건이다. 결과를 서로 다른 수천 명의 처리량으로 해석하지 않는다.
+
+Actions의 params에는 아래 파일 내용을 하나씩 복사한다. 모두 워밍업 2분·본 측정 2분·500 VU·요청 제한 10초·p95 목표 3초다.
+500 VU는 실행 슬롯 수이며 계정 수는 50명으로 유지한다.
+
+| 순서 | params 파일 | 요청률 | 본 측정 예정 거래 |
+| --- | --- | ---: | ---: |
+| 1 | `params/stress-v2-10rps.json` | 10 RPS | 1,200건 |
+| 2 | `params/stress-v2-20rps.json` | 20 RPS | 2,400건 |
+| 3 | `params/stress-v2-50rps.json` | 50 RPS | 6,000건 |
+| 4 | `params/stress-v2-100rps.json` | 100 RPS | 12,000건 |
+| 5 | `params/stress-v2-200rps.json` | 200 RPS | 24,000건 |
+
+각 RPS는 별도 Actions 실행으로 측정한다. 이전 실행과 서버 작업이 끝난 뒤 같은 원본으로 복원하고 다음 실행을 시작한다.
+토큰 유효기간이 충분하면 기존 Secret을 재사용할 수 있으며, 서버 도구 JAR을 다시 컴파일할 필요는 없다.
+이 값들은 한계 탐색용이고 모두 통과해야 한다는 서비스 목표를 뜻하지 않는다. 성능이 꺾이는 구간을 찾으면 그 주변 값을 재검증한다.
+
+스트레스 모드는 HTTP 오류와 타임아웃을 기록하며 정해진 시간 동안 측정한다. 인증 오류, 잘못된 성공 응답과 워밍업 실패는 즉시 중단한다.
+오류가 생긴 실행도 정상 완료로 처리하지 않으며, 오류 0건·요청 누락 0건·p95 3초·거래 반영 건수와 수량 검증을 통과해야 한다.
+500 VU로 요청률을 만들지 못하면 `dropped_iterations`와 `incomplete`로 표시한다. 이때 요청한 RPS를 서버가 받은 것으로 해석하지 않는다.
+
+실행 전 측정 계정의 보유 수량과 거래일 이력을 조회해 보관하고, 실행 후 새 BUY 이력·원래 이력 보존·최종 수량을 대조한다.
+조회와 검증은 `phase=verification`으로 분리하여 본 측정 지연 통계에 넣지 않는다.
+검증 결과는 Actions Summary의 Integrity 및 결과 JSON의 `integrity`에 기록한다.
+HTTP 오류가 있으면 서버에 남은 작업이 있을 수 있으므로 정합성을 `inconclusive`로 표시한다.
+요청 제한 시간의 두 배를 기다린 후 조회하더라도 서버 작업 종료를 증명하지는 않으므로, 서버·DB 작업 종료를 확인한 뒤 복원한다.
 
 ## 1차 탐색 → 2차 재검증
 
@@ -154,8 +255,8 @@ RPS는 분당 정수·예정 요청 수도 정수여야 하고, 한 실행 최�
 
 ## 중단·결과 확인
 
-- HTTP 오류·타임아웃·예상과 다른 보유 수량: k6 중단 요청. 자동 재시도하지 않는다.
-- 요청 누락: k6 threshold로 중단. p95 3초 초과는 실행 종료 시 실패로 판정한다.
+- 일반 모드의 HTTP 오류·타임아웃·예상과 다른 보유 수량: k6 중단 요청. 자동 재시도하지 않는다.
+- 요청 누락: 일반 모드는 k6 threshold로 중단하고 스트레스 모드는 누락 건수를 기록한 뒤 불완전한 실행으로 판정한다. p95 3초 초과는 실행 종료 시 실패로 판정한다.
 - CPU·메모리는 Grafana에서 관찰한다. CPU 85% 이상 또는 가용 메모리 15% 이하가 60초 지속되면 운영자가 Actions를 취소하고 확인한다. **자동 자원 감시·중단·복원은 없다.**
 - 클라이언트 중단이 이미 실행 중인 서버·DB 작업을 취소하지는 않는다. 남은 작업과 회복을 확인한 후 수동 복원한다.
 
