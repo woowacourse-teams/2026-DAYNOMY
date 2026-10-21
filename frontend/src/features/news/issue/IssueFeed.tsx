@@ -128,8 +128,14 @@ export function IssueFeed({
   const id = useId();
   const triggers = useRef(new Map<string, HTMLButtonElement>());
   const peopleTimeline = surface === 'people';
-  const compactNews = surface === 'news_home' || surface === 'news_contents' || peopleTimeline;
-  const showThumbnails = ['news_home', 'news_contents', 'people'].includes(surface);
+  const compactNews =
+    surface === 'news_home' ||
+    surface === 'news_contents' ||
+    peopleTimeline ||
+    surface === 'search_results';
+  const showThumbnails = ['news_home', 'news_contents', 'people', 'search_results'].includes(
+    surface,
+  );
   return (
     <>
       <ul

@@ -2,6 +2,7 @@ import { isCategory, type Category } from '../news/newslist/types';
 import type { FeedItem } from '../news/issue/feed';
 
 export type ContentSearchSource = 'ALL' | FeedItem['source'];
+export type ContentSearchSort = 'LATEST' | 'POPULAR';
 
 type BaseItem = { id: number; title: string; date: string | null };
 export type ContentSearchItemResponse =
