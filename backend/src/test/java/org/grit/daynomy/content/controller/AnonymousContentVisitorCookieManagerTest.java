@@ -34,8 +34,7 @@ class AnonymousContentVisitorCookieManagerTest {
   void replacesTamperedVisitorCookie() {
     MockHttpServletRequest request = new MockHttpServletRequest();
     String tamperedToken = UUID.randomUUID() + ".invalid";
-    request.setCookies(
-        new Cookie(AnonymousContentVisitorCookieManager.COOKIE_NAME, tamperedToken));
+    request.setCookies(new Cookie(AnonymousContentVisitorCookieManager.COOKIE_NAME, tamperedToken));
     MockHttpServletResponse response = new MockHttpServletResponse();
 
     UUID visitorId = manager.getOrCreate(request, response);

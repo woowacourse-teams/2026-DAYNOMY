@@ -26,8 +26,7 @@ public class ContentInteractionRateLimiter {
       };
 
   public ContentInteractionRateLimiter(
-      Clock clock,
-      @Value("${content-interaction.rate-limit-per-minute:60}") int limitPerMinute) {
+      Clock clock, @Value("${content-interaction.rate-limit-per-minute:60}") int limitPerMinute) {
     this.clock = clock;
     this.limitPerMinute = limitPerMinute;
   }
@@ -36,8 +35,7 @@ public class ContentInteractionRateLimiter {
     Instant now = clock.instant();
     ArrayDeque<Instant> actorRequests =
         requests.computeIfAbsent(actor, ignored -> new ArrayDeque<>());
-    while (!actorRequests.isEmpty()
-        && !actorRequests.peekFirst().isAfter(now.minusSeconds(60))) {
+    while (!actorRequests.isEmpty() && !actorRequests.peekFirst().isAfter(now.minusSeconds(60))) {
       actorRequests.removeFirst();
     }
     if (actorRequests.size() >= limitPerMinute) {

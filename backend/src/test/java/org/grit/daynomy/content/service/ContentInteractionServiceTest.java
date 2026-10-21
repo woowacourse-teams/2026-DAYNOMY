@@ -23,9 +23,9 @@ import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.content.repository.ContentInteractionRepository;
 import org.grit.daynomy.content.repository.ContentPopularityProjection;
+import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.repository.NewsRepository;
-import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.person.repository.FeaturedPersonPostRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,10 +87,7 @@ class ContentInteractionServiceTest {
     given(newsRepository.existsByIdAndStatus(1L, NewsStatus.PUBLISHED)).willReturn(false);
     ContentInteractionRequest request =
         new ContentInteractionRequest(
-            UUID.randomUUID(),
-            ContentType.NEWS,
-            1L,
-            ContentInteractionType.OPEN);
+            UUID.randomUUID(), ContentType.NEWS, 1L, ContentInteractionType.OPEN);
 
     assertThatThrownBy(() -> service.record(request, null, UUID.randomUUID()))
         .isInstanceOf(BusinessException.class)
