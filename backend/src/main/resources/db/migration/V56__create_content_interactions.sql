@@ -13,7 +13,7 @@ CREATE TABLE content_interactions (
     CONSTRAINT ck_content_interactions_content_type
         CHECK (content_type IN ('NEWS', 'PERSON_POST', 'ASSET_CONTENT')),
     CONSTRAINT ck_content_interactions_interaction_type
-        CHECK (interaction_type IN ('OPEN', 'OUTBOUND_CLICK'))
+        CHECK (interaction_type IN ('OPEN', 'EXPAND', 'OUTBOUND_CLICK'))
 );
 
 CREATE INDEX idx_content_interactions_popularity

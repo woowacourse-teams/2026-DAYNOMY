@@ -7,7 +7,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.AssetContent;
@@ -22,6 +21,7 @@ import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.person.domain.FeaturedPersonPostStatus;
 import org.grit.daynomy.person.repository.FeaturedPersonPostRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,19 +53,19 @@ public class ContentInteractionService {
   }
 
   @Transactional(readOnly = true)
-  public ContentPopularityResponse getPopularity(int periodDays) {
+  public ContentPopularityResponse getPopularity(int periodDays, int page, int size) {
     LocalDate fromDate = LocalDate.now(clock.withZone(SEOUL)).minusDays(periodDays - 1L);
-    List<ContentPopularityItemResponse> items =
-        interactionRepository.findPopularitySince(fromDate).stream()
+    return ContentPopularityResponse.from(
+        interactionRepository
+            .findPopularitySince(fromDate, PageRequest.of(page - 1, size))
             .map(
                 item ->
                     new ContentPopularityItemResponse(
                         ContentType.valueOf(item.getContentType()),
                         item.getContentId(),
                         item.getScore(),
-                        item.getLastInteractedAt()))
-            .toList();
-    return new ContentPopularityResponse(items, periodDays);
+                        item.getLastInteractedAt())),
+        periodDays);
   }
 
   private void validatePublicContent(ContentType contentType, Long contentId) {

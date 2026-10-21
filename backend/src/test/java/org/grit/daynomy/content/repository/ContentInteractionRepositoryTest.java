@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -47,9 +48,11 @@ class ContentInteractionRepositoryTest {
   void aggregatesWeightedPopularityWithinRequestedPeriod() {
     LocalDate today = LocalDate.of(2026, 10, 20);
     repository.save(interaction(ContentType.NEWS, 1L, ContentInteractionType.OPEN, today));
+    repository.save(interaction(ContentType.NEWS, 1L, ContentInteractionType.EXPAND, today));
     repository.save(
         interaction(ContentType.NEWS, 1L, ContentInteractionType.OUTBOUND_CLICK, today));
     repository.save(interaction(ContentType.PERSON_POST, 2L, ContentInteractionType.OPEN, today));
+    repository.save(interaction(ContentType.ASSET_CONTENT, 4L, ContentInteractionType.OPEN, today));
     repository.save(
         interaction(
             ContentType.ASSET_CONTENT,
@@ -58,13 +61,19 @@ class ContentInteractionRepositoryTest {
             today.minusDays(7)));
     repository.flush();
 
-    var popularity = repository.findPopularitySince(today.minusDays(6));
+    var popularity = repository.findPopularitySince(today.minusDays(6), PageRequest.of(0, 2));
 
     assertThat(popularity).hasSize(2);
-    assertThat(popularity.getFirst().getContentType()).isEqualTo("NEWS");
-    assertThat(popularity.getFirst().getContentId()).isEqualTo(1L);
-    assertThat(popularity.getFirst().getScore()).isEqualTo(4L);
-    assertThat(popularity.get(1).getScore()).isEqualTo(1L);
+    assertThat(popularity.getTotalElements()).isEqualTo(3);
+    assertThat(popularity.hasNext()).isTrue();
+    assertThat(popularity.getContent().getFirst().getContentType()).isEqualTo("NEWS");
+    assertThat(popularity.getContent().getFirst().getContentId()).isEqualTo(1L);
+    assertThat(popularity.getContent().getFirst().getScore()).isEqualTo(5L);
+    assertThat(popularity.getContent().get(1).getScore()).isEqualTo(1L);
+
+    var lastPage = repository.findPopularitySince(today.minusDays(6), PageRequest.of(1, 2));
+    assertThat(lastPage).hasSize(1);
+    assertThat(lastPage.hasNext()).isFalse();
   }
 
   @Test

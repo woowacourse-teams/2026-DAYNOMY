@@ -30,6 +30,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class ContentInteractionServiceTest {
@@ -100,12 +102,17 @@ class ContentInteractionServiceTest {
     given(projection.getContentId()).willReturn(7L);
     given(projection.getScore()).willReturn(5L);
     given(projection.getLastInteractedAt()).willReturn(Instant.parse("2026-10-20T02:00:00Z"));
-    given(interactionRepository.findPopularitySince(LocalDate.of(2026, 10, 14)))
-        .willReturn(List.of(projection));
+    PageRequest pageable = PageRequest.of(1, 2);
+    given(interactionRepository.findPopularitySince(LocalDate.of(2026, 10, 14), pageable))
+        .willReturn(new PageImpl<>(List.of(projection), pageable, 5));
 
-    var response = service.getPopularity(7);
+    var response = service.getPopularity(7, 2, 2);
 
     assertThat(response.periodDays()).isEqualTo(7);
+    assertThat(response.page()).isEqualTo(2);
+    assertThat(response.totalPages()).isEqualTo(3);
+    assertThat(response.totalElements()).isEqualTo(5);
+    assertThat(response.hasNext()).isTrue();
     assertThat(response.items()).hasSize(1);
     assertThat(response.items().getFirst().contentType()).isEqualTo(ContentType.NEWS);
     assertThat(response.items().getFirst().score()).isEqualTo(5L);

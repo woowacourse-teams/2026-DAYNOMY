@@ -75,26 +75,43 @@ class ContentInteractionControllerTest {
 
   @Test
   void returnsPopularityForRequestedPeriod() throws Exception {
-    given(service.getPopularity(7))
+    given(service.getPopularity(7, 1, 20))
         .willReturn(
             new ContentPopularityResponse(
                 List.of(
                     new ContentPopularityItemResponse(
                         ContentType.NEWS, 1L, 4L, Instant.parse("2026-10-20T02:00:00Z"))),
-                7));
+                7,
+                1,
+                20,
+                1,
+                1,
+                false));
 
     mockMvc
         .perform(get("/api/content-rankings").param("periodDays", "7"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].contentType").value("NEWS"))
         .andExpect(jsonPath("$.items[0].score").value(4))
-        .andExpect(jsonPath("$.periodDays").value(7));
+        .andExpect(jsonPath("$.periodDays").value(7))
+        .andExpect(jsonPath("$.page").value(1))
+        .andExpect(jsonPath("$.size").value(20))
+        .andExpect(jsonPath("$.totalElements").value(1))
+        .andExpect(jsonPath("$.hasNext").value(false));
   }
 
   @Test
   void rejectsPopularityPeriodOutsideRange() throws Exception {
     mockMvc
         .perform(get("/api/content-rankings").param("periodDays", "31"))
+        .andExpect(status().isBadRequest());
+    then(service).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void rejectsPopularityPageOutsideRange() throws Exception {
+    mockMvc
+        .perform(get("/api/content-rankings").param("page", "0"))
         .andExpect(status().isBadRequest());
     then(service).shouldHaveNoInteractions();
   }

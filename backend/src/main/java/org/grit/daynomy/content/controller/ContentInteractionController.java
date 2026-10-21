@@ -35,7 +35,9 @@ public class ContentInteractionController {
   @Operation(summary = "콘텐츠 인기 점수 조회", description = "지정한 최근 기간의 콘텐츠별 인기 점수를 조회합니다.")
   @GetMapping("/api/content-rankings")
   public ResponseEntity<ContentPopularityResponse> getPopularity(
-      @RequestParam(defaultValue = "7") @Min(1) @Max(30) int periodDays) {
-    return ResponseEntity.ok(contentInteractionService.getPopularity(periodDays));
+      @RequestParam(defaultValue = "7") @Min(1) @Max(30) int periodDays,
+      @RequestParam(defaultValue = "1") @Min(1) int page,
+      @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+    return ResponseEntity.ok(contentInteractionService.getPopularity(periodDays, page, size));
   }
 }

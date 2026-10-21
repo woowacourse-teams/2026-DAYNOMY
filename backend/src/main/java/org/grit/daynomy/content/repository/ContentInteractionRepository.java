@@ -2,9 +2,10 @@ package org.grit.daynomy.content.repository;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.UUID;
 import org.grit.daynomy.content.domain.ContentInteraction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -40,13 +41,24 @@ public interface ContentInteractionRepository extends JpaRepository<ContentInter
           """
           SELECT content_type AS "contentType",
                  content_id AS "contentId",
-                 SUM(CASE interaction_type WHEN 'OPEN' THEN 1 ELSE 3 END) AS "score",
+                 SUM(CASE WHEN interaction_type IN ('OPEN', 'EXPAND') THEN 1 ELSE 3 END) AS "score",
                  MAX(created_at) AS "lastInteractedAt"
           FROM content_interactions
           WHERE interaction_date >= :fromDate
           GROUP BY content_type, content_id
           ORDER BY "score" DESC, "lastInteractedAt" DESC, content_type ASC, content_id DESC
           """,
+      countQuery =
+          """
+          SELECT COUNT(*)
+          FROM (
+              SELECT 1
+              FROM content_interactions
+              WHERE interaction_date >= :fromDate
+              GROUP BY content_type, content_id
+          ) AS ranked_contents
+          """,
       nativeQuery = true)
-  List<ContentPopularityProjection> findPopularitySince(@Param("fromDate") LocalDate fromDate);
+  Page<ContentPopularityProjection> findPopularitySince(
+      @Param("fromDate") LocalDate fromDate, Pageable pageable);
 }
