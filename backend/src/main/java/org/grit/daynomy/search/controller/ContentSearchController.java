@@ -1,6 +1,7 @@
 package org.grit.daynomy.search.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "통합 검색", description = "뉴스·주요 인물 게시물·종목 관련 자료 통합 검색 API")
 @Validated
 @RequiredArgsConstructor
 @RestController
