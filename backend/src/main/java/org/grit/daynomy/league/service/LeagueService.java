@@ -942,9 +942,8 @@ public class LeagueService {
       Map<Long, BigDecimal> contributions) {
     List<SharedHoldingHistory> holdings =
         SharedHoldingHistory.reconstructHoldings(
-            holdingHistoryRepository
-                .findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                    portfolioId, baseDate.atStartOfDay(SEOUL).toInstant()));
+            holdingHistoryRepository.findEffectiveBefore(
+                portfolioId, baseDate.atStartOfDay(SEOUL).toInstant()));
     Map<Long, PricePair> prices = new LinkedHashMap<>();
     BigDecimal total = BigDecimal.ZERO;
     for (SharedHoldingHistory holding : holdings) {

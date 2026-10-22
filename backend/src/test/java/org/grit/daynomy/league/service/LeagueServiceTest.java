@@ -1124,10 +1124,7 @@ class LeagueServiceTest {
             tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
                 currentDate))
         .willReturn(Optional.of(previousDay));
-    given(
-            holdingHistoryRepository
-                .findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                    eq(3L), any(Instant.class)))
+    given(holdingHistoryRepository.findEffectiveBefore(eq(3L), any(Instant.class)))
         .willReturn(List.of(history));
     given(history.getAsset()).willReturn(asset);
     given(history.getChangeType()).willReturn(ChangeType.ADDED);
