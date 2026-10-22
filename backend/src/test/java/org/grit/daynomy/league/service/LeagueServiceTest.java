@@ -82,6 +82,7 @@ class LeagueServiceTest {
   @Mock private WeeklyLeaderboardRepository leaderboardRepository;
   @Mock private LeagueCalculationMetrics calculationMetrics;
   @Mock private EntityManager entityManager;
+  @Mock private LeagueAggregationService aggregationService;
   @InjectMocks private LeagueService service;
 
   @ParameterizedTest

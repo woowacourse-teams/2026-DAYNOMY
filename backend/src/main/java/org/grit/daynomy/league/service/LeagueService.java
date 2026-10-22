@@ -104,6 +104,7 @@ public class LeagueService {
   private final MarketTradingDayRepository tradingDayRepository;
   private final WeeklyLeaderboardRepository leaderboardRepository;
   private final LeagueCalculationMetrics calculationMetrics;
+  private final LeagueAggregationService aggregationService;
   private final EntityManager entityManager;
   private Map<LocalDate, WeekState> finalizationStates = new HashMap<>();
   private boolean finalizationStatesInitialized;
@@ -202,7 +203,8 @@ public class LeagueService {
             finalResult == null ? null : finalResult.getCalculationVersion(),
             finalResult == null ? null : finalResult.getFinalizedAt(),
             finalResult == null ? null : finalResult.getChangeReason(),
-            collectionStatus(weekStart));
+            collectionStatus(weekStart),
+            finalResult == null ? aggregationService.ranking(weekStart) : null);
     log.atDebug()
         .addKeyValue("event", LogEvent.LEAGUE_RANKINGS_LOADED.code())
         .addKeyValue("weekStart", weekStart)
@@ -703,7 +705,8 @@ public class LeagueService {
             weekly,
             days,
             profile.getTrackingStartedOn(),
-            collectionStatus(weekStart));
+            collectionStatus(weekStart),
+            confirmed ? null : aggregationService.investor(weekStart, profile, values));
     log.atDebug()
         .addKeyValue("event", LogEvent.LEAGUE_DAILY_HISTORY_LOADED.code())
         .addKeyValue("profileId", profile.getId())
