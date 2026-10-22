@@ -330,7 +330,7 @@ jobs:
 
           if [ -n "$STAFF_DEPLOY_URL" ]; then
             curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 2 \
-              --max-time 15 "$STAFF_DEPLOY_URL/admin" | grep -q '<div id="root"></div>'
+              --max-time 15 "$STAFF_DEPLOY_URL/" | grep -q '<div id="root"></div>'
 
             staff_api_content_type="$(curl --fail --silent --show-error --max-time 15 \
               --output /dev/null --write-out '%{content_type}' \

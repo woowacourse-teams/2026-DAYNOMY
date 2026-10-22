@@ -233,9 +233,11 @@ E2E 실패 시 스크린샷과 trace를 Actions 아티팩트에서 확인할 수
 | `dev`  | `development`      | `https://dev.daynomy.com` | `3000`·`3001` |
 | `main` | `production`       | `https://daynomy.com`     | `3000`·`3001` |
 
-운영의 사용자 화면은 `daynomy.com`, 팀원용 관리자 화면은 `staff.daynomy.com`에서 제공합니다.
-두 호스트는 같은 프론트엔드와 백엔드를 사용하며 `/api/admin/**`의 `ADMIN` 권한 검사를 보안
-경계로 유지합니다. 인증 쿠키에는 공유 `Domain`을 지정하지 않아 호스트별 로그인을 유지합니다.
+운영의 사용자 화면은 `daynomy.com`, 팀원 전용 진입점은 `staff.daynomy.com`에서 제공합니다.
+팀원 도메인은 최초 진입 시 로그인과 `ADMIN` 역할을 확인한 뒤 사용자 도메인과 동일한 화면과
+경로를 제공합니다. `/admin/**`에서는 기존 관리자 화면을 제공하며 백엔드의 `ADMIN` 권한 검사를
+보안 경계로 유지합니다. 두 호스트는 같은 프론트엔드와 백엔드를 사용하고, 인증 쿠키에는 공유
+`Domain`을 지정하지 않아 호스트별 로그인을 유지합니다.
 
 `.github/workflows/deploy-frontend.yml`은 브랜치에 맞는 Vite mode로 빌드하고,
 `dev`는 개발 EC2의 `frontend-dev` 라벨 Runner로, `main`은 운영 EC2의
