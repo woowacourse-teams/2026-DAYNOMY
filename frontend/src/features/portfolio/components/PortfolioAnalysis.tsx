@@ -826,7 +826,7 @@ function PortfolioAnalysisView({
     </a>
   ) : !error ? (
     <button
-      className={`portfolio-analysis-button${saved?.status !== 'PROCESSING' && (portfolioChanged || analysis || (!isLoggedIn && !loading)) ? ' is-primary' : ''}`}
+      className={`portfolio-analysis-button${saved?.status !== 'PROCESSING' && (showIntroduction || portfolioChanged || analysis || (!isLoggedIn && !loading)) ? ' is-primary' : ''}`}
       type="button"
       disabled={!canAnalyze}
       onClick={analyze}
@@ -861,11 +861,6 @@ function PortfolioAnalysisView({
       >
         <div>
           <h2 id="portfolio-ai-analysis-title">AI 분석</h2>
-          {analysis ? (
-            <p>
-              보유 자산 {analysis.totalAssetCount}개 중 {analysis.analyzedAssetCount}개 분석
-            </p>
-          ) : null}
         </div>
         {!showIntroduction ? analysisAction : null}
       </div>
@@ -880,12 +875,6 @@ function PortfolioAnalysisView({
         {analysis && loading ? <p role="status">기존 분석을 유지하며 확인하고 있어요.</p> : null}
         {analysis && !loading && saved?.status === 'RECHECK_REQUIRED' ? (
           <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
-        ) : null}
-        {analysis &&
-        !loading &&
-        saved?.status === 'READY' &&
-        saved.lastCheckOutcome === 'UNCHANGED' ? (
-          <p role="status">주요 변화가 없어 기존 분석을 유지했어요.</p>
         ) : null}
         {analysis &&
         !loading &&
