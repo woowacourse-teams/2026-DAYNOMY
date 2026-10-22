@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { InvestorAvatar } from './InvestorAvatar';
+import { AggregationNotice } from './AggregationNotice';
 import { Link } from 'react-router-dom';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
@@ -271,9 +272,11 @@ export function LeaguePage() {
 
       {!loading && !error && ranking ? (
         <aside className="league-update-notice" aria-label="순위 갱신 안내">
+          <AggregationNotice aggregation={ranking.aggregation} label="순위 반영 예상" />
           <details className="league-calculation-details">
             <summary>집계 기준 안내</summary>
-            <p>종가는 다음 영업일 오후 2시 이후 제공되며, 수집·집계 후 반영됩니다.</p>
+            <p>종가는 다음 영업일에 수집·집계 후 반영됩니다.</p>
+            <p>참여한 주의 기존 보유 기록이 있으면 수집된 종가까지 이번 주 성과에 반영합니다.</p>
             <p>같은 순위 기준 점수는 공동 순위로 표시합니다.</p>
             <p>사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다.</p>
           </details>

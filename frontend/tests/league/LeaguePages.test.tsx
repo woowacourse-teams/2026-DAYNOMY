@@ -131,6 +131,13 @@ describe('투자 리그 화면', () => {
       ...ranking,
       confirmed: false,
       collectionStatus: 'COLLECTION_PENDING',
+      aggregation: {
+        baseDate: '2026-12-11',
+        expectedAt: '2026-12-14T05:30:00Z',
+        firstReturnExpectedAt: null,
+        reason: 'PRICE_COLLECTION_DELAYED',
+        delayed: true,
+      },
     });
     const view = render(
       <StrictMode>
@@ -144,6 +151,9 @@ describe('투자 리그 화면', () => {
     await view.findByText('잠정 순위');
     expect(view.getByText('종가 수집 대기')).toBeTruthy();
     expect(view.queryByText(/집계된 종가 기준의 잠정 순위/)).toBeNull();
+    expect(view.getByText('순위 반영 예상')).toBeTruthy();
+    expect(view.getByText('시세 제공이 늦어져 다음 수집을 기다리고 있어요.')).toBeTruthy();
+    expect(view.container.querySelector('time')?.textContent).toContain('14:30');
     expect(
       vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'view_league'),
     ).toHaveLength(1);
@@ -492,6 +502,50 @@ describe('투자 리그 화면', () => {
     expect(view.queryByRole('table')).toBeNull();
     expect(view.queryByText('아직 집계된 수익률이 없어요.')).toBeNull();
     expect(view.queryByText('참여 후 누적 0.00%')).toBeNull();
+  });
+
+  it('첫 집계와 첫 수익률 변화의 예상 시각을 구분해 안내한다', async () => {
+    vi.mocked(leagueApi.getDailyHistory).mockResolvedValue({
+      ...daily,
+      confirmed: false,
+      asOfDate: null,
+      weeklyReturnRate: null,
+      days: [],
+      aggregation: {
+        baseDate: '2026-12-09',
+        expectedAt: '2026-12-10T05:30:00Z',
+        firstReturnExpectedAt: '2026-12-11T05:30:00Z',
+        reason: 'PRICE_COLLECTION_PENDING',
+        delayed: false,
+      },
+    });
+    const view = render(<DailyReturns publicId="investor-1" weekStart="" onWeekChange={vi.fn()} />);
+    expect(await view.findByText('첫 집계 예상')).toBeTruthy();
+    expect(view.getByText(/첫 수익률 변화 반영 예상/)).toBeTruthy();
+    expect(
+      Array.from(view.container.querySelectorAll('time')).map((time) => time.dateTime),
+    ).toEqual(['2026-12-10T05:30:00Z', '2026-12-11T05:30:00Z']);
+    expect(view.queryByText('0.00%')).toBeNull();
+  });
+
+  it('예상 시각이 없는 종가 누락 상태에 임의의 시간을 표시하지 않는다', async () => {
+    vi.mocked(leagueApi.getDailyHistory).mockResolvedValue({
+      ...daily,
+      confirmed: false,
+      aggregation: {
+        baseDate: '2026-12-09',
+        expectedAt: null,
+        firstReturnExpectedAt: null,
+        reason: 'MISSING_PRICE',
+        delayed: false,
+      },
+    });
+    const view = render(<DailyReturns publicId="investor-1" weekStart="" onWeekChange={vi.fn()} />);
+    expect(
+      await view.findByText('일부 종목의 종가가 누락되어 반영 시각을 확인하고 있어요.'),
+    ).toBeTruthy();
+    expect(view.queryByText('다음 집계 예상')).toBeNull();
+    expect(view.container.querySelector('.league-aggregation-notice time')).toBeNull();
   });
 
   it('일별 꺾은선은 하루 수익률만 연결하고 중복 상세 카드를 표시하지 않는다', async () => {

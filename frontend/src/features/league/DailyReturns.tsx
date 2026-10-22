@@ -4,6 +4,7 @@ import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { recentLeagueWeeks } from './weeks';
 import { ReturnLine } from './ReturnLine';
 import { LeagueWeekNavigation } from './LeagueWeekNavigation';
+import { AggregationNotice } from './AggregationNotice';
 import { formatRate, collectionLabels } from './labels';
 import type { DailyHistory, DailyReturnPoint, LeagueWeek } from './types';
 
@@ -118,7 +119,7 @@ export function DailyReturns({
       ? participatingDays.length === 0
         ? '이 주에는 참여 기록이 없어요.'
         : pendingClose
-          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기 · 다음 영업일 오후 2시 이후 제공됩니다.`
+          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기`
           : [...new Set(participatingDays.map(statusLabel))].join(', ')
       : history?.collectionStatus
         ? collectionLabels[history.collectionStatus]
@@ -156,6 +157,10 @@ export function DailyReturns({
         </div>
       ) : history ? (
         <>
+          <AggregationNotice
+            aggregation={history.aggregation}
+            label={hasReturns ? '다음 집계 예상' : '첫 집계 예상'}
+          />
           {!hasReturns ? (
             <div className="league-daily-empty">
               <p>아직 집계된 수익률이 없어요.</p>
