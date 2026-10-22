@@ -3,7 +3,6 @@ package org.grit.daynomy.external.openai;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,10 +25,6 @@ public class OpenAiNewsWriter {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final int MAX_ATTEMPTS = 2;
-  private static final int MIN_CONTENT_LENGTH = 800;
-  private static final int MAX_CONTENT_LENGTH = 1_500;
-  private static final int MIN_CONTENT_PARAGRAPHS = 4;
-  private static final int MAX_CONTENT_PARAGRAPHS = 6;
   private static final int MAX_OUTPUT_TOKENS = 12_000;
   private static final String PROMPT = OpenAiPromptLoader.load("prompts/news-writer.txt");
   private static final String RETRY_INSTRUCTION =
@@ -253,30 +248,6 @@ public class OpenAiNewsWriter {
   private void validateContent(String content) {
     if (content.isBlank()) {
       throw new IllegalArgumentException("Content must not be blank.");
-    }
-
-    int contentLength = content.codePointCount(0, content.length());
-    long paragraphCount =
-        Arrays.stream(content.split("\\R\\s*\\R"))
-            .filter(paragraph -> !paragraph.isBlank())
-            .count();
-    if (contentLength < MIN_CONTENT_LENGTH || contentLength > MAX_CONTENT_LENGTH) {
-      throw new IllegalArgumentException(
-          "Content length was "
-              + contentLength
-              + "; expected between "
-              + MIN_CONTENT_LENGTH
-              + " and "
-              + MAX_CONTENT_LENGTH
-              + " characters.");
-    }
-    if (paragraphCount < MIN_CONTENT_PARAGRAPHS || paragraphCount > MAX_CONTENT_PARAGRAPHS) {
-      throw new IllegalArgumentException(
-          "Content paragraph count must be between "
-              + MIN_CONTENT_PARAGRAPHS
-              + " and "
-              + MAX_CONTENT_PARAGRAPHS
-              + ".");
     }
   }
 

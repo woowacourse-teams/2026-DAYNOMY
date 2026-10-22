@@ -166,6 +166,22 @@ class OpenAiNewsGeneratorTest {
   }
 
   @Test
+  void writerAcceptsContentOutsideRecommendedFormat() throws Exception {
+    String content = "가".repeat(747);
+    server.enqueue(jsonResponse(writerResponse(List.of(content))));
+
+    List<GeneratedEconomicNews> generated =
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(research("뉴스 제목")));
+
+    assertThat(generated)
+        .singleElement()
+        .extracting(GeneratedEconomicNews::content)
+        .isEqualTo(content);
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  @Test
   void writerDoesNotReturnArticlesWhenRepairStillFails() throws Exception {
     server.enqueue(jsonResponse(writerResponse(List.of(" "))));
     server.enqueue(jsonResponse(writerResponse(List.of("\n"))));
@@ -203,27 +219,6 @@ class OpenAiNewsGeneratorTest {
         List.of(
             new NewsSourceInfo("출처 1", "https://example.com/1"),
             new NewsSourceInfo("출처 2", "https://example.com/2")));
-  }
-
-  @Test
-  void writerDoesNotCountUnicodeBlankSegmentAsParagraph() throws Exception {
-    server.enqueue(jsonResponse(writerResponse(List.of(validContentWithBlankSegment()))));
-    EconomicNewsResearch research =
-        new EconomicNewsResearch(
-            "뉴스 제목",
-            LocalDate.now(ZoneId.of("Asia/Seoul")),
-            Category.STOCK,
-            List.of("첫 번째 확인 사실", "두 번째 확인 사실", "세 번째 확인 사실"),
-            List.of(
-                new NewsSourceInfo("출처 1", "https://example.com/1"),
-                new NewsSourceInfo("출처 2", "https://example.com/2")));
-
-    List<GeneratedEconomicNews> generated =
-        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
-            .write(List.of(research));
-
-    assertThat(generated).hasSize(1);
-    assertThat(server.getRequestCount()).isEqualTo(1);
   }
 
   private OpenAiNewsGenerator newGenerator() {
@@ -317,19 +312,5 @@ class OpenAiNewsGeneratorTest {
         "계약의 주요 조건과 사업 범위가 공개됐다. " + paragraph.repeat(3),
         "관련 기업과 기관은 공개된 일정에 따라 후속 절차를 진행한다. " + paragraph.repeat(3),
         "추가 내용은 향후 공시와 공식 자료를 통해 확인될 예정이다. " + paragraph.repeat(3));
-  }
-
-  private String validContentWithBlankSegment() {
-    String paragraph =
-        "공식 자료에서 계약 규모와 일정이 확인됐다. 회사는 공개된 조건에 따라 사업을 진행하고 있다. 관련 절차는 공시된 일정에 따라 진행된다. ";
-    List<String> paragraphs =
-        List.of(
-            paragraph.repeat(3),
-            "\u2003",
-            paragraph.repeat(3),
-            paragraph.repeat(3),
-            paragraph.repeat(3),
-            paragraph.repeat(3));
-    return String.join("\n\n", paragraphs);
   }
 }
