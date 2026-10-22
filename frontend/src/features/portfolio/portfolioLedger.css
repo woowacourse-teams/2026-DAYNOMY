@@ -361,6 +361,9 @@ body:has(.portfolio-page) .daynomy-footer {
   padding-bottom: 8px;
   border-bottom-color: #e9edf3;
 }
+.portfolio-page .portfolio-analysis-heading.has-analysis {
+  padding-bottom: 16px;
+}
 .portfolio-page .portfolio-analysis-heading h2,
 .portfolio-page .portfolio-analysis-heading.has-analysis h2,
 .portfolio-page .portfolio-analysis-title {
