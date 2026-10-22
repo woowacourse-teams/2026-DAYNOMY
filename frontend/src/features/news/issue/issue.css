@@ -350,8 +350,8 @@
     margin-bottom: 16px;
   }
   .issue-feed-heading {
-    gap: 20px;
-    margin-bottom: 12px;
+    gap: 12px;
+    margin-bottom: 16px;
   }
   .issue-section-heading h2 {
     font-size: var(--page-title-size);
@@ -373,10 +373,47 @@
     font-size: 17px;
   }
   .issue-feed-controls {
+    flex-direction: column;
+    align-items: stretch;
     gap: 12px;
+    padding: 12px 0 16px;
+    border-top: 1px solid var(--issue-line);
+    border-bottom: 1px solid var(--issue-line);
   }
   .issue-feed-controls > span {
     display: none;
+  }
+
+  .issue-feed-controls .issue-sort-options {
+    align-self: flex-start;
+    margin-left: 0;
+  }
+
+  .issue-feed-controls .issue-sort-options button {
+    min-height: 44px;
+    padding-block: 9px 7px;
+  }
+
+  .issue-feed-controls .issue-source-filters {
+    display: grid;
+    width: min(100%, 270px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 0;
+    margin: 0 auto;
+    overflow: visible;
+  }
+
+  .issue-feed-controls .issue-source-filters button {
+    width: 100%;
+    min-height: 38px;
+    padding: 7px 12px;
+  }
+
+  .issue-feed-controls .issue-source-filters button:last-child {
+    grid-column: 1 / -1;
+    width: calc(50% - 3px);
+    justify-self: center;
   }
 }
 .issue-page {
@@ -962,16 +999,6 @@
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-@media (max-width: 720px) {
-  .issue-feed-heading .issue-source-filters button {
-    padding-inline: 12px;
-  }
-  .issue-feed-heading .issue-source-filters {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
-}
-
 .issue-story-image {
   position: relative;
   display: grid;

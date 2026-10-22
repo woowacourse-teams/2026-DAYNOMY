@@ -318,6 +318,14 @@ describe('포트폴리오 분석 화면', () => {
         }),
       ).toBeTruthy();
       expect(view.queryByRole('button', { name: '자산 추가하기' })).toBeNull();
+      const analyzeButton = view.getByRole('button', {
+        name: isLoggedIn ? 'AI 분석하기' : '1회 분석 체험하기',
+      });
+      expect(analyzeButton.closest('.portfolio-preview-action')).toBeTruthy();
+      expect(analyzeButton.classList.contains('is-primary')).toBe(true);
+      expect(view.getByRole('region', { name: '가상 분석 미리보기' }).contains(analyzeButton)).toBe(
+        true,
+      );
     },
   );
 
@@ -363,7 +371,11 @@ describe('포트폴리오 분석 화면', () => {
         ),
       ),
     );
-    expect(await view.findByText('주요 변화가 없어 기존 분석을 유지했어요.')).toBeTruthy();
+    expect(await view.findByRole('button', { name: '새 소식 확인' })).toBeTruthy();
+    expect(view.queryByText('주요 변화가 없어 기존 분석을 유지했어요.')).toBeNull();
+    expect(view.queryByText(/보유 자산 \d+개 중 \d+개 분석/)).toBeNull();
+    const checkedAt = view.getByText(/최근 확인:/).querySelector('time');
+    expect(checkedAt?.getAttribute('datetime')).toBe('2026-10-06T08:00:00Z');
     expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/refresh'))).toHaveLength(
       1,

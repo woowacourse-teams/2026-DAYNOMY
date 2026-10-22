@@ -37,6 +37,7 @@ import { CardDesignPreviewPage } from './features/stock-content/CardDesignPrevie
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
 import { loadGuestPortfolioHoldings } from './features/portfolio/portfolioHoldingsStorage';
+import { isStaffHostname, isUserHostname } from './serviceDomain';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -187,6 +188,51 @@ function PostLoginRedirect() {
   }, [isLoggedIn, loading, location.pathname, location.search, location.hash, navigate]);
 
   return null;
+}
+
+function StaffAccessDeniedPage() {
+  return (
+    <main className="admin-state-page">
+      <section className="admin-state-panel">
+        <h1>팀원 권한이 필요합니다.</h1>
+        <p>팀원 계정으로 로그인한 뒤 다시 시도해 주세요.</p>
+        <a className="admin-secondary-button" href="https://daynomy.com/">
+          사용자 서비스로 이동
+        </a>
+      </section>
+    </main>
+  );
+}
+
+export function ServiceDomainBoundary({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const { isLoggedIn, loading, role } = useAuth();
+  const isStaff = isStaffHostname(window.location.hostname);
+  const isAdminPath = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
+  const isStaffPublicPath = ['/login', '/terms', '/privacy'].includes(location.pathname);
+
+  if (isUserHostname(window.location.hostname) && isAdminPath) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (!isStaff || isStaffPublicPath) {
+    return children;
+  }
+
+  if (loading) {
+    return <main aria-busy="true" aria-label="팀원 로그인 확인 중" />;
+  }
+
+  if (!isLoggedIn) {
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
+  }
+
+  if (role !== 'ADMIN') {
+    return <StaffAccessDeniedPage />;
+  }
+
+  return children;
 }
 
 function AppContent() {
@@ -390,7 +436,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppContent />
+        <ServiceDomainBoundary>
+          <AppContent />
+        </ServiceDomainBoundary>
       </AuthProvider>
     </BrowserRouter>
   );

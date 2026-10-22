@@ -1,6 +1,6 @@
 # DAYNOMY FRONTEND
 
-현재 릴리스 준비 버전은 **v2.0.1**입니다. 포함된 변경은 [변경 이력](CHANGELOG.md#v201), 백엔드 의존성과 배포 검증은 [릴리스 절차](RELEASING.md#v201-반영-순서)를 확인합니다.
+현재 릴리스 준비 버전은 **v2.0.2**입니다. 포함된 변경은 [변경 이력](CHANGELOG.md#v202), 백엔드 의존성과 배포 검증은 [릴리스 절차](RELEASING.md#v202-반영-순서)를 확인합니다.
 
 ## 첫 방문 서비스 소개
 
@@ -233,6 +233,12 @@ E2E 실패 시 스크린샷과 trace를 Actions 아티팩트에서 확인할 수
 | `dev`  | `development`      | `https://dev.daynomy.com` | `3000`·`3001` |
 | `main` | `production`       | `https://daynomy.com`     | `3000`·`3001` |
 
+운영의 사용자 화면은 `daynomy.com`, 팀원 전용 진입점은 `staff.daynomy.com`에서 제공합니다.
+팀원 도메인은 최초 진입 시 로그인과 `ADMIN` 역할을 확인한 뒤 사용자 도메인과 동일한 화면과
+경로를 제공합니다. `/admin/**`에서는 기존 관리자 화면을 제공하며 백엔드의 `ADMIN` 권한 검사를
+보안 경계로 유지합니다. 두 호스트는 같은 프론트엔드와 백엔드를 사용하고, 인증 쿠키에는 공유
+`Domain`을 지정하지 않아 호스트별 로그인을 유지합니다.
+
 `.github/workflows/deploy-frontend.yml`은 브랜치에 맞는 Vite mode로 빌드하고,
 `dev`는 개발 EC2의 `frontend-dev` 라벨 Runner로, `main`은 운영 EC2의
 `frontend-prod` 라벨 Runner로 배포합니다. 각 EC2에서 프론트 컨테이너 두 개를
@@ -344,7 +350,9 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 
 ### GA4 사용자 행동 모니터링
 
-개발·운영은 각자의 `GA_MEASUREMENT_ID`를 사용합니다. 공개 화면에서만 수집하고 `/login`·`/admin`은 제외합니다. URL과 referrer의 쿼리·fragment 및 검색어 원문은 전송하지 않습니다.
+개발·운영은 각자의 `GA_MEASUREMENT_ID`를 사용합니다. 공개 사용자 화면에서만 수집하고
+`/login`·`/admin`과 `staff.daynomy.com` 전체는 제외합니다. URL과 referrer의 쿼리·fragment 및
+검색어 원문은 전송하지 않습니다.
 
 #### 이벤트
 

@@ -14,6 +14,8 @@ import {
 import type { CollectionStatus, LeagueWeek, RankingEntry, RankingResponse } from './types';
 import { recentLeagueWeeks } from './weeks';
 import { LeagueWeekNavigation } from './LeagueWeekNavigation';
+import { IssuePagination } from '../news/issue/IssuePagination';
+import '../news/issue/issue.css';
 import './league.css';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
 
@@ -395,48 +397,32 @@ export function LeaguePage() {
             ))}
           </ol>
           {ranking.totalCount > 20 ? (
-            <nav className="league-pagination" aria-label="순위 페이지">
-              <button
-                type="button"
-                disabled={page === 0}
-                onClick={() => {
+            <div className="league-pagination">
+              <IssuePagination
+                page={page + 1}
+                totalPages={Math.ceil(ranking.totalCount / 20)}
+                ariaLabel="순위 페이지"
+                onChange={(nextPage) => {
                   changingPage.current = true;
                   trackLeagueEvent('league_action', {
                     surface: 'ranking',
                     action: 'change_page',
                     status: 'clicked',
-                    page: page - 1,
+                    page: nextPage - 1,
                   });
-                  setPage((value) => value - 1);
+                  setPage(nextPage - 1);
                 }}
-              >
-                이전
-              </button>
+              />
               <span
                 ref={pageStatus}
                 tabIndex={-1}
                 role="status"
+                className="league-sr-only"
                 aria-label={`전체 ${Math.ceil(ranking.totalCount / 20)}페이지 중 ${page + 1}페이지`}
               >
                 {page + 1} / {Math.ceil(ranking.totalCount / 20)}
               </span>
-              <button
-                type="button"
-                disabled={(page + 1) * 20 >= ranking.totalCount}
-                onClick={() => {
-                  changingPage.current = true;
-                  trackLeagueEvent('league_action', {
-                    surface: 'ranking',
-                    action: 'change_page',
-                    status: 'clicked',
-                    page: page + 1,
-                  });
-                  setPage((value) => value + 1);
-                }}
-              >
-                다음
-              </button>
-            </nav>
+            </div>
           ) : null}
         </section>
       ) : null}
