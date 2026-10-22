@@ -1795,7 +1795,7 @@ body:has(.portfolio-page) .daynomy-footer {
 .portfolio-news {
   position: sticky;
   top: 80px;
-  margin-top: 32px;
+  margin-top: 0;
   display: block;
   opacity: 1;
   transform: translateX(0);
