@@ -736,7 +736,7 @@ describe('투자 리그 화면', () => {
         </MemoryRouter>
       </AuthContext.Provider>,
     );
-    await view.findByRole('button', { name: '다음' });
+    await view.findByRole('button', { name: '2페이지' });
     expect(view.queryByRole('radio')).toBeNull();
     expect(view.getByRole('combobox', { name: '조회 주차' })).toHaveProperty('value', '2026-12-07');
     expect(view.getAllByRole('option').map((option) => option.textContent)).toEqual([
@@ -744,7 +744,7 @@ describe('투자 리그 화면', () => {
       '지난주 · 11-30 ~ 12-06',
       '지지난주 · 11-23 ~ 11-29',
     ]);
-    fireEvent.click(view.getByRole('button', { name: '다음' }));
+    fireEvent.click(view.getByRole('button', { name: '2페이지' }));
     await waitFor(() =>
       expect(leagueApi.getRankings).toHaveBeenLastCalledWith(
         'WEEKLY_RETURN',
@@ -774,6 +774,98 @@ describe('투자 리그 화면', () => {
         /사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다/,
       ),
     ).toBeTruthy();
+  });
+
+  it('순위 번호를 6개씩 표시하고 번호와 화살표를 서버 페이지에 연결한다', async () => {
+    vi.mocked(leagueApi.getRankings).mockResolvedValue({ ...ranking, totalCount: 145 });
+    const view = await act(async () =>
+      render(
+        <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+          <MemoryRouter>
+            <LeaguePage />
+          </MemoryRouter>
+        </AuthContext.Provider>,
+      ),
+    );
+    const pagination = () => within(view.getByRole('navigation', { name: '순위 페이지' }));
+    expect(pagination().getAllByRole('button')).toHaveLength(8);
+    expect(pagination().getByRole('button', { name: '이전 방향 1페이지로 이동' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    const calls = vi.mocked(leagueApi.getRankings).mock.calls.length;
+    fireEvent.click(pagination().getByRole('button', { name: '1페이지' }));
+    expect(leagueApi.getRankings).toHaveBeenCalledTimes(calls);
+
+    fireEvent.click(pagination().getByRole('button', { name: '6페이지' }));
+    await waitFor(() =>
+      expect(
+        pagination().getByRole('button', { name: '6페이지' }).getAttribute('aria-current'),
+      ).toBe('page'),
+    );
+    expect(leagueApi.getRankings).toHaveBeenLastCalledWith(
+      'WEEKLY_RETURN',
+      '2026-12-07',
+      expect.any(AbortSignal),
+      5,
+    );
+    expect(trackEvent).toHaveBeenCalledWith('league_action', {
+      surface: 'ranking',
+      action: 'change_page',
+      status: 'clicked',
+      page: 5,
+    });
+    fireEvent.click(pagination().getByRole('button', { name: '다음 방향 7페이지로 이동' }));
+    await view.findByRole('button', { name: '7페이지' });
+    expect(pagination().queryByRole('button', { name: '6페이지' })).toBeNull();
+    fireEvent.click(pagination().getByRole('button', { name: '8페이지' }));
+    await waitFor(() =>
+      expect(
+        pagination().getByRole('button', { name: '8페이지' }).getAttribute('aria-current'),
+      ).toBe('page'),
+    );
+    expect(leagueApi.getRankings).toHaveBeenLastCalledWith(
+      'WEEKLY_RETURN',
+      '2026-12-07',
+      expect.any(AbortSignal),
+      7,
+    );
+    expect(pagination().getByRole('button', { name: '다음 방향 8페이지로 이동' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    fireEvent.click(pagination().getByRole('button', { name: '이전 방향 7페이지로 이동' }));
+    await waitFor(() =>
+      expect(
+        pagination().getByRole('button', { name: '7페이지' }).getAttribute('aria-current'),
+      ).toBe('page'),
+    );
+    fireEvent.click(pagination().getByRole('button', { name: '이전 방향 6페이지로 이동' }));
+    await view.findByRole('button', { name: '6페이지' });
+    expect(leagueApi.getRankings).toHaveBeenLastCalledWith(
+      'WEEKLY_RETURN',
+      '2026-12-07',
+      expect.any(AbortSignal),
+      5,
+    );
+  });
+
+  it.each([0, 1, 20])('%i명 순위는 한 페이지이므로 페이지네이션을 숨긴다', async (count) => {
+    vi.mocked(leagueApi.getRankings).mockResolvedValue({
+      ...ranking,
+      totalCount: count,
+      rankings: count ? ranking.rankings : [],
+    });
+    const view = await act(async () =>
+      render(
+        <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+          <MemoryRouter>
+            <LeaguePage />
+          </MemoryRouter>
+        </AuthContext.Provider>,
+      ),
+    );
+    expect(view.queryByRole('navigation', { name: '순위 페이지' })).toBeNull();
   });
 
   it.each([
