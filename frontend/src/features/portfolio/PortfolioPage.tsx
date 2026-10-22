@@ -1133,34 +1133,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       }}
       className="portfolio-page"
     >
-      {!holdingsLoading &&
-      (!loading || calculation !== null) &&
-      !holdingsError &&
-      dashboardCalculation ? (
-        <>
-          {!analysisHoldingsMatch ? (
-            <p data-portfolio-tour="impact" className="portfolio-field-note" role="status">
-              현재 보유 자산의 비중을 확인하고 있어요.
-            </p>
-          ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
-            <p data-portfolio-tour="impact" className="portfolio-field-note">
-              전체 자산의 시세가 확인되면 포트폴리오 영향 분석을 이용할 수 있어요.
-            </p>
-          ) : (
-            <PortfolioAnalysis
-              demoStep={tourStep ?? undefined}
-              assets={analysisAssets}
-              onAddAsset={() => openAdd('empty_state')}
-              isLoggedIn={isLoggedIn}
-              holdingsKey={JSON.stringify(
-                holdings
-                  .map(({ assetId, quantity }) => [assetId, quantity])
-                  .sort((a, b) => a[0] - b[0]),
-              )}
-            />
-          )}
-        </>
-      ) : null}
       <div className={`portfolio-dashboard-layout${displayedNewsOpen ? ' has-news' : ''}`}>
         <div className="portfolio-dashboard-main">
           <header className="portfolio-page-title">
@@ -1354,6 +1326,28 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     </p>
                   )}
                 </div>
+
+                {!analysisHoldingsMatch ? (
+                  <p data-portfolio-tour="impact" className="portfolio-field-note" role="status">
+                    현재 보유 자산의 비중을 확인하고 있어요.
+                  </p>
+                ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
+                  <p data-portfolio-tour="impact" className="portfolio-field-note">
+                    전체 자산의 시세가 확인되면 포트폴리오 영향 분석을 이용할 수 있어요.
+                  </p>
+                ) : (
+                  <PortfolioAnalysis
+                    demoStep={tourStep ?? undefined}
+                    assets={analysisAssets}
+                    onAddAsset={() => openAdd('empty_state')}
+                    isLoggedIn={isLoggedIn}
+                    holdingsKey={JSON.stringify(
+                      holdings
+                        .map(({ assetId, quantity }) => [assetId, quantity])
+                        .sort((a, b) => a[0] - b[0]),
+                    )}
+                  />
+                )}
 
                 <section
                   data-portfolio-tour="analysis"
