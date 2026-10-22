@@ -35,8 +35,19 @@ public class LeagueAggregationService {
     this.calculationEnabled = calculationEnabled;
   }
 
-  public AggregationResponse ranking(LocalDate week) {
-    return estimate(week, null, Map.of(), Instant.now());
+  public AggregationResponse ranking(LocalDate week, LocalDate pendingCalculationDate) {
+    return ranking(week, pendingCalculationDate, Instant.now());
+  }
+
+  AggregationResponse ranking(LocalDate week, LocalDate pendingCalculationDate, Instant now) {
+    var collection = estimate(week, null, Map.of(), now);
+    if (pendingCalculationDate == null
+        || (collection != null
+            && (collection.baseDate() == null
+                || collection.baseDate().isBefore(pendingCalculationDate)))) return collection;
+    if (!calculationEnabled) return unavailable(pendingCalculationDate, "COLLECTION_PAUSED");
+    return new AggregationResponse(
+        pendingCalculationDate, next(calculationCron, now), null, "CALCULATION_PENDING", false);
   }
 
   public AggregationResponse investor(
