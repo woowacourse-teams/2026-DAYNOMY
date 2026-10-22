@@ -120,6 +120,29 @@ location / {
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
+운영 DNS에서 `staff.daynomy.com`이 같은 프론트엔드 호스트를 가리키고 TLS 인증서가 해당 이름을
+포함하도록 설정합니다. 팀원 도메인의 `/api`, `/oauth2`, `/login/oauth2`도 사용자 도메인과 같은
+백엔드로 전달하고, 원래 `Host`와 `X-Forwarded-Proto` 헤더를 유지해야 OAuth 콜백과 host-only
+인증 쿠키가 팀원 도메인에 남습니다. `daynomy.com/admin/**`의 앱 라우팅은 사용자 홈으로
+이동합니다. 팀원 도메인은 로그인과 `ADMIN` 역할을 확인한 뒤 사용자 도메인과 동일한 화면을
+제공하고, `/admin/**`로 직접 접근하면 기존 관리자 화면을 제공합니다.
+
+```nginx
+server {
+    server_name staff.daynomy.com;
+
+    location /api/ { proxy_pass http://127.0.0.1:8080; }
+    location /oauth2/ { proxy_pass http://127.0.0.1:8080; }
+    location /login/oauth2/ { proxy_pass http://127.0.0.1:8080; }
+    location / { proxy_pass http://daynomy_frontend; }
+}
+```
+
+실제 설정에는 기존 사용자 도메인과 동일한 `proxy_set_header`, 보안 헤더, 인증서 설정을 함께
+적용합니다. 설정 후 `staff.daynomy.com/`의 로그인·권한 확인과 일반 사용자 화면,
+`staff.daynomy.com/admin`, Google 로그인 복귀, 관리자 API의 401·403·정상 응답을 확인합니다.
+팀원 도메인에서는 GA4와 PostHog를 초기화하지 않으며 Sentry는 유지합니다.
+
 `/etc/nginx/nginx.conf`가 `/etc/nginx/conf.d/*.conf`를 http 블록에서 include하는지 확인합니다.
 첫 배포는 기존 `frontend:3000`을 유지한 채 3001로 전환하고,
 다음 배포에서 진행 중 요청이 끝난 뒤 기존 단일 컨테이너를 정리합니다.

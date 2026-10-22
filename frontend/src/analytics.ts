@@ -1,3 +1,5 @@
+import { isStaffHostname } from './serviceDomain';
+
 export type AnalyticsParams = Record<string, string | number | boolean | undefined>;
 
 const analyticsPropertyKeys = new Set([
@@ -104,7 +106,7 @@ function cleanUrl(value: string) {
 function canTrack() {
   if (typeof window === 'undefined') return false;
   const disableKey = `ga-disable-${measurementId}`;
-  if (!isPublicPage(window.location.pathname)) {
+  if (isStaffHostname(window.location.hostname) || !isPublicPage(window.location.pathname)) {
     stopped = true;
     if (measurementId) Reflect.set(window, disableKey, true);
     return false;

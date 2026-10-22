@@ -246,6 +246,7 @@ jobs:
     env:
       DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
       DEPLOY_URL: ${{ github.ref == 'refs/heads/main' && 'https://daynomy.com' || 'https://dev.daynomy.com' }}
+      STAFF_DEPLOY_URL: ${{ github.ref == 'refs/heads/main' && 'https://staff.daynomy.com' || '' }}
       DEPLOY_VERSION: ${{ needs.build-and-publish.outputs.image_tag }}
       FRONTEND_IMAGE: ${{ needs.build-and-publish.outputs.image_name }}:${{ needs.build-and-publish.outputs.image_tag }}
       COMPOSE_FILE: ${{ github.workspace }}/frontend/compose.yml
@@ -325,6 +326,27 @@ jobs:
           if [ "$oauth_status" != 302 ]; then
             echo "Expected OAuth redirect, got HTTP $oauth_status"
             exit 1
+          fi
+
+          if [ -n "$STAFF_DEPLOY_URL" ]; then
+            curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 2 \
+              --max-time 15 "$STAFF_DEPLOY_URL/" | grep -q '<div id="root"></div>'
+
+            staff_api_content_type="$(curl --fail --silent --show-error --max-time 15 \
+              --output /dev/null --write-out '%{content_type}' \
+              "$STAFF_DEPLOY_URL/api/auth/csrf")"
+            if [[ "$staff_api_content_type" != application/json* ]]; then
+              echo "Expected JSON from staff API, got $staff_api_content_type"
+              exit 1
+            fi
+
+            staff_login_redirect="$(curl --silent --show-error --max-time 15 \
+              --output /dev/null --write-out '%{redirect_url}' \
+              "$STAFF_DEPLOY_URL/api/auth/google")"
+            if [ "$staff_login_redirect" != "$STAFF_DEPLOY_URL/oauth2/authorization/google" ]; then
+              echo "Expected staff Google login redirect, got $staff_login_redirect"
+              exit 1
+            fi
           fi
 
       - name: Summarize deployment stages
