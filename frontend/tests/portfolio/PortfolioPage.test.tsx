@@ -785,6 +785,7 @@ describe('포트폴리오 화면', () => {
         .mock.calls.filter(([input]) => String(input).endsWith('/api/assets/1/contents')),
     ).toHaveLength(1);
     fireEvent.click(newsTab);
+    expect(view.queryByRole('complementary', { name: '보유 자산 소식' })).toBeNull();
     vi.mocked(fetch).mockClear();
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
@@ -814,14 +815,46 @@ describe('포트폴리오 화면', () => {
     expect(document.body.style.overflow).not.toBe('hidden');
     fireEvent.click(view.getByRole('button', { name: '자산 분석 접기' }));
     expect(view.getByRole('complementary', { name: '보유 자산 소식' })).toBeTruthy();
-    tab.focus();
-    fireEvent.click(tab);
+    fireEvent.click(
+      within(view.getByRole('complementary', { name: '보유 자산 소식' })).getByRole('button', {
+        name: '소식 접기',
+      }),
+    );
     expect(view.queryByRole('complementary', { name: '보유 자산 소식' })).toBeNull();
     expect(tab.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(tab);
     fireEvent.click(tab);
     expect(view.getByRole('complementary', { name: '보유 자산 소식' })).toBeTruthy();
     expect(tab.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('모바일 소식 버튼은 패널을 닫지 않고 열어서 제목으로 이동한다', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(max-width: 620px)',
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
+    mockPortfolioApi();
+
+    const view = render(<PortfolioPage />);
+    await view.findAllByText('750,000원');
+    const newsPanel = view.getByRole('complementary', { name: '보유 자산 소식' });
+    fireEvent.click(within(newsPanel).getByRole('button', { name: '소식 접기' }));
+
+    const newsButton = view.getByRole('button', { name: '보유 자산 소식 보기' });
+    fireEvent.click(newsButton);
+    expect(view.getByRole('complementary', { name: '보유 자산 소식' })).toBe(newsPanel);
+    fireEvent.click(newsButton);
+    expect(view.getByRole('complementary', { name: '보유 자산 소식' })).toBe(newsPanel);
+    await waitFor(() =>
+      expect(document.activeElement).toBe(view.getByRole('heading', { name: '보유 자산 소식' })),
+    );
   });
 
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
