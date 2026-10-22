@@ -370,6 +370,7 @@ body:has(.portfolio-page) .daynomy-footer {
   letter-spacing: var(--page-title-letter-spacing);
 }
 .portfolio-page .portfolio-composition:has(.portfolio-module-empty) {
+  min-height: 250px;
   grid-template-rows: auto minmax(160px, 1fr);
 }
 @container portfolio-dashboard (max-width: 320px) {
@@ -2419,6 +2420,7 @@ body:has(.portfolio-page) .daynomy-footer {
   align-content: start;
 }
 .portfolio-return-dashboard.is-compact:has(.portfolio-trend-locked) {
+  min-height: 250px;
   grid-template-rows: auto minmax(160px, auto);
 }
 .portfolio-page .portfolio-return-dashboard.is-compact .portfolio-trend-locked {
