@@ -59,6 +59,27 @@ function optionalNumber(value: unknown) {
 function optionalDate(value: unknown) {
   return value === undefined || value === null || isDate(value);
 }
+function isNullableInstant(value: unknown) {
+  return (
+    value === null ||
+    (typeof value === 'string' &&
+      /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+      isDate(value.slice(0, 10)) &&
+      Number.isFinite(Date.parse(value)))
+  );
+}
+function optionalAggregation(value: unknown) {
+  return (
+    value === undefined ||
+    value === null ||
+    (isRecord(value) &&
+      (value.baseDate === null || isDate(value.baseDate)) &&
+      isNullableInstant(value.expectedAt) &&
+      isNullableInstant(value.firstReturnExpectedAt) &&
+      typeof value.reason === 'string' &&
+      typeof value.delayed === 'boolean')
+  );
+}
 function optionalImage(value: unknown) {
   return (
     value === undefined ||
@@ -139,6 +160,7 @@ function isRankingResponse(value: unknown): value is RankingResponse {
     leagueTypes.has(value.leagueType as LeagueType) &&
     typeof value.confirmed === 'boolean' &&
     optionalCollectionStatus(value.collectionStatus) &&
+    optionalAggregation(value.aggregation) &&
     optionalNumber(value.calculationVersion) &&
     (value.finalizedAt === undefined ||
       value.finalizedAt === null ||
@@ -348,6 +370,7 @@ function isDailyHistory(value: unknown): value is DailyHistory {
     !isNullableNumber(value.weeklyReturnRate) ||
     !optionalCollectionStatus(value.collectionStatus) ||
     !optionalDate(value.trackingStartedOn) ||
+    !optionalAggregation(value.aggregation) ||
     !Array.isArray(value.days)
   )
     return false;

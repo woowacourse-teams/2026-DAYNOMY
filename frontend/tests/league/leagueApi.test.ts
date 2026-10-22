@@ -195,6 +195,54 @@ test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 �
   }
 });
 
+test('집계 예상 시각은 시간대가 있는 날짜와 정상 상태만 허용한다', async () => {
+  const aggregation = {
+    baseDate: '2026-10-12',
+    expectedAt: '2026-10-13T05:30:00Z',
+    firstReturnExpectedAt: '2026-10-14T05:30:00Z',
+    reason: 'PRICE_COLLECTION_PENDING',
+    delayed: false,
+  };
+  const response = {
+    weekStart: '2026-10-12',
+    weekEnd: '2026-10-18',
+    leagueType: 'WEEKLY_RETURN',
+    confirmed: false,
+    totalCount: 0,
+    rankings: [],
+    asOfDate: null,
+    aggregation,
+  };
+  globalThis.fetch = async () => jsonResponse(response);
+  assert.deepEqual((await getRankings('WEEKLY_RETURN')).aggregation, aggregation);
+  for (const invalid of [
+    { ...aggregation, expectedAt: 'tomorrow' },
+    { ...aggregation, expectedAt: '2026-02-30T05:30:00Z' },
+    { ...aggregation, expectedAt: '2026-10-13T14:30:00' },
+    { ...aggregation, firstReturnExpectedAt: 'invalid' },
+    { ...aggregation, baseDate: '2026-02-30' },
+    { ...aggregation, delayed: 'false' },
+  ]) {
+    globalThis.fetch = async () => jsonResponse({ ...response, aggregation: invalid });
+    await assert.rejects(getRankings('WEEKLY_RETURN'), /리그 응답 형식/);
+  }
+  const history = {
+    weekStart: response.weekStart,
+    weekEnd: response.weekEnd,
+    asOfDate: null,
+    eligibleFrom: '2026-10-12',
+    confirmed: false,
+    weeklyReturnRate: null,
+    days: [],
+    aggregation,
+  };
+  globalThis.fetch = async () => jsonResponse(history);
+  assert.deepEqual((await getDailyHistory('investor-1')).aggregation, aggregation);
+  globalThis.fetch = async () =>
+    jsonResponse({ ...history, aggregation: { ...aggregation, expectedAt: 'invalid' } });
+  await assert.rejects(getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
+});
+
 test('최신 집계일 이후 종가 수집 대기가 있어도 집계된 주간 누적을 표시한다', async () => {
   const history = {
     weekStart: '2026-10-12',
