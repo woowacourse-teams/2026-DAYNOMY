@@ -292,6 +292,7 @@
   justify-content: flex-end;
   margin-top: 4px;
   margin-left: 296px;
+  padding-top: var(--portfolio-preview-action-reserve, 0px);
 }
 
 .portfolio-page .portfolio-preview-action .portfolio-analysis-button {
