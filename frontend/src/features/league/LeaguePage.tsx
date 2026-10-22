@@ -271,11 +271,6 @@ export function LeaguePage() {
 
       {!loading && !error && ranking ? (
         <aside className="league-update-notice" aria-label="순위 갱신 안내">
-          {!ranking.confirmed && ranking.rankings.length > 0 ? (
-            <p className="league-provisional-note">
-              집계된 종가 기준의 잠정 순위예요. 최종 집계 후 달라질 수 있어요.
-            </p>
-          ) : null}
           <details className="league-calculation-details">
             <summary>집계 기준 안내</summary>
             <p>종가는 다음 영업일 오후 2시 이후 제공되며, 수집·집계 후 반영됩니다.</p>

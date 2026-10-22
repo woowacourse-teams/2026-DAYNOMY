@@ -41,6 +41,9 @@ for (const width of [320, 390, 1440]) {
       });
     });
     await page.goto('/league');
+    await expect(
+      page.getByText('집계된 종가 기준의 잠정 순위예요. 최종 집계 후 달라질 수 있어요.'),
+    ).toHaveCount(0);
     const navigation = page.getByRole('navigation', { name: '순위 페이지' });
     await expect(navigation.getByRole('button')).toHaveCount(8);
     const current = navigation.getByRole('button', { name: '1페이지', exact: true });

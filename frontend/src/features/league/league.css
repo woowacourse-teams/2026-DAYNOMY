@@ -275,14 +275,6 @@
   margin: 4px 0;
 }
 
-.league-update-notice .league-provisional-note {
-  margin-bottom: 12px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: #f5f5f5;
-  color: #525252;
-}
-
 .league-calculation-details summary {
   width: fit-content;
   min-height: 44px;

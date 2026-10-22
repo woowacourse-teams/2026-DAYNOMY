@@ -143,7 +143,7 @@ describe('투자 리그 화면', () => {
     );
     await view.findByText('잠정 순위');
     expect(view.getByText('종가 수집 대기')).toBeTruthy();
-    expect(view.getByText(/집계된 종가 기준의 잠정 순위/)).toBeTruthy();
+    expect(view.queryByText(/집계된 종가 기준의 잠정 순위/)).toBeNull();
     expect(
       vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'view_league'),
     ).toHaveLength(1);
