@@ -1047,7 +1047,8 @@ button.portfolio-asset-row:focus-visible {
   align-items: baseline;
   justify-content: space-between;
   gap: 6px 20px;
-  margin: -14px 0 18px;
+  margin: 0 0 18px;
+  padding-top: 10px;
   color: #68778d;
   font-size: 12px;
   font-weight: 400;
