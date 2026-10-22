@@ -9,7 +9,8 @@ public record FeaturedPersonPostCandidateBulkResponse(
 
   public record Success(
       @Schema(description = "게시물 후보 ID", example = "1") Long candidateId,
-      @Schema(description = "승인으로 생성된 게시물. 거절 성공이면 null") FeaturedPersonPostResponse post) {}
+      @Schema(description = "승인으로 생성된 게시물. 거절 성공이면 null", nullable = true)
+          FeaturedPersonPostResponse post) {}
 
   public record Failure(
       @Schema(description = "게시물 후보 ID", example = "2") Long candidateId,
