@@ -37,6 +37,7 @@ import { CardDesignPreviewPage } from './features/stock-content/CardDesignPrevie
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
 import { loadGuestPortfolioHoldings } from './features/portfolio/portfolioHoldingsStorage';
+import { isStaffHostname, isUserHostname } from './serviceDomain';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -187,6 +188,22 @@ function PostLoginRedirect() {
   }, [isLoggedIn, loading, location.pathname, location.search, location.hash, navigate]);
 
   return null;
+}
+
+function ServiceDomainBoundary({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const isStaff = isStaffHostname(window.location.hostname);
+  const isAdminPath = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
+  const isStaffPublicPath = ['/login', '/terms', '/privacy'].includes(location.pathname);
+
+  if (isUserHostname(window.location.hostname) && isAdminPath) {
+    return <Navigate to="/" replace />;
+  }
+  if (isStaff && !isAdminPath && !isStaffPublicPath) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
 }
 
 function AppContent() {
@@ -390,7 +407,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppContent />
+        <ServiceDomainBoundary>
+          <AppContent />
+        </ServiceDomainBoundary>
       </AuthProvider>
     </BrowserRouter>
   );

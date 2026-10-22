@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import '../LoginPage.css';
 import { getApiUrl } from '../api';
 import { safeReturnPath } from '../../../auth/returnPath';
+import { isStaffHostname } from '../../../serviceDomain';
 
 function GoogleIcon() {
   return (
@@ -40,7 +41,8 @@ function LoginPage() {
     }
   }
   const returnPath = safeReturnPath(requestedPath);
-  const isAdminLogin = /^\/admin(?:\/|\?|#|$)/.test(returnPath);
+  const isAdminLogin =
+    isStaffHostname(window.location.hostname) || /^\/admin(?:\/|\?|#|$)/.test(returnPath);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
