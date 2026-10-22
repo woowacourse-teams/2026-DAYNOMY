@@ -11,7 +11,10 @@ import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestmentReview;
+import org.grit.daynomy.league.domain.InvestorProfile;
+import org.grit.daynomy.league.domain.LeagueTypes.ExperienceLevel;
 import org.grit.daynomy.league.domain.LeagueTypes.HoldingPeriod;
+import org.grit.daynomy.league.domain.LeagueTypes.RiskProfile;
 import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
 import org.grit.daynomy.league.domain.PortfolioDailyReturn;
 import org.grit.daynomy.league.domain.SharedPortfolio;
@@ -48,6 +51,7 @@ class LeagueRankingRepositoryTest {
 
   @Autowired private TestEntityManager entityManager;
   @Autowired private PortfolioDailyReturnRepository returns;
+  @Autowired private InvestorProfileRepository profiles;
   @Autowired private InvestmentDecisionRepository decisions;
 
   @Test
@@ -57,20 +61,125 @@ class LeagueRankingRepositoryTest {
     var second = portfolio("second");
     var other = portfolio("other");
     LocalDate monday = LocalDate.of(2026, 10, 19);
-    dailyReturn(first, monday.minusDays(3), 1, true);
+    dailyReturn(first, monday.minusDays(3), 99, true);
     dailyReturn(first, monday, 1, true);
-    var corrected = dailyReturn(first, monday, 2, false);
-    var secondReturn = dailyReturn(second, monday.plusDays(1), 1, true);
+    dailyReturn(first, monday, 2, false);
+    dailyReturn(second, monday.plusDays(1), 1, true);
+    dailyReturn(second, monday.plusDays(1), 2, false);
+    var secondReturn = dailyReturn(second, monday.plusDays(1), 3, true);
+    secondReturn.completeBaseline(BigDecimal.TEN, new BigDecimal("75"), Instant.now());
+    var positive = dailyReturn(first, monday.plusDays(2), 1, true);
+    positive.complete(
+        new BigDecimal("12.5"),
+        BigDecimal.TEN,
+        new BigDecimal("11.25"),
+        new BigDecimal("40"),
+        new BigDecimal("60"),
+        Instant.now());
     dailyReturn(first, monday.plusDays(5), 1, true);
     dailyReturn(other, monday, 1, true);
     entityManager.flush();
     entityManager.clear();
 
     assertThat(
-            returns.findLatestByPortfolioIdInAndBaseDateBetween(
-                List.of(first.getId(), second.getId()), monday, monday.plusDays(6)))
-        .extracting(PortfolioDailyReturn::getId)
-        .containsExactly(corrected.getId(), secondReturn.getId());
+            returns.findLatestByMemberIdInAndBaseDateBetween(
+                List.of(first.getMember().getId(), second.getMember().getId()),
+                monday,
+                monday.plusDays(6)))
+        .extracting(
+            RankingDailyReturn::getMemberId,
+            RankingDailyReturn::getBaseDate,
+            RankingDailyReturn::isEligible,
+            RankingDailyReturn::isTrackingBaseline,
+            RankingDailyReturn::getDailyReturnRate,
+            RankingDailyReturn::getMaxHoldingWeight,
+            RankingDailyReturn::getCurrentHoldingWeight)
+        .containsExactly(
+            tuple(first.getMember().getId(), monday, false, false, null, null, null),
+            tuple(
+                second.getMember().getId(),
+                monday.plusDays(1),
+                true,
+                true,
+                new BigDecimal("0.0000"),
+                new BigDecimal("75.00"),
+                new BigDecimal("75.00")),
+            tuple(
+                first.getMember().getId(),
+                monday.plusDays(2),
+                true,
+                false,
+                new BigDecimal("12.5000"),
+                new BigDecimal("40.00"),
+                new BigDecimal("60.00")));
+  }
+
+  @Test
+  void rankingProjectionKeepsOnlyPublicEnabledProfilesAndAllTheirParticipationPeriods() {
+    var owner = portfolio("visible").getMember();
+    var visible =
+        InvestorProfile.create(
+            owner, "visible", "", ExperienceLevel.BEGINNER, RiskProfile.BALANCED);
+    Instant first = Instant.parse("2026-10-05T00:00:00Z");
+    Instant ended = Instant.parse("2026-10-12T00:00:00Z");
+    Instant current = Instant.parse("2026-10-19T00:00:00Z");
+    LocalDate tracking = LocalDate.of(2026, 10, 5);
+    visible.startTracking(tracking);
+    visible.changePublication(true, true, false, false, first);
+    visible.changePublication(false, false, false, false, ended);
+    visible.changePublication(true, true, false, false, current);
+    entityManager.persist(visible);
+    var hidden =
+        InvestorProfile.create(
+            portfolio("hidden").getMember(),
+            "hidden",
+            "",
+            ExperienceLevel.BEGINNER,
+            RiskProfile.BALANCED);
+    entityManager.persist(hidden);
+    var optedOut =
+        InvestorProfile.create(
+            portfolio("opted-out").getMember(),
+            "opted-out",
+            "",
+            ExperienceLevel.BEGINNER,
+            RiskProfile.BALANCED);
+    optedOut.changePublication(true, false, false, false, current);
+    entityManager.persist(optedOut);
+    entityManager.flush();
+    entityManager.clear();
+
+    var rows = profiles.findRankingInvestors();
+    assertThat(rows)
+        .extracting(
+            RankingInvestor::getId,
+            RankingInvestor::memberId,
+            RankingInvestor::getPublicId,
+            RankingInvestor::getDisplayName,
+            RankingInvestor::getExperienceLevel,
+            RankingInvestor::getRiskProfile,
+            RankingInvestor::getTrackingStartedOn)
+        .containsExactly(
+            tuple(
+                visible.getId(),
+                owner.getId(),
+                visible.getPublicId(),
+                "visible",
+                ExperienceLevel.BEGINNER,
+                RiskProfile.BALANCED,
+                tracking),
+            tuple(
+                visible.getId(),
+                owner.getId(),
+                visible.getPublicId(),
+                "visible",
+                ExperienceLevel.BEGINNER,
+                RiskProfile.BALANCED,
+                tracking));
+    assertThat(rows)
+        .flatExtracting(RankingInvestor::getParticipations)
+        .extracting(RankingParticipation::getStartedAt, RankingParticipation::getEndedAt)
+        .containsExactly(tuple(first, ended), tuple(current, null));
   }
 
   @Test

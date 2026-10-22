@@ -21,7 +21,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import org.grit.daynomy.league.domain.InvestmentDecision;
+import org.grit.daynomy.league.domain.InvestorProfile;
+import org.grit.daynomy.league.domain.LeagueParticipation;
+import org.grit.daynomy.league.domain.PortfolioDailyReturn;
+import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.service.LeagueReturnService;
+import org.grit.daynomy.member.domain.Member;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -167,9 +172,20 @@ class LeagueRankingsLoadtestSeedTest {
               .body("rankings.decisionCount", everyItem(equalTo(10)))
               .extract()
               .response();
-      assertThat(statistics.getPrepareStatementCount()).isBetween(1L, 20L);
+      assertThat(statistics.getPrepareStatementCount()).isBetween(1L, 12L);
       assertThat(statistics.getEntityStatistics(InvestmentDecision.class.getName()).getLoadCount())
           .isZero();
+      assertThat(
+              statistics.getEntityStatistics(PortfolioDailyReturn.class.getName()).getLoadCount())
+          .isZero();
+      assertThat(statistics.getEntityStatistics(SharedPortfolio.class.getName()).getLoadCount())
+          .isZero();
+      assertThat(statistics.getEntityStatistics(InvestorProfile.class.getName()).getLoadCount())
+          .isZero();
+      assertThat(statistics.getEntityStatistics(LeagueParticipation.class.getName()).getLoadCount())
+          .isZero();
+      assertThat(statistics.getEntityStatistics(Member.class.getName()).getLoadCount())
+          .isEqualTo(20);
       for (Map<String, Object> entry :
           response.jsonPath().<Map<String, Object>>getList("rankings")) {
         assertThat(new BigDecimal(entry.get("reviewCompletionRate").toString()))
