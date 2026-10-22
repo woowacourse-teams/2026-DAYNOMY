@@ -147,11 +147,13 @@
   color: #667085;
   font-size: 13px;
   line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .portfolio-page .portfolio-analysis-button {
   display: inline-flex;
-  min-height: 44px;
+  min-height: var(--button-height);
   align-items: center;
   flex: 0 0 auto;
   padding: 0 20px;
@@ -785,7 +787,7 @@ button.portfolio-asset-row:focus-visible {
   line-height: 27px;
   text-align: left;
   font-weight: 400;
-  word-break: normal;
+  word-break: keep-all;
 }
 
 .portfolio-detail-time {

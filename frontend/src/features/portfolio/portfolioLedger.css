@@ -106,7 +106,7 @@ body:has(.portfolio-page) .daynomy-footer {
   background: #f5f5f5;
 }
 .portfolio-page .portfolio-page-actions > .portfolio-primary-button {
-  min-height: 36px;
+  min-height: var(--button-height);
   padding: 0 16px;
   font-size: 13px;
   border-radius: 999px;
@@ -134,7 +134,7 @@ body:has(.portfolio-page) .daynomy-footer {
   background: var(--button-action-active);
 }
 .portfolio-page .portfolio-page-actions > .portfolio-news-tab {
-  min-height: 36px;
+  min-height: var(--button-height);
   padding: 0 16px;
   font-size: 13px;
   border-radius: 999px;
@@ -259,14 +259,15 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-privacy-button {
   min-height: 36px;
-  padding: 0 10px;
-  border: 1px solid #0a0a0a;
+  padding: 0 12px;
+  border: 1px solid #e9edf3;
+  border-radius: 999px;
   background: #fff;
   color: #0a0a0a;
   font-size: 12px;
 }
 .portfolio-price-status {
-  margin: 8px 0 16px;
+  margin: 8px 0 22px;
   font-size: 11px;
   color: #52647f;
   line-height: 1.7;
@@ -349,15 +350,45 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-analysis-section {
   margin: 0 0 28px;
+  padding: 0;
   border: 0;
-  border-bottom: 1px solid #e9edf3;
-  padding: 0 0 28px;
+  border-radius: 0;
+  background: transparent;
 }
-.portfolio-page .portfolio-analysis-heading h2 {
-  font-size: var(--page-title-size);
+.portfolio-page .portfolio-analysis-heading,
+.portfolio-page .portfolio-analysis-heading.has-analysis {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom-color: #e9edf3;
+}
+.portfolio-page .portfolio-analysis-heading h2,
+.portfolio-page .portfolio-analysis-heading.has-analysis h2,
+.portfolio-page .portfolio-analysis-title {
+  font-size: 20px;
   font-weight: var(--page-title-weight);
   line-height: var(--page-title-line-height);
   letter-spacing: var(--page-title-letter-spacing);
+}
+.portfolio-page .portfolio-composition:has(.portfolio-module-empty) {
+  grid-template-rows: auto minmax(160px, 1fr);
+}
+@container portfolio-dashboard (max-width: 320px) {
+  .portfolio-page .portfolio-overview > .portfolio-summary-total:first-child {
+    grid-column: 1 / -1;
+    padding: 0 0 16px;
+    border-bottom: 1px solid #e9edf3;
+  }
+  .portfolio-page .portfolio-overview > div:nth-child(2),
+  .portfolio-page .portfolio-overview > div:nth-child(4) {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+@container portfolio-dashboard (max-width: 520px) {
+  .portfolio-page .portfolio-return-dashboard,
+  .portfolio-page .portfolio-composition {
+    padding: 16px;
+  }
 }
 .portfolio-ledger-tabs {
   display: flex;
@@ -444,14 +475,14 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-ledger-empty {
   text-align: center;
-  padding: 44px 24px;
+  padding: 28px 16px;
   color: #52647f;
 }
 .portfolio-ledger-empty h3 {
   color: #34445e;
   font-size: 16px;
   font-weight: 600;
-  margin: 16px 0 8px;
+  margin: 0 0 8px;
 }
 .portfolio-ledger-empty p {
   font-size: 13px;
@@ -2388,7 +2419,7 @@ body:has(.portfolio-page) .daynomy-footer {
   align-content: start;
 }
 .portfolio-return-dashboard.is-compact:has(.portfolio-trend-locked) {
-  grid-template-rows: auto 210px;
+  grid-template-rows: auto minmax(160px, auto);
 }
 .portfolio-page .portfolio-return-dashboard.is-compact .portfolio-trend-locked {
   min-height: 0;

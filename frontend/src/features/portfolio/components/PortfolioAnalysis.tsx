@@ -822,7 +822,7 @@ function PortfolioAnalysisView({
         className={`portfolio-analysis-heading${hasAnalysis ? ' has-analysis' : ''}`}
       >
         <div>
-          <h2 id="portfolio-ai-analysis-title">포트폴리오 AI 분석</h2>
+          <h2 id="portfolio-ai-analysis-title">AI 분석</h2>
           {analysis ? (
             <p>
               보유 자산 {analysis.totalAssetCount}개 중 {analysis.analyzedAssetCount}개 분석
