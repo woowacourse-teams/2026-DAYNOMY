@@ -17,6 +17,8 @@ import org.grit.daynomy.league.domain.*;
 import org.grit.daynomy.member.domain.Member;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class LeagueAggregationServiceTest {
   private final MarketTradingDayRepository repository = mock(MarketTradingDayRepository.class);
@@ -121,6 +123,95 @@ class LeagueAggregationServiceTest {
     var result = service.estimate(monday, profile, Map.of(), at(monday.plusDays(1), 15, 0));
     assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(1), 17, 20));
     assertThat(result.reason()).isEqualTo("CALCULATION_PENDING");
+  }
+
+  @Test
+  void rankingStillAnnouncesCalculationAfterAllPricesAreCollected() {
+    calendar.stream()
+        .filter(MarketTradingDay::isTrading)
+        .forEach(day -> day.collected(at(monday.plusDays(7), 14, 30)));
+
+    var result = service.ranking(monday, monday.plusDays(4), at(monday.plusDays(7), 15, 0));
+
+    assertThat(result.baseDate()).isEqualTo(monday.plusDays(4));
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(7), 17, 20));
+    assertThat(result.reason()).isEqualTo("CALCULATION_PENDING");
+    assertThat(result.firstReturnExpectedAt()).isNull();
+    assertThat(service.ranking(monday, null, at(monday.plusDays(7), 15, 0))).isNull();
+  }
+
+  @Test
+  void rankingPrioritizesPendingCalculationOverLaterPriceCollection() {
+    calendar.getFirst().collected(at(monday.plusDays(1), 14, 30));
+
+    var result = service.ranking(monday, monday, at(monday.plusDays(1), 15, 0));
+
+    assertThat(result.baseDate()).isEqualTo(monday);
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(1), 17, 20));
+    assertThat(result.reason()).isEqualTo("CALCULATION_PENDING");
+  }
+
+  @Test
+  void rankingKeepsEarlierUncollectedDayAndIncompleteCalendar() {
+    var now = at(monday.plusDays(2), 15, 0);
+    calendar.get(1).collected(now);
+    var result = service.ranking(monday, monday.plusDays(1), now);
+    assertThat(result.baseDate()).isEqualTo(monday);
+    assertThat(result.reason()).isEqualTo("PRICE_COLLECTION_DELAYED");
+
+    given(repository.findAllByBaseDateBetweenOrderByBaseDate(monday, monday.plusDays(6)))
+        .willReturn(List.of());
+    assertThat(service.ranking(monday, monday, now).reason()).isEqualTo("CALENDAR_PENDING");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"false,true", "true,false", "false,false"})
+  void disabledSchedulesDoNotPromiseCollectionOrFirstReturn(
+      boolean priceEnabled, boolean calculationEnabled) {
+    var disabled =
+        new LeagueAggregationService(
+            repository,
+            "0 30 14,18 * * MON-FRI",
+            "0 20 17 * * MON-FRI",
+            priceEnabled,
+            calculationEnabled);
+
+    var result = disabled.estimate(monday, profile(monday), Map.of(), at(monday, 12, 0));
+
+    assertThat(result.reason()).isEqualTo("COLLECTION_PAUSED");
+    assertThat(result.expectedAt()).isNull();
+    assertThat(result.firstReturnExpectedAt()).isNull();
+  }
+
+  @Test
+  void collectedPricesCanStillBeCalculatedWhenPriceSyncIsDisabled() {
+    var disabled =
+        new LeagueAggregationService(
+            repository, "0 30 14,18 * * MON-FRI", "0 20 17 * * MON-FRI", false, true);
+    calendar.getFirst().collected(at(monday.plusDays(1), 14, 30));
+
+    var result =
+        disabled.estimate(monday, profile(monday), Map.of(), at(monday.plusDays(1), 15, 0));
+
+    assertThat(result.reason()).isEqualTo("CALCULATION_PENDING");
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(1), 17, 20));
+    assertThat(result.firstReturnExpectedAt()).isNull();
+  }
+
+  @Test
+  void disabledCalculationDoesNotPromiseRankingTimeAfterPriceCollection() {
+    var disabled =
+        new LeagueAggregationService(
+            repository, "0 30 14,18 * * MON-FRI", "0 20 17 * * MON-FRI", true, false);
+    calendar.stream()
+        .filter(MarketTradingDay::isTrading)
+        .forEach(day -> day.collected(at(monday.plusDays(7), 14, 30)));
+
+    var result = disabled.ranking(monday, monday, at(monday.plusDays(7), 15, 0));
+
+    assertThat(result.reason()).isEqualTo("COLLECTION_PAUSED");
+    assertThat(result.expectedAt()).isNull();
+    assertThat(result.firstReturnExpectedAt()).isNull();
   }
 
   private InvestorProfile profile(LocalDate joined) {
