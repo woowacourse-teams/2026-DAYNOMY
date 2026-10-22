@@ -220,7 +220,6 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
               자산별 영향과 보유 비중을 함께 반영하면 전체 포트폴리오의 변화 방향을 확인할 수
               있습니다. 새로운 소식이 반영될 때마다 주요 자산의 영향이 어떻게 달라지는지 살펴봅니다.
             </p>
-            <p>보유 비중이 큰 자산의 변화가 전체 포트폴리오에 미치는 영향을 함께 확인합니다.</p>
           </div>
         </div>
         <div className="portfolio-analysis-overview" inert aria-hidden="true">
