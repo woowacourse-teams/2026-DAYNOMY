@@ -118,8 +118,8 @@ class OpenAiNewsGeneratorTest {
   }
 
   @Test
-  void writerRetriesOnlyInvalidArticles() throws Exception {
-    server.enqueue(jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
+  void writerRetriesOnlyBlankArticles() throws Exception {
+    server.enqueue(jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), " "))));
     server.enqueue(jsonResponse(writerResponse(List.of(validContent("수정된 뉴스")))));
 
     List<GeneratedEconomicNews> generated =
@@ -167,8 +167,8 @@ class OpenAiNewsGeneratorTest {
 
   @Test
   void writerDoesNotReturnArticlesWhenRepairStillFails() throws Exception {
-    server.enqueue(jsonResponse(writerResponse(List.of("짧은 본문"))));
-    server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of(" "))));
+    server.enqueue(jsonResponse(writerResponse(List.of("\n"))));
 
     assertThatThrownBy(
             () ->
@@ -182,8 +182,8 @@ class OpenAiNewsGeneratorTest {
 
   @Test
   void writerReturnsValidArticlesWhenRepairOfAnotherArticleStillFails() throws Exception {
-    server.enqueue(jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), "짧은 본문"))));
-    server.enqueue(jsonResponse(writerResponse(List.of("여전히 짧은 본문"))));
+    server.enqueue(jsonResponse(writerResponse(List.of(validContent("정상 뉴스"), " "))));
+    server.enqueue(jsonResponse(writerResponse(List.of("\n"))));
 
     List<GeneratedEconomicNews> generated =
         new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
