@@ -28,6 +28,11 @@ person:
   post-collection:
     enabled: ${PERSON_POST_COLLECTION_ENABLED:true}
 
+app:
+  oauth2:
+    success-redirect-uri: /
+    failure-redirect-uri: /login?error=oauth
+
 management:
   metrics:
     tags:
