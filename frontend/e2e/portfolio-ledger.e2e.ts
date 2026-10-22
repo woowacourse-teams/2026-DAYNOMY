@@ -175,11 +175,14 @@ for (const viewport of [
     await expect(newsTab).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('dialog', { name: '보유 자산 소식' })).toHaveCount(0);
     expect(await page.locator('body').evaluate((body) => body.style.overflow)).not.toBe('hidden');
+    const actions = page.locator('.portfolio-page-actions');
+    const actionsWithNews = (await actions.boundingBox())!;
     const mainWithNews = (await page.locator('.portfolio-dashboard-main').boundingBox())!;
     const panelBox = (await newsPanel.boundingBox())!;
+    expect(panelBox.y).toBeGreaterThanOrEqual(actionsWithNews.y + actionsWithNews.height);
     if (viewport.name === 'desktop') {
       expect(panelBox.x).toBeGreaterThanOrEqual(mainWithNews.x + mainWithNews.width);
-      expect(panelBox.y - mainWithNews.y).toBeCloseTo(32, 0);
+      expect(panelBox.y).toBeCloseTo(mainWithNews.y, 0);
     } else {
       expect(panelBox.y).toBeGreaterThanOrEqual(mainWithNews.y + mainWithNews.height);
     }
@@ -196,6 +199,7 @@ for (const viewport of [
         layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
       );
     });
+    expect(await actions.boundingBox()).toEqual(actionsWithNews);
     const mainWithoutNews = (await page.locator('.portfolio-dashboard-main').boundingBox())!;
     if (viewport.name === 'desktop')
       expect(mainWithoutNews.width).toBeGreaterThan(mainWithNews.width);
@@ -569,11 +573,14 @@ for (const viewport of [
     await expect(newsTab).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('dialog', { name: '보유 자산 소식' })).toHaveCount(0);
     expect(await page.locator('body').evaluate((body) => body.style.overflow)).not.toBe('hidden');
+    const actions = page.locator('.portfolio-page-actions');
+    const actionsWithNews = (await actions.boundingBox())!;
     const mainWithNews = (await page.locator('.portfolio-dashboard-main').boundingBox())!;
     const panelBox = (await newsPanel.boundingBox())!;
+    expect(panelBox.y).toBeGreaterThanOrEqual(actionsWithNews.y + actionsWithNews.height);
     if (viewport.name === 'desktop') {
       expect(panelBox.x).toBeGreaterThanOrEqual(mainWithNews.x + mainWithNews.width);
-      expect(panelBox.y - mainWithNews.y).toBeCloseTo(32, 0);
+      expect(panelBox.y).toBeCloseTo(mainWithNews.y, 0);
     } else {
       expect(panelBox.y).toBeGreaterThanOrEqual(mainWithNews.y + mainWithNews.height);
     }
@@ -590,6 +597,7 @@ for (const viewport of [
         layout.getAnimations({ subtree: true }).map((animation) => animation.finished),
       );
     });
+    expect(await actions.boundingBox()).toEqual(actionsWithNews);
     const mainWithoutNews = (await page.locator('.portfolio-dashboard-main').boundingBox())!;
     if (viewport.name === 'desktop')
       expect(mainWithoutNews.width).toBeGreaterThan(mainWithNews.width);

@@ -1,7 +1,7 @@
 import { tourAnalysis } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { useContentImpression } from '../../news/issue/analytics';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
 import type {
   PortfolioAsset,
@@ -177,6 +177,40 @@ function ExternalLinkIcon() {
 }
 
 function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  const hasAction = Boolean(action);
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !hasAction || typeof ResizeObserver === 'undefined') return;
+    const layout = preview.querySelector<HTMLElement>('.portfolio-preview-layout');
+    const canvas = preview.closest<HTMLElement>('.portfolio-canvas') ?? preview;
+    if (!layout) return;
+    let viewportWidth = window.innerWidth;
+    let reservedBottom = 0;
+
+    const reserveActionSpace = () => {
+      if (viewportWidth !== window.innerWidth) {
+        viewportWidth = window.innerWidth;
+        reservedBottom = 0;
+      }
+      // Keep the action below the tallest layout while the news panel animates.
+      const contentBottom =
+        layout.getBoundingClientRect().bottom - canvas.getBoundingClientRect().top;
+      reservedBottom = Math.max(reservedBottom, contentBottom);
+      const reserve = `${Math.max(0, reservedBottom - contentBottom)}px`;
+      if (preview.style.getPropertyValue('--portfolio-preview-action-reserve') !== reserve) {
+        preview.style.setProperty('--portfolio-preview-action-reserve', reserve);
+      }
+    };
+    reserveActionSpace();
+    const observer = new ResizeObserver(reserveActionSpace);
+    observer.observe(layout);
+    observer.observe(canvas);
+    const overview = canvas.querySelector('.portfolio-overview');
+    if (overview) observer.observe(overview);
+    return () => observer.disconnect();
+  }, [hasAction]);
   const previewImpacts: PortfolioAssetImpactResponse[] = [
     {
       ...tourAnalysis.impacts[0],
@@ -201,7 +235,12 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
     },
   ];
   return (
-    <div className="portfolio-analysis-preview" role="region" aria-label="가상 분석 미리보기">
+    <div
+      ref={previewRef}
+      className="portfolio-analysis-preview"
+      role="region"
+      aria-label="가상 분석 미리보기"
+    >
       <div className="portfolio-analysis-layout portfolio-preview-layout">
         <div className="portfolio-impact-detail">
           <h3>반도체 수요 회복에 따른 긍정적 영향</h3>
@@ -220,7 +259,6 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
               자산별 영향과 보유 비중을 함께 반영하면 전체 포트폴리오의 변화 방향을 확인할 수
               있습니다. 새로운 소식이 반영될 때마다 주요 자산의 영향이 어떻게 달라지는지 살펴봅니다.
             </p>
-            <p>보유 비중이 큰 자산의 변화가 전체 포트폴리오에 미치는 영향을 함께 확인합니다.</p>
           </div>
         </div>
         <div className="portfolio-analysis-overview" inert aria-hidden="true">
@@ -822,7 +860,7 @@ function PortfolioAnalysisView({
         className={`portfolio-analysis-heading${hasAnalysis ? ' has-analysis' : ''}`}
       >
         <div>
-          <h2 id="portfolio-ai-analysis-title">포트폴리오 AI 분석</h2>
+          <h2 id="portfolio-ai-analysis-title">AI 분석</h2>
           {analysis ? (
             <p>
               보유 자산 {analysis.totalAssetCount}개 중 {analysis.analyzedAssetCount}개 분석

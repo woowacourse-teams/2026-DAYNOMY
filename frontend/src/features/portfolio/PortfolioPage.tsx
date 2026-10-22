@@ -1133,94 +1133,62 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       }}
       className="portfolio-page"
     >
-      {!holdingsLoading &&
-      (!loading || calculation !== null) &&
-      !holdingsError &&
-      dashboardCalculation ? (
-        <>
-          {!analysisHoldingsMatch ? (
-            <p data-portfolio-tour="impact" className="portfolio-field-note" role="status">
-              현재 보유 자산의 비중을 확인하고 있어요.
+      <header className="portfolio-page-title">
+        <div className="portfolio-title-group">
+          <div className="portfolio-title-with-guide">
+            <h1 ref={headingRef} tabIndex={-1}>
+              내 포트폴리오
+            </h1>
+            {SHOW_PORTFOLIO_GUIDE && (
+              <PortfolioTour
+                isGuest={!isLoggedIn}
+                onStepChange={setTourStep}
+                onRegister={() => openAdd('header')}
+                ready={
+                  !holdingsLoading && !loading && !holdingsError && !error && !!dashboardCalculation
+                }
+              />
+            )}
+          </div>
+          {!isLoggedIn && (
+            <p className="portfolio-save-notice is-guest" role="status">
+              {notice || '비회원 자산은 이 탭에만 임시 저장돼요.'}
             </p>
-          ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
-            <p data-portfolio-tour="impact" className="portfolio-field-note">
-              전체 자산의 시세가 확인되면 포트폴리오 영향 분석을 이용할 수 있어요.
-            </p>
-          ) : (
-            <PortfolioAnalysis
-              demoStep={tourStep ?? undefined}
-              assets={analysisAssets}
-              onAddAsset={() => openAdd('empty_state')}
-              isLoggedIn={isLoggedIn}
-              holdingsKey={JSON.stringify(
-                holdings
-                  .map(({ assetId, quantity }) => [assetId, quantity])
-                  .sort((a, b) => a[0] - b[0]),
-              )}
-            />
           )}
-        </>
-      ) : null}
+        </div>
+        <div className="portfolio-page-actions">
+          <button
+            type="button"
+            className="portfolio-secondary-button portfolio-news-tab"
+            data-portfolio-tour="news"
+            ref={newsButtonRef}
+            aria-controls="portfolio-news-panel"
+            aria-expanded={displayedNewsOpen}
+            title={displayedNewsOpen ? '소식 접기' : '소식 펼치기'}
+            disabled={holdingsLoading || !!holdingsError}
+            onClick={() => setNewsOpen((open) => !open)}
+          >
+            소식
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="portfolio-primary-button"
+            disabled={holdingsLoading || !!holdingsError}
+            data-portfolio-tour="trade"
+            onClick={() => openAdd('header')}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            거래 기록
+          </button>
+        </div>
+      </header>
       <div className={`portfolio-dashboard-layout${displayedNewsOpen ? ' has-news' : ''}`}>
         <div className="portfolio-dashboard-main">
-          <header className="portfolio-page-title">
-            <div className="portfolio-title-group">
-              <div className="portfolio-title-with-guide">
-                <h1 ref={headingRef} tabIndex={-1}>
-                  내 포트폴리오
-                </h1>
-                {SHOW_PORTFOLIO_GUIDE && (
-                  <PortfolioTour
-                    isGuest={!isLoggedIn}
-                    onStepChange={setTourStep}
-                    onRegister={() => openAdd('header')}
-                    ready={
-                      !holdingsLoading &&
-                      !loading &&
-                      !holdingsError &&
-                      !error &&
-                      !!dashboardCalculation
-                    }
-                  />
-                )}
-              </div>
-              {!isLoggedIn && (
-                <p className="portfolio-save-notice is-guest" role="status">
-                  {notice || '비회원 자산은 이 탭에만 임시 저장돼요.'}
-                </p>
-              )}
-            </div>
-            <div className="portfolio-page-actions">
-              <button
-                type="button"
-                className="portfolio-secondary-button portfolio-news-tab"
-                data-portfolio-tour="news"
-                ref={newsButtonRef}
-                aria-controls="portfolio-news-panel"
-                aria-expanded={displayedNewsOpen}
-                title={displayedNewsOpen ? '소식 접기' : '소식 펼치기'}
-                disabled={holdingsLoading || !!holdingsError}
-                onClick={() => setNewsOpen((open) => !open)}
-              >
-                소식
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="m9 6 6 6-6 6" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className="portfolio-primary-button"
-                disabled={holdingsLoading || !!holdingsError}
-                data-portfolio-tour="trade"
-                onClick={() => openAdd('header')}
-              >
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                거래 기록
-              </button>
-            </div>
-          </header>
           <div className="portfolio-canvas" aria-busy={loading}>
             {isLoggedIn && notice && (
               <p className="portfolio-save-notice" role="status">
@@ -1354,6 +1322,28 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     </p>
                   )}
                 </div>
+
+                {!analysisHoldingsMatch ? (
+                  <p data-portfolio-tour="impact" className="portfolio-field-note" role="status">
+                    현재 보유 자산의 비중을 확인하고 있어요.
+                  </p>
+                ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
+                  <p data-portfolio-tour="impact" className="portfolio-field-note">
+                    전체 자산의 시세가 확인되면 포트폴리오 영향 분석을 이용할 수 있어요.
+                  </p>
+                ) : (
+                  <PortfolioAnalysis
+                    demoStep={tourStep ?? undefined}
+                    assets={analysisAssets}
+                    onAddAsset={() => openAdd('empty_state')}
+                    isLoggedIn={isLoggedIn}
+                    holdingsKey={JSON.stringify(
+                      holdings
+                        .map(({ assetId, quantity }) => [assetId, quantity])
+                        .sort((a, b) => a[0] - b[0]),
+                    )}
+                  />
+                )}
 
                 <section
                   data-portfolio-tour="analysis"
