@@ -1112,25 +1112,18 @@
   border-radius: inherit;
   object-fit: cover;
 }
-.league-pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-}
-.league-pagination button {
-  min-height: var(--button-height);
-  padding: 8px 16px;
-  border: 1px solid var(--button-outline);
-  border-radius: 999px;
-  background: #fff;
+.league-pagination .issue-pagination button {
+  min-width: 0;
+  width: 36px;
+  padding: 0;
   color: var(--button-label);
-  cursor: pointer;
-  font-weight: var(--button-weight);
+  font-size: 16px;
 }
-.league-pagination button:disabled {
-  opacity: 0.45;
+.league-pagination .issue-pagination button[aria-current='page'] {
+  color: #fff;
+}
+.league-pagination .issue-pagination button:disabled {
+  opacity: 0.35;
   cursor: default;
 }
 
