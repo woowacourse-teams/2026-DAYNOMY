@@ -63,7 +63,7 @@ function isNullableInstant(value: unknown) {
   return (
     value === null ||
     (typeof value === 'string' &&
-      /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
       isDate(value.slice(0, 10)) &&
       Number.isFinite(Date.parse(value)))
   );

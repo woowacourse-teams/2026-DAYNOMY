@@ -18,6 +18,44 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+test('순위·일별 집계 일정은 누락과 null을 허용하고 잘못된 날짜·시각·상태를 거부한다', async () => {
+  const base = {
+    weekStart: '2026-10-19',
+    weekEnd: '2026-10-25',
+    confirmed: false,
+    asOfDate: null,
+    eligibleFrom: '2026-10-19',
+    weeklyReturnRate: null,
+    days: [],
+    leagueType: 'WEEKLY_RETURN',
+    rankings: [],
+    totalCount: 0,
+  };
+  const aggregation = {
+    baseDate: '2026-10-19',
+    expectedAt: '2026-10-22T08:20:00Z',
+    firstReturnExpectedAt: null,
+    reason: 'SNAPSHOT_PENDING',
+    delayed: false,
+  };
+  for (const load of [() => getRankings('WEEKLY_RETURN'), () => getDailyHistory('investor-1')]) {
+    for (const value of [undefined, null, aggregation, { ...aggregation, expectedAt: null }]) {
+      globalThis.fetch = async () => jsonResponse({ ...base, aggregation: value });
+      assert.deepEqual((await load()).aggregation, value);
+    }
+    for (const invalid of [
+      { ...aggregation, baseDate: '2026-02-30' },
+      { ...aggregation, expectedAt: '2026-10-22' },
+      { ...aggregation, expectedAt: '2026-02-30T08:20:00Z' },
+      { ...aggregation, firstReturnExpectedAt: 'not-a-date' },
+      { ...aggregation, delayed: 'false' },
+    ]) {
+      globalThis.fetch = async () => jsonResponse({ ...base, aggregation: invalid });
+      await assert.rejects(load(), /응답 형식/);
+    }
+  }
+});
+
 test('팔로우 비교는 지난 확정 순위의 차이를 검증하고 이전 응답도 읽는다', async () => {
   const entry = {
     publicId: 'investor-1',

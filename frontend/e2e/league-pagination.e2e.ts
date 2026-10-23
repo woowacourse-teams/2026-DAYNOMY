@@ -48,11 +48,11 @@ for (const width of [320, 390, 1440]) {
       });
     });
     await page.goto('/league');
-    await expect(page.getByText('순위 반영 예상')).toBeVisible();
+    await expect(page.getByText('다음 집계 예정')).toBeVisible();
     await expect(
       page.getByText('집계된 종가 기준의 잠정 순위예요. 최종 집계 후 달라질 수 있어요.'),
     ).toHaveCount(0);
-    await page.locator('.league-aggregation-notice').screenshot({
+    await page.locator('.league-aggregation').screenshot({
       path: testInfo.outputPath(`aggregation-${width}.png`),
     });
     const navigation = page.getByRole('navigation', { name: '순위 페이지' });
