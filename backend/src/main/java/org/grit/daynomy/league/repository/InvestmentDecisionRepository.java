@@ -1,6 +1,5 @@
 package org.grit.daynomy.league.repository;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -30,8 +29,4 @@ public interface InvestmentDecisionRepository extends JpaRepository<InvestmentDe
       """)
   List<InvestmentDecisionCounts> findCountsByMemberIdInAndTradedOnLessThanEqual(
       List<Long> memberIds, LocalDate tradedOn);
-
-  List<InvestmentDecision>
-      findAllByPortfolioIdAndTradedOnLessThanEqualAndCreatedAtLessThanOrderByTradedOnDescIdDesc(
-          Long portfolioId, LocalDate tradedOn, Instant createdBefore);
 }
