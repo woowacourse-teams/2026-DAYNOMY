@@ -3,28 +3,38 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-const scripts = ['league-follow-summary-load.js', 'league-investor-details-load.js'];
+const scripts = [
+  'league-rankings-load.js',
+  'league-follow-summary-load.js',
+  'league-investor-details-load.js',
+];
 
 function loadScript(file, env = {}) {
   const calls = [];
   const checks = [];
   const trends = [];
-  const clock = { now: 0 };
-  const execution = { scenario: { startTime: 0, iterationInTest: 0 } };
+  const execution = { scenario: { iterationInTest: 0 } };
   const state = { status: 200, malformed: false };
   const body = file.includes('follow-summary')
     ? { investors: [{ publicId: 'test-investor', newReviewCount: 1 }] }
-    : { publicId: 'test-investor', holdings: [{}], decisions: [{ transactionId: 1, reviews: [] }] };
+    : file.includes('rankings')
+      ? {
+          leagueType: 'WEEKLY_RETURN',
+          weekStart: '2026-10-19',
+          totalCount: 10000,
+          rankings: Array(20).fill({}),
+        }
+      : { publicId: 'test-investor', holdings: [{}], decisions: [{ transactionId: 1, reviews: [] }] };
   const source = readFileSync(new URL(file, import.meta.url), 'utf8')
     .replace(/^import .*;\n/gm, '')
-    .replace('export default function ()', 'function run()')
+    .replace(/export default function \((.*?)\)/, 'function run($1)')
     .replaceAll('export function ', 'function ')
     .replace('export const options', 'const options');
   const context = vm.createContext({
     __ENV: {
       BASE_URL: 'https://loadtest.invalid',
       PUBLIC_ID: 'test-investor',
-      RPS: '50',
+      RPS: '100',
       VUS: '2',
       ...env,
     },
@@ -36,11 +46,6 @@ function loadScript(file, env = {}) {
         ],
       }),
     exec: execution,
-    Date: class extends Date {
-      static now() {
-        return clock.now;
-      }
-    },
     Trend: class {
       add(value) {
         trends.push(value);
@@ -66,7 +71,7 @@ function loadScript(file, env = {}) {
     `${source}\nglobalThis.program = { options, setup, run, handleSummary };`,
     context,
   );
-  return { ...context.program, calls, checks, trends, clock, execution, state, body };
+  return { ...context.program, calls, checks, trends, execution, state, body };
 }
 
 for (const file of scripts) {
@@ -83,15 +88,33 @@ for (const file of scripts) {
       assert.throws(() => loadScript(file, { PUBLIC_ID: '../private' }));
   });
 
-  test(`${file}: preflight, phases and per-phase RPS`, () => {
+  test(`${file}: fixed arrival rate, latency thresholds and VU sizing`, () => {
+    for (const [rps, vus] of [[100, 50], [300, 150], [500, 250], [101, 51]]) {
+      const { options } = loadScript(file, { RPS: String(rps), VUS: undefined });
+      const scenario = Object.values(options.scenarios)[0];
+      assert.equal(scenario.executor, 'constant-arrival-rate');
+      assert.equal(scenario.rate, rps);
+      assert.equal(scenario.timeUnit, '1s');
+      assert.equal(scenario.duration, '5m');
+      assert.equal(scenario.preAllocatedVUs, vus);
+      assert.equal(scenario.maxVUs, vus);
+      const metric = Object.keys(options.thresholds).find((key) => key.endsWith('_target_duration_ms'));
+      assert.deepEqual(Array.from(options.thresholds[metric]), ['p(95)<=300', 'p(99)<=500']);
+      assert.deepEqual(Array.from(options.thresholds['http_reqs{phase:target}']), [`count==${rps * 300}`]);
+      assert.deepEqual(Array.from(options.thresholds.dropped_iterations), ['count==0']);
+    }
+    assert.equal(Object.values(loadScript(file, { VUS: '75' }).options.scenarios)[0].preAllocatedVUs, 75);
+    assert.equal(Object.values(loadScript(file, { RPS: undefined, VUS: undefined }).options.scenarios)[0].rate, 100);
+  });
+
+  test(`${file}: preflight, measured requests and achieved RPS`, () => {
     const script = loadScript(file);
-    script.setup();
+    const data = script.setup();
     assert.ok(script.calls.every(({ options }) => options.tags.phase === 'preflight'));
-    for (const [index, phase] of ['warmup', 'low', 'medium', 'target', 'cooldown'].entries()) {
-      script.clock.now = index * 60000;
+    for (let index = 0; index < 5; index++) {
       script.execution.scenario.iterationInTest = index;
-      script.run();
-      assert.equal(script.calls.at(-1).options.tags.phase, phase);
+      script.run(data);
+      assert.equal(script.calls.at(-1).options.tags.phase, 'target');
     }
     assert.equal(script.checks.length, 5);
     assert.ok(script.checks.every(Boolean));
@@ -101,16 +124,18 @@ for (const file of scripts) {
       assert.equal(script.calls[1].options.cookies.access_token, 'fake2.payload.signature');
       assert.ok(script.calls.every(({ url }) => !url.includes('payload')));
     }
-    const metrics = Object.fromEntries(
-      ['warmup', 'low', 'medium', 'target', 'cooldown'].map((phase) => [
-        `http_reqs{phase:${phase}}`,
-        { values: { count: 120, rate: 0.4 } },
-      ]),
-    );
+    if (file.includes('rankings')) {
+      assert.ok(script.calls.slice(1).every(({ url }) => url.includes('weekStart=2026-10-19')));
+    }
+    const metrics = { 'http_reqs{phase:target}': { values: { count: 30000, rate: 99 } } };
+    const metric = Object.keys(script.options.thresholds).find((key) => key.endsWith('_target_duration_ms'));
+    metrics[metric] = { values: { 'p(95)': 80, 'p(99)': 120 } };
+    metrics.http_req_duration = { values: { 'p(95)': 900, 'p(99)': 1000 } };
     metrics.http_req_failed = { values: { rate: 0 } };
     metrics.checks = { values: { rate: 1 } };
     const report = script.handleSummary({ metrics });
-    assert.match(report.stdout, /target: requests=120, RPS=2\.00/);
+    assert.match(report.stdout, /target: requests=30000\/30000, RPS=100\.00/);
+    assert.match(report.stdout, /p95=80ms \(<=300\), p99=120ms \(<=500\)/);
     assert.deepEqual(Object.keys(report), ['stdout']);
   });
 
@@ -121,11 +146,19 @@ for (const file of scripts) {
       if (failure === 'json') script.state.malformed = true;
       if (failure === 'empty') {
         if (file.includes('follow-summary')) script.body.investors = [];
+        else if (file.includes('rankings')) script.body.rankings = [];
         else script.body.decisions = [];
       }
       assert.throws(() => script.setup(), /Preflight failed/);
-      script.run();
+      script.run({ weekStart: '2026-10-19' });
       assert.equal(script.checks.at(-1), false);
     }
   });
 }
+
+test('rankings: fewer than 10,000 participants stops before the measured load', () => {
+  const script = loadScript('league-rankings-load.js');
+  script.body.totalCount = 9999;
+  assert.throws(() => script.setup(), /10,000 league participants/);
+  assert.equal(script.calls.length, 1);
+});
