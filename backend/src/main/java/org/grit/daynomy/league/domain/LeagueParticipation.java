@@ -25,6 +25,9 @@ public class LeagueParticipation extends BaseEntity {
   @Column(name = "started_at", nullable = false)
   private Instant startedAt;
 
+  @Column(name = "performance_started_at")
+  private Instant performanceStartedAt;
+
   @Column(name = "ended_at")
   private Instant endedAt;
 
@@ -38,11 +41,30 @@ public class LeagueParticipation extends BaseEntity {
   }
 
   public boolean contains(Instant close) {
-    return !close.isBefore(startedAt) && (endedAt == null || close.isBefore(endedAt));
+    return !close.isBefore(calculationStartedAt()) && (endedAt == null || close.isBefore(endedAt));
+  }
+
+  public Instant calculationStartedAt() {
+    return performanceStartedAt == null ? startedAt : performanceStartedAt;
+  }
+
+  public void includeCurrentWeekFrom(Instant from) {
+    var zone = ZoneId.of("Asia/Seoul");
+    var weekStart =
+        startedAt
+            .atZone(zone)
+            .toLocalDate()
+            .with(java.time.DayOfWeek.MONDAY)
+            .atStartOfDay(zone)
+            .toInstant();
+    if (from.isBefore(weekStart) || !from.isBefore(startedAt)) {
+      throw new IllegalArgumentException("참여한 주의 기존 기록만 소급할 수 있습니다.");
+    }
+    performanceStartedAt = from;
   }
 
   public LocalDate eligibleFrom() {
-    var started = startedAt.atZone(ZoneId.of("Asia/Seoul"));
+    var started = calculationStartedAt().atZone(ZoneId.of("Asia/Seoul"));
     return started.toLocalTime().isAfter(java.time.LocalTime.of(15, 30))
         ? started.toLocalDate().plusDays(1)
         : started.toLocalDate();

@@ -39,6 +39,8 @@ class InvestorProfileServiceTest {
   @Mock private SharedPortfolioRepository portfolioRepository;
   @Mock private SharedHoldingRepository holdingRepository;
   @Mock private InvestmentDecisionRepository decisionRepository;
+  @Mock private LeagueEnrollmentService enrollmentService;
+  @Mock private LeagueReturnService returnService;
   @InjectMocks private InvestorProfileService service;
 
   @Test

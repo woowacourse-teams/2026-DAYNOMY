@@ -35,6 +35,8 @@ public class InvestorProfileService {
   private final SharedPortfolioRepository portfolioRepository;
   private final SharedHoldingRepository holdingRepository;
   private final InvestmentDecisionRepository decisionRepository;
+  private final LeagueEnrollmentService enrollmentService;
+  private final LeagueReturnService returnService;
 
   @Transactional(readOnly = true)
   public ProfileResponse getMine(Long memberId) {
@@ -105,6 +107,10 @@ public class InvestorProfileService {
         request.allocationPublic(),
         request.detailPublic(),
         Instant.now());
+    if (!previousLeagueEnabled && profile.isLeagueEnabled()) {
+      enrollmentService.includeCurrentWeek(profile);
+      returnService.calculateCurrentWeek(profile);
+    }
     boolean changed =
         previousProfilePublic != profile.isProfilePublic()
             || previousLeagueEnabled != profile.isLeagueEnabled()

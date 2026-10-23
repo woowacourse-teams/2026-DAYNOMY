@@ -103,6 +103,8 @@ class LeagueLoggingTest {
   @Mock private AssetRepository assets;
   @Mock private PlatformTransactionManager transactionManager;
   @Mock private LeagueService finalization;
+  @Mock private LeagueAggregationService aggregationService;
+  @Mock private LeagueEnrollmentService enrollmentService;
 
   @InjectMocks private InvestorProfileService profileService;
   @InjectMocks private InvestmentDecisionService decisionService;

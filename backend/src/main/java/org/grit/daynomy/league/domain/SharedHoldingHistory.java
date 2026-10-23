@@ -2,6 +2,7 @@ package org.grit.daynomy.league.domain;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,25 @@ public class SharedHoldingHistory extends BaseEntity {
 
   @Column(name = "average_purchase_price", nullable = false, precision = 19, scale = 2)
   private BigDecimal averagePurchasePrice;
+
+  @Column(name = "effective_at")
+  private Instant effectiveAt;
+
+  public static SharedHoldingHistory snapshot(
+      SharedPortfolio portfolio,
+      Asset asset,
+      long quantity,
+      BigDecimal averagePurchasePrice,
+      Instant effectiveAt) {
+    SharedHoldingHistory history = new SharedHoldingHistory();
+    history.portfolio = portfolio;
+    history.asset = asset;
+    history.quantity = quantity;
+    history.averagePurchasePrice = averagePurchasePrice;
+    history.changeType = quantity == 0 ? ChangeType.REMOVED : ChangeType.UPDATED;
+    history.effectiveAt = effectiveAt;
+    return history;
+  }
 
   public SharedHoldingHistory(SharedHolding holding, ChangeType changeType) {
     portfolio = holding.getPortfolio();
