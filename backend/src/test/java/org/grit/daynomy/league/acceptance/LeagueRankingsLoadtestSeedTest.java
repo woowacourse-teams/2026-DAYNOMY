@@ -121,6 +121,7 @@ class LeagueRankingsLoadtestSeedTest {
   @Test
   void seedsOneHundredRankedInvestorsWithoutChangingExistingDataOrDuplicatingOnRerun()
       throws Exception {
+    sql = sql.replace("1000 AS target_members", "100 AS target_members");
     var calendar = jdbc.queryForList("SELECT * FROM market_trading_days ORDER BY base_date");
     var assets = jdbc.queryForList("SELECT * FROM assets ORDER BY id");
     var prices = jdbc.queryForList("SELECT * FROM stock_daily_prices ORDER BY id");
@@ -213,6 +214,114 @@ class LeagueRankingsLoadtestSeedTest {
                 week.toString(),
                 week.plusDays(6).toString()))
         .isEqualTo(1);
+  }
+
+  @Test
+  void expandsExistingOneHundredInvestorsToOneThousandWithoutChangingTheirData() throws Exception {
+    String expansionSql = sql;
+    sql = sql.replace("1000 AS target_members", "100 AS target_members");
+    seed();
+    var existingMembers = jdbc.queryForList("SELECT * FROM members ORDER BY id");
+    var existingProfiles = jdbc.queryForList("SELECT * FROM public_investor_profiles ORDER BY id");
+    var existingHoldings = jdbc.queryForList("SELECT * FROM shared_holdings ORDER BY id");
+    var existingDecisions = jdbc.queryForList("SELECT * FROM portfolio_transactions ORDER BY id");
+    var existingReviews = jdbc.queryForList("SELECT * FROM investment_reviews ORDER BY id");
+    var existingReturns = jdbc.queryForList("SELECT * FROM portfolio_daily_returns ORDER BY id");
+    var calendar = jdbc.queryForList("SELECT * FROM market_trading_days ORDER BY base_date");
+    var assets = jdbc.queryForList("SELECT * FROM assets ORDER BY id");
+    var prices = jdbc.queryForList("SELECT * FROM stock_daily_prices ORDER BY id");
+    sql = expansionSql;
+
+    seed();
+
+    assertThat(count("members")).isEqualTo(1001);
+    assertThat(count("public_investor_profiles")).isEqualTo(1000);
+    assertThat(count("league_participations")).isEqualTo(1000);
+    assertThat(count("shared_portfolios")).isEqualTo(1000);
+    assertThat(count("shared_holdings")).isEqualTo(3000);
+    assertThat(count("shared_holding_histories")).isEqualTo(3000);
+    assertThat(count("portfolio_transactions")).isEqualTo(10000);
+    assertThat(count("portfolio_daily_returns")).isEqualTo(5000);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM members WHERE provider_id = 'lt601-rank-1000'",
+                Integer.class))
+        .isEqualTo(1);
+    assertThat(jdbc.queryForList("SELECT * FROM members ORDER BY id LIMIT 101"))
+        .isEqualTo(existingMembers);
+    assertThat(jdbc.queryForList("SELECT * FROM public_investor_profiles ORDER BY id LIMIT 100"))
+        .isEqualTo(existingProfiles);
+    assertThat(jdbc.queryForList("SELECT * FROM shared_holdings ORDER BY id LIMIT 300"))
+        .isEqualTo(existingHoldings);
+    assertThat(jdbc.queryForList("SELECT * FROM portfolio_transactions ORDER BY id LIMIT 1000"))
+        .isEqualTo(existingDecisions);
+    assertThat(
+            jdbc.queryForList(
+                "SELECT * FROM investment_reviews ORDER BY id LIMIT " + existingReviews.size()))
+        .isEqualTo(existingReviews);
+    assertThat(jdbc.queryForList("SELECT * FROM portfolio_daily_returns ORDER BY id LIMIT 500"))
+        .isEqualTo(existingReturns);
+    assertThat(jdbc.queryForList("SELECT * FROM market_trading_days ORDER BY base_date"))
+        .isEqualTo(calendar);
+    assertThat(jdbc.queryForList("SELECT * FROM assets ORDER BY id")).isEqualTo(assets);
+    assertThat(jdbc.queryForList("SELECT * FROM stock_daily_prices ORDER BY id")).isEqualTo(prices);
+
+    var publicIds = new HashSet<String>();
+    var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+    for (int page = 0; page < 10; page++) {
+      statistics.clear();
+      var response =
+          given()
+              .port(port)
+              .queryParam("weekStart", week.toString())
+              .queryParam("leagueType", "WEEKLY_RETURN")
+              .queryParam("page", page)
+              .queryParam("size", 100)
+              .get("/api/league/rankings")
+              .then()
+              .statusCode(200)
+              .body("totalCount", equalTo(1000))
+              .body("rankings", hasSize(100))
+              .body("rankings.decisionCount", everyItem(equalTo(10)))
+              .extract()
+              .response();
+      assertThat(statistics.getPrepareStatementCount()).isBetween(1L, 12L);
+      assertThat(
+              statistics.getEntityStatistics(PortfolioDailyReturn.class.getName()).getLoadCount())
+          .isZero();
+      assertThat(statistics.getEntityStatistics(SharedPortfolio.class.getName()).getLoadCount())
+          .isZero();
+      assertThat(statistics.getEntityStatistics(InvestorProfile.class.getName()).getLoadCount())
+          .isZero();
+      assertThat(statistics.getEntityStatistics(LeagueParticipation.class.getName()).getLoadCount())
+          .isZero();
+      assertThat(statistics.getEntityStatistics(Member.class.getName()).getLoadCount())
+          .isEqualTo(100);
+      publicIds.addAll(response.jsonPath().getList("rankings.publicId", String.class));
+    }
+    assertThat(publicIds).hasSize(1000);
+    assertThatThrownBy(this::seed).isInstanceOf(SQLException.class).hasMessageContaining("이미 있습니다");
+    assertThat(count("members")).isEqualTo(1001);
+  }
+
+  @Test
+  void refusesIncompleteCollectionDuringExpansionWithoutChangingExistingInvestors()
+      throws Exception {
+    String expansionSql = sql;
+    sql = sql.replace("1000 AS target_members", "100 AS target_members");
+    seed();
+    jdbc.update(
+        "UPDATE market_trading_days SET collected_at = NULL WHERE base_date = ?::date",
+        week.plusDays(2).toString());
+    var existingMembers = jdbc.queryForList("SELECT * FROM members ORDER BY id");
+    sql = expansionSql;
+
+    assertThatThrownBy(this::seed).isInstanceOf(SQLException.class).hasMessageContaining("불완전");
+
+    assertThat(jdbc.queryForList("SELECT * FROM members ORDER BY id")).isEqualTo(existingMembers);
+    assertThat(count("public_investor_profiles")).isEqualTo(100);
+    assertThat(count("portfolio_transactions")).isEqualTo(1000);
+    assertThat(count("portfolio_daily_returns")).isEqualTo(500);
   }
 
   @Test
