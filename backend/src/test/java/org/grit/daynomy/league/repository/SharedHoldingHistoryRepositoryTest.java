@@ -67,8 +67,9 @@ class SharedHoldingHistoryRepositoryTest {
   @Autowired InvestorProfileRepository profiles;
   @Autowired PlatformTransactionManager transactions;
 
-  @Test
-  void dashboardCopiesCalculateThisWeekAndRemainStableAfterOriginalEdits() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void dashboardCopiesCalculateThisWeekAndRemainStableAfterOriginalEdits(boolean mondayMissing) {
     var zone = ZoneId.of("Asia/Seoul");
     LocalDate monday = LocalDate.of(2026, 9, 21);
     var member =
@@ -100,7 +101,7 @@ class SharedHoldingHistoryRepositoryTest {
         .getEntityManager()
         .createNativeQuery(
             "update portfolio_holding_histories set created_at=:at, updated_at=:at where id=:id")
-        .setParameter("at", monday.atTime(10, 0).atZone(zone).toInstant())
+        .setParameter("at", monday.plusDays(1).atTime(10, 0).atZone(zone).toInstant())
         .setParameter("id", source.getId())
         .executeUpdate();
     entityManager.refresh(source);
@@ -112,7 +113,16 @@ class SharedHoldingHistoryRepositoryTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO);
-    entityManager.persist(snapshot);
+    if (!mondayMissing) entityManager.persist(snapshot);
+    var tuesdaySnapshot = new PortfolioDailySnapshot(original, monday.plusDays(1));
+    tuesdaySnapshot.update(
+        BigDecimal.valueOf(200),
+        BigDecimal.valueOf(220),
+        BigDecimal.valueOf(20),
+        BigDecimal.TEN,
+        BigDecimal.valueOf(20),
+        BigDecimal.TEN);
+    entityManager.persist(tuesdaySnapshot);
     var profile =
         InvestorProfile.create(
             member,
@@ -135,7 +145,6 @@ class SharedHoldingHistoryRepositoryTest {
     var enrollment =
         new LeagueEnrollmentService(
             originals,
-            snapshots,
             originalHistories,
             portfolios,
             holdings,
@@ -152,6 +161,7 @@ class SharedHoldingHistoryRepositoryTest {
             prices,
             returns,
             calendar,
+            snapshots,
             transactions,
             mock(LeagueCalculationMetrics.class),
             mock(LeagueService.class));
@@ -160,6 +170,16 @@ class SharedHoldingHistoryRepositoryTest {
     var first =
         returns.findLatestByPortfolioIdAndBaseDateBetween(
             shared.getId(), monday, monday.plusDays(1));
+    if (mondayMissing) {
+      assertThat(first.getFirst().getIneligibleReason()).isEqualTo("SNAPSHOT_PENDING");
+      assertThat(first.getLast().getDailyReturnRate()).isEqualByComparingTo("10");
+      entityManager.persistAndFlush(snapshot);
+      calculation.recalculatePending();
+      entityManager.flush();
+      first =
+          returns.findLatestByPortfolioIdAndBaseDateBetween(
+              shared.getId(), monday, monday.plusDays(1));
+    }
     assertThat(first)
         .extracting(v -> v.getDailyReturnRate())
         .containsExactly(new BigDecimal("0.0000"), new BigDecimal("10.0000"));

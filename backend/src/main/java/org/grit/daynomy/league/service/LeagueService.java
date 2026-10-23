@@ -686,8 +686,11 @@ public class LeagueService {
         begun = true;
         calculated.add(value);
       } else if (value != null) {
-        status = DailyReturnStatus.EXCLUDED;
         reason = value.getIneligibleReason();
+        status =
+            "SNAPSHOT_PENDING".equals(reason)
+                ? DailyReturnStatus.PENDING
+                : DailyReturnStatus.EXCLUDED;
         complete = false;
       } else {
         status = DailyReturnStatus.PENDING;
@@ -807,7 +810,15 @@ public class LeagueService {
             .filter(date -> participates(profile, date))
             .findFirst()
             .orElse(week);
-    return profile.getTrackingStartedOn() != null && profile.getTrackingStartedOn().isAfter(start)
+    boolean imported =
+        profile.getParticipations().stream()
+            .anyMatch(
+                period ->
+                    period.getPerformanceStartedAt() != null
+                        && period.contains(start.atTime(15, 30).atZone(SEOUL).toInstant()));
+    return !imported
+            && profile.getTrackingStartedOn() != null
+            && profile.getTrackingStartedOn().isAfter(start)
         ? profile.getTrackingStartedOn()
         : start;
   }
@@ -1154,8 +1165,8 @@ public class LeagueService {
             .filter(
                 date ->
                     !byDate.containsKey(date)
-                        || "PRICE_COLLECTION_PENDING"
-                            .equals(byDate.get(date).getIneligibleReason()))
+                        || "PRICE_COLLECTION_PENDING".equals(byDate.get(date).getIneligibleReason())
+                        || "SNAPSHOT_PENDING".equals(byDate.get(date).getIneligibleReason()))
             .min(LocalDate::compareTo)
             .orElse(null);
     List<PortfolioDailyReturn> weekly =

@@ -19,20 +19,26 @@ public class LeagueAggregationService {
   private final MarketTradingDayRepository tradingDayRepository;
   private final CronExpression priceCron;
   private final CronExpression calculationCron;
+  private final CronExpression snapshotCron;
   private final boolean priceEnabled;
   private final boolean calculationEnabled;
+  private final boolean snapshotEnabled;
 
   public LeagueAggregationService(
       MarketTradingDayRepository tradingDayRepository,
       @Value("${stock.price.sync.cron}") String priceCron,
       @Value("${league.calculation.cron}") String calculationCron,
+      @Value("${portfolio.snapshot.cron}") String snapshotCron,
       @Value("${stock.price.sync.enabled:false}") boolean priceEnabled,
-      @Value("${league.calculation.enabled:false}") boolean calculationEnabled) {
+      @Value("${league.calculation.enabled:false}") boolean calculationEnabled,
+      @Value("${portfolio.snapshot.enabled:false}") boolean snapshotEnabled) {
     this.tradingDayRepository = tradingDayRepository;
     this.priceCron = CronExpression.parse(priceCron);
     this.calculationCron = CronExpression.parse(calculationCron);
+    this.snapshotCron = CronExpression.parse(snapshotCron);
     this.priceEnabled = priceEnabled;
     this.calculationEnabled = calculationEnabled;
+    this.snapshotEnabled = snapshotEnabled;
   }
 
   public AggregationResponse ranking(LocalDate week, LocalDate pendingCalculationDate) {
@@ -85,6 +91,15 @@ public class LeagueAggregationService {
             .orElse(null);
     if (pending == null) return null;
     var value = values.get(pending.getBaseDate());
+    if (value != null && "SNAPSHOT_PENDING".equals(value.getIneligibleReason())) {
+      if (!calculationEnabled || (!snapshotEnabled && !priceEnabled)) {
+        return unavailable(pending.getBaseDate(), "COLLECTION_PAUSED");
+      }
+      Instant refresh = snapshotEnabled ? next(snapshotCron, now) : null;
+      Instant expected = refresh == null ? null : next(calculationCron, refresh);
+      return new AggregationResponse(
+          pending.getBaseDate(), expected, null, "SNAPSHOT_PENDING", false);
+    }
     if (value != null
         && !value.isEligible()
         && !"PRICE_COLLECTION_PENDING".equals(value.getIneligibleReason())) {

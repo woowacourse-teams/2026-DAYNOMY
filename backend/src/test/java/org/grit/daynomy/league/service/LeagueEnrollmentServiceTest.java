@@ -27,7 +27,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class LeagueEnrollmentServiceTest {
   @Mock PortfolioRepository originalRepository;
-  @Mock PortfolioDailySnapshotRepository snapshotRepository;
   @Mock PortfolioHoldingHistoryRepository originalHistoryRepository;
   @Mock SharedPortfolioRepository portfolioRepository;
   @Mock SharedHoldingRepository holdingRepository;
@@ -68,7 +67,7 @@ class LeagueEnrollmentServiceTest {
   }
 
   @Test
-  void recordAddedAfterMondayCloseCanStillStartFromTuesday() {
+  void recordAddedAfterMondayCloseUsesItsActualMondayTradeDate() {
     var fixture = fixture();
     var first = history(fixture.original(), fixture.asset(), monday, 2);
     ReflectionTestUtils.setField(first, "createdAt", at(monday, 16));
@@ -78,11 +77,11 @@ class LeagueEnrollmentServiceTest {
 
     service.includeCurrentWeek(fixture.profile());
 
-    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday.plusDays(1));
+    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday);
   }
 
   @Test
-  void lateBackdatedOrEditedRecordsDoNotRewritePastPerformance() {
+  void lateBackdatedOrEditedRecordsAreFrozenFromTheirActualTradeDate() {
     var fixture = fixture();
     var first = history(fixture.original(), fixture.asset(), monday, 2);
     ReflectionTestUtils.setField(first, "updatedAt", at(monday.plusDays(2), 9));
@@ -91,8 +90,43 @@ class LeagueEnrollmentServiceTest {
 
     service.includeCurrentWeek(fixture.profile());
 
-    then(historyRepository).shouldHaveNoInteractions();
-    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday.plusDays(2));
+    then(historyRepository).should().saveAll(any());
+    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday);
+  }
+
+  @Test
+  void missingSnapshotsDoNotMoveTheStartPastDaysWithActualHoldings() {
+    var fixture = fixture();
+    var first = history(fixture.original(), fixture.asset(), monday.minusDays(6), 4);
+    ReflectionTestUtils.setField(first, "createdAt", at(monday.plusDays(1), 10));
+    ReflectionTestUtils.setField(first, "updatedAt", at(monday.plusDays(1), 10));
+    given(originalHistoryRepository.findOrderedWithAssetsByPortfolioId(2L))
+        .willReturn(List.of(first));
+
+    service.includeCurrentWeek(fixture.profile());
+
+    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday);
+    then(historyRepository).should().saveAll(any());
+  }
+
+  @Test
+  void holdingsThatBeginTuesdayDoNotInventMondayPerformanceOrCopyPrivateAssets() {
+    var fixture = fixture();
+    var privateAsset = new Asset("비공개 종목", AssetCategory.STOCK, "PRIVATE");
+    ReflectionTestUtils.setField(privateAsset, "id", 5L);
+    given(originalHistoryRepository.findOrderedWithAssetsByPortfolioId(2L))
+        .willReturn(
+            List.of(
+                history(fixture.original(), privateAsset, monday.minusDays(3), 100),
+                history(fixture.original(), fixture.asset(), monday.plusDays(1), 4)));
+
+    service.includeCurrentWeek(fixture.profile());
+
+    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday.plusDays(1));
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<SharedHoldingHistory>> copies = ArgumentCaptor.forClass(Iterable.class);
+    then(historyRepository).should().saveAll(copies.capture());
+    assertThat(copies.getValue()).extracting(copy -> copy.getAsset().getId()).containsOnly(4L);
   }
 
   @Test
@@ -137,10 +171,6 @@ class LeagueEnrollmentServiceTest {
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(shared));
     given(holdingRepository.findAllByPortfolioIdOrderById(3L))
         .willReturn(List.of(new SharedHolding(shared, asset, 4, BigDecimal.TEN)));
-    given(
-            snapshotRepository.findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(
-                2L, monday, monday.plusDays(2)))
-        .willReturn(List.of(new PortfolioDailySnapshot(original, monday)));
     given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(monday, monday.plusDays(2)))
         .willReturn(
             List.of(

@@ -19,6 +19,7 @@ import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.league.domain.*;
 import org.grit.daynomy.league.repository.*;
 import org.grit.daynomy.member.domain.Member;
+import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -36,6 +37,7 @@ class LeagueReturnServiceTest {
   @Mock private StockDailyPriceRepository priceRepository;
   @Mock private PortfolioDailyReturnRepository returnRepository;
   @Mock private MarketTradingDayRepository tradingDayRepository;
+  @Mock private PortfolioDailySnapshotRepository snapshotRepository;
   @Mock private PlatformTransactionManager transactionManager;
   @Mock private LeagueCalculationMetrics metrics;
   @Mock private LeagueService leagueService;
@@ -47,6 +49,7 @@ class LeagueReturnServiceTest {
     SharedPortfolio portfolio = profile(1L, monday.plusDays(2));
     InvestorProfile investor = profileRepository.findByIdForUpdate(1L).orElseThrow();
     investor.getParticipations().getFirst().includeCurrentWeekFrom(day(monday, true).closesAt());
+    given(snapshotRepository.existsByPortfolioMemberIdAndBaseDate(eq(1L), any())).willReturn(true);
     Asset asset = stock();
     var copy =
         new SharedHoldingHistory(
@@ -78,6 +81,29 @@ class LeagueReturnServiceTest {
               assertThat(value.getBaseDate()).isBetween(monday, monday.plusDays(1));
             });
     assertThat(investor.getTrackingStartedOn()).isEqualTo(monday);
+  }
+
+  @Test
+  void historicalHoldingsWithoutSnapshotsRemainPendingInsteadOfStartingAtZero() {
+    LocalDate monday = LocalDate.of(2026, 9, 21);
+    profile(1L, monday.plusDays(2));
+    InvestorProfile investor = profileRepository.findByIdForUpdate(1L).orElseThrow();
+    investor.getParticipations().getFirst().includeCurrentWeekFrom(day(monday, true).closesAt());
+    given(tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(any()))
+        .willReturn(List.of(day(monday, true), day(monday.plusDays(1), true)));
+
+    assertThat(service.recalculate()).isEqualTo(2);
+
+    var results = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
+    assertThat(results.getAllValues())
+        .allSatisfy(
+            value -> {
+              assertThat(value.getIneligibleReason()).isEqualTo("SNAPSHOT_PENDING");
+              assertThat(value.getDailyReturnRate()).isNull();
+            });
+    assertThat(investor.getTrackingStartedOn()).isNull();
+    then(historyRepository).shouldHaveNoInteractions();
   }
 
   @Test

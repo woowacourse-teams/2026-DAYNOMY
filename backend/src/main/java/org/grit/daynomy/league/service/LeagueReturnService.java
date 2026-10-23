@@ -33,6 +33,7 @@ import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.repository.PortfolioDailyReturnRepository;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
@@ -51,6 +52,7 @@ public class LeagueReturnService {
   private final StockDailyPriceRepository priceRepository;
   private final PortfolioDailyReturnRepository returnRepository;
   private final MarketTradingDayRepository tradingDayRepository;
+  private final PortfolioDailySnapshotRepository snapshotRepository;
   private final PlatformTransactionManager transactionManager;
   private final LeagueCalculationMetrics metrics;
   private final LeagueService leagueService;
@@ -250,6 +252,23 @@ public class LeagueReturnService {
               .map(PortfolioDailyReturn::getBaseDate)
               .orElse(null);
       if (starting != null && from != null && from.isBefore(starting)) starting = from;
+      if (starting != null) {
+        for (LeagueParticipation period : profile.getParticipations()) {
+          if (period.getPerformanceStartedAt() == null) continue;
+          LocalDate pending =
+              returnRepository
+                  .findLatestByPortfolioIdAndBaseDateBetween(
+                      portfolio.getId(),
+                      period.getPerformanceStartedAt().atZone(SEOUL).toLocalDate(),
+                      period.getStartedAt().atZone(SEOUL).toLocalDate())
+                  .stream()
+                  .filter(value -> "SNAPSHOT_PENDING".equals(value.getIneligibleReason()))
+                  .map(PortfolioDailyReturn::getBaseDate)
+                  .min(LocalDate::compareTo)
+                  .orElse(null);
+          if (pending != null && pending.isBefore(starting)) starting = pending;
+        }
+      }
     }
     Set<LeagueParticipation> baselined = new HashSet<>();
     Set<LeagueParticipation> checked = new HashSet<>();
@@ -276,12 +295,7 @@ public class LeagueReturnService {
             && returnRepository.existsLatestEligibleByPortfolioIdAndBaseDateBetween(
                 portfolio.getId(), first, prior)) baselined.add(period);
       }
-      PortfolioDailyReturn value =
-          calculate(
-              portfolio,
-              day,
-              !baselined.contains(period),
-              period.getPerformanceStartedAt() != null);
+      PortfolioDailyReturn value = calculate(portfolio, day, !baselined.contains(period), period);
       outcomes.merge(
           value.isEligible() ? "CALCULATED" : value.getIneligibleReason(), 1, Integer::sum);
       if (value.isEligible()) {
@@ -295,7 +309,10 @@ public class LeagueReturnService {
   private record ProfileCalculation(int days, LocalDate firstDate) {}
 
   private PortfolioDailyReturn calculate(
-      SharedPortfolio portfolio, MarketTradingDay day, boolean baseline, boolean imported) {
+      SharedPortfolio portfolio,
+      MarketTradingDay day,
+      boolean baseline,
+      LeagueParticipation period) {
     LocalDate baseDate = day.getBaseDate();
     PortfolioDailyReturn previousResult =
         returnRepository
@@ -310,6 +327,13 @@ public class LeagueReturnService {
     Instant calculatedAt = Instant.now();
     if (day.getCollectedAt() == null)
       return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
+    boolean imported = period.getPerformanceStartedAt() != null;
+    if (imported
+        && day.closesAt().isBefore(period.getStartedAt())
+        && (previousResult == null || !previousResult.isEligible())
+        && !snapshotRepository.existsByPortfolioMemberIdAndBaseDate(
+            period.getProfile().getMember().getId(), baseDate))
+      return exclude(result, previousResult, "SNAPSHOT_PENDING", calculatedAt);
     List<SharedHoldingHistory> opening =
         baseline && imported
             ? SharedHoldingHistory.reconstructHoldings(

@@ -390,6 +390,34 @@ class LeagueServiceTest {
   }
 
   @Test
+  void missingMondaySnapshotKeepsWeeklyReturnPendingEvenWhenTuesdayWasCalculated() {
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
+    SharedPortfolio portfolio = dailyProfile(week.plusDays(2));
+    InvestorProfile profile =
+        profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
+    profile
+        .getParticipations()
+        .getFirst()
+        .includeCurrentWeekFrom(week.atTime(15, 30).atZone(ZoneId.of("Asia/Seoul")).toInstant());
+    profile.startTracking(week.plusDays(1));
+    var monday = new PortfolioDailyReturn(portfolio, week);
+    monday.exclude("SNAPSHOT_PENDING", Instant.now());
+    var tuesday = dailyReturn(portfolio, week.plusDays(1), "10");
+    calendar(week, List.of(week, week.plusDays(1)));
+    given(returnRepository.findLatestByPortfolioIdAndBaseDateBetween(3L, week, week.plusDays(6)))
+        .willReturn(List.of(monday, tuesday));
+
+    var response = service.dailyHistory("investor-1", week);
+
+    assertThat(response.weeklyReturnRate()).isNull();
+    assertThat(response.eligibleFrom()).isEqualTo(week);
+    assertThat(response.days().getFirst().status())
+        .isEqualTo(LeagueTypes.DailyReturnStatus.PENDING);
+    assertThat(response.days().getFirst().reason()).isEqualTo("SNAPSHOT_PENDING");
+    assertThat(response.days().getLast().cumulativeReturnRate()).isNull();
+  }
+
+  @Test
   void newParticipantRanksAtZeroThenCompoundsDailyAndResetsNextWeek(
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {

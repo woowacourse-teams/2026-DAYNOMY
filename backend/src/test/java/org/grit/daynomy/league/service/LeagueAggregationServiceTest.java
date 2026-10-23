@@ -24,7 +24,13 @@ class LeagueAggregationServiceTest {
   private final MarketTradingDayRepository repository = mock(MarketTradingDayRepository.class);
   private final LeagueAggregationService service =
       new LeagueAggregationService(
-          repository, "0 30 14,18 * * MON-FRI", "0 20 17 * * MON-FRI", true, true);
+          repository,
+          "0 30 14,18 * * MON-FRI",
+          "0 20 17 * * MON-FRI",
+          "0 30 7 * * TUE-SAT",
+          true,
+          true,
+          true);
   private final LocalDate monday = LocalDate.of(2026, 10, 19);
   private final ZoneId seoul = ZoneId.of("Asia/Seoul");
   private List<MarketTradingDay> calendar;
@@ -84,6 +90,61 @@ class LeagueAggregationServiceTest {
     var result = service.estimate(monday, profile, Map.of(), at(monday.plusDays(2), 12, 0));
     assertThat(result.expectedAt()).isNotNull();
     assertThat(result.firstReturnExpectedAt()).isNull();
+  }
+
+  @Test
+  void missingSnapshotWaitsForRefreshAndCalculationWithoutInventingAZeroBaseline() {
+    var profile = profile(monday.plusDays(2));
+    profile.getParticipations().getFirst().includeCurrentWeekFrom(calendar.getFirst().closesAt());
+    calendar.getFirst().collected(at(monday.plusDays(1), 14, 30));
+    var missing = new PortfolioDailyReturn(SharedPortfolio.create(mock(Member.class)), monday);
+    missing.exclude("SNAPSHOT_PENDING", at(monday.plusDays(2), 15, 0));
+
+    var result =
+        service.estimate(monday, profile, Map.of(monday, missing), at(monday.plusDays(2), 15, 0));
+
+    assertThat(result.baseDate()).isEqualTo(monday);
+    assertThat(result.reason()).isEqualTo("SNAPSHOT_PENDING");
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(3), 17, 20));
+    assertThat(result.firstReturnExpectedAt()).isNull();
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "false,true,true,3,SNAPSHOT_PENDING",
+    "true,false,true,,SNAPSHOT_PENDING",
+    "false,false,true,,COLLECTION_PAUSED",
+    "true,true,false,,COLLECTION_PAUSED"
+  })
+  void snapshotWaitUsesEnabledRefreshSchedules(
+      boolean priceEnabled,
+      boolean snapshotEnabled,
+      boolean calculationEnabled,
+      Integer expectedDayOffset,
+      String reason) {
+    var configured =
+        new LeagueAggregationService(
+            repository,
+            "0 30 14,18 * * MON-FRI",
+            "0 20 17 * * MON-FRI",
+            "0 30 7 * * TUE-SAT",
+            priceEnabled,
+            calculationEnabled,
+            snapshotEnabled);
+    var profile = profile(monday.plusDays(2));
+    profile.getParticipations().getFirst().includeCurrentWeekFrom(calendar.getFirst().closesAt());
+    calendar.getFirst().collected(at(monday.plusDays(1), 14, 30));
+    var missing = new PortfolioDailyReturn(SharedPortfolio.create(mock(Member.class)), monday);
+    missing.exclude("SNAPSHOT_PENDING", at(monday.plusDays(2), 12, 0));
+
+    var result =
+        configured.estimate(
+            monday, profile, Map.of(monday, missing), at(monday.plusDays(2), 12, 0));
+
+    assertThat(result.expectedAt())
+        .isEqualTo(
+            expectedDayOffset == null ? null : at(monday.plusDays(expectedDayOffset), 17, 20));
+    assertThat(result.reason()).isEqualTo(reason);
   }
 
   @Test
@@ -173,8 +234,10 @@ class LeagueAggregationServiceTest {
             repository,
             "0 30 14,18 * * MON-FRI",
             "0 20 17 * * MON-FRI",
+            "0 30 7 * * TUE-SAT",
             priceEnabled,
-            calculationEnabled);
+            calculationEnabled,
+            true);
 
     var result = disabled.estimate(monday, profile(monday), Map.of(), at(monday, 12, 0));
 
@@ -187,7 +250,13 @@ class LeagueAggregationServiceTest {
   void collectedPricesCanStillBeCalculatedWhenPriceSyncIsDisabled() {
     var disabled =
         new LeagueAggregationService(
-            repository, "0 30 14,18 * * MON-FRI", "0 20 17 * * MON-FRI", false, true);
+            repository,
+            "0 30 14,18 * * MON-FRI",
+            "0 20 17 * * MON-FRI",
+            "0 30 7 * * TUE-SAT",
+            false,
+            true,
+            true);
     calendar.getFirst().collected(at(monday.plusDays(1), 14, 30));
 
     var result =
@@ -202,7 +271,13 @@ class LeagueAggregationServiceTest {
   void disabledCalculationDoesNotPromiseRankingTimeAfterPriceCollection() {
     var disabled =
         new LeagueAggregationService(
-            repository, "0 30 14,18 * * MON-FRI", "0 20 17 * * MON-FRI", true, false);
+            repository,
+            "0 30 14,18 * * MON-FRI",
+            "0 20 17 * * MON-FRI",
+            "0 30 7 * * TUE-SAT",
+            true,
+            false,
+            true);
     calendar.stream()
         .filter(MarketTradingDay::isTrading)
         .forEach(day -> day.collected(at(monday.plusDays(7), 14, 30)));

@@ -17,8 +17,6 @@ import org.grit.daynomy.league.domain.SharedHoldingHistory;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
-import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
-import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.grit.daynomy.portfolio.service.PortfolioLedgerCalculator;
@@ -32,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class LeagueEnrollmentService {
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
   private final PortfolioRepository originalRepository;
-  private final PortfolioDailySnapshotRepository snapshotRepository;
   private final PortfolioHoldingHistoryRepository originalHistoryRepository;
   private final SharedPortfolioRepository portfolioRepository;
   private final SharedHoldingRepository holdingRepository;
@@ -55,14 +52,6 @@ public class LeagueEnrollmentService {
     if (assetIds.isEmpty()) return;
     LocalDate joined = period.getStartedAt().atZone(SEOUL).toLocalDate();
     LocalDate week = joined.with(java.time.DayOfWeek.MONDAY);
-    Set<LocalDate> snapshots =
-        snapshotRepository
-            .findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(original.getId(), week, joined)
-            .stream()
-            .map(s -> s.getBaseDate())
-            .collect(Collectors.toSet());
-    if (snapshots.isEmpty()) return;
-    LocalDate firstSnapshot = snapshots.stream().min(LocalDate::compareTo).orElseThrow();
     var histories =
         originalHistoryRepository.findOrderedWithAssetsByPortfolioId(original.getId()).stream()
             .filter(h -> assetIds.contains(h.getAsset().getId()))
@@ -78,15 +67,8 @@ public class LeagueEnrollmentService {
     List<SharedHoldingHistory> copies = new ArrayList<>();
     Instant from = null;
     for (var day : days) {
-      if (day.getBaseDate().isBefore(firstSnapshot)) continue;
       var source =
           histories.stream().filter(h -> !h.getEffectiveDate().isAfter(day.getBaseDate())).toList();
-      // 사후 입력·수정된 거래로 과거 순위를 재구성하지 않는다.
-      if (!knownBy(source, day.closesAt())) {
-        copies.clear();
-        from = null;
-        continue;
-      }
       var positions = ledgerCalculator.replay(source).positions();
       if (from == null) {
         if (positions.isEmpty()) continue;
@@ -94,25 +76,13 @@ public class LeagueEnrollmentService {
         var opening =
             source.stream().filter(h -> h.getEffectiveDate().isBefore(day.getBaseDate())).toList();
         Instant openingAt = day.getBaseDate().atStartOfDay(SEOUL).toInstant().minusNanos(1_000);
-        if (knownBy(opening, openingAt)) {
-          addCopies(copies, holdings, ledgerCalculator.replay(opening).positions(), openingAt);
-        }
+        addCopies(copies, holdings, ledgerCalculator.replay(opening).positions(), openingAt);
       }
       addCopies(copies, holdings, positions, day.closesAt());
     }
     if (from == null) return;
     historyRepository.saveAll(copies);
     period.includeCurrentWeekFrom(from);
-  }
-
-  private boolean knownBy(List<PortfolioHoldingHistory> histories, Instant cutoff) {
-    return histories.stream()
-        .allMatch(
-            h ->
-                h.getCreatedAt() != null
-                    && h.getUpdatedAt() != null
-                    && !h.getCreatedAt().isAfter(cutoff)
-                    && !h.getUpdatedAt().isAfter(cutoff));
   }
 
   private void addCopies(
