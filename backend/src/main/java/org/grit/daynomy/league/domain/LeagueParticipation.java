@@ -2,8 +2,6 @@ package org.grit.daynomy.league.domain;
 
 import jakarta.persistence.*;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -13,7 +11,7 @@ import org.grit.daynomy.common.BaseEntity;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "league_participations")
-public class LeagueParticipation extends BaseEntity {
+public class LeagueParticipation extends BaseEntity implements LeagueParticipationValue {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
@@ -35,16 +33,5 @@ public class LeagueParticipation extends BaseEntity {
 
   public void end(Instant endedAt) {
     this.endedAt = endedAt;
-  }
-
-  public boolean contains(Instant close) {
-    return !close.isBefore(startedAt) && (endedAt == null || close.isBefore(endedAt));
-  }
-
-  public LocalDate eligibleFrom() {
-    var started = startedAt.atZone(ZoneId.of("Asia/Seoul"));
-    return started.toLocalTime().isAfter(java.time.LocalTime.of(15, 30))
-        ? started.toLocalDate().plusDays(1)
-        : started.toLocalDate();
   }
 }
