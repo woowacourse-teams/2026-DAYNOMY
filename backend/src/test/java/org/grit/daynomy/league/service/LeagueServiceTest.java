@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -63,7 +64,9 @@ import org.mockito.Answers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -85,6 +88,7 @@ class LeagueServiceTest {
   @Mock private WeeklyLeaderboardRepository leaderboardRepository;
   @Mock private LeagueCalculationMetrics calculationMetrics;
   @Mock private EntityManager entityManager;
+  @Spy private LeagueRankingCache rankingCache = new LeagueRankingCache(mock(TaskScheduler.class));
   @InjectMocks private LeagueService service;
 
   @ParameterizedTest
@@ -270,7 +274,7 @@ class LeagueServiceTest {
     dailyProfile(week.minusWeeks(2));
     var profile = profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
     profile.changePublication(true, true, false, true, Instant.now());
-    given(profileRepository.findById(1L)).willReturn(Optional.of(profile));
+    rankingPageProfiles(List.of(profile));
     given(followRepository.findAllByFollowerIdOrderByCreatedAtDesc(99L))
         .willReturn(List.of(new InvestorFollow(mock(Member.class), profile)));
     given(
@@ -458,6 +462,7 @@ class LeagueServiceTest {
       Instant close = date.atTime(18, 0).atZone(seoul).toInstant();
       instants.when(Instant::now).thenReturn(close);
       values.add(dailyReturn(portfolio, date, "10"));
+      rankingCache.invalidateAfterCommit();
       String expected = offset == 1 ? "10" : "21";
       assertThat(
               service
@@ -667,6 +672,7 @@ class LeagueServiceTest {
     instants.when(Instant::now).thenReturn(fridayClose);
     collected.add(friday);
     values.add(dailyReturn(portfolio, friday, "5"));
+    rankingCache.invalidateAfterCommit();
     assertThat(service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20).rankings())
         .isEmpty();
     assertThat(service.dailyHistory("investor-1", week).weeklyReturnRate()).isNull();
@@ -970,8 +976,6 @@ class LeagueServiceTest {
             .sorted(java.util.Comparator.comparing(InvestorProfile::getPublicId))
             .toList();
     Long selectedMember = ordered.get(1).getMember().getId();
-    given(memberRepository.findAllById(List.of(selectedMember)))
-        .willReturn(List.of(ordered.get(1).getMember()));
     given(ordered.get(1).getMember().getProfileImageUrl())
         .willReturn("https://example.invalid/selected.png");
     var counts = mock(InvestmentDecisionCounts.class);
@@ -1010,12 +1014,88 @@ class LeagueServiceTest {
     then(decisionRepository)
         .should(times(2))
         .findCountsByMemberIdInAndTradedOnLessThanEqual(any(), eq(week.plusDays(6)));
+
+    given(followRepository.findAllByFollowerIdOrderByCreatedAtDesc(99L))
+        .willReturn(List.of(new InvestorFollow(mock(Member.class), ordered.get(1))));
+    assertThat(
+            service
+                .rankings(99L, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 1, 1)
+                .rankings()
+                .getFirst()
+                .followed())
+        .isTrue();
+    assertThat(
+            service
+                .rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 1, 1)
+                .rankings()
+                .getFirst()
+                .followed())
+        .isFalse();
+
+    ordered.get(1).changePublication(false, false, false, false, Instant.now());
+    ordered
+        .getFirst()
+        .changeProfile(
+            "변경된 별명",
+            "",
+            LeagueTypes.ExperienceLevel.BEGINNER,
+            LeagueTypes.RiskProfile.CONSERVATIVE);
+    var afterWithdrawal = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
+    assertThat(afterWithdrawal.totalCount()).isEqualTo(2);
+    assertThat(afterWithdrawal.rankings())
+        .extracting(value -> value.publicId())
+        .doesNotContain(ordered.get(1).getPublicId());
+    assertThat(afterWithdrawal.rankings().getFirst().displayName()).isEqualTo("변경된 별명");
+    then(profileRepository).should(times(1)).findRankingInvestors();
+  }
+
+  private void rankingPageProfiles(List<InvestorProfile> profiles) {
+    lenient()
+        .when(profileRepository.findNonPublicRankingProfileIds())
+        .thenAnswer(
+            call ->
+                profiles.stream()
+                    .filter(profile -> !profile.isProfilePublic() || !profile.isLeagueEnabled())
+                    .map(InvestorProfile::getId)
+                    .toList());
+    lenient()
+        .when(profileRepository.findPublicRankingProfileIds())
+        .thenAnswer(
+            call ->
+                profiles.stream()
+                    .filter(InvestorProfile::isProfilePublic)
+                    .filter(InvestorProfile::isLeagueEnabled)
+                    .map(InvestorProfile::getId)
+                    .toList());
+    lenient()
+        .when(profileRepository.findPublicRankingProfilesByIdIn(any()))
+        .thenAnswer(
+            call ->
+                profiles.stream()
+                    .filter(InvestorProfile::isProfilePublic)
+                    .filter(InvestorProfile::isLeagueEnabled)
+                    .filter(profile -> call.getArgument(0, List.class).contains(profile.getId()))
+                    .map(
+                        profile ->
+                            new RankingInvestor(
+                                profile.getId(),
+                                profile.memberId(),
+                                profile.getPublicId(),
+                                profile.getDisplayName(),
+                                profile.getExperienceLevel(),
+                                profile.getRiskProfile(),
+                                profile.getTrackingStartedOn(),
+                                null,
+                                null,
+                                profile.getMember().getProfileImageUrl()))
+                    .toList());
   }
 
   private void rankingInputs(
       List<InvestorProfile> profiles,
       List<SharedPortfolio> portfolios,
       java.util.Map<Long, List<PortfolioDailyReturn>> returns) {
+    rankingPageProfiles(profiles);
     given(profileRepository.findRankingInvestors())
         .willAnswer(
             call ->

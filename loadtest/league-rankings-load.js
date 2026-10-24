@@ -1,4 +1,5 @@
 import http from 'k6/http';
+import exec from 'k6/execution';
 import { check } from 'k6';
 import { Trend } from 'k6/metrics';
 
@@ -75,6 +76,8 @@ export function setup() {
 }
 
 export default function (data) {
+  // 종료 경계에서 추가로 시작된 반복은 측정 요청에 포함하지 않는다.
+  if (exec.scenario.iterationInTest >= targetRps * 300) return;
   const response = request('target', data.weekStart);
   const body = readRankings(response);
   latency.add(response.timings.duration);

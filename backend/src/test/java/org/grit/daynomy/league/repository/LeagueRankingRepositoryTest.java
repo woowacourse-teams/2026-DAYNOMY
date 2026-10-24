@@ -180,6 +180,17 @@ class LeagueRankingRepositoryTest {
         .flatExtracting(RankingInvestor::getParticipations)
         .extracting(RankingParticipation::getStartedAt, RankingParticipation::getEndedAt)
         .containsExactly(tuple(first, ended), tuple(current, null));
+    assertThat(profiles.findPublicRankingProfileIds()).containsExactly(visible.getId());
+    assertThat(profiles.findNonPublicRankingProfileIds())
+        .containsExactlyInAnyOrder(hidden.getId(), optedOut.getId());
+    assertThat(
+            profiles.findPublicRankingProfilesByIdIn(
+                List.of(visible.getId(), hidden.getId(), optedOut.getId())))
+        .extracting(
+            RankingInvestor::getId,
+            RankingInvestor::getDisplayName,
+            RankingInvestor::getProfileImageUrl)
+        .containsExactly(tuple(visible.getId(), "visible", owner.getProfileImageUrl()));
   }
 
   @Test

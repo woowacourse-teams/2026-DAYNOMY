@@ -69,6 +69,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -105,6 +106,7 @@ class LeagueLoggingTest {
   @Mock private PlatformTransactionManager transactionManager;
   @Mock private LeagueService finalization;
 
+  @Spy private LeagueRankingCache rankingCache = new LeagueRankingCache(mock(TaskScheduler.class));
   @InjectMocks private InvestorProfileService profileService;
   @InjectMocks private InvestmentDecisionService decisionService;
   @InjectMocks private LeagueService leagueService;
@@ -133,7 +135,8 @@ class LeagueLoggingTest {
             calendar,
             profiles,
             decisions,
-            decisionService);
+            decisionService,
+            rankingCache);
   }
 
   @AfterEach

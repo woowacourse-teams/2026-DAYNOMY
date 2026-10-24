@@ -18,6 +18,7 @@ public class RankingInvestor implements LeagueInvestorValue {
   private final ExperienceLevel experienceLevel;
   private final RiskProfile riskProfile;
   private final LocalDate trackingStartedOn;
+  private final String profileImageUrl;
   private final List<RankingParticipation> participations = new ArrayList<>();
 
   public RankingInvestor(
@@ -30,6 +31,30 @@ public class RankingInvestor implements LeagueInvestorValue {
       LocalDate trackingStartedOn,
       Instant startedAt,
       Instant endedAt) {
+    this(
+        id,
+        memberId,
+        publicId,
+        displayName,
+        experienceLevel,
+        riskProfile,
+        trackingStartedOn,
+        startedAt,
+        endedAt,
+        null);
+  }
+
+  public RankingInvestor(
+      Long id,
+      Long memberId,
+      String publicId,
+      String displayName,
+      ExperienceLevel experienceLevel,
+      RiskProfile riskProfile,
+      LocalDate trackingStartedOn,
+      Instant startedAt,
+      Instant endedAt,
+      String profileImageUrl) {
     this.id = id;
     this.memberId = memberId;
     this.publicId = publicId;
@@ -37,6 +62,7 @@ public class RankingInvestor implements LeagueInvestorValue {
     this.experienceLevel = experienceLevel;
     this.riskProfile = riskProfile;
     this.trackingStartedOn = trackingStartedOn;
+    this.profileImageUrl = profileImageUrl;
     if (startedAt != null) participations.add(new RankingParticipation(startedAt, endedAt));
   }
 

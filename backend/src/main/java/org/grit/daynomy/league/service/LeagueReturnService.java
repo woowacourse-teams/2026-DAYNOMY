@@ -52,6 +52,7 @@ public class LeagueReturnService {
   private final PlatformTransactionManager transactionManager;
   private final LeagueCalculationMetrics metrics;
   private final LeagueService leagueService;
+  private final LeagueRankingCache rankingCache;
 
   public synchronized int recalculate() {
     return recalculateSince(null, false);
@@ -196,6 +197,7 @@ public class LeagueReturnService {
           .log(LogEvent.LEAGUE_CALCULATION_FAILED.message());
       throw exception;
     } finally {
+      rankingCache.invalidateAfterCommit();
       metrics.finishRun(started, completed);
     }
   }

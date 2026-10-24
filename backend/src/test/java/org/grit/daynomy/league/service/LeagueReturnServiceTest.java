@@ -39,6 +39,7 @@ class LeagueReturnServiceTest {
   @Mock private PlatformTransactionManager transactionManager;
   @Mock private LeagueCalculationMetrics metrics;
   @Mock private LeagueService leagueService;
+  @Mock private LeagueRankingCache rankingCache;
   @InjectMocks private LeagueReturnService service;
 
   @Test
