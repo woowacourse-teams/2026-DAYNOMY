@@ -6,16 +6,21 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -25,6 +30,7 @@ import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult.AssetImpactResult;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
 import org.grit.daynomy.portfolio.domain.PortfolioAssetAnalysis;
 import org.grit.daynomy.portfolio.repository.PortfolioAssetAnalysisRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,9 +39,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioAssetAnalysisServiceTest {
+  private final Logger logger =
+      (Logger) LoggerFactory.getLogger(PortfolioAssetAnalysisService.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
   @Mock private PortfolioAssetAnalysisRepository repository;
   @Mock private PortfolioAnalysisAiClient ai;
   private PortfolioAssetAnalysisService service;
@@ -44,8 +54,16 @@ class PortfolioAssetAnalysisServiceTest {
 
   @BeforeEach
   void setUp() {
+    appender.start();
+    logger.addAppender(appender);
     service =
         new PortfolioAssetAnalysisService(repository, ai, "test-model", Duration.ofMinutes(30));
+  }
+
+  @AfterEach
+  void tearDown() {
+    logger.detachAppender(appender);
+    appender.stop();
   }
 
   @Test
@@ -56,6 +74,7 @@ class PortfolioAssetAnalysisServiceTest {
     var response = service.analyze(targets);
 
     verify(ai).analyze(targets);
+    assertSummary(0, 2, 0, "SUCCESS");
     assertThat(response.impacts())
         .extracting(AssetImpactResult::assetName)
         .containsExactly("SK하이닉스", "삼성전자");
@@ -95,6 +114,7 @@ class PortfolioAssetAnalysisServiceTest {
     var response = service.analyze(targets);
 
     verifyNoInteractions(ai);
+    assertSummary(2, 0, 0, "SUCCESS");
     verify(repository, never())
         .upsert(anyString(), anyString(), anyString(), anyString(), any(), any());
     assertThat(response.impacts())
@@ -118,6 +138,7 @@ class PortfolioAssetAnalysisServiceTest {
     var response = service.analyze(targets);
 
     verify(ai).analyze(List.of(targets.get(1)));
+    assertSummary(1, 1, 0, "SUCCESS");
     verifyNoMoreInteractions(ai);
     verify(repository, never())
         .upsert(eq("삼성전자"), anyString(), anyString(), anyString(), any(), any());
@@ -146,6 +167,7 @@ class PortfolioAssetAnalysisServiceTest {
   void failedAiDoesNotStoreResults() {
     given(ai.analyze(targets)).willThrow(new IllegalStateException("외부 호출 실패"));
     assertThatThrownBy(() -> service.analyze(targets)).isInstanceOf(IllegalStateException.class);
+    assertSummary(0, 2, 0, "FAILED");
     verify(repository, never())
         .upsert(anyString(), anyString(), anyString(), anyString(), any(), any());
   }
@@ -197,6 +219,17 @@ class PortfolioAssetAnalysisServiceTest {
       }
     }
     verify(ai).analyze(targets);
+    assertThat(appender.list).hasSize(requestCount);
+    assertThat(
+            appender.list.stream()
+                .map(this::fields)
+                .filter(values -> Integer.valueOf(2).equals(values.get("sharedCount"))))
+        .hasSize(requestCount - 1)
+        .allSatisfy(
+            values ->
+                assertThat(values)
+                    .containsEntry("newAnalysisCount", 0)
+                    .containsEntry("outcome", "SUCCESS"));
     verify(repository, times(2))
         .upsert(anyString(), anyString(), anyString(), anyString(), any(), any());
   }
@@ -404,6 +437,25 @@ class PortfolioAssetAnalysisServiceTest {
         .willReturn(completed);
     assertThat(service.analyze(targets).impacts()).hasSize(2);
     verifyNoInteractions(ai);
+    assertSummary(2, 0, 0, "SUCCESS");
+  }
+
+  private Map<String, Object> fields(ILoggingEvent event) {
+    return event.getKeyValuePairs().stream()
+        .collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
+  }
+
+  private void assertSummary(int hits, int generated, int shared, String outcome) {
+    assertThat(appender.list).hasSize(1);
+    var values = fields(appender.list.getFirst());
+    assertThat(values)
+        .containsEntry("event", "portfolio.analysis.cache.completed")
+        .containsEntry("cacheHitCount", hits)
+        .containsEntry("newAnalysisCount", generated)
+        .containsEntry("sharedCount", shared)
+        .containsEntry("outcome", outcome);
+    assertThat((Long) values.get("sharedWaitMs")).isNotNegative();
+    assertThat(values.toString()).doesNotContain("삼성전자", "SK하이닉스", "Revenue increased");
   }
 
   private void awaitWaiting(Thread thread) throws InterruptedException {
