@@ -1,6 +1,6 @@
 # DAYNOMY FRONTEND
 
-현재 릴리스 준비 버전은 **v2.0.1**입니다. 포함된 변경은 [변경 이력](CHANGELOG.md#v201), 백엔드 의존성과 배포 검증은 [릴리스 절차](RELEASING.md#v201-반영-순서)를 확인합니다.
+현재 릴리스 준비 버전은 **v2.0.2**입니다. 포함된 변경은 [변경 이력](CHANGELOG.md#v202), 백엔드 의존성과 배포 검증은 [릴리스 절차](RELEASING.md#v202-반영-순서)를 확인합니다.
 
 ## 첫 방문 서비스 소개
 
@@ -437,10 +437,24 @@ URL에서 쿼리·fragment와 공개 투자자 ID를 제거하되 `/league/profi
 ### PostHog 사용자 행동 분석
 
 - `VITE_POSTHOG_PROJECT_TOKEN`·`VITE_POSTHOG_HOST`가 모두 설정되면 GA4와 같은 명시적 사용자 행동 이벤트를 전송하며 페이지 조회는 `$pageview` 이름을 사용합니다. GA4 설정 없이 PostHog만 사용할 수도 있습니다.
-- 자동 클릭·페이지 조회·페이지 이탈·성능·오류 수집, 세션 녹화·설문·기능 플래그 자동 조회와 개인 프로필 생성을 끕니다. 이벤트 속성은 코드의 허용 목록으로 제한하며 검색어 원문·보유 종목·금액·수량은 전송하지 않습니다.
+- 자동 클릭·페이지 조회·페이지 이탈·성능·오류 수집, 설문·기능 플래그 평가와 개인 프로필 생성을 끕니다. 녹화 설정을 받기 위한 원격 설정 조회와 녹화 모듈 로딩은 허용합니다. 이벤트 속성은 코드의 허용 목록으로 제한하며 검색어 원문·보유 종목·금액·수량은 전송하지 않습니다.
 - 익명 식별은 브라우저 `localStorage`를 사용합니다. URL·referrer에서 쿼리·fragment를 제거하고 투자자 공개 ID 경로를 일반 경로로 치환합니다.
 - `/login`·`/admin`에서는 수집하지 않으며 해당 경로에 진입한 뒤에는 같은 앱 세션의 수집을 중지합니다. 분석 SDK 로딩·전송 실패는 사용자 작업을 중단하지 않습니다.
 - 로컬 `.env`와 배포 Environment에서 두 값을 비워 두면 PostHog를 초기화하지 않습니다. 변경 시 다시 빌드하고 해당 환경의 이벤트 수신 여부를 확인합니다.
+
+#### 마우스 움직임과 유입 사이트 확인
+
+- Session Replay를 코드에서 활성화합니다. PostHog 프로젝트의 Session Replay 설정에서도 웹 녹화를 켜야 하며, 프로젝트의 샘플링·녹화 조건·보관 기간이 적용됩니다. 녹화 목록에서 세션을 열면 마우스 이동·클릭·스크롤을 재생할 수 있습니다.
+- 입력값과 모든 화면 텍스트를 마스킹하고 이미지·SVG·canvas·iframe·hidden/file 입력은 차단합니다. CSS 클래스와 스타일시트 주소를 제외한 HTML 속성을 가리므로 원본 화면과 일부 표현이 다를 수 있습니다. 콘솔·네트워크 본문·헤더·canvas 녹화는 끕니다. 녹화 URL도 쿼리·fragment와 투자자 식별자를 제거합니다.
+- 로그인·관리자 경로로 이동하면 레이아웃 효과에서 녹화를 중지하고 이후 `$snapshot` 전송도 차단합니다. `$snapshot_data`는 SDK에서 마스킹된 녹화 배열을 유지하며 일반 이벤트 속성 필터와 별도로 처리합니다.
+- SDK의 세션 진입 URL·referrer를 정리해 `$session_entry_url`, `$session_entry_pathname`, `$session_entry_referrer`, `$session_entry_referring_domain`, `$referring_domain`을 전송합니다. SDK 세션을 기준으로 내부 이동·새로고침 시 출처가 유지되고 새 세션에서는 갱신됩니다. 외부 유입 주소는 origin만 남기며 자체 사이트나 출처를 알 수 없는 방문은 `$direct`로 분류합니다.
+- UTM은 `utm_source`, `utm_medium`, `utm_campaign`만 전송하며 영문·숫자·밑줄·하이픈으로 구성된 1~100자 라벨만 허용합니다. 같은 값의 `$session_entry_utm_*`도 전송합니다. 검색어를 포함할 수 있는 `utm_term`, 자유 형식 `utm_content`, 광고 클릭 ID 등은 수집하지 않습니다. 라벨에 사람의 이름이나 다른 개인정보를 넣지 않습니다.
+- 공유 링크 예: `https://daynomy.com/?utm_source=kakao&utm_medium=share&utm_campaign=launch`. 실제 배포 도메인에 맞춰 사용합니다. Referrer가 전달되지 않는 메신저 공유도 UTM으로 구분할 수 있습니다.
+- PostHog **Web Analytics → Referrers / Channels / UTM**에서 유입을 확인합니다. **Product Analytics**에서 `$pageview`를 선택하고 `$referring_domain`이나 `utm_source`로 분류할 수도 있습니다.
+
+적용 검증: 외부 링크 또는 UTM이 붙은 링크로 접속 → 페이지 이동과 마우스 조작 → PostHog에서 해당 세션의 유입 속성과 녹화 확인. 로그인·관리자 진입 후 녹화가 멈추는지 확인합니다. 코드 변경 전에는 UTM과 녹화를 수집하지 않았으므로 과거 데이터에는 소급 적용되지 않습니다.
+
+2026-10-23 US Cloud 프로젝트 `660026`에서 녹화 활성화, 콘솔·네트워크·canvas 녹화 비활성화, Total privacy 마스킹, 30일 보관을 확인했습니다. 녹화 URL blocklist에는 `https?://[^/]+/(login|admin)([/?#].*)?`를 저장했습니다. 샘플링은 기본 100%이며 별도의 시작 조건은 없습니다. 코드의 마스킹 설정은 프로젝트 설정보다 우선하며 CSS 클래스·스타일시트 외의 HTML 속성을 별도로 가립니다. 운영 사이트에는 프론트엔드 재빌드·배포 후 적용됩니다.
 
 #### 개인정보처리방침 근거와 운영 확인
 
