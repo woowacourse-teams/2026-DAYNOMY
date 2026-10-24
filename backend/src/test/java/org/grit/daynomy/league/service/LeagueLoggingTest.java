@@ -72,6 +72,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -399,7 +400,7 @@ class LeagueLoggingTest {
     given(profiles.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
     given(profiles.findByIdForUpdate(3L)).willThrow(new IllegalStateException(PRIVATE_TEXT));
 
-    new LeagueReturnScheduler(returnService).calculateReturns();
+    new LeagueReturnScheduler(returnService, mock(TaskScheduler.class)).calculateReturns();
 
     assertThat(events(LogEvent.LEAGUE_PROFILE_CALCULATION_FAILED)).hasSize(1);
     assertThat(events(LogEvent.LEAGUE_CALCULATION_FAILED)).hasSize(1);
@@ -477,7 +478,7 @@ class LeagueLoggingTest {
           .when(service)
           .recalculate();
 
-      new LeagueReturnScheduler(service).calculateReturns();
+      new LeagueReturnScheduler(service, mock(TaskScheduler.class)).calculateReturns();
 
       assertThat(traces).hasSize(1).allSatisfy(trace -> assertThat(trace).isNotBlank());
       assertThat(MDC.get("traceId")).isEqualTo(existingTrace ? "request-trace" : null);

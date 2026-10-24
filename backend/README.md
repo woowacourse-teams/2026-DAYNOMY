@@ -162,6 +162,9 @@ java -jar build/libs/daynomy-0.0.1-SNAPSHOT.jar
 
 ## 투자 리그 집계
 
+서버 시작 시 리그 전체 집계와 거래일 달력 동기화는 백그라운드에서 실행해 헬스 체크를 막지 않는다.
+집계 중에는 저장된 결과를 조회하므로, 부하 테스트는 시작 집계가 끝난 뒤 실행한다.
+
 - Dev·Prod는 종가 자동 수집과 리그 집계를 기본으로 실행한다. 금융위원회 [주식시세정보](https://www.data.go.kr/data/15094808/openapi.do)는 제공 지연을 고려해 기준일 다음 영업일 14시부터 수집 가능하다고 판단하며 기본 월~금 14시 30분·18시 30분에 실행한다. 거래일 달력의 미수집 날짜에서 매 실행 최대 10일을 확인한다. 최신 미수집일을 우선하고 나머지는 DB에 저장한 마지막 시도 시각이 오래된 순서로 골라, 실패한 날짜가 계속 있어도 다른 누락일을 자동 수집한다. 확보한 종가는 날짜순으로 저장하고 가장 이른 수집일부터 리그를 재집계한다. 이미 수집한 날짜의 가격 정정에는 기간별 백필을 사용한다. 수집할 날짜가 없으면 외부 API와 재집계를 호출하지 않는다. KOSPI·KOSDAQ·ETF 중 데이터가 비어 있으면 수집 완료로 처리하지 않고 다음 실행에서 재시도한다. 제공처의 갱신이 늦으면 다음 예약 실행까지 수집 대기로 표시하며 당일 순위 표시를 보장하지 않는다. `STOCK_PRICE_SYNC_CRON`으로 시간을 변경하고 `STOCK_PRICE_SYNC_ENABLED=false`, `LEAGUE_CALCULATION_ENABLED=false`로 각각 중지할 수 있다. 로컬 기본값은 꺼짐이다. 예약 집계는 참가자별 마지막 계산일과 영향받은 주차부터, 가격 동기화는 가장 이른 변경일부터 다시 계산한다. 동기화 후 집계가 실패하면 다음 예약 실행에서 같은 범위를 재시도하고 서버 시작 직후 전체 이력을 재집계한다. 달력 정정과 수동 `/api/admin/league/recalculate`는 전체 거래일·주차를 재계산한다. 참가자별 트랜잭션으로 실패를 격리하며, 실패가 있으면 주간 순위를 확정하지 않는다.
 - 관리자 종가 동기화 응답의 수신·신규·수정·건너뜀은 이번 실행에서 수집 완료한 모든 날짜의 합계다. `synchronizedDateCount`는 완료 날짜 수, `pendingDateCount`는 오늘까지의 미수집 거래일 수, `failedDateCount`는 이번 실행에서 제공처 조회 또는 저장에 실패한 날짜 수다. 일부 날짜만 성공해도 완료한 날짜부터 리그를 재집계하고 실패 날짜는 다음 자동 실행에서 재시도한다.
 - 주간 확정 성능 측정: `LEAGUE_BENCHMARK=true LEAGUE_BENCHMARK_PROFILES=1000 LEAGUE_BENCHMARK_YEARS=3 ./gradlew test --tests 'org.grit.daynomy.league.service.LeagueFinalizationBenchmarkTest'`를 실행한다. PostgreSQL에 합성 이력을 넣고 결과를 `build/reports/league-finalization-benchmark.txt`에 기록한다. 2026-10-13 로컬 측정은 1,000명·3년·일별 790,000행에서 변경 주차 첫 실행 32.45초, 재실행 29.80초였다. 운영 DB의 실제 이력과 하드웨어에서 이 지표를 다시 확인해야 한다.
