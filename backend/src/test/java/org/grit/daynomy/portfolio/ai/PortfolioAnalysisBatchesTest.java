@@ -19,6 +19,8 @@ import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
 
 class PortfolioAnalysisBatchesTest {
@@ -139,20 +141,26 @@ class PortfolioAnalysisBatchesTest {
     assertThat(PortfolioAnalysisBatches.analyze(List.of(1), batch -> result)).isSameAs(result);
   }
 
-  @Test
-  void keepsTheRequestIdWhenExecutingBatchesOnWorkerThreads() {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 6})
+  void keepsRequestContextAndAssignsBatchNumbers(int targetCount) {
     MDC.put("requestId", "batch-test-request");
+    MDC.put("batchNumber", "parent");
     try {
       PortfolioAnalysisBatches.analyze(
-          IntStream.range(0, 6).boxed().toList(),
+          IntStream.range(0, targetCount).boxed().toList(),
           batch -> {
             assertThat(MDC.get("requestId")).isEqualTo("batch-test-request");
+            assertThat(MDC.get("batchNumber"))
+                .isEqualTo(Integer.toString(batch.getFirst() / 5 + 1));
             return new PortfolioAnalysisResult(
                 "", batch.stream().map(this::impact).toList(), List.of());
           });
       assertThat(MDC.get("requestId")).isEqualTo("batch-test-request");
+      assertThat(MDC.get("batchNumber")).isEqualTo("parent");
     } finally {
       MDC.remove("requestId");
+      MDC.remove("batchNumber");
     }
   }
 
