@@ -15,6 +15,8 @@
 
 **k6 development smoke test**에서 스크립트가 반영된 브랜치를 선택한다. `DEV_BASE_URL`과 Prometheus 설정은 기존 값을 사용한다.
 
+순위·상세·검색 부하 테스트는 같은 설정으로 연속 두 번 실행한다. **첫 5분은 워밍업, 두 번째 5분만 본 측정**이다. 워밍업의 성능 기준 초과는 본 측정 결과에 합산하지 않으며, 사전 검증·실행 오류가 나면 중단한다.
+
 | 대상 | script | params |
 | --- | --- | --- |
 | 순위 | `loadtest/league-rankings-load.js` | `{"RPS":100,"VUS":50}` |
@@ -48,6 +50,8 @@ k6 run -e BASE_URL=https://dev.example.invalid \
 - 사전 조회 후 고정 100 RPS로 5분간 30,000건을 요청한다. 종료 대기는 최대 10초다.
 - 로그: 예정/실제 요청 수, 실제 RPS, p95·p99, HTTP 오류율, 검사 성공률, 누락 요청 수. 별도 결과 JSON은 생성하지 않는다.
 - Grafana: 실행 시간과 `testid=<Actions run ID>-<attempt>`로 조회한다.
+- Actions 워밍업은 `testid=<Actions run ID>-<attempt>-warmup`, `run_phase=warmup`으로 구분한다. 본 측정만 조회할 때는 `run_phase=measurement`를 사용한다. 2회차도 100 RPS · 50 VU · 5분, p95 ≤ 300ms · p99 ≤ 500ms · HTTP 오류/누락 0건 · 30,000건 기준을 그대로 적용한다.
+- 직접 실행은 자동 반복하지 않는다. 같은 명령을 연속 두 번 실행하고 두 번째 결과를 기록한다.
 - 순위는 사전 조회한 주차, 상세는 지정한 공개 ID로 고정한다. 개선 전후는 동일한 데이터·입력으로 비교한다.
 - 추후 증량은 `RPS=300,VUS=150`, `RPS=500,VUS=250`으로 각각 별도 실행한다. 실행 간 서버 회복·쓰기 데이터 복원을 확인한다.
 
@@ -59,4 +63,5 @@ k6 run -e BASE_URL=https://dev.example.invalid \
 
 ```bash
 node --test loadtest/league-load.test.mjs
+node --test loadtest/k6-dev-workflow.test.mjs
 ```
