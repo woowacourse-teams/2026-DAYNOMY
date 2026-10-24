@@ -313,9 +313,10 @@ class PortfolioPriceHistoryServiceTest {
 
   @Test
   void domesticHolidayRangeDoesNotRequestPrices() {
+    // 다음 영업일 14시가 지난 날짜를 사용해 실행 요일의 영향을 없앤다.
     LocalDate friday =
         LocalDate.now(ZoneId.of("Asia/Seoul"))
-            .minusDays(1)
+            .minusWeeks(1)
             .with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY));
     ReflectionTestUtils.setField(asset, "market", StockMarket.KOSPI);
     given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(friday, friday))
