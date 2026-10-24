@@ -21,18 +21,23 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import jdk.jfr.Configuration;
+import jdk.jfr.Recording;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.domain.LeagueParticipation;
 import org.grit.daynomy.league.domain.PortfolioDailyReturn;
 import org.grit.daynomy.league.domain.SharedPortfolio;
+import org.grit.daynomy.league.service.LeagueRankingCache;
 import org.grit.daynomy.league.service.LeagueReturnService;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -72,11 +77,13 @@ class LeagueRankingsLoadtestSeedTest {
   @Autowired private EntityManagerFactory entityManagerFactory;
   @Autowired private LeagueReturnService leagueReturns;
   @Autowired private JwtTokenProvider tokens;
+  @Autowired private LeagueRankingCache rankingCache;
   private LocalDate week;
   private String sql;
 
   @BeforeEach
   void preparePricesAndCalendarInIsolatedDatabase() throws Exception {
+    rankingCache.invalidateAfterCommit();
     week =
         LocalDate.now(ZoneId.of("Asia/Seoul"))
             .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -189,8 +196,7 @@ class LeagueRankingsLoadtestSeedTest {
           .isZero();
       assertThat(statistics.getEntityStatistics(LeagueParticipation.class.getName()).getLoadCount())
           .isZero();
-      assertThat(statistics.getEntityStatistics(Member.class.getName()).getLoadCount())
-          .isEqualTo(20);
+      assertThat(statistics.getEntityStatistics(Member.class.getName()).getLoadCount()).isZero();
       for (Map<String, Object> entry :
           response.jsonPath().<Map<String, Object>>getList("rankings")) {
         assertThat(new BigDecimal(entry.get("reviewCompletionRate").toString()))
@@ -299,8 +305,7 @@ class LeagueRankingsLoadtestSeedTest {
           .isZero();
       assertThat(statistics.getEntityStatistics(LeagueParticipation.class.getName()).getLoadCount())
           .isZero();
-      assertThat(statistics.getEntityStatistics(Member.class.getName()).getLoadCount())
-          .isEqualTo(100);
+      assertThat(statistics.getEntityStatistics(Member.class.getName()).getLoadCount()).isZero();
       publicIds.addAll(response.jsonPath().getList("rankings.publicId", String.class));
     }
     assertThat(publicIds).hasSize(1000);
@@ -629,6 +634,73 @@ class LeagueRankingsLoadtestSeedTest {
                 POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
         var statement = connection.createStatement()) {
       statement.execute(sql);
+    }
+    rankingCache.invalidateAfterCommit();
+  }
+
+  @Test
+  @EnabledIfEnvironmentVariable(named = "LEAGUE_RANKINGS_BENCHMARK", matches = "true")
+  void rankingsMeetLoadThresholdsWithTenThousandParticipants() throws Exception {
+    prepareUserApiSeed();
+    jdbc.update(
+        """
+        INSERT INTO assets(name, category, asset_code, market, listed, created_at, updated_at)
+        SELECT 'Benchmark stock ' || n, 'STOCK', 'BENCH601-' || n, 'KOSPI', true, now(), now()
+        FROM generate_series(1, 25) n
+        """);
+    jdbc.update(
+        """
+        INSERT INTO stock_daily_prices(asset_id, base_date, close_price, created_at, updated_at)
+        SELECT a.id, d.base_date, 10000 + a.id * 100 + (d.base_date - ?::date) * 10, now(), now()
+        FROM assets a CROSS JOIN market_trading_days d
+        WHERE a.asset_code LIKE 'BENCH601-%' AND d.trading AND d.base_date BETWEEN ?::date AND ?::date
+        """,
+        week.toString(), week.toString(), week.plusDays(6).toString());
+    seed();
+    assertThat(count("public_investor_profiles")).isEqualTo(10000);
+    jdbc.execute("ANALYZE");
+    Path report = Path.of(System.getProperty("java.io.tmpdir"), "daynomy-rankings-benchmark");
+    Files.createDirectories(report);
+    Path script = report.resolve("league-rankings-load.js");
+    // 본 측정 조건을 유지하고 사전 조회의 주차만 격리 DB의 테스트 주차로 고정한다.
+    Files.writeString(
+        script,
+        Files.readString(Path.of("../loadtest/league-rankings-load.js"))
+            .replace(
+                "function request(phase, weekStart)",
+                "function request(phase, weekStart = '" + week + "')"));
+    Path output = report.resolve("result.txt");
+    var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+    boolean statisticsEnabled = statistics.isStatisticsEnabled();
+    statistics.setStatisticsEnabled(false);
+    try (var recording = new Recording(Configuration.getConfiguration("profile"))) {
+      recording.start();
+      Process process =
+          new ProcessBuilder(
+                  "k6",
+                  "run",
+                  "--summary-export",
+                  report.resolve("metrics.json").toString(),
+                  "-e",
+                  "BASE_URL=http://127.0.0.1:" + port,
+                  "-e",
+                  "RPS=100",
+                  "-e",
+                  "VUS=50",
+                  script.toString())
+              .redirectErrorStream(true)
+              .redirectOutput(output.toFile())
+              .start();
+      try {
+        assertThat(process.waitFor(7, TimeUnit.MINUTES)).as("k6 completion: %s", output).isTrue();
+        assertThat(process.exitValue()).as(Files.readString(output)).isZero();
+      } finally {
+        if (process.isAlive()) process.destroyForcibly();
+        recording.stop();
+        recording.dump(report.resolve("recording.jfr"));
+      }
+    } finally {
+      statistics.setStatisticsEnabled(statisticsEnabled);
     }
   }
 

@@ -32,6 +32,24 @@ public interface InvestorProfileRepository extends JpaRepository<InvestorProfile
       """)
   List<RankingInvestor> findRankingInvestors();
 
+  @Query(
+      "select p.id from InvestorProfile p where p.profilePublic = true and p.leagueEnabled = true")
+  List<Long> findPublicRankingProfileIds();
+
+  @Query(
+      "select p.id from InvestorProfile p where p.profilePublic = false or p.leagueEnabled = false")
+  List<Long> findNonPublicRankingProfileIds();
+
+  @Query(
+      """
+      select new org.grit.daynomy.league.repository.RankingInvestor(
+        p.id, p.member.id, p.publicId, p.displayName, p.experienceLevel,
+        p.riskProfile, p.trackingStartedOn, null, null, p.member.profileImageUrl)
+      from InvestorProfile p
+      where p.id in :ids and p.profilePublic = true and p.leagueEnabled = true
+      """)
+  List<RankingInvestor> findPublicRankingProfilesByIdIn(List<Long> ids);
+
   List<InvestorProfile> findAllByLeagueEnabledAtIsNotNull();
 
   boolean existsByDisplayNameAndMemberIdNot(String displayName, Long memberId);

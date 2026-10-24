@@ -109,6 +109,7 @@ public class LeagueService {
   private final WeeklyLeaderboardRepository leaderboardRepository;
   private final LeagueCalculationMetrics calculationMetrics;
   private final EntityManager entityManager;
+  private final LeagueRankingCache rankingCache;
   private Map<LocalDate, WeekState> finalizationStates = new HashMap<>();
   private boolean finalizationStatesInitialized;
   private final ThreadLocal<Map<CalendarRange, List<MarketTradingDay>>> finalizationCalendarCache =
@@ -149,19 +150,26 @@ public class LeagueService {
     List<RankingEntryResponse> entries;
     int totalCount;
     if (finalResult == null) {
-      List<RankedProfile> profiles = rankedProfiles(weekStart, leagueType);
+      Set<Long> hiddenIds = new HashSet<>(profileRepository.findNonPublicRankingProfileIds());
+      List<RankedProfile> profiles =
+          rankingCache
+              .get(weekStart, leagueType, () -> rankedProfiles(weekStart, leagueType))
+              .stream()
+              .filter(profile -> !hiddenIds.contains(profile.profile().getId()))
+              .toList();
       List<Integer> ranks = ranks(profiles, leagueType);
       totalCount = profiles.size();
       int from = (int) Math.min((long) Math.max(0, page) * size, totalCount);
       int to = Math.min(from + size, totalCount);
       List<Long> memberIds =
           profiles.subList(from, to).stream().map(ranked -> ranked.profile().memberId()).toList();
-      Map<Long, String> profileImages = new HashMap<>();
-      if (!memberIds.isEmpty()) {
-        for (Member member : memberRepository.findAllById(memberIds)) {
-          profileImages.put(member.getId(), member.getProfileImageUrl());
-        }
-      }
+      List<Long> profileIds =
+          profiles.subList(from, to).stream().map(ranked -> ranked.profile().getId()).toList();
+      Map<Long, RankingInvestor> currentProfiles =
+          profileIds.isEmpty()
+              ? Map.of()
+              : profileRepository.findPublicRankingProfilesByIdIn(profileIds).stream()
+                  .collect(Collectors.toMap(RankingInvestor::getId, profile -> profile));
       Map<Long, InvestmentDecisionCounts> counts =
           memberIds.isEmpty()
               ? Map.of()
@@ -172,33 +180,48 @@ public class LeagueService {
       entries =
           IntStream.range(from, to)
               .mapToObj(
-                  index ->
-                      rankingEntry(
-                          ranks.get(index),
-                          profiles.get(index),
-                          counts.get(profiles.get(index).profile().memberId()),
-                          followed.contains(profiles.get(index).profile().getId()),
-                          profileImages.get(profiles.get(index).profile().memberId())))
+                  index -> {
+                    RankedProfile ranked = profiles.get(index);
+                    RankingInvestor current = currentProfiles.get(ranked.profile().getId());
+                    if (current == null) return null;
+                    return rankingEntry(
+                        ranks.get(index),
+                        new RankedProfile(current, ranked.metric(), 0, BigDecimal.ZERO),
+                        counts.get(current.memberId()),
+                        followed.contains(current.getId()),
+                        current.getProfileImageUrl());
+                  })
+              .filter(Objects::nonNull)
               .toList();
     } else {
       // 과거 확정값에도 현재 공개 동의를 적용하고 확정 순위 자체는 재배열하지 않는다.
-      entries =
+      Set<Long> visibleIds = new HashSet<>(profileRepository.findPublicRankingProfileIds());
+      List<WeeklyLeaderboard.Entry> visibleEntries =
           finalResult.getEntries().stream()
-              .map(
-                  entry ->
-                      profileRepository
-                          .findById(entry.profileId())
-                          .filter(profile -> profile.isProfilePublic() && profile.isLeagueEnabled())
-                          .map(
-                              profile ->
-                                  snapshotEntry(profile, entry, followed.contains(profile.getId())))
-                          .orElse(null))
-              .filter(Objects::nonNull)
+              .filter(entry -> visibleIds.contains(entry.profileId()))
               .toList();
-      totalCount = entries.size();
+      totalCount = visibleEntries.size();
       int from = (int) Math.min((long) Math.max(0, page) * size, totalCount);
       int to = Math.min(from + size, totalCount);
-      entries = entries.subList(from, to);
+      List<Long> profileIds =
+          visibleEntries.subList(from, to).stream()
+              .map(WeeklyLeaderboard.Entry::profileId)
+              .toList();
+      Map<Long, RankingInvestor> currentProfiles =
+          profileIds.isEmpty()
+              ? Map.of()
+              : profileRepository.findPublicRankingProfilesByIdIn(profileIds).stream()
+                  .collect(Collectors.toMap(RankingInvestor::getId, profile -> profile));
+      entries =
+          visibleEntries.subList(from, to).stream()
+              .filter(entry -> currentProfiles.containsKey(entry.profileId()))
+              .map(
+                  entry ->
+                      snapshotEntry(
+                          currentProfiles.get(entry.profileId()),
+                          entry,
+                          followed.contains(entry.profileId())))
+              .toList();
     }
     RankingResponse result =
         new RankingResponse(
@@ -601,7 +624,7 @@ public class LeagueService {
   }
 
   private RankingEntryResponse snapshotEntry(
-      InvestorProfile profile, WeeklyLeaderboard.Entry e, boolean followed) {
+      RankingInvestor profile, WeeklyLeaderboard.Entry e, boolean followed) {
     return new RankingEntryResponse(
         e.rank(),
         profile.getPublicId(),
@@ -616,7 +639,7 @@ public class LeagueService {
         e.decisionCount(),
         e.reviewCompletionRate(),
         followed,
-        profile.getMember().getProfileImageUrl(),
+        profile.getProfileImageUrl(),
         e.trackingStartedOn(),
         e.currentHoldingWeight(),
         e.consecutiveRecordedWeeks());
@@ -1525,13 +1548,13 @@ public class LeagueService {
     return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
   }
 
-  private record RankedProfile(
+  record RankedProfile(
       LeagueInvestorValue profile,
       Metric metric,
       int decisionCount,
       BigDecimal reviewCompletionRate) {}
 
-  private record Metric(
+  record Metric(
       BigDecimal weeklyReturnRate,
       BigDecimal threeWeekReturnRate,
       BigDecimal maxDrawdownRate,

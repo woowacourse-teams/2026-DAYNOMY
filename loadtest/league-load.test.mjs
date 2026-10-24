@@ -162,3 +162,16 @@ test('rankings: fewer than 10,000 participants stops before the measured load', 
   assert.throws(() => script.setup(), /10,000 league participants/);
   assert.equal(script.calls.length, 1);
 });
+
+test('rankings: the last planned request runs and an extra boundary iteration sends no HTTP request', () => {
+  const script = loadScript('league-rankings-load.js');
+  const data = script.setup();
+  script.execution.scenario.iterationInTest = 29999;
+  script.run(data);
+  assert.equal(script.calls.length, 2);
+  script.execution.scenario.iterationInTest = 30000;
+  script.run(data);
+  assert.equal(script.calls.length, 2);
+  assert.equal(script.checks.length, 1);
+  assert.equal(script.trends.length, 1);
+});
