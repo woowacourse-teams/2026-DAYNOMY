@@ -1,5 +1,6 @@
 package org.grit.daynomy.league.service;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -12,6 +13,7 @@ import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -22,10 +24,15 @@ import org.springframework.stereotype.Component;
 public class LeagueReturnScheduler {
 
   private final LeagueReturnService leagueReturnService;
+  private final TaskScheduler taskScheduler;
   private boolean pendingFullRecalculation = true;
   private LocalDate pendingPriceFrom;
 
   @EventListener(ApplicationReadyEvent.class)
+  public void calculateOnStartup() {
+    taskScheduler.schedule(this::calculateReturns, Instant.now());
+  }
+
   @Scheduled(cron = "${league.calculation.cron}", zone = "Asia/Seoul")
   public synchronized void calculateReturns() {
     if (pendingFullRecalculation) {
