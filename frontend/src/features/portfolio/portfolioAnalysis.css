@@ -890,7 +890,7 @@ button.portfolio-asset-row:focus-visible {
 }
 
 .portfolio-evidence-sources a:hover {
-  background: #262626;
+  text-decoration: underline;
 }
 
 .portfolio-evidence-sources a svg {
