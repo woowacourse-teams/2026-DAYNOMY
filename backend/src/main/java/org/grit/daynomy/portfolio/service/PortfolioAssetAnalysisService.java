@@ -31,7 +31,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class PortfolioAssetAnalysisService {
-  static final String ANALYSIS_VERSION = "asset-v2-batch5";
+  static final String ANALYSIS_VERSION = "asset-v3-verified-source";
   private final PortfolioAssetAnalysisRepository repository;
   private final PortfolioAnalysisAiClient ai;
   private final String model;

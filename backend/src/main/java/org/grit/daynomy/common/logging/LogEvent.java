@@ -45,6 +45,7 @@ public enum LogEvent {
 
   PORTFOLIO_CALCULATION_STARTED("portfolio.calculation.started", "포트폴리오 계산 시작"),
   PORTFOLIO_CALCULATION_COMPLETED("portfolio.calculation.completed", "포트폴리오 계산 완료"),
+  PORTFOLIO_ANALYSIS_SOURCES_VERIFIED("portfolio.analysis.sources.verified", "포트폴리오 원문 검증 종료"),
   PORTFOLIO_ANALYSIS_REQUESTED("portfolio.analysis.requested", "포트폴리오 분석 요청"),
   PORTFOLIO_ANALYSIS_COMPLETED("portfolio.analysis.completed", "포트폴리오 분석 완료"),
   PORTFOLIO_ANALYSIS_CORRECTION_REQUESTED(

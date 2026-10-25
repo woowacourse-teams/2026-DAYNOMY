@@ -61,7 +61,12 @@ class PortfolioAnalysisBatchIntegrationTest {
                   requested.forEach(name -> impacts.set(name, validImpact()));
                 } else {
                   var impacts = output.putArray("impacts");
-                  requested.forEach(name -> impacts.add(validImpact().put("assetName", name)));
+                  requested.forEach(
+                      name -> {
+                        var impact = validImpact().put("assetName", name);
+                        impact.remove("sourceUrls");
+                        impacts.add(impact);
+                      });
                 }
                 return new MockResponse()
                     .setHeader("Content-Type", "application/json")
@@ -108,7 +113,12 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         var client =
             new OpenAiPortfolioAnalysisClient(
-                RestClient.builder(), server.url("/").toString(), "test-key", "test-model", 5);
+                RestClient.builder(),
+                server.url("/").toString(),
+                "test-key",
+                "test-model",
+                5,
+                acceptingVerifier());
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
         result = refresh ? client.refresh(targets, previous.toString()) : client.analyze(targets);
       }
@@ -146,7 +156,12 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         var client =
             new OpenAiPortfolioAnalysisClient(
-                RestClient.builder(), server.url("/").toString(), "test-key", "test-model", 5);
+                RestClient.builder(),
+                server.url("/").toString(),
+                "test-key",
+                "test-model",
+                5,
+                acceptingVerifier());
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
         assertThatThrownBy(() -> client.analyze(targets)).isInstanceOf(BusinessException.class);
       }
@@ -163,6 +178,9 @@ class PortfolioAnalysisBatchIntegrationTest {
       ((okhttp3.mockwebserver.QueueDispatcher) server.getDispatcher()).setFailFast(true);
       var initial = validImpact();
       initial.putArray("sourceUrls").add("https://example.com/category/ir");
+      if (!v1)
+        ((ObjectNode) initial.path("evidence").get(0))
+            .put("url", "https://example.com/category/ir");
       var corrected = validImpact();
       // 첫 검색에서 확인한 개별 기사는 보정 검색 결과에 다시 나오지 않을 수 있다.
       server.enqueue(
@@ -183,7 +201,12 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         var client =
             new OpenAiPortfolioAnalysisClient(
-                RestClient.builder(), server.url("/").toString(), "test-key", "test-model", 5);
+                RestClient.builder(),
+                server.url("/").toString(),
+                "test-key",
+                "test-model",
+                5,
+                acceptingVerifier());
         analyze = () -> client.analyze(List.of(new PortfolioAnalysisTarget("SK하이닉스")));
       }
       if (originallyVerified) {
@@ -209,7 +232,11 @@ class PortfolioAnalysisBatchIntegrationTest {
       throws Exception {
     var text = mapper.createObjectNode();
     if (v1) text.putObject("impacts").set("SK하이닉스", impact);
-    else text.putArray("impacts").add(impact.deepCopy().put("assetName", "SK하이닉스"));
+    else {
+      var asset = impact.deepCopy().put("assetName", "SK하이닉스");
+      asset.remove("sourceUrls");
+      text.putArray("impacts").add(asset);
+    }
     return new MockResponse()
         .setHeader("Content-Type", "application/json")
         .setBody(
@@ -270,5 +297,12 @@ class PortfolioAnalysisBatchIntegrationTest {
                     "확인된 사업 변화예요.",
                     "factQuote",
                     "Operating profit increased by 10%."))));
+  }
+
+  private static PortfolioAnalysisEvidenceVerifier acceptingVerifier() {
+    var verifier = org.mockito.Mockito.mock(PortfolioAnalysisEvidenceVerifier.class);
+    org.mockito.Mockito.when(verifier.verify(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    return verifier;
   }
 }

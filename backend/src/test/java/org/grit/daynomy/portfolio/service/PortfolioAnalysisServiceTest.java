@@ -395,7 +395,7 @@ class PortfolioAnalysisServiceTest {
             List.of(
                 new PortfolioAnalysisResult.Source(
                     "공식 발표",
-                    "https://example.com/earnings",
+                    "https://example.com/earnings/q2-2026",
                     java.time.LocalDate.of(2026, 9, 25),
                     java.time.LocalDate.of(2026, 9, 25),
                     "이익이 줄었어요.",

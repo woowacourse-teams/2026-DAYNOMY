@@ -26,7 +26,7 @@ public final class PortfolioAnalysisSourcePolicy {
     return path.isEmpty()
         || path.matches(".*/(index|home|default|main|list|ir_notices)(\\.(html?|aspx?|jsp|do))?")
         || path.matches(
-            ".*/(all|news|newsroom|investor|investors|events|notices|iractivity|category|categories|tag|tags|ir|reports|public-disclosure|press-releases|press-room)")
+            ".*/(all|news|newsroom|investor|investors|events|notices|iractivity|category|categories|tag|tags|ir|reports|public-disclosure|disclosure|press-releases|press-release|pressreleases|earnings|press-room)")
         || path.contains("/tag/")
         || path.contains("/category/");
   }

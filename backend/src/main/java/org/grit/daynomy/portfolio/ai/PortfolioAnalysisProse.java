@@ -26,7 +26,15 @@ public final class PortfolioAnalysisProse {
     }
     List<String> paragraphs = new ArrayList<>();
     for (String paragraph : text.strip().split("\\R\\s*\\R")) {
-      String value = paragraph.strip();
+      String value =
+          paragraph
+              .strip()
+              .replace("어렵습니다.", "어려워요.")
+              .replace("했습니다.", "했어요.")
+              .replace("됩니다.", "돼요.")
+              .replace("있습니다.", "있어요.")
+              .replace("없습니다.", "없어요.")
+              .replace("합니다.", "해요.");
       if (value.endsWith("요")) {
         value += ".";
       }

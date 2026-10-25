@@ -40,6 +40,7 @@ class OpenAiPortfolioAnalysisClientTest {
 
   private MockWebServer server;
   private OpenAiPortfolioAnalysisClient client;
+  private PortfolioAnalysisEvidenceVerifier evidenceVerifier;
   private Level originalLevel;
   private MockResponse firstEnqueuedResponse;
 
@@ -54,9 +55,15 @@ class OpenAiPortfolioAnalysisClientTest {
     firstEnqueuedResponse = null;
     ((okhttp3.mockwebserver.QueueDispatcher) server.getDispatcher()).setFailFast(true);
     server.start();
+    evidenceVerifier = acceptingVerifier();
     client =
         new OpenAiPortfolioAnalysisClient(
-            RestClient.builder(), server.url("/").toString(), "test-api-key", "test-model", 5);
+            RestClient.builder(),
+            server.url("/").toString(),
+            "test-api-key",
+            "test-model",
+            5,
+            evidenceVerifier);
   }
 
   @AfterEach
@@ -170,7 +177,8 @@ class OpenAiPortfolioAnalysisClientTest {
             server.url("/").toString(),
             "test-api-key",
             "test-model",
-            batchSize);
+            batchSize,
+            acceptingVerifier());
     var names = List.of("삼성전자", "SK하이닉스", "네이버", "카카오");
     var requests = new java.util.concurrent.ConcurrentLinkedQueue<List<String>>();
     var started = new java.util.concurrent.CountDownLatch(batchSize == 2 ? 2 : 1);
@@ -257,7 +265,12 @@ class OpenAiPortfolioAnalysisClientTest {
   void analyzeOmitsArrayBoundsForFineTunedModel() throws Exception {
     client =
         new OpenAiPortfolioAnalysisClient(
-            RestClient.builder(), server.url("/").toString(), "test-api-key", "ft:test-model", 5);
+            RestClient.builder(),
+            server.url("/").toString(),
+            "test-api-key",
+            "ft:test-model",
+            5,
+            acceptingVerifier());
     enqueueOutput(validOutput());
 
     client.analyze(targets());
@@ -287,7 +300,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .contains("outlook에는 다음에 확인할 구체적인 발표나 지표와 확인할 이유를 쓰세요.")
         .contains("어려운 금융 용어와 단정적인 투자 권유 표현은 사용하지 마세요.")
         .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.")
-        .contains("sourceUrls에는 해당 자산의 판단에 직접 사용한 인용 출처 URL만 포함하세요.")
+        .contains("evidence에는 해당 자산의 판단에 직접 사용한 인용 출처 URL과 확인된 사실을 함께 기록하세요.")
         .contains("분량보다 근거의 정확성과 판단에 필요한 정보를 우선하세요.")
         .contains("factQuote는 줄이거나 바꾸지 말고 원문의 완결된 사실 문장을 그대로 유지하세요.");
   }
@@ -746,6 +759,42 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
+  void missingOriginalQuoteCannotBecomeAValidAnalysis() throws Exception {
+    var output = objectMapper.readTree(withEvidence(validOutput()));
+    ((com.fasterxml.jackson.databind.node.ObjectNode)
+            output.path("impacts").get(0).path("evidence").get(0))
+        .remove("factQuote");
+    enqueueOutput(output.toString());
+    assertAnalysisFailed(() -> client.analyze(targets()));
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  @Test
+  void conflictingFactsForTheSameSourceRequireCorrection() throws Exception {
+    var output = objectMapper.readTree(withEvidence(validOutput()));
+    var evidence =
+        (com.fasterxml.jackson.databind.node.ArrayNode)
+            output.path("impacts").get(0).path("evidence");
+    var conflicting = (com.fasterxml.jackson.databind.node.ObjectNode) evidence.get(0).deepCopy();
+    evidence.add(conflicting.put("factQuote", "Operating profit declined by 10%."));
+    enqueueOutput(output.toString());
+    enqueueOutput(onlyAsset(validOutput(), "삼성전자"));
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .allSatisfy(
+            impact ->
+                assertThat(impact.sources())
+                    .singleElement()
+                    .satisfies(
+                        source ->
+                            assertThat(source.factQuote())
+                                .isEqualTo("Operating profit increased by 10%.")));
+    server.takeRequest();
+    assertThat(server.takeRequest().getBody().readUtf8()).contains("DUPLICATE_EVIDENCE_URL");
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
   void completedSearchWithNoEvidenceIsNotSearchFailure() throws Exception {
     enqueueOutputWithoutAnnotations(
         validOutput()
@@ -807,9 +856,9 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  void rejectsMixedToneInGeneratedProse() throws Exception {
-    enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
-    enqueueCorrection(validOutput().replace("중립적인 반응이 예상돼요.", "방향은 불분명합니다. 추가 확인이 필요해요."));
+  void rejectsProseWhoseEndingCannotBeSafelyRepaired() throws Exception {
+    enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "방향이 불분명한 상태이다. 추가 확인이 필요해요."));
+    enqueueCorrection(validOutput().replace("중립적인 반응이 예상돼요.", "방향이 불분명한 상태이다. 추가 확인이 필요해요."));
     assertAnalysisFailed(() -> client.analyze(targets()));
   }
 
@@ -875,6 +924,12 @@ class OpenAiPortfolioAnalysisClientTest {
             .path("items")
             .path("anyOf");
     assertThat(variants.size()).isEqualTo(2);
+    assertThat(variants.get(0).path("properties").has("sourceUrls")).isFalse();
+    assertThat(variants.get(1).path("properties").has("sourceUrls")).isFalse();
+    assertThat(variants.get(0).path("properties").path("evidence").path("minItems").asInt())
+        .isEqualTo(1);
+    assertThat(variants.get(1).path("properties").path("evidence").path("maxItems").asInt())
+        .isZero();
     assertThat(
             variants.get(0).path("properties").path("expectedReaction").path("minLength").asInt())
         .isEqualTo(1);
@@ -920,6 +975,7 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(correction.path("impacts")).hasSize(1);
     assertThat(correction.path("impacts").get(0).path("assetName").asText()).isEqualTo("삼성전자");
     missing.putArray("evidence");
+    missing.remove("sourceUrls");
     assertThat(correction.path("impacts").get(0)).isEqualTo(missing);
     assertThat(correction.toString()).doesNotContain("SK하이닉스");
     assertThat(server.getRequestCount()).isEqualTo(2);
@@ -1121,7 +1177,7 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  void correctsMismatchedEvidenceUrlWithoutInventingSource() throws Exception {
+  void rejectsEvidenceUrlNotVerifiedBySearch() throws Exception {
     String broken =
         withEvidence(validOutput())
             .replace(
@@ -1132,7 +1188,8 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
     server.takeRequest();
-    assertThat(server.takeRequest().getBody().readUtf8()).contains("MISSING_SOURCE_EVIDENCE");
+    assertThat(server.takeRequest().getBody().readUtf8())
+        .contains("INCONSISTENT_EVIDENCE_JUDGMENT");
     assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
@@ -1242,6 +1299,7 @@ class OpenAiPortfolioAnalysisClientTest {
     JsonNode root = objectMapper.readTree(json);
     for (JsonNode impact : root.path("impacts")) {
       if (impact.has("evidence")) {
+        ((com.fasterxml.jackson.databind.node.ObjectNode) impact).remove("sourceUrls");
         continue;
       }
       var facts = ((com.fasterxml.jackson.databind.node.ObjectNode) impact).putArray("evidence");
@@ -1254,6 +1312,7 @@ class OpenAiPortfolioAnalysisClientTest {
             .put("excerpt", "확인된 사업 변화예요.")
             .put("factQuote", "Operating profit increased by 10%.");
       }
+      ((com.fasterxml.jackson.databind.node.ObjectNode) impact).remove("sourceUrls");
     }
     return objectMapper.writeValueAsString(root);
   }
@@ -1475,5 +1534,32 @@ class OpenAiPortfolioAnalysisClientTest {
   private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
     return loggingEvent.getKeyValuePairs().stream()
         .collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
+  }
+
+  @Test
+  void returnsOnlyResultAcceptedByServerSourceVerification() throws Exception {
+    enqueueOutput(validOutput());
+    var withheld = new PortfolioAnalysisResult("", List.of(), List.of());
+    org.mockito.Mockito.when(evidenceVerifier.verify(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(withheld);
+    assertThat(client.analyze(targets())).isSameAs(withheld);
+    org.mockito.Mockito.verify(evidenceVerifier).verify(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void measuredFormalEndingDoesNotTriggerAnotherAiRequest() throws Exception {
+    enqueueOutput(validOutput().replace("중립적인 반응이 예상돼요.", "방향을 단정하기 어렵습니다."));
+    var result = client.analyze(targets());
+    assertThat(result.impacts()).allMatch(impact -> impact.direction() != null);
+    assertThat(result.impacts())
+        .anyMatch(impact -> impact.expectedReaction().equals("방향을 단정하기 어려워요."));
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  private static PortfolioAnalysisEvidenceVerifier acceptingVerifier() {
+    var verifier = org.mockito.Mockito.mock(PortfolioAnalysisEvidenceVerifier.class);
+    org.mockito.Mockito.when(verifier.verify(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    return verifier;
   }
 }
