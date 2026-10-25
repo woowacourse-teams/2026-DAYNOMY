@@ -516,7 +516,11 @@ function PortfolioAssetList({
               <span
                 className={`portfolio-asset-analysis${impact ? ` ${directionClass(impact.direction)}` : ''}`}
               >
-                {impact?.direction ? `TOP ${impact.rank}` : '근거 부족'}
+                {impact
+                  ? impact.direction
+                    ? `TOP ${impact.rank}`
+                    : '근거 부족'
+                  : '분석 대상 제외'}
               </span>
             </>
           );
@@ -736,6 +740,8 @@ export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
           trialExhausted: false,
           portfolioChanged: false,
           analyze: async () => {},
+          processing: false,
+          summaryStatus: 'READY',
         }}
       />
     );
@@ -758,8 +764,18 @@ function PortfolioAnalysisView({
   onAddAsset,
   state,
 }: PortfolioAnalysisProps & { state: ReturnType<typeof usePortfolioAnalysis> }) {
-  const { analysis, saved, loading, loaded, error, trialExhausted, portfolioChanged, analyze } =
-    state;
+  const {
+    analysis,
+    saved,
+    loading,
+    loaded,
+    error,
+    trialExhausted,
+    portfolioChanged,
+    analyze,
+    processing,
+    summaryStatus,
+  } = state;
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const sortedImpacts = useMemo(
     () => [...(analysis?.impacts ?? [])].sort((left, right) => left.rank - right.rank),
@@ -807,19 +823,16 @@ function PortfolioAnalysisView({
     });
   };
   const displayAssets = analysis
-    ? analysis.impacts.map(({ assetName, weight }) => ({ assetName, weight }))
+    ? [...analysis.impacts, ...(analysis.excludedAssets ?? [])].map(({ assetName, weight }) => ({
+        assetName,
+        weight,
+      }))
     : assets;
   const hasAnalysisTarget = displayAssets.length > 0;
-  const canAnalyze =
-    !loading && (assets.length > 0 || (isLoggedIn && (!loaded || saved?.status === 'PROCESSING')));
+  const canAnalyze = !loading && (assets.length > 0 || (isLoggedIn && !loaded));
 
   const showIntroduction =
-    hasAnalysisTarget &&
-    !analysis &&
-    !loading &&
-    !error &&
-    !trialExhausted &&
-    saved?.status !== 'PROCESSING';
+    hasAnalysisTarget && !analysis && !loading && !error && !trialExhausted && !processing;
   const analysisAction = !hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
     <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
       로그인하고 다시 분석하기
@@ -835,7 +848,7 @@ function PortfolioAnalysisView({
         ? analysis
           ? '확인 중'
           : '분석 중'
-        : saved?.status === 'PROCESSING'
+        : processing
           ? '진행 상태 확인'
           : portfolioChanged
             ? '현재 자산으로 분석하기'
@@ -866,6 +879,12 @@ function PortfolioAnalysisView({
       </div>
 
       <div className="portfolio-analysis-meta">
+        {analysis?.excludedAssets?.length ? (
+          <p>
+            보유 비중 상위 5종목을 분석했어요. 나머지 {analysis.excludedAssets.length}종목은 분석
+            대상에서 제외했으며 전체 포트폴리오 점수는 확정하지 않아요.
+          </p>
+        ) : null}
         {portfolioChanged ? (
           <p role="status">
             자산 구성이 바뀌어 이전 분석을 숨겼어요. 현재 보유 자산으로 다시 분석해 주세요.
@@ -892,15 +911,21 @@ function PortfolioAnalysisView({
           </p>
         ) : null}
       </div>
-      {!loading && saved?.status === 'PROCESSING' ? (
+      {!loading && processing ? (
         <div
           className="portfolio-analysis-state portfolio-analysis-empty"
           role="status"
           aria-live="polite"
         >
           <span className="portfolio-analysis-spinner" aria-hidden="true" />
-          <p>서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.</p>
+          <p>서버에서 분석 중이에요. 다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.</p>
         </div>
+      ) : null}
+      {analysis && summaryStatus === 'PENDING' ? (
+        <p role="status">점수와 종목별 근거가 준비됐어요. 종합 설명을 작성하고 있어요.</p>
+      ) : null}
+      {analysis && summaryStatus === 'FAILED' ? (
+        <p role="status">종합 설명을 불러오지 못했어요. 점수와 종목별 근거는 확인할 수 있어요.</p>
       ) : null}
       {!hasAnalysisTarget ? <PortfolioEmpty onAddAsset={onAddAsset} /> : null}
 
@@ -970,6 +995,13 @@ function PortfolioAnalysisView({
             )}
           </div>
           <div className="portfolio-score-panel">
+            {analysis.overallScore === 0 ? (
+              <p role="status">
+                {analysis.positiveImpactScore > 0 || analysis.negativeImpactScore > 0
+                  ? `긍정 기여 +${analysis.positiveImpactScore.toFixed(2)}점과 부정 기여 −${analysis.negativeImpactScore.toFixed(2)}점이 상쇄돼 전체 영향 점수가 0점이에요.`
+                  : '분석한 종목의 영향이 모두 중립으로 평가돼 전체 영향 점수가 0점이에요.'}
+              </p>
+            ) : null}
             <details className="portfolio-score-guide">
               <summary>
                 <svg className="portfolio-score-toggle" viewBox="0 0 24 24" aria-hidden="true">
