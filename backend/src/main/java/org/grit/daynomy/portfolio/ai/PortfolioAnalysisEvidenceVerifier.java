@@ -7,13 +7,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument;
+import org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourcePolicy;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -25,10 +23,94 @@ public class PortfolioAnalysisEvidenceVerifier {
     this.documents = documents;
   }
 
+  PortfolioAnalysisEvidence prepare(
+      Map<String, List<String>> urls, List<PortfolioAnalysisResult.Source> discovered) {
+    var verifiedUrls =
+        discovered.stream()
+            .map(source -> PortfolioAnalysisSourcePolicy.normalize(source.url()))
+            .collect(Collectors.toSet());
+    var candidates =
+        urls.values().stream()
+            .flatMap(List::stream)
+            .filter(url -> !PortfolioAnalysisSourcePolicy.isIndex(url))
+            .filter(url -> verifiedUrls.contains(PortfolioAnalysisSourcePolicy.normalize(url)))
+            .collect(
+                Collectors.toMap(
+                    PortfolioAnalysisSourcePolicy::normalize,
+                    url -> url,
+                    (first, ignored) -> first,
+                    LinkedHashMap::new));
+    var fetched = new LinkedHashMap<>(documents.fetchAll(List.copyOf(candidates.values())));
+    var selectedKeys =
+        urls.values().stream()
+            .flatMap(List::stream)
+            .map(PortfolioAnalysisSourcePolicy::normalize)
+            .collect(Collectors.toSet());
+    var failedSelected =
+        candidates.entrySet().stream()
+            .filter(entry -> selectedKeys.contains(entry.getKey()))
+            .map(Map.Entry::getValue)
+            .filter(url -> fetched.getOrDefault(url, Optional.empty()).isEmpty())
+            .toList();
+    if (!failedSelected.isEmpty()) fetched.putAll(documents.fetchAll(failedSelected));
+    Map<String, PortfolioAnalysisSourceDocument> prepared = new LinkedHashMap<>();
+    fetched.forEach(
+        (url, document) ->
+            document.filter(this::usable).ifPresent(value -> prepared.put(url, value)));
+    Map<String, List<String>> relevant = new LinkedHashMap<>();
+    urls.forEach(
+        (name, selected) -> {
+          var companySelectedKeys =
+              selected.stream()
+                  .map(PortfolioAnalysisSourcePolicy::normalize)
+                  .collect(Collectors.toSet());
+          var matching = new ArrayList<String>();
+          prepared.forEach(
+              (url, document) -> {
+                if (companySelectedKeys.contains(PortfolioAnalysisSourcePolicy.normalize(url)))
+                  matching.add(url);
+              });
+          if (!matching.isEmpty()) {
+            relevant.put(name, matching);
+            return;
+          }
+          relevant.put(name, matching);
+        });
+    return PortfolioAnalysisEvidence.from(relevant, prepared);
+  }
+
+  private boolean usable(PortfolioAnalysisSourceDocument value) {
+    return !value.body().isBlank()
+        && !value.isAnnouncementOnly()
+        && !value.body().strip().equals("You need to enable JavaScript to run this app.")
+        && (value.publishedOn() == null
+            || !value
+                .publishedOn()
+                .isAfter(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))));
+  }
+
   public PortfolioAnalysisResult verify(PortfolioAnalysisResult result) {
     long started = System.nanoTime();
-    long deadline = started + Duration.ofSeconds(5).toNanos();
-    Map<String, Optional<PortfolioAnalysisSourceDocument>> fetched = fetchSources(result, deadline);
+    var urls =
+        result.impacts().stream()
+            .flatMap(impact -> impact.sources().stream())
+            .map(PortfolioAnalysisResult.Source::url)
+            .distinct()
+            .toList();
+    return verify(result, documents.fetchAll(urls), started);
+  }
+
+  PortfolioAnalysisResult verifyPrepared(
+      PortfolioAnalysisResult result, Map<String, PortfolioAnalysisSourceDocument> prepared) {
+    Map<String, Optional<PortfolioAnalysisSourceDocument>> fetched = new LinkedHashMap<>();
+    prepared.forEach((url, document) -> fetched.put(url, Optional.of(document)));
+    return verify(result, fetched, System.nanoTime());
+  }
+
+  private PortfolioAnalysisResult verify(
+      PortfolioAnalysisResult result,
+      Map<String, Optional<PortfolioAnalysisSourceDocument>> fetched,
+      long started) {
     List<PortfolioAnalysisResult.AssetImpactResult> impacts = new ArrayList<>();
     int rejected = 0;
     Map<String, Integer> rejectionReasons = new LinkedHashMap<>();
@@ -85,47 +167,16 @@ public class PortfolioAnalysisEvidenceVerifier {
         rejected == 0 ? result.overallImpact() : "", ordered, sources);
   }
 
-  private Map<String, Optional<PortfolioAnalysisSourceDocument>> fetchSources(
-      PortfolioAnalysisResult result, long deadline) {
-    var urls =
-        result.impacts().stream()
-            .filter(impact -> impact.direction() != null)
-            .flatMap(impact -> impact.sources().stream())
-            .map(PortfolioAnalysisResult.Source::url)
-            .distinct()
-            .toList();
-    Map<String, Optional<PortfolioAnalysisSourceDocument>> fetched = new LinkedHashMap<>();
-    try (var executor = Executors.newFixedThreadPool(4, Thread.ofVirtual().factory())) {
-      var tasks =
-          urls.stream()
-              .<java.util.concurrent.Callable<Optional<PortfolioAnalysisSourceDocument>>>map(
-                  url -> () -> documents.fetch(url, Duration.ofNanos(deadline - System.nanoTime())))
-              .toList();
-      var futures =
-          executor.invokeAll(
-              tasks, Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
-      for (int index = 0; index < urls.size(); index++) {
-        try {
-          fetched.put(urls.get(index), futures.get(index).get());
-        } catch (CancellationException | ExecutionException exception) {
-          fetched.put(urls.get(index), Optional.empty());
-        }
-      }
-    } catch (InterruptedException exception) {
-      Thread.currentThread().interrupt();
-    }
-    urls.forEach(url -> fetched.putIfAbsent(url, Optional.empty()));
-    return fetched;
-  }
-
   private String rejectionReason(
       PortfolioAnalysisResult.AssetImpactResult impact,
       Map<String, Optional<PortfolioAnalysisSourceDocument>> fetched) {
     if (impact.sources().isEmpty()) return "SOURCE_MISSING";
     String claims =
         String.join(" ", impact.issueSummary(), impact.reason(), impact.evidenceSentence());
+    var contexts = new ArrayList<String>();
+    var titles = new ArrayList<String>();
     for (var source : impact.sources()) {
-      var document = fetched.get(source.url());
+      var document = fetched.getOrDefault(source.url(), Optional.empty());
       if (document.isEmpty()) return "SOURCE_UNAVAILABLE";
       String failure =
           document
@@ -134,10 +185,14 @@ public class PortfolioAnalysisEvidenceVerifier {
                   source.factQuote(),
                   document.get().publishedOn(),
                   document.get().confirmedOccurrence(source.factQuote(), source.occurredOn()),
-                  claims);
+                  source.excerpt());
       if (failure != null) return failure;
+      contexts.add(document.get().contextForQuote(source.factQuote()));
+      titles.add(document.get().title());
     }
-    return null;
+    String context = String.join(" ", contexts);
+    return new PortfolioAnalysisSourceDocument(String.join(" ", titles), context, null)
+        .rejectionReason(context, null, null, claims);
   }
 
   private PortfolioAnalysisResult.AssetImpactResult withVerifiedDates(

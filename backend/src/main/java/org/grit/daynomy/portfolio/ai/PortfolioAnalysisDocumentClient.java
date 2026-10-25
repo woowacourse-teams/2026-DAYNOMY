@@ -13,10 +13,15 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -36,7 +41,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class PortfolioAnalysisDocumentClient implements AutoCloseable {
   private static final int MAX_BODY_BYTES = 512 * 1024;
-  private static final int MAX_PDF_BYTES = 2 * 1024 * 1024;
+  private static final int MAX_PDF_BYTES = 4 * 1024 * 1024;
   private final CloseableHttpClient client;
   private final ObjectMapper mapper = new ObjectMapper();
   private final ScheduledExecutorService cancellations =
@@ -78,6 +83,32 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
     this.client = client;
   }
 
+  public Map<String, Optional<PortfolioAnalysisSourceDocument>> fetchAll(List<String> urls) {
+    long deadline = System.nanoTime() + Duration.ofSeconds(6).toNanos();
+    Map<String, Optional<PortfolioAnalysisSourceDocument>> fetched = new LinkedHashMap<>();
+    try (var executor = Executors.newFixedThreadPool(4, Thread.ofVirtual().factory())) {
+      var tasks =
+          urls.stream()
+              .<java.util.concurrent.Callable<Optional<PortfolioAnalysisSourceDocument>>>map(
+                  url -> () -> fetch(url, Duration.ofNanos(deadline - System.nanoTime())))
+              .toList();
+      var futures =
+          executor.invokeAll(
+              tasks, Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+      for (int index = 0; index < urls.size(); index++) {
+        try {
+          fetched.put(urls.get(index), futures.get(index).get());
+        } catch (CancellationException | ExecutionException exception) {
+          fetched.put(urls.get(index), Optional.empty());
+        }
+      }
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+    }
+    urls.forEach(url -> fetched.putIfAbsent(url, Optional.empty()));
+    return fetched;
+  }
+
   public Optional<PortfolioAnalysisSourceDocument> fetch(String url, Duration remaining) {
     if (remaining.isNegative() || remaining.isZero() || Thread.currentThread().isInterrupted())
       return Optional.empty();
@@ -98,7 +129,7 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
     var cancellation =
         cancellations.schedule(
             request::cancel,
-            Math.min(2000, Math.max(1, remaining.toMillis())),
+            Math.min(3000, Math.max(1, remaining.toMillis())),
             TimeUnit.MILLISECONDS);
     try {
       return client.execute(
@@ -117,6 +148,7 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
             if (entity.getContentLength() > limit) return Optional.empty();
             byte[] bytes = entity.getContent().readNBytes(limit + 1);
             if (bytes.length > limit) return Optional.empty();
+            cancellation.cancel(false);
             if (pdf) return parsePdf(bytes);
             var charset = contentType.getCharset(StandardCharsets.UTF_8);
             return Optional.of(parse(new String(bytes, charset)));

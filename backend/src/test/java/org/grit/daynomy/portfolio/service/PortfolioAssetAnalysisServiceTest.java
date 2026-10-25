@@ -85,7 +85,7 @@ class PortfolioAssetAnalysisServiceTest {
     verify(repository, times(2))
         .upsert(
             anyString(),
-            eq("asset-v3-verified-source"),
+            eq("asset-v4-grounded-source"),
             eq("test-model"),
             snapshot.capture(),
             analyzedAt.capture(),
@@ -109,7 +109,7 @@ class PortfolioAssetAnalysisServiceTest {
     given(
             repository.findAllByAssetNameInAndAnalysisVersionAndModelAndExpiresAtAfter(
                 eq(List.of("삼성전자", "SK하이닉스")),
-                eq("asset-v3-verified-source"),
+                eq("asset-v4-grounded-source"),
                 eq("test-model"),
                 any()))
         .willReturn(savedResults);

@@ -8,7 +8,21 @@ import java.util.regex.Pattern;
 
 /** 원문의 인용문과 날짜를 대조한다. 의미 전체의 진위까지 보장하는 검증은 아니다. */
 public record PortfolioAnalysisSourceDocument(String title, String body, LocalDate publishedOn) {
-  private static final Pattern YEAR = Pattern.compile("(?<![0-9])20[0-9]{2}(?![0-9])");
+  private static final Pattern YEAR =
+      Pattern.compile(
+          "(?<![0-9])20[0-9]{2}(?=\\s*(년|회계연도|[./-][0-9]{1,2}[./-][0-9]{1,2}(?![0-9])|[1-4]\\s*분기|[Qq][1-4]))");
+
+  public boolean isAnnouncementOnly() {
+    String text = normalize(title + " " + body).replace(" ", "");
+    return (normalize(body).startsWith("please wait for a moment.")
+            && text.contains("maindocumentsselect"))
+        || text.contains("결산실적공시예고")
+        || text.contains("earningsreleasedateannouncement")
+        || (text.contains("pleasefollowthelinkbelowtosee")
+            && !Pattern.compile("(?:revenue|operatingprofit|매출|영업이익)[^.!?]{0,80}[0-9]")
+                .matcher(text)
+                .find());
+  }
 
   public String rejectionReason(
       String quote, LocalDate publication, LocalDate occurrence, String claims) {
@@ -21,7 +35,7 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
     String fact = normalize(quote);
     int position = text.indexOf(fact);
     if (position < 0) return "QUOTE_NOT_IN_ARTICLE";
-    String bodyContext = quoteContext(quote);
+    String bodyContext = contextForQuote(quote);
     var explicitDates = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}").matcher(claims);
     while (explicitDates.find()) {
       try {
@@ -34,11 +48,12 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
     if (occurrence != null
         && (occurrence.isAfter(LocalDate.now(java.time.ZoneId.of("Asia/Seoul")))
             || !containsDate(bodyContext, occurrence))) return "EVENT_DATE_UNVERIFIED";
+    String context = normalize(title) + " " + bodyContext;
     var years = YEAR.matcher(normalize(claims));
     while (years.find()) {
-      if (!bodyContext.contains(years.group())) return "PERIOD_UNVERIFIED";
+      if (!bodyContext.contains(years.group()) && !hasAbbreviatedYear(context, years.group()))
+        return "PERIOD_UNVERIFIED";
     }
-    String context = normalize(title) + " " + bodyContext;
     String normalizedClaims = normalize(claims);
     for (int quarter = 1; quarter <= 4; quarter++) {
       if (hasQuarter(normalizedClaims, quarter) && !hasQuarter(context, quarter))
@@ -56,10 +71,104 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
   public LocalDate confirmedOccurrence(String quote, LocalDate candidate) {
     if (candidate == null || candidate.isAfter(LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))))
       return null;
-    return containsDate(quoteContext(quote), candidate) ? candidate : null;
+    return containsDate(contextForQuote(quote), candidate) ? candidate : null;
   }
 
-  private String quoteContext(String quote) {
+  public java.util.Set<String> billionWonAmounts(String quote) {
+    String text = normalize(body);
+    int position = text.indexOf(normalize(quote));
+    if (position < 0) return java.util.Set.of();
+    var explicit =
+        Pattern.compile(
+                "(?i)(?:KRW\\s+([0-9][0-9,]*(?:\\.[0-9]+)?)\\s+(?:billion|bn)|([0-9][0-9,]*(?:\\.[0-9]+)?)\\s+(?:billion|bn)\\s+(?:won|KRW))")
+            .matcher(quote);
+    var values = new java.util.HashSet<String>();
+    while (explicit.find()) {
+      String value = explicit.group(1) == null ? explicit.group(2) : explicit.group(1);
+      values.add(
+          new java.math.BigDecimal(value.replace(",", "")).stripTrailingZeros().toPlainString());
+    }
+    if (!Pattern.compile(
+            "(?i)^\\s*(total\\s+revenue|operating\\s+profit|net\\s+(income|profit))\\s+[-0-9]")
+        .matcher(quote)
+        .find()) return values;
+    var units =
+        Pattern.compile("\\(\\s*in\\s+([^)]{1,40})\\)").matcher(text.substring(0, position));
+    String unit = "";
+    while (units.find()) unit = units.group(1);
+    if (!unit.matches("(?:bn|billion)\\s+krw|krw\\s+(?:bn|billion)")) return java.util.Set.of();
+    var numbers = Pattern.compile("[0-9]+(?:\\.[0-9]+)?").matcher(quote.replace(",", ""));
+    while (numbers.find()) {
+      if (quote.replace(",", "").substring(numbers.end()).stripLeading().startsWith("%")) continue;
+      values.add(new java.math.BigDecimal(numbers.group()).stripTrailingZeros().toPlainString());
+    }
+    return values;
+  }
+
+  public java.util.Map<String, String> verifiedWonAmounts(String quote) {
+    if (!normalize(body).contains(normalize(quote))) return java.util.Map.of();
+    var amounts =
+        Pattern.compile(
+                "(?i)(?:KRW\\s+([0-9][0-9,]*(?:\\.[0-9]+)?)\\s+(million|billion|trillion)|([0-9][0-9,]*(?:\\.[0-9]+)?)\\s+(million|billion|trillion)\\s+(?:won|KRW))")
+            .matcher(quote);
+    var converted = new java.util.LinkedHashMap<String, String>();
+    while (amounts.find()) {
+      String number = amounts.group(1) == null ? amounts.group(3) : amounts.group(1);
+      String unit =
+          (amounts.group(2) == null ? amounts.group(4) : amounts.group(2)).toLowerCase(Locale.ROOT);
+      int power =
+          switch (unit) {
+            case "million" -> 6;
+            case "billion" -> 9;
+            default -> 12;
+          };
+      converted.put(
+          amounts.group(),
+          new java.math.BigDecimal(number.replace(",", ""))
+                  .scaleByPowerOfTen(power - 8)
+                  .stripTrailingZeros()
+                  .toPlainString()
+              + "억원");
+    }
+    for (String value : billionWonAmounts(quote))
+      converted.putIfAbsent(
+          value + " billion KRW",
+          new java.math.BigDecimal(value)
+                  .multiply(java.math.BigDecimal.TEN)
+                  .stripTrailingZeros()
+                  .toPlainString()
+              + "억원");
+    return converted;
+  }
+
+  public String normalizeAmountUnit(String quote, String excerpt) {
+    return normalizeAmountUnits(billionWonAmounts(quote), excerpt);
+  }
+
+  public static String normalizeAmountUnits(java.util.Set<String> values, String excerpt) {
+    var amounts =
+        Pattern.compile("(?<![0-9.,조억])([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*억원").matcher(excerpt);
+    StringBuilder normalized = new StringBuilder();
+    while (amounts.find()) {
+      var number = new java.math.BigDecimal(amounts.group(1).replace(",", ""));
+      boolean alreadyConverted =
+          values.contains(
+              number.divide(java.math.BigDecimal.TEN).stripTrailingZeros().toPlainString());
+      if (!excerpt.substring(0, amounts.start()).matches("(?s).*조\\s*$")
+          && !alreadyConverted
+          && values.contains(number.stripTrailingZeros().toPlainString())) {
+        amounts.appendReplacement(
+            normalized,
+            number.multiply(java.math.BigDecimal.TEN).stripTrailingZeros().toPlainString() + "억원");
+      } else
+        amounts.appendReplacement(
+            normalized, java.util.regex.Matcher.quoteReplacement(amounts.group()));
+    }
+    amounts.appendTail(normalized);
+    return normalized.toString();
+  }
+
+  public String contextForQuote(String quote) {
     String text = normalize(body);
     String fact = normalize(quote);
     int position = text.indexOf(fact);
@@ -83,6 +192,20 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
                     + "\\s*분기)(?![a-z0-9])")
             .matcher(text)
             .find();
+  }
+
+  private static boolean hasAbbreviatedYear(String text, String year) {
+    String abbreviated = year.substring(2);
+    return Pattern.compile(
+            "(?<![a-z0-9])(?:"
+                + abbreviated
+                + "\\s*년|[1-4]\\s*q"
+                + abbreviated
+                + "(?![0-9])|q[1-4]"
+                + abbreviated
+                + "(?![0-9]))")
+        .matcher(text)
+        .find();
   }
 
   private static boolean containsDate(String text, LocalDate date) {

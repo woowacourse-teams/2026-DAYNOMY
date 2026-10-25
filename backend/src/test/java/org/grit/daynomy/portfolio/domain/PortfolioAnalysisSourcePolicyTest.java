@@ -10,6 +10,7 @@ class PortfolioAnalysisSourcePolicyTest {
   void rejectsLanguageRootsAndAllowsIndividualDocuments() {
     for (String path :
         List.of(
+            "/?rcpNo=20211222000224",
             "/en/",
             "/en/pr/list.do?m=&y=2026",
             "/ir_notices.html",

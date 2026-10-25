@@ -36,7 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SavedPortfolioAnalysisTransactionService {
 
-  private static final String ANALYSIS_VERSION = "portfolio-v8-verified-source";
+  private static final String ANALYSIS_VERSION = "portfolio-v9-grounded-source";
   private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
   private static final int RETAINED_ANALYSES = 10;
 
@@ -57,7 +57,7 @@ public class SavedPortfolioAnalysisTransactionService {
       PortfolioAnalysisEvidenceRepository evidence,
       PortfolioAnalysisCheckRepository checks,
       PortfolioCalculationService calculation,
-      @Value("${ai.openai.model:gpt-5-mini}") String model) {
+      @Value("${portfolio.analysis.model:${ai.openai.model:gpt-5-mini}}") String model) {
     this(portfolios, holdings, analyses, evidence, checks, calculation, model, ANALYSIS_VERSION);
   }
 

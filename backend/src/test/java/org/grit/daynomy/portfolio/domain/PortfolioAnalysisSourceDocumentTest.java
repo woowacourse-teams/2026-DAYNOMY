@@ -6,6 +6,54 @@ import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisSourceDocumentTest {
+  @Test
+  void providesExactKoreanWonConversionsBeforeAiWritesExplanations() {
+    String quote =
+        "Reports revenues of 79.3187 trillion won and operating profit of KRW 520.3 billion.";
+    var original = new PortfolioAnalysisSourceDocument("Results", quote, null);
+    assertThat(original.verifiedWonAmounts(quote))
+        .containsEntry("79.3187 trillion won", "793187억원")
+        .containsEntry("KRW 520.3 billion", "5203억원");
+    assertThat(original.verifiedWonAmounts("Reports revenues of 80 trillion won.")).isEmpty();
+    assertThat(
+            new PortfolioAnalysisSourceDocument(
+                    "Annual Report",
+                    "Please wait for a moment. Main Documents Select Audit Report.",
+                    null)
+                .isAnnouncementOnly())
+        .isTrue();
+  }
+
+  @Test
+  void distinguishesEarningsScheduleFromPublishedResults() {
+    assertThat(
+            new PortfolioAnalysisSourceDocument(
+                    "public-disclosure-view",
+                    "Please follow the link below to see Samsung Electronics' 2026 2Q Earnings Release 2026 2Q conference PDF.",
+                    null)
+                .isAnnouncementOnly())
+        .isTrue();
+    assertThat(
+            new PortfolioAnalysisSourceDocument("", "카카오 결산실적공시 예고. 결산실적 공시예정일 안내.", null)
+                .isAnnouncementOnly())
+        .isTrue();
+    assertThat(
+            new PortfolioAnalysisSourceDocument("카카오 실적 발표", "매출은 2조원, 영업이익은 2030억원이다.", null)
+                .isAnnouncementOnly())
+        .isFalse();
+  }
+
+  @Test
+  void convertsExplicitEnglishBillionWonToHundredMillionWonWithoutChangingTheOriginal() {
+    String quote = "NAVER reported operating profit of KRW 520.3 billion.";
+    var original = new PortfolioAnalysisSourceDocument("NAVER results", quote, null);
+    assertThat(original.normalizeAmountUnit(quote, "영업이익은 520.3억원이에요."))
+        .isEqualTo("영업이익은 5203억원이에요.");
+    assertThat(original.normalizeAmountUnit(quote, "영업이익은 5203억원이에요."))
+        .isEqualTo("영업이익은 5203억원이에요.");
+    assertThat(original.body()).isEqualTo(quote);
+  }
+
   private final LocalDate date = LocalDate.of(2022, 10, 26);
   private final String quote = "Memory demand weakened.";
   private final PortfolioAnalysisSourceDocument document =
@@ -119,6 +167,58 @@ class PortfolioAnalysisSourceDocumentTest {
     assertThat(
             original.rejectionReason(
                 "Revenue increased.", original.publishedOn(), null, "2026년 3분기 실적이에요."))
+        .isEqualTo("PERIOD_UNVERIFIED");
+  }
+
+  @Test
+  void compactYearInTitleSupportsQuoteEvenWhenPublicationLineIsOutsideOpeningContext() {
+    var original =
+        new PortfolioAnalysisSourceDocument(
+            "SK hynix Announces 2Q26 Financial Results",
+            quote + " " + "Background. ".repeat(100),
+            null);
+    assertThat(original.rejectionReason(quote, null, null, "2026년 2분기 실적이에요.")).isNull();
+    assertThat(original.rejectionReason(quote, null, null, "2025년 2분기 실적이에요."))
+        .isEqualTo("PERIOD_UNVERIFIED");
+  }
+
+  @Test
+  void abbreviatedKoreanForecastYearsSupportSameFullYearsButNotDifferentYear() {
+    String forecast = "27년 매출 0.8조원, 28년 2.4조원, 29년 매출 3.9조원을 예상한다.";
+    var original = new PortfolioAnalysisSourceDocument("NAVER 사업 전망", forecast, null);
+    assertThat(
+            original.rejectionReason(
+                forecast, null, null, "2027년 매출 0.8조원, 2028년 2.4조원, 2029년 3.9조원을 예상했어요."))
+        .isNull();
+    assertThat(original.rejectionReason(forecast, null, null, "2030년 매출을 예상했어요."))
+        .isEqualTo("PERIOD_UNVERIFIED");
+  }
+
+  @Test
+  void translatesExplicitBillionWonTableUnitWithoutChangingAlreadyConvertedAmounts() {
+    String table = "Total Revenue 1,953 2,081 2,133. Operating Profit 86 218 203.";
+    var original = new PortfolioAnalysisSourceDocument("Results", "(in bn KRW) " + table, null);
+    assertThat(original.normalizeAmountUnit(table, "총매출은 2,133억원, 영업이익은 203억원이에요."))
+        .isEqualTo("총매출은 21330억원, 영업이익은 2030억원이에요.");
+    assertThat(original.normalizeAmountUnit(table, "총매출은 2133억원이에요."))
+        .isEqualTo("총매출은 21330억원이에요.");
+    assertThat(original.normalizeAmountUnit(table, "총매출은 2조 1,330억원, 영업이익은 2030억원이에요."))
+        .isEqualTo("총매출은 2조 1,330억원, 영업이익은 2030억원이에요.");
+    assertThat(original.normalizeAmountUnit(table, "총매출은 2조1,330억원이에요."))
+        .isEqualTo("총매출은 2조1,330억원이에요.");
+    assertThat(
+            new PortfolioAnalysisSourceDocument("Results", table, null)
+                .normalizeAmountUnit(table, "영업이익은 203억원이에요."))
+        .isEqualTo("영업이익은 203억원이에요.");
+  }
+
+  @Test
+  void fourDigitAmountsAreNotInterpretedAsEventYears() {
+    String fact = "Operating Profit 203 billion KRW.";
+    var original = new PortfolioAnalysisSourceDocument("Results", fact, null);
+    assertThat(original.rejectionReason(fact, null, null, "영업이익 2030억원을 기록했어요.")).isNull();
+    assertThat(original.rejectionReason(fact, null, null, "영업이익 2030.5억원을 기록했어요.")).isNull();
+    assertThat(original.rejectionReason(fact, null, null, "2030년 실적이에요."))
         .isEqualTo("PERIOD_UNVERIFIED");
   }
 }

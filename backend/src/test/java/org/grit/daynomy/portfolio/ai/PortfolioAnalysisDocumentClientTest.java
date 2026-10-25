@@ -266,6 +266,9 @@ class PortfolioAnalysisDocumentClientTest {
       var page = new org.apache.pdfbox.pdmodel.PDPage();
       document.addPage(page);
       document.getDocumentInformation().setCreationDate(java.util.Calendar.getInstance());
+      document
+          .getDocumentInformation()
+          .setCustomMetadataValue("padding", "x".repeat(2 * 1024 * 1024));
       try (var content = new org.apache.pdfbox.pdmodel.PDPageContentStream(document, page)) {
         content.beginText();
         content.setFont(
@@ -276,9 +279,10 @@ class PortfolioAnalysisDocumentClientTest {
         content.showText("Revenue rose 12% in Q2 2026.");
         content.endText();
       }
-      document.save(output);
+      document.save(output, org.apache.pdfbox.pdfwriter.compress.CompressParameters.NO_COMPRESSION);
       bytes = output.toByteArray();
     }
+    assertThat(bytes.length).isGreaterThan(2 * 1024 * 1024).isLessThan(4 * 1024 * 1024);
     try (var server = new MockWebServer();
         var client = new PortfolioAnalysisDocumentClient(HttpClients.createDefault())) {
       server.start();
