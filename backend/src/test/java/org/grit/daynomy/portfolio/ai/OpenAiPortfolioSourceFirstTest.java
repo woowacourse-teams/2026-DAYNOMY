@@ -99,7 +99,7 @@ class OpenAiPortfolioSourceFirstTest {
               RestClient.builder(),
               server.url("/").toString(),
               "test-key",
-              "test-model",
+              "gpt-5.4-mini",
               5,
               new PortfolioAnalysisEvidenceVerifier(documents));
       var result = client.analyze(List.of(new PortfolioAnalysisTarget("삼성전자")));
@@ -117,6 +117,8 @@ class OpenAiPortfolioSourceFirstTest {
       var search = mapper.readTree(server.takeRequest().getBody().readUtf8());
       var analysis = mapper.readTree(server.takeRequest().getBody().readUtf8());
       assertThat(search.path("tool_choice").asText()).isEqualTo("required");
+      assertThat(search.path("reasoning").path("effort").asText()).isEqualTo("none");
+      assertThat(analysis.path("reasoning").path("effort").asText()).isEqualTo("low");
       assertThat(analysis.has("tools")).isFalse();
       assertThat(analysis.toString()).contains(first, second);
       assertThat(analysis.path("text").path("format").path("schema").toString())

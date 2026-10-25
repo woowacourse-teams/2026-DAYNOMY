@@ -63,6 +63,32 @@ class PortfolioAnalysisBatchesTest {
   }
 
   @Test
+  void runsIndividualAssetsConcurrentlyWithAtMostFiveCalls() {
+    var active = new AtomicInteger();
+    var maximum = new AtomicInteger();
+    var barrier = new CyclicBarrier(5);
+    var result =
+        PortfolioAnalysisBatches.analyze(
+            IntStream.range(0, 10).boxed().toList(),
+            batch -> {
+              assertThat(batch).hasSize(1);
+              maximum.accumulateAndGet(active.incrementAndGet(), Math::max);
+              try {
+                barrier.await(5, TimeUnit.SECONDS);
+                return new PortfolioAnalysisResult(
+                    "", batch.stream().map(this::impact).toList(), List.of());
+              } catch (Exception failure) {
+                throw new AssertionError(failure);
+              } finally {
+                active.decrementAndGet();
+              }
+            },
+            1);
+    assertThat(maximum.get()).isEqualTo(5);
+    assertThat(result.impacts()).hasSize(10);
+  }
+
+  @Test
   void configuredTwoAssetBatchesKeepConcurrencyAndRequestContext() {
     var targets = IntStream.range(0, 8).boxed().toList();
     var batches = new ConcurrentLinkedQueue<List<Integer>>();

@@ -72,7 +72,9 @@ public final class PortfolioAnalysisBatches {
     var completed = new TreeMap<Integer, PortfolioAnalysisResult>();
     var loggingContext = MDC.getCopyOfContextMap();
     var contextSnapshotFactory = ContextSnapshotFactory.builder().build();
-    var executor = Executors.newFixedThreadPool(CONCURRENCY);
+    // 개별 분석은 선택된 최대 다섯 종목이 다른 종목의 완료를 기다리지 않게 한다.
+    int concurrency = batchSize == 1 ? BATCH_SIZE : CONCURRENCY;
+    var executor = Executors.newFixedThreadPool(concurrency);
     var completion = new ExecutorCompletionService<CompletedBatch>(executor);
     var futures = new ArrayList<Future<CompletedBatch>>();
     java.util.function.IntFunction<Future<CompletedBatch>> submit =
@@ -94,7 +96,7 @@ public final class PortfolioAnalysisBatches {
                         }));
     try {
       int next = 0;
-      while (next < Math.min(CONCURRENCY, batches.size())) futures.add(submit.apply(next++));
+      while (next < Math.min(concurrency, batches.size())) futures.add(submit.apply(next++));
       while (completed.size() < batches.size()) {
         long remaining = deadline - System.nanoTime();
         if (remaining <= 0) throw new TimeoutException();

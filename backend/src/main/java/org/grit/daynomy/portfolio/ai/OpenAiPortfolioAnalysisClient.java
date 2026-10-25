@@ -99,7 +99,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       @Value("${ai.openai.base-url:https://api.openai.com/v1}") String baseUrl,
       @Value("${ai.openai.api-key:}") String apiKey,
       @Value("${portfolio.analysis.model:${ai.openai.model:gpt-5-mini}}") String model,
-      @Value("${portfolio.analysis.batch-size:5}") int batchSize,
+      @Value("${portfolio.analysis.batch-size:1}") int batchSize,
       PortfolioAnalysisEvidenceVerifier evidenceVerifier) {
     PortfolioAnalysisBatches.validateBatchSize(batchSize);
     this.objectMapper = new ObjectMapper();
@@ -558,7 +558,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             "model",
             model,
             "reasoning",
-            Map.of("effort", "low"),
+            Map.of("effort", model.startsWith("gpt-5.4-mini") ? "none" : "low"),
             "tools",
             List.of(searchTool),
             "tool_choice",
