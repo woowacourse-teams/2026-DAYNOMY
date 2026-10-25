@@ -37,8 +37,7 @@ public class PortfolioAnalysisService {
   @Observed(name = "portfolio.analysis", contextualName = "portfolio-analysis")
   public PortfolioAnalysisResponse analyze(
       PortfolioAnalysisRequest request, boolean authenticatedMember) {
-    validateDistinctAssets(request.assets());
-    validateTotalWeight(request.assets());
+    validate(request);
 
     if (request.assets().isEmpty()) {
       return PortfolioAnalysisResponse.empty();
@@ -56,8 +55,7 @@ public class PortfolioAnalysisService {
   }
 
   protected PortfolioAnalysisResponse analyzeAssets(PortfolioAnalysisRequest request) {
-    validateDistinctAssets(request.assets());
-    validateTotalWeight(request.assets());
+    validate(request);
     return response(request, assetAnalysisService.analyze(createTargets(request.assets())));
   }
 
@@ -78,8 +76,7 @@ public class PortfolioAnalysisService {
 
   PortfolioAnalysisRefresh.Revision refreshAssets(
       PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous) {
-    validateDistinctAssets(request.assets());
-    validateTotalWeight(request.assets());
+    validate(request);
     if (previous == null) {
       var result =
           response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
@@ -163,6 +160,11 @@ public class PortfolioAnalysisService {
         result.overallImpact(),
         impacts,
         sources);
+  }
+
+  void validate(PortfolioAnalysisRequest request) {
+    validateDistinctAssets(request.assets());
+    validateTotalWeight(request.assets());
   }
 
   private void validateDistinctAssets(List<PortfolioAssetRequest> portfolioAssets) {

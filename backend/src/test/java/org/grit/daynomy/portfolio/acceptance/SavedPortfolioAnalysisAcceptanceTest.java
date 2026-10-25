@@ -80,6 +80,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
 
   private static final String API = "/api/users/me/portfolio/analysis";
   private static final String LEGACY = "/api/portfolio/analysis";
+  private static final String GUEST = LEGACY + "/tasks";
 
   @Container
   static final PostgreSQLContainer POSTGRESQL =
@@ -1050,6 +1051,228 @@ class SavedPortfolioAnalysisAcceptanceTest {
     assertThat(check.getLastFailedAt()).isNull();
     assertThat(analyses.findFirstByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(member.getId()))
         .isEmpty();
+  }
+
+  @Test
+  void guestStartRequiresBootstrapAndInvalidOrEmptyInputDoesNotConsumeTrial() {
+    var body = Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 100)));
+    given()
+        .port(port)
+        .contentType("application/json")
+        .body(body)
+        .post(GUEST)
+        .then()
+        .statusCode(409)
+        .body("code", equalTo("PORTFOLIO_ANALYSIS_SESSION_REQUIRED"));
+    given()
+        .port(port)
+        .contentType("application/json")
+        .body(Map.of("assets", List.of()))
+        .post(GUEST)
+        .then()
+        .statusCode(200)
+        .body("taskId", nullValue());
+    var bootstrap = given().port(port).get(GUEST);
+    bootstrap.then().statusCode(200).body("status", equalTo("EMPTY"));
+    assertThat(bootstrap.cookie("JSESSIONID")).isNotBlank();
+    given()
+        .port(port)
+        .cookies(bootstrap.cookies())
+        .contentType("application/json")
+        .body(Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 90))))
+        .post(GUEST)
+        .then()
+        .statusCode(400)
+        .body("code", equalTo("INVALID_PORTFOLIO_WEIGHT_TOTAL"));
+    given()
+        .port(port)
+        .cookies(bootstrap.cookies())
+        .get(GUEST)
+        .then()
+        .body("status", equalTo("EMPTY"));
+    verifyNoInteractions(ai, narrative);
+  }
+
+  @Test
+  void guestBackgroundTaskIsRecoveredBySessionAndConcurrentResubmissionDoesNotRepeatAi()
+      throws Exception {
+    var cookies = given().port(port).get(GUEST).cookies();
+    var body = Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 100)));
+    var aiStarted = new CountDownLatch(1);
+    var releaseAi = new CountDownLatch(1);
+    var summaryStarted = new CountDownLatch(1);
+    var releaseSummary = new CountDownLatch(1);
+    when(ai.analyze(anyList()))
+        .thenAnswer(
+            invocation -> {
+              aiStarted.countDown();
+              assertThat(releaseAi.await(20, TimeUnit.SECONDS)).isTrue();
+              return result(invocation.getArgument(0));
+            });
+    doAnswer(
+            invocation -> {
+              summaryStarted.countDown();
+              assertThat(releaseSummary.await(20, TimeUnit.SECONDS)).isTrue();
+              return "현재 보유한 종목의 비중을 확인했어요.\n\n실적 감소가 부담이 될 수 있어요.\n\n다음 발표를 확인해 보세요.";
+            })
+        .when(narrative)
+        .summarize(org.mockito.ArgumentMatchers.any());
+    String id;
+    try {
+      var accepted =
+          given()
+              .port(port)
+              .cookies(cookies)
+              .contentType("application/json")
+              .body(body)
+              .post(GUEST);
+      accepted.then().statusCode(202);
+      id = accepted.jsonPath().getString("taskId");
+      assertThat(aiStarted.await(5, TimeUnit.SECONDS)).isTrue();
+      given()
+          .port(port)
+          .cookies(cookies)
+          .get(GUEST)
+          .then()
+          .body("taskId", equalTo(id))
+          .body("status", equalTo("PROCESSING"));
+      try (var requests = Executors.newFixedThreadPool(4)) {
+        var repeated = new java.util.ArrayList<java.util.concurrent.Future<Response>>();
+        for (int index = 0; index < 4; index++) {
+          repeated.add(
+              requests.submit(
+                  () ->
+                      given()
+                          .port(port)
+                          .cookies(cookies)
+                          .contentType("application/json")
+                          .body(body)
+                          .post(GUEST)));
+        }
+        for (var response : repeated) {
+          response.get(5, TimeUnit.SECONDS).then().statusCode(202).body("taskId", equalTo(id));
+        }
+      }
+      given()
+          .port(port)
+          .cookies(cookies)
+          .contentType("application/json")
+          .body(body)
+          .post(LEGACY)
+          .then()
+          .statusCode(403);
+      given()
+          .port(port)
+          .cookies(cookies)
+          .contentType("application/json")
+          .body(Map.of("assets", List.of(Map.of("assetName", "다른 종목", "weight", 100))))
+          .post(GUEST)
+          .then()
+          .statusCode(403);
+      var otherCookies = given().port(port).get(GUEST).cookies();
+      given()
+          .port(port)
+          .cookies(otherCookies)
+          .get(GUEST + "/" + id)
+          .then()
+          .statusCode(404)
+          .body("code", equalTo("PORTFOLIO_ANALYSIS_TASK_NOT_FOUND"));
+      releaseAi.countDown();
+      assertThat(summaryStarted.await(5, TimeUnit.SECONDS)).isTrue();
+      given()
+          .port(port)
+          .cookies(cookies)
+          .get(GUEST + "/" + id)
+          .then()
+          .body("status", equalTo("PROCESSING"))
+          .body("summaryStatus", equalTo("PENDING"))
+          .body("analysis.analyzedAssetCount", equalTo(1));
+    } finally {
+      releaseAi.countDown();
+      releaseSummary.countDown();
+    }
+    awaitGuest(cookies, "READY");
+    given()
+        .port(port)
+        .cookies(cookies)
+        .contentType("application/json")
+        .body(body)
+        .post(GUEST)
+        .then()
+        .statusCode(200)
+        .body("taskId", equalTo(id))
+        .body("summaryStatus", equalTo("READY"));
+    given().port(port).cookies(cookies).post(GUEST + "/" + id + "/retry").then().statusCode(403);
+    verify(ai).analyze(anyList());
+    verify(narrative).summarize(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void guestFailureDoesNotAutomaticallyRetryButExplicitRetryUsesTheOriginalInput() {
+    var cookies = given().port(port).get(GUEST).cookies();
+    var body = Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 100)));
+    when(ai.analyze(anyList()))
+        .thenThrow(new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED))
+        .thenAnswer(invocation -> result(invocation.getArgument(0)));
+    var accepted =
+        given().port(port).cookies(cookies).contentType("application/json").body(body).post(GUEST);
+    accepted.then().statusCode(202);
+    String id = accepted.jsonPath().getString("taskId");
+    awaitGuest(cookies, "FAILED");
+    given()
+        .port(port)
+        .cookies(cookies)
+        .contentType("application/json")
+        .body(body)
+        .post(GUEST)
+        .then()
+        .statusCode(200)
+        .body("status", equalTo("FAILED"))
+        .body("retryAllowed", equalTo(true));
+    verify(ai).analyze(anyList());
+
+    given().port(port).cookies(cookies).post(GUEST + "/" + id + "/retry").then().statusCode(202);
+    awaitGuest(cookies, "READY");
+    given()
+        .port(port)
+        .cookies(cookies)
+        .get(GUEST + "/" + id)
+        .then()
+        .body("analysis.impacts[0].assetName", equalTo("삼성전자"));
+    verify(ai, times(2)).analyze(anyList());
+    verify(narrative).summarize(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void authenticatedMembersCannotUseGuestStartOrRetryEvenWithValidCsrfAndSession() {
+    var cookies = given().port(port).get(GUEST).cookies();
+    Member member = member();
+    client(member)
+        .cookies(cookies)
+        .body(Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 100))))
+        .post(GUEST)
+        .then()
+        .statusCode(403);
+    client(member)
+        .cookies(cookies)
+        .post(GUEST + "/" + UUID.randomUUID() + "/retry")
+        .then()
+        .statusCode(403);
+    verifyNoInteractions(ai, narrative);
+  }
+
+  private void awaitGuest(Map<String, String> cookies, String status) {
+    org.awaitility.Awaitility.await()
+        .atMost(java.time.Duration.ofSeconds(10))
+        .untilAsserted(
+            () ->
+                given()
+                    .port(port)
+                    .cookies(cookies)
+                    .get(GUEST)
+                    .then()
+                    .statusCode(200)
+                    .body("status", equalTo(status)));
   }
 
   @Test
