@@ -45,6 +45,46 @@ class PortfolioAnalysisServiceTest {
   @InjectMocks private PortfolioAnalysisService portfolioAnalysisService;
 
   @Test
+  @DisplayName("종목 분석 단계는 종합 설명 호출 없이 점수와 근거를 반환한다")
+  void assetAnalysisReturnsJudgmentsAndScoresWithoutNarrative() {
+    var request = request(asset("삼성전자", "100"));
+    var impact = impact("삼성전자", ImpactDirection.POSITIVE, ImpactLevel.HIGH, 1);
+    given(assetAnalysisService.analyze(List.of(new PortfolioAnalysisTarget("삼성전자"))))
+        .willReturn(new PortfolioAnalysisResult("", List.of(impact), impact.sources()));
+
+    var result = portfolioAnalysisService.analyzeAssets(request);
+
+    assertThat(result.overallDirection()).isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(result.overallScore()).isPositive();
+    assertThat(result.impacts())
+        .singleElement()
+        .satisfies(
+            asset -> {
+              assertThat(asset.assetName()).isEqualTo("삼성전자");
+              assertThat(asset.sources()).isNotEmpty();
+            });
+    assertThat(result.overallImpact()).isEmpty();
+    verifyNoInteractions(narrative, portfolioAnalysisAiClient);
+  }
+
+  @Test
+  @DisplayName("종합 설명 단계는 확보한 종목 결과를 재분석하지 않고 설명만 추가한다")
+  void narrativePreservesPreparedAssetResults() {
+    var impact = impact("삼성전자", ImpactDirection.POSITIVE, ImpactLevel.HIGH, 1);
+    var prepared =
+        portfolioAnalysisService.response(
+            request(asset("삼성전자", "100")),
+            new PortfolioAnalysisResult("", List.of(impact), impact.sources()));
+    given(narrative.summarize(prepared)).willReturn("보유 자산에 긍정적인 영향이 예상돼요.");
+
+    var result = portfolioAnalysisService.summarize(prepared);
+
+    assertThat(result).isEqualTo(prepared.withOverallImpact("보유 자산에 긍정적인 영향이 예상돼요."));
+    assertThat(prepared.overallImpact()).isEmpty();
+    verifyNoInteractions(assetAnalysisService, portfolioAnalysisAiClient);
+  }
+
+  @Test
   void createsAnObservationForPortfolioAnalysis() {
     var stoppedObservation = new AtomicReference<String>();
     var registry = ObservationRegistry.create();

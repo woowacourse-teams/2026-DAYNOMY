@@ -52,7 +52,14 @@ public class PortfolioAnalysisService {
   }
 
   protected PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
-    var result = response(request, assetAnalysisService.analyze(createTargets(request.assets())));
+    return summarize(analyzeAssets(request));
+  }
+
+  protected PortfolioAnalysisResponse analyzeAssets(PortfolioAnalysisRequest request) {
+    return response(request, assetAnalysisService.analyze(createTargets(request.assets())));
+  }
+
+  PortfolioAnalysisResponse summarize(PortfolioAnalysisResponse result) {
     return result.withOverallImpact(narrative.summarize(result));
   }
 
@@ -64,7 +71,7 @@ public class PortfolioAnalysisService {
     if (previous == null) {
       var result =
           response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
-      return result.withOverallImpact(narrative.summarize(result));
+      return summarize(result);
     }
     try {
       // 날짜는 명시적인 ISO 문자열로 보내고 포트폴리오 소유자 정보는 보내지 않는다.
@@ -109,7 +116,7 @@ public class PortfolioAnalysisService {
         return candidate;
       }
       var merged = revision.analysis();
-      return merged.withOverallImpact(narrative.summarize(merged));
+      return summarize(merged);
     } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
       throw new IllegalStateException("이전 분석 근거를 변환하지 못했습니다.");
     }
