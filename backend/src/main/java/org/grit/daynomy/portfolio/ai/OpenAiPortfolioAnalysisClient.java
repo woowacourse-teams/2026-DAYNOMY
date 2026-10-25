@@ -106,12 +106,15 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
   private final RestClient restClient;
   private final String apiKey;
   private final String model;
+  private final int batchSize;
 
   public OpenAiPortfolioAnalysisClient(
       RestClient.Builder restClientBuilder,
       @Value("${ai.openai.base-url:https://api.openai.com/v1}") String baseUrl,
       @Value("${ai.openai.api-key:}") String apiKey,
-      @Value("${ai.openai.model:gpt-5-mini}") String model) {
+      @Value("${ai.openai.model:gpt-5-mini}") String model,
+      @Value("${portfolio.analysis.batch-size:5}") int batchSize) {
+    PortfolioAnalysisBatches.validateBatchSize(batchSize);
     this.objectMapper = new ObjectMapper();
     var factory = new SimpleClientHttpRequestFactory();
     factory.setConnectTimeout(3000);
@@ -119,6 +122,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     this.restClient = restClientBuilder.clone().baseUrl(baseUrl).requestFactory(factory).build();
     this.apiKey = apiKey;
     this.model = model;
+    this.batchSize = batchSize;
   }
 
   @Override
@@ -139,7 +143,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       throw invalidResponse("DUPLICATE_TARGET");
     }
     return PortfolioAnalysisBatches.analyze(
-        targets, batch -> requestAnalysis(batch, previousEvidence));
+        targets, batch -> requestAnalysis(batch, previousEvidence), batchSize);
   }
 
   private PortfolioAnalysisResult requestAnalysis(

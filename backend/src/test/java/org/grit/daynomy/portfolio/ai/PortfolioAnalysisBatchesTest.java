@@ -63,6 +63,67 @@ class PortfolioAnalysisBatchesTest {
   }
 
   @Test
+  void configuredTwoAssetBatchesKeepConcurrencyAndRequestContext() {
+    var targets = IntStream.range(0, 8).boxed().toList();
+    var batches = new ConcurrentLinkedQueue<List<Integer>>();
+    var active = new AtomicInteger();
+    var maximum = new AtomicInteger();
+    var barrier = new CyclicBarrier(2);
+    MDC.put("requestId", "configured-batch-request");
+    try {
+      var result =
+          PortfolioAnalysisBatches.analyze(
+              targets,
+              batch -> {
+                batches.add(batch);
+                maximum.accumulateAndGet(active.incrementAndGet(), Math::max);
+                try {
+                  assertThat(MDC.get("requestId")).isEqualTo("configured-batch-request");
+                  assertThat(MDC.get("batchNumber"))
+                      .isEqualTo(Integer.toString(batch.getFirst() / 2 + 1));
+                  barrier.await(5, TimeUnit.SECONDS);
+                  return new PortfolioAnalysisResult(
+                      "", batch.stream().map(this::impact).toList(), List.of());
+                } catch (Exception exception) {
+                  throw new AssertionError(exception);
+                } finally {
+                  active.decrementAndGet();
+                }
+              },
+              2);
+      assertThat(batches).hasSize(4).allSatisfy(batch -> assertThat(batch).hasSize(2));
+      assertThat(maximum.get()).isEqualTo(2);
+      assertThat(result.impacts())
+          .extracting(PortfolioAnalysisResult.AssetImpactResult::assetName)
+          .containsExactlyInAnyOrderElementsOf(targets.stream().map(i -> "종목" + i).toList());
+      assertThat(result.impacts())
+          .extracting(PortfolioAnalysisResult.AssetImpactResult::sortOrder)
+          .containsExactly(1, 2, 3, 4, 5, 6, 7, 8);
+      assertThat(MDC.get("batchNumber")).isNull();
+    } finally {
+      MDC.remove("requestId");
+      MDC.remove("batchNumber");
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {-1, 0, 6})
+  void rejectsInvalidBatchSizeBeforeAnyRequest(int batchSize) {
+    var calls = new AtomicInteger();
+    assertThatThrownBy(
+            () ->
+                PortfolioAnalysisBatches.analyze(
+                    List.of(1),
+                    batch -> {
+                      calls.incrementAndGet();
+                      return new PortfolioAnalysisResult("", List.of(), List.of());
+                    },
+                    batchSize))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(calls.get()).isZero();
+  }
+
+  @Test
   void stopsBeforeStartingTheNextBatchesWhenOneBatchFails() {
     var requests = new AtomicInteger();
     var bothStarted = new CyclicBarrier(2);

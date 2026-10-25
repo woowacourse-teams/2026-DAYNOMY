@@ -56,7 +56,7 @@ class OpenAiPortfolioAnalysisClientTest {
     server.start();
     client =
         new OpenAiPortfolioAnalysisClient(
-            RestClient.builder(), server.url("/").toString(), "test-api-key", "test-model");
+            RestClient.builder(), server.url("/").toString(), "test-api-key", "test-model", 5);
   }
 
   @AfterEach
@@ -161,12 +161,103 @@ class OpenAiPortfolioAnalysisClientTest {
         .contains("각 종목 자체", "서로 독립적으로", "사용자 보유 비중·수량");
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(ints = {2, 5})
+  void configuredBatchSizePreservesAllFourAssetsAndEvidence(int batchSize) throws Exception {
+    client =
+        new OpenAiPortfolioAnalysisClient(
+            RestClient.builder(),
+            server.url("/").toString(),
+            "test-api-key",
+            "test-model",
+            batchSize);
+    var names = List.of("삼성전자", "SK하이닉스", "네이버", "카카오");
+    var requests = new java.util.concurrent.ConcurrentLinkedQueue<List<String>>();
+    var started = new java.util.concurrent.CountDownLatch(batchSize == 2 ? 2 : 1);
+    server.setDispatcher(
+        new okhttp3.mockwebserver.Dispatcher() {
+          @Override
+          public MockResponse dispatch(RecordedRequest request) {
+            try {
+              var body = objectMapper.readTree(request.getBody().readUtf8());
+              assertThat(body.path("tool_choice").asText()).isEqualTo("required");
+              var requested = new java.util.ArrayList<String>();
+              objectMapper
+                  .readTree(body.path("input").get(1).path("content").asText())
+                  .path("assets")
+                  .forEach(asset -> requested.add(asset.path("assetName").asText()));
+              requests.add(requested);
+              started.countDown();
+              assertThat(started.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+              var output = objectMapper.createObjectNode();
+              var impacts = output.putArray("impacts");
+              for (String name : requested) {
+                var impact =
+                    (com.fasterxml.jackson.databind.node.ObjectNode)
+                        objectMapper.readTree(withEvidence(validOutput())).path("impacts").get(0);
+                impacts.add(impact.put("assetName", name));
+              }
+              return new MockResponse()
+                  .setHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                  .setBody(
+                      objectMapper.writeValueAsString(
+                          Map.of(
+                              "output",
+                              List.of(
+                                  Map.of("type", "web_search_call", "status", "completed"),
+                                  Map.of(
+                                      "type",
+                                      "message",
+                                      "content",
+                                      List.of(
+                                          Map.of(
+                                              "type",
+                                              "output_text",
+                                              "text",
+                                              output.toString(),
+                                              "annotations",
+                                              List.of(
+                                                  Map.of(
+                                                      "type",
+                                                      "url_citation",
+                                                      "title",
+                                                      "공식 발표",
+                                                      "url",
+                                                      "https://example.com/semiconductor")))))))));
+            } catch (Exception | AssertionError failure) {
+              return new MockResponse().setResponseCode(500);
+            }
+          }
+        });
+    var result = client.analyze(names.stream().map(PortfolioAnalysisTarget::new).toList());
+    assertThat(requests)
+        .hasSize(batchSize == 2 ? 2 : 1)
+        .allSatisfy(batch -> assertThat(batch.size()).isLessThanOrEqualTo(batchSize));
+    assertThat(result.impacts())
+        .extracting(PortfolioAnalysisResult.AssetImpactResult::assetName)
+        .containsExactlyInAnyOrderElementsOf(names);
+    assertThat(result.impacts())
+        .allSatisfy(
+            impact -> {
+              assertThat(impact.direction()).isEqualTo(ImpactDirection.NEUTRAL);
+              assertThat(impact.sources())
+                  .singleElement()
+                  .satisfies(
+                      source ->
+                          assertThat(source.factQuote())
+                              .isEqualTo("Operating profit increased by 10%."));
+            });
+    assertThat(result.impacts())
+        .extracting(PortfolioAnalysisResult.AssetImpactResult::sortOrder)
+        .containsExactly(1, 2, 3, 4);
+  }
+
   @Test
   @DisplayName("파인튜닝 모델 요청에는 지원하지 않는 배열 길이 제약을 포함하지 않는다")
   void analyzeOmitsArrayBoundsForFineTunedModel() throws Exception {
     client =
         new OpenAiPortfolioAnalysisClient(
-            RestClient.builder(), server.url("/").toString(), "test-api-key", "ft:test-model");
+            RestClient.builder(), server.url("/").toString(), "test-api-key", "ft:test-model", 5);
     enqueueOutput(validOutput());
 
     client.analyze(targets());

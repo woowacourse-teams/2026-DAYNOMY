@@ -108,7 +108,7 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         var client =
             new OpenAiPortfolioAnalysisClient(
-                RestClient.builder(), server.url("/").toString(), "test-key", "test-model");
+                RestClient.builder(), server.url("/").toString(), "test-key", "test-model", 5);
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
         result = refresh ? client.refresh(targets, previous.toString()) : client.analyze(targets);
       }
@@ -146,7 +146,7 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         var client =
             new OpenAiPortfolioAnalysisClient(
-                RestClient.builder(), server.url("/").toString(), "test-key", "test-model");
+                RestClient.builder(), server.url("/").toString(), "test-key", "test-model", 5);
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
         assertThatThrownBy(() -> client.analyze(targets)).isInstanceOf(BusinessException.class);
       }
@@ -183,7 +183,7 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         var client =
             new OpenAiPortfolioAnalysisClient(
-                RestClient.builder(), server.url("/").toString(), "test-key", "test-model");
+                RestClient.builder(), server.url("/").toString(), "test-key", "test-model", 5);
         analyze = () -> client.analyze(List.of(new PortfolioAnalysisTarget("SK하이닉스")));
       }
       if (originallyVerified) {

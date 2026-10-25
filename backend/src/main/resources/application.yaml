@@ -204,6 +204,7 @@ exchange-rate:
 portfolio:
   analysis:
     cache-ttl: ${PORTFOLIO_ANALYSIS_CACHE_TTL:30m}
+    batch-size: ${PORTFOLIO_ANALYSIS_BATCH_SIZE:5}
   snapshot:
     enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
     cron: ${PORTFOLIO_SNAPSHOT_CRON:0 30 7 * * TUE-SAT}

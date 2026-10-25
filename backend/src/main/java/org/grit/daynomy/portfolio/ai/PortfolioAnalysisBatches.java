@@ -28,12 +28,32 @@ public final class PortfolioAnalysisBatches {
 
   public static <T> PortfolioAnalysisResult analyze(
       List<T> targets, Function<List<T>, PortfolioAnalysisResult> request) {
-    return analyze(targets, request, Duration.ofMinutes(4));
+    return analyze(targets, request, BATCH_SIZE, Duration.ofMinutes(4));
   }
 
   static <T> PortfolioAnalysisResult analyze(
       List<T> targets, Function<List<T>, PortfolioAnalysisResult> request, Duration timeout) {
-    if (targets.size() <= BATCH_SIZE) {
+    return analyze(targets, request, BATCH_SIZE, timeout);
+  }
+
+  public static <T> PortfolioAnalysisResult analyze(
+      List<T> targets, Function<List<T>, PortfolioAnalysisResult> request, int batchSize) {
+    return analyze(targets, request, batchSize, Duration.ofMinutes(4));
+  }
+
+  static void validateBatchSize(int batchSize) {
+    if (batchSize < 1 || batchSize > BATCH_SIZE) {
+      throw new IllegalArgumentException("분석 묶음 크기는 1~5여야 합니다.");
+    }
+  }
+
+  private static <T> PortfolioAnalysisResult analyze(
+      List<T> targets,
+      Function<List<T>, PortfolioAnalysisResult> request,
+      int batchSize,
+      Duration timeout) {
+    validateBatchSize(batchSize);
+    if (targets.size() <= batchSize) {
       String previous = MDC.get("batchNumber");
       try {
         MDC.put("batchNumber", "1");
@@ -46,9 +66,8 @@ public final class PortfolioAnalysisBatches {
 
     long deadline = System.nanoTime() + timeout.toNanos();
     var batches = new ArrayList<List<T>>();
-    for (int start = 0; start < targets.size(); start += BATCH_SIZE) {
-      batches.add(
-          List.copyOf(targets.subList(start, Math.min(start + BATCH_SIZE, targets.size()))));
+    for (int start = 0; start < targets.size(); start += batchSize) {
+      batches.add(List.copyOf(targets.subList(start, Math.min(start + batchSize, targets.size()))));
     }
     var completed = new TreeMap<Integer, PortfolioAnalysisResult>();
     var loggingContext = MDC.getCopyOfContextMap();
