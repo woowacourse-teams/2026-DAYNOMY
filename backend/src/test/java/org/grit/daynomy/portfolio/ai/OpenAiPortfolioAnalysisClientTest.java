@@ -923,6 +923,109 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
+  void proseCorrectionNeedsNoSearchAndPreservesOriginalFacts() throws Exception {
+    String original =
+        withEvidence(validOutput()).replaceFirst("확인된 사업 변화예요.", "English original.. 해요.");
+    enqueueOutput(original);
+    String edited =
+        onlyAsset(withEvidence(validOutput()), "삼성전자")
+            .replace("NEUTRAL", "POSITIVE")
+            .replace("Operating profit increased by 10%.", "Invented quote.")
+            .replace("\"publishedOn\":null", "\"publishedOn\":\"2099-01-01\"");
+    enqueueResponse(
+        new MockResponse()
+            .setResponseCode(200)
+            .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+            .setBody(
+                objectMapper.writeValueAsString(
+                    Map.of(
+                        "output",
+                        List.of(
+                            Map.of(
+                                "type",
+                                "message",
+                                "content",
+                                List.of(
+                                    Map.of(
+                                        "type",
+                                        "output_text",
+                                        "text",
+                                        edited,
+                                        "annotations",
+                                        List.of()))))))));
+
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .allSatisfy(
+            impact -> {
+              assertThat(impact.direction()).isEqualTo(ImpactDirection.NEUTRAL);
+              assertThat(impact.sources())
+                  .singleElement()
+                  .satisfies(
+                      source -> {
+                        assertThat(source.factQuote())
+                            .isEqualTo("Operating profit increased by 10%.");
+                        assertThat(source.publishedOn()).isNull();
+                        assertThat(source.url()).isEqualTo("https://example.com/semiconductor");
+                        assertThat(source.excerpt()).isEqualTo("확인된 사업 변화예요.");
+                      });
+            });
+    server.takeRequest();
+    var request = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(request.has("tools")).isFalse();
+    assertThat(request.has("tool_choice")).isFalse();
+    assertThat(request.path("input").toString()).doesNotContain("반드시 웹 검색", "원문을 검색하세요");
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void proseFailureWithInvalidEvidenceStillRequiresSearch() throws Exception {
+    var original = objectMapper.readTree(withEvidence(validOutput()));
+    ((com.fasterxml.jackson.databind.node.ObjectNode)
+            original.path("impacts").get(0).path("evidence").get(0))
+        .put("excerpt", "English original.. 해요.");
+    ((com.fasterxml.jackson.databind.node.ObjectNode)
+            original.path("impacts").get(1).path("evidence").get(0))
+        .put("occurredOn", "2099-01-01");
+    String broken = original.toString();
+    enqueueOutput(broken);
+    enqueueCorrection(validOutput());
+    assertThat(client.analyze(targets()).impacts())
+        .allSatisfy(impact -> assertThat(impact.direction()).isNotNull());
+    server.takeRequest();
+    var request = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(request.path("tool_choice").asText()).isEqualTo("required");
+    assertThat(request.path("tools")).hasSize(1);
+  }
+
+  @Test
+  void proseCorrectionCannotIntroduceUnsupportedEventDate() throws Exception {
+    enqueueOutput(withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요."));
+    enqueueCorrection(validOutput().replace("관련 이슈를 확인했어요.", "2099-01-01에 계약을 발표했어요."));
+    assertAnalysisFailed(() -> client.analyze(targets()));
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void invalidCorrectedProseDoesNotDiscardOtherValidAssets() throws Exception {
+    enqueueOutput(withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요."));
+    var corrected = objectMapper.readTree(withEvidence(validOutput()));
+    ((com.fasterxml.jackson.databind.node.ObjectNode) corrected.path("impacts").get(0))
+        .put("reason", "");
+    enqueueCorrection(corrected.toString());
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .filteredOn(impact -> impact.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(impact -> assertThat(impact.direction()).isNull());
+    assertThat(result.impacts())
+        .filteredOn(impact -> impact.assetName().equals("SK하이닉스"))
+        .singleElement()
+        .satisfies(impact -> assertThat(impact.direction()).isNotNull());
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
   void correctsMismatchedEvidenceUrlWithoutInventingSource() throws Exception {
     String broken =
         withEvidence(validOutput())
@@ -970,11 +1073,11 @@ class OpenAiPortfolioAnalysisClientTest {
                 .filter(
                     e -> "portfolio.analysis.ai.call.completed".equals(keyValues(e).get("event")))
                 .map(e -> keyValues(e).get("phase")))
-        .containsExactly("initial", "correction");
+        .containsExactly("initial", "prose_correction");
   }
 
   @Test
-  void correctionDoesNotChangePreviouslyVerifiedAsset() throws Exception {
+  void proseCorrectionPreservesJudgmentsForAllAssets() throws Exception {
     enqueueOutput(
         withEvidence(validOutput()).replaceFirst("확인된 사업 변화예요.", "English original.. 해요."));
     enqueueOutput(onlyAsset(validOutput().replace("NEUTRAL", "POSITIVE"), "삼성전자"));
@@ -982,7 +1085,7 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(result.impacts())
         .filteredOn(i -> i.assetName().equals("삼성전자"))
         .singleElement()
-        .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.POSITIVE));
+        .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEUTRAL));
     assertThat(result.impacts())
         .filteredOn(i -> i.assetName().equals("SK하이닉스"))
         .singleElement()
