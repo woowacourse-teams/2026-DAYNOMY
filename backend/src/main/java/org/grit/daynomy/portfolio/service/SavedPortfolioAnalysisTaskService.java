@@ -52,11 +52,12 @@ public class SavedPortfolioAnalysisTaskService {
       boolean refresh) {
     long started = System.nanoTime();
     try {
-      analysis.execute(memberId, prepared, refresh);
+      var result = analysis.executeStaged(memberId, prepared, refresh);
       log.atInfo()
           .addKeyValue("event", "portfolio.analysis.task.completed")
           .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
-          .addKeyValue("outcome", "SUCCESS")
+          .addKeyValue(
+              "outcome", "FAILED".equals(result.summaryStatus()) ? "SUMMARY_FAILED" : "SUCCESS")
           .log("포트폴리오 백그라운드 분석 종료");
     } catch (RuntimeException exception) {
       // 실패 상태는 기존 분석 서비스에서 저장한다. 응답이 끝난 HTTP 요청에 예외를 전달하지 않는다.

@@ -191,7 +191,7 @@ public record PortfolioAnalysisResponse(
             snapshot.assets().size(),
             snapshot.summary(),
             analysis.getAnalyzedAt(),
-            snapshot.overallImpact(),
+            analysis.getOverallImpact(),
             impacts,
             evidence.stream()
                 .map(

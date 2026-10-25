@@ -111,7 +111,7 @@ public class SavedPortfolioAnalysisController {
   @Operation(
       summary = "내 포트폴리오 저장 분석 조회",
       description =
-          "access_token 쿠키 인증이 필요합니다. AI를 호출하지 않습니다. 자산 변경·진행 중·최근 실패 상태에서도 이전 분석을 반환합니다. 분석이 없으면 analysis는 null이며, 실패·진행 중 상태가 아니면 EMPTY입니다.")
+          "access_token 쿠키 인증이 필요합니다. AI를 호출하지 않습니다. analysis는 점수·근거가 저장되는 즉시 조회할 수 있습니다. summaryStatus가 PENDING이면 종합 설명을 작성 중이며 FAILED여도 점수·근거는 유효합니다. PROCESSING에서 summaryStatus가 READY이면 이전 분석일 수 있습니다. 자산 변경·진행 중·최근 실패 상태에서도 이전 분석을 반환합니다. 분석이 없으면 analysis는 null이며, 실패·진행 중 상태가 아니면 EMPTY입니다.")
   @GetMapping
   public SavedPortfolioAnalysisResponse get(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {

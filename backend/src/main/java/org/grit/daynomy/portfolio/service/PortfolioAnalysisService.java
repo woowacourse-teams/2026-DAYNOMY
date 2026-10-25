@@ -56,6 +56,8 @@ public class PortfolioAnalysisService {
   }
 
   protected PortfolioAnalysisResponse analyzeAssets(PortfolioAnalysisRequest request) {
+    validateDistinctAssets(request.assets());
+    validateTotalWeight(request.assets());
     return response(request, assetAnalysisService.analyze(createTargets(request.assets())));
   }
 
@@ -66,12 +68,23 @@ public class PortfolioAnalysisService {
   @Observed(name = "portfolio.analysis.refresh", contextualName = "portfolio-analysis-refresh")
   public PortfolioAnalysisResponse refresh(
       PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous) {
+    var revision = refreshAssets(request, previous);
+    if (revision.outcome()
+        != org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED) {
+      return revision.analysis();
+    }
+    return summarize(revision.analysis());
+  }
+
+  PortfolioAnalysisRefresh.Revision refreshAssets(
+      PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous) {
     validateDistinctAssets(request.assets());
     validateTotalWeight(request.assets());
     if (previous == null) {
       var result =
           response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
-      return summarize(result);
+      return new PortfolioAnalysisRefresh.Revision(
+          org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED, result, "");
     }
     try {
       // 날짜는 명시적인 ISO 문자열로 보내고 포트폴리오 소유자 정보는 보내지 않는다.
@@ -113,10 +126,10 @@ public class PortfolioAnalysisService {
       var revision = PortfolioAnalysisRefresh.compare(previous, candidate);
       if (revision.outcome()
           != org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED) {
-        return candidate;
+        return new PortfolioAnalysisRefresh.Revision(
+            revision.outcome(), candidate, revision.reason());
       }
-      var merged = revision.analysis();
-      return summarize(merged);
+      return revision;
     } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
       throw new IllegalStateException("이전 분석 근거를 변환하지 못했습니다.");
     }

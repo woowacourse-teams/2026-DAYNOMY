@@ -54,6 +54,8 @@ class SavedPortfolioAnalysisTaskServiceTest {
     var prepared = prepared();
     given(transactions.prepareTask(1L, false)).willReturn(prepared);
     given(transactions.get(1L)).willReturn(processing());
+    given(analysis.executeStaged(1L, prepared, false))
+        .willReturn(SavedPortfolioAnalysisResponse.empty());
 
     assertThat(service.start(1L, false).status())
         .isEqualTo(SavedPortfolioAnalysisResponse.Status.PROCESSING);
@@ -62,7 +64,7 @@ class SavedPortfolioAnalysisTaskServiceTest {
     var task = ArgumentCaptor.forClass(Runnable.class);
     verify(executor).execute(task.capture());
     task.getValue().run();
-    verify(analysis).execute(1L, prepared, false);
+    verify(analysis).executeStaged(1L, prepared, false);
   }
 
   @Test
@@ -70,7 +72,7 @@ class SavedPortfolioAnalysisTaskServiceTest {
     var prepared = prepared();
     given(transactions.prepareTask(1L, true)).willReturn(prepared);
     given(transactions.get(1L)).willReturn(processing());
-    given(analysis.execute(1L, prepared, true))
+    given(analysis.executeStaged(1L, prepared, true))
         .willThrow(new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_ASSETS_CHANGED));
 
     service.start(1L, true);
@@ -78,7 +80,7 @@ class SavedPortfolioAnalysisTaskServiceTest {
     verify(executor).execute(task.capture());
 
     assertThatCode(() -> task.getValue().run()).doesNotThrowAnyException();
-    verify(analysis).execute(1L, prepared, true);
+    verify(analysis).executeStaged(1L, prepared, true);
   }
 
   @Test
