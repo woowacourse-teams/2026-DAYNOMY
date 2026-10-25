@@ -36,6 +36,36 @@ import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioAnalysisServiceTest {
+  @Test
+  void analyzesAllUpToFiveAndSelectsOnlyFiveLargestHoldingsAboveThat() {
+    var holdings =
+        List.of(
+            asset("F", "5"),
+            asset("A", "30"),
+            asset("B", "25"),
+            asset("C", "20"),
+            asset("D", "12"),
+            asset("E", "8"));
+    var targets = portfolioAnalysisService.createTargets(holdings);
+    assertThat(targets)
+        .extracting(PortfolioAnalysisTarget::assetName)
+        .containsExactly("A", "B", "C", "D", "E");
+    assertThat(portfolioAnalysisService.createTargets(holdings.subList(0, 5))).hasSize(5);
+    var impacts =
+        targets.stream()
+            .map(t -> impact(t.assetName(), ImpactDirection.POSITIVE, ImpactLevel.HIGH, 1))
+            .toList();
+    var response =
+        portfolioAnalysisService.response(
+            new PortfolioAnalysisRequest(holdings),
+            new PortfolioAnalysisResult("", impacts, List.of()));
+    assertThat(response.selectedAssetCount()).isEqualTo(5);
+    assertThat(response.excludedAssets())
+        .extracting(PortfolioAnalysisResponse.ExcludedAsset::assetName)
+        .containsExactly("F");
+    assertThat(response.overallScore()).isNull();
+    assertThat(response.coverage()).isEqualTo("PARTIAL");
+  }
 
   @Mock private PortfolioAnalysisAiClient portfolioAnalysisAiClient;
   @Mock private PortfolioAssetAnalysisService assetAnalysisService;

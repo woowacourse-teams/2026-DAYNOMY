@@ -154,12 +154,13 @@ public class PortfolioAnalysisService {
                             impact.weight(), impact.direction(), impact.impactLevel()))
                 .toList());
     return PortfolioAnalysisResponse.of(
-        request.assets().size(),
-        impactSummary,
-        Instant.now(),
-        result.overallImpact(),
-        impacts,
-        sources);
+            request.assets().size(),
+            impactSummary,
+            Instant.now(),
+            result.overallImpact(),
+            impacts,
+            sources)
+        .withExcludedAssets(request.assets());
   }
 
   void validate(PortfolioAnalysisRequest request) {
@@ -203,7 +204,17 @@ public class PortfolioAnalysisService {
 
   protected List<PortfolioAnalysisTarget> createTargets(
       List<PortfolioAssetRequest> portfolioAssets) {
-    return portfolioAssets.stream()
+    var selected =
+        portfolioAssets.size() <= 5
+            ? portfolioAssets
+            : portfolioAssets.stream()
+                .sorted(
+                    java.util.Comparator.comparing(PortfolioAssetRequest::weight)
+                        .reversed()
+                        .thenComparing(PortfolioAssetRequest::assetName))
+                .limit(5)
+                .toList();
+    return selected.stream()
         .map(portfolioAsset -> new PortfolioAnalysisTarget(portfolioAsset.assetName()))
         .toList();
   }
