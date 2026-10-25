@@ -141,6 +141,8 @@ class OpenAiPortfolioAnalysisClientTest {
 
     JsonNode requestBody = objectMapper.readTree(request.getBody().readUtf8());
     assertThat(requestBody.path("reasoning").path("effort").asText()).isEqualTo("low");
+    assertThat(requestBody.path("text").path("verbosity").asText()).isEqualTo("low");
+    assertThat(requestBody.has("max_output_tokens")).isFalse();
     assertThat(requestBody.path("tools").get(0).path("type").asText()).isEqualTo("web_search");
     assertThat(requestBody.path("tool_choice").asText()).isEqualTo("required");
     assertThat(requestBody.path("include").get(0).asText())
@@ -194,7 +196,9 @@ class OpenAiPortfolioAnalysisClientTest {
         .contains("outlook에는 다음에 확인할 구체적인 발표나 지표와 확인할 이유를 쓰세요.")
         .contains("어려운 금융 용어와 단정적인 투자 권유 표현은 사용하지 마세요.")
         .contains("reason에는 판단 근거를 자연스러운 해요체로 작성하세요.")
-        .contains("sourceUrls에는 해당 자산의 판단에 직접 사용한 인용 출처 URL만 포함하세요.");
+        .contains("sourceUrls에는 해당 자산의 판단에 직접 사용한 인용 출처 URL만 포함하세요.")
+        .contains("분량보다 근거의 정확성과 판단에 필요한 정보를 우선하세요.")
+        .contains("factQuote는 줄이거나 바꾸지 말고 원문의 완결된 사실 문장을 그대로 유지하세요.");
   }
 
   @Test
