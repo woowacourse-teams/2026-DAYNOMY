@@ -676,6 +676,93 @@ class SavedPortfolioAnalysisAcceptanceTest {
   }
 
   @Test
+  void backgroundAnalysisReturnsBeforeAiCompletesAndRepeatedStartsReuseIt() throws Exception {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    var started = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    when(ai.analyze(anyList()))
+        .thenAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              started.countDown();
+              assertThat(release.await(20, TimeUnit.SECONDS)).isTrue();
+              return result(invocation.getArgument(0));
+            });
+    try {
+      client(member)
+          .post(API + "/tasks")
+          .then()
+          .statusCode(202)
+          .header("Location", API)
+          .body("status", equalTo("PROCESSING"));
+      assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+      UUID token = checks.findById(portfolio.getId()).orElseThrow().getRequestToken();
+      try (var requests = Executors.newFixedThreadPool(4)) {
+        var repeated = new java.util.ArrayList<java.util.concurrent.Future<Response>>();
+        for (int index = 0; index < 4; index++) {
+          var client = client(member);
+          repeated.add(requests.submit(() -> client.post(API + "/tasks")));
+        }
+        for (var response : repeated) {
+          response.get(5, TimeUnit.SECONDS).then().statusCode(202);
+        }
+      }
+      client(member).get(API).then().statusCode(200).body("status", equalTo("PROCESSING"));
+      client(member).post(API + "/tasks/refresh").then().statusCode(202);
+      assertThat(checks.findById(portfolio.getId()).orElseThrow().getRequestToken())
+          .isEqualTo(token);
+      // 다른 회원의 조회에 진행 상태나 분석이 노출되지 않는다.
+      client(member()).get(API).then().statusCode(200).body("status", equalTo("EMPTY"));
+      verify(ai).analyze(anyList());
+    } finally {
+      release.countDown();
+    }
+    awaitTask(member, "READY");
+    long id = client(member).get(API).jsonPath().getLong("analysisId");
+    client(member)
+        .post(API + "/tasks")
+        .then()
+        .statusCode(200)
+        .body("analysisId", equalTo((int) id));
+    verify(ai).analyze(anyList());
+  }
+
+  @Test
+  void failedBackgroundRefreshPreservesStoredResultAndCanBeRetried() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    long id = client(member).post(API).jsonPath().getLong("analysisId");
+    when(ai.refresh(anyList(), anyString()))
+        .thenThrow(new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED));
+
+    client(member).post(API + "/tasks/refresh").then().statusCode(202);
+    awaitTask(member, "FAILED");
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("analysisId", equalTo((int) id))
+        .body("failureCode", equalTo("AI_PORTFOLIO_ANALYSIS_FAILED"));
+
+    doAnswer(invocation -> result(invocation.getArgument(0)))
+        .when(ai)
+        .refresh(anyList(), anyString());
+    client(member).post(API + "/tasks/refresh").then().statusCode(202);
+    awaitTask(member, "READY");
+    verify(ai, times(2)).refresh(anyList(), anyString());
+  }
+
+  private void awaitTask(Member member, String status) {
+    org.awaitility.Awaitility.await()
+        .atMost(java.time.Duration.ofSeconds(10))
+        .untilAsserted(
+            () -> client(member).get(API).then().statusCode(200).body("status", equalTo(status)));
+  }
+
+  @Test
   void concurrentRequestsRunAiOnceAndDoNotHoldDatabaseTransactionDuringAiCall() throws Exception {
     Member member = member();
     Portfolio portfolio = portfolio(member);
@@ -760,6 +847,28 @@ class SavedPortfolioAnalysisAcceptanceTest {
     assertThat(check.getLastFailedAt()).isNull();
     assertThat(analyses.findFirstByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(member.getId()))
         .isEmpty();
+  }
+
+  @Test
+  void backgroundEndpointsRequireAuthenticationAndCsrf() {
+    Member member = member();
+    for (String path : List.of(API + "/tasks", API + "/tasks/refresh")) {
+      var csrf = given().port(port).get("/api/auth/csrf");
+      given()
+          .port(port)
+          .cookies(csrf.cookies())
+          .header(csrf.jsonPath().getString("headerName"), csrf.jsonPath().getString("token"))
+          .post(path)
+          .then()
+          .statusCode(401);
+      given()
+          .port(port)
+          .cookie("access_token", accessToken(member))
+          .post(path)
+          .then()
+          .statusCode(403);
+    }
+    verifyNoInteractions(ai, narrative);
   }
 
   @Test

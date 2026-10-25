@@ -125,8 +125,18 @@ public class SavedPortfolioAnalysisTransactionService {
     return prepare(memberId, null, true);
   }
 
+  @Transactional
+  public PreparedAnalysis prepareTask(Long memberId, boolean refresh) {
+    return prepare(memberId, null, refresh, true);
+  }
+
   private PreparedAnalysis prepare(
       Long memberId, PortfolioAnalysisRequest request, boolean refresh) {
+    return prepare(memberId, request, refresh, false);
+  }
+
+  private PreparedAnalysis prepare(
+      Long memberId, PortfolioAnalysisRequest request, boolean refresh, boolean reuseProcessing) {
     Portfolio portfolio = lockedPortfolio(memberId);
     List<PortfolioAssetRequest> assets = currentAssets(portfolio);
     if (assets.isEmpty()) {
@@ -142,6 +152,10 @@ public class SavedPortfolioAnalysisTransactionService {
             .findById(portfolio.getId())
             .orElseGet(() -> checks.save(new PortfolioAnalysisCheck(portfolio)));
     Instant now = Instant.now();
+    if (check.isProcessing(now) && reuseProcessing) {
+      return new PreparedAnalysis(
+          response(memberId, previous, check, assets, now), null, assets, null);
+    }
     if (check.isProcessing(now)) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_IN_PROGRESS);
     }

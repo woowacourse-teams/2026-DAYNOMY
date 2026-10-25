@@ -8,11 +8,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.common.response.ErrorResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisService;
+import org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisTaskService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,6 +36,67 @@ import org.springframework.web.bind.annotation.RestController;
 public class SavedPortfolioAnalysisController {
 
   private final SavedPortfolioAnalysisService service;
+  private final SavedPortfolioAnalysisTaskService tasks;
+
+  @Operation(
+      summary = "내 포트폴리오 백그라운드 분석 시작 또는 재사용",
+      parameters = {
+        @Parameter(
+            name = "X-XSRF-TOKEN",
+            in = ParameterIn.HEADER,
+            required = true,
+            description = "GET /api/auth/csrf 응답의 token. 발급된 XSRF-TOKEN 쿠키도 함께 전송",
+            schema = @Schema(type = "string"))
+      },
+      description =
+          "쿠키 인증과 CSRF 검증이 필요합니다. 분석을 서버에서 실행하고 즉시 상태를 반환합니다. 진행 중인 작업이나 유효한 저장 결과가 있으면 재사용합니다. 새로고침·화면 이동 후에도 GET /api/users/me/portfolio/analysis로 진행 상태와 결과를 조회합니다. 서버 재시작 시 자동 재개는 보장하지 않으며 기존 5분 요청 유효 시간이 적용됩니다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "202", description = "분석 진행 중", useReturnTypeSchema = true),
+    @ApiResponse(
+        responseCode = "503",
+        description = "PORTFOLIO_ANALYSIS_BUSY: 동시 실행 한도 초과. 작업은 시작되지 않으며 재시도 가능",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  @PostMapping("/tasks")
+  public ResponseEntity<SavedPortfolioAnalysisResponse> start(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
+    return taskResponse(tasks.start(member.memberId(), false));
+  }
+
+  @Operation(
+      summary = "내 포트폴리오 새 근거 확인을 백그라운드로 시작",
+      parameters = {
+        @Parameter(
+            name = "X-XSRF-TOKEN",
+            in = ParameterIn.HEADER,
+            required = true,
+            description = "GET /api/auth/csrf 응답의 token. 발급된 XSRF-TOKEN 쿠키도 함께 전송",
+            schema = @Schema(type = "string"))
+      },
+      description =
+          "쿠키 인증과 CSRF 검증이 필요합니다. 기존 새 근거 확인과 같은 분석·검증을 서버에서 수행합니다. 진행 중인 작업이 있으면 추가 실행하지 않습니다. GET /api/users/me/portfolio/analysis로 상태와 결과를 조회하며 실패해도 이전 저장 분석은 보존합니다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "202", description = "분석 진행 중", useReturnTypeSchema = true),
+    @ApiResponse(
+        responseCode = "503",
+        description = "PORTFOLIO_ANALYSIS_BUSY: 동시 실행 한도 초과",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  @PostMapping("/tasks/refresh")
+  public ResponseEntity<SavedPortfolioAnalysisResponse> startRefresh(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
+    return taskResponse(tasks.start(member.memberId(), true));
+  }
+
+  private ResponseEntity<SavedPortfolioAnalysisResponse> taskResponse(
+      SavedPortfolioAnalysisResponse result) {
+    if (result.status() == SavedPortfolioAnalysisResponse.Status.PROCESSING) {
+      return ResponseEntity.accepted()
+          .location(URI.create("/api/users/me/portfolio/analysis"))
+          .body(result);
+    }
+    return ResponseEntity.ok(result);
+  }
 
   @Operation(
       summary = "내 포트폴리오 분석 변경 이력 조회",

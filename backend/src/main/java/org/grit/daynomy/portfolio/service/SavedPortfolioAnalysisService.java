@@ -32,7 +32,7 @@ public class SavedPortfolioAnalysisService {
     return execute(memberId, transactions.prepareRefresh(memberId), true);
   }
 
-  private SavedPortfolioAnalysisResponse execute(
+  SavedPortfolioAnalysisResponse execute(
       Long memberId,
       SavedPortfolioAnalysisTransactionService.PreparedAnalysis prepared,
       boolean refresh) {
