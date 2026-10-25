@@ -12,6 +12,7 @@ class PortfolioAnalysisSourcePolicyTest {
         List.of(
             "/?rcpNo=20211222000224",
             "/en/",
+            "/en/company/investor-relations",
             "/en/pr/list.do?m=&y=2026",
             "/ir_notices.html",
             "/investment/disclosure?page=21",

@@ -13,10 +13,13 @@ public final class PortfolioAnalysisEvidence {
   private final Map<String, Map<String, Quote>> byAsset;
   private final Map<String, PortfolioAnalysisSourceDocument> documents;
   private final List<String> referenceIds;
+  private final Map<String, List<String>> requestedUrls;
 
   private PortfolioAnalysisEvidence(
       Map<String, Map<String, Quote>> byAsset,
-      Map<String, PortfolioAnalysisSourceDocument> documents) {
+      Map<String, PortfolioAnalysisSourceDocument> documents,
+      Map<String, List<String>> requestedUrls) {
+    this.requestedUrls = Map.copyOf(requestedUrls);
     this.byAsset = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(byAsset));
     this.documents = Map.copyOf(documents);
     this.referenceIds =
@@ -38,7 +41,7 @@ public final class PortfolioAnalysisEvidence {
       }
       assets.put(asset.getKey(), java.util.Collections.unmodifiableMap(quotes));
     }
-    return new PortfolioAnalysisEvidence(assets, documents);
+    return new PortfolioAnalysisEvidence(assets, documents, urls);
   }
 
   static String reference(String url, String sentence) {
@@ -114,6 +117,19 @@ public final class PortfolioAnalysisEvidence {
         .toList();
   }
 
+  List<Map<String, Object>> unavailableSources(List<PortfolioAnalysisTarget> targets) {
+    return targets.stream()
+        .filter(target -> references(List.of(target)).isEmpty())
+        .map(
+            target ->
+                Map.<String, Object>of(
+                    "assetName",
+                    target.assetName(),
+                    "unreadableUrls",
+                    requestedUrls.getOrDefault(target.assetName(), List.of())))
+        .toList();
+  }
+
   int referenceCount() {
     return referenceIds.size();
   }
@@ -133,7 +149,9 @@ public final class PortfolioAnalysisEvidence {
         });
     Map<String, PortfolioAnalysisSourceDocument> combined = new LinkedHashMap<>(documents);
     combined.putAll(other.documents);
-    return new PortfolioAnalysisEvidence(merged, combined);
+    Map<String, List<String>> urls = new LinkedHashMap<>(requestedUrls);
+    urls.putAll(other.requestedUrls);
+    return new PortfolioAnalysisEvidence(merged, combined, urls);
   }
 
   /** 원문을 다시 조회하지 않고 서버가 보관한 인용문과 날짜를 연결한다. */

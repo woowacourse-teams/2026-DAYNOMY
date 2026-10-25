@@ -57,7 +57,7 @@ class PortfolioAnalysisDocumentClientTest {
   }
 
   @Test
-  void fetchesHtmlButDoesNotFollowRedirectOrAcceptErrorsAndLargeBodies() throws Exception {
+  void fetchesHtmlButDoesNotFollowPrivateRedirectOrAcceptErrorsAndLargeBodies() throws Exception {
     try (var server = new MockWebServer();
         var client =
             new PortfolioAnalysisDocumentClient(
@@ -69,7 +69,10 @@ class PortfolioAnalysisDocumentClientTest {
               .setHeader("Content-Type", "text/html")
               .setBody("<article>Facts</article>"));
       assertThat(client.fetch(url, Duration.ofSeconds(2))).isPresent();
-      server.enqueue(new MockResponse().setResponseCode(302).setHeader("Location", "/private"));
+      server.enqueue(
+          new MockResponse()
+              .setResponseCode(302)
+              .setHeader("Location", "http://127.0.0.1/private"));
       assertThat(client.fetch(url, Duration.ofSeconds(2))).isEmpty();
       server.enqueue(new MockResponse().setResponseCode(403));
       assertThat(client.fetch(url, Duration.ofSeconds(2))).isEmpty();
@@ -79,6 +82,74 @@ class PortfolioAnalysisDocumentClientTest {
               .setBody("a".repeat(512 * 1024 + 1)));
       assertThat(client.fetch(url, Duration.ofSeconds(2))).isEmpty();
       assertThat(server.getRequestCount()).isEqualTo(4);
+    }
+  }
+
+  @Test
+  void followsBoundedRedirectsAndReadsTheDestinationOriginal() throws Exception {
+    try (var server = new MockWebServer();
+        var client =
+            new PortfolioAnalysisDocumentClient(
+                HttpClients.custom().disableRedirectHandling().build())) {
+      server.start();
+      server.enqueue(new MockResponse().setResponseCode(301).setHeader("Location", "/canonical"));
+      server.enqueue(new MockResponse().setResponseCode(308).setHeader("Location", "/article"));
+      server.enqueue(
+          new MockResponse()
+              .setHeader("Content-Type", "text/html")
+              .setBody("<main>Confirmed original.</main>"));
+      var result =
+          client.fetch(
+              server.url("/redirect").toString().replace("127.0.0.1", "localhost"),
+              Duration.ofSeconds(2));
+      assertThat(result)
+          .hasValueSatisfying(
+              document -> assertThat(document.body()).isEqualTo("Confirmed original."));
+      assertThat(server.getRequestCount()).isEqualTo(3);
+      for (int n = 0; n < 3; n++)
+        server.enqueue(new MockResponse().setResponseCode(302).setHeader("Location", "/loop"));
+      assertThat(
+              client.fetch(
+                  server.url("/loop").toString().replace("127.0.0.1", "localhost"),
+                  Duration.ofSeconds(2)))
+          .isEmpty();
+      assertThat(server.getRequestCount()).isEqualTo(6);
+    }
+  }
+
+  @Test
+  void selectsTheArticleInsideMainInsteadOfNavigationArticle() throws Exception {
+    try (var client = new PortfolioAnalysisDocumentClient()) {
+      var document =
+          client.parse(
+              """
+          <title>Company</title>
+          <header><article id="gnbWrap">기업소개 투자 재무정보 공고 공시</article></header>
+          <main><section><article>
+          <div class="viewHead"><h3>2026년 2분기 실적 발표</h3><div class="subjectInfo"><p class="date">2026.08.07</p></div></div>
+          <p>2026년 2분기 매출은 1조원으로 증가했고 영업이익은 2천억원을 기록했어요.</p>
+          </article></section></main>
+          <article id="footerWrap">문의하기</article>
+          """);
+      assertThat(document.body()).contains("매출은 1조원", "영업이익은 2천억원").doesNotContain("기업소개", "문의하기");
+      assertThat(document.publishedOn()).isEqualTo(LocalDate.of(2026, 8, 7));
+    }
+  }
+
+  @Test
+  void skipsHiddenSearchArticleBeforeTheActualNewsArticle() throws Exception {
+    try (var client = new PortfolioAnalysisDocumentClient()) {
+      var document =
+          client.parse(
+              """
+          <article style="display: none;">검색어 삭제 최근 검색어 전체삭제</article>
+          <article hidden>숨겨진 메뉴</article>
+          <article aria-hidden="true">검색 팝업</article>
+          <article><p>3분기 매출액은 23조원이고 영업이익은 전년 대비 증가했다.</p></article>
+          """);
+      assertThat(document.body())
+          .contains("매출액은 23조원", "영업이익은 전년 대비 증가")
+          .doesNotContain("검색어", "메뉴", "팝업");
     }
   }
 

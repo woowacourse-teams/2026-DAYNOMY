@@ -110,11 +110,19 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
   }
 
   public Optional<PortfolioAnalysisSourceDocument> fetch(String url, Duration remaining) {
+    return fetch(
+        url, remaining.compareTo(Duration.ofSeconds(3)) > 0 ? Duration.ofSeconds(3) : remaining, 0);
+  }
+
+  private Optional<PortfolioAnalysisSourceDocument> fetch(
+      String url, Duration remaining, int redirects) {
+    long started = System.nanoTime();
     if (remaining.isNegative() || remaining.isZero() || Thread.currentThread().isInterrupted())
       return Optional.empty();
     HttpGet request;
+    URI uri;
     try {
-      URI uri = URI.create(url);
+      uri = URI.create(url);
       if (!("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
           || uri.getHost() == null
           || uri.getRawUserInfo() != null) return Optional.empty();
@@ -132,27 +140,44 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
             Math.min(3000, Math.max(1, remaining.toMillis())),
             TimeUnit.MILLISECONDS);
     try {
-      return client.execute(
-          request,
-          response -> {
-            var entity = response.getEntity();
-            if (response.getCode() != 200 || entity == null) return Optional.empty();
-            ContentType contentType = ContentType.parseLenient(entity.getContentType());
-            if (contentType == null) return Optional.empty();
-            boolean pdf = contentType.getMimeType().equals("application/pdf");
-            if (!pdf
-                && !(contentType.getMimeType().equals("text/html")
-                    || contentType.getMimeType().equals("application/xhtml+xml")))
-              return Optional.empty();
-            int limit = pdf ? MAX_PDF_BYTES : MAX_BODY_BYTES;
-            if (entity.getContentLength() > limit) return Optional.empty();
-            byte[] bytes = entity.getContent().readNBytes(limit + 1);
-            if (bytes.length > limit) return Optional.empty();
-            cancellation.cancel(false);
-            if (pdf) return parsePdf(bytes);
-            var charset = contentType.getCharset(StandardCharsets.UTF_8);
-            return Optional.of(parse(new String(bytes, charset)));
-          });
+      var fetched =
+          client.execute(
+              request,
+              response -> {
+                var entity = response.getEntity();
+                int status = response.getCode();
+                if (status == 301
+                    || status == 302
+                    || status == 303
+                    || status == 307
+                    || status == 308) {
+                  var location = response.getFirstHeader("Location");
+                  return new FetchResult(
+                      Optional.empty(), location == null ? null : location.getValue());
+                }
+                if (status != 200 || entity == null) return new FetchResult(Optional.empty(), null);
+                ContentType contentType = ContentType.parseLenient(entity.getContentType());
+                if (contentType == null) return new FetchResult(Optional.empty(), null);
+                boolean pdf = contentType.getMimeType().equals("application/pdf");
+                if (!pdf
+                    && !(contentType.getMimeType().equals("text/html")
+                        || contentType.getMimeType().equals("application/xhtml+xml")))
+                  return new FetchResult(Optional.empty(), null);
+                int limit = pdf ? MAX_PDF_BYTES : MAX_BODY_BYTES;
+                if (entity.getContentLength() > limit)
+                  return new FetchResult(Optional.empty(), null);
+                byte[] bytes = entity.getContent().readNBytes(limit + 1);
+                if (bytes.length > limit) return new FetchResult(Optional.empty(), null);
+                cancellation.cancel(false);
+                if (pdf) return new FetchResult(parsePdf(bytes), null);
+                var charset = contentType.getCharset(StandardCharsets.UTF_8);
+                return new FetchResult(Optional.of(parse(new String(bytes, charset))), null);
+              });
+      if (fetched.location() == null || redirects >= 2) return fetched.document();
+      return fetch(
+          uri.resolve(fetched.location()).toString(),
+          remaining.minusNanos(System.nanoTime() - started),
+          redirects + 1);
     } catch (IOException | IllegalArgumentException exception) {
       return Optional.empty();
     } catch (IllegalStateException exception) {
@@ -162,6 +187,8 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
       cancellation.cancel(false);
     }
   }
+
+  private record FetchResult(Optional<PortfolioAnalysisSourceDocument> document, String location) {}
 
   private Optional<PortfolioAnalysisSourceDocument> parsePdf(byte[] bytes) throws IOException {
     try (var document = org.apache.pdfbox.Loader.loadPDF(bytes)) {
@@ -200,14 +227,20 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
             });
     document
         .select(
-            "article > header .date, .post-header .date, .content_info .date, article .wrap_title .text_date, .media-detail__date")
+            "article > header .date, .post-header .date, .content_info .date, article .wrap_title .text_date, .media-detail__date, main .viewHead .subjectInfo .date")
         .forEach(element -> addVisibleDate(dates, element.text()));
     String title = document.title();
-    document.select("script,style,nav,footer,aside,.related,.related-posts").remove();
+    document
+        .select(
+            "script,style,nav,footer,aside,.related,.related-posts,[hidden],[aria-hidden=true],[style~=(?i)display\\s*:\\s*none]")
+        .remove();
+    var main = document.selectFirst("main, [role=main]");
+    var scope = main == null ? document : main;
     var article =
-        document.selectFirst(
+        scope.selectFirst(
             "[itemprop=articleBody], .entry-content, .article-content, .article-body, .post-contents, .content_desc");
-    if (article == null) article = document.selectFirst("article, main");
+    if (article == null) article = scope.selectFirst("article");
+    if (article == null) article = main;
     if (article == null) article = document.body();
     String body = "";
     if (article != null) {

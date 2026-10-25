@@ -1260,7 +1260,15 @@ class OpenAiPortfolioAnalysisClientTest {
         appender.list.stream()
             .filter(
                 e -> "portfolio.analysis.asset.validation.failed".equals(keyValues(e).get("event")))
-            .map(this::keyValues)
+            .map(
+                event -> {
+                  assertThat(event.getMDCPropertyMap()).containsEntry("batchNumber", "1");
+                  assertThat(keyValues(event)).doesNotContainKey("batchNumber");
+                  var fields =
+                      new java.util.LinkedHashMap<String, Object>(event.getMDCPropertyMap());
+                  fields.putAll(keyValues(event));
+                  return fields;
+                })
             .toList();
     assertThat(validations)
         .anySatisfy(

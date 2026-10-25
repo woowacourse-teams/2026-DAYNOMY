@@ -114,6 +114,18 @@ class PortfolioAnalysisSourceDocumentTest {
   }
 
   @Test
+  void acceptsEnglishHyphenatedQuarterAndHalfWithoutAcceptingDifferentPeriods() {
+    String fact = "Third-quarter 2026 revenue increased in the first-half 2026 comparison.";
+    var original = new PortfolioAnalysisSourceDocument("Third-Quarter 2026 results", fact, date);
+    assertThat(original.rejectionReason(fact, date, null, "2026년 3분기 매출이 증가했어요.")).isNull();
+    assertThat(original.rejectionReason(fact, date, null, "2026년 상반기와 비교했어요.")).isNull();
+    assertThat(original.rejectionReason(fact, date, null, "2026년 2분기 실적이에요."))
+        .isEqualTo("PERIOD_UNVERIFIED");
+    assertThat(original.rejectionReason(fact, date, null, "2026년 하반기 실적이에요."))
+        .isEqualTo("PERIOD_UNVERIFIED");
+  }
+
+  @Test
   void koreanParticleSpacingDoesNotDiscardSameNumbersAndFacts() {
     var original =
         new PortfolioAnalysisSourceDocument(

@@ -57,26 +57,7 @@ public class PortfolioAnalysisEvidenceVerifier {
     fetched.forEach(
         (url, document) ->
             document.filter(this::usable).ifPresent(value -> prepared.put(url, value)));
-    Map<String, List<String>> relevant = new LinkedHashMap<>();
-    urls.forEach(
-        (name, selected) -> {
-          var companySelectedKeys =
-              selected.stream()
-                  .map(PortfolioAnalysisSourcePolicy::normalize)
-                  .collect(Collectors.toSet());
-          var matching = new ArrayList<String>();
-          prepared.forEach(
-              (url, document) -> {
-                if (companySelectedKeys.contains(PortfolioAnalysisSourcePolicy.normalize(url)))
-                  matching.add(url);
-              });
-          if (!matching.isEmpty()) {
-            relevant.put(name, matching);
-            return;
-          }
-          relevant.put(name, matching);
-        });
-    return PortfolioAnalysisEvidence.from(relevant, prepared);
+    return PortfolioAnalysisEvidence.from(urls, prepared);
   }
 
   private boolean usable(PortfolioAnalysisSourceDocument value) {

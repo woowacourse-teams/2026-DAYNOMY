@@ -60,11 +60,17 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
         return "PERIOD_UNVERIFIED";
     }
     if (normalizedClaims.contains("상반기")
-        && !(context.contains("상반기") || context.contains("first half") || context.contains("h1")))
-      return "PERIOD_UNVERIFIED";
+        && !(context.contains("상반기")
+            || Pattern.compile("first[\\s\\p{Pd}]+half|first[\\s\\p{Pd}]+six[\\s\\p{Pd}]+months")
+                .matcher(context)
+                .find()
+            || context.contains("h1"))) return "PERIOD_UNVERIFIED";
     if (normalizedClaims.contains("하반기")
-        && !(context.contains("하반기") || context.contains("second half") || context.contains("h2")))
-      return "PERIOD_UNVERIFIED";
+        && !(context.contains("하반기")
+            || Pattern.compile("second[\\s\\p{Pd}]+half|last[\\s\\p{Pd}]+six[\\s\\p{Pd}]+months")
+                .matcher(context)
+                .find()
+            || context.contains("h2"))) return "PERIOD_UNVERIFIED";
     return null;
   }
 
@@ -180,8 +186,9 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
   }
 
   private static boolean hasQuarter(String text, int quarter) {
-    String english = new String[] {"first", "second", "third", "fourth"}[quarter - 1] + " quarter";
-    return text.contains(english)
+    String english =
+        new String[] {"first", "second", "third", "fourth"}[quarter - 1] + "[\\s\\p{Pd}]+quarter";
+    return Pattern.compile(english).matcher(text).find()
         || Pattern.compile(
                 "(?<![a-z0-9])(?:q\\s*"
                     + quarter
