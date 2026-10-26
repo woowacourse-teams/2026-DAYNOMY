@@ -16,6 +16,10 @@ import type {
 import { stockCurrency } from '../../stocks/types';
 import type { AssetCategory, StockSearchItem } from '../../stocks/types';
 
+function formatUnitPrice(value: string) {
+  return value.replace(/^\d+(?=\.|$)/, (integer) => integer.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+}
+
 type Props = {
   demoStep?: number;
   stock?: StockSearchItem;
@@ -44,7 +48,7 @@ export function PortfolioTransactionEditor({
   );
   const [fields, setFields] = useState<TransactionFields>({
     tradeDate: transaction?.effectiveDate ?? todayInSeoul(),
-    quantity: demoStep !== undefined ? '10' : (transaction?.transactionQuantity?.toString() ?? ''),
+    quantity: demoStep !== undefined ? '10' : (transaction?.transactionQuantity?.toString() ?? '1'),
     unitPrice: demoStep !== undefined ? '70000' : (transaction?.unitPrice?.toString() ?? ''),
     exchangeRate: transaction?.exchangeRate?.toString(),
     fee: String(transaction?.fee ?? 0),
@@ -179,6 +183,24 @@ export function PortfolioTransactionEditor({
     }
     setFields((current) => ({ ...current, [key]: value }));
     setError('');
+  }
+  function changeUnitPrice(input: HTMLInputElement) {
+    const value = input.value.replace(/,/g, '');
+    const charactersBeforeCaret = input.value
+      .slice(0, input.selectionStart ?? input.value.length)
+      .replace(/,/g, '').length;
+    const formatted = formatUnitPrice(value);
+    let caret = 0;
+    let characters = 0;
+    while (caret < formatted.length && characters < charactersBeforeCaret) {
+      if (formatted[caret] !== ',') characters += 1;
+      caret += 1;
+    }
+    change('unitPrice', value);
+    window.requestAnimationFrame(() => {
+      if (document.activeElement === input && input.value === formatted)
+        input.setSelectionRange(caret, caret);
+    });
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -441,7 +463,7 @@ export function PortfolioTransactionEditor({
                     aria-describedby={invalidField === 'quantity' ? errorId : undefined}
                     autoFocus={!!transaction}
                     data-autofocus={transaction ? true : undefined}
-                    placeholder="0"
+                    placeholder="1"
                     value={fields.quantity}
                     onChange={(event) => change('quantity', event.target.value)}
                   />
@@ -457,9 +479,9 @@ export function PortfolioTransactionEditor({
                     aria-invalid={invalidField === 'unitPrice' || undefined}
                     aria-describedby={invalidField === 'unitPrice' ? errorId : undefined}
                     placeholder="0"
-                    value={fields.unitPrice}
+                    value={formatUnitPrice(fields.unitPrice)}
                     aria-busy={priceLoading}
-                    onChange={(event) => change('unitPrice', event.target.value)}
+                    onChange={(event) => changeUnitPrice(event.currentTarget)}
                   />
                 </label>
               </div>

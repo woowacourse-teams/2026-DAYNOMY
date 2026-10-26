@@ -493,7 +493,7 @@ describe('거래 원장 화면', () => {
     expect(within(dialog).getByText('매수 거래')).toBeTruthy();
     expect(within(dialog).queryByRole('button', { name: '매도' })).toBeNull();
     expect(within(dialog).getByLabelText('수량 (주)')).toHaveProperty('value', '10');
-    expect(within(dialog).getByLabelText('거래 단가 (원)')).toHaveProperty('value', '70000');
+    expect(within(dialog).getByLabelText('거래 단가 (원)')).toHaveProperty('value', '70,000');
     expect(within(dialog).queryByRole('searchbox')).toBeNull();
     const before = performanceRequests();
     performancePoint = {

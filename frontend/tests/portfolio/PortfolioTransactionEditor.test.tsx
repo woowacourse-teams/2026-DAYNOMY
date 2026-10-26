@@ -37,14 +37,62 @@ afterEach(() => {
 });
 
 describe('거래 단가의 최근 종가 기본값', () => {
+  it.each(['BUY', 'SELL'] as const)(
+    '%s 신규 거래는 기본 수량 1주로 저장할 수 있다',
+    async (type) => {
+      const save = vi.fn().mockResolvedValue(undefined);
+      const view = render(
+        <PortfolioTransactionEditor stock={samsung} type={type} onClose={vi.fn()} onSave={save} />,
+      );
+      expect(view.getByLabelText('수량 (주)')).toHaveProperty('value', '1');
+      await waitFor(() =>
+        expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '75,200'),
+      );
+      fireEvent.click(
+        view.getByRole('button', { name: type === 'BUY' ? '매수 기록하기' : '매도 기록하기' }),
+      );
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+      expect(save.mock.calls[0][0]).toMatchObject({ type, quantity: 1, unitPrice: 75200 });
+    },
+  );
+
+  it('쉼표가 있는 단가를 붙여 넣어도 소수점 자릿수를 유지하고 숫자로 저장한다', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const view = render(
+      <PortfolioTransactionEditor stock={samsung} onClose={vi.fn()} onSave={save} />,
+    );
+    const input = view.getByLabelText('거래 단가 (원)');
+    await waitFor(() => expect(input).toHaveProperty('value', '75,200'));
+    fireEvent.change(input, { target: { value: '127,000.5000' } });
+    expect(input).toHaveProperty('value', '127,000.5000');
+    fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0]).toMatchObject({ quantity: 1, unitPrice: 127000.5 });
+  });
+
+  it('단가 중간을 수정하거나 쉼표를 지울 때 커서가 끝으로 이동하지 않는다', async () => {
+    const view = render(
+      <PortfolioTransactionEditor stock={samsung} onClose={vi.fn()} onSave={vi.fn()} />,
+    );
+    const input = view.getByLabelText('거래 단가 (원)') as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe('75,200'));
+    input.focus();
+    fireEvent.change(input, { target: { value: '1,2934.50', selectionStart: 4 } });
+    expect(input.value).toBe('12,934.50');
+    await waitFor(() => expect(input.selectionStart).toBe(4));
+    fireEvent.change(input, { target: { value: '12934.50', selectionStart: 2 } });
+    expect(input.value).toBe('12,934.50');
+    await waitFor(() => expect(input.selectionStart).toBe(2));
+  });
+
   it('과거 거래일로 바꿔도 최근 종가 참고 단가를 유지한다', async () => {
     const view = render(
       <PortfolioTransactionEditor stock={samsung} onClose={vi.fn()} onSave={vi.fn()} />,
     );
     const input = view.getByLabelText('거래 단가 (원)');
-    await waitFor(() => expect(input).toHaveProperty('value', '75200'));
+    await waitFor(() => expect(input).toHaveProperty('value', '75,200'));
     fireEvent.change(view.getByLabelText('거래일'), { target: { value: '2026-01-01' } });
-    expect(input).toHaveProperty('value', '75200');
+    expect(input).toHaveProperty('value', '75,200');
     expect(view.getByText(/과거 거래일에도 참고 단가로 유지됩니다/)).toBeTruthy();
     expect(getLatestStockPrice).toHaveBeenCalledTimes(1);
   });
@@ -61,7 +109,7 @@ describe('거래 단가의 최근 종가 기본값', () => {
       <PortfolioTransactionEditor stock={samsung} onClose={vi.fn()} onSave={save} />,
     );
     await waitFor(() =>
-      expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '75200'),
+      expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '75,200'),
     );
     fireEvent.change(view.getByLabelText('수량 (주)'), { target: { value: '1' } });
     const input = view.getByLabelText(label);
@@ -86,8 +134,9 @@ describe('거래 단가의 최근 종가 기본값', () => {
         <PortfolioTransactionEditor stock={samsung} type={type} onClose={vi.fn()} onSave={save} />,
       );
       const input = view.getByLabelText('거래 단가 (원)');
-      await waitFor(() => expect(input).toHaveProperty('value', '75200'));
+      await waitFor(() => expect(input).toHaveProperty('value', '75,200'));
       fireEvent.change(input, { target: { value: '76000.50' } });
+      expect(input).toHaveProperty('value', '76,000.50');
       fireEvent.change(view.getByLabelText('수량 (주)'), { target: { value: '2' } });
       fireEvent.change(view.getByLabelText('거래일'), { target: { value: '2026-10-10' } });
       fireEvent.click(
@@ -111,7 +160,7 @@ describe('거래 단가의 최근 종가 기본값', () => {
     },
   );
 
-  it.each(['78000', ''])(
+  it.each(['78,000', ''])(
     '늦은 종가 응답이 사용자가 입력하거나 지운 값 %j을 덮어쓰지 않는다',
     async (value) => {
       const pending = deferredPrice();
@@ -142,10 +191,10 @@ describe('거래 단가의 최근 종가 기본값', () => {
     fireEvent.change(view.getByRole('searchbox'), { target: { value: 'SK' } });
     fireEvent.click(await view.findByRole('button', { name: /SK하이닉스/ }));
     await waitFor(() =>
-      expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '193400'),
+      expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '193,400'),
     );
     await act(async () => previous.resolve(price));
-    expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '193400');
+    expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '193,400');
   });
 
   it('기존 거래 수정에서는 저장된 단가를 유지하고 종가를 조회하지 않는다', () => {
@@ -167,7 +216,8 @@ describe('거래 단가의 최근 종가 기본값', () => {
     const view = render(
       <PortfolioTransactionEditor transaction={transaction} onClose={vi.fn()} onSave={vi.fn()} />,
     );
-    expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '70000');
+    expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '70,000');
+    expect(view.getByLabelText('수량 (주)')).toHaveProperty('value', '2');
     expect(getLatestStockPrice).not.toHaveBeenCalled();
   });
 
@@ -209,7 +259,7 @@ it('미국 검색 후 주식·ETF의 USD 종가와 환율을 채우고 수정한
   vi.mocked(getLatestStockPrice).mockResolvedValue({
     ...tesla,
     baseDate: '2020-10-16',
-    closePrice: 100.1234,
+    closePrice: 1100.1234,
   });
   vi.mocked(getUsdKrwRate).mockResolvedValue({ baseDate: '2020-10-16', rate: 1300 });
   const save = vi.fn().mockResolvedValue(undefined);
@@ -218,7 +268,7 @@ it('미국 검색 후 주식·ETF의 USD 종가와 환율을 채우고 수정한
   fireEvent.change(view.getByLabelText('종목 검색'), { target: { value: 'TSLA' } });
   fireEvent.click(await view.findByRole('button', { name: /Tesla/ }));
   await waitFor(() =>
-    expect(view.getByLabelText('거래 단가 (USD)')).toHaveProperty('value', '100.1234'),
+    expect(view.getByLabelText('거래 단가 (USD)')).toHaveProperty('value', '1,100.1234'),
   );
   await waitFor(() =>
     expect(view.getByRole('textbox', { name: /적용 환율/ })).toHaveProperty('value', '1300'),
@@ -230,7 +280,7 @@ it('미국 검색 후 주식·ETF의 USD 종가와 환율을 채우고 수정한
   await waitFor(() => expect(save).toHaveBeenCalled());
   expect(save.mock.calls[0][0]).toMatchObject({
     assetId: 10,
-    unitPrice: 100.1234,
+    unitPrice: 1100.1234,
     exchangeRate: 1350,
     quantity: 2,
   });

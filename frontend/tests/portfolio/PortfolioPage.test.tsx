@@ -869,12 +869,12 @@ describe('포트폴리오 화면', () => {
     const result = await within(dialog).findByRole('button', { name: /삼성전자/ });
     fireEvent.click(result);
     const averagePriceInput = within(dialog).getByLabelText('거래 단가 (원)') as HTMLInputElement;
-    await waitFor(() => expect(averagePriceInput.value).toBe('75000'));
+    await waitFor(() => expect(averagePriceInput.value).toBe('75,000'));
     fireEvent.change(averagePriceInput, { target: { value: '76000' } });
-    expect(averagePriceInput.value).toBe('76000');
+    expect(averagePriceInput.value).toBe('76,000');
     fireEvent.change(within(dialog).getByLabelText('수량 (주)'), { target: { value: '10' } });
     fireEvent.change(averagePriceInput, { target: { value: '70000' } });
-    expect(averagePriceInput.value).toBe('70000');
+    expect(averagePriceInput.value).toBe('70,000');
     fireEvent.click(within(dialog).getByRole('button', { name: '매수 기록하기' }));
 
     expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
@@ -1475,12 +1475,12 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '두산' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /두산/ }));
     const unitPriceInput = within(dialog).getByLabelText('거래 단가 (원)') as HTMLInputElement;
-    await waitFor(() => expect(unitPriceInput.value).toBe('80000'));
+    await waitFor(() => expect(unitPriceInput.value).toBe('80,000'));
     await act(async () => {
       resolveFirstPrice(jsonResponse({ ...stock, baseDate: '2026-09-21', closePrice: 75000 }));
       await firstPriceResponse;
     });
-    expect(unitPriceInput.value).toBe('80000');
+    expect(unitPriceInput.value).toBe('80,000');
   });
 
   it('검색 결과를 주식과 ETF로 필터링한다', async () => {
@@ -1551,7 +1551,7 @@ describe('포트폴리오 화면', () => {
     fireEvent.click(await within(dialog).findByRole('button', { name: /KODEX 200/ }));
     await waitFor(() =>
       expect((within(dialog).getByLabelText('거래 단가 (원)') as HTMLInputElement).value).toBe(
-        '35000',
+        '35,000',
       ),
     );
     fireEvent.change(within(dialog).getByLabelText('수량 (주)'), { target: { value: '3' } });
@@ -1630,7 +1630,7 @@ describe('포트폴리오 화면', () => {
     const averagePriceInput = within(dialog).getByLabelText('거래 단가 (원)') as HTMLInputElement;
     expect(averagePriceInput.getAttribute('aria-busy')).toBe('true');
     fireEvent.change(averagePriceInput, { target: { value: '76000' } });
-    expect(averagePriceInput.value).toBe('76000');
+    expect(averagePriceInput.value).toBe('76,000');
 
     await act(async () => {
       resolvePrice(
@@ -1644,7 +1644,7 @@ describe('포트폴리오 화면', () => {
     });
 
     await waitFor(() => expect(averagePriceInput.getAttribute('aria-busy')).toBe('false'));
-    expect(averagePriceInput.value).toBe('76000');
+    expect(averagePriceInput.value).toBe('76,000');
   });
 
   it('백엔드에 저장된 보유자산을 수정하고 자산 추이를 다시 조회한다', async () => {
