@@ -21,8 +21,9 @@ class EmailDeliveryServiceTest {
   private final EmailSubscriptionRepository subscriptions = mock(EmailSubscriptionRepository.class);
   private final EmailDeliveryRepository deliveries = mock(EmailDeliveryRepository.class);
   private final EmailStockDigestService digests = mock(EmailStockDigestService.class);
+  private final EmailUnsubscribeService unsubscribe = mock(EmailUnsubscribeService.class);
   private final EmailDeliveryService service =
-      new EmailDeliveryService(members, subscriptions, deliveries, digests);
+      new EmailDeliveryService(members, subscriptions, deliveries, digests, unsubscribe);
   private final Instant now = Instant.parse("2026-10-26T00:00:00Z");
   private final Instant asOf = now.minusSeconds(7200);
   private final Member member = mock(Member.class);
@@ -36,6 +37,9 @@ class EmailDeliveryServiceTest {
     subscription = new EmailSubscription(member);
     subscription.subscribe(asOf);
     when(subscriptions.findById(1L)).thenReturn(Optional.of(subscription));
+    when(unsubscribe.link(eq(1L), any()))
+        .thenReturn("https://example.invalid/unsubscribe?token=test");
+    when(unsubscribe.matches(any(), eq(1L), any())).thenReturn(true);
   }
 
   @Test
@@ -46,6 +50,28 @@ class EmailDeliveryServiceTest {
     assertThat(service.prepare(1L, asOf, List.of(1L), now)).contains(delivery.getId());
     verifyNoInteractions(digests);
     verify(deliveries, never()).save(any());
+  }
+
+  @Test
+  void storesTheSubscriptionLinkOnceWhilePreparingTheMail() {
+    when(digests.compose(1L, asOf, List.of(1L))).thenReturn(Optional.of(digest("근거")));
+    when(deliveries.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    var id = service.prepare(1L, asOf, List.of(1L), now);
+    assertThat(id).isPresent();
+    var saved = org.mockito.ArgumentCaptor.forClass(EmailDelivery.class);
+    verify(deliveries).save(saved.capture());
+    assertThat(saved.getValue().getUnsubscribeUrl())
+        .isEqualTo("https://example.invalid/unsubscribe?token=test");
+  }
+
+  @Test
+  void cancelsWhenLinkBelongsToThePreviousSubscription() {
+    var delivery = delivery();
+    when(deliveries.findByIdForUpdate(delivery.getId())).thenReturn(Optional.of(delivery));
+    when(unsubscribe.matches(any(), eq(1L), any())).thenReturn(false);
+    assertThat(service.claim(delivery.getId(), now)).isEmpty();
+    assertThat(delivery.getStatus()).isEqualTo(EmailDelivery.Status.CANCELLED);
+    verifyNoInteractions(digests);
   }
 
   @Test
@@ -65,6 +91,7 @@ class EmailDeliveryServiceTest {
     var attempt = service.claim(delivery.getId(), now).orElseThrow();
     assertThat(attempt.recipient()).isEqualTo("google@example.invalid");
     assertThat(attempt.deliveryId()).isEqualTo(delivery.getId());
+    assertThat(attempt.body()).contains("구독 해지: https://example.invalid/unsubscribe?token=test");
     assertThat(service.claim(delivery.getId(), now.plusSeconds(1))).isEmpty();
   }
 
@@ -92,7 +119,9 @@ class EmailDeliveryServiceTest {
   }
 
   private EmailDelivery delivery() {
-    return new EmailDelivery(member, asOf, digest("근거"), LocalDate.of(2026, 10, 26));
+    var delivery = new EmailDelivery(member, asOf, digest("근거"), LocalDate.of(2026, 10, 26));
+    delivery.attachUnsubscribeLink("https://example.invalid/unsubscribe?token=test");
+    return delivery;
   }
 
   private EmailStockDigest digest(String reason) {

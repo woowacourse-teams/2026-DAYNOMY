@@ -13,6 +13,20 @@ class EmailDeliveryTest {
   private final Instant nine = Instant.parse("2026-10-26T00:00:00Z");
 
   @Test
+  void unsubscribeLinkCannotChangeAfterPreparationOrBetweenRetries() {
+    var delivery = delivery();
+    delivery.attachUnsubscribeLink("https://example.invalid/unsubscribe?token=first");
+    assertThatThrownBy(
+            () -> delivery.attachUnsubscribeLink("https://example.invalid/unsubscribe?token=other"))
+        .isInstanceOf(IllegalStateException.class);
+    delivery.claim(nine);
+    delivery.failed(true, nine.plusSeconds(1));
+    assertThatThrownBy(
+            () -> delivery.attachUnsubscribeLink("https://example.invalid/unsubscribe?token=other"))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
   void sendsAtNineAndRetriesAtTenAndThirtyMinutesWithTheSameId() {
     var delivery = delivery();
     var id = delivery.getId();

@@ -47,6 +47,9 @@ public class EmailDelivery {
   @Column(nullable = false)
   private String body;
 
+  @Column(name = "unsubscribe_url")
+  private String unsubscribeUrl;
+
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "analysis_ids", nullable = false, columnDefinition = "jsonb")
   private List<Long> analysisIds;
@@ -100,6 +103,13 @@ public class EmailDelivery {
     attempts++;
     lastAttemptAt = now;
     return true;
+  }
+
+  public void attachUnsubscribeLink(String url) {
+    if (status != Status.READY || attempts != 0 || unsubscribeUrl != null)
+      throw new IllegalStateException("준비 중인 메일에만 해지 링크를 한 번 설정할 수 있습니다.");
+    if (url == null || url.isBlank()) throw new IllegalArgumentException("해지 링크가 필요합니다.");
+    unsubscribeUrl = url;
   }
 
   /** 제공자의 전송 접수 확인이며 수신함 도착을 의미하지 않는다. */

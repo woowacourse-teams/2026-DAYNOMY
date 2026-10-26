@@ -20,6 +20,30 @@ public class EmailAnalysisExecutionRepository {
 
   public record Job(UUID id, Long assetId, Instant asOf) {}
 
+  @Transactional(readOnly = true)
+  @SuppressWarnings("unchecked")
+  public List<Long> findSuccessfulAnalysisIds(LocalDate date, Instant asOf, List<Long> assetIds) {
+    if (assetIds.isEmpty()) return List.of();
+    var cutoff = date.atTime(8, 45).atZone(EmailAnalysisPolicy.ZONE).toInstant();
+    List<Long> result =
+        entityManager
+            .createNativeQuery(
+                """
+        SELECT analysis_id FROM email_analysis_jobs
+        WHERE run_date = :date AND as_of = :asOf AND asset_id IN (:assets)
+          AND status = 'SUCCEEDED' AND analysis_id IS NOT NULL AND completed_at < :cutoff
+        ORDER BY asset_id
+        """)
+            .unwrap(NativeQuery.class)
+            .addScalar("analysis_id", Long.class)
+            .setParameter("date", date)
+            .setParameter("asOf", asOf)
+            .setParameter("assets", assetIds)
+            .setParameter("cutoff", cutoff)
+            .getResultList();
+    return result;
+  }
+
   @Transactional
   public void register(LocalDate date, Instant asOf, List<Long> assetIds) {
     // 여러 서버가 겹치는 종목을 등록할 때에도 같은 순서로 잠금을 얻는다.

@@ -14,6 +14,9 @@ import java.util.concurrent.TimeUnit;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysis;
+import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisContent;
+import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisKey;
 import org.grit.daynomy.emailsubscription.domain.EmailAnalysisPolicy;
 import org.grit.daynomy.emailsubscription.domain.EmailSubscription;
 import org.grit.daynomy.member.domain.Member;
@@ -62,6 +65,44 @@ class EmailAnalysisExecutionRepositoryTest {
   @Autowired private org.springframework.transaction.PlatformTransactionManager transactionManager;
   private final LocalDate date = LocalDate.of(2026, 10, 26);
   private final Instant now = Instant.parse("2026-10-25T22:00:00Z");
+
+  @Test
+  void emailUsesOnlySelectedCurrentJobsSucceededBeforeCutoff() {
+    var ids = List.of(asset(), asset(), asset(), asset());
+    executions.register(date, now, ids);
+    var resultIds = new java.util.ArrayList<Long>();
+    for (int i = 0; i < ids.size(); i++) {
+      var id = ids.get(i);
+      var content = new CommonStockAnalysisContent(null, null, "소식", "", "", "근거", List.of());
+      var analysis =
+          em.persistAndFlush(
+              new CommonStockAnalysis(
+                  assets.findById(id).orElseThrow(),
+                  new CommonStockAnalysisKey(id, "model", "v1", "e1", now),
+                  content,
+                  "a".repeat(64),
+                  now));
+      resultIds.add(analysis.getId());
+      entityManager
+          .createNativeQuery(
+              """
+          UPDATE email_analysis_jobs SET status = :status, analysis_id = :analysis,
+            completed_at = :completed, as_of = :asOf WHERE run_date = :date AND asset_id = :asset
+          """)
+          .setParameter("status", i == 2 ? "FAILED" : "SUCCEEDED")
+          .setParameter("analysis", analysis.getId())
+          .setParameter("date", date)
+          .setParameter("asset", id)
+          .setParameter("completed", i == 1 ? now.plusSeconds(6300) : now.plusSeconds(3600))
+          .setParameter("asOf", i == 3 ? now.minusSeconds(60) : now)
+          .executeUpdate();
+    }
+    assertThat(executions.findSuccessfulAnalysisIds(date, now, ids))
+        .containsExactly(resultIds.getFirst());
+    assertThat(executions.findSuccessfulAnalysisIds(date, now, ids.subList(1, 4))).isEmpty();
+    assertThat(executions.findSuccessfulAnalysisIds(date.minusDays(1), now, ids)).isEmpty();
+    assertThat(executions.findSuccessfulAnalysisIds(date, now, List.of())).isEmpty();
+  }
 
   @Test
   void registrationIsIdempotentAndGlobalActiveJobsAreLimitedToTwo() {

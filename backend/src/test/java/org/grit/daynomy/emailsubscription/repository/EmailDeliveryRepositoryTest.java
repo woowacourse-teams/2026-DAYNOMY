@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import org.grit.daynomy.emailsubscription.domain.*;
 import org.grit.daynomy.emailsubscription.service.EmailDeliveryService;
 import org.grit.daynomy.emailsubscription.service.EmailStockDigestService;
+import org.grit.daynomy.emailsubscription.service.EmailUnsubscribeService;
 import org.grit.daynomy.member.domain.Member;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -59,8 +61,34 @@ class EmailDeliveryRepositoryTest {
   @Autowired private jakarta.persistence.EntityManager entityManager;
   @Autowired private PlatformTransactionManager transactionManager;
   @MockitoBean private EmailStockDigestService digests;
+  @MockitoBean private EmailUnsubscribeService unsubscribe;
   private final Instant now = Instant.parse("2026-10-26T00:00:00Z");
   private final Instant asOf = now.minusSeconds(7200);
+
+  @Test
+  void dueQueryExcludesEarlyRetriesUnknownResultsAndPreviousDays() {
+    var date = LocalDate.of(2026, 10, 26);
+    var ready = em.persist(new EmailDelivery(em.persist(member()), asOf, digest(), date));
+    var retry = em.persist(new EmailDelivery(em.persist(member()), asOf, digest(), date));
+    retry.claim(now);
+    retry.failed(true, now.plusSeconds(1));
+    var unknown = em.persist(new EmailDelivery(em.persist(member()), asOf, digest(), date));
+    unknown.claim(now);
+    unknown.unknown();
+    em.persist(
+        new EmailDelivery(
+            em.persist(member()), asOf.minusSeconds(86400), digest(), date.minusDays(1)));
+    em.flush();
+    var statuses = List.of(EmailDelivery.Status.READY, EmailDelivery.Status.RETRY_PENDING);
+    assertThat(deliveries.findDueIds(date, now, statuses, PageRequest.of(0, 1)))
+        .containsExactly(ready.getId());
+    assertThat(deliveries.findDueIds(date, now.plusSeconds(600), statuses, PageRequest.of(0, 10)))
+        .containsExactly(ready.getId(), retry.getId());
+    ready.claim(now);
+    em.flush();
+    assertThat(deliveries.findDueIds(date, now.plusSeconds(600), statuses, PageRequest.of(0, 10)))
+        .containsExactly(retry.getId());
+  }
 
   @Test
   void onlyAcceptedOrUncertainSendingReservesAnAnalysisInHistory() {
@@ -100,6 +128,10 @@ class EmailDeliveryRepositoryTest {
               return member.getId();
             });
     when(digests.compose(memberId, asOf, List.of(1L))).thenReturn(Optional.of(digest()));
+    when(unsubscribe.link(memberId, asOf))
+        .thenReturn("https://example.invalid/unsubscribe?token=test");
+    when(unsubscribe.matches("https://example.invalid/unsubscribe?token=test", memberId, asOf))
+        .thenReturn(true);
     CountDownLatch start = new CountDownLatch(1);
     try (var executor = Executors.newFixedThreadPool(2)) {
       java.util.concurrent.Callable<Optional<UUID>> prepare =

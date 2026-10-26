@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.emailsubscription.domain.EmailSubscriptionStatus;
 import org.grit.daynomy.emailsubscription.repository.EmailSubscriptionRepository;
+import org.grit.daynomy.emailsubscription.service.EmailUnsubscribeService;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.member.repository.MemberRepository;
@@ -47,12 +48,65 @@ class EmailSubscriptionAcceptanceTest {
     registry.add("spring.datasource.username", POSTGRESQL::getUsername);
     registry.add("spring.datasource.password", POSTGRESQL::getPassword);
     registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
+    registry.add("email.delivery.unsubscribe-secret", () -> "test-only-secret-at-least-32-bytes");
+    registry.add("email.delivery.public-base-url", () -> "http://localhost:8080");
   }
 
   @LocalServerPort private int port;
   @Autowired private MemberRepository members;
   @Autowired private EmailSubscriptionRepository subscriptions;
   @Autowired private JwtTokenProvider tokens;
+  @Autowired private EmailUnsubscribeService unsubscribe;
+
+  @Test
+  void publicLinkRequiresExplicitPostAndOldLinksCannotUndoResubscription() {
+    Member member = member();
+    client(member).put(PATH).then().statusCode(200);
+    var start = subscriptions.findById(member.getId()).orElseThrow().getSubscribedAt();
+    var link = unsubscribe.link(member.getId(), start);
+    var token = link.substring(link.indexOf("?token=") + 7);
+    given()
+        .port(port)
+        .queryParam("token", token)
+        .get(EmailUnsubscribeService.PATH)
+        .then()
+        .statusCode(200)
+        .header("Referrer-Policy", "no-referrer");
+    assertThat(subscriptions.findById(member.getId()).orElseThrow().getStatus())
+        .isEqualTo(EmailSubscriptionStatus.SUBSCRIBED);
+    given()
+        .port(port)
+        .queryParam("token", token + "tampered")
+        .post(EmailUnsubscribeService.PATH)
+        .then()
+        .statusCode(400);
+    assertThat(subscriptions.findById(member.getId()).orElseThrow().getStatus())
+        .isEqualTo(EmailSubscriptionStatus.SUBSCRIBED);
+    given()
+        .port(port)
+        .formParam("token", token)
+        .post(EmailUnsubscribeService.PATH)
+        .then()
+        .statusCode(200);
+    given()
+        .port(port)
+        .queryParam("token", token)
+        .formParam("List-Unsubscribe", "One-Click")
+        .post(EmailUnsubscribeService.PATH)
+        .then()
+        .statusCode(200);
+    assertThat(subscriptions.findById(member.getId()).orElseThrow().getStatus())
+        .isEqualTo(EmailSubscriptionStatus.UNSUBSCRIBED);
+    client(member).put(PATH).then().statusCode(200);
+    given()
+        .port(port)
+        .queryParam("token", token)
+        .post(EmailUnsubscribeService.PATH)
+        .then()
+        .statusCode(400);
+    assertThat(subscriptions.findById(member.getId()).orElseThrow().getStatus())
+        .isEqualTo(EmailSubscriptionStatus.SUBSCRIBED);
+  }
 
   @Test
   void invitationSubscriptionAndResubscriptionArePersistentAndAccountScoped() {

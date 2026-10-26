@@ -21,7 +21,12 @@ class EmailSendingServiceTest {
       new EmailSendingService(deliveries, client, Clock.fixed(now, ZoneOffset.UTC));
   private final UUID id = UUID.randomUUID();
   private final EmailDeliveryService.Attempt attempt =
-      new EmailDeliveryService.Attempt(id, "google@example.invalid", "제목", "내용");
+      new EmailDeliveryService.Attempt(
+          id,
+          "google@example.invalid",
+          "제목",
+          "내용",
+          "https://example.invalid/unsubscribe?token=test");
 
   @Test
   void skipsExternalRequestWhenAlreadySendingUnsubscribedOrNotDue() {

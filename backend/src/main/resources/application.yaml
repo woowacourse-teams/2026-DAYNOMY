@@ -225,6 +225,9 @@ investment-calendar:
 email:
   delivery:
     enabled: ${EMAIL_DELIVERY_ENABLED:false}
+    scheduling-enabled: ${EMAIL_DELIVERY_SCHEDULING_ENABLED:false}
+    unsubscribe-secret: ${EMAIL_UNSUBSCRIBE_SECRET:}
+    public-base-url: ${EMAIL_PUBLIC_BASE_URL:}
     api-key: ${RESEND_API_KEY:}
     from: ${EMAIL_FROM:DAYNOMY <notifications@mail.daynomy.com>}
   analysis:

@@ -94,7 +94,13 @@ public class ResendEmailClient {
                   "subject",
                   attempt.subject(),
                   "text",
-                  attempt.body()))
+                  attempt.body(),
+                  "headers",
+                  Map.of(
+                      "List-Unsubscribe",
+                      "<" + attempt.unsubscribeUrl() + ">",
+                      "List-Unsubscribe-Post",
+                      "List-Unsubscribe=One-Click")))
           .exchange(
               (request, response) -> {
                 int status = response.getStatusCode().value();

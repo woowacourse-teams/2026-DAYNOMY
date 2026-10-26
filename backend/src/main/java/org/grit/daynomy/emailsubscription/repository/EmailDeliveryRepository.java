@@ -1,17 +1,27 @@
 package org.grit.daynomy.emailsubscription.repository;
 
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.grit.daynomy.emailsubscription.domain.EmailDelivery;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 public interface EmailDeliveryRepository extends JpaRepository<EmailDelivery, UUID> {
   Optional<EmailDelivery> findByMemberIdAndDeliveryDate(Long memberId, LocalDate date);
+
+  @Query(
+      """
+      select d.id from EmailDelivery d where d.deliveryDate = :date and d.status in :statuses
+        and d.nextAttemptAt <= :now order by d.nextAttemptAt, d.id
+      """)
+  List<UUID> findDueIds(
+      LocalDate date, Instant now, List<EmailDelivery.Status> statuses, Pageable pageable);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select d from EmailDelivery d where d.id = :id")

@@ -23,7 +23,12 @@ class ResendEmailClientTest {
   private MockWebServer server;
   private ResendEmailClient client;
   private final Attempt attempt =
-      new Attempt(UUID.randomUUID(), "member@example.invalid", "오늘 주목할 종목", "검증된 근거");
+      new Attempt(
+          UUID.randomUUID(),
+          "member@example.invalid",
+          "오늘 주목할 종목",
+          "검증된 근거",
+          "https://example.invalid/unsubscribe?token=test");
 
   @BeforeEach
   void setUp() throws Exception {
@@ -59,7 +64,11 @@ class ResendEmailClientTest {
     assertThat(content.path("to").get(0).asText()).isEqualTo(attempt.recipient());
     assertThat(content.path("subject").asText()).isEqualTo(attempt.subject());
     assertThat(content.path("text").asText()).isEqualTo(attempt.body());
-    assertThat(content.size()).isEqualTo(4);
+    assertThat(content.path("headers").path("List-Unsubscribe").asText())
+        .isEqualTo("<" + attempt.unsubscribeUrl() + ">");
+    assertThat(content.path("headers").path("List-Unsubscribe-Post").asText())
+        .isEqualTo("List-Unsubscribe=One-Click");
+    assertThat(content.size()).isEqualTo(5);
   }
 
   @ParameterizedTest
