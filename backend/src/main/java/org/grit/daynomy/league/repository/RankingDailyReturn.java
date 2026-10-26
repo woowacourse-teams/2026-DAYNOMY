@@ -16,4 +16,5 @@ public class RankingDailyReturn implements DailyReturnValue {
   private final BigDecimal currentHoldingWeight;
   private final boolean eligible;
   private final boolean trackingBaseline;
+  private final String ineligibleReason;
 }

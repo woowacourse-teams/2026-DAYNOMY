@@ -30,7 +30,8 @@ public class RankingInvestor implements LeagueInvestorValue {
       RiskProfile riskProfile,
       LocalDate trackingStartedOn,
       Instant startedAt,
-      Instant endedAt) {
+      Instant endedAt,
+      Instant performanceStartedAt) {
     this(
         id,
         memberId,
@@ -41,6 +42,7 @@ public class RankingInvestor implements LeagueInvestorValue {
         trackingStartedOn,
         startedAt,
         endedAt,
+        performanceStartedAt,
         null);
   }
 
@@ -54,6 +56,7 @@ public class RankingInvestor implements LeagueInvestorValue {
       LocalDate trackingStartedOn,
       Instant startedAt,
       Instant endedAt,
+      Instant performanceStartedAt,
       String profileImageUrl) {
     this.id = id;
     this.memberId = memberId;
@@ -63,7 +66,8 @@ public class RankingInvestor implements LeagueInvestorValue {
     this.riskProfile = riskProfile;
     this.trackingStartedOn = trackingStartedOn;
     this.profileImageUrl = profileImageUrl;
-    if (startedAt != null) participations.add(new RankingParticipation(startedAt, endedAt));
+    if (startedAt != null)
+      participations.add(new RankingParticipation(startedAt, endedAt, performanceStartedAt));
   }
 
   public Long memberId() {
