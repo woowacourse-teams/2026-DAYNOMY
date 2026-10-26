@@ -28,6 +28,34 @@ class CommonStockAnalysisTest {
   private static final String CONTENT_HASH = "b".repeat(64);
 
   @Test
+  void invalidationPreservesEvidenceAndFirstReasonAndCannotBeReverified() {
+    var analysis = analysis(List.of(source(URL)));
+    var report = verification(List.of(passed(URL)));
+    analysis.recordVerification(report);
+    analysis.invalidate("원문 정정", CHECKED_AT.plusSeconds(1));
+    analysis.invalidate("다른 사유", CHECKED_AT.plusSeconds(2));
+    analysis.recordVerification(report);
+    assertThat(analysis.getStatus()).isEqualTo(Status.INVALIDATED);
+    assertThat(analysis.getInvalidationReason()).isEqualTo("원문 정정");
+    assertThat(analysis.getInvalidatedAt()).isEqualTo(CHECKED_AT.plusSeconds(1));
+    assertThat(analysis.getVerification()).isEqualTo(report);
+    assertThatThrownBy(() -> analysis.recordVerification(verification(List.of())))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  void invalidationRejectsMissingReasonAndImpossibleTime() {
+    var analysis = analysis(List.of(source(URL)));
+    assertThatThrownBy(() -> analysis.invalidate(" ", CHECKED_AT))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> analysis.invalidate("x".repeat(501), CHECKED_AT))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> analysis.invalidate("오류", AS_OF))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(analysis.getStatus()).isEqualTo(Status.PENDING);
+  }
+
+  @Test
   void startsPendingEvenWhenTheAiIncludesSources() {
     CommonStockAnalysis analysis = analysis(List.of(source(URL)));
 

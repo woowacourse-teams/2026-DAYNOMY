@@ -8,15 +8,22 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysis;
 import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisContent;
 import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisKey;
 import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisVerification;
+import org.grit.daynomy.emailsubscription.dto.AnalysisInvalidationResponse;
+import org.grit.daynomy.emailsubscription.exception.EmailAnalysisErrorCode;
 import org.grit.daynomy.emailsubscription.repository.CommonStockAnalysisRepository;
+import org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CommonStockAnalysisService {
 
+  private final EmailDeliveryRepository deliveries;
   private final AssetRepository assets;
   private final CommonStockAnalysisRepository analyses;
   private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -74,6 +82,24 @@ public class CommonStockAnalysisService {
     if (analysis.getStatus() != CommonStockAnalysis.Status.PENDING
         && analysis.getContentHash().equals(verification.analysisContentHash())) return;
     analysis.recordVerification(verification);
+  }
+
+  @Transactional
+  public AnalysisInvalidationResponse invalidate(Long analysisId, String reason) {
+    var analysis =
+        analyses
+            .findByIdForUpdate(analysisId)
+            .orElseThrow(
+                () -> new BusinessException(EmailAnalysisErrorCode.EMAIL_ANALYSIS_NOT_FOUND));
+    analysis.invalidate(reason, now());
+    int cancelled = deliveries.cancelQueuedForAnalysis(analysisId);
+    return new AnalysisInvalidationResponse(analysisId, analysis.getInvalidatedAt(), cancelled);
+  }
+
+  public List<UUID> correctionReviewIds(Long analysisId, Pageable pageable) {
+    if (!analyses.existsById(analysisId))
+      throw new BusinessException(EmailAnalysisErrorCode.EMAIL_ANALYSIS_NOT_FOUND);
+    return deliveries.findCorrectionReviewIds(analysisId, pageable);
   }
 
   private String serialize(CommonStockAnalysisContent content) {

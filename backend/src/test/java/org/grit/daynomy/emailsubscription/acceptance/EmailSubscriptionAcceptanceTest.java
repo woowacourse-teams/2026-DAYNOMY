@@ -7,14 +7,21 @@ import static org.hamcrest.Matchers.nullValue;
 
 import io.restassured.specification.RequestSpecification;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.StockMarket;
+import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
+import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisContent;
+import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisKey;
 import org.grit.daynomy.emailsubscription.domain.EmailSubscriptionStatus;
 import org.grit.daynomy.emailsubscription.repository.EmailSubscriptionRepository;
+import org.grit.daynomy.emailsubscription.service.CommonStockAnalysisService;
 import org.grit.daynomy.emailsubscription.service.EmailUnsubscribeService;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
@@ -57,6 +64,77 @@ class EmailSubscriptionAcceptanceTest {
   @Autowired private EmailSubscriptionRepository subscriptions;
   @Autowired private JwtTokenProvider tokens;
   @Autowired private EmailUnsubscribeService unsubscribe;
+  @Autowired private AssetRepository assets;
+  @Autowired private CommonStockAnalysisService analyses;
+
+  @Test
+  void onlyAdminCanInvalidateAnalysisAndInvalidationIsIdempotent() {
+    var member = member();
+    var path = "/api/admin/email-analyses/";
+    var asset =
+        assets.save(
+            Asset.listedStock(
+                "종목",
+                UUID.randomUUID().toString(),
+                StockMarket.KOSPI,
+                null,
+                LocalDate.of(2026, 10, 26)));
+    var id =
+        analyses.storePending(
+            new CommonStockAnalysisKey(asset.getId(), "model", "v1", "e1", Instant.EPOCH),
+            new CommonStockAnalysisContent(null, null, "분석", "", "", "근거", List.of()));
+    client(member)
+        .body("{\"reason\":\"정정\"}")
+        .post(path + id + "/invalidate")
+        .then()
+        .statusCode(403);
+    var csrf = given().port(port).get("/api/auth/csrf");
+    given()
+        .port(port)
+        .contentType("application/json")
+        .cookies(csrf.cookies())
+        .header(csrf.jsonPath().getString("headerName"), csrf.jsonPath().getString("token"))
+        .body("{\"reason\":\"정정\"}")
+        .post(path + id + "/invalidate")
+        .then()
+        .statusCode(401);
+    admin(member).body("{\"reason\":\" \"}").post(path + id + "/invalidate").then().statusCode(400);
+    admin(member)
+        .body("{\"reason\":\"공시 정정\"}")
+        .post(path + id + "/invalidate")
+        .then()
+        .statusCode(200)
+        .body("analysisId", equalTo(id.intValue()))
+        .body("cancelledDeliveries", equalTo(0));
+    admin(member)
+        .body("{\"reason\":\"다른 사유\"}")
+        .post(path + id + "/invalidate")
+        .then()
+        .statusCode(200);
+    admin(member)
+        .get(path + id + "/correction-review-deliveries")
+        .then()
+        .statusCode(200)
+        .body("size()", equalTo(0));
+    admin(member).get(path + id + "/correction-review-deliveries?size=101").then().statusCode(400);
+    admin(member)
+        .body("{\"reason\":\"정정\"}")
+        .post(path + Long.MAX_VALUE + "/invalidate")
+        .then()
+        .statusCode(404)
+        .body("code", equalTo("EMAIL_ANALYSIS_NOT_FOUND"));
+  }
+
+  private RequestSpecification admin(Member member) {
+    var csrf = given().port(port).get("/api/auth/csrf");
+    return given()
+        .port(port)
+        .contentType("application/json")
+        .cookies(csrf.cookies())
+        .cookie(
+            "access_token", tokens.createTokenPair(member.getId(), MemberRole.ADMIN).accessToken())
+        .header(csrf.jsonPath().getString("headerName"), csrf.jsonPath().getString("token"));
+  }
 
   @Test
   void publicLinkRequiresExplicitPostAndOldLinksCannotUndoResubscription() {

@@ -40,7 +40,8 @@ public class CommonStockAnalysis extends BaseEntity {
   public enum Status {
     PENDING,
     VERIFIED,
-    REJECTED
+    REJECTED,
+    INVALIDATED
   }
 
   @Id
@@ -92,6 +93,12 @@ public class CommonStockAnalysis extends BaseEntity {
   @Column(columnDefinition = "jsonb")
   private CommonStockAnalysisVerification verification;
 
+  @Column(name = "invalidated_at")
+  private Instant invalidatedAt;
+
+  @Column(name = "invalidation_reason", length = 500)
+  private String invalidationReason;
+
   public CommonStockAnalysis(
       Asset asset,
       CommonStockAnalysisKey key,
@@ -140,6 +147,17 @@ public class CommonStockAnalysis extends BaseEntity {
     }
     verification = result;
     status = sufficientEvidence(result) ? Status.VERIFIED : Status.REJECTED;
+  }
+
+  public void invalidate(String reason, Instant at) {
+    if (reason == null || reason.isBlank() || reason.length() > 500)
+      throw new IllegalArgumentException("무효화 사유는 1~500자로 입력해야 합니다.");
+    Objects.requireNonNull(at);
+    if (at.isBefore(analyzedAt)) throw new IllegalArgumentException("분석 완료 이전에 무효화할 수 없습니다.");
+    if (status == Status.INVALIDATED) return;
+    status = Status.INVALIDATED;
+    invalidatedAt = at.truncatedTo(ChronoUnit.MICROS);
+    invalidationReason = reason.strip();
   }
 
   private boolean sufficientEvidence(CommonStockAnalysisVerification result) {

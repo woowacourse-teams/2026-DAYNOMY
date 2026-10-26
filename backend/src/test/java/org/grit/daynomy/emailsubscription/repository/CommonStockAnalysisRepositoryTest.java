@@ -65,6 +65,30 @@ class CommonStockAnalysisRepositoryTest {
   @Autowired private CommonStockAnalysisService service;
 
   @Test
+  void invalidationPersistsAndPreventsReuseOrVerificationResurrection() {
+    var asset = asset("005935");
+    var key = key(asset);
+    var id = service.storePending(key, content("실적 변화"));
+    var report = passedVerification(id);
+    service.recordVerification(id, report);
+    entityManager.flush();
+    var result = service.invalidate(id, "공시 정정");
+    entityManager.flush();
+    entityManager.clear();
+    assertThat(result.analysisId()).isEqualTo(id);
+    assertThat(result.invalidatedAt()).isNotNull();
+    assertThat(service.findReusable(key)).isEmpty();
+    service.recordVerification(id, report);
+    service.storePending(key, content("다른 결과"));
+    entityManager.flush();
+    entityManager.clear();
+    var invalidated = analyses.findById(id).orElseThrow();
+    assertThat(invalidated.getStatus()).isEqualTo(Status.INVALIDATED);
+    assertThat(invalidated.getInvalidationReason()).isEqualTo("공시 정정");
+    assertThat(invalidated.getVerification()).isEqualTo(report);
+  }
+
+  @Test
   void onlyVerifiedResultsWithTheExactKeyAreReusable() {
     Asset asset = asset("005930");
     var key = key(asset);

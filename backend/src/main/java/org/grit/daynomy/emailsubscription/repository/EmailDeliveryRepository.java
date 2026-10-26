@@ -10,10 +10,33 @@ import org.grit.daynomy.emailsubscription.domain.EmailDelivery;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface EmailDeliveryRepository extends JpaRepository<EmailDelivery, UUID> {
   Optional<EmailDelivery> findByMemberIdAndDeliveryDate(Long memberId, LocalDate date);
+
+  @Modifying(flushAutomatically = true)
+  @Query(
+      value =
+          """
+      UPDATE email_deliveries SET status = 'CANCELLED'
+      WHERE status IN ('READY', 'RETRY_PENDING')
+        AND analysis_ids @> jsonb_build_array(CAST(:analysisId AS BIGINT))
+      """,
+      nativeQuery = true)
+  int cancelQueuedForAnalysis(Long analysisId);
+
+  @Query(
+      value =
+          """
+      SELECT id FROM email_deliveries
+      WHERE status IN ('ACCEPTED', 'SENDING', 'UNKNOWN')
+        AND analysis_ids @> jsonb_build_array(CAST(:analysisId AS BIGINT))
+      ORDER BY delivery_date DESC, id
+      """,
+      nativeQuery = true)
+  List<UUID> findCorrectionReviewIds(Long analysisId, Pageable pageable);
 
   @Query(
       value =

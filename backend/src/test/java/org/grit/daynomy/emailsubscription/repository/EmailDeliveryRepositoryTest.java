@@ -68,6 +68,36 @@ class EmailDeliveryRepositoryTest {
   private final Instant asOf = now.minusSeconds(7200);
 
   @Test
+  void cancelsOnlyQueuedAffectedMailAndKeepsSendingOrAcceptedMailForReview() {
+    var date = LocalDate.of(2026, 10, 26);
+    var ready = em.persist(new EmailDelivery(em.persist(member()), asOf, digest(), date));
+    var retry = em.persist(new EmailDelivery(em.persist(member()), asOf, digest(), date));
+    retry.claim(now);
+    retry.failed(true, now.plusSeconds(1));
+    var sending = em.persist(new EmailDelivery(em.persist(member()), asOf, digest(), date));
+    sending.claim(now);
+    var unknown = em.persist(new EmailDelivery(em.persist(member()), asOf, digest(), date));
+    unknown.claim(now);
+    unknown.unknown();
+    var accepted = em.persist(new EmailDelivery(em.persist(member()), asOf, digest(), date));
+    accepted.claim(now);
+    accepted.accepted("accepted-id", now.plusSeconds(1));
+    em.flush();
+    assertThat(deliveries.cancelQueuedForAnalysis(999L)).isZero();
+    assertThat(deliveries.cancelQueuedForAnalysis(1L)).isEqualTo(2);
+    assertThat(deliveries.cancelQueuedForAnalysis(1L)).isZero();
+    em.clear();
+    assertThat(deliveries.findById(ready.getId()).orElseThrow().getStatus())
+        .isEqualTo(EmailDelivery.Status.CANCELLED);
+    assertThat(deliveries.findById(retry.getId()).orElseThrow().getStatus())
+        .isEqualTo(EmailDelivery.Status.CANCELLED);
+    assertThat(deliveries.findCorrectionReviewIds(1L, PageRequest.of(0, 100)))
+        .containsExactlyInAnyOrder(sending.getId(), unknown.getId(), accepted.getId());
+    assertThat(deliveries.findCorrectionReviewIds(1L, PageRequest.of(0, 1))).hasSize(1);
+    assertThat(deliveries.findCorrectionReviewIds(999L, PageRequest.of(0, 100))).isEmpty();
+  }
+
+  @Test
   void calendarAndAssetOnlyMailPersistsWithoutStockIdsAndReservesItsNotices() {
     var member = em.persist(member());
     var base = LocalDate.of(2026, 10, 23);
