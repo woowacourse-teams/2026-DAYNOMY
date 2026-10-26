@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,8 +34,8 @@ public class LeagueRankingCache {
     this.clock = clock;
   }
 
-  List<LeagueService.RankedProfile> get(
-      LocalDate week, LeagueType type, Supplier<List<LeagueService.RankedProfile>> loader) {
+  LeagueService.RankingSnapshot get(
+      LocalDate week, LeagueType type, Supplier<LeagueService.RankingSnapshot> loader) {
     entries.keySet().removeIf(key -> key.week().isBefore(week.minusWeeks(2)));
     Entry entry = entries.computeIfAbsent(new Key(week, type), ignored -> new Entry());
     if (entry.value == null) {
@@ -81,12 +80,12 @@ public class LeagueRankingCache {
   private record Key(LocalDate week, LeagueType type) {}
 
   private class Entry {
-    private volatile List<LeagueService.RankedProfile> value;
+    private volatile LeagueService.RankingSnapshot value;
     private volatile Instant refreshAt;
     private final AtomicBoolean refreshing = new AtomicBoolean();
 
-    private void load(Supplier<List<LeagueService.RankedProfile>> loader) {
-      List<LeagueService.RankedProfile> loaded = List.copyOf(loader.get());
+    private void load(Supplier<LeagueService.RankingSnapshot> loader) {
+      LeagueService.RankingSnapshot loaded = loader.get();
       refreshAt = clock.instant().plus(REFRESH_INTERVAL);
       value = loaded;
     }

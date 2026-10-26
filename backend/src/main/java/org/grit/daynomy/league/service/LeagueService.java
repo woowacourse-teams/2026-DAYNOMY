@@ -47,6 +47,7 @@ import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedHoldingHistory;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.domain.WeeklyLeaderboard;
+import org.grit.daynomy.league.dto.LeagueDto.AggregationResponse;
 import org.grit.daynomy.league.dto.LeagueDto.AllocationResponse;
 import org.grit.daynomy.league.dto.LeagueDto.DailyHistoryResponse;
 import org.grit.daynomy.league.dto.LeagueDto.DailyReturnPointResponse;
@@ -108,6 +109,7 @@ public class LeagueService {
   private final MarketTradingDayRepository tradingDayRepository;
   private final WeeklyLeaderboardRepository leaderboardRepository;
   private final LeagueCalculationMetrics calculationMetrics;
+  private final LeagueAggregationService aggregationService;
   private final EntityManager entityManager;
   private final LeagueRankingCache rankingCache;
   private Map<LocalDate, WeekState> finalizationStates = new HashMap<>();
@@ -149,12 +151,21 @@ public class LeagueService {
     Set<Long> followed = followedProfileIds(viewerMemberId);
     List<RankingEntryResponse> entries;
     int totalCount;
+    AggregationResponse aggregation = null;
     if (finalResult == null) {
       Set<Long> hiddenIds = new HashSet<>(profileRepository.findNonPublicRankingProfileIds());
+      RankingSnapshot snapshot =
+          rankingCache.get(weekStart, leagueType, () -> rankingSnapshot(weekStart, leagueType));
+      LocalDate pendingCalculationDate =
+          snapshot.candidates().stream()
+              .filter(ranked -> !hiddenIds.contains(ranked.profile().getId()))
+              .map(ranked -> ranked.metric().pendingCalculationDate())
+              .filter(Objects::nonNull)
+              .min(LocalDate::compareTo)
+              .orElse(null);
+      aggregation = aggregationService.ranking(weekStart, pendingCalculationDate);
       List<RankedProfile> profiles =
-          rankingCache
-              .get(weekStart, leagueType, () -> rankedProfiles(weekStart, leagueType))
-              .stream()
+          snapshot.profiles().stream()
               .filter(profile -> !hiddenIds.contains(profile.profile().getId()))
               .toList();
       List<Integer> ranks = ranks(profiles, leagueType);
@@ -235,7 +246,8 @@ public class LeagueService {
             finalResult == null ? null : finalResult.getCalculationVersion(),
             finalResult == null ? null : finalResult.getFinalizedAt(),
             finalResult == null ? null : finalResult.getChangeReason(),
-            collectionStatus(weekStart));
+            collectionStatus(weekStart),
+            aggregation);
     log.atDebug()
         .addKeyValue("event", LogEvent.LEAGUE_RANKINGS_LOADED.code())
         .addKeyValue("weekStart", weekStart)
@@ -250,7 +262,29 @@ public class LeagueService {
     return result;
   }
 
+  private RankingSnapshot rankingSnapshot(LocalDate week, LeagueType type) {
+    List<RankedProfile> candidates = rankingMetrics(week, type);
+    return new RankingSnapshot(candidates, rankedProfiles(candidates, type));
+  }
+
   private List<RankedProfile> rankedProfiles(LocalDate week, LeagueType type) {
+    return rankedProfiles(rankingMetrics(week, type), type);
+  }
+
+  private List<RankedProfile> rankedProfiles(List<RankedProfile> profiles, LeagueType type) {
+    return profiles.stream()
+        .filter(ranked -> ranked.metric() != null && ranked.metric().weeklyReturnRate() != null)
+        .filter(
+            ranked ->
+                type != LeagueType.STABLE
+                    || (ranked.metric().volatilityRate() != null
+                        && ranked.metric().threeWeekReturnRate() != null
+                        && ranked.metric().maxDrawdownRate() != null))
+        .sorted(comparator(type))
+        .toList();
+  }
+
+  private List<RankedProfile> rankingMetrics(LocalDate week, LeagueType type) {
     rankingCalendarCache.set(new HashMap<>());
     try {
       Map<Long, RankingInvestor> byId = new LinkedHashMap<>();
@@ -285,16 +319,7 @@ public class LeagueService {
                 profiles.subList(from, Math.min(from + RANKING_BATCH_SIZE, profiles.size())),
                 week));
       }
-      return results.stream()
-          .filter(ranked -> ranked.metric() != null && ranked.metric().weeklyReturnRate() != null)
-          .filter(
-              ranked ->
-                  type != LeagueType.STABLE
-                      || (ranked.metric().volatilityRate() != null
-                          && ranked.metric().threeWeekReturnRate() != null
-                          && ranked.metric().maxDrawdownRate() != null))
-          .sorted(comparator(type))
-          .toList();
+      return results;
     } finally {
       rankingCalendarCache.remove();
       rankingCalendarDays.remove();
@@ -320,7 +345,6 @@ public class LeagueService {
             .stream().collect(Collectors.groupingBy(RankingDailyReturn::getMemberId));
     // 순위와 무관한 판단·복기 통계는 페이지를 선택한 뒤 조회한다.
     return profiles.stream()
-        .filter(profile -> returns.containsKey(profile.memberId()))
         .map(
             profile -> {
               Long id = profile.memberId();
@@ -707,8 +731,11 @@ public class LeagueService {
         begun = true;
         calculated.add(value);
       } else if (value != null) {
-        status = DailyReturnStatus.EXCLUDED;
         reason = value.getIneligibleReason();
+        status =
+            "SNAPSHOT_PENDING".equals(reason)
+                ? DailyReturnStatus.PENDING
+                : DailyReturnStatus.EXCLUDED;
         complete = false;
       } else {
         status = DailyReturnStatus.PENDING;
@@ -744,7 +771,8 @@ public class LeagueService {
             weekly,
             days,
             profile.getTrackingStartedOn(),
-            collectionStatus(weekStart));
+            collectionStatus(weekStart),
+            confirmed ? null : aggregationService.investor(weekStart, profile, values));
     log.atDebug()
         .addKeyValue("event", LogEvent.LEAGUE_DAILY_HISTORY_LOADED.code())
         .addKeyValue("profileId", profile.getId())
@@ -837,7 +865,15 @@ public class LeagueService {
             .filter(date -> participates(profile, date))
             .findFirst()
             .orElse(week);
-    return profile.getTrackingStartedOn() != null && profile.getTrackingStartedOn().isAfter(start)
+    boolean imported =
+        profile.getParticipations().stream()
+            .anyMatch(
+                period ->
+                    period.getPerformanceStartedAt() != null
+                        && period.contains(start.atTime(15, 30).atZone(SEOUL).toInstant()));
+    return !imported
+            && profile.getTrackingStartedOn() != null
+            && profile.getTrackingStartedOn().isAfter(start)
         ? profile.getTrackingStartedOn()
         : start;
   }
@@ -992,7 +1028,7 @@ public class LeagueService {
     }
     if (previousDates.isEmpty()) return Map.of();
     List<SharedHoldingHistory> histories =
-        holdingHistoryRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
+        holdingHistoryRepository.findEffectiveBefore(
             portfolioId, asOfDate.atStartOfDay(SEOUL).toInstant());
     List<Long> assetIds =
         histories.stream().map(history -> history.getAsset().getId()).distinct().toList();
@@ -1015,7 +1051,12 @@ public class LeagueService {
       List<SharedHoldingHistory> holdings =
           SharedHoldingHistory.reconstructHoldings(
               histories.stream()
-                  .filter(history -> history.getCreatedAt().isBefore(before))
+                  .filter(
+                      history -> {
+                        Instant effectiveAt = history.getEffectiveAt();
+                        return (effectiveAt == null ? history.getCreatedAt() : effectiveAt)
+                            .isBefore(before);
+                      })
                   .toList());
       if (!addDailyContributions(
           holdings,
@@ -1206,13 +1247,26 @@ public class LeagueService {
   private Metric calculateMetric(
       LeagueInvestorValue profile, List<? extends DailyReturnValue> values, LocalDate week) {
     LocalDate end = calculationEnd(week);
-    if (end == null) return new Metric(null, null, null, null, null, 0, null, 0);
+    if (end == null) return new Metric(null, null, null, null, null, 0, null, 0, null);
     values = values.stream().filter(value -> !value.getBaseDate().isAfter(end)).toList();
     Map<LocalDate, DailyReturnValue> byDate =
         values.stream()
             .collect(
                 HashMap::new, (map, value) -> map.put(value.getBaseDate(), value), Map::putAll);
     LocalDate start = weeklyStart(profile, week);
+    LocalDate pendingCalculationDate =
+        calendar(week, week.plusDays(6)).stream()
+            .filter(day -> day.isTrading() && day.getCollectedAt() != null)
+            .filter(day -> !day.closesAt().isAfter(Instant.now()))
+            .map(MarketTradingDay::getBaseDate)
+            .filter(date -> !date.isBefore(start) && participates(profile, date))
+            .filter(
+                date ->
+                    !byDate.containsKey(date)
+                        || "PRICE_COLLECTION_PENDING".equals(byDate.get(date).getIneligibleReason())
+                        || "SNAPSHOT_PENDING".equals(byDate.get(date).getIneligibleReason()))
+            .min(LocalDate::compareTo)
+            .orElse(null);
     List<? extends DailyReturnValue> weekly =
         values.stream().filter(value -> !value.getBaseDate().isBefore(start)).toList();
     BigDecimal weeklyRate =
@@ -1281,7 +1335,8 @@ public class LeagueService {
         maxWeight,
         weeklyRate == null ? 0 : weekly.size(),
         currentWeight,
-        consecutive);
+        consecutive,
+        pendingCalculationDate);
   }
 
   private boolean complete(
@@ -1585,6 +1640,13 @@ public class LeagueService {
     return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
   }
 
+  record RankingSnapshot(List<RankedProfile> candidates, List<RankedProfile> profiles) {
+    RankingSnapshot {
+      candidates = List.copyOf(candidates);
+      profiles = List.copyOf(profiles);
+    }
+  }
+
   record RankedProfile(
       LeagueInvestorValue profile,
       Metric metric,
@@ -1599,7 +1661,8 @@ public class LeagueService {
       BigDecimal maxHoldingWeight,
       int weeklyDays,
       BigDecimal currentHoldingWeight,
-      int consecutiveRecordedWeeks) {}
+      int consecutiveRecordedWeeks,
+      LocalDate pendingCalculationDate) {}
 
   private record PricePair(
       StockDailyPrice previous, StockDailyPrice current, BigDecimal evaluation) {}

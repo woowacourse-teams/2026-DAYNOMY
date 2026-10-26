@@ -40,7 +40,7 @@ class LeagueRankingCacheTest {
     var entered = new CountDownLatch(1);
     var release = new CountDownLatch(1);
     var calls = new AtomicInteger();
-    Supplier<List<LeagueService.RankedProfile>> loader =
+    Supplier<LeagueService.RankingSnapshot> loader =
         () -> {
           calls.incrementAndGet();
           entered.countDown();
@@ -51,7 +51,7 @@ class LeagueRankingCacheTest {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(exception);
           }
-          return List.of();
+          return snapshot(List.of());
         };
     try (var executor = Executors.newFixedThreadPool(8)) {
       var futures =
@@ -64,7 +64,7 @@ class LeagueRankingCacheTest {
       } finally {
         release.countDown();
       }
-      for (var future : futures) assertThat(future.get(5, TimeUnit.SECONDS)).isEmpty();
+      for (var future : futures) assertThat(future.get(5, TimeUnit.SECONDS).profiles()).isEmpty();
     }
     assertThat(calls).hasValue(1);
   }
@@ -72,10 +72,10 @@ class LeagueRankingCacheTest {
   @Test
   void expiredEntriesRefreshOnceInBackgroundWhileReadersUseThePreviousResult() {
     var cache = cache();
-    var old = List.of(mock(LeagueService.RankedProfile.class));
-    var updated = List.of(mock(LeagueService.RankedProfile.class));
+    var old = snapshot(List.of(mock(LeagueService.RankedProfile.class)));
+    var updated = snapshot(List.of(mock(LeagueService.RankedProfile.class)));
     var calls = new AtomicInteger();
-    Supplier<List<LeagueService.RankedProfile>> loader =
+    Supplier<LeagueService.RankingSnapshot> loader =
         () -> calls.incrementAndGet() == 1 ? old : updated;
     assertThat(cache.get(WEEK, LeagueType.WEEKLY_RETURN, loader)).isEqualTo(old);
     now.updateAndGet(time -> time.plusSeconds(5));
@@ -92,45 +92,46 @@ class LeagueRankingCacheTest {
   @Test
   void anOldBackgroundRefreshCannotRestoreAnInvalidatedEntry() {
     var cache = cache();
-    var updated = List.of(mock(LeagueService.RankedProfile.class));
-    cache.get(WEEK, LeagueType.WEEKLY_RETURN, List::of);
+    var updated = snapshot(List.of(mock(LeagueService.RankedProfile.class)));
+    cache.get(WEEK, LeagueType.WEEKLY_RETURN, () -> snapshot(List.of()));
     now.updateAndGet(time -> time.plusSeconds(5));
-    cache.get(WEEK, LeagueType.WEEKLY_RETURN, List::of);
+    cache.get(WEEK, LeagueType.WEEKLY_RETURN, () -> snapshot(List.of()));
     var refresh = ArgumentCaptor.forClass(Runnable.class);
     verify(scheduler).schedule(refresh.capture(), any(Instant.class));
     cache.invalidateAfterCommit();
     cache.get(WEEK, LeagueType.WEEKLY_RETURN, () -> updated);
     refresh.getValue().run();
-    assertThat(cache.get(WEEK, LeagueType.WEEKLY_RETURN, List::of)).isEqualTo(updated);
+    assertThat(cache.get(WEEK, LeagueType.WEEKLY_RETURN, () -> snapshot(List.of())))
+        .isEqualTo(updated);
   }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void writesInvalidateOnlyAfterCommitAndRollbackKeepsThePreviousResult(boolean committed) {
     var cache = cache();
-    var updated = List.of(mock(LeagueService.RankedProfile.class));
-    cache.get(WEEK, LeagueType.WEEKLY_RETURN, List::of);
+    var updated = snapshot(List.of(mock(LeagueService.RankedProfile.class)));
+    cache.get(WEEK, LeagueType.WEEKLY_RETURN, () -> snapshot(List.of()));
     TransactionSynchronizationManager.initSynchronization();
     try {
       cache.invalidateAfterCommit();
-      assertThat(cache.get(WEEK, LeagueType.WEEKLY_RETURN, () -> updated)).isEmpty();
+      assertThat(cache.get(WEEK, LeagueType.WEEKLY_RETURN, () -> updated).profiles()).isEmpty();
       if (committed)
         TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
     } finally {
       TransactionSynchronizationManager.clearSynchronization();
     }
     assertThat(cache.get(WEEK, LeagueType.WEEKLY_RETURN, () -> updated))
-        .isEqualTo(committed ? updated : List.of());
+        .isEqualTo(committed ? updated : snapshot(List.of()));
   }
 
   @Test
   void refreshFailurePreservesResultsAndBacksOffBeforeRetrying() {
     var cache = cache();
     var calls = new AtomicInteger();
-    Supplier<List<LeagueService.RankedProfile>> loader =
+    Supplier<LeagueService.RankingSnapshot> loader =
         () -> {
           if (calls.incrementAndGet() > 1) throw new IllegalStateException("refresh failure");
-          return List.of();
+          return snapshot(List.of());
         };
     cache.get(WEEK, LeagueType.WEEKLY_RETURN, loader);
     now.updateAndGet(time -> time.plusSeconds(5));
@@ -138,10 +139,14 @@ class LeagueRankingCacheTest {
     var refresh = ArgumentCaptor.forClass(Runnable.class);
     verify(scheduler).schedule(refresh.capture(), any(Instant.class));
     refresh.getValue().run();
-    assertThat(cache.get(WEEK, LeagueType.WEEKLY_RETURN, loader)).isEmpty();
+    assertThat(cache.get(WEEK, LeagueType.WEEKLY_RETURN, loader).profiles()).isEmpty();
     verify(scheduler, times(1)).schedule(any(Runnable.class), any(Instant.class));
     now.updateAndGet(time -> time.plusSeconds(5));
     cache.get(WEEK, LeagueType.WEEKLY_RETURN, loader);
     verify(scheduler, times(2)).schedule(any(Runnable.class), any(Instant.class));
+  }
+
+  private LeagueService.RankingSnapshot snapshot(List<LeagueService.RankedProfile> profiles) {
+    return new LeagueService.RankingSnapshot(profiles, profiles);
   }
 }

@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -27,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class PortfolioAssetAnalysisService {
   static final String ANALYSIS_VERSION = "asset-v2-batch5";
@@ -88,88 +90,117 @@ public class PortfolioAssetAnalysisService {
     long deadline = System.nanoTime() + waitTimeout.toNanos();
     var results = new HashMap<String, AssetImpactResult>();
     var freshSources = new ArrayList<PortfolioAnalysisResult.Source>();
-    repository
-        .findAllByAssetNameInAndAnalysisVersionAndModelAndExpiresAtAfter(
-            targets.stream().map(PortfolioAnalysisTarget::assetName).toList(),
-            ANALYSIS_VERSION,
-            model,
-            Instant.now())
-        .forEach(saved -> results.put(saved.getAssetName(), saved.getSnapshot()));
-    var missing =
-        targets.stream().filter(target -> !results.containsKey(target.assetName())).toList();
-    var owned = new LinkedHashMap<String, CompletableFuture<AssetImpactResult>>();
-    var shared = new LinkedHashMap<String, CompletableFuture<AssetImpactResult>>();
-    // 등록만 잠그고 DB 조회, AI 호출, 결과 대기는 잠금 밖에서 수행한다.
-    synchronized (inFlight) {
-      for (var target : missing) {
-        var future = inFlight.get(target.assetName());
-        if (future == null) {
-          future = new CompletableFuture<>();
-          inFlight.put(target.assetName(), future);
-          owned.put(target.assetName(), future);
+    int cacheHitCount = 0;
+    int newAnalysisCount = 0;
+    int sharedCount = 0;
+    long sharedWaitNanos = 0;
+    boolean completed = false;
+    try {
+      repository
+          .findAllByAssetNameInAndAnalysisVersionAndModelAndExpiresAtAfter(
+              targets.stream().map(PortfolioAnalysisTarget::assetName).toList(),
+              ANALYSIS_VERSION,
+              model,
+              Instant.now())
+          .forEach(saved -> results.put(saved.getAssetName(), saved.getSnapshot()));
+      cacheHitCount = results.size();
+      var missing =
+          targets.stream().filter(target -> !results.containsKey(target.assetName())).toList();
+      var owned = new LinkedHashMap<String, CompletableFuture<AssetImpactResult>>();
+      var shared = new LinkedHashMap<String, CompletableFuture<AssetImpactResult>>();
+      // 등록만 잠그고 DB 조회, AI 호출, 결과 대기는 잠금 밖에서 수행한다.
+      synchronized (inFlight) {
+        for (var target : missing) {
+          var future = inFlight.get(target.assetName());
+          if (future == null) {
+            future = new CompletableFuture<>();
+            inFlight.put(target.assetName(), future);
+            owned.put(target.assetName(), future);
+          }
+          shared.put(target.assetName(), future);
         }
-        shared.put(target.assetName(), future);
       }
-    }
-    if (!owned.isEmpty()) {
-      try {
-        // 최초 조회 이후 다른 요청이 저장하고 진행 중 표시를 지웠을 수 있다.
-        repository
-            .findAllByAssetNameInAndAnalysisVersionAndModelAndExpiresAtAfter(
-                List.copyOf(owned.keySet()), ANALYSIS_VERSION, model, Instant.now())
-            .forEach(saved -> results.put(saved.getAssetName(), saved.getSnapshot()));
-        var toAnalyze =
-            owned.keySet().stream()
-                .filter(name -> !results.containsKey(name))
-                .map(PortfolioAnalysisTarget::new)
-                .toList();
-        if (!toAnalyze.isEmpty()) {
-          var generated = ai.analyze(toAnalyze);
-          freshSources.addAll(generated.sources());
-          Instant analyzedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
-          for (var impact : generated.impacts()) {
-            results.put(impact.assetName(), impact);
-            if (impact.direction() != null
-                && impact.impactLevel() != null
-                && !impact.sources().isEmpty()) {
-              save(impact, analyzedAt);
+      sharedCount = shared.size() - owned.size();
+      if (!owned.isEmpty()) {
+        try {
+          // 최초 조회 이후 다른 요청이 저장하고 진행 중 표시를 지웠을 수 있다.
+          repository
+              .findAllByAssetNameInAndAnalysisVersionAndModelAndExpiresAtAfter(
+                  List.copyOf(owned.keySet()), ANALYSIS_VERSION, model, Instant.now())
+              .forEach(saved -> results.put(saved.getAssetName(), saved.getSnapshot()));
+          var toAnalyze =
+              owned.keySet().stream()
+                  .filter(name -> !results.containsKey(name))
+                  .map(PortfolioAnalysisTarget::new)
+                  .toList();
+          cacheHitCount += owned.size() - toAnalyze.size();
+          newAnalysisCount = toAnalyze.size();
+          if (!toAnalyze.isEmpty()) {
+            var generated = ai.analyze(toAnalyze);
+            freshSources.addAll(generated.sources());
+            Instant analyzedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+            for (var impact : generated.impacts()) {
+              results.put(impact.assetName(), impact);
+              if (impact.direction() != null
+                  && impact.impactLevel() != null
+                  && !impact.sources().isEmpty()) {
+                save(impact, analyzedAt);
+              }
             }
           }
-        }
-        for (var name : owned.keySet()) {
-          if (!results.containsKey(name)) {
-            throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+          for (var name : owned.keySet()) {
+            if (!results.containsKey(name)) {
+              throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+            }
+          }
+          owned.forEach((name, future) -> future.complete(results.get(name)));
+        } catch (RuntimeException | Error exception) {
+          owned.values().forEach(future -> future.completeExceptionally(exception));
+          throw exception;
+        } finally {
+          synchronized (inFlight) {
+            owned.forEach((name, future) -> inFlight.remove(name, future));
           }
         }
-        owned.forEach((name, future) -> future.complete(results.get(name)));
-      } catch (RuntimeException | Error exception) {
-        owned.values().forEach(future -> future.completeExceptionally(exception));
-        throw exception;
-      } finally {
-        synchronized (inFlight) {
-          owned.forEach((name, future) -> inFlight.remove(name, future));
+      }
+      // 먼저 자신이 맡은 분석을 완료해야 서로 다른 종목을 기다리는 요청끼리 교착되지 않는다.
+      for (var entry : shared.entrySet()) {
+        long waitStarted = System.nanoTime();
+        try {
+          results.put(entry.getKey(), await(entry.getValue(), deadline));
+        } finally {
+          if (!owned.containsKey(entry.getKey())) {
+            sharedWaitNanos += System.nanoTime() - waitStarted;
+          }
         }
       }
+      var ordered =
+          targets.stream()
+              .map(target -> results.get(target.assetName()))
+              .sorted(Comparator.comparingInt(impact -> priority(impact.impactLevel())))
+              .toList();
+      var ranked = new ArrayList<AssetImpactResult>();
+      for (int index = 0; index < ordered.size(); index++) {
+        ranked.add(withOrder(ordered.get(index), index + 1));
+      }
+      var sources =
+          java.util.stream.Stream.concat(
+                  ranked.stream().flatMap(impact -> impact.sources().stream()),
+                  freshSources.stream())
+              .distinct()
+              .toList();
+      completed = true;
+      return new PortfolioAnalysisResult("", ranked, sources);
+    } finally {
+      log.atInfo()
+          .addKeyValue("event", "portfolio.analysis.cache.completed")
+          .addKeyValue("cacheHitCount", cacheHitCount)
+          .addKeyValue("newAnalysisCount", newAnalysisCount)
+          .addKeyValue("sharedCount", sharedCount)
+          .addKeyValue("sharedWaitMs", TimeUnit.NANOSECONDS.toMillis(sharedWaitNanos))
+          .addKeyValue("outcome", completed ? "SUCCESS" : "FAILED")
+          .log("포트폴리오 종목 캐시 처리 종료");
     }
-    // 먼저 자신이 맡은 분석을 완료해야 서로 다른 종목을 기다리는 요청끼리 교착되지 않는다.
-    for (var entry : shared.entrySet()) {
-      results.put(entry.getKey(), await(entry.getValue(), deadline));
-    }
-    var ordered =
-        targets.stream()
-            .map(target -> results.get(target.assetName()))
-            .sorted(Comparator.comparingInt(impact -> priority(impact.impactLevel())))
-            .toList();
-    var ranked = new ArrayList<AssetImpactResult>();
-    for (int index = 0; index < ordered.size(); index++) {
-      ranked.add(withOrder(ordered.get(index), index + 1));
-    }
-    var sources =
-        java.util.stream.Stream.concat(
-                ranked.stream().flatMap(impact -> impact.sources().stream()), freshSources.stream())
-            .distinct()
-            .toList();
-    return new PortfolioAnalysisResult("", ranked, sources);
   }
 
   private AssetImpactResult await(CompletableFuture<AssetImpactResult> future, long deadline) {

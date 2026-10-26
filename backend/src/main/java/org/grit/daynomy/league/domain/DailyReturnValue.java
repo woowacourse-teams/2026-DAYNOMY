@@ -15,4 +15,6 @@ public interface DailyReturnValue {
   boolean isEligible();
 
   boolean isTrackingBaseline();
+
+  String getIneligibleReason();
 }

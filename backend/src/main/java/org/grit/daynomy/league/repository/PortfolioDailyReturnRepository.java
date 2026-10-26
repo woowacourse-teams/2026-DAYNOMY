@@ -41,7 +41,7 @@ public interface PortfolioDailyReturnRepository extends JpaRepository<PortfolioD
       """
       select new org.grit.daynomy.league.repository.RankingDailyReturn(
         r.portfolio.member.id, r.baseDate, r.dailyReturnRate, r.maxHoldingWeight,
-        r.currentHoldingWeight, r.eligible, r.trackingBaseline)
+        r.currentHoldingWeight, r.eligible, r.trackingBaseline, r.ineligibleReason)
       from PortfolioDailyReturn r
       where r.portfolio.member.id in :memberIds and r.baseDate between :from and :to
         and exists (select d.baseDate from MarketTradingDay d where d.baseDate = r.baseDate and d.trading = true)

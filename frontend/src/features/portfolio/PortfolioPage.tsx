@@ -892,12 +892,23 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
   const performance = usePortfolioPerformance(trendPeriod, holdings, revision, isLoggedIn);
   const [newsOpen, setNewsOpen] = useState(true);
+  const [mobileNewsAction, setMobileNewsAction] = useState(
+    () => window.matchMedia?.('(max-width: 620px)').matches ?? false,
+  );
   const newsButtonRef = useRef<HTMLButtonElement>(null);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
   const viewedRef = useRef(false);
   const loadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const media = window.matchMedia('(max-width: 620px)');
+    const updateMobileNewsAction = () => setMobileNewsAction(media.matches);
+    media.addEventListener('change', updateMobileNewsAction);
+    return () => media.removeEventListener('change', updateMobileNewsAction);
+  }, []);
 
   useEffect(() => {
     if (viewedRef.current) return;
@@ -1164,11 +1175,28 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             ref={newsButtonRef}
             aria-controls="portfolio-news-panel"
             aria-expanded={displayedNewsOpen}
-            title={displayedNewsOpen ? '소식 접기' : '소식 펼치기'}
+            aria-label={mobileNewsAction ? '보유 자산 소식 보기' : undefined}
+            title={mobileNewsAction ? undefined : displayedNewsOpen ? '소식 접기' : '소식 펼치기'}
             disabled={holdingsLoading || !!holdingsError}
-            onClick={() => setNewsOpen((open) => !open)}
+            onClick={() => {
+              if (!mobileNewsAction) {
+                setNewsOpen((open) => !open);
+                return;
+              }
+              setNewsOpen(true);
+              requestAnimationFrame(() => {
+                const heading = document.getElementById('portfolio-news-title');
+                heading?.scrollIntoView?.({
+                  behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+                    ? 'auto'
+                    : 'smooth',
+                  block: 'start',
+                });
+                heading?.focus({ preventScroll: true });
+              });
+            }}
           >
-            소식
+            {mobileNewsAction ? '소식 보기' : '소식'}
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="m9 6 6 6-6 6" />
             </svg>
