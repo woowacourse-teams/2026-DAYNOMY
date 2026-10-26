@@ -59,6 +59,7 @@ import org.grit.daynomy.member.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Answers;
 import org.mockito.InjectMocks;
@@ -1318,8 +1319,9 @@ class LeagueServiceTest {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  void publicDetailsCompoundContributionsAndHonorHiddenAssets(boolean hidden) {
+  @CsvSource({"false,false", "true,false", "false,true", "true,true"})
+  void publicDetailsCompoundContributionsAndHonorHiddenAssets(
+      boolean hidden, boolean effectiveHistory) {
     InvestorProfile profile = mock(InvestorProfile.class);
     Member owner = mock(Member.class);
     SharedPortfolio portfolio = mock(SharedPortfolio.class);
@@ -1347,8 +1349,6 @@ class LeagueServiceTest {
             tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
                 previousDate))
         .willReturn(Optional.of(tradingDay(earlierDate)));
-    given(priceRepository.findByAssetIdAndBaseDate(4L, earlierDate))
-        .willReturn(Optional.of(new StockDailyPrice(asset, earlierDate, new BigDecimal("100"))));
     var previousDay = tradingDay(previousDate);
     var currentDay = tradingDay(currentDate);
     given(
@@ -1368,6 +1368,9 @@ class LeagueServiceTest {
     given(holdingHistoryRepository.findEffectiveBefore(eq(3L), any(Instant.class)))
         .willReturn(List.of(history));
     given(history.getAsset()).willReturn(asset);
+    Instant historyTime = earlierDate.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+    if (effectiveHistory) given(history.getEffectiveAt()).willReturn(historyTime);
+    else given(history.getCreatedAt()).willReturn(historyTime);
     given(history.getChangeType()).willReturn(ChangeType.ADDED);
     given(history.getQuantity()).willReturn(10L);
     given(asset.getId()).willReturn(4L);
@@ -1381,10 +1384,18 @@ class LeagueServiceTest {
     given(visible.getQuantity()).willReturn(10L);
     if (!hidden) given(visible.getAveragePurchasePrice()).willReturn(new BigDecimal("100"));
     given(holdingRepository.findAllByPortfolioIdOrderById(3L)).willReturn(List.of(visible));
-    given(priceRepository.findByAssetIdAndBaseDate(4L, previousDate))
-        .willReturn(Optional.of(previousPrice));
-    given(priceRepository.findByAssetIdAndBaseDate(4L, currentDate))
-        .willReturn(Optional.of(currentPrice));
+    given(previousPrice.getAsset()).willReturn(asset);
+    given(previousPrice.getBaseDate()).willReturn(previousDate);
+    given(currentPrice.getAsset()).willReturn(asset);
+    given(currentPrice.getBaseDate()).willReturn(currentDate);
+    given(
+            priceRepository.findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+                List.of(4L), earlierDate, currentDate))
+        .willReturn(
+            List.of(
+                new StockDailyPrice(asset, earlierDate, new BigDecimal("100")),
+                previousPrice,
+                currentPrice));
     given(previousPrice.getClosePrice()).willReturn(new BigDecimal("110"));
     given(currentPrice.getClosePrice()).willReturn(new BigDecimal("99"));
 
@@ -1394,7 +1405,15 @@ class LeagueServiceTest {
 
     assertThat(response.asOfDate()).isEqualTo(currentDate);
     then(stockPriceService).should().pricesAt(List.of(4L), currentDate);
-    then(priceRepository).should(times(1)).findByAssetIdAndBaseDate(4L, currentDate);
+    then(priceRepository)
+        .should()
+        .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+            List.of(4L), earlierDate, currentDate);
+    then(priceRepository).shouldHaveNoMoreInteractions();
+    then(holdingHistoryRepository)
+        .should()
+        .findEffectiveBefore(3L, currentDate.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant());
+    then(holdingHistoryRepository).shouldHaveNoMoreInteractions();
     if (hidden) {
       assertThat(response.holdings()).isEmpty();
     } else {

@@ -20,6 +20,7 @@ import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import jdk.jfr.Configuration;
@@ -436,6 +437,8 @@ class LeagueRankingsLoadtestSeedTest {
             String.class);
     String publicPath = "/api/league/investors/" + publicId;
     given().port(port).get(publicPath).then().statusCode(200);
+    var detailStatistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+    detailStatistics.clear();
     given()
         .port(port)
         .get(publicPath + "/details")
@@ -443,6 +446,20 @@ class LeagueRankingsLoadtestSeedTest {
         .statusCode(200)
         .body("holdings", hasSize(5))
         .body("decisions", hasSize(20));
+    assertThat(detailStatistics.getPrepareStatementCount()).isBetween(1L, 22L);
+    String heavyPublicId =
+        jdbc.queryForObject(
+            "SELECT public_id FROM public_investor_profiles WHERE display_name='lt-lg10k-09501'",
+            String.class);
+    detailStatistics.clear();
+    given()
+        .port(port)
+        .get("/api/league/investors/" + heavyPublicId + "/details")
+        .then()
+        .statusCode(200)
+        .body("holdings", hasSize(20))
+        .body("decisions", hasSize(200));
+    assertThat(detailStatistics.getPrepareStatementCount()).isBetween(1L, 22L);
     given()
         .port(port)
         .queryParam("weekStart", week.toString())
@@ -641,24 +658,7 @@ class LeagueRankingsLoadtestSeedTest {
   @Test
   @EnabledIfEnvironmentVariable(named = "LEAGUE_RANKINGS_BENCHMARK", matches = "true")
   void rankingsMeetLoadThresholdsWithTenThousandParticipants() throws Exception {
-    prepareUserApiSeed();
-    jdbc.update(
-        """
-        INSERT INTO assets(name, category, asset_code, market, listed, created_at, updated_at)
-        SELECT 'Benchmark stock ' || n, 'STOCK', 'BENCH601-' || n, 'KOSPI', true, now(), now()
-        FROM generate_series(1, 25) n
-        """);
-    jdbc.update(
-        """
-        INSERT INTO stock_daily_prices(asset_id, base_date, close_price, created_at, updated_at)
-        SELECT a.id, d.base_date, 10000 + a.id * 100 + (d.base_date - ?::date) * 10, now(), now()
-        FROM assets a CROSS JOIN market_trading_days d
-        WHERE a.asset_code LIKE 'BENCH601-%' AND d.trading AND d.base_date BETWEEN ?::date AND ?::date
-        """,
-        week.toString(), week.toString(), week.plusDays(6).toString());
-    seed();
-    assertThat(count("public_investor_profiles")).isEqualTo(10000);
-    jdbc.execute("ANALYZE");
+    seedBenchmarkParticipants();
     Path report = Path.of(System.getProperty("java.io.tmpdir"), "daynomy-rankings-benchmark");
     Files.createDirectories(report);
     Path script = report.resolve("league-rankings-load.js");
@@ -702,6 +702,100 @@ class LeagueRankingsLoadtestSeedTest {
     } finally {
       statistics.setStatisticsEnabled(statisticsEnabled);
     }
+  }
+
+  @Test
+  @EnabledIfEnvironmentVariable(named = "LEAGUE_INVESTOR_DETAILS_BENCHMARK", matches = "true")
+  void investorDetailsMeetLoadThresholdsWithTenThousandParticipants() throws Exception {
+    seedBenchmarkParticipants();
+    String publicId =
+        jdbc.queryForObject(
+            "SELECT public_id FROM public_investor_profiles WHERE display_name='lt-lg10k-00001'",
+            String.class);
+    Path report =
+        Path.of(System.getProperty("java.io.tmpdir"), "daynomy-investor-details-benchmark");
+    Files.createDirectories(report);
+    var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+    statistics.clear();
+    given()
+        .port(port)
+        .get("/api/league/investors/" + publicId + "/details")
+        .then()
+        .statusCode(200)
+        .body("holdings", hasSize(5))
+        .body("decisions", hasSize(20));
+    Files.writeString(
+        report.resolve("query-count.txt"), "statements=" + statistics.getPrepareStatementCount());
+    boolean statisticsEnabled = statistics.isStatisticsEnabled();
+    statistics.setStatisticsEnabled(false);
+    try (var recording = new Recording(Configuration.getConfiguration("profile"))) {
+      recording.start();
+      try {
+        for (String phase : List.of("warmup", "measurement")) {
+          Path output = report.resolve(phase + ".log");
+          Process process =
+              new ProcessBuilder(
+                      "k6",
+                      "run",
+                      "--summary-export",
+                      report.resolve(phase + ".json").toString(),
+                      "--tag",
+                      "run_phase=" + phase,
+                      "-e",
+                      "BASE_URL=http://127.0.0.1:" + port,
+                      "-e",
+                      "PUBLIC_ID=" + publicId,
+                      "-e",
+                      "RPS=100",
+                      "-e",
+                      "VUS=50",
+                      Path.of("../loadtest/league-investor-details-load.js")
+                          .toAbsolutePath()
+                          .toString())
+                  .redirectErrorStream(true)
+                  .redirectOutput(output.toFile())
+                  .start();
+          try {
+            assertThat(process.waitFor(7, TimeUnit.MINUTES))
+                .as("k6 completion: %s", output)
+                .isTrue();
+            if (phase.equals("warmup")) {
+              assertThat(process.exitValue()).as(Files.readString(output)).isIn(0, 99);
+            } else {
+              assertThat(process.exitValue()).as(Files.readString(output)).isZero();
+            }
+          } finally {
+            if (process.isAlive()) process.destroyForcibly();
+          }
+        }
+      } finally {
+        recording.stop();
+        recording.dump(report.resolve("recording.jfr"));
+      }
+    } finally {
+      statistics.setStatisticsEnabled(statisticsEnabled);
+    }
+  }
+
+  private void seedBenchmarkParticipants() throws Exception {
+    prepareUserApiSeed();
+    jdbc.update(
+        """
+        INSERT INTO assets(name, category, asset_code, market, listed, created_at, updated_at)
+        SELECT 'Benchmark stock ' || n, 'STOCK', 'BENCH601-' || n, 'KOSPI', true, now(), now()
+        FROM generate_series(1, 25) n
+        """);
+    jdbc.update(
+        """
+        INSERT INTO stock_daily_prices(asset_id, base_date, close_price, created_at, updated_at)
+        SELECT a.id, d.base_date, 10000 + a.id * 100 + (d.base_date - ?::date) * 10, now(), now()
+        FROM assets a CROSS JOIN market_trading_days d
+        WHERE a.asset_code LIKE 'BENCH601-%' AND d.trading AND d.base_date BETWEEN ?::date AND ?::date
+        """,
+        week.toString(), week.toString(), week.plusDays(6).toString());
+    seed();
+    assertThat(count("public_investor_profiles")).isEqualTo(10000);
+    jdbc.execute("ANALYZE");
   }
 
   private int count(String table) {

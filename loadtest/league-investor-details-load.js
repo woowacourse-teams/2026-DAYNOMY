@@ -1,4 +1,5 @@
 import http from 'k6/http';
+import exec from 'k6/execution';
 import { check } from 'k6';
 import { Trend } from 'k6/metrics';
 
@@ -91,6 +92,7 @@ export function setup() {
 }
 
 export default function () {
+  if (exec.scenario.iterationInTest >= targetRps * 300) return;
   const response = request('target');
   const body = readDetails(response);
   latency.add(response.timings.duration);

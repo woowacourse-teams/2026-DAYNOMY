@@ -65,3 +65,15 @@ k6 run -e BASE_URL=https://dev.example.invalid \
 node --test loadtest/league-load.test.mjs
 node --test loadtest/k6-dev-workflow.test.mjs
 ```
+
+## 로컬 투자자 상세 측정
+
+Docker와 k6가 필요하다. 격리된 PostgreSQL에 참가자 1만 명과 연관 데이터를 적재하고, 일반 투자자 상세(종목 5개·판단 20개)를 워밍업 5분 + 본 측정 5분으로 실행한다.
+
+```bash
+cd backend
+LEAGUE_INVESTOR_DETAILS_BENCHMARK=true ./gradlew test --rerun-tasks \
+  --tests org.grit.daynomy.league.acceptance.LeagueRankingsLoadtestSeedTest.investorDetailsMeetLoadThresholdsWithTenThousandParticipants
+```
+
+결과는 JVM 임시 디렉터리의 `daynomy-investor-details-benchmark/measurement.log`와 `measurement.json`에 저장한다. dev에서 비교할 때는 V60 참가 이력 인덱스까지 적용한 버전을 사용한다.
