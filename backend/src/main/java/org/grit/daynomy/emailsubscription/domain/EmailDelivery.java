@@ -55,6 +55,10 @@ public class EmailDelivery {
   private EmailStockDigest stockDigest;
 
   @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "supplement_digest", columnDefinition = "jsonb")
+  private EmailDigestSupplement supplementDigest;
+
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "analysis_ids", nullable = false, columnDefinition = "jsonb")
   private List<Long> analysisIds;
 
@@ -78,19 +82,34 @@ public class EmailDelivery {
   private String providerMessageId;
 
   public EmailDelivery(Member member, Instant asOf, EmailStockDigest digest, LocalDate date) {
+    this(member, asOf, digest, EmailDigestSupplement.empty(), date);
+  }
+
+  public EmailDelivery(
+      Member member,
+      Instant asOf,
+      EmailStockDigest digest,
+      EmailDigestSupplement supplement,
+      LocalDate date) {
     this.member = Objects.requireNonNull(member);
     this.asOf = Objects.requireNonNull(asOf);
     if (!asOf.atZone(EmailAnalysisPolicy.ZONE).toLocalDate().equals(date)
-        || digest.stocks().isEmpty()
-        || digest.stocks().size() > 3)
+        || (digest == null && !supplement.shouldSend())
+        || (digest != null && (digest.stocks().isEmpty() || digest.stocks().size() > 3)))
       throw new IllegalArgumentException("당일의 유효한 종목 메일만 준비할 수 있습니다.");
     this.id = UUID.randomUUID();
     this.deliveryDate = date;
-    this.subject = digest.subject();
-    this.body = digest.body();
+    this.subject =
+        digest == null || !supplement.events().isEmpty() || supplement.assets() != null
+            ? "[DAYNOMY] 내 투자 주요 변화와 일정"
+            : digest.subject();
+    this.body = (digest == null ? "내 투자 주요 변화와 일정\n" : digest.body()) + supplement.body();
     this.stockDigest = digest;
+    this.supplementDigest = supplement;
     this.analysisIds =
-        digest.stocks().stream().map(EmailStockDigest.Stock::analysisId).distinct().toList();
+        digest == null
+            ? List.of()
+            : digest.stocks().stream().map(EmailStockDigest.Stock::analysisId).distinct().toList();
     if (analysisIds.stream().anyMatch(value -> value == null || value <= 0))
       throw new IllegalArgumentException("메일에 포함한 분석 ID가 필요합니다.");
     this.status = Status.READY;

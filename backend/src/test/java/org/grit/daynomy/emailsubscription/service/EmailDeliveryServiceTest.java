@@ -22,8 +22,10 @@ class EmailDeliveryServiceTest {
   private final EmailDeliveryRepository deliveries = mock(EmailDeliveryRepository.class);
   private final EmailStockDigestService digests = mock(EmailStockDigestService.class);
   private final EmailUnsubscribeService unsubscribe = mock(EmailUnsubscribeService.class);
+  private final EmailDigestSupplementService supplements = mock(EmailDigestSupplementService.class);
   private final EmailDeliveryService service =
-      new EmailDeliveryService(members, subscriptions, deliveries, digests, unsubscribe);
+      new EmailDeliveryService(
+          members, subscriptions, deliveries, digests, unsubscribe, supplements);
   private final Instant now = Instant.parse("2026-10-26T00:00:00Z");
   private final Instant asOf = now.minusSeconds(7200);
   private final Member member = mock(Member.class);
@@ -37,6 +39,7 @@ class EmailDeliveryServiceTest {
     subscription = new EmailSubscription(member);
     subscription.subscribe(asOf);
     when(subscriptions.findById(1L)).thenReturn(Optional.of(subscription));
+    when(supplements.compose(anyLong(), any())).thenReturn(EmailDigestSupplement.empty());
     when(unsubscribe.link(eq(1L), any()))
         .thenReturn("https://example.invalid/unsubscribe?token=test");
     when(unsubscribe.matches(any(), eq(1L), any())).thenReturn(true);
@@ -50,6 +53,27 @@ class EmailDeliveryServiceTest {
     assertThat(service.prepare(1L, asOf, List.of(1L), now)).contains(delivery.getId());
     verifyNoInteractions(digests);
     verify(deliveries, never()).save(any());
+  }
+
+  @Test
+  void preparesAndRechecksCalendarOnlyMailWithoutAiOrStockAnalyses() {
+    var supplement =
+        new EmailDigestSupplement(
+            null,
+            List.of(
+                new EmailDigestSupplement.Event(
+                    "1@time",
+                    "주요 경제 일정",
+                    now.plusSeconds(86400),
+                    "https://example.invalid/source")));
+    when(supplements.compose(1L, now)).thenReturn(supplement);
+    var saved = org.mockito.ArgumentCaptor.forClass(EmailDelivery.class);
+    when(deliveries.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    var id = service.prepare(1L, asOf, List.of(), now).orElseThrow();
+    verify(deliveries).save(saved.capture());
+    when(deliveries.findByIdForUpdate(id)).thenReturn(Optional.of(saved.getValue()));
+    assertThat(service.claim(id, now).orElseThrow().body()).contains("주요 경제 일정", "구독 해지");
+    verifyNoInteractions(digests);
   }
 
   @Test

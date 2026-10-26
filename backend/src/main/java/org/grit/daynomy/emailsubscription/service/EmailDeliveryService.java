@@ -28,6 +28,7 @@ public class EmailDeliveryService {
   private final EmailDeliveryRepository deliveries;
   private final EmailStockDigestService digests;
   private final EmailUnsubscribeService unsubscribe;
+  private final EmailDigestSupplementService supplements;
 
   public record Attempt(
       UUID deliveryId, String recipient, String subject, String body, String unsubscribeUrl) {}
@@ -45,21 +46,22 @@ public class EmailDeliveryService {
     var saved = deliveries.findByMemberIdAndDeliveryDate(memberId, date);
     if (saved.isPresent()) return Optional.of(saved.get().getId());
     var ids = analysisIds.stream().distinct().limit(3).toList();
-    if (ids.isEmpty()) return Optional.empty();
-    var covered = deliveries.findCoveredAnalysisIds(memberId, ids);
+    var covered =
+        ids.isEmpty() ? List.<Long>of() : deliveries.findCoveredAnalysisIds(memberId, ids);
     var unseen = ids.stream().filter(id -> !covered.contains(id)).toList();
-    if (unseen.isEmpty()) return Optional.empty();
-    return digests
-        .compose(memberId, asOf, unseen)
-        .map(digest -> newInformation(memberId, digest))
-        .filter(digest -> !digest.stocks().isEmpty())
-        .map(
-            digest -> {
-              var delivery = new EmailDelivery(member, asOf, digest, date);
-              delivery.attachUnsubscribeLink(
-                  unsubscribe.link(memberId, subscription.getSubscribedAt()));
-              return deliveries.save(delivery).getId();
-            });
+    var digest =
+        unseen.isEmpty()
+            ? null
+            : digests
+                .compose(memberId, asOf, unseen)
+                .map(content -> newInformation(memberId, content))
+                .filter(content -> !content.stocks().isEmpty())
+                .orElse(null);
+    var supplement = supplements.compose(memberId, now);
+    if (digest == null && !supplement.shouldSend()) return Optional.empty();
+    var delivery = new EmailDelivery(member, asOf, digest, supplement, date);
+    delivery.attachUnsubscribeLink(unsubscribe.link(memberId, subscription.getSubscribedAt()));
+    return Optional.of(deliveries.save(delivery).getId());
   }
 
   public Optional<Attempt> claim(UUID id, Instant now) {
@@ -76,13 +78,22 @@ public class EmailDeliveryService {
       return Optional.empty();
     }
     // 본문 재구성으로 현재 보유·가격·분석 유효성을 확인하고 달라진 내용은 보내지 않는다.
-    var current = digests.compose(member.getId(), delivery.getAsOf(), delivery.getAnalysisIds());
-    if (current.isEmpty()
-        || delivery.getStockDigest() == null
-        || !current
-            .get()
-            .bodyWithoutChanges()
-            .equals(delivery.getStockDigest().bodyWithoutChanges())) {
+    boolean valid = true;
+    if (delivery.getStockDigest() != null) {
+      var current = digests.compose(member.getId(), delivery.getAsOf(), delivery.getAnalysisIds());
+      valid =
+          current.isPresent()
+              && current
+                  .get()
+                  .bodyWithoutChanges()
+                  .equals(delivery.getStockDigest().bodyWithoutChanges());
+    } else if (!delivery.getAnalysisIds().isEmpty()) valid = false;
+    if (valid
+        && delivery.getSupplementDigest() != null
+        && (delivery.getSupplementDigest().assets() != null
+            || !delivery.getSupplementDigest().events().isEmpty()))
+      valid = delivery.getSupplementDigest().stillValid(supplements.compose(member.getId(), now));
+    if (!valid) {
       delivery.cancel();
       return Optional.empty();
     }

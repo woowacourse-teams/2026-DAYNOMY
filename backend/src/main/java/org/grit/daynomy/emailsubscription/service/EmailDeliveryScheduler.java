@@ -71,11 +71,14 @@ public class EmailDeliveryScheduler {
         if (!inWindow()) return;
         try {
           var selected = selection.select(memberId, date);
-          if (selected.isEmpty()) continue;
           var assetIds =
-              selected.get().stocks().stream().limit(3).map(stock -> stock.assetId()).toList();
+              selected
+                  .map(
+                      result ->
+                          result.stocks().stream().limit(3).map(stock -> stock.assetId()).toList())
+                  .orElse(List.of());
           var ids = analyses.findSuccessfulAnalysisIds(date, asOf, assetIds);
-          if (!ids.isEmpty()) deliveries.prepare(memberId, asOf, ids, clock.instant());
+          deliveries.prepare(memberId, asOf, ids, clock.instant());
         } catch (RuntimeException failure) {
           log.atWarn()
               .addKeyValue("memberId", memberId)

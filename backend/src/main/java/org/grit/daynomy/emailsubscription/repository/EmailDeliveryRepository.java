@@ -18,6 +18,27 @@ public interface EmailDeliveryRepository extends JpaRepository<EmailDelivery, UU
   @Query(
       value =
           """
+      SELECT DISTINCT item->>'key' FROM email_deliveries d
+      CROSS JOIN LATERAL jsonb_array_elements(d.supplement_digest->'events') item
+      WHERE d.member_id = :memberId AND d.status IN ('ACCEPTED','SENDING','UNKNOWN')
+        AND item->>'key' IN (:keys)
+      """,
+      nativeQuery = true)
+  List<String> findCoveredEventKeys(Long memberId, List<String> keys);
+
+  @Query(
+      value =
+          """
+      SELECT EXISTS(SELECT 1 FROM email_deliveries d WHERE d.member_id = :memberId
+        AND d.status IN ('ACCEPTED','SENDING','UNKNOWN')
+        AND d.supplement_digest->'assets'->>'baseDate' = :baseDate)
+      """,
+      nativeQuery = true)
+  boolean hasCoveredAssetSummary(Long memberId, String baseDate);
+
+  @Query(
+      value =
+          """
       SELECT d.* FROM email_deliveries d
       WHERE d.member_id = :memberId AND d.status IN ('ACCEPTED', 'SENDING', 'UNKNOWN')
         AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(d.analysis_ids) item(value)

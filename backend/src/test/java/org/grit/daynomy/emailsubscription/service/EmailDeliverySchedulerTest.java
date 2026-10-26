@@ -43,7 +43,7 @@ class EmailDeliverySchedulerTest {
     scheduler(now).prepareDaily();
     verify(deliveries).prepare(1L, asOf, List.of(100L), now);
     verify(deliveries).prepare(2L, asOf, List.of(300L), now);
-    verify(deliveries, never()).prepare(eq(3L), any(), anyList(), any());
+    verify(deliveries).prepare(3L, asOf, List.of(), now);
     verify(subscriptions).findEligibleMemberIds(eq(3L), any());
     verifyNoInteractions(sending);
   }

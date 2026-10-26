@@ -14,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.grit.daynomy.emailsubscription.domain.*;
 import org.grit.daynomy.emailsubscription.service.EmailDeliveryService;
+import org.grit.daynomy.emailsubscription.service.EmailDigestSupplementService;
 import org.grit.daynomy.emailsubscription.service.EmailStockDigestService;
 import org.grit.daynomy.emailsubscription.service.EmailUnsubscribeService;
 import org.grit.daynomy.member.domain.Member;
@@ -62,8 +63,39 @@ class EmailDeliveryRepositoryTest {
   @Autowired private PlatformTransactionManager transactionManager;
   @MockitoBean private EmailStockDigestService digests;
   @MockitoBean private EmailUnsubscribeService unsubscribe;
+  @MockitoBean private EmailDigestSupplementService supplements;
   private final Instant now = Instant.parse("2026-10-26T00:00:00Z");
   private final Instant asOf = now.minusSeconds(7200);
+
+  @Test
+  void calendarAndAssetOnlyMailPersistsWithoutStockIdsAndReservesItsNotices() {
+    var member = em.persist(member());
+    var base = LocalDate.of(2026, 10, 23);
+    var supplement =
+        new EmailDigestSupplement(
+            new EmailDigestSupplement.Assets(
+                base, new BigDecimal("102"), new BigDecimal("2"), new BigDecimal("2")),
+            List.of(
+                new EmailDigestSupplement.Event(
+                    "42@time", "발표 일정", now.plusSeconds(86400), "https://example.invalid/source")));
+    var delivery =
+        em.persist(new EmailDelivery(member, asOf, null, supplement, LocalDate.of(2026, 10, 26)));
+    em.flush();
+    assertThat(deliveries.findCoveredEventKeys(member.getId(), List.of("42@time"))).isEmpty();
+    assertThat(deliveries.hasCoveredAssetSummary(member.getId(), base.toString())).isFalse();
+    delivery.claim(now);
+    delivery.unknown();
+    em.flush();
+    em.clear();
+    assertThat(deliveries.findCoveredEventKeys(member.getId(), List.of("42@time")))
+        .containsExactly("42@time");
+    assertThat(deliveries.hasCoveredAssetSummary(member.getId(), base.toString())).isTrue();
+    assertThat(deliveries.hasCoveredAssetSummary(member.getId(), base.plusDays(1).toString()))
+        .isFalse();
+    assertThat(deliveries.findById(delivery.getId()).orElseThrow().getSupplementDigest())
+        .isEqualTo(supplement);
+    assertThat(deliveries.findById(delivery.getId()).orElseThrow().getAnalysisIds()).isEmpty();
+  }
 
   @Test
   void lastNoticeUsesAcceptanceAndBlocksUnknownWhilePersistingExactDigest() {
@@ -181,6 +213,7 @@ class EmailDeliveryRepositoryTest {
               return member.getId();
             });
     when(digests.compose(memberId, asOf, List.of(1L))).thenReturn(Optional.of(digest()));
+    when(supplements.compose(memberId, now)).thenReturn(EmailDigestSupplement.empty());
     when(unsubscribe.link(memberId, asOf))
         .thenReturn("https://example.invalid/unsubscribe?token=test");
     when(unsubscribe.matches("https://example.invalid/unsubscribe?token=test", memberId, asOf))
