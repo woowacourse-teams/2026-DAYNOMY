@@ -866,10 +866,20 @@ public class LeagueService {
         decisionRepository.findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
             portfolio.getId(), cutoff);
     Map<Long, List<InvestmentReview>> reviews = reviewsByTransaction(transactions);
+    List<SharedHolding> holdings =
+        holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId());
     DetailSnapshot snapshot =
         detailSnapshot(
-            profile, portfolio.getId(), cutoff, InvestmentDecision.latestReasons(transactions));
-    Set<Long> visibleAssets = visibleAssets(portfolio.getId());
+            profile,
+            portfolio.getId(),
+            cutoff,
+            InvestmentDecision.latestReasons(transactions),
+            holdings);
+    Set<Long> visibleAssets =
+        holdings.stream()
+            .filter(holding -> !holding.isHidden())
+            .map(holding -> holding.getAsset().getId())
+            .collect(Collectors.toSet());
     return new InvestorDetailResponse(
         publicId,
         snapshot.asOfDate(),
@@ -897,7 +907,11 @@ public class LeagueService {
   }
 
   private DetailSnapshot detailSnapshot(
-      InvestorProfile profile, Long portfolioId, LocalDate cutoff, Map<Long, String> reasons) {
+      InvestorProfile profile,
+      Long portfolioId,
+      LocalDate cutoff,
+      Map<Long, String> reasons,
+      List<SharedHolding> holdings) {
     LocalDate asOfDate =
         tradingDayRepository
             .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
@@ -906,7 +920,6 @@ public class LeagueService {
             .orElse(null);
     Map<Long, BigDecimal> contributions =
         asOfDate == null ? null : weeklyContributions(profile, portfolioId, asOfDate);
-    List<SharedHolding> holdings = holdingRepository.findAllByPortfolioIdOrderById(portfolioId);
     Map<Long, StockDailyPrice> prices =
         stockPriceService.pricesAt(
             holdings.stream().map(holding -> holding.getAsset().getId()).toList(), asOfDate);
@@ -962,8 +975,7 @@ public class LeagueService {
     LocalDate start = weeklyStart(profile, week);
     if (start.isAfter(asOfDate)) return null;
     Map<LocalDate, PortfolioDailyReturn> values = dailyValues(portfolioId, week, asOfDate);
-    Map<Long, BigDecimal> contributions = new LinkedHashMap<>();
-    BigDecimal index = ONE;
+    Map<LocalDate, LocalDate> previousDates = new LinkedHashMap<>();
     for (LocalDate date : tradingDates(week)) {
       if (date.isAfter(asOfDate)) break;
       if (date.isBefore(start)) continue;
@@ -975,32 +987,64 @@ public class LeagueService {
           tradingDayRepository
               .findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(date)
               .orElse(null);
-      if (previous == null
-          || !addDailyContributions(
-              portfolioId, previous.getBaseDate(), date, index, contributions)) return null;
+      if (previous == null) return null;
+      previousDates.put(date, previous.getBaseDate());
+    }
+    if (previousDates.isEmpty()) return Map.of();
+    List<SharedHoldingHistory> histories =
+        holdingHistoryRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
+            portfolioId, asOfDate.atStartOfDay(SEOUL).toInstant());
+    List<Long> assetIds =
+        histories.stream().map(history -> history.getAsset().getId()).distinct().toList();
+    LocalDate from = previousDates.values().stream().min(LocalDate::compareTo).orElseThrow();
+    Map<LocalDate, Map<Long, StockDailyPrice>> prices =
+        assetIds.isEmpty()
+            ? Map.of()
+            : priceRepository
+                .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+                    assetIds, from, asOfDate)
+                .stream()
+                .collect(
+                    Collectors.groupingBy(
+                        StockDailyPrice::getBaseDate,
+                        Collectors.toMap(price -> price.getAsset().getId(), price -> price)));
+    Map<Long, BigDecimal> contributions = new LinkedHashMap<>();
+    BigDecimal index = ONE;
+    for (Map.Entry<LocalDate, LocalDate> dates : previousDates.entrySet()) {
+      Instant before = dates.getKey().atStartOfDay(SEOUL).toInstant();
+      List<SharedHoldingHistory> holdings =
+          SharedHoldingHistory.reconstructHoldings(
+              histories.stream()
+                  .filter(history -> history.getCreatedAt().isBefore(before))
+                  .toList());
+      if (!addDailyContributions(
+          holdings,
+          prices.getOrDefault(dates.getValue(), Map.of()),
+          prices.getOrDefault(dates.getKey(), Map.of()),
+          index,
+          contributions)) return null;
       index =
           index.multiply(
-              ONE.add(daily.getDailyReturnRate().divide(HUNDRED, 10, RoundingMode.HALF_UP)));
+              ONE.add(
+                  values
+                      .get(dates.getKey())
+                      .getDailyReturnRate()
+                      .divide(HUNDRED, 10, RoundingMode.HALF_UP)));
     }
     return contributions;
   }
 
   private boolean addDailyContributions(
-      Long portfolioId,
-      LocalDate previousDate,
-      LocalDate baseDate,
+      List<SharedHoldingHistory> holdings,
+      Map<Long, StockDailyPrice> previousPrices,
+      Map<Long, StockDailyPrice> currentPrices,
       BigDecimal index,
       Map<Long, BigDecimal> contributions) {
-    List<SharedHoldingHistory> holdings =
-        SharedHoldingHistory.reconstructHoldings(
-            holdingHistoryRepository
-                .findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                    portfolioId, baseDate.atStartOfDay(SEOUL).toInstant()));
     Map<Long, PricePair> prices = new LinkedHashMap<>();
     BigDecimal total = BigDecimal.ZERO;
     for (SharedHoldingHistory holding : holdings) {
-      StockDailyPrice previous = findPrice(holding.getAsset().getId(), previousDate);
-      StockDailyPrice current = findPrice(holding.getAsset().getId(), baseDate);
+      StockDailyPrice previous = previousPrices.get(holding.getAsset().getId());
+      StockDailyPrice current = currentPrices.get(holding.getAsset().getId());
       if (previous == null || current == null) return false;
       BigDecimal evaluation =
           previous.getClosePrice().multiply(BigDecimal.valueOf(holding.getQuantity()));
@@ -1026,13 +1070,6 @@ public class LeagueService {
 
   private StockDailyPrice findPrice(Long assetId, LocalDate baseDate) {
     return priceRepository.findByAssetIdAndBaseDate(assetId, baseDate).orElse(null);
-  }
-
-  private Set<Long> visibleAssets(Long portfolioId) {
-    return holdingRepository.findAllByPortfolioIdOrderById(portfolioId).stream()
-        .filter(holding -> !holding.isHidden())
-        .map(holding -> holding.getAsset().getId())
-        .collect(java.util.stream.Collectors.toSet());
   }
 
   @Transactional

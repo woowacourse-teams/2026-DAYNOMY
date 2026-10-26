@@ -175,3 +175,16 @@ test('rankings: the last planned request runs and an extra boundary iteration se
   assert.equal(script.checks.length, 1);
   assert.equal(script.trends.length, 1);
 });
+
+test('investor details: the last planned request runs and an extra boundary iteration sends no HTTP request', () => {
+  const script = loadScript('league-investor-details-load.js');
+  script.setup();
+  script.execution.scenario.iterationInTest = 29999;
+  script.run();
+  assert.equal(script.calls.length, 2);
+  script.execution.scenario.iterationInTest = 30000;
+  script.run();
+  assert.equal(script.calls.length, 2);
+  assert.equal(script.checks.length, 1);
+  assert.equal(script.trends.length, 1);
+});
