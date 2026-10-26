@@ -14,6 +14,7 @@ import {
 import type { CollectionStatus, LeagueWeek, RankingEntry, RankingResponse } from './types';
 import { recentLeagueWeeks } from './weeks';
 import { LeagueWeekNavigation } from './LeagueWeekNavigation';
+import { AggregationNotice } from './AggregationNotice';
 import { IssuePagination } from '../news/issue/IssuePagination';
 import '../news/issue/issue.css';
 import './league.css';
@@ -269,20 +270,8 @@ export function LeaguePage() {
         ) : null}
       </section>
 
-      {!loading && !error && ranking ? (
-        <aside className="league-update-notice" aria-label="순위 갱신 안내">
-          {!ranking.confirmed && ranking.rankings.length > 0 ? (
-            <p className="league-provisional-note">
-              집계된 종가 기준의 잠정 순위예요. 최종 집계 후 달라질 수 있어요.
-            </p>
-          ) : null}
-          <details className="league-calculation-details">
-            <summary>집계 기준 안내</summary>
-            <p>종가는 다음 영업일 오후 2시 이후 제공되며, 수집·집계 후 반영됩니다.</p>
-            <p>같은 순위 기준 점수는 공동 순위로 표시합니다.</p>
-            <p>사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다.</p>
-          </details>
-        </aside>
+      {!loading && !error && !ranking?.confirmed && ranking?.aggregation ? (
+        <AggregationNotice aggregation={ranking.aggregation} onRefresh={retryLoad} />
       ) : null}
 
       {loading ? (
@@ -313,15 +302,20 @@ export function LeaguePage() {
           aria-label="순위 조회 결과"
         >
           <strong>
-            {emptyCollectionState?.title ?? '아직 이 주차에 집계된 투자자가 없습니다'}
+            {ranking.aggregation
+              ? '순위가 준비되면 여기에 표시돼요'
+              : (emptyCollectionState?.title ?? '아직 이 주차에 집계된 투자자가 없습니다')}
           </strong>
           <p>
-            {emptyCollectionState?.description ??
-              (isCurrentWeek
-                ? '종가 수집과 참여자 집계가 끝나면 순위를 확인할 수 있어요.'
-                : '이 주차에 표시할 순위가 없어요. 다른 주차를 선택해 보세요.')}
+            {ranking.aggregation
+              ? '집계된 투자자의 성과를 기준으로 순위가 갱신됩니다.'
+              : (emptyCollectionState?.description ??
+                (isCurrentWeek
+                  ? '종가 수집과 참여자 집계가 끝나면 순위를 확인할 수 있어요.'
+                  : '이 주차에 표시할 순위가 없어요. 다른 주차를 선택해 보세요.'))}
           </p>
-          {ranking.collectionStatus === 'NO_TRADING_DAYS' ? null : emptyCollectionState ? (
+          {ranking.aggregation ||
+          ranking.collectionStatus === 'NO_TRADING_DAYS' ? null : emptyCollectionState ? (
             <button type="button" onClick={retryLoad}>
               순위 다시 확인
             </button>

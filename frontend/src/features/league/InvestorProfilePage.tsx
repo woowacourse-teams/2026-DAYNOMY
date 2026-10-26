@@ -242,23 +242,31 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                 className={
                   investor.performance.weeklyReturnRate === null
                     ? ''
-                    : investor.performance.weeklyReturnRate >= 0
+                    : investor.performance.weeklyReturnRate > 0
                       ? 'positive'
-                      : 'negative'
+                      : investor.performance.weeklyReturnRate < 0
+                        ? 'negative'
+                        : ''
                 }
               >
                 {investor.performance.weeklyReturnRate === null
-                  ? '집계 대기'
+                  ? '—'
                   : formatRate(investor.performance.weeklyReturnRate)}
               </strong>
+              {investor.performance.weeklyReturnRate === null ? (
+                <small className="league-metric-pending">집계 대기</small>
+              ) : null}
             </article>
             <article>
               <span>이번 주 순위</span>
               <strong>
                 {investor.performance.weeklyRank == null
-                  ? '집계 대기'
+                  ? '—'
                   : `${investor.performance.weeklyRank}위`}
               </strong>
+              {investor.performance.weeklyRank == null ? (
+                <small className="league-metric-pending">집계 대기</small>
+              ) : null}
             </article>
           </div>
         </section>
@@ -359,7 +367,12 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
 
         <div id="league-daily-details" ref={dailyContent} tabIndex={-1} hidden={!dailyOpen}>
           {dailyOpen ? (
-            <DailyReturns publicId={publicId} weekStart={weekStart} onWeekChange={setWeekStart} />
+            <DailyReturns
+              publicId={publicId}
+              weekStart={weekStart}
+              onWeekChange={setWeekStart}
+              onRefresh={() => setRetry((value) => value + 1)}
+            />
           ) : null}
         </div>
       </div>

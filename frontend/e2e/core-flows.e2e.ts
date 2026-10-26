@@ -278,7 +278,9 @@ for (const width of [1440, 390]) {
       const dailyChart = page.getByRole('group', { name: '일별 수익률 그래프', exact: true });
       await expect(dailyChart).toBeVisible();
       await expect(dailyChart.locator('.league-return-line circle')).toHaveCount(1);
-      await expect(page.getByText('2026-10-13 종가 기준 · 잠정 수익률')).toBeVisible();
+      const dailySummary = page.locator('.league-daily-summary');
+      await expect(dailySummary.getByText('2026-10-13 종가 기준', { exact: true })).toBeVisible();
+      await expect(dailySummary.getByText('잠정 수익률', { exact: true })).toBeVisible();
       await expect(dailyChart).toContainText('성과 시작 종가 · 0%');
       await expect(dailyChart).toContainText('종가 수집 대기');
       await expect(page.getByRole('group', { name: '선택한 날짜의 성과' })).toHaveCount(0);
