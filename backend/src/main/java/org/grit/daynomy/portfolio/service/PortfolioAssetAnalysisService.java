@@ -31,7 +31,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class PortfolioAssetAnalysisService {
-  static final String ANALYSIS_VERSION = "asset-v2-batch5";
+  static final String ANALYSIS_VERSION = "asset-v4-grounded-source";
   private final PortfolioAssetAnalysisRepository repository;
   private final PortfolioAnalysisAiClient ai;
   private final String model;
@@ -46,7 +46,7 @@ public class PortfolioAssetAnalysisService {
   public PortfolioAssetAnalysisService(
       PortfolioAssetAnalysisRepository repository,
       PortfolioAnalysisAiClient ai,
-      @Value("${ai.openai.model:gpt-5-mini}") String model,
+      @Value("${portfolio.analysis.model:${ai.openai.model:gpt-5-mini}}") String model,
       @Value("${portfolio.analysis.cache-ttl:30m}") Duration ttl) {
     this(repository, ai, model, ttl, Duration.ofMinutes(4));
   }

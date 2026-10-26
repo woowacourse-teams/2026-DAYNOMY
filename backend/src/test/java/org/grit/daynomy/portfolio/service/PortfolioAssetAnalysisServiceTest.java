@@ -85,7 +85,7 @@ class PortfolioAssetAnalysisServiceTest {
     verify(repository, times(2))
         .upsert(
             anyString(),
-            eq("asset-v2-batch5"),
+            eq("asset-v4-grounded-source"),
             eq("test-model"),
             snapshot.capture(),
             analyzedAt.capture(),
@@ -108,7 +108,10 @@ class PortfolioAssetAnalysisServiceTest {
         List.of(saved(impact("삼성전자", ImpactLevel.LOW)), saved(impact("SK하이닉스", ImpactLevel.HIGH)));
     given(
             repository.findAllByAssetNameInAndAnalysisVersionAndModelAndExpiresAtAfter(
-                eq(List.of("삼성전자", "SK하이닉스")), eq("asset-v2-batch5"), eq("test-model"), any()))
+                eq(List.of("삼성전자", "SK하이닉스")),
+                eq("asset-v4-grounded-source"),
+                eq("test-model"),
+                any()))
         .willReturn(savedResults);
 
     var response = service.analyze(targets);

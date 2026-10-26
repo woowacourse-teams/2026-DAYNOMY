@@ -61,12 +61,14 @@ class PortfolioAnalysisCallTest {
       var event = appender.list.getFirst();
       assertThat(fields(event))
           .containsEntry("phase", phase)
-          .containsEntry("batchNumber", "2")
           .containsEntry("outcome", "SUCCESS")
           .containsEntry("responseId", "resp_test123")
           .containsEntry("inputTokens", 120L)
           .containsEntry("outputTokens", 0L);
-      assertThat(event.getMDCPropertyMap()).containsEntry("requestId", "test-request");
+      assertThat(event.getMDCPropertyMap())
+          .containsEntry("requestId", "test-request")
+          .containsEntry("batchNumber", "2");
+      assertThat(fields(event)).doesNotContainKey("batchNumber");
       assertThat((Long) fields(event).get("durationMs")).isNotNegative();
       assertThat(fields(event).toString() + event.getFormattedMessage())
           .doesNotContain("secret-analysis", "test-api-key", "secret-request");

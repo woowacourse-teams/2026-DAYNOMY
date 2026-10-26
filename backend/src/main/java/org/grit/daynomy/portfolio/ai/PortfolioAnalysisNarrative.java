@@ -27,7 +27,7 @@ public class PortfolioAnalysisNarrative {
       RestClient.Builder builder,
       @Value("${ai.openai.base-url:https://api.openai.com/v1}") String baseUrl,
       @Value("${ai.openai.api-key:}") String apiKey,
-      @Value("${ai.openai.model:gpt-5-mini}") String model) {
+      @Value("${portfolio.analysis.model:${ai.openai.model:gpt-5-mini}}") String model) {
     var factory = new SimpleClientHttpRequestFactory();
     factory.setConnectTimeout(3000);
     factory.setReadTimeout(45000);

@@ -141,6 +141,7 @@ export type PortfolioAssetImpactResponse = {
 };
 
 export type PortfolioAnalysisResponse = {
+  excludedAssets?: PortfolioAsset[];
   coverage?: 'COMPLETE' | 'PARTIAL' | 'INSUFFICIENT';
   analyzedWeight?: number;
   totalAssetCount: number;
@@ -156,6 +157,7 @@ export type PortfolioAnalysisResponse = {
 };
 
 export type SavedPortfolioAnalysisResponse = {
+  summaryStatus?: 'PENDING' | 'READY' | 'FAILED' | null;
   status: 'EMPTY' | 'READY' | 'PORTFOLIO_CHANGED' | 'PROCESSING' | 'RECHECK_REQUIRED' | 'FAILED';
   lastCheckOutcome: 'UPDATED' | 'UNCHANGED' | 'UNCONFIRMED' | null;
   analysisId: number | null;
@@ -165,4 +167,13 @@ export type SavedPortfolioAnalysisResponse = {
   failureCode: string | null;
   changeReason: string | null;
   analysis: PortfolioAnalysisResponse | null;
+};
+
+export type GuestPortfolioAnalysisTaskResponse = {
+  taskId: string | null;
+  status: 'EMPTY' | 'PROCESSING' | 'READY' | 'FAILED';
+  analysis: PortfolioAnalysisResponse | null;
+  summaryStatus: 'PENDING' | 'READY' | 'FAILED' | null;
+  failureCode: string | null;
+  retryAllowed: boolean;
 };

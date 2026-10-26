@@ -26,7 +26,35 @@ public record SavedPortfolioAnalysisResponse(
             nullable = true)
         String failureCode,
     @Schema(description = "저장 분석의 생성·변경 사유. 분석이 없으면 null", nullable = true) String changeReason,
-    @Schema(description = "저장된 분석. 아직 결과가 없으면 null") PortfolioAnalysisResponse analysis) {
+    @Schema(description = "저장된 분석. 아직 결과가 없으면 null. 종합 설명 작성 중에도 완성된 점수·종목별 근거를 포함합니다.")
+        PortfolioAnalysisResponse analysis,
+    @Schema(
+            description = "종합 설명 상태: PENDING(작성 중), READY(완료), FAILED(실패 또는 작업 만료). 분석이 없으면 null",
+            nullable = true)
+        String summaryStatus) {
+
+  public SavedPortfolioAnalysisResponse(
+      Status status,
+      String lastCheckOutcome,
+      Long analysisId,
+      boolean matchesCurrentPortfolio,
+      Instant lastSucceededAt,
+      Instant lastFailedAt,
+      String failureCode,
+      String changeReason,
+      PortfolioAnalysisResponse analysis) {
+    this(
+        status,
+        lastCheckOutcome,
+        analysisId,
+        matchesCurrentPortfolio,
+        lastSucceededAt,
+        lastFailedAt,
+        failureCode,
+        changeReason,
+        analysis,
+        analysis == null ? null : "READY");
+  }
 
   public enum Status {
     EMPTY,
