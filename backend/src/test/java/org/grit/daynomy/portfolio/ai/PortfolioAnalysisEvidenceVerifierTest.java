@@ -23,7 +23,9 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisEvidenceVerifierTest {
   private final PortfolioAnalysisDocumentClient documents =
-      mock(PortfolioAnalysisDocumentClient.class);
+      mock(
+          PortfolioAnalysisDocumentClient.class,
+          org.mockito.Mockito.withSettings().useConstructor());
   private final PortfolioAnalysisEvidenceVerifier verifier =
       new PortfolioAnalysisEvidenceVerifier(documents);
   private final LocalDate date = LocalDate.of(2022, 10, 26);
@@ -34,6 +36,12 @@ class PortfolioAnalysisEvidenceVerifierTest {
   @BeforeEach
   void fetchesThroughTheSharedDocumentLoader() {
     when(documents.fetchAll(org.mockito.ArgumentMatchers.anyList())).thenCallRealMethod();
+  }
+
+  @org.junit.jupiter.api.AfterEach
+  void closesDocumentLoader() throws Exception {
+    org.mockito.Mockito.doCallRealMethod().when(documents).close();
+    documents.close();
   }
 
   @Test

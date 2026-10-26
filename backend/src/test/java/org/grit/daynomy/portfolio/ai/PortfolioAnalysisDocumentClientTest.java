@@ -15,6 +15,102 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class PortfolioAnalysisDocumentClientTest {
   @Test
+  void returnsAtBatchDeadlineEvenWhenSourceWorkIgnoresInterruption() throws Exception {
+    var release =
+        new java.util.concurrent.CompletableFuture<
+            java.util.Optional<
+                org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument>>();
+    try (var client =
+            new PortfolioAnalysisDocumentClient(HttpClients.createDefault()) {
+              @Override
+              public java.util.Optional<
+                      org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument>
+                  fetch(String url, Duration remaining) {
+                return release.join();
+              }
+            };
+        var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+      try {
+        var result =
+            executor.submit(() -> client.fetchAll(java.util.List.of("https://example.com/slow")));
+        assertThat(result.get(7, TimeUnit.SECONDS))
+            .containsEntry("https://example.com/slow", java.util.Optional.empty());
+      } finally {
+        release.complete(java.util.Optional.empty());
+      }
+    }
+  }
+
+  @Test
+  void readsFifteenSourcesFromOneHostConcurrentlyWithoutLosingEvidence() throws Exception {
+    try (var server = new MockWebServer();
+        var client =
+            new PortfolioAnalysisDocumentClient(
+                PortfolioAnalysisDocumentClient.createHttpClient(
+                    org.apache.hc.client5.http.SystemDefaultDnsResolver.INSTANCE))) {
+      server.start();
+      var urls = new java.util.ArrayList<String>();
+      for (int index = 0; index < 15; index++) {
+        urls.add(server.url("/article/" + index).toString().replace("127.0.0.1", "localhost"));
+        server.enqueue(
+            new MockResponse()
+                .setHeader("Content-Type", "text/html")
+                .setBody("<article>Confirmed facts.</article>")
+                .setBodyDelay(500, TimeUnit.MILLISECONDS));
+      }
+      try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+        var futures =
+            urls.stream()
+                .map(url -> executor.submit(() -> client.fetch(url, Duration.ofSeconds(3))))
+                .toList();
+        for (var future : futures)
+          assertThat(future.get(4, TimeUnit.SECONDS))
+              .hasValueSatisfying(
+                  document -> assertThat(document.body()).isEqualTo("Confirmed facts."));
+      }
+      assertThat(server.getRequestCount()).isEqualTo(15);
+    }
+  }
+
+  @Test
+  void rejectsCompressedPdfWhoseExtractedTextExceedsTheLimit() throws Exception {
+    byte[] bytes;
+    try (var document = new org.apache.pdfbox.pdmodel.PDDocument();
+        var output = new java.io.ByteArrayOutputStream()) {
+      var font =
+          new org.apache.pdfbox.pdmodel.font.PDType1Font(
+              org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA);
+      for (int index = 0; index < 45; index++) {
+        var page = new org.apache.pdfbox.pdmodel.PDPage();
+        document.addPage(page);
+        try (var content = new org.apache.pdfbox.pdmodel.PDPageContentStream(document, page)) {
+          content.beginText();
+          content.setFont(font, 12);
+          content.newLineAtOffset(30, 700);
+          content.showText("Revenue increased. ".repeat(700));
+          content.endText();
+        }
+      }
+      document.save(output);
+      bytes = output.toByteArray();
+    }
+    assertThat(bytes.length).isLessThan(4 * 1024 * 1024);
+    try (var server = new MockWebServer();
+        var client = new PortfolioAnalysisDocumentClient(HttpClients.createDefault())) {
+      server.start();
+      server.enqueue(
+          new MockResponse()
+              .setHeader("Content-Type", "application/pdf")
+              .setBody(new okio.Buffer().write(bytes)));
+      assertThat(
+              client.fetch(
+                  server.url("/large.pdf").toString().replace("127.0.0.1", "localhost"),
+                  Duration.ofSeconds(3)))
+          .isEmpty();
+    }
+  }
+
+  @Test
   void readsPublicationMetadataAndArticleInsteadOfModifiedDateAndNavigation() throws Exception {
     try (var client = new PortfolioAnalysisDocumentClient()) {
       var document =

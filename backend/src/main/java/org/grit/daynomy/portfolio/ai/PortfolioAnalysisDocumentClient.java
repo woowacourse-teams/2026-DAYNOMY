@@ -43,6 +43,8 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
   private static final int MAX_BODY_BYTES = 512 * 1024;
   private static final int MAX_PDF_BYTES = 4 * 1024 * 1024;
   private final CloseableHttpClient client;
+  private final java.util.concurrent.ExecutorService fetches =
+      Executors.newFixedThreadPool(60, Thread.ofVirtual().name("portfolio-source-", 0).factory());
   private final ObjectMapper mapper = new ObjectMapper();
   private final ScheduledExecutorService cancellations =
       Executors.newSingleThreadScheduledExecutor(
@@ -50,33 +52,42 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
 
   public PortfolioAnalysisDocumentClient() {
     this(
-        HttpClients.custom()
-            .setConnectionManager(
-                PoolingHttpClientConnectionManagerBuilder.create()
-                    .setDnsResolver(
-                        new DnsResolver() {
-                          @Override
-                          public InetAddress[] resolve(String host) throws UnknownHostException {
-                            return publicAddresses(InetAddress.getAllByName(host));
-                          }
+        createHttpClient(
+            new DnsResolver() {
+              @Override
+              public InetAddress[] resolve(String host) throws UnknownHostException {
+                return publicAddresses(InetAddress.getAllByName(host));
+              }
 
-                          @Override
-                          public String resolveCanonicalHostname(String host) {
-                            return host;
-                          }
-                        })
-                    .setMaxConnTotal(4)
-                    .setMaxConnPerRoute(2)
-                    .setDefaultConnectionConfig(
-                        ConnectionConfig.custom()
-                            .setConnectTimeout(Timeout.ofSeconds(2))
-                            .setSocketTimeout(Timeout.ofSeconds(2))
-                            .build())
-                    .build())
-            .disableRedirectHandling()
-            .disableAutomaticRetries()
-            .disableCookieManagement()
-            .build());
+              @Override
+              public String resolveCanonicalHostname(String host) {
+                return host;
+              }
+            }));
+  }
+
+  static CloseableHttpClient createHttpClient(DnsResolver dnsResolver) {
+    return HttpClients.custom()
+        .setConnectionManager(
+            PoolingHttpClientConnectionManagerBuilder.create()
+                .setDnsResolver(dnsResolver)
+                // 최대 4개 작업 × 5종목 × 3개 원문을 동시에 읽을 수 있다.
+                .setMaxConnTotal(60)
+                .setMaxConnPerRoute(20)
+                .setDefaultConnectionConfig(
+                    ConnectionConfig.custom()
+                        .setConnectTimeout(Timeout.ofSeconds(2))
+                        .setSocketTimeout(Timeout.ofSeconds(2))
+                        .build())
+                .build())
+        .setDefaultRequestConfig(
+            org.apache.hc.client5.http.config.RequestConfig.custom()
+                .setConnectionRequestTimeout(Timeout.ofSeconds(1))
+                .build())
+        .disableRedirectHandling()
+        .disableAutomaticRetries()
+        .disableCookieManagement()
+        .build();
   }
 
   PortfolioAnalysisDocumentClient(CloseableHttpClient client) {
@@ -86,15 +97,15 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
   public Map<String, Optional<PortfolioAnalysisSourceDocument>> fetchAll(List<String> urls) {
     long deadline = System.nanoTime() + Duration.ofSeconds(6).toNanos();
     Map<String, Optional<PortfolioAnalysisSourceDocument>> fetched = new LinkedHashMap<>();
-    try (var executor = Executors.newFixedThreadPool(4, Thread.ofVirtual().factory())) {
+    // DNS 조회처럼 인터럽트로 즉시 끝나지 않는 작업도 전체 대기 기한을 넘기지 않는다.
+    try {
       var tasks =
           urls.stream()
               .<java.util.concurrent.Callable<Optional<PortfolioAnalysisSourceDocument>>>map(
                   url -> () -> fetch(url, Duration.ofNanos(deadline - System.nanoTime())))
               .toList();
       var futures =
-          executor.invokeAll(
-              tasks, Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+          fetches.invokeAll(tasks, Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
       for (int index = 0; index < urls.size(); index++) {
         try {
           fetched.put(urls.get(index), futures.get(index).get());
@@ -191,13 +202,33 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
   private record FetchResult(Optional<PortfolioAnalysisSourceDocument> document, String location) {}
 
   private Optional<PortfolioAnalysisSourceDocument> parsePdf(byte[] bytes) throws IOException {
-    try (var document = org.apache.pdfbox.Loader.loadPDF(bytes)) {
+    try (var document =
+        org.apache.pdfbox.Loader.loadPDF(
+            new org.apache.pdfbox.io.RandomAccessReadBuffer(bytes),
+            org.apache.pdfbox.io.IOUtils.createTempFileOnlyStreamCache())) {
       if (document.getNumberOfPages() > 50
           || !document.getCurrentAccessPermission().canExtractContent()) return Optional.empty();
       var stripper = new org.apache.pdfbox.text.PDFTextStripper();
       stripper.setSortByPosition(true);
-      String body = stripper.getText(document);
-      if (body.isBlank() || body.length() > MAX_BODY_BYTES) return Optional.empty();
+      var text = new java.io.StringWriter();
+      stripper.writeText(
+          document,
+          new java.io.Writer() {
+            @Override
+            public void write(char[] chars, int offset, int length) throws IOException {
+              if (length > MAX_BODY_BYTES - text.getBuffer().length())
+                throw new IOException("PDF text limit exceeded");
+              text.write(chars, offset, length);
+            }
+
+            @Override
+            public void flush() {}
+
+            @Override
+            public void close() {}
+          });
+      String body = text.toString();
+      if (body.isBlank()) return Optional.empty();
       String title = document.getDocumentInformation().getTitle();
       // PDF 생성 시각은 게시일이 아니므로 발표일로 추정하지 않는다.
       return Optional.of(
@@ -340,6 +371,7 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
   @Override
   @PreDestroy
   public void close() throws IOException {
+    fetches.shutdownNow();
     cancellations.shutdownNow();
     client.close();
   }
