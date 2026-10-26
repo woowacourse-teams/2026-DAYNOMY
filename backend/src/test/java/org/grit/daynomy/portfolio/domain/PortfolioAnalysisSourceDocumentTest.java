@@ -93,7 +93,7 @@ class PortfolioAnalysisSourceDocumentTest {
             new PortfolioAnalysisSourceDocument("", quote, null)
                 .rejectionReason(quote, date, null, ""))
         .isNotNull();
-    var future = LocalDate.now().plusDays(1);
+    var future = LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).plusDays(1);
     assertThat(
             new PortfolioAnalysisSourceDocument("", quote, future)
                 .rejectionReason(quote, future, null, ""))
