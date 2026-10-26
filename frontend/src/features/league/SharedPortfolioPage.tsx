@@ -13,6 +13,7 @@ import './league.css';
 import './shared-portfolio.css';
 import { HoldingDecisions } from './HoldingDecisions';
 import { getMyInvestorProfile } from './api';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import type { InvestorProfile, InvestmentDecisionInput, InvestmentDecisionRecord } from './types';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
 
@@ -81,14 +82,26 @@ export function SharedPortfolioPage() {
     setLoading(true);
     setError('');
     setData(null);
+    let surface: 'holdings' | 'source_holdings' = 'holdings';
     getSharedPortfolio(controller.signal)
       .then(async (value) => {
         if (controller.signal.aborted) return;
         setData(value);
+        trackLeagueEvent('league_load_result', {
+          surface: 'holdings',
+          status: 'success',
+          result_count: value.holdings.length,
+        });
         if (hash === '#select') {
+          surface = 'source_holdings';
           const values = await readSourceHoldings();
           if (controller.signal.aborted) return;
           setSource(values);
+          trackLeagueEvent('league_load_result', {
+            surface: 'source_holdings',
+            status: 'success',
+            result_count: values.length,
+          });
           setSelection(
             values
               .filter((h) => !value.holdings.some((s) => s.assetId === h.assetId))
@@ -97,7 +110,14 @@ export function SharedPortfolioPage() {
         }
       })
       .catch((caught) => {
-        if (!controller.signal.aborted) setError(errorMessage(caught));
+        if (!controller.signal.aborted) {
+          setError(errorMessage(caught));
+          trackLeagueEvent('league_load_result', {
+            surface,
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -105,18 +125,59 @@ export function SharedPortfolioPage() {
     return () => controller.abort();
   }, [retry, hash]);
 
-  async function mutate(action: () => Promise<SharedPortfolio>, success: string) {
+  async function mutate(
+    action: () => Promise<SharedPortfolio>,
+    success: string,
+    operation: 'import_holdings' | 'change_visibility' | 'remove_holding',
+    context: { hidden?: boolean; overwrite_existing?: boolean } = {},
+  ) {
     if (busy || loading || !data) return false;
     setBusy(true);
     setError('');
     setMessage('');
+    trackLeagueEvent('league_action', {
+      surface: 'holdings',
+      action: operation,
+      status: 'submitted',
+      ...context,
+    });
     try {
-      setData(await action());
+      const result = await action();
+      setData(result);
+      trackLeagueEvent('league_action', {
+        surface: 'holdings',
+        action: operation,
+        status: 'success',
+        result_count: result.holdings.length,
+        ...context,
+      });
+      if (
+        operation === 'import_holdings' &&
+        hash === '#select' &&
+        !profileLoading &&
+        !profileError &&
+        !profile?.leagueEnabled &&
+        result.holdings.length > 0 &&
+        result.holdings.every(
+          (h) =>
+            h.reason.trim() ||
+            hasReason(h.assetId) ||
+            (selection.includes(h.assetId) && importReasons[h.assetId]?.trim()),
+        )
+      )
+        navigate('/portfolio/publication?join=true');
       setMessage(success);
       setSource(null);
       return true;
     } catch (caught) {
       setError(errorMessage(caught));
+      trackLeagueEvent('league_action', {
+        surface: 'holdings',
+        action: operation,
+        status: 'error',
+        error_type: leagueErrorType(caught),
+        ...context,
+      });
       return false;
     } finally {
       setBusy(false);
@@ -127,6 +188,11 @@ export function SharedPortfolioPage() {
     setBusy(true);
     setError('');
     setMessage('');
+    trackLeagueEvent('league_action', {
+      surface: 'source_holdings',
+      action: 'open_import',
+      status: 'submitted',
+    });
     try {
       const values = await readSourceHoldings();
       setSource(values);
@@ -137,8 +203,20 @@ export function SharedPortfolioPage() {
       );
       setOverwrite(false);
       setImportReasons({});
+      trackLeagueEvent('league_action', {
+        surface: 'source_holdings',
+        action: 'open_import',
+        status: 'success',
+        result_count: values.length,
+      });
     } catch (caught) {
       setError(errorMessage(caught));
+      trackLeagueEvent('league_action', {
+        surface: 'source_holdings',
+        action: 'open_import',
+        status: 'error',
+        error_type: leagueErrorType(caught),
+      });
     } finally {
       setBusy(false);
     }
@@ -176,17 +254,6 @@ export function SharedPortfolioPage() {
         };
     const saved = await importSharedHoldings(selected, overwrite, decisions);
     setRecordRefresh((value) => value + 1);
-    if (
-      hash === '#select' &&
-      !profileLoading &&
-      !profileError &&
-      !profile?.leagueEnabled &&
-      saved.holdings.length > 0 &&
-      saved.holdings.every(
-        (h) => h.reason.trim() || hasReason(h.assetId) || decisions[h.assetId]?.reason.trim(),
-      )
-    )
-      navigate('/portfolio/publication?join=true');
     return saved;
   }
   if (hash === '#league-settings') return <Navigate to="/portfolio/publication" replace />;
@@ -196,8 +263,8 @@ export function SharedPortfolioPage() {
         <h1 ref={holdingsHeading} tabIndex={-1}>
           종목 관리
         </h1>
-        <Link className="league-text-link" to="/league/reviews">
-          투자 기록·복기
+        <Link className="league-text-link" to="/portfolio/publication">
+          공개 설정
         </Link>
       </header>
       {loading ? (
@@ -207,7 +274,18 @@ export function SharedPortfolioPage() {
       ) : !data ? (
         <section className="league-state">
           <p role="alert">{error}</p>
-          <button onClick={() => setRetry((value) => value + 1)}>다시 불러오기</button>
+          <button
+            onClick={() => {
+              trackLeagueEvent('league_action', {
+                surface: 'holdings',
+                action: 'retry',
+                status: 'clicked',
+              });
+              setRetry((value) => value + 1);
+            }}
+          >
+            다시 불러오기
+          </button>
         </section>
       ) : (
         <>
@@ -342,7 +420,12 @@ export function SharedPortfolioPage() {
                       (conflicts.length > 0 && !overwrite)
                     }
                     onClick={() =>
-                      void mutate(importSelection, `${selected.length}개 종목을 추가했습니다.`)
+                      void mutate(
+                        importSelection,
+                        `${selected.length}개 종목을 추가했습니다.`,
+                        'import_holdings',
+                        { overwrite_existing: overwrite },
+                      )
                     }
                   >
                     {busy ? '추가 중…' : `${selected.length}개 종목 추가`}
@@ -358,12 +441,10 @@ export function SharedPortfolioPage() {
             <section className="shared-list" aria-labelledby="shared-holdings-title">
               <header className="shared-section-heading">
                 <div>
-                  <h2 id="shared-holdings-title" className="league-sr-only">
-                    등록한 종목 {data.holdings.length}개
-                  </h2>
+                  <h2 id="shared-holdings-title">등록한 종목 {data.holdings.length}개</h2>
                   <p>
                     {data.holdings.length
-                      ? `총 ${data.holdings.length}개`
+                      ? '보유 이유와 복기를 종목별로 관리하세요.'
                       : '아직 등록한 종목이 없어요.'}
                   </p>
                 </div>
@@ -383,16 +464,22 @@ export function SharedPortfolioPage() {
                 refreshKey={recordRefresh}
                 onRecordsChange={setRecords}
                 onRemove={(assetId) =>
-                  mutate(async () => {
-                    const saved = await removeSharedHolding(assetId);
-                    setProfileRetry((value) => value + 1);
-                    return saved;
-                  }, '종목을 삭제했습니다.')
+                  mutate(
+                    async () => {
+                      const saved = await removeSharedHolding(assetId);
+                      setProfileRetry((value) => value + 1);
+                      return saved;
+                    },
+                    '종목을 삭제했습니다.',
+                    'remove_holding',
+                  )
                 }
                 onVisibilityChange={(assetId, hidden) =>
                   void mutate(
                     () => changeSharedHoldingVisibility(assetId, hidden),
                     hidden ? '공개에서 제외했습니다.' : '공개 대상으로 선택했습니다.',
+                    'change_visibility',
+                    { hidden },
                   )
                 }
               />

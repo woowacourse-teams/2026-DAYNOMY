@@ -39,6 +39,7 @@ class SharedPortfolioServiceTest {
   @Mock private StockPriceService stockPriceService;
   @Mock private InvestmentDecisionRepository decisionRepository;
   @Mock private MarketTradingDayRepository tradingDayRepository;
+  @Mock private LeagueRankingCache rankingCache;
   @InjectMocks private SharedPortfolioService service;
 
   @ParameterizedTest

@@ -2,6 +2,7 @@ import type {
   CollectionStatus,
   ExperienceLevel,
   HoldingPeriod,
+  InvestmentReview,
   RiskProfile,
   TransactionType,
 } from './types';
@@ -47,4 +48,23 @@ export const collectionLabels: Record<CollectionStatus, string> = {
 
 export function concentrationLabel(value: number | null | undefined) {
   return value == null ? '데이터 부족' : value < 30 ? '분산' : value < 50 ? '보통' : '집중 주의';
+}
+
+const reviewDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function reviewDateLabel({
+  createdAt,
+  updatedAt,
+}: Pick<InvestmentReview, 'createdAt' | 'updatedAt'>) {
+  const created = Date.parse(createdAt);
+  const updated = updatedAt ? Date.parse(updatedAt) : NaN;
+  const revised = updated > created;
+  const timestamp = revised ? updated : created;
+  if (!Number.isFinite(timestamp)) return '작성일 미제공';
+  return `${revised ? '수정됨' : '작성'} · ${reviewDateFormatter.format(timestamp)}`;
 }

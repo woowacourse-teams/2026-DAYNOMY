@@ -408,7 +408,7 @@ class StockPriceSyncServiceTest {
   }
 
   @Test
-  @DisplayName("다음 거래일 13시 전에 종가를 요청하지 않는다")
+  @DisplayName("다음 거래일 14시 전에 종가를 요청하지 않는다")
   void waitsUntilNextTradingDayPublication(
       @Mock(answer = org.mockito.Answers.CALLS_REAL_METHODS)
           MockedStatic<java.time.Instant> instants) {
@@ -419,7 +419,7 @@ class StockPriceSyncServiceTest {
             tradingDayRepository.countByTradingTrueAndCollectedAtIsNullAndBaseDateLessThanEqual(
                 today))
         .willReturn(1L);
-    var beforePublication = today.atTime(12, 59).atZone(ZoneId.of("Asia/Seoul")).toInstant();
+    var beforePublication = today.atTime(13, 59).atZone(ZoneId.of("Asia/Seoul")).toInstant();
     instants.when(java.time.Instant::now).thenReturn(beforePublication);
 
     StockPriceSyncResult result = syncService.synchronize(today);

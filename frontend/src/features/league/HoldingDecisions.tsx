@@ -1,7 +1,11 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { getInvestmentDecisions, recordDecision } from './api';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import type { SharedHolding } from './sharedPortfolioApi';
 import type { InvestmentDecisionRecord } from './types';
+import { InvestmentRecords } from './InvestmentRecords';
+import { IssuePagination } from '../news/issue/IssuePagination';
+import '../news/issue/issue.css';
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
 
@@ -22,6 +26,8 @@ export function HoldingDecisions({
   onRecordsChange: (records: InvestmentDecisionRecord[] | null) => void;
   refreshKey: number;
 }) {
+  const [page, setPage] = useState(0);
+  const [reviewId, setReviewId] = useState<number | null>(null);
   const [removing, setRemoving] = useState<number | null>(null);
   const [records, setRecords] = useState<InvestmentDecisionRecord[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,11 +65,24 @@ export function HoldingDecisions({
     setLoadError('');
     getInvestmentDecisions(controller.signal)
       .then((values) => {
-        if (!controller.signal.aborted) setRecords(values);
+        if (!controller.signal.aborted) {
+          setRecords(values);
+          trackLeagueEvent('league_load_result', {
+            surface: 'decisions',
+            status: 'success',
+            result_count: values.length,
+          });
+        }
       })
-      .catch(() => {
-        if (!controller.signal.aborted)
-          setLoadError('판단 기록을 불러오지 못했습니다. 기록이 없는 것은 아니에요.');
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) {
+          setLoadError('투자 기록을 불러오지 못했습니다. 기록이 없는 것은 아니에요.');
+          trackLeagueEvent('league_load_result', {
+            surface: 'decisions',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -73,7 +92,7 @@ export function HoldingDecisions({
   useEffect(() => {
     onRecordsChange(loading || loadError ? null : records);
   }, [records, loading, loadError, onRecordsChange]);
-  const locked = busy || portfolioBusy;
+  const locked = busy || portfolioBusy || reviewId !== null;
   useEffect(() => {
     if (error && !locked) {
       (!reasonInput.current?.value.trim() ? reasonInput.current : errorNotice.current)?.focus();
@@ -89,6 +108,11 @@ export function HoldingDecisions({
       return;
     }
     if (!requestKey.current) requestKey.current = crypto.randomUUID();
+    trackLeagueEvent('league_action', {
+      surface: 'decisions',
+      action: 'save_decision',
+      status: 'submitted',
+    });
     setBusy(true);
     setError('');
     setMessage('');
@@ -108,15 +132,26 @@ export function HoldingDecisions({
       requestKey.current = '';
       setWriting(false);
       setReason('');
-      setMessage('저장했습니다.');
+      setMessage('투자 기록을 저장했습니다.');
     } catch (caught) {
       setError(messageOf(caught));
+      trackLeagueEvent('league_action', {
+        surface: 'decisions',
+        action: 'save_decision',
+        status: 'error',
+        error_type: leagueErrorType(caught),
+      });
     } finally {
       setBusy(false);
     }
   }
 
   function startDecision(id: number) {
+    trackLeagueEvent('league_action', {
+      surface: 'decisions',
+      action: 'open_decision',
+      status: 'clicked',
+    });
     setAssetId(String(id));
     setReason('');
     requestKey.current = '';
@@ -133,7 +168,7 @@ export function HoldingDecisions({
       <fieldset disabled={locked}>
         <legend className="league-sr-only">보유 이유 작성</legend>
         <label className="shared-reason">
-          보유하는 이유
+          보유 이유
           <textarea
             ref={reasonInput}
             autoFocus
@@ -173,6 +208,39 @@ export function HoldingDecisions({
       </div>
     </form>
   );
+  function renderRecords(values: InvestmentDecisionRecord[]) {
+    return (
+      <InvestmentRecords
+        records={values}
+        surface="decisions"
+        reviewId={reviewId}
+        setReviewId={setReviewId}
+        disabled={
+          busy || portfolioBusy || writing || removing !== null || loading || Boolean(loadError)
+        }
+        onRecordChange={(saved) =>
+          setRecords((values) =>
+            (values ?? []).map((record) => (record.id === saved.id ? saved : record)),
+          )
+        }
+      />
+    );
+  }
+  const previousHoldings = (records ?? []).filter(
+    (record) => !holdings.some((holding) => holding.assetId === record.assetId),
+  );
+  const pageCount = Math.ceil(holdings.length / 4);
+  const currentPage = Math.min(page, Math.max(0, pageCount - 1));
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage);
+  }, [page, currentPage]);
+  const visibleHoldings = holdings.slice(currentPage * 4, currentPage * 4 + 4);
+  const navigationLocked = locked || writing || removing !== null;
+  function changePage(nextPage: number) {
+    setPage(nextPage);
+    recordsSection.current?.scrollIntoView?.({ block: 'start' });
+    recordsSection.current?.focus();
+  }
   return (
     <section ref={recordsSection} tabIndex={-1} aria-label="종목별 투자 기록">
       {loading ? (
@@ -180,108 +248,150 @@ export function HoldingDecisions({
       ) : loadError ? (
         <div role="alert">
           <p>{loadError}</p>
-          <button onClick={() => setRetry((value) => value + 1)}>판단 기록 다시 불러오기</button>
+          <button
+            onClick={() => {
+              trackLeagueEvent('league_action', {
+                surface: 'decisions',
+                action: 'retry',
+                status: 'clicked',
+              });
+              setRetry((value) => value + 1);
+            }}
+          >
+            투자 기록 다시 불러오기
+          </button>
         </div>
       ) : null}
-      {holdings.map((h) => {
-        const ownRecords = (records ?? []).filter((r) => r.assetId === h.assetId);
-        const completed = Boolean(h.reason.trim() || ownRecords.some((r) => r.reason.trim()));
-        return (
-          <article key={h.assetId} className="shared-holding">
-            <header>
-              <div>
-                <h3>{h.assetName}</h3>
-                <small>
-                  {h.category === 'ETF' ? 'ETF' : '주식'} · {h.assetCode} ·{' '}
-                  {h.hidden ? '공개 제외' : publicationStatus}
-                </small>
+      <div className="holding-cards">
+        {visibleHoldings.map((h) => {
+          const ownRecords = (records ?? [])
+            .filter((r) => r.assetId === h.assetId)
+            .sort((a, b) => b.tradedOn.localeCompare(a.tradedOn) || b.id - a.id);
+          const completed = Boolean(h.reason.trim() || ownRecords.some((r) => r.reason.trim()));
+          return (
+            <article
+              key={h.assetId}
+              className="shared-holding holding-card"
+              aria-label={`${h.assetName} 기록 상세`}
+            >
+              <header>
+                <div>
+                  <h3>{h.assetName}</h3>
+                  <small>
+                    {h.category === 'ETF' ? 'ETF' : '주식'} · {h.assetCode} ·{' '}
+                    {h.hidden ? '공개 제외' : publicationStatus}
+                  </small>
+                </div>
+                {!completed ? (
+                  <strong className="shared-reason-required">보유 이유 미작성</strong>
+                ) : null}
+              </header>
+              <p className="shared-holding-meta">
+                {h.quantity.toLocaleString()}주 · 평균 매수가{' '}
+                {h.averagePurchasePrice.toLocaleString()}원
+              </p>
+              <div className="holding-card-content">
+                {ownRecords.length === 0 && h.reason ? (
+                  <p className="shared-reason-preview">{h.reason}</p>
+                ) : null}
+                {renderRecords(ownRecords.slice(0, 1))}
+                {ownRecords.length > 1 ? (
+                  <section className="shared-previous-records">
+                    <h4>이전 투자 기록 {ownRecords.length - 1}개</h4>
+                    {renderRecords(ownRecords.slice(1))}
+                  </section>
+                ) : null}
+                {!completed ? (
+                  <button
+                    className="shared-text-action"
+                    ref={assetId === String(h.assetId) ? decisionTrigger : undefined}
+                    type="button"
+                    aria-label={`${h.assetName} 보유 이유 작성`}
+                    disabled={locked || loading || Boolean(loadError) || writing}
+                    onClick={() => startDecision(h.assetId)}
+                  >
+                    보유 이유 작성
+                  </button>
+                ) : null}
+                {writing && assetId === String(h.assetId) ? decisionForm : null}
               </div>
-              {!completed ? (
-                <strong className="shared-reason-required">보유 이유 미작성</strong>
-              ) : null}
-            </header>
-            <p className="shared-holding-meta">
-              {h.quantity.toLocaleString()}주 · 평균 매수가{' '}
-              {h.averagePurchasePrice.toLocaleString()}원
-            </p>
-            <p className="shared-reason-preview">
-              {ownRecords.find((r) => r.reason.trim())?.reason || h.reason}
-            </p>
-            {!completed ? (
-              <button
-                ref={assetId === String(h.assetId) ? decisionTrigger : undefined}
-                type="button"
-                aria-label={`${h.assetName} 보유 이유 작성`}
-                disabled={locked || loading || Boolean(loadError) || writing}
-                onClick={() => startDecision(h.assetId)}
-              >
-                보유 이유 작성
-              </button>
-            ) : null}
-            {writing && assetId === String(h.assetId) ? decisionForm : null}
-            <div className="shared-holding-actions">
-              {completed ? (
+              <div className="shared-holding-actions">
+                {completed ? (
+                  <button
+                    ref={assetId === String(h.assetId) ? decisionTrigger : undefined}
+                    type="button"
+                    aria-label={`${h.assetName} 투자 기록 추가`}
+                    disabled={locked || loading || Boolean(loadError) || writing}
+                    onClick={() => startDecision(h.assetId)}
+                  >
+                    투자 기록 추가
+                  </button>
+                ) : null}
                 <button
-                  ref={assetId === String(h.assetId) ? decisionTrigger : undefined}
                   type="button"
-                  aria-label={`${h.assetName} 투자 기록 추가`}
-                  disabled={locked || loading || Boolean(loadError) || writing}
-                  onClick={() => startDecision(h.assetId)}
+                  aria-label={`${h.assetName} ${h.hidden ? '공개하기' : '숨기기'}`}
+                  disabled={locked}
+                  onClick={() => onVisibilityChange(h.assetId, !h.hidden)}
                 >
-                  기록 추가
+                  {h.hidden ? '공개하기' : '숨기기'}
                 </button>
-              ) : null}
-              <label className="shared-visibility-choice">
-                <input
-                  type="checkbox"
-                  aria-label={`${h.assetName} 공개할 종목으로 선택`}
-                  disabled={locked}
-                  checked={!h.hidden}
-                  onChange={(event) => onVisibilityChange(h.assetId, !event.target.checked)}
-                />
-                공개
-              </label>
-              <button
-                type="button"
-                className="shared-remove-button"
-                aria-label={`${h.assetName} 리그에서 삭제`}
-                disabled={locked || writing}
-                onClick={(event) => {
-                  removeTrigger.current = event.currentTarget;
-                  setRemoving(h.assetId);
-                }}
-              >
-                삭제
-              </button>
-            </div>
-            {removing === h.assetId ? (
-              <div
-                className="shared-remove-confirm"
-                role="group"
-                aria-label={`${h.assetName} 삭제 확인`}
-              >
-                <p>
-                  {holdings.length === 1
-                    ? '마지막 종목을 삭제하면 리그 참여가 종료됩니다.'
-                    : '이 종목을 리그에서 삭제할까요?'}{' '}
-                  원본과 투자 기록은 유지됩니다.
-                </p>
                 <button
-                  disabled={locked}
-                  onClick={async () => {
-                    if (await onRemove(h.assetId)) setRemoving(null);
+                  type="button"
+                  className="shared-remove-button"
+                  aria-label={`${h.assetName} 리그에서 삭제`}
+                  disabled={locked || writing}
+                  onClick={(event) => {
+                    removeTrigger.current = event.currentTarget;
+                    setRemoving(h.assetId);
                   }}
                 >
-                  삭제 확인
-                </button>
-                <button ref={removeCancel} disabled={locked} onClick={() => setRemoving(null)}>
-                  취소
+                  삭제
                 </button>
               </div>
-            ) : null}
-          </article>
-        );
-      })}
+              {removing === h.assetId ? (
+                <div
+                  className="shared-remove-confirm"
+                  role="group"
+                  aria-label={`${h.assetName} 삭제 확인`}
+                >
+                  <p>
+                    {holdings.length === 1
+                      ? '마지막 종목을 삭제하면 리그 참여가 종료됩니다.'
+                      : '이 종목을 리그에서 삭제할까요?'}{' '}
+                    원본과 투자 기록은 유지됩니다.
+                  </p>
+                  <button
+                    disabled={locked}
+                    onClick={async () => {
+                      if (await onRemove(h.assetId)) setRemoving(null);
+                    }}
+                  >
+                    삭제 확인
+                  </button>
+                  <button ref={removeCancel} disabled={locked} onClick={() => setRemoving(null)}>
+                    취소
+                  </button>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+      {pageCount > 1 ? (
+        <IssuePagination
+          page={currentPage + 1}
+          totalPages={pageCount}
+          onChange={(nextPage) => changePage(nextPage - 1)}
+          disabled={navigationLocked}
+          ariaLabel="종목 목록 페이지"
+        />
+      ) : null}
+      {previousHoldings.length > 0 ? (
+        <section className="shared-previous-records">
+          <h3>지난 종목의 투자 기록 {previousHoldings.length}개</h3>
+          {renderRecords(previousHoldings)}
+        </section>
+      ) : null}
       {message ? (
         <p role="status" className="shared-feedback">
           {message}

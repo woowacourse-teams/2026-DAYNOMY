@@ -14,6 +14,18 @@ public record PortfolioTransactionRequest(
     @NotNull PortfolioTransactionType type,
     @NotNull @PastOrPresent LocalDate tradeDate,
     @NotNull @Positive Long quantity,
-    @NotNull @DecimalMin("0.01") @Digits(integer = 15, fraction = 2) BigDecimal unitPrice,
+    @NotNull @DecimalMin("0.0001") @Digits(integer = 15, fraction = 4) BigDecimal unitPrice,
     @NotNull @DecimalMin("0.00") @Digits(integer = 15, fraction = 2) BigDecimal fee,
-    @NotNull @DecimalMin("0.00") @Digits(integer = 15, fraction = 2) BigDecimal tax) {}
+    @NotNull @DecimalMin("0.00") @Digits(integer = 15, fraction = 2) BigDecimal tax,
+    @DecimalMin("0.000001") @Digits(integer = 10, fraction = 6) BigDecimal exchangeRate) {
+  public PortfolioTransactionRequest(
+      Long assetId,
+      PortfolioTransactionType type,
+      LocalDate tradeDate,
+      Long quantity,
+      BigDecimal unitPrice,
+      BigDecimal fee,
+      BigDecimal tax) {
+    this(assetId, type, tradeDate, quantity, unitPrice, fee, tax, null);
+  }
+}

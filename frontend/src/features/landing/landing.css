@@ -1731,6 +1731,15 @@ html:has(.landing-page[data-motion-paused='true']) {
   .landing-page .nav-inner {
     padding-inline: 12px;
   }
+  .landing-page .intro-skip {
+    top: auto;
+    right: auto;
+    bottom: max(20px, env(safe-area-inset-bottom));
+    left: 50%;
+    min-height: 44px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
   .landing-page .landing-nav-actions {
     gap: 8px;
   }

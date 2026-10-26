@@ -2,11 +2,14 @@ package org.grit.daynomy.league.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionListResponse;
+import org.grit.daynomy.league.dto.LeagueDto.DecisionReasonRequest;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionRecordRequest;
 import org.grit.daynomy.league.dto.LeagueDto.DecisionResponse;
 import org.grit.daynomy.league.dto.LeagueDto.FollowSummaryListResponse;
@@ -42,6 +45,8 @@ public class MyLeagueController {
   private final LeagueService leagueService;
 
   @Operation(summary = "내 공개 투자자 프로필 조회")
+  @ApiResponse(responseCode = "200", description = "내 공개 투자자 프로필 조회 성공")
+  @ApiResponse(responseCode = "204", description = "아직 생성한 프로필 없음", content = @Content)
   @GetMapping("/investor-profile")
   public ResponseEntity<ProfileResponse> profile(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
@@ -77,6 +82,7 @@ public class MyLeagueController {
   }
 
   @Operation(summary = "투자 판단 복기 추가")
+  @ApiResponse(responseCode = "201", description = "복기 생성 성공")
   @PostMapping("/portfolio/decisions/{transactionId}/reviews")
   public ResponseEntity<ReviewResponse> addReview(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
@@ -100,6 +106,7 @@ public class MyLeagueController {
   }
 
   @Operation(summary = "보유 자산의 판단 기록 (수량 변경 없음)")
+  @ApiResponse(responseCode = "201", description = "판단 기록 생성 또는 동일 요청 키의 기존 기록 반환")
   @PostMapping("/portfolio/decisions")
   public ResponseEntity<DecisionResponse> recordDecision(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
@@ -109,7 +116,19 @@ public class MyLeagueController {
         .body(decisionService.recordDecision(member.memberId(), request));
   }
 
+  @Operation(summary = "내 투자 기록의 보유 이유 수정 (수량·가격·복기 유지)")
+  @PutMapping("/portfolio/decisions/{transactionId}/reason")
+  public ResponseEntity<DecisionResponse> reviseReason(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId,
+      @Valid @RequestBody DecisionReasonRequest request) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(decisionService.reviseReason(member.memberId(), transactionId, request));
+  }
+
   @Operation(summary = "공개 투자자 팔로우")
+  @ApiResponse(responseCode = "204", description = "팔로우 완료", content = @Content)
   @PostMapping("/league/follows/{publicId}")
   public ResponseEntity<Void> follow(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
@@ -119,6 +138,7 @@ public class MyLeagueController {
   }
 
   @Operation(summary = "공개 투자자 팔로우 해제")
+  @ApiResponse(responseCode = "204", description = "팔로우 해제 완료", content = @Content)
   @DeleteMapping("/league/follows/{publicId}")
   public ResponseEntity<Void> unfollow(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,

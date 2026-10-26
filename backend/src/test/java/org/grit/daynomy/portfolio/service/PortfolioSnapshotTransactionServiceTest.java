@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
@@ -38,6 +39,8 @@ class PortfolioSnapshotTransactionServiceTest {
   @Mock private PortfolioDailySnapshotRepository snapshotRepository;
   @Mock private StockDailyPriceRepository stockPriceRepository;
   @Spy private PortfolioLedgerCalculator ledgerCalculator = new PortfolioLedgerCalculator();
+  @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
+  @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
   @InjectMocks private PortfolioSnapshotTransactionService service;
 
   @Test
@@ -85,7 +88,49 @@ class PortfolioSnapshotTransactionServiceTest {
   }
 
   @Test
-  void createSnapshotRemovesPastSnapshotWhenClosingPriceIsMissing() {
+  void createSnapshotConvertsUsPricesWithEachHistoricalDatesRate() {
+    LocalDate previousDate = LocalDate.of(2026, 9, 28);
+    LocalDate baseDate = LocalDate.of(2026, 9, 30);
+    Portfolio portfolio = mock(Portfolio.class);
+    Asset asset = asset(2L);
+    StockDailyPrice currentPrice = mock(StockDailyPrice.class);
+    StockDailyPrice previousPrice = mock(StockDailyPrice.class);
+    given(asset.getCurrency()).willReturn("USD");
+    given(currentPrice.getAsset()).willReturn(asset);
+    given(currentPrice.getBaseDate()).willReturn(baseDate);
+    given(currentPrice.getClosePrice()).willReturn(new BigDecimal("100"));
+    given(previousPrice.getAsset()).willReturn(asset);
+    given(previousPrice.getBaseDate()).willReturn(previousDate);
+    given(previousPrice.getClosePrice()).willReturn(new BigDecimal("90"));
+    given(exchangeRates.forSnapshot(10L, baseDate, previousDate))
+        .willReturn(
+            Map.of(
+                previousDate, new BigDecimal("1320"),
+                baseDate, new BigDecimal("1300")));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
+    given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
+        .willReturn(Optional.empty());
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateLessThanEqualOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    10L, baseDate))
+        .willReturn(List.of(history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000")));
+    given(stockPriceRepository.findByAssetIdAndBaseDate(2L, baseDate))
+        .willReturn(Optional.of(currentPrice));
+    given(stockPriceRepository.findByAssetIdAndBaseDate(2L, previousDate))
+        .willReturn(Optional.of(previousPrice));
+
+    assertThat(service.createSnapshot(10L, baseDate, previousDate)).isTrue();
+
+    ArgumentCaptor<PortfolioDailySnapshot> captor =
+        ArgumentCaptor.forClass(PortfolioDailySnapshot.class);
+    then(snapshotRepository).should().saveAndFlush(captor.capture());
+    assertThat(captor.getValue().getTotalEvaluationAmount()).isEqualByComparingTo("260000.00");
+    assertThat(captor.getValue().getDailyProfitLoss()).isEqualByComparingTo("22400.00");
+  }
+
+  @Test
+  void createSnapshotPreservesPastSnapshotWhenClosingPriceIsMissing() {
     LocalDate baseDate = LocalDate.now().minusDays(1);
     Portfolio portfolio = mock(Portfolio.class);
     PortfolioDailySnapshot existing = mock(PortfolioDailySnapshot.class);
@@ -101,7 +146,7 @@ class PortfolioSnapshotTransactionServiceTest {
 
     assertThat(service.createSnapshot(10L, baseDate, baseDate.minusDays(1))).isFalse();
 
-    then(snapshotRepository).should().delete(existing);
+    then(snapshotRepository).should(never()).delete(existing);
     then(snapshotRepository).should(never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
   }
 
@@ -152,7 +197,7 @@ class PortfolioSnapshotTransactionServiceTest {
     StockDailyPrice currentPrice = price("12000");
     StockDailyPrice previousPrice = price("11000");
     PortfolioHoldingHistory history = history(asset, PortfolioHoldingChangeType.ADDED, 2L, "10000");
-    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+    given(stockPriceRepository.findBaseDatesByPortfolioId(10L))
         .willReturn(List.of(previousDate, baseDate));
     given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, baseDate))
@@ -167,7 +212,7 @@ class PortfolioSnapshotTransactionServiceTest {
     given(stockPriceRepository.findByAssetIdAndBaseDate(2L, previousDate))
         .willReturn(Optional.of(previousPrice));
 
-    service.refreshSnapshotsFrom(10L, baseDate);
+    service.refreshSnapshotsFrom(10L, baseDate, java.util.Map.of());
 
     assertThat(existing.getTotalPurchaseAmount()).isEqualByComparingTo("20000.00");
     assertThat(existing.getTotalEvaluationAmount()).isEqualByComparingTo("24000.00");
@@ -183,7 +228,7 @@ class PortfolioSnapshotTransactionServiceTest {
     Portfolio portfolio = mock(Portfolio.class);
     PortfolioDailySnapshot fromSnapshot = mock(PortfolioDailySnapshot.class);
     PortfolioDailySnapshot afterSnapshot = mock(PortfolioDailySnapshot.class);
-    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+    given(stockPriceRepository.findBaseDatesByPortfolioId(10L))
         .willReturn(List.of(beforeDate, fromDate, afterDate));
     given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
     given(snapshotRepository.findByPortfolioIdAndBaseDate(10L, fromDate))
@@ -201,7 +246,7 @@ class PortfolioSnapshotTransactionServiceTest {
                     10L, afterDate))
         .willReturn(List.of());
 
-    service.refreshSnapshotsFrom(10L, fromDate);
+    service.refreshSnapshotsFrom(10L, fromDate, java.util.Map.of());
 
     then(snapshotRepository).should(never()).findByPortfolioIdAndBaseDate(10L, beforeDate);
     then(snapshotRepository).should().delete(fromSnapshot);
@@ -251,6 +296,7 @@ class PortfolioSnapshotTransactionServiceTest {
 
   private StockDailyPrice price(String closePrice) {
     StockDailyPrice price = mock(StockDailyPrice.class);
+    given(price.getAsset()).willReturn(mock(Asset.class));
     given(price.getClosePrice()).willReturn(new BigDecimal(closePrice));
     return price;
   }

@@ -36,4 +36,20 @@ public interface PortfolioDailyReturnRepository extends JpaRepository<PortfolioD
       """)
   List<PortfolioDailyReturn> findLatestByPortfolioIdAndBaseDateBetween(
       Long portfolioId, LocalDate from, LocalDate to);
+
+  @Query(
+      """
+      select new org.grit.daynomy.league.repository.RankingDailyReturn(
+        r.portfolio.member.id, r.baseDate, r.dailyReturnRate, r.maxHoldingWeight,
+        r.currentHoldingWeight, r.eligible, r.trackingBaseline, r.ineligibleReason)
+      from PortfolioDailyReturn r
+      where r.portfolio.member.id in :memberIds and r.baseDate between :from and :to
+        and exists (select d.baseDate from MarketTradingDay d where d.baseDate = r.baseDate and d.trading = true)
+        and not exists (select v.id from PortfolioDailyReturn v
+          where v.portfolio.id = r.portfolio.id and v.baseDate = r.baseDate
+            and v.calculationVersion > r.calculationVersion)
+      order by r.baseDate
+      """)
+  List<RankingDailyReturn> findLatestByMemberIdInAndBaseDateBetween(
+      List<Long> memberIds, LocalDate from, LocalDate to);
 }

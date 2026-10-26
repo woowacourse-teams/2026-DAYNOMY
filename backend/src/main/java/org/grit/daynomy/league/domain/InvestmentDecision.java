@@ -71,6 +71,9 @@ public class InvestmentDecision extends BaseEntity {
   @Column(name = "decision_reason", nullable = false, length = 500)
   private String decisionReason;
 
+  @Column(name = "original_decision_reason", length = 500)
+  private String originalDecisionReason;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "expected_holding_period", length = 30)
   private HoldingPeriod expectedHoldingPeriod;
@@ -122,6 +125,14 @@ public class InvestmentDecision extends BaseEntity {
     this.writtenAfterTrade = writtenAfterTrade;
   }
 
+  public void reviseReason(String reason) {
+    String revisedReason = requireText(reason);
+    if (originalDecisionReason == null) {
+      originalDecisionReason = decisionReason;
+    }
+    this.decisionReason = revisedReason;
+  }
+
   private String requireText(String value) {
     if (value == null || value.isBlank()) {
       throw new IllegalArgumentException("투자 판단은 비어 있을 수 없습니다.");
@@ -146,7 +157,8 @@ public class InvestmentDecision extends BaseEntity {
       String expected,
       String invalidation,
       BigDecimal lossRate) {
-    return decisionReason.equals(reason.trim())
+    String requestReason = originalDecisionReason == null ? decisionReason : originalDecisionReason;
+    return requestReason.equals(reason.trim())
         && expectedHoldingPeriod == period
         && expectedChange.equals(optionalText(expected))
         && invalidationCondition.equals(optionalText(invalidation))

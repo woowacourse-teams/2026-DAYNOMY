@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getLatestStockPrice, searchStocks } from '../../src/features/stocks/api';
+import { getLatestStockPrice, searchStocks, getUsdKrwRate } from '../../src/features/stocks/api';
 import { PortfolioTransactionEditor } from '../../src/features/portfolio/components/PortfolioTransactionEditor';
 import type { PortfolioHoldingHistory } from '../../src/features/portfolio/types';
 import type { StockPrice } from '../../src/features/stocks/types';
@@ -9,6 +9,7 @@ import type { StockPrice } from '../../src/features/stocks/types';
 vi.mock('../../src/features/stocks/api', () => ({
   getLatestStockPrice: vi.fn(),
   searchStocks: vi.fn(),
+  getUsdKrwRate: vi.fn(),
 }));
 const samsung = {
   assetId: 1,
@@ -36,6 +37,18 @@ afterEach(() => {
 });
 
 describe('거래 단가의 최근 종가 기본값', () => {
+  it('과거 거래일로 바꿔도 최근 종가 참고 단가를 유지한다', async () => {
+    const view = render(
+      <PortfolioTransactionEditor stock={samsung} onClose={vi.fn()} onSave={vi.fn()} />,
+    );
+    const input = view.getByLabelText('거래 단가 (원)');
+    await waitFor(() => expect(input).toHaveProperty('value', '75200'));
+    fireEvent.change(view.getByLabelText('거래일'), { target: { value: '2026-01-01' } });
+    expect(input).toHaveProperty('value', '75200');
+    expect(view.getByText(/과거 거래일에도 참고 단가로 유지됩니다/)).toBeTruthy();
+    expect(getLatestStockPrice).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['거래일', '9999-01-01', '2026-01-01'],
     ['수량 (주)', '0', '1'],
@@ -181,4 +194,82 @@ describe('거래 단가의 최근 종가 기본값', () => {
     view.unmount();
     expect(signal?.aborted).toBe(true);
   });
+});
+
+it('미국 검색 후 주식·ETF의 USD 종가와 환율을 채우고 수정한 환율로 저장한다', async () => {
+  const tesla = {
+    ...samsung,
+    assetId: 10,
+    assetCode: 'TSLA.US',
+    name: 'Tesla',
+    market: 'NASDAQ',
+    currency: 'USD',
+  } as const;
+  vi.mocked(searchStocks).mockResolvedValue([tesla]);
+  vi.mocked(getLatestStockPrice).mockResolvedValue({
+    ...tesla,
+    baseDate: '2020-10-16',
+    closePrice: 100.1234,
+  });
+  vi.mocked(getUsdKrwRate).mockResolvedValue({ baseDate: '2020-10-16', rate: 1300 });
+  const save = vi.fn().mockResolvedValue(undefined);
+  const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={save} />);
+  fireEvent.click(view.getByRole('button', { name: '미국' }));
+  fireEvent.change(view.getByLabelText('종목 검색'), { target: { value: 'TSLA' } });
+  fireEvent.click(await view.findByRole('button', { name: /Tesla/ }));
+  await waitFor(() =>
+    expect(view.getByLabelText('거래 단가 (USD)')).toHaveProperty('value', '100.1234'),
+  );
+  await waitFor(() =>
+    expect(view.getByRole('textbox', { name: /적용 환율/ })).toHaveProperty('value', '1300'),
+  );
+  expect(vi.mocked(searchStocks).mock.calls.at(-1)?.[2]).toBe('US');
+  fireEvent.change(view.getByLabelText('수량 (주)'), { target: { value: '2' } });
+  fireEvent.change(view.getByRole('textbox', { name: /적용 환율/ }), { target: { value: '1350' } });
+  fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
+  await waitFor(() => expect(save).toHaveBeenCalled());
+  expect(save.mock.calls[0][0]).toMatchObject({
+    assetId: 10,
+    unitPrice: 100.1234,
+    exchangeRate: 1350,
+    quantity: 2,
+  });
+});
+
+it('늦은 참고 환율이 직접 입력한 환율을 덮어쓰지 않으며 날짜 변경 시 다시 조회한다', async () => {
+  const etf = { ...samsung, assetCode: 'VTI.US', market: 'NYSE_ARCA', currency: 'USD' } as const;
+  let resolve!: (quote: { baseDate: string; rate: number }) => void;
+  vi.mocked(getUsdKrwRate).mockReturnValue(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  const view = render(
+    <PortfolioTransactionEditor stock={etf} onClose={vi.fn()} onSave={vi.fn()} />,
+  );
+  const input = view.getByRole('textbox', { name: /적용 환율/ });
+  fireEvent.change(input, { target: { value: '1400' } });
+  await act(async () => resolve({ baseDate: '2020-10-16', rate: 1300 }));
+  expect(input).toHaveProperty('value', '1400');
+  vi.mocked(getUsdKrwRate).mockResolvedValue({ baseDate: '2020-10-15', rate: 1290 });
+  fireEvent.change(view.getByLabelText('거래일'), { target: { value: '2020-10-15' } });
+  await waitFor(() => expect(input).toHaveProperty('value', '1290'));
+  expect(getUsdKrwRate).toHaveBeenLastCalledWith('2020-10-15', expect.any(AbortSignal));
+});
+
+it('참고 환율 조회가 실패하면 1로 대체하지 않고 직접 입력한 환율로 저장한다', async () => {
+  const tesla = { ...samsung, assetCode: 'TSLA.US', market: 'NASDAQ', currency: 'USD' } as const;
+  vi.mocked(getUsdKrwRate).mockRejectedValue(new Error('provider unavailable'));
+  const save = vi.fn().mockResolvedValue(undefined);
+  const view = render(<PortfolioTransactionEditor stock={tesla} onClose={vi.fn()} onSave={save} />);
+  await view.findByText(/환율을 가져오지 못했어요/);
+  expect(view.getByRole('textbox', { name: /적용 환율/ })).toHaveProperty('value', '');
+  fireEvent.change(view.getByLabelText('수량 (주)'), { target: { value: '1' } });
+  fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
+  expect(await view.findByRole('alert')).toBeTruthy();
+  expect(save).not.toHaveBeenCalled();
+  fireEvent.change(view.getByRole('textbox', { name: /적용 환율/ }), { target: { value: '1350' } });
+  fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
+  await waitFor(() => expect(save).toHaveBeenCalled());
+  expect(save.mock.calls[0][0].exchangeRate).toBe(1350);
 });

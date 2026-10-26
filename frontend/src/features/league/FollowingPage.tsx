@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getFollowSummary } from './api';
-import { formatRate } from './labels';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import type { FollowSummary } from './types';
 import './league.css';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
@@ -20,11 +20,24 @@ export function FollowingPage() {
     setInvestors([]);
     getFollowSummary(controller.signal)
       .then((value) => {
-        if (!controller.signal.aborted) setInvestors(value);
+        if (!controller.signal.aborted) {
+          setInvestors(value);
+          trackLeagueEvent('league_load_result', {
+            surface: 'following',
+            status: 'success',
+            result_count: value.length,
+          });
+        }
       })
       .catch((caught: unknown) => {
-        if (!controller.signal.aborted)
-          setError(caught instanceof Error ? caught.message : '팔로우 요약을 불러오지 못했습니다.');
+        if (!controller.signal.aborted) {
+          setError(caught instanceof Error ? caught.message : '팔로잉 목록을 불러오지 못했습니다.');
+          trackLeagueEvent('league_load_result', {
+            surface: 'following',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -44,13 +57,23 @@ export function FollowingPage() {
       </header>
       {loading ? (
         <p className="league-state" role="status">
-          주간 요약을 불러오고 있습니다.
+          팔로잉 목록을 불러오고 있습니다.
         </p>
       ) : null}
       {error ? (
         <div className="league-state" role="alert">
           <p>{error}</p>
-          <button type="button" onClick={() => setRetry((n) => n + 1)}>
+          <button
+            type="button"
+            onClick={() => {
+              trackLeagueEvent('league_action', {
+                surface: 'following',
+                action: 'retry',
+                status: 'clicked',
+              });
+              setRetry((n) => n + 1);
+            }}
+          >
             다시 불러오기
           </button>
         </div>
@@ -60,34 +83,15 @@ export function FollowingPage() {
           <strong>팔로우한 투자자가 없습니다</strong>
         </section>
       ) : null}
-      <div className="league-follow-grid">
+      <ul className="league-follow-grid" aria-label="팔로우한 투자자">
         {investors.map((investor) => (
-          <Link
-            key={investor.publicId}
-            to={`/league/${investor.publicId}`}
-            state={{ source: 'following' }}
-          >
-            <span>{investor.rank ? `${investor.rank}위` : '집계 전'}</span>
-            <div className="league-follow-person">
+          <li key={investor.publicId}>
+            <Link to={`/league/${investor.publicId}`} state={{ source: 'following' }}>
               <strong>{investor.displayName}</strong>
-              <small>
-                {investor.rankChange == null
-                  ? '비교 기록 없음'
-                  : investor.rankChange === 0
-                    ? '지난주와 동일'
-                    : `지난주 대비 ${Math.abs(investor.rankChange)}위 ${investor.rankChange > 0 ? '상승' : '하락'}`}
-              </small>
-            </div>
-            <p>
-              이번 주 수익률{' '}
-              {investor.weeklyReturnRate === null
-                ? '기록 없음'
-                : formatRate(investor.weeklyReturnRate)}
-            </p>
-            <small>이번 주 복기 {investor.newReviewCount}개</small>
-          </Link>
+            </Link>
+          </li>
         ))}
-      </div>
+      </ul>
     </main>
   );
 }

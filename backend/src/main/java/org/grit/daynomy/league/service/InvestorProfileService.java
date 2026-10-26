@@ -3,7 +3,10 @@ package org.grit.daynomy.league.service;
 import java.time.Instant;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.TransactionLog;
 import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.dto.LeagueDto.ProfileRequest;
@@ -21,6 +24,7 @@ import org.grit.daynomy.member.service.MemberService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class InvestorProfileService {
@@ -31,6 +35,9 @@ public class InvestorProfileService {
   private final SharedPortfolioRepository portfolioRepository;
   private final SharedHoldingRepository holdingRepository;
   private final InvestmentDecisionRepository decisionRepository;
+  private final LeagueEnrollmentService enrollmentService;
+  private final LeagueReturnService returnService;
+  private final LeagueRankingCache rankingCache;
 
   @Transactional(readOnly = true)
   public ProfileResponse getMine(Long memberId) {
@@ -54,7 +61,16 @@ public class InvestorProfileService {
                         request.riskProfile()));
     profile.changeProfile(
         displayName, request.bio(), request.experienceLevel(), request.riskProfile());
-    return ProfileResponse.from(profileRepository.save(profile));
+    boolean created = profile.getId() == null;
+    InvestorProfile saved = profileRepository.save(profile);
+    rankingCache.invalidateAfterCommit();
+    TransactionLog.afterCommit(
+        LogEvent.LEAGUE_PROFILE_SAVED,
+        log.atInfo()
+            .addKeyValue("memberId", memberId)
+            .addKeyValue("profileId", saved.getId())
+            .addKeyValue("created", created));
+    return ProfileResponse.from(saved);
   }
 
   @Transactional
@@ -83,12 +99,40 @@ public class InvestorProfileService {
         throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
       }
     }
+    boolean previousProfilePublic = profile.isProfilePublic();
+    boolean previousLeagueEnabled = profile.isLeagueEnabled();
+    boolean previousAllocationPublic = profile.isAllocationPublic();
+    boolean previousDetailPublic = profile.isDetailPublic();
     profile.changePublication(
         request.profilePublic(),
         request.leagueEnabled(),
         request.allocationPublic(),
         request.detailPublic(),
         Instant.now());
+    if (!previousLeagueEnabled && profile.isLeagueEnabled()) {
+      enrollmentService.includeCurrentWeek(profile);
+      returnService.calculateCurrentWeek(profile);
+    }
+    boolean changed =
+        previousProfilePublic != profile.isProfilePublic()
+            || previousLeagueEnabled != profile.isLeagueEnabled()
+            || previousAllocationPublic != profile.isAllocationPublic()
+            || previousDetailPublic != profile.isDetailPublic();
+    if (changed) rankingCache.invalidateAfterCommit();
+    TransactionLog.afterCommit(
+        LogEvent.LEAGUE_PUBLICATION_CHANGED,
+        (changed ? log.atInfo() : log.atDebug())
+            .addKeyValue("memberId", memberId)
+            .addKeyValue("profileId", profile.getId())
+            .addKeyValue("changed", changed)
+            .addKeyValue("previousProfilePublic", previousProfilePublic)
+            .addKeyValue("profilePublic", profile.isProfilePublic())
+            .addKeyValue("previousLeagueEnabled", previousLeagueEnabled)
+            .addKeyValue("leagueEnabled", profile.isLeagueEnabled())
+            .addKeyValue("previousAllocationPublic", previousAllocationPublic)
+            .addKeyValue("allocationPublic", profile.isAllocationPublic())
+            .addKeyValue("previousDetailPublic", previousDetailPublic)
+            .addKeyValue("detailPublic", profile.isDetailPublic()));
     return ProfileResponse.from(profile);
   }
 }

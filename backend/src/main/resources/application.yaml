@@ -42,6 +42,9 @@ spring:
         format_sql: true
 
 management:
+  observations:
+    annotations:
+      enabled: true
   otlp:
     metrics:
       export:
@@ -94,6 +97,10 @@ jwt:
 cookie:
   secure: ${COOKIE_SECURE:false}
 
+content-interaction:
+  anonymous-token-secret: ${CONTENT_INTERACTION_ANONYMOUS_TOKEN_SECRET:${jwt.secret}}
+  rate-limit-per-minute: ${CONTENT_INTERACTION_RATE_LIMIT_PER_MINUTE:60}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -126,6 +133,12 @@ external:
     connect-timeout: ${YOUTUBE_CONNECT_TIMEOUT:3s}
     read-timeout: ${YOUTUBE_READ_TIMEOUT:10s}
 
+  eodhd:
+    api-token: ${EODHD_API_TOKEN:}
+    base-url: https://eodhd.com/api
+    connect-timeout: 3s
+    read-timeout: 60s
+
   public-data:
     service-key: ${PUBLIC_DATA_SERVICE_KEY}
     stock-price-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo
@@ -133,6 +146,17 @@ external:
     listed-stock-url: https://apis.data.go.kr/1160100/GetKrxListedInfoService_V2/getItemInfo_V2
     connect-timeout: ${PUBLIC_DATA_CONNECT_TIMEOUT:3s}
     read-timeout: ${PUBLIC_DATA_READ_TIMEOUT:10s}
+
+  investment-calendar:
+    connect-timeout: ${INVESTMENT_CALENDAR_CONNECT_TIMEOUT:3s}
+    read-timeout: ${INVESTMENT_CALENDAR_READ_TIMEOUT:15s}
+    bls-base-url: ${BLS_BASE_URL:https://api.bls.gov/publicAPI/v2}
+    bls-schedule-url: ${BLS_SCHEDULE_URL:https://www.bls.gov/schedule/news_release/cpi.htm}
+    bok-base-url: ${BOK_BASE_URL:https://www.bok.or.kr}
+    ecos-base-url: ${ECOS_BASE_URL:https://ecos.bok.or.kr/api}
+    ecos-api-key: ${ECOS_API_KEY:}
+    dart-base-url: ${DART_BASE_URL:https://opendart.fss.or.kr/api}
+    dart-api-key: ${DART_API_KEY:}
 
 ai:
   openai:
@@ -149,7 +173,17 @@ news:
       enabled: ${US_NEWS_GENERATION_ENABLED:false}
       cron: ${US_NEWS_GENERATION_CRON:0 0 9 * * *}
 
+person:
+  post-collection:
+    enabled: ${PERSON_POST_COLLECTION_ENABLED:false}
+    cron: ${PERSON_POST_COLLECTION_CRON:0 0 6 * * *}
+    lookback-days: ${PERSON_POST_COLLECTION_LOOKBACK_DAYS:3}
+
 stock:
+  us:
+    sync:
+      enabled: ${US_STOCK_SYNC_ENABLED:false}
+      cron: ${US_STOCK_SYNC_CRON:0 15 6 * * *}
   calendar:
     sync:
       enabled: ${MARKET_CALENDAR_SYNC_ENABLED:false}
@@ -160,11 +194,18 @@ stock:
   price:
     sync:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
-      cron: ${STOCK_PRICE_SYNC_CRON:0 30 13,18 * * MON-FRI}
+      cron: ${STOCK_PRICE_SYNC_CRON:0 30 14,18 * * MON-FRI}
+
+exchange-rate:
+  sync:
+    enabled: ${EXCHANGE_RATE_SYNC_ENABLED:false}
+    cron: ${EXCHANGE_RATE_SYNC_CRON:0 10 6 * * *}
 
 portfolio:
   analysis:
+    model: ${PORTFOLIO_ANALYSIS_MODEL:${OPENAI_MODEL:gpt-5-mini}}
     cache-ttl: ${PORTFOLIO_ANALYSIS_CACHE_TTL:30m}
+    batch-size: ${PORTFOLIO_ANALYSIS_BATCH_SIZE:1}
   snapshot:
     enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
     cron: ${PORTFOLIO_SNAPSHOT_CRON:0 30 7 * * TUE-SAT}
@@ -173,6 +214,13 @@ league:
   calculation:
     enabled: ${LEAGUE_CALCULATION_ENABLED:false}
     cron: ${LEAGUE_CALCULATION_CRON:0 20 17 * * MON-FRI}
+
+investment-calendar:
+  sync:
+    enabled: ${INVESTMENT_CALENDAR_SYNC_ENABLED:false}
+    cron: ${INVESTMENT_CALENDAR_SYNC_CRON:0 0 4 * * *}
+    history-years: ${INVESTMENT_CALENDAR_HISTORY_YEARS:5}
+    dart-lookback-days: ${INVESTMENT_CALENDAR_DART_LOOKBACK_DAYS:30}
 
 logging:
   structured:

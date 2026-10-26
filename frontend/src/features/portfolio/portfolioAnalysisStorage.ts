@@ -55,6 +55,22 @@ export function markGuestPortfolioAnalysisTrialUsed() {
   }
 }
 
+export function matchesGuestPortfolioAnalysisHoldings(holdingsKey?: string) {
+  if (holdingsKey === undefined) return true;
+  try {
+    const saved = sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_STORAGE_KEY);
+    if (!saved) return true;
+    const parsed: unknown = JSON.parse(saved);
+    return (
+      !isStoredPortfolioAnalysis(parsed) ||
+      parsed.holdingsKey === undefined ||
+      parsed.holdingsKey === holdingsKey
+    );
+  } catch {
+    return true;
+  }
+}
+
 export function loadPortfolioAnalysis(
   now = new Date(),
   isLoggedIn = true,

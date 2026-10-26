@@ -38,8 +38,8 @@ app:
   cors:
     allowed-origin: http://localhost:5173
   oauth2:
-    success-redirect-uri: http://localhost:5173
-    failure-redirect-uri: http://localhost:5173/login?error=oauth
+    success-redirect-uri: ${FRONTEND_BASE_URL:http://localhost:5173}
+    failure-redirect-uri: ${FRONTEND_BASE_URL:http://localhost:5173}/login?error=oauth
   storage:
     s3:
       region: ap-northeast-2
@@ -53,3 +53,16 @@ cookie:
 external:
   public-data:
     service-key: test-service-key
+
+exchange-rate:
+  sync:
+    enabled: false
+
+investment-calendar:
+  sync:
+    enabled: false
+
+stock:
+  us:
+    sync:
+      enabled: false

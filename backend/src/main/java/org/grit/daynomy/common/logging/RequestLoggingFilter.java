@@ -19,22 +19,46 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Slf4j
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(Ordered.HIGHEST_PRECEDENCE + 2)
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
+  public static final String ERROR_CODE_ATTRIBUTE =
+      RequestLoggingFilter.class.getName() + ".errorCode";
+
   private static final String REQUEST_ID = "requestId";
-  private static final String TRACE_ID = "traceId";
   private static final String AUTOMATION = "automation";
+
+  @Override
+  protected boolean shouldNotFilterAsyncDispatch() {
+    return false;
+  }
 
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
+    if (isAsyncDispatch(request)) {
+      var previous = MDC.getCopyOfContextMap();
+      try {
+        for (String key : new String[] {REQUEST_ID, AUTOMATION}) {
+          MDC.put(
+              key, (String) request.getAttribute(RequestLoggingFilter.class.getName() + "." + key));
+        }
+        filterChain.doFilter(request, response);
+      } finally {
+        if (previous == null) MDC.clear();
+        else MDC.setContextMap(previous);
+      }
+      // 최초 디스패치의 AsyncListener가 완료 로그를 한 번만 남긴다.
+      return;
+    }
     long startedAt = System.nanoTime();
 
     MDC.put(REQUEST_ID, UUID.randomUUID().toString());
-    MDC.put(TRACE_ID, UUID.randomUUID().toString());
     MDC.put(AUTOMATION, detectAutomation(request).code());
+    for (String key : new String[] {REQUEST_ID, AUTOMATION}) {
+      request.setAttribute(RequestLoggingFilter.class.getName() + "." + key, MDC.get(key));
+    }
 
     log.atDebug()
         .addKeyValue("event", LogEvent.HTTP_REQUEST_STARTED.code())
@@ -80,7 +104,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
       } finally {
         MDC.remove(REQUEST_ID);
-        MDC.remove(TRACE_ID);
         MDC.remove(AUTOMATION);
       }
     }
@@ -88,7 +111,10 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
   private void logCompletion(
       HttpServletRequest request, HttpServletResponse response, long startedAt) {
-    log.atInfo()
+    var completion = log.atInfo();
+    Object errorCode = request.getAttribute(ERROR_CODE_ATTRIBUTE);
+    if (errorCode != null) completion.addKeyValue("errorCode", errorCode);
+    completion
         .addKeyValue("event", LogEvent.HTTP_REQUEST_COMPLETED.code())
         .addKeyValue("method", request.getMethod())
         .addKeyValue("uri", request.getRequestURI())

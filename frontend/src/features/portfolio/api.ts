@@ -1,5 +1,5 @@
 import { ApiError, request, requestWithCsrf } from '../../api/client';
-import { isStock } from '../stocks/api';
+import { isStock, isStockMarket } from '../stocks/api';
 import type {
   PortfolioHoldingHistory,
   PortfolioTransactionRequest,
@@ -20,6 +20,7 @@ import type {
   PortfolioPerformanceResponse,
   SavedPortfolioResponse,
   SavedPortfolioAnalysisResponse,
+  GuestPortfolioAnalysisTaskResponse,
 } from './types';
 
 const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE', 'NEUTRAL']);
@@ -60,7 +61,7 @@ function isHoldingResult(value: unknown): value is PortfolioHoldingResult {
 function isMarketAllocation(value: unknown): value is MarketAllocation {
   return (
     isRecord(value) &&
-    (value.market === 'KOSPI' || value.market === 'KOSDAQ') &&
+    isStockMarket(value.market) &&
     hasNumber(value, 'evaluationAmount') &&
     hasNumber(value, 'weight')
   );
@@ -170,6 +171,12 @@ export function isPortfolioAnalysisResponse(value: unknown): value is PortfolioA
       (typeof value.overallDirection === 'string' &&
         IMPACT_DIRECTIONS.has(value.overallDirection as PortfolioImpactDirection))) &&
     hasNullableNumber(value, 'overallScore') &&
+    (value.excludedAssets === undefined ||
+      (Array.isArray(value.excludedAssets) &&
+        value.excludedAssets.every(
+          (asset: unknown) =>
+            isRecord(asset) && typeof asset.assetName === 'string' && hasNumber(asset, 'weight'),
+        ))) &&
     (value.coverage === undefined ||
       ['COMPLETE', 'PARTIAL', 'INSUFFICIENT'].includes(String(value.coverage))) &&
     (value.analyzedWeight === undefined || hasNumber(value, 'analyzedWeight')) &&
@@ -284,6 +291,28 @@ export async function getPortfolioPerformance(from: string, to: string, signal?:
   return response as PortfolioPerformanceResponse;
 }
 
+export async function preparePortfolioPerformance(
+  from: string,
+  to: string,
+  retry = false,
+  signal?: AbortSignal,
+): Promise<'READY' | 'PROCESSING' | 'FAILED'> {
+  const query = new URLSearchParams({ from, to, ...(retry ? { retry: 'true' } : {}) });
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/performance/prepare?${query}`,
+    { method: 'POST', signal },
+  );
+  if (
+    !isRecord(response) ||
+    (response.status !== 'READY' &&
+      response.status !== 'PROCESSING' &&
+      response.status !== 'FAILED')
+  ) {
+    throw new Error('종가 수집 상태를 확인하지 못했습니다.');
+  }
+  return response.status;
+}
+
 export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortSignal) {
   const analysisRequest: PortfolioAnalysisRequest = { assets };
   const response = await request<unknown>('/api/portfolio/analysis', {
@@ -297,6 +326,45 @@ export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortS
     throw new Error('포트폴리오 분석 API 응답 형식이 올바르지 않습니다.');
   }
 
+  return response;
+}
+
+function isGuestAnalysisTask(value: unknown): value is GuestPortfolioAnalysisTaskResponse {
+  return (
+    isRecord(value) &&
+    (value.taskId === null || typeof value.taskId === 'string') &&
+    ['EMPTY', 'PROCESSING', 'READY', 'FAILED'].includes(String(value.status)) &&
+    (value.analysis === null || isPortfolioAnalysisResponse(value.analysis)) &&
+    (value.summaryStatus === null ||
+      ['PENDING', 'READY', 'FAILED'].includes(String(value.summaryStatus))) &&
+    (value.failureCode === null || typeof value.failureCode === 'string') &&
+    typeof value.retryAllowed === 'boolean'
+  );
+}
+
+export async function getGuestPortfolioAnalysis(signal?: AbortSignal) {
+  const response = await request<unknown>('/api/portfolio/analysis/tasks', { signal });
+  if (!isGuestAnalysisTask(response))
+    throw new Error('분석 진행 상태 응답 형식이 올바르지 않아요.');
+  return response;
+}
+
+export async function startGuestPortfolioAnalysis(
+  assets: PortfolioAsset[],
+  signal?: AbortSignal,
+  retryTaskId?: string,
+) {
+  const response = await request<unknown>(
+    `/api/portfolio/analysis/tasks${retryTaskId ? `/${encodeURIComponent(retryTaskId)}/retry` : ''}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      ...(retryTaskId ? {} : { body: JSON.stringify({ assets }) }),
+      signal,
+    },
+  );
+  if (!isGuestAnalysisTask(response))
+    throw new Error('분석 진행 상태 응답 형식이 올바르지 않아요.');
   return response;
 }
 
@@ -324,6 +392,10 @@ function isHistory(value: unknown): value is PortfolioHoldingHistory {
     typeof value.occurredAt === 'string' &&
     hasNumber(value, 'fee') &&
     hasNumber(value, 'tax') &&
+    (!String(value.assetCode).endsWith('.US') ||
+      (value.currency === 'USD' &&
+        hasNumber(value, 'exchangeRate') &&
+        Number(value.exchangeRate) > 0)) &&
     (transaction
       ? Number.isSafeInteger(value.transactionQuantity) &&
         Number(value.transactionQuantity) > 0 &&
@@ -383,6 +455,9 @@ export function deletePortfolioTransaction(id: number) {
 function isSavedPortfolioAnalysis(value: unknown): value is SavedPortfolioAnalysisResponse {
   return (
     isRecord(value) &&
+    (value.summaryStatus === undefined ||
+      value.summaryStatus === null ||
+      ['PENDING', 'READY', 'FAILED'].includes(String(value.summaryStatus))) &&
     ['EMPTY', 'READY', 'PORTFOLIO_CHANGED', 'PROCESSING', 'RECHECK_REQUIRED', 'FAILED'].includes(
       String(value.status),
     ) &&
@@ -406,7 +481,7 @@ export async function getSavedPortfolioAnalysis(signal?: AbortSignal) {
 
 export async function updateSavedPortfolioAnalysis(refresh: boolean, signal?: AbortSignal) {
   const response = await requestWithCsrf<unknown>(
-    `/api/users/me/portfolio/analysis${refresh ? '/refresh' : ''}`,
+    `/api/users/me/portfolio/analysis/tasks${refresh ? '/refresh' : ''}`,
     { method: 'POST', signal },
   );
   if (!isSavedPortfolioAnalysis(response))

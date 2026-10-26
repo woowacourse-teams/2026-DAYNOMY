@@ -8,10 +8,10 @@
   align-items: center;
   gap: 7px;
   padding: 0 16px;
-  border: 1px solid #252a34;
+  border: 1px solid var(--button-primary);
   border-radius: 24px;
-  color: #ffffff;
-  background: #252a34;
+  color: #fff;
+  background: var(--button-primary);
   box-shadow: 0 2px 6px rgb(16 24 40 / 5%);
   font: inherit;
   font-size: 14px;
@@ -36,16 +36,16 @@
 
 @media (hover: hover) {
   .feedback-trigger:hover {
-    border-color: #353c49;
-    color: #ffffff;
-    background: #353c49;
+    border-color: var(--button-primary-hover);
+    color: #fff;
+    background: var(--button-primary-hover);
   }
 }
 
 .feedback-trigger:active {
-  border-color: #171b23;
-  color: #ffffff;
-  background: #171b23;
+  border-color: var(--button-primary-active);
+  color: #fff;
+  background: var(--button-primary-active);
   box-shadow: none;
 }
 
@@ -189,22 +189,36 @@
 
 .feedback-submit,
 .feedback-success button {
-  min-height: 46px;
+  min-height: var(--button-height);
   margin-top: 6px;
   padding: 0 18px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   color: #ffffff;
   background: var(--button-primary);
   font: inherit;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
 
-.feedback-submit:hover:not(:disabled),
-.feedback-success button:hover {
+.feedback-submit:hover:not(:disabled) {
   background: var(--button-primary-hover);
+}
+
+.feedback-submit:active:not(:disabled) {
+  background: var(--button-primary-active);
+}
+
+.feedback-success button {
+  border: 1px solid var(--button-outline);
+  background: #fff;
+  color: var(--button-label);
+}
+
+.feedback-success button:hover {
+  border-color: var(--button-label);
+  background: var(--button-secondary-hover);
 }
 
 .feedback-submit:disabled,

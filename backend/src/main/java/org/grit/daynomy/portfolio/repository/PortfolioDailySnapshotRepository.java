@@ -13,10 +13,16 @@ public interface PortfolioDailySnapshotRepository
   Optional<PortfolioDailySnapshot> findByPortfolioIdAndBaseDate(
       Long portfolioId, LocalDate baseDate);
 
+  boolean existsByPortfolioMemberIdAndBaseDate(Long memberId, LocalDate baseDate);
+
   List<PortfolioDailySnapshot> findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(
       Long portfolioId, LocalDate from, LocalDate to);
 
   @Query(
       "select distinct snapshot.baseDate from PortfolioDailySnapshot snapshot order by snapshot.baseDate")
   List<LocalDate> findDistinctBaseDatesOrderByBaseDate();
+
+  @Query(
+      "select s.baseDate from PortfolioDailySnapshot s where s.portfolio.id = :portfolioId order by s.baseDate")
+  List<LocalDate> findBaseDatesByPortfolioId(Long portfolioId);
 }

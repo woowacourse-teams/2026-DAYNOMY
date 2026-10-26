@@ -46,3 +46,8 @@ management:
     export:
       otlp:
         enabled: ${TEMPO_OTEL_ENABLED:false}
+
+app:
+  oauth2:
+    success-redirect-uri: /
+    failure-redirect-uri: /login?error=oauth

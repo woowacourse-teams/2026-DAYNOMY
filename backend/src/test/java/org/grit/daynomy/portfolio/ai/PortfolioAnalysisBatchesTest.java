@@ -3,6 +3,9 @@ package org.grit.daynomy.portfolio.ai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -16,6 +19,8 @@ import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
 
 class PortfolioAnalysisBatchesTest {
@@ -55,6 +60,93 @@ class PortfolioAnalysisBatchesTest {
     assertThat(result.impacts())
         .extracting(PortfolioAnalysisResult.AssetImpactResult::impactLevel)
         .isSortedAccordingTo(java.util.Comparator.naturalOrder());
+  }
+
+  @Test
+  void runsIndividualAssetsConcurrentlyWithAtMostFiveCalls() {
+    var active = new AtomicInteger();
+    var maximum = new AtomicInteger();
+    var barrier = new CyclicBarrier(5);
+    var result =
+        PortfolioAnalysisBatches.analyze(
+            IntStream.range(0, 10).boxed().toList(),
+            batch -> {
+              assertThat(batch).hasSize(1);
+              maximum.accumulateAndGet(active.incrementAndGet(), Math::max);
+              try {
+                barrier.await(5, TimeUnit.SECONDS);
+                return new PortfolioAnalysisResult(
+                    "", batch.stream().map(this::impact).toList(), List.of());
+              } catch (Exception failure) {
+                throw new AssertionError(failure);
+              } finally {
+                active.decrementAndGet();
+              }
+            },
+            1);
+    assertThat(maximum.get()).isEqualTo(5);
+    assertThat(result.impacts()).hasSize(10);
+  }
+
+  @Test
+  void configuredTwoAssetBatchesKeepConcurrencyAndRequestContext() {
+    var targets = IntStream.range(0, 8).boxed().toList();
+    var batches = new ConcurrentLinkedQueue<List<Integer>>();
+    var active = new AtomicInteger();
+    var maximum = new AtomicInteger();
+    var barrier = new CyclicBarrier(2);
+    MDC.put("requestId", "configured-batch-request");
+    try {
+      var result =
+          PortfolioAnalysisBatches.analyze(
+              targets,
+              batch -> {
+                batches.add(batch);
+                maximum.accumulateAndGet(active.incrementAndGet(), Math::max);
+                try {
+                  assertThat(MDC.get("requestId")).isEqualTo("configured-batch-request");
+                  assertThat(MDC.get("batchNumber"))
+                      .isEqualTo(Integer.toString(batch.getFirst() / 2 + 1));
+                  barrier.await(5, TimeUnit.SECONDS);
+                  return new PortfolioAnalysisResult(
+                      "", batch.stream().map(this::impact).toList(), List.of());
+                } catch (Exception exception) {
+                  throw new AssertionError(exception);
+                } finally {
+                  active.decrementAndGet();
+                }
+              },
+              2);
+      assertThat(batches).hasSize(4).allSatisfy(batch -> assertThat(batch).hasSize(2));
+      assertThat(maximum.get()).isEqualTo(2);
+      assertThat(result.impacts())
+          .extracting(PortfolioAnalysisResult.AssetImpactResult::assetName)
+          .containsExactlyInAnyOrderElementsOf(targets.stream().map(i -> "종목" + i).toList());
+      assertThat(result.impacts())
+          .extracting(PortfolioAnalysisResult.AssetImpactResult::sortOrder)
+          .containsExactly(1, 2, 3, 4, 5, 6, 7, 8);
+      assertThat(MDC.get("batchNumber")).isNull();
+    } finally {
+      MDC.remove("requestId");
+      MDC.remove("batchNumber");
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {-1, 0, 6})
+  void rejectsInvalidBatchSizeBeforeAnyRequest(int batchSize) {
+    var calls = new AtomicInteger();
+    assertThatThrownBy(
+            () ->
+                PortfolioAnalysisBatches.analyze(
+                    List.of(1),
+                    batch -> {
+                      calls.incrementAndGet();
+                      return new PortfolioAnalysisResult("", List.of(), List.of());
+                    },
+                    batchSize))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(calls.get()).isZero();
   }
 
   @Test
@@ -136,20 +228,52 @@ class PortfolioAnalysisBatchesTest {
     assertThat(PortfolioAnalysisBatches.analyze(List.of(1), batch -> result)).isSameAs(result);
   }
 
-  @Test
-  void keepsTheRequestIdWhenExecutingBatchesOnWorkerThreads() {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 6})
+  void keepsRequestContextAndAssignsBatchNumbers(int targetCount) {
     MDC.put("requestId", "batch-test-request");
+    MDC.put("batchNumber", "parent");
     try {
       PortfolioAnalysisBatches.analyze(
-          IntStream.range(0, 6).boxed().toList(),
+          IntStream.range(0, targetCount).boxed().toList(),
           batch -> {
             assertThat(MDC.get("requestId")).isEqualTo("batch-test-request");
+            assertThat(MDC.get("batchNumber"))
+                .isEqualTo(Integer.toString(batch.getFirst() / 5 + 1));
             return new PortfolioAnalysisResult(
                 "", batch.stream().map(this::impact).toList(), List.of());
           });
       assertThat(MDC.get("requestId")).isEqualTo("batch-test-request");
+      assertThat(MDC.get("batchNumber")).isEqualTo("parent");
     } finally {
       MDC.remove("requestId");
+      MDC.remove("batchNumber");
+    }
+  }
+
+  @Test
+  void propagatesTheCurrentObservationToWorkerThreads() {
+    var registry = ObservationRegistry.create();
+    registry.observationConfig().observationHandler(new RecordingObservationHandler());
+    var observation = Observation.start("portfolio.analysis.test", registry);
+    try (var scope = observation.openScope()) {
+      PortfolioAnalysisBatches.analyze(
+          IntStream.range(0, 6).boxed().toList(),
+          batch -> {
+            assertThat(registry.getCurrentObservation()).isSameAs(observation);
+            return new PortfolioAnalysisResult(
+                "", batch.stream().map(this::impact).toList(), List.of());
+          });
+    } finally {
+      observation.stop();
+    }
+  }
+
+  private static class RecordingObservationHandler
+      implements ObservationHandler<Observation.Context> {
+    @Override
+    public boolean supportsContext(Observation.Context context) {
+      return true;
     }
   }
 

@@ -62,7 +62,7 @@ it('모든 보유 종목의 소식을 최신순으로 병합하고 같은 글에
   expect(view.getByText('자산을 등록하면 관련 소식이 여기에 모입니다.')).toBeTruthy();
 });
 
-it('이미지가 있는 소식에는 원본 썸네일을, 없는 소식에는 출처별 대체 썸네일을 표시한다', async () => {
+it('YouTube는 저장 이미지 대신 영상 썸네일을 사용하고 로드 실패 시 출처 아이콘을 표시한다', async () => {
   vi.mocked(getStockRelatedContents).mockResolvedValue({
     assetId: 1,
     assetCode: '1',
@@ -73,7 +73,7 @@ it('이미지가 있는 소식에는 원본 썸네일을, 없는 소식에는 �
         ...content,
         id: 2,
         sourceType: 'YOUTUBE',
-        url: 'https://youtube.com/watch?v=1',
+        url: 'https://youtube.com/watch?v=gLniGzh7oWo',
         imageUrl: 'https://images.example.test/video.jpg',
       },
     ],
@@ -89,7 +89,7 @@ it('이미지가 있는 소식에는 원본 썸네일을, 없는 소식에는 �
     view.container
       .querySelector('.portfolio-news-thumbnail.source-youtube > img')
       ?.getAttribute('src'),
-  ).toBe('https://images.example.test/video.jpg');
+  ).toBe('https://i.ytimg.com/vi/gLniGzh7oWo/hqdefault.jpg');
   const image = view.container.querySelector('.portfolio-news-thumbnail.source-youtube > img')!;
   fireEvent.error(image);
   expect(image.hasAttribute('hidden')).toBe(true);
@@ -164,7 +164,7 @@ it('일부 종목 조회가 실패해도 성공한 소식은 유지하고 재시
   );
   fireEvent.click(view.getByRole('link', { name: /공통 소식/ }));
   expect(trackEvent).toHaveBeenCalledWith(
-    'click_content',
+    'click_content_original',
     expect.objectContaining({ surface: 'portfolio_news', position: 1 }),
   );
   expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('종목1');
@@ -324,4 +324,30 @@ it('체험 모드의 더보기는 보유 종목 없이 전체 소식으로 연�
     destination: 'news_home',
   });
   expect(getStockRelatedContents).not.toHaveBeenCalled();
+});
+
+it('최신 소식 5개만 보여주고 나머지는 보유 종목 소식 더보기로 연결한다', async () => {
+  vi.mocked(getStockRelatedContents).mockResolvedValue({
+    assetId: 1,
+    assetCode: '1',
+    assetName: '종목1',
+    contents: [1, 4, 2, 5, 3, 7, 6].map((id) => ({
+      ...content,
+      id,
+      title: `소식 ${id}`,
+      url: `https://x.com/test/status/${id}`,
+      createdAt: `2026-10-12T0${id}:00:00Z`,
+    })),
+  });
+  const view = render(<PortfolioNews holdings={[{ assetId: 1, name: '종목1' }]} />);
+  await view.findByText('소식 7');
+  expect(
+    [...view.container.querySelectorAll('.portfolio-news-list strong')].map(
+      (item) => item.textContent,
+    ),
+  ).toEqual(['소식 7', '소식 6', '소식 5', '소식 4', '소식 3']);
+  expect(view.queryByText('소식 2')).toBeNull();
+  expect(view.getByRole('link', { name: /보유 종목 소식 더 보기/ }).getAttribute('href')).toBe(
+    '/news/contents?scope=portfolio',
+  );
 });

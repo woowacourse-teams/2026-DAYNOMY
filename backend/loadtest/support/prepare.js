@@ -15,6 +15,7 @@ export function readConfig(version) {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(run)) throw new Error("Invalid RUN label");
   return {
     version,
+    mode: __ENV.MODE || "sequential",
     baseUrl: (__ENV.BASE_URL || "").replace(/\/$/, ""),
     referenceDate: __ENV.REFERENCE_DATE || "",
     tradeMonthsAgo: Number(__ENV.TRADE_MONTHS_AGO || 1),
@@ -35,6 +36,10 @@ export function prepare(config, users, warmups) {
     if (!condition) throw new Error(message);
   };
   const integer = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
+  require(["sequential", "stress"].includes(
+    config.mode,
+  ), "MODE must be sequential or stress");
+  const stress = config.mode === "stress";
   const origin = config.baseUrl;
   require(/^https:\/\/[a-z0-9.-]*\bdev\b[a-z0-9.-]*(?::\d+)?$/.test(
     origin,
@@ -65,7 +70,7 @@ export function prepare(config, users, warmups) {
   const rpm = Math.round(rps * 60);
   require(Number.isFinite(rps) &&
     rps > 0 &&
-    rps <= 20 &&
+    rps <= (stress ? 200 : 20) &&
     Math.abs(rps * 60 - rpm) <
       1e-8, "RPS must be positive and expressible as whole requests/minute");
   require(integer(config.stageSeconds, 10, 600) &&
@@ -82,15 +87,18 @@ export function prepare(config, users, warmups) {
   require(expected >= 1 &&
     Math.abs(planned - expected) < 1e-8 &&
     expected <=
-      5000, "Each stage must plan a whole number of requests, at most 5000");
-  const summaryFile = `result-transactions-${version}-${config.referenceDate}-${config.tradeMonthsAgo}m-${rps}rps-${config.stageSeconds}s-${config.run}.json`;
+      (stress
+        ? 120000
+        : 5000), "Each stage must plan a whole number of requests within the workload limit");
+  const summaryFile = `result-transactions-${stress ? "stress-" : ""}${version}-${config.referenceDate}-${config.tradeMonthsAgo}m-${rps}rps-${config.stageSeconds}s-${config.run}.json`;
   require(users.length === 50 &&
     Array.isArray(warmups) &&
     warmups.length ===
       3, "Prepare 50 measurement accounts and 3 warmup accounts");
   // No account may be selected again while its previous client request is outstanding.
-  require(rps * (config.requestTimeoutSeconds + 1) <
-    users.length, "Rate/timeout would overlap accounts; reduce rate or timeout before extending this 50-account fixture");
+  if (!stress)
+    require(rps * (config.requestTimeoutSeconds + 1) <
+      users.length, "Rate/timeout would overlap accounts; use MODE=stress for concurrent writes to this 50-account fixture");
   const profiles = ["light", "standard", "light", "standard", "heavy"];
   const all = [...users, ...warmups];
   require(new Set(all.map((u) => u.memberId)).size === 53 &&
@@ -134,11 +142,14 @@ export function prepare(config, users, warmups) {
           config.warmupSeconds +
           config.stageSeconds +
           2 * config.requestTimeoutSeconds +
-          60, "Token identity or remaining lifetime is insufficient");
+          (stress
+            ? 360
+            : 60), "Token identity or remaining lifetime is insufficient");
   }
 
   return {
     config,
+    stress,
     version,
     origin,
     tradeDate,

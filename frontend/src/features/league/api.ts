@@ -1,5 +1,5 @@
 import { request, requestWithCsrf } from '../../api/client';
-import { trackEvent } from '../../analytics';
+import { trackLeagueEvent } from './analytics';
 import type {
   DailyHistory,
   ExperienceLevel,
@@ -58,6 +58,27 @@ function optionalNumber(value: unknown) {
 }
 function optionalDate(value: unknown) {
   return value === undefined || value === null || isDate(value);
+}
+function isNullableInstant(value: unknown) {
+  return (
+    value === null ||
+    (typeof value === 'string' &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+      isDate(value.slice(0, 10)) &&
+      Number.isFinite(Date.parse(value)))
+  );
+}
+function optionalAggregation(value: unknown) {
+  return (
+    value === undefined ||
+    value === null ||
+    (isRecord(value) &&
+      (value.baseDate === null || isDate(value.baseDate)) &&
+      isNullableInstant(value.expectedAt) &&
+      isNullableInstant(value.firstReturnExpectedAt) &&
+      typeof value.reason === 'string' &&
+      typeof value.delayed === 'boolean')
+  );
 }
 function optionalImage(value: unknown) {
   return (
@@ -139,6 +160,7 @@ function isRankingResponse(value: unknown): value is RankingResponse {
     leagueTypes.has(value.leagueType as LeagueType) &&
     typeof value.confirmed === 'boolean' &&
     optionalCollectionStatus(value.collectionStatus) &&
+    optionalAggregation(value.aggregation) &&
     optionalNumber(value.calculationVersion) &&
     (value.finalizedAt === undefined ||
       value.finalizedAt === null ||
@@ -348,6 +370,7 @@ function isDailyHistory(value: unknown): value is DailyHistory {
     !isNullableNumber(value.weeklyReturnRate) ||
     !optionalCollectionStatus(value.collectionStatus) ||
     !optionalDate(value.trackingStartedOn) ||
+    !optionalAggregation(value.aggregation) ||
     !Array.isArray(value.days)
   )
     return false;
@@ -459,8 +482,21 @@ export async function recordDecision(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!isDecisionRecord(response)) throw new Error('판단 기록 응답 형식이 올바르지 않습니다.');
-  trackEvent('save_investment_decision', { record_type: response.transactionType });
+  if (!isDecisionRecord(response)) throw new Error('투자 기록 응답 형식이 올바르지 않습니다.');
+  trackLeagueEvent('save_investment_decision', { record_type: response.transactionType });
+  return response;
+}
+
+export async function updateDecisionReason(transactionId: number, reason: string) {
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/decisions/${transactionId}/reason`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  if (!isDecisionRecord(response)) throw new Error('투자 기록 응답 형식이 올바르지 않습니다.');
   return response;
 }
 
@@ -477,7 +513,7 @@ export async function createReview(
     },
   );
   if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
-  trackEvent('save_investment_review', { origin: 'shared_portfolio' });
+  trackLeagueEvent('save_investment_review', { origin: 'shared_portfolio' });
   return response;
 }
 
@@ -495,7 +531,7 @@ export async function updateReview(
     },
   );
   if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
-  trackEvent('edit_investment_review', { origin: 'shared_portfolio' });
+  trackLeagueEvent('edit_investment_review', { origin: 'shared_portfolio' });
   return response;
 }
 

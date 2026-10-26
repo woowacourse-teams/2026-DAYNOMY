@@ -30,11 +30,67 @@ public record PortfolioAnalysisResponse(
     @Schema(description = "전체 자산 구성·집중도 → 비중과 근거를 고려한 종합 영향 → 우선 확인 사항의 세 문단. 일부 근거 부족 시 판단 범위를 명시")
         String overallImpact,
     @Schema(description = "포트폴리오 자산별 주요 이슈 영향 분석 목록") List<PortfolioAssetImpactResponse> impacts,
-    @Schema(description = "분석에 사용된 웹 검색 출처") List<PortfolioAnalysisSourceResponse> sources) {
+    @Schema(description = "분석에 사용된 웹 검색 출처") List<PortfolioAnalysisSourceResponse> sources,
+    @Schema(description = "분석 예산에 따라 제외된 자산. 근거 부족이나 중립을 뜻하지 않습니다.")
+        List<ExcludedAsset> excludedAssets) {
+
+  public record ExcludedAsset(String assetName, BigDecimal weight) {}
+
+  public PortfolioAnalysisResponse(
+      int totalAssetCount,
+      int analyzedAssetCount,
+      ImpactDirection overallDirection,
+      BigDecimal overallScore,
+      BigDecimal positiveImpactScore,
+      BigDecimal negativeImpactScore,
+      Instant analyzedAt,
+      String overallImpact,
+      List<PortfolioAssetImpactResponse> impacts,
+      List<PortfolioAnalysisSourceResponse> sources) {
+    this(
+        totalAssetCount,
+        analyzedAssetCount,
+        overallDirection,
+        overallScore,
+        positiveImpactScore,
+        negativeImpactScore,
+        analyzedAt,
+        overallImpact,
+        impacts,
+        sources,
+        List.of());
+  }
 
   public PortfolioAnalysisResponse {
     impacts = List.copyOf(impacts);
     sources = List.copyOf(sources);
+    excludedAssets = List.copyOf(excludedAssets);
+  }
+
+  @com.fasterxml.jackson.annotation.JsonProperty
+  @Schema(description = "AI 분석 대상으로 선택한 자산 수. 근거를 확보한 자산 수와 구분합니다.")
+  public int selectedAssetCount() {
+    return impacts.size();
+  }
+
+  public PortfolioAnalysisResponse withExcludedAssets(List<PortfolioAssetRequest> assets) {
+    var selected =
+        impacts.stream().map(PortfolioAssetImpactResponse::assetName).collect(Collectors.toSet());
+    return new PortfolioAnalysisResponse(
+        totalAssetCount,
+        analyzedAssetCount,
+        overallDirection,
+        overallScore,
+        positiveImpactScore,
+        negativeImpactScore,
+        analyzedAt,
+        overallImpact,
+        impacts,
+        sources,
+        assets.stream()
+            .filter(asset -> !selected.contains(asset.assetName()))
+            .map(asset -> new ExcludedAsset(asset.assetName(), asset.weight()))
+            .toList());
   }
 
   @com.fasterxml.jackson.annotation.JsonProperty
@@ -64,7 +120,8 @@ public record PortfolioAnalysisResponse(
         analyzedAt,
         text,
         impacts,
-        sources);
+        sources,
+        excludedAssets);
   }
 
   public PortfolioAnalysisSnapshot toSnapshot(List<PortfolioAssetRequest> assets) {
@@ -131,30 +188,37 @@ public record PortfolioAnalysisResponse(
                         impact.rank()))
             .toList();
     return of(
-        snapshot.assets().size(),
-        snapshot.summary(),
-        analysis.getAnalyzedAt(),
-        snapshot.overallImpact(),
-        impacts,
-        evidence.stream()
-            .map(
-                source ->
-                    new PortfolioAnalysisSourceResponse(
-                        source.getTitle(),
-                        source.getUrl(),
-                        source.getPublishedOn(),
-                        source.getOccurredOn(),
-                        source.getExcerpt(),
-                        source.getFactQuote()))
-            .collect(
-                Collectors.toMap(
-                    PortfolioAnalysisSourceResponse::url,
-                    Function.identity(),
-                    (first, ignored) -> first,
-                    java.util.LinkedHashMap::new))
-            .values()
-            .stream()
-            .toList());
+            snapshot.assets().size(),
+            snapshot.summary(),
+            analysis.getAnalyzedAt(),
+            analysis.getOverallImpact(),
+            impacts,
+            evidence.stream()
+                .map(
+                    source ->
+                        new PortfolioAnalysisSourceResponse(
+                            source.getTitle(),
+                            source.getUrl(),
+                            source.getPublishedOn(),
+                            source.getOccurredOn(),
+                            source.getExcerpt(),
+                            source.getFactQuote()))
+                .collect(
+                    Collectors.toMap(
+                        PortfolioAnalysisSourceResponse::url,
+                        Function.identity(),
+                        (first, ignored) -> first,
+                        java.util.LinkedHashMap::new))
+                .values()
+                .stream()
+                .toList())
+        .withExcludedAssets(
+            snapshot.assets().stream()
+                .map(
+                    asset ->
+                        new PortfolioAssetRequest(
+                            asset.assetName(), asset.weight(), asset.quantity()))
+                .toList());
   }
 
   public static PortfolioAnalysisResponse of(

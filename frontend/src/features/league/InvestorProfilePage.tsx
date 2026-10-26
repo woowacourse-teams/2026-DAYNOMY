@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { trackEvent } from '../../analytics';
+import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { followInvestor, getInvestorDetail, getPublicInvestor, unfollowInvestor } from './api';
-import { collectionLabels, formatRate, transactionLabels } from './labels';
+import { collectionLabels, formatRate, reviewDateLabel, transactionLabels } from './labels';
 import { ReturnLine } from './ReturnLine';
 import { DailyReturns } from './DailyReturns';
 import { InvestorAvatar } from './InvestorAvatar';
@@ -37,6 +37,7 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
   );
 
   const dailyContent = useRef<HTMLDivElement>(null);
+  const viewed = useRef('');
   useEffect(() => {
     if (dailyOpen) {
       dailyContent.current?.focus({ preventScroll: true });
@@ -45,11 +46,14 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
   }, [dailyOpen]);
 
   useEffect(() => {
-    if (publicId)
-      trackEvent('view_investor_profile', {
+    const key = JSON.stringify([publicId, viewSource, viewRankBucket]);
+    if (publicId && viewed.current !== key) {
+      viewed.current = key;
+      trackLeagueEvent('view_investor_profile', {
         source: viewSource,
         rank_bucket: viewRankBucket,
       });
+    }
   }, [publicId, viewSource, viewRankBucket]);
 
   useEffect(() => {
@@ -66,23 +70,42 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
       .then((value) => {
         if (controller.signal.aborted) return;
         setInvestor(value);
+        trackLeagueEvent('league_load_result', { surface: 'investor', status: 'success' });
         if (!value.detailAvailable) return;
         setDetailLoading(true);
         void getInvestorDetail(publicId, controller.signal)
           .then((details) => {
-            if (!controller.signal.aborted) setDetail(details);
+            if (!controller.signal.aborted) {
+              setDetail(details);
+              trackLeagueEvent('league_load_result', {
+                surface: 'investor_details',
+                status: 'success',
+              });
+            }
           })
-          .catch(() => {
-            if (!controller.signal.aborted)
+          .catch((caught: unknown) => {
+            if (!controller.signal.aborted) {
               setDetailError('상세 정보를 불러오지 못했습니다. 저장된 내용이 없는 것은 아니에요.');
+              trackLeagueEvent('league_load_result', {
+                surface: 'investor_details',
+                status: 'error',
+                error_type: leagueErrorType(caught),
+              });
+            }
           })
           .finally(() => {
             if (!controller.signal.aborted) setDetailLoading(false);
           });
       })
       .catch((caught: unknown) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
           setError(caught instanceof Error ? caught.message : '투자자를 불러오지 못했습니다.');
+          trackLeagueEvent('league_load_result', {
+            surface: 'investor',
+            status: 'error',
+            error_type: leagueErrorType(caught),
+          });
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -92,13 +115,22 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
 
   async function toggleFollow() {
     if (!investor || followSaving) return;
+    const action = investor.followed ? 'unfollow' : 'follow';
+    trackLeagueEvent('league_action', { surface: 'investor', action, status: 'submitted' });
     setFollowSaving(true);
     try {
       if (investor.followed) await unfollowInvestor(investor.publicId);
       else await followInvestor(investor.publicId);
       setInvestor({ ...investor, followed: !investor.followed });
+      trackLeagueEvent('league_action', { surface: 'investor', action, status: 'success' });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '팔로우 상태를 변경하지 못했습니다.');
+      trackLeagueEvent('league_action', {
+        surface: 'investor',
+        action,
+        status: 'error',
+        error_type: leagueErrorType(caught),
+      });
     } finally {
       setFollowSaving(false);
     }
@@ -120,7 +152,17 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
           투자자 프로필
         </h1>
         <p>{error}</p>
-        <button type="button" onClick={() => setRetry((n) => n + 1)}>
+        <button
+          type="button"
+          onClick={() => {
+            trackLeagueEvent('league_action', {
+              surface: 'investor',
+              action: 'retry',
+              status: 'clicked',
+            });
+            setRetry((n) => n + 1);
+          }}
+        >
           다시 불러오기
         </button>
       </main>
@@ -144,6 +186,11 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
       : formatRate(point.weeklyReturnRate);
   }
   function showDaily(week: string) {
+    trackLeagueEvent('league_action', {
+      surface: 'investor',
+      action: 'change_daily_week',
+      status: 'clicked',
+    });
     setWeekStart(week);
     setDailyOpen(true);
   }
@@ -195,32 +242,66 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                 className={
                   investor.performance.weeklyReturnRate === null
                     ? ''
-                    : investor.performance.weeklyReturnRate >= 0
+                    : investor.performance.weeklyReturnRate > 0
                       ? 'positive'
-                      : 'negative'
+                      : investor.performance.weeklyReturnRate < 0
+                        ? 'negative'
+                        : ''
                 }
               >
                 {investor.performance.weeklyReturnRate === null
-                  ? '집계 대기'
+                  ? '—'
                   : formatRate(investor.performance.weeklyReturnRate)}
               </strong>
+              {investor.performance.weeklyReturnRate === null ? (
+                <small className="league-metric-pending">집계 대기</small>
+              ) : null}
             </article>
             <article>
               <span>이번 주 순위</span>
               <strong>
                 {investor.performance.weeklyRank == null
-                  ? '집계 대기'
+                  ? '—'
                   : `${investor.performance.weeklyRank}위`}
               </strong>
+              {investor.performance.weeklyRank == null ? (
+                <small className="league-metric-pending">집계 대기</small>
+              ) : null}
             </article>
           </div>
         </section>
 
         <div className="league-chart-switch" role="group" aria-label="수익률 조회 단위">
-          <button type="button" aria-pressed={dailyOpen} onClick={() => setDailyOpen(true)}>
+          <button
+            type="button"
+            aria-pressed={dailyOpen}
+            onClick={() => {
+              if (!dailyOpen)
+                trackLeagueEvent('league_action', {
+                  surface: 'investor',
+                  action: 'toggle_daily_history',
+                  status: 'clicked',
+                  view: 'daily',
+                });
+              setDailyOpen(true);
+            }}
+          >
             일별
           </button>
-          <button type="button" aria-pressed={!dailyOpen} onClick={() => setDailyOpen(false)}>
+          <button
+            type="button"
+            aria-pressed={!dailyOpen}
+            onClick={() => {
+              if (dailyOpen)
+                trackLeagueEvent('league_action', {
+                  surface: 'investor',
+                  action: 'toggle_daily_history',
+                  status: 'clicked',
+                  view: 'weekly',
+                });
+              setDailyOpen(false);
+            }}
+          >
             주간
           </button>
         </div>
@@ -286,7 +367,12 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
 
         <div id="league-daily-details" ref={dailyContent} tabIndex={-1} hidden={!dailyOpen}>
           {dailyOpen ? (
-            <DailyReturns publicId={publicId} weekStart={weekStart} onWeekChange={setWeekStart} />
+            <DailyReturns
+              publicId={publicId}
+              weekStart={weekStart}
+              onWeekChange={setWeekStart}
+              onRefresh={() => setRetry((value) => value + 1)}
+            />
           ) : null}
         </div>
       </div>
@@ -300,7 +386,7 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
         </div>
       ) : detailLoading ? (
         <p className="league-state" role="status">
-          공개 투자 판단을 불러오고 있습니다.
+          공개 투자 기록을 불러오고 있습니다.
         </p>
       ) : detail ? (
         <>
@@ -354,17 +440,11 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                   <p>{decision.reason}</p>
                   {decision.reviews.map((review) => (
                     <blockquote key={review.id}>
-                      <strong>결과 복기</strong>
+                      <strong>복기</strong>
                       <p>{review.actualResult}</p>
                       <p>예상과 달랐던 점: {review.differenceFromExpectation}</p>
                       <small>다음 행동: {review.nextAction}</small>
-                      {review.updatedAt ? (
-                        <small>
-                          {' '}
-                          · 작성 {review.createdAt.slice(0, 10)} · 마지막 저장{' '}
-                          {review.updatedAt.slice(0, 10)}
-                        </small>
-                      ) : null}
+                      <small> · {reviewDateLabel(review)}</small>
                     </blockquote>
                   ))}
                 </li>

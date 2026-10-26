@@ -12,6 +12,7 @@ export function createReport(context) {
     summaryFile,
     users,
     all,
+    stress,
   } = context;
   const duration = new Trend("transaction_duration", true);
   const warmupDuration = new Trend("warmup_duration", true);
@@ -39,8 +40,23 @@ export function createReport(context) {
     transaction_failed: ["count==0"],
     transaction_duration: [`p(95)<=${config.targetP95Ms}`],
     safety_stops: ["count==0"],
-    dropped_iterations: [{ threshold: "count==0", abortOnFail: true }],
+    dropped_iterations: stress
+      ? ["count==0"]
+      : [{ threshold: "count==0", abortOnFail: true }],
   };
+  if (stress) {
+    thresholds.stress_verification_checked = ["count==50"];
+    thresholds.stress_verification_failed = ["count==0"];
+    thresholds.stress_committed = [`count==${expected}`];
+    for (const [index, user] of users.entries()) {
+      const planned =
+        Math.floor(expected / users.length) +
+        (index < expected % users.length ? 1 : 0);
+      thresholds[`stress_committed{account:${userTags(user).account}}`] = [
+        `count==${planned}`,
+      ];
+    }
+  }
   for (const reason of stopReasons)
     thresholds[`safety_stops{reason:${reason}}`] = ["count==0"];
   // Threshold submetrics make account counts (including zero) available to handleSummary.
@@ -86,6 +102,38 @@ export function createReport(context) {
       latency["p(95)"] > config.targetP95Ms
     )
       outcome = "target_exceeded";
+    let integrity;
+    if (stress) {
+      const checked = count("stress_verification_checked");
+      const failures = count("stress_verification_failed");
+      const commits = count("stress_committed");
+      for (const account of accounts)
+        account.committed = count(
+          `stress_committed{account:${account.account}}`,
+        );
+      const countsMatch = accounts.every(
+        (account) =>
+          account.committed >= account.successful &&
+          account.committed <= account.started,
+      );
+      const status =
+        checked !== users.length
+          ? "incomplete"
+          : errors
+            ? "inconclusive"
+            : failures || !countsMatch || commits !== succeeded
+              ? "failed"
+              : "passed";
+      integrity = {
+        status,
+        checked,
+        failures,
+        committed: commits,
+        requiresServerDrain: errors > 0,
+      };
+      if (status === "incomplete") outcome = "incomplete";
+      else if (status === "failed") outcome = "integrity_failed";
+    }
     const profiles = ["light", "standard", "heavy"].map((profile) => {
       const selected = accounts.filter((a) => a.profile === profile);
       return {
@@ -108,6 +156,7 @@ export function createReport(context) {
     const report = {
       schemaVersion: 1,
       version,
+      ...(stress ? { workload: "stress_hot_accounts", integrity } : {}),
       tradeDate,
       referenceDate: config.referenceDate,
       baseUrl: origin,

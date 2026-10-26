@@ -7,6 +7,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import java.util.Map;
@@ -50,11 +51,9 @@ class RequestLoggingFilterTest {
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/news");
     MockHttpServletResponse response = new MockHttpServletResponse();
     AtomicReference<String> requestId = new AtomicReference<>();
-    AtomicReference<String> traceId = new AtomicReference<>();
     FilterChain filterChain =
         (servletRequest, servletResponse) -> {
           requestId.set(MDC.get("requestId"));
-          traceId.set(MDC.get("traceId"));
           assertThat(MDC.get("automation")).isEqualTo("unknown");
           ((MockHttpServletResponse) servletResponse).setStatus(201);
         };
@@ -62,7 +61,6 @@ class RequestLoggingFilterTest {
     requestLoggingFilter.doFilter(request, response, filterChain);
 
     assertThat(requestId).hasValueSatisfying(value -> assertThat(value).isNotBlank());
-    assertThat(traceId).hasValueSatisfying(value -> assertThat(value).isNotBlank());
     assertThat(MDC.get("requestId")).isNull();
     assertThat(MDC.get("traceId")).isNull();
     assertThat(MDC.get("automation")).isNull();
@@ -92,6 +90,11 @@ class RequestLoggingFilterTest {
 
   @Test
   void logsAsyncCompletionOnlyAfterTheResponseCompletes() throws Exception {
+    String traceId = "0123456789abcdef0123456789abcdef";
+    String initialSpanId = "0123456789abcdef";
+    String dispatchSpanId = "fedcba9876543210";
+    MDC.put("traceId", traceId);
+    MDC.put("spanId", initialSpanId);
     var request = new MockHttpServletRequest("POST", "/api/v2/users/me/portfolio/analysis");
     request.setAsyncSupported(true);
     var response = new MockHttpServletResponse();
@@ -105,13 +108,54 @@ class RequestLoggingFilterTest {
         });
     assertThat(appender.list).hasSize(1);
     assertThat(MDC.get("requestId")).isNull();
+    request.setDispatcherType(DispatcherType.ASYNC);
+    MDC.put("spanId", dispatchSpanId);
+    requestLoggingFilter.doFilter(
+        request,
+        response,
+        (req, res) -> {
+          assertThat(MDC.get("requestId")).isEqualTo(requestId.get());
+          assertThat(MDC.get("traceId")).isEqualTo(traceId);
+          assertThat(MDC.get("spanId")).isEqualTo(dispatchSpanId);
+          assertThat(MDC.get("automation")).isEqualTo("unknown");
+          request.setAttribute(
+              RequestLoggingFilter.ERROR_CODE_ATTRIBUTE, "AI_PORTFOLIO_ANALYSIS_FAILED");
+        });
+    assertThat(appender.list).hasSize(1);
+    assertThat(MDC.get("requestId")).isNull();
     response.setStatus(502);
     request.getAsyncContext().complete();
     assertThat(appender.list).hasSize(2);
     assertThat(keyValues(appender.list.get(1))).containsEntry("httpStatus", 502);
+    assertThat(keyValues(appender.list.get(1)))
+        .containsEntry("errorCode", "AI_PORTFOLIO_ANALYSIS_FAILED");
     assertThat(appender.list.get(1).getMDCPropertyMap())
-        .containsEntry("requestId", requestId.get());
+        .containsEntry("requestId", requestId.get())
+        .containsEntry("traceId", traceId)
+        .containsEntry("spanId", initialSpanId);
     assertThat(MDC.get("requestId")).isNull();
+    assertThat(MDC.get("traceId")).isEqualTo(traceId);
+    assertThat(MDC.get("spanId")).isEqualTo(dispatchSpanId);
+  }
+
+  @Test
+  void preservesTracingContextProvidedByMicrometer() throws Exception {
+    MDC.put("traceId", "0123456789abcdef0123456789abcdef");
+    MDC.put("spanId", "0123456789abcdef");
+
+    requestLoggingFilter.doFilter(
+        new MockHttpServletRequest("GET", "/api/news"),
+        new MockHttpServletResponse(),
+        new MockFilterChain());
+
+    assertThat(appender.list)
+        .allSatisfy(
+            loggingEvent ->
+                assertThat(loggingEvent.getMDCPropertyMap())
+                    .containsEntry("traceId", "0123456789abcdef0123456789abcdef")
+                    .containsEntry("spanId", "0123456789abcdef"));
+    assertThat(MDC.get("traceId")).isEqualTo("0123456789abcdef0123456789abcdef");
+    assertThat(MDC.get("spanId")).isEqualTo("0123456789abcdef");
   }
 
   @Test

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -32,6 +33,7 @@ import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.league.domain.InvestorFollow;
 import org.grit.daynomy.league.domain.InvestorProfile;
+import org.grit.daynomy.league.domain.LeagueParticipation;
 import org.grit.daynomy.league.domain.LeagueTypes;
 import org.grit.daynomy.league.domain.PortfolioDailyReturn;
 import org.grit.daynomy.league.domain.SharedHolding;
@@ -40,11 +42,14 @@ import org.grit.daynomy.league.domain.SharedHoldingHistory.ChangeType;
 import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.domain.WeeklyLeaderboard;
 import org.grit.daynomy.league.exception.LeagueErrorCode;
+import org.grit.daynomy.league.repository.InvestmentDecisionCounts;
 import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.InvestmentReviewRepository;
 import org.grit.daynomy.league.repository.InvestorFollowRepository;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.repository.PortfolioDailyReturnRepository;
+import org.grit.daynomy.league.repository.RankingDailyReturn;
+import org.grit.daynomy.league.repository.RankingInvestor;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
@@ -54,12 +59,15 @@ import org.grit.daynomy.member.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Answers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -81,6 +89,8 @@ class LeagueServiceTest {
   @Mock private WeeklyLeaderboardRepository leaderboardRepository;
   @Mock private LeagueCalculationMetrics calculationMetrics;
   @Mock private EntityManager entityManager;
+  @Mock private LeagueAggregationService aggregationService;
+  @Spy private LeagueRankingCache rankingCache = new LeagueRankingCache(mock(TaskScheduler.class));
   @InjectMocks private LeagueService service;
 
   @ParameterizedTest
@@ -181,7 +191,7 @@ class LeagueServiceTest {
 
     then(calculationMetrics)
         .should()
-        .finalizationState(0, 1, tuesday.atTime(13, 0).atZone(seoul).toInstant());
+        .finalizationState(0, 1, tuesday.atTime(14, 0).atZone(seoul).toInstant());
     given(
             tradingDayRepository.findFirstByTradingTrueAndBaseDateGreaterThanOrderByBaseDateAsc(
                 friday))
@@ -266,7 +276,7 @@ class LeagueServiceTest {
     dailyProfile(week.minusWeeks(2));
     var profile = profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
     profile.changePublication(true, true, false, true, Instant.now());
-    given(profileRepository.findById(1L)).willReturn(Optional.of(profile));
+    rankingPageProfiles(List.of(profile));
     given(followRepository.findAllByFollowerIdOrderByCreatedAtDesc(99L))
         .willReturn(List.of(new InvestorFollow(mock(Member.class), profile)));
     given(
@@ -339,6 +349,8 @@ class LeagueServiceTest {
                 week.plusWeeks(1), week.plusWeeks(1).plusDays(6)))
         .willReturn(List.of());
     calendar(week, List.of(week, week.plusDays(1)));
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(week, week.plusDays(1)))
+        .willReturn(List.of(tradingDay(week), tradingDay(week.plusDays(1))));
     var excluded = new PortfolioDailyReturn(portfolio, week);
     excluded.exclude("NO_HOLDINGS", Instant.now());
     var next = new PortfolioDailyReturn(portfolio, week.plusDays(1));
@@ -351,7 +363,7 @@ class LeagueServiceTest {
         .willReturn(List.of(excluded, next));
     given(
             tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
-                week.minusWeeks(1), week.plusDays(6)))
+                week.minusWeeks(1), week.plusDays(1)))
         .willReturn(List.of());
     given(
             leaderboardRepository.findFirstByWeekStartAndLeagueTypeOrderByCalculationVersionDesc(
@@ -386,6 +398,34 @@ class LeagueServiceTest {
   }
 
   @Test
+  void missingMondaySnapshotKeepsWeeklyReturnPendingEvenWhenTuesdayWasCalculated() {
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
+    SharedPortfolio portfolio = dailyProfile(week.plusDays(2));
+    InvestorProfile profile =
+        profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
+    profile
+        .getParticipations()
+        .getFirst()
+        .includeCurrentWeekFrom(week.atTime(15, 30).atZone(ZoneId.of("Asia/Seoul")).toInstant());
+    profile.startTracking(week.plusDays(1));
+    var monday = new PortfolioDailyReturn(portfolio, week);
+    monday.exclude("SNAPSHOT_PENDING", Instant.now());
+    var tuesday = dailyReturn(portfolio, week.plusDays(1), "10");
+    calendar(week, List.of(week, week.plusDays(1)));
+    given(returnRepository.findLatestByPortfolioIdAndBaseDateBetween(3L, week, week.plusDays(6)))
+        .willReturn(List.of(monday, tuesday));
+
+    var response = service.dailyHistory("investor-1", week);
+
+    assertThat(response.weeklyReturnRate()).isNull();
+    assertThat(response.eligibleFrom()).isEqualTo(week);
+    assertThat(response.days().getFirst().status())
+        .isEqualTo(LeagueTypes.DailyReturnStatus.PENDING);
+    assertThat(response.days().getFirst().reason()).isEqualTo("SNAPSHOT_PENDING");
+    assertThat(response.days().getLast().cumulativeReturnRate()).isNull();
+  }
+
+  @Test
   void newParticipantRanksAtZeroThenCompoundsDailyAndResetsNextWeek(
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {
@@ -398,8 +438,6 @@ class LeagueServiceTest {
     SharedPortfolio portfolio = dailyProfile(enrolled);
     InvestorProfile profile =
         profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
-    given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
-        .willReturn(List.of(profile));
     given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
     given(
             tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
@@ -435,6 +473,7 @@ class LeagueServiceTest {
                         value -> !value.getBaseDate().isAfter(call.getArgument(2, LocalDate.class)))
                     .toList());
 
+    rankingInputs(List.of(profile), List.of(portfolio), java.util.Map.of(3L, values));
     var first = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
     assertThat(first.confirmed()).isFalse();
     assertThat(first.asOfDate()).isEqualTo(enrolled);
@@ -453,6 +492,7 @@ class LeagueServiceTest {
       Instant close = date.atTime(18, 0).atZone(seoul).toInstant();
       instants.when(Instant::now).thenReturn(close);
       values.add(dailyReturn(portfolio, date, "10"));
+      rankingCache.invalidateAfterCommit();
       String expected = offset == 1 ? "10" : "21";
       assertThat(
               service
@@ -497,6 +537,7 @@ class LeagueServiceTest {
     LocalDate week = LocalDate.now(seoul).with(DayOfWeek.MONDAY).minusWeeks(1);
     List<InvestorProfile> profiles = new ArrayList<>();
     java.util.Map<Long, List<PortfolioDailyReturn>> returns = new java.util.HashMap<>();
+    List<SharedPortfolio> portfolios = new ArrayList<>();
     for (int index = 0; index < 4; index++) {
       long memberId = index + 1L;
       long portfolioId = index + 10L;
@@ -524,8 +565,8 @@ class LeagueServiceTest {
         values.add(dailyReturn(portfolio, week.plusDays(day), index == 3 && day == 4 ? "-1" : "0"));
       }
       returns.put(portfolioId, values);
+      portfolios.add(portfolio);
     }
-    given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue()).willReturn(profiles);
     given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(profiles);
     given(
             returnRepository.findLatestByPortfolioIdAndBaseDateBetween(
@@ -557,6 +598,7 @@ class LeagueServiceTest {
                   .toList();
             });
 
+    rankingInputs(profiles, portfolios, returns);
     assertThat(service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20).rankings())
         .extracting(value -> value.rank())
         .containsExactly(1, 1, 1, 2);
@@ -573,8 +615,10 @@ class LeagueServiceTest {
         .containsExactly(1, 1, 1, 2);
   }
 
-  @Test
-  void pendingLatestCloseKeepsTheLastRankButAnEarlierGapDoesNot(
+  @ParameterizedTest
+  @ValueSource(ints = {0, 4, 11})
+  void pendingClosesKeepTheLastRankAcrossWeeksButAnEarlierGapDoesNot(
+      int daysAfterThursday,
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
       @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {
     ZoneId seoul = ZoneId.of("Asia/Seoul");
@@ -582,14 +626,14 @@ class LeagueServiceTest {
     LocalDate wednesday = week.plusDays(2);
     LocalDate thursday = week.plusDays(3);
     LocalDate friday = week.plusDays(4);
-    dates.when(() -> LocalDate.now(seoul)).thenReturn(thursday);
-    Instant thursdayClose = thursday.atTime(18, 0).atZone(seoul).toInstant();
-    instants.when(Instant::now).thenReturn(thursdayClose);
+    LocalDate today = thursday.plusDays(daysAfterThursday);
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(today);
+    Instant close = today.atTime(18, 0).atZone(seoul).toInstant();
+    instants.when(Instant::now).thenReturn(close);
     SharedPortfolio portfolio = dailyProfile(week);
     InvestorProfile profile =
         profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
-    given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
-        .willReturn(List.of(profile));
+    given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
     List<LocalDate> collected = new ArrayList<>(List.of(week, week.plusDays(1), wednesday));
     given(
             tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
@@ -631,20 +675,34 @@ class LeagueServiceTest {
                         value -> !value.getBaseDate().isAfter(call.getArgument(2, LocalDate.class)))
                     .toList());
 
+    rankingInputs(List.of(profile), List.of(portfolio), java.util.Map.of(3L, values));
     var ranking = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
+    assertThat(ranking.confirmed()).isFalse();
+    assertThat(ranking.collectionStatus())
+        .isEqualTo(
+            daysAfterThursday == 0
+                ? LeagueTypes.CollectionStatus.IN_PROGRESS
+                : LeagueTypes.CollectionStatus.COLLECTION_PENDING);
     assertThat(ranking.asOfDate()).isEqualTo(wednesday);
     assertThat(ranking.rankings()).hasSize(1);
     assertThat(ranking.rankings().getFirst().weeklyReturnRate()).isEqualByComparingTo("21");
     var history = service.dailyHistory("investor-1", week);
+    assertThat(history.confirmed()).isFalse();
+    assertThat(history.collectionStatus()).isEqualTo(ranking.collectionStatus());
     assertThat(history.asOfDate()).isEqualTo(wednesday);
     assertThat(history.weeklyReturnRate()).isEqualByComparingTo("21");
-    assertThat(history.days().getLast().status()).isEqualTo(LeagueTypes.DailyReturnStatus.EXCLUDED);
+    assertThat(history.days().get(3).status()).isEqualTo(LeagueTypes.DailyReturnStatus.EXCLUDED);
 
-    dates.when(() -> LocalDate.now(seoul)).thenReturn(friday);
-    Instant fridayClose = friday.atTime(18, 0).atZone(seoul).toInstant();
+    service.finalizeWeeks();
+    then(leaderboardRepository).should(never()).save(any());
+
+    LocalDate nextDay = friday.plusDays(daysAfterThursday);
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(nextDay);
+    Instant fridayClose = nextDay.atTime(18, 0).atZone(seoul).toInstant();
     instants.when(Instant::now).thenReturn(fridayClose);
     collected.add(friday);
     values.add(dailyReturn(portfolio, friday, "5"));
+    rankingCache.invalidateAfterCommit();
     assertThat(service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20).rankings())
         .isEmpty();
     assertThat(service.dailyHistory("investor-1", week).weeklyReturnRate()).isNull();
@@ -738,8 +796,15 @@ class LeagueServiceTest {
   }
 
   @Test
-  void participationStartsOnEnrollmentAndMissingPricesDoNotInventDates() {
-    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
+  void participationStartsOnEnrollmentAndMissingPricesDoNotInventDates(
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<LocalDate> dates,
+      @Mock(answer = Answers.CALLS_REAL_METHODS) MockedStatic<Instant> instants) {
+    ZoneId seoul = ZoneId.of("Asia/Seoul");
+    LocalDate today = LocalDate.of(2026, 10, 8);
+    LocalDate week = today.with(DayOfWeek.MONDAY);
+    dates.when(() -> LocalDate.now(seoul)).thenReturn(today);
+    Instant now = today.atTime(18, 0).atZone(seoul).toInstant();
+    instants.when(Instant::now).thenReturn(now);
     dailyProfile(week);
     calendar(week, List.of(week));
 
@@ -875,8 +940,7 @@ class LeagueServiceTest {
             returnRepository.findLatestByPortfolioIdAndBaseDateBetween(
                 3L, started, currentWeek.plusDays(6)))
         .willReturn(values);
-    given(profileRepository.findAllByProfilePublicTrueAndLeagueEnabledTrue())
-        .willReturn(List.of(profile));
+    rankingInputs(List.of(profile), List.of(portfolio), java.util.Map.of(3L, values));
     var performance = service.publicInvestor(null, "investor-1").performance();
     Integer expectedRank =
         values.stream().anyMatch(value -> !value.getBaseDate().isBefore(currentWeek)) ? 1 : null;
@@ -898,13 +962,318 @@ class LeagueServiceTest {
     assertThat(missing.volatilityRate()).isNull();
   }
 
+  @Test
+  void rankingsLoadStatisticsOnlyForTheSelectedPageAndPreserveGlobalRanksAndEmptyPages() {
+    ZoneId seoul = ZoneId.of("Asia/Seoul");
+    LocalDate week = LocalDate.now(seoul).with(DayOfWeek.MONDAY).minusWeeks(1);
+    List<InvestorProfile> profiles = new ArrayList<>();
+    List<SharedPortfolio> portfolios = new ArrayList<>();
+    Map<Long, List<PortfolioDailyReturn>> returns = new java.util.HashMap<>();
+    for (int index = 0; index < 3; index++) {
+      Member owner = mock(Member.class);
+      given(owner.getId()).willReturn(index + 1L);
+      InvestorProfile profile =
+          InvestorProfile.create(
+              owner,
+              "investor-" + index,
+              "",
+              LeagueTypes.ExperienceLevel.BEGINNER,
+              LeagueTypes.RiskProfile.BALANCED);
+      org.springframework.test.util.ReflectionTestUtils.setField(profile, "id", index + 1L);
+      profile.changePublication(true, true, false, false, week.atStartOfDay(seoul).toInstant());
+      profile.startTracking(week);
+      profiles.add(profile);
+      SharedPortfolio portfolio = mock(SharedPortfolio.class);
+      given(portfolio.getId()).willReturn(index + 10L);
+      portfolios.add(portfolio);
+      var baseline = new PortfolioDailyReturn(portfolio, week);
+      baseline.completeBaseline(BigDecimal.TEN, BigDecimal.TEN, Instant.now());
+      returns.put(portfolio.getId(), List.of(baseline));
+    }
+    var earlierParticipation =
+        new LeagueParticipation(
+            profiles.getFirst(), week.minusWeeks(2).atStartOfDay(seoul).toInstant());
+    earlierParticipation.end(week.minusWeeks(1).atStartOfDay(seoul).toInstant());
+    profiles.getFirst().getParticipations().add(earlierParticipation);
+    rankingInputs(profiles, portfolios, returns);
+    var days = calendar(week, List.of(week));
+    given(
+            tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+                week.minusWeeks(7), week.plusDays(6)))
+        .willReturn(days);
+    var ordered =
+        profiles.stream()
+            .sorted(java.util.Comparator.comparing(InvestorProfile::getPublicId))
+            .toList();
+    Long selectedMember = ordered.get(1).getMember().getId();
+    given(ordered.get(1).getMember().getProfileImageUrl())
+        .willReturn("https://example.invalid/selected.png");
+    var counts = mock(InvestmentDecisionCounts.class);
+    given(counts.getMemberId()).willReturn(selectedMember);
+    given(counts.getDecisionCount()).willReturn(3L);
+    given(counts.getReviewedCount()).willReturn(1L);
+    given(
+            decisionRepository.findCountsByMemberIdInAndTradedOnLessThanEqual(
+                List.of(selectedMember), week.plusDays(6)))
+        .willReturn(List.of(counts));
+
+    var response = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 1, 1);
+
+    assertThat(response.totalCount()).isEqualTo(3);
+    assertThat(response.rankings()).hasSize(1);
+    var entry = response.rankings().getFirst();
+    assertThat(entry.publicId()).isEqualTo(ordered.get(1).getPublicId());
+    assertThat(entry.profileImageUrl()).isEqualTo("https://example.invalid/selected.png");
+    assertThat(entry.rank()).isEqualTo(1);
+    assertThat(entry.decisionCount()).isEqualTo(3);
+    assertThat(entry.reviewCompletionRate()).isEqualByComparingTo("33.33");
+    then(decisionRepository)
+        .should()
+        .findCountsByMemberIdInAndTradedOnLessThanEqual(List.of(selectedMember), week.plusDays(6));
+
+    var withoutDecisions =
+        service
+            .rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 2, 1)
+            .rankings()
+            .getFirst();
+    assertThat(withoutDecisions.decisionCount()).isZero();
+    assertThat(withoutDecisions.reviewCompletionRate()).isEqualByComparingTo("0.00");
+    var beyondLastPage = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 3, 1);
+    assertThat(beyondLastPage.totalCount()).isEqualTo(3);
+    assertThat(beyondLastPage.rankings()).isEmpty();
+    then(decisionRepository)
+        .should(times(2))
+        .findCountsByMemberIdInAndTradedOnLessThanEqual(any(), eq(week.plusDays(6)));
+
+    given(followRepository.findAllByFollowerIdOrderByCreatedAtDesc(99L))
+        .willReturn(List.of(new InvestorFollow(mock(Member.class), ordered.get(1))));
+    assertThat(
+            service
+                .rankings(99L, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 1, 1)
+                .rankings()
+                .getFirst()
+                .followed())
+        .isTrue();
+    assertThat(
+            service
+                .rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 1, 1)
+                .rankings()
+                .getFirst()
+                .followed())
+        .isFalse();
+
+    ordered.get(1).changePublication(false, false, false, false, Instant.now());
+    ordered
+        .getFirst()
+        .changeProfile(
+            "변경된 별명",
+            "",
+            LeagueTypes.ExperienceLevel.BEGINNER,
+            LeagueTypes.RiskProfile.CONSERVATIVE);
+    var afterWithdrawal = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
+    assertThat(afterWithdrawal.totalCount()).isEqualTo(2);
+    assertThat(afterWithdrawal.rankings())
+        .extracting(value -> value.publicId())
+        .doesNotContain(ordered.get(1).getPublicId());
+    assertThat(afterWithdrawal.rankings().getFirst().displayName()).isEqualTo("변경된 별명");
+    then(profileRepository).should(times(1)).findRankingInvestors();
+  }
+
+  private void rankingPageProfiles(List<InvestorProfile> profiles) {
+    lenient()
+        .when(profileRepository.findNonPublicRankingProfileIds())
+        .thenAnswer(
+            call ->
+                profiles.stream()
+                    .filter(profile -> !profile.isProfilePublic() || !profile.isLeagueEnabled())
+                    .map(InvestorProfile::getId)
+                    .toList());
+    lenient()
+        .when(profileRepository.findPublicRankingProfileIds())
+        .thenAnswer(
+            call ->
+                profiles.stream()
+                    .filter(InvestorProfile::isProfilePublic)
+                    .filter(InvestorProfile::isLeagueEnabled)
+                    .map(InvestorProfile::getId)
+                    .toList());
+    lenient()
+        .when(profileRepository.findPublicRankingProfilesByIdIn(any()))
+        .thenAnswer(
+            call ->
+                profiles.stream()
+                    .filter(InvestorProfile::isProfilePublic)
+                    .filter(InvestorProfile::isLeagueEnabled)
+                    .filter(profile -> call.getArgument(0, List.class).contains(profile.getId()))
+                    .map(
+                        profile ->
+                            new RankingInvestor(
+                                profile.getId(),
+                                profile.memberId(),
+                                profile.getPublicId(),
+                                profile.getDisplayName(),
+                                profile.getExperienceLevel(),
+                                profile.getRiskProfile(),
+                                profile.getTrackingStartedOn(),
+                                null,
+                                null,
+                                null,
+                                profile.getMember().getProfileImageUrl()))
+                    .toList());
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "ABSENT",
+        "NO_RETURNS",
+        "PRICE_COLLECTION_PENDING",
+        "SNAPSHOT_PENDING",
+        "NO_HOLDINGS",
+        "MISSING_PRICE",
+        "COMPLETE"
+      })
+  void rankingsPassPendingCalculationDateFromBatchEvenForUnrankedParticipants(String state) {
+    var seoul = ZoneId.of("Asia/Seoul");
+    var week = LocalDate.now(seoul).with(DayOfWeek.MONDAY).minusWeeks(1);
+    var owner = mock(Member.class);
+    given(owner.getId()).willReturn(2L);
+    var profile =
+        InvestorProfile.create(
+            owner,
+            "투자자",
+            "",
+            LeagueTypes.ExperienceLevel.BEGINNER,
+            LeagueTypes.RiskProfile.BALANCED);
+    org.springframework.test.util.ReflectionTestUtils.setField(profile, "id", 1L);
+    profile.changePublication(true, true, false, false, week.atStartOfDay(seoul).toInstant());
+    profile.startTracking(week);
+    var portfolio = mock(SharedPortfolio.class);
+    given(portfolio.getId()).willReturn(3L);
+    List<PortfolioDailyReturn> values = new ArrayList<>();
+    for (int i = 0; i < 4; i++) values.add(dailyReturn(portfolio, week.plusDays(i), "1"));
+    var friday = week.plusDays(4);
+    if (state.equals("NO_RETURNS")) {
+      values.clear();
+    } else if (!state.equals("ABSENT")) {
+      var last = dailyReturn(portfolio, friday, "1");
+      if (!state.equals("COMPLETE")) last.exclude(state, Instant.now());
+      values.add(last);
+    }
+    var days =
+        calendar(week, List.of(week, week.plusDays(1), week.plusDays(2), week.plusDays(3), friday));
+    given(
+            tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+                week.minusWeeks(7), week.plusDays(6)))
+        .willReturn(days);
+    rankingInputs(List.of(profile), List.of(portfolio), Map.of(3L, values));
+
+    var result = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
+
+    boolean pending =
+        state.equals("ABSENT")
+            || state.equals("PRICE_COLLECTION_PENDING")
+            || state.equals("SNAPSHOT_PENDING");
+    LocalDate pendingDate = state.equals("NO_RETURNS") ? week : pending ? friday : null;
+    then(aggregationService).should().ranking(week, pendingDate);
+    assertThat(result.totalCount()).isEqualTo(state.equals("COMPLETE") ? 1 : 0);
+    then(returnRepository)
+        .should()
+        .findLatestByMemberIdInAndBaseDateBetween(List.of(2L), week, week.plusDays(6));
+    then(returnRepository)
+        .should(never())
+        .findLatestByPortfolioIdAndBaseDateBetween(any(), any(), any());
+    then(portfolioRepository).should(never()).findByMemberId(any());
+    service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
+    then(aggregationService).should(times(2)).ranking(week, pendingDate);
+    then(profileRepository).should(times(1)).findRankingInvestors();
+    then(returnRepository)
+        .should(times(1))
+        .findLatestByMemberIdInAndBaseDateBetween(any(), any(), any());
+    clearInvocations(aggregationService);
+    profile.changePublication(false, false, false, false, Instant.now());
+    assertThat(
+            service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20).totalCount())
+        .isZero();
+    then(aggregationService).should().ranking(week, null);
+  }
+
+  private void rankingInputs(
+      List<InvestorProfile> profiles,
+      List<SharedPortfolio> portfolios,
+      java.util.Map<Long, List<PortfolioDailyReturn>> returns) {
+    rankingPageProfiles(profiles);
+    given(profileRepository.findRankingInvestors())
+        .willAnswer(
+            call ->
+                profiles.stream()
+                    .flatMap(
+                        profile -> {
+                          var periods = profile.getParticipations();
+                          if (periods.isEmpty())
+                            return java.util.stream.Stream.of(
+                                new RankingInvestor(
+                                    profile.getId(),
+                                    profile.getMember().getId(),
+                                    profile.getPublicId(),
+                                    profile.getDisplayName(),
+                                    profile.getExperienceLevel(),
+                                    profile.getRiskProfile(),
+                                    profile.getTrackingStartedOn(),
+                                    null,
+                                    null,
+                                    null));
+                          return periods.stream()
+                              .map(
+                                  period ->
+                                      new RankingInvestor(
+                                          profile.getId(),
+                                          profile.getMember().getId(),
+                                          profile.getPublicId(),
+                                          profile.getDisplayName(),
+                                          profile.getExperienceLevel(),
+                                          profile.getRiskProfile(),
+                                          profile.getTrackingStartedOn(),
+                                          period.getStartedAt(),
+                                          period.getEndedAt(),
+                                          period.getPerformanceStartedAt()));
+                        })
+                    .toList());
+    Map<Long, Long> membersByPortfolio = new java.util.HashMap<>();
+    for (int i = 0; i < portfolios.size(); i++) {
+      membersByPortfolio.put(portfolios.get(i).getId(), profiles.get(i).getMember().getId());
+    }
+    given(returnRepository.findLatestByMemberIdInAndBaseDateBetween(any(), any(), any()))
+        .willAnswer(
+            call ->
+                returns.values().stream()
+                    .flatMap(List::stream)
+                    .filter(
+                        value ->
+                            !value.getBaseDate().isBefore(call.getArgument(1, LocalDate.class)))
+                    .filter(
+                        value -> !value.getBaseDate().isAfter(call.getArgument(2, LocalDate.class)))
+                    .map(
+                        value ->
+                            new RankingDailyReturn(
+                                membersByPortfolio.get(value.getPortfolio().getId()),
+                                value.getBaseDate(),
+                                value.getDailyReturnRate(),
+                                value.getMaxHoldingWeight(),
+                                value.getCurrentHoldingWeight(),
+                                value.isEligible(),
+                                value.isTrackingBaseline(),
+                                value.getIneligibleReason()))
+                    .toList());
+  }
+
   private MarketTradingDay tradingDay(LocalDate date) {
     var day = new MarketTradingDay(date, true);
     day.collected(date.atTime(17, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant());
     return day;
   }
 
-  private void calendar(LocalDate week, List<LocalDate> open) {
+  private List<MarketTradingDay> calendar(LocalDate week, List<LocalDate> open) {
     List<MarketTradingDay> calendar = new ArrayList<>();
     for (int i = 0; i < 7; i++) {
       LocalDate date = week.plusDays(i);
@@ -912,6 +1281,7 @@ class LeagueServiceTest {
     }
     given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(week, week.plusDays(6)))
         .willReturn(calendar);
+    return calendar;
   }
 
   private SharedPortfolio dailyProfile(LocalDate enabledOn) {
@@ -949,8 +1319,9 @@ class LeagueServiceTest {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  void publicDetailsCompoundContributionsAndHonorHiddenAssets(boolean hidden) {
+  @CsvSource({"false,false", "true,false", "false,true", "true,true"})
+  void publicDetailsCompoundContributionsAndHonorHiddenAssets(
+      boolean hidden, boolean effectiveHistory) {
     InvestorProfile profile = mock(InvestorProfile.class);
     Member owner = mock(Member.class);
     SharedPortfolio portfolio = mock(SharedPortfolio.class);
@@ -978,8 +1349,6 @@ class LeagueServiceTest {
             tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
                 previousDate))
         .willReturn(Optional.of(tradingDay(earlierDate)));
-    given(priceRepository.findByAssetIdAndBaseDate(4L, earlierDate))
-        .willReturn(Optional.of(new StockDailyPrice(asset, earlierDate, new BigDecimal("100"))));
     var previousDay = tradingDay(previousDate);
     var currentDay = tradingDay(currentDate);
     given(
@@ -996,12 +1365,12 @@ class LeagueServiceTest {
             tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
                 currentDate))
         .willReturn(Optional.of(previousDay));
-    given(
-            holdingHistoryRepository
-                .findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                    eq(3L), any(Instant.class)))
+    given(holdingHistoryRepository.findEffectiveBefore(eq(3L), any(Instant.class)))
         .willReturn(List.of(history));
     given(history.getAsset()).willReturn(asset);
+    Instant historyTime = earlierDate.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+    if (effectiveHistory) given(history.getEffectiveAt()).willReturn(historyTime);
+    else given(history.getCreatedAt()).willReturn(historyTime);
     given(history.getChangeType()).willReturn(ChangeType.ADDED);
     given(history.getQuantity()).willReturn(10L);
     given(asset.getId()).willReturn(4L);
@@ -1015,10 +1384,18 @@ class LeagueServiceTest {
     given(visible.getQuantity()).willReturn(10L);
     if (!hidden) given(visible.getAveragePurchasePrice()).willReturn(new BigDecimal("100"));
     given(holdingRepository.findAllByPortfolioIdOrderById(3L)).willReturn(List.of(visible));
-    given(priceRepository.findByAssetIdAndBaseDate(4L, previousDate))
-        .willReturn(Optional.of(previousPrice));
-    given(priceRepository.findByAssetIdAndBaseDate(4L, currentDate))
-        .willReturn(Optional.of(currentPrice));
+    given(previousPrice.getAsset()).willReturn(asset);
+    given(previousPrice.getBaseDate()).willReturn(previousDate);
+    given(currentPrice.getAsset()).willReturn(asset);
+    given(currentPrice.getBaseDate()).willReturn(currentDate);
+    given(
+            priceRepository.findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+                List.of(4L), earlierDate, currentDate))
+        .willReturn(
+            List.of(
+                new StockDailyPrice(asset, earlierDate, new BigDecimal("100")),
+                previousPrice,
+                currentPrice));
     given(previousPrice.getClosePrice()).willReturn(new BigDecimal("110"));
     given(currentPrice.getClosePrice()).willReturn(new BigDecimal("99"));
 
@@ -1028,7 +1405,15 @@ class LeagueServiceTest {
 
     assertThat(response.asOfDate()).isEqualTo(currentDate);
     then(stockPriceService).should().pricesAt(List.of(4L), currentDate);
-    then(priceRepository).should(times(1)).findByAssetIdAndBaseDate(4L, currentDate);
+    then(priceRepository)
+        .should()
+        .findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
+            List.of(4L), earlierDate, currentDate);
+    then(priceRepository).shouldHaveNoMoreInteractions();
+    then(holdingHistoryRepository)
+        .should()
+        .findEffectiveBefore(3L, currentDate.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant());
+    then(holdingHistoryRepository).shouldHaveNoMoreInteractions();
     if (hidden) {
       assertThat(response.holdings()).isEmpty();
     } else {

@@ -56,7 +56,7 @@ public class PortfolioHoldingHistory extends BaseEntity {
   @Column(name = "transaction_quantity")
   private Long transactionQuantity;
 
-  @Column(name = "unit_price", precision = 19, scale = 2)
+  @Column(name = "unit_price", precision = 21, scale = 4)
   private BigDecimal unitPrice;
 
   @Column(name = "fee", nullable = false, precision = 19, scale = 2)
@@ -114,6 +114,24 @@ public class PortfolioHoldingHistory extends BaseEntity {
     this.unitPrice = unitPrice;
     this.fee = fee;
     this.tax = tax;
+  }
+
+  @Column(name = "exchange_rate", nullable = false, precision = 19, scale = 6)
+  private BigDecimal exchangeRate = BigDecimal.ONE;
+
+  public static void validateExchangeRate(Asset asset, BigDecimal rate) {
+    boolean usd = "USD".equals(asset.getCurrency());
+    if ((usd && (rate == null || rate.signum() <= 0))
+        || (!usd && rate != null && rate.compareTo(BigDecimal.ONE) != 0)) {
+      throw new org.grit.daynomy.common.exception.BusinessException(
+          org.grit.daynomy.portfolio.exception.PortfolioErrorCode
+              .INVALID_TRANSACTION_EXCHANGE_RATE);
+    }
+  }
+
+  public void applyExchangeRate(BigDecimal rate) {
+    validateExchangeRate(asset, rate);
+    exchangeRate = "USD".equals(asset.getCurrency()) ? rate : BigDecimal.ONE;
   }
 
   public boolean isTransaction() {

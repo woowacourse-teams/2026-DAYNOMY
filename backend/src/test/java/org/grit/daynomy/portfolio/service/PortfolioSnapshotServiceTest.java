@@ -6,6 +6,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxyUtil;
+import ch.qos.logback.core.read.ListAppender;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -27,11 +32,14 @@ import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioSnapshotServiceTest {
@@ -43,6 +51,20 @@ class PortfolioSnapshotServiceTest {
   @Mock private PortfolioSnapshotTransactionService snapshotTransactionService;
   @Mock private PortfolioCalculationService calculationService;
   @InjectMocks private PortfolioSnapshotService service;
+  private final Logger logger = (Logger) LoggerFactory.getLogger(PortfolioSnapshotService.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+  @BeforeEach
+  void captureLogs() {
+    appender.start();
+    logger.addAppender(appender);
+  }
+
+  @AfterEach
+  void releaseLogs() {
+    logger.detachAppender(appender);
+    appender.stop();
+  }
 
   @Test
   void createLatestSnapshotsProcessesEveryDateAndContinuesAfterFailure() {
@@ -50,7 +72,7 @@ class PortfolioSnapshotServiceTest {
     LocalDate secondDate = LocalDate.of(2026, 9, 30);
     Portfolio firstPortfolio = portfolio(10L);
     Portfolio secondPortfolio = portfolio(20L);
-    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+    given(stockPriceRepository.findBaseDatesByPortfolioId(org.mockito.ArgumentMatchers.anyLong()))
         .willReturn(List.of(firstDate, secondDate));
     given(portfolioRepository.findAll()).willReturn(List.of(firstPortfolio, secondPortfolio));
     given(snapshotTransactionService.createSnapshot(10L, firstDate, null)).willReturn(true);
@@ -63,6 +85,25 @@ class PortfolioSnapshotServiceTest {
 
     assertThat(count).isEqualTo(2);
     then(snapshotTransactionService).should().createSnapshot(20L, secondDate, firstDate);
+    var failures = appender.list.stream().filter(event -> event.getLevel() == Level.ERROR).toList();
+    assertThat(failures).hasSize(1);
+    assertThat(ThrowableProxyUtil.asString(failures.getFirst().getThrowableProxy()))
+        .contains("ArithmeticException")
+        .doesNotContain("out of range");
+  }
+
+  @Test
+  void logsPriceSyncSnapshotFailureWithoutRawDatabaseValues() {
+    Portfolio portfolio = portfolio(10L);
+    given(portfolioRepository.findAll()).willReturn(List.of(portfolio));
+    given(stockPriceRepository.findBaseDatesByPortfolioId(10L))
+        .willThrow(new IllegalStateException("private-sql-values"));
+    service.refreshAfterPriceSync();
+    assertThat(appender.list).hasSize(1);
+    assertThat(appender.list.getFirst().getLevel()).isEqualTo(Level.ERROR);
+    assertThat(ThrowableProxyUtil.asString(appender.list.getFirst().getThrowableProxy()))
+        .contains("IllegalStateException")
+        .doesNotContain("private-sql-values");
   }
 
   @Test
@@ -220,7 +261,7 @@ class PortfolioSnapshotServiceTest {
     LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
     LocalDate yesterday = today.minusDays(1);
     Portfolio portfolio = portfolio(10L);
-    given(stockPriceRepository.findDistinctBaseDatesOrderByBaseDate())
+    given(stockPriceRepository.findBaseDatesByPortfolioId(org.mockito.ArgumentMatchers.anyLong()))
         .willReturn(List.of(yesterday, today));
     given(portfolioRepository.findAll()).willReturn(List.of(portfolio));
     given(snapshotTransactionService.createSnapshot(10L, yesterday, null)).willReturn(true);

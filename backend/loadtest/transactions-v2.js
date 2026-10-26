@@ -15,5 +15,6 @@ const scenario = createScenario(
 );
 export const options = scenario.options;
 export const setup = scenario.setup;
+export const teardown = (data) => scenario.teardown?.(data);
 export const handleSummary = scenario.handleSummary;
 export default scenario.run;

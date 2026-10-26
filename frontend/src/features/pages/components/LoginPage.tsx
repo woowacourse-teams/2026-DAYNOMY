@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import '../LoginPage.css';
 import { getApiUrl } from '../api';
 import { safeReturnPath } from '../../../auth/returnPath';
+import { isStaffHostname } from '../../../serviceDomain';
 
 function GoogleIcon() {
   return (
@@ -40,17 +41,18 @@ function LoginPage() {
     }
   }
   const returnPath = safeReturnPath(requestedPath);
-  const isAdminLogin = /^\/admin(?:\/|\?|#|$)/.test(returnPath);
+  const isStaffLogin = isStaffHostname(window.location.hostname);
+  const isAdminLogin = isStaffLogin || /^\/admin(?:\/|\?|#|$)/.test(returnPath);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = `${oauthError ? '로그인 오류' : isAdminLogin ? '관리자 로그인' : '로그인'} | DAYNOMY`;
+    document.title = `${oauthError ? '로그인 오류' : isStaffLogin ? '팀원 로그인' : isAdminLogin ? '관리자 로그인' : '로그인'} | DAYNOMY`;
     (oauthError ? errorRef.current : headingRef.current)?.focus({ preventScroll: true });
     return () => {
       document.title = previousTitle;
     };
-  }, [oauthError, isAdminLogin]);
+  }, [oauthError, isAdminLogin, isStaffLogin]);
 
   return (
     <main className="login-page">
@@ -60,12 +62,18 @@ function LoginPage() {
       <section className="login-card">
         <div className="login-heading">
           <h1 ref={headingRef} tabIndex={-1}>
-            {isAdminLogin ? 'DAYNOMY 관리자 로그인' : 'DAYNOMY 로그인'}
+            {isStaffLogin
+              ? 'DAYNOMY 팀원 로그인'
+              : isAdminLogin
+                ? 'DAYNOMY 관리자 로그인'
+                : 'DAYNOMY 로그인'}
           </h1>
           <p>
-            {isAdminLogin
-              ? '관리자 계정으로 로그인해 뉴스 콘텐츠를 관리하세요'
-              : '로그인하고 내 포트폴리오를 관리하세요'}
+            {isStaffLogin
+              ? '팀원 계정으로 로그인해 DAYNOMY를 이용하세요'
+              : isAdminLogin
+                ? '관리자 계정으로 로그인해 뉴스 콘텐츠를 관리하세요'
+                : '로그인하고 내 포트폴리오를 관리하세요'}
           </p>
         </div>
 

@@ -40,4 +40,16 @@ public interface PortfolioHoldingHistoryRepository
       """)
   List<PortfolioHoldingHistory> findOrderedWithAssetsByPortfolioId(
       @Param("portfolioId") Long portfolioId);
+
+  @Query(
+      "select distinct h.asset.id from PortfolioHoldingHistory h where h.portfolio.member.id = :memberId")
+  List<Long> findAssetIdsByMemberId(Long memberId);
+
+  @Query(
+      "select distinct h.asset.id from PortfolioHoldingHistory h where h.portfolio.id = :portfolioId")
+  List<Long> findAssetIdsByPortfolioId(Long portfolioId);
+
+  @Query(
+      "select h.effectiveDate from PortfolioHoldingHistory h where h.id = :transactionId and h.portfolio.member.id = :memberId")
+  Optional<LocalDate> findEffectiveDateByIdAndMemberId(Long transactionId, Long memberId);
 }

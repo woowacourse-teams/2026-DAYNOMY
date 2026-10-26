@@ -6,11 +6,15 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
@@ -19,6 +23,7 @@ import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.domain.LeagueParticipation;
 import org.grit.daynomy.league.domain.PortfolioDailyReturn;
@@ -28,8 +33,11 @@ import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.repository.PortfolioDailyReturnRepository;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
@@ -44,9 +52,23 @@ public class LeagueReturnService {
   private final StockDailyPriceRepository priceRepository;
   private final PortfolioDailyReturnRepository returnRepository;
   private final MarketTradingDayRepository tradingDayRepository;
+  private final PortfolioDailySnapshotRepository snapshotRepository;
   private final PlatformTransactionManager transactionManager;
   private final LeagueCalculationMetrics metrics;
   private final LeagueService leagueService;
+  private final LeagueRankingCache rankingCache;
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void calculateCurrentWeek(InvestorProfile profile) {
+    LocalDate today = LocalDate.now(SEOUL);
+    List<MarketTradingDay> days =
+        tradingDayRepository
+            .findAllByBaseDateBetweenOrderByBaseDate(today.with(java.time.DayOfWeek.MONDAY), today)
+            .stream()
+            .filter(day -> day.isTrading() && !day.closesAt().isAfter(Instant.now()))
+            .toList();
+    calculateProfile(profile, days, new HashMap<>(), null, false);
+  }
 
   public synchronized int recalculate() {
     return recalculateSince(null, false);
@@ -63,6 +85,18 @@ public class LeagueReturnService {
   private int recalculateSince(LocalDate from, boolean incremental) {
     long started = metrics.startRun();
     boolean completed = false;
+    String mode = !incremental ? "FULL" : from == null ? "PENDING" : "FROM_DATE";
+    String phase = "LOAD_CALENDAR";
+    int calculated = 0;
+    int failed = 0;
+    int succeeded = 0;
+    int target = 0;
+    Map<String, Integer> outcomeCounts = new HashMap<>();
+    log.atDebug()
+        .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_STARTED.code())
+        .addKeyValue("mode", mode)
+        .addKeyValue("fromDate", from)
+        .log(LogEvent.LEAGUE_CALCULATION_STARTED.message());
     try {
       List<MarketTradingDay> days =
           tradingDayRepository
@@ -70,11 +104,12 @@ public class LeagueReturnService {
               .stream()
               .filter(day -> !day.closesAt().isAfter(Instant.now()))
               .toList();
-      int calculated = 0;
-      int failed = 0;
       LocalDate firstCalculated = null;
+      phase = "LOAD_PROFILES";
       List<InvestorProfile> profiles = profileRepository.findAllByLeagueEnabledAtIsNotNull();
+      target = profiles.size();
       metrics.resetProfiles(profiles.size());
+      phase = "CALCULATE_PROFILES";
       for (InvestorProfile candidate : profiles) {
         Map<String, Integer> outcomes = new HashMap<>();
         try {
@@ -94,33 +129,105 @@ public class LeagueReturnService {
             }
           }
           metrics.profileSucceeded(outcomes);
+          succeeded++;
+          outcomes.forEach((reason, count) -> outcomeCounts.merge(reason, count, Integer::sum));
+          log.atDebug()
+              .addKeyValue("event", LogEvent.LEAGUE_PROFILE_CALCULATION_COMPLETED.code())
+              .addKeyValue("profileId", candidate.getId())
+              .addKeyValue("mode", mode)
+              .addKeyValue("fromDate", calculation == null ? null : calculation.firstDate())
+              .addKeyValue("processedDayCount", calculation == null ? 0 : calculation.days())
+              .addKeyValue("outcomeCounts", outcomes)
+              .log(LogEvent.LEAGUE_PROFILE_CALCULATION_COMPLETED.message());
         } catch (RuntimeException exception) {
           metrics.profileFailed();
           failed++;
           // 한 포트폴리오 실패는 해당 트랜잭션만 롤백하고 다른 참가자 집계를 계속한다.
+          // 예외 메시지의 입력값 노출을 피하고 호출 위치만 기록한다.
           log.atError()
-              .addKeyValue(
-                  "event",
-                  org.grit.daynomy.common.logging.LogEvent.LEAGUE_CALCULATION_FAILED.code())
+              .addKeyValue("event", LogEvent.LEAGUE_PROFILE_CALCULATION_FAILED.code())
               .addKeyValue("profileId", candidate.getId())
+              .addKeyValue("mode", mode)
+              .addKeyValue("fromDate", from)
               .addKeyValue("exception", exception.getClass().getSimpleName())
-              .log("투자 리그 참가자 집계 실패");
+              .addKeyValue(
+                  "causeType",
+                  exception.getCause() == null
+                      ? null
+                      : exception.getCause().getClass().getSimpleName())
+              .addKeyValue("stackTrace", stackTraceWithoutMessages(exception))
+              .log(LogEvent.LEAGUE_PROFILE_CALCULATION_FAILED.message());
         }
       }
       if (failed > 0) {
         throw new IllegalStateException("투자 리그 참가자 집계 실패: " + failed + "건");
       }
+      phase = "FINALIZE_WEEKS";
       if (incremental) {
         leagueService.finalizeWeeks(
             firstCalculated == null ? LocalDate.now(SEOUL) : firstCalculated);
       } else {
         leagueService.finalizeWeeks();
       }
+      int missingPrices = outcomeCounts.getOrDefault("MISSING_PRICE", 0);
+      int unsupportedAssets = outcomeCounts.getOrDefault("UNSUPPORTED_ASSET", 0);
+      if (missingPrices > 0 || unsupportedAssets > 0) {
+        log.atWarn()
+            .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_INCOMPLETE.code())
+            .addKeyValue("mode", mode)
+            .addKeyValue("fromDate", firstCalculated)
+            .addKeyValue("missingPriceDayCount", missingPrices)
+            .addKeyValue("unsupportedAssetDayCount", unsupportedAssets)
+            .log(LogEvent.LEAGUE_CALCULATION_INCOMPLETE.message());
+      }
+      log.atInfo()
+          .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_COMPLETED.code())
+          .addKeyValue("mode", mode)
+          .addKeyValue("requestedFromDate", from)
+          .addKeyValue("fromDate", firstCalculated)
+          .addKeyValue("toDate", days.isEmpty() ? null : days.getLast().getBaseDate())
+          .addKeyValue("targetProfileCount", target)
+          .addKeyValue("succeededProfileCount", succeeded)
+          .addKeyValue("processedDayCount", calculated)
+          .addKeyValue("outcomeCounts", outcomeCounts)
+          .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
+          .log(LogEvent.LEAGUE_CALCULATION_COMPLETED.message());
       completed = true;
       return calculated;
+    } catch (RuntimeException exception) {
+      log.atError()
+          .addKeyValue("event", LogEvent.LEAGUE_CALCULATION_FAILED.code())
+          .addKeyValue("mode", mode)
+          .addKeyValue("phase", phase)
+          .addKeyValue("fromDate", from)
+          .addKeyValue("targetProfileCount", target)
+          .addKeyValue("succeededProfileCount", succeeded)
+          .addKeyValue("failedProfileCount", failed)
+          .addKeyValue("processedDayCount", calculated)
+          .addKeyValue("exception", exception.getClass().getSimpleName())
+          .addKeyValue(
+              "causeType",
+              exception.getCause() == null ? null : exception.getCause().getClass().getSimpleName())
+          .addKeyValue("stackTrace", stackTraceWithoutMessages(exception))
+          .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
+          .log(LogEvent.LEAGUE_CALCULATION_FAILED.message());
+      throw exception;
     } finally {
+      rankingCache.invalidateAfterCommit();
       metrics.finishRun(started, completed);
     }
+  }
+
+  private static String stackTraceWithoutMessages(Throwable exception) {
+    StringBuilder value = new StringBuilder();
+    Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+    for (Throwable current = exception;
+        current != null && seen.add(current);
+        current = current.getCause()) {
+      if (value.length() > 0) value.append(" <- caused by ");
+      value.append(current.getClass().getName()).append(Arrays.toString(current.getStackTrace()));
+    }
+    return value.toString();
   }
 
   private ProfileCalculation calculateProfile(
@@ -147,6 +254,23 @@ public class LeagueReturnService {
               .map(PortfolioDailyReturn::getBaseDate)
               .orElse(null);
       if (starting != null && from != null && from.isBefore(starting)) starting = from;
+      if (starting != null) {
+        for (LeagueParticipation period : profile.getParticipations()) {
+          if (period.getPerformanceStartedAt() == null) continue;
+          LocalDate pending =
+              returnRepository
+                  .findLatestByPortfolioIdAndBaseDateBetween(
+                      portfolio.getId(),
+                      period.getPerformanceStartedAt().atZone(SEOUL).toLocalDate(),
+                      period.getStartedAt().atZone(SEOUL).toLocalDate())
+                  .stream()
+                  .filter(value -> "SNAPSHOT_PENDING".equals(value.getIneligibleReason()))
+                  .map(PortfolioDailyReturn::getBaseDate)
+                  .min(LocalDate::compareTo)
+                  .orElse(null);
+          if (pending != null && pending.isBefore(starting)) starting = pending;
+        }
+      }
     }
     Set<LeagueParticipation> baselined = new HashSet<>();
     Set<LeagueParticipation> checked = new HashSet<>();
@@ -154,7 +278,6 @@ public class LeagueReturnService {
     LocalDate firstCalculated = null;
     for (MarketTradingDay day : days) {
       if (starting != null && day.getBaseDate().isBefore(starting)) continue;
-      if (day.closesAt().isBefore(profile.getLeagueEnabledAt())) continue;
       LeagueParticipation period =
           profile.getParticipations().stream()
               .filter(value -> value.contains(day.closesAt()))
@@ -163,9 +286,9 @@ public class LeagueReturnService {
       if (period == null) continue;
       if (firstCalculated == null) firstCalculated = day.getBaseDate();
       if (starting != null && checked.add(period)) {
-        LocalDate first = period.getStartedAt().atZone(SEOUL).toLocalDate();
+        LocalDate first = period.calculationStartedAt().atZone(SEOUL).toLocalDate();
         if (period
-            .getStartedAt()
+            .calculationStartedAt()
             .isAfter(first.atTime(LocalTime.of(15, 30)).atZone(SEOUL).toInstant())) {
           first = first.plusDays(1);
         }
@@ -174,7 +297,7 @@ public class LeagueReturnService {
             && returnRepository.existsLatestEligibleByPortfolioIdAndBaseDateBetween(
                 portfolio.getId(), first, prior)) baselined.add(period);
       }
-      PortfolioDailyReturn value = calculate(portfolio, day, !baselined.contains(period));
+      PortfolioDailyReturn value = calculate(portfolio, day, !baselined.contains(period), period);
       outcomes.merge(
           value.isEligible() ? "CALCULATED" : value.getIneligibleReason(), 1, Integer::sum);
       if (value.isEligible()) {
@@ -188,7 +311,10 @@ public class LeagueReturnService {
   private record ProfileCalculation(int days, LocalDate firstDate) {}
 
   private PortfolioDailyReturn calculate(
-      SharedPortfolio portfolio, MarketTradingDay day, boolean baseline) {
+      SharedPortfolio portfolio,
+      MarketTradingDay day,
+      boolean baseline,
+      LeagueParticipation period) {
     LocalDate baseDate = day.getBaseDate();
     PortfolioDailyReturn previousResult =
         returnRepository
@@ -203,11 +329,30 @@ public class LeagueReturnService {
     Instant calculatedAt = Instant.now();
     if (day.getCollectedAt() == null)
       return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
+    boolean imported = period.getPerformanceStartedAt() != null;
+    if (imported
+        && day.closesAt().isBefore(period.getStartedAt())
+        && (previousResult == null || !previousResult.isEligible())
+        && !snapshotRepository.existsByPortfolioMemberIdAndBaseDate(
+            period.getProfile().getMember().getId(), baseDate))
+      return exclude(result, previousResult, "SNAPSHOT_PENDING", calculatedAt);
+    List<SharedHoldingHistory> opening =
+        baseline && imported
+            ? SharedHoldingHistory.reconstructHoldings(
+                historyRepository.findEffectiveBefore(
+                    portfolio.getId(), baseDate.atStartOfDay(SEOUL).toInstant()))
+            : List.of();
+    if (!opening.isEmpty()) baseline = false;
+    // PostgreSQL timestamp(6)의 최소 단위로 장 마감 시각의 기록까지 포함한다.
     List<SharedHoldingHistory> holdings =
-        SharedHoldingHistory.reconstructHoldings(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                portfolio.getId(),
-                baseline ? day.closesAt().plusNanos(1) : baseDate.atStartOfDay(SEOUL).toInstant()));
+        !opening.isEmpty()
+            ? opening
+            : SharedHoldingHistory.reconstructHoldings(
+                historyRepository.findEffectiveBefore(
+                    portfolio.getId(),
+                    baseline
+                        ? day.closesAt().plusNanos(1_000)
+                        : baseDate.atStartOfDay(SEOUL).toInstant()));
     if (holdings.isEmpty()) return exclude(result, previousResult, "NO_HOLDINGS", calculatedAt);
     MarketTradingDay previousDay =
         baseline

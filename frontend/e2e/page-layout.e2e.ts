@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mockLeagueApi } from './league-api';
 
-test('이슈·포트폴리오·주간 리그 본문을 같은 너비로 배치한다', async ({ page }, testInfo) => {
+test('투자 캘린더·포트폴리오·주간 리그 본문을 같은 너비로 배치한다', async ({ page }, testInfo) => {
   test.slow();
   await page.addInitScript(() => localStorage.setItem('daynomy:portfolio-tour:v1', 'done'));
   await page.route('**/api/**', (route) => route.fulfill({ status: 404 }));
@@ -12,7 +12,7 @@ test('이슈·포트폴리오·주간 리그 본문을 같은 너비로 배치�
     await page.setViewportSize({ width, height: 1000 });
     let reference: { left: number; width: number; top: number; fontSize: string } | undefined;
     for (const [url, main, heading] of [
-      ['/news', '.issue-page', '#issue-today-heading'],
+      ['/news', '.issue-page', '#investment-calendar-title'],
       ['/', '.portfolio-page', '.portfolio-page-title h1'],
     ]) {
       await page.goto(url);
@@ -44,6 +44,8 @@ test('이슈·포트폴리오·주간 리그 본문을 같은 너비로 배치�
     }
     await page.goto('/league');
     await expect(page.getByRole('heading', { name: '주간 리그', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '주간 순위', exact: true })).toBeVisible();
+    await expect(page.getByText('집계 기준 안내', { exact: true })).toHaveCount(0);
     const leagueLayout = await page.locator('main.league-page').evaluate((element) => {
       const bounds = element.getBoundingClientRect();
       return { left: bounds.left, width: bounds.width };

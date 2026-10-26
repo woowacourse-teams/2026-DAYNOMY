@@ -11,34 +11,34 @@
 | Patch | 기존 기능의 오류 수정                                    |
 
 1. `dev` 기준의 작업 브랜치에서 `package.json`·`package-lock.json` 버전을 올리고
-   [CHANGELOG.md](CHANGELOG.md)를 갱신합니다. 이번 릴리스 대상은 `1.1.4`입니다.
+   [CHANGELOG.md](CHANGELOG.md)를 갱신합니다. 이번 릴리스 대상은 `2.0.2`입니다.
 
    ```bash
    cd frontend
-   npm version 1.1.4 --no-git-tag-version
+   npm version 2.0.2 --no-git-tag-version
    ```
 
 2. `dev`에서 확인한 뒤 `main`에 병합합니다. 포맷·린트·타입 검사·테스트·빌드와
-   배포 검증이 모두 성공하면 해당 커밋에 `v1.1.4` Git tag를 생성합니다.
+   배포 검증이 모두 성공하면 해당 커밋에 `v2.0.2` Git tag를 생성합니다.
 3. Git tag·이미지 버전·Sentry release가 일치하는지 확인하고 공개 기능을 직접 확인합니다.
    자동 검사는 프론트 HTML, `/api/news`, `/api/auth/csrf`, Google 로그인 리디렉션까지입니다.
 
 실패하면 Git tag를 만들지 않습니다. 재시도 시 같은 커밋의 기존 버전 이미지를 재사용합니다.
 버전은 개발자가 올리며, 이미 태그가 있는 버전의 후속 변경은 SHA 이미지로 배포합니다.
 
-## v1.1.4 반영 순서
+## v2.0.2 반영 순서
 
-이번 버전 준비 작업은 이슈 #530과 `chore/FE/#530` 브랜치에서 진행합니다. 버전 파일·CHANGELOG만으로 운영 배포 완료를
+이번 버전 준비 작업은 이슈 #651과 `chore/FE/#651` 브랜치에서 진행합니다. 버전 파일·CHANGELOG만으로 운영 배포 완료를
 판단하지 않으며 다음 순서로 확인합니다.
 
-1. `package.json`과 `package-lock.json`의 최상위·루트 패키지 버전이 모두 `1.1.4`인지 확인합니다. 이미 변경되었다면 `npm version`을 다시 실행하지 않습니다.
-2. `CHANGELOG.md`의 `## v1.1.4`에 v1.1.3 이후 변경을 정리하고, `Unreleased`는 다음 릴리스용으로 유지합니다.
-3. 작업 브랜치에서 포맷·린트·타입 검사·테스트·빌드와 릴리스 스크립트 검사를 완료하고, `chore/FE/#530 → dev` PR의 CI 결과를 확인합니다.
-4. 개발 배포에서 스크린 리더·키보드 접근성, 첫 방문 랜딩과 원래 요청한 주소로의 진입, 인물 프로필 편집 흐름을 확인합니다.
-5. `dev → main` 릴리스 PR에 버전·변경 내용·실제 검증 결과를 적습니다. 이 릴리스는 프론트엔드 변경만 포함하며, 백엔드 API·Flyway 마이그레이션은 포함하지 않습니다.
-6. 운영 프론트 배포·라우팅 검증과 자동 `v1.1.4` 태그 발행을 확인합니다. 태그·GHCR 이미지·Sentry release가 같은 배포 커밋을 가리키는지 확인하고 운영 기능을 직접 점검합니다.
+1. `package.json`과 `package-lock.json`의 최상위·루트 패키지 버전이 모두 `2.0.2`인지 확인합니다. 이미 변경되었다면 `npm version`을 다시 실행하지 않습니다.
+2. `CHANGELOG.md`의 `## v2.0.2`에 v2.0.1 이후 변경을 정리하고, `Unreleased`는 다음 릴리스용으로 유지합니다.
+3. 작업 브랜치에서 포맷·린트·타입 검사·테스트·빌드와 릴리스 스크립트 검사를 완료하고, `chore/FE/#651 → dev` PR의 CI 결과를 확인합니다.
+4. 개발·운영 배포에서 포트폴리오 분석·자산 요약·자산 추이·소식 패널의 배치와 사용자 도메인의 관리자 경로 이동, 팀원 도메인의 로그인·권한 확인, 사용자 화면, `/admin/**`, 분석 수집 제외를 확인합니다.
+5. `dev → main` 릴리스 PR에 버전·변경 내용·실제 검증 결과를 적습니다. 운영 DNS·TLS 인증서와 Nginx가 `staff.daynomy.com`을 지원하고, 백엔드의 사용자·팀원 도메인별 Google OAuth 리디렉션 설정이 대상 환경에 반영되어 있는지 확인합니다.
+6. 운영 프론트 배포·두 도메인 라우팅 검증과 자동 `v2.0.2` 태그 발행을 확인합니다. 태그·GHCR 이미지·Sentry release가 같은 배포 커밋을 가리키는지 확인하고 운영 기능을 직접 점검합니다.
 
-개발·운영 GitHub Environment에는 `VITE_POSTHOG_KEY`·`VITE_POSTHOG_HOST`를 각각
+개발·운영 GitHub Environment에는 `VITE_POSTHOG_PROJECT_TOKEN`·`VITE_POSTHOG_HOST`를 각각
 설정할 수 있습니다. 두 값이 모두 있을 때만 PostHog를 사용하고, 값 변경 후 다시 빌드합니다.
 설정 상세 내용은 [프론트 README](README.md#환경별-배포)를 따릅니다.
 
@@ -57,7 +57,13 @@ npm run test:e2e
 bash scripts/test-deploy-frontend.sh
 ```
 
-프론트 `v1.1.4` 버전은 백엔드 Gradle 버전, OpenAPI 버전, 분석 스키마·알고리즘 버전,
+일반 `npm run build`의 정적 파일에는 릴리스 버전이 별도로 표시되지 않습니다. 운영 CI는
+`resolve-release-version.sh`의 `image_tag`를 Docker 이미지 태그·`org.opencontainers.image.version`
+라벨과 `SENTRY_RELEASE`에 공통으로 사용합니다. 새 릴리스에서는 세 값이 `v2.0.2`인지 확인합니다.
+HTML의 `daynomy-deployment` 메타 태그는 버전 대신 환경·커밋을 기록하므로 같은 이미지의
+`org.opencontainers.image.revision`과 커밋이 일치하는지 대조합니다.
+
+프론트 `v2.0.2` 버전은 백엔드 Gradle 버전, OpenAPI 버전, 분석 스키마·알고리즘 버전,
 브라우저 저장 키 버전과 독립적입니다. 이 값들은 단순 릴리스 번호 변경에 맞춰 올리지 않습니다.
 
 ## 무중단 배포와 자동 롤백
@@ -113,6 +119,29 @@ location / {
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+운영 DNS에서 `staff.daynomy.com`이 같은 프론트엔드 호스트를 가리키고 TLS 인증서가 해당 이름을
+포함하도록 설정합니다. 팀원 도메인의 `/api`, `/oauth2`, `/login/oauth2`도 사용자 도메인과 같은
+백엔드로 전달하고, 원래 `Host`와 `X-Forwarded-Proto` 헤더를 유지해야 OAuth 콜백과 host-only
+인증 쿠키가 팀원 도메인에 남습니다. `daynomy.com/admin/**`의 앱 라우팅은 사용자 홈으로
+이동합니다. 팀원 도메인은 로그인과 `ADMIN` 역할을 확인한 뒤 사용자 도메인과 동일한 화면을
+제공하고, `/admin/**`로 직접 접근하면 기존 관리자 화면을 제공합니다.
+
+```nginx
+server {
+    server_name staff.daynomy.com;
+
+    location /api/ { proxy_pass http://127.0.0.1:8080; }
+    location /oauth2/ { proxy_pass http://127.0.0.1:8080; }
+    location /login/oauth2/ { proxy_pass http://127.0.0.1:8080; }
+    location / { proxy_pass http://daynomy_frontend; }
+}
+```
+
+실제 설정에는 기존 사용자 도메인과 동일한 `proxy_set_header`, 보안 헤더, 인증서 설정을 함께
+적용합니다. 설정 후 `staff.daynomy.com/`의 로그인·권한 확인과 일반 사용자 화면,
+`staff.daynomy.com/admin`, Google 로그인 복귀, 관리자 API의 401·403·정상 응답을 확인합니다.
+팀원 도메인에서는 GA4와 PostHog를 초기화하지 않으며 Sentry는 유지합니다.
 
 `/etc/nginx/nginx.conf`가 `/etc/nginx/conf.d/*.conf`를 http 블록에서 include하는지 확인합니다.
 첫 배포는 기존 `frontend:3000`을 유지한 채 3001로 전환하고,

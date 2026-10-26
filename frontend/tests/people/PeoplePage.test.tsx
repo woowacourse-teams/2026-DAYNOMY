@@ -78,6 +78,33 @@ afterEach(() => {
 });
 
 describe('인물의 글 화면', () => {
+  it('목록이 화면에 들어오면 화살표를 숨기고 넘치면 표시한다', async () => {
+    const view = render(
+      <MemoryRouter>
+        <PeoplePage />
+      </MemoryRouter>,
+    );
+    await view.findByRole('button', { name: '일론 머스크' });
+    const strip = view.getByRole('navigation', { name: '인물 선택' });
+    strip.scrollLeft = 0;
+    fireEvent.scroll(strip);
+    expect(view.queryByRole('button', { name: '이전 인물 보기' })).toBeNull();
+    expect(view.queryByRole('button', { name: '다음 인물 보기' })).toBeNull();
+    Object.defineProperty(strip, 'clientWidth', { configurable: true, value: 300 });
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, value: 600 });
+    fireEvent.scroll(strip);
+    expect(view.getByRole('button', { name: '다음 인물 보기' })).toBeTruthy();
+    expect(
+      (view.getByRole('button', { name: '이전 인물 보기' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    view.container.querySelectorAll('.people-scroll-arrow').forEach((arrow) => {
+      Object.defineProperty(arrow, 'offsetWidth', { configurable: true, value: 32 });
+    });
+    Object.defineProperty(strip, 'clientWidth', { configurable: true, value: 536 });
+    fireEvent.scroll(strip);
+    expect(view.queryByRole('button', { name: '다음 인물 보기' })).toBeNull();
+  });
+
   it('최근 등록순으로 글을 보여주고 선택한 글만 원문을 펼친다', async () => {
     const view = render(
       <MemoryRouter initialEntries={['/people?view=all']}>
@@ -187,8 +214,13 @@ it('URL로 인물을 변경하거나 뒤로 가면 해당 인물의 첫 페이�
       <PeoplePage />
     </MemoryRouter>,
   );
-  await view.findByRole('button', { name: '3페이지' });
+  await view.findByRole('button', { name: '5페이지' });
+  expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(6);
+  expect(view.queryByRole('button', { name: '6페이지' })).toBeNull();
   fireEvent.click(view.getByRole('button', { name: '3페이지' }));
+  expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(6);
+  expect(view.getByText('인물1 글18', { exact: true })).toBeTruthy();
+  expect(view.queryByText('인물1 글30', { exact: true })).toBeNull();
   expect(view.getByRole('button', { name: '3페이지' }).getAttribute('aria-current')).toBe('page');
   fireEvent.click(view.getByRole('link', { name: '다른 인물 URL로 이동' }));
   expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');

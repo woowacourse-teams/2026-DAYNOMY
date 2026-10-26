@@ -1,7 +1,8 @@
 import type { PortfolioHoldingInput } from './types';
-import type { AssetCategory, StockMarket } from '../stocks/types';
+import type { AssetCategory } from '../stocks/types';
 import { replayGuestPortfolio, type GuestPortfolioLedger } from './guestPortfolioLedger';
 import { validateTransaction } from './transactionForm';
+import { isStockMarket } from '../stocks/api';
 
 export const GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY = 'daynomy:guest-portfolio-holdings:v1';
 
@@ -11,10 +12,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isAssetCategory(value: unknown): value is AssetCategory {
   return value === 'STOCK' || value === 'ETF';
-}
-
-function isStockMarket(value: unknown): value is StockMarket {
-  return value === 'KOSPI' || value === 'KOSDAQ';
 }
 
 function isPortfolioHolding(value: unknown): value is PortfolioHoldingInput {
@@ -74,13 +71,17 @@ function isGuestLedger(value: unknown): value is GuestPortfolioLedger {
           typeof item.unitPrice === 'number' &&
           typeof item.fee === 'number' &&
           typeof item.tax === 'number' &&
-          validateTransaction({
-            tradeDate: item.effectiveDate,
-            quantity: String(item.transactionQuantity),
-            unitPrice: String(item.unitPrice),
-            fee: String(item.fee),
-            tax: String(item.tax),
-          }) === null
+          validateTransaction(
+            {
+              tradeDate: item.effectiveDate,
+              quantity: String(item.transactionQuantity),
+              unitPrice: String(item.unitPrice),
+              exchangeRate: item.exchangeRate == null ? undefined : String(item.exchangeRate),
+              fee: String(item.fee),
+              tax: String(item.tax),
+            },
+            String(item.assetCode).endsWith('.US') ? 'USD' : 'KRW',
+          ) === null
         );
       }
       return (

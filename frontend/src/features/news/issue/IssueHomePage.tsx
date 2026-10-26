@@ -7,14 +7,19 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PortfolioContentsPage } from './PortfolioContentsPage';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
-import { IssueStories } from './IssueStories';
-import { getSampleNews, SAMPLE_NEWS_ID, showSampleNews } from './sampleNews';
+import { InvestmentCalendarPage } from '../../investment-calendar/InvestmentCalendarPage';
 import type { NewsListItem } from '../newslist/types';
-import { createFeed, feedDate, isToday, sourceLabel, timestamp, type FeedItem } from './feed';
+import { createFeed, feedDate, isToday, sourceLabel, type FeedItem } from './feed';
 import { getAllContents } from './contents';
 import type { ExternalContent } from './feed';
 import { getAllNews } from './todayNews';
 import { IssueFeed } from './IssueFeed';
+import {
+  feedContentReference,
+  getContentPopularity,
+  sortByPopularity,
+  type PopularityScores,
+} from './popularity';
 import '../../people/people.css';
 import './issue.css';
 
@@ -28,6 +33,7 @@ export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
 }
 
 function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
+  const [params, setParams] = useSearchParams();
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     const previousTitle = document.title;
@@ -48,6 +54,10 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   const [attempt, setAttempt] = useState(0);
   const [page, setPage] = useState(1);
   const [source, setSource] = useState<'ALL' | FeedItem['source']>('ALL');
+  const [popularity, setPopularity] = useState<PopularityScores>(new Map());
+  const [popularityLoading, setPopularityLoading] = useState(false);
+  const [popularityError, setPopularityError] = useState('');
+  const sort = params.get('sort') === 'popular' ? 'popular' : 'latest';
 
   useEffect(() => {
     const startedAt = performance.now();
@@ -97,30 +107,52 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     return () => controller.abort();
   }, [attempt, fullFeed, surface]);
 
+  useEffect(() => {
+    if (sort !== 'popular') {
+      setPopularityLoading(false);
+      setPopularityError('');
+      return;
+    }
+    const controller = new AbortController();
+    setPopularityLoading(true);
+    setPopularityError('');
+    setPopularity(new Map());
+    getContentPopularity(controller.signal)
+      .then((scores) => {
+        if (!controller.signal.aborted) setPopularity(scores);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPopularityError('인기순을 불러오지 못했습니다.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPopularityLoading(false);
+      });
+    return () => controller.abort();
+  }, [attempt, sort]);
+
   // shortcut: full archive is merged client-side; use a unified paginated API when the archive grows.
-  const items = createFeed(news, people.people, contents).filter(
+  const latestItems = createFeed(news, people.people, contents).filter(
     (item) => source === 'ALL' || item.source === source,
   );
-  const totalPages = Math.max(1, Math.ceil(items.length / 12));
+  const items =
+    sort === 'popular'
+      ? sortByPopularity(latestItems, feedContentReference, popularity)
+      : latestItems;
+  const pageSize = fullFeed ? 12 : 6;
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const featured = people.people
-    .map((person) => ({
-      person,
-      post: [...person.posts].sort(
-        (a, b) => timestamp(b.publishedAt ?? b.createdAt) - timestamp(a.publishedAt ?? a.createdAt),
-      )[0],
-    }))
-    .filter((entry) => entry.post)
+    .flatMap((person) => person.posts.map((post) => ({ person, post })))
     .sort(
       (a, b) =>
-        timestamp(b.post.publishedAt ?? b.post.createdAt) -
-        timestamp(a.post.publishedAt ?? a.post.createdAt),
+        (Date.parse(b.post.publishedAt ?? b.post.createdAt ?? '') || 0) -
+        (Date.parse(a.post.publishedAt ?? a.post.createdAt ?? '') || 0),
     )
-    .slice(0, 2);
-  const sampleNews = showSampleNews ? getSampleNews().news : null;
-  const settled = !loading && !contentsLoading && !people.loading;
-  const failedAreas = [error, contentsError, people.error].filter(Boolean).length;
-  const listStatus = failedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
+    .slice(0, 3);
+  const settled = !loading && !contentsLoading && !people.loading && !popularityLoading;
+  const failedAreas = [error, contentsError, people.error, popularityError].filter(Boolean).length;
+  const contentFailedAreas = [error, contentsError, people.error].filter(Boolean).length;
+  const listStatus = contentFailedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
   useContentView(settled, 'view_content_list', {
     surface,
     source_type: source,
@@ -147,6 +179,14 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     setAttempt((value) => value + 1);
     people.retry();
   };
+  const selectSort = (nextSort: 'latest' | 'popular') => {
+    if (sort === nextSort) return;
+    const next = new URLSearchParams(params);
+    if (nextSort === 'popular') next.set('sort', 'popular');
+    else next.delete('sort');
+    setParams(next);
+    setPage(1);
+  };
 
   return (
     <main className="issue-page">
@@ -169,19 +209,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       )}
       {!fullFeed && (
         <div className="issue-briefing">
-          <IssueStories
-            news={
-              sampleNews
-                ? [
-                    { ...sampleNews, id: SAMPLE_NEWS_ID, imageUrl: sampleNews.imageUrl ?? null },
-                    ...news,
-                  ]
-                : news
-            }
-            loading={sampleNews ? false : loading}
-            error={sampleNews ? '' : error}
-            onRetry={retry}
-          />
+          <InvestmentCalendarPage embedded />
           <section className="issue-people" aria-labelledby="issue-people-heading">
             <div className="issue-section-heading">
               <h2 id="issue-people-heading">주목받는 인물의 글</h2>
@@ -193,6 +221,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                   })
                 }
                 to="/people"
+                className="issue-people-more"
                 aria-label="주목받는 인물의 글 전체 보기"
               >
                 전체 보기
@@ -207,7 +236,11 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                 {people.error} <button onClick={retryPeople}>다시 시도</button>
               </p>
             ) : featured.length ? (
-              <div className="issue-people-preview">
+              <div
+                className="issue-people-preview"
+                role="region"
+                aria-label="주목받는 인물의 글 목록"
+              >
                 {featured.map(({ person, post }, index) => (
                   <Link
                     onClick={() =>
@@ -218,7 +251,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                       })
                     }
                     to={`/people?person=${person.id}${isToday(post.createdAt) ? '' : '&view=all'}`}
-                    key={person.id}
+                    key={`${person.id}-${post.id}`}
                   >
                     <span className="issue-person-avatar" aria-hidden="true">
                       {person.profileImageUrl ? (
@@ -269,7 +302,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       )}
       <section aria-labelledby="issue-feed-heading">
         <div className="issue-section-heading issue-feed-heading">
-          <h2 id="issue-feed-heading">{fullFeed ? '콘텐츠 목록' : '전체 콘텐츠'}</h2>
+          <h2 id="issue-feed-heading">{fullFeed ? '콘텐츠 목록' : '최근 올라온 콘텐츠'}</h2>
           <div className="issue-feed-controls">
             <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
               {(
@@ -303,7 +336,22 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                 </button>
               ))}
             </div>
-            <span>최신순</span>
+            <div className="issue-sort-options" role="group" aria-label="콘텐츠 정렬">
+              <button
+                type="button"
+                aria-pressed={sort === 'latest'}
+                onClick={() => selectSort('latest')}
+              >
+                최신순
+              </button>
+              <button
+                type="button"
+                aria-pressed={sort === 'popular'}
+                onClick={() => selectSort('popular')}
+              >
+                인기순
+              </button>
+            </div>
           </div>
         </div>
         {contentsError && (
@@ -321,7 +369,12 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
             {people.error} <button onClick={retryPeople}>다시 시도</button>
           </p>
         )}
-        {loading || people.loading || contentsLoading ? (
+        {popularityError && (
+          <p className="issue-state" role="alert">
+            {popularityError} <button onClick={retry}>다시 시도</button>
+          </p>
+        )}
+        {loading || people.loading || contentsLoading || popularityLoading ? (
           <p className="issue-state" role="status">
             콘텐츠를 불러오는 중입니다.
           </p>
@@ -333,13 +386,14 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
         )}
         <IssueFeed
           surface={surface}
-          offset={(currentPage - 1) * 12}
+          offset={(currentPage - 1) * pageSize}
           key={`${source}-${currentPage}`}
-          items={items.slice((currentPage - 1) * 12, currentPage * 12)}
+          items={items.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
         />
         {!loading &&
           !contentsLoading &&
           !people.loading &&
+          !popularityLoading &&
           !error &&
           !contentsError &&
           !people.error &&

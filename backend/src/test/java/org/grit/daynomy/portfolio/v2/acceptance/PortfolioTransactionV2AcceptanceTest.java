@@ -180,7 +180,7 @@ class PortfolioTransactionV2AcceptanceTest {
   }
 
   @Test
-  void missingPreviousPriceRemovesStaleSnapshotInsteadOfSavingPartialAmount() {
+  void unrelatedAssetPriceDoesNotInventPreviousTradingDay() {
     Member member = member();
     Asset asset = asset();
     Portfolio portfolio = balance(member, asset, FIRST, 10, "100");
@@ -202,7 +202,9 @@ class PortfolioTransactionV2AcceptanceTest {
         .then()
         .statusCode(201);
     assertThat(snapshots.findByPortfolioIdAndBaseDate(portfolio.getId(), FIRST.plusDays(1)))
-        .isEmpty();
+        .get()
+        .extracting(PortfolioDailySnapshot::getTotalEvaluationAmount)
+        .isEqualTo(new BigDecimal("1320.00"));
   }
 
   @Test
@@ -297,6 +299,64 @@ class PortfolioTransactionV2AcceptanceTest {
                 .orElseThrow()
                 .getQuantity())
         .isEqualTo(2);
+  }
+
+  @Test
+  void v2UsesOnlyPortfolioAssetDatesWhenAnotherMarketTradesOnInterveningDay() {
+    Member member = member();
+    Asset domestic = asset();
+    Portfolio portfolio = balance(member, domestic, FIRST, 10, "100");
+    prices.saveAndFlush(new StockDailyPrice(domestic, FIRST, new BigDecimal("100")));
+    prices.saveAndFlush(new StockDailyPrice(domestic, FIRST.plusDays(2), new BigDecimal("120")));
+    Asset us =
+        assets.save(
+            Asset.listedStock("US", UUID.randomUUID().toString(), StockMarket.NASDAQ, null, FIRST));
+    prices.saveAndFlush(new StockDailyPrice(us, FIRST.plusDays(1), new BigDecimal("999")));
+    client(member)
+        .body(transaction(domestic, PortfolioTransactionType.BUY, FIRST, 1))
+        .post(V2)
+        .then()
+        .statusCode(201);
+    var result =
+        snapshots.findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(
+            portfolio.getId(), FIRST, LAST);
+    assertThat(result)
+        .extracting(PortfolioDailySnapshot::getBaseDate)
+        .containsExactly(FIRST, FIRST.plusDays(2));
+    assertThat(result.getLast().getDailyProfitLoss()).isEqualByComparingTo("220");
+  }
+
+  @Test
+  void missingPreviousPriceOfAHeldAssetPreservesSnapshot() {
+    Member member = member();
+    Asset first = asset();
+    Asset second = asset();
+    Portfolio portfolio = balance(member, first, FIRST, 10, "100");
+    opening(portfolio, second, FIRST, 1, "100");
+    prices.saveAndFlush(new StockDailyPrice(second, FIRST, new BigDecimal("100")));
+    prices.saveAndFlush(new StockDailyPrice(second, FIRST.plusDays(1), new BigDecimal("110")));
+    prices.saveAndFlush(new StockDailyPrice(first, FIRST.plusDays(1), new BigDecimal("120")));
+    var existing = new PortfolioDailySnapshot(portfolio, FIRST.plusDays(1));
+    existing.update(
+        new BigDecimal("1100"),
+        new BigDecimal("1300"),
+        new BigDecimal("200"),
+        new BigDecimal("18.18"),
+        null,
+        null);
+    snapshots.saveAndFlush(existing);
+    client(member)
+        .body(transaction(first, PortfolioTransactionType.BUY, FIRST, 1))
+        .post(V2)
+        .then()
+        .statusCode(201);
+    assertThat(
+            snapshots
+                .findByPortfolioIdAndBaseDate(portfolio.getId(), FIRST.plusDays(1))
+                .orElseThrow()
+                .getTotalEvaluationAmount())
+        .isEqualByComparingTo("1300");
+    assertThat(snapshots.findByPortfolioIdAndBaseDate(portfolio.getId(), FIRST)).isEmpty();
   }
 
   private Member member() {

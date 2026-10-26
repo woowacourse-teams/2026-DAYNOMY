@@ -18,8 +18,17 @@
   --text-muted: #6f7481;
   --border: #e4e7ef;
   --accent: #5144d8;
+  --button-height: 43px;
+  --button-weight: 600;
+  --button-outline: #52647f;
+  --button-label: #10234b;
+  --button-action: #0a0a0a;
+  --button-action-hover: #262626;
+  --button-action-active: #171717;
   --button-primary: #326bd5;
   --button-primary-hover: #2459b9;
+  --button-primary-active: #1e4b9b;
+  --button-secondary-hover: #f5f7fb;
   --button-primary-soft: #edf3fc;
   --focus: rgba(81, 68, 216, 0.24);
   --sans:

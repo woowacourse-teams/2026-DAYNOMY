@@ -82,6 +82,8 @@ public final class LeagueDto {
       @NotNull @Min(1) Long assetId,
       @NotNull @Valid DecisionRequest decision) {}
 
+  public record DecisionReasonRequest(@NotBlank @Size(max = 500) String reason) {}
+
   public record ReviewRequest(
       @NotBlank @Size(max = 500) String actualResult,
       @NotBlank @Size(max = 500) String differenceFromExpectation,
@@ -186,7 +188,15 @@ public final class LeagueDto {
       Integer calculationVersion,
       Instant finalizedAt,
       String changeReason,
-      CollectionStatus collectionStatus) {}
+      CollectionStatus collectionStatus,
+      AggregationResponse aggregation) {}
+
+  public record AggregationResponse(
+      LocalDate baseDate,
+      Instant expectedAt,
+      Instant firstReturnExpectedAt,
+      String reason,
+      boolean delayed) {}
 
   public record AllocationResponse(BigDecimal stockWeight, BigDecimal etfWeight) {}
 
@@ -227,7 +237,8 @@ public final class LeagueDto {
       BigDecimal weeklyReturnRate,
       List<DailyReturnPointResponse> days,
       LocalDate trackingStartedOn,
-      CollectionStatus collectionStatus) {}
+      CollectionStatus collectionStatus,
+      AggregationResponse aggregation) {}
 
   public record PublicInvestorResponse(
       String publicId,

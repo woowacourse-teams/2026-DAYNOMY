@@ -5,7 +5,12 @@ import java.time.LocalDate;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 
 public record StockPriceResponse(
-    Long assetId, String assetCode, String name, LocalDate baseDate, BigDecimal closePrice) {
+    Long assetId,
+    String assetCode,
+    String name,
+    LocalDate baseDate,
+    BigDecimal closePrice,
+    String currency) {
 
   public static StockPriceResponse from(StockDailyPrice price) {
     return new StockPriceResponse(
@@ -13,6 +18,7 @@ public record StockPriceResponse(
         price.getAsset().getAssetCode(),
         price.getAsset().getName(),
         price.getBaseDate(),
-        price.getClosePrice());
+        price.getClosePrice(),
+        price.getAsset().getCurrency());
   }
 }

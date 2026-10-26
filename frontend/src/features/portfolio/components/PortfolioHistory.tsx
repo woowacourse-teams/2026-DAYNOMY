@@ -174,7 +174,7 @@ export function PortfolioHistory({
         <div className="portfolio-ledger-empty portfolio-history-empty">
           <h3>이 기간에 표시할 내역이 없어요</h3>
           <p>조회 기간을 바꾸거나 매수·매도 거래를 기록해 보세요.</p>
-          <button className="portfolio-secondary-button" onClick={onCreate}>
+          <button className="portfolio-secondary-button is-primary" onClick={onCreate}>
             거래 기록하기
           </button>
         </div>
@@ -185,6 +185,14 @@ export function PortfolioHistory({
               item.transactionQuantity !== null && item.unitPrice !== null
                 ? item.transactionQuantity * item.unitPrice
                 : null;
+            const native = (value: number | null) =>
+              item.assetCode.endsWith('.US')
+                ? amountsHidden
+                  ? '•••••• USD'
+                  : value == null
+                    ? '—'
+                    : `${value.toLocaleString('ko-KR', { maximumFractionDigits: 4 })} USD`
+                : won(value);
             const content = (
               <>
                 {assetId === undefined && (
@@ -209,13 +217,13 @@ export function PortfolioHistory({
                   )}
                   {assetId !== undefined && (
                     <small>
-                      {`${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`}
+                      {`${amountsHidden ? '•••' : item.transactionQuantity}주 · ${native(item.unitPrice)}`}
                     </small>
                   )}
                 </span>
                 <span className="portfolio-history-amount">
                   <span className="portfolio-history-amount-heading">
-                    <strong>{won(gross)}</strong>
+                    <strong>{native(gross)}</strong>
                     <span className="portfolio-history-edit-hint">
                       수정
                       <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -223,9 +231,15 @@ export function PortfolioHistory({
                       </svg>
                     </span>
                   </span>
+                  {item.assetCode.endsWith('.US') && (
+                    <small>
+                      적용 환율{' '}
+                      {amountsHidden ? '••••' : item.exchangeRate?.toLocaleString('ko-KR')}원/USD
+                    </small>
+                  )}
                   {assetId === undefined && (
                     <small>
-                      {`${amountsHidden ? '•••' : item.transactionQuantity}주 · ${won(item.unitPrice)}`}
+                      {`${amountsHidden ? '•••' : item.transactionQuantity}주 · ${native(item.unitPrice)}`}
                     </small>
                   )}
                 </span>

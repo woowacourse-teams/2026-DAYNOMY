@@ -7,8 +7,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.aop.ObservedAspect;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
@@ -27,9 +32,40 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioAnalysisServiceTest {
+  @Test
+  void analyzesAllUpToFiveAndSelectsOnlyFiveLargestHoldingsAboveThat() {
+    var holdings =
+        List.of(
+            asset("F", "5"),
+            asset("A", "30"),
+            asset("B", "25"),
+            asset("C", "20"),
+            asset("D", "12"),
+            asset("E", "8"));
+    var targets = portfolioAnalysisService.createTargets(holdings);
+    assertThat(targets)
+        .extracting(PortfolioAnalysisTarget::assetName)
+        .containsExactly("A", "B", "C", "D", "E");
+    assertThat(portfolioAnalysisService.createTargets(holdings.subList(0, 5))).hasSize(5);
+    var impacts =
+        targets.stream()
+            .map(t -> impact(t.assetName(), ImpactDirection.POSITIVE, ImpactLevel.HIGH, 1))
+            .toList();
+    var response =
+        portfolioAnalysisService.response(
+            new PortfolioAnalysisRequest(holdings),
+            new PortfolioAnalysisResult("", impacts, List.of()));
+    assertThat(response.selectedAssetCount()).isEqualTo(5);
+    assertThat(response.excludedAssets())
+        .extracting(PortfolioAnalysisResponse.ExcludedAsset::assetName)
+        .containsExactly("F");
+    assertThat(response.overallScore()).isNull();
+    assertThat(response.coverage()).isEqualTo("PARTIAL");
+  }
 
   @Mock private PortfolioAnalysisAiClient portfolioAnalysisAiClient;
   @Mock private PortfolioAssetAnalysisService assetAnalysisService;
@@ -37,6 +73,73 @@ class PortfolioAnalysisServiceTest {
   @Spy private GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 
   @InjectMocks private PortfolioAnalysisService portfolioAnalysisService;
+
+  @Test
+  @DisplayName("종목 분석 단계는 종합 설명 호출 없이 점수와 근거를 반환한다")
+  void assetAnalysisReturnsJudgmentsAndScoresWithoutNarrative() {
+    var request = request(asset("삼성전자", "100"));
+    var impact = impact("삼성전자", ImpactDirection.POSITIVE, ImpactLevel.HIGH, 1);
+    given(assetAnalysisService.analyze(List.of(new PortfolioAnalysisTarget("삼성전자"))))
+        .willReturn(new PortfolioAnalysisResult("", List.of(impact), impact.sources()));
+
+    var result = portfolioAnalysisService.analyzeAssets(request);
+
+    assertThat(result.overallDirection()).isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(result.overallScore()).isPositive();
+    assertThat(result.impacts())
+        .singleElement()
+        .satisfies(
+            asset -> {
+              assertThat(asset.assetName()).isEqualTo("삼성전자");
+              assertThat(asset.sources()).isNotEmpty();
+            });
+    assertThat(result.overallImpact()).isEmpty();
+    verifyNoInteractions(narrative, portfolioAnalysisAiClient);
+  }
+
+  @Test
+  @DisplayName("종합 설명 단계는 확보한 종목 결과를 재분석하지 않고 설명만 추가한다")
+  void narrativePreservesPreparedAssetResults() {
+    var impact = impact("삼성전자", ImpactDirection.POSITIVE, ImpactLevel.HIGH, 1);
+    var prepared =
+        portfolioAnalysisService.response(
+            request(asset("삼성전자", "100")),
+            new PortfolioAnalysisResult("", List.of(impact), impact.sources()));
+    given(narrative.summarize(prepared)).willReturn("보유 자산에 긍정적인 영향이 예상돼요.");
+
+    var result = portfolioAnalysisService.summarize(prepared);
+
+    assertThat(result).isEqualTo(prepared.withOverallImpact("보유 자산에 긍정적인 영향이 예상돼요."));
+    assertThat(prepared.overallImpact()).isEmpty();
+    verifyNoInteractions(assetAnalysisService, portfolioAnalysisAiClient);
+  }
+
+  @Test
+  void createsAnObservationForPortfolioAnalysis() {
+    var stoppedObservation = new AtomicReference<String>();
+    var registry = ObservationRegistry.create();
+    registry
+        .observationConfig()
+        .observationHandler(
+            new ObservationHandler<Observation.Context>() {
+              @Override
+              public void onStop(Observation.Context context) {
+                stoppedObservation.set(context.getName());
+              }
+
+              @Override
+              public boolean supportsContext(Observation.Context context) {
+                return true;
+              }
+            });
+    var proxyFactory = new AspectJProxyFactory(portfolioAnalysisService);
+    proxyFactory.addAspect(new ObservedAspect(registry));
+    PortfolioAnalysisService observedService = proxyFactory.getProxy();
+
+    observedService.analyze(new PortfolioAnalysisRequest(List.of()), true);
+
+    assertThat(stoppedObservation).hasValue("portfolio.analysis");
+  }
 
   @Test
   @DisplayName("요청한 포트폴리오 자산을 AI로 분석하고 응답 DTO로 변환한다")
@@ -322,7 +425,7 @@ class PortfolioAnalysisServiceTest {
             List.of(
                 new PortfolioAnalysisResult.Source(
                     "공식 발표",
-                    "https://example.com/earnings",
+                    "https://example.com/earnings/q2-2026",
                     java.time.LocalDate.of(2026, 9, 25),
                     java.time.LocalDate.of(2026, 9, 25),
                     "이익이 줄었어요.",

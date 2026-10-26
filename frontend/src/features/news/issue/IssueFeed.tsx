@@ -6,17 +6,29 @@ import threadsMark from '../../../assets/platform-threads.svg';
 import { Link } from 'react-router-dom';
 import { SocialPostEmbed } from '../../people/SocialPostEmbed';
 import { getCategoryLabel } from '../newslist/types';
-import { feedDate, isToday, sourceLabel, timestamp, youtubeId, type FeedItem } from './feed';
+import {
+  feedDate,
+  isToday,
+  sourceLabel,
+  timestamp,
+  youtubeId,
+  youtubeThumbnail,
+  type FeedItem,
+} from './feed';
+import {
+  feedContentReference,
+  recordContentInteraction,
+  type ContentReference,
+} from './popularity';
 
 type ReadingItem = Exclude<FeedItem, { source: 'DAYNOMY' }>;
 
 function thumbnailImage(item: FeedItem) {
   if ('article' in item) return item.article.imageUrl;
-  if ('content' in item) return item.content.imageUrl;
-  if (item.post.sourceType === 'YOUTUBE') {
-    const video = youtubeId(item.post.url);
-    return video ? `https://i.ytimg.com/vi/${video}/hqdefault.jpg` : null;
+  if (item.source === 'YOUTUBE') {
+    return youtubeThumbnail('content' in item ? item.content.url : item.post.url);
   }
+  if ('content' in item) return item.content.imageUrl;
   return null;
 }
 
@@ -53,7 +65,15 @@ function FeedThumbnail({ item }: { item: FeedItem }) {
   );
 }
 
-function InlinePost({ item, analytics }: { item: ReadingItem; analytics: AnalyticsParams }) {
+function InlinePost({
+  item,
+  analytics,
+  reference,
+}: {
+  item: ReadingItem;
+  analytics: AnalyticsParams;
+  reference: ContentReference;
+}) {
   const post = 'post' in item ? item.post : item.content;
   const video = post.sourceType === 'YOUTUBE' ? youtubeId(post.url) : null;
   return (
@@ -72,7 +92,10 @@ function InlinePost({ item, analytics }: { item: ReadingItem; analytics: Analyti
             <p>이 영상은 YouTube에서 확인해 주세요.</p>
           )}
           <a
-            onClick={() => trackEvent('click_content_original', analytics)}
+            onClick={() => {
+              trackEvent('click_content_original', analytics);
+              void recordContentInteraction(reference, 'OUTBOUND_CLICK');
+            }}
             className="issue-video-link"
             href={post.url}
             target="_blank"
@@ -82,7 +105,11 @@ function InlinePost({ item, analytics }: { item: ReadingItem; analytics: Analyti
           </a>
         </>
       ) : (
-        <SocialPostEmbed analytics={analytics} post={{ ...post, sourceType: post.sourceType }} />
+        <SocialPostEmbed
+          analytics={analytics}
+          onOriginalClick={() => void recordContentInteraction(reference, 'OUTBOUND_CLICK')}
+          post={{ ...post, sourceType: post.sourceType }}
+        />
       )}
     </div>
   );
@@ -101,8 +128,14 @@ export function IssueFeed({
   const id = useId();
   const triggers = useRef(new Map<string, HTMLButtonElement>());
   const peopleTimeline = surface === 'people';
-  const compactNews = surface === 'news_home' || surface === 'news_contents' || peopleTimeline;
-  const showThumbnails = ['news_home', 'news_contents', 'people'].includes(surface);
+  const compactNews =
+    surface === 'news_home' ||
+    surface === 'news_contents' ||
+    peopleTimeline ||
+    surface === 'search_results';
+  const showThumbnails = ['news_home', 'news_contents', 'people', 'search_results'].includes(
+    surface,
+  );
   return (
     <>
       <ul
@@ -171,20 +204,14 @@ export function IssueFeed({
                 )}
                 {!peopleTimeline &&
                   (compactNews ? (
-                    <time
-                      dateTime={
-                        (item.source === 'DAYNOMY'
-                          ? item.date
-                          : 'post' in item
-                            ? item.post.createdAt
-                            : item.content.createdAt) ?? undefined
-                      }
-                    >
+                    <time dateTime={item.date ?? undefined}>
                       {item.source === 'DAYNOMY'
                         ? feedDate(item.date, '발행')
                         : feedDate(
-                            'post' in item ? item.post.createdAt : item.content.createdAt,
-                            '등록',
+                            item.date,
+                            ('post' in item ? item.post.publishedAt : item.content.publishedDate)
+                              ? '게시'
+                              : '등록',
                           )}
                     </time>
                   ) : (
@@ -193,9 +220,10 @@ export function IssueFeed({
               </div>
               {item.source === 'DAYNOMY' ? (
                 <Link
-                  onClick={() =>
-                    trackEvent('click_content', feedProperties(item, surface, offset + index + 1))
-                  }
+                  onClick={() => {
+                    trackEvent('click_content', feedProperties(item, surface, offset + index + 1));
+                    void recordContentInteraction(feedContentReference(item), 'OPEN');
+                  }}
                   className="issue-row-title"
                   to={`/news/${item.article.id}`}
                 >
@@ -228,11 +256,13 @@ export function IssueFeed({
                   aria-expanded={selected?.key === item.key}
                   aria-controls={`${id}-${item.key}`}
                   onClick={() => {
-                    if (selected?.key !== item.key)
+                    if (selected?.key !== item.key) {
                       trackEvent(
                         'expand_content',
                         feedProperties(item, surface, offset + index + 1),
                       );
+                      void recordContentInteraction(feedContentReference(item), 'OPEN');
+                    }
                     setSelected(selected?.key === item.key ? null : item);
                   }}
                 >
@@ -262,6 +292,7 @@ export function IssueFeed({
                       <InlinePost
                         item={item}
                         analytics={feedProperties(item, surface, offset + index + 1)}
+                        reference={feedContentReference(item)}
                       />
                       <button
                         className="issue-inline-close"

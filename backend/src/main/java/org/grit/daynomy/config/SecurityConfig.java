@@ -10,6 +10,7 @@ import org.grit.daynomy.auth.token.TokenCookieManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -44,7 +45,12 @@ public class SecurityConfig {
                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                     .ignoringRequestMatchers(
                         request ->
-                            "/api/portfolio/analysis".equals(request.getServletPath())
+                            ("/api/portfolio/analysis".equals(request.getServletPath())
+                                    || "/api/portfolio/analysis/tasks"
+                                        .equals(request.getServletPath())
+                                    || request
+                                        .getServletPath()
+                                        .matches("/api/portfolio/analysis/tasks/[^/]+/retry"))
                                 && tokenCookieManager.getAccessToken(request) == null)
                     .csrfTokenRequestHandler(csrfHandler))
         .exceptionHandling(
@@ -64,6 +70,16 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/api/admin/**")
                     .hasRole("ADMIN")
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/portfolio/analysis/tasks",
+                        "/api/portfolio/analysis/tasks/*/retry")
+                    .anonymous()
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/portfolio/analysis/tasks",
+                        "/api/portfolio/analysis/tasks/*")
+                    .permitAll()
                     .requestMatchers("/api/portfolio/analysis", "/api/portfolio/calculate")
                     .permitAll()
                     .requestMatchers("/api/portfolio", "/api/portfolio/**")

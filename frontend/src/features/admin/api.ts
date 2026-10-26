@@ -305,6 +305,38 @@ export async function syncAdminStockPrices(): Promise<AdminStockPriceSyncRespons
   return assertResponse(response, isAdminStockPriceSyncResponse);
 }
 
+export async function syncAdminUsStocks(): Promise<AdminStockSyncResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/stocks/us/sync', {
+    method: 'POST',
+  });
+  return assertResponse(response, isAdminStockSyncResponse);
+}
+
+export async function syncAdminUsStockPrices(date = ''): Promise<AdminStockPriceSyncResponse> {
+  if (date) {
+    const parsed = new Date(date);
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !Number.isFinite(parsed.getTime()) ||
+      parsed.toISOString().slice(0, 10) !== date ||
+      date >= today
+    ) {
+      throw new Error('뉴욕 기준 오늘 이전의 올바른 날짜를 선택해 주세요.');
+    }
+  }
+  const query = date ? `?${new URLSearchParams({ date })}` : '';
+  const response = await requestWithCsrf<unknown>(`/api/admin/stocks/us/prices/sync${query}`, {
+    method: 'POST',
+  });
+  return assertResponse(response, isAdminStockPriceSyncResponse);
+}
+
 export async function backfillAdminStockPrices(from: string, to: string) {
   const dates = [from, to].map((value) => new Date(value));
   if (

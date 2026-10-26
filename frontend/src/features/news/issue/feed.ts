@@ -134,7 +134,7 @@ export function sourceLabel(source: FeedItem['source']) {
         : 'X';
 }
 
-export function feedDate(date: string | null, label?: '발행' | '등록') {
+export function feedDate(date: string | null, label?: '발행' | '게시' | '등록') {
   if (label) {
     return date && !Number.isNaN(Date.parse(date))
       ? `${seoulDate.format(new Date(date)).slice(5).replace('-', '.')} ${label}`
@@ -178,4 +178,9 @@ export function youtubeId(value: string) {
   } catch {
     return null;
   }
+}
+
+export function youtubeThumbnail(value: string) {
+  const id = youtubeId(value);
+  return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
 }
