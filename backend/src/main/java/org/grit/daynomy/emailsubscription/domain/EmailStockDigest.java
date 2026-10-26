@@ -41,6 +41,8 @@ public record EmailStockDigest(LocalDate baseDate, LocalDate previousBaseDate, L
                   .findFirst()
                   .orElse(null);
       String change;
+      boolean newFacts = before == null;
+      boolean analysisChanged = false;
       if (before == null) change = "처음 안내하는 종목 분석입니다.";
       else {
         var evidence = evidence(stock.content());
@@ -53,7 +55,8 @@ public record EmailStockDigest(LocalDate baseDate, LocalDate previousBaseDate, L
                     || (stock.contribution() != null
                         && stock.contribution().abs().compareTo(BigDecimal.ONE) >= 0));
         if (!newEvidence && !priceChanged) continue;
-        boolean analysisChanged =
+        newFacts = newEvidence;
+        analysisChanged =
             newEvidence
                 && stock.content().direction() != null
                 && before.content().direction() != null
@@ -78,7 +81,9 @@ public record EmailStockDigest(LocalDate baseDate, LocalDate previousBaseDate, L
               stock.weight(),
               stock.contribution(),
               stock.content(),
-              change));
+              change,
+              analysisChanged ? before.content() : null,
+              newFacts));
     }
     return new EmailStockDigest(baseDate, previousBaseDate, fresh);
   }
@@ -110,6 +115,57 @@ public record EmailStockDigest(LocalDate baseDate, LocalDate previousBaseDate, L
           case LOW -> "낮음";
         };
     return direction + "·영향 " + level;
+  }
+
+  public String emailSections() {
+    var body = new StringBuilder();
+    var news = stocks.stream().filter(stock -> Boolean.TRUE.equals(stock.newFacts())).toList();
+    if (!news.isEmpty()) body.append("보유 종목에 이런 소식이 있어요\n");
+    for (var stock : news) {
+      body.append(stock.name()).append(" — ").append(stock.content().issueSummary()).append("\n");
+      stock.content().sources().stream()
+          .filter(source -> source.factQuote() != null && !source.factQuote().isBlank())
+          .forEach(
+              source ->
+                  body.append(source.factQuote())
+                      .append("\n출처: ")
+                      .append(source.url())
+                      .append("\n"));
+      if (stock.previousContent() == null && stock.changeSummary() != null)
+        body.append(stock.changeSummary()).append("\n");
+      body.append("\n");
+    }
+    var changed = stocks.stream().filter(stock -> stock.previousContent() != null).toList();
+    if (!changed.isEmpty()) body.append("포트폴리오 분석이 달라졌어요\n오늘 주목할 보유 종목에 한정한 분석 변화입니다.\n");
+    for (var stock : changed) {
+      body.append(stock.name())
+          .append("\n이전 분석은 다음 근거를 바탕으로 했어요.\n")
+          .append(stock.previousContent().reason())
+          .append("\n이번에 확인된 사실: ");
+      stock.content().sources().stream()
+          .filter(source -> source.factQuote() != null)
+          .forEach(source -> body.append(source.factQuote()).append(" "));
+      body.append("\n갱신된 분석: ")
+          .append(stock.content().reason())
+          .append("\n")
+          .append(stock.changeSummary())
+          .append("\n\n");
+    }
+    var prices =
+        stocks.stream()
+            .filter(
+                stock ->
+                    !Boolean.TRUE.equals(stock.newFacts())
+                        && stock.previousContent() == null
+                        && stock.dailyReturnRate() != null)
+            .toList();
+    if (!prices.isEmpty()) body.append("보유 종목 가격에 변화가 있어요\n").append(baseDate).append(" 종가 기준\n");
+    for (var stock : prices)
+      body.append(stock.name())
+          .append(" — 종목 등락률: ")
+          .append(number(stock.dailyReturnRate()))
+          .append("%\n");
+    return body.toString();
   }
 
   private String body(boolean includeChanges) {
@@ -156,7 +212,31 @@ public record EmailStockDigest(LocalDate baseDate, LocalDate previousBaseDate, L
       BigDecimal weight,
       BigDecimal contribution,
       CommonStockAnalysisContent content,
-      String changeSummary) {
+      String changeSummary,
+      CommonStockAnalysisContent previousContent,
+      Boolean newFacts) {
+    public Stock(
+        Long analysisId,
+        Long assetId,
+        String name,
+        BigDecimal dailyReturnRate,
+        BigDecimal weight,
+        BigDecimal contribution,
+        CommonStockAnalysisContent content,
+        String changeSummary) {
+      this(
+          analysisId,
+          assetId,
+          name,
+          dailyReturnRate,
+          weight,
+          contribution,
+          content,
+          changeSummary,
+          null,
+          null);
+    }
+
     public Stock(
         Long analysisId,
         Long assetId,

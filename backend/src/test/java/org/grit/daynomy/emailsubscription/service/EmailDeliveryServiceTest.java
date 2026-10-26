@@ -72,7 +72,7 @@ class EmailDeliveryServiceTest {
     var id = service.prepare(1L, asOf, List.of(), now).orElseThrow();
     verify(deliveries).save(saved.capture());
     when(deliveries.findByIdForUpdate(id)).thenReturn(Optional.of(saved.getValue()));
-    assertThat(service.claim(id, now).orElseThrow().body()).contains("주요 경제 일정", "구독 해지");
+    assertThat(service.claim(id, now).orElseThrow().body()).contains("주요 경제 일정", "수신 해지");
     verifyNoInteractions(digests);
   }
 
@@ -115,7 +115,7 @@ class EmailDeliveryServiceTest {
     var attempt = service.claim(delivery.getId(), now).orElseThrow();
     assertThat(attempt.recipient()).isEqualTo("google@example.invalid");
     assertThat(attempt.deliveryId()).isEqualTo(delivery.getId());
-    assertThat(attempt.body()).contains("구독 해지: https://example.invalid/unsubscribe?token=test");
+    assertThat(attempt.body()).contains("수신 해지: https://example.invalid/unsubscribe?token=test");
     assertThat(service.claim(delivery.getId(), now.plusSeconds(1))).isEmpty();
   }
 

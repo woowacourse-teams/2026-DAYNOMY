@@ -90,6 +90,45 @@ class EmailDeliveryTest {
         .isInstanceOf(IllegalStateException.class);
   }
 
+  @Test
+  void calendarOnlyTemplateIncludesNicknameRealLinksAndOnlyTheAvailableSection() {
+    var supplement =
+        new EmailDigestSupplement(
+            null,
+            List.of(
+                new EmailDigestSupplement.Event(
+                    "earnings",
+                    "삼성전자 실적 발표",
+                    nine.plusSeconds(86400),
+                    "https://example.invalid/source",
+                    false)));
+    var mail =
+        new EmailDelivery(
+            Member.createGoogleMember("id", "test@example.invalid", "투자자", null),
+            nine.minusSeconds(7200),
+            null,
+            supplement,
+            LocalDate.of(2026, 10, 26));
+    mail.attachUnsubscribeLink("https://api.example.invalid/unsubscribe?token=test");
+    mail.completeTemplate("투자자", "https://daynomy.com");
+    assertThat(mail.getBody())
+        .contains(
+            "안녕하세요, 투자자님.",
+            "다가오는 투자 일정이에요",
+            "삼성전자 실적 발표 — 내일",
+            "발표 시각 미확정",
+            "내 포트폴리오 자세히 보기: https://daynomy.com/",
+            "알림 설정: https://daynomy.com/mypage",
+            "수신 해지:")
+        .doesNotContain("포트폴리오 분석이 달라졌어요", "보유 종목에 이런 소식이 있어요", "내 자산의 변화예요", "09:00");
+    var savedBody = mail.getBody();
+    mail.claim(nine);
+    mail.failed(true, nine.plusSeconds(1));
+    assertThatThrownBy(() -> mail.completeTemplate("다른 이름", "https://other.invalid"))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(mail.getBody()).isEqualTo(savedBody);
+  }
+
   private EmailDelivery delivery() {
     var content = new CommonStockAnalysisContent(null, null, "소식", "", "", "근거", List.of());
     var digest =

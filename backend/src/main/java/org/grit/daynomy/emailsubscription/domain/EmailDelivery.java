@@ -116,6 +116,40 @@ public class EmailDelivery {
     this.nextAttemptAt = at(9, 0);
   }
 
+  public void completeTemplate(String nickname, String frontendBaseUrl) {
+    if (status != Status.READY || attempts != 0 || unsubscribeUrl == null)
+      throw new IllegalStateException("해지 링크가 준비된 미발송 메일만 구성할 수 있습니다.");
+    var uri = java.net.URI.create(frontendBaseUrl);
+    boolean local =
+        "http".equals(uri.getScheme())
+            && ("localhost".equals(uri.getHost()) || "127.0.0.1".equals(uri.getHost()));
+    if (uri.getHost() == null
+        || !(local || "https".equals(uri.getScheme()))
+        || uri.getUserInfo() != null
+        || uri.getQuery() != null
+        || uri.getFragment() != null
+        || !(uri.getPath().isEmpty() || "/".equals(uri.getPath())))
+      throw new IllegalArgumentException("프론트엔드 주소는 HTTPS 또는 로컬 원점이어야 합니다.");
+    var base =
+        frontendBaseUrl.endsWith("/")
+            ? frontendBaseUrl.substring(0, frontendBaseUrl.length() - 1)
+            : frontendBaseUrl;
+    var name = nickname == null || nickname.isBlank() ? "회원" : nickname.replaceAll("[\\r\\n]", " ");
+    body =
+        "안녕하세요, "
+            + name
+            + "님.\n\n내 포트폴리오의 주요 변화와 확인할 일정을 모아 전해드려요.\n\n"
+            + (stockDigest == null ? "" : stockDigest.body())
+            + supplementDigest.body(deliveryDate)
+            + "\n내 포트폴리오 자세히 보기: "
+            + base
+            + "/\n\nDAYNOMY\n알림 설정: "
+            + base
+            + "/mypage"
+            + "\n수신 해지: "
+            + unsubscribeUrl;
+  }
+
   public boolean claim(Instant now) {
     if (status != Status.READY && status != Status.RETRY_PENDING) return false;
     if (!now.isBefore(at(10, 0))) {

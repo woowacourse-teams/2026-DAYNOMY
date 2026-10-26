@@ -23,6 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class EmailDeliveryService {
+  @org.springframework.beans.factory.annotation.Value("${FRONTEND_BASE_URL:http://localhost:5173}")
+  private String frontendBaseUrl = "http://localhost:5173";
+
   private final MemberRepository members;
   private final EmailSubscriptionRepository subscriptions;
   private final EmailDeliveryRepository deliveries;
@@ -61,6 +64,7 @@ public class EmailDeliveryService {
     if (digest == null && !supplement.shouldSend()) return Optional.empty();
     var delivery = new EmailDelivery(member, asOf, digest, supplement, date);
     delivery.attachUnsubscribeLink(unsubscribe.link(memberId, subscription.getSubscribedAt()));
+    delivery.completeTemplate(member.getNickname(), frontendBaseUrl);
     return Optional.of(deliveries.save(delivery).getId());
   }
 
@@ -103,7 +107,10 @@ public class EmailDeliveryService {
             id,
             member.getEmail(),
             delivery.getSubject(),
-            delivery.getBody() + "\n\n구독 해지: " + delivery.getUnsubscribeUrl(),
+            delivery.getBody()
+                + (delivery.getBody().contains(delivery.getUnsubscribeUrl())
+                    ? ""
+                    : "\n\n수신 해지: " + delivery.getUnsubscribeUrl()),
             delivery.getUnsubscribeUrl()));
   }
 

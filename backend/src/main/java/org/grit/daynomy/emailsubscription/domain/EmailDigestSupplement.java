@@ -26,21 +26,33 @@ public record EmailDigestSupplement(Assets assets, List<Event> events) {
   }
 
   public String body() {
+    return body(null);
+  }
+
+  public String body(LocalDate deliveryDate) {
     var text = new StringBuilder();
-    if (assets != null)
-      text.append("\n기준일 보유 자산 요약 — ")
+    if (assets != null && assets.dailyProfitLoss().signum() != 0)
+      text.append("\n내 자산의 변화예요\n")
           .append(assets.baseDate())
-          .append(" 종가\n평가 금액: ")
+          .append(" 종가 기준\n전체 평가금액: ")
           .append(number(assets.evaluation()))
-          .append("원\n일일 손익: ")
+          .append("원\n해당일 보유 수량 기준 가격 변동 손익: ")
           .append(number(assets.dailyProfitLoss()))
           .append("원 (")
           .append(number(assets.dailyReturnRate()))
           .append("%)\n");
-    if (!events.isEmpty()) text.append("\n미리 챙길 투자 일정\n");
+    if (!events.isEmpty()) text.append("\n다가오는 투자 일정이에요\n");
     for (var event : events)
       text.append(event.title())
-          .append(" — ")
+          .append(
+              deliveryDate != null
+                      && event
+                          .announcedAt()
+                          .atZone(EmailAnalysisPolicy.ZONE)
+                          .toLocalDate()
+                          .equals(deliveryDate.plusDays(1))
+                  ? " — 내일\n"
+                  : "\n")
           .append(
               event
                   .announcedAt()

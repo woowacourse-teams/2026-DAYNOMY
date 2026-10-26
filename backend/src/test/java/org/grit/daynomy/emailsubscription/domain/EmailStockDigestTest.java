@@ -69,6 +69,27 @@ class EmailStockDigestTest {
     assertThat(current.newInformation(Map.of(1L, before), Set.of()).stocks()).isEmpty();
   }
 
+  @Test
+  void newsOnlyMessageOmitsTheAnalysisChangeSection() {
+    var previous = digest(1L, date, "매출 증가", "매출 10% 증가", ImpactDirection.POSITIVE);
+    var current = digest(2L, date, "새 계약", "계약 체결", ImpactDirection.POSITIVE);
+    var body = current.newInformation(Map.of(1L, previous), Set.of()).emailSections();
+    assertThat(body)
+        .contains("보유 종목에 이런 소식이 있어요", "새 계약", "계약 체결", "출처:")
+        .doesNotContain("포트폴리오 분석이 달라졌어요", "보유 종목 가격에 변화가 있어요");
+  }
+
+  @Test
+  void changedAnalysisIncludesThePreviousReasonAndCurrentEvidence() {
+    var previous = digest(1L, date, "매출 증가", "매출 10% 증가", ImpactDirection.POSITIVE);
+    var current = digest(2L, date, "매출 감소", "매출 20% 감소", ImpactDirection.NEGATIVE);
+    var body = current.newInformation(Map.of(1L, previous), Set.of()).emailSections();
+    assertThat(body).contains("포트폴리오 분석이 달라졌어요", "이전 분석은", "이번에 확인된 사실", "매출 20% 감소", "갱신된 분석");
+    assertThat(current.newInformation(Map.of(), Set.of()).emailSections())
+        .doesNotContain("포트폴리오 분석이 달라졌어요");
+    assertThat(previous.newInformation(Map.of(1L, previous), Set.of()).emailSections()).isEmpty();
+  }
+
   private EmailStockDigest digest(
       Long id, LocalDate base, String summary, String quote, ImpactDirection direction) {
     var content =
