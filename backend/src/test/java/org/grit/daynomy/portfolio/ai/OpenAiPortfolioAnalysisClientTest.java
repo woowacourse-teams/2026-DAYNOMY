@@ -975,6 +975,65 @@ class OpenAiPortfolioAnalysisClientTest {
         .doesNotContain("삼성전자");
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+  void replacesReadableButFactlessSourceOnceAndKeepsOtherVerifiedAsset(boolean foundFacts)
+      throws Exception {
+    var original = objectMapper.readTree(validOutput());
+    var missing = (com.fasterxml.jackson.databind.node.ObjectNode) original.path("impacts").get(0);
+    missing.putNull("direction");
+    missing.putNull("impactLevel");
+    missing.putArray("sourceUrls");
+    String first = objectMapper.writeValueAsString(original);
+    // 초기 검색은 두 종목 모두 읽을 수 있지만 삼성전자는 직접 판단 근거가 없는 원문을 반환한다.
+    withEvidence(validOutput());
+    server.enqueue(
+        sourceResponseFor(List.of("삼성전자", "SK하이닉스"), "https://example.com/semiconductor"));
+    firstEnqueuedResponse = new MockResponse();
+    enqueueOutput(first);
+    enqueueOutput(onlyAsset(first, "삼성전자"));
+    String replacementUrl = "https://official.example/results";
+    server.enqueue(sourceResponseFor(List.of("삼성전자"), replacementUrl));
+    String recoveredOutput =
+        foundFacts
+            ? onlyAsset(
+                validOutput()
+                    .replace("https://example.com/semiconductor", replacementUrl)
+                    .replace("NEUTRAL", "POSITIVE"),
+                "삼성전자")
+            : onlyAsset(first, "삼성전자");
+    enqueueOutput(recoveredOutput, replacementUrl);
+    if (!foundFacts) {
+      fixtureDocuments.put(
+          replacementUrl,
+          new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
+              "IR 안내", "Conference call scheduled.", null));
+      enqueueOutput(recoveredOutput, replacementUrl);
+    }
+
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .filteredOn(impact -> impact.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(
+            impact -> {
+              assertThat(impact.direction())
+                  .isEqualTo(foundFacts ? ImpactDirection.POSITIVE : null);
+              if (foundFacts)
+                assertThat(impact.sources().getFirst().url()).isEqualTo(replacementUrl);
+            });
+    assertThat(result.impacts())
+        .filteredOn(impact -> impact.assetName().equals("SK하이닉스"))
+        .singleElement()
+        .satisfies(impact -> assertThat(impact.direction()).isEqualTo(ImpactDirection.NEUTRAL));
+    assertThat(server.getRequestCount()).isEqualTo(foundFacts ? 5 : 6);
+    server.takeRequest();
+    server.takeRequest();
+    server.takeRequest();
+    String recovery = server.takeRequest().getBody().readUtf8();
+    assertThat(recovery).contains("blocked_domains", "삼성전자").doesNotContain("SK하이닉스");
+  }
+
   @Test
   void searchesMissingAssetOnceAndKeepsAlreadyVerifiedJudgment() throws Exception {
     var root = objectMapper.readTree(validOutput());

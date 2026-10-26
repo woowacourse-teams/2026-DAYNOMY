@@ -118,8 +118,12 @@ public final class PortfolioAnalysisEvidence {
   }
 
   List<Map<String, Object>> unavailableSources(List<PortfolioAnalysisTarget> targets) {
+    return sourcesToReplace(
+        targets.stream().filter(target -> references(List.of(target)).isEmpty()).toList());
+  }
+
+  List<Map<String, Object>> sourcesToReplace(List<PortfolioAnalysisTarget> targets) {
     return targets.stream()
-        .filter(target -> references(List.of(target)).isEmpty())
         .map(
             target ->
                 Map.<String, Object>of(
