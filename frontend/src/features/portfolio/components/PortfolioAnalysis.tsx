@@ -176,7 +176,13 @@ function ExternalLinkIcon() {
   );
 }
 
-function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
+function PortfolioAnalysisPreview({
+  action,
+  title = '반도체 수요 회복에 따른 긍정적 영향',
+}: {
+  action: ReactNode;
+  title?: string;
+}) {
   const previewRef = useRef<HTMLDivElement>(null);
   const hasAction = Boolean(action);
 
@@ -243,7 +249,7 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
     >
       <div className="portfolio-analysis-layout portfolio-preview-layout">
         <div className="portfolio-impact-detail">
-          <h3>반도체 수요 회복에 따른 긍정적 영향</h3>
+          <h3 aria-live="polite">{title}</h3>
           <div className="portfolio-preview-blur" aria-hidden="true">
             <p>
               전체 포트폴리오에서 반도체 관련 자산이 차지하는 비중이 높아, 반도체 수요 회복과 실적
@@ -281,9 +287,10 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
   );
 }
 
-function PortfolioEmpty({ onAddAsset }: { onAddAsset?: () => void }) {
+function PortfolioEmpty({ onAddAsset, title }: { onAddAsset?: () => void; title?: string }) {
   return (
     <PortfolioAnalysisPreview
+      title={title}
       action={
         <button
           type="button"
@@ -628,10 +635,12 @@ function PortfolioOverallImpactDetail({
   analysis,
   analyzedAtLabel,
   demo,
+  title = '전체 포트폴리오',
 }: {
   analysis: PortfolioAnalysisResponse;
   analyzedAtLabel: string | null;
   demo?: boolean;
+  title?: string;
 }) {
   return (
     <article
@@ -640,7 +649,7 @@ function PortfolioOverallImpactDetail({
       <div className="portfolio-detail-header">
         <div>
           <span>전체 포트폴리오 예상 영향</span>
-          <h3>전체 포트폴리오</h3>
+          <h3 aria-live="polite">{title}</h3>
         </div>
         <div className="portfolio-detail-badge-group">
           <span className="portfolio-direction-badge">
@@ -836,6 +845,17 @@ function PortfolioAnalysisView({
 
   const showIntroduction =
     hasAnalysisTarget && !analysis && !loading && !error && !trialExhausted && !processing;
+  const previewTitle = portfolioChanged
+    ? '자산 구성이 바뀌어 이전 분석을 숨겼어요. 현재 보유 자산으로 다시 분석해 주세요.'
+    : isLoggedIn
+      ? hasAnalysisTarget
+        ? '현재 보유 자산으로 AI 분석을 시작해 보세요.'
+        : '자산을 추가하고 AI 분석을 시작해 보세요.'
+      : undefined;
+  const updateNotice =
+    analysis && !loading && saved?.status === 'READY' && saved.lastCheckOutcome === 'UPDATED'
+      ? saved.changeReason
+      : null;
   const analysisAction = !hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
     <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
       로그인하고 다시 분석하기
@@ -854,7 +874,7 @@ function PortfolioAnalysisView({
         : processing
           ? '진행 상태 확인'
           : portfolioChanged
-            ? '현재 자산으로 분석하기'
+            ? '다시 분석하기'
             : analysis
               ? '새 소식 확인'
               : isLoggedIn
@@ -888,22 +908,11 @@ function PortfolioAnalysisView({
             대상에서 제외했으며 전체 포트폴리오 점수는 확정하지 않아요.
           </p>
         ) : null}
-        {portfolioChanged ? (
-          <p role="status">
-            자산 구성이 바뀌어 이전 분석을 숨겼어요. 현재 보유 자산으로 다시 분석해 주세요.
-          </p>
-        ) : null}
 
         {analysis && !loading && saved?.status === 'RECHECK_REQUIRED' ? (
           <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
         ) : null}
-        {analysis &&
-        !loading &&
-        saved?.status === 'READY' &&
-        saved.lastCheckOutcome === 'UPDATED' &&
-        saved.changeReason ? (
-          <p role="status">{saved.changeReason}</p>
-        ) : null}
+        {selectedImpact && updateNotice ? <p role="status">{updateNotice}</p> : null}
         {analysis && saved?.lastSucceededAt ? (
           <p className="portfolio-analysis-checked-at">
             최근 확인:{' '}
@@ -929,11 +938,11 @@ function PortfolioAnalysisView({
       {analysis && summaryStatus === 'FAILED' ? (
         <p role="status">종합 설명을 불러오지 못했어요. 점수와 종목별 근거는 확인할 수 있어요.</p>
       ) : null}
-      {!hasAnalysisTarget ? <PortfolioEmpty onAddAsset={onAddAsset} /> : null}
+      {!hasAnalysisTarget ? <PortfolioEmpty onAddAsset={onAddAsset} title={previewTitle} /> : null}
 
       {showIntroduction ? (
         <div data-portfolio-tour="impact">
-          <PortfolioAnalysisPreview action={analysisAction} />
+          <PortfolioAnalysisPreview action={analysisAction} title={previewTitle} />
         </div>
       ) : null}
 
@@ -995,6 +1004,7 @@ function PortfolioAnalysisView({
                 demo={demoStep !== undefined}
                 analysis={analysis}
                 analyzedAtLabel={analyzedAtLabel}
+                title={updateNotice ?? undefined}
               />
             )}
           </div>

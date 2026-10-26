@@ -188,6 +188,9 @@ describe('포트폴리오 분석 화면', () => {
     stubTaskFetch(fetchMock);
     const firstView = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
     expect(await firstView.findByRole('region', { name: '가상 분석 미리보기' })).toBeTruthy();
+    expect(
+      firstView.getByRole('heading', { name: '반도체 수요 회복에 따른 긍정적 영향' }),
+    ).toBeTruthy();
     expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
 
     fireEvent.click(await firstView.findByRole('button', { name: '1회 분석 체험하기' }));
@@ -424,6 +427,13 @@ describe('포트폴리오 분석 화면', () => {
       const analyzeButton = view.getByRole('button', {
         name: isLoggedIn ? 'AI 분석하기' : '1회 분석 체험하기',
       });
+      expect(
+        view.getByRole('heading', {
+          name: isLoggedIn
+            ? '현재 보유 자산으로 AI 분석을 시작해 보세요.'
+            : '반도체 수요 회복에 따른 긍정적 영향',
+        }),
+      ).toBeTruthy();
       expect(analyzeButton.closest('.portfolio-preview-action')).toBeTruthy();
       expect(analyzeButton.classList.contains('is-primary')).toBe(true);
       expect(view.getByRole('region', { name: '가상 분석 미리보기' }).contains(analyzeButton)).toBe(
@@ -503,7 +513,10 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
     expect(await view.findByText('새 계약의 영향을 반영했어요.')).toBeTruthy();
-    expect(view.getByText('새 계약 발표를 반영했어요.')).toBeTruthy();
+    expect(view.getByRole('heading', { name: '새 계약 발표를 반영했어요.' })).toBeTruthy();
+    expect(view.container.querySelector('.portfolio-analysis-meta')?.textContent).not.toContain(
+      '새 계약 발표',
+    );
     expect(localStorage.getItem(PORTFOLIO_ANALYSIS_STORAGE_KEY)).toBeNull();
   });
 
@@ -558,11 +571,18 @@ describe('포트폴리오 분석 화면', () => {
       saved({ matchesCurrentPortfolio: false, status: 'PORTFOLIO_CHANGED' }),
     );
     const view = render(<PortfolioAnalysis assets={[{ assetName: '현대차', weight: 100 }]} />);
-    expect(await view.findByText(/자산 구성이 바뀌어 이전 분석을 숨겼어요/)).toBeTruthy();
+    const changedTitle = await view.findByRole('heading', {
+      name: '자산 구성이 바뀌어 이전 분석을 숨겼어요. 현재 보유 자산으로 다시 분석해 주세요.',
+    });
+    expect(changedTitle.closest('.portfolio-impact-detail')).toBeTruthy();
+    expect(view.queryByText('반도체 수요 회복에 따른 긍정적 영향')).toBeNull();
+    expect(view.container.querySelector('.portfolio-analysis-meta')?.textContent).not.toContain(
+      '자산 구성이 바뀌어',
+    );
     expect(view.queryByText('삼성전자')).toBeNull();
     expect(view.getByRole('region', { name: '가상 분석 미리보기' })).toBeTruthy();
     expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
-    const analyzeCurrentAssets = view.getByRole('button', { name: '현재 자산으로 분석하기' });
+    const analyzeCurrentAssets = view.getByRole('button', { name: '다시 분석하기' });
     expect(analyzeCurrentAssets.classList.contains('is-primary')).toBe(true);
     fireEvent.click(analyzeCurrentAssets);
     await waitFor(() =>
@@ -583,7 +603,7 @@ describe('포트폴리오 분석 화면', () => {
     );
     const currentAssets = [assets[0], { assetName: '포스코인터내셔널', weight: 40 }];
     const view = render(<PortfolioAnalysis assets={currentAssets} />);
-    fireEvent.click(await view.findByRole('button', { name: '현재 자산으로 분석하기' }));
+    fireEvent.click(await view.findByRole('button', { name: '다시 분석하기' }));
     expect(await view.findByRole('alert')).toBeTruthy();
     expect(view.getByRole('button', { name: '다시 시도' })).toBeTruthy();
     expect(view.queryByText('SK하이닉스')).toBeNull();
@@ -646,7 +666,7 @@ describe('포트폴리오 분석 화면', () => {
       ),
     );
     expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
-    expect(view.getByRole('button', { name: '현재 자산으로 분석하기' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '다시 분석하기' })).toBeTruthy();
   });
 
   it('연결 실패 뒤 서버에서 완료된 부분 분석도 표시한다', async () => {
