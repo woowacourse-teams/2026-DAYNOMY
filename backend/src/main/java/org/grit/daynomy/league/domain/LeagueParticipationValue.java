@@ -9,13 +9,19 @@ public interface LeagueParticipationValue {
 
   Instant getEndedAt();
 
+  Instant getPerformanceStartedAt();
+
+  default Instant calculationStartedAt() {
+    return getPerformanceStartedAt() == null ? getStartedAt() : getPerformanceStartedAt();
+  }
+
   default boolean contains(Instant close) {
-    return !close.isBefore(getStartedAt())
+    return !close.isBefore(calculationStartedAt())
         && (getEndedAt() == null || close.isBefore(getEndedAt()));
   }
 
   default LocalDate eligibleFrom() {
-    var started = getStartedAt().atZone(ZoneId.of("Asia/Seoul"));
+    var started = calculationStartedAt().atZone(ZoneId.of("Asia/Seoul"));
     return started.toLocalTime().isAfter(java.time.LocalTime.of(15, 30))
         ? started.toLocalDate().plusDays(1)
         : started.toLocalDate();

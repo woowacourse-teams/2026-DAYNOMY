@@ -105,6 +105,8 @@ class LeagueLoggingTest {
   @Mock private AssetRepository assets;
   @Mock private PlatformTransactionManager transactionManager;
   @Mock private LeagueService finalization;
+  @Mock private LeagueAggregationService aggregationService;
+  @Mock private LeagueEnrollmentService enrollmentService;
 
   @Spy private LeagueRankingCache rankingCache = new LeagueRankingCache(mock(TaskScheduler.class));
   @InjectMocks private InvestorProfileService profileService;

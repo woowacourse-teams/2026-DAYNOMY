@@ -10,4 +10,5 @@ import org.grit.daynomy.league.domain.LeagueParticipationValue;
 public class RankingParticipation implements LeagueParticipationValue {
   private final Instant startedAt;
   private final Instant endedAt;
+  private final Instant performanceStartedAt;
 }
