@@ -15,6 +15,7 @@ import type {
 } from '../types';
 import { stockCurrency } from '../../stocks/types';
 import type { AssetCategory, StockSearchItem } from '../../stocks/types';
+import { loadStockSearchHistory, saveStockSearchHistory } from '../stockSearchHistory';
 
 function formatUnitPrice(value: string) {
   return value.replace(/^\d+(?=\.|$)/, (integer) => integer.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
@@ -39,6 +40,7 @@ export function PortfolioTransactionEditor({
   onSave,
 }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const errorId = useId();
   const [selected, setSelected] = useState<StockSearchItem | PortfolioHoldingHistory | null>(
     demoStep !== undefined ? (demoStep >= 6 ? tourStock : null) : (transaction ?? stock ?? null),
@@ -55,7 +57,7 @@ export function PortfolioTransactionEditor({
     tax: String(transaction?.tax ?? 0),
   });
   const currency = selected ? stockCurrency(selected) : 'KRW';
-  const [country, setCountry] = useState<'KR' | 'US'>('KR');
+  const [recentSearches, setRecentSearches] = useState(loadStockSearchHistory);
   const [priceBaseDate, setPriceBaseDate] = useState('');
   const [rateBaseDate, setRateBaseDate] = useState('');
   const [rateLoading, setRateLoading] = useState(false);
@@ -85,12 +87,13 @@ export function PortfolioTransactionEditor({
     setSearchLoading(true);
     setSearchError('');
     const timer = window.setTimeout(() => {
-      (country === 'US'
-        ? searchStocks(keyword.trim(), controller.signal, country)
-        : searchStocks(keyword.trim(), controller.signal)
-      )
+      Promise.all([
+        searchStocks(keyword.trim(), controller.signal),
+        searchStocks(keyword.trim(), controller.signal, 'US'),
+      ])
         .then((items) => {
-          if (!controller.signal.aborted) setResults(items);
+          if (!controller.signal.aborted)
+            setResults([...new Map(items.flat().map((item) => [item.assetId, item])).values()]);
         })
         .catch(() => {
           if (!controller.signal.aborted) setSearchError('검색 결과를 불러오지 못했어요.');
@@ -103,7 +106,7 @@ export function PortfolioTransactionEditor({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [keyword, selected, searchRetry, demoStep, country]);
+  }, [keyword, selected, searchRetry, demoStep]);
   useEffect(() => {
     if (demoStep !== undefined) return;
     if (transaction || !selected) {
@@ -245,24 +248,36 @@ export function PortfolioTransactionEditor({
         ref={formRef}
         onSubmit={submit}
         noValidate
-        className={transaction ? 'portfolio-edit-form' : undefined}
+        className={
+          !selected
+            ? 'portfolio-stock-search-form'
+            : transaction
+              ? 'portfolio-edit-form'
+              : undefined
+        }
       >
-        <header className="portfolio-sheet-heading">
-          <div>
-            {!transaction && <span className="portfolio-eyebrow">내 포트폴리오</span>}
-            <h2 id="transaction-title">{transaction ? '거래 수정' : '거래 기록'}</h2>
-            {!transaction && <p>매수와 매도를 기록하고 자산의 흐름을 확인하세요.</p>}
-          </div>
-          <button
-            type="button"
-            className="portfolio-icon-button"
-            aria-label="닫기"
-            disabled={saving}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </header>
+        {!selected ? (
+          <h2 id="transaction-title" className="sr-only">
+            거래 기록
+          </h2>
+        ) : (
+          <header className="portfolio-sheet-heading">
+            <div>
+              {!transaction && <span className="portfolio-eyebrow">내 포트폴리오</span>}
+              <h2 id="transaction-title">{transaction ? '거래 수정' : '거래 기록'}</h2>
+              {!transaction && <p>매수와 매도를 기록하고 자산의 흐름을 확인하세요.</p>}
+            </div>
+            <button
+              type="button"
+              className="portfolio-icon-button"
+              aria-label="닫기"
+              disabled={saving}
+              onClick={onClose}
+            >
+              ×
+            </button>
+          </header>
+        )}
         <fieldset
           data-portfolio-tour="trade-fields"
           disabled={saving}
@@ -270,36 +285,54 @@ export function PortfolioTransactionEditor({
         >
           {!selected ? (
             <>
-              <label className="portfolio-ledger-field">
-                종목 검색
-                <input
-                  readOnly={demoStep !== undefined}
-                  autoFocus
-                  data-autofocus
-                  type="search"
-                  data-portfolio-tour="search"
-                  placeholder="종목명 또는 종목코드"
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                />
-              </label>
-              <div className="portfolio-stock-filters">
-                <div className="portfolio-trade-types" role="group" aria-label="종목 국가">
-                  {(['KR', 'US'] as const).map((value) => (
+              <div className="portfolio-stock-search-bar">
+                <div className="portfolio-stock-search-input">
+                  <label className="sr-only" htmlFor={`${errorId}-search`}>
+                    종목 검색
+                  </label>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="10.5" cy="10.5" r="6.5" />
+                    <path d="m15.5 15.5 5 5" />
+                  </svg>
+                  <input
+                    id={`${errorId}-search`}
+                    ref={searchInputRef}
+                    readOnly={demoStep !== undefined}
+                    autoFocus
+                    data-autofocus
+                    type="search"
+                    data-portfolio-tour="search"
+                    placeholder="종목명 또는 종목코드"
+                    maxLength={50}
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                  />
+                  {keyword && (
                     <button
                       type="button"
-                      key={value}
-                      aria-pressed={country === value}
+                      aria-label="검색어 지우기"
+                      disabled={demoStep !== undefined}
                       onClick={() => {
-                        setCountry(value);
-                        setResults([]);
-                        setSearchError('');
+                        setKeyword('');
+                        searchInputRef.current?.focus();
                       }}
                     >
-                      {value === 'KR' ? '국내' : '미국'}
+                      ×
                     </button>
-                  ))}
+                  )}
                 </div>
+                <button
+                  type="button"
+                  className="portfolio-stock-search-close"
+                  aria-label="닫기"
+                  onClick={onClose}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="portfolio-stock-filters">
                 <div className="portfolio-market-tabs" role="group" aria-label="자산 유형 필터">
                   {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
                     <button
@@ -319,7 +352,57 @@ export function PortfolioTransactionEditor({
                 aria-live="polite"
                 aria-busy={searchLoading}
               >
-                {searchLoading ? (
+                {!keyword.trim() ? (
+                  <section className="portfolio-stock-recent" aria-label="최근 검색어">
+                    <div className="portfolio-stock-recent-heading">
+                      <h3>최근 검색어</h3>
+                      {!!recentSearches.length && (
+                        <button
+                          type="button"
+                          onClick={() => setRecentSearches(saveStockSearchHistory([]))}
+                        >
+                          전체 삭제
+                        </button>
+                      )}
+                    </div>
+                    {recentSearches.length ? (
+                      <>
+                        <ul>
+                          {recentSearches.map((recent) => (
+                            <li key={recent}>
+                              <button
+                                type="button"
+                                className="portfolio-stock-recent-query"
+                                onClick={() => {
+                                  setKeyword(recent);
+                                  searchInputRef.current?.focus();
+                                }}
+                              >
+                                {recent}
+                              </button>
+                              <button
+                                type="button"
+                                className="portfolio-stock-recent-remove"
+                                aria-label={`${recent} 검색어 삭제`}
+                                onClick={() =>
+                                  setRecentSearches(
+                                    saveStockSearchHistory(
+                                      recentSearches.filter((value) => value !== recent),
+                                    ),
+                                  )
+                                }
+                              >
+                                ×
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : (
+                      <p>최근 검색어가 없어요. 종목명이나 종목코드로 검색해 주세요.</p>
+                    )}
+                  </section>
+                ) : searchLoading ? (
                   <div className="portfolio-stock-search-loading" role="status">
                     <span
                       className="portfolio-analysis-spinner portfolio-stock-search-spinner"
@@ -350,12 +433,18 @@ export function PortfolioTransactionEditor({
                               market: item.market,
                               mode: 'transaction_create',
                             });
+                            if (demoStep === undefined) {
+                              const query = keyword.trim();
+                              setRecentSearches(
+                                saveStockSearchHistory([
+                                  query,
+                                  ...recentSearches.filter((value) => value !== query),
+                                ]),
+                              );
+                            }
                             setSelected(item);
                           }}
                         >
-                          <span className="portfolio-monogram" aria-hidden="true">
-                            {item.name.slice(0, 1)}
-                          </span>
                           <span>
                             <strong>{item.name}</strong>
                             <small>
@@ -363,21 +452,14 @@ export function PortfolioTransactionEditor({
                               {item.category === 'ETF' ? 'ETF' : '주식'}
                             </small>
                           </span>
-                          <span aria-hidden="true">＋</span>
+                          <span aria-hidden="true">›</span>
                         </button>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p>
-                    {keyword.trim() ? (
-                      '검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.'
-                    ) : (
-                      <>
-                        국내·미국 주식과 ETF를 검색하세요. <br />
-                        과거에 매도한 종목도 기록할 수 있어요.
-                      </>
-                    )}
+                  <p className="portfolio-stock-empty">
+                    검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.
                   </p>
                 )}
               </div>

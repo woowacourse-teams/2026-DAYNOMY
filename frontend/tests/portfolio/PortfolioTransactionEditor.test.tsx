@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getLatestStockPrice, searchStocks, getUsdKrwRate } from '../../src/features/stocks/api';
 import { PortfolioTransactionEditor } from '../../src/features/portfolio/components/PortfolioTransactionEditor';
@@ -28,6 +28,7 @@ function deferredPrice() {
   return { promise, resolve };
 }
 beforeEach(() => {
+  localStorage.clear();
   vi.mocked(getLatestStockPrice).mockResolvedValue(price);
   vi.mocked(searchStocks).mockResolvedValue([sk]);
 });
@@ -264,7 +265,6 @@ it('미국 검색 후 주식·ETF의 USD 종가와 환율을 채우고 수정한
   vi.mocked(getUsdKrwRate).mockResolvedValue({ baseDate: '2020-10-16', rate: 1300 });
   const save = vi.fn().mockResolvedValue(undefined);
   const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={save} />);
-  fireEvent.click(view.getByRole('button', { name: '미국' }));
   fireEvent.change(view.getByLabelText('종목 검색'), { target: { value: 'TSLA' } });
   fireEvent.click(await view.findByRole('button', { name: /Tesla/ }));
   await waitFor(() =>
@@ -273,7 +273,7 @@ it('미국 검색 후 주식·ETF의 USD 종가와 환율을 채우고 수정한
   await waitFor(() =>
     expect(view.getByRole('textbox', { name: /적용 환율/ })).toHaveProperty('value', '1300'),
   );
-  expect(vi.mocked(searchStocks).mock.calls.at(-1)?.[2]).toBe('US');
+  expect(searchStocks).toHaveBeenCalledWith('TSLA', expect.any(AbortSignal), 'US');
   fireEvent.change(view.getByLabelText('수량 (주)'), { target: { value: '2' } });
   fireEvent.change(view.getByRole('textbox', { name: /적용 환율/ }), { target: { value: '1350' } });
   fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
@@ -322,4 +322,124 @@ it('참고 환율 조회가 실패하면 1로 대체하지 않고 직접 입력�
   fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
   await waitFor(() => expect(save).toHaveBeenCalled());
   expect(save.mock.calls[0][0].exchangeRate).toBe(1350);
+});
+
+describe('종목 통합 검색과 최근 검색어', () => {
+  const historyKey = 'daynomy:portfolio-stock-searches:v1';
+  const us = {
+    ...samsung,
+    assetId: 10,
+    name: 'US ETF',
+    assetCode: 'SPY',
+    category: 'ETF',
+    market: 'NYSE_ARCA',
+  } as const;
+
+  it('국내·미국 결과를 함께 표시하고 카테고리로 걸러도 다시 요청하지 않는다', async () => {
+    vi.mocked(searchStocks).mockImplementation(async (_keyword, _signal, country) =>
+      country === 'US' ? [us] : [samsung],
+    );
+    const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(view.queryByRole('group', { name: '종목 국가' })).toBeNull();
+    expect(view.queryByText('매수와 매도를 기록하고 자산의 흐름을 확인하세요.')).toBeNull();
+    fireEvent.change(view.getByRole('searchbox'), { target: { value: 'S' } });
+    await view.findByRole('button', { name: /US ETF/ });
+    expect(view.getByRole('button', { name: /삼성전자/ })).toBeTruthy();
+    const filter = view.getByRole('group', { name: '자산 유형 필터' });
+    fireEvent.click(within(filter).getByRole('button', { name: 'ETF' }));
+    expect(view.queryByRole('button', { name: /삼성전자/ })).toBeNull();
+    expect(view.getByRole('button', { name: /US ETF/ })).toBeTruthy();
+    fireEvent.click(within(filter).getByRole('button', { name: '주식' }));
+    expect(view.queryByRole('button', { name: /US ETF/ })).toBeNull();
+    expect(view.getByRole('button', { name: /삼성전자/ })).toBeTruthy();
+    expect(searchStocks).toHaveBeenCalledTimes(2);
+  });
+
+  it('한 국가의 조회가 실패하면 불완전한 결과 대신 재시도를 제공한다', async () => {
+    vi.mocked(searchStocks).mockImplementation(async (_keyword, _signal, country) => {
+      if (country === 'US') throw new Error('network');
+      return [samsung];
+    });
+    const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={vi.fn()} />);
+    fireEvent.change(view.getByRole('searchbox'), { target: { value: '삼성' } });
+    expect(await view.findByRole('alert')).toBeTruthy();
+    expect(view.queryByRole('button', { name: /삼성전자/ })).toBeNull();
+    vi.mocked(searchStocks).mockResolvedValue([samsung]);
+    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    expect(await view.findByRole('button', { name: /삼성전자/ })).toBeTruthy();
+  });
+
+  it('확정한 검색어만 중복 없이 최대 5개 저장하고 다시 연 창에서도 검색·삭제한다', async () => {
+    localStorage.setItem(historyKey, JSON.stringify(['SK', '삼성', 'AAPL', 'TSLA', 'SPY']));
+    let view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={vi.fn()} />);
+    fireEvent.change(view.getByRole('searchbox'), { target: { value: 'SK' } });
+    await view.findByRole('button', { name: /SK하이닉스/ });
+    expect(JSON.parse(localStorage.getItem(historyKey)!)).toEqual([
+      'SK',
+      '삼성',
+      'AAPL',
+      'TSLA',
+      'SPY',
+    ]);
+    fireEvent.click(view.getByRole('button', { name: /SK하이닉스/ }));
+    view.unmount();
+    view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={vi.fn()} />);
+    const recent = view.getByRole('region', { name: '최근 검색어' });
+    fireEvent.click(within(recent).getByRole('button', { name: '삼성' }));
+    expect(view.getByRole('searchbox')).toHaveProperty('value', '삼성');
+    fireEvent.click(await view.findByRole('button', { name: /SK하이닉스/ }));
+    expect(JSON.parse(localStorage.getItem(historyKey)!)).toEqual([
+      '삼성',
+      'SK',
+      'AAPL',
+      'TSLA',
+      'SPY',
+    ]);
+    fireEvent.click(view.getByRole('button', { name: '종목 변경' }));
+    fireEvent.change(view.getByRole('searchbox'), { target: { value: 'new' } });
+    fireEvent.click(await view.findByRole('button', { name: /SK하이닉스/ }));
+    expect(JSON.parse(localStorage.getItem(historyKey)!)).toEqual([
+      'new',
+      '삼성',
+      'SK',
+      'AAPL',
+      'TSLA',
+    ]);
+    fireEvent.click(view.getByRole('button', { name: '종목 변경' }));
+    fireEvent.click(view.getByRole('button', { name: '검색어 지우기' }));
+    expect(document.activeElement).toBe(view.getByRole('searchbox'));
+    fireEvent.click(view.getByRole('button', { name: 'SK 검색어 삭제' }));
+    expect(JSON.parse(localStorage.getItem(historyKey)!)).toEqual(['new', '삼성', 'AAPL', 'TSLA']);
+    fireEvent.click(view.getByRole('button', { name: '전체 삭제' }));
+    expect(localStorage.getItem(historyKey)).toBeNull();
+    expect(view.getByText(/최근 검색어가 없어요/)).toBeTruthy();
+  });
+
+  it.each(['broken JSON', '{"q":"SK"}', '[null,0,{},"","  ","SK","SK"]'])(
+    '잘못된 검색 기록 %s이 있어도 창을 열 수 있다',
+    (stored) => {
+      localStorage.setItem(historyKey, stored);
+      const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={vi.fn()} />);
+      expect(view.getByRole('searchbox')).toBeTruthy();
+      expect(view.queryAllByRole('button', { name: 'SK' }).length).toBeLessThanOrEqual(1);
+    },
+  );
+
+  it('저장소 접근이 차단되어도 검색과 선택은 계속 동작한다', async () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    try {
+      const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={vi.fn()} />);
+      fireEvent.change(view.getByRole('searchbox'), { target: { value: 'SK' } });
+      fireEvent.click(await view.findByRole('button', { name: /SK하이닉스/ }));
+      expect(view.getByLabelText('수량 (주)')).toHaveProperty('value', '1');
+    } finally {
+      get.mockRestore();
+      set.mockRestore();
+    }
+  });
 });

@@ -80,6 +80,137 @@ for (const viewport of [
   { name: 'desktop', width: 1440, height: 1050 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
+  test(`종목 통합 검색의 목록 크기와 최근 검색어: ${viewport.name}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(
+      viewport.name === 'desktop' ? { width: 1280, height: 720 } : viewport,
+    );
+    const domestic = Array.from({ length: 12 }, (_, index) => ({
+      assetId: index + 100,
+      assetCode: String(360750 + index),
+      name: index === 0 ? 'TIGER 미국S&P500' : `S&P500 ETF ${index}`,
+      category: 'ETF',
+      market: 'KOSPI',
+    }));
+    const us = {
+      assetId: 200,
+      assetCode: 'SPY',
+      name: 'SPDR S&P 500 ETF Trust',
+      category: 'ETF',
+      market: 'NYSE_ARCA',
+    };
+    const countries: string[] = [];
+    await page.route('**/api/**', async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === '/api/stocks') {
+        const country = url.searchParams.get('country') ?? 'KR';
+        countries.push(country);
+        const query = url.searchParams.get('q');
+        if (query === 'error') return route.fulfill({ status: 500, json: {} });
+        return route.fulfill({
+          json: {
+            stocks:
+              query === '없는종목'
+                ? []
+                : query === 'one'
+                  ? country === 'US'
+                    ? []
+                    : [domestic[0]]
+                  : country === 'US'
+                    ? [us]
+                    : domestic,
+          },
+        });
+      }
+      return route.fulfill({ status: 401, json: {} });
+    });
+    await page.goto('/');
+    const open = page.getByRole('button', { name: '거래 기록', exact: true });
+    await open.click();
+    const dialog = page.getByRole('dialog', { name: '거래 기록' });
+    const input = dialog.getByRole('searchbox', { name: '종목 검색' });
+    await expect(input).toBeFocused();
+    const initial = (await dialog.boundingBox())!;
+    const searchBar = dialog.locator('.portfolio-stock-search-input');
+    const initialSearchBar = await searchBar.boundingBox();
+    expect(initial.width).toBe(viewport.name === 'desktop' ? 560 : viewport.width - 48);
+    expect(initial.height).toBe(560);
+    await input.fill('S&P');
+    const results = dialog.getByRole('list', { name: '검색된 종목' });
+    await expect(results.getByRole('button')).toHaveCount(13);
+    expect(countries).toEqual(expect.arrayContaining(['KR', 'US']));
+    expect(await dialog.boundingBox()).toEqual(initial);
+    expect(await searchBar.boundingBox()).toEqual(initialSearchBar);
+    const visibleRows = await results.evaluate((list) => {
+      const bounds = list.parentElement!.getBoundingClientRect();
+      return [...list.querySelectorAll('li')].filter((row) => {
+        const r = row.getBoundingClientRect();
+        return r.top >= bounds.top && r.bottom <= bounds.bottom;
+      }).length;
+    });
+    expect(visibleRows).toBeGreaterThanOrEqual(5);
+    const scroll = dialog.locator('.portfolio-stock-results');
+    expect(await scroll.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    await expect(results.locator('img, .portfolio-monogram')).toHaveCount(0);
+    await dialog.screenshot({ path: testInfo.outputPath('stock-search-results.png') });
+    for (const query of ['one', '없는종목', 'error']) {
+      await input.fill(query);
+      await expect(dialog.getByRole('status')).toBeVisible();
+      expect(await dialog.boundingBox()).toEqual(initial);
+      expect(await searchBar.boundingBox()).toEqual(initialSearchBar);
+      if (query === 'one') await expect(results.getByRole('button')).toHaveCount(1);
+      else if (query === '없는종목')
+        await expect(
+          dialog.getByText('검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.'),
+        ).toBeVisible();
+      else await expect(dialog.getByRole('alert')).toBeVisible();
+      expect(await dialog.boundingBox()).toEqual(initial);
+      expect(await searchBar.boundingBox()).toEqual(initialSearchBar);
+    }
+    await input.fill('S&P');
+    await expect(results.getByRole('button')).toHaveCount(13);
+    await results.getByRole('button', { name: /SPDR S&P/ }).click();
+    await expect(dialog.getByLabel('수량 (주)')).toHaveValue('1');
+    await dialog.getByRole('button', { name: '닫기', exact: true }).click();
+    await page.reload();
+    await open.click();
+    const recent = dialog.getByRole('region', { name: '최근 검색어' });
+    await expect(recent.getByRole('button', { name: 'S&P', exact: true })).toBeVisible();
+    await expect(recent.getByText('이 브라우저에 저장된 검색어예요.')).toHaveCount(0);
+    expect(await dialog.boundingBox()).toEqual(initial);
+    expect(await searchBar.boundingBox()).toEqual(initialSearchBar);
+    await dialog.screenshot({ path: testInfo.outputPath('stock-search-recent.png') });
+    await recent.getByRole('button', { name: 'S&P', exact: true }).click();
+    await expect(input).toHaveValue('S&P');
+    await expect(results.getByRole('button')).toHaveCount(13);
+    await dialog.getByRole('button', { name: '검색어 지우기' }).click();
+    await expect(input).toBeFocused();
+    await recent.getByRole('button', { name: 'S&P 검색어 삭제' }).click();
+    await expect(recent.getByText(/최근 검색어가 없어요/)).toBeVisible();
+    await input.fill('S&P');
+    await results.getByRole('button', { name: /TIGER 미국S&P500/ }).click();
+    await dialog.getByRole('button', { name: '종목 변경' }).click();
+    await dialog.getByRole('button', { name: '검색어 지우기' }).click();
+    await recent.getByRole('button', { name: '전체 삭제' }).click();
+    await expect(recent.getByText(/최근 검색어가 없어요/)).toBeVisible();
+    for (const size of [
+      { width: 320, height: 480 },
+      { width: 768, height: 600 },
+    ]) {
+      await page.setViewportSize(size);
+      await input.fill('S&P');
+      await expect(results.getByRole('button')).toHaveCount(13);
+      const b = (await dialog.boundingBox())!;
+      expect(b.width).toBeLessThanOrEqual(size.width - 48);
+      expect(b.height).toBeLessThanOrEqual(Math.min(560, size.height - 64));
+      expect(
+        await dialog.evaluate(
+          (el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1,
+        ),
+      ).toBe(true);
+      await input.fill('');
+    }
+  });
+
   test(`비회원 빈 자산 분석 카드에 과도한 여백이 없다: ${viewport.name}`, async ({
     page,
   }, testInfo) => {
@@ -1194,16 +1325,15 @@ for (const viewport of [
       }),
     ).toBe(true);
     const searchBounds = await dialog.boundingBox();
-    expect(searchBounds!.height).toBeLessThanOrEqual(500);
-    const countryFilter = dialog.getByRole('group', { name: '종목 국가' });
-    await countryFilter.getByRole('button', { name: '미국', exact: true }).click();
-    await expect(countryFilter.getByRole('button', { name: '미국', exact: true })).toHaveAttribute(
+    expect(searchBounds!.height).toBe(560);
+    await expect(dialog.getByRole('group', { name: '종목 국가' })).toHaveCount(0);
+    const categoryFilter = dialog.getByRole('group', { name: '자산 유형 필터' });
+    await categoryFilter.getByRole('button', { name: 'ETF', exact: true }).click();
+    await expect(categoryFilter.getByRole('button', { name: 'ETF', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
-    expect(await dialog.boundingBox()).toEqual(searchBounds);
-    await countryFilter.getByRole('button', { name: '국내', exact: true }).click();
-    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    await categoryFilter.getByRole('button', { name: '전체', exact: true }).click();
     let finishStockSearch!: () => void;
     pendingStockSearch = new Promise<void>((resolve) => {
       finishStockSearch = resolve;

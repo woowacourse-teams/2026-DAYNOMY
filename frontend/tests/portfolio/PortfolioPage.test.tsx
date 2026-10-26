@@ -1591,9 +1591,7 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(searchInput, { target: { value: '' } });
     await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull());
     expect(
-      within(dialog).getByText(
-        '국내·미국 주식과 ETF를 검색하세요. 과거에 매도한 종목도 기록할 수 있어요.',
-      ),
+      within(dialog).getByText('최근 검색어가 없어요. 종목명이나 종목코드로 검색해 주세요.'),
     ).toBeTruthy();
   });
 
