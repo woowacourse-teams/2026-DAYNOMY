@@ -765,7 +765,7 @@ function PortfolioAnalysisView({
   state,
 }: PortfolioAnalysisProps & { state: ReturnType<typeof usePortfolioAnalysis> }) {
   const {
-    analysis,
+    analysis: currentAnalysis,
     saved,
     loading,
     loaded,
@@ -776,6 +776,9 @@ function PortfolioAnalysisView({
     processing,
     summaryStatus,
   } = state;
+  const waitingForCore =
+    (loading || processing) && !(currentAnalysis && summaryStatus === 'PENDING');
+  const analysis = waitingForCore ? null : currentAnalysis;
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const sortedImpacts = useMemo(
     () => [...(analysis?.impacts ?? [])].sort((left, right) => left.rank - right.rank),
@@ -845,7 +848,7 @@ function PortfolioAnalysisView({
       onClick={analyze}
     >
       {loading
-        ? analysis
+        ? currentAnalysis
           ? '확인 중'
           : '분석 중'
         : processing
@@ -891,7 +894,6 @@ function PortfolioAnalysisView({
           </p>
         ) : null}
 
-        {analysis && loading ? <p role="status">기존 분석을 유지하며 확인하고 있어요.</p> : null}
         {analysis && !loading && saved?.status === 'RECHECK_REQUIRED' ? (
           <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
         ) : null}
@@ -911,14 +913,14 @@ function PortfolioAnalysisView({
           </p>
         ) : null}
       </div>
-      {!loading && processing ? (
+      {waitingForCore && (processing || Boolean(currentAnalysis)) ? (
         <div
           className="portfolio-analysis-state portfolio-analysis-empty"
           role="status"
           aria-live="polite"
         >
           <span className="portfolio-analysis-spinner" aria-hidden="true" />
-          <p>서버에서 분석 중이에요. 다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.</p>
+          <p>분석에 약 30초 정도 걸려요. 다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.</p>
         </div>
       ) : null}
       {analysis && summaryStatus === 'PENDING' ? (
@@ -935,7 +937,9 @@ function PortfolioAnalysisView({
         </div>
       ) : null}
 
-      {hasAnalysisTarget && loading && !hasAnalysis ? <PortfolioAnalysisLoading /> : null}
+      {hasAnalysisTarget && loading && !currentAnalysis && !processing ? (
+        <PortfolioAnalysisLoading />
+      ) : null}
 
       {hasAnalysisTarget && !loading && error ? (
         <PortfolioAnalysisError onRetry={handleRetry} message={error} />

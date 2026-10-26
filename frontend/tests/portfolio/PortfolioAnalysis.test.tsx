@@ -444,7 +444,7 @@ describe('포트폴리오 분석 화면', () => {
     expect(fetchMock.mock.calls.every(([, init]) => !init?.method)).toBe(true);
   });
 
-  it('새 소식을 확인하는 동안 기존 결과를 유지하고 중복 실행을 막는다', async () => {
+  it('새 소식 확인 중에는 안내만 표시하고 변경이 없으면 기존 결과를 다시 표시한다', async () => {
     let resolveRefresh!: (response: Response) => void;
     const fetchMock = memberFetch((url) =>
       url.endsWith('/refresh')
@@ -456,7 +456,9 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} />);
     fireEvent.click(await view.findByRole('button', { name: '새 소식 확인' }));
     await waitFor(() => expect(resolveRefresh).toBeDefined());
-    expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    expect(view.queryByRole('heading', { name: '자산별 영향' })).toBeNull();
+    expect(view.getByText(/분석에 약 30초 정도 걸려요/)).toBeTruthy();
     const button = view.getByRole('button', { name: '확인 중' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     fireEvent.click(button);
@@ -675,11 +677,13 @@ describe('포트폴리오 분석 화면', () => {
         await first.findByRole('button', { name: refresh ? '새 소식 확인' : 'AI 분석하기' }),
       );
       await first.findByRole('button', { name: '진행 상태 확인' });
-      if (refresh) expect(first.getByText(analysisResponse.overallImpact)).toBeTruthy();
+      expect(first.queryByText(analysisResponse.overallImpact)).toBeNull();
+      expect(first.queryByRole('heading', { name: '자산별 영향' })).toBeNull();
       first.unmount();
 
       const second = render(<PortfolioAnalysis assets={assets} />);
       fireEvent.click(await second.findByRole('button', { name: '진행 상태 확인' }));
+      expect(second.queryByText(analysisResponse.overallImpact)).toBeNull();
       await waitFor(() =>
         expect(
           second.getByRole('button', { name: '진행 상태 확인' }).hasAttribute('disabled'),
@@ -697,6 +701,7 @@ describe('포트폴리오 분석 화면', () => {
         { timeout: 4500 },
       );
       expect(second.getByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
+      expect(second.queryByText(/분석에 약 30초 정도 걸려요/)).toBeNull();
       fireEvent.click(second.getByText('삼성전자').closest('button')!);
       expect(second.getByText(analysisResponse.impacts[0].expectedReaction)).toBeTruthy();
       fireEvent.click(second.getByRole('button', { name: /^전체 포트폴리오 분석 보기$/ }));
@@ -730,7 +735,7 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} />);
     fireEvent.click(await view.findByRole('button', { name: 'AI 분석하기' }));
     const processingMessage = await view.findByText(
-      '서버에서 분석 중이에요. 다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.',
+      '분석에 약 30초 정도 걸려요. 다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.',
     );
     const processingStatus = processingMessage.closest('[role="status"]');
     expect(processingStatus?.querySelector('.portfolio-analysis-spinner')).toBeTruthy();
@@ -787,7 +792,7 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} />);
     fireEvent.click(await view.findByRole('button', { name: '새 소식 확인' }));
     expect(await view.findByRole('button', { name: '진행 상태 확인' })).toBeTruthy();
-    expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/refresh'))).toHaveLength(
       1,
     );
