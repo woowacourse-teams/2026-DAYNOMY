@@ -176,13 +176,19 @@ function ExternalLinkIcon() {
   );
 }
 
-function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
+function PortfolioAnalysisPreview({
+  action,
+  actionInContent = false,
+}: {
+  action: ReactNode;
+  actionInContent?: boolean;
+}) {
   const previewRef = useRef<HTMLDivElement>(null);
   const hasAction = Boolean(action);
 
   useLayoutEffect(() => {
     const preview = previewRef.current;
-    if (!preview || !hasAction || typeof ResizeObserver === 'undefined') return;
+    if (!preview || !hasAction || actionInContent || typeof ResizeObserver === 'undefined') return;
     const layout = preview.querySelector<HTMLElement>('.portfolio-preview-layout');
     const canvas = preview.closest<HTMLElement>('.portfolio-canvas') ?? preview;
     if (!layout) return;
@@ -210,7 +216,7 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
     const overview = canvas.querySelector('.portfolio-overview');
     if (overview) observer.observe(overview);
     return () => observer.disconnect();
-  }, [hasAction]);
+  }, [hasAction, actionInContent]);
   const previewImpacts: PortfolioAssetImpactResponse[] = [
     {
       ...tourAnalysis.impacts[0],
@@ -237,7 +243,7 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
   return (
     <div
       ref={previewRef}
-      className="portfolio-analysis-preview"
+      className={`portfolio-analysis-preview${actionInContent ? ' has-inline-action' : ''}`}
       role="region"
       aria-label="가상 분석 미리보기"
     >
@@ -260,6 +266,7 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
               있습니다. 새로운 소식이 반영될 때마다 주요 자산의 영향이 어떻게 달라지는지 살펴봅니다.
             </p>
           </div>
+          {actionInContent && <div className="portfolio-preview-action is-inline">{action}</div>}
         </div>
         <div className="portfolio-analysis-overview" inert aria-hidden="true">
           <PortfolioDonut
@@ -276,7 +283,7 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
           />
         </div>
       </div>
-      <div className="portfolio-preview-action">{action}</div>
+      {!actionInContent && <div className="portfolio-preview-action">{action}</div>}
     </div>
   );
 }
@@ -284,14 +291,15 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
 function PortfolioEmpty({ onAddAsset }: { onAddAsset?: () => void }) {
   return (
     <PortfolioAnalysisPreview
+      actionInContent
       action={
         <button
           type="button"
-          className="portfolio-analysis-button is-primary"
+          className="portfolio-analysis-button portfolio-analysis-add-button is-primary"
           onClick={onAddAsset}
           disabled={!onAddAsset}
         >
-          자산 추가하기
+          자산 추가
         </button>
       }
     />

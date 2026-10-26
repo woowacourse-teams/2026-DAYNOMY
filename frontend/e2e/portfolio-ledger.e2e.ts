@@ -256,6 +256,32 @@ for (const viewport of [
     await page.locator('.portfolio-dashboard-grid').screenshot({
       path: testInfo.outputPath('empty-asset-analysis.png'),
     });
+    const analysis = page.getByRole('region', { name: 'AI 분석', exact: true });
+    const add = analysis.getByRole('button', { name: '자산 추가', exact: true });
+    for (const width of [viewport.width, 320, 768, 1440]) {
+      await page.setViewportSize({ width, height: viewport.height });
+      await expect(add).toBeVisible();
+      const position = await add.evaluate((button) => {
+        const preview = button.closest('.portfolio-analysis-preview')!;
+        const content = preview.querySelector('.portfolio-preview-blur')!.getBoundingClientRect();
+        const bounds = button.getBoundingClientRect();
+        return {
+          right: Math.abs(bounds.right - content.right),
+          gap: bounds.top - content.bottom,
+          overflow: preview.scrollWidth > preview.clientWidth,
+        };
+      });
+      expect(position.right).toBeLessThanOrEqual(1);
+      expect(position.gap).toBeGreaterThanOrEqual(8);
+      expect(position.gap).toBeLessThanOrEqual(20);
+      expect(position.overflow).toBe(false);
+    }
+    await page.setViewportSize(viewport);
+    await analysis.screenshot({ path: testInfo.outputPath('analysis-add-below-copy.png') });
+    await add.click();
+    await expect(
+      page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
+    ).toBeFocused();
   });
 
   test(`비회원 잠금 안내와 종목 상세 진입: ${viewport.name}`, async ({ page }, testInfo) => {

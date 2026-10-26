@@ -886,7 +886,7 @@ describe('포트폴리오 화면', () => {
   it('종목을 검색해 추가하고 계산 결과를 표시한다', async () => {
     mockPortfolioApi();
     const view = render(<PortfolioPage />);
-    fireEvent.click(await view.findByRole('button', { name: '자산 추가하기' }));
+    fireEvent.click(await view.findByRole('button', { name: '자산 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 
