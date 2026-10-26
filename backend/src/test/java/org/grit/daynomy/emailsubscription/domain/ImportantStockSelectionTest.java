@@ -15,6 +15,21 @@ class ImportantStockSelectionTest {
   private final LocalDate previousDate = LocalDate.of(2026, 10, 16);
 
   @Test
+  void mixedCurrenciesUseOnlyNativeStockReturnsAndNeverInventPersonalWeights() {
+    var result =
+        ImportantStockSelection.select(
+            baseDate,
+            previousDate,
+            List.of(holding(1L, 1, "106", "100"), holding(2L, 1, "1010", "1000")),
+            false);
+    assertThat(result.completePrices()).isFalse();
+    assertThat(result.stocks()).extracting(Stock::assetId).containsExactly(1L);
+    assertThat(result.stocks().getFirst().dailyReturnRate()).isEqualByComparingTo("6");
+    assertThat(result.stocks().getFirst().weight()).isNull();
+    assertThat(result.stocks().getFirst().contribution()).isNull();
+  }
+
+  @Test
   void selectsBothRisesAndFallsAtExactlyFivePercent() {
     var result = select(holding(1L, 1, "105", "100"), holding(2L, 1, "95", "100"));
 

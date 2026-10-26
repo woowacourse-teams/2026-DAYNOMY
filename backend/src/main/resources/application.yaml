@@ -222,6 +222,21 @@ investment-calendar:
     history-years: ${INVESTMENT_CALENDAR_HISTORY_YEARS:5}
     dart-lookback-days: ${INVESTMENT_CALENDAR_DART_LOOKBACK_DAYS:30}
 
+email:
+  analysis:
+    enabled: ${EMAIL_ANALYSIS_ENABLED:false}
+    cost-verified: ${EMAIL_ANALYSIS_COST_VERIFIED:false}
+    model: ${portfolio.analysis.model}
+    daily-usd: ${EMAIL_ANALYSIS_DAILY_USD:0}
+    monthly-usd: ${EMAIL_ANALYSIS_MONTHLY_USD:0}
+    reserve-usd: ${EMAIL_ANALYSIS_RESERVE_USD:0}
+    input-usd-per-million: ${EMAIL_ANALYSIS_INPUT_USD_PER_MILLION:0}
+    cached-usd-per-million: ${EMAIL_ANALYSIS_CACHED_USD_PER_MILLION:0}
+    output-usd-per-million: ${EMAIL_ANALYSIS_OUTPUT_USD_PER_MILLION:0}
+    search-usd-per-call: ${EMAIL_ANALYSIS_SEARCH_USD_PER_CALL:0}
+    max-output-tokens: ${EMAIL_ANALYSIS_MAX_OUTPUT_TOKENS:0}
+    max-tool-calls: ${EMAIL_ANALYSIS_MAX_TOOL_CALLS:0}
+
 logging:
   structured:
     format:

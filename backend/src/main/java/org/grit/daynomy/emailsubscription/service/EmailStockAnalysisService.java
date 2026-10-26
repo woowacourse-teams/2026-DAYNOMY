@@ -42,7 +42,7 @@ public class EmailStockAnalysisService {
       CommonStockAnalysisService common,
       PortfolioAnalysisAiClient ai,
       PortfolioAnalysisDocumentClient documents,
-      @Value("${ai.openai.model:gpt-5-mini}") String model) {
+      @Value("${portfolio.analysis.model:${ai.openai.model:gpt-5-mini}}") String model) {
     this.selection = selection;
     this.assets = assets;
     this.common = common;
@@ -58,6 +58,16 @@ public class EmailStockAnalysisService {
     if (selected.isEmpty() || selected.get().stocks().isEmpty()) return List.of();
     var ids =
         selected.get().stocks().stream().map(stock -> stock.assetId()).distinct().limit(3).toList();
+    return analyzeAssets(ids, asOf);
+  }
+
+  // 예약 작업은 중복 제거와 실행권 확보를 마친 단일 종목만 요청한다.
+  public java.util.Optional<CommonStockAnalysis> analyzeStock(Long assetId, Instant asOf) {
+    if (asOf.isAfter(Instant.now())) throw new IllegalArgumentException("미래 기준의 분석은 실행할 수 없습니다.");
+    return analyzeAssets(List.of(assetId), asOf).stream().findFirst();
+  }
+
+  private List<CommonStockAnalysis> analyzeAssets(List<Long> ids, Instant asOf) {
     Map<Long, Asset> byId = new LinkedHashMap<>();
     assets.findAllById(ids).forEach(asset -> byId.put(asset.getId(), asset));
     var result = new ArrayList<CommonStockAnalysis>();

@@ -19,7 +19,16 @@ public record ImportantStockSelection(
 
   public static ImportantStockSelection select(
       LocalDate baseDate, LocalDate previousBaseDate, List<HoldingPrice> holdings) {
-    boolean complete = holdings.stream().allMatch(HoldingPrice::hasBothPrices);
+    return select(baseDate, previousBaseDate, holdings, true);
+  }
+
+  public static ImportantStockSelection select(
+      LocalDate baseDate,
+      LocalDate previousBaseDate,
+      List<HoldingPrice> holdings,
+      boolean comparableCurrency) {
+    boolean complete =
+        comparableCurrency && holdings.stream().allMatch(HoldingPrice::hasBothPrices);
     BigDecimal total =
         complete
             ? holdings.stream()

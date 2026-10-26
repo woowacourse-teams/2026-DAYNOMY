@@ -82,7 +82,12 @@ public class ImportantStockSelectionService {
                       closePrice(previousPrices.get(assetId)));
                 })
             .toList();
-    return ImportantStockSelection.select(current.getBaseDate(), previous.getBaseDate(), snapshots);
+    // 다른 통화의 미환산 가격을 합산해 개인 비중을 만들지 않는다.
+    boolean comparableCurrency =
+        savedHoldings.stream().map(holding -> holding.getAsset().getCurrency()).distinct().count()
+            == 1;
+    return ImportantStockSelection.select(
+        current.getBaseDate(), previous.getBaseDate(), snapshots, comparableCurrency);
   }
 
   private Map<Long, StockDailyPrice> pricesOn(List<Long> assetIds, LocalDate date) {

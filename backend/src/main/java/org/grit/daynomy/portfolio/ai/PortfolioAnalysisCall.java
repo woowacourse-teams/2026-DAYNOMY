@@ -3,7 +3,9 @@ package org.grit.daynomy.portfolio.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.web.client.HttpStatusCodeException;
@@ -14,10 +16,39 @@ import org.springframework.web.client.RestClient;
 public final class PortfolioAnalysisCall {
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
+  private static final ThreadLocal<Observer> OBSERVER = new ThreadLocal<>();
+
   private PortfolioAnalysisCall() {}
+
+  // 단일 종목의 동기 호출 범위에서만 사용한다. 수동 분석에는 관찰자를 등록하지 않는다.
+  public static <T> T observe(Observer observer, Supplier<T> operation) {
+    Observer previous = OBSERVER.get();
+    OBSERVER.set(observer);
+    try {
+      return operation.get();
+    } finally {
+      if (previous == null) OBSERVER.remove();
+      else OBSERVER.set(previous);
+    }
+  }
+
+  public static Map<String, Object> prepare(Map<String, Object> request) {
+    Observer observer = OBSERVER.get();
+    return observer == null ? request : observer.prepare(request);
+  }
+
+  public interface Observer {
+    Map<String, Object> prepare(Map<String, Object> request);
+
+    void before(String phase, String model);
+
+    void after(String response, RuntimeException failure);
+  }
 
   public static String execute(
       RestClient.RequestHeadersSpec<?> request, String phase, String model) {
+    Observer observer = OBSERVER.get();
+    if (observer != null) observer.before(phase, model);
     long started = System.nanoTime();
     String response = null;
     RuntimeException failure = null;
@@ -43,6 +74,7 @@ public final class PortfolioAnalysisCall {
       }
       addUsage(event, response);
       event.log("포트폴리오 AI 호출 종료");
+      if (observer != null) observer.after(response, failure);
     }
   }
 

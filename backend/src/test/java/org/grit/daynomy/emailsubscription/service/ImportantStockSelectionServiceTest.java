@@ -135,6 +135,40 @@ class ImportantStockSelectionServiceTest {
     verifyNoInteractions(prices);
   }
 
+  @Test
+  void excludesUnconvertedMixedCurrencyWeightsFromPersonalSelection() {
+    savedHolding();
+    LocalDate current = LocalDate.of(2026, 10, 16);
+    LocalDate previous = current.minusDays(1);
+    tradingDates(current, previous);
+    Asset won = asset();
+    Asset dollar =
+        Asset.listedStock(
+            "미국 종목", "US", org.grit.daynomy.asset.domain.StockMarket.NASDAQ, null, current);
+    ReflectionTestUtils.setField(dollar, "id", 20L);
+    Portfolio portfolio = mock(Portfolio.class);
+    when(holdings.findAllByPortfolioIdOrderById(100L))
+        .thenReturn(
+            List.of(
+                new PortfolioHolding(portfolio, won, 1, BigDecimal.TEN),
+                new PortfolioHolding(portfolio, dollar, 1, BigDecimal.TEN)));
+    when(prices.findAllByAssetIdInAndBaseDate(List.of(10L, 20L), current))
+        .thenReturn(
+            List.of(
+                new StockDailyPrice(won, current, new BigDecimal("106")),
+                new StockDailyPrice(dollar, current, new BigDecimal("1010"))));
+    when(prices.findAllByAssetIdInAndBaseDate(List.of(10L, 20L), previous))
+        .thenReturn(
+            List.of(
+                new StockDailyPrice(won, previous, new BigDecimal("100")),
+                new StockDailyPrice(dollar, previous, new BigDecimal("1000"))));
+    var selected = service.select(1L, runDate).orElseThrow();
+    assertThat(selected.completePrices()).isFalse();
+    assertThat(selected.stocks()).hasSize(1);
+    assertThat(selected.stocks().getFirst().weight()).isNull();
+    assertThat(selected.stocks().getFirst().contribution()).isNull();
+  }
+
   private void savedHolding() {
     when(subscriptions.findById(1L)).thenReturn(Optional.of(subscribed(member())));
     Portfolio portfolio = mock(Portfolio.class);
