@@ -559,7 +559,7 @@ describe('포트폴리오 분석 화면', () => {
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(
-          ([url, init]) => String(url).endsWith('/analysis') && init?.method === 'POST',
+          ([url, init]) => String(url).endsWith('/analysis/tasks') && init?.method === 'POST',
         ),
       ).toBe(true),
     );
@@ -654,6 +654,70 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.queryByRole('alert')).toBeNull();
   });
 
+  it.each([false, true])(
+    '회원 비동기 작업을 복원하고 핵심 결과와 종합 설명을 차례로 표시한다 (갱신: %s)',
+    async (refresh) => {
+      let task = refresh
+        ? saved()
+        : saved({ status: 'EMPTY', analysis: null, analysisId: null, summaryStatus: null });
+      const taskPath = `/api/users/me/portfolio/analysis/tasks${refresh ? '/refresh' : ''}`;
+      const fetchMock = memberFetch((url, init) => {
+        if (init?.method === 'POST') {
+          expect(url.endsWith(taskPath)).toBe(true);
+          task = { ...task, status: 'PROCESSING' };
+          return jsonResponse(task, 202);
+        }
+        expect(url.endsWith('/api/users/me/portfolio/analysis')).toBe(true);
+        return task;
+      });
+      const first = render(<PortfolioAnalysis assets={assets} />);
+      fireEvent.click(
+        await first.findByRole('button', { name: refresh ? '새 소식 확인' : 'AI 분석하기' }),
+      );
+      await first.findByRole('button', { name: '진행 상태 확인' });
+      if (refresh) expect(first.getByText(analysisResponse.overallImpact)).toBeTruthy();
+      first.unmount();
+
+      const second = render(<PortfolioAnalysis assets={assets} />);
+      fireEvent.click(await second.findByRole('button', { name: '진행 상태 확인' }));
+      await waitFor(() =>
+        expect(
+          second.getByRole('button', { name: '진행 상태 확인' }).hasAttribute('disabled'),
+        ).toBe(false),
+      );
+      task = saved({
+        status: 'PROCESSING',
+        analysisId: 2,
+        analysis: { ...analysisResponse, overallImpact: '' },
+        summaryStatus: 'PENDING',
+      });
+      await second.findByText(
+        '점수와 종목별 근거가 준비됐어요. 종합 설명을 작성하고 있어요.',
+        {},
+        { timeout: 4500 },
+      );
+      expect(second.getByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
+      fireEvent.click(second.getByText('삼성전자').closest('button')!);
+      expect(second.getByText(analysisResponse.impacts[0].expectedReaction)).toBeTruthy();
+      fireEvent.click(second.getByRole('button', { name: /^전체 포트폴리오 분석 보기$/ }));
+      task = saved({ analysisId: 2, summaryStatus: 'READY' });
+      await second.findByText(analysisResponse.overallImpact, {}, { timeout: 4500 });
+      expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+      expect(second.queryByText(/종합 설명을 작성하고 있어요/)).toBeNull();
+    },
+    12000,
+  );
+
+  it('회원 종합 설명만 실패하면 핵심 분석 결과를 유지한다', async () => {
+    const fetchMock = memberFetch(() =>
+      saved({ summaryStatus: 'FAILED', analysis: { ...analysisResponse, overallImpact: '' } }),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    await view.findByText('종합 설명을 불러오지 못했어요. 점수와 종목별 근거는 확인할 수 있어요.');
+    expect(view.getByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
+    expect(fetchMock.mock.calls.every(([, init]) => !init?.method)).toBe(true);
+  });
+
   it('요청 시간 초과 후 처리 중 상태를 조회하고 완료 결과를 자동으로 표시한다', async () => {
     let reads = 0;
     const fetchMock = memberFetch((_url, init) => {
@@ -677,7 +741,7 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.queryByText(processingMessage.textContent!)).toBeNull();
     expect(
       fetchMock.mock.calls.filter(
-        ([url, init]) => String(url).endsWith('/analysis') && init?.method === 'POST',
+        ([url, init]) => String(url).endsWith('/analysis/tasks') && init?.method === 'POST',
       ),
     ).toHaveLength(1);
     view.unmount();

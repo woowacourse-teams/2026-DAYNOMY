@@ -481,7 +481,7 @@ export async function getSavedPortfolioAnalysis(signal?: AbortSignal) {
 
 export async function updateSavedPortfolioAnalysis(refresh: boolean, signal?: AbortSignal) {
   const response = await requestWithCsrf<unknown>(
-    `/api/users/me/portfolio/analysis${refresh ? '/refresh' : ''}`,
+    `/api/users/me/portfolio/analysis/tasks${refresh ? '/refresh' : ''}`,
     { method: 'POST', signal },
   );
   if (!isSavedPortfolioAnalysis(response))
