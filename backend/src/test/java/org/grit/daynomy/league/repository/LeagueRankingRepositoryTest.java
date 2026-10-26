@@ -63,7 +63,7 @@ class LeagueRankingRepositoryTest {
     LocalDate monday = LocalDate.of(2026, 10, 19);
     dailyReturn(first, monday.minusDays(3), 99, true);
     dailyReturn(first, monday, 1, true);
-    dailyReturn(first, monday, 2, false);
+    dailyReturn(first, monday, 2, false).exclude("SNAPSHOT_PENDING", Instant.now());
     dailyReturn(second, monday.plusDays(1), 1, true);
     dailyReturn(second, monday.plusDays(1), 2, false);
     var secondReturn = dailyReturn(second, monday.plusDays(1), 3, true);
@@ -93,9 +93,18 @@ class LeagueRankingRepositoryTest {
             RankingDailyReturn::isTrackingBaseline,
             RankingDailyReturn::getDailyReturnRate,
             RankingDailyReturn::getMaxHoldingWeight,
-            RankingDailyReturn::getCurrentHoldingWeight)
+            RankingDailyReturn::getCurrentHoldingWeight,
+            RankingDailyReturn::getIneligibleReason)
         .containsExactly(
-            tuple(first.getMember().getId(), monday, false, false, null, null, null),
+            tuple(
+                first.getMember().getId(),
+                monday,
+                false,
+                false,
+                null,
+                null,
+                null,
+                "SNAPSHOT_PENDING"),
             tuple(
                 second.getMember().getId(),
                 monday.plusDays(1),
@@ -103,7 +112,8 @@ class LeagueRankingRepositoryTest {
                 true,
                 new BigDecimal("0.0000"),
                 new BigDecimal("75.00"),
-                new BigDecimal("75.00")),
+                new BigDecimal("75.00"),
+                null),
             tuple(
                 first.getMember().getId(),
                 monday.plusDays(2),
@@ -111,7 +121,8 @@ class LeagueRankingRepositoryTest {
                 false,
                 new BigDecimal("12.5000"),
                 new BigDecimal("40.00"),
-                new BigDecimal("60.00")));
+                new BigDecimal("60.00"),
+                null));
   }
 
   @Test
@@ -122,12 +133,14 @@ class LeagueRankingRepositoryTest {
             owner, "visible", "", ExperienceLevel.BEGINNER, RiskProfile.BALANCED);
     Instant first = Instant.parse("2026-10-05T00:00:00Z");
     Instant ended = Instant.parse("2026-10-12T00:00:00Z");
-    Instant current = Instant.parse("2026-10-19T00:00:00Z");
+    Instant current = Instant.parse("2026-10-21T00:00:00Z");
+    Instant performanceStarted = Instant.parse("2026-10-19T06:30:00Z");
     LocalDate tracking = LocalDate.of(2026, 10, 5);
     visible.startTracking(tracking);
     visible.changePublication(true, true, false, false, first);
     visible.changePublication(false, false, false, false, ended);
     visible.changePublication(true, true, false, false, current);
+    visible.getParticipations().getLast().includeCurrentWeekFrom(performanceStarted);
     entityManager.persist(visible);
     var hidden =
         InvestorProfile.create(
@@ -178,8 +191,14 @@ class LeagueRankingRepositoryTest {
                 tracking));
     assertThat(rows)
         .flatExtracting(RankingInvestor::getParticipations)
-        .extracting(RankingParticipation::getStartedAt, RankingParticipation::getEndedAt)
-        .containsExactly(tuple(first, ended), tuple(current, null));
+        .extracting(
+            RankingParticipation::getStartedAt,
+            RankingParticipation::getEndedAt,
+            RankingParticipation::getPerformanceStartedAt)
+        .containsExactly(tuple(first, ended, null), tuple(current, null, performanceStarted));
+    var currentParticipation = rows.getLast().getParticipations().getFirst();
+    assertThat(currentParticipation.contains(performanceStarted)).isTrue();
+    assertThat(currentParticipation.eligibleFrom()).isEqualTo(LocalDate.of(2026, 10, 19));
     assertThat(profiles.findPublicRankingProfileIds()).containsExactly(visible.getId());
     assertThat(profiles.findNonPublicRankingProfileIds())
         .containsExactlyInAnyOrder(hidden.getId(), optedOut.getId());

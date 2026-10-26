@@ -25,7 +25,7 @@ public interface InvestorProfileRepository extends JpaRepository<InvestorProfile
       """
       select new org.grit.daynomy.league.repository.RankingInvestor(
         p.id, p.member.id, p.publicId, p.displayName, p.experienceLevel,
-        p.riskProfile, p.trackingStartedOn, period.startedAt, period.endedAt)
+        p.riskProfile, p.trackingStartedOn, period.startedAt, period.endedAt, period.performanceStartedAt)
       from InvestorProfile p left join p.participations period
       where p.profilePublic = true and p.leagueEnabled = true
       order by p.id, period.startedAt
@@ -44,7 +44,7 @@ public interface InvestorProfileRepository extends JpaRepository<InvestorProfile
       """
       select new org.grit.daynomy.league.repository.RankingInvestor(
         p.id, p.member.id, p.publicId, p.displayName, p.experienceLevel,
-        p.riskProfile, p.trackingStartedOn, null, null, p.member.profileImageUrl)
+        p.riskProfile, p.trackingStartedOn, null, null, null, p.member.profileImageUrl)
       from InvestorProfile p
       where p.id in :ids and p.profilePublic = true and p.leagueEnabled = true
       """)
