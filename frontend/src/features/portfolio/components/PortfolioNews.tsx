@@ -159,7 +159,9 @@ export function PortfolioNews({
       hidden={hidden}
     >
       <div ref={panelRef} className="portfolio-news-heading">
-        <h2 id="portfolio-news-title">보유 자산 소식</h2>
+        <h2 id="portfolio-news-title" tabIndex={-1}>
+          보유 자산 소식
+        </h2>
         <div className="portfolio-news-heading-actions">
           <span>최신순</span>
           {onClose && (

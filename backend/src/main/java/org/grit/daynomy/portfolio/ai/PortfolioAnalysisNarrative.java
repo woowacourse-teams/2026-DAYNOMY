@@ -145,14 +145,15 @@ public class PortfolioAnalysisNarrative {
                       "schema",
                       schema)));
       String response =
-          client
-              .post()
-              .uri("/responses")
-              .contentType(MediaType.APPLICATION_JSON)
-              .headers(h -> h.setBearerAuth(apiKey))
-              .body(request)
-              .retrieve()
-              .body(String.class);
+          PortfolioAnalysisCall.execute(
+              client
+                  .post()
+                  .uri("/responses")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .headers(h -> h.setBearerAuth(apiKey))
+                  .body(request),
+              "summary",
+              model);
       validationReason = "INVALID_SUMMARY_RESPONSE";
       var root = mapper.readTree(response);
       String id = root.path("id").asText("");

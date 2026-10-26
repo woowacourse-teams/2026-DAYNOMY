@@ -164,7 +164,8 @@ class SharedHoldingHistoryRepositoryTest {
             snapshots,
             transactions,
             mock(LeagueCalculationMetrics.class),
-            mock(LeagueService.class));
+            mock(LeagueService.class),
+            mock(LeagueRankingCache.class));
     calculation.recalculate();
     entityManager.flush();
     var first =

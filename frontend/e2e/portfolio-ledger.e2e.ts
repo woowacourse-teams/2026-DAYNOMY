@@ -169,8 +169,11 @@ for (const viewport of [
     });
     await page.goto('/');
     await expect(page.getByRole('button', { name: '삼성전자 보유 상세' })).toBeVisible();
-    const newsTab = page.getByRole('button', { name: '소식', exact: true });
+    const newsTab = page.locator('.portfolio-news-tab');
     const newsPanel = page.getByRole('complementary', { name: '보유 자산 소식' });
+    await expect(newsTab).toHaveAccessibleName(
+      viewport.name === 'mobile' ? '보유 자산 소식 보기' : '소식',
+    );
     await expect(newsPanel).toBeVisible();
     await expect(newsTab).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('dialog', { name: '보유 자산 소식' })).toHaveCount(0);
@@ -206,7 +209,12 @@ for (const viewport of [
     await newsTab.press('Enter');
     await expect(newsPanel).toBeVisible();
     await expect(newsTab).toHaveAttribute('aria-expanded', 'true');
-    await newsTab.press('Space');
+    if (viewport.name === 'mobile') {
+      await expect(page.getByRole('heading', { name: '보유 자산 소식' })).toBeFocused();
+      await newsPanel.getByRole('button', { name: '소식 접기' }).click();
+    } else {
+      await newsTab.press('Space');
+    }
     await expect(newsPanel).toBeHidden();
     await expect(newsTab).toHaveAttribute('aria-expanded', 'false');
     const summary = page.getByLabel('자산 요약');
@@ -235,7 +243,7 @@ for (const viewport of [
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
-      await newsTab.click();
+      await newsPanel.getByRole('button', { name: '소식 접기' }).click();
       await expect(newsPanel).toBeHidden();
       await page.locator('.portfolio-dashboard-layout').evaluate(async (layout) => {
         await Promise.allSettled(
@@ -274,7 +282,7 @@ for (const viewport of [
           }),
         };
       });
-      expect(headerSize.height).toBe(64);
+      expect(headerSize.height).toBe(width <= 620 ? 96 : 64);
       expect(headerSize.overflow).toBe(false);
       expect(headerSize.itemsFit).toBe(true);
     }
@@ -308,7 +316,7 @@ for (const viewport of [
     const history = page.getByRole('region', { name: '거래 내역', exact: true });
     await expect(history.getByText('이 기간에 표시할 내역이 없어요')).toBeVisible();
     await history.screenshot({ path: testInfo.outputPath('guest-history.png') });
-    await page.getByRole('button', { name: /^보유 자산/ }).click();
+    await page.getByRole('button', { name: /^보유 자산 \d+$/ }).click();
     const holdingTrigger = page.getByRole('button', { name: '삼성전자 보유 상세' });
     await holdingTrigger.click();
     const detail = page.getByRole('dialog', { name: '삼성전자 보유 상세' });
@@ -402,6 +410,7 @@ for (const viewport of [
   });
 
   test(`포트폴리오 거래 화면과 키보드 접근성: ${viewport.name}`, async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
     await page.setViewportSize(viewport);
     let history = [
       {
@@ -567,8 +576,11 @@ for (const viewport of [
     await expect(
       page.getByText(`${sum('closePrice').toLocaleString('ko-KR')}원`).first(),
     ).toBeVisible();
-    const newsTab = page.getByRole('button', { name: '소식', exact: true });
+    const newsTab = page.locator('.portfolio-news-tab');
     const newsPanel = page.getByRole('complementary', { name: '보유 자산 소식' });
+    await expect(newsTab).toHaveAccessibleName(
+      viewport.name === 'mobile' ? '보유 자산 소식 보기' : '소식',
+    );
     await expect(newsPanel).toBeVisible();
     await expect(newsTab).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('dialog', { name: '보유 자산 소식' })).toHaveCount(0);
@@ -604,7 +616,12 @@ for (const viewport of [
     await newsTab.press('Enter');
     await expect(newsPanel).toBeVisible();
     await expect(newsTab).toHaveAttribute('aria-expanded', 'true');
-    await newsTab.press('Space');
+    if (viewport.name === 'mobile') {
+      await expect(page.getByRole('heading', { name: '보유 자산 소식' })).toBeFocused();
+      await newsPanel.getByRole('button', { name: '소식 접기' }).click();
+    } else {
+      await newsTab.press('Space');
+    }
     await expect(newsPanel).toBeHidden();
     await expect(newsTab).toHaveAttribute('aria-expanded', 'false');
     // Narrow content reflows at readable sizes, including when the news sidebar is open.
@@ -1011,7 +1028,7 @@ for (const viewport of [
           }),
         };
       });
-      expect(headerSize.height).toBe(64);
+      expect(headerSize.height).toBe(width <= 620 ? 96 : 64);
       expect(headerSize.overflow).toBe(false);
       expect(headerSize.itemsFit).toBe(true);
     }

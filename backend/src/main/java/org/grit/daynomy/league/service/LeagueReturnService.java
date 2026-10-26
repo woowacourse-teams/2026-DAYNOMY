@@ -56,6 +56,7 @@ public class LeagueReturnService {
   private final PlatformTransactionManager transactionManager;
   private final LeagueCalculationMetrics metrics;
   private final LeagueService leagueService;
+  private final LeagueRankingCache rankingCache;
 
   @Transactional(propagation = Propagation.MANDATORY)
   public void calculateCurrentWeek(InvestorProfile profile) {
@@ -212,6 +213,7 @@ public class LeagueReturnService {
           .log(LogEvent.LEAGUE_CALCULATION_FAILED.message());
       throw exception;
     } finally {
+      rankingCache.invalidateAfterCommit();
       metrics.finishRun(started, completed);
     }
   }

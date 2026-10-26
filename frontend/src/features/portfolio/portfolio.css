@@ -2919,7 +2919,8 @@
   }
 
   .portfolio-overview {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 32px;
   }
 
   .portfolio-overview > div,
@@ -2937,12 +2938,18 @@
   .portfolio-summary-total,
   .portfolio-overview > div:first-child {
     grid-column: 1 / -1;
+    min-height: 0;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--portfolio-demo-line);
   }
 
   .portfolio-overview > div:nth-child(2),
-  .portfolio-overview > div:nth-child(3),
-  .portfolio-overview > div:nth-child(4) {
+  .portfolio-overview > div:nth-child(3) {
     grid-column: auto;
+  }
+
+  .portfolio-overview > div:nth-child(4) {
+    grid-column: 1 / -1;
   }
 
   .portfolio-overview > div:nth-child(2) {

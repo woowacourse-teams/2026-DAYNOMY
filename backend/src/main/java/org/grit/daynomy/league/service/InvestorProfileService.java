@@ -37,6 +37,7 @@ public class InvestorProfileService {
   private final InvestmentDecisionRepository decisionRepository;
   private final LeagueEnrollmentService enrollmentService;
   private final LeagueReturnService returnService;
+  private final LeagueRankingCache rankingCache;
 
   @Transactional(readOnly = true)
   public ProfileResponse getMine(Long memberId) {
@@ -62,6 +63,7 @@ public class InvestorProfileService {
         displayName, request.bio(), request.experienceLevel(), request.riskProfile());
     boolean created = profile.getId() == null;
     InvestorProfile saved = profileRepository.save(profile);
+    rankingCache.invalidateAfterCommit();
     TransactionLog.afterCommit(
         LogEvent.LEAGUE_PROFILE_SAVED,
         log.atInfo()
@@ -116,6 +118,7 @@ public class InvestorProfileService {
             || previousLeagueEnabled != profile.isLeagueEnabled()
             || previousAllocationPublic != profile.isAllocationPublic()
             || previousDetailPublic != profile.isDetailPublic();
+    if (changed) rankingCache.invalidateAfterCommit();
     TransactionLog.afterCommit(
         LogEvent.LEAGUE_PUBLICATION_CHANGED,
         (changed ? log.atInfo() : log.atDebug())
