@@ -40,6 +40,8 @@ class ImportantStockSelectionServiceTest {
   @Mock private MarketTradingDayRepository tradingDays;
   @Mock private StockDailyPriceRepository prices;
   @Mock private org.grit.daynomy.investmentcalendar.repository.InvestmentEventRepository events;
+  @Mock private org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository deliveries;
+  @Mock private org.grit.daynomy.emailsubscription.repository.EmailStockContentRepository contents;
   @InjectMocks private ImportantStockSelectionService service;
 
   private final LocalDate runDate = LocalDate.of(2026, 10, 19);
@@ -282,6 +284,31 @@ class ImportantStockSelectionServiceTest {
     ReflectionTestUtils.setField(
         korean, "market", org.grit.daynomy.asset.domain.StockMarket.NASDAQ);
     assertThat(service.select(1L, runDate).orElseThrow().stocks()).isEmpty();
+  }
+
+  @Test
+  void registeredOfficialDisclosureSelectsItsAssetWithoutPriceChanges() {
+    savedHolding();
+    tradingDates(runDate.minusDays(3), runDate.minusDays(4));
+    var korean =
+        Asset.listedStock(
+            "종목", "005930", org.grit.daynomy.asset.domain.StockMarket.KOSPI, null, runDate);
+    ReflectionTestUtils.setField(korean, "id", 10L);
+    var content =
+        org.grit.daynomy.content.domain.AssetContent.create(
+            korean,
+            org.grit.daynomy.content.domain.ContentSourceType.OTHER,
+            "유상증자결정",
+            "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20261019000001");
+    when(contents.findDisclosureCandidates(
+            org.mockito.ArgumentMatchers.anyList(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenReturn(List.of(content));
+    assertThat(service.select(1L, runDate).orElseThrow().stocks())
+        .extracting(stock -> stock.assetId())
+        .containsExactly(10L);
   }
 
   private void savedHolding() {

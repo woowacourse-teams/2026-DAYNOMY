@@ -2,9 +2,11 @@ package org.grit.daynomy.emailsubscription.domain;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public record ImportantStockSelection(
@@ -37,6 +39,17 @@ public record ImportantStockSelection(
       List<HoldingPrice> holdings,
       boolean comparableCurrency,
       Set<Long> importantEvents) {
+    return select(
+        baseDate, previousBaseDate, holdings, comparableCurrency, importantEvents, Map.of());
+  }
+
+  public static ImportantStockSelection select(
+      LocalDate baseDate,
+      LocalDate previousBaseDate,
+      List<HoldingPrice> holdings,
+      boolean comparableCurrency,
+      Set<Long> importantEvents,
+      Map<Long, Instant> lastNotices) {
     boolean complete =
         comparableCurrency && holdings.stream().allMatch(HoldingPrice::hasBothPrices);
     BigDecimal total =
@@ -55,7 +68,11 @@ public record ImportantStockSelection(
             .sorted(
                 Comparator.comparing(
                         (HoldingPrice holding) -> !importantEvents.contains(holding.assetId()))
-                    .thenComparing(priority(total)))
+                    .thenComparing(priority(total))
+                    .thenComparing(
+                        holding -> lastNotices.get(holding.assetId()),
+                        Comparator.nullsFirst(Comparator.naturalOrder()))
+                    .thenComparing(HoldingPrice::assetId))
             .limit(MAX_STOCKS)
             .map(holding -> holding.toStock(total))
             .toList();
@@ -64,13 +81,12 @@ public record ImportantStockSelection(
 
   private static Comparator<HoldingPrice> priority(BigDecimal total) {
     if (total.signum() == 0) {
-      return Comparator.comparing(HoldingPrice::assetId);
+      return (left, right) -> 0;
     }
     // 모든 종목의 분모가 같으므로 나눗셈 반올림 없이 기여도와 비중을 비교한다.
     return Comparator.comparing((HoldingPrice holding) -> holding.valueChange().abs())
         .reversed()
-        .thenComparing(HoldingPrice::previousValue, Comparator.reverseOrder())
-        .thenComparing(HoldingPrice::assetId);
+        .thenComparing(HoldingPrice::previousValue, Comparator.reverseOrder());
   }
 
   private static BigDecimal percentage(BigDecimal numerator, BigDecimal denominator) {

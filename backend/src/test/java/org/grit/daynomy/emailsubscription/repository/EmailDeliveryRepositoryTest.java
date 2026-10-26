@@ -56,6 +56,7 @@ class EmailDeliveryRepositoryTest {
     registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
   }
 
+  @Autowired private EmailStockContentRepository contents;
   @Autowired private EmailDeliveryRepository deliveries;
   @Autowired private EmailDeliveryService service;
   @Autowired private TestEntityManager em;
@@ -66,6 +67,43 @@ class EmailDeliveryRepositoryTest {
   @MockitoBean private EmailDigestSupplementService supplements;
   private final Instant now = Instant.parse("2026-10-26T00:00:00Z");
   private final Instant asOf = now.minusSeconds(7200);
+
+  @Test
+  void disclosureCandidatesRespectAssetPublicationDateAndCollectionCutoff() {
+    var asset =
+        em.persist(
+            org.grit.daynomy.asset.domain.Asset.listedStock(
+                "종목",
+                "005939",
+                org.grit.daynomy.asset.domain.StockMarket.KOSPI,
+                null,
+                LocalDate.of(2026, 10, 26)));
+    var date = LocalDate.of(2026, 10, 26);
+    var content =
+        em.persist(
+            org.grit.daynomy.content.domain.AssetContent.create(
+                asset,
+                org.grit.daynomy.content.domain.ContentSourceType.OTHER,
+                "유상증자결정",
+                "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20261026000001",
+                null,
+                date));
+    em.flush();
+    assertThat(
+            contents.findDisclosureCandidates(
+                List.of(asset.getId()), date, date, Instant.now().plusSeconds(60)))
+        .extracting(item -> item.getId())
+        .containsExactly(content.getId());
+    assertThat(contents.findDisclosureCandidates(List.of(asset.getId()), date, date, Instant.EPOCH))
+        .isEmpty();
+    assertThat(
+            contents.findDisclosureCandidates(
+                List.of(asset.getId()),
+                date.plusDays(1),
+                date.plusDays(1),
+                Instant.now().plusSeconds(60)))
+        .isEmpty();
+  }
 
   @Test
   void cancelsOnlyQueuedAffectedMailAndKeepsSendingOrAcceptedMailForReview() {
@@ -174,6 +212,10 @@ class EmailDeliveryRepositoryTest {
     current.unknown();
     em.flush();
     em.clear();
+    var notices = deliveries.findLastStockNotices(member.getId(), List.of(asset.getId()));
+    assertThat(notices).hasSize(1);
+    assertThat(notices.getFirst().getAssetId()).isEqualTo(asset.getId());
+    assertThat(notices.getFirst().getAcceptedAt()).isEqualTo(now.minusSeconds(86400));
     var found = deliveries.findLastNoticeForAsset(member.getId(), asset.getId()).orElseThrow();
     assertThat(found.getId()).isEqualTo(current.getId());
     assertThat(found.getStockDigest()).isEqualTo(snapshot);

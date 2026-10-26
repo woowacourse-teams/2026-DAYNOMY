@@ -40,6 +40,8 @@ public class ImportantStockSelectionService {
   private final MarketTradingDayRepository tradingDays;
   private final StockDailyPriceRepository prices;
   private final InvestmentEventRepository events;
+  private final org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository deliveries;
+  private final org.grit.daynomy.emailsubscription.repository.EmailStockContentRepository contents;
 
   public Optional<ImportantStockSelection> select(Long memberId, LocalDate runDate) {
     boolean eligible =
@@ -69,10 +71,11 @@ public class ImportantStockSelectionService {
                 tradingDays
                     .findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
                         current.getBaseDate())
-                    .map(previous -> select(savedHoldings, current, previous, runDate)));
+                    .map(previous -> select(memberId, savedHoldings, current, previous, runDate)));
   }
 
   private ImportantStockSelection select(
+      Long memberId,
       List<PortfolioHolding> savedHoldings,
       MarketTradingDay current,
       MarketTradingDay previous,
@@ -102,7 +105,10 @@ public class ImportantStockSelectionService {
         previous.getBaseDate(),
         snapshots,
         comparableCurrency,
-        importantEvents(savedHoldings, runDate));
+        importantEvents(savedHoldings, runDate),
+        deliveries.findLastStockNotices(memberId, assetIds).stream()
+            .collect(
+                Collectors.toMap(notice -> notice.getAssetId(), notice -> notice.getAcceptedAt())));
   }
 
   private Set<Long> importantEvents(List<PortfolioHolding> savedHoldings, LocalDate runDate) {
@@ -126,16 +132,29 @@ public class ImportantStockSelectionService {
                                 .equals(runDate.plusDays(1))))
             .map(event -> event.getRelatedAssetCode())
             .collect(Collectors.toSet());
-    return savedHoldings.stream()
-        .map(PortfolioHolding::getAsset)
+    var important =
+        savedHoldings.stream()
+            .map(PortfolioHolding::getAsset)
+            .filter(
+                asset ->
+                    asset.getCategory() == AssetCategory.STOCK
+                        && (asset.getMarket() == StockMarket.KOSPI
+                            || asset.getMarket() == StockMarket.KOSDAQ))
+            .filter(asset -> codes.contains(asset.getAssetCode()))
+            .map(asset -> asset.getId())
+            .collect(Collectors.toSet());
+    var assetIds = savedHoldings.stream().map(holding -> holding.getAsset().getId()).toList();
+    contents.findDisclosureCandidates(assetIds, runDate.minusDays(1), runDate, cutoff).stream()
         .filter(
-            asset ->
-                asset.getCategory() == AssetCategory.STOCK
-                    && (asset.getMarket() == StockMarket.KOSPI
-                        || asset.getMarket() == StockMarket.KOSDAQ))
-        .filter(asset -> codes.contains(asset.getAssetCode()))
-        .map(asset -> asset.getId())
-        .collect(Collectors.toSet());
+            content ->
+                org.grit.daynomy.emailsubscription.domain.EmailDisclosurePolicy.isImportant(
+                    content.getTitle(), content.getUrl()))
+        .filter(
+            content ->
+                content.getAsset().getMarket() == StockMarket.KOSPI
+                    || content.getAsset().getMarket() == StockMarket.KOSDAQ)
+        .forEach(content -> important.add(content.getAsset().getId()));
+    return important;
   }
 
   private boolean officialDisclosure(String sourceUrl) {

@@ -16,6 +16,25 @@ import org.springframework.data.jpa.repository.Query;
 public interface EmailDeliveryRepository extends JpaRepository<EmailDelivery, UUID> {
   Optional<EmailDelivery> findByMemberIdAndDeliveryDate(Long memberId, LocalDate date);
 
+  interface LastStockNotice {
+    Long getAssetId();
+
+    Instant getAcceptedAt();
+  }
+
+  @Query(
+      value =
+          """
+      SELECT a.asset_id AS "assetId", MAX(d.accepted_at) AS "acceptedAt"
+      FROM email_deliveries d
+      CROSS JOIN LATERAL jsonb_array_elements_text(d.analysis_ids) item(value)
+      JOIN email_common_stock_analyses a ON a.id = CAST(item.value AS BIGINT)
+      WHERE d.member_id = :memberId AND d.status = 'ACCEPTED' AND a.asset_id IN (:assetIds)
+      GROUP BY a.asset_id
+      """,
+      nativeQuery = true)
+  List<LastStockNotice> findLastStockNotices(Long memberId, List<Long> assetIds);
+
   @Modifying(flushAutomatically = true)
   @Query(
       value =
