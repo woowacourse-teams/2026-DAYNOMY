@@ -76,4 +76,4 @@ LEAGUE_INVESTOR_DETAILS_BENCHMARK=true ./gradlew test --rerun-tasks \
   --tests org.grit.daynomy.league.acceptance.LeagueRankingsLoadtestSeedTest.investorDetailsMeetLoadThresholdsWithTenThousandParticipants
 ```
 
-결과는 JVM 임시 디렉터리의 `daynomy-investor-details-benchmark/measurement.log`와 `measurement.json`에 저장한다. dev에서 비교할 때는 V58 참가 이력 인덱스까지 적용한 버전을 사용한다.
+결과는 JVM 임시 디렉터리의 `daynomy-investor-details-benchmark/measurement.log`와 `measurement.json`에 저장한다. dev에서 비교할 때는 V60 참가 이력 인덱스까지 적용한 버전을 사용한다.
