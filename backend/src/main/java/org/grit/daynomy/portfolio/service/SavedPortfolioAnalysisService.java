@@ -56,7 +56,9 @@ public class SavedPortfolioAnalysisService {
           !refresh && prepared.previous() == null
               ? analysisService.analyzeAssets(request)
               : analysisService.refreshAssets(request, prepared.previous()).analysis();
-      var core = transactions.completeCore(memberId, prepared.token(), prepared.assets(), result);
+      var core =
+          transactions.completeCore(
+              memberId, prepared.token(), prepared.assets(), result.withOverallImpact(""));
       log.atInfo()
           .addKeyValue("event", "portfolio.analysis.core.completed")
           .addKeyValue("durationMs", (System.nanoTime() - started) / 1_000_000)

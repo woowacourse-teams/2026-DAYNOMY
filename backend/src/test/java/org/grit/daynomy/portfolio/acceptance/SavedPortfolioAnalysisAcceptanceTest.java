@@ -716,6 +716,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
           .statusCode(200)
           .body("status", equalTo("PROCESSING"))
           .body("summaryStatus", equalTo("PENDING"))
+          .body("analysis.overallImpact", equalTo(""))
           .body("analysis.overallDirection", equalTo(refresh ? "POSITIVE" : "NEGATIVE"))
           .body("analysis.analyzedAssetCount", equalTo(1));
       assertThat(core.jsonPath().getList("analysis.impacts[0].sources")).isNotEmpty();
@@ -846,11 +847,23 @@ class SavedPortfolioAnalysisAcceptanceTest {
         1, summary, Instant.now(), "", List.of(impact), impact.sources());
   }
 
-  @Test
-  void summaryFailureLeavesCoreResultsAvailableWithoutRepeatingAnalysis() {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void summaryFailureLeavesCoreResultsAvailableWithoutRepeatingAnalysis(boolean refresh) {
     Member member = member();
     hold(portfolio(member), "삼성전자");
     successfulAi();
+    if (refresh) {
+      client(member).post(API).then().statusCode(200);
+      when(ai.refresh(anyList(), anyString()))
+          .thenAnswer(
+              invocation ->
+                  refreshed(
+                      invocation.getArgument(0),
+                      LocalDate.of(2026, 10, 1),
+                      "https://example.invalid/new",
+                      "새 계약을 체결했어요."));
+    }
     doAnswer(
             invocation -> {
               throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
@@ -858,13 +871,14 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .when(narrative)
         .summarize(org.mockito.ArgumentMatchers.any());
 
-    client(member).post(API + "/tasks").then().statusCode(202);
+    client(member).post(API + (refresh ? "/tasks/refresh" : "/tasks")).then().statusCode(202);
     awaitTask(member, "READY");
 
     var response = client(member).get(API);
     response
         .then()
         .body("summaryStatus", equalTo("FAILED"))
+        .body("analysis.overallImpact", equalTo(""))
         .body("analysis.analyzedAssetCount", equalTo(1))
         .body("failureCode", nullValue());
     assertThat((Object) response.jsonPath().get("analysis.overallScore")).isNotNull();
@@ -875,7 +889,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .statusCode(200)
         .body("summaryStatus", equalTo("FAILED"));
     verify(ai).analyze(anyList());
-    verify(narrative).summarize(org.mockito.ArgumentMatchers.any());
+    verify(narrative, times(refresh ? 2 : 1)).summarize(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
