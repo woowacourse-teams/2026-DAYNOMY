@@ -13,6 +13,7 @@ public final class PortfolioAnalysisEvidence {
   private final Map<String, Map<String, Quote>> byAsset;
   private final Map<String, PortfolioAnalysisSourceDocument> documents;
   private final List<String> referenceIds;
+  private final Map<String, Integer> referenceNumbers;
   private final Map<String, List<String>> requestedUrls;
 
   private PortfolioAnalysisEvidence(
@@ -24,6 +25,11 @@ public final class PortfolioAnalysisEvidence {
     this.documents = Map.copyOf(documents);
     this.referenceIds =
         byAsset.values().stream().flatMap(quotes -> quotes.keySet().stream()).distinct().toList();
+    Map<String, Integer> numbers = new LinkedHashMap<>();
+    for (int index = 0; index < referenceIds.size(); index++) {
+      numbers.put(referenceIds.get(index), index + 1);
+    }
+    this.referenceNumbers = Map.copyOf(numbers);
   }
 
   static PortfolioAnalysisEvidence from(
@@ -88,23 +94,17 @@ public final class PortfolioAnalysisEvidence {
           source.put(
               "publishedOn",
               document.publishedOn() == null ? null : document.publishedOn().toString());
-          source.put(
-              "quotes",
-              quotes.entrySet().stream()
-                  .map(
-                      entry -> {
-                        Map<String, Object> value =
-                            new LinkedHashMap<>(
-                                Map.of(
-                                    "reference",
-                                    referenceIds.indexOf(entry.getKey()) + 1,
-                                    "text",
-                                    entry.getValue().text()));
-                        var amounts = document.verifiedWonAmounts(entry.getValue().text());
-                        if (!amounts.isEmpty()) value.put("verifiedWonAmounts", amounts);
-                        return value;
-                      })
-                  .toList());
+          Map<String, String> numberedQuotes = new LinkedHashMap<>();
+          Map<String, Map<String, String>> verifiedAmounts = new LinkedHashMap<>();
+          quotes.forEach(
+              (id, quote) -> {
+                String number = referenceNumbers.get(id).toString();
+                numberedQuotes.put(number, quote.text());
+                var amounts = document.verifiedWonAmounts(quote.text());
+                if (!amounts.isEmpty()) verifiedAmounts.put(number, amounts);
+              });
+          source.put("quotes", numberedQuotes);
+          if (!verifiedAmounts.isEmpty()) source.put("verifiedWonAmounts", verifiedAmounts);
           sources.add(source);
         });
     return Map.of("assets", assets, "sources", sources);

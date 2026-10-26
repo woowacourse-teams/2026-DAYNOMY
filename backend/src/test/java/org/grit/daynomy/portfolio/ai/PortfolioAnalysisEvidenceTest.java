@@ -13,7 +13,7 @@ class PortfolioAnalysisEvidenceTest {
   @Test
   void numericReferencesResolveOnlyToTheirOriginalAndRejectOutOfRangeNumbers() throws Exception {
     var input = mapper.valueToTree(evidence.input(List.of(new PortfolioAnalysisTarget("삼성전자"))));
-    int number = input.path("sources").get(0).path("quotes").get(0).path("reference").asInt();
+    int number = Integer.parseInt(input.path("sources").get(0).path("quotes").fieldNames().next());
     assertThat(number).isEqualTo(1);
     var raw =
         mapper.writeValueAsString(
@@ -138,8 +138,7 @@ class PortfolioAnalysisEvidenceTest {
     assertThat(input.path("assets")).hasSize(2);
     assertThat(input.path("sources")).hasSize(1);
     assertThat(input.path("sources").get(0).path("quotes")).hasSize(1);
-    assertThat(input.path("sources").get(0).path("quotes").get(0).path("text").asText())
-        .isEqualTo(quote);
+    assertThat(input.path("sources").get(0).path("quotes").path("1").asText()).isEqualTo(quote);
   }
 
   @Test
@@ -156,6 +155,53 @@ class PortfolioAnalysisEvidenceTest {
     assertThat(correction.toString()).contains(quote).doesNotContain(other);
     assertThat(prepared.input(targets).toString()).contains(quote, other);
     assertThat(prepared.references(targets)).hasSize(2);
+  }
+
+  @Test
+  void compactInputPreservesEveryFactAndItsNumberIncludingOpposingEvidence() throws Exception {
+    var sentences =
+        java.util.stream.IntStream.range(0, 1000)
+            .mapToObj(
+                index ->
+                    "Fact "
+                        + index
+                        + (index % 2 == 0 ? " revenue increased." : " operating costs increased."))
+            .toList();
+    var prepared =
+        PortfolioAnalysisEvidence.from(
+            Map.of("삼성전자", List.of(url)),
+            Map.of(
+                url,
+                new PortfolioAnalysisSourceDocument("Results", String.join(" ", sentences), null)));
+    var input = mapper.valueToTree(prepared.input(List.of(new PortfolioAnalysisTarget("삼성전자"))));
+    var quotes = input.path("sources").get(0).path("quotes");
+    assertThat(quotes).hasSize(sentences.size());
+    var previousFormat = new java.util.ArrayList<Map<String, Object>>();
+    for (int index = 0; index < sentences.size(); index++) {
+      String number = Integer.toString(index + 1);
+      assertThat(quotes.path(number).asText()).isEqualTo(sentences.get(index));
+      assertThat(prepared.referenceKey(mapper.readTree(number)))
+          .isEqualTo(PortfolioAnalysisEvidence.reference(url, sentences.get(index)));
+      previousFormat.add(Map.of("reference", index + 1, "text", sentences.get(index)));
+    }
+    assertThat(mapper.writeValueAsBytes(quotes).length)
+        .isLessThan(mapper.writeValueAsBytes(previousFormat).length);
+  }
+
+  @Test
+  void compactInputKeepsVerifiedCurrencyAmountsUnderTheOriginalSentenceNumber() {
+    String text = "Revenue reached KRW 2 billion.";
+    var prepared =
+        PortfolioAnalysisEvidence.from(
+            Map.of("삼성전자", List.of(url)),
+            Map.of(url, new PortfolioAnalysisSourceDocument("Results", text, null)));
+    var input = mapper.valueToTree(prepared.input(List.of(new PortfolioAnalysisTarget("삼성전자"))));
+    var source = input.path("sources").get(0);
+    assertThat(source.path("quotes").path("1").asText()).isEqualTo(text);
+    assertThat(source.path("verifiedWonAmounts").path("1").path("KRW 2 billion").asText())
+        .isEqualTo("20억원");
+    assertThat(source.path("verifiedWonAmounts").path("1").path("2 billion KRW").asText())
+        .isEqualTo("20억원");
   }
 
   @Test
