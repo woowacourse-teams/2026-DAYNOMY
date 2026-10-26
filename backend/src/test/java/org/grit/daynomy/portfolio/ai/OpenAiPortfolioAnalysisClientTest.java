@@ -49,6 +49,7 @@ class OpenAiPortfolioAnalysisClientTest {
     logger.setLevel(Level.DEBUG);
     appender.start();
     logger.addAppender(appender);
+    ((Logger) LoggerFactory.getLogger(PortfolioAnalysisCall.class)).addAppender(appender);
     server = new MockWebServer();
     firstEnqueuedResponse = null;
     ((okhttp3.mockwebserver.QueueDispatcher) server.getDispatcher()).setFailFast(true);
@@ -62,6 +63,7 @@ class OpenAiPortfolioAnalysisClientTest {
   void tearDown() throws IOException {
     server.shutdown();
     logger.detachAppender(appender);
+    ((Logger) LoggerFactory.getLogger(PortfolioAnalysisCall.class)).detachAppender(appender);
     logger.setLevel(originalLevel);
     appender.stop();
   }
@@ -945,6 +947,30 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(keyValues(appender.list.getLast()))
         .containsEntry("validationReason", "INVALID_PROSE");
     assertThat(server.getRequestCount()).isEqualTo(2);
+    var validations =
+        appender.list.stream()
+            .filter(
+                e -> "portfolio.analysis.asset.validation.failed".equals(keyValues(e).get("event")))
+            .map(this::keyValues)
+            .toList();
+    assertThat(validations)
+        .anySatisfy(
+            fields ->
+                assertThat(fields)
+                    .containsEntry("phase", "initial")
+                    .containsEntry("batchNumber", "1"));
+    assertThat(validations)
+        .anySatisfy(
+            fields ->
+                assertThat(fields)
+                    .containsEntry("phase", "correction")
+                    .containsEntry("batchNumber", "1"));
+    assertThat(
+            appender.list.stream()
+                .filter(
+                    e -> "portfolio.analysis.ai.call.completed".equals(keyValues(e).get("event")))
+                .map(e -> keyValues(e).get("phase")))
+        .containsExactly("initial", "correction");
   }
 
   @Test

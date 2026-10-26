@@ -45,13 +45,7 @@ test('투자 캘린더·포트폴리오·주간 리그 본문을 같은 너비�
     await page.goto('/league');
     await expect(page.getByRole('heading', { name: '주간 리그', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: '주간 순위', exact: true })).toBeVisible();
-    const calculationDetails = page.locator('.league-calculation-details');
-    await page.getByText('집계 기준 안내', { exact: true }).focus();
-    await page.keyboard.press('Enter');
-    await expect(calculationDetails).toHaveAttribute('open', '');
-    await expect(calculationDetails.getByText(/실제 계좌 수익률과 다를 수 있습니다/)).toBeVisible();
-    await page.keyboard.press('Enter');
-    await expect(calculationDetails).not.toHaveAttribute('open', '');
+    await expect(page.getByText('집계 기준 안내', { exact: true })).toHaveCount(0);
     const leagueLayout = await page.locator('main.league-page').evaluate((element) => {
       const bounds = element.getBoundingClientRect();
       return { left: bounds.left, width: bounds.width };

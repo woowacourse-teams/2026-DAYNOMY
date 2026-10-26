@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
@@ -45,7 +45,8 @@ const LandingPage = lazy(() => import('./features/landing/LandingPage'));
 
 function AnalyticsTracker() {
   const location = useLocation();
-  useEffect(() => {
+  // Stop replay on protected routes before DOM mutation observers record the new screen.
+  useLayoutEffect(() => {
     trackPageView(location.pathname);
   }, [location.pathname]);
   return null;

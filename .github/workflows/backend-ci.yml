@@ -50,7 +50,9 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
 
       - name: Validate Loadtest Scenarios
-        run: node --experimental-vm-modules --test loadtest/tests/transactions.test.mjs
+        run: |
+          node --experimental-vm-modules --test loadtest/tests/transactions.test.mjs
+          node --test ../loadtest/k6-dev-workflow.test.mjs
 
       - name: Validate Monitoring Rules
         working-directory: monitoring/prometheus

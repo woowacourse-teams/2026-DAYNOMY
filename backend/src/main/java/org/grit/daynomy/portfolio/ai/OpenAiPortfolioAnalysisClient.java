@@ -25,6 +25,7 @@ import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourcePolicy;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -153,14 +154,15 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     String response = null;
     try {
       response =
-          restClient
-              .post()
-              .uri("/responses")
-              .contentType(MediaType.APPLICATION_JSON)
-              .headers(headers -> headers.setBearerAuth(apiKey))
-              .body(createRequest(targets, previousEvidence))
-              .retrieve()
-              .body(String.class);
+          PortfolioAnalysisCall.execute(
+              restClient
+                  .post()
+                  .uri("/responses")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .headers(headers -> headers.setBearerAuth(apiKey))
+                  .body(createRequest(targets, previousEvidence)),
+              "initial",
+              model);
 
       PortfolioAnalysisResult result;
       try {
@@ -203,7 +205,11 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
                 .flatMap(
                     correction ->
                         parseAnalysis(
-                            correction.response(), correction.targets(), true, originalSources)
+                            correction.response(),
+                            correction.targets(),
+                            true,
+                            originalSources,
+                            "correction")
                             .impacts()
                             .stream())
                 .toList();
@@ -221,7 +227,12 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         if (retained.stream().noneMatch(impact -> impact.direction() != null)) {
           try {
             for (var correction : corrections) {
-              parseAnalysis(correction.response(), correction.targets(), false, originalSources);
+              parseAnalysis(
+                  correction.response(),
+                  correction.targets(),
+                  false,
+                  originalSources,
+                  "correction");
             }
           } catch (IndexSourceException exhausted) {
             throw invalidResponse("INDEX_SOURCE");
@@ -365,14 +376,15 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
     retry.put("input", input);
     retry.put("reasoning", Map.of("effort", "low"));
     String response =
-        restClient
-            .post()
-            .uri("/responses")
-            .contentType(MediaType.APPLICATION_JSON)
-            .headers(headers -> headers.setBearerAuth(apiKey))
-            .body(retry)
-            .retrieve()
-            .body(String.class);
+        PortfolioAnalysisCall.execute(
+            restClient
+                .post()
+                .uri("/responses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .headers(headers -> headers.setBearerAuth(apiKey))
+                .body(retry),
+            "correction",
+            model);
     return new Correction(response, retryTargets);
   }
 
@@ -594,14 +606,15 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
 
   private PortfolioAnalysisResult parseAnalysis(
       String response, List<PortfolioAnalysisTarget> targets, boolean partial) {
-    return parseAnalysis(response, targets, partial, List.of());
+    return parseAnalysis(response, targets, partial, List.of(), "initial");
   }
 
   private PortfolioAnalysisResult parseAnalysis(
       String response,
       List<PortfolioAnalysisTarget> targets,
       boolean partial,
-      List<PortfolioAnalysisResult.Source> originalSources) {
+      List<PortfolioAnalysisResult.Source> originalSources,
+      String phase) {
     OutputContent output = extractOutputContent(response);
 
     try {
@@ -621,7 +634,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       originalSources.forEach(
           source -> sourceByUrl.putIfAbsent(normalizeSourceUrl(source.url()), source));
       List<PortfolioAnalysisResult.AssetImpactResult> impacts =
-          parseImpacts(root.path("impacts"), targets, sourceByUrl, partial);
+          parseImpacts(root.path("impacts"), targets, sourceByUrl, partial, phase);
       return verifiedSummary(impacts);
     } catch (JsonProcessingException exception) {
       throw invalidResponse("INVALID_ANALYSIS_JSON");
@@ -634,7 +647,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
       JsonNode impactsNode,
       List<PortfolioAnalysisTarget> targets,
       Map<String, PortfolioAnalysisResult.Source> sourceByUrl,
-      boolean partial) {
+      boolean partial,
+      String phase) {
     if (!impactsNode.isArray()) {
       throw invalidResponse("INVALID_IMPACTS");
     }
@@ -717,6 +731,8 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         }
         log.atInfo()
             .addKeyValue("event", "portfolio.analysis.asset.validation.failed")
+            .addKeyValue("phase", phase)
+            .addKeyValue("batchNumber", MDC.get("batchNumber"))
             .addKeyValue("validationAssetName", assetName)
             .addKeyValue(
                 "validationReason",

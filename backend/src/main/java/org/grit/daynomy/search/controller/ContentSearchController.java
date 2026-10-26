@@ -1,6 +1,7 @@
 package org.grit.daynomy.search.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -41,13 +42,14 @@ public class ContentSearchController {
               + "kind는 NEWS, PERSON_POST, ASSET_CONTENT 중 하나입니다.")
   @GetMapping
   public ContentSearchResponse search(
-      @RequestParam(name = "q", required = false)
+      @Parameter(description = "검색어", example = "금리", required = true)
+          @RequestParam(name = "q", required = false)
           @NotBlank(message = "검색어를 입력해주세요.")
           @Size(max = 100, message = "검색어는 100자 이하여야 합니다.")
           @Pattern(regexp = ".*[\\p{L}\\p{N}].*", message = "올바른 검색어를 입력해주세요.")
           String keyword,
       @RequestParam(defaultValue = "ALL") ContentSearchSource source,
-      @RequestParam(defaultValue = "1") @Min(1) int page,
+      @Parameter(description = "페이지 번호(1부터 시작)") @RequestParam(defaultValue = "1") @Min(1) int page,
       @RequestParam(defaultValue = "12") @Min(1) @Max(100) int size,
       @RequestParam(defaultValue = "LATEST") ContentSearchSort sort) {
     return service.search(keyword, source, page, size, sort);

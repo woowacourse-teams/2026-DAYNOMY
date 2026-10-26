@@ -1,6 +1,7 @@
 package org.grit.daynomy.league.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,7 @@ public class SharedPortfolioController {
       description = "투자 리그의 공유 포트폴리오 보유 종목과 최근 수집 종가 기준 평가 결과를 조회합니다.")
   @GetMapping
   public ResponseEntity<PortfolioResponse> get(
-      @AuthenticationPrincipal AuthenticatedMember member) {
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
     return response(service.getMine(member.memberId()));
   }
 
@@ -35,7 +36,7 @@ public class SharedPortfolioController {
               + "기존 종목은 overwriteExisting이 true인 경우에만 갱신합니다.")
   @PostMapping("/import")
   public ResponseEntity<PortfolioResponse> importHoldings(
-      @AuthenticationPrincipal AuthenticatedMember member,
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
       @Valid @RequestBody ImportRequest request) {
     return response(service.importHoldings(member.memberId(), request));
   }
@@ -45,7 +46,7 @@ public class SharedPortfolioController {
       description = "공유 포트폴리오 종목의 숨김 여부를 변경합니다. hidden이 true이면 공개 종목 목록에서 숨깁니다.")
   @PatchMapping("/holdings/{assetId}/visibility")
   public ResponseEntity<PortfolioResponse> changeVisibility(
-      @AuthenticationPrincipal AuthenticatedMember member,
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
       @PathVariable Long assetId,
       @Valid @RequestBody VisibilityRequest request) {
     return response(service.changeVisibility(member.memberId(), assetId, request));
@@ -56,7 +57,8 @@ public class SharedPortfolioController {
       description = "공유 포트폴리오에서 해당 종목을 삭제합니다. 마지막 종목을 삭제하면 리그 참여와 공개 설정을 해제합니다.")
   @DeleteMapping("/holdings/{assetId}")
   public ResponseEntity<PortfolioResponse> removeHolding(
-      @AuthenticationPrincipal AuthenticatedMember member, @PathVariable Long assetId) {
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long assetId) {
     return response(service.removeHolding(member.memberId(), assetId));
   }
 
