@@ -124,8 +124,33 @@ for (const viewport of [
       return route.fulfill({ status: 401, json: {} });
     });
     await page.goto('/');
-    const open = page.getByRole('button', { name: '거래 기록', exact: true });
-    await open.click();
+    const open = page.getByRole('button', { name: '종목 추가', exact: true });
+    const ledgerAdd = page.getByRole('button', { name: '목록에서 종목 추가', exact: true });
+    const tabs = page.getByRole('group', { name: '포트폴리오 내역 보기' });
+    await ledgerAdd.scrollIntoViewIfNeeded();
+    expect(
+      await page
+        .locator('.portfolio-ledger-toolbar')
+        .evaluate((el) => el.scrollWidth <= el.clientWidth),
+    ).toBe(true);
+    await page
+      .locator('.portfolio-ledger-toolbar')
+      .screenshot({ path: testInfo.outputPath('ledger-add-button.png') });
+    await page
+      .locator('[data-portfolio-tour="holdings-overview"]')
+      .screenshot({ path: testInfo.outputPath('ledger-empty-state.png') });
+    await tabs.getByRole('button', { name: '거래 내역', exact: true }).click();
+    await ledgerAdd.click();
+    await expect(
+      page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
+    ).toBeFocused();
+    await page
+      .getByRole('dialog', { name: '거래 기록' })
+      .getByRole('button', { name: '닫기', exact: true })
+      .click();
+    await expect(ledgerAdd).toBeFocused();
+    await tabs.getByRole('button', { name: '보유 자산 0', exact: true }).click();
+    await ledgerAdd.click();
     const dialog = page.getByRole('dialog', { name: '거래 기록' });
     const input = dialog.getByRole('searchbox', { name: '종목 검색' });
     await expect(input).toBeFocused();
@@ -512,7 +537,7 @@ for (const viewport of [
     });
     await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
-    const assetTrigger = page.getByRole('button', { name: '거래 기록', exact: true });
+    const assetTrigger = page.getByRole('button', { name: '종목 추가', exact: true });
     await assetTrigger.click();
     const assetEditor = page.getByRole('dialog', { name: '거래 기록' });
     await expect(assetEditor).toBeVisible();
@@ -1297,7 +1322,7 @@ for (const viewport of [
     await expect(detail).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
-    const trigger = page.getByRole('button', { name: '거래 기록', exact: true });
+    const trigger = page.getByRole('button', { name: '종목 추가', exact: true });
     await trigger.click();
     await expect(
       page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),

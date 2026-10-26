@@ -394,6 +394,47 @@ body:has(.portfolio-page) .daynomy-footer {
     padding: 16px;
   }
 }
+.portfolio-ledger-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  border-bottom: 1px solid #e5eaf1;
+  margin-bottom: 24px;
+}
+.portfolio-ledger-toolbar .portfolio-ledger-tabs {
+  flex: 1;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+.portfolio-page .portfolio-ledger-toolbar .portfolio-ledger-add {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  min-height: 32px;
+  margin-block: 6px;
+  padding-inline: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #52647f;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.portfolio-page .portfolio-ledger-toolbar .portfolio-ledger-add:hover:not(:disabled) {
+  background: transparent;
+  color: #34445e;
+}
+.portfolio-ledger-add svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
 .portfolio-ledger-tabs {
   display: flex;
   gap: 28px;
@@ -401,6 +442,7 @@ body:has(.portfolio-page) .daynomy-footer {
   margin-bottom: 24px;
 }
 .portfolio-ledger-tabs button {
+  white-space: nowrap;
   padding: 15px 0;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -492,6 +534,12 @@ body:has(.portfolio-page) .daynomy-footer {
   font-size: 13px;
   line-height: 1.7;
   margin-bottom: 20px;
+}
+.portfolio-ledger-empty > .portfolio-secondary-button.is-primary {
+  min-height: 40px;
+  padding-inline: 16px;
+  border: 0;
+  font-size: 14px;
 }
 .portfolio-empty-mark {
   display: inline-grid;
@@ -1261,7 +1309,11 @@ body:has(.portfolio-page) .daynomy-footer {
     padding: 16px;
   }
   .portfolio-ledger-tabs {
-    gap: 24px;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  .portfolio-ledger-toolbar {
+    gap: 8px;
     margin-bottom: 18px;
   }
   .portfolio-ledger-tabs button {

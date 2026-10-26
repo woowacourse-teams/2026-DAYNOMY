@@ -314,7 +314,7 @@ describe('포트폴리오 화면', () => {
     localStorage.removeItem('daynomy:portfolio-tour:v1');
     const view = render(<PortfolioPage isLoggedIn={false} />);
     await waitFor(() =>
-      expect((view.getByRole('button', { name: '거래 기록' }) as HTMLButtonElement).disabled).toBe(
+      expect((view.getByRole('button', { name: '종목 추가' }) as HTMLButtonElement).disabled).toBe(
         false,
       ),
     );
@@ -505,7 +505,7 @@ describe('포트폴리오 화면', () => {
   it('비회원이 추가한 자산을 브라우저 세션에 저장한다', async () => {
     mockPortfolioApi();
     const view = render(<PortfolioPage isLoggedIn={false} />);
-    fireEvent.click(await view.findByRole('button', { name: '거래 기록' }));
+    fireEvent.click(await view.findByRole('button', { name: '종목 추가' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
@@ -683,7 +683,7 @@ describe('포트폴리오 화면', () => {
       sessionStorage.setItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY, stored);
       mockPortfolioApi();
       const view = render(<PortfolioPage isLoggedIn={false} />);
-      expect(await view.findByRole('button', { name: '거래 기록하기' })).toBeTruthy();
+      expect(await view.findByRole('heading', { name: '보유 중인 자산이 없어요' })).toBeTruthy();
       expect(sessionStorage.getItem(GUEST_PORTFOLIO_HOLDINGS_STORAGE_KEY)).toBeNull();
       expect(
         vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes('/api/portfolio')),
@@ -707,15 +707,41 @@ describe('포트폴리오 화면', () => {
     expect(toPortfolioAnalysisAssets([zeroWeightHolding])).toEqual([]);
   });
 
+  it.each([true, false])(
+    '로그인 여부 %s에서 두 목록 탭 옆 버튼으로 종목을 추가한다',
+    async (isLoggedIn) => {
+      const view = render(<PortfolioPage isLoggedIn={isLoggedIn} />);
+      const add = await view.findByRole('button', { name: '목록에서 종목 추가' });
+      await waitFor(() => expect(add).toHaveProperty('disabled', false));
+      const tabs = view.getByRole('group', { name: '포트폴리오 내역 보기' });
+      for (const tab of ['보유 자산 0', '거래 내역']) {
+        fireEvent.click(within(tabs).getByRole('button', { name: tab }));
+        fireEvent.click(add);
+        const dialog = view.getByRole('dialog', { name: '거래 기록' });
+        expect(within(dialog).getByRole('searchbox', { name: '종목 검색' })).toBeTruthy();
+        fireEvent.click(within(dialog).getByRole('button', { name: '닫기' }));
+      }
+      expect(
+        vi
+          .mocked(trackPortfolioEvent)
+          .mock.calls.filter(
+            ([name, params]) =>
+              name === 'portfolio_editor_opened' && params?.entry_point === 'ledger',
+          ),
+      ).toHaveLength(2);
+    },
+  );
+
   it('저장된 자산이 없어도 빈 대시보드를 표시한다', async () => {
     const view = render(<PortfolioPage />);
     expect(await view.findByRole('button', { name: '자산 분석 접기' })).toBeTruthy();
     expect(view.queryByRole('heading', { name: '첫 자산을 추가해 보세요' })).toBeNull();
-    expect(view.getByRole('button', { name: '거래 기록' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '종목 추가' })).toBeTruthy();
     expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy();
     const emptyHoldings = within(view.getByRole('region', { name: '보유 자산' }));
     expect(emptyHoldings.getByRole('heading', { name: '보유 중인 자산이 없어요' })).toBeTruthy();
-    expect(emptyHoldings.getByRole('button', { name: '거래 기록하기' })).toBeTruthy();
+    expect(emptyHoldings.queryByRole('button')).toBeNull();
+    expect(view.getByRole('region', { name: '보유 자산' }).querySelector('p')).toBeNull();
     expect(emptyHoldings.queryByRole('table')).toBeNull();
     expect(emptyHoldings.queryByRole('combobox')).toBeNull();
     const summary = within(view.getByLabelText('자산 요약'));
@@ -1460,9 +1486,9 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '거래 기록' })).toHaveProperty('disabled', false),
+      expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '거래 기록' }));
+    fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 
@@ -1498,9 +1524,9 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '거래 기록' })).toHaveProperty('disabled', false),
+      expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '거래 기록' }));
+    fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 
@@ -1541,9 +1567,9 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '거래 기록' })).toHaveProperty('disabled', false),
+      expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '거래 기록' }));
+    fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
     const dialog = view.getByRole('dialog');
@@ -1572,9 +1598,9 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '거래 기록' })).toHaveProperty('disabled', false),
+      expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '거래 기록' }));
+    fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 
@@ -1615,9 +1641,9 @@ describe('포트폴리오 화면', () => {
 
     const view = render(<PortfolioPage />);
     await waitFor(() =>
-      expect(view.getByRole('button', { name: '거래 기록' })).toHaveProperty('disabled', false),
+      expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
-    fireEvent.click(view.getByRole('button', { name: '거래 기록' }));
+    fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 

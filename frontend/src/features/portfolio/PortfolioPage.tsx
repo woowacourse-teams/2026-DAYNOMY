@@ -1061,7 +1061,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
 
   function openTransactionEditor(
     next: NonNullable<typeof transactionEditor>,
-    entryPoint: 'header' | 'empty_state' | 'history' | 'holding_detail' | 'editor_switch',
+    entryPoint:
+      'header' | 'empty_state' | 'ledger' | 'history' | 'holding_detail' | 'editor_switch',
   ) {
     trackPortfolioEvent('portfolio_editor_opened', {
       mode: next.transaction ? 'transaction_update' : 'transaction_create',
@@ -1071,7 +1072,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     setTransactionEditor(next);
   }
 
-  function openAdd(entryPoint: 'header' | 'empty_state') {
+  function openAdd(entryPoint: 'header' | 'empty_state' | 'ledger') {
     openTransactionEditor({}, entryPoint);
   }
 
@@ -1211,7 +1212,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="M12 5v14M5 12h14" />
             </svg>
-            거래 기록
+            종목 추가
           </button>
         </div>
       </header>
@@ -1467,27 +1468,41 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 </section>
 
                 <div data-portfolio-tour="holdings-overview">
-                  <div
-                    data-portfolio-tour="ledger"
-                    className="portfolio-ledger-tabs"
-                    role="group"
-                    aria-label="포트폴리오 내역 보기"
-                  >
+                  <div className="portfolio-ledger-toolbar">
+                    <div
+                      data-portfolio-tour="ledger"
+                      className="portfolio-ledger-tabs"
+                      role="group"
+                      aria-label="포트폴리오 내역 보기"
+                    >
+                      <button
+                        type="button"
+                        data-portfolio-tour="holdings"
+                        aria-pressed={displayedTab === 'holdings'}
+                        onClick={() => changeTab('holdings')}
+                      >
+                        보유 자산 <span>{displayedHoldings.length}</span>
+                      </button>
+                      <button
+                        type="button"
+                        data-portfolio-tour="history"
+                        aria-pressed={displayedTab === 'history'}
+                        onClick={() => changeTab('history')}
+                      >
+                        거래 내역
+                      </button>
+                    </div>
                     <button
                       type="button"
-                      data-portfolio-tour="holdings"
-                      aria-pressed={displayedTab === 'holdings'}
-                      onClick={() => changeTab('holdings')}
+                      className="portfolio-secondary-button portfolio-ledger-add"
+                      aria-label="목록에서 종목 추가"
+                      disabled={holdingsLoading || !!holdingsError}
+                      onClick={() => openAdd('ledger')}
                     >
-                      보유 자산 <span>{displayedHoldings.length}</span>
-                    </button>
-                    <button
-                      type="button"
-                      data-portfolio-tour="history"
-                      aria-pressed={displayedTab === 'history'}
-                      onClick={() => changeTab('history')}
-                    >
-                      거래 내역
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      종목 추가
                     </button>
                   </div>
                   {displayedTab === 'history' ? (
@@ -1503,18 +1518,6 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                       {displayedHoldings.length === 0 ? (
                         <div className="portfolio-ledger-empty">
                           <h3>보유 중인 자산이 없어요</h3>
-                          <p>
-                            {isLoggedIn
-                              ? '매수·매도를 기록해 보세요. 전량 매도한 종목의 거래 내역과 실현손익도 유지돼요.'
-                              : '매수·매도를 기록하고 보유 자산의 평가금액을 확인해 보세요.'}
-                          </p>
-                          <button
-                            type="button"
-                            className="portfolio-secondary-button is-primary"
-                            onClick={() => openAdd('empty_state')}
-                          >
-                            거래 기록하기
-                          </button>
                         </div>
                       ) : (
                         <div className="portfolio-holdings-layout">
