@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 public record ImportantStockSelection(
     LocalDate baseDate, LocalDate previousBaseDate, boolean completePrices, List<Stock> stocks) {
@@ -27,6 +28,15 @@ public record ImportantStockSelection(
       LocalDate previousBaseDate,
       List<HoldingPrice> holdings,
       boolean comparableCurrency) {
+    return select(baseDate, previousBaseDate, holdings, comparableCurrency, Set.of());
+  }
+
+  public static ImportantStockSelection select(
+      LocalDate baseDate,
+      LocalDate previousBaseDate,
+      List<HoldingPrice> holdings,
+      boolean comparableCurrency,
+      Set<Long> importantEvents) {
     boolean complete =
         comparableCurrency && holdings.stream().allMatch(HoldingPrice::hasBothPrices);
     BigDecimal total =
@@ -38,9 +48,14 @@ public record ImportantStockSelection(
 
     List<Stock> selected =
         holdings.stream()
-            .filter(HoldingPrice::hasBothPrices)
-            .filter(holding -> holding.isImportant(total))
-            .sorted(priority(total))
+            .filter(
+                holding ->
+                    importantEvents.contains(holding.assetId())
+                        || (holding.hasBothPrices() && holding.isImportant(total)))
+            .sorted(
+                Comparator.comparing(
+                        (HoldingPrice holding) -> !importantEvents.contains(holding.assetId()))
+                    .thenComparing(priority(total)))
             .limit(MAX_STOCKS)
             .map(holding -> holding.toStock(total))
             .toList();
@@ -66,7 +81,10 @@ public record ImportantStockSelection(
       Long assetId, long quantity, BigDecimal closePrice, BigDecimal previousClosePrice) {
 
     private boolean hasBothPrices() {
-      return closePrice != null && previousClosePrice != null;
+      return closePrice != null
+          && closePrice.signum() > 0
+          && previousClosePrice != null
+          && previousClosePrice.signum() > 0;
     }
 
     private BigDecimal previousValue() {
@@ -96,7 +114,7 @@ public record ImportantStockSelection(
     private Stock toStock(BigDecimal total) {
       return new Stock(
           assetId,
-          percentage(priceChange(), previousClosePrice),
+          hasBothPrices() ? percentage(priceChange(), previousClosePrice) : null,
           total.signum() > 0 ? percentage(previousValue(), total) : null,
           total.signum() > 0 ? percentage(valueChange(), total) : null);
     }

@@ -54,6 +54,21 @@ class EmailStockDigestTest {
     assertThat(current.newInformation(Map.of(99L, current), Set.of()).body()).contains("처음 안내");
   }
 
+  @Test
+  void eventAnalysisWithMissingPricesDoesNotInventReturnsOrRepeatUnchangedEvidence() {
+    var before = digest(1L, date, "실적", "매출 증가", ImpactDirection.POSITIVE);
+    var content = before.stocks().getFirst().content();
+    var current =
+        new EmailStockDigest(
+            date.plusDays(1),
+            date,
+            List.of(new EmailStockDigest.Stock(2L, 1L, "종목", null, null, null, content)));
+    assertThat(current.newInformation(Map.of(), Set.of()).body())
+        .contains("가격 정보 미확인")
+        .doesNotContain("등락률:");
+    assertThat(current.newInformation(Map.of(1L, before), Set.of()).stocks()).isEmpty();
+  }
+
   private EmailStockDigest digest(
       Long id, LocalDate base, String summary, String quote, ImpactDirection direction) {
     var content =

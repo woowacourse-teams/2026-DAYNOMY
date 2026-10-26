@@ -48,7 +48,8 @@ public record EmailStockDigest(LocalDate baseDate, LocalDate previousBaseDate, L
         boolean newEvidence = !evidence.isEmpty();
         boolean priceChanged =
             baseDate.isAfter(digest.baseDate())
-                && (stock.dailyReturnRate().abs().compareTo(BigDecimal.valueOf(5)) >= 0
+                && ((stock.dailyReturnRate() != null
+                        && stock.dailyReturnRate().abs().compareTo(BigDecimal.valueOf(5)) >= 0)
                     || (stock.contribution() != null
                         && stock.contribution().abs().compareTo(BigDecimal.ONE) >= 0));
         if (!newEvidence && !priceChanged) continue;
@@ -124,7 +125,9 @@ public record EmailStockDigest(LocalDate baseDate, LocalDate previousBaseDate, L
       body.append(stock.content().reason()).append("\n");
       if (includeChanges && stock.changeSummary() != null)
         body.append(stock.changeSummary()).append("\n");
-      body.append("종목 등락률: ").append(number(stock.dailyReturnRate())).append("%\n");
+      if (stock.dailyReturnRate() != null)
+        body.append("종목 등락률: ").append(number(stock.dailyReturnRate())).append("%\n");
+      else body.append("종목 가격 정보 미확인\n");
       if (stock.weight() != null && stock.contribution() != null) {
         body.append("현재 보유 수량 기준, ")
             .append(previousBaseDate)

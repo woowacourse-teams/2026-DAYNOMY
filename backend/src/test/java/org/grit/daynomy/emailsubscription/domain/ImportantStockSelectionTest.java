@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import org.grit.daynomy.emailsubscription.domain.ImportantStockSelection.HoldingPrice;
 import org.grit.daynomy.emailsubscription.domain.ImportantStockSelection.Stock;
 import org.junit.jupiter.api.Test;
@@ -121,6 +122,33 @@ class ImportantStockSelectionTest {
     var result = select(holding(2L, 1, "105", "100"), holding(1L, 1, "105", "100"));
 
     assertThat(result.stocks()).extracting(Stock::assetId).containsExactly(1L, 2L);
+  }
+
+  @Test
+  void prioritizesEarningsAndKeepsEventsWithMissingPrices() {
+    var result =
+        ImportantStockSelection.select(
+            baseDate,
+            previousDate,
+            List.of(
+                holding(1L, 1, "150", "100"),
+                holding(2L, 1, "100", "100"),
+                new HoldingPrice(3L, 1, null, null),
+                holding(4L, 1, "120", "100")),
+            true,
+            Set.of(2L, 3L));
+    assertThat(result.stocks()).extracting(Stock::assetId).containsExactly(2L, 3L, 1L);
+    assertThat(result.stocks().get(1).dailyReturnRate()).isNull();
+    assertThat(result.completePrices()).isFalse();
+  }
+
+  @Test
+  void zeroPricesDoNotInventAStockReturn() {
+    var result =
+        ImportantStockSelection.select(
+            baseDate, previousDate, List.of(holding(1L, 1, "100", "0")), true, Set.of(1L));
+    assertThat(result.stocks()).hasSize(1);
+    assertThat(result.stocks().getFirst().dailyReturnRate()).isNull();
   }
 
   private ImportantStockSelection select(HoldingPrice... holdings) {
