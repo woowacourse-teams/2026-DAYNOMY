@@ -573,6 +573,7 @@ function AnalysisSources({
   scope: 'overall' | 'asset';
   demo?: boolean;
 }) {
+  const uniqueSources = [...new Map(sources.map((source) => [source.url, source])).values()];
   return (
     <details
       className="portfolio-evidence"
@@ -582,7 +583,7 @@ function AnalysisSources({
           trackEvent('expand_portfolio_analysis_sources', {
             surface: 'portfolio_analysis',
             scope,
-            source_count: sources.length,
+            source_count: uniqueSources.length,
           });
       }}
     >
@@ -591,9 +592,9 @@ function AnalysisSources({
         <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
         <span className="portfolio-evidence-toggle-icon" aria-hidden="true" />
       </summary>
-      {sources.length ? (
+      {uniqueSources.length ? (
         <ul className="portfolio-evidence-sources">
-          {sources.map((source) => (
+          {uniqueSources.map((source) => (
             <li key={source.url}>
               <a href={source.url} target="_blank" rel="noopener noreferrer">
                 {source.title}
@@ -613,7 +614,6 @@ function AnalysisSources({
                   </span>
                 ) : null}
               </div>
-              {source.excerpt ? <p>{source.excerpt}</p> : null}
             </li>
           ))}
         </ul>

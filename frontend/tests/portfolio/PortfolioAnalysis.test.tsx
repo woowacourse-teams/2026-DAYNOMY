@@ -313,7 +313,7 @@ describe('포트폴리오 분석 화면', () => {
     );
   });
 
-  it('본문은 세 문단으로 읽고 출처의 날짜와 근거는 하단에서 확인한다', async () => {
+  it('전체·종목 출처는 중복 링크와 설명 없이 제목·날짜만 표시한다', async () => {
     const source = {
       title: '기업 실적 발표',
       url: 'https://example.com/results',
@@ -321,12 +321,13 @@ describe('포트폴리오 분석 화면', () => {
       occurredOn: '2026-10-05',
       excerpt: '매출 증가를 발표했어요.',
     };
+    const sources = [source, { ...source, excerpt: '중복 출처의 다른 설명이에요.' }];
     const response = {
       ...analysisResponse,
       overallImpact:
         '새 실적이 발표됐어요.[1]\n\n이익 개선을 기대해요. 규모는 미확정이에요.\n\n다음 발표를 확인해요.',
-      sources: [source],
-      impacts: analysisResponse.impacts.map((impact) => ({ ...impact, sources: [source] })),
+      sources,
+      impacts: analysisResponse.impacts.map((impact) => ({ ...impact, sources })),
     };
     stubTaskFetch(vi.fn(async () => jsonResponse(response)));
     const view = render(<PortfolioAnalysis assets={assets} isLoggedIn={false} />);
@@ -345,9 +346,15 @@ describe('포트폴리오 분석 화면', () => {
     );
     expect(view.getByText('2026-10-06')).toBeTruthy();
     expect(view.getByText('2026-10-05')).toBeTruthy();
-    expect(view.getByText(source.excerpt)).toBeTruthy();
+    expect(view.getAllByRole('link', { name: source.title })).toHaveLength(1);
+    expect(view.queryByText(source.excerpt)).toBeNull();
+    expect(view.queryByText(sources[1].excerpt)).toBeNull();
     fireEvent.click(view.getByText('삼성전자').closest('button')!);
     expect(view.container.querySelectorAll('.portfolio-detail-copy p')).toHaveLength(3);
+    fireEvent.click(view.getByText('분석 출처 모두 보기'));
+    expect(view.getAllByRole('link', { name: source.title })).toHaveLength(1);
+    expect(view.queryByText(source.excerpt)).toBeNull();
+    expect(view.queryByText(sources[1].excerpt)).toBeNull();
   });
 
   it('가중 영향 점수의 산정 기준과 기여 점수를 안내한다', async () => {
