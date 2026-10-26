@@ -363,7 +363,10 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
   );
 }
 
-export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolean } = {}) {
+export function InvestmentCalendarPage({
+  embedded = false,
+  upcomingOnly = false,
+}: { embedded?: boolean; upcomingOnly?: boolean } = {}) {
   const { isLoggedIn, loading: authLoading } = useAuth();
   const initial = initialMonth();
   const [year, setYear] = useState(initial.year);
@@ -371,12 +374,15 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
   const [events, setEvents] = useState<InvestmentCalendarEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [calendarView, setCalendarView] = useState(false);
-  const [calendarScope, setCalendarScope] = useState<InvestmentCalendarScope>('PORTFOLIO');
+  const [calendarScope, setCalendarScope] = useState<InvestmentCalendarScope>(
+    upcomingOnly ? 'ALL' : 'PORTFOLIO',
+  );
   const [isDemo, setIsDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const requestedScope: InvestmentCalendarScope = calendarView ? calendarScope : 'PORTFOLIO';
+  const requestedScope: InvestmentCalendarScope =
+    calendarView || upcomingOnly ? calendarScope : 'PORTFOLIO';
 
   useEffect(() => {
     if (authLoading) {
@@ -395,9 +401,15 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
       signal: controller.signal,
     }).then(
       (result) => {
-        setEvents(result.calendar.events);
+        if (controller.signal.aborted) return;
+        const available = upcomingOnly
+          ? result.calendar.events
+              .filter((event) => Date.parse(event.announcedAt) >= Date.now())
+              .sort((a, b) => Date.parse(a.announcedAt) - Date.parse(b.announcedAt))
+          : result.calendar.events;
+        setEvents(available);
         setIsDemo(result.isDemo);
-        setSelectedEventId(result.calendar.events[0]?.id ?? null);
+        setSelectedEventId(upcomingOnly ? null : (result.calendar.events[0]?.id ?? null));
         setLoading(false);
       },
       (requestError: unknown) => {
@@ -409,7 +421,7 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
       },
     );
     return () => controller.abort();
-  }, [authLoading, isLoggedIn, month, reloadKey, requestedScope, year]);
+  }, [authLoading, isLoggedIn, month, reloadKey, requestedScope, year, upcomingOnly]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId) ?? null,
@@ -442,11 +454,18 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
             {embedded ? <h2 id="investment-calendar-title">투자 캘린더</h2> : <h1>투자 캘린더</h1>}
             {isDemo ? <span className="investment-calendar-demo-badge">데모 데이터</span> : null}
           </div>
-          <p>다가오는 발표 전, 내 자산이 과거에 어떻게 움직였는지 확인하세요.</p>
+          <p>
+            {upcomingOnly
+              ? '다가오는 일정을 선택해 자세한 내용을 확인하세요.'
+              : '다가오는 발표 전, 내 자산이 과거에 어떻게 움직였는지 확인하세요.'}
+          </p>
         </div>
       </header>
 
-      <section className="investment-calendar-workspace" aria-label="투자 일정과 내 자산 영향">
+      <section
+        className={`investment-calendar-workspace${upcomingOnly && !selectedEvent ? ' investment-calendar-workspace--unselected' : ''}`}
+        aria-label="투자 일정과 내 자산 영향"
+      >
         <aside className="investment-calendar-schedule">
           <div className="investment-calendar-panel-head">
             <div className="investment-calendar-month-control">
@@ -502,7 +521,9 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
             </div>
           ) : events.length === 0 ? (
             <div className="investment-calendar-side-state">
-              <strong>이번 달 예정된 일정이 없어요.</strong>
+              <strong>
+                {upcomingOnly ? '이번 달 남은 일정이 없어요.' : '이번 달 예정된 일정이 없어요.'}
+              </strong>
               <p>다른 달을 확인해 보세요.</p>
             </div>
           ) : calendarView ? (
@@ -533,8 +554,14 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
                     <span>
                       <span className="investment-calendar-event-name">{copy.shortTitle}</span>
                       <span className="investment-calendar-event-meta">
-                        영향 {impactLabel(event.portfolioAnalysis.impactLevel)} ·{' '}
-                        {copy.relatedLabel}
+                        {upcomingOnly ? (
+                          '일정 자세히 보기'
+                        ) : (
+                          <>
+                            영향 {impactLabel(event.portfolioAnalysis.impactLevel)} ·{' '}
+                            {copy.relatedLabel}
+                          </>
+                        )}
                       </span>
                     </span>
                   </button>
@@ -544,7 +571,7 @@ export function InvestmentCalendarPage({ embedded = false }: { embedded?: boolea
           )}
         </aside>
 
-        {loading ? (
+        {upcomingOnly && !selectedEvent ? null : loading ? (
           <div className="investment-calendar-detail-state" aria-busy="true" />
         ) : selectedEvent ? (
           <EventDetail event={selectedEvent} />

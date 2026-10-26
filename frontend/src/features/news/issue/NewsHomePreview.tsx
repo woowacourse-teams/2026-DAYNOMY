@@ -480,7 +480,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
           </Link>
         </section>
         <div id="briefing-calendar" className="briefing-calendar-content">
-          <InvestmentCalendarPage embedded />
+          <InvestmentCalendarPage embedded upcomingOnly />
         </div>
       </div>
     </main>

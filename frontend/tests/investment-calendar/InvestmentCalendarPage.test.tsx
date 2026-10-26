@@ -210,3 +210,31 @@ describe('투자 캘린더 화면', () => {
     expect(view.getByText(/표본이 3회 이상 쌓이면/)).toBeTruthy();
   });
 });
+
+it('소식 홈에서는 다가오는 일정만 날짜순으로 표시하고 선택 후 상세를 연다', async () => {
+  const calendar = getMockInvestmentCalendar(2026, 10);
+  const base = calendar.events[0];
+  mockedGetInvestmentCalendar.mockResolvedValue({
+    calendar: {
+      ...calendar,
+      events: [
+        { ...base, id: 91, announcedAt: '2026-10-05T09:00:00+09:00' },
+        { ...base, id: 92, announcedAt: '2026-10-08T09:00:00+09:00' },
+        { ...base, id: 93, announcedAt: '2026-10-07T09:00:00+09:00' },
+      ],
+    },
+    isDemo: true,
+  });
+  const view = renderCalendar(<InvestmentCalendarPage embedded upcomingOnly />);
+  await waitFor(() =>
+    expect(view.container.querySelectorAll('.investment-calendar-event-button')).toHaveLength(2),
+  );
+  expect(view.container.querySelector('.investment-calendar-detail')).toBeNull();
+  const buttons = view.container.querySelectorAll<HTMLButtonElement>(
+    '.investment-calendar-event-button',
+  );
+  expect(buttons[0].querySelector('strong')?.textContent).toBe('7');
+  fireEvent.click(buttons[0]);
+  expect(view.container.querySelector('.investment-calendar-detail')).toBeTruthy();
+  expect(mockedGetInvestmentCalendar).toHaveBeenCalledWith(2026, 10, 'ALL', expect.any(Object));
+});
