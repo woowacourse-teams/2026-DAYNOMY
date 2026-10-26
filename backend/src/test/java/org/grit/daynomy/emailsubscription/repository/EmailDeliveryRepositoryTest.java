@@ -66,6 +66,59 @@ class EmailDeliveryRepositoryTest {
   private final Instant asOf = now.minusSeconds(7200);
 
   @Test
+  void lastNoticeUsesAcceptanceAndBlocksUnknownWhilePersistingExactDigest() {
+    var member = em.persist(member());
+    var asset =
+        em.persist(
+            org.grit.daynomy.asset.domain.Asset.listedStock(
+                "종목",
+                "005930",
+                org.grit.daynomy.asset.domain.StockMarket.KOSPI,
+                null,
+                LocalDate.of(2026, 10, 26)));
+    var analysis =
+        em.persist(
+            new CommonStockAnalysis(
+                asset,
+                new CommonStockAnalysisKey(asset.getId(), "model", "v1", "e1", asOf),
+                new CommonStockAnalysisContent(null, null, "소식", "", "", "근거", List.of()),
+                "a".repeat(64),
+                asOf));
+    var snapshot =
+        new EmailStockDigest(
+            LocalDate.of(2026, 10, 23),
+            LocalDate.of(2026, 10, 22),
+            List.of(
+                new EmailStockDigest.Stock(
+                    analysis.getId(),
+                    asset.getId(),
+                    "종목",
+                    BigDecimal.TEN,
+                    null,
+                    null,
+                    analysis.getContent())));
+    var old =
+        em.persist(
+            new EmailDelivery(
+                member, asOf.minusSeconds(86400), snapshot, LocalDate.of(2026, 10, 25)));
+    old.claim(now.minusSeconds(86400));
+    old.accepted("old-provider", now.minusSeconds(86400));
+    var current = em.persist(new EmailDelivery(member, asOf, snapshot, LocalDate.of(2026, 10, 26)));
+    em.flush();
+    assertThat(
+            deliveries.findLastNoticeForAsset(member.getId(), asset.getId()).orElseThrow().getId())
+        .isEqualTo(old.getId());
+    current.claim(now);
+    current.unknown();
+    em.flush();
+    em.clear();
+    var found = deliveries.findLastNoticeForAsset(member.getId(), asset.getId()).orElseThrow();
+    assertThat(found.getId()).isEqualTo(current.getId());
+    assertThat(found.getStockDigest()).isEqualTo(snapshot);
+    assertThat(deliveries.findLastNoticeForAsset(member.getId(), asset.getId() + 1)).isEmpty();
+  }
+
+  @Test
   void dueQueryExcludesEarlyRetriesUnknownResultsAndPreviousDays() {
     var date = LocalDate.of(2026, 10, 26);
     var ready = em.persist(new EmailDelivery(em.persist(member()), asOf, digest(), date));

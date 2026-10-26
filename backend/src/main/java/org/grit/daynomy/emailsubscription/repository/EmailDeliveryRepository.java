@@ -16,6 +16,20 @@ public interface EmailDeliveryRepository extends JpaRepository<EmailDelivery, UU
   Optional<EmailDelivery> findByMemberIdAndDeliveryDate(Long memberId, LocalDate date);
 
   @Query(
+      value =
+          """
+      SELECT d.* FROM email_deliveries d
+      WHERE d.member_id = :memberId AND d.status IN ('ACCEPTED', 'SENDING', 'UNKNOWN')
+        AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(d.analysis_ids) item(value)
+          JOIN email_common_stock_analyses a ON a.id = cast(item.value AS BIGINT)
+          WHERE a.asset_id = :assetId)
+      ORDER BY CASE WHEN d.status = 'ACCEPTED' THEN 1 ELSE 0 END,
+        d.accepted_at DESC NULLS LAST, d.delivery_date DESC, d.id DESC LIMIT 1
+      """,
+      nativeQuery = true)
+  Optional<EmailDelivery> findLastNoticeForAsset(Long memberId, Long assetId);
+
+  @Query(
       """
       select d.id from EmailDelivery d where d.deliveryDate = :date and d.status in :statuses
         and d.nextAttemptAt <= :now order by d.nextAttemptAt, d.id

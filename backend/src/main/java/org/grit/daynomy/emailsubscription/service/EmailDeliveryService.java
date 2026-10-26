@@ -2,12 +2,15 @@ package org.grit.daynomy.emailsubscription.service;
 
 import java.time.Instant;
 import java.time.LocalTime;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.emailsubscription.domain.EmailAnalysisPolicy;
 import org.grit.daynomy.emailsubscription.domain.EmailDelivery;
+import org.grit.daynomy.emailsubscription.domain.EmailStockDigest;
 import org.grit.daynomy.emailsubscription.domain.EmailSubscription;
 import org.grit.daynomy.emailsubscription.domain.EmailSubscriptionStatus;
 import org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository;
@@ -48,6 +51,8 @@ public class EmailDeliveryService {
     if (unseen.isEmpty()) return Optional.empty();
     return digests
         .compose(memberId, asOf, unseen)
+        .map(digest -> newInformation(memberId, digest))
+        .filter(digest -> !digest.stocks().isEmpty())
         .map(
             digest -> {
               var delivery = new EmailDelivery(member, asOf, digest, date);
@@ -72,7 +77,12 @@ public class EmailDeliveryService {
     }
     // 본문 재구성으로 현재 보유·가격·분석 유효성을 확인하고 달라진 내용은 보내지 않는다.
     var current = digests.compose(member.getId(), delivery.getAsOf(), delivery.getAnalysisIds());
-    if (current.isEmpty() || !current.get().body().equals(delivery.getBody())) {
+    if (current.isEmpty()
+        || delivery.getStockDigest() == null
+        || !current
+            .get()
+            .bodyWithoutChanges()
+            .equals(delivery.getStockDigest().bodyWithoutChanges())) {
       delivery.cancel();
       return Optional.empty();
     }
@@ -102,6 +112,22 @@ public class EmailDeliveryService {
     return deliveries
         .findByIdForUpdate(id)
         .orElseThrow(() -> new IllegalArgumentException("발송 작업이 존재하지 않습니다."));
+  }
+
+  private EmailStockDigest newInformation(Long memberId, EmailStockDigest digest) {
+    var previous = new HashMap<Long, EmailStockDigest>();
+    var blocked = new HashSet<Long>();
+    for (var stock : digest.stocks()) {
+      deliveries
+          .findLastNoticeForAsset(memberId, stock.assetId())
+          .ifPresent(
+              delivery -> {
+                if (delivery.getStatus() != EmailDelivery.Status.ACCEPTED
+                    || delivery.getStockDigest() == null) blocked.add(stock.assetId());
+                else previous.put(stock.assetId(), delivery.getStockDigest());
+              });
+    }
+    return digest.newInformation(previous, blocked);
   }
 
   private EmailSubscription subscribed(Long memberId) {

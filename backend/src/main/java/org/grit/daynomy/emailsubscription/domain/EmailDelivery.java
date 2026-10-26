@@ -51,6 +51,10 @@ public class EmailDelivery {
   private String unsubscribeUrl;
 
   @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "stock_digest", columnDefinition = "jsonb")
+  private EmailStockDigest stockDigest;
+
+  @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "analysis_ids", nullable = false, columnDefinition = "jsonb")
   private List<Long> analysisIds;
 
@@ -84,6 +88,7 @@ public class EmailDelivery {
     this.deliveryDate = date;
     this.subject = digest.subject();
     this.body = digest.body();
+    this.stockDigest = digest;
     this.analysisIds =
         digest.stocks().stream().map(EmailStockDigest.Stock::analysisId).distinct().toList();
     if (analysisIds.stream().anyMatch(value -> value == null || value <= 0))
