@@ -33,28 +33,22 @@ with patch.dict(os.environ, {
 }
 
 for (const script of ['league-rankings-load.js', 'league-investor-details-load.js', 'content-search-load.js']) {
-  test(`${script}: warmup metrics are separated and only the second run decides performance`, () => {
-    for (const warmupExit of [0, 99]) {
-      const result = runWorkflow(script, [warmupExit, 0]);
-      assert.equal(result.code, 0);
-      assert.equal(result.calls.length, 2);
-      const [warmup, measured] = result.calls;
-      assert.ok(warmup.includes('testid=123-1-warmup'));
-      assert.ok(warmup.includes('run_phase=warmup'));
-      assert.ok(measured.includes('testid=123-1'));
-      assert.ok(measured.includes('run_phase=measurement'));
-      const options = (args) => args.slice(0, args.indexOf('--tag'));
-      assert.deepEqual(options(warmup), options(measured));
-      assert.ok(measured.includes('RPS=100'));
-      assert.ok(measured.includes('VUS=50'));
-      assert.equal(warmup.at(-1), script);
-      assert.equal(measured.at(-1), script);
-    }
-    assert.equal(runWorkflow(script, [99, 99]).code, 99);
+  test(`${script}: the original workflow runs the selected script once with its parameters`, () => {
+    const params = { RPS: 100, VUS: 50 };
+    if (script === 'content-search-load.js') params.QUERY = '금리';
+    const result = runWorkflow(script, [0], params);
+    assert.equal(result.code, 0);
+    assert.equal(result.calls.length, 1);
+    const [args] = result.calls;
+    assert.ok(args.includes('testid=123-1'));
+    assert.ok(args.includes('RPS=100'));
+    assert.ok(args.includes('VUS=50'));
+    if (params.QUERY) assert.ok(args.includes('QUERY=금리'));
+    assert.equal(args.at(-1), script);
   });
 
-  test(`${script}: warmup setup/runtime failures stop before measurement`, () => {
-    for (const code of [1, 107, -15]) {
+  test(`${script}: HTTP threshold and runtime failures propagate without an automatic retry`, () => {
+    for (const code of [1, 99, 107, -15]) {
       const result = runWorkflow(script, [code]);
       assert.equal(result.code, code);
       assert.equal(result.calls.length, 1);
@@ -68,7 +62,7 @@ test('other scripts still run once and propagate threshold failures', () => {
   assert.equal(result.calls.length, 1);
 });
 
-test('invalid parameters stop before either run', () => {
+test('invalid parameters stop before running k6', () => {
   const result = runWorkflow('league-rankings-load.js', [], { BASE_URL: 'https://other.invalid' });
   assert.equal(result.calls.length, 0);
   assert.equal(result.code, 'BASE_URL and ACCOUNTS_FILE are managed by the workflow.');
