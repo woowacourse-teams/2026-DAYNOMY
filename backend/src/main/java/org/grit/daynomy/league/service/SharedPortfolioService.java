@@ -56,6 +56,7 @@ public class SharedPortfolioService {
   private final InvestorProfileRepository profileRepository;
   private final InvestmentDecisionRepository decisionRepository;
   private final InvestmentDecisionService decisionService;
+  private final LeagueRankingCache rankingCache;
 
   @Transactional(readOnly = true)
   public PortfolioResponse getMine(Long memberId) {
@@ -178,6 +179,7 @@ public class SharedPortfolioService {
     holdingRepository.delete(holding);
     PortfolioResponse remaining = response(portfolio);
     if (remaining.holdings().isEmpty()) {
+      rankingCache.invalidateAfterCommit();
       profileRepository
           .findByMemberId(memberId)
           .ifPresent(

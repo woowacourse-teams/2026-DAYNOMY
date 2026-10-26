@@ -41,7 +41,7 @@ import org.grit.daynomy.member.domain.Member;
           name = "uk_public_investor_profiles_display_name",
           columnNames = "display_name")
     })
-public class InvestorProfile extends BaseEntity {
+public class InvestorProfile extends BaseEntity implements LeagueInvestorValue {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -50,6 +50,10 @@ public class InvestorProfile extends BaseEntity {
   @OneToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "member_id", nullable = false)
   private Member member;
+
+  public Long memberId() {
+    return member.getId();
+  }
 
   @Column(name = "public_id", nullable = false, length = 36)
   private String publicId;

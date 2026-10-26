@@ -33,7 +33,16 @@ public final class PortfolioAnalysisBatches {
 
   static <T> PortfolioAnalysisResult analyze(
       List<T> targets, Function<List<T>, PortfolioAnalysisResult> request, Duration timeout) {
-    if (targets.size() <= BATCH_SIZE) return request.apply(targets);
+    if (targets.size() <= BATCH_SIZE) {
+      String previous = MDC.get("batchNumber");
+      try {
+        MDC.put("batchNumber", "1");
+        return request.apply(targets);
+      } finally {
+        if (previous == null) MDC.remove("batchNumber");
+        else MDC.put("batchNumber", previous);
+      }
+    }
 
     long deadline = System.nanoTime() + timeout.toNanos();
     var batches = new ArrayList<List<T>>();
@@ -57,6 +66,7 @@ public final class PortfolioAnalysisBatches {
                           var previous = MDC.getCopyOfContextMap();
                           try {
                             if (loggingContext != null) MDC.setContextMap(loggingContext);
+                            MDC.put("batchNumber", Integer.toString(index + 1));
                             return new CompletedBatch(index, request.apply(batches.get(index)));
                           } finally {
                             if (previous == null) MDC.clear();
