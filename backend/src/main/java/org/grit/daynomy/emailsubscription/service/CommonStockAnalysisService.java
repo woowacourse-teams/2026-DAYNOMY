@@ -57,6 +57,10 @@ public class CommonStockAnalysisService {
     return analyses.findReusable(key);
   }
 
+  public Optional<CommonStockAnalysis> findStored(CommonStockAnalysisKey key) {
+    return analyses.findByKey(key);
+  }
+
   @Transactional
   public void recordVerification(Long analysisId, CommonStockAnalysisVerification verification) {
     if (verification.checkedAt().isAfter(now())) {
@@ -66,6 +70,9 @@ public class CommonStockAnalysisService {
         analyses
             .findByIdForUpdate(analysisId)
             .orElseThrow(() -> new IllegalArgumentException("검증할 공통 분석이 존재하지 않습니다."));
+    // 동시 검증은 먼저 확정된 결과를 유지한다. 다른 내용의 검증은 도메인에서 거부한다.
+    if (analysis.getStatus() != CommonStockAnalysis.Status.PENDING
+        && analysis.getContentHash().equals(verification.analysisContentHash())) return;
     analysis.recordVerification(verification);
   }
 

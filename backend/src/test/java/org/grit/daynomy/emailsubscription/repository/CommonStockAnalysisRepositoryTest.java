@@ -203,6 +203,37 @@ class CommonStockAnalysisRepositoryTest {
     }
   }
 
+  @Test
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  void concurrentVerificationKeepsTheFirstCompletedReport() throws Exception {
+    Asset asset = asset("verify-" + UUID.randomUUID());
+    Long id = service.storePending(key(asset), content("매출이 늘었어요."));
+    CountDownLatch start = new CountDownLatch(1);
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var first =
+          executor.submit(
+              () -> {
+                start.await();
+                service.recordVerification(id, passedVerification(id));
+                return true;
+              });
+      var second =
+          executor.submit(
+              () -> {
+                start.await();
+                service.recordVerification(id, passedVerification(id));
+                return true;
+              });
+      start.countDown();
+      assertThat(first.get(10, TimeUnit.SECONDS)).isTrue();
+      assertThat(second.get(10, TimeUnit.SECONDS)).isTrue();
+    } finally {
+      start.countDown();
+    }
+    assertThat(service.findReusable(key(asset)).orElseThrow().getStatus())
+        .isEqualTo(Status.VERIFIED);
+  }
+
   private Asset asset(String code) {
     return assets.saveAndFlush(
         Asset.listedStock("삼성전자", code, StockMarket.KOSPI, null, LocalDate.of(2026, 10, 16)));
