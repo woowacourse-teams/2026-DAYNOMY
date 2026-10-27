@@ -30,7 +30,15 @@ final class ContentCollectionSourceUrl {
       if (!isValid(sourceType, host, path)) {
         throw invalid();
       }
-      return new URI("https", null, host, -1, path, null, null).toString();
+      return new URI(
+              "https",
+              null,
+              canonicalHost(sourceType),
+              -1,
+              canonicalPath(sourceType, path),
+              null,
+              null)
+          .toString();
     } catch (BusinessException exception) {
       throw exception;
     } catch (RuntimeException | java.net.URISyntaxException exception) {
@@ -88,6 +96,21 @@ final class ContentCollectionSourceUrl {
       case THREADS -> THREADS_HOSTS.contains(host) && path.matches("/@[^/]+");
       default -> false;
     };
+  }
+
+  private static String canonicalHost(ContentSourceType sourceType) {
+    return switch (sourceType) {
+      case YOUTUBE -> "www.youtube.com";
+      case X -> "x.com";
+      case THREADS -> "www.threads.com";
+      default -> throw invalid();
+    };
+  }
+
+  private static String canonicalPath(ContentSourceType sourceType, String path) {
+    return sourceType == ContentSourceType.X || sourceType == ContentSourceType.THREADS
+        ? path.toLowerCase(Locale.ROOT)
+        : path;
   }
 
   private static String trimTrailingSlash(String path) {

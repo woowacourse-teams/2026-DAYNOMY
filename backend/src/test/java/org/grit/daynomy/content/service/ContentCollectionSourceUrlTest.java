@@ -14,14 +14,16 @@ class ContentCollectionSourceUrlTest {
   void normalizesSupportedProfileUrls() {
     assertThat(
             ContentCollectionSourceUrl.normalize(
-                ContentSourceType.YOUTUBE, "http://www.youtube.com/@daynomy/?view=1"))
+                ContentSourceType.YOUTUBE, "http://youtube.com/@daynomy/?view=1"))
         .isEqualTo("https://www.youtube.com/@daynomy");
-    assertThat(ContentCollectionSourceUrl.normalize(ContentSourceType.X, "https://x.com/daynomy/"))
+    assertThat(
+            ContentCollectionSourceUrl.normalize(
+                ContentSourceType.X, "https://twitter.com/Daynomy/"))
         .isEqualTo("https://x.com/daynomy");
     assertThat(
             ContentCollectionSourceUrl.normalize(
-                ContentSourceType.THREADS, "https://www.threads.net/@daynomy"))
-        .isEqualTo("https://www.threads.net/@daynomy");
+                ContentSourceType.THREADS, "https://threads.net/@Daynomy"))
+        .isEqualTo("https://www.threads.com/@daynomy");
   }
 
   @Test

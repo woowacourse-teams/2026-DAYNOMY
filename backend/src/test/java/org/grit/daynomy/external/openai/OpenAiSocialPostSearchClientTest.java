@@ -47,8 +47,8 @@ class OpenAiSocialPostSearchClientTest {
                         "title",
                         "  삼성전자   실적 전망  ",
                         "url",
-                        "https://www.threads.net/@investor/post/ABC?utm_source=test"),
-                    Map.of("title", "", "url", "https://x.com/market/status/12345?s=20"),
+                        "https://threads.net/@Investor/post/ABC?utm_source=test"),
+                    Map.of("title", "", "url", "https://twitter.com/Market/status/12345?s=20"),
                     Map.of("title", "삼성전자 반도체", "url", "https://www.threads.com/t/DEF/"),
                     Map.of("title", "프로필", "url", "https://x.com/market"),
                     Map.of(
@@ -94,7 +94,7 @@ class OpenAiSocialPostSearchClientTest {
             SocialPostCandidate.Platform.X,
             SocialPostCandidate.Platform.THREADS);
     assertThat(candidates.get(0).title()).isEqualTo("삼성전자 실적 전망");
-    assertThat(candidates.get(0).url()).isEqualTo("https://www.threads.net/@investor/post/ABC");
+    assertThat(candidates.get(0).url()).isEqualTo("https://www.threads.com/@investor/post/ABC");
     assertThat(candidates.get(0).publishedDate()).isEqualTo(today.toString());
     assertThat(candidates.get(1).url()).isEqualTo("https://x.com/market/status/12345");
     assertThat(candidates.get(1).title()).isEqualTo("삼성전자 수급");
@@ -190,7 +190,7 @@ class OpenAiSocialPostSearchClientTest {
             "https://x.com/elonmusk/status/12345",
             "https://x.com/elonmusk/status/11111",
             "https://x.com/elonmusk/status/22222",
-            "https://www.threads.net/@elonmusk/post/ABC");
+            "https://www.threads.com/@elonmusk/post/ABC");
     assertThat(candidates.get(2).publishedDate()).isEmpty();
     JsonNode requestBody = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
     assertThat(requestBody.path("input").asText())

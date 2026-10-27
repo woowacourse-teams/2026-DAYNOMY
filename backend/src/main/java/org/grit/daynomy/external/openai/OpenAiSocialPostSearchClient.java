@@ -515,7 +515,15 @@ public class OpenAiSocialPostSearchClient {
 
       String normalizedPath = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
       String normalizedUrl =
-          new URI("https", null, normalizedHost, -1, normalizedPath, null, null).toString();
+          new URI(
+                  "https",
+                  null,
+                  canonicalHost(platform),
+                  -1,
+                  canonicalPath(platform, normalizedPath),
+                  null,
+                  null)
+              .toString();
       String title = rawTitle.strip();
       if (title.isBlank()) {
         title = platform == SocialPostCandidate.Platform.THREADS ? "Threads 게시물" : "X 게시물";
@@ -528,6 +536,23 @@ public class OpenAiSocialPostSearchClient {
     } catch (IllegalArgumentException | URISyntaxException exception) {
       return Optional.empty();
     }
+  }
+
+  private String canonicalHost(SocialPostCandidate.Platform platform) {
+    return platform == SocialPostCandidate.Platform.X ? "x.com" : "www.threads.com";
+  }
+
+  private String canonicalPath(SocialPostCandidate.Platform platform, String path) {
+    String[] segments = path.split("/", 4);
+    if (platform == SocialPostCandidate.Platform.X && segments.length == 4) {
+      return "/" + segments[1].toLowerCase(Locale.ROOT) + "/status/" + segments[3];
+    }
+    if (platform == SocialPostCandidate.Platform.THREADS
+        && segments.length == 4
+        && segments[1].startsWith("@")) {
+      return "/@" + segments[1].substring(1).toLowerCase(Locale.ROOT) + "/post/" + segments[3];
+    }
+    return path;
   }
 
   private Optional<LocalDate> parsePublishedDate(String value) {
