@@ -11,9 +11,12 @@ import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.ContentCollectionBatchResultResponse;
+import org.grit.daynomy.content.dto.ContentCollectionManualRequest;
+import org.grit.daynomy.content.dto.ContentCollectionResultResponse;
 import org.grit.daynomy.content.dto.ContentCollectionSourceRequest;
 import org.grit.daynomy.content.dto.ContentCollectionSourceResponse;
 import org.grit.daynomy.content.service.ContentCollectionBatchService;
+import org.grit.daynomy.content.service.ContentCollectionManualService;
 import org.grit.daynomy.content.service.ContentCollectionService;
 import org.grit.daynomy.content.service.ContentCollectionSourceService;
 import org.junit.jupiter.api.Test;
@@ -40,6 +43,7 @@ class AdminContentCollectionControllerTest {
   @Autowired private MockMvc mockMvc;
   @MockitoBean private ContentCollectionSourceService sourceService;
   @MockitoBean private ContentCollectionService collectionService;
+  @MockitoBean private ContentCollectionManualService manualService;
   @MockitoBean private ContentCollectionBatchService batchService;
 
   @Test
@@ -111,5 +115,32 @@ class AdminContentCollectionControllerTest {
         .andExpect(jsonPath("$.linkedCount").value(4));
 
     then(batchService).should().collectAllEnabled();
+  }
+
+  @Test
+  void registerManualContentReturnsCreatedResult() throws Exception {
+    given(manualService.register(org.mockito.ArgumentMatchers.eq(1L), any()))
+        .willReturn(new ContentCollectionResultResponse(1L, 1, 1, 0, 2));
+
+    mockMvc
+        .perform(
+            post("/api/admin/content-collection-sources/1/contents")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "url": "https://x.com/hankyungmedia/status/2115009742426808418",
+                      "title": "반도체 전망",
+                      "description": "삼성전자와 SK하이닉스 전망",
+                      "publishedDate": "2026-10-27"
+                    }
+                    """))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.savedCount").value(1))
+        .andExpect(jsonPath("$.linkedCount").value(2));
+
+    then(manualService)
+        .should()
+        .register(org.mockito.ArgumentMatchers.eq(1L), any(ContentCollectionManualRequest.class));
   }
 }

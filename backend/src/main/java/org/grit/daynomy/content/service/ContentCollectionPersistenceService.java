@@ -34,15 +34,8 @@ public class ContentCollectionPersistenceService {
   @Transactional
   public ContentCollectionResultResponse persist(
       Long sourceId, List<CollectedContentItem> items, java.time.Instant collectedAt) {
-    ContentCollectionSource source =
-        sourceRepository
-            .findById(sourceId)
-            .orElseThrow(
-                () -> new BusinessException(ContentErrorCode.CONTENT_COLLECTION_SOURCE_NOT_FOUND));
-    List<Asset> matchableAssets =
-        source.getAsset() == null
-            ? assetRepository.findAllByCategoryInAndListedTrue(LINKABLE_CATEGORIES)
-            : List.of();
+    ContentCollectionSource source = getSource(sourceId);
+    List<Asset> matchableAssets = matchableAssets(source);
     int savedCount = 0;
     int duplicateCount = 0;
     int linkedCount = 0;
@@ -83,6 +76,63 @@ public class ContentCollectionPersistenceService {
     source.completeCollection(collectedAt);
     return new ContentCollectionResultResponse(
         sourceId, items.size(), savedCount, duplicateCount, linkedCount);
+  }
+
+  @Transactional
+  public ContentCollectionResultResponse persistManual(Long sourceId, CollectedContentItem item) {
+    ContentCollectionSource source = getSource(sourceId);
+    if (collectedContentRepository.findByUrl(item.url()).isPresent()) {
+      throw new BusinessException(ContentErrorCode.CONTENT_COLLECTION_CONTENT_ALREADY_EXISTS);
+    }
+    CollectedExternalContent collectedContent =
+        collectedContentRepository.save(
+            new CollectedExternalContent(
+                source,
+                fit(item.title(), 255),
+                item.description(),
+                item.url(),
+                item.imageUrl(),
+                item.publishedDate()));
+    List<Asset> targets = targets(source, item, matchableAssets(source));
+    int linkedCount = createReviews(collectedContent, targets);
+    return new ContentCollectionResultResponse(sourceId, 1, 1, 0, linkedCount);
+  }
+
+  private ContentCollectionSource getSource(Long sourceId) {
+    return sourceRepository
+        .findById(sourceId)
+        .orElseThrow(
+            () -> new BusinessException(ContentErrorCode.CONTENT_COLLECTION_SOURCE_NOT_FOUND));
+  }
+
+  private List<Asset> matchableAssets(ContentCollectionSource source) {
+    return source.getAsset() == null
+        ? assetRepository.findAllByCategoryInAndListedTrue(LINKABLE_CATEGORIES)
+        : List.of();
+  }
+
+  private List<Asset> targets(
+      ContentCollectionSource source, CollectedContentItem item, List<Asset> matchableAssets) {
+    return source.getAsset() == null
+        ? assetMentionMatcher.match(item.title(), item.description(), matchableAssets)
+        : List.of(source.getAsset());
+  }
+
+  private int createReviews(CollectedExternalContent collectedContent, List<Asset> targets) {
+    int linkedCount = 0;
+    for (Asset asset : targets) {
+      if (!reviewRepository.existsByCollectedContentIdAndSuggestedAssetId(
+          collectedContent.getId(), asset.getId())) {
+        reviewRepository.save(new CollectedExternalContentReview(collectedContent, asset));
+        linkedCount++;
+      }
+    }
+    if (targets.isEmpty()
+        && !reviewRepository.existsByCollectedContentIdAndSuggestedAssetIsNull(
+            collectedContent.getId())) {
+      reviewRepository.save(new CollectedExternalContentReview(collectedContent, null));
+    }
+    return linkedCount;
   }
 
   private String fit(String value, int maxLength) {

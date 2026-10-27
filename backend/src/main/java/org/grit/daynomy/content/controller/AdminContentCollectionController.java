@@ -6,11 +6,13 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.content.dto.ContentCollectionBatchResultResponse;
+import org.grit.daynomy.content.dto.ContentCollectionManualRequest;
 import org.grit.daynomy.content.dto.ContentCollectionResultResponse;
 import org.grit.daynomy.content.dto.ContentCollectionSourceRequest;
 import org.grit.daynomy.content.dto.ContentCollectionSourceResponse;
 import org.grit.daynomy.content.dto.ContentCollectionSourcesResponse;
 import org.grit.daynomy.content.service.ContentCollectionBatchService;
+import org.grit.daynomy.content.service.ContentCollectionManualService;
 import org.grit.daynomy.content.service.ContentCollectionService;
 import org.grit.daynomy.content.service.ContentCollectionSourceService;
 import org.springframework.http.HttpStatus;
@@ -33,6 +35,7 @@ public class AdminContentCollectionController {
 
   private final ContentCollectionSourceService sourceService;
   private final ContentCollectionService collectionService;
+  private final ContentCollectionManualService manualService;
   private final ContentCollectionBatchService batchService;
 
   @Operation(summary = "콘텐츠 수집 출처 목록 조회")
@@ -67,5 +70,14 @@ public class AdminContentCollectionController {
   public ResponseEntity<ContentCollectionResultResponse> collect(
       @PathVariable @Positive Long sourceId) {
     return ResponseEntity.ok(collectionService.collect(sourceId));
+  }
+
+  @Operation(summary = "수집 출처의 게시물 URL 수동 등록")
+  @PostMapping("/{sourceId}/contents")
+  public ResponseEntity<ContentCollectionResultResponse> registerContent(
+      @PathVariable @Positive Long sourceId,
+      @Valid @RequestBody ContentCollectionManualRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(manualService.register(sourceId, request));
   }
 }
