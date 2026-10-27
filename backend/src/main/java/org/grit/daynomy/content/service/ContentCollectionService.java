@@ -68,9 +68,7 @@ public class ContentCollectionService {
         source.getSourceType() == org.grit.daynomy.content.domain.ContentSourceType.THREADS
             ? source.getSourceUrl()
             : null;
-    return socialPostSearchClient
-        .searchSourcePosts(source.getName(), xUrl, threadsUrl)
-        .stream()
+    return socialPostSearchClient.searchSourcePosts(source.getName(), xUrl, threadsUrl).stream()
         .map(this::toItem)
         .toList();
   }

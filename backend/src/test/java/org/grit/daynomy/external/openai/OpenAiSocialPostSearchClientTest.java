@@ -182,9 +182,7 @@ class OpenAiSocialPostSearchClientTest {
 
     var candidates =
         client.searchSourcePosts(
-            "한국경제TV",
-            "https://x.com/elonmusk",
-            "https://www.threads.net/@elonmusk");
+            "한국경제TV", "https://x.com/elonmusk", "https://www.threads.net/@elonmusk");
 
     assertThat(candidates)
         .extracting(SocialPostCandidate::url)
@@ -274,8 +272,7 @@ class OpenAiSocialPostSearchClientTest {
     server.enqueue(
         new MockResponse()
             .setResponseCode(301)
-            .setHeader(
-                "Location", server.url("/@threads/post/DWjTI0cgH5O").toString()));
+            .setHeader("Location", server.url("/@threads/post/DWjTI0cgH5O").toString()));
     server.enqueue(new MockResponse().setResponseCode(200));
     OpenAiSocialPostSearchClient client = newClient("test-key");
 

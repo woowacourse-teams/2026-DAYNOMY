@@ -182,11 +182,7 @@ public class OpenAiSocialPostSearchClient {
                     + "/post queries.");
     String dateHint =
         restrictDate
-            ? " Search only posts published from "
-                + from
-                + " through "
-                + to
-                + " inclusive."
+            ? " Search only posts published from " + from + " through " + to + " inclusive."
             : " Do not restrict the search by publication date.";
     return execute(
             "searchProfilePosts",
