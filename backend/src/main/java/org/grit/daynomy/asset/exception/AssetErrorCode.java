@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 public enum AssetErrorCode implements ErrorCode {
   US_STOCK_SYNC_ALREADY_RUNNING(HttpStatus.CONFLICT, "미국 종목 또는 종가 동기화가 이미 진행 중입니다."),
   US_STOCK_SYNC_INTERRUPTED(HttpStatus.SERVICE_UNAVAILABLE, "미국 종목 동기화가 중단되었습니다."),
+  US_STOCK_KOREAN_NAME_SYNC_ALREADY_RUNNING(HttpStatus.CONFLICT, "미국 종목 한글명 동기화가 이미 진행 중입니다."),
   US_STOCK_KOREAN_NAME_DATA_INVALID(HttpStatus.BAD_GATEWAY, "같은 미국 종목에 서로 다른 한글명이 수집되었습니다."),
   US_STOCK_MASTER_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 미국 종목 데이터를 확인하지 못했습니다."),
   US_STOCK_PRICE_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 미국 종가 데이터를 확인하지 못했습니다."),
