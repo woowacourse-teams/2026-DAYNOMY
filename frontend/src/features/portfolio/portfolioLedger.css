@@ -2753,10 +2753,12 @@ body:has(.portfolio-page) .daynomy-footer {
   border-bottom: 0;
 }
 .portfolio-news-more {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
   justify-content: flex-start;
-  margin-top: 16px;
+  margin-top: 8px;
+  margin-left: auto;
   border: 1px solid var(--button-action);
   background: #fff;
   text-decoration: none;

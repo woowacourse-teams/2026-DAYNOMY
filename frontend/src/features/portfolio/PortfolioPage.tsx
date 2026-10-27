@@ -1335,13 +1335,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     <p className="portfolio-field-note" role="status">
                       현재 보유 자산의 비중을 확인하고 있어요.
                     </p>
-                  ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
-                    <p>
-                      <span className="portfolio-status-dot is-pending" />
-                      {dashboardCalculation.unpricedHoldingCount}개 종목의 시세를 확인하지 못했어요.
-                      평가금액과 비중은 시세가 있는 자산만 반영하며, 전체 손익은 표시하지 않아요.
-                    </p>
-                  ) : dashboardCalculation.pricingStatus === 'MIXED_DATES' ? (
+                  ) : dashboardCalculation.pricingStatus ===
+                    'PARTIAL' ? null : dashboardCalculation.pricingStatus === 'MIXED_DATES' ? (
                     <p>
                       <span className="portfolio-status-dot is-pending" />
                       종목별 가격 기준일이 달라요. 최근 거래일 손익은 표시하지 않아요.
