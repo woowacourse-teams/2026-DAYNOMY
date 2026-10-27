@@ -131,6 +131,7 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-page .portfolio-page-actions > :is(.portfolio-primary-button, .portfolio-news-tab),
 .portfolio-page .portfolio-preview-action .portfolio-analysis-add-button,
+.portfolio-page .portfolio-trend-locked .portfolio-login-button,
 .portfolio-page .portfolio-news-more {
   min-height: 36px;
   padding: 0 12px;
@@ -335,6 +336,9 @@ body:has(.portfolio-page) .daynomy-footer {
   color: #35455f;
   font-size: 15px;
   line-height: 1.6;
+}
+.portfolio-page .portfolio-trend-locked .portfolio-login-button {
+  min-width: 0;
 }
 .portfolio-page .portfolio-analysis {
   margin-bottom: 28px;
@@ -2695,6 +2699,17 @@ body:has(.portfolio-page) .daynomy-footer {
   line-height: 1.7;
   color: #606b7a;
   padding: 24px 0;
+}
+.portfolio-news-state.is-empty {
+  display: flex;
+  min-height: 144px;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0 0;
+  padding: 24px 8px;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 .portfolio-news-state button {
   border: 0;

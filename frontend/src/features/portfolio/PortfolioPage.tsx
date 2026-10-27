@@ -1459,7 +1459,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                         </div>
                         {dashboardCalculation.holdings.length === 0 ||
                         dashboardCalculation.pricedHoldingCount === 0 ? (
-                          <p className="portfolio-module-empty">표시할 자산이 없습니다</p>
+                          <p className="portfolio-module-empty">
+                            {dashboardCalculation.holdings.length === 0
+                              ? '보유 중인 자산이 없어요'
+                              : '표시할 자산이 없습니다'}
+                          </p>
                         ) : (
                           <>
                             <CompositionChart calculation={dashboardCalculation} />
