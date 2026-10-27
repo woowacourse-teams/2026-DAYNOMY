@@ -257,7 +257,7 @@ for (const viewport of [
       path: testInfo.outputPath('empty-asset-analysis.png'),
     });
     const analysis = page.getByRole('region', { name: 'AI 분석', exact: true });
-    const add = analysis.getByRole('button', { name: '자산 추가', exact: true });
+    const add = analysis.getByRole('button', { name: 'AI 분석에서 종목 추가', exact: true });
     for (const width of [viewport.width, 320, 768, 1440]) {
       await page.setViewportSize({ width, height: viewport.height });
       await expect(add).toBeVisible();

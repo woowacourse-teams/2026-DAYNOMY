@@ -296,10 +296,11 @@ function PortfolioEmpty({ onAddAsset }: { onAddAsset?: () => void }) {
         <button
           type="button"
           className="portfolio-analysis-button portfolio-analysis-add-button is-primary"
+          aria-label="AI 분석에서 종목 추가"
           onClick={onAddAsset}
           disabled={!onAddAsset}
         >
-          자산 추가
+          종목 추가
         </button>
       }
     />
