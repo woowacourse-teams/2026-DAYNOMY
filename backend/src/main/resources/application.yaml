@@ -189,6 +189,9 @@ stock:
     sync:
       enabled: ${US_STOCK_SYNC_ENABLED:false}
       cron: ${US_STOCK_SYNC_CRON:0 15 6 * * *}
+      retry:
+        max-attempts: ${US_STOCK_SYNC_MAX_ATTEMPTS:3}
+        delay: ${US_STOCK_SYNC_RETRY_DELAY:250ms}
   calendar:
     sync:
       enabled: ${MARKET_CALENDAR_SYNC_ENABLED:false}
