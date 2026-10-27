@@ -1127,6 +1127,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
 
   return (
     <main
+      onPointerDownCapture={(event) => {
+        event.currentTarget.dataset.inputModality = 'pointer';
+      }}
+      onKeyDownCapture={(event) => {
+        event.currentTarget.dataset.inputModality = 'keyboard';
+      }}
       onClickCapture={(event) => {
         if (
           touring &&
