@@ -8,6 +8,13 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisProseTest {
   @Test
+  void rejectsDegenerateRepeatedQuotationMarks() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> PortfolioAnalysisProse.normalize("PV7은 상용차 공급 범위를 넓혀요. \"\"\"2027년 출시 예정이에요."));
+  }
+
+  @Test
   void separatesMeasuredSemicolonWithoutDiscardingKoreanFacts() {
     assertThat(PortfolioAnalysisProse.normalize("HBM4 출하 확대를 확인하세요; 이는 하반기 실적에 영향을 줍니다."))
         .isEqualTo("HBM4 출하 확대를 확인하세요. 이는 하반기 실적에 영향을 줍니다.");
@@ -109,5 +116,13 @@ class PortfolioAnalysisProseTest {
   void politeFormalEndingDoesNotDiscardConfirmedFacts() {
     assertThat(PortfolioAnalysisProse.normalize("HBM4 생산 확대 계획을 밝혔습니다."))
         .isEqualTo("HBM4 생산 확대 계획을 밝혔습니다.");
+  }
+
+  @Test
+  void repairsSourcePastTenseWithoutChangingAmountsOrUncertainty() {
+    assertThat(
+            PortfolioAnalysisProse.normalize(
+                "영업이익 5,100억원과 영업이익률 34%가 발표되었다. 수익성 개선 흐름이 뚜렷해졌다. 다음 분기 실적은 불확실해요."))
+        .isEqualTo("영업이익 5,100억원과 영업이익률 34%가 발표됐어요. 수익성 개선 흐름이 뚜렷해졌어요. 다음 분기 실적은 불확실해요.");
   }
 }

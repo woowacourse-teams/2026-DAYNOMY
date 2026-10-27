@@ -51,8 +51,9 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
     String context = normalize(title) + " " + bodyContext;
     var years = YEAR.matcher(normalize(claims));
     while (years.find()) {
-      if (!bodyContext.contains(years.group()) && !hasAbbreviatedYear(context, years.group()))
-        return "PERIOD_UNVERIFIED";
+      if (!bodyContext.contains(years.group())
+          && !hasAbbreviatedYear(context, years.group())
+          && !supportsNextYear(bodyContext, years.group())) return "PERIOD_UNVERIFIED";
     }
     String normalizedClaims = normalize(claims);
     for (int quarter = 1; quarter <= 4; quarter++) {
@@ -81,7 +82,10 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
   }
 
   public java.util.Set<String> billionWonAmounts(String quote) {
-    String text = normalize(body);
+    return billionWonAmounts(quote, normalize(body));
+  }
+
+  private java.util.Set<String> billionWonAmounts(String quote, String text) {
     int position = text.indexOf(normalize(quote));
     if (position < 0) return java.util.Set.of();
     var explicit =
@@ -112,7 +116,22 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
   }
 
   public java.util.Map<String, String> verifiedWonAmounts(String quote) {
-    if (!normalize(body).contains(normalize(quote))) return java.util.Map.of();
+    return verifiedWonAmounts(quote, normalize(body));
+  }
+
+  public java.util.Map<String, java.util.Map<String, String>> verifiedWonAmounts(
+      java.util.List<String> quotes) {
+    String normalizedBody = normalize(body);
+    var result = new java.util.LinkedHashMap<String, java.util.Map<String, String>>();
+    for (String quote : quotes) {
+      var amounts = verifiedWonAmounts(quote, normalizedBody);
+      if (!amounts.isEmpty()) result.put(quote, amounts);
+    }
+    return result;
+  }
+
+  private java.util.Map<String, String> verifiedWonAmounts(String quote, String normalizedBody) {
+    if (!normalizedBody.contains(normalize(quote))) return java.util.Map.of();
     var amounts =
         Pattern.compile(
                 "(?i)(?:KRW\\s+([0-9][0-9,]*(?:\\.[0-9]+)?)\\s+(million|billion|trillion)|([0-9][0-9,]*(?:\\.[0-9]+)?)\\s+(million|billion|trillion)\\s+(?:won|KRW))")
@@ -136,7 +155,7 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
                   .toPlainString()
               + "억원");
     }
-    for (String value : billionWonAmounts(quote))
+    for (String value : billionWonAmounts(quote, normalizedBody))
       converted.putIfAbsent(
           value + " billion KRW",
           new java.math.BigDecimal(value)
@@ -199,6 +218,28 @@ public record PortfolioAnalysisSourceDocument(String title, String body, LocalDa
                     + "\\s*분기)(?![a-z0-9])")
             .matcher(text)
             .find();
+  }
+
+  private static boolean supportsNextYear(String context, String year) {
+    if (!Pattern.compile("(?<!the )next[\\s\\p{Pd}]+year|내년").matcher(context).find()) return false;
+    var dates =
+        Pattern.compile("(?<![0-9])20[0-9]{2}[./-][0-9]{1,2}[./-][0-9]{1,2}(?![0-9])")
+            .matcher(context);
+    var originalYears = new java.util.HashSet<Integer>();
+    while (dates.find()) {
+      try {
+        var date =
+            LocalDate.parse(
+                dates.group().replace('.', '-').replace('/', '-'),
+                DateTimeFormatter.ofPattern("uuuu-M-d")
+                    .withResolverStyle(java.time.format.ResolverStyle.STRICT));
+        originalYears.add(date.getYear());
+      } catch (java.time.DateTimeException invalid) {
+        return false;
+      }
+    }
+    return originalYears.size() == 1
+        && originalYears.iterator().next() + 1 == Integer.parseInt(year);
   }
 
   private static boolean hasAbbreviatedYear(String text, String year) {

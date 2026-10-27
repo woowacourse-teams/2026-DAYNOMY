@@ -61,7 +61,7 @@ public class SavedPortfolioAnalysisTransactionService {
       PortfolioAnalysisCheckRepository checks,
       PortfolioCalculationService calculation,
       PlatformTransactionManager transactionManager,
-      @Value("${portfolio.analysis.model:${ai.openai.model:gpt-5-mini}}") String model) {
+      @Value("${portfolio.analysis.model:gpt-5.4-mini}") String model) {
     this(
         portfolios,
         holdings,

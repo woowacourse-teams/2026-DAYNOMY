@@ -41,6 +41,8 @@ public final class PortfolioAnalysisProse {
               .replace("없습니다.", "없어요.")
               .replace("합니다.", "해요.")
               .replace("했다.", "했어요.")
+              .replace("되었다.", "됐어요.")
+              .replace("졌다.", "졌어요.")
               .replace("됐다.", "됐어요.")
               .replace("된다.", "돼요.")
               .replace("밝혔다.", "밝혔어요.")
@@ -54,7 +56,8 @@ public final class PortfolioAnalysisProse {
       if (value.endsWith("요")) {
         value += ".";
       }
-      if (value.contains("**")
+      if (value.contains("\"\"\"")
+          || value.contains("**")
           || value.contains("…")
           || value.contains("..")
           || value.contains("http://")
