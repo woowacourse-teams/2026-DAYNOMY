@@ -91,6 +91,7 @@ export function guestTransactionHistory(
   const invalid = validateTransaction(
     {
       tradeDate: body.tradeDate,
+      tradeTime: body.tradeTime,
       quantity: String(body.quantity),
       unitPrice: String(body.unitPrice),
       fee: String(body.fee),
@@ -107,6 +108,7 @@ export function guestTransactionHistory(
     quantity: 0,
     averagePurchasePrice: 0,
     effectiveDate: body.tradeDate,
+    tradeTime: body.tradeTime,
     transactionQuantity: body.quantity,
     unitPrice: body.unitPrice,
     fee: body.fee,

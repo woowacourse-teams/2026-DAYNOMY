@@ -1,10 +1,25 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getLatestStockPrice, searchStocks, getUsdKrwRate } from '../../src/features/stocks/api';
 import { PortfolioTransactionEditor } from '../../src/features/portfolio/components/PortfolioTransactionEditor';
 import type { PortfolioHoldingHistory } from '../../src/features/portfolio/types';
 import type { StockPrice } from '../../src/features/stocks/types';
+
+const originalShowModal = HTMLDialogElement.prototype.showModal;
+const originalClose = HTMLDialogElement.prototype.close;
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false;
+  };
+});
+afterAll(() => {
+  HTMLDialogElement.prototype.showModal = originalShowModal;
+  HTMLDialogElement.prototype.close = originalClose;
+});
 
 vi.mock('../../src/features/stocks/api', () => ({
   getLatestStockPrice: vi.fn(),
@@ -35,6 +50,63 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+});
+
+it('종목 추가만 키패드를 표시하고 날짜·시간과 입력 금액을 저장한다', async () => {
+  const save = vi.fn().mockResolvedValue(undefined);
+  const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={save} />);
+  fireEvent.change(view.getByRole('searchbox'), { target: { value: '하이닉스' } });
+  fireEvent.click(await view.findByRole('button', { name: /SK하이닉스/ }));
+  const keypad = within(view.getByRole('group', { name: '숫자 입력' }));
+  const quantity = view.getByLabelText('수량 (주)') as HTMLInputElement;
+  expect(quantity.value).toBe('1');
+  fireEvent.focus(quantity);
+  fireEvent.click(keypad.getByRole('button', { name: '2' }));
+  await waitFor(() => expect(quantity.value).toBe('2'));
+  expect(keypad.getByRole('button', { name: '소수점' })).toHaveProperty('disabled', true);
+  const priceInput = view.getByLabelText('거래 단가 (원)') as HTMLInputElement;
+  await waitFor(() => expect(priceInput.value).toBe('75,200'));
+  fireEvent.focus(priceInput);
+  fireEvent.click(keypad.getByRole('button', { name: '1' }));
+  await waitFor(() => expect(priceInput.value).toBe('1'));
+  fireEvent.click(keypad.getByRole('button', { name: '소수점' }));
+  await waitFor(() => expect(priceInput.value).toBe('1.'));
+  fireEvent.click(keypad.getByRole('button', { name: '5' }));
+  await waitFor(() => expect(priceInput.value).toBe('1.5'));
+  fireEvent.click(keypad.getByRole('button', { name: '한 자리 지우기' }));
+  await waitFor(() => expect(priceInput.value).toBe('1.'));
+  fireEvent.change(priceInput, { target: { value: '127,000.5000' } });
+  fireEvent.click(view.getByRole('button', { name: '거래일 수정' }));
+  const datePicker = within(view.getByRole('dialog', { name: '날짜 선택' }));
+  fireEvent.click(datePicker.getByRole('option', { name: '2026년' }));
+  fireEvent.click(datePicker.getByRole('option', { name: '1월' }));
+  fireEvent.click(datePicker.getByRole('option', { name: '2일' }));
+  fireEvent.click(datePicker.getByRole('button', { name: '확인' }));
+  expect(view.getByRole('button', { name: '거래일 수정' }).textContent).toBe('2026. 01. 02.');
+  fireEvent.click(view.getByRole('button', { name: '거래 시간 수정' }));
+  const timePicker = within(view.getByRole('dialog', { name: '시간 선택' }));
+  fireEvent.click(
+    within(timePicker.getByRole('listbox', { name: '시 (한국 시간)' })).getByRole('option', {
+      name: '09',
+    }),
+  );
+  fireEvent.click(
+    within(timePicker.getByRole('listbox', { name: '분' })).getByRole('option', { name: '35' }),
+  );
+  fireEvent.click(timePicker.getByRole('button', { name: '확인' }));
+  expect(view.getByRole('button', { name: '거래 시간 수정' }).textContent).toBe('09:35');
+  expect(view.getByRole('button', { name: '거래 시간 수정' })).toHaveProperty(
+    'ariaExpanded',
+    'false',
+  );
+  fireEvent.click(view.getByRole('button', { name: '추가하기' }));
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+  expect(save.mock.calls[0][0]).toMatchObject({
+    quantity: 2,
+    unitPrice: 127000.5,
+    tradeDate: '2026-01-02',
+    tradeTime: '09:35',
+  });
 });
 
 describe('거래 단가의 최근 종가 기본값', () => {
@@ -228,7 +300,12 @@ describe('거래 단가의 최근 종가 기본값', () => {
     const view = render(
       <PortfolioTransactionEditor stock={samsung} onClose={vi.fn()} onSave={save} />,
     );
-    await view.findByText('최근 종가를 불러오지 못했습니다. 거래 단가를 직접 입력해 주세요.');
+    await waitFor(() =>
+      expect(view.getByLabelText('거래 단가 (원)').getAttribute('aria-busy')).toBe('false'),
+    );
+    expect(
+      view.queryByText('최근 종가를 불러오지 못했습니다. 거래 단가를 직접 입력해 주세요.'),
+    ).toBeNull();
     fireEvent.change(view.getByLabelText('거래 단가 (원)'), { target: { value: '73000' } });
     fireEvent.change(view.getByLabelText('수량 (주)'), { target: { value: '1' } });
     fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
@@ -270,13 +347,15 @@ it('미국 검색 후 주식·ETF의 USD 종가와 환율을 채우고 수정한
   await waitFor(() =>
     expect(view.getByLabelText('거래 단가 (USD)')).toHaveProperty('value', '1,100.1234'),
   );
+  fireEvent.click(view.getByRole('button', { name: '환율 확인 및 수정' }));
   await waitFor(() =>
-    expect(view.getByRole('textbox', { name: /적용 환율/ })).toHaveProperty('value', '1300'),
+    expect(view.getByRole('textbox', { name: /적용 환율/ })).toHaveProperty('value', '1,300'),
   );
   expect(searchStocks).toHaveBeenCalledWith('TSLA', expect.any(AbortSignal), 'US');
   fireEvent.change(view.getByLabelText('수량 (주)'), { target: { value: '2' } });
   fireEvent.change(view.getByRole('textbox', { name: /적용 환율/ }), { target: { value: '1350' } });
-  fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  fireEvent.click(view.getByRole('button', { name: '추가하기' }));
   await waitFor(() => expect(save).toHaveBeenCalled());
   expect(save.mock.calls[0][0]).toMatchObject({
     assetId: 10,
@@ -285,6 +364,27 @@ it('미국 검색 후 주식·ETF의 USD 종가와 환율을 채우고 수정한
     quantity: 2,
   });
 });
+
+it.each(['STOCK', 'ETF'] as const)(
+  '국내 %s 환율은 0원으로 표시하고 거래 요청에서 제외한다',
+  async (category) => {
+    vi.mocked(searchStocks).mockResolvedValue([{ ...samsung, category }]);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={save} />);
+    fireEvent.change(view.getByRole('searchbox'), { target: { value: '삼성' } });
+    fireEvent.click(await view.findByRole('button', { name: /삼성전자/ }));
+    await waitFor(() =>
+      expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '75,200'),
+    );
+    fireEvent.click(view.getByRole('button', { name: '환율 확인 및 수정' }));
+    expect(view.getByRole('textbox', { name: /적용 환율/ })).toHaveProperty('value', '0');
+    fireEvent.click(view.getByRole('button', { name: '확인' }));
+    fireEvent.click(view.getByRole('button', { name: '추가하기' }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0][0]).not.toHaveProperty('exchangeRate');
+    expect(getUsdKrwRate).not.toHaveBeenCalled();
+  },
+);
 
 it('늦은 참고 환율이 직접 입력한 환율을 덮어쓰지 않으며 날짜 변경 시 다시 조회한다', async () => {
   const etf = { ...samsung, assetCode: 'VTI.US', market: 'NYSE_ARCA', currency: 'USD' } as const;
@@ -442,4 +542,132 @@ describe('종목 통합 검색과 최근 검색어', () => {
       set.mockRestore();
     }
   });
+});
+
+it('수수료·참고 시세는 별도 창에서 입력하고 거래 저장에 반영한다', async () => {
+  const save = vi.fn().mockResolvedValue(undefined);
+  const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={save} />);
+  fireEvent.change(view.getByRole('searchbox'), { target: { value: '하이닉스' } });
+  fireEvent.click(await view.findByRole('button', { name: /SK하이닉스/ }));
+  await waitFor(() =>
+    expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '75,200'),
+  );
+  expect(view.queryByLabelText('수수료 (원)')).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '수수료·참고 시세' }));
+  const modal = within(view.getByRole('dialog', { name: '수수료·참고 시세' }));
+  expect(modal.getByLabelText('수수료 (원)')).toHaveProperty('value', '0');
+  expect(modal.queryByText('총 매수 지출액')).toBeNull();
+  expect(modal.queryByText('거래일을 기준으로 보유 수량과 평균 매입가가 계산됩니다.')).toBeNull();
+  fireEvent.change(modal.getByLabelText('수수료 (원)'), { target: { value: '100' } });
+  fireEvent.change(modal.getByLabelText('세금 (원)'), { target: { value: '20' } });
+  fireEvent.click(modal.getByRole('button', { name: '적용' }));
+  expect(save).not.toHaveBeenCalled();
+  expect(view.queryByRole('dialog', { name: '수수료·참고 시세' })).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '추가하기' }));
+  await waitFor(() => expect(save).toHaveBeenCalledOnce());
+  expect(save.mock.calls[0][0]).toMatchObject({ fee: 100, tax: 20, unitPrice: 75200 });
+  expect(view.queryByRole('dialog', { name: '수수료·참고 시세' })).toBeNull();
+});
+
+it('수수료 창은 입력칸을 바로 보여주고 닫기·Esc로 종료한다', async () => {
+  vi.mocked(getLatestStockPrice).mockRejectedValue(new Error('시세 없음'));
+  const close = vi.fn();
+  const view = render(<PortfolioTransactionEditor onClose={close} onSave={vi.fn()} />);
+  fireEvent.change(view.getByRole('searchbox'), { target: { value: '하이닉스' } });
+  fireEvent.click(await view.findByRole('button', { name: /SK하이닉스/ }));
+  const trigger = view.getByRole('button', { name: '수수료·참고 시세' });
+  fireEvent.click(trigger);
+  const dialog = () => view.getByRole('dialog', { name: '수수료·참고 시세' });
+  await waitFor(() =>
+    expect(view.getByLabelText('거래 단가 (원)').getAttribute('aria-busy')).toBe('false'),
+  );
+  expect(view.queryByText(/최근 종가를 불러오지 못했습니다/)).toBeNull();
+  fireEvent.click(within(dialog()).getByRole('button', { name: '수수료 창 닫기' }));
+  expect(view.queryByRole('dialog', { name: '수수료·참고 시세' })).toBeNull();
+  fireEvent.click(trigger);
+  fireEvent(dialog(), new Event('cancel', { bubbles: true, cancelable: true }));
+  expect(view.queryByRole('dialog', { name: '수수료·참고 시세' })).toBeNull();
+  fireEvent.click(trigger);
+  expect(within(dialog()).queryByText('선택 입력')).toBeNull();
+  expect(within(dialog()).queryByText('수수료·세금')).toBeNull();
+  expect(within(dialog()).getByLabelText('수수료 (원)')).toBeTruthy();
+  expect(within(dialog()).getByLabelText('세금 (원)')).toBeTruthy();
+  fireEvent.click(within(dialog()).getByRole('button', { name: '수수료 창 닫기' }));
+  expect(view.getByRole('group', { name: '숫자 입력' })).toBeTruthy();
+  expect(close).not.toHaveBeenCalled();
+});
+
+it.each(['KRW', 'USD'] as const)(
+  '%s 수수료 적용은 비어 있는 매수 단가나 환율에 막히지 않는다',
+  async (currency) => {
+    vi.mocked(getLatestStockPrice).mockRejectedValue(new Error('시세 없음'));
+    vi.mocked(getUsdKrwRate).mockRejectedValue(new Error('환율 없음'));
+    const searched =
+      currency === 'KRW'
+        ? sk
+        : {
+            ...sk,
+            name: 'QQQ',
+            assetCode: 'QQQ.US',
+            category: 'ETF' as const,
+            market: 'NASDAQ' as const,
+            currency: 'USD' as const,
+          };
+    vi.mocked(searchStocks).mockResolvedValue([searched]);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={save} />);
+    fireEvent.change(view.getByRole('searchbox'), { target: { value: searched.name } });
+    fireEvent.click(await view.findByRole('button', { name: new RegExp(searched.name) }));
+    fireEvent.click(view.getByRole('button', { name: '수수료·참고 시세' }));
+    const modal = within(view.getByRole('dialog', { name: '수수료·참고 시세' }));
+    const apply = modal.getByRole('button', { name: '적용' });
+    expect(apply).toHaveProperty('disabled', false);
+    fireEvent.change(modal.getByLabelText(`수수료 (${currency === 'USD' ? 'USD' : '원'})`), {
+      target: { value: '1' },
+    });
+    fireEvent.change(modal.getByLabelText(`세금 (${currency === 'USD' ? 'USD' : '원'})`), {
+      target: { value: '1' },
+    });
+    expect(apply).toHaveProperty('disabled', false);
+    fireEvent.click(apply);
+    expect(view.queryByRole('dialog', { name: '수수료·참고 시세' })).toBeNull();
+    expect(save).not.toHaveBeenCalled();
+    expect(view.getByRole('button', { name: '추가하기' })).toHaveProperty('disabled', true);
+    fireEvent.click(view.getByRole('button', { name: '수수료·참고 시세' }));
+    expect(view.getByLabelText(`수수료 (${currency === 'USD' ? 'USD' : '원'})`)).toHaveProperty(
+      'value',
+      '1',
+    );
+    expect(view.getByLabelText(`세금 (${currency === 'USD' ? 'USD' : '원'})`)).toHaveProperty(
+      'value',
+      '1',
+    );
+    fireEvent.click(view.getByRole('button', { name: '적용' }));
+    if (currency === 'KRW') {
+      fireEvent.change(view.getByLabelText('거래 단가 (원)'), { target: { value: '1000' } });
+      expect(view.getByRole('button', { name: '추가하기' })).toHaveProperty('disabled', false);
+      fireEvent.click(view.getByRole('button', { name: '추가하기' }));
+      await waitFor(() => expect(save).toHaveBeenCalledOnce());
+      expect(save.mock.calls[0][0]).toMatchObject({ unitPrice: 1000, fee: 1, tax: 1 });
+    }
+  },
+);
+
+it('수수료 창은 비용 오류만 표시하고 올바른 금액으로 고치면 적용할 수 있다', async () => {
+  vi.mocked(getLatestStockPrice).mockRejectedValue(new Error('시세 없음'));
+  const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={vi.fn()} />);
+  fireEvent.change(view.getByRole('searchbox'), { target: { value: '하이닉스' } });
+  fireEvent.click(await view.findByRole('button', { name: /SK하이닉스/ }));
+  fireEvent.click(view.getByRole('button', { name: '수수료·참고 시세' }));
+  const modal = within(view.getByRole('dialog', { name: '수수료·참고 시세' }));
+  fireEvent.change(modal.getByLabelText('수수료 (원)'), { target: { value: '-1' } });
+  expect(modal.getByRole('button', { name: '적용' })).toHaveProperty('disabled', true);
+  expect(modal.getByRole('alert').textContent).toContain('수수료와 세금');
+  fireEvent.change(modal.getByLabelText('수수료 (원)'), { target: { value: '1' } });
+  fireEvent.change(modal.getByLabelText('세금 (원)'), { target: { value: '1.001' } });
+  expect(modal.getByRole('button', { name: '적용' })).toHaveProperty('disabled', true);
+  expect(modal.getByLabelText('세금 (원)').getAttribute('aria-invalid')).toBe('true');
+  fireEvent.change(modal.getByLabelText('세금 (원)'), { target: { value: '1' } });
+  expect(modal.queryByRole('alert')).toBeNull();
+  expect(modal.getByRole('button', { name: '적용' })).toHaveProperty('disabled', false);
 });

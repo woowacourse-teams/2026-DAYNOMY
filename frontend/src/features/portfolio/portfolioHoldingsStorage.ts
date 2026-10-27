@@ -74,6 +74,7 @@ function isGuestLedger(value: unknown): value is GuestPortfolioLedger {
           validateTransaction(
             {
               tradeDate: item.effectiveDate,
+              tradeTime: item.tradeTime == null ? undefined : String(item.tradeTime),
               quantity: String(item.transactionQuantity),
               unitPrice: String(item.unitPrice),
               exchangeRate: item.exchangeRate == null ? undefined : String(item.exchangeRate),

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { installAccessibilityFixtures } from './fixtures/accessibility';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -80,6 +81,75 @@ for (const viewport of [
   { name: 'desktop', width: 1440, height: 1050 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
+  test(`종목 추가 키패드와 기존 거래 수정 화면 분리: ${viewport.name}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await installAccessibilityFixtures(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: '종목 추가', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '거래 기록' });
+    await dialog.getByRole('searchbox').fill('삼성');
+    await dialog.getByRole('button', { name: /삼성전자.*005930/ }).click();
+    const quantity = dialog.getByLabel('수량 (주)');
+    await expect(quantity).toBeFocused();
+    await expect(quantity).toHaveValue('1');
+    const keypad = dialog.getByRole('group', { name: '숫자 입력' });
+    await keypad.getByRole('button', { name: '2', exact: true }).click();
+    await expect(quantity).toHaveValue('2');
+    const price = dialog.getByLabel('거래 단가 (원)');
+    await expect(price).toHaveValue('70,000');
+    await price.fill('127000.50');
+    await expect(price).toHaveValue('127,000.50');
+    await dialog.getByRole('button', { name: '거래일 수정', exact: true }).click();
+    const datePicker = page.getByRole('dialog', { name: '날짜 선택' });
+    await datePicker.getByRole('button', { name: '확인', exact: true }).click();
+    await dialog.getByRole('button', { name: '거래 시간 수정', exact: true }).click();
+    const timePicker = page.getByRole('dialog', { name: '시간 선택' });
+    const hour = timePicker.getByRole('listbox', { name: '시 (한국 시간)' });
+    await hour.focus();
+    await hour.press('Home');
+    for (let index = 0; index < 9; index++) await hour.press('ArrowDown');
+    const minute = timePicker.getByRole('listbox', { name: '분', exact: true });
+    await minute.focus();
+    await minute.press('Home');
+    for (let index = 0; index < 7; index++) await minute.press('PageDown');
+    await timePicker.getByRole('button', { name: '확인', exact: true }).click();
+    for (const width of [320, viewport.width]) {
+      await page.setViewportSize({ width, height: viewport.height });
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await expect(dialog.getByRole('button', { name: '추가하기', exact: true })).toBeInViewport();
+    }
+    await dialog.screenshot({ path: testInfo.outputPath('quick-add.png') });
+    await dialog.getByRole('button', { name: '추가하기', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    const saved = () =>
+      page.evaluate(() =>
+        JSON.parse(sessionStorage.getItem('daynomy:guest-portfolio-holdings:v1')!),
+      );
+    expect((await saved()).histories[0]).toMatchObject({
+      tradeTime: '09:35',
+      transactionQuantity: 2,
+      unitPrice: 127000.5,
+    });
+    await page.reload();
+    await page.getByRole('button', { name: '거래 내역', exact: true }).click();
+    await page.locator('.portfolio-history-row').first().click();
+    const edit = page.getByRole('dialog', { name: '거래 수정' });
+    await expect(edit.getByRole('group', { name: '숫자 입력' })).toHaveCount(0);
+    await expect(edit.getByLabel('거래 단가 (원)')).toHaveValue('127,000.5');
+    await edit.screenshot({ path: testInfo.outputPath('existing-edit.png') });
+    await edit.getByLabel('수량 (주)').fill('3');
+    await edit.getByRole('button', { name: '수정하기', exact: true }).click();
+    await expect(edit).toHaveCount(0);
+    expect((await saved()).histories[0]).toMatchObject({
+      tradeTime: '09:35',
+      transactionQuantity: 3,
+    });
+  });
+
   test(`종목 통합 검색의 목록 크기와 최근 검색어: ${viewport.name}`, async ({ page }, testInfo) => {
     await page.setViewportSize(
       viewport.name === 'desktop' ? { width: 1280, height: 720 } : viewport,
@@ -1408,33 +1478,42 @@ for (const viewport of [
     finishStockSearch();
     pendingStockSearch = null;
     await dialog.getByRole('button', { name: /삼성전자/ }).click();
-    await expect(dialog.getByLabel('거래일', { exact: true })).toBeFocused();
+    await expect(dialog.getByLabel('수량 (주)')).toBeFocused();
     await expect(dialog.getByLabel('거래 단가 (원)')).toHaveValue('75,200');
     await dialog.getByLabel('수량 (주)').fill('5');
     await dialog.getByLabel('거래 단가 (원)').fill('75200');
     await expect(dialog).toHaveCSS('scrollbar-width', 'none');
     const originalViewport = page.viewportSize()!;
     await page.setViewportSize({ width: originalViewport.width, height: 600 });
-    await dialog.getByText('수수료·세금', { exact: false }).click();
-    await dialog.getByLabel('세금 (원)', { exact: true }).fill('0');
-    const submitTrade = dialog.getByRole('button', { name: '매수 기록하기' });
-    await submitTrade.scrollIntoViewIfNeeded();
-    await expect(submitTrade).toBeInViewport();
-    expect(await dialog.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-    await dialog.getByText('수수료·세금', { exact: false }).click();
+    await dialog.getByRole('button', { name: '수수료·참고 시세', exact: true }).click();
+    const costsDialog = page.getByRole('dialog', { name: '수수료·참고 시세' });
+    await expect(costsDialog.getByLabel('수수료 (원)', { exact: true })).toBeVisible();
+    await costsDialog.getByLabel('세금 (원)', { exact: true }).fill('0');
+    const applyCosts = costsDialog.getByRole('button', { name: '적용', exact: true });
+    await applyCosts.scrollIntoViewIfNeeded();
+    await expect(applyCosts).toBeInViewport();
+    expect(
+      await costsDialog.evaluate((element) => element.scrollWidth <= element.clientWidth),
+    ).toBe(true);
+    await applyCosts.click();
+    await expect(costsDialog).toHaveCount(0);
+    await expect(dialog.getByRole('group', { name: '숫자 입력' })).toBeVisible();
     await page.setViewportSize(originalViewport);
-    await dialog.getByLabel('거래일', { exact: true }).focus();
+    await dialog.getByRole('button', { name: '거래일 수정', exact: true }).click();
+    const focusedDatePicker = page.getByRole('dialog', { name: '날짜 선택' });
+    await focusedDatePicker.getByRole('listbox', { name: '연도', exact: true }).focus();
     await page.screenshot({
       path: testInfo.outputPath('transaction.png'),
       fullPage: true,
     });
     for (let i = 0; i < 12; i++) {
       await page.keyboard.press('Tab');
-      expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(
-        true,
-      );
+      expect(
+        await focusedDatePicker.evaluate((element) => element.contains(document.activeElement)),
+      ).toBe(true);
     }
-    await dialog.getByRole('button', { name: '매수 기록하기' }).click();
+    await focusedDatePicker.getByRole('button', { name: '확인', exact: true }).click();
+    await dialog.getByRole('button', { name: '추가하기' }).click();
     await expect(dialog).toHaveCount(0);
     await page.getByRole('button', { name: '거래 내역' }).click();
     await expect(page.locator('.portfolio-history-row')).toHaveCount(2);

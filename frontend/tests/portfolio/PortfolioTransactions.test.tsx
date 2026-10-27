@@ -396,15 +396,22 @@ describe('거래 원장 화면', () => {
 
   it('검색한 기존 종목에 추가 매수하고 비용을 API에 전달한다', async () => {
     const view = await ready();
+    const initialOverflow = document.body.style.overflow;
     fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
     const dialog = view.getByRole('dialog', { name: '거래 기록' });
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));
     fill(dialog);
-    fireEvent.change(within(dialog).getByLabelText('수수료 (원)'), { target: { value: '100.25' } });
-    expect(within(dialog).getByText('375,102.75원')).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole('button', { name: '매수 기록하기' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '수수료·참고 시세' }));
+    const costsDialog = view.getByRole('dialog', { name: '수수료·참고 시세' });
+    fireEvent.change(within(costsDialog).getByLabelText('수수료 (원)'), {
+      target: { value: '100.25' },
+    });
+    fireEvent.click(within(costsDialog).getByRole('button', { name: '적용' }));
+    expect(view.queryByRole('dialog', { name: '수수료·참고 시세' })).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
     await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+    expect(document.body.style.overflow).toBe(initialOverflow);
     expect(await view.findByText('15주')).toBeTruthy();
     const [, init] = vi
       .mocked(fetch)
@@ -415,6 +422,7 @@ describe('거래 원장 화면', () => {
       assetId: 1,
       type: 'BUY',
       tradeDate: '2026-10-12',
+      tradeTime: '10:00',
       quantity: 5,
       unitPrice: 75000.5,
       fee: 100.25,
@@ -448,7 +456,7 @@ describe('거래 원장 화면', () => {
       fill(dialog);
       rejectMutation = true;
       const save = within(dialog).getByRole('button', {
-        name: operation === 'transaction_create' ? '매수 기록하기' : '수정하기',
+        name: operation === 'transaction_create' ? '추가하기' : '수정하기',
       });
       fireEvent.click(save);
       await within(dialog).findByRole('alert');

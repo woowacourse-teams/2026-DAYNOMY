@@ -35,15 +35,9 @@ test('키보드로 소개·거래 입력 오류 수정·뉴스 검색과 읽기�
   await expect(page.getByRole('button', { name: /삼성전자.*005930/ })).toBeVisible();
   await tabTo(page, '.portfolio-stock-results li button');
   await page.keyboard.press('Enter');
-  await tabTo(page, 'input[name="quantity"]');
-  await page.keyboard.insertText('0');
-  await tabTo(page, '.portfolio-sheet-footer button[type="submit"]');
-  await page.keyboard.press('Enter');
-  await expect(quantity).toBeFocused();
-  await expect(quantity).toHaveAttribute('aria-invalid', 'true');
-  await expect(quantity).toHaveAccessibleDescription('수량은 1주 이상의 정수로 입력해 주세요.');
-  await page.keyboard.press('ControlOrMeta+A');
-  await page.keyboard.insertText('1');
+  await quantity.fill('0');
+  await expect(page.locator('.portfolio-sheet-footer button[type="submit"]')).toBeDisabled();
+  await quantity.fill('1');
   await tabTo(page, '.portfolio-sheet-footer button[type="submit"]');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog')).toHaveCount(0);

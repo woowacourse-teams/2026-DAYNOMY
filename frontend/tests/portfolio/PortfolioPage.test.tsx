@@ -524,7 +524,7 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(within(dialog).getByLabelText('거래 단가 (원)'), {
       target: { value: '70000' },
     });
-    fireEvent.click(within(dialog).getByRole('button', { name: '매수 기록하기' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
 
     await waitFor(() => {
       expect(loadGuestPortfolioHoldings()).toEqual([
@@ -911,7 +911,7 @@ describe('포트폴리오 화면', () => {
     fireEvent.change(within(dialog).getByLabelText('수량 (주)'), { target: { value: '10' } });
     fireEvent.change(averagePriceInput, { target: { value: '70000' } });
     expect(averagePriceInput.value).toBe('70,000');
-    fireEvent.click(within(dialog).getByRole('button', { name: '매수 기록하기' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
 
     expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
     expect(view.getByText('+10,000원')).toBeTruthy();
@@ -1591,7 +1591,7 @@ describe('포트폴리오 화면', () => {
       ),
     );
     fireEvent.change(within(dialog).getByLabelText('수량 (주)'), { target: { value: '3' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: '매수 기록하기' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
 
     expect((await view.findAllByText('KODEX 200')).length).toBeGreaterThan(0);
     expect(savedHoldings).toContainEqual(expect.objectContaining({ category: 'ETF' }));
