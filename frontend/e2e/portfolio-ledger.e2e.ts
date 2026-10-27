@@ -317,7 +317,7 @@ for (const viewport of [
     const trend = page.locator('.portfolio-return-dashboard');
     const composition = page.locator('.portfolio-composition');
     await expect(trend.getByRole('link', { name: '로그인하기' })).toBeVisible();
-    await expect(composition.getByText('표시할 자산이 없습니다')).toBeVisible();
+    await expect(composition.getByText('보유 중인 자산이 없어요', { exact: true })).toBeVisible();
     for (const card of [trend, composition]) {
       const height = await card.evaluate((element) => parseFloat(getComputedStyle(element).height));
       expect(height).toBeLessThanOrEqual(340);
