@@ -19,6 +19,9 @@ import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysis;
 import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisContent;
 import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisKey;
 import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisVerification;
+import org.grit.daynomy.emailsubscription.dto.AdminEmailAnalysisDetailResponse;
+import org.grit.daynomy.emailsubscription.dto.AdminEmailAnalysisItemResponse;
+import org.grit.daynomy.emailsubscription.dto.AdminEmailAnalysisPageResponse;
 import org.grit.daynomy.emailsubscription.dto.AnalysisInvalidationResponse;
 import org.grit.daynomy.emailsubscription.exception.EmailAnalysisErrorCode;
 import org.grit.daynomy.emailsubscription.repository.CommonStockAnalysisRepository;
@@ -36,6 +39,20 @@ public class CommonStockAnalysisService {
   private final AssetRepository assets;
   private final CommonStockAnalysisRepository analyses;
   private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+  public AdminEmailAnalysisPageResponse listForAdmin(
+      CommonStockAnalysis.Status status, Long assetId, Pageable pageable) {
+    return AdminEmailAnalysisPageResponse.from(
+        analyses.findForAdmin(status, assetId, pageable).map(AdminEmailAnalysisItemResponse::from));
+  }
+
+  public AdminEmailAnalysisDetailResponse detailForAdmin(Long id) {
+    return AdminEmailAnalysisDetailResponse.from(
+        analyses
+            .findForAdminById(id)
+            .orElseThrow(
+                () -> new BusinessException(EmailAnalysisErrorCode.EMAIL_ANALYSIS_NOT_FOUND)));
+  }
 
   @Transactional
   public Long storePending(CommonStockAnalysisKey key, CommonStockAnalysisContent content) {

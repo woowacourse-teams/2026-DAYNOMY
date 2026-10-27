@@ -28,6 +28,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -63,6 +64,38 @@ class CommonStockAnalysisRepositoryTest {
   @Autowired private AssetRepository assets;
   @Autowired private CommonStockAnalysisRepository analyses;
   @Autowired private CommonStockAnalysisService service;
+
+  @Test
+  void adminListHasStablePaginationOptionalFiltersAndIncludesInvalidatedAnalyses() {
+    long existingCount = analyses.count();
+    var asset = asset("admin-list");
+    var first = service.storePending(key(asset), content("첫 분석"));
+    var second =
+        service.storePending(
+            new CommonStockAnalysisKey(asset.getId(), "model", "v2", "e1", AS_OF),
+            content("다음 분석"));
+    service.invalidate(second, "공시 정정");
+    entityManager.flush();
+    entityManager.clear();
+    var page = analyses.findForAdmin(null, asset.getId(), PageRequest.of(0, 1));
+    assertThat(page.getTotalElements()).isEqualTo(2);
+    assertThat(page.hasNext()).isTrue();
+    assertThat(page.getContent()).extracting(item -> item.getId()).containsExactly(second);
+    assertThat(page.getContent().getFirst().getAsset().getName()).isEqualTo(asset.getName());
+    assertThat(analyses.findForAdmin(null, asset.getId(), PageRequest.of(1, 1)).getContent())
+        .extracting(item -> item.getId())
+        .containsExactly(first);
+    assertThat(analyses.findForAdmin(Status.INVALIDATED, null, PageRequest.of(0, 10)).getContent())
+        .extracting(item -> item.getId())
+        .contains(second);
+    assertThat(analyses.findForAdmin(Status.VERIFIED, asset.getId(), PageRequest.of(0, 10)))
+        .isEmpty();
+    assertThat(analyses.findForAdmin(null, null, PageRequest.of(0, 10)).getTotalElements())
+        .isEqualTo(existingCount + 2);
+    assertThat(analyses.findForAdminById(second).orElseThrow().getInvalidationReason())
+        .isEqualTo("공시 정정");
+    assertThat(analyses.findForAdminById(Long.MAX_VALUE)).isEmpty();
+  }
 
   @Test
   void invalidationPersistsAndPreventsReuseOrVerificationResurrection() {

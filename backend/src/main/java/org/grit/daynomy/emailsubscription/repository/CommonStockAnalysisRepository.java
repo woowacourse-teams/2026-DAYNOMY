@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.util.Optional;
 import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysis;
 import org.grit.daynomy.emailsubscription.domain.CommonStockAnalysisKey;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -12,6 +14,24 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface CommonStockAnalysisRepository extends JpaRepository<CommonStockAnalysis, Long> {
+
+  @Query(
+      value =
+          """
+      select a from CommonStockAnalysis a join fetch a.asset
+      where (:status is null or a.status = :status) and (:assetId is null or a.asset.id = :assetId)
+      order by a.analyzedAt desc, a.id desc
+      """,
+      countQuery =
+          """
+      select count(a) from CommonStockAnalysis a
+      where (:status is null or a.status = :status) and (:assetId is null or a.asset.id = :assetId)
+      """)
+  Page<CommonStockAnalysis> findForAdmin(
+      CommonStockAnalysis.Status status, Long assetId, Pageable pageable);
+
+  @Query("select a from CommonStockAnalysis a join fetch a.asset where a.id = :id")
+  Optional<CommonStockAnalysis> findForAdminById(Long id);
 
   @Query(
       """
