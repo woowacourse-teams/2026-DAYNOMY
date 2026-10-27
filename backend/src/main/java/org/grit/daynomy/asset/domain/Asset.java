@@ -15,10 +15,12 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.grit.daynomy.common.BaseEntity;
+import org.hibernate.annotations.DynamicUpdate;
 
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Entity
+@DynamicUpdate
 @Table(
     name = "assets",
     uniqueConstraints =
@@ -33,6 +35,9 @@ public class Asset extends BaseEntity {
 
   @Column(name = "name", nullable = false)
   private String name;
+
+  @Column(name = "name_ko")
+  private String nameKo;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "category", nullable = false)
@@ -140,6 +145,18 @@ public class Asset extends BaseEntity {
       return false;
     }
     listed = false;
+    return true;
+  }
+
+  public boolean synchronizeKoreanName(String koreanName) {
+    if (koreanName == null || koreanName.isBlank()) {
+      throw new IllegalArgumentException("한글 종목명은 비어 있을 수 없습니다.");
+    }
+    String normalizedName = koreanName.strip();
+    if (Objects.equals(nameKo, normalizedName)) {
+      return false;
+    }
+    nameKo = normalizedName;
     return true;
   }
 }

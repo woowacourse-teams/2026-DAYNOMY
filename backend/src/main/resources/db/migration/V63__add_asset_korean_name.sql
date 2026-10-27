@@ -1,0 +1,1 @@
+ALTER TABLE assets ADD COLUMN name_ko VARCHAR(255);
