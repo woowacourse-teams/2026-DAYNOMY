@@ -28,4 +28,12 @@ class AssetMentionMatcherTest {
 
     assertThat(matcher.match("Metaverse 시장 전망", "", List.of(meta))).isEmpty();
   }
+
+  @Test
+  void matchesExactStockTickerWithoutMatchingInsideAnotherToken() {
+    Asset apple = new Asset("Apple", AssetCategory.STOCK, "AAPL");
+
+    assertThat(matcher.match("$AAPL 실적 전망", "", List.of(apple))).containsExactly(apple);
+    assertThat(matcher.match("XAAPLX는 종목 코드가 아니다", "", List.of(apple))).isEmpty();
+  }
 }

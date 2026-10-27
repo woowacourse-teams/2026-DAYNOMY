@@ -11,7 +11,25 @@ class AssetMentionMatcher {
 
   List<Asset> match(String title, String description, List<Asset> assets) {
     String text = (safe(title) + " " + safe(description)).toLowerCase(Locale.ROOT);
-    return assets.stream().filter(asset -> containsName(text, asset.getName())).limit(10).toList();
+    return assets.stream()
+        .filter(
+            asset ->
+                containsName(text, asset.getName())
+                    || containsAssetCode(text, asset.getAssetCode()))
+        .limit(10)
+        .toList();
+  }
+
+  private boolean containsAssetCode(String text, String assetCode) {
+    if (assetCode == null || assetCode.strip().length() < 2) {
+      return false;
+    }
+    String normalizedCode = assetCode.strip().toLowerCase(Locale.ROOT);
+    return Pattern.compile(
+            "(?<![a-z0-9])" + Pattern.quote(normalizedCode) + "(?![a-z0-9])",
+            Pattern.CASE_INSENSITIVE)
+        .matcher(text)
+        .find();
   }
 
   private boolean containsName(String text, String name) {
