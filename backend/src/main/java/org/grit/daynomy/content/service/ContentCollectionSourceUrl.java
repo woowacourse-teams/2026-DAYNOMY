@@ -38,6 +38,42 @@ final class ContentCollectionSourceUrl {
     }
   }
 
+  static boolean belongsToSource(ContentSourceType sourceType, String sourceUrl, String postUrl) {
+    if (sourceType != ContentSourceType.X && sourceType != ContentSourceType.THREADS) {
+      return false;
+    }
+    try {
+      URI source = URI.create(normalize(sourceType, sourceUrl));
+      URI post = URI.create(postUrl);
+      String sourceHandle = handle(sourceType, source.getPath());
+      String postHandle = handle(sourceType, post.getPath());
+      return sourceHandle != null
+          && postHandle != null
+          && sourceHandle.equalsIgnoreCase(postHandle);
+    } catch (BusinessException | IllegalArgumentException exception) {
+      return false;
+    }
+  }
+
+  private static String handle(ContentSourceType sourceType, String path) {
+    String[] segments = path == null ? new String[0] : path.split("/");
+    if (segments.length < 2 || segments[1].isBlank()) {
+      return null;
+    }
+    if (sourceType == ContentSourceType.X) {
+      return segments.length == 2
+              || (segments.length >= 4 && "status".equalsIgnoreCase(segments[2]))
+          ? segments[1]
+          : null;
+    }
+    if (!segments[1].startsWith("@")) {
+      return null;
+    }
+    return segments.length == 2 || (segments.length >= 4 && "post".equalsIgnoreCase(segments[2]))
+        ? segments[1].substring(1)
+        : null;
+  }
+
   private static boolean isValid(ContentSourceType sourceType, String host, String path) {
     return switch (sourceType) {
       case YOUTUBE ->

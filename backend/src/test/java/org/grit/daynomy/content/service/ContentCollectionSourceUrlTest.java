@@ -39,4 +39,20 @@ class ContentCollectionSourceUrlTest {
                     ContentSourceType.YOUTUBE, "https://x.com/daynomy"))
         .isInstanceOf(BusinessException.class);
   }
+
+  @Test
+  void checksPostAuthorAgainstRegisteredSource() {
+    assertThat(
+            ContentCollectionSourceUrl.belongsToSource(
+                ContentSourceType.X,
+                "https://x.com/hankyungmedia",
+                "https://twitter.com/HankyungMedia/status/123"))
+        .isTrue();
+    assertThat(
+            ContentCollectionSourceUrl.belongsToSource(
+                ContentSourceType.THREADS,
+                "https://www.threads.net/@daynomy",
+                "https://www.threads.com/@other/post/abc"))
+        .isFalse();
+  }
 }

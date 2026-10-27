@@ -115,6 +115,20 @@ public class OpenAiSocialPostSearchClient {
     return searchProfiles(sourceName, xProfileUrl, threadsProfileUrl, null, null, false);
   }
 
+  public Optional<SocialPostCandidate> resolvePost(
+      String url, String fallbackTitle, LocalDate publishedDate) {
+    Optional<SocialPostCandidate> parsed = candidate(fallbackTitle, url);
+    if (parsed.isEmpty()) {
+      return Optional.empty();
+    }
+    SocialPostCandidate candidate = parsed.get();
+    if (candidate.platform() == SocialPostCandidate.Platform.X) {
+      return verifyXPost(candidate.url(), candidate.title());
+    }
+    return verifyThreadsPost(
+        candidate.url(), candidate.title(), publishedDate == null ? "" : publishedDate.toString());
+  }
+
   private List<SocialPostCandidate> searchProfiles(
       String sourceName,
       String xProfileUrl,
