@@ -152,14 +152,25 @@ public class ContentCollectionReviewService {
         reviews.stream()
             .map(CollectedExternalContentReview::getSuggestedAsset)
             .anyMatch(asset -> asset != null && selected.contains(asset.getId()));
+    Asset fallbackAsset =
+        hasSelectedSuggestion
+            ? null
+            : assetIds.stream()
+                .filter(
+                    assetId ->
+                        !reviewRepository.existsByCollectedContentIdAndSuggestedAssetId(
+                            contentId, assetId))
+                .findFirst()
+                .map(assetsById::get)
+                .orElse(null);
     Instant reviewedAt = Instant.now();
     for (int index = 0; index < reviews.size(); index++) {
       CollectedExternalContentReview review = reviews.get(index);
       Asset suggestion = review.getSuggestedAsset();
-      if ((suggestion != null && selected.contains(suggestion.getId()))
-          || (!hasSelectedSuggestion && index == 0)) {
-        review.approve(
-            suggestion == null ? assetsById.get(assetIds.getFirst()) : suggestion, reviewedAt);
+      if (suggestion != null && selected.contains(suggestion.getId())) {
+        review.approve(suggestion, reviewedAt);
+      } else if (fallbackAsset != null && index == 0) {
+        review.approve(fallbackAsset, reviewedAt);
       } else {
         review.reject(reviewedAt);
       }

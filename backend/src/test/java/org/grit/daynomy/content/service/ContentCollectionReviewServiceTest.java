@@ -68,6 +68,46 @@ class ContentCollectionReviewServiceTest {
   }
 
   @Test
+  void approvalReplacesUnselectedSuggestionWithManuallySelectedAsset() {
+    Asset suggested = asset(1L, "삼성전자", "005930");
+    Asset selected = asset(2L, "SK하이닉스", "000660");
+    CollectedExternalContent content = content("반도체 전망");
+    CollectedExternalContentReview review = new CollectedExternalContentReview(content, suggested);
+    given(
+            reviewRepository.findAllByCollectedContentIdAndStatusOrderByIdAsc(
+                3L, ContentCollectionReviewStatus.PENDING))
+        .willReturn(List.of(review));
+    given(assetRepository.findAllById(List.of(2L))).willReturn(List.of(selected));
+    given(assetContentRepository.existsByAssetIdAndUrl(2L, content.getUrl())).willReturn(false);
+    given(reviewRepository.existsByCollectedContentIdAndSuggestedAssetId(3L, 2L)).willReturn(false);
+
+    service().approve(3L, List.of(2L), null);
+
+    assertThat(review.getStatus()).isEqualTo(ContentCollectionReviewStatus.APPROVED);
+    assertThat(review.getSuggestedAsset()).isEqualTo(selected);
+  }
+
+  @Test
+  void approvalDoesNotOverwritePendingSuggestionWhenSelectedAssetReviewAlreadyExists() {
+    Asset suggested = asset(1L, "삼성전자", "005930");
+    Asset selected = asset(2L, "SK하이닉스", "000660");
+    CollectedExternalContent content = content("반도체 전망");
+    CollectedExternalContentReview review = new CollectedExternalContentReview(content, suggested);
+    given(
+            reviewRepository.findAllByCollectedContentIdAndStatusOrderByIdAsc(
+                3L, ContentCollectionReviewStatus.PENDING))
+        .willReturn(List.of(review));
+    given(assetRepository.findAllById(List.of(2L))).willReturn(List.of(selected));
+    given(assetContentRepository.existsByAssetIdAndUrl(2L, content.getUrl())).willReturn(false);
+    given(reviewRepository.existsByCollectedContentIdAndSuggestedAssetId(3L, 2L)).willReturn(true);
+
+    service().approve(3L, List.of(2L), null);
+
+    assertThat(review.getStatus()).isEqualTo(ContentCollectionReviewStatus.REJECTED);
+    assertThat(review.getSuggestedAsset()).isEqualTo(suggested);
+  }
+
+  @Test
   void rejectionClosesEveryCandidateForTheContent() {
     CollectedExternalContent content = content("시장 전망");
     CollectedExternalContentReview first = new CollectedExternalContentReview(content, null);
