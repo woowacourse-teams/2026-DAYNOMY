@@ -37,7 +37,7 @@ class ContentCollectionServiceTest {
         new ContentCollectionSource(
             "경제 채널", ContentSourceType.YOUTUBE, "https://www.youtube.com/@economy", null, true);
     source.completeCollection(Instant.parse("2026-01-01T00:00:00Z"));
-    given(sourceRepository.findById(1L)).willReturn(Optional.of(source));
+    given(sourceRepository.findByIdForUpdate(1L)).willReturn(Optional.of(source));
     given(youtubeClient.listChannelUploads(eq(source.getSourceUrl()), any(), any()))
         .willReturn(List.of());
     given(persistenceService.persist(eq(1L), eq(List.of()), any()))
@@ -48,6 +48,8 @@ class ContentCollectionServiceTest {
     ReflectionTestUtils.setField(service, "configuredLookbackDays", 3);
 
     service.collect(1L);
+
+    then(sourceRepository).should().findByIdForUpdate(1L);
 
     ArgumentCaptor<Instant> from = ArgumentCaptor.forClass(Instant.class);
     ArgumentCaptor<Instant> to = ArgumentCaptor.forClass(Instant.class);

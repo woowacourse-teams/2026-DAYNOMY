@@ -16,6 +16,7 @@ import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.external.youtube.YouTubeVideoCandidate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
 @Service
@@ -31,6 +32,7 @@ public class ContentCollectionService {
   @Value("${content.collection.lookback-days:3}")
   private int configuredLookbackDays;
 
+  @Transactional
   public ContentCollectionResultResponse collect(Long sourceId) {
     ContentCollectionSource source = getSource(sourceId);
     Instant now = Instant.now();
@@ -48,7 +50,7 @@ public class ContentCollectionService {
 
   private ContentCollectionSource getSource(Long sourceId) {
     return sourceRepository
-        .findById(sourceId)
+        .findByIdForUpdate(sourceId)
         .orElseThrow(
             () -> new BusinessException(ContentErrorCode.CONTENT_COLLECTION_SOURCE_NOT_FOUND));
   }

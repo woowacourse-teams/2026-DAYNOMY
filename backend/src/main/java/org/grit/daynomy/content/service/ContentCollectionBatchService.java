@@ -19,7 +19,7 @@ public class ContentCollectionBatchService {
 
   private final ContentCollectionSourceRepository sourceRepository;
   private final ContentCollectionService collectionService;
-  // shortcut: process-local guard only; use a distributed lock when multiple replicas schedule it.
+  // The process guard rejects duplicate whole-batch requests; collect() locks each source in DB.
   private final AtomicBoolean running = new AtomicBoolean();
 
   public ContentCollectionBatchResultResponse collectAllEnabled() {
