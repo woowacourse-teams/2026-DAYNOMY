@@ -101,6 +101,12 @@ content-interaction:
   anonymous-token-secret: ${CONTENT_INTERACTION_ANONYMOUS_TOKEN_SECRET:${jwt.secret}}
   rate-limit-per-minute: ${CONTENT_INTERACTION_RATE_LIMIT_PER_MINUTE:60}
 
+content:
+  collection:
+    enabled: ${CONTENT_COLLECTION_ENABLED:false}
+    cron: ${CONTENT_COLLECTION_CRON:0 30 * * * *}
+    lookback-days: ${CONTENT_COLLECTION_LOOKBACK_DAYS:3}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
