@@ -1,6 +1,6 @@
 import { trackEvent, type AnalyticsParams } from '../../../analytics';
 import { feedProperties } from './analytics';
-import { useId, useRef, useState } from 'react';
+import { memo, useId, useRef, useState } from 'react';
 import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import { Link } from 'react-router-dom';
@@ -115,7 +115,182 @@ function InlinePost({
   );
 }
 
-export function IssueFeed({
+const IssueFeedRow = memo(function IssueFeedRow({
+  item,
+  surface,
+  position,
+  selected,
+  onSelect,
+  peopleTimeline,
+  compactNews,
+  showThumbnails,
+  startsDate,
+}: {
+  item: FeedItem;
+  surface: string;
+  position: number;
+  selected: boolean;
+  onSelect: (item: ReadingItem | null) => void;
+  peopleTimeline: boolean;
+  compactNews: boolean;
+  showThumbnails: boolean;
+  startsDate: boolean;
+}) {
+  const id = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  return (
+    <li className={startsDate ? 'people-date-start' : undefined}>
+      {startsDate && (
+        <div className="people-date-marker">
+          <time dateTime={item.date ?? undefined} title={item.date ?? undefined}>
+            {timestamp(item.date)
+              ? feedDate(item.date, '발행').replace(' 발행', '')
+              : '날짜 미제공'}
+          </time>
+        </div>
+      )}
+      <article
+        className={`issue-feed-row${showThumbnails ? ' issue-feed-row--visual' : ''}${compactNews ? ' issue-feed-row--news' : ''}`}
+      >
+        {showThumbnails && <FeedThumbnail item={item} />}
+        <span
+          className={`issue-platform-mark issue-platform-${item.source.toLowerCase()}`}
+          aria-hidden="true"
+        >
+          {item.source === 'DAYNOMY' ? (
+            'D'
+          ) : item.source === 'YOUTUBE' ? (
+            <svg viewBox="0 0 28 20">
+              <path
+                fill="#f03"
+                d="M27.4 3.1A3.5 3.5 0 0 0 24.9.6C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5C5.3 20 14 20 14 20s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"
+              />
+              <path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3z" />
+            </svg>
+          ) : (
+            <img src={item.source === 'THREADS' ? threadsMark : xMark} alt="" />
+          )}
+        </span>
+        <div className="issue-meta">
+          <span className="issue-source">{sourceLabel(item.source)}</span>
+          {'person' in item && (
+            <Link
+              onClick={() =>
+                trackEvent('click_person_preview', {
+                  surface,
+                  person_id: item.person.id,
+                  position,
+                })
+              }
+              to={`/people?person=${item.person.id}${isToday(item.date) ? '' : '&view=all'}`}
+            >
+              {item.person.name}
+            </Link>
+          )}
+          {compactNews && item.source === 'DAYNOMY' && item.article.category !== 'ALL' && (
+            <span>{getCategoryLabel(item.article.category)}</span>
+          )}
+          {!peopleTimeline &&
+            (compactNews ? (
+              <time dateTime={item.date ?? undefined}>
+                {item.source === 'DAYNOMY'
+                  ? feedDate(item.date, '발행')
+                  : feedDate(
+                      item.date,
+                      ('post' in item ? item.post.publishedAt : item.content.publishedDate)
+                        ? '게시'
+                        : '등록',
+                    )}
+              </time>
+            ) : (
+              <time dateTime={item.date ?? undefined}>{feedDate(item.date)}</time>
+            ))}
+        </div>
+        {item.source === 'DAYNOMY' ? (
+          <Link
+            onClick={() => {
+              trackEvent('click_content', feedProperties(item, surface, position));
+              void recordContentInteraction(feedContentReference(item), 'OPEN');
+            }}
+            className="issue-row-title"
+            to={`/news/${item.article.id}`}
+          >
+            <h3>{item.title}</h3>
+            {compactNews ? (
+              <span className="issue-expand-label">
+                기사 읽기
+                <svg className="issue-expand-chevron" viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    d="M3 8h10m-4-4 4 4-4 4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              </span>
+            ) : (
+              <span aria-hidden="true">↗</span>
+            )}
+          </Link>
+        ) : (
+          <button
+            ref={triggerRef}
+            id={`${id}-${item.key}-trigger`}
+            className="issue-row-title"
+            type="button"
+            aria-expanded={selected}
+            aria-controls={`${id}-${item.key}`}
+            onClick={() => {
+              if (!selected) {
+                trackEvent('expand_content', feedProperties(item, surface, position));
+                void recordContentInteraction(feedContentReference(item), 'OPEN');
+              }
+              onSelect(selected ? null : item);
+            }}
+          >
+            <span className="issue-post-title">{item.title}</span>
+            <span className="issue-expand-label">
+              {selected ? '접기' : item.source === 'YOUTUBE' ? '영상 보기' : '글 펼치기'}
+              <svg className="issue-expand-chevron" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            </span>
+          </button>
+        )}
+        {item.source !== 'DAYNOMY' && (
+          <div
+            id={`${id}-${item.key}`}
+            hidden={!selected}
+            className="issue-inline-post"
+            role="region"
+            aria-labelledby={`${id}-${item.key}-trigger`}
+          >
+            {selected && (
+              <>
+                <InlinePost
+                  item={item}
+                  analytics={feedProperties(item, surface, position)}
+                  reference={feedContentReference(item)}
+                />
+                <button
+                  className="issue-inline-close"
+                  onClick={() => {
+                    onSelect(null);
+                    triggerRef.current?.focus();
+                  }}
+                >
+                  글 접기 ↑
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </article>
+    </li>
+  );
+});
+
+export const IssueFeed = memo(function IssueFeed({
   items,
   surface = 'news_home',
   offset = 0,
@@ -125,8 +300,6 @@ export function IssueFeed({
   offset?: number;
 }) {
   const [selected, setSelected] = useState<ReadingItem | null>(null);
-  const id = useId();
-  const triggers = useRef(new Map<string, HTMLButtonElement>());
   const peopleTimeline = surface === 'people';
   const compactNews =
     surface === 'news_home' ||
@@ -142,175 +315,23 @@ export function IssueFeed({
         className={`issue-feed${showThumbnails ? ' issue-feed--visual' : ''}${peopleTimeline ? ' people-timeline' : ''}`}
       >
         {items.map((item, index) => (
-          <li
+          <IssueFeedRow
             key={item.key}
-            className={
+            item={item}
+            surface={surface}
+            position={offset + index + 1}
+            selected={selected?.key === item.key}
+            onSelect={setSelected}
+            peopleTimeline={peopleTimeline}
+            compactNews={compactNews}
+            showThumbnails={showThumbnails}
+            startsDate={
               peopleTimeline &&
               (index === 0 || timestamp(items[index - 1].date) !== timestamp(item.date))
-                ? 'people-date-start'
-                : undefined
             }
-          >
-            {peopleTimeline &&
-              (index === 0 || timestamp(items[index - 1].date) !== timestamp(item.date)) && (
-                <div className="people-date-marker">
-                  <time dateTime={item.date ?? undefined} title={item.date ?? undefined}>
-                    {timestamp(item.date)
-                      ? feedDate(item.date, '발행').replace(' 발행', '')
-                      : '날짜 미제공'}
-                  </time>
-                </div>
-              )}
-            <article
-              className={`issue-feed-row${showThumbnails ? ' issue-feed-row--visual' : ''}${compactNews ? ' issue-feed-row--news' : ''}`}
-            >
-              {showThumbnails && <FeedThumbnail item={item} />}
-              <span
-                className={`issue-platform-mark issue-platform-${item.source.toLowerCase()}`}
-                aria-hidden="true"
-              >
-                {item.source === 'DAYNOMY' ? (
-                  'D'
-                ) : item.source === 'YOUTUBE' ? (
-                  <svg viewBox="0 0 28 20">
-                    <path
-                      fill="#f03"
-                      d="M27.4 3.1A3.5 3.5 0 0 0 24.9.6C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5C5.3 20 14 20 14 20s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"
-                    />
-                    <path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3z" />
-                  </svg>
-                ) : (
-                  <img src={item.source === 'THREADS' ? threadsMark : xMark} alt="" />
-                )}
-              </span>
-              <div className="issue-meta">
-                <span className="issue-source">{sourceLabel(item.source)}</span>
-                {'person' in item && (
-                  <Link
-                    onClick={() =>
-                      trackEvent('click_person_preview', {
-                        surface,
-                        person_id: item.person.id,
-                        position: offset + index + 1,
-                      })
-                    }
-                    to={`/people?person=${item.person.id}${isToday(item.date) ? '' : '&view=all'}`}
-                  >
-                    {item.person.name}
-                  </Link>
-                )}
-                {compactNews && item.source === 'DAYNOMY' && item.article.category !== 'ALL' && (
-                  <span>{getCategoryLabel(item.article.category)}</span>
-                )}
-                {!peopleTimeline &&
-                  (compactNews ? (
-                    <time dateTime={item.date ?? undefined}>
-                      {item.source === 'DAYNOMY'
-                        ? feedDate(item.date, '발행')
-                        : feedDate(
-                            item.date,
-                            ('post' in item ? item.post.publishedAt : item.content.publishedDate)
-                              ? '게시'
-                              : '등록',
-                          )}
-                    </time>
-                  ) : (
-                    <time dateTime={item.date ?? undefined}>{feedDate(item.date)}</time>
-                  ))}
-              </div>
-              {item.source === 'DAYNOMY' ? (
-                <Link
-                  onClick={() => {
-                    trackEvent('click_content', feedProperties(item, surface, offset + index + 1));
-                    void recordContentInteraction(feedContentReference(item), 'OPEN');
-                  }}
-                  className="issue-row-title"
-                  to={`/news/${item.article.id}`}
-                >
-                  <h3>{item.title}</h3>
-                  {compactNews ? (
-                    <span className="issue-expand-label">
-                      기사 읽기
-                      <svg className="issue-expand-chevron" viewBox="0 0 16 16" aria-hidden="true">
-                        <path
-                          d="M3 8h10m-4-4 4 4-4 4"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                        />
-                      </svg>
-                    </span>
-                  ) : (
-                    <span aria-hidden="true">↗</span>
-                  )}
-                </Link>
-              ) : (
-                <button
-                  ref={(node) => {
-                    if (node) triggers.current.set(item.key, node);
-                    else triggers.current.delete(item.key);
-                  }}
-                  id={`${id}-${item.key}-trigger`}
-                  className="issue-row-title"
-                  type="button"
-                  aria-expanded={selected?.key === item.key}
-                  aria-controls={`${id}-${item.key}`}
-                  onClick={() => {
-                    if (selected?.key !== item.key) {
-                      trackEvent(
-                        'expand_content',
-                        feedProperties(item, surface, offset + index + 1),
-                      );
-                      void recordContentInteraction(feedContentReference(item), 'OPEN');
-                    }
-                    setSelected(selected?.key === item.key ? null : item);
-                  }}
-                >
-                  <span className="issue-post-title">{item.title}</span>
-                  <span className="issue-expand-label">
-                    {selected?.key === item.key
-                      ? '접기'
-                      : item.source === 'YOUTUBE'
-                        ? '영상 보기'
-                        : '글 펼치기'}
-                    <svg className="issue-expand-chevron" viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                    </svg>
-                  </span>
-                </button>
-              )}
-              {item.source !== 'DAYNOMY' && (
-                <div
-                  id={`${id}-${item.key}`}
-                  hidden={selected?.key !== item.key}
-                  className="issue-inline-post"
-                  role="region"
-                  aria-labelledby={`${id}-${item.key}-trigger`}
-                >
-                  {selected?.key === item.key && (
-                    <>
-                      <InlinePost
-                        item={item}
-                        analytics={feedProperties(item, surface, offset + index + 1)}
-                        reference={feedContentReference(item)}
-                      />
-                      <button
-                        className="issue-inline-close"
-                        onClick={() => {
-                          setSelected(null);
-                          triggers.current.get(item.key)?.focus();
-                        }}
-                      >
-                        글 접기 ↑
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </article>
-          </li>
+          />
         ))}
       </ul>
     </>
   );
-}
+});
