@@ -112,7 +112,8 @@ jobs:
           if "BASE_URL" in params or "ACCOUNTS_FILE" in params:
               raise SystemExit("BASE_URL and ACCOUNTS_FILE are managed by the workflow.")
 
-          args = ["k6", "run", "-o", "experimental-prometheus-rw"]
+          args = ["k6", "run", "-o", "experimental-prometheus-rw", "--tag",
+                  f"testid={os.environ['LOADTEST_ID']}"]
           if os.environ["PORTFOLIO_TEST"] == "true":
               allowed = {"REFERENCE_DATE", "TRADE_MONTHS_AGO", "MODE", "RPS", "DURATION", "WARMUP_DURATION",
                          "VUS", "REQUEST_TIMEOUT_SECONDS", "TARGET_P95_MS", "RUN"}
@@ -134,20 +135,8 @@ jobs:
                   raise SystemExit(f"Parameter {key} must have a string, number, or boolean value.")
               args.extend(["-e", f"{key}={value}"])
 
-          script = os.environ["K6_SCRIPT_NAME"]
-          test_id = os.environ["LOADTEST_ID"]
-          if script in {"league-rankings-load.js", "league-investor-details-load.js", "content-search-load.js"}:
-              print("Warmup: first 5-minute run; excluded from measurement.", flush=True)
-              warmup = subprocess.run(args + ["--tag", f"testid={test_id}-warmup",
-                                               "--tag", "run_phase=warmup", script])
-              # Only warmup threshold failures are excluded; setup/runtime failures still stop the job.
-              if warmup.returncode not in (0, 99):
-                  sys.exit(warmup.returncode)
-              if warmup.returncode == 99:
-                  print("Warmup thresholds failed; measurement will be evaluated separately.", flush=True)
-              print("Measurement: thresholds apply to this run.", flush=True)
-          sys.exit(subprocess.run(args + ["--tag", f"testid={test_id}",
-                                          "--tag", "run_phase=measurement", script]).returncode)
+          args.append(os.environ["K6_SCRIPT_NAME"])
+          sys.exit(subprocess.run(args).returncode)
           PY
 
       - name: Summarize transaction results

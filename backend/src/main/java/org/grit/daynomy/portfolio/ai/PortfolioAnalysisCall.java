@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
@@ -36,9 +35,6 @@ public final class PortfolioAnalysisCall {
               .addKeyValue("model", model)
               .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
               .addKeyValue("outcome", failure == null ? "SUCCESS" : "FAILED");
-      if (MDC.get("batchNumber") != null) {
-        event.addKeyValue("batchNumber", MDC.get("batchNumber"));
-      }
       if (failure != null) {
         event.addKeyValue("errorType", failure.getClass().getSimpleName());
         if (failure instanceof HttpStatusCodeException http) {

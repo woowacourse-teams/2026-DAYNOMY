@@ -7,6 +7,7 @@ const scripts = [
   'league-rankings-load.js',
   'league-follow-summary-load.js',
   'league-investor-details-load.js',
+  'content-search-load.js',
 ];
 
 function loadScript(file, env = {}) {
@@ -24,7 +25,15 @@ function loadScript(file, env = {}) {
           totalCount: 10000,
           rankings: Array(20).fill({}),
         }
-      : { publicId: 'test-investor', holdings: [{}], decisions: [{ transactionId: 1, reviews: [] }] };
+      : file.includes('content-search')
+        ? {
+            page: 1,
+            size: 12,
+            totalElements: 1,
+            totalPages: 1,
+            items: [{ id: 1, title: '금리', kind: 'NEWS' }],
+          }
+        : { publicId: 'test-investor', holdings: [{}], decisions: [{ transactionId: 1, reviews: [] }] };
   const source = readFileSync(new URL(file, import.meta.url), 'utf8')
     .replace(/^import .*;\n/gm, '')
     .replace(/export default function \((.*?)\)/, 'function run($1)')
@@ -34,6 +43,7 @@ function loadScript(file, env = {}) {
     __ENV: {
       BASE_URL: 'https://loadtest.invalid',
       PUBLIC_ID: 'test-investor',
+      QUERY: '금리',
       RPS: '100',
       VUS: '2',
       ...env,
@@ -147,6 +157,7 @@ for (const file of scripts) {
       if (failure === 'empty') {
         if (file.includes('follow-summary')) script.body.investors = [];
         else if (file.includes('rankings')) script.body.rankings = [];
+        else if (file.includes('content-search')) script.body.items = [];
         else script.body.decisions = [];
       }
       assert.throws(() => script.setup(), /Preflight failed/);
@@ -178,6 +189,44 @@ test('rankings: the last planned request runs and an extra boundary iteration se
 
 test('investor details: the last planned request runs and an extra boundary iteration sends no HTTP request', () => {
   const script = loadScript('league-investor-details-load.js');
+  script.setup();
+  script.execution.scenario.iterationInTest = 29999;
+  script.run();
+  assert.equal(script.calls.length, 2);
+  script.execution.scenario.iterationInTest = 30000;
+  script.run();
+  assert.equal(script.calls.length, 2);
+  assert.equal(script.checks.length, 1);
+  assert.equal(script.trends.length, 1);
+});
+
+test('content search: a keyword is required and query parameters are encoded', () => {
+  for (const QUERY of [undefined, '', '   ', '가'.repeat(101)]) {
+    assert.throws(() => loadScript('content-search-load.js', { QUERY }), /Set QUERY/);
+  }
+  const script = loadScript('content-search-load.js', { QUERY: '  금리 & 경제  ' });
+  script.setup();
+  const url = new URL(script.calls[0].url);
+  assert.equal(url.pathname, '/api/search/contents');
+  assert.deepEqual(Object.fromEntries(url.searchParams), {
+    q: '금리 & 경제',
+    source: 'ALL',
+    page: '1',
+    size: '12',
+    sort: 'LATEST',
+  });
+});
+
+test('content search: invalid pagination and malformed items stop the preflight', () => {
+  for (const changes of [{ page: 0 }, { totalPages: 2 }, { items: [{ id: 0, kind: 'NEWS' }] }]) {
+    const script = loadScript('content-search-load.js');
+    Object.assign(script.body, changes);
+    assert.throws(() => script.setup(), /Preflight failed/);
+  }
+});
+
+test('content search: the last planned request runs and an extra boundary iteration sends no HTTP request', () => {
+  const script = loadScript('content-search-load.js');
   script.setup();
   script.execution.scenario.iterationInTest = 29999;
   script.run();
