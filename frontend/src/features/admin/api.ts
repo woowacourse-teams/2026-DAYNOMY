@@ -16,6 +16,8 @@ import type {
   AdminWikimediaImageCandidate,
   AdminStockPriceSyncResponse,
   AdminStockSyncResponse,
+  AdminUsStockSyncResponse,
+  AdminUsStockKoreanNameSyncResponse,
   AdminStockPriceBackfillResponse,
   AdminLeagueRecalculationResponse,
 } from './types';
@@ -137,6 +139,38 @@ function isAdminStockSyncResponse(value: unknown): value is AdminStockSyncRespon
     typeof value.createdCount === 'number' &&
     typeof value.updatedCount === 'number' &&
     typeof value.delistedCount === 'number'
+  );
+}
+
+function isAdminUsStockKoreanNameSyncResponse(
+  value: unknown,
+): value is AdminUsStockKoreanNameSyncResponse {
+  if (!isRecord(value)) return false;
+  const counts = [
+    'downloadedCount',
+    'matchedCount',
+    'updatedCount',
+    'unmatchedCount',
+    'skippedCount',
+  ];
+  if (!counts.every((key) => Number.isSafeInteger(value[key]) && Number(value[key]) >= 0))
+    return false;
+  return (
+    Number(value.downloadedCount) ===
+      Number(value.matchedCount) + Number(value.unmatchedCount) + Number(value.skippedCount) &&
+    Number(value.updatedCount) <= Number(value.matchedCount)
+  );
+}
+
+function isAdminUsStockSyncResponse(value: unknown): value is AdminUsStockSyncResponse {
+  if (!isRecord(value)) return false;
+  const { koreanNames, koreanNameErrorCode } = value;
+  if (!isAdminStockSyncResponse(value)) return false;
+  return (
+    (koreanNameErrorCode === null && isAdminUsStockKoreanNameSyncResponse(koreanNames)) ||
+    (koreanNames === null &&
+      typeof koreanNameErrorCode === 'string' &&
+      koreanNameErrorCode.length > 0)
   );
 }
 
@@ -305,11 +339,18 @@ export async function syncAdminStockPrices(): Promise<AdminStockPriceSyncRespons
   return assertResponse(response, isAdminStockPriceSyncResponse);
 }
 
-export async function syncAdminUsStocks(): Promise<AdminStockSyncResponse> {
+export async function syncAdminUsStocks(): Promise<AdminUsStockSyncResponse> {
   const response = await requestWithCsrf<unknown>('/api/admin/stocks/us/sync', {
     method: 'POST',
   });
-  return assertResponse(response, isAdminStockSyncResponse);
+  return assertResponse(response, isAdminUsStockSyncResponse);
+}
+
+export async function syncAdminUsStockKoreanNames(): Promise<AdminUsStockKoreanNameSyncResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/stocks/us/korean-names/sync', {
+    method: 'POST',
+  });
+  return assertResponse(response, isAdminUsStockKoreanNameSyncResponse);
 }
 
 export async function syncAdminUsStockPrices(date = ''): Promise<AdminStockPriceSyncResponse> {

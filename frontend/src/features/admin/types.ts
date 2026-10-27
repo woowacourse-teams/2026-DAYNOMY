@@ -90,6 +90,19 @@ export type AdminStockSyncResponse = {
   delistedCount: number;
 };
 
+export type AdminUsStockKoreanNameSyncResponse = {
+  downloadedCount: number;
+  matchedCount: number;
+  updatedCount: number;
+  unmatchedCount: number;
+  skippedCount: number;
+};
+
+export type AdminUsStockSyncResponse = AdminStockSyncResponse & {
+  koreanNames: AdminUsStockKoreanNameSyncResponse | null;
+  koreanNameErrorCode: string | null;
+};
+
 export type AdminStockPriceSyncResponse = {
   baseDate: string | null;
   receivedCount: number;
