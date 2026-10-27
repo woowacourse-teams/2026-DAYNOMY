@@ -3,6 +3,7 @@ package org.grit.daynomy.portfolio.dto;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 
@@ -21,7 +22,8 @@ public record PortfolioHoldingHistoryResponse(
     BigDecimal tax,
     Instant occurredAt,
     String currency,
-    BigDecimal exchangeRate) {
+    BigDecimal exchangeRate,
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm") LocalTime tradeTime) {
   @com.fasterxml.jackson.annotation.JsonProperty("averagePurchasePriceCurrency")
   public String averagePurchasePriceCurrency() {
     return "KRW";
@@ -43,6 +45,7 @@ public record PortfolioHoldingHistoryResponse(
         history.getTax(),
         history.getCreatedAt(),
         history.getAsset().getCurrency(),
-        history.getExchangeRate());
+        history.getExchangeRate(),
+        history.getTradeTime());
   }
 }
