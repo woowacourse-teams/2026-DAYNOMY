@@ -90,7 +90,7 @@ it('내 프로필은 공개 프로필 본문을 표시하고 팔로우 대신 �
   });
   const view = renderPage();
   expect(await view.findByRole('heading', { name: profile.displayName })).toBeTruthy();
-  expect(document.title).toBe(`${profile.displayName} 공개 프로필 | DAYNOMY`);
+  await waitFor(() => expect(document.title).toBe(`${profile.displayName} 공개 프로필 | DAYNOMY`));
   await waitFor(() =>
     expect(document.activeElement).toBe(view.getByRole('heading', { name: profile.displayName })),
   );
