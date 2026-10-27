@@ -140,7 +140,7 @@ export function usePortfolioAnalysis(
 
   useEffect(() => {
     if ((!processing && summaryStatus !== 'PENDING') || loading || error) return;
-    const timer = window.setTimeout(() => void restore(true), 3000);
+    const timer = window.setTimeout(() => void restore(true), 1000);
     return () => window.clearTimeout(timer);
   }, [processing, summaryStatus, loading, error, restore, saved, guest]);
 
