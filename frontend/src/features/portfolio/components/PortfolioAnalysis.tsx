@@ -1,7 +1,7 @@
 import { tourAnalysis } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { useContentImpression } from '../../news/issue/analytics';
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
 import type {
   PortfolioAsset,
@@ -176,7 +176,13 @@ function ExternalLinkIcon() {
   );
 }
 
-function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
+function PortfolioAnalysisPreview({
+  action,
+  title = '반도체 수요 회복에 따른 긍정적 영향',
+}: {
+  action: ReactNode;
+  title?: string;
+}) {
   const previewRef = useRef<HTMLDivElement>(null);
   const hasAction = Boolean(action);
 
@@ -243,7 +249,7 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
     >
       <div className="portfolio-analysis-layout portfolio-preview-layout">
         <div className="portfolio-impact-detail">
-          <h3>반도체 수요 회복에 따른 긍정적 영향</h3>
+          <h3 aria-live="polite">{title}</h3>
           <div className="portfolio-preview-blur" aria-hidden="true">
             <p>
               전체 포트폴리오에서 반도체 관련 자산이 차지하는 비중이 높아, 반도체 수요 회복과 실적
@@ -281,9 +287,10 @@ function PortfolioAnalysisPreview({ action }: { action: ReactNode }) {
   );
 }
 
-function PortfolioEmpty({ onAddAsset }: { onAddAsset?: () => void }) {
+function PortfolioEmpty({ onAddAsset, title }: { onAddAsset?: () => void; title?: string }) {
   return (
     <PortfolioAnalysisPreview
+      title={title}
       action={
         <button
           type="button"
@@ -516,7 +523,11 @@ function PortfolioAssetList({
               <span
                 className={`portfolio-asset-analysis${impact ? ` ${directionClass(impact.direction)}` : ''}`}
               >
-                {impact?.direction ? `TOP ${impact.rank}` : '근거 부족'}
+                {impact
+                  ? impact.direction
+                    ? `TOP ${impact.rank}`
+                    : '근거 부족'
+                  : '분석 대상 제외'}
               </span>
             </>
           );
@@ -551,6 +562,23 @@ function plainAnalysisText(text: string) {
     .replace(/\[\d+(?:\s*[,–-]\s*\d+)*\]/g, '')
     .replace(/【[^】]*】/g, '')
     .replace(/\*\*/g, '')
+    .replace(/유리한\s*점\s*[:：]\s*/g, '유리한 점은 ')
+    .replace(/불리한\s*점\s*[·/및과]*\s*불확실성\s*[:：]\s*/g, '불리한 점과 불확실성은 ')
+    .replace(/불리한\s*점\s*[:：]\s*/g, '불리한 점은 ')
+    .replace(/불확실성\s*[:：]\s*/g, '불확실성은 ')
+    .replace(/밝혔습니다\./g, '밝혔어요.')
+    .replace(/([았었였했됐졌])습니다\./g, '$1어요.')
+    .replace(/어렵습니다\./g, '어려워요.')
+    .replace(/않습니다\./g, '않아요.')
+    .replace(/아닙니다\./g, '아니에요.')
+    .replace(/보입니다\./g, '보여요.')
+    .replace(/되었습니다\./g, '됐어요.')
+    .replace(/했습니다\./g, '했어요.')
+    .replace(/됩니다\./g, '돼요.')
+    .replace(/있습니다\./g, '있어요.')
+    .replace(/없습니다\./g, '없어요.')
+    .replace(/입니다\./g, '이에요.')
+    .replace(/합니다\./g, '해요.')
     .trim();
 }
 
@@ -569,6 +597,7 @@ function AnalysisSources({
   scope: 'overall' | 'asset';
   demo?: boolean;
 }) {
+  const uniqueSources = [...new Map(sources.map((source) => [source.url, source])).values()];
   return (
     <details
       className="portfolio-evidence"
@@ -578,7 +607,7 @@ function AnalysisSources({
           trackEvent('expand_portfolio_analysis_sources', {
             surface: 'portfolio_analysis',
             scope,
-            source_count: sources.length,
+            source_count: uniqueSources.length,
           });
       }}
     >
@@ -587,9 +616,9 @@ function AnalysisSources({
         <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
         <span className="portfolio-evidence-toggle-icon" aria-hidden="true" />
       </summary>
-      {sources.length ? (
+      {uniqueSources.length ? (
         <ul className="portfolio-evidence-sources">
-          {sources.map((source) => (
+          {uniqueSources.map((source) => (
             <li key={source.url}>
               <a href={source.url} target="_blank" rel="noopener noreferrer">
                 {source.title}
@@ -609,7 +638,6 @@ function AnalysisSources({
                   </span>
                 ) : null}
               </div>
-              {source.excerpt ? <p>{source.excerpt}</p> : null}
             </li>
           ))}
         </ul>
@@ -624,10 +652,12 @@ function PortfolioOverallImpactDetail({
   analysis,
   analyzedAtLabel,
   demo,
+  title = '전체 포트폴리오',
 }: {
   analysis: PortfolioAnalysisResponse;
   analyzedAtLabel: string | null;
   demo?: boolean;
+  title?: string;
 }) {
   return (
     <article
@@ -636,7 +666,7 @@ function PortfolioOverallImpactDetail({
       <div className="portfolio-detail-header">
         <div>
           <span>전체 포트폴리오 예상 영향</span>
-          <h3>전체 포트폴리오</h3>
+          <h3 aria-live="polite">{title}</h3>
         </div>
         <div className="portfolio-detail-badge-group">
           <span className="portfolio-direction-badge">
@@ -722,7 +752,7 @@ type PortfolioAnalysisProps = {
   onAddAsset?: () => void;
 };
 
-export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
+export const PortfolioAnalysis = memo(function PortfolioAnalysis(props: PortfolioAnalysisProps) {
   if (props.demoStep !== undefined)
     return (
       <PortfolioAnalysisView
@@ -736,6 +766,8 @@ export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
           trialExhausted: false,
           portfolioChanged: false,
           analyze: async () => {},
+          processing: false,
+          summaryStatus: 'READY',
         }}
       />
     );
@@ -745,7 +777,7 @@ export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
       {...props}
     />
   );
-}
+});
 
 function PortfolioAnalysisContent(props: PortfolioAnalysisProps) {
   const state = usePortfolioAnalysis(props.assets, props.isLoggedIn ?? true, props.holdingsKey);
@@ -758,8 +790,21 @@ function PortfolioAnalysisView({
   onAddAsset,
   state,
 }: PortfolioAnalysisProps & { state: ReturnType<typeof usePortfolioAnalysis> }) {
-  const { analysis, saved, loading, loaded, error, trialExhausted, portfolioChanged, analyze } =
-    state;
+  const {
+    analysis: currentAnalysis,
+    saved,
+    loading,
+    loaded,
+    error,
+    trialExhausted,
+    portfolioChanged,
+    analyze,
+    processing,
+    summaryStatus,
+  } = state;
+  const waitingForCore =
+    (loading || processing) && !(currentAnalysis && summaryStatus === 'PENDING');
+  const analysis = waitingForCore ? null : currentAnalysis;
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const sortedImpacts = useMemo(
     () => [...(analysis?.impacts ?? [])].sort((left, right) => left.rank - right.rank),
@@ -807,19 +852,27 @@ function PortfolioAnalysisView({
     });
   };
   const displayAssets = analysis
-    ? analysis.impacts.map(({ assetName, weight }) => ({ assetName, weight }))
+    ? [...analysis.impacts, ...(analysis.excludedAssets ?? [])].map(({ assetName, weight }) => ({
+        assetName,
+        weight,
+      }))
     : assets;
   const hasAnalysisTarget = displayAssets.length > 0;
-  const canAnalyze =
-    !loading && (assets.length > 0 || (isLoggedIn && (!loaded || saved?.status === 'PROCESSING')));
+  const canAnalyze = !loading && (assets.length > 0 || (isLoggedIn && !loaded));
 
   const showIntroduction =
-    hasAnalysisTarget &&
-    !analysis &&
-    !loading &&
-    !error &&
-    !trialExhausted &&
-    saved?.status !== 'PROCESSING';
+    hasAnalysisTarget && !analysis && !loading && !error && !trialExhausted && !processing;
+  const previewTitle = portfolioChanged
+    ? '자산 구성이 바뀌어 이전 분석을 숨겼어요. 현재 보유 자산으로 다시 분석해 주세요.'
+    : isLoggedIn
+      ? hasAnalysisTarget
+        ? '현재 보유 자산으로 AI 분석을 시작해 보세요.'
+        : '자산을 추가하고 AI 분석을 시작해 보세요.'
+      : undefined;
+  const updateNotice =
+    analysis && !loading && saved?.status === 'READY' && saved.lastCheckOutcome === 'UPDATED'
+      ? saved.changeReason
+      : null;
   const analysisAction = !hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
     <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
       로그인하고 다시 분석하기
@@ -832,13 +885,13 @@ function PortfolioAnalysisView({
       onClick={analyze}
     >
       {loading
-        ? analysis
+        ? currentAnalysis
           ? '확인 중'
           : '분석 중'
-        : saved?.status === 'PROCESSING'
+        : processing
           ? '진행 상태 확인'
           : portfolioChanged
-            ? '현재 자산으로 분석하기'
+            ? '다시 분석하기'
             : analysis
               ? '새 소식 확인'
               : isLoggedIn
@@ -866,23 +919,17 @@ function PortfolioAnalysisView({
       </div>
 
       <div className="portfolio-analysis-meta">
-        {portfolioChanged ? (
-          <p role="status">
-            자산 구성이 바뀌어 이전 분석을 숨겼어요. 현재 보유 자산으로 다시 분석해 주세요.
+        {analysis?.excludedAssets?.length ? (
+          <p>
+            보유 비중 상위 5종목을 분석했어요. 나머지 {analysis.excludedAssets.length}종목은 분석
+            대상에서 제외했으며 전체 포트폴리오 점수는 확정하지 않아요.
           </p>
         ) : null}
 
-        {analysis && loading ? <p role="status">기존 분석을 유지하며 확인하고 있어요.</p> : null}
         {analysis && !loading && saved?.status === 'RECHECK_REQUIRED' ? (
           <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
         ) : null}
-        {analysis &&
-        !loading &&
-        saved?.status === 'READY' &&
-        saved.lastCheckOutcome === 'UPDATED' &&
-        saved.changeReason ? (
-          <p role="status">{saved.changeReason}</p>
-        ) : null}
+        {selectedImpact && updateNotice ? <p role="status">{updateNotice}</p> : null}
         {analysis && saved?.lastSucceededAt ? (
           <p className="portfolio-analysis-checked-at">
             최근 확인:{' '}
@@ -892,25 +939,37 @@ function PortfolioAnalysisView({
           </p>
         ) : null}
       </div>
-      {!loading && saved?.status === 'PROCESSING' ? (
+      {waitingForCore && (processing || Boolean(currentAnalysis)) ? (
         <div
           className="portfolio-analysis-state portfolio-analysis-empty"
           role="status"
           aria-live="polite"
         >
           <span className="portfolio-analysis-spinner" aria-hidden="true" />
-          <p>서버에서 분석 중이에요. 완료되면 결과를 자동으로 표시해요.</p>
+          <p>
+            분석에 약 30초 정도 걸려요.
+            <br />
+            다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.
+          </p>
         </div>
       ) : null}
-      {!hasAnalysisTarget ? <PortfolioEmpty onAddAsset={onAddAsset} /> : null}
+      {analysis && summaryStatus === 'PENDING' ? (
+        <p role="status">점수와 종목별 근거가 준비됐어요. 종합 설명을 작성하고 있어요.</p>
+      ) : null}
+      {analysis && summaryStatus === 'FAILED' ? (
+        <p role="status">종합 설명을 불러오지 못했어요. 점수와 종목별 근거는 확인할 수 있어요.</p>
+      ) : null}
+      {!hasAnalysisTarget ? <PortfolioEmpty onAddAsset={onAddAsset} title={previewTitle} /> : null}
 
       {showIntroduction ? (
         <div data-portfolio-tour="impact">
-          <PortfolioAnalysisPreview action={analysisAction} />
+          <PortfolioAnalysisPreview action={analysisAction} title={previewTitle} />
         </div>
       ) : null}
 
-      {hasAnalysisTarget && loading && !hasAnalysis ? <PortfolioAnalysisLoading /> : null}
+      {hasAnalysisTarget && loading && !currentAnalysis && !processing ? (
+        <PortfolioAnalysisLoading />
+      ) : null}
 
       {hasAnalysisTarget && !loading && error ? (
         <PortfolioAnalysisError onRetry={handleRetry} message={error} />
@@ -966,10 +1025,18 @@ function PortfolioAnalysisView({
                 demo={demoStep !== undefined}
                 analysis={analysis}
                 analyzedAtLabel={analyzedAtLabel}
+                title={updateNotice ?? undefined}
               />
             )}
           </div>
           <div className="portfolio-score-panel">
+            {analysis.overallScore === 0 ? (
+              <p role="status">
+                {analysis.positiveImpactScore > 0 || analysis.negativeImpactScore > 0
+                  ? `긍정 기여 +${analysis.positiveImpactScore.toFixed(2)}점과 부정 기여 −${analysis.negativeImpactScore.toFixed(2)}점이 상쇄돼 전체 영향 점수가 0점이에요.`
+                  : '분석한 종목의 영향이 모두 중립으로 평가돼 전체 영향 점수가 0점이에요.'}
+              </p>
+            ) : null}
             <details className="portfolio-score-guide">
               <summary>
                 <svg className="portfolio-score-toggle" viewBox="0 0 24 24" aria-hidden="true">

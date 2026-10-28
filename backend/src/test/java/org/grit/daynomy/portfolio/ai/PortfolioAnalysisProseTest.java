@@ -8,6 +8,30 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisProseTest {
   @Test
+  void normalizesBenefitRiskLabelsAndFormalEndingWithoutChangingFacts() {
+    assertThat(
+            PortfolioAnalysisProse.normalize(
+                "유리한 점: 2026년 영업이익이 5,100억원으로 증가했다는 점입니다. 불리한 점·불확실성: 예비 수치이며 감사 후 변동 가능성이 있습니다."))
+        .isEqualTo(
+            "유리한 점은 2026년 영업이익이 5,100억원으로 증가했다는 점이에요. 불리한 점과 불확실성은 예비 수치이며 감사 후 변동 가능성이 있어요.");
+    String prose = "유리한 점은 수익성이 개선됐다는 점이에요. 다만 비용 부담은 남아 있어요.";
+    assertThat(PortfolioAnalysisProse.normalize(prose)).isEqualTo(prose);
+  }
+
+  @Test
+  void rejectsDegenerateRepeatedQuotationMarks() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> PortfolioAnalysisProse.normalize("PV7은 상용차 공급 범위를 넓혀요. \"\"\"2027년 출시 예정이에요."));
+  }
+
+  @Test
+  void separatesMeasuredSemicolonWithoutDiscardingKoreanFacts() {
+    assertThat(PortfolioAnalysisProse.normalize("HBM4 출하 확대를 확인하세요; 이는 하반기 실적에 영향을 줍니다."))
+        .isEqualTo("HBM4 출하 확대를 확인하세요. 이는 하반기 실적에 영향을 줍니다.");
+  }
+
+  @Test
   void addsMissingFinalPeriodWithoutChangingMeaning() {
     assertThat(PortfolioAnalysisProse.normalize("  실적이 개선됐어요  ")).isEqualTo("실적이 개선됐어요.");
   }
@@ -22,16 +46,19 @@ class PortfolioAnalysisProseTest {
   void rejectsMixedToneEvenWhenLastSentenceUsesFriendlyTone() {
     for (String text :
         new String[] {
-          "이익이 감소했습니다. 비용도 증가했어요.",
-          "이익 감소함. 비용도 증가했어요.",
-          "이익이 감소했다.\n\n비용도 증가했어요.",
-          "실적이 좋아요!",
-          "실적이 좋아요?",
-          "실적이 좋아요...",
-          ""
+          "이익이 감소하였다. 비용도 증가했어요.", "이익 감소함. 비용도 증가했어요.", "실적이 좋아요!", "실적이 좋아요?", "실적이 좋아요...", ""
         }) {
       assertThatIllegalArgumentException().isThrownBy(() -> PortfolioAnalysisProse.normalize(text));
     }
+  }
+
+  @Test
+  void convertsMeasuredDeclarativeEndingsWithoutChangingFacts() {
+    assertThat(PortfolioAnalysisProse.normalize("이익이 감소했다.\n\n비용도 증가했어요."))
+        .isEqualTo("이익이 감소했어요.\n\n비용도 증가했어요.");
+    assertThat(
+            PortfolioAnalysisProse.normalize("매출이 79조3187억원으로 보고됐다. 고객과 계약을 확정했다. 추가 논의를 진행 중이다."))
+        .isEqualTo("매출이 79조3187억원으로 보고됐어요. 고객과 계약을 확정했어요. 추가 논의를 진행 중이에요.");
   }
 
   @Test
@@ -84,5 +111,29 @@ class PortfolioAnalysisProseTest {
                     "2026-07-30에 실적을 발표했어요.", "2026-03-24 희토류 사업 발표"));
     PortfolioAnalysisProse.requireSupportedDates(
         "2026-03-24에 사업 계획을 발표했어요.", "2026-03-24 희토류 사업 발표");
+  }
+
+  @Test
+  void repairsMeasuredFormalEndingWithoutChangingFactsOrUncertainty() {
+    String original =
+        "분기 실적 발표 자체는 회사의 영업 현황을 확인시켜 주는 정보지만, 사업별 실적이 일부 부문에서 상쇄되는 점이 있어 단일 방향의 영향으로 해석하기 어렵습니다. 향후 분기 실적 흐름과 규제·AI 관련 비용 추이를 확인할 필요가 있어 불확실성이 존재해요.";
+    assertThat(PortfolioAnalysisProse.normalize(original))
+        .isEqualTo(original.replace("어렵습니다.", "어려워요."));
+    assertThat(PortfolioAnalysisProse.normalize("매출이 3.5% 감소했습니다. 비용 부담이 확대됩니다. 불확실성이 있습니다."))
+        .isEqualTo("매출이 3.5% 감소했어요. 비용 부담이 확대돼요. 불확실성이 있어요.");
+  }
+
+  @Test
+  void pastFormalEndingKeepsConfirmedFactsInFriendlyStyle() {
+    assertThat(PortfolioAnalysisProse.normalize("HBM4 생산 확대 계획을 밝혔습니다."))
+        .isEqualTo("HBM4 생산 확대 계획을 밝혔어요.");
+  }
+
+  @Test
+  void repairsSourcePastTenseWithoutChangingAmountsOrUncertainty() {
+    assertThat(
+            PortfolioAnalysisProse.normalize(
+                "영업이익 5,100억원과 영업이익률 34%가 발표되었다. 수익성 개선 흐름이 뚜렷해졌다. 다음 분기 실적은 불확실해요."))
+        .isEqualTo("영업이익 5,100억원과 영업이익률 34%가 발표됐어요. 수익성 개선 흐름이 뚜렷해졌어요. 다음 분기 실적은 불확실해요.");
   }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -39,6 +40,9 @@ class InvestorProfileServiceTest {
   @Mock private SharedPortfolioRepository portfolioRepository;
   @Mock private SharedHoldingRepository holdingRepository;
   @Mock private InvestmentDecisionRepository decisionRepository;
+  @Mock private LeagueEnrollmentService enrollmentService;
+  @Mock private LeagueReturnService returnService;
+  @Mock private LeagueRankingCache rankingCache;
   @InjectMocks private InvestorProfileService service;
 
   @Test
@@ -73,6 +77,7 @@ class InvestorProfileServiceTest {
     assertThat(response.detailPublic()).isFalse();
     assertThat(response.leagueEnabledAt()).isNotNull();
     assertThat(profile.getParticipations().getFirst().getEndedAt()).isNotNull();
+    verify(rankingCache).invalidateAfterCommit();
   }
 
   @Test
@@ -131,6 +136,7 @@ class InvestorProfileServiceTest {
     assertThat(saved.leagueEnabled()).isTrue();
     assertThat(saved.detailPublic()).isFalse();
     assertThat(holding.getReason()).isEqualTo("기존 보유 이유");
+    verify(rankingCache).invalidateAfterCommit();
   }
 
   private void prepareProfile() {

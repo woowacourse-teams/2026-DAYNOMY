@@ -37,8 +37,7 @@ public class PortfolioAnalysisService {
   @Observed(name = "portfolio.analysis", contextualName = "portfolio-analysis")
   public PortfolioAnalysisResponse analyze(
       PortfolioAnalysisRequest request, boolean authenticatedMember) {
-    validateDistinctAssets(request.assets());
-    validateTotalWeight(request.assets());
+    validate(request);
 
     if (request.assets().isEmpty()) {
       return PortfolioAnalysisResponse.empty();
@@ -52,19 +51,37 @@ public class PortfolioAnalysisService {
   }
 
   protected PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
-    var result = response(request, assetAnalysisService.analyze(createTargets(request.assets())));
+    return summarize(analyzeAssets(request));
+  }
+
+  protected PortfolioAnalysisResponse analyzeAssets(PortfolioAnalysisRequest request) {
+    validate(request);
+    return response(request, assetAnalysisService.analyze(createTargets(request.assets())));
+  }
+
+  PortfolioAnalysisResponse summarize(PortfolioAnalysisResponse result) {
     return result.withOverallImpact(narrative.summarize(result));
   }
 
   @Observed(name = "portfolio.analysis.refresh", contextualName = "portfolio-analysis-refresh")
   public PortfolioAnalysisResponse refresh(
       PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous) {
-    validateDistinctAssets(request.assets());
-    validateTotalWeight(request.assets());
+    var revision = refreshAssets(request, previous);
+    if (revision.outcome()
+        != org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED) {
+      return revision.analysis();
+    }
+    return summarize(revision.analysis());
+  }
+
+  PortfolioAnalysisRefresh.Revision refreshAssets(
+      PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous) {
+    validate(request);
     if (previous == null) {
       var result =
           response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
-      return result.withOverallImpact(narrative.summarize(result));
+      return new PortfolioAnalysisRefresh.Revision(
+          org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED, result, "");
     }
     try {
       // 날짜는 명시적인 ISO 문자열로 보내고 포트폴리오 소유자 정보는 보내지 않는다.
@@ -106,10 +123,10 @@ public class PortfolioAnalysisService {
       var revision = PortfolioAnalysisRefresh.compare(previous, candidate);
       if (revision.outcome()
           != org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED) {
-        return candidate;
+        return new PortfolioAnalysisRefresh.Revision(
+            revision.outcome(), candidate, revision.reason());
       }
-      var merged = revision.analysis();
-      return merged.withOverallImpact(narrative.summarize(merged));
+      return revision;
     } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
       throw new IllegalStateException("이전 분석 근거를 변환하지 못했습니다.");
     }
@@ -137,12 +154,18 @@ public class PortfolioAnalysisService {
                             impact.weight(), impact.direction(), impact.impactLevel()))
                 .toList());
     return PortfolioAnalysisResponse.of(
-        request.assets().size(),
-        impactSummary,
-        Instant.now(),
-        result.overallImpact(),
-        impacts,
-        sources);
+            request.assets().size(),
+            impactSummary,
+            Instant.now(),
+            result.overallImpact(),
+            impacts,
+            sources)
+        .withExcludedAssets(request.assets());
+  }
+
+  void validate(PortfolioAnalysisRequest request) {
+    validateDistinctAssets(request.assets());
+    validateTotalWeight(request.assets());
   }
 
   private void validateDistinctAssets(List<PortfolioAssetRequest> portfolioAssets) {
@@ -181,7 +204,17 @@ public class PortfolioAnalysisService {
 
   protected List<PortfolioAnalysisTarget> createTargets(
       List<PortfolioAssetRequest> portfolioAssets) {
-    return portfolioAssets.stream()
+    var selected =
+        portfolioAssets.size() <= 5
+            ? portfolioAssets
+            : portfolioAssets.stream()
+                .sorted(
+                    java.util.Comparator.comparing(PortfolioAssetRequest::weight)
+                        .reversed()
+                        .thenComparing(PortfolioAssetRequest::assetName))
+                .limit(5)
+                .toList();
+    return selected.stream()
         .map(portfolioAsset -> new PortfolioAnalysisTarget(portfolioAsset.assetName()))
         .toList();
   }

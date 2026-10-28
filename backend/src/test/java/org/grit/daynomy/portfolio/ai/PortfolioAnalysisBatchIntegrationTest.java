@@ -38,12 +38,23 @@ class PortfolioAnalysisBatchIntegrationTest {
             @Override
             public MockResponse dispatch(RecordedRequest request) {
               try {
-                var input = mapper.readTree(request.getBody().readUtf8()).path("input");
+                var input = mapper.readTree(request.getBody().clone().readUtf8()).path("input");
                 var assets = mapper.readTree(input.get(1).path("content").asText()).path("assets");
                 var requested = new java.util.ArrayList<String>();
                 assets.forEach(asset -> requested.add(asset.path("assetName").asText()));
-                batches.add(requested);
                 assertThat(requested).hasSize(5);
+                var body = mapper.readTree(request.getBody().clone().readUtf8());
+                if (!v1
+                    && body.path("text")
+                        .path("format")
+                        .path("name")
+                        .asText()
+                        .equals("portfolio_sources")) {
+                  if (refresh)
+                    assertThat(mapper.readTree(input.get(2).path("content").asText())).hasSize(5);
+                  return sourceResponse(requested, List.of("https://example.com/announcement"));
+                }
+                batches.add(requested);
                 if (v1)
                   assets.forEach(
                       asset ->
@@ -61,7 +72,13 @@ class PortfolioAnalysisBatchIntegrationTest {
                   requested.forEach(name -> impacts.set(name, validImpact()));
                 } else {
                   var impacts = output.putArray("impacts");
-                  requested.forEach(name -> impacts.add(validImpact().put("assetName", name)));
+                  requested.forEach(
+                      name -> {
+                        var impact = validImpact().put("assetName", name);
+                        impact.remove("sourceUrls");
+                        useServerReference(impact);
+                        impacts.add(impact);
+                      });
                 }
                 return new MockResponse()
                     .setHeader("Content-Type", "application/json")
@@ -108,11 +125,17 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         var client =
             new OpenAiPortfolioAnalysisClient(
-                RestClient.builder(), server.url("/").toString(), "test-key", "test-model");
+                RestClient.builder(),
+                server.url("/").toString(),
+                "test-key",
+                "test-model",
+                "test-search-model",
+                5,
+                acceptingVerifier());
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
         result = refresh ? client.refresh(targets, previous.toString()) : client.analyze(targets);
       }
-      assertThat(server.getRequestCount()).isEqualTo(10);
+      assertThat(server.getRequestCount()).isEqualTo(v1 ? 10 : 20);
       assertThat(result.impacts())
           .extracting(PortfolioAnalysisResult.AssetImpactResult::assetName)
           .containsExactlyInAnyOrderElementsOf(names);
@@ -146,7 +169,13 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         var client =
             new OpenAiPortfolioAnalysisClient(
-                RestClient.builder(), server.url("/").toString(), "test-key", "test-model");
+                RestClient.builder(),
+                server.url("/").toString(),
+                "test-key",
+                "test-model",
+                "test-search-model",
+                5,
+                acceptingVerifier());
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
         assertThatThrownBy(() -> client.analyze(targets)).isInstanceOf(BusinessException.class);
       }
@@ -163,8 +192,18 @@ class PortfolioAnalysisBatchIntegrationTest {
       ((okhttp3.mockwebserver.QueueDispatcher) server.getDispatcher()).setFailFast(true);
       var initial = validImpact();
       initial.putArray("sourceUrls").add("https://example.com/category/ir");
+      if (!v1)
+        ((ObjectNode) initial.path("evidence").get(0))
+            .put("url", "https://example.com/category/ir");
       var corrected = validImpact();
       // 첫 검색에서 확인한 개별 기사는 보정 검색 결과에 다시 나오지 않을 수 있다.
+      if (!v1)
+        server.enqueue(
+            sourceResponse(
+                List.of("SK하이닉스"),
+                originallyVerified
+                    ? List.of("https://example.com/announcement", "https://example.com/category/ir")
+                    : List.of("https://example.com/category/ir")));
       server.enqueue(
           searchResponse(
               v1,
@@ -183,7 +222,13 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         var client =
             new OpenAiPortfolioAnalysisClient(
-                RestClient.builder(), server.url("/").toString(), "test-key", "test-model");
+                RestClient.builder(),
+                server.url("/").toString(),
+                "test-key",
+                "test-model",
+                "test-search-model",
+                5,
+                acceptingVerifier());
         analyze = () -> client.analyze(List.of(new PortfolioAnalysisTarget("SK하이닉스")));
       }
       if (originallyVerified) {
@@ -201,7 +246,7 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         assertThatThrownBy(analyze::get).isInstanceOf(BusinessException.class);
       }
-      assertThat(server.getRequestCount()).isEqualTo(2);
+      assertThat(server.getRequestCount()).isEqualTo(v1 ? 2 : 3);
     }
   }
 
@@ -209,7 +254,12 @@ class PortfolioAnalysisBatchIntegrationTest {
       throws Exception {
     var text = mapper.createObjectNode();
     if (v1) text.putObject("impacts").set("SK하이닉스", impact);
-    else text.putArray("impacts").add(impact.deepCopy().put("assetName", "SK하이닉스"));
+    else {
+      var asset = impact.deepCopy().put("assetName", "SK하이닉스");
+      asset.remove("sourceUrls");
+      useServerReference(asset);
+      text.putArray("impacts").add(asset);
+    }
     return new MockResponse()
         .setHeader("Content-Type", "application/json")
         .setBody(
@@ -270,5 +320,86 @@ class PortfolioAnalysisBatchIntegrationTest {
                     "확인된 사업 변화예요.",
                     "factQuote",
                     "Operating profit increased by 10%."))));
+  }
+
+  private void useServerReference(ObjectNode impact) {
+    for (var evidence : impact.path("evidence")) {
+      var node = (ObjectNode) evidence;
+      node.put(
+          "reference",
+          PortfolioAnalysisEvidence.reference(
+              node.path("url").asText(), node.path("factQuote").asText()));
+      node.remove(List.of("url", "publishedOn", "factQuote"));
+    }
+  }
+
+  private MockResponse sourceResponse(List<String> names, List<String> urls) throws Exception {
+    return new MockResponse()
+        .setHeader("Content-Type", "application/json")
+        .setBody(
+            mapper.writeValueAsString(
+                Map.of(
+                    "output",
+                    List.of(
+                        Map.of(
+                            "type",
+                            "web_search_call",
+                            "status",
+                            "completed",
+                            "action",
+                            Map.of(
+                                "sources", urls.stream().map(url -> Map.of("url", url)).toList())),
+                        Map.of(
+                            "content",
+                            List.of(
+                                Map.of(
+                                    "type",
+                                    "output_text",
+                                    "text",
+                                    mapper.writeValueAsString(
+                                        Map.of(
+                                            "assets",
+                                            names.stream()
+                                                .map(
+                                                    name ->
+                                                        Map.of(
+                                                            "assetName",
+                                                            name,
+                                                            "aliases",
+                                                            List.of(name),
+                                                            "urls",
+                                                            urls))
+                                                .toList())),
+                                    "annotations",
+                                    List.of())))))));
+  }
+
+  private static PortfolioAnalysisEvidenceVerifier acceptingVerifier() {
+    var verifier = org.mockito.Mockito.mock(PortfolioAnalysisEvidenceVerifier.class);
+    org.mockito.Mockito.when(
+            verifier.verifyPrepared(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    org.mockito.Mockito.when(
+            verifier.prepare(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation -> {
+              Map<String, List<String>> urls = invocation.getArgument(0);
+              Map<String, org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument>
+                  documents = new java.util.LinkedHashMap<>();
+              urls.values().stream()
+                  .flatMap(List::stream)
+                  .forEach(
+                      url ->
+                          documents.put(
+                              url,
+                              new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
+                                  "공식 발표",
+                                  "Operating profit increased by 10%.\n2026-10-12",
+                                  java.time.LocalDate.of(2026, 10, 12))));
+              return PortfolioAnalysisEvidence.from(urls, documents);
+            });
+    return verifier;
   }
 }

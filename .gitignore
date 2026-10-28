@@ -5,3 +5,4 @@ monitoring/secrets/
 /data/
 /loadtest/accounts*.json
 /loadtest/result-*.json
+/result-league-rankings-*.json

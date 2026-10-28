@@ -13,6 +13,8 @@ public interface PortfolioDailySnapshotRepository
   Optional<PortfolioDailySnapshot> findByPortfolioIdAndBaseDate(
       Long portfolioId, LocalDate baseDate);
 
+  boolean existsByPortfolioMemberIdAndBaseDate(Long memberId, LocalDate baseDate);
+
   List<PortfolioDailySnapshot> findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(
       Long portfolioId, LocalDate from, LocalDate to);
 

@@ -44,6 +44,17 @@ afterEach(() => {
 });
 
 describe('투자 캘린더 화면', () => {
+  it('소식 홈용 캘린더는 주간 날짜와 간결한 일정 목록을 표시한다', async () => {
+    const view = renderCalendar(<InvestmentCalendarPage embedded compact />);
+
+    expect(await view.findByRole('heading', { name: '투자 캘린더', level: 2 })).toBeTruthy();
+    expect(view.getByLabelText('2026년 10월 주간')).toBeTruthy();
+    expect(view.getByText('미국 CPI')).toBeTruthy();
+    expect(view.getByText('두산 3분기 실적')).toBeTruthy();
+    expect(view.queryByText('내 자산은 물가가 오른 뒤 약세였던 경우가 많았습니다.')).toBeNull();
+    expect(view.queryByRole('link', { name: '전체 보기' })).toBeNull();
+  });
+
   it('소식 홈에서는 중첩 main 없이 섹션 제목으로 표시한다', async () => {
     const view = renderCalendar(<InvestmentCalendarPage embedded />);
 
@@ -209,4 +220,32 @@ describe('투자 캘린더 화면', () => {
     expect(await view.findByText('아직 비교할 과거 사례가 부족해요.')).toBeTruthy();
     expect(view.getByText(/표본이 3회 이상 쌓이면/)).toBeTruthy();
   });
+});
+
+it('소식 홈에서는 다가오는 일정만 날짜순으로 표시하고 선택 후 상세를 연다', async () => {
+  const calendar = getMockInvestmentCalendar(2026, 10);
+  const base = calendar.events[0];
+  mockedGetInvestmentCalendar.mockResolvedValue({
+    calendar: {
+      ...calendar,
+      events: [
+        { ...base, id: 91, announcedAt: '2026-10-05T09:00:00+09:00' },
+        { ...base, id: 92, announcedAt: '2026-10-08T09:00:00+09:00' },
+        { ...base, id: 93, announcedAt: '2026-10-07T09:00:00+09:00' },
+      ],
+    },
+    isDemo: true,
+  });
+  const view = renderCalendar(<InvestmentCalendarPage embedded upcomingOnly />);
+  await waitFor(() =>
+    expect(view.container.querySelectorAll('.investment-calendar-event-button')).toHaveLength(2),
+  );
+  expect(view.container.querySelector('.investment-calendar-detail')).toBeNull();
+  const buttons = view.container.querySelectorAll<HTMLButtonElement>(
+    '.investment-calendar-event-button',
+  );
+  expect(buttons[0].querySelector('strong')?.textContent).toBe('7');
+  fireEvent.click(buttons[0]);
+  expect(view.container.querySelector('.investment-calendar-detail')).toBeTruthy();
+  expect(mockedGetInvestmentCalendar).toHaveBeenCalledWith(2026, 10, 'ALL', expect.any(Object));
 });

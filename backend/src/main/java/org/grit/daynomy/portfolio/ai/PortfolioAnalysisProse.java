@@ -26,14 +26,47 @@ public final class PortfolioAnalysisProse {
     }
     List<String> paragraphs = new ArrayList<>();
     for (String paragraph : text.strip().split("\\R\\s*\\R")) {
-      String value = paragraph.strip();
+      String value =
+          paragraph
+              .strip()
+              .replaceAll("유리한\\s*점\\s*[:：]\\s*", "유리한 점은 ")
+              .replaceAll("불리한\\s*점\\s*[·/및과]*\\s*불확실성\\s*[:：]\\s*", "불리한 점과 불확실성은 ")
+              .replaceAll("불리한\\s*점\\s*[:：]\\s*", "불리한 점은 ")
+              .replaceAll("불확실성\\s*[:：]\\s*", "불확실성은 ")
+              .replaceAll("\\s*;\\s*", ". ")
+              .replace("밝혔습니다.", "밝혔어요.")
+              .replaceAll("([았었였했됐졌])습니다\\.", "$1어요.")
+              .replace("어렵습니다.", "어려워요.")
+              .replace("않습니다.", "않아요.")
+              .replace("아닙니다.", "아니에요.")
+              .replace("보입니다.", "보여요.")
+              .replace("되었습니다.", "됐어요.")
+              .replace("했습니다.", "했어요.")
+              .replace("됩니다.", "돼요.")
+              .replace("있습니다.", "있어요.")
+              .replace("없습니다.", "없어요.")
+              .replace("입니다.", "이에요.")
+              .replace("합니다.", "해요.")
+              .replace("했다.", "했어요.")
+              .replace("되었다.", "됐어요.")
+              .replace("졌다.", "졌어요.")
+              .replace("됐다.", "됐어요.")
+              .replace("된다.", "돼요.")
+              .replace("밝혔다.", "밝혔어요.")
+              .replace("있었다.", "있었어요.")
+              .replace("없었다.", "없었어요.")
+              .replace("있다.", "있어요.")
+              .replace("없다.", "없어요.")
+              .replace("한다.", "해요.")
+              .replace("이다.", "이에요.")
+              .replace("냈다.", "냈어요.");
       if (value.endsWith("요")) {
         value += ".";
       }
-      if (value.contains("**")
+      if (value.contains("\"\"\"")
+          || value.contains("**")
           || value.contains("…")
           || value.contains("..")
-          || value.contains(";")
           || value.contains("http://")
           || value.contains("https://")) {
         throw new IllegalArgumentException("분석 설명에는 말줄임표·세미콜론·URL을 사용할 수 없습니다.");
@@ -45,10 +78,10 @@ public final class PortfolioAnalysisProse {
           end != BreakIterator.DONE;
           start = end, end = sentences.next()) {
         String sentence = value.substring(start, end).strip();
-        if (!sentence.endsWith("요.")
+        if (!(sentence.endsWith("요.") || sentence.endsWith("니다."))
             || !sentence.matches("(?s).*[가-힣]{2,}.*")
             || containsEnglishProse(sentence)) {
-          throw new IllegalArgumentException("분석 설명은 해요체와 온점으로 끝나야 합니다.");
+          throw new IllegalArgumentException("분석 설명은 한국어 존댓말과 온점으로 끝나야 합니다.");
         }
       }
       paragraphs.add(value);

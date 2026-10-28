@@ -123,12 +123,17 @@ describe('GA4 수집 경계', () => {
   });
 });
 
-const posthog = vi.hoisted(() => ({ init: vi.fn(), capture: vi.fn() }));
+const posthog = vi.hoisted(() => ({
+  init: vi.fn(),
+  capture: vi.fn(),
+  stopSessionRecording: vi.fn(),
+}));
 vi.mock('posthog-js', () => ({ default: posthog }));
 
 beforeEach(() => {
   posthog.init.mockReset();
   posthog.capture.mockReset();
+  posthog.stopSessionRecording.mockReset();
   vi.stubEnv('VITE_POSTHOG_PROJECT_TOKEN', '');
   vi.stubEnv('VITE_POSTHOG_HOST', '');
 });
@@ -222,7 +227,7 @@ it('SDK 기본 속성의 원문 URL·본문·프로필 정보를 제거하고 �
     autocapture: false,
     capture_pageview: false,
     capture_pageleave: false,
-    disable_session_recording: true,
+    disable_session_recording: false,
     person_profiles: 'never',
     save_referrer: false,
     save_campaign_params: false,
@@ -252,6 +257,213 @@ it('SDK 기본 속성의 원문 URL·본문·프로필 정보를 제거하고 �
   });
   expect(config.before_send({ event: '$autocapture', properties: {} })).toBeNull();
 });
+
+it('세션 진입 출처와 캠페인을 내부 이동 후에도 유지하고 URL·비허용 UTM을 정리한다', async () => {
+  enablePostHog();
+  const { trackPageView } = await import('../../src/analytics');
+  trackPageView('/');
+  window.history.replaceState({}, '', '/news/1');
+  trackPageView('/news/1');
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(2));
+  const config = posthog.init.mock.calls[0][1];
+  // These properties are attached by the SDK's SessionPropsManager to each event.
+  const entry = {
+    $session_entry_url:
+      'http://localhost:3000/?utm_source=kakao&utm_medium=share&utm_campaign=launch&utm_term=private-search&q=private-query#private-fragment',
+    $session_entry_referrer: 'https://blog.example.com/private-path?email=private-email',
+    $session_entry_utm_content: 'private-content',
+  };
+  for (const [, properties] of posthog.capture.mock.calls) {
+    const event = config.before_send({
+      event: '$pageview',
+      properties: { ...properties, ...entry },
+    });
+    expect(event.properties).toMatchObject({
+      $referring_domain: 'blog.example.com',
+      $session_entry_referring_domain: 'blog.example.com',
+      $session_entry_referrer: 'https://blog.example.com/',
+      $session_entry_url: 'http://localhost:3000/',
+      utm_source: 'kakao',
+      utm_medium: 'share',
+      utm_campaign: 'launch',
+      $session_entry_utm_source: 'kakao',
+    });
+    expect(JSON.stringify(event)).not.toContain('private-');
+  }
+  // A new SDK session must use its own entry properties, never stale campaign data.
+  const nextSession = config.before_send({
+    event: '$pageview',
+    properties: {
+      ...posthog.capture.mock.calls[1][1],
+      $session_entry_url: 'http://localhost:3000/news/1?utm_source=private%40email.com',
+      $session_entry_referrer: '',
+      utm_source: 'stale-campaign',
+    },
+  });
+  expect(nextSession.properties.$referring_domain).toBe('$direct');
+  expect(nextSession.properties).not.toHaveProperty('utm_source');
+});
+
+it('자체 사이트와 잘못된 유입 주소는 외부 사이트로 집계하지 않는다', async () => {
+  enablePostHog();
+  const { trackPageView } = await import('../../src/analytics');
+  trackPageView('/');
+  await vi.waitFor(() => expect(posthog.init).toHaveBeenCalled());
+  const { before_send } = posthog.init.mock.calls[0][1];
+  for (const referrer of ['', 'invalid url', 'javascript:private-input', window.location.href]) {
+    const event = before_send({
+      event: '$pageview',
+      properties: { $session_entry_referrer: referrer, $session_entry_url: 'invalid url' },
+    });
+    expect(event.properties.$referring_domain).toBe('$direct');
+    expect(event.properties.$session_entry_referrer).toBe('');
+  }
+});
+
+it('실제 SDK에서도 세션 출처와 UTM이 유지되고 세션 교체 시 갱신된다', async () => {
+  enablePostHog();
+  window.history.replaceState({}, '', '/?utm_source=kakao&utm_medium=share&q=private-search');
+  Object.defineProperty(document, 'referrer', {
+    configurable: true,
+    value: 'https://blog.example.com/private-path?email=private-email',
+  });
+  const { trackPageView } = await import('../../src/analytics');
+  trackPageView('/');
+  await vi.waitFor(() => expect(posthog.init).toHaveBeenCalled());
+  const config = posthog.init.mock.calls[0][1];
+  const actual = await vi.importActual<typeof import('posthog-js')>('posthog-js');
+  const sdk = new actual.PostHog();
+  // Use the real enrichment/filter pipeline without sending test traffic or loading extensions.
+  vi.spyOn(sdk, '_send_request').mockImplementation(() => {});
+  sdk.init('phc_sdk_test', {
+    ...config,
+    advanced_disable_flags: true,
+    disable_external_dependency_loading: true,
+    disable_session_recording: true,
+    request_batching: false,
+  });
+  const first = sdk.capture('$pageview', {
+    page_location: 'http://localhost:3000/',
+    page_path: '/',
+    page_referrer: 'https://blog.example.com/',
+  });
+  window.history.replaceState({}, '', '/news/1');
+  const second = sdk.capture('$pageview', {
+    page_location: window.location.href,
+    page_path: '/news/1',
+    page_referrer: 'http://localhost:3000/',
+  });
+  for (const event of [first, second]) {
+    expect(event?.properties).toMatchObject({
+      $referring_domain: 'blog.example.com',
+      $session_entry_url: 'http://localhost:3000/',
+      utm_source: 'kakao',
+      utm_medium: 'share',
+    });
+    expect(JSON.stringify(event)).not.toContain('private-');
+  }
+  Object.defineProperty(document, 'referrer', { configurable: true, value: '' });
+  sdk.sessionManager?.resetSessionId();
+  const next = sdk.capture('$pageview', {
+    page_location: window.location.href,
+    page_path: '/news/1',
+    page_referrer: '',
+  });
+  expect(next?.properties).toMatchObject({ $referring_domain: '$direct' });
+  expect(next?.properties).not.toHaveProperty('utm_source');
+  expect(next?.properties.$session_id).not.toBe(first?.properties.$session_id);
+  sdk.opt_out_capturing();
+});
+
+it('마스킹된 녹화 배열과 세션 식별자를 보존하되 SDK의 추가 원문 속성은 제거한다', async () => {
+  enablePostHog();
+  const { trackPageView } = await import('../../src/analytics');
+  trackPageView('/');
+  await vi.waitFor(() => expect(posthog.init).toHaveBeenCalled());
+  const config = posthog.init.mock.calls[0][1];
+  expect(config).toMatchObject({
+    disable_external_dependency_loading: false,
+    advanced_disable_flags: false,
+    enable_recording_console_log: false,
+    session_recording: {
+      maskAllInputs: true,
+      maskTextSelector: '*',
+      recordHeaders: false,
+      recordBody: false,
+    },
+  });
+  const snapshots = [
+    { type: 3, data: { source: 1, positions: [{ x: 20, y: 30, id: 1, timeOffset: 0 }] } },
+  ];
+  const event = config.before_send({
+    event: '$snapshot',
+    $set_once: { $initial_current_url: 'private-url' },
+    properties: {
+      $snapshot_data: snapshots,
+      $snapshot_bytes: 100,
+      $session_id: 'session-1',
+      $window_id: 'window-1',
+      token: 'phc_test',
+      $current_url: 'private-url',
+      $set: { email: 'private-email' },
+    },
+  });
+  expect(event.properties.$snapshot_data).toBe(snapshots);
+  expect(event.properties).toMatchObject({
+    $session_id: 'session-1',
+    $window_id: 'window-1',
+    $snapshot_bytes: 100,
+  });
+  expect(JSON.stringify(event)).not.toContain('private-');
+});
+
+it('녹화의 입력 외 속성·링크와 URL을 정리하고 API 요청은 녹화하지 않는다', async () => {
+  enablePostHog();
+  const { trackPageView } = await import('../../src/analytics');
+  trackPageView('/');
+  await vi.waitFor(() => expect(posthog.init).toHaveBeenCalled());
+  const recording = posthog.init.mock.calls[0][1].session_recording;
+  for (const attribute of ['value', 'title', 'data-email', 'aria-label', 'href', 'src', 'style']) {
+    expect(recording.maskAttributeFn(attribute, 'private-value', document.createElement('a'))).toBe(
+      '',
+    );
+  }
+  expect(recording.maskAttributeFn('class', 'portfolio-card')).toBe('portfolio-card');
+  expect(
+    recording.maskCapturedNetworkRequestFn({
+      name: 'https://example.com/league/private-id?q=private-query#private-fragment',
+    }),
+  ).toEqual({ name: 'https://example.com/league/investor' });
+  expect(
+    recording.maskCapturedNetworkRequestFn({
+      name: 'https://example.com/api/users/me',
+      method: 'GET',
+      responseBody: 'private-body',
+    }),
+  ).toBeNull();
+});
+
+it.each(['/login', '/admin/news'])(
+  '녹화 시작 후 %s에 진입하면 녹화를 중지하고 이후 스냅샷도 차단한다',
+  async (path) => {
+    enablePostHog();
+    const { trackPageView } = await import('../../src/analytics');
+    trackPageView('/');
+    await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalled());
+    const { before_send, session_recording } = posthog.init.mock.calls[0][1];
+    window.history.replaceState({}, '', path);
+    trackPageView(path);
+    expect(posthog.stopSessionRecording).toHaveBeenCalledTimes(1);
+    expect(
+      session_recording.maskCapturedNetworkRequestFn({ name: window.location.href }),
+    ).toBeNull();
+    expect(before_send({ event: '$snapshot', properties: { $snapshot_data: [] } })).toBeNull();
+    window.history.replaceState({}, '', '/news');
+    trackPageView('/news');
+    expect(before_send({ event: '$snapshot', properties: { $snapshot_data: [] } })).toBeNull();
+    expect(posthog.capture).toHaveBeenCalledTimes(1);
+  },
+);
 
 it('허용 목록에 없는 이벤트 속성은 GA4와 PostHog에서 모두 제거한다', async () => {
   enablePostHog();

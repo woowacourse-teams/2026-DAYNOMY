@@ -22,6 +22,13 @@ for (const width of [320, 390, 1440]) {
           confirmed: false,
           asOfDate: '2026-10-13',
           totalCount: 145,
+          aggregation: {
+            baseDate: '2026-10-14',
+            expectedAt: '2026-10-15T05:30:00Z',
+            firstReturnExpectedAt: null,
+            reason: 'PRICE_COLLECTION_PENDING',
+            delayed: false,
+          },
           rankings: Array.from({ length: Math.min(20, 145 - index * 20) }, (_, offset) => ({
             rank: index * 20 + offset + 1,
             publicId: `investor-${index * 20 + offset + 1}`,
@@ -41,6 +48,13 @@ for (const width of [320, 390, 1440]) {
       });
     });
     await page.goto('/league');
+    await expect(page.getByText('다음 집계 예정')).toBeVisible();
+    await expect(
+      page.getByText('집계된 종가 기준의 잠정 순위예요. 최종 집계 후 달라질 수 있어요.'),
+    ).toHaveCount(0);
+    await page.locator('.league-aggregation').screenshot({
+      path: testInfo.outputPath(`aggregation-${width}.png`),
+    });
     const navigation = page.getByRole('navigation', { name: '순위 페이지' });
     await expect(navigation.getByRole('button')).toHaveCount(8);
     const current = navigation.getByRole('button', { name: '1페이지', exact: true });

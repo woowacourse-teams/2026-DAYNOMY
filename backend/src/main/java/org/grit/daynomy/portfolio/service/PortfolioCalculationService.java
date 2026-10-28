@@ -52,6 +52,10 @@ public class PortfolioCalculationService {
   private final PlatformTransactionManager transactionManager;
 
   public PortfolioCalculationResponse calculate(PortfolioCalculateRequest request) {
+    return calculate(request, preparePrices(request));
+  }
+
+  PreparedPrices preparePrices(PortfolioCalculateRequest request) {
     validateNoDuplicateAssets(request.holdings());
     long startedAt = System.nanoTime();
     var read = new TransactionTemplate(transactionManager);
@@ -77,9 +81,20 @@ public class PortfolioCalculationService {
             .toList();
     var rates =
         dates.isEmpty() ? Map.<LocalDate, BigDecimal>of() : exchangeRates.ratesForDates(dates);
-    return calculateWithPrices(
-        request, id -> pricesByAsset.getOrDefault(id, List.of()), rates, startedAt);
+    return new PreparedPrices(pricesByAsset, rates, startedAt);
   }
+
+  PortfolioCalculationResponse calculate(PortfolioCalculateRequest request, PreparedPrices prices) {
+    validateNoDuplicateAssets(request.holdings());
+    return calculateWithPrices(
+        request,
+        id -> prices.byAsset().getOrDefault(id, List.of()),
+        prices.rates(),
+        prices.startedAt());
+  }
+
+  record PreparedPrices(
+      Map<Long, List<StockDailyPrice>> byAsset, Map<LocalDate, BigDecimal> rates, long startedAt) {}
 
   private PortfolioCalculationResponse calculateWithPrices(
       PortfolioCalculateRequest request,

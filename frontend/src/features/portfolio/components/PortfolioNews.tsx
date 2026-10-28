@@ -1,7 +1,7 @@
 import { tourNews } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { trackLoadResult, useContentImpression, useContentView } from '../../news/issue/analytics';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { getStockRelatedContents } from '../../stock-content/api';
 import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../../stock-content/types';
 import { feedDate, youtubeThumbnail } from '../../news/issue/feed';
@@ -46,7 +46,7 @@ function NewsThumbnail({ item }: { item: NewsItem }) {
   );
 }
 
-export function PortfolioNews({
+export const PortfolioNews = memo(function PortfolioNews({
   demo = false,
   holdings,
   hidden = false,
@@ -294,4 +294,4 @@ export function PortfolioNews({
       </a>
     </aside>
   );
-}
+});

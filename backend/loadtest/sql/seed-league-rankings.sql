@@ -1,14 +1,16 @@
 -- DBeaver에서 개발 PostgreSQL 연결을 선택하고 이 파일 전체를 SQL 스크립트로 실행한다.
 -- CLI: psql -v ON_ERROR_STOP=1 -f seed-league-rankings.sql
--- 순위 조회용 100명만 추가한다. 기존 회원·종목·종가·거래일·확정 순위는 변경하지 않는다.
+-- 순위 테스트 회원을 총 1,000명으로 맞춘다. 기존 100명이 있으면 900명만 추가한다.
+-- 기존 회원·종목·종가·거래일·확정 순위는 변경하지 않는다.
 -- 현재 주차의 수집 완료된 종가와 국내 상장 종목 3개 이상이 필요하다.
--- lt601-rank- 회원이 이미 있으면 중단한다. 테스트 데이터를 자동 삭제하거나 중복 추가하지 않는다.
+-- 이미 있는 lt601-rank- 회원은 유지하고 없는 번호만 추가한다. 모두 있으면 중단한다.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '120s';
 
 CREATE TEMP TABLE lt601_config ON COMMIT DROP AS
-SELECT date_trunc('week', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date AS week_start;
+SELECT date_trunc('week', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date AS week_start,
+    1000 AS target_members;
 -- 다른 주차 검증이 필요한 경우에만 아래 날짜를 바꿔 주석을 해제한다.
 -- UPDATE lt601_config SET week_start = DATE '2026-10-19';
 
@@ -24,8 +26,15 @@ BEGIN
     IF NOT pg_try_advisory_xact_lock(601, 1) THEN
         RAISE EXCEPTION '다른 #601 데이터 적재가 진행 중입니다.';
     END IF;
-    IF EXISTS (SELECT FROM members WHERE provider_id LIKE 'lt601-rank-%') THEN
-        RAISE EXCEPTION '순위 테스트 회원이 이미 있습니다. 중복 적재하지 않습니다.';
+    IF NOT EXISTS (
+        SELECT FROM generate_series(1, (SELECT target_members FROM lt601_config)) AS n(number)
+        WHERE NOT EXISTS (
+            SELECT FROM members m
+            WHERE m.provider_id = 'lt601-rank-' ||
+                lpad(n.number::text, greatest(3, length(n.number::text)), '0')
+        )
+    ) THEN
+        RAISE EXCEPTION '대상 순위 테스트 회원이 이미 있습니다. 중복 적재하지 않습니다.';
     END IF;
     IF NOT EXISTS (SELECT FROM lt601_days) THEN
         RAISE EXCEPTION '이 주차의 수집 완료된 거래일이 없습니다. 종가 수집 후 실행하세요.';
@@ -94,8 +103,12 @@ DECLARE
     asset record;
     holding record;
 BEGIN
-    FOR member_number IN 1..100 LOOP
-        name := 'lt601-rank-' || lpad(member_number::text, 3, '0');
+    FOR member_number IN 1..(SELECT target_members FROM lt601_config) LOOP
+        name := 'lt601-rank-' ||
+            lpad(member_number::text, greatest(3, length(member_number::text)), '0');
+        IF EXISTS (SELECT FROM members m WHERE m.provider_id = seed.name) THEN
+            CONTINUE;
+        END IF;
         INSERT INTO members(provider, provider_id, email, nickname, role, status, created_at, updated_at)
         VALUES ('GOOGLE', name, name || '@example.invalid', name, 'USER', 'ACTIVE', now(), now())
         RETURNING id INTO member_id;
@@ -177,9 +190,16 @@ SELECT portfolio_id, base_date, round((evaluation - previous_evaluation) * 100 /
     base_date = (SELECT min(base_date) FROM lt601_days), 1, now(), now(), now()
 FROM changes;
 
+-- 추가된 데이터 규모를 다음 조회의 실행계획에 반영한다.
+ANALYZE members, public_investor_profiles, league_participations, shared_portfolios,
+    shared_holdings, shared_holding_histories, portfolio_transactions, investment_reviews,
+    portfolio_daily_returns;
+
 SELECT (SELECT week_start FROM lt601_config) AS week_start,
     (SELECT max(base_date) FROM lt601_days) AS as_of_date,
-    (SELECT count(*) FROM lt601_cohort) AS members,
+    (SELECT count(*) FROM lt601_cohort) AS added_members,
+    (SELECT count(*) FROM members m
+        WHERE m.provider_id LIKE 'lt601-rank-%') AS total_test_members,
     (SELECT count(*) FROM shared_holdings h JOIN lt601_cohort c ON c.portfolio_id = h.portfolio_id) AS holdings,
     (SELECT count(*) FROM portfolio_transactions t JOIN lt601_cohort c ON c.portfolio_id = t.portfolio_id) AS decisions,
     (SELECT count(*) FROM investment_reviews r JOIN portfolio_transactions t ON t.id = r.transaction_id

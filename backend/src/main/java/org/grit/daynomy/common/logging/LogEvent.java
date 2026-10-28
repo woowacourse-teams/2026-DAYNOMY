@@ -38,6 +38,10 @@ public enum LogEvent {
   ASSET_CONTENT_SYNC_COMPLETED("asset-content.sync.completed", "종목 콘텐츠 연결 완료"),
   ASSET_CONTENT_CREATED("asset-content.created", "종목 콘텐츠 생성 완료"),
   ASSET_CONTENT_DELETED("asset-content.deleted", "종목 콘텐츠 삭제 완료"),
+  CONTENT_COLLECTION_STARTED("content.collection.started", "외부 콘텐츠 수집 시작"),
+  CONTENT_COLLECTION_COMPLETED("content.collection.completed", "외부 콘텐츠 수집 완료"),
+  CONTENT_COLLECTION_SKIPPED("content.collection.skipped", "외부 콘텐츠 수집 스킵"),
+  CONTENT_COLLECTION_FAILED("content.collection.failed", "외부 콘텐츠 수집 실패"),
 
   FEEDBACK_CREATED("feedback.created", "피드백 생성 완료"),
   FEEDBACK_STATUS_UPDATED("feedback.status.updated", "피드백 상태 변경 완료"),
@@ -45,6 +49,7 @@ public enum LogEvent {
 
   PORTFOLIO_CALCULATION_STARTED("portfolio.calculation.started", "포트폴리오 계산 시작"),
   PORTFOLIO_CALCULATION_COMPLETED("portfolio.calculation.completed", "포트폴리오 계산 완료"),
+  PORTFOLIO_ANALYSIS_SOURCES_VERIFIED("portfolio.analysis.sources.verified", "포트폴리오 원문 검증 종료"),
   PORTFOLIO_ANALYSIS_REQUESTED("portfolio.analysis.requested", "포트폴리오 분석 요청"),
   PORTFOLIO_ANALYSIS_COMPLETED("portfolio.analysis.completed", "포트폴리오 분석 완료"),
   PORTFOLIO_ANALYSIS_CORRECTION_REQUESTED(

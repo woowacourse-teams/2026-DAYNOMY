@@ -241,6 +241,7 @@
 
 .portfolio-analysis-preview {
   width: 100%;
+  padding-top: 12px;
 }
 
 .portfolio-analysis-layout.portfolio-preview-layout {
@@ -271,7 +272,7 @@
 .portfolio-preview-blur {
   grid-column: 2;
   grid-row: 2;
-  margin-top: 16px;
+  margin-top: 24px;
   word-break: keep-all;
   overflow-wrap: anywhere;
   filter: blur(2px);
@@ -890,7 +891,7 @@ button.portfolio-asset-row:focus-visible {
 }
 
 .portfolio-evidence-sources a:hover {
-  background: #262626;
+  text-decoration: underline;
 }
 
 .portfolio-evidence-sources a svg {
