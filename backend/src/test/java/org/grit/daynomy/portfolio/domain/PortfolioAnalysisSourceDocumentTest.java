@@ -166,6 +166,32 @@ class PortfolioAnalysisSourceDocumentTest {
   }
 
   @Test
+  void resolvesNextYearOnlyFromAnUnambiguousDateWrittenInTheOriginal() {
+    String fact = "Covers three years from next year through 2029.";
+    var dated = new PortfolioAnalysisSourceDocument("Supply contract", "2026.09.22. " + fact, null);
+    assertThat(dated.rejectionReason(fact, null, null, "2027년부터 2029년까지 공급해요.")).isNull();
+    assertThat(dated.rejectionReason(fact, null, null, "2028년부터 공급해요."))
+        .isEqualTo("PERIOD_UNVERIFIED");
+    var rolling =
+        new PortfolioAnalysisSourceDocument(
+            "Outlook", "2026.09.22. Revenue may grow over the next year.", null);
+    assertThat(
+            rolling.rejectionReason(
+                "Revenue may grow over the next year.", null, null, "2027년 매출이 늘어날 수 있어요."))
+        .isEqualTo("PERIOD_UNVERIFIED");
+    var metadataOnly =
+        new PortfolioAnalysisSourceDocument("Supply contract", fact, LocalDate.of(2026, 9, 22));
+    assertThat(
+            metadataOnly.rejectionReason(fact, metadataOnly.publishedOn(), null, "2027년부터 공급해요."))
+        .isEqualTo("PERIOD_UNVERIFIED");
+    var ambiguous =
+        new PortfolioAnalysisSourceDocument(
+            "Supply contract", "2026.09.22. Comparison: 2025.09.22. " + fact, null);
+    assertThat(ambiguous.rejectionReason(fact, null, null, "2027년부터 공급해요."))
+        .isEqualTo("PERIOD_UNVERIFIED");
+  }
+
+  @Test
   void acceptsCompactQuarterAndYearNotationButRejectsDifferentQuarter() {
     var original =
         new PortfolioAnalysisSourceDocument(
@@ -204,6 +230,32 @@ class PortfolioAnalysisSourceDocumentTest {
         .isNull();
     assertThat(original.rejectionReason(forecast, null, null, "2030년 매출을 예상했어요."))
         .isEqualTo("PERIOD_UNVERIFIED");
+  }
+
+  @Test
+  void bulkQuoteAmountsKeepTableUnitsExplicitCurrenciesAndPercentageExclusions() {
+    String explicit = "Revenue reached KRW 2 billion.";
+    String table = "Operating Profit 86 218 203 9% 3%";
+    String plain = "Demand remained stable.";
+    var original =
+        new PortfolioAnalysisSourceDocument(
+            "Results", explicit + "\n(in bn KRW)\n" + table + "\n" + plain, null);
+    var amounts =
+        original.verifiedWonAmounts(
+            java.util.List.of(explicit, table, plain, "Unverified KRW 9 billion."));
+    assertThat(amounts).hasSize(2);
+    assertThat(amounts.get(explicit))
+        .containsEntry("KRW 2 billion", "20억원")
+        .containsEntry("2 billion KRW", "20억원");
+    assertThat(amounts.get(table))
+        .containsExactlyInAnyOrderEntriesOf(
+            java.util.Map.of(
+                "86 billion KRW",
+                "860억원",
+                "218 billion KRW",
+                "2180억원",
+                "203 billion KRW",
+                "2030억원"));
   }
 
   @Test

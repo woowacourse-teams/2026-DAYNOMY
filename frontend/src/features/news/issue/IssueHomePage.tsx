@@ -22,9 +22,19 @@ import {
 } from './popularity';
 import '../../people/people.css';
 import './issue.css';
+import { lazy, Suspense } from 'react';
+
+const NewsHomePreview = lazy(() => import('./NewsHomePreview'));
 
 export function IssueHomePage({ fullFeed = false }: { fullFeed?: boolean }) {
   const [params] = useSearchParams();
+  if (import.meta.env.DEV && params.get('preview') === 'briefing' && !fullFeed) {
+    return (
+      <Suspense fallback={<p role="status">미리보기를 불러오는 중입니다.</p>}>
+        <NewsHomePreview preview />
+      </Suspense>
+    );
+  }
   return fullFeed && params.get('scope') === 'portfolio' ? (
     <PortfolioContentsPage />
   ) : (

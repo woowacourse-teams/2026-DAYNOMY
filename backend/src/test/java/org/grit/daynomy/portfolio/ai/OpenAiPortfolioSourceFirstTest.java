@@ -34,7 +34,9 @@ class OpenAiPortfolioSourceFirstTest {
                 url,
                 Optional.of(
                     new PortfolioAnalysisSourceDocument(
-                        "삼성전자 실적", first + " " + second, LocalDate.of(2026, 7, 30)))));
+                        "삼성전자 실적",
+                        first + " " + second,
+                        LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1)))));
     try (var server = new MockWebServer()) {
       server.start();
       server.enqueue(
@@ -100,6 +102,7 @@ class OpenAiPortfolioSourceFirstTest {
               server.url("/").toString(),
               "test-key",
               "gpt-5.4-mini",
+              "gpt-5.4-mini",
               5,
               new PortfolioAnalysisEvidenceVerifier(documents));
       var result = client.analyze(List.of(new PortfolioAnalysisTarget("삼성전자")));
@@ -138,22 +141,109 @@ class OpenAiPortfolioSourceFirstTest {
               .path("anyOf")
               .get(0)
               .path("properties");
-      var excerpt = properties.path("evidence").path("items").path("properties").path("excerpt");
-      assertThat(excerpt.path("description").asText()).contains("한국어");
-      assertThat(excerpt.has("pattern")).isFalse();
+      assertThat(properties.path("evidence").path("items").path("properties").has("excerpt"))
+          .isFalse();
       verify(documents, times(1)).fetchAll(List.of(url));
     }
   }
 
   @Test
-  void retriesAnUnreadableOriginalWithFailureFeedbackAndKeepsTheOtherAssetEvidence()
-      throws Exception {
+  void readsDiscoveredAlternativeInTheFirstSearchBeforeStartingAnalysis() throws Exception {
+    String primary = "https://official.example.com/dynamic";
+    String backup = "https://media.example.com/results";
+    var documents = mock(PortfolioAnalysisDocumentClient.class);
+    when(documents.fetchAll(anyList()))
+        .thenAnswer(
+            invocation -> {
+              Map<String, Optional<PortfolioAnalysisSourceDocument>> result =
+                  new java.util.LinkedHashMap<>();
+              for (String url : invocation.<List<String>>getArgument(0))
+                result.put(
+                    url,
+                    url.equals(backup)
+                        ? Optional.of(
+                            new PortfolioAnalysisSourceDocument("기아 실적", "매출이 증가했어요.", null))
+                        : Optional.empty());
+              return result;
+            });
+    try (var server = new MockWebServer()) {
+      server.start();
+      server.enqueue(
+          response(
+              Map.of(
+                  "assets",
+                  List.of(
+                      Map.of(
+                          "assetName", "기아", "urls", List.of(primary), "alternativeUrl", backup))),
+              List.of(
+                  Map.of(
+                      "type",
+                      "web_search_call",
+                      "status",
+                      "completed",
+                      "action",
+                      Map.of("sources", List.of(Map.of("url", primary), Map.of("url", backup)))))));
+      server.enqueue(
+          response(
+              Map.of(
+                  "impacts",
+                  List.of(
+                      Map.of(
+                          "assetName",
+                          "기아",
+                          "direction",
+                          "POSITIVE",
+                          "impactLevel",
+                          "MEDIUM",
+                          "issueSummary",
+                          "매출이 증가했어요.",
+                          "reason",
+                          "매출이 증가했어요.",
+                          "expectedReaction",
+                          "매출 증가가 사업에 유리해요.",
+                          "outlook",
+                          "매출 흐름을 확인해야 해요.",
+                          "evidence",
+                          List.of(
+                              Map.of("reference", 1, "excerpt", "매출이 증가했어요.", "occurredOn", ""))))),
+              List.of()));
+      var client =
+          new OpenAiPortfolioAnalysisClient(
+              RestClient.builder(),
+              server.url("/").toString(),
+              "test-key",
+              "test-model",
+              "test-search-model",
+              1,
+              new PortfolioAnalysisEvidenceVerifier(documents));
+      var result = client.analyze(List.of(new PortfolioAnalysisTarget("기아")));
+      assertThat(result.impacts())
+          .singleElement()
+          .satisfies(
+              impact -> {
+                assertThat(impact.direction()).isNotNull();
+                assertThat(impact.sources())
+                    .singleElement()
+                    .satisfies(source -> assertThat(source.url()).isEqualTo(backup));
+              });
+      assertThat(server.getRequestCount()).isEqualTo(2);
+      verify(documents, times(1)).fetchAll(List.of(primary, backup));
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void retriesAnUnreadableOriginalWithFailureFeedbackAndKeepsTheOtherAssetEvidence(
+      boolean repeatedHostFailure) throws Exception {
     String unreadable = "https://example.com/dynamic-article";
+    var unreadableUrls =
+        repeatedHostFailure ? List.of(unreadable, unreadable + "-second") : List.of(unreadable);
     String replacement = "https://reports.other-domain.com/report.pdf";
     String readable = "https://other.example.com/original";
     var documents = mock(PortfolioAnalysisDocumentClient.class);
     var original =
-        new PortfolioAnalysisSourceDocument("실적 발표", "매출이 증가했어요.", LocalDate.of(2026, 8, 7));
+        new PortfolioAnalysisSourceDocument(
+            "실적 발표", "매출이 증가했어요.", LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1));
     when(documents.fetchAll(anyList()))
         .thenAnswer(
             invocation -> {
@@ -162,7 +252,7 @@ class OpenAiPortfolioSourceFirstTest {
               for (String url : invocation.<List<String>>getArgument(0))
                 found.put(
                     url,
-                    url.equals(unreadable)
+                    unreadableUrls.contains(url)
                         ? java.util.Optional.empty()
                         : java.util.Optional.of(original));
               return found;
@@ -174,7 +264,7 @@ class OpenAiPortfolioSourceFirstTest {
               Map.of(
                   "assets",
                   List.of(
-                      Map.of("assetName", "기아", "urls", List.of(unreadable)),
+                      Map.of("assetName", "기아", "urls", unreadableUrls),
                       Map.of("assetName", "셀트리온", "urls", List.of(readable)))),
               List.of(
                   Map.of(
@@ -185,7 +275,10 @@ class OpenAiPortfolioSourceFirstTest {
                       "action",
                       Map.of(
                           "sources",
-                          List.of(Map.of("url", unreadable), Map.of("url", readable)))))));
+                          java.util.stream.Stream.concat(
+                                  unreadableUrls.stream(), java.util.stream.Stream.of(readable))
+                              .map(url -> Map.of("url", url))
+                              .toList())))));
       server.enqueue(
           response(
               Map.of(
@@ -237,6 +330,7 @@ class OpenAiPortfolioSourceFirstTest {
               server.url("/").toString(),
               "test-key",
               "test-model",
+              "test-search-model",
               2,
               new PortfolioAnalysisEvidenceVerifier(documents));
       var result =
@@ -249,9 +343,20 @@ class OpenAiPortfolioSourceFirstTest {
       assertThat(firstSearch.path("tools").get(0).has("filters")).isFalse();
       assertThat(firstSearch.path("reasoning").path("effort").asText()).isEqualTo("low");
       var retry = mapper.readTree(server.takeRequest().getBody().readUtf8());
-      assertThat(retry.path("tools").get(0).path("filters").path("blocked_domains").toString())
-          .isEqualTo("[\"example.com\"]");
-      assertThat(retry.path("input").toString()).contains("unavailableSources", unreadable);
+      var filters = retry.path("tools").get(0).path("filters");
+      if (repeatedHostFailure) {
+        assertThat(filters.path("blocked_domains").get(0).asText()).isEqualTo("example.com");
+      } else {
+        assertThat(filters.isMissingNode()).isTrue();
+      }
+      assertThat(retry.path("input").toString()).contains("unavailableSources");
+      if (repeatedHostFailure) {
+        assertThat(retry.path("input").toString())
+            .contains("-site:example.com")
+            .doesNotContain(unreadable);
+      } else {
+        assertThat(retry.path("input").toString()).contains(unreadable).doesNotContain("-site:");
+      }
       assertThat(retry.path("input").get(1).path("content").asText())
           .contains("기아")
           .doesNotContain("셀트리온");
@@ -274,7 +379,7 @@ class OpenAiPortfolioSourceFirstTest {
                     new PortfolioAnalysisSourceDocument(
                         "2026년 2분기 실적",
                         "2026년 2분기 매출은 증가했지만 영업이익은 감소했어요.",
-                        LocalDate.of(2026, 7, 30)))));
+                        LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1)))));
     try (var server = new MockWebServer()) {
       server.start();
       server.enqueue(
@@ -328,6 +433,7 @@ class OpenAiPortfolioSourceFirstTest {
               server.url("/").toString(),
               "test-key",
               "test-model",
+              "test-search-model",
               1,
               new PortfolioAnalysisEvidenceVerifier(documents));
       var result = client.analyze(List.of(new PortfolioAnalysisTarget("삼성전자")));

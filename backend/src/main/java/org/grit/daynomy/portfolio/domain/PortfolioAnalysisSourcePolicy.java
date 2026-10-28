@@ -56,7 +56,9 @@ public final class PortfolioAnalysisSourcePolicy {
     }
     path = path.replaceAll("/(en|eng|ko|kr|kor|ja|jp|zh|en-us|en-gb|ko-kr)$", "");
     return path.isEmpty()
-        || path.matches(".*/(index|home|default|main|list|ir_notices)(\\.(html?|aspx?|jsp|do))?")
+        || path.matches(".*/ir/(reference|references)(\\.(html?|aspx?|jsp|do))?")
+        || path.matches(
+            ".*/(index|home|default|main|list|ir[0-9]*_notices)(\\.(html?|aspx?|jsp|do))?")
         || path.matches(
             ".*/(all|news|newsroom|investor|investors|investor-relations|events|notices|official_notice|iractivity|category|categories|tag|tags|ir|reports|public-disclosure|disclosure|press-releases|press-release|pressreleases|earnings|earnings-release|earnings-releases|earningsrelease|earningsannouncement|irupdates|irnews|ui-fr-ir01|ui-fr-ir06|financial-summary|facts-figures|press-room)")
         || path.contains("/tag/")

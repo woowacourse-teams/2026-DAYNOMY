@@ -11,6 +11,51 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisEvidenceTest {
   @Test
+  void refreshesOldPublicationButKeepsItWhenNoNewerOriginalIsFound() {
+    var target = new PortfolioAnalysisTarget("삼성전자");
+    assertThat(evidence.needsRecentSource(target, LocalDate.of(2026, 9, 1))).isTrue();
+    String replacementUrl = "https://example.com/latest-results";
+    var older =
+        PortfolioAnalysisEvidence.from(
+            Map.of("삼성전자", List.of(replacementUrl)),
+            Map.of(
+                replacementUrl,
+                new PortfolioAnalysisSourceDocument(
+                    "Old results", "Revenue rose.", LocalDate.of(2026, 6, 1))));
+    assertThat(evidence.mergeNewerSources(older).references(List.of(target)))
+        .containsExactlyElementsOf(evidence.references(List.of(target)));
+    var newer =
+        PortfolioAnalysisEvidence.from(
+            Map.of("삼성전자", List.of(replacementUrl)),
+            Map.of(
+                replacementUrl,
+                new PortfolioAnalysisSourceDocument(
+                    "New results", "Revenue rose.", LocalDate.of(2026, 10, 12))));
+    assertThat(evidence.mergeNewerSources(newer).references(List.of(target)))
+        .containsExactlyElementsOf(newer.references(List.of(target)));
+    var unknown =
+        PortfolioAnalysisEvidence.from(
+            Map.of("삼성전자", List.of(replacementUrl)),
+            Map.of(
+                replacementUrl,
+                new PortfolioAnalysisSourceDocument("Results", "Revenue rose.", null)));
+    assertThat(unknown.needsRecentSource(target, LocalDate.of(2026, 9, 1))).isFalse();
+    assertThat(evidence.mergeNewerSources(unknown).references(List.of(target)))
+        .containsExactlyElementsOf(evidence.references(List.of(target)));
+  }
+
+  @Test
+  void keepsHostAvailableWhenAnotherSelectedOriginalFromThatHostWasReadable() {
+    var target = new PortfolioAnalysisTarget("삼성전자");
+    var prepared =
+        PortfolioAnalysisEvidence.from(
+            Map.of("삼성전자", List.of(url, "https://example.com/unreadable")),
+            Map.of(url, new PortfolioAnalysisSourceDocument("Results", quote, null)));
+    assertThat(prepared.sourcesToReplace(List.of(target)).getFirst().get("unavailableDomains"))
+        .isEqualTo(List.of());
+  }
+
+  @Test
   void numericReferencesResolveOnlyToTheirOriginalAndRejectOutOfRangeNumbers() throws Exception {
     var input = mapper.valueToTree(evidence.input(List.of(new PortfolioAnalysisTarget("삼성전자"))));
     int number = Integer.parseInt(input.path("sources").get(0).path("quotes").fieldNames().next());
@@ -85,6 +130,7 @@ class PortfolioAnalysisEvidenceTest {
             .get(0);
     assertThat(resolved.path("url").asText()).isEqualTo(url);
     assertThat(resolved.path("factQuote").asText()).isEqualTo(quote);
+    assertThat(resolved.path("excerpt").asText()).isEqualTo(quote);
     assertThat(resolved.path("publishedOn").asText()).isEqualTo("2026-07-30");
     assertThat(resolved.path("occurredOn").isNull()).isTrue();
   }
@@ -220,8 +266,7 @@ class PortfolioAnalysisEvidenceTest {
   }
 
   @Test
-  void appliesExplicitTableUnitToExplanationAndExcerptWithoutChangingOriginalQuote()
-      throws Exception {
+  void normalizesExplanationAmountsWhileKeepingCanonicalQuotesUnchanged() throws Exception {
     String revenue = "Total Revenue 1,953 2,081 2,133 9% 3%";
     String profit = "Operating Profit 86 218 203 136% -7%";
     var prepared =
@@ -255,9 +300,8 @@ class PortfolioAnalysisEvidenceTest {
                                 "영업이익 203억원이에요."))))));
     var result = mapper.readTree(prepared.resolve(raw, mapper)).path("impacts").get(0);
     assertThat(result.path("reason").asText()).isEqualTo("매출 21330억원과 영업이익 2030억원을 보고했어요.");
-    assertThat(result.path("evidence").get(0).path("excerpt").asText()).isEqualTo("매출 21330억원이에요.");
-    assertThat(result.path("evidence").get(1).path("excerpt").asText())
-        .isEqualTo("영업이익 2030억원이에요.");
+    assertThat(result.path("evidence").get(0).path("excerpt").asText()).isEqualTo(revenue);
+    assertThat(result.path("evidence").get(1).path("excerpt").asText()).isEqualTo(profit);
     assertThat(result.path("evidence").get(1).path("factQuote").asText()).isEqualTo(profit);
   }
 }
