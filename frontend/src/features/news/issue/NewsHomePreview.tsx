@@ -380,7 +380,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
           <ul className="briefing-holdings">
             {portfolio.holdings.slice(0, 4).map((holding) => (
               <li key={holding.assetId}>
-                <Link to={`/stocks/${holding.assetId}`}>
+                <Link to={`/news/contents?scope=portfolio&asset=${holding.assetId}`}>
                   <span>{holding.name.slice(0, 1)}</span>
                   <strong>{holding.name}</strong>
                   <small>{holding.market}</small>
