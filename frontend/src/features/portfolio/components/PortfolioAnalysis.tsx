@@ -1,7 +1,7 @@
 import { tourAnalysis } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { useContentImpression } from '../../news/issue/analytics';
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
 import type {
   PortfolioAsset,
@@ -752,7 +752,7 @@ type PortfolioAnalysisProps = {
   onAddAsset?: () => void;
 };
 
-export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
+export const PortfolioAnalysis = memo(function PortfolioAnalysis(props: PortfolioAnalysisProps) {
   if (props.demoStep !== undefined)
     return (
       <PortfolioAnalysisView
@@ -777,7 +777,7 @@ export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
       {...props}
     />
   );
-}
+});
 
 function PortfolioAnalysisContent(props: PortfolioAnalysisProps) {
   const state = usePortfolioAnalysis(props.assets, props.isLoggedIn ?? true, props.holdingsKey);

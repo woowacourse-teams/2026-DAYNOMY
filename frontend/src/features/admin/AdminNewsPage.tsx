@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { formatDate } from '../news/newslist/utils';
@@ -65,6 +64,43 @@ function AdminAccessDeniedPage() {
 
 export { AdminAccessDeniedPage };
 
+function NewsSearch({ onSearch }: { onSearch: (keyword: string) => void }) {
+  const [searchInput, setSearchInput] = useState('');
+  return (
+    <form
+      className="admin-search-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSearch(searchInput.trim());
+      }}
+    >
+      <label>
+        <span>뉴스 검색</span>
+        <input
+          type="search"
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          placeholder="제목·본문 검색"
+          maxLength={100}
+        />
+      </label>
+      <button type="submit" className="admin-primary-button">
+        검색
+      </button>
+      <button
+        type="button"
+        className="admin-secondary-button"
+        onClick={() => {
+          setSearchInput('');
+          onSearch('');
+        }}
+      >
+        초기화
+      </button>
+    </form>
+  );
+}
+
 export function AdminNewsPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState<AdminNewsListItemResponse[]>([]);
@@ -73,7 +109,6 @@ export function AdminNewsPage() {
   const [totalElements, setTotalElements] = useState(0);
   const [status, setStatus] = useState<AdminNewsFilterStatus>('ALL');
   const [category, setCategory] = useState<AdminNewsFilterCategory>('ALL');
-  const [searchInput, setSearchInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(true);
   const [publishingId, setPublishingId] = useState<number | null>(null);
@@ -130,15 +165,8 @@ export function AdminNewsPage() {
   const paginationPages = useMemo(() => getPaginationPages(page, totalPages), [page, totalPages]);
   const hasSearchConditions = Boolean(keyword) || status !== 'ALL' || category !== 'ALL';
 
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setKeyword(searchInput.trim());
-    setPage(1);
-  }
-
-  function clearSearch() {
-    setSearchInput('');
-    setKeyword('');
+  function handleSearch(nextKeyword: string) {
+    setKeyword(nextKeyword);
     setPage(1);
   }
 
@@ -300,24 +328,7 @@ export function AdminNewsPage() {
       ) : null}
 
       <section className="admin-toolbar" aria-label="뉴스 목록 필터">
-        <form className="admin-search-form" onSubmit={handleSearch}>
-          <label>
-            <span>뉴스 검색</span>
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="제목·본문 검색"
-              maxLength={100}
-            />
-          </label>
-          <button type="submit" className="admin-primary-button">
-            검색
-          </button>
-          <button type="button" className="admin-secondary-button" onClick={clearSearch}>
-            초기화
-          </button>
-        </form>
+        <NewsSearch onSearch={handleSearch} />
         <label>
           <span>상태</span>
           <select
