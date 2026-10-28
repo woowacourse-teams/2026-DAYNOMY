@@ -507,11 +507,6 @@
   list-style: none;
 }
 
-.briefing-latest .issue-feed > li {
-  padding: 18px 0;
-  border-bottom: 1px solid var(--briefing-line);
-}
-
 .briefing-latest .issue-feed-row--news {
   grid-template-columns: 182px minmax(0, 1fr);
   column-gap: 22px;
