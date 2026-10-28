@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { getStockRelatedContents } from '../../src/features/stock-content/api';
 import { useFeaturedPeople } from '../../src/features/people/useFeaturedPeople';
 import NewsHomePreview from '../../src/features/news/issue/NewsHomePreview';
+import { getAllContents } from '../../src/features/news/issue/contents';
 import { getContentPopularity } from '../../src/features/news/issue/popularity';
 import { getNews } from '../../src/features/news/newslist/api';
 
@@ -57,6 +58,8 @@ beforeEach(() => {
     contents: [],
   });
   vi.mocked(getNews).mockReset();
+  vi.mocked(getAllContents).mockReset();
+  vi.mocked(getAllContents).mockResolvedValue({ items: [], page: 1, totalPages: 1 });
   vi.mocked(getContentPopularity).mockResolvedValue(new Map([['NEWS:7', 10]]));
 });
 const page = {
@@ -108,21 +111,55 @@ it('실패 시 재시도하고 빈 결과를 가상 소식으로 대체하지 �
   expect(getNews).toHaveBeenCalledTimes(2);
 });
 
-it('인기 집계가 없으면 최신 기사를 인기 기사로 표시하지 않는다', async () => {
-  vi.mocked(getNews).mockResolvedValue(page);
-  vi.mocked(getContentPopularity).mockResolvedValue(new Map());
+it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순으로 세 개를 표시한다', async () => {
+  vi.mocked(getNews).mockResolvedValue({
+    ...page,
+    content: [
+      page.content[0],
+      { ...page.content[0], id: 8, title: '집계 없는 데이노미 이슈', publishedAt: '2026-10-24' },
+      { ...page.content[0], id: 9, title: '인기 데이노미 이슈', publishedAt: '2026-10-25' },
+    ],
+  });
+  vi.mocked(getAllContents).mockResolvedValue({
+    items: [
+      {
+        id: 99,
+        assetId: 1,
+        sourceType: 'YOUTUBE',
+        title: '가장 인기 있는 외부 영상',
+        url: 'https://www.youtube.com/watch?v=abcdefghijk',
+        imageUrl: null,
+        createdAt: '2026-10-26',
+      },
+    ],
+    page: 1,
+    totalPages: 1,
+  });
+  vi.mocked(getContentPopularity).mockResolvedValue(
+    new Map([
+      ['ASSET_CONTENT:99', 100],
+      ['NEWS:9', 30],
+      ['NEWS:7', 20],
+    ]),
+  );
   const view = show();
-  await view.findByText('아직 집계된 인기 소식이 없어요');
+  const trending = within(view.getByRole('region', { name: '트렌딩' }));
+  expect(await trending.findByRole('link', { name: /인기 데이노미 이슈/ })).toBeTruthy();
+  expect(trending.getAllByRole('article')).toHaveLength(3);
+  expect(trending.queryByText('가장 인기 있는 외부 영상')).toBeNull();
   expect(
-    within(view.getByRole('region', { name: '트렌딩' })).queryByRole('link', {
-      name: /기준금리/,
-    }),
-  ).toBeNull();
-  expect(
-    await within(view.getByRole('region', { name: '전체 소식' })).findByRole('link', {
-      name: /기준금리/,
+    within(view.container.querySelector('.briefing-feature-story')!).getByRole('link', {
+      name: /인기 데이노미 이슈/,
     }),
   ).toBeTruthy();
+});
+
+it('인기순 API가 실패하면 최신 기사를 인기 기사로 대체하지 않는다', async () => {
+  vi.mocked(getNews).mockResolvedValue(page);
+  vi.mocked(getContentPopularity).mockRejectedValue(new Error('offline'));
+  const view = show();
+  expect(await view.findByText('인기 소식을 잠시 불러올 수 없어요')).toBeTruthy();
+  expect(within(view.getByRole('region', { name: '트렌딩' })).queryByRole('article')).toBeNull();
 });
 it('일정 요약 없이 기존 투자 캘린더를 바로 표시한다', async () => {
   vi.mocked(getNews).mockResolvedValue(page);
@@ -138,9 +175,9 @@ it('전체 소식은 인기 여부와 관계없이 최신 콘텐츠를 보여준
     content: [...page.content, { ...page.content[0], id: 8, title: '새로 등록한 기사' }],
   });
   const view = show();
-  await view.findByRole('link', { name: /새로 등록한 기사/ });
   const trending = within(view.getByRole('region', { name: '트렌딩' }));
   const latest = within(view.getByRole('region', { name: '전체 소식' }));
+  await latest.findByRole('link', { name: /새로 등록한 기사/ });
   expect(trending.getByRole('link', { name: /기준금리/ })).toBeTruthy();
   expect(latest.getByRole('link', { name: /기준금리/ })).toBeTruthy();
   expect(latest.getByRole('link', { name: /새로 등록한 기사/ })).toBeTruthy();
@@ -242,17 +279,16 @@ it('예시 화면은 실제 종목 소식 API를 호출하지 않는다', () => 
   expect(getStockRelatedContents).not.toHaveBeenCalled();
 });
 
-it('전체 소식 카테고리를 선택하면 해당 기사만 남긴다', () => {
+it('전체 소식은 카테고리 필터 없이 최신 소식을 함께 보여준다', () => {
   const view = render(
     <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
       <NewsHomePreview preview />
     </MemoryRouter>,
   );
-  const categoryTabs = within(view.getByRole('group', { name: '소식 카테고리' }));
-  fireEvent.click(categoryTabs.getByRole('button', { name: '주식' }));
   const latest = within(view.getByRole('region', { name: '전체 소식' }));
+  expect(view.queryByRole('group', { name: '소식 카테고리' })).toBeNull();
   expect(latest.getByText(/대형 기술주 강세/)).toBeTruthy();
-  expect(latest.queryByText(/환율 상승이 수출 기업/)).toBeNull();
+  expect(latest.getByText(/환율 상승이 수출 기업/)).toBeTruthy();
 });
 
 it('실제 홈에서는 예시 쿼리를 무시하고 실제 API와 분석 경로만 사용한다', async () => {
