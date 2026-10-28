@@ -160,6 +160,15 @@ function PortfolioRoute() {
   );
 }
 
+const NewsHomePage = lazy(() => import('./features/news/issue/NewsHomePreview'));
+
+function NewsHomeRoute() {
+  const location = useLocation();
+  const preview =
+    import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'briefing';
+  return <NewsHomePage preview={preview} />;
+}
+
 function HomeRoute({ hasStarted, onStart }: { hasStarted: boolean; onStart: () => void }) {
   const { isLoggedIn, loading } = useAuth();
 
@@ -347,7 +356,14 @@ function AppContent() {
                 </AuthenticatedRoute>
               }
             />
-            <Route path="/news" element={<IssueHomePage key="home" />} />
+            <Route
+              path="/news"
+              element={
+                <Suspense fallback={<main aria-busy="true" aria-label="소식 불러오는 중" />}>
+                  <NewsHomeRoute />
+                </Suspense>
+              }
+            />
             <Route path="/news/today" element={<NewsListPage />} />
             <Route path="/news/contents" element={<IssueHomePage key="contents" fullFeed />} />
             <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />

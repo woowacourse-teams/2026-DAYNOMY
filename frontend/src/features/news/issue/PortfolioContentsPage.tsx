@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useLoginStatus';
 import { trackEvent } from '../../../analytics';
@@ -24,6 +24,9 @@ import {
 import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import './issue.css';
+import './portfolioContentsNext.css';
+import { PortfolioReadingNext } from './PortfolioReadingNext';
+import { examplePortfolio, exampleResponses } from './portfolioContentsExample';
 
 const sources = [
   ['ALL', '전체'],
@@ -41,7 +44,7 @@ function CompanySidebar({
   error,
   onSelect,
 }: {
-  holdings: PortfolioHoldingInput[];
+  holdings: Pick<PortfolioHoldingInput, 'assetId' | 'name'>[];
   selectedAsset: string;
   loading: boolean;
   error: string;
@@ -101,6 +104,9 @@ function CompanySidebar({
 
 export function PortfolioContentsPage() {
   const { isLoggedIn, loading } = useAuth();
+  const [params] = useSearchParams();
+  const example = import.meta.env.DEV && params.get('data') === 'example';
+  if (example) return <PortfolioContentsView portfolio={examplePortfolio} example />;
   if (loading)
     return (
       <main className="issue-page">
@@ -112,8 +118,26 @@ export function PortfolioContentsPage() {
 
 function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
   const portfolio = usePortfolioHoldings(isLoggedIn);
+  return <PortfolioContentsView portfolio={portfolio} />;
+}
+
+// Keep the example independent of saved holdings and their API requests.
+function PortfolioContentsView({
+  portfolio,
+  example = false,
+}: {
+  portfolio: {
+    holdings: { assetId: number; name: string }[];
+    loading: boolean;
+    error: string;
+    retry: () => void;
+  };
+  example?: boolean;
+}) {
   const [params, setParams] = useSearchParams();
   const selectedAsset = params.get('asset') ?? 'ALL';
+  const requestedContent = params.get('open');
+  const revealedContent = useRef<string | null>(null);
   const requestedSource = params.get('source') ?? 'ALL';
   const source = sources.some(([value]) => value === requestedSource) ? requestedSource : 'ALL';
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
@@ -150,6 +174,12 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   useEffect(() => {
     if (portfolio.loading || portfolio.error) return;
+    if (example) {
+      setResponses(exampleResponses);
+      setFailedIds([]);
+      setLoadedKey(assetKey);
+      return;
+    }
     const startedAt = performance.now();
     const controller = new AbortController();
     const ids: number[] = JSON.parse(assetKey);
@@ -186,10 +216,10 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
       },
     );
     return () => controller.abort();
-  }, [assetKey, portfolio.loading, portfolio.error, attempt, selectedAsset]);
+  }, [assetKey, portfolio.loading, portfolio.error, attempt, selectedAsset, example]);
 
   useEffect(() => {
-    if (sort !== 'popular') {
+    if (example || sort !== 'popular') {
       setPopularityLoading(false);
       setPopularityError('');
       return;
@@ -209,10 +239,11 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
         if (!controller.signal.aborted) setPopularityLoading(false);
       });
     return () => controller.abort();
-  }, [attempt, sort]);
+  }, [attempt, sort, example]);
 
   function filter(key: 'asset' | 'source' | 'page' | 'sort', value: string) {
     const next = new URLSearchParams(params);
+    next.delete('open');
     if (key === 'sort' && value === 'latest') next.delete('sort');
     else next.set(key, value);
     if (key !== 'page') next.delete('page');
@@ -263,7 +294,24 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
     [latestItems, sort, popularity],
   );
   const totalPages = Math.max(1, Math.ceil(items.length / 12));
-  const currentPage = Math.min(page, totalPages);
+  const requestedIndex = items.findIndex((item) => String(item.id) === requestedContent);
+  const requestedItem = requestedIndex >= 0 ? items[requestedIndex] : undefined;
+  const requestedKey = requestedItem ? `${requestedItem.assetId}-${requestedItem.id}` : null;
+  const currentPage =
+    requestedIndex >= 0 ? Math.floor(requestedIndex / 12) + 1 : Math.min(page, totalPages);
+  useEffect(() => {
+    if (!requestedContent) revealedContent.current = null;
+    if (!requestedKey || loading || popularityLoading || revealedContent.current === requestedKey)
+      return;
+    revealedContent.current = requestedKey;
+    setExpanded(requestedKey);
+    const frame = requestAnimationFrame(() => {
+      const trigger = document.getElementById(`portfolio-trigger-${requestedKey}`);
+      trigger?.scrollIntoView?.({ block: 'start' });
+      trigger?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requestedKey, requestedContent, loading, popularityLoading]);
   const selectionFailed =
     selectedAsset === 'ALL'
       ? failedIds.length > 0
@@ -278,25 +326,34 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
       ? 'partial_error'
       : 'ready';
   const sourceType = source === 'INTERNAL_NEWS' ? 'DAYNOMY' : source;
-  useContentView(settled, 'view_content_list', {
+  useContentView(!example && settled, 'view_content_list', {
     surface: 'portfolio_contents',
     source_type: sourceType,
     result_count: items.length,
     page_number: currentPage,
     status: listStatus,
   });
-  useContentView(settled && listStatus === 'ready' && !items.length, 'view_content_empty', {
-    surface: 'portfolio_contents',
-    source_type: sourceType,
-    reason: !portfolio.holdings.length
-      ? 'no_holdings'
-      : source !== 'ALL'
-        ? 'filter_empty'
-        : 'no_linked_content',
-  });
+  useContentView(
+    !example && settled && listStatus === 'ready' && !items.length,
+    'view_content_empty',
+    {
+      surface: 'portfolio_contents',
+      source_type: sourceType,
+      reason: !portfolio.holdings.length
+        ? 'no_holdings'
+        : source !== 'ALL'
+          ? 'filter_empty'
+          : 'no_linked_content',
+    },
+  );
 
   return (
     <main className="issue-page portfolio-contents-page">
+      {example && (
+        <p className="portfolio-example-notice">
+          가상 시나리오 · 아래 기업 소식은 실제 사실이 아니며, 실제 보유 자산에 저장되지 않습니다.
+        </p>
+      )}
       <div className="portfolio-contents-layout">
         <CompanySidebar
           holdings={portfolio.holdings}
@@ -339,18 +396,19 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                       aria-pressed={source === value}
                       onClick={() => {
                         if (value === source) return;
-                        trackEvent('filter_content_source', {
-                          surface: 'portfolio_contents',
-                          previous_source: sourceType,
-                          source_type: value === 'INTERNAL_NEWS' ? 'DAYNOMY' : value,
-                          result_count: new Set(
-                            responses.flatMap((response) =>
-                              response.contents
-                                .filter((item) => value === 'ALL' || item.sourceType === value)
-                                .map((item) => item.url),
-                            ),
-                          ).size,
-                        });
+                        if (!example)
+                          trackEvent('filter_content_source', {
+                            surface: 'portfolio_contents',
+                            previous_source: sourceType,
+                            source_type: value === 'INTERNAL_NEWS' ? 'DAYNOMY' : value,
+                            result_count: new Set(
+                              responses.flatMap((response) =>
+                                response.contents
+                                  .filter((item) => value === 'ALL' || item.sourceType === value)
+                                  .map((item) => item.url),
+                              ),
+                            ).size,
+                          });
                         filter('source', value);
                       }}
                     >
@@ -426,10 +484,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </p>
               )}
               {!portfolio.holdings.length ? (
-                <p className="issue-state">
-                  보유 종목을 등록하면 관련 소식을 볼 수 있습니다.{' '}
-                  <Link to="/">포트폴리오로 이동</Link>
-                </p>
+                <p className="issue-state">보유 종목을 등록하면 관련 소식을 볼 수 있습니다. </p>
               ) : !items.length && !selectionFailed ? (
                 <p className="issue-state">선택한 조건에 연결된 소식이 없습니다.</p>
               ) : null}
@@ -489,7 +544,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                             aria-expanded={expanded === key}
                             aria-controls={`portfolio-post-${key}`}
                             onClick={() => {
-                              if (expanded !== key) {
+                              if (!example && expanded !== key) {
                                 trackEvent('expand_content', analytics);
                                 void recordContentInteraction(stockContentReference(item), 'OPEN');
                               }
@@ -500,9 +555,11 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                             <span className="issue-expand-label">
                               {expanded === key
                                 ? '접기'
-                                : item.sourceType === 'YOUTUBE'
-                                  ? '영상 보기'
-                                  : '글 펼치기'}
+                                : example
+                                  ? '글 읽기'
+                                  : item.sourceType === 'YOUTUBE'
+                                    ? '영상 보기'
+                                    : '글 펼치기'}
                               <svg
                                 className="issue-expand-chevron"
                                 viewBox="0 0 16 16"
@@ -520,6 +577,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                         ) : (
                           <a
                             onClick={() => {
+                              if (example) return;
                               trackEvent(
                                 item.sourceType === 'INTERNAL_NEWS'
                                   ? 'click_content'
@@ -532,7 +590,11 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                               );
                             }}
                             className="issue-row-title"
-                            href={item.url}
+                            href={
+                              item.sourceType === 'INTERNAL_NEWS'
+                                ? portfolioNewsUrl(item.url)
+                                : item.url
+                            }
                             target={item.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}
                             rel="noreferrer"
                           >
@@ -599,6 +661,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                                     )
                                   )}
                                 </div>
+                                <PortfolioReadingNext />
                                 <button
                                   className="issue-inline-close"
                                   onClick={() => {
@@ -617,16 +680,29 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                   );
                 })}
               </ul>
-              {items.length > 0 && (
+              {totalPages > 1 && (
                 <IssuePagination
                   page={currentPage}
                   totalPages={totalPages}
                   onChange={(next) => filter('page', String(next))}
-                  analytics={{
-                    surface: 'portfolio_contents',
-                    source_type: sourceType,
-                  }}
+                  analytics={
+                    example
+                      ? undefined
+                      : {
+                          surface: 'portfolio_contents',
+                          source_type: sourceType,
+                        }
+                  }
                 />
+              )}
+              {!portfolio.holdings.length && (
+                <section className="portfolio-contents-next" aria-labelledby="portfolio-next-title">
+                  <div>
+                    <h2 id="portfolio-next-title">내 포트폴리오부터 시작해 보세요</h2>
+                    <p>보유 종목을 등록하면 관련 소식과 포트폴리오 분석을 이용할 수 있어요.</p>
+                  </div>
+                  <Link to="/">포트폴리오로 이동</Link>
+                </section>
               )}
             </>
           )}
@@ -634,4 +710,10 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
       </div>
     </main>
   );
+}
+
+function portfolioNewsUrl(url: string) {
+  const target = new URL(url, window.location.origin);
+  target.searchParams.set('from', 'portfolio');
+  return target.href;
 }
