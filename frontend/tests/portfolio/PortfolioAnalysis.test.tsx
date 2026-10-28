@@ -90,6 +90,29 @@ afterEach(() => {
 });
 
 describe('포트폴리오 분석 화면', () => {
+  it('저장된 종목 설명도 콜론 표제 없이 해요체로 보여주고 수치와 불확실성을 유지한다', async () => {
+    memberFetch(() =>
+      saved({
+        analysis: {
+          ...analysisResponse,
+          impacts: analysisResponse.impacts.map((impact) => ({
+            ...impact,
+            expectedReaction:
+              '유리한 점: 영업이익이 5,100억원으로 증가했다는 점입니다. 불리한 점·불확실성: 예비 수치이며 변동 가능성이 있습니다.',
+          })),
+        },
+      }),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    fireEvent.click((await view.findByText('삼성전자')).closest('button') as HTMLButtonElement);
+    expect(
+      view.getByText(
+        '유리한 점은 영업이익이 5,100억원으로 증가했다는 점이에요. 불리한 점과 불확실성은 예비 수치이며 변동 가능성이 있어요.',
+      ),
+    ).toBeTruthy();
+    expect(view.queryByText(/유리한 점:/)).toBeNull();
+  });
+
   it('상위 5종목 밖의 보유 종목을 근거 부족과 구분하고 전체 점수를 확정하지 않는다', async () => {
     const holdings = [30, 25, 20, 12, 8, 5].map((weight, index) => ({
       assetName: `종목${index + 1}`,
@@ -762,8 +785,9 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} />);
     fireEvent.click(await view.findByRole('button', { name: 'AI 분석하기' }));
     const processingMessage = await view.findByText(
-      '분석에 약 30초 정도 걸려요. 다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.',
+      /분석에 약 30초 정도 걸려요\.\s*다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요\./,
     );
+    expect(processingMessage.querySelector('br')).toBeTruthy();
     const processingStatus = processingMessage.closest('[role="status"]');
     expect(processingStatus?.querySelector('.portfolio-analysis-spinner')).toBeTruthy();
     expect(view.queryByRole('alert')).toBeNull();
