@@ -12,6 +12,7 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.response.ErrorResponse;
 import org.grit.daynomy.content.dto.ContentPageResponse;
+import org.grit.daynomy.content.dto.DiscoverableAssetsResponse;
 import org.grit.daynomy.content.service.AssetContentService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -52,5 +53,25 @@ public class ContentController {
           @Max(100)
           int size) {
     return service.getPublicContents(page, size);
+  }
+
+  @Operation(
+      summary = "공개 자료가 있는 종목 ID 목록",
+      description = "외부 자료 또는 발행된 뉴스가 연결된 종목을 ID순으로 조회합니다. 페이지는 1부터 시작합니다.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "조회 성공",
+        content = @Content(schema = @Schema(implementation = DiscoverableAssetsResponse.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "페이지 조건 오류",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  @GetMapping("/assets")
+  public DiscoverableAssetsResponse getDiscoverableAssets(
+      @RequestParam(defaultValue = "1") @Min(1) int page,
+      @RequestParam(defaultValue = "100") @Min(1) @Max(100) int size) {
+    return service.getDiscoverableAssets(page, size);
   }
 }

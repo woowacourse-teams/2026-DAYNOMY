@@ -135,6 +135,15 @@ function validNewsList(value) {
   );
 }
 
+function validDiscoverableAssets(value) {
+  return (
+    value &&
+    Array.isArray(value.assetIds) &&
+    typeof value.hasNext === 'boolean' &&
+    value.assetIds.every((id) => Number.isSafeInteger(id) && id > 0)
+  );
+}
+
 async function publicPage(pathname, apiOrigin, siteOrigin) {
   if (pathname === '/welcome') {
     return {
@@ -214,7 +223,7 @@ async function publicPage(pathname, apiOrigin, siteOrigin) {
       title: `${stock.assetName} 소식`,
       description: `${stock.assetName} 관련 경제·투자 소식을 확인하세요.`,
       body: `<main><h1>${escapeHtml(stock.assetName)} 소식</h1><ul>${links}</ul></main>`,
-      indexable: true,
+      indexable: Boolean(links),
     };
   }
   const profileMatch = /^\/league\/([^/]+)$/.exec(pathname);
@@ -298,7 +307,7 @@ export function createFrontendServer({
           const urls = new Set([`${publicOrigin}/welcome`, `${publicOrigin}/news`]);
           let page = 1;
           let hasNext = true;
-          // shortcut: one sitemap covers up to 50,000 published news; add a sitemap index above that size.
+          // shortcut: one sitemap covers up to 50,000 public URLs; add a sitemap index above that size.
           while (hasNext && urls.size < 50000 && page <= 500) {
             const news = await apiJson(backendOrigin, `/api/news?page=${page++}&size=100`);
             if (!validNewsList(news) || (news.hasNext && news.items.length === 0))
@@ -308,6 +317,33 @@ export function createFrontendServer({
               urls.add(`${publicOrigin}/news/${item.id}`);
             }
             hasNext = news.hasNext;
+          }
+          page = 1;
+          hasNext = true;
+          while (hasNext && urls.size < 50000 && page <= 500) {
+            let assets;
+            const currentPage = page++;
+            try {
+              assets = await apiJson(
+                backendOrigin,
+                `/api/contents/assets?page=${currentPage}&size=100`,
+              );
+            } catch (error) {
+              if (error?.status !== 404 || currentPage !== 1) throw error;
+              // The frontend may deploy before the new public API; retry on the next sitemap refresh.
+              console.warn('Discoverable asset API is not available yet');
+              break;
+            }
+            if (
+              !validDiscoverableAssets(assets) ||
+              (assets.hasNext && assets.assetIds.length === 0)
+            )
+              throw new Error('Invalid discoverable asset list');
+            for (const id of assets.assetIds) {
+              if (urls.size >= 50000) break;
+              urls.add(`${publicOrigin}/stocks/${id}`);
+            }
+            hasNext = assets.hasNext;
           }
           sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${Array.from(urls, (url) => `<url><loc>${escapeHtml(url)}</loc></url>`).join('')}</urlset>`;
           sitemapExpiresAt = Date.now() + 5 * 60_000;
