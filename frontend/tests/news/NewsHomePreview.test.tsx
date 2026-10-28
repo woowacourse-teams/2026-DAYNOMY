@@ -14,6 +14,7 @@ const holdingsState = vi.hoisted(() => ({
   error: '',
   retry: vi.fn(),
 }));
+const calendarRender = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/hooks/useLoginStatus', () => ({
   useAuth: () => ({ isLoggedIn: false, loading: false }),
@@ -29,7 +30,10 @@ vi.mock('../../src/features/people/useFeaturedPeople', () => ({
   useFeaturedPeople: vi.fn(() => ({ people: [], loading: false, error: '', retry: vi.fn() })),
 }));
 vi.mock('../../src/features/investment-calendar/InvestmentCalendarPage', () => ({
-  InvestmentCalendarPage: () => <div>기존 캘린더</div>,
+  InvestmentCalendarPage: (props: unknown) => {
+    calendarRender(props);
+    return <div>기존 캘린더</div>;
+  },
 }));
 vi.mock('../../src/features/news/issue/contents', () => ({
   getAllContents: vi.fn().mockResolvedValue({ items: [] }),
@@ -41,6 +45,7 @@ vi.mock('../../src/features/news/issue/popularity', async (original) => ({
 vi.mock('../../src/features/stock-content/api', () => ({ getStockRelatedContents: vi.fn() }));
 afterEach(cleanup);
 beforeEach(() => {
+  calendarRender.mockReset();
   holdingsState.holdings = [{ assetId: 11, name: '보유 회사' }];
   holdingsState.loading = false;
   holdingsState.error = '';
@@ -161,18 +166,19 @@ it('예시 트렌딩을 펼치고 예시 보유 종목 소식으로 이동할 �
       <NewsHomePreview preview />
     </MemoryRouter>,
   );
-  fireEvent.click(
-    view.getByText(
-      '금리 인하 기대가 낮아진 가운데 물가와 환율이 동시에 움직일 때, 이번 주 시장에서 함께 확인해야 할 세 가지 변수',
-    ),
-  );
-  expect(view.getByText(/금리와 물가, 환율을 함께 살펴보는 글/).closest('details')?.open).toBe(
+  fireEvent.click(view.getByText('미국 증시, 금리 경로에 주목… 기술주 중심으로 투자 심리 회복'));
+  expect(view.getByText(/실제 서비스에서는 등록된 기사로 이동/).closest('details')?.open).toBe(
     true,
   );
   expect(view.getByRole('link', { name: '내 종목 소식 바로 보기' }).getAttribute('href')).toBe(
     '/news/contents?scope=portfolio&data=example',
   );
   expect(view.queryByRole('link', { name: /AI 분석/ })).toBeNull();
+  expect(calendarRender).toHaveBeenCalledWith({
+    embedded: true,
+    compact: true,
+    upcomingOnly: false,
+  });
 });
 
 it('등록된 인물과 최신 글을 보여주고 기존 인물 필터로 연결한다', async () => {
@@ -234,6 +240,19 @@ it('예시 화면은 실제 종목 소식 API를 호출하지 않는다', () => 
   expect(getStockRelatedContents).not.toHaveBeenCalled();
 });
 
+it('전체 소식 카테고리를 선택하면 해당 기사만 남긴다', () => {
+  const view = render(
+    <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
+      <NewsHomePreview preview />
+    </MemoryRouter>,
+  );
+  const categoryTabs = within(view.getByRole('group', { name: '소식 카테고리' }));
+  fireEvent.click(categoryTabs.getByRole('button', { name: '주식' }));
+  const latest = within(view.getByRole('region', { name: '전체 소식' }));
+  expect(latest.getByText(/대형 기술주 강세/)).toBeTruthy();
+  expect(latest.queryByText(/환율 상승이 수출 기업/)).toBeNull();
+});
+
 it('실제 홈에서는 예시 쿼리를 무시하고 실제 API와 분석 경로만 사용한다', async () => {
   vi.mocked(getNews).mockResolvedValue(page);
   const view = render(
@@ -262,11 +281,17 @@ it.each(['holdings', 'empty', 'loading', 'error'] as const)(
     vi.mocked(getNews).mockResolvedValue(page);
     const view = show();
     const section = within(view.getByRole('region', { name: '내 종목 소식' }));
-    expect(section.getAllByRole('link')).toHaveLength(1);
+    expect(section.getAllByRole('link')).toHaveLength(state === 'holdings' ? 2 : 1);
     expect(section.getByRole('link', { name: '내 종목 소식 바로 보기' }).getAttribute('href')).toBe(
       '/news/contents?scope=portfolio',
     );
-    expect(section.queryByRole('list')).toBeNull();
+    if (state === 'holdings') {
+      expect(section.getByRole('link', { name: /보유 회사/ }).getAttribute('href')).toBe(
+        '/stocks/11',
+      );
+    } else {
+      expect(section.queryByRole('list')).toBeNull();
+    }
     expect(view.queryByRole('link', { name: /AI 분석/ })).toBeNull();
     expect(getStockRelatedContents).not.toHaveBeenCalled();
     await within(view.getByRole('region', { name: '전체 소식' })).findByRole('link', {
@@ -292,12 +317,19 @@ it('트렌딩 카드를 이전·다음으로 넘겨도 각 기사의 상세 경�
     '/news/7',
   );
   fireEvent.click(trending.getByRole('button', { name: '다음 트렌딩 소식' }));
-  expect(trending.getByRole('link', { name: /두 번째 트렌딩 기사/ }).getAttribute('href')).toBe(
-    '/news/8',
-  );
-  expect(trending.queryByRole('link', { name: /기준금리/ })).toBeNull();
-  fireEvent.click(trending.getByRole('button', { name: '이전 트렌딩 소식' }));
+  const feature = () => within(view.container.querySelector('.briefing-feature-story')!);
+  expect(
+    feature()
+      .getByRole('link', { name: /두 번째 트렌딩 기사/ })
+      .getAttribute('href'),
+  ).toBe('/news/8');
   expect(trending.getByRole('link', { name: /기준금리/ })).toBeTruthy();
+  fireEvent.click(trending.getByRole('button', { name: '이전 트렌딩 소식' }));
+  expect(
+    feature()
+      .getByRole('link', { name: /기준금리/ })
+      .getAttribute('href'),
+  ).toBe('/news/7');
 });
 
 it('트렌딩은 3초마다 전환하고 일시정지하면 멈춘다', async () => {
