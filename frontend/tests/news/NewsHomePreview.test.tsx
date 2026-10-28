@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { getStockRelatedContents } from '../../src/features/stock-content/api';
@@ -212,6 +212,10 @@ it('예시 트렌딩을 펼치고 예시 보유 종목 소식으로 이동할 �
   expect(view.getByRole('link', { name: '내 종목 소식 전체 보기' }).getAttribute('href')).toBe(
     '/news/contents?scope=portfolio&data=example',
   );
+  const latest = within(view.getByRole('region', { name: '전체 소식' }));
+  expect(latest.getAllByRole('article')).toHaveLength(3);
+  expect(latest.getAllByText('기사 읽기')).toHaveLength(3);
+  expect(latest.getAllByText('데이노미')).toHaveLength(3);
   expect(view.queryByRole('link', { name: /AI 분석/ })).toBeNull();
   expect(calendarRender).toHaveBeenCalledWith({
     embedded: true,
@@ -338,66 +342,34 @@ it.each(['holdings', 'empty', 'loading', 'error'] as const)(
   },
 );
 
-it('트렌딩 카드를 이전·다음으로 넘겨도 각 기사의 상세 경로를 유지한다', async () => {
+it('트렌딩은 인기순으로 고정하고 탐색 버튼을 표시하지 않는다', async () => {
   vi.mocked(getNews).mockResolvedValue({
     ...page,
-    content: [...page.content, { ...page.content[0], id: 8, title: '두 번째 트렌딩 기사' }],
+    content: [
+      ...page.content,
+      { ...page.content[0], id: 8, title: '두 번째 트렌딩 기사' },
+      { ...page.content[0], id: 9, title: '세 번째 트렌딩 기사' },
+    ],
   });
   vi.mocked(getContentPopularity).mockResolvedValue(
     new Map([
-      ['NEWS:7', 10],
-      ['NEWS:8', 5],
+      ['NEWS:8', 20],
+      ['NEWS:9', 10],
+      ['NEWS:7', 30],
     ]),
   );
   const view = show();
   const trending = within(view.getByRole('region', { name: '트렌딩' }));
-  expect((await trending.findByRole('link', { name: /기준금리/ })).getAttribute('href')).toBe(
-    '/news/7',
-  );
-  fireEvent.click(trending.getByRole('button', { name: '다음 트렌딩 소식' }));
-  const feature = () => within(view.container.querySelector('.briefing-feature-story')!);
+  await trending.findByRole('link', { name: /세 번째 트렌딩 기사/ });
+  const articles = trending.getAllByRole('article');
   expect(
-    feature()
-      .getByRole('link', { name: /두 번째 트렌딩 기사/ })
-      .getAttribute('href'),
-  ).toBe('/news/8');
-  expect(trending.getByRole('link', { name: /기준금리/ })).toBeTruthy();
-  fireEvent.click(trending.getByRole('button', { name: '이전 트렌딩 소식' }));
-  expect(
-    feature()
+    within(articles[0])
       .getByRole('link', { name: /기준금리/ })
       .getAttribute('href'),
   ).toBe('/news/7');
-});
-
-it('트렌딩은 3초마다 전환하고 일시정지하면 멈춘다', async () => {
-  vi.mocked(getNews).mockResolvedValue({
-    ...page,
-    content: [...page.content, { ...page.content[0], id: 8, title: '두 번째 기사' }],
-  });
-  vi.mocked(getContentPopularity).mockResolvedValue(
-    new Map([
-      ['NEWS:7', 10],
-      ['NEWS:8', 5],
-    ]),
-  );
-  const view = show();
-  const trending = within(view.getByRole('region', { name: '트렌딩' }));
-  await trending.findByRole('link', { name: /기준금리/ });
-  vi.useFakeTimers();
-  const visibility = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
-  try {
-    fireEvent.mouseEnter(view.getByRole('region', { name: '트렌딩' }));
-    fireEvent.mouseLeave(view.getByRole('region', { name: '트렌딩' }));
-    act(() => vi.advanceTimersByTime(3000));
-    expect(trending.getByRole('link', { name: /두 번째 기사/ })).toBeTruthy();
-    fireEvent.click(trending.getByRole('button', { name: '트렌딩 자동 재생 일시정지' }));
-    act(() => vi.advanceTimersByTime(6000));
-    expect(trending.getByRole('link', { name: /두 번째 기사/ })).toBeTruthy();
-  } finally {
-    visibility.mockRestore();
-    vi.useRealTimers();
-  }
+  expect(within(articles[1]).getByRole('link').getAttribute('href')).toBe('/news/8');
+  expect(within(articles[2]).getByRole('link').getAttribute('href')).toBe('/news/9');
+  expect(trending.queryByRole('button', { name: /트렌딩/ })).toBeNull();
 });
 
 it('전체 소식은 최신순으로 최대 다섯 개를 표시한다', async () => {
