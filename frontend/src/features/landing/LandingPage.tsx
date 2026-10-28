@@ -452,39 +452,220 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
 
         <section className="technology-story" id="technology" aria-labelledby="technology-title">
           <div className="technology-heading feature-copy">
-            <span className="feature-number">내 투자를 이해하는 기술</span>
+            <span className="feature-number">실제 자료에 연결하는 그라운딩</span>
             <h2 id="technology-title">
-              뉴스는 같아도,
+              근거로 설명하는
               <br />
-              <span>내게 미치는 영향은 다르니까.</span>
+              <span>AI 포트폴리오 분석.</span>
             </h2>
-            <p>내 종목과 보유 비중을 반영해, 뉴스의 영향을 분석해요.</p>
+            <p>
+              시장 뉴스와 공시 등 실제 자료를 바탕으로, 주요 이슈가 내 보유 종목에 미칠 영향을
+              분석해요.
+            </p>
           </div>
-          <div className="technology-detail">
-            <div className="technology-device-stage">
-              <GuideMockup screen="sources" label="AI 분석과 출처 예시" />
+          <div className="grounding-scene">
+            <div className="grounding-results">
+              <h3>
+                근거 부족 판단을
+                <br />확 줄였어요.
+              </h3>
+              <div
+                className="grounding-chart"
+                role="img"
+                aria-label="제공된 로컬 테스트의 근거 부족 판단 비율 50%에서 0%로의 감소를 표현한 개념도. 중간 곡선은 실측값이 아닙니다."
+              >
+                <svg viewBox="0 0 720 330" fill="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="grounding-reveal">
+                      <stop offset="0.22" stopColor="white" stopOpacity="0" />
+                      <stop offset="0.48" stopColor="white" stopOpacity="0.3" />
+                      <stop offset="0.85" stopColor="white" />
+                    </linearGradient>
+                    <mask id="grounding-fade">
+                      <rect width="720" height="330" fill="url(#grounding-reveal)" />
+                    </mask>
+                    <linearGradient
+                      id="grounding-area"
+                      x1="0"
+                      y1="40"
+                      x2="0"
+                      y2="320"
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop stopColor="#2563eb" stopOpacity="0.06" />
+                      <stop offset="1" stopColor="#2563eb" stopOpacity="0" />
+                    </linearGradient>
+                    <linearGradient
+                      id="grounding-grid"
+                      x1="0"
+                      y1="220"
+                      x2="0"
+                      y2="330"
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop stopColor="#2563eb" stopOpacity="0" />
+                      <stop offset="0.6" stopColor="#2563eb" stopOpacity="0.06" />
+                      <stop offset="1" stopColor="#2563eb" stopOpacity="0" />
+                    </linearGradient>
+                    <radialGradient id="grounding-glow">
+                      <stop stopColor="#60a5fa" stopOpacity="0.3" />
+                      <stop offset="1" stopColor="#60a5fa" stopOpacity="0" />
+                    </radialGradient>
+                    <filter id="grounding-soft-glow" x="-20%" y="-50%" width="140%" height="200%">
+                      <feGaussianBlur stdDeviation="6" />
+                    </filter>
+                  </defs>
+                  <g mask="url(#grounding-fade)">
+                    <path
+                      d="M0 230H720 M0 252H720 M0 282H720 M0 322H720 M180 220 40 330 M250 220 200 330 M320 220 340 330 M390 220 480 330 M460 220 640 330 M530 220 800 330"
+                      stroke="url(#grounding-grid)"
+                      strokeWidth="1.5"
+                    />
+                    <path
+                      d="M44 46C140 46 130 118 220 118S300 214 400 214 480 258 620 258V330H44Z"
+                      fill="url(#grounding-area)"
+                    />
+                    <path
+                      d="M44 46C140 46 130 118 220 118S300 214 400 214 480 258 620 258"
+                      stroke="#60a5fa"
+                      strokeWidth="12"
+                      strokeOpacity="0.22"
+                      filter="url(#grounding-soft-glow)"
+                    />
+                    <path
+                      className="grounding-curve"
+                      d="M44 46C140 46 130 118 220 118S300 214 400 214 480 258 620 258"
+                      pathLength="1"
+                      stroke="#2563eb"
+                      strokeWidth="4.5"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="44" cy="46" r="4.5" fill="#2563eb" />
+                    <circle cx="620" cy="258" r="36" fill="url(#grounding-glow)" />
+                    <circle cx="620" cy="258" r="8" fill="#2563eb" />
+                    <circle cx="620" cy="258" r="3" fill="#bfdbfe" />
+                  </g>
+                  <text
+                    x="620"
+                    y="213"
+                    textAnchor="middle"
+                    fill="#2563eb"
+                    fontSize="62"
+                    fontWeight="800"
+                    letterSpacing="-4"
+                  >
+                    0
+                    <tspan fontSize="28" letterSpacing="0">
+                      %
+                    </tspan>
+                  </text>
+                </svg>
+              </div>
             </div>
-            <ol className="technology-benefits" role="list" aria-label="내 자산에 맞춘 분석 과정">
-              <li>
-                <span className="feature-number">내 종목부터</span>
-                <h3>내 종목의 이슈를 찾아요.</h3>
-                <p>보유 종목과 관련된 소식을 모아 분석해요.</p>
-              </li>
-              <li>
-                <span className="feature-number">내 비중에 맞게</span>
-                <h3>보유 비중을 반영해요.</h3>
-                <p>내가 담은 비중에 따라 전체 자산에 미칠 영향을 살펴봐요.</p>
-              </li>
-              <li>
-                <span className="feature-number">근거까지 함께</span>
-                <h3>분석 근거도 확인해요.</h3>
-                <p>출처 원문을 읽고 내 판단을 점검할 수 있어요.</p>
-              </li>
-            </ol>
+            <div className="technology-detail">
+              <div className="technology-device-stage">
+                <GuideMockup screen="sources" label="AI 분석과 출처 예시" />
+              </div>
+              <ol className="technology-benefits" role="list" aria-label="내 자산에 맞춘 분석 과정">
+                <li>
+                  <span className="feature-number">실제 자료에서 시작</span>
+                  <h3>뉴스와 공시에서 근거를 찾아요.</h3>
+                  <p>보유 종목과 관련된 실제 자료를 찾아, 주요 이슈와 예상 영향을 분석해요.</p>
+                </li>
+                <li>
+                  <span className="feature-number">그라운딩으로 연결</span>
+                  <h3>분석에 쓰인 출처를 확인해요.</h3>
+                  <p>근거 URL을 검증하고, 근거가 부족한 종목은 추가 검색으로 보완해요.</p>
+                </li>
+                <li>
+                  <span className="feature-number">근거까지 함께</span>
+                  <h3>판단의 이유까지 살펴보세요.</h3>
+                  <p>
+                    분석 결과와 근거 자료를 함께 제공해요. 출처 원문을 읽고 내 판단을 점검할 수
+                    있어요.
+                  </p>
+                </li>
+              </ol>
+            </div>
           </div>
           <p className="capture-note">
             실제 분석을 요약한 예시예요. 투자 판단을 위한 참고 정보로 활용하세요.
           </p>
+          <article
+            className="league-technology"
+            id="league-technology"
+            aria-labelledby="league-technology-title"
+          >
+            <div className="technology-heading feature-copy league-technology-heading">
+              <span className="feature-number">투자 리그를 지탱하는 기술</span>
+              <h3 id="league-technology-title">
+                요청이 몰려도,
+                <br />
+                <span>순위는 빠르게.</span>
+              </h3>
+              <p>순위를 조회할 때마다 반복하던 계산과 DB 조회를 줄였어요.</p>
+            </div>
+            <div className="league-load-results">
+              <span className="feature-number">순위 조회 · 개선 전 → 개선 후</span>
+              <dl aria-label="순위 조회 성능 측정 결과">
+                <div>
+                  <dt>초당 실제 요청</dt>
+                  <dd>
+                    <small>5.05건 →</small>100<span>건</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>응답 시간 · p95</dt>
+                  <dd>
+                    <small>약 10초 →</small>21.9<span>ms</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>요청 오류</dt>
+                  <dd>
+                    <small>타임아웃 →</small>0<span>건</span>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <div className="technology-detail">
+              <div className="technology-device-stage">
+                <ProductMockup device="iphone" screen="league" />
+              </div>
+              <div>
+                <ol
+                  className="technology-benefits league-technology-benefits"
+                  role="list"
+                  aria-label="투자 리그의 장애 대응"
+                >
+                  <li>
+                    <span className="feature-number">반복 계산을 줄여서</span>
+                    <h4>계산한 순위를 함께 사용해요.</h4>
+                    <p>같은 주차·리그의 계산 결과를 공유하고, 갱신은 백그라운드에서 처리해요.</p>
+                  </li>
+                  <li>
+                    <span className="feature-number">DB 조회를 묶어서</span>
+                    <h4>필요한 정보는 한 번에 가져와요.</h4>
+                    <p>
+                      참가자마다 반복하던 조회를 일괄 조회로 바꿔, 요청이 몰릴 때의 DB 부담을
+                      줄였어요.
+                    </p>
+                  </li>
+                  <li>
+                    <span className="feature-number">확정은 신중하게</span>
+                    <h4>오류가 남으면, 확정은 보류해요.</h4>
+                    <p>
+                      실패가 남은 실행에서는 순위를 확정하지 않아요. 화면에서도 잠정 순위와 확정
+                      순위를 구분해요.
+                    </p>
+                  </li>
+                </ol>
+                <Link className="feature-link" to="/league">
+                  투자 리그 살펴보기 <LandingIcon name="ArrowUpRight" size={18} />
+                </Link>
+              </div>
+            </div>
+          </article>
         </section>
 
         <section className="usage-guide" id="faq" aria-labelledby="faq-title">

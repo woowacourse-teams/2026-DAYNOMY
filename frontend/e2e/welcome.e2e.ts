@@ -67,7 +67,7 @@ test('한국어 문서와 랜드마크를 제공하고 장식용 복제 문구�
   await expect(
     page.getByRole('list', { name: '주요 기능 목록' }).getByRole('listitem'),
   ).toHaveCount(8);
-  await expect(page.getByRole('figure')).toHaveCount(8);
+  await expect(page.getByRole('figure')).toHaveCount(9);
   await expect(page.getByRole('button', { name: '모션 정지', exact: true })).toBeDisabled();
 });
 
@@ -182,6 +182,16 @@ for (const width of [390, 1440]) {
     const technology = page.locator('#technology');
     await expect(technology.locator('.guide-source-list')).toContainText('www.samsung.com');
     await expect(technology).toContainText('근거까지 함께');
+    const leagueTechnology = technology.getByRole('article');
+    await expect(leagueTechnology).toHaveCount(1);
+    await expect(
+      leagueTechnology.getByRole('list', { name: '투자 리그의 장애 대응' }).getByRole('listitem'),
+    ).toHaveCount(3);
+    await expect(leagueTechnology.getByRole('figure')).toContainText('데이터는 예시입니다.');
+    await expect(leagueTechnology).toContainText('오류가 남으면, 확정은 보류해요.');
+    await expect(
+      leagueTechnology.getByRole('link', { name: '투자 리그 살펴보기' }),
+    ).toHaveAttribute('href', '/league');
     expect(
       await page
         .locator('main > section[id]')

@@ -1521,6 +1521,192 @@ body:has(.landing-page .drawer[open]) {
 .landing-page .technology-benefits p {
   font-size: 16px;
 }
+.landing-page .grounding-results {
+  max-width: 800px;
+  margin: 56px auto 0;
+  text-align: center;
+}
+.landing-page .grounding-results h3 {
+  color: #10234b;
+  font-size: clamp(22px, 2.6vw, 30px);
+  line-height: 1.4;
+  letter-spacing: -0.045em;
+  word-break: keep-all;
+}
+.landing-page .grounding-chart {
+  margin-top: 32px;
+}
+.landing-page .grounding-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+}
+.landing-page .grounding-curve {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: grounding-curve-draw 2.4s ease-out both;
+}
+@keyframes grounding-curve-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.landing-page .grounding-scene {
+  position: relative;
+  isolation: isolate;
+  max-width: 1200px;
+  margin: 72px auto 0;
+}
+.landing-page .grounding-scene::before {
+  content: '';
+  position: absolute;
+  inset: 12% 20% 15% -10%;
+  z-index: -1;
+  background: radial-gradient(ellipse, #dce9ff 0%, #f3f7ff00 68%);
+}
+.landing-page .grounding-scene .grounding-results {
+  position: absolute;
+  top: 56px;
+  right: 8%;
+  width: 62%;
+  max-width: 700px;
+  margin: 0;
+  text-align: right;
+}
+.landing-page .grounding-scene .grounding-results h3 {
+  position: absolute;
+  top: 10%;
+  right: 10%;
+  margin: 0;
+  font-size: clamp(16px, 1.6vw, 22px);
+  text-align: left;
+}
+.landing-page .grounding-scene .grounding-chart {
+  margin-top: 0;
+}
+.landing-page .grounding-scene > .technology-detail {
+  position: relative;
+  margin: 0;
+  padding-top: 80px;
+  align-items: start;
+  gap: 64px;
+}
+.landing-page .grounding-scene .technology-device-stage {
+  padding: 0 24px;
+}
+.landing-page .grounding-scene .guide-device.iphone {
+  max-width: 340px;
+}
+.landing-page .grounding-scene .product-mockup figcaption {
+  margin-top: 40px;
+}
+.landing-page .grounding-scene .technology-benefits {
+  position: relative;
+  padding-top: min(24vw, 310px);
+  gap: 32px;
+}
+@media (max-width: 950px) {
+  .landing-page .grounding-scene > .technology-detail {
+    gap: 32px;
+  }
+  .landing-page .grounding-scene .technology-device-stage {
+    padding-inline: 12px;
+  }
+}
+@media (max-width: 700px) {
+  .landing-page .grounding-scene {
+    margin-top: 48px;
+  }
+  .landing-page .grounding-scene .grounding-results {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 92%;
+    margin-left: auto;
+    text-align: left;
+  }
+  .landing-page .grounding-scene .grounding-results h3 {
+    font-size: clamp(14px, 3.6vw, 20px);
+  }
+  .landing-page .grounding-scene > .technology-detail {
+    margin-top: -24px;
+    padding-top: 0;
+    gap: 32px;
+  }
+  .landing-page .grounding-scene .guide-device.iphone {
+    max-width: 230px;
+    margin-left: 0;
+  }
+  .landing-page .grounding-scene .technology-benefits {
+    padding-top: 0;
+  }
+}
+.landing-page .league-technology {
+  max-width: 1200px;
+  margin: 100px auto 0;
+  padding-top: 100px;
+  border-top: 1px solid #d5e0f2;
+}
+.landing-page .league-technology-heading > h3 {
+  margin: 22px 0 26px;
+  color: #10234b;
+  font-size: clamp(40px, 4.8vw, 68px);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.065em;
+  word-break: keep-all;
+  text-wrap: balance;
+}
+.landing-page .league-technology-heading > h3 span {
+  color: #2563eb;
+}
+.landing-page .league-technology-benefits h4 {
+  margin: 12px 0 16px;
+  color: #10234b;
+  font-size: 30px;
+  line-height: 1.4;
+  letter-spacing: -0.045em;
+  word-break: keep-all;
+  text-wrap: balance;
+}
+.landing-page .league-load-results {
+  margin: 48px auto 0;
+  max-width: 900px;
+  text-align: center;
+}
+.landing-page .league-load-results dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 28px 0;
+}
+.landing-page .league-load-results dt {
+  color: #52647f;
+  font-size: 13px;
+}
+.landing-page .league-load-results dd {
+  margin: 12px 0 0;
+  color: #2563eb;
+  font-size: clamp(30px, 4.5vw, 56px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+.landing-page .league-load-results dd span {
+  margin-left: 4px;
+  font-size: 14px;
+}
+.landing-page .league-load-results dd small {
+  display: block;
+  margin-bottom: 8px;
+  color: #52647f;
+  font-size: clamp(14px, 1.6vw, 18px);
+  font-weight: 500;
+  letter-spacing: normal;
+}
 @media (max-width: 950px) {
   .landing-page .how-it-works {
     padding: 90px 28px 64px;
@@ -1585,6 +1771,16 @@ body:has(.landing-page .drawer[open]) {
     gap: 32px;
   }
   .landing-page .technology-benefits h3 {
+    font-size: 28px;
+  }
+  .landing-page .league-technology {
+    margin-top: 64px;
+    padding-top: 64px;
+  }
+  .landing-page .league-technology-heading > h3 {
+    font-size: 36px;
+  }
+  .landing-page .league-technology-benefits h4 {
     font-size: 28px;
   }
 }
