@@ -1,9 +1,14 @@
-import { request } from '../../api/client';
+import { request, requestWithCsrf } from '../../api/client';
 import { isStockMarket } from '../stocks/api';
 import type { AssetCategory, StockMarket } from '../stocks/types';
 import type { PortfolioImpactDirection, PortfolioImpactLevel } from '../portfolio/types';
 
 export type EmailAnalysisStatus = 'PENDING' | 'VERIFIED' | 'REJECTED' | 'INVALIDATED';
+export type AnalysisInvalidationResponse = {
+  analysisId: number;
+  invalidatedAt: string;
+  cancelledDeliveries: number;
+};
 export type AdminEmailAnalysisItemResponse = {
   id: number;
   assetId: number;
@@ -188,5 +193,61 @@ export async function getAdminEmailAnalysis(id: number, signal?: AbortSignal) {
   const value = await request<unknown>(`${PATH}/${id}`, { signal });
   if (!isDetail(value) || value.analysis.id !== id)
     throw new Error('분석 상세 응답 형식이 올바르지 않습니다.');
+  return value;
+}
+
+export async function invalidateAdminEmailAnalysis(
+  id: number,
+  reason: string,
+  signal?: AbortSignal,
+): Promise<AnalysisInvalidationResponse> {
+  const trimmed = reason.trim();
+  if (!isInteger(id, 1) || trimmed.length < 1 || trimmed.length > 500)
+    throw new Error('무효화 사유는 1~500자로 입력해 주세요.');
+  const value = await requestWithCsrf<unknown>(`${PATH}/${id}/invalidate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: trimmed }),
+    signal,
+  });
+  if (
+    !isRecord(value) ||
+    value.analysisId !== id ||
+    !isTimestamp(value.invalidatedAt) ||
+    !isInteger(value.cancelledDeliveries)
+  )
+    throw new Error('무효화 응답 형식이 올바르지 않습니다.');
+  return {
+    analysisId: id,
+    invalidatedAt: value.invalidatedAt,
+    cancelledDeliveries: value.cancelledDeliveries,
+  };
+}
+
+export const CORRECTION_REVIEW_PAGE_SIZE = 50;
+export async function getAdminEmailCorrectionReviewIds(
+  id: number,
+  page: number,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  if (!isInteger(id, 1) || !isInteger(page)) throw new Error('분석 ID와 페이지를 확인해 주세요.');
+  const query = new URLSearchParams({
+    page: String(page),
+    size: String(CORRECTION_REVIEW_PAGE_SIZE),
+  });
+  const value = await request<unknown>(`${PATH}/${id}/correction-review-deliveries?${query}`, {
+    signal,
+  });
+  if (
+    !Array.isArray(value) ||
+    value.length > CORRECTION_REVIEW_PAGE_SIZE ||
+    !value.every(
+      (entry) =>
+        typeof entry === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry),
+    ) ||
+    new Set(value).size !== value.length
+  )
+    throw new Error('정정 검토 대상 응답 형식이 올바르지 않습니다.');
   return value;
 }

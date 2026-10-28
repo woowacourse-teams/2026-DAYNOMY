@@ -22,6 +22,7 @@ function installApi() {
       return json({ id: 1, email: 'admin@example.invalid', nickname: '관리자', role: 'ADMIN' });
     if (url.pathname === '/api/admin/email-analyses')
       return json(emailAnalysisPage(Number(url.searchParams.get('page') ?? '0'), 2));
+    if (url.pathname.endsWith('/correction-review-deliveries')) return json([]);
     const match = url.pathname.match(/^\/api\/admin\/email-analyses\/(\d+)$/);
     if (match)
       return json({
@@ -63,7 +64,8 @@ describe('관리자 이메일 분석 목록·상세', () => {
       name: emailAnalysisDetail.content.sources[0].url!,
     })[0];
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
-    expect(view.queryByRole('button', { name: /무효화/ })).toBeNull();
+    expect(view.getByRole('button', { name: '분석 무효화' })).toBeTruthy();
+    expect(mock.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
     fireEvent.click(view.getByRole('link', { name: '목록으로 돌아가기' }));
     expect(await view.findByRole('link', { name: '삼성전자 분석 #78 상세' })).toBeTruthy();
     expect(view.router.state.location.search).toBe('?status=VERIFIED&assetId=1&page=1');
@@ -153,7 +155,7 @@ describe('관리자 이메일 분석 목록·상세', () => {
   });
   it('검증 전 결과의 빈 내용과 위험한 링크를 통과한 근거로 표시하지 않는다', async () => {
     const mock = installApi();
-    mock.mockResolvedValue(
+    mock.mockResolvedValueOnce(
       json({
         ...emailAnalysisDetail,
         analysis: { ...emailAnalysisDetail.analysis, status: 'PENDING' },
@@ -185,7 +187,7 @@ describe('관리자 이메일 분석 목록·상세', () => {
   });
   it('무효화 상태·사유·시각을 보존해 표시한다', async () => {
     const mock = installApi();
-    mock.mockResolvedValue(
+    mock.mockResolvedValueOnce(
       json({
         ...emailAnalysisDetail,
         analysis: {

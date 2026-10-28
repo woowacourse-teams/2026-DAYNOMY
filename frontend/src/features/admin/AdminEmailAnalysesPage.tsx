@@ -8,7 +8,9 @@ import {
   type AdminEmailAnalysisDetailResponse,
   type AdminEmailAnalysisPageResponse,
   type EmailAnalysisStatus,
+  type AnalysisInvalidationResponse,
 } from './emailAnalysisApi';
+import { AdminEmailAnalysisActions } from './AdminEmailAnalysisActions';
 import './adminEmailAnalyses.css';
 
 const STATUS_LABELS: Record<EmailAnalysisStatus, string> = {
@@ -327,6 +329,24 @@ function EmailAnalysisDetail({ id, listSearch }: { id: string; listSearch: strin
     heading.current?.focus({ preventScroll: true });
   }, [detail, error]);
   const content = detail?.content;
+  async function handleInvalidated(result: AnalysisInvalidationResponse, signal: AbortSignal) {
+    if (signal.aborted) return;
+    setDetail(
+      (current) =>
+        current && {
+          ...current,
+          analysis: {
+            ...current.analysis,
+            status: 'INVALIDATED',
+            invalidatedAt: result.invalidatedAt,
+          },
+        },
+    );
+    const updated = await getAdminEmailAnalysis(result.analysisId, signal);
+    if (updated.analysis.status !== 'INVALIDATED')
+      throw new Error('최신 무효화 상태를 확인하지 못했습니다.');
+    if (!signal.aborted) setDetail(updated);
+  }
   return (
     <main className="admin-content admin-email-page">
       <Link className="admin-back-link" to={`/admin/email-analyses${listSearch}`}>
@@ -482,6 +502,11 @@ function EmailAnalysisDetail({ id, listSearch }: { id: string; listSearch: strin
                 </>
               )}
             </section>
+            <AdminEmailAnalysisActions
+              analysisId={detail.analysis.id}
+              status={detail.analysis.status}
+              onInvalidated={handleInvalidated}
+            />
           </>
         )
       )}
