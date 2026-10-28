@@ -61,21 +61,6 @@ const exampleLatest = [
   },
 ];
 
-function Arrow({ direction }: { direction: 'left' | 'right' }) {
-  return (
-    <svg
-      className="briefing-arrow"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      aria-hidden="true"
-    >
-      <path d={direction === 'left' ? 'M14 6l-6 6 6 6' : 'M10 6l6 6-6 6'} />
-    </svg>
-  );
-}
-
 function ExampleTrending() {
   return (
     <div className="briefing-trending-grid briefing-trending-grid--example">
@@ -147,10 +132,6 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
   const [failed, setFailed] = useState(false);
   const [rankingFailed, setRankingFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [trendingIndex, setTrendingIndex] = useState(0);
-  const [trendingPaused, setTrendingPaused] = useState(false);
-  const [trendingHovered, setTrendingHovered] = useState(false);
-  const [trendingFocused, setTrendingFocused] = useState(false);
   const people = useFeaturedPeople(isPreview ? 'news_home_preview' : 'news_home');
 
   useEffect(() => {
@@ -195,30 +176,8 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
         feedContentReference,
         scores,
       ).slice(0, 3);
-  const visibleTrending = trendingItems.length
-    ? Array.from(
-        { length: trendingItems.length },
-        (_, index) => trendingItems[(trendingIndex + index) % trendingItems.length],
-      )
-    : [];
   const latest = feed.slice(0, 5);
   const pending = loading || people.loading;
-
-  useEffect(() => {
-    if (
-      example ||
-      pending ||
-      trendingItems.length < 2 ||
-      trendingPaused ||
-      trendingHovered ||
-      trendingFocused
-    )
-      return;
-    const timer = window.setInterval(() => {
-      if (!document.hidden) setTrendingIndex((value) => (value + 1) % trendingItems.length);
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [example, pending, trendingItems.length, trendingPaused, trendingHovered, trendingFocused]);
 
   function retry() {
     setAttempt((value) => value + 1);
@@ -257,51 +216,12 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
         </div>
       ) : null}
 
-      <section
-        className="briefing-trending"
-        aria-labelledby="briefing-trending-title"
-        onMouseEnter={() => setTrendingHovered(true)}
-        onMouseLeave={() => setTrendingHovered(false)}
-        onFocusCapture={() => setTrendingFocused(true)}
-        onBlurCapture={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) setTrendingFocused(false);
-        }}
-      >
+      <section className="briefing-trending" aria-labelledby="briefing-trending-title">
         <div className="briefing-section-heading">
           <div>
             <h2 id="briefing-trending-title">트렌딩</h2>
             <p>최근 7일간 데이노미 반응 기준</p>
           </div>
-          {!example && !pending && trendingItems.length > 1 ? (
-            <div className="briefing-card-controls" aria-label="트렌딩 카드 탐색">
-              <button
-                type="button"
-                aria-label="이전 트렌딩 소식"
-                onClick={() =>
-                  setTrendingIndex(
-                    (value) => (value + trendingItems.length - 1) % trendingItems.length,
-                  )
-                }
-              >
-                <Arrow direction="left" />
-              </button>
-              <button
-                type="button"
-                aria-label="다음 트렌딩 소식"
-                onClick={() => setTrendingIndex((value) => (value + 1) % trendingItems.length)}
-              >
-                <Arrow direction="right" />
-              </button>
-              <button
-                className="briefing-pause"
-                type="button"
-                aria-label={trendingPaused ? '트렌딩 자동 재생' : '트렌딩 자동 재생 일시정지'}
-                onClick={() => setTrendingPaused((value) => !value)}
-              >
-                {trendingPaused ? '재생' : '정지'}
-              </button>
-            </div>
-          ) : null}
         </div>
         {example ? (
           <ExampleTrending />
@@ -323,8 +243,8 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
                 </button>
               </div>
             ) : null}
-            {visibleTrending.length ? (
-              <LiveTrending items={visibleTrending} />
+            {trendingItems.length ? (
+              <LiveTrending items={trendingItems} />
             ) : (
               <div className="briefing-empty">
                 <h3>
@@ -399,15 +319,37 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
             </Link>
           </div>
           {example ? (
-            <ul className="briefing-example-latest">
+            <ul className="issue-feed briefing-example-latest">
               {exampleLatest.map((item) => (
                 <li key={item.title}>
-                  <img src={item.image} alt="" />
-                  <div>
-                    <span>{item.source}</span>
-                    <strong>{item.title}</strong>
-                    <small>데이노미 · 예시 기사</small>
-                  </div>
+                  <article className="issue-feed-row issue-feed-row--visual issue-feed-row--news">
+                    <span className="issue-feed-thumbnail" aria-hidden="true">
+                      <img src={item.image} alt="" />
+                    </span>
+                    <div className="issue-meta">
+                      <span className="issue-source">데이노미</span>
+                      <span>{item.source}</span>
+                      <span>예시 기사</span>
+                    </div>
+                    <div className="issue-row-title">
+                      <h3>{item.title}</h3>
+                      <span className="issue-expand-label">
+                        기사 읽기
+                        <svg
+                          className="issue-expand-chevron"
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M3 8h10m-4-4 4 4-4 4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                  </article>
                 </li>
               ))}
             </ul>
