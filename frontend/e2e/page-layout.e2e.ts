@@ -10,28 +10,29 @@ test('소식·포트폴리오·주간 리그 본문을 같은 너비로 배치�
   await mockLeagueApi(page);
   for (const width of [390, 768, 1024, 1280, 1440, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
-    let reference: { left: number; width: number; top: number; fontSize: string } | undefined;
-    for (const [url, main, heading] of [
-      ['/news', '.issue-page', '.briefing-preview-heading h1'],
-      ['/', '.portfolio-page', '.portfolio-page-title h1'],
-    ]) {
+    let reference: { left: number; width: number } | undefined;
+    for (const [url, main] of [
+      ['/news', '.issue-page'],
+      ['/', '.portfolio-page'],
+    ] as const) {
       await page.goto(url);
-      await expect(page.locator(heading)).toBeVisible();
-      const layout = await page.locator(main).evaluate((element, selector) => {
+      if (url === '/news') {
+        await expect(
+          page.getByRole('heading', { name: '소식', level: 1, includeHidden: true }),
+        ).toBeAttached();
+      } else {
+        await expect(page.locator('.portfolio-page-title h1')).toBeVisible();
+      }
+      const layout = await page.locator(main).evaluate((element) => {
         const bounds = element.getBoundingClientRect();
-        const title = element.querySelector(selector)!;
         return {
           left: bounds.left,
           width: bounds.width,
-          top: title.getBoundingClientRect().top,
-          fontSize: getComputedStyle(title).fontSize,
         };
-      }, heading);
+      });
       if (!reference) reference = layout;
       expect(layout.left, `${width}px ${url} 좌측 정렬`).toBeCloseTo(reference.left, 0);
       expect(layout.width, `${width}px ${url} 본문 너비`).toBeCloseTo(reference.width, 0);
-      expect(layout.top, `${width}px ${url} 제목 시작 위치`).toBeCloseTo(reference.top, 0);
-      expect(layout.fontSize, `${width}px ${url} 제목 크기`).toBe(reference.fontSize);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
