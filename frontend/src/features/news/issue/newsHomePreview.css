@@ -346,14 +346,17 @@
 }
 
 .briefing-feature-story.briefing-live-story .issue-expand-label {
-  margin-top: 12px;
-  color: rgb(255 255 255 / 78%);
+  display: none;
 }
 
 .briefing-feature-story.briefing-live-story .issue-meta {
   order: 3;
   margin-top: 18px;
   color: rgb(255 255 255 / 72%);
+}
+
+.briefing-feature-story.briefing-live-story .issue-source {
+  color: #fff;
 }
 
 .briefing-secondary-story.briefing-live-story .briefing-story-kicker {
