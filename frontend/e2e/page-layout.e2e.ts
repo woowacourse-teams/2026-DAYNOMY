@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mockLeagueApi } from './league-api';
 
-test('투자 캘린더·포트폴리오·주간 리그 본문을 같은 너비로 배치한다', async ({ page }, testInfo) => {
+test('소식·포트폴리오·주간 리그 본문을 같은 너비로 배치한다', async ({ page }, testInfo) => {
   test.slow();
   await page.addInitScript(() => localStorage.setItem('daynomy:portfolio-tour:v1', 'done'));
   await page.route('**/api/**', (route) => route.fulfill({ status: 404 }));
@@ -12,7 +12,7 @@ test('투자 캘린더·포트폴리오·주간 리그 본문을 같은 너비�
     await page.setViewportSize({ width, height: 1000 });
     let reference: { left: number; width: number; top: number; fontSize: string } | undefined;
     for (const [url, main, heading] of [
-      ['/news', '.issue-page', '#investment-calendar-title'],
+      ['/news', '.issue-page', '.briefing-preview-heading h1'],
       ['/', '.portfolio-page', '.portfolio-page-title h1'],
     ]) {
       await page.goto(url);

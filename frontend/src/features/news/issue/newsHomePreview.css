@@ -1,4 +1,4 @@
-.briefing-preview {
+.issue-page.briefing-preview {
   --briefing-blue: #1f5fa8;
   --briefing-ink: #10213c;
   --briefing-muted: #697586;
@@ -976,8 +976,9 @@
 }
 
 @media (max-width: 600px) {
-  .briefing-preview {
+  .issue-page.briefing-preview {
     --briefing-section-title-size: 21px;
+    padding-top: 28px;
   }
 
   .briefing-preview-heading {
