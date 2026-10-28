@@ -12,6 +12,8 @@ let frontend;
 let distDir;
 let forwardedCookie = false;
 let newsPageRequests = 0;
+let assetPageRequests = 0;
+let assetIndexUnavailable = false;
 
 function listen(server) {
   return new Promise((resolve) =>
@@ -51,6 +53,15 @@ before(async () => {
           imageUrl: 'javascript:alert(1)',
         }),
       );
+    } else if (path === '/api/contents/assets') {
+      assetPageRequests += 1;
+      if (assetIndexUnavailable) {
+        response.writeHead(404);
+        response.end('{}');
+        return;
+      }
+      const page = Number(new URL(request.url, 'http://localhost').searchParams.get('page'));
+      response.end(JSON.stringify({ assetIds: page === 1 ? [1] : [3], hasNext: page === 1 }));
     } else if (path === '/api/assets/1/contents') {
       response.end(
         JSON.stringify({
@@ -60,6 +71,16 @@ before(async () => {
             { title: '공개 자료', url: 'https://example.com/article' },
             { title: '위험한 자료', url: 'javascript:alert(1)' },
           ],
+        }),
+      );
+    } else if (path === '/api/assets/2/contents') {
+      response.end(JSON.stringify({ assetId: 2, assetName: '빈 종목', contents: [] }));
+    } else if (path === '/api/assets/3/contents') {
+      response.end(
+        JSON.stringify({
+          assetId: 3,
+          assetName: '공개 종목',
+          contents: [{ title: '공개 자료', url: 'https://example.com/stock-3' }],
         }),
       );
     } else if (path === `/api/league/investors/${profileId}`) {
@@ -140,8 +161,13 @@ test('종목·공개 프로필은 공개 필드만 노출하고 보호 경로는
   const stockHtml = await stock.text();
   assert.equal(stock.status, 200);
   assert.match(stockHtml, /<h1>삼성 &lt;전자&gt; 소식<\/h1>/);
+  assert.match(stockHtml, /content="index,follow"/);
   assert.match(stockHtml, /https:\/\/example.com\/article/);
   assert.doesNotMatch(stockHtml, /위험한 자료|javascript:alert/);
+
+  const emptyStock = await fetch(url('/stocks/2'));
+  assert.equal(emptyStock.status, 200);
+  assert.match(await emptyStock.text(), /content="noindex,follow"/);
 
   const profile = await fetch(url(`/league/${profileId}`));
   const profileHtml = await profile.text();
@@ -159,7 +185,7 @@ test('종목·공개 프로필은 공개 필드만 노출하고 보호 경로는
   assert.match(staffHtml.body, /<div id="root"><\/div>/);
 });
 
-test('없는 공개 URL은 404이고 sitemap은 발행된 뉴스만 나열한다', async () => {
+test('없는 공개 URL은 404이고 sitemap은 발행 뉴스와 공개 자료가 있는 종목을 나열한다', async () => {
   for (const path of [
     '/news/0',
     '/news/9',
@@ -178,10 +204,15 @@ test('없는 공개 URL은 404이고 sitemap은 발행된 뉴스만 나열한다
   assert.equal(sitemap.status, 200);
   assert.match(xml, /https:\/\/daynomy.com\/news\/1/);
   assert.match(xml, /https:\/\/daynomy.com\/news\/2/);
+  assert.match(xml, /https:\/\/daynomy.com\/stocks\/1/);
+  assert.match(xml, /https:\/\/daynomy.com\/stocks\/3/);
+  assert.doesNotMatch(xml, /stocks\/2/);
   assert.doesNotMatch(xml, /league|portfolio|login/);
   const requestsAfterFirstSitemap = newsPageRequests;
+  const assetRequestsAfterFirstSitemap = assetPageRequests;
   assert.equal(await (await fetch(url('/sitemap.xml'))).text(), xml);
   assert.equal(newsPageRequests, requestsAfterFirstSitemap);
+  assert.equal(assetPageRequests, assetRequestsAfterFirstSitemap);
   assert.match(
     await (await fetch(url('/robots.txt'))).text(),
     /Sitemap: https:\/\/daynomy.com\/sitemap.xml/,
@@ -209,6 +240,27 @@ test('개발 환경은 공개 본문을 제공해도 검색을 허용하지 않�
     assert.equal((await fetch(`http://127.0.0.1:${port}/sitemap.xml`)).status, 404);
   } finally {
     await new Promise((resolve) => staging.close(resolve));
+  }
+});
+
+test('백엔드가 아직 배포되지 않았어도 뉴스 sitemap을 제공한다', async () => {
+  assetIndexUnavailable = true;
+  const beforeBackend = createFrontendServer({
+    distDir,
+    siteOrigin: 'https://daynomy.com',
+    apiOrigin: `http://127.0.0.1:${backend.address().port}`,
+    production: true,
+  });
+  const port = await listen(beforeBackend);
+  try {
+    const sitemap = await fetch(`http://127.0.0.1:${port}/sitemap.xml`);
+    assert.equal(sitemap.status, 200);
+    const xml = await sitemap.text();
+    assert.match(xml, /daynomy.com\/news\/1/);
+    assert.doesNotMatch(xml, /daynomy.com\/stocks\//);
+  } finally {
+    assetIndexUnavailable = false;
+    await new Promise((resolve) => beforeBackend.close(resolve));
   }
 });
 
