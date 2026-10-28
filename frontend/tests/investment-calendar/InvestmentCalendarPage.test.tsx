@@ -44,14 +44,24 @@ afterEach(() => {
 });
 
 describe('투자 캘린더 화면', () => {
-  it('소식 홈용 캘린더는 주간 날짜와 간결한 일정 목록을 표시한다', async () => {
+  it('소식 홈용 캘린더는 월간 일정과 선택한 날짜의 일정 목록을 표시한다', async () => {
     const view = renderCalendar(<InvestmentCalendarPage embedded compact />);
 
     expect(await view.findByRole('heading', { name: '투자 캘린더', level: 2 })).toBeTruthy();
-    expect(view.getByLabelText('2026년 10월 주간')).toBeTruthy();
+    expect(view.getByLabelText('2026년 10월 일정')).toBeTruthy();
+    expect(view.getByRole('button', { name: '내 일정' }).getAttribute('aria-pressed')).toBe('true');
+    expect(view.getByRole('button', { name: '10월 6일' }).getAttribute('aria-current')).toBe(
+      'date',
+    );
+    expect(
+      view
+        .getByRole('button', { name: /10월 14일 미국 소비자물가지수 발표/ })
+        .getAttribute('aria-pressed'),
+    ).toBe('true');
     expect(view.getByText('미국 CPI')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: /10월 21일 두산 3분기 실적 발표/ }));
     expect(view.getByText('두산 3분기 실적')).toBeTruthy();
-    expect(view.queryByText('내 자산은 물가가 오른 뒤 약세였던 경우가 많았습니다.')).toBeNull();
+    expect(view.queryByText('두산은 영업이익이 늘어난 뒤 강세였던 경우가 많았습니다.')).toBeNull();
     expect(view.queryByRole('link', { name: '전체 보기' })).toBeNull();
   });
 

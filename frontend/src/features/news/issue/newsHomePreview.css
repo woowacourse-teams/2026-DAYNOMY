@@ -32,29 +32,20 @@
   text-underline-offset: 3px;
 }
 
-.briefing-preview-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 42px;
+.briefing-page-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.briefing-preview-heading h1 {
-  margin: 0;
-  font-size: var(--page-title-size);
-  line-height: var(--page-title-line-height);
-  letter-spacing: var(--page-title-letter-spacing);
-  font-weight: var(--page-title-weight);
-}
-
-.briefing-preview-heading h1:focus {
+.briefing-page-title:focus {
   outline: 0;
-}
-
-.briefing-preview-heading p {
-  margin: 0;
-  color: var(--briefing-muted);
-  font-size: 14px;
 }
 
 .briefing-section-heading {
@@ -367,6 +358,7 @@
   grid-template-columns: minmax(0, 1fr) 126px;
   column-gap: 18px;
   align-items: start;
+  padding: 0;
 }
 
 .briefing-secondary-story.briefing-live-story .issue-feed-thumbnail {
@@ -700,75 +692,132 @@
   stroke-width: 1.8;
 }
 
-.briefing-preview .investment-calendar-briefing-week {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  row-gap: 5px;
-  padding-bottom: 14px;
+.briefing-preview .investment-calendar-briefing-scope {
+  display: flex;
+  gap: 6px;
+  padding: 4px 0 12px;
   border-bottom: 1px solid var(--briefing-line);
-  text-align: center;
 }
 
-.briefing-preview .investment-calendar-briefing-weekday {
-  color: #7b8492;
-  font-size: 11px;
-}
-
-.briefing-preview .investment-calendar-briefing-day {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  margin: 0 auto;
-  place-items: center;
-  border-radius: 50%;
-  color: #354158;
+.briefing-preview .investment-calendar-briefing-scope button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--briefing-muted);
   font-size: 12px;
   font-weight: 650;
+  cursor: pointer;
 }
 
-.briefing-preview .investment-calendar-briefing-day.is-selected {
+.briefing-preview .investment-calendar-briefing-scope button[aria-pressed='true'] {
+  color: var(--briefing-blue);
+  background: #edf4ff;
+}
+
+.briefing-preview .investment-calendar-briefing-stack {
+  display: grid;
+}
+
+.briefing-preview .investment-calendar-briefing .investment-calendar-grid {
+  padding: 12px 0 18px;
+}
+
+.briefing-preview .investment-calendar-briefing .investment-calendar-weekdays span {
+  padding: 5px 0 8px;
+  font-size: 10px;
+}
+
+.briefing-preview .investment-calendar-briefing .investment-calendar-day {
+  min-width: 0;
+  min-height: 40px;
+  padding: 4px 1px;
+  font-size: 12px;
+}
+
+.briefing-preview .investment-calendar-briefing .investment-calendar-day > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+}
+
+.briefing-preview .investment-calendar-briefing .investment-calendar-day.is-today > span {
+  border-color: var(--briefing-blue);
+  color: var(--briefing-blue);
+}
+
+.briefing-preview .investment-calendar-briefing .investment-calendar-day[aria-pressed='true'] {
+  color: var(--briefing-ink);
+  background: transparent;
+}
+
+.briefing-preview
+  .investment-calendar-briefing
+  .investment-calendar-day[aria-pressed='true']
+  > span {
+  border-color: var(--briefing-blue);
   color: #fff;
-  background: #2e73dc;
+  background: var(--briefing-blue);
+}
+
+.briefing-preview
+  .investment-calendar-briefing
+  .investment-calendar-day.is-today[aria-pressed='true']
+  > span {
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+.briefing-preview .investment-calendar-briefing .investment-calendar-day small {
+  font-size: 7px;
 }
 
 .briefing-preview .investment-calendar-briefing-events {
-  margin: 0;
+  margin: 12px 0 0;
   padding: 0;
+  border-top: 1px solid var(--briefing-line);
   list-style: none;
 }
 
 .briefing-preview .investment-calendar-briefing-events li {
   display: grid;
-  grid-template-columns: 72px 8px minmax(0, 1fr) 34px 44px;
+  grid-template-columns: 76px 7px minmax(0, 1fr) 30px 38px;
   gap: 8px;
   align-items: center;
-  min-height: 44px;
+  min-height: 58px;
   border-bottom: 1px solid var(--briefing-line);
-  font-style: normal;
 }
 
 .briefing-preview .investment-calendar-briefing-events time {
-  color: #6d7787;
+  color: var(--briefing-muted);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .briefing-preview .investment-calendar-briefing-events li > span {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #2e73dc;
+  background: var(--briefing-blue);
 }
 
 .briefing-preview .investment-calendar-briefing-events strong {
+  min-width: 0;
   overflow: hidden;
+  color: var(--briefing-ink);
   font-size: 12px;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .briefing-preview .investment-calendar-briefing-events small,
 .briefing-preview .investment-calendar-briefing-events em {
-  color: #8992a0;
+  color: var(--briefing-muted);
   font-size: 10px;
   font-style: normal;
   text-align: right;
@@ -834,10 +883,6 @@
     padding-bottom: 64px;
   }
 
-  .briefing-preview-heading {
-    margin-bottom: 38px;
-  }
-
   .briefing-trending-grid,
   .briefing-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -881,14 +926,6 @@
   .issue-page.briefing-preview {
     --briefing-section-title-size: 21px;
     padding-top: 28px;
-  }
-
-  .briefing-preview-heading {
-    display: block;
-  }
-
-  .briefing-preview-heading p {
-    margin-top: 10px;
   }
 
   .briefing-section-heading,
