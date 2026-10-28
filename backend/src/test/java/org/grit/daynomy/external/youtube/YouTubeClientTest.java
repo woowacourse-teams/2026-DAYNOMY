@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.time.Instant;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -155,6 +156,76 @@ class YouTubeClientTest {
     assertThat(videoRequest.getRequestUrl().queryParameter("maxResults")).isEqualTo("50");
     RecordedRequest nextPageRequest = server.takeRequest();
     assertThat(nextPageRequest.getRequestUrl().queryParameter("pageToken")).isEqualTo("next-page");
+  }
+
+  @Test
+  void channelUploadsUsesUploadsPlaylistAndFiltersPeriod() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {
+                  "items": [{
+                    "id": "channel-123",
+                    "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}
+                  }]
+                }
+                """));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {
+                  "items": [
+                    {
+                      "contentDetails": {
+                        "videoId": "abcdefghijk",
+                        "videoPublishedAt": "2026-10-12T00:00:00Z"
+                      },
+                      "snippet": {
+                        "title": "삼성전자 실적 분석",
+                        "description": "반도체 업황을 분석합니다.",
+                        "channelTitle": "경제뉴스",
+                        "publishedAt": "2026-10-12T00:00:00Z",
+                        "thumbnails": {"medium": {"url": "https://image.example/1.jpg"}}
+                      }
+                    },
+                    {
+                      "contentDetails": {"videoId": "zzzzzzzzzzz"},
+                      "snippet": {
+                        "title": "오래된 영상",
+                        "publishedAt": "2026-10-09T00:00:00Z",
+                        "thumbnails": {}
+                      }
+                    }
+                  ]
+                }
+                """));
+    YouTubeClient client = newClient("test-api-key");
+
+    var candidates =
+        client.listChannelUploads(
+            "https://www.youtube.com/@economy",
+            Instant.parse("2026-10-10T00:00:00Z"),
+            Instant.parse("2026-10-13T00:00:00Z"));
+
+    assertThat(candidates)
+        .singleElement()
+        .satisfies(
+            candidate -> {
+              assertThat(candidate.title()).isEqualTo("삼성전자 실적 분석");
+              assertThat(candidate.description()).isEqualTo("반도체 업황을 분석합니다.");
+              assertThat(candidate.thumbnailUrl()).isEqualTo("https://image.example/1.jpg");
+            });
+    RecordedRequest channelRequest = server.takeRequest();
+    assertThat(channelRequest.getRequestUrl().queryParameter("part"))
+        .isEqualTo("id,contentDetails");
+    RecordedRequest playlistRequest = server.takeRequest();
+    assertThat(playlistRequest.getRequestUrl().queryParameter("playlistId")).isEqualTo("UU123");
+    assertThat(playlistRequest.getRequestUrl().queryParameter("part"))
+        .isEqualTo("snippet,contentDetails");
   }
 
   @Test

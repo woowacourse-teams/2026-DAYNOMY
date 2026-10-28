@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
@@ -30,6 +30,10 @@ import { AdminStockContentsPage } from './features/admin/AdminStockContentsPage'
 import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminPeoplePage } from './features/admin/AdminPeoplePage';
 import { AdminFeedbackPage } from './features/admin/AdminFeedbackPage';
+import {
+  AdminContentReviewsPage,
+  AdminContentSourcesPage,
+} from './features/admin/AdminContentCollectionPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import { PeoplePage } from './features/people/PeoplePage';
 import { StockContentPage } from './features/stock-content/StockContentPage';
@@ -45,7 +49,8 @@ const LandingPage = lazy(() => import('./features/landing/LandingPage'));
 
 function AnalyticsTracker() {
   const location = useLocation();
-  useEffect(() => {
+  // Stop replay on protected routes before DOM mutation observers record the new screen.
+  useLayoutEffect(() => {
     trackPageView(location.pathname);
   }, [location.pathname]);
   return null;
@@ -153,6 +158,15 @@ function PortfolioRoute() {
   return (
     <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
   );
+}
+
+const NewsHomePage = lazy(() => import('./features/news/issue/NewsHomePreview'));
+
+function NewsHomeRoute() {
+  const location = useLocation();
+  const preview =
+    import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'briefing';
+  return <NewsHomePage preview={preview} />;
 }
 
 function HomeRoute({ hasStarted, onStart }: { hasStarted: boolean; onStart: () => void }) {
@@ -342,7 +356,14 @@ function AppContent() {
                 </AuthenticatedRoute>
               }
             />
-            <Route path="/news" element={<IssueHomePage key="home" />} />
+            <Route
+              path="/news"
+              element={
+                <Suspense fallback={<main aria-busy="true" aria-label="소식 불러오는 중" />}>
+                  <NewsHomeRoute />
+                </Suspense>
+              }
+            />
             <Route path="/news/today" element={<NewsListPage />} />
             <Route path="/news/contents" element={<IssueHomePage key="contents" fullFeed />} />
             <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
@@ -411,6 +432,30 @@ function AppContent() {
               element={
                 <AdminRoute>
                   <AdminStockContentsPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/content-collection"
+              element={
+                <AdminRoute>
+                  <Navigate to="/admin/content-sources" replace />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/content-sources"
+              element={
+                <AdminRoute>
+                  <AdminContentSourcesPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/content-reviews"
+              element={
+                <AdminRoute>
+                  <AdminContentReviewsPage />
                 </AdminRoute>
               }
             />

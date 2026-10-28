@@ -37,8 +37,42 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError || error instanceof Error ? error.message : fallback;
 }
 
-export function AdminStockContentsPanel() {
+function StockSearchForm({
+  loading,
+  saving,
+  onSearch,
+}: {
+  loading: boolean;
+  saving: boolean;
+  onSearch: (keyword: string) => Promise<void>;
+}) {
   const [keyword, setKeyword] = useState('');
+  return (
+    <form
+      className="admin-related-search"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void onSearch(keyword);
+      }}
+    >
+      <label className="admin-field">
+        <span>종목 검색</span>
+        <input
+          disabled={saving}
+          type="search"
+          value={keyword}
+          placeholder="삼성전자 또는 005930"
+          onChange={(event) => setKeyword(event.target.value)}
+        />
+      </label>
+      <button type="submit" className="admin-primary-button" disabled={loading}>
+        {loading ? '검색 중…' : '검색'}
+      </button>
+    </form>
+  );
+}
+
+export function AdminStockContentsPanel() {
   const [stocks, setStocks] = useState<StockSearchItem[]>([]);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
   const [contents, setContents] = useState<StockRelatedContentsResponse | null>(null);
@@ -79,7 +113,7 @@ export function AdminStockContentsPanel() {
     };
   }, []);
 
-  async function search() {
+  async function search(keyword: string) {
     if (loading) return;
     const trimmedKeyword = keyword.trim();
     if (!trimmedKeyword) {
@@ -488,27 +522,7 @@ export function AdminStockContentsPanel() {
 
       <div className="admin-link-layout">
         <aside className="admin-target-picker" aria-label="종목 선택">
-          <form
-            className="admin-related-search"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void search();
-            }}
-          >
-            <label className="admin-field">
-              <span>종목 검색</span>
-              <input
-                disabled={saving}
-                type="search"
-                value={keyword}
-                placeholder="삼성전자 또는 005930"
-                onChange={(event) => setKeyword(event.target.value)}
-              />
-            </label>
-            <button type="submit" className="admin-primary-button" disabled={loading}>
-              {loading ? '검색 중…' : '검색'}
-            </button>
-          </form>
+          <StockSearchForm loading={loading} saving={saving} onSearch={search} />
 
           {stocks.length > 0 ? (
             <ul className="admin-stock-search-results">

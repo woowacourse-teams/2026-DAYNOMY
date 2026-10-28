@@ -45,10 +45,12 @@ public class LeagueController {
   @GetMapping("/rankings")
   public ResponseEntity<RankingResponse> rankings(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+      @Parameter(description = "최근 3주 중 조회할 주의 KST 월요일(yyyy-MM-dd). 생략하면 이번 주")
+          @RequestParam(required = false)
+          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
           LocalDate weekStart,
       @RequestParam(defaultValue = "WEEKLY_RETURN") LeagueType leagueType,
-      @RequestParam(defaultValue = "0") @Min(0) int page,
+      @Parameter(description = "페이지 번호(0부터 시작)") @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
@@ -81,7 +83,9 @@ public class LeagueController {
   @GetMapping("/investors/{publicId}/daily-history")
   public ResponseEntity<DailyHistoryResponse> dailyHistory(
       @PathVariable String publicId,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+      @Parameter(description = "최근 3주 중 조회할 주의 KST 월요일(yyyy-MM-dd). 생략하면 이번 주")
+          @RequestParam(required = false)
+          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
           LocalDate weekStart) {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())

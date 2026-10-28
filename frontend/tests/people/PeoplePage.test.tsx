@@ -78,6 +78,26 @@ afterEach(() => {
 });
 
 describe('인물의 글 화면', () => {
+  it('인물 찾기 입력은 목록을 유지하고 검색 결과에서 인물을 선택한다', async () => {
+    const view = render(
+      <MemoryRouter>
+        <PeoplePage />
+      </MemoryRouter>,
+    );
+    await view.findByRole('button', { name: /일론 머스크 X 게시물/ });
+    fireEvent.click(view.getByRole('button', { name: '인물 찾기' }));
+    fireEvent.change(view.getByRole('searchbox', { name: '인물 이름 검색' }), {
+      target: { value: '도널드' },
+    });
+    expect(view.container.querySelectorAll('.people-search-results button')).toHaveLength(1);
+    expect(view.getByRole('button', { name: /일론 머스크 X 게시물/ })).toBeTruthy();
+    fireEvent.click(view.container.querySelector('.people-search-results button')!);
+    expect(view.getByRole('button', { name: /도널드 트럼프 Threads 게시물/ })).toBeTruthy();
+    expect(view.getByRole('button', { name: '인물 찾기' }).getAttribute('aria-expanded')).toBe(
+      'false',
+    );
+  });
+
   it('목록이 화면에 들어오면 화살표를 숨기고 넘치면 표시한다', async () => {
     const view = render(
       <MemoryRouter>

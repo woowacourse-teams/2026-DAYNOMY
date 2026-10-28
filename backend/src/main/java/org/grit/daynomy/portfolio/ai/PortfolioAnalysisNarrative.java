@@ -27,7 +27,7 @@ public class PortfolioAnalysisNarrative {
       RestClient.Builder builder,
       @Value("${ai.openai.base-url:https://api.openai.com/v1}") String baseUrl,
       @Value("${ai.openai.api-key:}") String apiKey,
-      @Value("${ai.openai.model:gpt-5-mini}") String model) {
+      @Value("${portfolio.analysis.model:gpt-5.4-mini}") String model) {
     var factory = new SimpleClientHttpRequestFactory();
     factory.setConnectTimeout(3000);
     factory.setReadTimeout(45000);
@@ -145,14 +145,15 @@ public class PortfolioAnalysisNarrative {
                       "schema",
                       schema)));
       String response =
-          client
-              .post()
-              .uri("/responses")
-              .contentType(MediaType.APPLICATION_JSON)
-              .headers(h -> h.setBearerAuth(apiKey))
-              .body(request)
-              .retrieve()
-              .body(String.class);
+          PortfolioAnalysisCall.execute(
+              client
+                  .post()
+                  .uri("/responses")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .headers(h -> h.setBearerAuth(apiKey))
+                  .body(request),
+              "summary",
+              model);
       validationReason = "INVALID_SUMMARY_RESPONSE";
       var root = mapper.readTree(response);
       String id = root.path("id").asText("");

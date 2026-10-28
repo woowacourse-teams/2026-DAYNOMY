@@ -1,12 +1,162 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { createReview, updateDecisionReason, updateReview } from './api';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { holdingPeriodLabels, reviewDateLabel, transactionLabels } from './labels';
-import type { InvestmentDecisionRecord } from './types';
+import type { InvestmentDecisionRecord, InvestmentReview } from './types';
 
 const blankReview = () => ({ actualResult: '', differenceFromExpectation: '', nextAction: '' });
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
+
+const InvestmentRecordCard = memo(function InvestmentRecordCard({
+  r,
+  reviewId,
+  editingReason,
+  editingReviewId,
+  editFields,
+  blocked,
+  onOpenReason,
+  onOpenReview,
+}: {
+  r: InvestmentDecisionRecord;
+  reviewId: number | null;
+  editingReason: boolean;
+  editingReviewId: number | null;
+  editFields: ReactNode;
+  blocked: boolean;
+  onOpenReason: (record: InvestmentDecisionRecord, trigger: HTMLButtonElement) => void;
+  onOpenReview: (
+    record: InvestmentDecisionRecord,
+    review: InvestmentReview | null,
+    trigger: HTMLButtonElement,
+  ) => void;
+}) {
+  return (
+    <article className="shared-decision">
+      <h3>{r.assetName}</h3>
+      <small>
+        {r.tradedOn} · {transactionLabels[r.transactionType]}
+      </small>
+      <div className="shared-record-body">
+        <div className="shared-record-reason">
+          <div className="shared-record-heading">
+            <strong>보유 이유</strong>
+            <button
+              className="shared-text-action"
+              type="button"
+              aria-label={`${r.assetName} ${r.tradedOn} ${transactionLabels[r.transactionType]} 보유 이유 수정`}
+              aria-expanded={reviewId === r.id && editingReason}
+              disabled={blocked}
+              onClick={(event) => onOpenReason(r, event.currentTarget)}
+            >
+              수정
+            </button>
+          </div>
+          {reviewId === r.id && editingReason ? editFields : <p>{r.reason}</p>}
+          {r.expectedHoldingPeriod ||
+          r.expectedChange ||
+          r.invalidationCondition ||
+          r.maximumAcceptableLossRate !== null ? (
+            <dl>
+              {r.expectedHoldingPeriod ? (
+                <div>
+                  <dt>예상 보유 기간</dt>
+                  <dd>{holdingPeriodLabels[r.expectedHoldingPeriod]}</dd>
+                </div>
+              ) : null}
+              {r.expectedChange ? (
+                <div>
+                  <dt>기대 변화</dt>
+                  <dd>{r.expectedChange}</dd>
+                </div>
+              ) : null}
+              {r.invalidationCondition ? (
+                <div>
+                  <dt>재확인 조건</dt>
+                  <dd>{r.invalidationCondition}</dd>
+                </div>
+              ) : null}
+              {r.maximumAcceptableLossRate !== null ? (
+                <div>
+                  <dt>허용 하락률</dt>
+                  <dd>{r.maximumAcceptableLossRate}%</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+        </div>
+        <div className="shared-record-reviews">
+          {r.reviews.length === 0 ? (
+            <p className="shared-review-empty">
+              아직 복기가 없어요. 보유 후 달라진 생각을 남겨보세요.
+            </p>
+          ) : null}
+          {r.reviews.map((item) => (
+            <div className="shared-review" key={item.id}>
+              <div className="shared-record-heading">
+                <strong>복기</strong>
+                <button
+                  className="shared-text-action"
+                  type="button"
+                  aria-label={`${r.assetName} ${r.tradedOn} ${transactionLabels[r.transactionType]} 복기 수정`}
+                  aria-expanded={reviewId === r.id && !editingReason && editingReviewId === item.id}
+                  disabled={blocked}
+                  onClick={(event) => onOpenReview(r, item, event.currentTarget)}
+                >
+                  수정
+                </button>
+              </div>
+              {reviewId === r.id && !editingReason && editingReviewId === item.id ? (
+                editFields
+              ) : (
+                <>
+                  <dl>
+                    <div>
+                      <dt>실제 결과</dt>
+                      <dd>{item.actualResult}</dd>
+                    </div>
+                    <div>
+                      <dt>예상과 달랐던 점</dt>
+                      <dd>{item.differenceFromExpectation}</dd>
+                    </div>
+                    <div>
+                      <dt>다음 행동</dt>
+                      <dd>{item.nextAction}</dd>
+                    </div>
+                  </dl>
+                  <small>{reviewDateLabel(item)}</small>
+                </>
+              )}
+            </div>
+          ))}
+          <div className="shared-holding-actions">
+            <button
+              className="shared-text-action"
+              type="button"
+              aria-label={`${r.assetName} ${r.tradedOn} ${transactionLabels[r.transactionType]} 복기 작성`}
+              aria-expanded={reviewId === r.id && !editingReason && editingReviewId === null}
+              disabled={blocked}
+              onClick={(event) => onOpenReview(r, null, event.currentTarget)}
+            >
+              복기 작성
+            </button>
+          </div>
+
+          {reviewId === r.id && !editingReason && editingReviewId === null ? editFields : null}
+        </div>
+      </div>
+    </article>
+  );
+});
 
 export function InvestmentRecords({
   records,
@@ -122,6 +272,44 @@ export function InvestmentRecords({
       setBusy(false);
     }
   }
+
+  const openReason = useCallback(
+    (record: InvestmentDecisionRecord, trigger: HTMLButtonElement) => {
+      trackLeagueEvent('league_action', { surface, action: 'open_reason', status: 'clicked' });
+      editTrigger.current = trigger;
+      setEditingReason(true);
+      setReason(record.reason);
+      setReviewId(record.id);
+      setError('');
+      setMessage('');
+    },
+    [setReviewId, surface],
+  );
+  const openReview = useCallback(
+    (
+      record: InvestmentDecisionRecord,
+      item: InvestmentReview | null,
+      trigger: HTMLButtonElement,
+    ) => {
+      trackLeagueEvent('league_action', { surface, action: 'open_review', status: 'clicked' });
+      editTrigger.current = trigger;
+      setEditingReason(false);
+      setReviewId(record.id);
+      setEditingReviewId(item?.id ?? null);
+      setReview(
+        item
+          ? {
+              actualResult: item.actualResult,
+              differenceFromExpectation: item.differenceFromExpectation,
+              nextAction: item.nextAction,
+            }
+          : blankReview(),
+      );
+      setError('');
+      setMessage('');
+    },
+    [setReviewId, surface],
+  );
 
   function renderRecord(r: InvestmentDecisionRecord) {
     const editFields =
@@ -243,164 +431,17 @@ export function InvestmentRecords({
         </form>
       ) : null;
     return (
-      <article className="shared-decision" key={r.id}>
-        <h3>{r.assetName}</h3>
-        <small>
-          {r.tradedOn} · {transactionLabels[r.transactionType]}
-        </small>
-        <div className="shared-record-body">
-          <div className="shared-record-reason">
-            <div className="shared-record-heading">
-              <strong>보유 이유</strong>
-              <button
-                className="shared-text-action"
-                type="button"
-                aria-label={`${r.assetName} ${r.tradedOn} ${transactionLabels[r.transactionType]} 보유 이유 수정`}
-                aria-expanded={reviewId === r.id && editingReason}
-                disabled={disabled || busy || reviewId !== null}
-                onClick={(event) => {
-                  trackLeagueEvent('league_action', {
-                    surface,
-                    action: 'open_reason',
-                    status: 'clicked',
-                  });
-                  editTrigger.current = event.currentTarget;
-                  setEditingReason(true);
-                  setReason(r.reason);
-                  setReviewId(r.id);
-                  setError('');
-                  setMessage('');
-                }}
-              >
-                수정
-              </button>
-            </div>
-            {reviewId === r.id && editingReason ? editFields : <p>{r.reason}</p>}
-            {r.expectedHoldingPeriod ||
-            r.expectedChange ||
-            r.invalidationCondition ||
-            r.maximumAcceptableLossRate !== null ? (
-              <dl>
-                {r.expectedHoldingPeriod ? (
-                  <div>
-                    <dt>예상 보유 기간</dt>
-                    <dd>{holdingPeriodLabels[r.expectedHoldingPeriod]}</dd>
-                  </div>
-                ) : null}
-                {r.expectedChange ? (
-                  <div>
-                    <dt>기대 변화</dt>
-                    <dd>{r.expectedChange}</dd>
-                  </div>
-                ) : null}
-                {r.invalidationCondition ? (
-                  <div>
-                    <dt>재확인 조건</dt>
-                    <dd>{r.invalidationCondition}</dd>
-                  </div>
-                ) : null}
-                {r.maximumAcceptableLossRate !== null ? (
-                  <div>
-                    <dt>허용 하락률</dt>
-                    <dd>{r.maximumAcceptableLossRate}%</dd>
-                  </div>
-                ) : null}
-              </dl>
-            ) : null}
-          </div>
-          <div className="shared-record-reviews">
-            {r.reviews.length === 0 ? (
-              <p className="shared-review-empty">
-                아직 복기가 없어요. 보유 후 달라진 생각을 남겨보세요.
-              </p>
-            ) : null}
-            {r.reviews.map((item) => (
-              <div className="shared-review" key={item.id}>
-                <div className="shared-record-heading">
-                  <strong>복기</strong>
-                  <button
-                    className="shared-text-action"
-                    type="button"
-                    aria-label={`${r.assetName} ${r.tradedOn} ${transactionLabels[r.transactionType]} 복기 수정`}
-                    aria-expanded={
-                      reviewId === r.id && !editingReason && editingReviewId === item.id
-                    }
-                    disabled={disabled || busy || reviewId !== null}
-                    onClick={(event) => {
-                      trackLeagueEvent('league_action', {
-                        surface,
-                        action: 'open_review',
-                        status: 'clicked',
-                      });
-                      editTrigger.current = event.currentTarget;
-                      setEditingReason(false);
-                      setReviewId(r.id);
-                      setEditingReviewId(item.id);
-                      setReview({
-                        actualResult: item.actualResult,
-                        differenceFromExpectation: item.differenceFromExpectation,
-                        nextAction: item.nextAction,
-                      });
-                      setError('');
-                      setMessage('');
-                    }}
-                  >
-                    수정
-                  </button>
-                </div>
-                {reviewId === r.id && !editingReason && editingReviewId === item.id ? (
-                  editFields
-                ) : (
-                  <>
-                    <dl>
-                      <div>
-                        <dt>실제 결과</dt>
-                        <dd>{item.actualResult}</dd>
-                      </div>
-                      <div>
-                        <dt>예상과 달랐던 점</dt>
-                        <dd>{item.differenceFromExpectation}</dd>
-                      </div>
-                      <div>
-                        <dt>다음 행동</dt>
-                        <dd>{item.nextAction}</dd>
-                      </div>
-                    </dl>
-                    <small>{reviewDateLabel(item)}</small>
-                  </>
-                )}
-              </div>
-            ))}
-            <div className="shared-holding-actions">
-              <button
-                className="shared-text-action"
-                type="button"
-                aria-label={`${r.assetName} ${r.tradedOn} ${transactionLabels[r.transactionType]} 복기 작성`}
-                aria-expanded={reviewId === r.id && !editingReason && editingReviewId === null}
-                disabled={disabled || busy || reviewId !== null}
-                onClick={(event) => {
-                  trackLeagueEvent('league_action', {
-                    surface,
-                    action: 'open_review',
-                    status: 'clicked',
-                  });
-                  editTrigger.current = event.currentTarget;
-                  setEditingReason(false);
-                  setReviewId(r.id);
-                  setEditingReviewId(null);
-                  setReview(blankReview());
-                  setError('');
-                  setMessage('');
-                }}
-              >
-                복기 작성
-              </button>
-            </div>
-
-            {reviewId === r.id && !editingReason && editingReviewId === null ? editFields : null}
-          </div>
-        </div>
-      </article>
+      <InvestmentRecordCard
+        key={r.id}
+        r={r}
+        reviewId={reviewId}
+        editingReason={editingReason}
+        editingReviewId={editingReviewId}
+        editFields={editFields}
+        blocked={disabled || busy || reviewId !== null}
+        onOpenReason={openReason}
+        onOpenReview={openReview}
+      />
     );
   }
   return (

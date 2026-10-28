@@ -33,7 +33,10 @@ import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository;
 import org.grit.daynomy.external.ExternalErrorCode;
+import org.grit.daynomy.external.eodhd.EodhdClient;
+import org.grit.daynomy.external.eodhd.dto.EodhdDailyPrice;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.member.domain.Member;
@@ -80,6 +83,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
 
   private static final String API = "/api/users/me/portfolio/analysis";
   private static final String LEGACY = "/api/portfolio/analysis";
+  private static final String GUEST = LEGACY + "/tasks";
 
   @Container
   static final PostgreSQLContainer POSTGRESQL =
@@ -131,12 +135,68 @@ class SavedPortfolioAnalysisAcceptanceTest {
   @Autowired private PortfolioHoldingRepository holdings;
   @Autowired private AssetRepository assets;
   @MockitoSpyBean private StockDailyPriceRepository prices;
-  @Autowired private PortfolioAnalysisRepository analyses;
+  @MockitoSpyBean private PortfolioAnalysisRepository analyses;
   @Autowired private PortfolioAnalysisEvidenceRepository evidence;
   @Autowired private PortfolioAnalysisCheckRepository checks;
   @Autowired private SavedPortfolioAnalysisTransactionService transactions;
   @Autowired private JwtTokenProvider tokens;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private UsdKrwRateRepository exchangeRates;
+  @MockitoBean private EodhdClient exchangeRateProvider;
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void usdPortfolioCanLoadAnalyzeAndRefreshWithoutExchangeRateTransactionConflict(
+      boolean background) {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "국내 종목");
+    LocalDate date = LocalDate.of(2026, 10, 12);
+    Asset asset =
+        assets.save(
+            Asset.listedStock("미국 종목", UUID.randomUUID() + ".US", StockMarket.NASDAQ, null, date));
+    holdings.save(new PortfolioHolding(portfolio, asset, 1, new BigDecimal("100")));
+    prices.save(new StockDailyPrice(asset, date, new BigDecimal("100")));
+    exchangeRates.deleteById(date);
+    doAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              assertThat(
+                      jdbc.queryForObject(
+                          "SELECT id FROM portfolios WHERE id = ? FOR UPDATE NOWAIT",
+                          Long.class,
+                          portfolio.getId()))
+                  .isEqualTo(portfolio.getId());
+              return List.of(new EodhdDailyPrice("USDKRW", "FOREX", date, new BigDecimal("1300")));
+            })
+        .when(exchangeRateProvider)
+        .getUsdKrwRates(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    successfulAi();
+    doAnswer(invocation -> result(invocation.getArgument(0)))
+        .when(ai)
+        .refresh(anyList(), anyString());
+
+    client(member).get(API).then().statusCode(200).body("status", equalTo("EMPTY"));
+    verifyNoInteractions(ai, narrative);
+    client(member)
+        .post(API + (background ? "/tasks" : ""))
+        .then()
+        .statusCode(background ? 202 : 200);
+    awaitTask(member, "READY");
+    var saved = client(member).get(API).then().statusCode(200).extract().response();
+    saved.then().body("analysis.analyzedAssetCount", equalTo(2));
+    assertThat(saved.jsonPath().getList("analysis.impacts.weight", BigDecimal.class))
+        .containsExactlyInAnyOrder(new BigDecimal("99.92"), new BigDecimal("0.08"));
+    long analysisId = saved.jsonPath().getLong("analysisId");
+    client(member)
+        .post(API + (background ? "/tasks/refresh" : "/refresh"))
+        .then()
+        .statusCode(background ? 202 : 200);
+    awaitTask(member, "READY");
+    client(member).get(API).then().body("analysisId", equalTo((int) analysisId));
+    verify(exchangeRateProvider)
+        .getUsdKrwRates(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+  }
 
   @ParameterizedTest
   @CsvSource({"v1,2", "v2,2", "v1,50", "v2,50"})
@@ -675,6 +735,310 @@ class SavedPortfolioAnalysisAcceptanceTest {
     assertThat(analyses.findByIdAndPortfolioMemberId(oldId, member.getId())).isPresent();
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void coreResultsAreAvailableWhileSummaryIsPendingAndRemainIdenticalAfterItCompletes(
+      boolean refresh) throws Exception {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    successfulAi();
+    if (refresh) {
+      client(member).post(API).then().statusCode(200);
+      when(ai.refresh(anyList(), anyString()))
+          .thenAnswer(
+              invocation ->
+                  refreshed(
+                      invocation.getArgument(0),
+                      LocalDate.of(2026, 10, 1),
+                      "https://example.invalid/new",
+                      "새 계약을 체결했어요."));
+    }
+    var started = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    String text = "현재 보유한 종목의 비중을 확인했어요.\n\n확인된 근거에 따라 영향을 판단했어요.\n\n다음 실적을 확인해 보세요.";
+    doAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              started.countDown();
+              assertThat(release.await(20, TimeUnit.SECONDS)).isTrue();
+              return text;
+            })
+        .when(narrative)
+        .summarize(org.mockito.ArgumentMatchers.any());
+    Response core;
+    try {
+      client(member).post(API + (refresh ? "/tasks/refresh" : "/tasks")).then().statusCode(202);
+      assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+      core = client(member).get(API);
+      core.then()
+          .statusCode(200)
+          .body("status", equalTo("PROCESSING"))
+          .body("summaryStatus", equalTo("PENDING"))
+          .body("analysis.overallImpact", equalTo(""))
+          .body("analysis.overallDirection", equalTo(refresh ? "POSITIVE" : "NEGATIVE"))
+          .body("analysis.analyzedAssetCount", equalTo(1));
+      assertThat(core.jsonPath().getList("analysis.impacts[0].sources")).isNotEmpty();
+      assertThat((Object) core.jsonPath().get("analysis.overallScore")).isNotNull();
+      client(member).post(API + "/tasks").then().statusCode(202);
+      verify(ai).analyze(anyList());
+      verify(narrative, times(refresh ? 2 : 1)).summarize(org.mockito.ArgumentMatchers.any());
+    } finally {
+      release.countDown();
+    }
+    awaitTask(member, "READY");
+    var completed = client(member).get(API);
+    completed
+        .then()
+        .body("summaryStatus", equalTo("READY"))
+        .body("analysis.overallImpact", equalTo(text));
+    assertThat(completed.jsonPath().getLong("analysisId"))
+        .isEqualTo(core.jsonPath().getLong("analysisId"));
+    assertThat(completed.jsonPath().getString("lastSucceededAt"))
+        .isEqualTo(core.jsonPath().getString("lastSucceededAt"));
+    Map<String, Object> before = new java.util.HashMap<>(core.jsonPath().getMap("analysis"));
+    Map<String, Object> after = new java.util.HashMap<>(completed.jsonPath().getMap("analysis"));
+    before.remove("overallImpact");
+    after.remove("overallImpact");
+    assertThat(after).isEqualTo(before);
+    client(member)
+        .get(API + "/history")
+        .then()
+        .body("size()", equalTo(refresh ? 2 : 1))
+        .body("[0].analysis.overallImpact", equalTo(text));
+    var stored = analyses.findById(completed.jsonPath().getLong("analysisId")).orElseThrow();
+    assertThat(stored.getSnapshot().overallImpact()).isNotEqualTo(text);
+  }
+
+  @Test
+  void readingCoreAndTaskStateUsesOneSnapshotWhenSummaryCompletesDuringTheRead() throws Exception {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    var prepared = transactions.prepareTask(member.getId(), false);
+    var core =
+        transactions.completeCore(
+            member.getId(), prepared.token(), prepared.assets(), coreResult());
+    var readStarted = new CountDownLatch(1);
+    var continueRead = new CountDownLatch(1);
+    var load =
+        org.mockito.Mockito.mockingDetails(analyses).getMockCreationSettings().getDefaultAnswer();
+    doAnswer(
+            invocation -> {
+              Object existing = load.answer(invocation);
+              readStarted.countDown();
+              assertThat(continueRead.await(10, TimeUnit.SECONDS)).isTrue();
+              return existing;
+            })
+        .when(analyses)
+        .findFirstByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(member.getId());
+    var request = client(member);
+    try (var executor = Executors.newSingleThreadExecutor()) {
+      var reading = executor.submit(() -> request.get(API));
+      try {
+        assertThat(readStarted.await(5, TimeUnit.SECONDS)).isTrue();
+        var completed =
+            transactions.completeSummary(
+                member.getId(), prepared.token(), core.analysisId(), "종합 설명을 완성했어요.");
+        assertThat(completed.summaryStatus()).isEqualTo("READY");
+      } finally {
+        continueRead.countDown();
+      }
+      reading
+          .get(5, TimeUnit.SECONDS)
+          .then()
+          .statusCode(200)
+          .body("status", equalTo("PROCESSING"))
+          .body("summaryStatus", equalTo("PENDING"));
+    }
+    client(member)
+        .get(API)
+        .then()
+        .body("status", equalTo("READY"))
+        .body("summaryStatus", equalTo("READY"));
+  }
+
+  @Test
+  void expiredSummaryDoesNotStayPendingOrOverwriteTheNextWorkersState() {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    var prepared = transactions.prepareTask(member.getId(), false);
+    var core =
+        transactions.completeCore(
+            member.getId(), prepared.token(), prepared.assets(), coreResult());
+    jdbc.update(
+        "update portfolio_analysis_checks set request_expires_at = now() - interval '1 second' where portfolio_id = ?",
+        portfolio.getId());
+    client(member)
+        .get(API)
+        .then()
+        .body("status", equalTo("READY"))
+        .body("summaryStatus", equalTo("FAILED"));
+    var current = transactions.prepareTask(member.getId(), true);
+
+    assertThatThrownBy(
+            () ->
+                transactions.completeSummary(
+                    member.getId(), prepared.token(), core.analysisId(), "이전 설명이에요."))
+        .isInstanceOf(BusinessException.class);
+    transactions.failSummary(member.getId(), prepared.token(), core.analysisId());
+
+    assertThat(checks.findById(portfolio.getId()).orElseThrow().getRequestToken())
+        .isEqualTo(current.token());
+    var stored = analyses.findById(core.analysisId()).orElseThrow();
+    assertThat(stored.getOverallImpact()).isEmpty();
+    assertThat(stored.getSummaryStatus())
+        .isEqualTo(org.grit.daynomy.portfolio.domain.PortfolioAnalysis.SummaryStatus.FAILED);
+    verifyNoInteractions(ai, narrative);
+  }
+
+  private PortfolioAnalysisResponse coreResult() {
+    var impact =
+        org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse.of(
+            result(List.of(new PortfolioAnalysisTarget("삼성전자"))).impacts().getFirst(),
+            new BigDecimal("100"));
+    var summary =
+        org.grit.daynomy.portfolio.domain.PortfolioImpactSummary.calculate(
+            List.of(
+                new org.grit.daynomy.portfolio.domain.PortfolioImpactSummary.AssetImpact(
+                    impact.weight(), impact.direction(), impact.impactLevel())));
+    return PortfolioAnalysisResponse.of(
+        1, summary, Instant.now(), "", List.of(impact), impact.sources());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void summaryFailureLeavesCoreResultsAvailableWithoutRepeatingAnalysis(boolean refresh) {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    if (refresh) {
+      client(member).post(API).then().statusCode(200);
+      when(ai.refresh(anyList(), anyString()))
+          .thenAnswer(
+              invocation ->
+                  refreshed(
+                      invocation.getArgument(0),
+                      LocalDate.of(2026, 10, 1),
+                      "https://example.invalid/new",
+                      "새 계약을 체결했어요."));
+    }
+    doAnswer(
+            invocation -> {
+              throw new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED);
+            })
+        .when(narrative)
+        .summarize(org.mockito.ArgumentMatchers.any());
+
+    client(member).post(API + (refresh ? "/tasks/refresh" : "/tasks")).then().statusCode(202);
+    awaitTask(member, "READY");
+
+    var response = client(member).get(API);
+    response
+        .then()
+        .body("summaryStatus", equalTo("FAILED"))
+        .body("analysis.overallImpact", equalTo(""))
+        .body("analysis.analyzedAssetCount", equalTo(1))
+        .body("failureCode", nullValue());
+    assertThat((Object) response.jsonPath().get("analysis.overallScore")).isNotNull();
+    assertThat(response.jsonPath().getList("analysis.impacts[0].sources")).isNotEmpty();
+    client(member)
+        .post(API + "/tasks")
+        .then()
+        .statusCode(200)
+        .body("summaryStatus", equalTo("FAILED"));
+    verify(ai).analyze(anyList());
+    verify(narrative, times(refresh ? 2 : 1)).summarize(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void backgroundAnalysisReturnsBeforeAiCompletesAndRepeatedStartsReuseIt() throws Exception {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    var started = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    when(ai.analyze(anyList()))
+        .thenAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              started.countDown();
+              assertThat(release.await(20, TimeUnit.SECONDS)).isTrue();
+              return result(invocation.getArgument(0));
+            });
+    try {
+      client(member)
+          .post(API + "/tasks")
+          .then()
+          .statusCode(202)
+          .header("Location", API)
+          .body("status", equalTo("PROCESSING"));
+      assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+      UUID token = checks.findById(portfolio.getId()).orElseThrow().getRequestToken();
+      try (var requests = Executors.newFixedThreadPool(4)) {
+        var repeated = new java.util.ArrayList<java.util.concurrent.Future<Response>>();
+        for (int index = 0; index < 4; index++) {
+          var client = client(member);
+          repeated.add(requests.submit(() -> client.post(API + "/tasks")));
+        }
+        for (var response : repeated) {
+          response.get(5, TimeUnit.SECONDS).then().statusCode(202);
+        }
+      }
+      client(member).get(API).then().statusCode(200).body("status", equalTo("PROCESSING"));
+      client(member).post(API + "/tasks/refresh").then().statusCode(202);
+      assertThat(checks.findById(portfolio.getId()).orElseThrow().getRequestToken())
+          .isEqualTo(token);
+      // 다른 회원의 조회에 진행 상태나 분석이 노출되지 않는다.
+      client(member()).get(API).then().statusCode(200).body("status", equalTo("EMPTY"));
+      verify(ai).analyze(anyList());
+    } finally {
+      release.countDown();
+    }
+    awaitTask(member, "READY");
+    long id = client(member).get(API).jsonPath().getLong("analysisId");
+    client(member)
+        .post(API + "/tasks")
+        .then()
+        .statusCode(200)
+        .body("analysisId", equalTo((int) id));
+    verify(ai).analyze(anyList());
+  }
+
+  @Test
+  void failedBackgroundRefreshPreservesStoredResultAndCanBeRetried() {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    long id = client(member).post(API).jsonPath().getLong("analysisId");
+    when(ai.refresh(anyList(), anyString()))
+        .thenThrow(new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED));
+
+    client(member).post(API + "/tasks/refresh").then().statusCode(202);
+    awaitTask(member, "FAILED");
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("analysisId", equalTo((int) id))
+        .body("failureCode", equalTo("AI_PORTFOLIO_ANALYSIS_FAILED"));
+
+    doAnswer(invocation -> result(invocation.getArgument(0)))
+        .when(ai)
+        .refresh(anyList(), anyString());
+    client(member).post(API + "/tasks/refresh").then().statusCode(202);
+    awaitTask(member, "READY");
+    verify(ai, times(2)).refresh(anyList(), anyString());
+    verify(narrative).summarize(org.mockito.ArgumentMatchers.any());
+  }
+
+  private void awaitTask(Member member, String status) {
+    org.awaitility.Awaitility.await()
+        .atMost(java.time.Duration.ofSeconds(10))
+        .untilAsserted(
+            () -> client(member).get(API).then().statusCode(200).body("status", equalTo(status)));
+  }
+
   @Test
   void concurrentRequestsRunAiOnceAndDoNotHoldDatabaseTransactionDuringAiCall() throws Exception {
     Member member = member();
@@ -760,6 +1124,250 @@ class SavedPortfolioAnalysisAcceptanceTest {
     assertThat(check.getLastFailedAt()).isNull();
     assertThat(analyses.findFirstByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(member.getId()))
         .isEmpty();
+  }
+
+  @Test
+  void guestStartRequiresBootstrapAndInvalidOrEmptyInputDoesNotConsumeTrial() {
+    var body = Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 100)));
+    given()
+        .port(port)
+        .contentType("application/json")
+        .body(body)
+        .post(GUEST)
+        .then()
+        .statusCode(409)
+        .body("code", equalTo("PORTFOLIO_ANALYSIS_SESSION_REQUIRED"));
+    given()
+        .port(port)
+        .contentType("application/json")
+        .body(Map.of("assets", List.of()))
+        .post(GUEST)
+        .then()
+        .statusCode(200)
+        .body("taskId", nullValue());
+    var bootstrap = given().port(port).get(GUEST);
+    bootstrap.then().statusCode(200).body("status", equalTo("EMPTY"));
+    assertThat(bootstrap.cookie("JSESSIONID")).isNotBlank();
+    given()
+        .port(port)
+        .cookies(bootstrap.cookies())
+        .contentType("application/json")
+        .body(Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 90))))
+        .post(GUEST)
+        .then()
+        .statusCode(400)
+        .body("code", equalTo("INVALID_PORTFOLIO_WEIGHT_TOTAL"));
+    given()
+        .port(port)
+        .cookies(bootstrap.cookies())
+        .get(GUEST)
+        .then()
+        .body("status", equalTo("EMPTY"));
+    verifyNoInteractions(ai, narrative);
+  }
+
+  @Test
+  void guestBackgroundTaskIsRecoveredBySessionAndConcurrentResubmissionDoesNotRepeatAi()
+      throws Exception {
+    var cookies = given().port(port).get(GUEST).cookies();
+    var body = Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 100)));
+    var aiStarted = new CountDownLatch(1);
+    var releaseAi = new CountDownLatch(1);
+    var summaryStarted = new CountDownLatch(1);
+    var releaseSummary = new CountDownLatch(1);
+    when(ai.analyze(anyList()))
+        .thenAnswer(
+            invocation -> {
+              aiStarted.countDown();
+              assertThat(releaseAi.await(20, TimeUnit.SECONDS)).isTrue();
+              return result(invocation.getArgument(0));
+            });
+    doAnswer(
+            invocation -> {
+              summaryStarted.countDown();
+              assertThat(releaseSummary.await(20, TimeUnit.SECONDS)).isTrue();
+              return "현재 보유한 종목의 비중을 확인했어요.\n\n실적 감소가 부담이 될 수 있어요.\n\n다음 발표를 확인해 보세요.";
+            })
+        .when(narrative)
+        .summarize(org.mockito.ArgumentMatchers.any());
+    String id;
+    try {
+      var accepted =
+          given()
+              .port(port)
+              .cookies(cookies)
+              .contentType("application/json")
+              .body(body)
+              .post(GUEST);
+      accepted.then().statusCode(202);
+      id = accepted.jsonPath().getString("taskId");
+      assertThat(aiStarted.await(5, TimeUnit.SECONDS)).isTrue();
+      given()
+          .port(port)
+          .cookies(cookies)
+          .get(GUEST)
+          .then()
+          .body("taskId", equalTo(id))
+          .body("status", equalTo("PROCESSING"));
+      try (var requests = Executors.newFixedThreadPool(4)) {
+        var repeated = new java.util.ArrayList<java.util.concurrent.Future<Response>>();
+        for (int index = 0; index < 4; index++) {
+          repeated.add(
+              requests.submit(
+                  () ->
+                      given()
+                          .port(port)
+                          .cookies(cookies)
+                          .contentType("application/json")
+                          .body(body)
+                          .post(GUEST)));
+        }
+        for (var response : repeated) {
+          response.get(5, TimeUnit.SECONDS).then().statusCode(202).body("taskId", equalTo(id));
+        }
+      }
+      given()
+          .port(port)
+          .cookies(cookies)
+          .contentType("application/json")
+          .body(body)
+          .post(LEGACY)
+          .then()
+          .statusCode(403);
+      given()
+          .port(port)
+          .cookies(cookies)
+          .contentType("application/json")
+          .body(Map.of("assets", List.of(Map.of("assetName", "다른 종목", "weight", 100))))
+          .post(GUEST)
+          .then()
+          .statusCode(403);
+      var otherCookies = given().port(port).get(GUEST).cookies();
+      given()
+          .port(port)
+          .cookies(otherCookies)
+          .get(GUEST + "/" + id)
+          .then()
+          .statusCode(404)
+          .body("code", equalTo("PORTFOLIO_ANALYSIS_TASK_NOT_FOUND"));
+      releaseAi.countDown();
+      assertThat(summaryStarted.await(5, TimeUnit.SECONDS)).isTrue();
+      given()
+          .port(port)
+          .cookies(cookies)
+          .get(GUEST + "/" + id)
+          .then()
+          .body("status", equalTo("PROCESSING"))
+          .body("summaryStatus", equalTo("PENDING"))
+          .body("analysis.analyzedAssetCount", equalTo(1));
+    } finally {
+      releaseAi.countDown();
+      releaseSummary.countDown();
+    }
+    awaitGuest(cookies, "READY");
+    given()
+        .port(port)
+        .cookies(cookies)
+        .contentType("application/json")
+        .body(body)
+        .post(GUEST)
+        .then()
+        .statusCode(200)
+        .body("taskId", equalTo(id))
+        .body("summaryStatus", equalTo("READY"));
+    given().port(port).cookies(cookies).post(GUEST + "/" + id + "/retry").then().statusCode(403);
+    verify(ai).analyze(anyList());
+    verify(narrative).summarize(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void guestFailureDoesNotAutomaticallyRetryButExplicitRetryUsesTheOriginalInput() {
+    var cookies = given().port(port).get(GUEST).cookies();
+    var body = Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 100)));
+    when(ai.analyze(anyList()))
+        .thenThrow(new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED))
+        .thenAnswer(invocation -> result(invocation.getArgument(0)));
+    var accepted =
+        given().port(port).cookies(cookies).contentType("application/json").body(body).post(GUEST);
+    accepted.then().statusCode(202);
+    String id = accepted.jsonPath().getString("taskId");
+    awaitGuest(cookies, "FAILED");
+    given()
+        .port(port)
+        .cookies(cookies)
+        .contentType("application/json")
+        .body(body)
+        .post(GUEST)
+        .then()
+        .statusCode(200)
+        .body("status", equalTo("FAILED"))
+        .body("retryAllowed", equalTo(true));
+    verify(ai).analyze(anyList());
+
+    given().port(port).cookies(cookies).post(GUEST + "/" + id + "/retry").then().statusCode(202);
+    awaitGuest(cookies, "READY");
+    given()
+        .port(port)
+        .cookies(cookies)
+        .get(GUEST + "/" + id)
+        .then()
+        .body("analysis.impacts[0].assetName", equalTo("삼성전자"));
+    verify(ai, times(2)).analyze(anyList());
+    verify(narrative).summarize(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void authenticatedMembersCannotUseGuestStartOrRetryEvenWithValidCsrfAndSession() {
+    var cookies = given().port(port).get(GUEST).cookies();
+    Member member = member();
+    client(member)
+        .cookies(cookies)
+        .body(Map.of("assets", List.of(Map.of("assetName", "삼성전자", "weight", 100))))
+        .post(GUEST)
+        .then()
+        .statusCode(403);
+    client(member)
+        .cookies(cookies)
+        .post(GUEST + "/" + UUID.randomUUID() + "/retry")
+        .then()
+        .statusCode(403);
+    verifyNoInteractions(ai, narrative);
+  }
+
+  private void awaitGuest(Map<String, String> cookies, String status) {
+    org.awaitility.Awaitility.await()
+        .atMost(java.time.Duration.ofSeconds(10))
+        .untilAsserted(
+            () ->
+                given()
+                    .port(port)
+                    .cookies(cookies)
+                    .get(GUEST)
+                    .then()
+                    .statusCode(200)
+                    .body("status", equalTo(status)));
+  }
+
+  @Test
+  void backgroundEndpointsRequireAuthenticationAndCsrf() {
+    Member member = member();
+    for (String path : List.of(API + "/tasks", API + "/tasks/refresh")) {
+      var csrf = given().port(port).get("/api/auth/csrf");
+      given()
+          .port(port)
+          .cookies(csrf.cookies())
+          .header(csrf.jsonPath().getString("headerName"), csrf.jsonPath().getString("token"))
+          .post(path)
+          .then()
+          .statusCode(401);
+      given()
+          .port(port)
+          .cookie("access_token", accessToken(member))
+          .post(path)
+          .then()
+          .statusCode(403);
+    }
+    verifyNoInteractions(ai, narrative);
   }
 
   @Test

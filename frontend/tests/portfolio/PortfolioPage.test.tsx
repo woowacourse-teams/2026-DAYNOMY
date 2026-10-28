@@ -126,6 +126,16 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
   if (url.endsWith('/api/auth/csrf')) {
     return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
   }
+  if (url.endsWith('/api/portfolio/analysis/tasks') && method === 'GET') {
+    return jsonResponse({
+      taskId: null,
+      status: 'EMPTY',
+      analysis: null,
+      summaryStatus: null,
+      failureCode: null,
+      retryAllowed: false,
+    });
+  }
   if (url.endsWith('/api/users/me/portfolio/analysis') && method === 'GET') {
     return jsonResponse({
       status: 'EMPTY',
@@ -429,7 +439,7 @@ describe('포트폴리오 화면', () => {
     expect((await view.findAllByText('750,000원')).length).toBeGreaterThan(0);
     expect(view.getByRole('button', { name: '삼성전자 보유 상세' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '자산 구성' })).toBeTruthy();
-    expect(view.getByRole('button', { name: '1회 분석 체험하기' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '1회 분석 체험하기' })).toBeTruthy();
     expect(view.getByText('비회원 자산은 이 탭에만 임시 저장돼요.')).toBeTruthy();
     const trend = view.getByRole('region', { name: '자산 추이' });
     expect(within(trend).getByText('잠금')).toBeTruthy();

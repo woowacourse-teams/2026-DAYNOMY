@@ -168,9 +168,11 @@ describe('종목 관련 자료 화면의 YouTube 임베드', () => {
     expect(date.getAttribute('datetime')).toBe('2020-04-05');
     expect(view.getByText('삼성전자 분석 영상')).toBeTruthy();
     expect(view.container.querySelectorAll('time')).toHaveLength(1);
-    expect(trackEvent).toHaveBeenCalledWith(
-      'view_content_list',
-      expect.objectContaining({ surface: 'stock_contents', source_type: 'ALL' }),
+    await waitFor(() =>
+      expect(trackEvent).toHaveBeenCalledWith(
+        'view_content_list',
+        expect.objectContaining({ surface: 'stock_contents', source_type: 'ALL' }),
+      ),
     );
   });
   it('보유 종목을 사이드바에 표시하고 다른 종목 소식으로 이동한다', async () => {

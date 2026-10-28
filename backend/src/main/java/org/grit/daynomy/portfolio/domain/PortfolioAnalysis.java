@@ -49,6 +49,19 @@ public class PortfolioAnalysis extends BaseEntity {
   @Column(nullable = false, updatable = false, columnDefinition = "jsonb")
   private PortfolioAnalysisSnapshot snapshot;
 
+  @Column(name = "overall_impact", columnDefinition = "text")
+  private String overallImpact;
+
+  @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+  @Column(name = "summary_status", nullable = false, length = 20)
+  private SummaryStatus summaryStatus = SummaryStatus.READY;
+
+  public enum SummaryStatus {
+    PENDING,
+    READY,
+    FAILED
+  }
+
   @Column(name = "analyzed_at", nullable = false, updatable = false)
   private Instant analyzedAt;
 
@@ -93,5 +106,36 @@ public class PortfolioAnalysis extends BaseEntity {
       String changeReason) {
     return new PortfolioAnalysis(
         portfolio, previous, analysisVersion, model, snapshot, analyzedAt, changeReason);
+  }
+
+  public String getOverallImpact() {
+    return overallImpact == null ? snapshot.overallImpact() : overallImpact;
+  }
+
+  public void awaitSummary() {
+    if (summaryStatus != SummaryStatus.READY || overallImpact != null) {
+      throw new IllegalStateException("종합 설명을 다시 시작할 수 없습니다.");
+    }
+    summaryStatus = SummaryStatus.PENDING;
+  }
+
+  public void completeSummary(String text) {
+    requirePendingSummary();
+    if (text == null || text.isBlank()) {
+      throw new IllegalArgumentException("완성된 종합 설명이 필요합니다.");
+    }
+    overallImpact = text;
+    summaryStatus = SummaryStatus.READY;
+  }
+
+  public void failSummary() {
+    requirePendingSummary();
+    summaryStatus = SummaryStatus.FAILED;
+  }
+
+  private void requirePendingSummary() {
+    if (summaryStatus != SummaryStatus.PENDING) {
+      throw new IllegalStateException("작성 중인 종합 설명만 완료하거나 실패 처리할 수 있습니다.");
+    }
   }
 }
