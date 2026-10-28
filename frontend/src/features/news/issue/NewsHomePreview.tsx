@@ -8,15 +8,13 @@ import { useAuth } from '../../../hooks/useLoginStatus';
 import { InvestmentCalendarPage } from '../../investment-calendar/InvestmentCalendarPage';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
 import { usePortfolioHoldings } from '../../portfolio/hooks/usePortfolioHoldings';
-import { NEWS_LIST_CATEGORIES } from '../newslist/constants';
-import type { NewsCategory, NewsListItem } from '../newslist/types';
+import type { NewsListItem } from '../newslist/types';
 import { getAllContents } from './contents';
 import { createFeed, feedDate, type ExternalContent, type FeedItem } from './feed';
 import { IssueFeed } from './IssueFeed';
 import {
   feedContentReference,
   getContentPopularity,
-  popularityKey,
   sortByPopularity,
   type PopularityScores,
 } from './popularity';
@@ -48,19 +46,16 @@ const examples = [
 const exampleLatest = [
   {
     image: dollarImage,
-    category: 'FOREIGN_EXCHANGE' as const,
     source: '외화·환율',
     title: '환율 상승이 수출 기업의 실적에 미치는 영향, 비용 구조도 함께 봐야 하는 이유',
   },
   {
     image: bankImage,
-    category: 'ECONOMY' as const,
     source: '경제지표',
     title: '기준금리 전망이 바뀔 때 예금과 채권 시장에서 먼저 확인할 지표',
   },
   {
     image: cityImage,
-    category: 'STOCK' as const,
     source: '주식',
     title: '대형 기술주 강세가 이어질 때 업종별 실적 차이를 읽는 방법',
   },
@@ -156,7 +151,6 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
   const [trendingPaused, setTrendingPaused] = useState(false);
   const [trendingHovered, setTrendingHovered] = useState(false);
   const [trendingFocused, setTrendingFocused] = useState(false);
-  const [category, setCategory] = useState<NewsCategory>('ALL');
   const people = useFeaturedPeople(isPreview ? 'news_home_preview' : 'news_home');
 
   useEffect(() => {
@@ -194,24 +188,20 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
   }, [attempt]);
 
   const feed = createFeed(news, people.people, contents);
-  const ranked = sortByPopularity(feed, feedContentReference, scores).filter((item) =>
-    scores.has(popularityKey(feedContentReference(item))),
-  );
-  const trendingItems = ranked.slice(0, 3);
+  const trendingItems = rankingFailed
+    ? []
+    : sortByPopularity(
+        feed.filter((item) => 'article' in item),
+        feedContentReference,
+        scores,
+      ).slice(0, 3);
   const visibleTrending = trendingItems.length
     ? Array.from(
         { length: trendingItems.length },
         (_, index) => trendingItems[(trendingIndex + index) % trendingItems.length],
       )
     : [];
-  const latest = feed
-    .filter(
-      (item) => category === 'ALL' || ('article' in item && item.article.category === category),
-    )
-    .slice(0, 5);
-  const visibleExampleLatest = exampleLatest.filter(
-    (item) => category === 'ALL' || item.category === category,
-  );
+  const latest = feed.slice(0, 5);
   const pending = loading || people.loading;
 
   useEffect(() => {
@@ -408,21 +398,9 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
               전체 보기
             </Link>
           </div>
-          <div className="briefing-category-tabs" role="group" aria-label="소식 카테고리">
-            {NEWS_LIST_CATEGORIES.map((item) => (
-              <button
-                type="button"
-                key={item.value}
-                aria-pressed={category === item.value}
-                onClick={() => setCategory(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
           {example ? (
             <ul className="briefing-example-latest">
-              {visibleExampleLatest.map((item) => (
+              {exampleLatest.map((item) => (
                 <li key={item.title}>
                   <img src={item.image} alt="" />
                   <div>
@@ -443,9 +421,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
             <p className="issue-state">
               {failed || people.error
                 ? '소식을 불러오지 못했어요. 상단에서 다시 시도해 주세요.'
-                : category === 'ALL'
-                  ? '아직 등록된 소식이 없어요'
-                  : '선택한 카테고리에 등록된 소식이 없어요'}
+                : '아직 등록된 소식이 없어요'}
             </p>
           )}
         </section>
