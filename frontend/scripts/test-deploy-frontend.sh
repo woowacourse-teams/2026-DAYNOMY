@@ -58,7 +58,12 @@ export FRONTEND_UPSTREAM_FILE="$test_dir/nginx/frontend.conf" FRONTEND_ASSETS_DI
 export DEPLOY_ENV=development DEPLOY_URL="http://127.0.0.1:$proxy_port"
 export DEPLOY_WAIT_TIMEOUT=10 DEPLOY_DRAIN_TIMEOUT=45 GITHUB_STEP_SUMMARY="$test_dir/summary.md"
 mkdir -p "$test_dir"/{assets,bin,nginx,dist/assets}
-cp "$frontend_dir/Dockerfile" "$test_dir/Dockerfile"
+cat > "$test_dir/Dockerfile" <<'EOF'
+FROM nginx:stable-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY dist/ /usr/share/nginx/html/
+HEALTHCHECK --interval=30s --timeout=3s CMD wget --quiet --spider http://127.0.0.1/ || exit 1
+EOF
 cp "$frontend_dir/nginx.conf" "$test_dir/nginx.conf"
 python3 - "$test_dir" <<'PY'
 from pathlib import Path

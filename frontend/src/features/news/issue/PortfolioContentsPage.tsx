@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useLoginStatus';
 import { trackEvent } from '../../../analytics';
 import { usePortfolioHoldings } from '../../portfolio/hooks/usePortfolioHoldings';
+import type { PortfolioHoldingInput } from '../../portfolio/types';
 import { getStockRelatedContents } from '../../stock-content/api';
 import {
   STOCK_CONTENT_SOURCE_LABELS,
@@ -35,6 +36,71 @@ const sources = [
   ['YOUTUBE', 'YouTube'],
   ['OTHER', '기타'],
 ] as const;
+
+function CompanySidebar({
+  holdings,
+  selectedAsset,
+  loading,
+  error,
+  onSelect,
+}: {
+  holdings: Pick<PortfolioHoldingInput, 'assetId' | 'name'>[];
+  selectedAsset: string;
+  loading: boolean;
+  error: string;
+  onSelect: (assetId: string) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const matchingHoldings = holdings.filter((holding) =>
+    holding.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+  );
+  return (
+    <aside className="portfolio-company-sidebar" aria-label="보유 회사 탐색">
+      <Link className="issue-back" to="/">
+        ← 포트폴리오
+      </Link>
+      <label className="sr-only" htmlFor="portfolio-company-search">
+        보유 종목 검색
+      </label>
+      <div className="portfolio-company-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </svg>
+        <input
+          id="portfolio-company-search"
+          type="search"
+          placeholder="종목 검색"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          disabled={loading || !!error}
+        />
+      </div>
+      <nav className="portfolio-content-companies" aria-label="보유 회사 선택">
+        <button aria-pressed={selectedAsset === 'ALL'} onClick={() => onSelect('ALL')}>
+          전체 보유 종목
+        </button>
+        {matchingHoldings.map((holding) => (
+          <button
+            key={holding.assetId}
+            aria-pressed={selectedAsset === String(holding.assetId)}
+            onClick={() => onSelect(String(holding.assetId))}
+          >
+            <span className="portfolio-company-avatar" aria-hidden="true">
+              {holding.name.slice(0, 1)}
+            </span>
+            <span>{holding.name}</span>
+          </button>
+        ))}
+        {!loading && !error && search.trim() && !matchingHoldings.length && (
+          <p className="portfolio-company-empty" role="status">
+            검색한 보유 종목이 없습니다.
+          </p>
+        )}
+      </nav>
+    </aside>
+  );
+}
 
 export function PortfolioContentsPage() {
   const { isLoggedIn, loading } = useAuth();
@@ -81,18 +147,21 @@ function PortfolioContentsView({
   const [failedIds, setFailedIds] = useState<number[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [companySearch, setCompanySearch] = useState('');
   const [popularity, setPopularity] = useState<PopularityScores>(new Map());
   const [popularityLoading, setPopularityLoading] = useState(false);
   const [popularityError, setPopularityError] = useState('');
-  const assetKey = JSON.stringify(
-    [
-      ...new Set(
-        portfolio.holdings
-          .filter((item) => selectedAsset === 'ALL' || String(item.assetId) === selectedAsset)
-          .map((item) => item.assetId),
+  const assetKey = useMemo(
+    () =>
+      JSON.stringify(
+        [
+          ...new Set(
+            portfolio.holdings
+              .filter((item) => selectedAsset === 'ALL' || String(item.assetId) === selectedAsset)
+              .map((item) => item.assetId),
+          ),
+        ].sort((a, b) => a - b),
       ),
-    ].sort((a, b) => a - b),
+    [portfolio.holdings, selectedAsset],
   );
 
   useEffect(() => {
@@ -187,36 +256,43 @@ function PortfolioContentsView({
   );
   const validSelection = selectedAsset === 'ALL' || !!selectedHolding;
   const loading = portfolio.loading || (!portfolio.error && loadedKey !== assetKey);
-  const unique = new Map<string, StockRelatedContent & { companies: string[] }>();
-  if (!loading && !portfolio.error) {
-    for (const response of responses) {
-      if (selectedAsset !== 'ALL' && String(response.assetId) !== selectedAsset) continue;
-      for (const item of response.contents) {
-        if (source !== 'ALL' && item.sourceType !== source) continue;
-        const existing = unique.get(item.url);
-        if (existing) {
-          if (
-            (Date.parse(item.publishedDate ?? '') || 0) >
-            (Date.parse(existing.publishedDate ?? '') || 0)
-          )
-            existing.publishedDate = item.publishedDate;
-          if ((Date.parse(item.createdAt ?? '') || 0) > (Date.parse(existing.createdAt ?? '') || 0))
-            existing.createdAt = item.createdAt;
-          if (!existing.companies.includes(response.assetName))
-            existing.companies.push(response.assetName);
-        } else unique.set(item.url, { ...item, companies: [response.assetName] });
+  const latestItems = useMemo(() => {
+    const unique = new Map<string, StockRelatedContent & { companies: string[] }>();
+    if (!loading && !portfolio.error) {
+      for (const response of responses) {
+        if (selectedAsset !== 'ALL' && String(response.assetId) !== selectedAsset) continue;
+        for (const item of response.contents) {
+          if (source !== 'ALL' && item.sourceType !== source) continue;
+          const existing = unique.get(item.url);
+          if (existing) {
+            if (
+              (Date.parse(item.publishedDate ?? '') || 0) >
+              (Date.parse(existing.publishedDate ?? '') || 0)
+            )
+              existing.publishedDate = item.publishedDate;
+            if (
+              (Date.parse(item.createdAt ?? '') || 0) > (Date.parse(existing.createdAt ?? '') || 0)
+            )
+              existing.createdAt = item.createdAt;
+            if (!existing.companies.includes(response.assetName))
+              existing.companies.push(response.assetName);
+          } else unique.set(item.url, { ...item, companies: [response.assetName] });
+        }
       }
     }
-  }
-  const latestItems = [...unique.values()].sort(
-    (a, b) =>
-      (Date.parse(b.publishedDate ?? b.createdAt ?? '') || 0) -
-        (Date.parse(a.publishedDate ?? a.createdAt ?? '') || 0) || b.id - a.id,
+    return [...unique.values()].sort(
+      (a, b) =>
+        (Date.parse(b.publishedDate ?? b.createdAt ?? '') || 0) -
+          (Date.parse(a.publishedDate ?? a.createdAt ?? '') || 0) || b.id - a.id,
+    );
+  }, [loading, portfolio.error, responses, selectedAsset, source]);
+  const items = useMemo(
+    () =>
+      sort === 'popular'
+        ? sortByPopularity(latestItems, stockContentReference, popularity)
+        : latestItems,
+    [latestItems, sort, popularity],
   );
-  const items =
-    sort === 'popular'
-      ? sortByPopularity(latestItems, stockContentReference, popularity)
-      : latestItems;
   const totalPages = Math.max(1, Math.ceil(items.length / 12));
   const requestedIndex = items.findIndex((item) => String(item.id) === requestedContent);
   const requestedItem = requestedIndex >= 0 ? items[requestedIndex] : undefined;
@@ -271,10 +347,6 @@ function PortfolioContentsView({
     },
   );
 
-  const matchingHoldings = portfolio.holdings.filter((holding) =>
-    holding.name.toLocaleLowerCase().includes(companySearch.trim().toLocaleLowerCase()),
-  );
-
   return (
     <main className="issue-page portfolio-contents-page">
       {example && (
@@ -283,53 +355,13 @@ function PortfolioContentsView({
         </p>
       )}
       <div className="portfolio-contents-layout">
-        <aside className="portfolio-company-sidebar" aria-label="보유 회사 탐색">
-          <Link className="issue-back" to="/">
-            ← 포트폴리오
-          </Link>
-          <label className="sr-only" htmlFor="portfolio-company-search">
-            보유 종목 검색
-          </label>
-          <div className="portfolio-company-search">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="10.5" cy="10.5" r="6.5" />
-              <path d="m16 16 5 5" />
-            </svg>
-            <input
-              id="portfolio-company-search"
-              type="search"
-              placeholder="종목 검색"
-              value={companySearch}
-              onChange={(event) => setCompanySearch(event.target.value)}
-              disabled={portfolio.loading || !!portfolio.error}
-            />
-          </div>
-          <nav className="portfolio-content-companies" aria-label="보유 회사 선택">
-            <button aria-pressed={selectedAsset === 'ALL'} onClick={() => filter('asset', 'ALL')}>
-              전체 보유 종목
-            </button>
-            {matchingHoldings.map((holding) => (
-              <button
-                key={holding.assetId}
-                aria-pressed={selectedAsset === String(holding.assetId)}
-                onClick={() => filter('asset', String(holding.assetId))}
-              >
-                <span className="portfolio-company-avatar" aria-hidden="true">
-                  {holding.name.slice(0, 1)}
-                </span>
-                <span>{holding.name}</span>
-              </button>
-            ))}
-            {!portfolio.loading &&
-              !portfolio.error &&
-              companySearch.trim() &&
-              !matchingHoldings.length && (
-                <p className="portfolio-company-empty" role="status">
-                  검색한 보유 종목이 없습니다.
-                </p>
-              )}
-          </nav>
-        </aside>
+        <CompanySidebar
+          holdings={portfolio.holdings}
+          selectedAsset={selectedAsset}
+          loading={portfolio.loading}
+          error={portfolio.error}
+          onSelect={(assetId) => filter('asset', assetId)}
+        />
         <section className="portfolio-company-content" aria-labelledby="portfolio-content-title">
           <header className="portfolio-content-heading">
             <div>

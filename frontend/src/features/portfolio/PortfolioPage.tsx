@@ -1,5 +1,5 @@
 import { tourCalculation } from './components/portfolioTourExample';
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { PortfolioTour } from './components/PortfolioTour';
 import { PortfolioNews } from './components/PortfolioNews';
 import { calculatePortfolio } from './api';
@@ -103,7 +103,11 @@ function getCategoryWeight(calculation: PortfolioCalculation, category: AssetCat
   return (evaluationAmount / calculation.totalEvaluationAmount) * 100;
 }
 
-function CompositionChart({ calculation }: { calculation: PortfolioCalculation }) {
+const CompositionChart = memo(function CompositionChart({
+  calculation,
+}: {
+  calculation: PortfolioCalculation;
+}) {
   const stockWeight = getCategoryWeight(calculation, 'STOCK');
   const etfWeight = getCategoryWeight(calculation, 'ETF');
 
@@ -175,7 +179,7 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
       </div>
     </div>
   );
-}
+});
 
 type PortfolioAssetTrendChartProps = {
   points: PortfolioPerformancePoint[];
@@ -211,7 +215,7 @@ function formatTrendAxisDate(value: string, period: TrendPeriod) {
     : value.slice(5).replace('-', '.');
 }
 
-function PortfolioAssetTrendChart({
+const PortfolioAssetTrendChart = memo(function PortfolioAssetTrendChart({
   points,
   loading,
   error,
@@ -243,74 +247,123 @@ function PortfolioAssetTrendChart({
   }, [period]);
   const expanded = mode === 'expanded';
   const titleId = expanded ? 'expanded-asset-trend-title' : 'asset-trend-title';
+  const cutoffDate = getTrendPeriodStart(todayInSeoul(), period);
   const latestAvailablePoint = points.at(-1);
   const visiblePoints = useMemo(() => {
     if (!latestAvailablePoint) return [];
-    const cutoffDate = getTrendPeriodStart(todayInSeoul(), period);
     return fillTrendDates(points).filter((point) => point.baseDate >= cutoffDate);
-  }, [latestAvailablePoint, period, points]);
-  const cutoffDate = getTrendPeriodStart(todayInSeoul(), period);
-  const firstDate = visiblePoints.at(0)?.baseDate;
-  const lastDate = visiblePoints.at(-1)?.baseDate;
-  const dateSpan = firstDate && lastDate ? Date.parse(lastDate) - Date.parse(firstDate) : 0;
-  const dateX = (date: string) =>
-    padding.left +
-    (dateSpan && firstDate
-      ? ((Date.parse(date) - Date.parse(firstDate)) / dateSpan) *
-        (width - padding.left - padding.right)
-      : 0);
-  const pointValue = (point: PortfolioPerformancePoint) =>
-    metric === 'evaluation'
-      ? point.totalEvaluationAmount
-      : metric === 'profit'
-        ? point.totalProfitLoss
-        : point.totalReturnRate;
-  const baselineValue = (point: PortfolioPerformancePoint) =>
-    metric === 'evaluation' ? point.totalPurchaseAmount : 0;
-  const width = chartWidth;
-  const hasSinglePoint = visiblePoints.length === 1;
-  const height = expanded ? 300 : 190;
-  const padding = { top: 14, right: 12, bottom: 28, left: 58 };
-  const values = visiblePoints.flatMap((point) => [baselineValue(point), pointValue(point)]);
-  const rawMinimum = values.length ? Math.min(...values) : 0;
-  const rawMaximum = values.length ? Math.max(...values) : 0;
-  const amountPadding = Math.max(
-    (rawMaximum - rawMinimum) * 0.16,
-    Math.abs(rawMaximum) * 0.015,
-    metric === 'return' ? 0.1 : 1,
-  );
-  const minimum =
-    metric === 'evaluation' ? Math.max(0, rawMinimum - amountPadding) : rawMinimum - amountPadding;
-  const maximum = rawMaximum + amountPadding;
-  const range = maximum - minimum || 1;
-  const x = (index: number) => dateX(visiblePoints[index].baseDate);
-  const y = (value: number) =>
-    padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
-  const chartPoints = visiblePoints.map((point, index) => ({
-    x: x(index),
-    evaluationY: y(pointValue(point)),
-    purchaseY: y(baselineValue(point)),
-    difference: pointValue(point) - baselineValue(point),
-  }));
-  const purchaseLinePoints = chartPoints.map((point) => `${point.x},${point.purchaseY}`);
-  const segments = chartPoints.slice(1).flatMap((to, index) => {
-    const from = chartPoints[index];
-    if (from.difference * to.difference < 0) {
-      const ratio = from.difference / (from.difference - to.difference);
-      const crossingY = from.evaluationY + (to.evaluationY - from.evaluationY) * ratio;
-      const crossing = {
-        x: from.x + (to.x - from.x) * ratio,
-        evaluationY: crossingY,
-        purchaseY: crossingY,
-        difference: 0,
-      };
-      return [
-        { from, to: crossing, tone: trendTone(from.difference) },
-        { from: crossing, to, tone: trendTone(to.difference) },
-      ];
-    }
-    return [{ from, to, tone: trendTone(from.difference || to.difference) }];
-  });
+  }, [cutoffDate, latestAvailablePoint, points]);
+  const geometry = useMemo(() => {
+    const firstDate = visiblePoints.at(0)?.baseDate;
+    const lastDate = visiblePoints.at(-1)?.baseDate;
+    const dateSpan = firstDate && lastDate ? Date.parse(lastDate) - Date.parse(firstDate) : 0;
+    const dateX = (date: string) =>
+      padding.left +
+      (dateSpan && firstDate
+        ? ((Date.parse(date) - Date.parse(firstDate)) / dateSpan) *
+          (width - padding.left - padding.right)
+        : 0);
+    const pointValue = (point: PortfolioPerformancePoint) =>
+      metric === 'evaluation'
+        ? point.totalEvaluationAmount
+        : metric === 'profit'
+          ? point.totalProfitLoss
+          : point.totalReturnRate;
+    const baselineValue = (point: PortfolioPerformancePoint) =>
+      metric === 'evaluation' ? point.totalPurchaseAmount : 0;
+    const width = chartWidth;
+    const hasSinglePoint = visiblePoints.length === 1;
+    const height = expanded ? 300 : 190;
+    const padding = { top: 14, right: 12, bottom: 28, left: 58 };
+    const values = visiblePoints.flatMap((point) => [baselineValue(point), pointValue(point)]);
+    const rawMinimum = values.length ? Math.min(...values) : 0;
+    const rawMaximum = values.length ? Math.max(...values) : 0;
+    const amountPadding = Math.max(
+      (rawMaximum - rawMinimum) * 0.16,
+      Math.abs(rawMaximum) * 0.015,
+      metric === 'return' ? 0.1 : 1,
+    );
+    const minimum =
+      metric === 'evaluation'
+        ? Math.max(0, rawMinimum - amountPadding)
+        : rawMinimum - amountPadding;
+    const maximum = rawMaximum + amountPadding;
+    const range = maximum - minimum || 1;
+    const x = (index: number) => dateX(visiblePoints[index].baseDate);
+    const y = (value: number) =>
+      padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
+    const chartPoints = visiblePoints.map((point, index) => ({
+      x: x(index),
+      evaluationY: y(pointValue(point)),
+      purchaseY: y(baselineValue(point)),
+      difference: pointValue(point) - baselineValue(point),
+    }));
+    const purchaseLinePoints = chartPoints.map((point) => `${point.x},${point.purchaseY}`);
+    const segments = chartPoints.slice(1).flatMap((to, index) => {
+      const from = chartPoints[index];
+      if (from.difference * to.difference < 0) {
+        const ratio = from.difference / (from.difference - to.difference);
+        const crossingY = from.evaluationY + (to.evaluationY - from.evaluationY) * ratio;
+        const crossing = {
+          x: from.x + (to.x - from.x) * ratio,
+          evaluationY: crossingY,
+          purchaseY: crossingY,
+          difference: 0,
+        };
+        return [
+          { from, to: crossing, tone: trendTone(from.difference) },
+          { from: crossing, to, tone: trendTone(to.difference) },
+        ];
+      }
+      return [{ from, to, tone: trendTone(from.difference || to.difference) }];
+    });
+    const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
+    const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
+    const dateLabels = Array.from(
+      new Set(
+        [visiblePoints.at(0), middlePoint, visiblePoints.at(-1)]
+          .filter((point): point is PortfolioPerformancePoint => Boolean(point))
+          .map((point) => point.baseDate),
+      ),
+    ).filter(
+      (date, index, labels) =>
+        index === 0 ||
+        index === labels.length - 1 ||
+        (dateX(date) - dateX(labels[0]) >= 56 && dateX(labels.at(-1)!) - dateX(date) >= 56),
+    );
+
+    return {
+      dateX,
+      pointValue,
+      baselineValue,
+      width,
+      height,
+      padding,
+      hasSinglePoint,
+      x,
+      y,
+      chartPoints,
+      purchaseLinePoints,
+      segments,
+      guideValues,
+      dateLabels,
+      visiblePoints,
+      metric,
+    };
+  }, [visiblePoints, chartWidth, expanded, metric]);
+  const {
+    dateX,
+    pointValue,
+    baselineValue,
+    width,
+    height,
+    padding,
+    hasSinglePoint,
+    x,
+    y,
+    chartPoints,
+    dateLabels,
+  } = geometry;
   const latest = visiblePoints.at(-1);
   const activeIndex =
     hoveredIndex === null
@@ -324,20 +377,6 @@ function PortfolioAssetTrendChart({
   const activeX = activePoint && activeIndex !== null ? x(activeIndex) : null;
   const detailDate = selectedDate ?? activePoint?.baseDate ?? latest?.baseDate;
   const detailPoint = visiblePoints.find((point) => point.baseDate === detailDate);
-  const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
-  const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
-  const dateLabels = Array.from(
-    new Set(
-      [visiblePoints.at(0), middlePoint, visiblePoints.at(-1)]
-        .filter((point): point is PortfolioPerformancePoint => Boolean(point))
-        .map((point) => point.baseDate),
-    ),
-  ).filter(
-    (date, index, labels) =>
-      index === 0 ||
-      index === labels.length - 1 ||
-      (dateX(date) - dateX(labels[0]) >= 56 && dateX(labels.at(-1)!) - dateX(date) >= 56),
-  );
 
   function selectNearestPoint(clientX: number, chart: SVGSVGElement, clearSelection = false) {
     if (visiblePoints.length === 0) return;
@@ -359,6 +398,83 @@ function PortfolioAssetTrendChart({
     setSelectedDate(null);
     setHoveredIndex(Math.max(0, Math.min(visiblePoints.length - 1, currentIndex + direction)));
   }
+
+  const plot = useMemo(() => {
+    const {
+      guideValues,
+      y,
+      padding,
+      width,
+      segments,
+      chartPoints,
+      visiblePoints,
+      hasSinglePoint,
+      purchaseLinePoints,
+      metric,
+    } = geometry;
+    return (
+      <>
+        {guideValues.map((value) => (
+          <g key={value} className="portfolio-return-guide">
+            <line x1={padding.left} y1={y(value)} x2={width - padding.right} y2={y(value)} />
+            <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
+              {amountsHidden
+                ? '—'
+                : metric === 'return'
+                  ? formatPercent(value)
+                  : formatCompactWon(value)}
+            </text>
+          </g>
+        ))}
+        {visiblePoints.length >= 1 ? (
+          <>
+            {segments.map(({ from, to, tone }, index) => (
+              <g key={index}>
+                {tone !== 'neutral' ? (
+                  <polygon
+                    className={`portfolio-return-area is-${tone}`}
+                    points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY} ${to.x},${to.purchaseY} ${from.x},${from.purchaseY}`}
+                    fill={`var(--portfolio-trend-${tone})`}
+                    fillOpacity="0.1"
+                  />
+                ) : null}
+                <polyline
+                  className={`portfolio-return-line evaluation is-${tone}`}
+                  points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY}`}
+                  style={{ stroke: `var(--portfolio-trend-${tone})` }}
+                />
+              </g>
+            ))}
+            {visiblePoints.length > 1 &&
+              visiblePoints.length <= 62 &&
+              chartPoints.map((point, index) => (
+                <circle
+                  key={visiblePoints[index].baseDate}
+                  className="portfolio-return-daily-point"
+                  cx={point.x}
+                  cy={point.evaluationY}
+                  r="2.5"
+                  fill={`var(--portfolio-trend-${trendTone(point.difference)})`}
+                />
+              ))}
+            {hasSinglePoint ? (
+              <polyline
+                className="portfolio-return-line evaluation"
+                points={`${chartPoints[0].x},${chartPoints[0].evaluationY}`}
+                style={{
+                  stroke: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
+                }}
+              />
+            ) : null}
+            <polyline
+              className="portfolio-return-line principal"
+              points={purchaseLinePoints.join(' ')}
+            />
+          </>
+        ) : null}
+      </>
+    );
+  }, [geometry, amountsHidden]);
 
   const singlePointClass = visiblePoints.length === 1 ? ' has-single-point' : '';
 
@@ -528,87 +644,25 @@ function PortfolioAssetTrendChart({
                 onPointerMove={(event) => selectNearestPoint(event.clientX, event.currentTarget)}
                 onPointerLeave={() => setHoveredIndex(null)}
               >
-                {guideValues.map((value) => (
-                  <g key={value} className="portfolio-return-guide">
-                    <line
-                      x1={padding.left}
-                      y1={y(value)}
-                      x2={width - padding.right}
-                      y2={y(value)}
+                {plot}
+                {hasSinglePoint && !activePoint ? (
+                  <g className="portfolio-return-single-point">
+                    <circle
+                      className="portfolio-return-point principal"
+                      cx={x(0)}
+                      cy={y(baselineValue(visiblePoints[0]))}
+                      r="3.5"
                     />
-                    <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
-                      {amountsHidden
-                        ? '—'
-                        : metric === 'return'
-                          ? formatPercent(value)
-                          : formatCompactWon(value)}
-                    </text>
+                    <circle
+                      className="portfolio-return-point evaluation"
+                      style={{
+                        fill: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
+                      }}
+                      cx={x(0)}
+                      cy={y(pointValue(visiblePoints[0]))}
+                      r="4.5"
+                    />
                   </g>
-                ))}
-                {visiblePoints.length >= 1 ? (
-                  <>
-                    {segments.map(({ from, to, tone }, index) => (
-                      <g key={index}>
-                        {tone !== 'neutral' ? (
-                          <polygon
-                            className={`portfolio-return-area is-${tone}`}
-                            points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY} ${to.x},${to.purchaseY} ${from.x},${from.purchaseY}`}
-                            fill={`var(--portfolio-trend-${tone})`}
-                            fillOpacity="0.1"
-                          />
-                        ) : null}
-                        <polyline
-                          className={`portfolio-return-line evaluation is-${tone}`}
-                          points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY}`}
-                          style={{ stroke: `var(--portfolio-trend-${tone})` }}
-                        />
-                      </g>
-                    ))}
-                    {visiblePoints.length > 1 &&
-                      visiblePoints.length <= 62 &&
-                      chartPoints.map((point, index) => (
-                        <circle
-                          key={visiblePoints[index].baseDate}
-                          className="portfolio-return-daily-point"
-                          cx={point.x}
-                          cy={point.evaluationY}
-                          r="2.5"
-                          fill={`var(--portfolio-trend-${trendTone(point.difference)})`}
-                        />
-                      ))}
-                    {hasSinglePoint ? (
-                      <polyline
-                        className="portfolio-return-line evaluation"
-                        points={`${chartPoints[0].x},${chartPoints[0].evaluationY}`}
-                        style={{
-                          stroke: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
-                        }}
-                      />
-                    ) : null}
-                    <polyline
-                      className="portfolio-return-line principal"
-                      points={purchaseLinePoints.join(' ')}
-                    />
-                    {hasSinglePoint && !activePoint ? (
-                      <g className="portfolio-return-single-point">
-                        <circle
-                          className="portfolio-return-point principal"
-                          cx={x(0)}
-                          cy={y(baselineValue(visiblePoints[0]))}
-                          r="3.5"
-                        />
-                        <circle
-                          className="portfolio-return-point evaluation"
-                          style={{
-                            fill: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
-                          }}
-                          cx={x(0)}
-                          cy={y(pointValue(visiblePoints[0]))}
-                          r="4.5"
-                        />
-                      </g>
-                    ) : null}
-                  </>
                 ) : null}
                 {activePoint && activeX !== null ? (
                   <g className="portfolio-return-active-point">
@@ -771,7 +825,7 @@ function PortfolioAssetTrendChart({
       ) : null}
     </section>
   );
-}
+});
 
 type PortfolioTrendDialogProps = Omit<PortfolioAssetTrendChartProps, 'mode' | 'onExpand'> & {
   onClose: () => void;
@@ -895,6 +949,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [mobileNewsAction, setMobileNewsAction] = useState(
     () => window.matchMedia?.('(max-width: 620px)').matches ?? false,
   );
+  const { retry: retryPerformance } = performance;
   const newsButtonRef = useRef<HTMLButtonElement>(null);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -1059,21 +1114,27 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     setEditor({ holding });
   }
 
-  function openTransactionEditor(
-    next: NonNullable<typeof transactionEditor>,
-    entryPoint: 'header' | 'empty_state' | 'history' | 'holding_detail' | 'editor_switch',
-  ) {
-    trackPortfolioEvent('portfolio_editor_opened', {
-      mode: next.transaction ? 'transaction_update' : 'transaction_create',
-      entry_point: entryPoint,
-      is_logged_in: isLoggedIn,
-    });
-    setTransactionEditor(next);
-  }
+  const openTransactionEditor = useCallback(
+    (
+      next: NonNullable<typeof transactionEditor>,
+      entryPoint: 'header' | 'empty_state' | 'history' | 'holding_detail' | 'editor_switch',
+    ) => {
+      trackPortfolioEvent('portfolio_editor_opened', {
+        mode: next.transaction ? 'transaction_update' : 'transaction_create',
+        entry_point: entryPoint,
+        is_logged_in: isLoggedIn,
+      });
+      setTransactionEditor(next);
+    },
+    [isLoggedIn],
+  );
 
-  function openAdd(entryPoint: 'header' | 'empty_state') {
-    openTransactionEditor({}, entryPoint);
-  }
+  const openAdd = useCallback(
+    (entryPoint: 'header' | 'empty_state') => {
+      openTransactionEditor({}, entryPoint);
+    },
+    [openTransactionEditor],
+  );
 
   function openHoldingDetail(holding: PortfolioHoldingResult) {
     trackPortfolioEvent('portfolio_holding_detail_opened', {
@@ -1089,16 +1150,38 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     setActiveTab(tab);
   }
 
-  function changePeriod(period: TrendPeriod, view: 'inline' | 'dialog') {
-    if (period === trendPeriod) return;
-    trackPortfolioEvent('portfolio_period_changed', { period, view });
-    setTrendPeriod(period);
-  }
+  const changePeriod = useCallback(
+    (period: TrendPeriod, view: 'inline' | 'dialog') => {
+      if (period === trendPeriod) return;
+      trackPortfolioEvent('portfolio_period_changed', { period, view });
+      setTrendPeriod(period);
+    },
+    [trendPeriod],
+  );
 
-  function retryChart() {
+  const retryChart = useCallback(() => {
     trackPortfolioEvent('portfolio_retry_clicked', { target: 'chart' });
-    performance.retry();
-  }
+    retryPerformance();
+  }, [retryPerformance]);
+
+  const changeInlinePeriod = useCallback(
+    (period: TrendPeriod) => changePeriod(period, 'inline'),
+    [changePeriod],
+  );
+  const changeDialogPeriod = useCallback(
+    (period: TrendPeriod) => changePeriod(period, 'dialog'),
+    [changePeriod],
+  );
+  const expandChart = useCallback((trigger: HTMLButtonElement) => {
+    trackPortfolioEvent('portfolio_chart_expanded');
+    trendDialogTriggerRef.current = trigger;
+    setTrendDialogOpen(true);
+  }, []);
+  const closeNews = useCallback(() => {
+    setNewsOpen(false);
+    newsButtonRef.current?.focus();
+  }, []);
+  const addAnalysisAsset = useCallback(() => openAdd('empty_state'), [openAdd]);
 
   async function save(nextHolding: PortfolioHoldingInput) {
     const operation = 'holding_update';
@@ -1363,7 +1446,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   <PortfolioAnalysis
                     demoStep={tourStep ?? undefined}
                     assets={analysisAssets}
-                    onAddAsset={() => openAdd('empty_state')}
+                    onAddAsset={addAnalysisAsset}
                     isLoggedIn={isLoggedIn}
                     holdingsKey={JSON.stringify(
                       holdings
@@ -1412,12 +1495,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                           onRetry={retryChart}
                           amountsHidden={!touring && amountsHidden}
                           period={trendPeriod}
-                          onPeriodChange={(period) => changePeriod(period, 'inline')}
-                          onExpand={(trigger) => {
-                            trackPortfolioEvent('portfolio_chart_expanded');
-                            trendDialogTriggerRef.current = trigger;
-                            setTrendDialogOpen(true);
-                          }}
+                          onPeriodChange={changeInlinePeriod}
+                          onExpand={expandChart}
                         />
                       ) : (
                         <section
@@ -1697,10 +1776,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             demo={tourStep !== null && tourStep >= 8}
             holdings={holdings}
             hidden={!displayedNewsOpen}
-            onClose={() => {
-              setNewsOpen(false);
-              newsButtonRef.current?.focus();
-            }}
+            onClose={closeNews}
           />
         ) : null}
       </div>
@@ -1713,7 +1789,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           onRetry={retryChart}
           amountsHidden={amountsHidden}
           period={trendPeriod}
-          onPeriodChange={(period) => changePeriod(period, 'dialog')}
+          onPeriodChange={changeDialogPeriod}
           onClose={() => {
             setTrendDialogOpen(false);
             trendDialogTriggerRef.current?.focus();

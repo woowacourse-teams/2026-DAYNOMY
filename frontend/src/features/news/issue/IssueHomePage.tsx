@@ -3,7 +3,7 @@ import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import { trackLoadResult, useContentView } from './analytics';
 import { IssuePagination } from './IssuePagination';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PortfolioContentsPage } from './PortfolioContentsPage';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
@@ -141,24 +141,40 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   }, [attempt, sort]);
 
   // shortcut: full archive is merged client-side; use a unified paginated API when the archive grows.
-  const latestItems = createFeed(news, people.people, contents).filter(
-    (item) => source === 'ALL' || item.source === source,
+  const allItems = useMemo(
+    () => createFeed(news, people.people, contents),
+    [news, people.people, contents],
   );
-  const items =
-    sort === 'popular'
-      ? sortByPopularity(latestItems, feedContentReference, popularity)
-      : latestItems;
+  const latestItems = useMemo(
+    () => allItems.filter((item) => source === 'ALL' || item.source === source),
+    [allItems, source],
+  );
+  const items = useMemo(
+    () =>
+      sort === 'popular'
+        ? sortByPopularity(latestItems, feedContentReference, popularity)
+        : latestItems,
+    [latestItems, sort, popularity],
+  );
   const pageSize = fullFeed ? 12 : 6;
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const featured = people.people
-    .flatMap((person) => person.posts.map((post) => ({ person, post })))
-    .sort(
-      (a, b) =>
-        (Date.parse(b.post.publishedAt ?? b.post.createdAt ?? '') || 0) -
-        (Date.parse(a.post.publishedAt ?? a.post.createdAt ?? '') || 0),
-    )
-    .slice(0, 3);
+  const visibleItems = useMemo(
+    () => items.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [items, currentPage, pageSize],
+  );
+  const featured = useMemo(
+    () =>
+      people.people
+        .flatMap((person) => person.posts.map((post) => ({ person, post })))
+        .sort(
+          (a, b) =>
+            (Date.parse(b.post.publishedAt ?? b.post.createdAt ?? '') || 0) -
+            (Date.parse(a.post.publishedAt ?? a.post.createdAt ?? '') || 0),
+        )
+        .slice(0, 3),
+    [people.people],
+  );
   const settled = !loading && !contentsLoading && !people.loading && !popularityLoading;
   const failedAreas = [error, contentsError, people.error, popularityError].filter(Boolean).length;
   const contentFailedAreas = [error, contentsError, people.error].filter(Boolean).length;
@@ -334,7 +350,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                       surface,
                       previous_source: source,
                       source_type: value,
-                      result_count: createFeed(news, people.people, contents).filter(
+                      result_count: allItems.filter(
                         (item) => value === 'ALL' || item.source === value,
                       ).length,
                     });
@@ -398,7 +414,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
           surface={surface}
           offset={(currentPage - 1) * pageSize}
           key={`${source}-${currentPage}`}
-          items={items.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
+          items={visibleItems}
         />
         {!loading &&
           !contentsLoading &&

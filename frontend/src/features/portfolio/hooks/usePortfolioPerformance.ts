@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import { getPortfolioPerformance, preparePortfolioPerformance } from '../api';
 import { todayInSeoul } from '../transactionForm';
@@ -136,11 +136,13 @@ export function usePortfolioPerformance(
     };
   }, [enabled, holdingKey, holdings.length, period, retryCount, revision]);
 
+  const retry = useCallback(() => setRetryCount((count) => count + 1), []);
+
   return {
     points,
     loading,
     error,
     notice,
-    retry: () => setRetryCount((count) => count + 1),
+    retry,
   };
 }

@@ -8,6 +8,24 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisProseTest {
   @Test
+  void normalizesBenefitRiskLabelsAndFormalEndingWithoutChangingFacts() {
+    assertThat(
+            PortfolioAnalysisProse.normalize(
+                "유리한 점: 2026년 영업이익이 5,100억원으로 증가했다는 점입니다. 불리한 점·불확실성: 예비 수치이며 감사 후 변동 가능성이 있습니다."))
+        .isEqualTo(
+            "유리한 점은 2026년 영업이익이 5,100억원으로 증가했다는 점이에요. 불리한 점과 불확실성은 예비 수치이며 감사 후 변동 가능성이 있어요.");
+    String prose = "유리한 점은 수익성이 개선됐다는 점이에요. 다만 비용 부담은 남아 있어요.";
+    assertThat(PortfolioAnalysisProse.normalize(prose)).isEqualTo(prose);
+  }
+
+  @Test
+  void rejectsDegenerateRepeatedQuotationMarks() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> PortfolioAnalysisProse.normalize("PV7은 상용차 공급 범위를 넓혀요. \"\"\"2027년 출시 예정이에요."));
+  }
+
+  @Test
   void separatesMeasuredSemicolonWithoutDiscardingKoreanFacts() {
     assertThat(PortfolioAnalysisProse.normalize("HBM4 출하 확대를 확인하세요; 이는 하반기 실적에 영향을 줍니다."))
         .isEqualTo("HBM4 출하 확대를 확인하세요. 이는 하반기 실적에 영향을 줍니다.");
@@ -106,8 +124,16 @@ class PortfolioAnalysisProseTest {
   }
 
   @Test
-  void politeFormalEndingDoesNotDiscardConfirmedFacts() {
+  void pastFormalEndingKeepsConfirmedFactsInFriendlyStyle() {
     assertThat(PortfolioAnalysisProse.normalize("HBM4 생산 확대 계획을 밝혔습니다."))
-        .isEqualTo("HBM4 생산 확대 계획을 밝혔습니다.");
+        .isEqualTo("HBM4 생산 확대 계획을 밝혔어요.");
+  }
+
+  @Test
+  void repairsSourcePastTenseWithoutChangingAmountsOrUncertainty() {
+    assertThat(
+            PortfolioAnalysisProse.normalize(
+                "영업이익 5,100억원과 영업이익률 34%가 발표되었다. 수익성 개선 흐름이 뚜렷해졌다. 다음 분기 실적은 불확실해요."))
+        .isEqualTo("영업이익 5,100억원과 영업이익률 34%가 발표됐어요. 수익성 개선 흐름이 뚜렷해졌어요. 다음 분기 실적은 불확실해요.");
   }
 }

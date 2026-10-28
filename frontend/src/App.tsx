@@ -30,6 +30,10 @@ import { AdminStockContentsPage } from './features/admin/AdminStockContentsPage'
 import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminPeoplePage } from './features/admin/AdminPeoplePage';
 import { AdminFeedbackPage } from './features/admin/AdminFeedbackPage';
+import {
+  AdminContentReviewsPage,
+  AdminContentSourcesPage,
+} from './features/admin/AdminContentCollectionPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import { PeoplePage } from './features/people/PeoplePage';
 import { StockContentPage } from './features/stock-content/StockContentPage';
@@ -428,6 +432,30 @@ function AppContent() {
               element={
                 <AdminRoute>
                   <AdminStockContentsPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/content-collection"
+              element={
+                <AdminRoute>
+                  <Navigate to="/admin/content-sources" replace />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/content-sources"
+              element={
+                <AdminRoute>
+                  <AdminContentSourcesPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/content-reviews"
+              element={
+                <AdminRoute>
+                  <AdminContentReviewsPage />
                 </AdminRoute>
               }
             />

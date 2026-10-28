@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { loadGuestPortfolioHoldings } from '../portfolio/portfolioHoldingsStorage';
 import { getInvestmentCalendar } from './api';
@@ -12,6 +12,26 @@ import type {
 import './investmentCalendar.css';
 
 const SEOUL_TIME_ZONE = 'Asia/Seoul';
+const eventPartsFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: SEOUL_TIME_ZONE,
+  month: 'numeric',
+  day: 'numeric',
+  weekday: 'long',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true,
+});
+
+const eventLabelFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: SEOUL_TIME_ZONE,
+  month: 'long',
+  day: 'numeric',
+  weekday: 'long',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+});
+
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const BRIEFING_WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -38,29 +58,13 @@ function moveMonth(year: number, month: number, amount: number) {
 }
 
 function eventDateParts(announcedAt: string) {
-  const parts = new Intl.DateTimeFormat('ko-KR', {
-    timeZone: SEOUL_TIME_ZONE,
-    month: 'numeric',
-    day: 'numeric',
-    weekday: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  }).formatToParts(new Date(announcedAt));
+  const parts = eventPartsFormatter.formatToParts(new Date(announcedAt));
   const value = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? '';
   return {
     month: Number(value('month')),
     day: Number(value('day')),
-    label: new Intl.DateTimeFormat('ko-KR', {
-      timeZone: SEOUL_TIME_ZONE,
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(new Date(announcedAt)),
+    label: eventLabelFormatter.format(new Date(announcedAt)),
   };
 }
 
@@ -493,7 +497,7 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
   );
 }
 
-export function InvestmentCalendarPage({
+export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
   embedded = false,
   upcomingOnly = false,
   compact = false,
@@ -732,4 +736,4 @@ export function InvestmentCalendarPage({
       ) : null}
     </CalendarRoot>
   );
-}
+});
