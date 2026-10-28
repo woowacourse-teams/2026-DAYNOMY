@@ -44,6 +44,17 @@ afterEach(() => {
 });
 
 describe('투자 캘린더 화면', () => {
+  it('소식 홈용 캘린더는 주간 날짜와 간결한 일정 목록을 표시한다', async () => {
+    const view = renderCalendar(<InvestmentCalendarPage embedded compact />);
+
+    expect(await view.findByRole('heading', { name: '투자 캘린더', level: 2 })).toBeTruthy();
+    expect(view.getByLabelText('2026년 10월 주간')).toBeTruthy();
+    expect(view.getByText('미국 CPI')).toBeTruthy();
+    expect(view.getByText('두산 3분기 실적')).toBeTruthy();
+    expect(view.queryByText('내 자산은 물가가 오른 뒤 약세였던 경우가 많았습니다.')).toBeNull();
+    expect(view.queryByRole('link', { name: '전체 보기' })).toBeNull();
+  });
+
   it('소식 홈에서는 중첩 main 없이 섹션 제목으로 표시한다', async () => {
     const view = renderCalendar(<InvestmentCalendarPage embedded />);
 
