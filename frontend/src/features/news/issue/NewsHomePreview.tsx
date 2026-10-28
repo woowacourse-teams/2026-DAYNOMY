@@ -353,13 +353,14 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
         <div className="briefing-section-heading">
           <h2 id="briefing-portfolio-title">내 종목 소식</h2>
           <Link
+            aria-label="내 종목 소식 전체 보기"
             to={
               example
                 ? '/news/contents?scope=portfolio&data=example'
                 : '/news/contents?scope=portfolio'
             }
           >
-            내 종목 소식 바로 보기
+            전체 보기
           </Link>
         </div>
         {example ? (
@@ -403,7 +404,9 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
         >
           <div className="briefing-section-heading">
             <h2 id="briefing-latest-title">전체 소식</h2>
-            <Link to="/news/contents">소식 더 보기</Link>
+            <Link aria-label="전체 소식 전체 보기" to="/news/contents">
+              전체 보기
+            </Link>
           </div>
           <div className="briefing-category-tabs" role="group" aria-label="소식 카테고리">
             {NEWS_LIST_CATEGORIES.map((item) => (
@@ -451,7 +454,9 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
           <section className="briefing-people" aria-labelledby="briefing-people-title">
             <div className="briefing-section-heading">
               <h2 id="briefing-people-title">인물의 글</h2>
-              <Link to="/people">인물 모두 보기</Link>
+              <Link aria-label="인물의 글 전체 보기" to="/people">
+                전체 보기
+              </Link>
             </div>
             {example ? (
               <div className="briefing-people-list">
