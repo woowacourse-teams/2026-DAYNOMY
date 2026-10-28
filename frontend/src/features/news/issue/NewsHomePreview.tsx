@@ -186,12 +186,9 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
 
   return (
     <main className="issue-page briefing-preview">
-      <header className="briefing-preview-heading">
-        <h1 ref={headingRef} tabIndex={-1}>
-          소식
-        </h1>
-        <p>시장의 관심과 내 종목 소식.</p>
-      </header>
+      <h1 className="briefing-page-title" ref={headingRef} tabIndex={-1}>
+        소식
+      </h1>
 
       {isPreview ? (
         <div className="briefing-preview-notice">
@@ -301,7 +298,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
           </ul>
         ) : (
           <p className="briefing-holdings-state">
-            자산을 등록하면 관련 소식을 이곳에서 빠르게 확인할 수 있습니다.
+            자산을 등록하면 관련 소식을 이곳에서 빠르게 확인할 수 있습니다
           </p>
         )}
       </section>
