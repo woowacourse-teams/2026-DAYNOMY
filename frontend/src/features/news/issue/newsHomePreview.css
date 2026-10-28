@@ -521,41 +521,6 @@
   scroll-margin-top: 100px;
 }
 
-.briefing-category-tabs {
-  display: flex;
-  gap: 25px;
-  margin-top: 24px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--briefing-line);
-  scrollbar-width: none;
-}
-
-.briefing-category-tabs button {
-  position: relative;
-  flex-shrink: 0;
-  min-height: 42px;
-  padding: 0 2px 12px;
-  border: 0;
-  background: none;
-  color: var(--briefing-muted);
-  font-size: 13px;
-}
-
-.briefing-category-tabs button[aria-pressed='true'] {
-  color: var(--briefing-ink);
-  font-weight: 700;
-}
-
-.briefing-category-tabs button[aria-pressed='true']::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  background: var(--briefing-ink);
-}
-
 .briefing-latest .issue-feed,
 .briefing-example-latest {
   margin: 0;
