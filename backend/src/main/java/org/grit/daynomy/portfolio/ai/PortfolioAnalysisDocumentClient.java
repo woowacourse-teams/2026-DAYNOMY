@@ -170,7 +170,10 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
                 ContentType contentType = ContentType.parseLenient(entity.getContentType());
                 if (contentType == null) return new FetchResult(Optional.empty(), null);
                 boolean pdf = contentType.getMimeType().equals("application/pdf");
+                boolean structured =
+                    isKiaArticleApi(uri) && contentType.getMimeType().equals("application/json");
                 if (!pdf
+                    && !structured
                     && !(contentType.getMimeType().equals("text/html")
                         || contentType.getMimeType().equals("application/xhtml+xml")))
                   return new FetchResult(Optional.empty(), null);
@@ -181,8 +184,12 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
                 if (bytes.length > limit) return new FetchResult(Optional.empty(), null);
                 cancellation.cancel(false);
                 if (pdf) return new FetchResult(parsePdf(bytes), null);
+                if (structured) return new FetchResult(parseKiaArticle(bytes, uri), null);
                 var charset = contentType.getCharset(StandardCharsets.UTF_8);
-                return new FetchResult(Optional.of(parse(new String(bytes, charset))), null);
+                var document = parse(new String(bytes, charset));
+                if (document.body().isBlank())
+                  return new FetchResult(Optional.empty(), kiaArticleLocation(uri));
+                return new FetchResult(Optional.of(document), null);
               });
       if (fetched.location() == null || redirects >= 2) return fetched.document();
       return fetch(
@@ -197,6 +204,47 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
     } finally {
       cancellation.cancel(false);
     }
+  }
+
+  private static String kiaArticleLocation(URI uri) {
+    if (!"worldwide.kia.com".equalsIgnoreCase(uri.getHost())
+        || !uri.getPath().matches("/en/newsroom/view/?")
+        || uri.getRawQuery() == null) return null;
+    var ids =
+        java.util.Arrays.stream(uri.getRawQuery().split("&"))
+            .filter(value -> value.matches("id=[0-9]{1,12}"))
+            .toList();
+    return ids.size() == 1 ? "/api/media-lounge/id/" + ids.getFirst().substring(3) : null;
+  }
+
+  private static boolean isKiaArticleApi(URI uri) {
+    return "worldwide.kia.com".equalsIgnoreCase(uri.getHost())
+        && uri.getPath().matches("/api/media-lounge/id/[0-9]{1,12}")
+        && uri.getRawQuery() == null;
+  }
+
+  private Optional<PortfolioAnalysisSourceDocument> parseKiaArticle(byte[] bytes, URI uri)
+      throws IOException {
+    var root = mapper.readTree(bytes);
+    var data = root.path("data");
+    if (root.path("status").asInt() != 200
+        || !uri.getPath().endsWith("/" + data.path("id").asText())) return Optional.empty();
+    var parts = new java.util.ArrayList<String>();
+    for (var part : data.path("mediaPostDataList")) {
+      parts.add(Jsoup.parse(part.path("title").asText()).text());
+      parts.add(parse(part.path("description").asText()).body());
+    }
+    String body = String.join("\n", parts).strip();
+    if (body.isBlank()) return Optional.empty();
+    var dates = new LinkedHashSet<LocalDate>();
+    String publication = data.path("publishedAt").asText();
+    if (publication.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[ T].*)?"))
+      addDate(dates, publication.substring(0, 10));
+    return Optional.of(
+        new PortfolioAnalysisSourceDocument(
+            data.path("headline").asText(),
+            body,
+            dates.size() == 1 ? dates.iterator().next() : null));
   }
 
   private record FetchResult(Optional<PortfolioAnalysisSourceDocument> document, String location) {}
