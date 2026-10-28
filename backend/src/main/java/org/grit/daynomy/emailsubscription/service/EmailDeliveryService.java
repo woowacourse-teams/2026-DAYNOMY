@@ -34,7 +34,12 @@ public class EmailDeliveryService {
   private final EmailDigestSupplementService supplements;
 
   public record Attempt(
-      UUID deliveryId, String recipient, String subject, String body, String unsubscribeUrl) {}
+      UUID deliveryId,
+      String recipient,
+      String subject,
+      String body,
+      String htmlBody,
+      String unsubscribeUrl) {}
 
   /** 호출부는 당일 SUCCEEDED 자동 분석 ID만 전달한다. 외부 메일 전송은 수행하지 않는다. */
   public Optional<UUID> prepare(Long memberId, Instant asOf, List<Long> analysisIds, Instant now) {
@@ -111,6 +116,7 @@ public class EmailDeliveryService {
                 + (delivery.getBody().contains(delivery.getUnsubscribeUrl())
                     ? ""
                     : "\n\n수신 해지: " + delivery.getUnsubscribeUrl()),
+            delivery.getHtmlBody(),
             delivery.getUnsubscribeUrl()));
   }
 

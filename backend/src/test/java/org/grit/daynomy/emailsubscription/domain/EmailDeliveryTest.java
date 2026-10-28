@@ -122,11 +122,16 @@ class EmailDeliveryTest {
             "수신 해지:")
         .doesNotContain("포트폴리오 분석이 달라졌어요", "보유 종목에 이런 소식이 있어요", "내 자산의 변화예요", "09:00");
     var savedBody = mail.getBody();
+    var savedHtml = mail.getHtmlBody();
+    assertThat(savedHtml)
+        .contains("DAYNOMY", "삼성전자 실적 발표", "수신 해지")
+        .doesNotContain("내 자산의 변화예요", "포트폴리오 분석이 달라졌어요");
     mail.claim(nine);
     mail.failed(true, nine.plusSeconds(1));
     assertThatThrownBy(() -> mail.completeTemplate("다른 이름", "https://other.invalid"))
         .isInstanceOf(IllegalStateException.class);
     assertThat(mail.getBody()).isEqualTo(savedBody);
+    assertThat(mail.getHtmlBody()).isEqualTo(savedHtml);
   }
 
   private EmailDelivery delivery() {

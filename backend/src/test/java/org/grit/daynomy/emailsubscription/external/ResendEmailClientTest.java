@@ -28,6 +28,7 @@ class ResendEmailClientTest {
           "member@example.invalid",
           "오늘 주목할 종목",
           "검증된 근거",
+          "<p>검증된 근거</p>",
           "https://example.invalid/unsubscribe?token=test");
 
   @BeforeEach
@@ -64,11 +65,29 @@ class ResendEmailClientTest {
     assertThat(content.path("to").get(0).asText()).isEqualTo(attempt.recipient());
     assertThat(content.path("subject").asText()).isEqualTo(attempt.subject());
     assertThat(content.path("text").asText()).isEqualTo(attempt.body());
+    assertThat(content.path("html").asText()).isEqualTo(attempt.htmlBody());
     assertThat(content.path("headers").path("List-Unsubscribe").asText())
         .isEqualTo("<" + attempt.unsubscribeUrl() + ">");
     assertThat(content.path("headers").path("List-Unsubscribe-Post").asText())
         .isEqualTo("List-Unsubscribe=One-Click");
-    assertThat(content.size()).isEqualTo(5);
+    assertThat(content.size()).isEqualTo(6);
+  }
+
+  @Test
+  void keepsLegacyPlainTextMailWithoutAddingEmptyHtml() throws Exception {
+    json(200, "{\"id\":\"legacy-message\"}");
+    var legacy =
+        new Attempt(
+            attempt.deliveryId(),
+            attempt.recipient(),
+            attempt.subject(),
+            attempt.body(),
+            null,
+            attempt.unsubscribeUrl());
+    assertThat(client.send(legacy).status()).isEqualTo(ResendEmailClient.Status.ACCEPTED);
+    var content = new ObjectMapper().readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(content.has("html")).isFalse();
+    assertThat(content.path("text").asText()).isEqualTo(attempt.body());
   }
 
   @ParameterizedTest

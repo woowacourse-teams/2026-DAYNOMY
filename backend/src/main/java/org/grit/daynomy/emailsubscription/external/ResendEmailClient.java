@@ -3,6 +3,7 @@ package org.grit.daynomy.emailsubscription.external;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -78,6 +79,20 @@ public class ResendEmailClient {
   }
 
   public Result send(Attempt attempt) {
+    var payload = new LinkedHashMap<String, Object>();
+    payload.put("from", from);
+    payload.put("to", List.of(attempt.recipient()));
+    payload.put("subject", attempt.subject());
+    payload.put("text", attempt.body());
+    if (attempt.htmlBody() != null && !attempt.htmlBody().isBlank())
+      payload.put("html", attempt.htmlBody());
+    payload.put(
+        "headers",
+        Map.of(
+            "List-Unsubscribe",
+            "<" + attempt.unsubscribeUrl() + ">",
+            "List-Unsubscribe-Post",
+            "List-Unsubscribe=One-Click"));
     try {
       return client
           .post()
@@ -85,22 +100,7 @@ public class ResendEmailClient {
           .header("Authorization", "Bearer " + apiKey)
           .header("Idempotency-Key", "daynomy/" + attempt.deliveryId())
           .contentType(MediaType.APPLICATION_JSON)
-          .body(
-              Map.of(
-                  "from",
-                  from,
-                  "to",
-                  List.of(attempt.recipient()),
-                  "subject",
-                  attempt.subject(),
-                  "text",
-                  attempt.body(),
-                  "headers",
-                  Map.of(
-                      "List-Unsubscribe",
-                      "<" + attempt.unsubscribeUrl() + ">",
-                      "List-Unsubscribe-Post",
-                      "List-Unsubscribe=One-Click")))
+          .body(payload)
           .exchange(
               (request, response) -> {
                 int status = response.getStatusCode().value();

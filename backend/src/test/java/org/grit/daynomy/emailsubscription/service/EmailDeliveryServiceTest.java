@@ -86,6 +86,7 @@ class EmailDeliveryServiceTest {
     verify(deliveries).save(saved.capture());
     assertThat(saved.getValue().getUnsubscribeUrl())
         .isEqualTo("https://example.invalid/unsubscribe?token=test");
+    assertThat(saved.getValue().getHtmlBody()).contains("DAYNOMY", "내 포트폴리오 자세히 보기", "수신 해지");
   }
 
   @Test

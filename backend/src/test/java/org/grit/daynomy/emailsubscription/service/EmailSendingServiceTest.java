@@ -26,6 +26,7 @@ class EmailSendingServiceTest {
           "google@example.invalid",
           "제목",
           "내용",
+          "<p>내용</p>",
           "https://example.invalid/unsubscribe?token=test");
 
   @Test

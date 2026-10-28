@@ -85,6 +85,9 @@ class EmailDeliveryFlowTest {
     var attempt = ArgumentCaptor.forClass(EmailDeliveryService.Attempt.class);
     verify(client, times(1)).send(attempt.capture());
     assertThat(attempt.getValue().recipient()).isEqualTo(member.getEmail());
+    assertThat(attempt.getValue().htmlBody())
+        .isEqualTo(sent.getHtmlBody())
+        .contains("DAYNOMY", "다가오는 투자 일정이에요", "수신 해지");
     assertThat(attempt.getValue().body()).contains("경제 일정", "수신 해지");
     var token = sent.getUnsubscribeUrl().split("\\?token=", 2)[1];
     unsubscribe.unsubscribe(token);

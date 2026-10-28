@@ -47,6 +47,9 @@ public class EmailDelivery {
   @Column(nullable = false)
   private String body;
 
+  @Column(name = "html_body")
+  private String htmlBody;
+
   @Column(name = "unsubscribe_url")
   private String unsubscribeUrl;
 
@@ -148,6 +151,9 @@ public class EmailDelivery {
             + "/mypage"
             + "\n수신 해지: "
             + unsubscribeUrl;
+    htmlBody =
+        EmailHtmlTemplate.render(
+            name, deliveryDate, stockDigest, supplementDigest, base, unsubscribeUrl);
   }
 
   public boolean claim(Instant now) {
