@@ -287,7 +287,7 @@ it.each(['holdings', 'empty', 'loading', 'error'] as const)(
     );
     if (state === 'holdings') {
       expect(section.getByRole('link', { name: /보유 회사/ }).getAttribute('href')).toBe(
-        '/stocks/11',
+        '/news/contents?scope=portfolio&asset=11',
       );
     } else {
       expect(section.queryByRole('list')).toBeNull();
