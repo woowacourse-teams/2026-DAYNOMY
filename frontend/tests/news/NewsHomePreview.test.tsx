@@ -91,10 +91,10 @@ it('기존 기사 API로 제목과 상세 링크를 보여주며 기존 화면�
   expect(article.getAttribute('href')).toBe('/news/7');
   expect(getNews).toHaveBeenCalledWith('ALL', 1, 100);
   expect(
-    view.getAllByRole('link', { name: '내 종목 소식 바로 보기' })[0].getAttribute('href'),
+    view.getAllByRole('link', { name: '내 종목 소식 전체 보기' })[0].getAttribute('href'),
   ).toBe('/news/contents?scope=portfolio');
   expect(view.queryByRole('link', { name: '전체 콘텐츠' })).toBeNull();
-  expect(view.getAllByRole('link', { name: '소식 더 보기' })).toHaveLength(1);
+  expect(view.getAllByRole('link', { name: '전체 소식 전체 보기' })).toHaveLength(1);
   expect(view.queryByText(/가상 기사/)).toBeNull();
 });
 it('실패 시 재시도하고 빈 결과를 가상 소식으로 대체하지 않는다', async () => {
@@ -149,9 +149,11 @@ it('전체 소식은 인기 여부와 관계없이 최신 콘텐츠를 보여준
 it('첫 화면에서 보유 종목 소식과 기존 탐색 경로를 유지한다', async () => {
   vi.mocked(getNews).mockResolvedValue(page);
   const view = show();
-  expect(view.getByRole('link', { name: '내 종목 소식 바로 보기' })).toBeTruthy();
-  expect(view.getByRole('link', { name: '인물 모두 보기' }).getAttribute('href')).toBe('/people');
-  expect(view.getByRole('link', { name: '소식 더 보기' }).getAttribute('href')).toBe(
+  expect(view.getByRole('link', { name: '내 종목 소식 전체 보기' })).toBeTruthy();
+  expect(view.getByRole('link', { name: '인물의 글 전체 보기' }).getAttribute('href')).toBe(
+    '/people',
+  );
+  expect(view.getByRole('link', { name: '전체 소식 전체 보기' }).getAttribute('href')).toBe(
     '/news/contents',
   );
   expect(view.queryByRole('link', { name: /AI 분석/ })).toBeNull();
@@ -170,7 +172,7 @@ it('예시 트렌딩을 펼치고 예시 보유 종목 소식으로 이동할 �
   expect(view.getByText(/실제 서비스에서는 등록된 기사로 이동/).closest('details')?.open).toBe(
     true,
   );
-  expect(view.getByRole('link', { name: '내 종목 소식 바로 보기' }).getAttribute('href')).toBe(
+  expect(view.getByRole('link', { name: '내 종목 소식 전체 보기' }).getAttribute('href')).toBe(
     '/news/contents?scope=portfolio&data=example',
   );
   expect(view.queryByRole('link', { name: /AI 분석/ })).toBeNull();
@@ -282,7 +284,7 @@ it.each(['holdings', 'empty', 'loading', 'error'] as const)(
     const view = show();
     const section = within(view.getByRole('region', { name: '내 종목 소식' }));
     expect(section.getAllByRole('link')).toHaveLength(state === 'holdings' ? 2 : 1);
-    expect(section.getByRole('link', { name: '내 종목 소식 바로 보기' }).getAttribute('href')).toBe(
+    expect(section.getByRole('link', { name: '내 종목 소식 전체 보기' }).getAttribute('href')).toBe(
       '/news/contents?scope=portfolio',
     );
     if (state === 'holdings') {
