@@ -14,7 +14,8 @@ function parseSubscription(value: unknown): EmailSubscriptionResponse {
     typeof value !== 'object' ||
     value === null ||
     !('status' in value) ||
-    !['UNDECIDED', 'DECLINED', 'SUBSCRIBED', 'UNSUBSCRIBED'].includes(String(value.status)) ||
+    typeof value.status !== 'string' ||
+    !['UNDECIDED', 'DECLINED', 'SUBSCRIBED', 'UNSUBSCRIBED'].includes(value.status) ||
     !('email' in value) ||
     typeof value.email !== 'string' ||
     !value.email.trim() ||
@@ -41,6 +42,10 @@ export async function getEmailSubscription(signal?: AbortSignal) {
 
 export async function subscribeToEmail(signal?: AbortSignal) {
   return parseSubscription(await requestWithCsrf<unknown>(PATH, { method: 'PUT', signal }));
+}
+
+export async function unsubscribeFromEmail(signal?: AbortSignal) {
+  return parseSubscription(await requestWithCsrf<unknown>(PATH, { method: 'DELETE', signal }));
 }
 
 export async function dismissEmailSubscription(signal?: AbortSignal) {

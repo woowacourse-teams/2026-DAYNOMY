@@ -24,7 +24,12 @@ for (const viewport of [
           expect(request.headers()['x-csrf-token']).toBe('test-csrf');
           expect(request.postData()).toBeNull();
           writes++;
-          status = request.method() === 'PUT' ? 'SUBSCRIBED' : 'DECLINED';
+          status =
+            request.method() === 'PUT'
+              ? 'SUBSCRIBED'
+              : request.method() === 'DELETE'
+                ? 'UNSUBSCRIBED'
+                : 'DECLINED';
         }
         return json({
           status,
@@ -89,5 +94,22 @@ for (const viewport of [
     await page.reload();
     await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.goto('/mypage');
+    const settings = page.getByRole('region', { name: '이메일 알림' });
+    await expect(settings).toBeVisible();
+    await expect(settings.getByText(email, { exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    if (viewport.name === 'mobile')
+      await settings.getByRole('button', { name: '구독하기' }).click();
+    await settings.getByRole('button', { name: '구독 해지', exact: true }).click();
+    await expect(settings.getByRole('heading', { name: '구독 해지', exact: true })).toBeVisible();
+    await settings.getByRole('button', { name: '재구독' }).click();
+    await expect(settings.getByRole('heading', { name: '구독 중' })).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page
+      .locator('main.mypage')
+      .screenshot({ path: testInfo.outputPath('email-subscription-settings.png') });
   });
 }

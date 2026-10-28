@@ -109,7 +109,7 @@ describe('최초 이메일 구독 안내', () => {
     expect(view.queryByRole('dialog')).toBeNull();
   });
 
-  it.each(['/admin/news', '/login', '/welcome'])(
+  it.each(['/admin/news', '/login', '/welcome', '/mypage'])(
     '%s에서는 사용자 구독 안내를 띄우지 않는다',
     async (path) => {
       const fetchMock = installApi();
@@ -277,6 +277,7 @@ describe('최초 이메일 구독 안내', () => {
 describe('이메일 구독 응답 검증', () => {
   it.each([
     { ...subscription, status: 'OTHER' },
+    { ...subscription, status: ['SUBSCRIBED'], promptRequired: false },
     { ...subscription, email: '' },
     { ...subscription, promptRequired: 'true' },
     { ...subscription, status: 'SUBSCRIBED' },

@@ -18,7 +18,7 @@ export function EmailSubscriptionPrompt() {
     loading ||
     !isLoggedIn ||
     isStaffHostname(window.location.hostname) ||
-    /^\/(?:admin|login|signup|welcome)(?:\/|$)/.test(pathname)
+    /^\/(?:admin|login|signup|welcome|mypage)(?:\/|$)/.test(pathname)
   )
     return null;
   return <EmailSubscriptionDialog key={memberId} />;
