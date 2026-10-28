@@ -393,6 +393,14 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+@media (min-width: 1101px) {
+  .briefing-feature-story > summary,
+  .briefing-feature-story.briefing-live-story {
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+}
+
 .briefing-data-warning,
 .briefing-empty {
   margin-bottom: 18px;
