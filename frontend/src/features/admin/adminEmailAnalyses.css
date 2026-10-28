@@ -1,0 +1,126 @@
+.admin-email-page > .admin-back-link + .admin-page-heading {
+  margin-top: 20px;
+}
+.admin-email-stock-code {
+  display: block;
+  margin-top: 6px;
+  color: #626e80;
+  font-size: 12px;
+}
+.admin-email-page-count {
+  min-width: 72px;
+  padding: 6px 8px;
+  text-align: center;
+  font-size: 13px;
+}
+.admin-email-detail-panel {
+  margin-top: 18px;
+  padding: 24px;
+  border: 1px solid #e4e7ef;
+  border-radius: 14px;
+  background: #fff;
+}
+.admin-email-detail-panel h2 {
+  font-size: 20px;
+  line-height: 1.5;
+}
+.admin-email-detail-panel h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.admin-email-detail-panel h4 {
+  margin: 18px 0 6px;
+  font-size: 13px;
+}
+.admin-email-detail-panel p {
+  margin-top: 12px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+.admin-email-metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 32px;
+  margin: 24px 0 0;
+}
+.admin-email-metadata dt,
+.admin-email-body dt {
+  margin-bottom: 6px;
+  color: #626e80;
+  font-size: 13px;
+}
+.admin-email-metadata dd,
+.admin-email-body dd {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.admin-email-body {
+  display: grid;
+  gap: 24px;
+  margin: 24px 0 0;
+}
+.admin-email-invalidation {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e4e7ef;
+}
+.admin-email-sources,
+.admin-email-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.admin-email-sources li,
+.admin-email-checks li {
+  padding: 24px 0;
+  border-bottom: 1px solid #e4e7ef;
+  overflow-wrap: anywhere;
+}
+.admin-email-sources li:last-child,
+.admin-email-checks li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.admin-email-detail-panel a {
+  color: var(--button-primary-hover);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  text-underline-offset: 3px;
+}
+.admin-email-detail-panel a:focus-visible {
+  outline: 2px solid var(--button-primary);
+  outline-offset: 4px;
+}
+.admin-email-source-dates {
+  color: #626e80;
+  font-size: 13px;
+}
+.admin-email-sources blockquote {
+  margin: 0;
+  padding: 12px 16px;
+  background: #f5f7fb;
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+@media (max-width: 720px) {
+  .admin-email-metadata {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .admin-email-page .admin-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+  .admin-email-page .admin-toolbar select {
+    min-width: 0;
+  }
+  .admin-email-page .admin-total-count {
+    grid-column: 1 / -1;
+    text-align: right;
+  }
+}

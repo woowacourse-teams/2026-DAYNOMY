@@ -29,6 +29,7 @@ const sections = [
     label: '피드백',
     icon: 'M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z M7 8h10 M7 12h6',
   },
+  { path: '/admin/email-analyses', label: '이메일 알림 관리', icon: 'M4 4h16v16H4z M4 6l8 7 8-7' },
   { path: '/admin/stocks', label: '자산 데이터', icon: 'M4 20V10 M10 20V4 M16 20v-7 M22 20H2' },
 ];
 
