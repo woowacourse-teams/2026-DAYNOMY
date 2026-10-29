@@ -18,6 +18,8 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "email_deliveries")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EmailDelivery {
+  public static final java.time.ZoneId ZONE = java.time.ZoneId.of("Asia/Seoul");
+
   public enum Status {
     READY,
     SENDING,
@@ -96,31 +98,24 @@ public class EmailDelivery {
       LocalDate date) {
     this.member = Objects.requireNonNull(member);
     this.asOf = Objects.requireNonNull(asOf);
-    if (!asOf.atZone(EmailAnalysisPolicy.ZONE).toLocalDate().equals(date)
-        || (digest == null && !supplement.shouldSend())
-        || (digest != null && (digest.stocks().isEmpty() || digest.stocks().size() > 3)))
+    if (!asOf.atZone(ZONE).toLocalDate().equals(date)
+        || digest == null
+        || !digest.currentNotification()
+        || (!digest.hasNewInformation() && !supplement.shouldSend()))
       throw new IllegalArgumentException("당일의 유효한 종목 메일만 준비할 수 있습니다.");
     this.id = UUID.randomUUID();
     this.deliveryDate = date;
-    this.subject =
-        digest == null || !supplement.events().isEmpty() || supplement.assets() != null
-            ? "[DAYNOMY] 내 투자 주요 변화와 일정"
-            : digest.subject();
-    this.body = (digest == null ? "내 투자 주요 변화와 일정\n" : digest.body()) + supplement.body();
+    this.subject = "[DAYNOMY] 내 자산 변화와 새 소식";
+    this.body = supplement.body() + digest.emailSections("");
     this.stockDigest = digest;
     this.supplementDigest = supplement;
-    this.analysisIds =
-        digest == null
-            ? List.of()
-            : digest.stocks().stream().map(EmailStockDigest.Stock::analysisId).distinct().toList();
-    if (analysisIds.stream().anyMatch(value -> value == null || value <= 0))
-      throw new IllegalArgumentException("메일에 포함한 분석 ID가 필요합니다.");
+    this.analysisIds = List.of();
     this.status = Status.READY;
     this.nextAttemptAt = at(9, 0);
   }
 
   public void completeTemplate(String nickname, String frontendBaseUrl) {
-    if (status != Status.READY || attempts != 0 || unsubscribeUrl == null)
+    if (status != Status.READY || attempts != 0 || unsubscribeUrl == null || !currentNotification())
       throw new IllegalStateException("해지 링크가 준비된 미발송 메일만 구성할 수 있습니다.");
     var uri = java.net.URI.create(frontendBaseUrl);
     boolean local =
@@ -141,10 +136,11 @@ public class EmailDelivery {
     body =
         "안녕하세요, "
             + name
-            + "님.\n\n내 포트폴리오의 주요 변화와 확인할 일정을 모아 전해드려요.\n\n"
-            + (stockDigest == null ? "" : stockDigest.body())
-            + supplementDigest.body(deliveryDate)
-            + "\n내 포트폴리오 자세히 보기: "
+            + "님.\n\n내 자산의 주요 변화와 새 관련 자료를 모아 전해드려요.\n\n"
+            + supplementDigest.body()
+            + stockDigest.emailSections(base)
+            + "필요하면 포트폴리오에서 분석을 새로 실행해보세요.\n"
+            + "\n내 포트폴리오 확인하기: "
             + base
             + "/\n\nDAYNOMY\n알림 설정: "
             + base
@@ -154,6 +150,10 @@ public class EmailDelivery {
     htmlBody =
         EmailHtmlTemplate.render(
             name, deliveryDate, stockDigest, supplementDigest, base, unsubscribeUrl);
+  }
+
+  public boolean currentNotification() {
+    return stockDigest != null && stockDigest.currentNotification() && analysisIds.isEmpty();
   }
 
   public boolean claim(Instant now) {
@@ -220,6 +220,6 @@ public class EmailDelivery {
   }
 
   private Instant at(int hour, int minute) {
-    return deliveryDate.atTime(hour, minute).atZone(EmailAnalysisPolicy.ZONE).toInstant();
+    return deliveryDate.atTime(hour, minute).atZone(ZONE).toInstant();
   }
 }

@@ -2,15 +2,10 @@ package org.grit.daynomy.emailsubscription.service;
 
 import java.time.Instant;
 import java.time.LocalTime;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.grit.daynomy.emailsubscription.domain.EmailAnalysisPolicy;
 import org.grit.daynomy.emailsubscription.domain.EmailDelivery;
-import org.grit.daynomy.emailsubscription.domain.EmailStockDigest;
 import org.grit.daynomy.emailsubscription.domain.EmailSubscription;
 import org.grit.daynomy.emailsubscription.domain.EmailSubscriptionStatus;
 import org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository;
@@ -29,9 +24,8 @@ public class EmailDeliveryService {
   private final MemberRepository members;
   private final EmailSubscriptionRepository subscriptions;
   private final EmailDeliveryRepository deliveries;
-  private final EmailStockDigestService digests;
+  private final EmailDigestService digests;
   private final EmailUnsubscribeService unsubscribe;
-  private final EmailDigestSupplementService supplements;
 
   public record Attempt(
       UUID deliveryId,
@@ -41,11 +35,12 @@ public class EmailDeliveryService {
       String htmlBody,
       String unsubscribeUrl) {}
 
-  /** 호출부는 당일 SUCCEEDED 자동 분석 ID만 전달한다. 외부 메일 전송은 수행하지 않는다. */
-  public Optional<UUID> prepare(Long memberId, Instant asOf, List<Long> analysisIds, Instant now) {
-    var date = now.atZone(EmailAnalysisPolicy.ZONE).toLocalDate();
-    if (!asOf.atZone(EmailAnalysisPolicy.ZONE).toLocalDate().equals(date)
-        || !now.atZone(EmailAnalysisPolicy.ZONE).toLocalTime().isBefore(LocalTime.of(10, 0)))
+  /** 오전 9시 기준의 저장된 데이터로만 준비한다. 외부 검색·AI 호출은 하지 않는다. */
+  public Optional<UUID> prepare(Long memberId, Instant now) {
+    var date = now.atZone(EmailDelivery.ZONE).toLocalDate();
+    var asOf = date.atTime(9, 0).atZone(EmailDelivery.ZONE).toInstant();
+    if (now.isBefore(asOf)
+        || !now.atZone(EmailDelivery.ZONE).toLocalTime().isBefore(LocalTime.of(10, 0)))
       return Optional.empty();
     var member = members.findByIdForUpdate(memberId).orElse(null);
     if (member == null || member.isWithdrawn()) return Optional.empty();
@@ -53,21 +48,11 @@ public class EmailDeliveryService {
     if (subscription == null) return Optional.empty();
     var saved = deliveries.findByMemberIdAndDeliveryDate(memberId, date);
     if (saved.isPresent()) return Optional.of(saved.get().getId());
-    var ids = analysisIds.stream().distinct().limit(3).toList();
-    var covered =
-        ids.isEmpty() ? List.<Long>of() : deliveries.findCoveredAnalysisIds(memberId, ids);
-    var unseen = ids.stream().filter(id -> !covered.contains(id)).toList();
-    var digest =
-        unseen.isEmpty()
-            ? null
-            : digests
-                .compose(memberId, asOf, unseen)
-                .map(content -> newInformation(memberId, content))
-                .filter(content -> !content.stocks().isEmpty())
-                .orElse(null);
-    var supplement = supplements.compose(memberId, now);
-    if (digest == null && !supplement.shouldSend()) return Optional.empty();
-    var delivery = new EmailDelivery(member, asOf, digest, supplement, date);
+    var prepared = digests.compose(memberId, asOf);
+    if (prepared.isEmpty()) return Optional.empty();
+    var delivery =
+        new EmailDelivery(
+            member, asOf, prepared.get().stockDigest(), prepared.get().supplement(), date);
     delivery.attachUnsubscribeLink(unsubscribe.link(memberId, subscription.getSubscribedAt()));
     delivery.completeTemplate(member.getNickname(), frontendBaseUrl);
     return Optional.of(deliveries.save(delivery).getId());
@@ -86,23 +71,13 @@ public class EmailDeliveryService {
       delivery.cancel();
       return Optional.empty();
     }
-    // 본문 재구성으로 현재 보유·가격·분석 유효성을 확인하고 달라진 내용은 보내지 않는다.
-    boolean valid = true;
-    if (delivery.getStockDigest() != null) {
-      var current = digests.compose(member.getId(), delivery.getAsOf(), delivery.getAnalysisIds());
-      valid =
-          current.isPresent()
-              && current
-                  .get()
-                  .bodyWithoutChanges()
-                  .equals(delivery.getStockDigest().bodyWithoutChanges());
-    } else if (!delivery.getAnalysisIds().isEmpty()) valid = false;
-    if (valid
-        && delivery.getSupplementDigest() != null
-        && (delivery.getSupplementDigest().assets() != null
-            || !delivery.getSupplementDigest().events().isEmpty()))
-      valid = delivery.getSupplementDigest().stillValid(supplements.compose(member.getId(), now));
-    if (!valid) {
+    // 과거 AI 본문은 재전송하지 않는다. 현재 보유·가격·자료의 유효성을 재확인한다.
+    if (!delivery.currentNotification()
+        || !digests.stillValid(
+            member.getId(),
+            delivery.getAsOf(),
+            delivery.getStockDigest(),
+            delivery.getSupplementDigest())) {
       delivery.cancel();
       return Optional.empty();
     }
@@ -136,22 +111,6 @@ public class EmailDeliveryService {
     return deliveries
         .findByIdForUpdate(id)
         .orElseThrow(() -> new IllegalArgumentException("발송 작업이 존재하지 않습니다."));
-  }
-
-  private EmailStockDigest newInformation(Long memberId, EmailStockDigest digest) {
-    var previous = new HashMap<Long, EmailStockDigest>();
-    var blocked = new HashSet<Long>();
-    for (var stock : digest.stocks()) {
-      deliveries
-          .findLastNoticeForAsset(memberId, stock.assetId())
-          .ifPresent(
-              delivery -> {
-                if (delivery.getStatus() != EmailDelivery.Status.ACCEPTED
-                    || delivery.getStockDigest() == null) blocked.add(stock.assetId());
-                else previous.put(stock.assetId(), delivery.getStockDigest());
-              });
-    }
-    return digest.newInformation(previous, blocked);
   }
 
   private EmailSubscription subscribed(Long memberId) {

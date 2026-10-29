@@ -1,184 +1,83 @@
 package org.grit.daynomy.emailsubscription.domain;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.*;
+import static org.grit.daynomy.emailsubscription.EmailFixtures.*;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.grit.daynomy.market.domain.asset.ImpactDirection;
-import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult.Source;
+import java.util.*;
+import org.grit.daynomy.content.domain.ContentSourceType;
 import org.jsoup.Jsoup;
 import org.junit.jupiter.api.Test;
 
 class EmailHtmlTemplateTest {
-  private final LocalDate date = LocalDate.of(2026, 10, 28);
-  private final String base = "https://example.invalid";
-  private final String unsubscribe = "https://example.invalid/unsubscribe?token=a&next=b";
+  private final String base = "https://daynomy.com",
+      unsubscribe = "https://example.invalid/unsubscribe?token=a&next=b";
 
   @Test
-  void assetOnlyMailShowsFormattedFiguresAndTheActualPriceDateWithoutEmptySections() {
-    var supplement =
-        new EmailDigestSupplement(
-            new EmailDigestSupplement.Assets(
-                date.minusDays(2),
-                new BigDecimal("1000000"),
-                new BigDecimal("12345.67"),
-                new BigDecimal("1.2500")),
-            List.of());
-    var html = render(null, supplement);
+  void pricesAndRelatedMaterialsHaveLinksAndAnHonestAnalysisInvitation() {
+    var item =
+        new EmailStockDigest.Content(
+            1L,
+            "key",
+            1L,
+            "종목",
+            ContentSourceType.YOUTUBE,
+            "새 영상",
+            "https://youtube.com/watch?v=abc",
+            NOW.minusSeconds(60));
+    var content =
+        EmailStockDigest.current(
+            MAIL_DATE.minusDays(3),
+            MAIL_DATE.minusDays(4),
+            Map.of(1L, 1L),
+            digest(1L).stocks(),
+            List.of(item));
+    var html = render(content, EmailDigestSupplement.empty());
     assertThat(html)
         .contains(
-            "DAYNOMY",
-            "2026.10.28",
-            "2026-10-26 종가 기준",
-            "1,000,000",
-            "+12,345.67원 · +1.25%",
-            "#0a0a0a")
-        .doesNotContain("다가오는 투자 일정이에요", "보유 종목에 이런 소식이 있어요", "포트폴리오 분석이 달라졌어요");
-    var document = Jsoup.parse(html);
-    assertThat(document.select("a").eachAttr("href"))
-        .contains(base + "/", base + "/mypage", unsubscribe);
-    assertThat(document.select("h1").text()).isEqualTo("내 투자 주요 변화와 일정");
-    assertThat(document.select("table").eachAttr("role")).containsOnly("presentation");
+            "DAYNOMY", "새 영상", "종목 등락률 +5%", "필요하면 포트폴리오에서 분석을 새로 실행해보세요.", "데이노미 등록일 2026-10-26")
+        .doesNotContain("분석이 달라졌어요", "분석이 바뀌었을", "출처:", "trillion", "내 자산의 변화예요");
+    assertThat(Jsoup.parse(html).select("a").eachAttr("href"))
+        .contains(item.url(), base + "/", base + "/mypage", unsubscribe);
   }
 
   @Test
-  void calendarOnlyMailDistinguishesTomorrowAndUnknownAnnouncementTime() {
-    var supplement =
+  void assetsOnlyMailOmitsEmptyPricesAndMaterials() {
+    var empty = EmailStockDigest.current(null, null, Map.of(1L, 1L), List.of(), List.of());
+    var assets =
         new EmailDigestSupplement(
-            null,
-            List.of(
-                new EmailDigestSupplement.Event(
-                    "1", "주요 경제 일정", Instant.parse("2026-10-29T05:30:00Z"), base + "/economic"),
-                new EmailDigestSupplement.Event(
-                    "2",
-                    "보유 종목 실적 발표",
-                    Instant.parse("2026-10-29T00:00:00Z"),
-                    base + "/earnings",
-                    false)));
-    var html = render(null, supplement);
-    assertThat(Jsoup.parse(html).text())
-        .contains("다가오는 투자 일정이에요", "내일 · 2026-10-29 14:30 · 한국 시간", "내일 · 2026-10-29 · 발표 시각 미확정")
-        .doesNotContain("전체 평가금액", "내 자산의 변화예요", "포트폴리오 분석이 달라졌어요");
-  }
-
-  @Test
-  void firstAnalysisIncludesActualNewsAndEvidenceWithoutInventingAnAnalysisChange() {
-    var digest =
-        digest(
-                new EmailStockDigest.Stock(
-                    1L, 2L, "테스트 종목", null, null, null, content("첫 분석 근거", base + "/source")))
-            .newInformation(Map.of(), Set.of());
-    var html = render(digest, EmailDigestSupplement.empty());
+            new EmailDigestSupplement.Assets(
+                MAIL_DATE.minusDays(3),
+                new BigDecimal("1000000"),
+                new BigDecimal("20000"),
+                new BigDecimal("2")));
+    var html = render(empty, assets);
     assertThat(html)
-        .contains("보유 종목에 이런 소식이 있어요", "부분 분석", "첫 분석 근거", "확인한 원문 인용", "처음 안내하는 종목 분석입니다.")
-        .doesNotContain("포트폴리오 분석이 달라졌어요", "내 자산의 변화예요", "가격 변화를 확인하세요");
+        .contains("1,000,000", "+20,000원 · +2%", "2026-10-23 종가 기준")
+        .doesNotContain("보유 종목의 가격에 변화", "새 관련 자료가 등록");
   }
 
   @Test
-  void changedAnalysisShowsPreviousAndCurrentReasonsOnlyWhenComparisonExists() {
-    var stock =
-        new EmailStockDigest.Stock(
+  void untrustedContentIsEscapedAndUnsafeLinksAreNotClickable() {
+    var item =
+        new EmailStockDigest.Content(
             1L,
-            2L,
-            "테스트 종목",
-            null,
-            null,
-            null,
-            content("새로운 근거", base + "/new"),
-            "새 근거에 따른 분석 변화",
-            content("이전 근거", base + "/old"),
-            true);
-    var html = render(digest(stock), EmailDigestSupplement.empty());
-    assertThat(html)
-        .contains("포트폴리오 분석이 달라졌어요", "이전 분석 근거: 이전 근거", "갱신된 분석: 새로운 근거", "새 근거에 따른 분석 변화");
-  }
-
-  @Test
-  void priceOnlyInformationDoesNotRepeatNewsOrInventMissingPersonalFigures() {
-    var stock =
-        new EmailStockDigest.Stock(
+            "key",
             1L,
-            2L,
-            "테스트 종목",
-            new BigDecimal("-5.25"),
-            null,
-            null,
-            content("저장된 분석", base + "/source"),
-            "새 가격 기준일의 중요한 변동입니다.",
-            null,
-            false);
-    var html = render(digest(stock), EmailDigestSupplement.empty());
-    assertThat(html)
-        .contains("보유 종목의 가격 변화를 확인하세요", "종목 등락률 -5.25%")
-        .doesNotContain("보유 종목에 이런 소식이 있어요", "포트폴리오 분석이 달라졌어요", "종가 비중", "가격 변동 기여도", "저장된 분석");
-  }
-
-  @Test
-  void escapesUntrustedTextAndKeepsDangerousUrlsOutOfLinks() {
-    var stock =
-        new EmailStockDigest.Stock(
-            1L,
-            2L,
             "<img src=x onerror=alert(1)>",
-            null,
-            null,
-            null,
-            content("<script>alert('x')</script>\n다음 줄", "javascript:alert(1)"),
-            "첫 분석",
-            null,
-            true);
-    var html =
-        EmailHtmlTemplate.render(
-            "<svg onload=alert(1)>",
-            date,
-            digest(stock),
-            EmailDigestSupplement.empty(),
-            base,
-            "data:text/html,unsafe");
-    var document = Jsoup.parse(html);
-    assertThat(document.select("script,img,svg,[onerror],[onclick],[onload]")).isEmpty();
-    assertThat(document.select("a").eachAttr("href")).allMatch(url -> url.startsWith("https://"));
-    assertThat(html).contains("&lt;script&gt;", "&lt;img", "<br>다음 줄");
-  }
-
-  @Test
-  void escapesAmpersandsInLinkAttributesWithoutChangingTheDestination() {
-    var html =
-        render(
-            null,
-            new EmailDigestSupplement(
-                null,
-                List.of(
-                    new EmailDigestSupplement.Event(
-                        "1",
-                        "투자 일정",
-                        Instant.parse("2026-10-29T05:30:00Z"),
-                        base + "/source?a=1&b=2"))));
-    assertThat(html).contains("href=\"https://example.invalid/source?a=1&amp;b=2\"");
-    assertThat(Jsoup.parse(html).select("a").eachAttr("href")).contains(base + "/source?a=1&b=2");
+            ContentSourceType.THREADS,
+            "<script>alert('x')</script>",
+            "javascript:alert(1)",
+            NOW);
+    var content = EmailStockDigest.current(null, null, Map.of(1L, 1L), List.of(), List.of(item));
+    var html = render(content, EmailDigestSupplement.empty());
+    var doc = Jsoup.parse(html);
+    assertThat(doc.select("script,img,[onerror]")).isEmpty();
+    assertThat(doc.select("a").eachAttr("href")).allMatch(url -> url.startsWith("https://"));
+    assertThat(html).contains("&lt;script&gt;", "&amp;next=b");
   }
 
   private String render(EmailStockDigest digest, EmailDigestSupplement supplement) {
-    return EmailHtmlTemplate.render("회원", date, digest, supplement, base, unsubscribe);
-  }
-
-  private EmailStockDigest digest(EmailStockDigest.Stock stock) {
-    return new EmailStockDigest(date.minusDays(1), date.minusDays(2), List.of(stock));
-  }
-
-  private CommonStockAnalysisContent content(String reason, String url) {
-    return new CommonStockAnalysisContent(
-        ImpactDirection.NEUTRAL,
-        ImpactLevel.LOW,
-        "확인된 새 소식",
-        "예상 반응",
-        "전망",
-        reason,
-        List.of(new Source("자료", url, date.minusDays(1), date.minusDays(1), "본문", "확인한 원문 인용")));
+    return EmailHtmlTemplate.render("회원", MAIL_DATE, digest, supplement, base, unsubscribe);
   }
 }

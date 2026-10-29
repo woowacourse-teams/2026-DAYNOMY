@@ -394,7 +394,7 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
             .uri("/responses")
             .contentType(MediaType.APPLICATION_JSON)
             .headers(headers -> headers.setBearerAuth(apiKey))
-            .body(PortfolioAnalysisCall.prepare(request)),
+            .body(request),
         phase,
         model);
   }

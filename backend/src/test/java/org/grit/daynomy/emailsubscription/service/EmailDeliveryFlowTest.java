@@ -1,35 +1,35 @@
 package org.grit.daynomy.emailsubscription.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.*;
+import static org.grit.daynomy.emailsubscription.EmailFixtures.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.UUID;
-import org.grit.daynomy.emailsubscription.domain.EmailDelivery;
-import org.grit.daynomy.emailsubscription.domain.EmailSubscription;
-import org.grit.daynomy.emailsubscription.domain.EmailSubscriptionStatus;
+import java.math.BigDecimal;
+import java.time.*;
+import java.util.*;
+import java.util.concurrent.*;
+import org.grit.daynomy.asset.domain.*;
+import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.content.domain.*;
+import org.grit.daynomy.content.repository.AssetContentRepository;
+import org.grit.daynomy.emailsubscription.domain.*;
 import org.grit.daynomy.emailsubscription.external.ResendEmailClient;
-import org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository;
-import org.grit.daynomy.emailsubscription.repository.EmailSubscriptionRepository;
-import org.grit.daynomy.investmentcalendar.domain.InvestmentEvent;
-import org.grit.daynomy.investmentcalendar.domain.InvestmentEventType;
-import org.grit.daynomy.investmentcalendar.repository.InvestmentEventRepository;
+import org.grit.daynomy.emailsubscription.repository.*;
+import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
+import org.grit.daynomy.portfolio.domain.*;
+import org.grit.daynomy.portfolio.repository.*;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.*;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.junit.jupiter.*;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -42,122 +42,118 @@ class EmailDeliveryFlowTest {
       new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
 
   @DynamicPropertySource
-  static void database(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
-    registry.add("email.delivery.unsubscribe-secret", () -> "test-only-secret-at-least-32-bytes");
-    registry.add("email.delivery.public-base-url", () -> "http://localhost:8080");
+  static void db(DynamicPropertyRegistry r) {
+    r.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
+    r.add("spring.datasource.username", POSTGRESQL::getUsername);
+    r.add("spring.datasource.password", POSTGRESQL::getPassword);
+    r.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
+    r.add("email.delivery.unsubscribe-secret", () -> "test-only-secret-at-least-32-bytes");
+    r.add("email.delivery.public-base-url", () -> "http://localhost:8080");
   }
 
-  @Autowired private EmailDeliveryService service;
-  @Autowired private EmailDeliveryRepository deliveries;
-  @Autowired private EmailSubscriptionRepository subscriptions;
-  @Autowired private MemberRepository members;
-  @Autowired private InvestmentEventRepository events;
-  @Autowired private EmailUnsubscribeService unsubscribe;
+  @Autowired EmailDeliveryService service;
+  @Autowired EmailDeliveryRepository deliveries;
+  @Autowired EmailSubscriptionRepository subscriptions;
+  @Autowired MemberRepository members;
+  @Autowired AssetRepository assets;
+  @Autowired PortfolioRepository portfolios;
+  @Autowired PortfolioHoldingRepository holdings;
+  @Autowired AssetContentRepository contents;
+  @Autowired JdbcTemplate jdbc;
+  @Autowired EmailUnsubscribeService unsubscribe;
+  @MockitoBean PortfolioAnalysisAiClient ai;
+  @MockitoBean OpenAiSocialPostSearchClient socialSearch;
 
-  @Test
-  void preparationSendingAcceptanceAndUnsubscribeUseCommittedStateWithoutDuplicateSending() {
-    var now = Instant.parse("2026-10-26T00:00:00Z");
-    var member = subscriber(now.minusSeconds(7200));
-    upcomingEvent(now);
-    var id = service.prepare(member.getId(), now.minusSeconds(7200), List.of(), now).orElseThrow();
-    assertThat(service.prepare(member.getId(), now.minusSeconds(7200), List.of(), now))
-        .contains(id);
-    var client = mock(ResendEmailClient.class);
-    when(client.send(any()))
-        .thenAnswer(
-            invocation -> {
-              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
-              assertThat(deliveries.findById(id).orElseThrow().getStatus())
-                  .isEqualTo(EmailDelivery.Status.SENDING);
-              return new ResendEmailClient.Result(
-                  ResendEmailClient.Status.ACCEPTED, "accepted-message");
-            });
-    sender(client, now).send(id);
-    sender(client, now).send(id);
-    var sent = deliveries.findById(id).orElseThrow();
-    assertThat(sent.getStatus()).isEqualTo(EmailDelivery.Status.ACCEPTED);
-    assertThat(sent.getAcceptedAt()).isEqualTo(now);
-    assertThat(sent.getProviderMessageId()).isEqualTo("accepted-message");
-    var attempt = ArgumentCaptor.forClass(EmailDeliveryService.Attempt.class);
-    verify(client, times(1)).send(attempt.capture());
-    assertThat(attempt.getValue().recipient()).isEqualTo(member.getEmail());
-    assertThat(attempt.getValue().htmlBody())
-        .isEqualTo(sent.getHtmlBody())
-        .contains("DAYNOMY", "다가오는 투자 일정이에요", "수신 해지");
-    assertThat(attempt.getValue().body()).contains("경제 일정", "수신 해지");
-    var token = sent.getUnsubscribeUrl().split("\\?token=", 2)[1];
-    unsubscribe.unsubscribe(token);
-    assertThat(subscriptions.findById(member.getId()).orElseThrow().getStatus())
-        .isEqualTo(EmailSubscriptionStatus.UNSUBSCRIBED);
-    var tomorrow = now.plusSeconds(86400);
-    assertThat(service.prepare(member.getId(), tomorrow.minusSeconds(7200), List.of(), tomorrow))
-        .isEmpty();
-  }
-
-  @Test
-  void retriesAtNineTenWithTheSamePayloadAndCancelsQueuedMailAfterUnsubscribe() {
-    var now = Instant.parse("2026-10-25T00:00:00Z");
-    var member = subscriber(now.minusSeconds(7200));
-    upcomingEvent(now);
-    var id = service.prepare(member.getId(), now.minusSeconds(7200), List.of(), now).orElseThrow();
-    var client = mock(ResendEmailClient.class);
-    when(client.send(any()))
-        .thenReturn(
-            new ResendEmailClient.Result(ResendEmailClient.Status.RETRYABLE_FAILURE, null),
-            new ResendEmailClient.Result(ResendEmailClient.Status.ACCEPTED, "retry-accepted"));
-    sender(client, now).send(id);
-    assertThat(deliveries.findById(id).orElseThrow().getStatus())
-        .isEqualTo(EmailDelivery.Status.RETRY_PENDING);
-    sender(client, now.plusSeconds(300)).send(id);
-    verify(client, times(1)).send(any());
-    sender(client, now.plusSeconds(600)).send(id);
-    var attempts = ArgumentCaptor.forClass(EmailDeliveryService.Attempt.class);
-    verify(client, times(2)).send(attempts.capture());
-    assertThat(attempts.getAllValues().getFirst()).isEqualTo(attempts.getAllValues().getLast());
-    assertThat(deliveries.findById(id).orElseThrow().getAttempts()).isEqualTo(2);
-
-    var other = subscriber(now.minusSeconds(7200));
-    var queued =
-        service.prepare(other.getId(), now.minusSeconds(7200), List.of(), now).orElseThrow();
-    var link = deliveries.findById(queued).orElseThrow().getUnsubscribeUrl();
-    unsubscribe.unsubscribe(link.split("\\?token=", 2)[1]);
-    sender(client, now).send(queued);
-    assertThat(deliveries.findById(queued).orElseThrow().getStatus())
-        .isEqualTo(EmailDelivery.Status.CANCELLED);
-    verify(client, times(2)).send(any());
+  private Member subscriber() {
+    var member = members.save(member());
+    var sub = new EmailSubscription(member);
+    sub.subscribe(NOW.minusSeconds(7200));
+    subscriptions.save(sub);
+    var asset =
+        assets.save(
+            Asset.listedStock(
+                "종목", UUID.randomUUID().toString(), StockMarket.KOSPI, null, MAIL_DATE));
+    var portfolio = portfolios.save(Portfolio.create(member));
+    holdings.save(new PortfolioHolding(portfolio, asset, 1, BigDecimal.TEN));
+    var content =
+        contents.save(
+            AssetContent.create(
+                asset,
+                ContentSourceType.THREADS,
+                "새 관련 글",
+                "https://threads.net/post/" + UUID.randomUUID(),
+                null,
+                MAIL_DATE.minusYears(1)));
+    jdbc.update(
+        "UPDATE stock_related_contents SET created_at = ? WHERE id = ?",
+        java.sql.Timestamp.from(NOW.minusSeconds(60)),
+        content.getId());
+    return member;
   }
 
   private EmailSendingService sender(ResendEmailClient client, Instant at) {
     return new EmailSendingService(service, client, Clock.fixed(at, ZoneOffset.UTC));
   }
 
-  private Member subscriber(Instant start) {
-    var key = UUID.randomUUID().toString();
-    var member =
-        members.save(
-            Member.createGoogleMember(key, key + "@example.invalid", key.substring(0, 12), null));
-    var subscription = new EmailSubscription(member);
-    subscription.subscribe(start);
-    subscriptions.save(subscription);
-    return member;
+  @Test
+  void preparesAndSendsStoredContentWithoutAiAndOnlyAcceptsOnce() {
+    var member = subscriber();
+    var id = service.prepare(member.getId(), NOW).orElseThrow();
+    assertThat(service.prepare(member.getId(), NOW)).contains(id);
+    var client = mock(ResendEmailClient.class);
+    when(client.send(any()))
+        .thenAnswer(
+            i -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              assertThat(deliveries.findById(id).orElseThrow().getStatus())
+                  .isEqualTo(EmailDelivery.Status.SENDING);
+              return new ResendEmailClient.Result(ResendEmailClient.Status.ACCEPTED, "message");
+            });
+    sender(client, NOW).send(id);
+    sender(client, NOW).send(id);
+    verify(client, times(1)).send(any());
+    verifyNoInteractions(ai, socialSearch);
+    var saved = deliveries.findById(id).orElseThrow();
+    assertThat(saved.getStatus()).isEqualTo(EmailDelivery.Status.ACCEPTED);
+    assertThat(saved.getHtmlBody())
+        .contains("새 관련 글", "필요하면 포트폴리오에서 분석을 새로 실행해보세요")
+        .doesNotContain("분석이 달라", "출처:");
+    assertThat(saved.getAnalysisIds()).isEmpty();
+    unsubscribe.unsubscribe(saved.getUnsubscribeUrl().split("\\?token=", 2)[1]);
+    assertThat(service.prepare(member.getId(), NOW.plusSeconds(86400))).isEmpty();
   }
 
-  private void upcomingEvent(Instant now) {
-    events.save(
-        new InvestmentEvent(
-            InvestmentEventType.US_CPI,
-            "경제 일정",
-            now.plusSeconds(86400 + 7200),
-            null,
-            null,
-            "%",
-            "공식 발표",
-            "https://example.invalid/releases",
-            UUID.randomUUID().toString(),
-            null));
+  @Test
+  void retryKeepsTheSamePayloadAndUnsubscribedMembersAreNeverSent() {
+    var member = subscriber();
+    var id = service.prepare(member.getId(), NOW).orElseThrow();
+    var client = mock(ResendEmailClient.class);
+    when(client.send(any()))
+        .thenReturn(
+            new ResendEmailClient.Result(ResendEmailClient.Status.RETRYABLE_FAILURE, null),
+            new ResendEmailClient.Result(ResendEmailClient.Status.ACCEPTED, "message"));
+    sender(client, NOW).send(id);
+    var before = deliveries.findById(id).orElseThrow().getHtmlBody();
+    sender(client, NOW.plusSeconds(300)).send(id);
+    sender(client, NOW.plusSeconds(600)).send(id);
+    verify(client, times(2)).send(any());
+    assertThat(deliveries.findById(id).orElseThrow().getHtmlBody()).isEqualTo(before);
+    var other = subscriber();
+    var queued = service.prepare(other.getId(), NOW).orElseThrow();
+    unsubscribe.unsubscribe(
+        deliveries.findById(queued).orElseThrow().getUnsubscribeUrl().split("\\?token=", 2)[1]);
+    sender(client, NOW).send(queued);
+    assertThat(deliveries.findById(queued).orElseThrow().getStatus())
+        .isEqualTo(EmailDelivery.Status.CANCELLED);
+  }
+
+  @Test
+  void concurrentPreparationCreatesOneDelivery() throws Exception {
+    var member = subscriber();
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var first = pool.submit(() -> service.prepare(member.getId(), NOW));
+      var second = pool.submit(() -> service.prepare(member.getId(), NOW));
+      assertThat(first.get(20, TimeUnit.SECONDS)).isEqualTo(second.get(20, TimeUnit.SECONDS));
+    }
   }
 }

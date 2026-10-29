@@ -116,7 +116,7 @@ class ImportantStockSelectionServiceTest {
     savedHolding();
     when(tradingDays
             .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
-                runDate))
+                runDate.minusDays(1)))
         .thenReturn(Optional.empty());
 
     assertThat(service.select(1L, runDate)).isEmpty();
@@ -129,7 +129,7 @@ class ImportantStockSelectionServiceTest {
     LocalDate current = LocalDate.of(2026, 10, 16);
     when(tradingDays
             .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
-                runDate))
+                runDate.minusDays(1)))
         .thenReturn(Optional.of(new MarketTradingDay(current, true)));
     when(tradingDays.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(current))
         .thenReturn(Optional.empty());
@@ -172,145 +172,6 @@ class ImportantStockSelectionServiceTest {
     assertThat(selected.stocks().getFirst().contribution()).isNull();
   }
 
-  @Test
-  void selectsOfficialNextDayEarningsButRejectsUnrelatedAndUntrustedEvents() {
-    savedHolding();
-    LocalDate current = runDate.minusDays(3);
-    tradingDates(current, current.minusDays(1));
-    Asset korean =
-        Asset.listedStock(
-            "삼성전자", "005930", org.grit.daynomy.asset.domain.StockMarket.KOSPI, null, current);
-    ReflectionTestUtils.setField(korean, "id", 10L);
-    when(holdings.findAllByPortfolioIdOrderById(100L))
-        .thenReturn(
-            List.of(new PortfolioHolding(mock(Portfolio.class), korean, 1, BigDecimal.TEN)));
-    var tomorrow =
-        runDate
-            .plusDays(1)
-            .atTime(9, 0)
-            .atZone(org.grit.daynomy.emailsubscription.domain.EmailAnalysisPolicy.ZONE)
-            .toInstant();
-    var official =
-        new org.grit.daynomy.investmentcalendar.domain.InvestmentEvent(
-            org.grit.daynomy.investmentcalendar.domain.InvestmentEventType.CORPORATE_EARNINGS,
-            "실적 발표",
-            tomorrow,
-            null,
-            null,
-            "원",
-            "DART",
-            "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20261019000001",
-            "earnings",
-            "005930");
-    when(events.findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(
-            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-        .thenReturn(List.of(official));
-    assertThat(service.select(1L, runDate).orElseThrow().stocks()).hasSize(1);
-    official.synchronize(
-        "실적 발표",
-        tomorrow,
-        null,
-        null,
-        "원",
-        "DART",
-        "https://dart.fss.or.kr.evil.invalid/dsaf001/main.do?rcpNo=20261019000001",
-        "005930");
-    assertThat(service.select(1L, runDate).orElseThrow().stocks()).isEmpty();
-    official.synchronize(
-        "실적 발표",
-        tomorrow,
-        null,
-        null,
-        "원",
-        "DART",
-        "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20261019000001",
-        "005935");
-    assertThat(service.select(1L, runDate).orElseThrow().stocks()).isEmpty();
-  }
-
-  @Test
-  void includesRecentEarningsButNotAnUnpublishedResultLaterToday() {
-    savedHolding();
-    LocalDate current = runDate.minusDays(3);
-    tradingDates(current, current.minusDays(1));
-    Asset korean =
-        Asset.listedStock(
-            "삼성전자", "005930", org.grit.daynomy.asset.domain.StockMarket.KOSPI, null, current);
-    ReflectionTestUtils.setField(korean, "id", 10L);
-    when(holdings.findAllByPortfolioIdOrderById(100L))
-        .thenReturn(
-            List.of(new PortfolioHolding(mock(Portfolio.class), korean, 1, BigDecimal.TEN)));
-    var yesterday =
-        runDate
-            .minusDays(1)
-            .atTime(9, 0)
-            .atZone(org.grit.daynomy.emailsubscription.domain.EmailAnalysisPolicy.ZONE)
-            .toInstant();
-    var event =
-        new org.grit.daynomy.investmentcalendar.domain.InvestmentEvent(
-            org.grit.daynomy.investmentcalendar.domain.InvestmentEventType.CORPORATE_EARNINGS,
-            "실적 발표",
-            yesterday,
-            BigDecimal.ONE,
-            BigDecimal.TEN,
-            "원",
-            "DART",
-            "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20261018000001",
-            "earnings",
-            "005930");
-    when(events.findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(
-            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-        .thenReturn(List.of(event));
-    assertThat(service.select(1L, runDate).orElseThrow().stocks()).hasSize(1);
-    event.synchronize(
-        "실적 발표",
-        yesterday.plusSeconds(86400),
-        null,
-        null,
-        "원",
-        "DART",
-        event.getSourceUrl(),
-        "005930");
-    assertThat(service.select(1L, runDate).orElseThrow().stocks()).isEmpty();
-    event.synchronize(
-        "실적 발표",
-        yesterday,
-        BigDecimal.ONE,
-        BigDecimal.TEN,
-        "원",
-        "DART",
-        event.getSourceUrl(),
-        "005930");
-    ReflectionTestUtils.setField(
-        korean, "market", org.grit.daynomy.asset.domain.StockMarket.NASDAQ);
-    assertThat(service.select(1L, runDate).orElseThrow().stocks()).isEmpty();
-  }
-
-  @Test
-  void registeredOfficialDisclosureSelectsItsAssetWithoutPriceChanges() {
-    savedHolding();
-    tradingDates(runDate.minusDays(3), runDate.minusDays(4));
-    var korean =
-        Asset.listedStock(
-            "종목", "005930", org.grit.daynomy.asset.domain.StockMarket.KOSPI, null, runDate);
-    ReflectionTestUtils.setField(korean, "id", 10L);
-    var content =
-        org.grit.daynomy.content.domain.AssetContent.create(
-            korean,
-            org.grit.daynomy.content.domain.ContentSourceType.OTHER,
-            "유상증자결정",
-            "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20261019000001");
-    when(contents.findDisclosureCandidates(
-            org.mockito.ArgumentMatchers.anyList(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any()))
-        .thenReturn(List.of(content));
-    assertThat(service.select(1L, runDate).orElseThrow().stocks())
-        .extracting(stock -> stock.assetId())
-        .containsExactly(10L);
-  }
-
   private void savedHolding() {
     when(subscriptions.findById(1L)).thenReturn(Optional.of(subscribed(member())));
     Portfolio portfolio = mock(Portfolio.class);
@@ -323,7 +184,7 @@ class ImportantStockSelectionServiceTest {
   private void tradingDates(LocalDate current, LocalDate previous) {
     when(tradingDays
             .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
-                runDate))
+                runDate.minusDays(1)))
         .thenReturn(Optional.of(new MarketTradingDay(current, true)));
     when(tradingDays.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(current))
         .thenReturn(Optional.of(new MarketTradingDay(previous, true)));

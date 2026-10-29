@@ -1,111 +1,72 @@
 package org.grit.daynomy.emailsubscription.domain;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.grit.daynomy.emailsubscription.EmailFixtures.*;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.grit.daynomy.market.domain.asset.ImpactDirection;
-import org.grit.daynomy.market.domain.asset.ImpactLevel;
-import org.grit.daynomy.portfolio.ai.PortfolioAnalysisResult.Source;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.*;
+import org.grit.daynomy.content.domain.ContentSourceType;
 import org.junit.jupiter.api.Test;
 
 class EmailStockDigestTest {
-  private final LocalDate date = LocalDate.of(2026, 10, 23);
-
   @Test
-  void firstNoticeIsExplicitAndUncertainStocksAreBlocked() {
-    var current = digest(2L, date, "매출 증가", "매출 10% 증가", ImpactDirection.POSITIVE);
-    assertThat(current.newInformation(Map.of(), Set.of()).body()).contains("처음 안내");
-    assertThat(current.newInformation(Map.of(), Set.of(1L)).stocks()).isEmpty();
+  void showsPriceDateAndPersonalImpactWithoutAnalysisClaims() {
+    assertThat(digest(1L).emailSections("https://daynomy.com"))
+        .contains("2026-10-23", "종목 등락률: 5%", "기여도: 5%p")
+        .doesNotContain("분석이 달라", "출처:", "trillion");
   }
 
   @Test
-  void changedAnalysisIdWordingAndSourceUrlDoNotRepeatTheSameFactsAndPriceDate() {
-    var previous = digest(1L, date, "매출 증가", "매출 10% 증가", ImpactDirection.POSITIVE);
-    var current = digest(2L, date, "실적이 개선됐어요", "매출 10% 증가", ImpactDirection.POSITIVE);
-    assertThat(current.newInformation(Map.of(1L, previous), Set.of()).stocks()).isEmpty();
+  void newRelatedMaterialUsesRegistrationDateRatherThanClaimingItWasPublishedToday() {
+    var item =
+        new EmailStockDigest.Content(
+            1L,
+            "key",
+            1L,
+            "종목",
+            ContentSourceType.THREADS,
+            "등록된 글",
+            "https://threads.net/post/1",
+            NOW.minusSeconds(60));
+    var digest = EmailStockDigest.current(null, null, Map.of(1L, 1L), List.of(), List.of(item));
+    assertThat(digest.emailSections("https://daynomy.com"))
+        .contains("등록된 글", "데이노미 등록일 2026-10-26", "https://threads.net/post/1")
+        .doesNotContain("오늘 게시", "분석이 달라", "종목 등락률");
   }
 
   @Test
-  void newPriceDayIsReportedWithoutPretendingTheAnalysisChanged() {
-    var previous = digest(1L, date, "매출 증가", "매출 10% 증가", ImpactDirection.POSITIVE);
-    var current = digest(2L, date.plusDays(3), "매출 증가", "매출 10% 증가", ImpactDirection.NEGATIVE);
-    assertThat(current.newInformation(Map.of(1L, previous), Set.of()).body())
-        .contains("새 가격 기준일")
-        .doesNotContain("새 근거에 따른 분석 변화");
+  void legacyAiSnapshotsAreReadableButNeverCurrentNotifications() throws Exception {
+    var json =
+        "{\"baseDate\":\"2026-10-23\",\"previousBaseDate\":\"2026-10-22\",\"stocks\":[{\"analysisId\":3,\"assetId\":1,\"name\":\"종목\",\"content\":{\"reason\":\"old\"}}]}";
+    var old = new ObjectMapper().findAndRegisterModules().readValue(json, EmailStockDigest.class);
+    var arrayJson =
+        json.replace("\"2026-10-23\"", "[2026,10,23]").replace("\"2026-10-22\"", "[2026,10,22]");
+    assertThat(
+            new ObjectMapper()
+                .findAndRegisterModules()
+                .readValue(arrayJson, EmailStockDigest.class)
+                .currentNotification())
+        .isFalse();
+    assertThat(old.currentNotification()).isFalse();
+    assertThat(old.stocks()).hasSize(1);
+    assertThat(old.contents()).isEmpty();
   }
 
   @Test
-  void changedJudgmentRequiresNewEvidenceEvenWhenTheUrlIsUnchanged() {
-    var previous = digest(1L, date, "매출 증가", "매출 10% 증가", ImpactDirection.POSITIVE);
-    var unsupported = digest(2L, date, "전망 악화", "매출 10% 증가", ImpactDirection.NEGATIVE);
-    assertThat(unsupported.newInformation(Map.of(1L, previous), Set.of()).stocks()).isEmpty();
-    var current = digest(2L, date, "전망 악화", "매출 20% 감소", ImpactDirection.NEGATIVE);
-    assertThat(current.newInformation(Map.of(1L, previous), Set.of()).body())
-        .contains("새 근거에 따른 분석 변화");
-  }
-
-  @Test
-  void anotherMembersHistoryDoesNotBecomeMyPreviousAnalysis() {
-    var current = digest(2L, date, "매출 증가", "매출 10% 증가", ImpactDirection.POSITIVE);
-    assertThat(current.newInformation(Map.of(99L, current), Set.of()).body()).contains("처음 안내");
-  }
-
-  @Test
-  void eventAnalysisWithMissingPricesDoesNotInventReturnsOrRepeatUnchangedEvidence() {
-    var before = digest(1L, date, "실적", "매출 증가", ImpactDirection.POSITIVE);
-    var content = before.stocks().getFirst().content();
-    var current =
-        new EmailStockDigest(
-            date.plusDays(1),
-            date,
-            List.of(new EmailStockDigest.Stock(2L, 1L, "종목", null, null, null, content)));
-    assertThat(current.newInformation(Map.of(), Set.of()).body())
-        .contains("가격 정보 미확인")
-        .doesNotContain("등락률:");
-    assertThat(current.newInformation(Map.of(1L, before), Set.of()).stocks()).isEmpty();
-  }
-
-  @Test
-  void newsOnlyMessageOmitsTheAnalysisChangeSection() {
-    var previous = digest(1L, date, "매출 증가", "매출 10% 증가", ImpactDirection.POSITIVE);
-    var current = digest(2L, date, "새 계약", "계약 체결", ImpactDirection.POSITIVE);
-    var body = current.newInformation(Map.of(1L, previous), Set.of()).emailSections();
-    assertThat(body)
-        .contains("보유 종목에 이런 소식이 있어요", "새 계약", "계약 체결", "출처:")
-        .doesNotContain("포트폴리오 분석이 달라졌어요", "보유 종목 가격에 변화가 있어요");
-  }
-
-  @Test
-  void changedAnalysisIncludesThePreviousReasonAndCurrentEvidence() {
-    var previous = digest(1L, date, "매출 증가", "매출 10% 증가", ImpactDirection.POSITIVE);
-    var current = digest(2L, date, "매출 감소", "매출 20% 감소", ImpactDirection.NEGATIVE);
-    var body = current.newInformation(Map.of(1L, previous), Set.of()).emailSections();
-    assertThat(body).contains("포트폴리오 분석이 달라졌어요", "이전 분석은", "이번에 확인된 사실", "매출 20% 감소", "갱신된 분석");
-    assertThat(current.newInformation(Map.of(), Set.of()).emailSections())
-        .doesNotContain("포트폴리오 분석이 달라졌어요");
-    assertThat(previous.newInformation(Map.of(1L, previous), Set.of()).emailSections()).isEmpty();
-  }
-
-  private EmailStockDigest digest(
-      Long id, LocalDate base, String summary, String quote, ImpactDirection direction) {
-    var content =
-        new CommonStockAnalysisContent(
-            direction,
-            ImpactLevel.HIGH,
-            summary,
-            "",
-            "",
-            "근거",
-            List.of(new Source("실적", "https://example.invalid/" + id, date, date, quote, quote)));
-    return new EmailStockDigest(
-        base,
-        base.minusDays(1),
-        List.of(
-            new EmailStockDigest.Stock(
-                id, 1L, "종목", BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ONE, content)));
+  void rejectsOtherMembersAssetsAndMoreThanThreeItems() {
+    assertThatThrownBy(
+            () ->
+                EmailStockDigest.current(
+                    MAIL_DATE, MAIL_DATE, Map.of(2L, 1L), digest(1L).stocks(), List.of()))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(
+            () ->
+                EmailStockDigest.current(
+                    MAIL_DATE,
+                    MAIL_DATE,
+                    Map.of(1L, 1L),
+                    Collections.nCopies(4, digest(1L).stocks().getFirst()),
+                    List.of()))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 }

@@ -1,159 +1,99 @@
 package org.grit.daynomy.emailsubscription.service;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.grit.daynomy.emailsubscription.EmailFixtures.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import org.grit.daynomy.emailsubscription.domain.*;
 import org.grit.daynomy.emailsubscription.repository.*;
-import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class EmailDeliveryServiceTest {
-  private final MemberRepository members = mock(MemberRepository.class);
-  private final EmailSubscriptionRepository subscriptions = mock(EmailSubscriptionRepository.class);
-  private final EmailDeliveryRepository deliveries = mock(EmailDeliveryRepository.class);
-  private final EmailStockDigestService digests = mock(EmailStockDigestService.class);
-  private final EmailUnsubscribeService unsubscribe = mock(EmailUnsubscribeService.class);
-  private final EmailDigestSupplementService supplements = mock(EmailDigestSupplementService.class);
-  private final EmailDeliveryService service =
-      new EmailDeliveryService(
-          members, subscriptions, deliveries, digests, unsubscribe, supplements);
-  private final Instant now = Instant.parse("2026-10-26T00:00:00Z");
-  private final Instant asOf = now.minusSeconds(7200);
-  private final Member member = mock(Member.class);
-  private EmailSubscription subscription;
+  final MemberRepository members = mock(MemberRepository.class);
+  final EmailSubscriptionRepository subscriptions = mock(EmailSubscriptionRepository.class);
+  final EmailDeliveryRepository deliveries = mock(EmailDeliveryRepository.class);
+  final EmailDigestService digests = mock(EmailDigestService.class);
+  final EmailUnsubscribeService unsubscribe = mock(EmailUnsubscribeService.class);
+  final EmailDeliveryService service =
+      new EmailDeliveryService(members, subscriptions, deliveries, digests, unsubscribe);
+  final org.grit.daynomy.member.domain.Member member = member();
 
   @BeforeEach
-  void setUp() {
-    when(member.getId()).thenReturn(1L);
-    when(member.getEmail()).thenReturn("google@example.invalid");
+  void setup() {
+    ReflectionTestUtils.setField(member, "id", 1L);
+  }
+
+  private void subscribed() {
+    var sub = new EmailSubscription(member);
+    sub.subscribe(NOW.minusSeconds(60));
     when(members.findByIdForUpdate(1L)).thenReturn(Optional.of(member));
-    subscription = new EmailSubscription(member);
-    subscription.subscribe(asOf);
-    when(subscriptions.findById(1L)).thenReturn(Optional.of(subscription));
-    when(supplements.compose(anyLong(), any())).thenReturn(EmailDigestSupplement.empty());
-    when(unsubscribe.link(eq(1L), any()))
-        .thenReturn("https://example.invalid/unsubscribe?token=test");
-    when(unsubscribe.matches(any(), eq(1L), any())).thenReturn(true);
+    when(subscriptions.findById(1L)).thenReturn(Optional.of(sub));
   }
 
   @Test
-  void createsOnlyOneJobPerMemberDate() {
-    var delivery = delivery();
-    when(deliveries.findByMemberIdAndDeliveryDate(1L, LocalDate.of(2026, 10, 26)))
-        .thenReturn(Optional.of(delivery));
-    assertThat(service.prepare(1L, asOf, List.of(1L), now)).contains(delivery.getId());
-    verifyNoInteractions(digests);
+  void preparesOnlyNewDataAndKeepsOneJobPerMemberPerDay() {
+    subscribed();
+    when(digests.compose(1L, NOW))
+        .thenReturn(
+            Optional.of(
+                new EmailDigestService.Prepared(digest(1L), EmailDigestSupplement.empty())));
+    when(unsubscribe.link(anyLong(), any()))
+        .thenReturn("https://example.invalid/unsubscribe?token=test");
+    when(deliveries.save(any())).thenAnswer(i -> i.getArgument(0));
+    var id = service.prepare(1L, NOW).orElseThrow();
+    when(deliveries.findByMemberIdAndDeliveryDate(1L, MAIL_DATE))
+        .thenReturn(Optional.of(delivery()));
+    assertThat(service.prepare(1L, NOW)).isPresent();
+    verify(digests, times(1)).compose(1L, NOW);
+    assertThat(id).isNotNull();
+  }
+
+  @Test
+  void doesNotPrepareWithoutNewDataOrOutsideTheWindow() {
+    subscribed();
+    when(digests.compose(1L, NOW)).thenReturn(Optional.empty());
+    assertThat(service.prepare(1L, NOW)).isEmpty();
+    assertThat(service.prepare(1L, NOW.minusSeconds(1))).isEmpty();
+    assertThat(service.prepare(1L, NOW.plusSeconds(3600))).isEmpty();
     verify(deliveries, never()).save(any());
   }
 
   @Test
-  void preparesAndRechecksCalendarOnlyMailWithoutAiOrStockAnalyses() {
-    var supplement =
-        new EmailDigestSupplement(
-            null,
-            List.of(
-                new EmailDigestSupplement.Event(
-                    "1@time",
-                    "주요 경제 일정",
-                    now.plusSeconds(86400),
-                    "https://example.invalid/source")));
-    when(supplements.compose(1L, now)).thenReturn(supplement);
-    var saved = org.mockito.ArgumentCaptor.forClass(EmailDelivery.class);
-    when(deliveries.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-    var id = service.prepare(1L, asOf, List.of(), now).orElseThrow();
-    verify(deliveries).save(saved.capture());
-    when(deliveries.findByIdForUpdate(id)).thenReturn(Optional.of(saved.getValue()));
-    assertThat(service.claim(id, now).orElseThrow().body()).contains("주요 경제 일정", "수신 해지");
-    verifyNoInteractions(digests);
+  void rechecksHoldingsAndBlocksLegacyAiMessages() {
+    subscribed();
+    var d = new EmailDelivery(member, NOW, digest(1L), MAIL_DATE);
+    d.attachUnsubscribeLink("https://example.invalid/unsubscribe");
+    d.completeTemplate("회원", "https://daynomy.com");
+    when(deliveries.findByIdForUpdate(d.getId())).thenReturn(Optional.of(d));
+    when(unsubscribe.matches(anyString(), eq(1L), any())).thenReturn(true);
+    when(digests.stillValid(anyLong(), any(), any(), any())).thenReturn(false);
+    assertThat(service.claim(d.getId(), NOW)).isEmpty();
+    assertThat(d.getStatus()).isEqualTo(EmailDelivery.Status.CANCELLED);
+    var old = new EmailDelivery(member, NOW, digest(1L), MAIL_DATE);
+    old.attachUnsubscribeLink("https://example.invalid/unsubscribe");
+    ReflectionTestUtils.setField(old, "analysisIds", List.of(10L));
+    when(deliveries.findByIdForUpdate(old.getId())).thenReturn(Optional.of(old));
+    assertThat(service.claim(old.getId(), NOW)).isEmpty();
+    assertThat(old.getStatus()).isEqualTo(EmailDelivery.Status.CANCELLED);
   }
 
   @Test
-  void storesTheSubscriptionLinkOnceWhilePreparingTheMail() {
-    when(digests.compose(1L, asOf, List.of(1L))).thenReturn(Optional.of(digest("근거")));
-    when(deliveries.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-    var id = service.prepare(1L, asOf, List.of(1L), now);
-    assertThat(id).isPresent();
-    var saved = org.mockito.ArgumentCaptor.forClass(EmailDelivery.class);
-    verify(deliveries).save(saved.capture());
-    assertThat(saved.getValue().getUnsubscribeUrl())
-        .isEqualTo("https://example.invalid/unsubscribe?token=test");
-    assertThat(saved.getValue().getHtmlBody()).contains("DAYNOMY", "내 포트폴리오 자세히 보기", "수신 해지");
-  }
-
-  @Test
-  void cancelsWhenLinkBelongsToThePreviousSubscription() {
-    var delivery = delivery();
-    when(deliveries.findByIdForUpdate(delivery.getId())).thenReturn(Optional.of(delivery));
-    when(unsubscribe.matches(any(), eq(1L), any())).thenReturn(false);
-    assertThat(service.claim(delivery.getId(), now)).isEmpty();
-    assertThat(delivery.getStatus()).isEqualTo(EmailDelivery.Status.CANCELLED);
-    verifyNoInteractions(digests);
-  }
-
-  @Test
-  void excludesAlreadyAcceptedOrUncertainAnalysisIds() {
-    when(deliveries.findByMemberIdAndDeliveryDate(anyLong(), any())).thenReturn(Optional.empty());
-    when(deliveries.findCoveredAnalysisIds(1L, List.of(1L, 2L))).thenReturn(List.of(1L));
-    when(digests.compose(1L, asOf, List.of(2L))).thenReturn(Optional.empty());
-    assertThat(service.prepare(1L, asOf, List.of(1L, 2L), now)).isEmpty();
-    verify(digests).compose(1L, asOf, List.of(2L));
-  }
-
-  @Test
-  void claimsOnlyCurrentContentAndUsesServerGoogleEmail() {
-    var delivery = delivery();
-    when(deliveries.findByIdForUpdate(delivery.getId())).thenReturn(Optional.of(delivery));
-    when(digests.compose(1L, asOf, List.of(1L))).thenReturn(Optional.of(digest("근거")));
-    var attempt = service.claim(delivery.getId(), now).orElseThrow();
-    assertThat(attempt.recipient()).isEqualTo("google@example.invalid");
-    assertThat(attempt.deliveryId()).isEqualTo(delivery.getId());
-    assertThat(attempt.body()).contains("수신 해지: https://example.invalid/unsubscribe?token=test");
-    assertThat(service.claim(delivery.getId(), now.plusSeconds(1))).isEmpty();
-  }
-
-  @Test
-  void cancelsUnsubscribedAndStaleBodiesBeforeSending() {
-    var delivery = delivery();
-    when(deliveries.findByIdForUpdate(delivery.getId())).thenReturn(Optional.of(delivery));
-    subscription.unsubscribe();
-    assertThat(service.claim(delivery.getId(), now)).isEmpty();
-    assertThat(delivery.getStatus()).isEqualTo(EmailDelivery.Status.CANCELLED);
-    verifyNoInteractions(digests);
-    var stale = delivery();
-    subscription.subscribe(now);
-    when(deliveries.findByIdForUpdate(stale.getId())).thenReturn(Optional.of(stale));
-    when(digests.compose(1L, asOf, List.of(1L))).thenReturn(Optional.of(digest("변경된 근거")));
-    assertThat(service.claim(stale.getId(), now)).isEmpty();
-    assertThat(stale.getStatus()).isEqualTo(EmailDelivery.Status.CANCELLED);
-  }
-
-  @Test
-  void refusesOldDayPreparationAndPreparationAfterTen() {
-    assertThat(service.prepare(1L, asOf.minusSeconds(86400), List.of(1L), now)).isEmpty();
-    assertThat(service.prepare(1L, asOf, List.of(1L), now.plusSeconds(3600))).isEmpty();
-    verifyNoInteractions(deliveries, digests);
-  }
-
-  private EmailDelivery delivery() {
-    var delivery = new EmailDelivery(member, asOf, digest("근거"), LocalDate.of(2026, 10, 26));
-    delivery.attachUnsubscribeLink("https://example.invalid/unsubscribe?token=test");
-    return delivery;
-  }
-
-  private EmailStockDigest digest(String reason) {
-    var content = new CommonStockAnalysisContent(null, null, "소식", "", "", reason, List.of());
-    return new EmailStockDigest(
-        LocalDate.of(2026, 10, 23),
-        LocalDate.of(2026, 10, 22),
-        List.of(new EmailStockDigest.Stock(1L, 10L, "종목", BigDecimal.TEN, null, null, content)));
+  void claimedPayloadUsesAccountEmailAndPersistedHtmlAndText() {
+    subscribed();
+    var d = new EmailDelivery(member, NOW, digest(1L), MAIL_DATE);
+    d.attachUnsubscribeLink("https://example.invalid/unsubscribe");
+    d.completeTemplate("회원", "https://daynomy.com");
+    when(deliveries.findByIdForUpdate(d.getId())).thenReturn(Optional.of(d));
+    when(unsubscribe.matches(anyString(), eq(1L), any())).thenReturn(true);
+    when(digests.stillValid(anyLong(), any(), any(), any())).thenReturn(true);
+    var attempt = service.claim(d.getId(), NOW).orElseThrow();
+    assertThat(attempt.recipient()).isEqualTo(member.getEmail());
+    assertThat(attempt.htmlBody()).isEqualTo(d.getHtmlBody());
+    assertThat(attempt.body()).isEqualTo(d.getBody());
   }
 }

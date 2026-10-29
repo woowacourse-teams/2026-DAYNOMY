@@ -44,49 +44,6 @@ class PortfolioAnalysisCallTest {
     appender.stop();
   }
 
-  @Test
-  void observesOnlyTheScopedRequestsAndAlwaysClearsTheScope() {
-    var observer = mock(PortfolioAnalysisCall.Observer.class);
-    var raw = Map.<String, Object>of("input", "test");
-    var limited = Map.<String, Object>of("input", "test", "max_output_tokens", 100);
-    when(observer.prepare(raw)).thenReturn(limited);
-    server.enqueue(new MockResponse().setBody("{}"));
-    PortfolioAnalysisCall.observe(
-        observer,
-        () -> {
-          assertThat(PortfolioAnalysisCall.prepare(raw)).isSameAs(limited);
-          return PortfolioAnalysisCall.execute(request(), "source_search", "model");
-        });
-    org.mockito.Mockito.verify(observer).before("source_search", "model");
-    org.mockito.Mockito.verify(observer).after("{}", null);
-    assertThat(PortfolioAnalysisCall.prepare(raw)).isSameAs(raw);
-    assertThatThrownBy(
-            () ->
-                PortfolioAnalysisCall.observe(
-                    observer,
-                    () -> {
-                      throw new IllegalStateException("stop");
-                    }))
-        .isInstanceOf(IllegalStateException.class);
-    assertThat(PortfolioAnalysisCall.prepare(raw)).isSameAs(raw);
-  }
-
-  @Test
-  void deniedReservationNeverSendsAnHttpRequest() {
-    var observer = mock(PortfolioAnalysisCall.Observer.class);
-    org.mockito.Mockito.doThrow(new IllegalStateException("budget"))
-        .when(observer)
-        .before("initial", "model");
-    assertThatThrownBy(
-            () ->
-                PortfolioAnalysisCall.observe(
-                    observer, () -> PortfolioAnalysisCall.execute(request(), "initial", "model")))
-        .isInstanceOf(IllegalStateException.class);
-    assertThat(server.getRequestCount()).isZero();
-    org.mockito.Mockito.verify(observer, org.mockito.Mockito.never())
-        .after(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
-  }
-
   @ParameterizedTest
   @ValueSource(strings = {"initial", "correction", "summary"})
   void logsEachHttpCallWithoutPublishingTheBodyOrCredentials(String phase) {

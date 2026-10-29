@@ -3,7 +3,7 @@ package org.grit.daynomy.emailsubscription.service;
 import java.time.Clock;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
-import org.grit.daynomy.emailsubscription.domain.EmailAnalysisPolicy;
+import org.grit.daynomy.emailsubscription.domain.EmailDelivery;
 import org.grit.daynomy.emailsubscription.external.ResendEmailClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -38,10 +38,10 @@ public class EmailSendingService {
     if (attempt.isEmpty()) return;
     var deadline =
         claimAt
-            .atZone(EmailAnalysisPolicy.ZONE)
+            .atZone(EmailDelivery.ZONE)
             .toLocalDate()
             .atTime(10, 0)
-            .atZone(EmailAnalysisPolicy.ZONE)
+            .atZone(EmailDelivery.ZONE)
             .toInstant();
     var beforeSend = clock.instant();
     if (!beforeSend.isBefore(deadline)) {

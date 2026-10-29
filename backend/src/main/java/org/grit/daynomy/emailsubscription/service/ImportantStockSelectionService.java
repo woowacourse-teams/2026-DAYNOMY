@@ -1,28 +1,21 @@
 package org.grit.daynomy.emailsubscription.service;
 
 import java.math.BigDecimal;
-import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
-import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
-import org.grit.daynomy.emailsubscription.domain.EmailAnalysisPolicy;
 import org.grit.daynomy.emailsubscription.domain.EmailSubscriptionStatus;
 import org.grit.daynomy.emailsubscription.domain.ImportantStockSelection;
 import org.grit.daynomy.emailsubscription.domain.ImportantStockSelection.HoldingPrice;
 import org.grit.daynomy.emailsubscription.repository.EmailSubscriptionRepository;
-import org.grit.daynomy.investmentcalendar.domain.InvestmentEventType;
-import org.grit.daynomy.investmentcalendar.repository.InvestmentEventRepository;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
@@ -39,9 +32,7 @@ public class ImportantStockSelectionService {
   private final PortfolioHoldingRepository holdings;
   private final MarketTradingDayRepository tradingDays;
   private final StockDailyPriceRepository prices;
-  private final InvestmentEventRepository events;
   private final org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository deliveries;
-  private final org.grit.daynomy.emailsubscription.repository.EmailStockContentRepository contents;
 
   public Optional<ImportantStockSelection> select(Long memberId, LocalDate runDate) {
     boolean eligible =
@@ -65,21 +56,20 @@ public class ImportantStockSelectionService {
 
     return tradingDays
         .findFirstByTradingTrueAndCollectedAtIsNotNullAndBaseDateLessThanEqualOrderByBaseDateDesc(
-            runDate)
+            runDate.minusDays(1))
         .flatMap(
             current ->
                 tradingDays
                     .findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
                         current.getBaseDate())
-                    .map(previous -> select(memberId, savedHoldings, current, previous, runDate)));
+                    .map(previous -> select(memberId, savedHoldings, current, previous)));
   }
 
   private ImportantStockSelection select(
       Long memberId,
       List<PortfolioHolding> savedHoldings,
       MarketTradingDay current,
-      MarketTradingDay previous,
-      LocalDate runDate) {
+      MarketTradingDay previous) {
     List<Long> assetIds =
         savedHoldings.stream().map(holding -> holding.getAsset().getId()).toList();
     Map<Long, StockDailyPrice> currentPrices = pricesOn(assetIds, current.getBaseDate());
@@ -105,71 +95,9 @@ public class ImportantStockSelectionService {
         previous.getBaseDate(),
         snapshots,
         comparableCurrency,
-        importantEvents(savedHoldings, runDate),
         deliveries.findLastStockNotices(memberId, assetIds).stream()
             .collect(
                 Collectors.toMap(notice -> notice.getAssetId(), notice -> notice.getAcceptedAt())));
-  }
-
-  private Set<Long> importantEvents(List<PortfolioHolding> savedHoldings, LocalDate runDate) {
-    var cutoff = runDate.atTime(7, 0).atZone(EmailAnalysisPolicy.ZONE).toInstant();
-    var from = runDate.minusDays(1).atTime(7, 0).atZone(EmailAnalysisPolicy.ZONE).toInstant();
-    var to = runDate.plusDays(2).atStartOfDay(EmailAnalysisPolicy.ZONE).toInstant();
-    var codes =
-        events
-            .findAllByAnnouncedAtGreaterThanEqualAndAnnouncedAtLessThanOrderByAnnouncedAt(from, to)
-            .stream()
-            .filter(event -> event.getType() == InvestmentEventType.CORPORATE_EARNINGS)
-            .filter(event -> officialDisclosure(event.getSourceUrl()))
-            .filter(
-                event ->
-                    event.getAnnouncedAt().isBefore(cutoff)
-                        || (event.getActualValue() == null
-                            && event
-                                .getAnnouncedAt()
-                                .atZone(EmailAnalysisPolicy.ZONE)
-                                .toLocalDate()
-                                .equals(runDate.plusDays(1))))
-            .map(event -> event.getRelatedAssetCode())
-            .collect(Collectors.toSet());
-    var important =
-        savedHoldings.stream()
-            .map(PortfolioHolding::getAsset)
-            .filter(
-                asset ->
-                    asset.getCategory() == AssetCategory.STOCK
-                        && (asset.getMarket() == StockMarket.KOSPI
-                            || asset.getMarket() == StockMarket.KOSDAQ))
-            .filter(asset -> codes.contains(asset.getAssetCode()))
-            .map(asset -> asset.getId())
-            .collect(Collectors.toSet());
-    var assetIds = savedHoldings.stream().map(holding -> holding.getAsset().getId()).toList();
-    contents.findDisclosureCandidates(assetIds, runDate.minusDays(1), runDate, cutoff).stream()
-        .filter(
-            content ->
-                org.grit.daynomy.emailsubscription.domain.EmailDisclosurePolicy.isImportant(
-                    content.getTitle(), content.getUrl()))
-        .filter(
-            content ->
-                content.getAsset().getMarket() == StockMarket.KOSPI
-                    || content.getAsset().getMarket() == StockMarket.KOSDAQ)
-        .forEach(content -> important.add(content.getAsset().getId()));
-    return important;
-  }
-
-  private boolean officialDisclosure(String sourceUrl) {
-    try {
-      var uri = URI.create(sourceUrl);
-      return "https".equals(uri.getScheme())
-          && "dart.fss.or.kr".equals(uri.getHost())
-          && uri.getUserInfo() == null
-          && (uri.getPort() == -1 || uri.getPort() == 443)
-          && "/dsaf001/main.do".equals(uri.getPath())
-          && uri.getQuery() != null
-          && uri.getQuery().matches("rcpNo=\\d{14}");
-    } catch (IllegalArgumentException | NullPointerException exception) {
-      return false;
-    }
   }
 
   private Map<Long, StockDailyPrice> pricesOn(List<Long> assetIds, LocalDate date) {

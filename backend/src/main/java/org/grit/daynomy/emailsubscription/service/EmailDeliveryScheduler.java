@@ -4,9 +4,7 @@ import java.time.Clock;
 import java.time.LocalTime;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.grit.daynomy.emailsubscription.domain.EmailAnalysisPolicy;
 import org.grit.daynomy.emailsubscription.domain.EmailDelivery;
-import org.grit.daynomy.emailsubscription.repository.EmailAnalysisExecutionRepository;
 import org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository;
 import org.grit.daynomy.emailsubscription.repository.EmailSubscriptionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,8 +21,6 @@ import org.springframework.stereotype.Component;
     havingValue = "true")
 public class EmailDeliveryScheduler {
   private final EmailSubscriptionRepository subscriptions;
-  private final ImportantStockSelectionService selection;
-  private final EmailAnalysisExecutionRepository analyses;
   private final EmailDeliveryService deliveries;
   private final EmailDeliveryRepository jobs;
   private final EmailSendingService sending;
@@ -33,25 +29,19 @@ public class EmailDeliveryScheduler {
   @Autowired
   public EmailDeliveryScheduler(
       EmailSubscriptionRepository subscriptions,
-      ImportantStockSelectionService selection,
-      EmailAnalysisExecutionRepository analyses,
       EmailDeliveryService deliveries,
       EmailDeliveryRepository jobs,
       EmailSendingService sending) {
-    this(subscriptions, selection, analyses, deliveries, jobs, sending, Clock.systemUTC());
+    this(subscriptions, deliveries, jobs, sending, Clock.systemUTC());
   }
 
   EmailDeliveryScheduler(
       EmailSubscriptionRepository subscriptions,
-      ImportantStockSelectionService selection,
-      EmailAnalysisExecutionRepository analyses,
       EmailDeliveryService deliveries,
       EmailDeliveryRepository jobs,
       EmailSendingService sending,
       Clock clock) {
     this.subscriptions = subscriptions;
-    this.selection = selection;
-    this.analyses = analyses;
     this.deliveries = deliveries;
     this.jobs = jobs;
     this.sending = sending;
@@ -61,8 +51,6 @@ public class EmailDeliveryScheduler {
   @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
   public void prepareDaily() {
     if (!inWindow()) return;
-    var date = clock.instant().atZone(EmailAnalysisPolicy.ZONE).toLocalDate();
-    var asOf = date.atTime(7, 0).atZone(EmailAnalysisPolicy.ZONE).toInstant();
     long after = 0;
     while (inWindow()) {
       var members = subscriptions.findEligibleMemberIds(after, PageRequest.of(0, 500));
@@ -70,15 +58,7 @@ public class EmailDeliveryScheduler {
       for (Long memberId : members) {
         if (!inWindow()) return;
         try {
-          var selected = selection.select(memberId, date);
-          var assetIds =
-              selected
-                  .map(
-                      result ->
-                          result.stocks().stream().limit(3).map(stock -> stock.assetId()).toList())
-                  .orElse(List.of());
-          var ids = analyses.findSuccessfulAnalysisIds(date, asOf, assetIds);
-          deliveries.prepare(memberId, asOf, ids, clock.instant());
+          deliveries.prepare(memberId, clock.instant());
         } catch (RuntimeException failure) {
           log.atWarn()
               .addKeyValue("memberId", memberId)
@@ -97,7 +77,7 @@ public class EmailDeliveryScheduler {
     var now = clock.instant();
     var ids =
         jobs.findDueIds(
-            now.atZone(EmailAnalysisPolicy.ZONE).toLocalDate(),
+            now.atZone(EmailDelivery.ZONE).toLocalDate(),
             now,
             List.of(EmailDelivery.Status.READY, EmailDelivery.Status.RETRY_PENDING),
             PageRequest.of(0, 1));
@@ -114,7 +94,7 @@ public class EmailDeliveryScheduler {
   }
 
   private boolean inWindow() {
-    var time = clock.instant().atZone(EmailAnalysisPolicy.ZONE).toLocalTime();
+    var time = clock.instant().atZone(EmailDelivery.ZONE).toLocalTime();
     return !time.isBefore(LocalTime.of(9, 0)) && time.isBefore(LocalTime.of(10, 0));
   }
 }

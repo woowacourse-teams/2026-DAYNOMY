@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Set;
 import org.grit.daynomy.emailsubscription.domain.ImportantStockSelection.HoldingPrice;
 import org.grit.daynomy.emailsubscription.domain.ImportantStockSelection.Stock;
 import org.junit.jupiter.api.Test;
@@ -125,33 +124,6 @@ class ImportantStockSelectionTest {
   }
 
   @Test
-  void prioritizesEarningsAndKeepsEventsWithMissingPrices() {
-    var result =
-        ImportantStockSelection.select(
-            baseDate,
-            previousDate,
-            List.of(
-                holding(1L, 1, "150", "100"),
-                holding(2L, 1, "100", "100"),
-                new HoldingPrice(3L, 1, null, null),
-                holding(4L, 1, "120", "100")),
-            true,
-            Set.of(2L, 3L));
-    assertThat(result.stocks()).extracting(Stock::assetId).containsExactly(2L, 3L, 1L);
-    assertThat(result.stocks().get(1).dailyReturnRate()).isNull();
-    assertThat(result.completePrices()).isFalse();
-  }
-
-  @Test
-  void zeroPricesDoNotInventAStockReturn() {
-    var result =
-        ImportantStockSelection.select(
-            baseDate, previousDate, List.of(holding(1L, 1, "100", "0")), true, Set.of(1L));
-    assertThat(result.stocks()).hasSize(1);
-    assertThat(result.stocks().getFirst().dailyReturnRate()).isNull();
-  }
-
-  @Test
   void equalImpactPrefersNeverNotifiedThenOldestNotice() {
     var result =
         ImportantStockSelection.select(
@@ -162,25 +134,12 @@ class ImportantStockSelectionTest {
                 holding(2L, 1, "110", "100"),
                 holding(3L, 1, "110", "100")),
             true,
-            java.util.Set.of(),
             java.util.Map.of(
                 1L,
                 java.time.Instant.parse("2026-10-19T00:00:00Z"),
                 2L,
                 java.time.Instant.parse("2026-10-18T00:00:00Z")));
     assertThat(result.stocks()).extracting(Stock::assetId).containsExactly(3L, 2L, 1L);
-  }
-
-  @Test
-  void disclosurePolicyRejectsKeywordArticlesAndLookalikeDomains() {
-    var url = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20261026000001";
-    assertThat(EmailDisclosurePolicy.isImportant("[기재정정]단일판매ㆍ공급계약체결", url)).isTrue();
-    assertThat(EmailDisclosurePolicy.isImportant("주요사항보고서(유상증자결정)", url)).isTrue();
-    assertThat(EmailDisclosurePolicy.isImportant("합병 가능성에 대한 전망", url)).isFalse();
-    assertThat(
-            EmailDisclosurePolicy.isImportant(
-                "유상증자결정", url.replace("dart.fss.or.kr", "dart.fss.or.kr.evil.invalid")))
-        .isFalse();
   }
 
   private ImportantStockSelection select(HoldingPrice... holdings) {

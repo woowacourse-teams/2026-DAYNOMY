@@ -7,7 +7,6 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public record ImportantStockSelection(
     LocalDate baseDate, LocalDate previousBaseDate, boolean completePrices, List<Stock> stocks) {
@@ -30,7 +29,7 @@ public record ImportantStockSelection(
       LocalDate previousBaseDate,
       List<HoldingPrice> holdings,
       boolean comparableCurrency) {
-    return select(baseDate, previousBaseDate, holdings, comparableCurrency, Set.of());
+    return select(baseDate, previousBaseDate, holdings, comparableCurrency, Map.of());
   }
 
   public static ImportantStockSelection select(
@@ -38,17 +37,6 @@ public record ImportantStockSelection(
       LocalDate previousBaseDate,
       List<HoldingPrice> holdings,
       boolean comparableCurrency,
-      Set<Long> importantEvents) {
-    return select(
-        baseDate, previousBaseDate, holdings, comparableCurrency, importantEvents, Map.of());
-  }
-
-  public static ImportantStockSelection select(
-      LocalDate baseDate,
-      LocalDate previousBaseDate,
-      List<HoldingPrice> holdings,
-      boolean comparableCurrency,
-      Set<Long> importantEvents,
       Map<Long, Instant> lastNotices) {
     boolean complete =
         comparableCurrency && holdings.stream().allMatch(HoldingPrice::hasBothPrices);
@@ -61,14 +49,9 @@ public record ImportantStockSelection(
 
     List<Stock> selected =
         holdings.stream()
-            .filter(
-                holding ->
-                    importantEvents.contains(holding.assetId())
-                        || (holding.hasBothPrices() && holding.isImportant(total)))
+            .filter(holding -> holding.hasBothPrices() && holding.isImportant(total))
             .sorted(
-                Comparator.comparing(
-                        (HoldingPrice holding) -> !importantEvents.contains(holding.assetId()))
-                    .thenComparing(priority(total))
+                priority(total)
                     .thenComparing(
                         holding -> lastNotices.get(holding.assetId()),
                         Comparator.nullsFirst(Comparator.naturalOrder()))
