@@ -15,3 +15,9 @@
   min-height: 0;
   flex: 1 1 auto;
 }
+
+/* Keep the footer below the first viewport while asynchronous content loads. */
+.app-content > .news-page,
+.app-content > .portfolio-contents-page {
+  min-height: 100svh;
+}
