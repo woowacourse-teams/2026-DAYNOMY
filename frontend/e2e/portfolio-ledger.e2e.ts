@@ -227,7 +227,8 @@ for (const viewport of [
     const initial = (await dialog.boundingBox())!;
     const searchBar = dialog.locator('.portfolio-stock-search-input');
     const initialSearchBar = await searchBar.boundingBox();
-    expect(initial.width).toBe(viewport.name === 'desktop' ? 560 : viewport.width - 48);
+    const availableWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(initial.width).toBe(viewport.name === 'desktop' ? 560 : availableWidth - 48);
     expect(initial.height).toBe(560);
     await input.fill('S&P');
     const results = dialog.getByRole('list', { name: '검색된 종목' });
