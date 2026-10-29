@@ -14,6 +14,16 @@ esac
 staged_files=$(git diff --cached --name-only --diff-filter=ACMR)
 [ -z "$staged_files" ] && exit 0
 
+if ! command -v gitleaks >/dev/null 2>&1; then
+  fail "Gitleaks가 설치되어 있지 않습니다. 'brew install gitleaks'로 설치해주세요."
+fi
+
+if ! git diff --cached --unified=0 --no-color --no-ext-diff \
+  | sed -n '/^+[^+]/s/^+//p' \
+  | gitleaks stdin --redact=100 --no-banner; then
+  fail "스테이징된 변경에서 비밀값이 발견되었습니다."
+fi
+
 sensitive_files=$(printf '%s\n' "$staged_files" | grep -E '(^|/)(\.env|\.env\..*|.*\.(pem|key|p12|jks))$' | grep -vFx 'frontend/.env.example' || true)
 [ -z "$sensitive_files" ] || fail "환경변수 또는 키 파일은 커밋할 수 없습니다."
 
