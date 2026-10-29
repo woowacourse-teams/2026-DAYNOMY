@@ -81,7 +81,10 @@ describe('최초 이메일 구독 안내', () => {
     const view = renderPrompt();
     expect(await view.findByRole('dialog', { name: /내 투자에 중요한 변화/ })).toBeTruthy();
     expect(view.getByText(subscription.email)).toBeTruthy();
-    expect(view.getByText('이전과 달라진 분석 근거')).toBeTruthy();
+    expect(view.getByText('내 자산의 변동')).toBeTruthy();
+    expect(view.getByText('보유 종목의 가격 변화')).toBeTruthy();
+    expect(view.getByText('새로 등록된 관련 영상과 글')).toBeTruthy();
+    expect(view.queryByText(/분석 근거|투자 일정/)).toBeNull();
     expect(view.queryByRole('textbox')).toBeNull();
     expect(view.queryByText(/하루 최대|예시 계정|구독은 선택/)).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);

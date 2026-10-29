@@ -130,21 +130,21 @@ function EmailSubscriptionDialog() {
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 17v4m5-8v8m5-11v11m5-15v15M2 12l6-6 5 4 9-9" />
               </svg>
-              <span>내 자산과 보유 종목의 변화</span>
+              <span>내 자산의 변동</span>
             </li>
             <li>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M13 2H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14V8Zm0 0v6h6m-6 7 3 3" />
                 <circle cx="10" cy="13" r="3" />
               </svg>
-              <span>이전과 달라진 분석 근거</span>
+              <span>보유 종목의 가격 변화</span>
             </li>
             <li>
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <path d="M8 2v4m8-4v4M3 10h18m-13 5h.01m4 0h.01m4 0h.01M8 18h.01m4 0h.01" />
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="m10 9 5 3-5 3Z" />
               </svg>
-              <span>미리 챙길 투자 일정</span>
+              <span>새로 등록된 관련 영상과 글</span>
             </li>
           </ul>
           <div className="email-subscription-address">

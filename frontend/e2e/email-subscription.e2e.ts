@@ -60,6 +60,10 @@ for (const viewport of [
     const dialog = page.getByRole('dialog', { name: /내 투자에 중요한 변화/ });
     const subscribe = dialog.getByRole('button', { name: '이메일 알림 구독하기' });
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('내 자산의 변동', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('보유 종목의 가격 변화', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('새로 등록된 관련 영상과 글', { exact: true })).toBeVisible();
+    await expect(dialog.getByText(/분석 근거|투자 일정/)).toHaveCount(0);
     await expect(dialog.getByText(email, { exact: true })).toBeVisible();
     await expect(subscribe).toBeFocused();
     const bounds = await dialog.boundingBox();

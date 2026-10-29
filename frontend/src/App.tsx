@@ -31,10 +31,6 @@ import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminPeoplePage } from './features/admin/AdminPeoplePage';
 import { AdminFeedbackPage } from './features/admin/AdminFeedbackPage';
 import {
-  AdminEmailAnalysesPage,
-  AdminEmailAnalysisDetailPage,
-} from './features/admin/AdminEmailAnalysesPage';
-import {
   AdminContentReviewsPage,
   AdminContentSourcesPage,
 } from './features/admin/AdminContentCollectionPage';
@@ -430,22 +426,6 @@ function AppContent() {
               element={
                 <AdminRoute>
                   <AdminStockSyncPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/email-analyses"
-              element={
-                <AdminRoute>
-                  <AdminEmailAnalysesPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/email-analyses/:analysisId"
-              element={
-                <AdminRoute>
-                  <AdminEmailAnalysisDetailPage />
                 </AdminRoute>
               }
             />

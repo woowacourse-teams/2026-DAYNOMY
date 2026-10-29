@@ -105,7 +105,7 @@ export function EmailSubscriptionSettings({ disabled = false }: { disabled?: boo
               </button>
             </div>
             <p className="mypage-note">
-              내 투자에 중요한 소식과 일정을 로그인한 Google 이메일로 받아보세요.
+              내 자산과 보유 종목의 가격 변화, 새 관련 자료를 로그인한 Google 이메일로 받아보세요.
             </p>
           </>
         ) : (

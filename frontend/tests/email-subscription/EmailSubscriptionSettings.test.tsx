@@ -53,6 +53,12 @@ describe('마이페이지 이메일 구독 설정', () => {
     const view = render(<EmailSubscriptionSettings />);
     expect(await view.findByRole('heading', { name: label })).toBeTruthy();
     expect(view.getByText(email)).toBeTruthy();
+    expect(
+      view.getByText(
+        '내 자산과 보유 종목의 가격 변화, 새 관련 자료를 로그인한 Google 이메일로 받아보세요.',
+      ),
+    ).toBeTruthy();
+    expect(view.queryByText(/소식과 일정/)).toBeNull();
     expect(view.getByRole('button', { name: button })).toBeTruthy();
     expect(view.queryByRole('textbox')).toBeNull();
   });
