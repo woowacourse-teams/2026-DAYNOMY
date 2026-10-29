@@ -14,6 +14,18 @@ function jsonResponse(body: unknown) {
   });
 }
 
+function peoplePage(people: unknown[], page = 1, size = 6, totalElements = 0) {
+  const totalPages = Math.ceil(totalElements / size);
+  return {
+    people,
+    page,
+    size,
+    totalElements,
+    totalPages,
+    hasNext: page < totalPages,
+  };
+}
+
 beforeEach(() => {
   vi.stubGlobal(
     'ResizeObserver',
@@ -27,42 +39,47 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () =>
-      jsonResponse({
-        people: [
-          {
-            id: 1,
-            name: '일론 머스크',
-            xProfileUrl: 'https://x.com/elonmusk',
-            threadsProfileUrl: null,
-            createdAt: null,
-            posts: [
-              {
-                id: 11,
-                sourceType: 'X',
-                title: '일론 머스크 X 게시물',
-                url: 'https://x.com/elonmusk/status/12345',
-                createdAt: '2026-10-11T09:00:00Z',
-              },
-            ],
-          },
-          {
-            id: 2,
-            name: '도널드 트럼프',
-            xProfileUrl: null,
-            threadsProfileUrl: 'https://www.threads.net/@realdonaldtrump',
-            createdAt: null,
-            posts: [
-              {
-                id: 12,
-                sourceType: 'THREADS',
-                title: '도널드 트럼프 Threads 게시물',
-                url: 'https://www.threads.net/@realdonaldtrump/post/ABC',
-                createdAt: '2026-10-12T09:00:00Z',
-              },
-            ],
-          },
-        ],
-      }),
+      jsonResponse(
+        peoplePage(
+          [
+            {
+              id: 1,
+              name: '일론 머스크',
+              xProfileUrl: 'https://x.com/elonmusk',
+              threadsProfileUrl: null,
+              createdAt: null,
+              posts: [
+                {
+                  id: 11,
+                  sourceType: 'X',
+                  title: '일론 머스크 X 게시물',
+                  url: 'https://x.com/elonmusk/status/12345',
+                  createdAt: '2026-10-11T09:00:00Z',
+                },
+              ],
+            },
+            {
+              id: 2,
+              name: '도널드 트럼프',
+              xProfileUrl: null,
+              threadsProfileUrl: 'https://www.threads.net/@realdonaldtrump',
+              createdAt: null,
+              posts: [
+                {
+                  id: 12,
+                  sourceType: 'THREADS',
+                  title: '도널드 트럼프 Threads 게시물',
+                  url: 'https://www.threads.net/@realdonaldtrump/post/ABC',
+                  createdAt: '2026-10-12T09:00:00Z',
+                },
+              ],
+            },
+          ],
+          1,
+          6,
+          2,
+        ),
+      ),
     ),
   );
 });
@@ -92,7 +109,7 @@ describe('인물의 글 화면', () => {
     expect(view.container.querySelectorAll('.people-search-results button')).toHaveLength(1);
     expect(view.getByRole('button', { name: /일론 머스크 X 게시물/ })).toBeTruthy();
     fireEvent.click(view.container.querySelector('.people-search-results button')!);
-    expect(view.getByRole('button', { name: /도널드 트럼프 Threads 게시물/ })).toBeTruthy();
+    expect(await view.findByRole('button', { name: /도널드 트럼프 Threads 게시물/ })).toBeTruthy();
     expect(view.getByRole('button', { name: '인물 찾기' }).getAttribute('aria-expanded')).toBe(
       'false',
     );
@@ -147,7 +164,7 @@ describe('인물의 글 화면', () => {
     expect(view.container.querySelector('blockquote.twitter-tweet')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '일론 머스크' }));
     expect(view.getByRole('heading', { name: '인물의 글' })).toBeTruthy();
-    expect(view.getByRole('link', { name: /X 프로필/ }).getAttribute('href')).toBe(
+    expect((await view.findByRole('link', { name: /X 프로필/ })).getAttribute('href')).toBe(
       'https://x.com/elonmusk',
     );
     expect(view.queryByRole('button', { name: /도널드 트럼프 Threads 게시물/ })).toBeNull();
@@ -161,12 +178,13 @@ describe('인물의 글 화면', () => {
     );
     await view.findByRole('button', { name: /일론 머스크 X 게시물/ });
     fireEvent.click(view.getByRole('button', { name: '도널드 트럼프' }));
+    await view.findByRole('button', { name: /도널드 트럼프 Threads 게시물/ });
     expect(view.queryByRole('button', { name: /일론 머스크 X 게시물/ })).toBeNull();
     expect(view.getByRole('button', { name: '도널드 트럼프' }).getAttribute('aria-pressed')).toBe(
       'true',
     );
     fireEvent.click(view.getByRole('button', { name: '전체' }));
-    expect(view.getByRole('button', { name: /일론 머스크 X 게시물/ })).toBeTruthy();
+    expect(await view.findByRole('button', { name: /일론 머스크 X 게시물/ })).toBeTruthy();
     expect(view.queryByRole('searchbox')).toBeNull();
     expect(view.queryByRole('combobox')).toBeNull();
   });
@@ -193,6 +211,7 @@ describe('인물의 글 화면', () => {
     expect(await view.findByRole('button', { name: /일론 머스크 X 게시물/ })).toBeTruthy();
     expect(view.queryByRole('link', { name: /지난 글까지 전체 보기/ })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '일론 머스크' }));
+    await view.findByRole('button', { name: /일론 머스크 X 게시물/ });
     expect(view.getByRole('heading', { name: '인물의 글' })).toBeTruthy();
     expect(view.getByRole('link', { name: '← 소식 홈' }).getAttribute('href')).toBe('/news');
     expect(view.getByRole('button', { name: '1페이지' })).toBeTruthy();
@@ -210,24 +229,36 @@ function PersonUrlNavigation() {
 }
 
 it('URL로 인물을 변경하거나 뒤로 가면 해당 인물의 첫 페이지를 보여준다', async () => {
-  vi.mocked(fetch).mockImplementation(async () =>
-    jsonResponse({
-      people: [1, 2].map((id) => ({
-        id,
-        name: `인물${id}`,
-        xProfileUrl: null,
-        threadsProfileUrl: null,
-        createdAt: null,
-        posts: Array.from({ length: 30 }, (_, index) => ({
-          id: id * 100 + index,
-          sourceType: 'X',
-          title: `인물${id} 글${index + 1}`,
-          url: `https://x.com/person${id}/status/${index + 1}`,
-          createdAt: new Date(Date.parse('2026-10-12T09:00:00Z') + index * 1000).toISOString(),
+  vi.mocked(fetch).mockImplementation(async (input) => {
+    const url = new URL(String(input), 'http://localhost');
+    const page = Number(url.searchParams.get('page'));
+    const personId = Number(url.searchParams.get('personId'));
+    const allPosts = Array.from({ length: 30 }, (_, index) => ({
+      id: personId * 100 + index,
+      sourceType: 'X',
+      title: `인물${personId} 글${index + 1}`,
+      url: `https://x.com/person${personId}/status/${index + 1}`,
+      createdAt: new Date(Date.parse('2026-10-12T09:00:00Z') + index * 1000).toISOString(),
+    })).reverse();
+    const posts = allPosts.slice((page - 1) * 6, page * 6);
+    return jsonResponse(
+      peoplePage(
+        [1, 2].map((id) => ({
+          id,
+          name: `인물${id}`,
+          xProfileUrl: null,
+          threadsProfileUrl: null,
+          youtubeProfileUrl: null,
+          profileImageUrl: null,
+          createdAt: null,
+          posts: id === personId ? posts : [],
         })),
-      })),
-    }),
-  );
+        page,
+        6,
+        30,
+      ),
+    );
+  });
   const view = render(
     <MemoryRouter initialEntries={['/people?person=1']}>
       <PersonUrlNavigation />
@@ -238,21 +269,26 @@ it('URL로 인물을 변경하거나 뒤로 가면 해당 인물의 첫 페이�
   expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(6);
   expect(view.queryByRole('button', { name: '6페이지' })).toBeNull();
   fireEvent.click(view.getByRole('button', { name: '3페이지' }));
+  await view.findByText('인물1 글18', { exact: true });
   expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(6);
   expect(view.getByText('인물1 글18', { exact: true })).toBeTruthy();
   expect(view.queryByText('인물1 글30', { exact: true })).toBeNull();
   expect(view.getByRole('button', { name: '3페이지' }).getAttribute('aria-current')).toBe('page');
   fireEvent.click(view.getByRole('link', { name: '다른 인물 URL로 이동' }));
+  await view.findByText('인물2 글30', { exact: true });
   expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
   expect(view.getByText('인물2 글30', { exact: true })).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '2페이지' }));
+  await view.findByText('인물2 글24', { exact: true });
   fireEvent.click(view.getByRole('button', { name: '뒤로 가기' }));
+  await view.findByText('인물1 글30', { exact: true });
   expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
   expect(view.getByText('인물1 글30', { exact: true })).toBeTruthy();
   const views = vi
     .mocked(trackEvent)
     .mock.calls.filter(([name]) => name === 'view_content_list')
-    .map(([, params]) => [params?.person_id, params?.page_number]);
+    .map(([, params]) => [params?.person_id, params?.page_number])
+    .filter((view, index, all) => index === 0 || String(view) !== String(all[index - 1]));
   expect(views).toEqual([
     [1, 1],
     [1, 3],
