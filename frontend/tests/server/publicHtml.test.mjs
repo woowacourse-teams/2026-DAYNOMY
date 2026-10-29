@@ -53,6 +53,15 @@ before(async () => {
           imageUrl: 'javascript:alert(1)',
         }),
       );
+    } else if (path === '/api/news/2') {
+      response.end(
+        JSON.stringify({
+          id: 2,
+          title: '두 번째 뉴스',
+          content: '공개 본문',
+          imageUrl: 'https://example.com/news.webp',
+        }),
+      );
     } else if (path === '/api/contents/assets') {
       assetPageRequests += 1;
       if (assetIndexUnavailable) {
@@ -148,12 +157,17 @@ test('공개 페이지의 첫 HTML에 본문, canonical, 공유 메타데이터�
   assert.match(newsHtml, /<h1>뉴스 &lt;제목&gt;<\/h1>/);
   assert.match(newsHtml, /<p>공개 내용 &amp; 설명<\/p>/);
   assert.match(newsHtml, /property="og:url" content="https:\/\/daynomy.com\/news\/1"/);
-  assert.match(
-    newsHtml,
-    /property="og:image" content="https:\/\/daynomy.com\/daynomy-favicon.png"/,
-  );
+  assert.match(newsHtml, /property="og:image" content="https:\/\/daynomy.com\/daynomy-og.png"/);
   assert.doesNotMatch(newsHtml, /javascript:alert|access_token/);
   assert.equal(forwardedCookie, false);
+});
+
+test('기존 기사 이미지는 공유 미리보기에서도 유지한다', async () => {
+  const response = await fetch(url('/news/2'));
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /<img src="https:\/\/example.com\/news.webp"/);
+  assert.match(html, /property="og:image" content="https:\/\/example.com\/news.webp"/);
 });
 
 test('종목·공개 프로필은 공개 필드만 노출하고 보호 경로는 빈 SPA HTML이다', async () => {

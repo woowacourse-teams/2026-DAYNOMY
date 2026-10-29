@@ -4,7 +4,7 @@ import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const defaultDist = fileURLToPath(new URL('../dist/', import.meta.url));
-const imageFallback = '/daynomy-favicon.png';
+const imageFallback = '/daynomy-og.png';
 const privateRoutes = new Set([
   '/',
   '/index.html',
