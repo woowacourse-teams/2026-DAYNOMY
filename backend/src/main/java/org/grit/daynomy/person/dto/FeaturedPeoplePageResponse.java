@@ -6,8 +6,7 @@ import org.grit.daynomy.person.domain.FeaturedPersonPost;
 import org.springframework.data.domain.Page;
 
 public record FeaturedPeoplePageResponse(
-    @Schema(description = "주요 인물 목록과 현재 페이지의 공개 게시물")
-        List<FeaturedPersonResponse> people,
+    @Schema(description = "주요 인물 목록과 현재 페이지의 공개 게시물") List<FeaturedPersonResponse> people,
     @Schema(description = "현재 페이지 번호", example = "1") int page,
     @Schema(description = "페이지 크기", example = "6") int size,
     @Schema(description = "전체 페이지 수", example = "3") int totalPages,
