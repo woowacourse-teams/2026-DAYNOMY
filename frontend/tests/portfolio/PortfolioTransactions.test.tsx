@@ -546,7 +546,9 @@ describe('거래 원장 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '거래 내역' }));
     const row = await view.findByRole('button', { name: /2026\.10\.01.*매수.*삼성전자/ });
     expect(row.getAttribute('aria-haspopup')).toBe('dialog');
-    expect(within(row).getByText('수정')).toBeTruthy();
+    expect(within(row).queryByText('수정')).toBeNull();
+    expect(row.querySelector('.portfolio-history-edit-hint svg')).toBeTruthy();
+    expect(row.getAttribute('aria-label')).toContain('거래 수정');
     const history = view.getByRole('region', { name: '거래 내역' });
     expect(history.querySelector('details')).toBeNull();
     expect(history.querySelectorAll('.portfolio-history-row')).toHaveLength(1);
