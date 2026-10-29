@@ -5,12 +5,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.feedback.domain.Feedback;
+import org.grit.daynomy.feedback.dto.AdminFeedbackCreateRequest;
 import org.grit.daynomy.feedback.dto.AdminFeedbackPageResponse;
 import org.grit.daynomy.feedback.dto.AdminFeedbackResponse;
 import org.grit.daynomy.feedback.dto.FeedbackCreateRequest;
 import org.grit.daynomy.feedback.dto.FeedbackStatusUpdateRequest;
 import org.grit.daynomy.feedback.exception.FeedbackErrorCode;
 import org.grit.daynomy.feedback.repository.FeedbackRepository;
+import org.grit.daynomy.member.domain.Member;
+import org.grit.daynomy.member.service.MemberService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class FeedbackService {
 
   private final FeedbackRepository feedbackRepository;
+  private final MemberService memberService;
 
   @Transactional
   public void create(FeedbackCreateRequest request) {
@@ -31,6 +35,24 @@ public class FeedbackService {
     log.atInfo()
         .addKeyValue("event", LogEvent.FEEDBACK_CREATED.code())
         .addKeyValue("feedbackId", feedback.getId())
+        .log(LogEvent.FEEDBACK_CREATED.message());
+  }
+
+  @Transactional
+  public void createAdmin(Long memberId, AdminFeedbackCreateRequest request) {
+    Member author = memberService.getMember(memberId);
+    Feedback feedback =
+        Feedback.createAdmin(
+            request.content().strip(),
+            request.pagePath().strip(),
+            request.category(),
+            author.getId(),
+            author.getNickname());
+    feedbackRepository.save(feedback);
+    log.atInfo()
+        .addKeyValue("event", LogEvent.FEEDBACK_CREATED.code())
+        .addKeyValue("feedbackId", feedback.getId())
+        .addKeyValue("authorMemberId", memberId)
         .log(LogEvent.FEEDBACK_CREATED.message());
   }
 
