@@ -783,6 +783,14 @@ describe('포트폴리오 화면', () => {
         .mocked(trackPortfolioEvent)
         .mock.calls.filter(([name]) => name === 'portfolio_holding_detail_opened'),
     ).toHaveLength(1);
+    for (const label of ['수량', '구매가', '현재가', '총 수익', '일간 수익']) {
+      expect(within(detail).getByText(label)).toBeTruthy();
+    }
+    for (const label of ['배당월', '연간 예상 배당금', '투자 배당률', '자산 비중']) {
+      expect(within(detail).queryByText(label)).toBeNull();
+    }
+    expect(within(detail).getByLabelText('일간 수익 정보 없음').textContent).toBe('—');
+    expect(within(detail).getByLabelText('평가 통화 KRW').textContent).toBe('KRW');
     expect(
       within(detail)
         .getByRole('link', { name: /종목 정보 보기/ })

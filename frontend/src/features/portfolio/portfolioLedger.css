@@ -2145,15 +2145,15 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-holding-detail {
   inset: 0;
-  width: min(720px, calc(100% - 48px));
-  height: fit-content;
-  max-height: min(760px, calc(100dvh - 48px));
+  width: min(560px, calc(100% - 48px));
+  height: min(900px, calc(100dvh - 32px));
+  max-height: min(900px, calc(100dvh - 32px));
   margin: auto;
   border-radius: 18px;
   overflow: hidden;
 }
 .portfolio-holding-detail > .portfolio-sheet-content {
-  height: auto;
+  height: 100%;
   max-height: inherit;
   min-height: 0;
   padding: 0;
@@ -2164,16 +2164,16 @@ body:has(.portfolio-page) .daynomy-footer {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 22px 28px 18px;
+  padding: 16px 24px 12px;
   flex: 0 0 auto;
 }
 .portfolio-detail-monogram {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
-  border-radius: 18px;
+  border-radius: 14px;
   background: #edf3ff;
   color: #3369c9;
   font-weight: 700;
@@ -2197,22 +2197,18 @@ body:has(.portfolio-page) .daynomy-footer {
   flex: none;
   width: 18px;
   height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  fill: currentColor;
 }
 .portfolio-holding-detail-heading h2 {
   margin: 0;
   color: #1c293d;
-  font-size: 23px;
+  font-size: 21px;
   overflow-wrap: anywhere;
   letter-spacing: -0.04em;
 }
 .portfolio-holding-detail-heading p {
   margin: 6px 0 0;
-  color: #8491a4;
+  color: #667085;
   font-size: 12px;
 }
 .portfolio-holding-detail-heading .portfolio-icon-button {
@@ -2221,31 +2217,55 @@ body:has(.portfolio-page) .daynomy-footer {
   height: 44px;
   border-radius: 12px;
 }
+.portfolio-holding-detail-heading .portfolio-icon-button,
+.portfolio-holding-detail-heading .portfolio-detail-settings > summary {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
 .portfolio-detail-scroll {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  padding: 6px 28px 24px;
+  padding: 4px 24px 8px;
   overscroll-behavior: contain;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: #d5dae3 transparent;
 }
-.portfolio-detail-scroll::-webkit-scrollbar {
-  display: none;
+.portfolio-detail-value-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.portfolio-detail-value-heading > div {
+  min-width: 0;
+}
+.portfolio-detail-currency {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #f3f5f8;
+  color: #606b7a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
 }
 .portfolio-detail-caption {
-  font-size: 13px;
-  color: #7b8799;
+  font-size: 12px;
+  color: #667085;
 }
 .portfolio-detail-total {
   display: block;
-  font-size: clamp(30px, 3vw, 38px);
+  font-size: clamp(30px, 4vw, 38px);
+  line-height: 1.2;
   letter-spacing: -0.04em;
   color: #17243a;
-  margin-top: 10px;
+  margin-top: 6px;
   overflow-wrap: anywhere;
 }
 .portfolio-detail-value > p {
-  color: #8491a4;
+  color: #667085;
   font-size: 13px;
   line-height: 1.6;
   margin: 10px 0 0;
@@ -2254,24 +2274,40 @@ body:has(.portfolio-page) .daynomy-footer {
   margin-left: 6px;
   color: #586a80;
 }
-.portfolio-detail-metrics {
+.portfolio-holding-detail .portfolio-detail-metrics {
   display: grid;
   text-align: left;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px 16px;
-  margin: 24px 0 18px;
+  gap: 16px;
+  margin: 14px 0 10px;
+}
+.portfolio-detail-metrics > div {
+  min-width: 0;
 }
 .portfolio-detail-metrics dt {
-  color: #52647f;
-  font-size: 13px;
-  margin-bottom: 9px;
+  color: #606b7a;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+  word-break: keep-all;
 }
 .portfolio-detail-metrics dd {
   margin: 0;
-  font-size: 19px;
+  font-size: 16px;
+  line-height: 1.4;
   font-weight: 650;
   letter-spacing: -0.03em;
   overflow-wrap: anywhere;
+}
+.portfolio-detail-metrics dd > span,
+.portfolio-detail-metrics dd > small {
+  display: inline;
+}
+.portfolio-detail-metrics dd > small {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 .portfolio-detail-value > .portfolio-detail-price-note {
   font-size: 11px;
@@ -2341,9 +2377,9 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-history-filters > summary {
   position: absolute;
-  top: -52px;
+  top: -43px;
   right: 0;
-  min-height: 44px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2385,16 +2421,42 @@ body:has(.portfolio-page) .daynomy-footer {
   text-align: center;
 }
 .portfolio-detail-transactions {
-  padding-top: 16px;
-  margin-top: 8px;
+  padding-top: 12px;
+  margin-top: 4px;
 }
 .portfolio-detail-transactions > h3 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   line-height: 1.4;
   letter-spacing: -0.02em;
-  margin: 0 0 16px;
+  margin: 0 0 12px;
   color: #24344d;
+}
+.portfolio-holding-detail .portfolio-history-edit {
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 10px 0;
+}
+.portfolio-holding-detail .portfolio-history-description {
+  gap: 4px;
+}
+.portfolio-holding-detail .portfolio-history-type {
+  min-height: 30px;
+  padding: 6px;
+  font-size: 12px;
+}
+.portfolio-holding-detail .portfolio-history-description time {
+  font-size: 14px;
+  font-weight: 600;
+}
+.portfolio-holding-detail .portfolio-history-description > small {
+  font-size: 11px;
+}
+.portfolio-holding-detail .portfolio-history-amount strong {
+  font-size: 15px;
+}
+.portfolio-holding-detail .portfolio-history-edit-hint {
+  font-size: 11px;
 }
 .portfolio-holding-detail .portfolio-history-toolbar {
   grid-template-columns: minmax(0, 1fr) 120px;
@@ -2423,7 +2485,7 @@ body:has(.portfolio-page) .daynomy-footer {
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: 12px;
-  padding: 16px 28px max(18px, env(safe-area-inset-bottom));
+  padding: 14px 24px max(16px, env(safe-area-inset-bottom));
   border-top: 1px solid #edf0f5;
   background: #fff;
   flex-shrink: 0;
@@ -2433,16 +2495,36 @@ body:has(.portfolio-page) .daynomy-footer {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 50px;
-  font-size: 16px;
+  min-height: 46px;
+  border-radius: 16px;
+  font-size: 15px;
   text-decoration: none;
+}
+.portfolio-holding-detail .portfolio-detail-footer .portfolio-secondary-button {
+  border-color: transparent;
+  background: #f1f3f7;
+}
+.portfolio-holding-detail
+  .portfolio-detail-footer
+  .portfolio-secondary-button:hover:not(:disabled) {
+  background: #e7eaf0;
+}
+.portfolio-holding-detail .portfolio-detail-footer .portfolio-primary-button {
+  background: var(--button-action);
+  color: #fff;
+}
+.portfolio-holding-detail .portfolio-detail-footer .portfolio-primary-button:hover:not(:disabled) {
+  background: var(--button-action-hover);
+}
+.portfolio-holding-detail .portfolio-detail-footer .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
 }
 
 @media (max-width: 640px) {
   .portfolio-sheet.portfolio-holding-detail {
     width: calc(100% - 24px);
-    height: fit-content;
-    max-height: min(760px, calc(100dvh - 32px));
+    height: min(900px, calc(100dvh - 24px));
+    max-height: calc(100dvh - 24px);
     margin: auto;
     border-radius: 18px;
   }
@@ -2468,7 +2550,7 @@ body:has(.portfolio-page) .daynomy-footer {
     grid-template-columns: minmax(0, 1fr);
   }
   .portfolio-detail-metrics dd {
-    font-size: 17px;
+    font-size: 15px;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -2490,7 +2572,8 @@ body:has(.portfolio-page) .daynomy-footer {
 .portfolio-detail-view:not([hidden]) {
   display: flex;
   flex-direction: column;
-  height: auto;
+  flex: 1;
+  height: 100%;
   max-height: inherit;
   min-height: 0;
 }
