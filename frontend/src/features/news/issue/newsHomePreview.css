@@ -556,8 +556,15 @@
 }
 
 .briefing-person-preview .issue-person-avatar {
+  position: relative;
   width: 54px;
   height: 54px;
+}
+
+.briefing-person-preview .issue-person-avatar img {
+  position: absolute;
+  inset: 0;
+  background: #eef2f6;
 }
 
 .briefing-person-preview p,
