@@ -11,20 +11,32 @@
 | Patch | 기존 기능의 오류 수정                                    |
 
 1. `dev` 기준의 작업 브랜치에서 `package.json`·`package-lock.json` 버전을 올리고
-   [CHANGELOG.md](CHANGELOG.md)를 갱신합니다. 이번 릴리스 대상은 `2.0.3`입니다.
+   [CHANGELOG.md](CHANGELOG.md)를 갱신합니다. 이번 릴리스 대상은 `2.0.4`입니다.
 
    ```bash
    cd frontend
-   npm version 2.0.3 --no-git-tag-version
+   npm version 2.0.4 --no-git-tag-version
    ```
 
 2. `dev`에서 확인한 뒤 `main`에 병합합니다. 포맷·린트·타입 검사·테스트·빌드와
-   배포 검증이 모두 성공하면 해당 커밋에 `v2.0.3` Git tag를 생성합니다.
+   배포 검증이 모두 성공하면 해당 커밋에 `v2.0.4` Git tag를 생성합니다.
 3. Git tag·이미지 버전·Sentry release가 일치하는지 확인하고 공개 기능을 직접 확인합니다.
    자동 검사는 프론트 HTML, `/api/news`, `/api/auth/csrf`, Google 로그인 리디렉션까지입니다.
 
 실패하면 Git tag를 만들지 않습니다. 재시도 시 같은 커밋의 기존 버전 이미지를 재사용합니다.
 버전은 개발자가 올리며, 이미 태그가 있는 버전의 후속 변경은 SHA 이미지로 배포합니다.
+
+## v2.0.4 반영 순서
+
+이번 버전 준비 작업은 이슈 #734와 `chore/FE/#734` 브랜치에서 진행합니다. 버전 파일·CHANGELOG만으로 운영 배포 완료를
+판단하지 않으며 다음 순서로 확인합니다.
+
+1. `package.json`과 `package-lock.json`의 최상위·루트 패키지 버전이 모두 `2.0.4`인지 확인합니다. 이미 변경되었다면 `npm version`을 다시 실행하지 않습니다.
+2. `CHANGELOG.md`의 `## v2.0.4`에 v2.0.3 이후 변경이 정리되어 있는지 확인하고, `Unreleased`는 다음 릴리스용으로 유지합니다.
+3. 작업 브랜치에서 포맷·린트·타입 검사·테스트·빌드와 릴리스 스크립트 검사를 완료하고, `chore/FE/#734 → dev` PR의 CI 결과를 확인합니다.
+4. 개발·운영 배포에서 포트폴리오 검색·간편 매수·보유 자산 필터, 소식 홈·상세, 관리자 피드백·미국 종목 동기화와 공개 페이지 초기 화면을 확인합니다.
+5. `dev → main` 릴리스 PR에 버전·변경 내용·실제 검증 결과를 적습니다. 피드백 상세 정보, 미국 종목 한글명과 거래 시각을 위한 백엔드 API·DB 마이그레이션 V64~V66이 함께 반영되는지 확인합니다.
+6. 운영 프론트 배포와 자동 `v2.0.4` 태그 발행을 확인합니다. 태그·GHCR 이미지·Sentry release가 같은 배포 커밋을 가리키는지 확인하고 운영 기능을 직접 점검합니다.
 
 ## v2.0.3 반영 순서
 
@@ -70,11 +82,11 @@ bash scripts/test-deploy-frontend.sh
 
 일반 `npm run build`의 정적 파일에는 릴리스 버전이 별도로 표시되지 않습니다. 운영 CI는
 `resolve-release-version.sh`의 `image_tag`를 Docker 이미지 태그·`org.opencontainers.image.version`
-라벨과 `SENTRY_RELEASE`에 공통으로 사용합니다. 새 릴리스에서는 세 값이 `v2.0.3`인지 확인합니다.
+라벨과 `SENTRY_RELEASE`에 공통으로 사용합니다. 새 릴리스에서는 세 값이 `v2.0.4`인지 확인합니다.
 HTML의 `daynomy-deployment` 메타 태그는 버전 대신 환경·커밋을 기록하므로 같은 이미지의
 `org.opencontainers.image.revision`과 커밋이 일치하는지 대조합니다.
 
-프론트 `v2.0.3` 버전은 백엔드 Gradle 버전, OpenAPI 버전, 분석 스키마·알고리즘 버전,
+프론트 `v2.0.4` 버전은 백엔드 Gradle 버전, OpenAPI 버전, 분석 스키마·알고리즘 버전,
 브라우저 저장 키 버전과 독립적입니다. 이 값들은 단순 릴리스 번호 변경에 맞춰 올리지 않습니다.
 
 ## 무중단 배포와 자동 롤백

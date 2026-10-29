@@ -2,9 +2,11 @@ package org.grit.daynomy.portfolio.service;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeSet;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,9 +28,11 @@ import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
 import org.grit.daynomy.portfolio.dto.PortfolioPricingStatus;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -39,6 +43,7 @@ public class PortfolioSnapshotService {
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
   private final PortfolioRepository portfolioRepository;
+  private final PortfolioHoldingHistoryRepository historyRepository;
   private final PortfolioHoldingRepository holdingRepository;
   private final PortfolioDailySnapshotRepository snapshotRepository;
   private final StockDailyPriceRepository stockPriceRepository;
@@ -54,7 +59,14 @@ public class PortfolioSnapshotService {
       NavigableSet<LocalDate> priceDates =
           new TreeSet<>(stockPriceRepository.findBaseDatesByPortfolioId(portfolio.getId()));
       NavigableSet<LocalDate> candidates = new TreeSet<>(priceDates);
-      candidates.addAll(snapshotRepository.findBaseDatesByPortfolioId(portfolio.getId()));
+      Set<LocalDate> existingDates =
+          new HashSet<>(snapshotRepository.findBaseDatesByPortfolioId(portfolio.getId()));
+      candidates.addAll(existingDates);
+      LocalDate firstHolding =
+          historyRepository.findFirstEffectiveDateByPortfolioId(portfolio.getId()).orElse(today);
+      // 공용 가격의 수년치 이력 중 최초 보유 이전 날짜는 새 스냅샷 후보가 아니다.
+      // 기존 스냅샷은 원장 수정·삭제에 따른 정리를 위해 재검사한다.
+      candidates.removeIf(date -> date.isBefore(firstHolding) && !existingDates.contains(date));
       for (LocalDate baseDate : candidates.headSet(today, false)) {
         LocalDate previousBaseDate = priceDates.lower(baseDate);
         try {
@@ -83,6 +95,7 @@ public class PortfolioSnapshotService {
     return snapshotCount;
   }
 
+  @Order(0)
   @EventListener(StockPriceSyncResult.class)
   public void refreshAfterPriceSync() {
     try {

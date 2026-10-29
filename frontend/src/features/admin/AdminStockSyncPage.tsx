@@ -7,16 +7,19 @@ import {
   syncAdminStocks,
   syncAdminUsStocks,
   syncAdminUsStockPrices,
+  syncAdminUsStockKoreanNames,
 } from './api';
 import type {
   AdminStockPriceBackfillResponse,
   AdminLeagueRecalculationResponse,
   AdminStockPriceSyncResponse,
   AdminStockSyncResponse,
+  AdminUsStockSyncResponse,
 } from './types';
 import './admin.css';
 
-type SyncTask = 'stocks' | 'prices' | 'backfill' | 'league' | 'us-stocks' | 'us-prices';
+type SyncTask =
+  'stocks' | 'prices' | 'backfill' | 'league' | 'us-stocks' | 'us-prices' | 'us-names';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError || error instanceof Error ? error.message : fallback;
@@ -33,7 +36,8 @@ export function AdminStockSyncPage() {
   const [stockError, setStockError] = useState<string | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);
 
-  const [usStockResult, setUsStockResult] = useState<AdminStockSyncResponse | null>(null);
+  const [usStockResult, setUsStockResult] = useState<AdminUsStockSyncResponse | null>(null);
+  const [usNameError, setUsNameError] = useState<string | null>(null);
   const [usPriceResult, setUsPriceResult] = useState<AdminStockPriceSyncResponse | null>(null);
   const [usStockError, setUsStockError] = useState<string | null>(null);
   const [usPriceError, setUsPriceError] = useState<string | null>(null);
@@ -109,11 +113,28 @@ export function AdminStockSyncPage() {
     if (runningTask !== null) return;
     setRunningTask('us-stocks');
     setUsStockError(null);
+    setUsNameError(null);
     setUsStockResult(null);
     try {
       setUsStockResult(await syncAdminUsStocks());
     } catch (error) {
       setUsStockError(getErrorMessage(error, '미국 종목 적재에 실패했습니다.'));
+    } finally {
+      setRunningTask(null);
+    }
+  }
+
+  async function handleUsNameRetry() {
+    if (runningTask !== null || !usStockResult?.koreanNameErrorCode) return;
+    setRunningTask('us-names');
+    setUsNameError(null);
+    try {
+      const koreanNames = await syncAdminUsStockKoreanNames();
+      setUsStockResult((previous) =>
+        previous ? { ...previous, koreanNames, koreanNameErrorCode: null } : previous,
+      );
+    } catch (error) {
+      setUsNameError(getErrorMessage(error, '한글명 보충에 실패했습니다.'));
     } finally {
       setRunningTask(null);
     }
@@ -271,8 +292,8 @@ export function AdminStockSyncPage() {
             <p className="admin-panel-eyebrow">미국 · 1단계</p>
             <h2 id="us-stock-sync-title">미국 종목 적재</h2>
             <p>
-              미국 주요 거래소의 주식·ETF 목록을 저장하고 신규 상장, 종목명 변경, 상장폐지를
-              반영합니다.
+              미국 주요 거래소의 주식·ETF 목록을 저장하고 신규 상장, 종목명 변경, 상장폐지를 반영한
+              다음 한글명을 보충합니다. 한글명 수집이 실패해도 저장한 종목 정보는 유지합니다.
             </p>
             <p>처음에는 종목을 먼저 적재한 다음 종가를 가져오세요.</p>
           </div>
@@ -286,7 +307,10 @@ export function AdminStockSyncPage() {
           </button>
           {usStockResult ? (
             <div className="admin-sync-result" role="status" aria-live="polite">
-              <strong>{formatBaseDate(usStockResult.baseDate)} 기준 미국 종목 적재 완료</strong>
+              <strong>
+                {formatBaseDate(usStockResult.baseDate)} 기준 미국 종목 적재 완료
+                {usStockResult.koreanNameErrorCode ? ' · 한글명 보충 실패' : ' · 한글명 보충 완료'}
+              </strong>
               <dl>
                 <div>
                   <dt>전체</dt>
@@ -305,6 +329,37 @@ export function AdminStockSyncPage() {
                   <dd>{usStockResult.delistedCount.toLocaleString('ko-KR')}개</dd>
                 </div>
               </dl>
+              {usStockResult.koreanNames ? (
+                <dl>
+                  <div>
+                    <dt>한글명 매칭</dt>
+                    <dd>{usStockResult.koreanNames.matchedCount.toLocaleString('ko-KR')}개</dd>
+                  </div>
+                  <div>
+                    <dt>한글명 변경</dt>
+                    <dd>{usStockResult.koreanNames.updatedCount.toLocaleString('ko-KR')}개</dd>
+                  </div>
+                  <div>
+                    <dt>미매칭</dt>
+                    <dd>{usStockResult.koreanNames.unmatchedCount.toLocaleString('ko-KR')}개</dd>
+                  </div>
+                  <div>
+                    <dt>한글명 없음</dt>
+                    <dd>{usStockResult.koreanNames.skippedCount.toLocaleString('ko-KR')}개</dd>
+                  </div>
+                </dl>
+              ) : null}
+            </div>
+          ) : null}
+          {usStockResult?.koreanNameErrorCode ? (
+            <div className="admin-alert" role="alert">
+              <strong>
+                {usNameError ?? '종목 적재는 완료됐지만 한글명을 가져오지 못했습니다.'}
+              </strong>
+              <p>저장한 종목은 유지됩니다. 한글명 보충만 다시 실행할 수 있습니다.</p>
+              <button type="button" onClick={handleUsNameRetry} disabled={runningTask !== null}>
+                {runningTask === 'us-names' ? '한글명 보충 중…' : '한글명 다시 시도'}
+              </button>
             </div>
           ) : null}
           {usStockError ? (
@@ -326,8 +381,8 @@ export function AdminStockSyncPage() {
               종가만 다시 수집합니다.
             </p>
             <p>
-              자동 수집을 켠 서버는 매일 뉴욕 06:15에 종목과 최근 종가를 수집합니다. 장기간 중단된
-              날짜는 따로 수집해 주세요.
+              자동 수집을 켠 서버는 매일 뉴욕 06:15에 종목, 한글명, 최근 종가를 순서대로 수집합니다.
+              장기간 중단된 날짜는 따로 수집해 주세요.
             </p>
           </div>
           <form

@@ -123,7 +123,12 @@ function AdminRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AdminShell>
+      {children}
+      <FeedbackWidget variant="admin" />
+    </AdminShell>
+  );
 }
 
 function AuthenticatedRoute({ children }: { children: ReactNode }) {

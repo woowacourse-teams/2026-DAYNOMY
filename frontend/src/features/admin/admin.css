@@ -1238,9 +1238,30 @@
   color: #a45b00;
   background: #fff5df;
 }
+.admin-status-in_progress {
+  color: #2459b9;
+  background: #edf3fc;
+}
 .admin-status-resolved {
   color: #087443;
   background: #eaf8f0;
+}
+
+.admin-feedback-status-select select {
+  min-height: 34px;
+  padding: 0 28px 0 10px;
+  border: 1px solid #d9dee8;
+  border-radius: 8px;
+  color: #303442;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.admin-feedback-status-select select:focus-visible {
+  outline: 2px solid #2459b9;
+  outline-offset: 2px;
 }
 
 .admin-feedback-summary {

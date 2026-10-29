@@ -55,3 +55,12 @@ test('미국 거래는 소수점 네 자리 단가와 여섯 자리 환율을 �
     );
   }
 });
+
+test('거래 시각은 한국 시간 HH:mm 형식만 허용하고 기존 시각 누락도 허용한다', () => {
+  for (const tradeTime of ['00:00', '09:35', '23:59', undefined]) {
+    assert.equal(validateTransaction({ ...valid, tradeTime }), null);
+  }
+  for (const tradeTime of ['', '24:00', '09:60', '9:35', '09:35:00']) {
+    assert.equal(getTransactionValidationError({ ...valid, tradeTime })?.field, 'tradeTime');
+  }
+});

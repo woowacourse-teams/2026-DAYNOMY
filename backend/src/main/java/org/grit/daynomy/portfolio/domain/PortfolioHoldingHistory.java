@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -132,6 +133,16 @@ public class PortfolioHoldingHistory extends BaseEntity {
   public void applyExchangeRate(BigDecimal rate) {
     validateExchangeRate(asset, rate);
     exchangeRate = "USD".equals(asset.getCurrency()) ? rate : BigDecimal.ONE;
+  }
+
+  @Column(name = "trade_time")
+  private LocalTime tradeTime;
+
+  public void recordTradeTime(LocalTime time) {
+    if (!isTransaction()) {
+      throw new IllegalStateException("매수·매도 거래만 시각을 기록할 수 있습니다.");
+    }
+    tradeTime = time == null ? null : time.withSecond(0).withNano(0);
   }
 
   public boolean isTransaction() {

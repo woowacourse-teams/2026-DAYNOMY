@@ -49,7 +49,7 @@ describe('포트폴리오 로그인 접근', () => {
 
     const view = render(<App />);
 
-    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '종목 추가' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
     expect(view.queryByText('로그인해야 볼 수 있습니다')).toBeNull();
     expect(window.location.pathname).toBe('/');

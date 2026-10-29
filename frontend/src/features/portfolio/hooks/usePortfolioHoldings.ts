@@ -233,6 +233,7 @@ export function usePortfolioHoldings(isLoggedIn: boolean) {
         ...body,
         assetId,
         type: existing.changeType,
+        tradeTime: existing.tradeTime ?? undefined,
       });
       commitGuestLedger({
         ...guestLedger,

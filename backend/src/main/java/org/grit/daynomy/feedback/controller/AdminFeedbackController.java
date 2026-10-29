@@ -12,17 +12,21 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.common.response.ErrorResponse;
+import org.grit.daynomy.feedback.dto.AdminFeedbackCreateRequest;
 import org.grit.daynomy.feedback.dto.AdminFeedbackPageResponse;
 import org.grit.daynomy.feedback.dto.AdminFeedbackResponse;
 import org.grit.daynomy.feedback.dto.FeedbackStatusUpdateRequest;
 import org.grit.daynomy.feedback.service.FeedbackService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,6 +40,22 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminFeedbackController {
 
   private final FeedbackService feedbackService;
+
+  @Operation(summary = "관리자 피드백 등록")
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "등록 성공"),
+    @ApiResponse(
+        responseCode = "400",
+        description = "요청 형식 오류",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  @PostMapping
+  public ResponseEntity<Void> createFeedback(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody AdminFeedbackCreateRequest request) {
+    feedbackService.createAdmin(member.memberId(), request);
+    return ResponseEntity.noContent().build();
+  }
 
   @Operation(summary = "피드백 목록 조회")
   @ApiResponses({

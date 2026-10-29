@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 
@@ -39,7 +40,10 @@ public record PortfolioHoldingHistoryResponse(
         Instant occurredAt,
     @Schema(description = "종목 통화. KRW 또는 USD", example = "KRW") String currency,
     @Schema(description = "거래에 적용한 환율(1 USD당 KRW). 국내 거래는 1", example = "1")
-        BigDecimal exchangeRate) {
+        BigDecimal exchangeRate,
+    @Schema(description = "거래 시각 (Asia/Seoul), 미기록 시 null", example = "09:35", nullable = true)
+        @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm")
+        LocalTime tradeTime) {
   @Schema(description = "평균 매입가의 통화. 항상 KRW", example = "KRW")
   @com.fasterxml.jackson.annotation.JsonProperty("averagePurchasePriceCurrency")
   public String averagePurchasePriceCurrency() {
@@ -62,6 +66,7 @@ public record PortfolioHoldingHistoryResponse(
         history.getTax(),
         history.getCreatedAt(),
         history.getAsset().getCurrency(),
-        history.getExchangeRate());
+        history.getExchangeRate(),
+        history.getTradeTime());
   }
 }

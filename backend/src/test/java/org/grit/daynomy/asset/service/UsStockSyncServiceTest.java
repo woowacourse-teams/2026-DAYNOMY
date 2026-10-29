@@ -25,6 +25,11 @@ class UsStockSyncServiceTest {
   @Mock StockMasterPersistenceService masterPersistence;
   @Mock StockPricePersistenceService pricePersistence;
   @Mock AssetRepository assetRepository;
+
+  @Spy
+  UsStockSyncRetry retry =
+      new UsStockSyncRetry(new UsStockSyncRetryProperties(3, java.time.Duration.ZERO));
+
   @InjectMocks UsStockSyncService service;
   private static final LocalDate FRIDAY = LocalDate.of(2026, 10, 16);
 

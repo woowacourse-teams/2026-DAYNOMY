@@ -137,6 +137,29 @@
   font-weight: 800;
 }
 
+.feedback-category {
+  display: grid;
+  gap: 8px;
+}
+
+.feedback-category select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #dfe3ec;
+  border-radius: 12px;
+  color: #171821;
+  background: #ffffff;
+  font: inherit;
+  font-size: 14px;
+}
+
+.feedback-category select:focus {
+  border-color: #4169c9;
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
 .feedback-form textarea {
   width: 100%;
   min-height: 172px;

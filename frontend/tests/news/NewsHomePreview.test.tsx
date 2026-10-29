@@ -88,6 +88,7 @@ it('기존 기사 API로 제목과 상세 링크를 보여주며 기존 화면�
   vi.mocked(getNews).mockResolvedValue(page);
   const view = show();
   expect(view.getByRole('heading', { name: '소식' })).toBeTruthy();
+  expect(view.getByText('최근 7일간 반응 기준')).toBeTruthy();
   const article = await within(view.getByRole('region', { name: '전체 소식' })).findByRole('link', {
     name: /기준금리 동결 가능성 확대/,
   });
@@ -98,6 +99,7 @@ it('기존 기사 API로 제목과 상세 링크를 보여주며 기존 화면�
   ).toBe('/news/contents?scope=portfolio');
   expect(view.queryByRole('link', { name: '전체 콘텐츠' })).toBeNull();
   expect(view.getAllByRole('link', { name: '전체 소식 전체 보기' })).toHaveLength(1);
+  expect(view.getAllByText('모두 보기')).toHaveLength(3);
   expect(view.queryByText(/가상 기사/)).toBeNull();
 });
 it('실패 시 재시도하고 빈 결과를 가상 소식으로 대체하지 않는다', async () => {
@@ -111,13 +113,14 @@ it('실패 시 재시도하고 빈 결과를 가상 소식으로 대체하지 �
   expect(getNews).toHaveBeenCalledTimes(2);
 });
 
-it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순으로 세 개를 표시한다', async () => {
+it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순으로 네 개를 표시한다', async () => {
   vi.mocked(getNews).mockResolvedValue({
     ...page,
     content: [
       page.content[0],
       { ...page.content[0], id: 8, title: '집계 없는 데이노미 이슈', publishedAt: '2026-10-24' },
       { ...page.content[0], id: 9, title: '인기 데이노미 이슈', publishedAt: '2026-10-25' },
+      { ...page.content[0], id: 10, title: '네 번째 데이노미 이슈', publishedAt: '2026-10-26' },
     ],
   });
   vi.mocked(getAllContents).mockResolvedValue({
@@ -145,7 +148,8 @@ it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순�
   const view = show();
   const trending = within(view.getByRole('region', { name: '트렌딩' }));
   expect(await trending.findByRole('link', { name: /인기 데이노미 이슈/ })).toBeTruthy();
-  expect(trending.getAllByRole('article')).toHaveLength(3);
+  expect(trending.getAllByRole('article')).toHaveLength(4);
+  expect(trending.getByText('트렌딩 04')).toBeTruthy();
   expect(trending.queryByText('가장 인기 있는 외부 영상')).toBeNull();
   expect(
     within(view.container.querySelector('.briefing-feature-story')!).getByRole('link', {
@@ -213,9 +217,10 @@ it('예시 트렌딩을 펼치고 예시 보유 종목 소식으로 이동할 �
     '/news/contents?scope=portfolio&data=example',
   );
   const latest = within(view.getByRole('region', { name: '전체 소식' }));
-  expect(latest.getAllByRole('article')).toHaveLength(3);
-  expect(latest.getAllByText('기사 읽기')).toHaveLength(3);
-  expect(latest.getAllByText('데이노미')).toHaveLength(3);
+  const exampleArticles = within(latest.getByRole('list'));
+  expect(exampleArticles.getAllByRole('article')).toHaveLength(3);
+  expect(exampleArticles.getAllByText('기사 읽기')).toHaveLength(3);
+  expect(exampleArticles.getAllByText('데이노미')).toHaveLength(3);
   expect(view.queryByRole('link', { name: /AI 분석/ })).toBeNull();
   expect(calendarRender).toHaveBeenCalledWith({
     embedded: true,
@@ -283,16 +288,52 @@ it('예시 화면은 실제 종목 소식 API를 호출하지 않는다', () => 
   expect(getStockRelatedContents).not.toHaveBeenCalled();
 });
 
-it('전체 소식은 카테고리 필터 없이 최신 소식을 함께 보여준다', () => {
+it('전체 소식은 전체보기와 같은 카테고리 필터를 보여준다', () => {
   const view = render(
     <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
       <NewsHomePreview preview />
     </MemoryRouter>,
   );
   const latest = within(view.getByRole('region', { name: '전체 소식' }));
-  expect(view.queryByRole('group', { name: '소식 카테고리' })).toBeNull();
+  const filters = within(view.getByRole('group', { name: '전체 소식 카테고리' }));
+  expect(filters.getAllByRole('button').map((button) => button.textContent)).toEqual([
+    '전체',
+    '데이노미',
+    'X',
+    'Threads',
+    'YouTube',
+  ]);
   expect(latest.getByText(/대형 기술주 강세/)).toBeTruthy();
   expect(latest.getByText(/환율 상승이 수출 기업/)).toBeTruthy();
+});
+
+it('전체 소식 카테고리로 출처를 필터링한다', async () => {
+  vi.mocked(getNews).mockResolvedValue(page);
+  vi.mocked(getAllContents).mockResolvedValue({
+    items: [
+      {
+        id: 99,
+        assetId: 1,
+        sourceType: 'YOUTUBE',
+        title: '유튜브 소식',
+        url: 'https://www.youtube.com/watch?v=abcdefghijk',
+        imageUrl: null,
+        createdAt: '2026-10-26',
+      },
+    ],
+    page: 1,
+    totalPages: 1,
+  });
+  const view = show();
+  const latest = within(view.getByRole('region', { name: '전체 소식' }));
+  await latest.findByText('유튜브 소식');
+  fireEvent.click(
+    within(view.getByRole('group', { name: '전체 소식 카테고리' })).getByRole('button', {
+      name: 'YouTube',
+    }),
+  );
+  expect(latest.getByText('유튜브 소식')).toBeTruthy();
+  expect(latest.queryByText('기준금리 동결 가능성 확대')).toBeNull();
 });
 
 it('실제 홈에서는 예시 쿼리를 무시하고 실제 API와 분석 경로만 사용한다', async () => {

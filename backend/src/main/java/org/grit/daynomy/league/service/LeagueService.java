@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
@@ -81,9 +82,12 @@ import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.exception.MemberErrorCode;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -111,6 +115,7 @@ public class LeagueService {
   private final LeagueCalculationMetrics calculationMetrics;
   private final LeagueAggregationService aggregationService;
   private final EntityManager entityManager;
+  private final PlatformTransactionManager transactionManager;
   private final LeagueRankingCache rankingCache;
   private Map<LocalDate, WeekState> finalizationStates = new HashMap<>();
   private boolean finalizationStatesInitialized;
@@ -476,7 +481,7 @@ public class LeagueService {
       List<RankedProfile> calculatedProfiles =
           profiles.stream()
               .filter(profile -> participatesInWeek(profile, weekStart))
-              .map(profile -> metrics(profile, weekStart))
+              .map(profile -> readForFinalization(() -> metrics(profile, weekStart)))
               .filter(
                   ranked -> ranked.metric() != null && ranked.metric().weeklyReturnRate() != null)
               .toList();
@@ -607,35 +612,47 @@ public class LeagueService {
   private boolean calculationsComplete(List<InvestorProfile> profiles, LocalDate week) {
     for (InvestorProfile profile : profiles) {
       if (!participatesInWeek(profile, week)) continue;
-      SharedPortfolio portfolio =
-          portfolioRepository.findByMemberId(profile.getMember().getId()).orElse(null);
-      if (portfolio == null) continue;
-      Map<LocalDate, PortfolioDailyReturn> values =
-          dailyValues(portfolio.getId(), week, week.plusDays(6));
-      for (LocalDate date : tradingDates(week)) {
-        if (!participates(profile, date)) continue;
-        PortfolioDailyReturn value = values.get(date);
-        if (value == null
-            || (value.isEligible() && value.getDailyReturnRate() == null)
-            || "MISSING_PRICE".equals(value.getIneligibleReason())
-            || "PRICE_COLLECTION_PENDING".equals(value.getIneligibleReason())) {
-          TransactionLog.afterCommit(
-              LogEvent.LEAGUE_PROFILE_CALCULATION_PENDING,
-              log.atDebug()
-                  .addKeyValue("profileId", profile.getId())
-                  .addKeyValue("portfolioId", portfolio.getId())
-                  .addKeyValue("baseDate", date)
-                  .addKeyValue(
-                      "reason",
-                      value == null
-                          ? "NOT_CALCULATED"
-                          : value.getIneligibleReason() == null
-                              ? "RETURN_RATE_MISSING"
-                              : value.getIneligibleReason()));
-          return false;
-        }
+      if (!readForFinalization(() -> calculationsComplete(profile, week))) return false;
+    }
+    return true;
+  }
+
+  private <T> T readForFinalization(Supplier<T> query) {
+    // 확정 쓰기 트랜잭션에 전체 참가자의 가격·판단·복기 엔티티를 누적하지 않는다.
+    var read = new TransactionTemplate(transactionManager);
+    read.setReadOnly(true);
+    read.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    return read.execute(status -> query.get());
+  }
+
+  private boolean calculationsComplete(InvestorProfile profile, LocalDate week) {
+    SharedPortfolio portfolio =
+        portfolioRepository.findByMemberId(profile.getMember().getId()).orElse(null);
+    if (portfolio == null) return true;
+    Map<LocalDate, PortfolioDailyReturn> values =
+        dailyValues(portfolio.getId(), week, week.plusDays(6));
+    for (LocalDate date : tradingDates(week)) {
+      if (!participates(profile, date)) continue;
+      PortfolioDailyReturn value = values.get(date);
+      if (value == null
+          || (value.isEligible() && value.getDailyReturnRate() == null)
+          || "MISSING_PRICE".equals(value.getIneligibleReason())
+          || "PRICE_COLLECTION_PENDING".equals(value.getIneligibleReason())) {
+        TransactionLog.afterCommit(
+            LogEvent.LEAGUE_PROFILE_CALCULATION_PENDING,
+            log.atDebug()
+                .addKeyValue("profileId", profile.getId())
+                .addKeyValue("portfolioId", portfolio.getId())
+                .addKeyValue("baseDate", date)
+                .addKeyValue(
+                    "reason",
+                    value == null
+                        ? "NOT_CALCULATED"
+                        : value.getIneligibleReason() == null
+                            ? "RETURN_RATE_MISSING"
+                            : value.getIneligibleReason()));
+        return false;
       }
-      values.values().forEach(entityManager::detach);
     }
     return true;
   }
