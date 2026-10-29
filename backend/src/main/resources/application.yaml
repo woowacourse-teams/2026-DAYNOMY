@@ -146,6 +146,11 @@ external:
     connect-timeout: 3s
     read-timeout: 60s
 
+  kis:
+    base-url: https://new.real.download.dws.co.kr/common/master
+    connect-timeout: 3s
+    read-timeout: 30s
+
   public-data:
     service-key: ${PUBLIC_DATA_SERVICE_KEY}
     stock-price-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo
@@ -191,6 +196,9 @@ stock:
     sync:
       enabled: ${US_STOCK_SYNC_ENABLED:false}
       cron: ${US_STOCK_SYNC_CRON:0 15 6 * * *}
+      retry:
+        max-attempts: ${US_STOCK_SYNC_MAX_ATTEMPTS:3}
+        delay: ${US_STOCK_SYNC_RETRY_DELAY:250ms}
   calendar:
     sync:
       enabled: ${MARKET_CALENDAR_SYNC_ENABLED:false}
