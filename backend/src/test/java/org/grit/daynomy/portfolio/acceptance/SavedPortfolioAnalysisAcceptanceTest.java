@@ -147,6 +147,82 @@ class SavedPortfolioAnalysisAcceptanceTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
+  void manualRefreshLimitSurvivesReloadAndBlocksFourthRequestBeforeAI(boolean background) {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    successfulAi();
+    client(member).post(API).then().statusCode(200).body("remainingRefreshCount", equalTo(3));
+    doAnswer(invocation -> result(invocation.getArgument(0)))
+        .when(ai)
+        .refresh(anyList(), anyString());
+    clearInvocations(ai, narrative);
+    for (int attempt = 0; attempt < 3; attempt++) {
+      client(member)
+          .post(API + (background ? "/tasks/refresh" : "/refresh"))
+          .then()
+          .statusCode(background ? 202 : 200);
+      if (background) awaitTask(member, "READY");
+      client(member)
+          .get(API)
+          .then()
+          .statusCode(200)
+          .body("remainingRefreshCount", equalTo(2 - attempt));
+    }
+    for (var path : List.of("/refresh", "/tasks/refresh"))
+      client(member)
+          .post(API + path)
+          .then()
+          .statusCode(429)
+          .body("code", equalTo("PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED"));
+    verify(ai, times(3)).refresh(anyList(), anyString());
+    verifyNoInteractions(narrative);
+    assertThat(checks.findById(portfolio.getId()).orElseThrow().getRequestToken()).isNull();
+    client(member()).get(API).then().body("remainingRefreshCount", equalTo(3));
+    jdbc.update(
+        "update portfolio_analysis_checks set manual_refresh_date = ? where portfolio_id = ?",
+        java.sql.Date.valueOf(LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1)),
+        portfolio.getId());
+    client(member).get(API).then().body("remainingRefreshCount", equalTo(3));
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("remainingRefreshCount", equalTo(2));
+  }
+
+  @Test
+  void queuedRefreshJoinsDoNotUseMoreQuotaAndRejectedStartRestoresIt() {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    var first = transactions.prepareTask(member.getId(), true);
+    assertThat(savedAnalysis.get(member.getId()).remainingRefreshCount()).isEqualTo(2);
+    var joined = transactions.prepareTask(member.getId(), true);
+    assertThat(joined.saved().remainingRefreshCount()).isEqualTo(2);
+    transactions.rejectTask(member.getId(), UUID.randomUUID(), true);
+    assertThat(savedAnalysis.get(member.getId()).remainingRefreshCount()).isEqualTo(2);
+    transactions.rejectTask(member.getId(), first.token(), true);
+    assertThat(savedAnalysis.get(member.getId()).remainingRefreshCount()).isEqualTo(3);
+    assertThat(transactions.prepareTask(member.getId(), true).token()).isNotNull();
+  }
+
+  @Test
+  void failedAIStillConsumesManualRefreshQuota() {
+    var member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    when(ai.refresh(anyList(), anyString()))
+        .thenThrow(new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED));
+    client(member).post(API + "/refresh").then().statusCode(502);
+    client(member).get(API).then().body("remainingRefreshCount", equalTo(2));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
   void automaticRefreshPreservesOtherStocksAndOnlySummarizesConfirmedChanges(boolean changed) {
     var member = member();
     var portfolio = portfolio(member);
@@ -187,6 +263,7 @@ class SavedPortfolioAnalysisAcceptanceTest {
         .refresh(anyList(), anyString());
 
     var after = savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자"));
+    assertThat(after.remainingRefreshCount()).isEqualTo(3);
 
     verify(ai, times(1)).refresh(anyList(), anyString());
     verify(ai, never()).analyze(anyList());

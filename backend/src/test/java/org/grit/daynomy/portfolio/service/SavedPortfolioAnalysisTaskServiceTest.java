@@ -97,7 +97,7 @@ class SavedPortfolioAnalysisTaskServiceTest {
                 assertThat(exception.errorCode())
                     .isEqualTo(PortfolioErrorCode.PORTFOLIO_ANALYSIS_BUSY));
 
-    verify(transactions).fail(1L, prepared.token(), "PORTFOLIO_ANALYSIS_BUSY");
+    verify(transactions).rejectTask(1L, prepared.token(), false);
     verifyNoInteractions(analysis);
   }
 

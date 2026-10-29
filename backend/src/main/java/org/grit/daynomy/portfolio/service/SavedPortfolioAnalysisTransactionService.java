@@ -237,6 +237,10 @@ public class SavedPortfolioAnalysisTransactionService {
     if (!check.begin(token, now, REQUEST_TIMEOUT)) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_IN_PROGRESS);
     }
+    // 포트폴리오 행 잠금 안에서 예약하므로 여러 탭·서버에서도 하루 3회를 초과하지 않는다.
+    if (refresh && names == null && !check.reserveManualRefresh(now)) {
+      throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED);
+    }
     return new PreparedAnalysis(
         null,
         token,
@@ -451,6 +455,15 @@ public class SavedPortfolioAnalysisTransactionService {
 
   @Transactional
   public void fail(Long memberId, UUID token, String code) {
+    fail(memberId, token, code, false);
+  }
+
+  @Transactional
+  public void rejectTask(Long memberId, UUID token, boolean refresh) {
+    fail(memberId, token, PortfolioErrorCode.PORTFOLIO_ANALYSIS_BUSY.code(), refresh);
+  }
+
+  private void fail(Long memberId, UUID token, String code, boolean releaseRefresh) {
     Portfolio portfolio = lockedPortfolio(memberId);
     checks
         .findById(portfolio.getId())
@@ -458,6 +471,7 @@ public class SavedPortfolioAnalysisTransactionService {
             check -> {
               // 만료 후 새 작업이 시작됐다면 이전 작업의 실패로 상태를 덮어쓰지 않는다.
               if (token.equals(check.getRequestToken())) {
+                if (releaseRefresh) check.releaseManualRefresh();
                 check.recordFailure(Instant.now(), code);
                 check.finish(token);
               }
@@ -624,7 +638,11 @@ public class SavedPortfolioAnalysisTransactionService {
                 analysis,
                 evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
                     analysis.getId(), memberId)),
-        summaryStatus(analysis, check, now));
+        summaryStatus(analysis, check, now),
+        check == null
+            ? PortfolioAnalysisCheck.DAILY_REFRESH_LIMIT
+            : check.remainingRefreshCount(now),
+        PortfolioAnalysisCheck.refreshResetAt(now));
   }
 
   private String summaryStatus(

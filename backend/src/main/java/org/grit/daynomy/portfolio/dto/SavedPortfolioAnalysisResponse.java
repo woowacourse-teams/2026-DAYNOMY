@@ -2,6 +2,7 @@ package org.grit.daynomy.portfolio.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
+import org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck;
 
 public record SavedPortfolioAnalysisResponse(
     @Schema(
@@ -31,7 +32,36 @@ public record SavedPortfolioAnalysisResponse(
     @Schema(
             description = "종합 설명 상태: PENDING(작성 중), READY(완료), FAILED(실패 또는 작업 만료). 분석이 없으면 null",
             nullable = true)
-        String summaryStatus) {
+        String summaryStatus,
+    @Schema(description = "한국 시간 기준 오늘 남은 수동 새 소식 확인 횟수(0~3). 최초 분석·자동 분석 제외")
+        int remainingRefreshCount,
+    @Schema(description = "수동 새 소식 확인 한도가 초기화되는 다음 한국 시간 자정(UTC)") Instant refreshResetAt) {
+
+  public SavedPortfolioAnalysisResponse(
+      Status status,
+      String lastCheckOutcome,
+      Long analysisId,
+      boolean matchesCurrentPortfolio,
+      Instant lastSucceededAt,
+      Instant lastFailedAt,
+      String failureCode,
+      String changeReason,
+      PortfolioAnalysisResponse analysis,
+      String summaryStatus) {
+    this(
+        status,
+        lastCheckOutcome,
+        analysisId,
+        matchesCurrentPortfolio,
+        lastSucceededAt,
+        lastFailedAt,
+        failureCode,
+        changeReason,
+        analysis,
+        summaryStatus,
+        PortfolioAnalysisCheck.DAILY_REFRESH_LIMIT,
+        PortfolioAnalysisCheck.refreshResetAt(Instant.now()));
+  }
 
   public SavedPortfolioAnalysisResponse(
       Status status,

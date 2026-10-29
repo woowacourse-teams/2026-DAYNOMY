@@ -74,7 +74,7 @@ public class SavedPortfolioAnalysisController {
             schema = @Schema(type = "string"))
       },
       description =
-          "쿠키 인증과 CSRF 검증이 필요합니다. 기존 새 근거 확인과 같은 분석·검증을 서버에서 수행합니다. 진행 중인 작업이 있으면 추가 실행하지 않습니다. GET /api/users/me/portfolio/analysis로 상태와 결과를 조회하며 실패해도 이전 저장 분석은 보존합니다.")
+          "쿠키 인증과 CSRF 검증이 필요합니다. 한국 시간 기준 하루 3회까지 수동 확인할 수 있으며 다음 날 0시에 초기화합니다. 최초 분석·자동 분석·진행 중 작업 재조회는 횟수에서 제외합니다. 시작한 작업은 실패해도 횟수에 포함하고 대기열 거절은 제외합니다. GET /api/users/me/portfolio/analysis로 상태와 남은 횟수를 조회하며 실패해도 이전 저장 분석은 보존합니다.")
   @ApiResponses({
     @ApiResponse(responseCode = "202", description = "분석 진행 중", useReturnTypeSchema = true),
     @ApiResponse(
@@ -83,6 +83,10 @@ public class SavedPortfolioAnalysisController {
         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   })
   @PostMapping("/tasks/refresh")
+  @ApiResponse(
+      responseCode = "429",
+      description = "PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED: 오늘 수동 새 소식 확인 3회 소진",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   public ResponseEntity<SavedPortfolioAnalysisResponse> startRefresh(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
     return taskResponse(tasks.start(member.memberId(), true));
@@ -146,6 +150,10 @@ public class SavedPortfolioAnalysisController {
         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   })
   @PostMapping("/refresh")
+  @ApiResponse(
+      responseCode = "429",
+      description = "PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED: 한국 시간 기준 하루 3회 초과. 다음 날 0시 초기화",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   public SavedPortfolioAnalysisResponse refresh(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
     return service.refresh(member.memberId());

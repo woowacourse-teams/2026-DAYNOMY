@@ -11,6 +11,36 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisCheckTest {
+  @Test
+  void allowsThreeManualRefreshesAndResetsAtKoreanMidnight() {
+    var beforeMidnight = Instant.parse("2026-10-29T14:59:59Z");
+    for (int count = 0; count < 3; count++) {
+      assertThat(check.remainingRefreshCount(beforeMidnight)).isEqualTo(3 - count);
+      assertThat(check.reserveManualRefresh(beforeMidnight)).isTrue();
+    }
+    assertThat(check.remainingRefreshCount(beforeMidnight)).isZero();
+    assertThat(check.reserveManualRefresh(beforeMidnight)).isFalse();
+    var midnight = Instant.parse("2026-10-29T15:00:00Z");
+    assertThat(PortfolioAnalysisCheck.refreshResetAt(beforeMidnight)).isEqualTo(midnight);
+    assertThat(check.remainingRefreshCount(midnight)).isEqualTo(3);
+    assertThat(check.reserveManualRefresh(midnight)).isTrue();
+    assertThat(check.remainingRefreshCount(midnight)).isEqualTo(2);
+  }
+
+  @Test
+  void processingAutomaticAndInitialAnalysisDoNotConsumeManualRefreshes() {
+    check.begin(UUID.randomUUID(), first, Duration.ofMinutes(5));
+    check.recordSuccess(first, PortfolioAnalysisCheck.Outcome.UPDATED);
+    assertThat(check.remainingRefreshCount(first)).isEqualTo(3);
+  }
+
+  @Test
+  void rejectedRefreshReleasesOneReservationWithoutGoingBelowZero() {
+    assertThat(check.reserveManualRefresh(first)).isTrue();
+    check.releaseManualRefresh();
+    check.releaseManualRefresh();
+    assertThat(check.remainingRefreshCount(first)).isEqualTo(3);
+  }
 
   private final Instant first = Instant.parse("2026-10-12T07:00:00Z");
   private final PortfolioAnalysisCheck check =

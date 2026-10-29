@@ -37,8 +37,7 @@ public class SavedPortfolioAnalysisTaskService {
       executor.execute(() -> execute(memberId, prepared, refresh));
       return processing;
     } catch (RejectedExecutionException exception) {
-      transactions.fail(
-          memberId, prepared.token(), PortfolioErrorCode.PORTFOLIO_ANALYSIS_BUSY.code());
+      transactions.rejectTask(memberId, prepared.token(), refresh);
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_BUSY);
     } catch (RuntimeException exception) {
       transactions.fail(memberId, prepared.token(), "PORTFOLIO_ANALYSIS_FAILED");

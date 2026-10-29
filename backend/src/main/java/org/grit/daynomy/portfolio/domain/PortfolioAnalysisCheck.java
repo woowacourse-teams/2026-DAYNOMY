@@ -10,6 +10,8 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
@@ -24,6 +26,8 @@ import org.grit.daynomy.common.BaseEntity;
 @Entity
 @Table(name = "portfolio_analysis_checks")
 public class PortfolioAnalysisCheck extends BaseEntity {
+  public static final int DAILY_REFRESH_LIMIT = 3;
+  private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
   @Id
   @Column(name = "portfolio_id")
@@ -42,6 +46,36 @@ public class PortfolioAnalysisCheck extends BaseEntity {
 
   @Column(name = "failure_code", length = 100)
   private String failureCode;
+
+  @Column(name = "manual_refresh_date")
+  private LocalDate manualRefreshDate;
+
+  @Column(name = "manual_refresh_count", nullable = false)
+  private int manualRefreshCount;
+
+  public int remainingRefreshCount(Instant now) {
+    return DAILY_REFRESH_LIMIT
+        - (now.atZone(SEOUL).toLocalDate().equals(manualRefreshDate) ? manualRefreshCount : 0);
+  }
+
+  public static Instant refreshResetAt(Instant now) {
+    return now.atZone(SEOUL).toLocalDate().plusDays(1).atStartOfDay(SEOUL).toInstant();
+  }
+
+  public boolean reserveManualRefresh(Instant now) {
+    if (remainingRefreshCount(now) == 0) return false;
+    var date = now.atZone(SEOUL).toLocalDate();
+    if (!date.equals(manualRefreshDate)) {
+      manualRefreshDate = date;
+      manualRefreshCount = 0;
+    }
+    manualRefreshCount++;
+    return true;
+  }
+
+  public void releaseManualRefresh() {
+    if (manualRefreshCount > 0) manualRefreshCount--;
+  }
 
   public enum Outcome {
     UPDATED,

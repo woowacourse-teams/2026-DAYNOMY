@@ -101,6 +101,17 @@ class SavedPortfolioAnalysisTaskControllerTest {
         .andExpect(jsonPath("$.code").value("PORTFOLIO_ANALYSIS_BUSY"));
   }
 
+  @Test
+  void exhaustedManualRefreshesReturnTooManyRequests() throws Exception {
+    authenticate();
+    given(tasks.start(1L, true))
+        .willThrow(
+            new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED));
+    mvc.perform(post(API + "/tasks/refresh"))
+        .andExpect(status().isTooManyRequests())
+        .andExpect(jsonPath("$.code").value("PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED"));
+  }
+
   private void authenticate() {
     var member = new AuthenticatedMember(1L, MemberRole.USER);
     SecurityContextHolder.getContext()
