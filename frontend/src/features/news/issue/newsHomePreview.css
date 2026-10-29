@@ -603,7 +603,6 @@
 
 .briefing-calendar-content {
   padding-top: 30px;
-  border-top: 1px solid var(--briefing-line);
 }
 
 .briefing-preview .investment-calendar-embedded .investment-calendar-heading {
@@ -1022,7 +1021,6 @@
 
   .briefing-calendar-content {
     padding-top: 30px;
-    border-top: 1px solid var(--briefing-line);
   }
 }
 

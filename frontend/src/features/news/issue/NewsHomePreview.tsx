@@ -284,7 +284,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
                 : '/news/contents?scope=portfolio'
             }
           >
-            전체 보기
+            모두 보기
           </Link>
         </div>
         {example ? (
@@ -329,7 +329,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
           <div className="briefing-section-heading">
             <h2 id="briefing-latest-title">전체 소식</h2>
             <Link aria-label="전체 소식 전체 보기" to="/news/contents">
-              전체 보기
+              모두 보기
             </Link>
           </div>
           <div
@@ -405,7 +405,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
             <div className="briefing-section-heading">
               <h2 id="briefing-people-title">인물의 글</h2>
               <Link aria-label="인물의 글 전체 보기" to="/people">
-                전체 보기
+                모두 보기
               </Link>
             </div>
             {example ? (

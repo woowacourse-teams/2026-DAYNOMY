@@ -99,6 +99,7 @@ it('기존 기사 API로 제목과 상세 링크를 보여주며 기존 화면�
   ).toBe('/news/contents?scope=portfolio');
   expect(view.queryByRole('link', { name: '전체 콘텐츠' })).toBeNull();
   expect(view.getAllByRole('link', { name: '전체 소식 전체 보기' })).toHaveLength(1);
+  expect(view.getAllByText('모두 보기')).toHaveLength(3);
   expect(view.queryByText(/가상 기사/)).toBeNull();
 });
 it('실패 시 재시도하고 빈 결과를 가상 소식으로 대체하지 않는다', async () => {
