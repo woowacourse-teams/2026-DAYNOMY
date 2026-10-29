@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.portfolio.domain.Portfolio;
@@ -152,6 +153,10 @@ public class SavedPortfolioAnalysisTransactionService {
     return prepare(memberId, null, refresh, true);
   }
 
+  public PreparedAnalysis prepareAutomatic(Long memberId, Set<String> names) {
+    return prepare(memberId, null, true, true, names);
+  }
+
   private PreparedAnalysis prepare(
       Long memberId, PortfolioAnalysisRequest request, boolean refresh) {
     return prepare(memberId, request, refresh, false);
@@ -159,10 +164,20 @@ public class SavedPortfolioAnalysisTransactionService {
 
   private PreparedAnalysis prepare(
       Long memberId, PortfolioAnalysisRequest request, boolean refresh, boolean reuseProcessing) {
+    return prepare(memberId, request, refresh, reuseProcessing, null);
+  }
+
+  private PreparedAnalysis prepare(
+      Long memberId,
+      PortfolioAnalysisRequest request,
+      boolean refresh,
+      boolean reuseProcessing,
+      Set<String> names) {
     var prices = currentPrices(memberId);
     return new TransactionTemplate(transactionManager)
         .execute(
-            status -> prepareInTransaction(memberId, request, refresh, reuseProcessing, prices));
+            status ->
+                prepareInTransaction(memberId, request, refresh, reuseProcessing, prices, names));
   }
 
   private PreparedAnalysis prepareInTransaction(
@@ -170,7 +185,8 @@ public class SavedPortfolioAnalysisTransactionService {
       PortfolioAnalysisRequest request,
       boolean refresh,
       boolean reuseProcessing,
-      PortfolioCalculationService.PreparedPrices prices) {
+      PortfolioCalculationService.PreparedPrices prices,
+      Set<String> names) {
     Portfolio portfolio = lockedPortfolio(memberId);
     List<PortfolioAssetRequest> assets = currentAssets(portfolio, prices);
     if (assets.isEmpty()) {
@@ -193,6 +209,18 @@ public class SavedPortfolioAnalysisTransactionService {
     if (check.isProcessing(now)) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_IN_PROGRESS);
     }
+    // 부분 갱신은 동일 보유 구성의 같은 모델·버전 결과에만 적용한다. 비중만 달라진 경우는 허용한다.
+    if (names != null
+        && (previous == null
+            || !sameHoldings(previous, assets)
+            || !analysisVersion.equals(previous.getAnalysisVersion())
+            || !model.equals(previous.getModel())
+            || previous.getSummaryStatus() != PortfolioAnalysis.SummaryStatus.READY
+            || previous.getSnapshot().impacts().stream()
+                .noneMatch(impact -> names.contains(impact.assetName())))) {
+      return new PreparedAnalysis(
+          response(memberId, previous, check, assets, now), null, assets, null);
+    }
     if (previous != null
         && previous.getSummaryStatus() == PortfolioAnalysis.SummaryStatus.PENDING) {
       previous.failSummary();
@@ -214,7 +242,7 @@ public class SavedPortfolioAnalysisTransactionService {
         token,
         assets,
         previous != null
-                && matches(previous, assets)
+                && (names != null || matches(previous, assets))
                 && analysisVersion.equals(previous.getAnalysisVersion())
                 && model.equals(previous.getModel())
             ? PortfolioAnalysisResponse.from(
@@ -240,16 +268,37 @@ public class SavedPortfolioAnalysisTransactionService {
     return complete(memberId, token, assets, result, true);
   }
 
+  public SavedPortfolioAnalysisResponse completeAutomaticCore(
+      Long memberId,
+      UUID token,
+      List<PortfolioAssetRequest> assets,
+      PortfolioAnalysisResponse result,
+      Set<String> names) {
+    return complete(memberId, token, assets, result, true, names);
+  }
+
   private SavedPortfolioAnalysisResponse complete(
       Long memberId,
       UUID token,
       List<PortfolioAssetRequest> assets,
       PortfolioAnalysisResponse result,
       boolean deferSummary) {
+    return complete(memberId, token, assets, result, deferSummary, null);
+  }
+
+  private SavedPortfolioAnalysisResponse complete(
+      Long memberId,
+      UUID token,
+      List<PortfolioAssetRequest> assets,
+      PortfolioAnalysisResponse result,
+      boolean deferSummary,
+      Set<String> names) {
     var prices = currentPrices(memberId);
     return new TransactionTemplate(transactionManager)
         .execute(
-            status -> completeInTransaction(memberId, token, assets, result, deferSummary, prices));
+            status ->
+                completeInTransaction(
+                    memberId, token, assets, result, deferSummary, prices, names));
   }
 
   private SavedPortfolioAnalysisResponse completeInTransaction(
@@ -258,7 +307,8 @@ public class SavedPortfolioAnalysisTransactionService {
       List<PortfolioAssetRequest> assets,
       PortfolioAnalysisResponse result,
       boolean deferSummary,
-      PortfolioCalculationService.PreparedPrices prices) {
+      PortfolioCalculationService.PreparedPrices prices,
+      Set<String> names) {
     Portfolio portfolio = lockedPortfolio(memberId);
     PortfolioAnalysisCheck check = checks.findById(portfolio.getId()).orElseThrow();
     Instant now = Instant.now();
@@ -272,7 +322,7 @@ public class SavedPortfolioAnalysisTransactionService {
     String reason =
         previous == null ? "최초 분석" : matches(previous, assets) ? "분석 기준 변경" : "보유 종목·수량·비중 변경";
     if (previous != null
-        && matches(previous, assets)
+        && (names == null ? matches(previous, assets) : sameHoldings(previous, assets))
         && analysisVersion.equals(previous.getAnalysisVersion())
         && model.equals(previous.getModel())) {
       var old =
@@ -280,7 +330,10 @@ public class SavedPortfolioAnalysisTransactionService {
               previous,
               evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
                   previous.getId(), memberId));
-      var revision = PortfolioAnalysisRefresh.compare(old, result);
+      var revision =
+          names == null
+              ? PortfolioAnalysisRefresh.compare(old, result)
+              : PortfolioAnalysisRefresh.compareSelected(old, result, assets, names);
       if (revision.outcome() != PortfolioAnalysisCheck.Outcome.UPDATED) {
         check.recordSuccess(now, revision.outcome());
         check.finish(token);
@@ -505,6 +558,20 @@ public class SavedPortfolioAnalysisTransactionService {
 
   private boolean matches(PortfolioAnalysis analysis, List<PortfolioAssetRequest> assets) {
     return analysis.getSnapshot().hasSameAssets(toAssets(assets));
+  }
+
+  private boolean sameHoldings(PortfolioAnalysis analysis, List<PortfolioAssetRequest> assets) {
+    var saved = analysis.getSnapshot().assets();
+    return saved.size() == assets.size()
+        && saved.stream()
+            .allMatch(
+                old ->
+                    old.quantity() != null
+                        && assets.stream()
+                            .anyMatch(
+                                current ->
+                                    old.assetName().equals(current.assetName())
+                                        && old.quantity().equals(current.quantity())));
   }
 
   private List<PortfolioAnalysisSnapshot.Asset> toAssets(List<PortfolioAssetRequest> assets) {

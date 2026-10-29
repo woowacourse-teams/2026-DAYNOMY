@@ -37,6 +37,39 @@ import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 @ExtendWith(MockitoExtension.class)
 class PortfolioAnalysisServiceTest {
   @Test
+  void selectiveRefreshSendsOnlyChangedStockAndItsPreviousEvidenceToAI() {
+    var request = request(asset("삼성전자", "50"), asset("NAVER", "50"));
+    var original =
+        new PortfolioAnalysisResult(
+            "",
+            List.of(
+                impact("삼성전자", ImpactDirection.NEGATIVE, ImpactLevel.HIGH, 1),
+                impact("NAVER", ImpactDirection.NEGATIVE, ImpactLevel.HIGH, 2)),
+            List.of());
+    var previous = portfolioAnalysisService.response(request, original);
+    var changed = impact("삼성전자", ImpactDirection.POSITIVE, ImpactLevel.HIGH, 1);
+    given(
+            portfolioAnalysisAiClient.refresh(
+                org.mockito.ArgumentMatchers.eq(List.of(new PortfolioAnalysisTarget("삼성전자"))),
+                org.mockito.ArgumentMatchers.anyString()))
+        .willReturn(new PortfolioAnalysisResult("", List.of(changed), changed.sources()));
+    var revision =
+        portfolioAnalysisService.refreshAssets(request, previous, java.util.Set.of("삼성전자"));
+    var context = org.mockito.ArgumentCaptor.forClass(String.class);
+    verify(portfolioAnalysisAiClient)
+        .refresh(
+            org.mockito.ArgumentMatchers.eq(List.of(new PortfolioAnalysisTarget("삼성전자"))),
+            context.capture());
+    assertThat(context.getValue()).contains("삼성전자").doesNotContain("NAVER");
+    assertThat(revision.analysis().impacts()).hasSize(2);
+    assertThat(revision.analysis().impacts())
+        .filteredOn(i -> i.assetName().equals("NAVER"))
+        .singleElement()
+        .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEGATIVE));
+    verifyNoInteractions(narrative, assetAnalysisService);
+  }
+
+  @Test
   void analyzesAllUpToFiveAndSelectsOnlyFiveLargestHoldingsAboveThat() {
     var holdings =
         List.of(

@@ -71,7 +71,19 @@ class EmailDeliveryRepositoryTest {
         repository.claim(one.getId(), MAIL_DATE, List.of("price:date"), 10, 10, NOW).orElseThrow();
     assertThat(repository.claim(two.getId(), MAIL_DATE, List.of("price:date"), 10, 10, NOW))
         .isEmpty();
-    repository.complete(first, null, false, NOW);
+    repository.complete(first.id(), null, false, NOW);
+    var fresh =
+        repository
+            .claim(
+                one.getId(),
+                MAIL_DATE.plusDays(1),
+                List.of("price:date", "earnings:new"),
+                10,
+                10,
+                NOW)
+            .orElseThrow();
+    assertThat(fresh.signals()).containsExactly("earnings:new");
+    repository.complete(fresh.id(), null, false, NOW);
     assertThat(
             repository.claim(
                 one.getId(), MAIL_DATE.plusDays(1), List.of("price:date"), 10, 10, NOW))
@@ -82,7 +94,7 @@ class EmailDeliveryRepositoryTest {
             repository.claim(two.getId(), MAIL_DATE.plusDays(1), List.of("price:date"), 10, 1, NOW))
         .isEmpty();
     assertThat(
-            repository.claim(two.getId(), MAIL_DATE.plusDays(1), List.of("price:date"), 10, 2, NOW))
+            repository.claim(two.getId(), MAIL_DATE.plusDays(1), List.of("price:date"), 10, 3, NOW))
         .isPresent();
   }
 
@@ -115,7 +127,8 @@ class EmailDeliveryRepositoryTest {
     var repository = new EmailAutoAnalysisRepository(jdbc);
     jdbc.sql("set local time zone 'UTC'").update();
     var signal = repository.earningsSignals(List.of(stock.getId()), NOW.minusSeconds(86400), NOW);
-    assertThat(signal).hasSize(1);
+    assertThat(signal).containsOnlyKeys(stock.getId());
+    assertThat(signal.get(stock.getId())).hasSize(1);
     jdbc.sql("set local time zone 'Asia/Seoul'").update();
     assertThat(repository.earningsSignals(List.of(stock.getId()), NOW.minusSeconds(86400), NOW))
         .isEqualTo(signal);

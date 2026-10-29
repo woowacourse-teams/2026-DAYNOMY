@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -18,11 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class EmailAutoAnalysisRepository {
   private final JdbcClient jdbc;
 
-  public List<String> earningsSignals(List<Long> assetIds, Instant from, Instant cutoff) {
-    if (assetIds.isEmpty()) return List.of();
-    return jdbc.sql(
+  public Map<Long, List<String>> earningsSignals(
+      List<Long> assetIds, Instant from, Instant cutoff) {
+    if (assetIds.isEmpty()) return Map.of();
+    return jdbc
+        .sql(
             """
-        select 'earnings:' || a.id || ':' || e.source_key || ':' || extract(epoch from e.updated_at)
+        select a.id as asset_id,
+          'earnings:' || a.id || ':' || e.source_key || ':' || extract(epoch from e.updated_at) as signal
         from investment_events e join assets a on a.asset_code = e.related_asset_code
         where a.id in (:ids) and a.category = 'STOCK' and a.market in ('KOSPI','KOSDAQ')
           and e.event_type = 'CORPORATE_EARNINGS' and e.actual_value is not null
@@ -34,12 +39,16 @@ public class EmailAutoAnalysisRepository {
         .param("ids", assetIds)
         .param("from", java.sql.Timestamp.from(from))
         .param("cutoff", java.sql.Timestamp.from(cutoff))
-        .query(String.class)
-        .list();
+        .query((rs, row) -> Map.entry(rs.getLong("asset_id"), rs.getString("signal")))
+        .list()
+        .stream()
+        .collect(
+            Collectors.groupingBy(
+                Map.Entry::getKey, Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
   }
 
   @Transactional
-  public Optional<UUID> claim(
+  public Optional<Claim> claim(
       Long memberId,
       LocalDate date,
       List<String> signals,
@@ -92,8 +101,10 @@ public class EmailAutoAnalysisRepository {
             .param("signals", json(fresh))
             .param("now", java.sql.Timestamp.from(now))
             .update();
-    return inserted == 1 ? Optional.of(id) : Optional.empty();
+    return inserted == 1 ? Optional.of(new Claim(id, List.copyOf(fresh))) : Optional.empty();
   }
+
+  public record Claim(UUID id, List<String> signals) {}
 
   @Transactional
   public void complete(UUID id, Long analysisId, boolean succeeded, Instant now) {

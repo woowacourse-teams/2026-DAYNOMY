@@ -76,7 +76,19 @@ public class PortfolioAnalysisService {
 
   PortfolioAnalysisRefresh.Revision refreshAssets(
       PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous) {
+    return refreshAssets(request, previous, null);
+  }
+
+  PortfolioAnalysisRefresh.Revision refreshAssets(
+      PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous, Set<String> names) {
     validate(request);
+    var targets =
+        names == null
+            ? createTargets(request.assets())
+            : previous.impacts().stream()
+                .filter(impact -> names.contains(impact.assetName()))
+                .map(impact -> new PortfolioAnalysisTarget(impact.assetName()))
+                .toList();
     if (previous == null) {
       var result =
           response(request, portfolioAnalysisAiClient.analyze(createTargets(request.assets())));
@@ -89,6 +101,7 @@ public class PortfolioAnalysisService {
           new com.fasterxml.jackson.databind.ObjectMapper()
               .writeValueAsString(
                   previous.impacts().stream()
+                      .filter(impact -> names == null || names.contains(impact.assetName()))
                       .map(
                           impact ->
                               Map.of(
@@ -117,14 +130,16 @@ public class PortfolioAnalysisService {
                                                           : source.factQuote()))
                                           .toList()))
                       .toList());
-      var candidate =
-          response(
-              request, portfolioAnalysisAiClient.refresh(createTargets(request.assets()), context));
-      var revision = PortfolioAnalysisRefresh.compare(previous, candidate);
+      var candidate = response(request, portfolioAnalysisAiClient.refresh(targets, context));
+      var revision =
+          names == null
+              ? PortfolioAnalysisRefresh.compare(previous, candidate)
+              : PortfolioAnalysisRefresh.compareSelected(
+                  previous, candidate, request.assets(), names);
       if (revision.outcome()
           != org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED) {
         return new PortfolioAnalysisRefresh.Revision(
-            revision.outcome(), candidate, revision.reason());
+            revision.outcome(), names == null ? candidate : revision.analysis(), revision.reason());
       }
       return revision;
     } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {

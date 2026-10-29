@@ -7,9 +7,13 @@ import static org.mockito.Mockito.*;
 
 import java.time.*;
 import java.util.*;
+import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.emailsubscription.domain.*;
 import org.grit.daynomy.emailsubscription.repository.*;
 import org.grit.daynomy.portfolio.domain.Portfolio;
+import org.grit.daynomy.portfolio.domain.PortfolioHolding;
+import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.repository.*;
 import org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisService;
@@ -48,6 +52,17 @@ class EmailAutoAnalysisServiceTest {
     when(portfolios.findByMemberId(1L)).thenReturn(Optional.of(portfolio));
     when(analyses.get(1L)).thenReturn(previous);
     when(previous.analysisId()).thenReturn(100L);
+    var impact = mock(PortfolioAssetImpactResponse.class);
+    when(impact.assetName()).thenReturn("삼성전자");
+    var analysis = mock(PortfolioAnalysisResponse.class);
+    when(analysis.impacts()).thenReturn(List.of(impact));
+    when(previous.analysis()).thenReturn(analysis);
+    var asset = mock(Asset.class);
+    when(asset.getId()).thenReturn(1L);
+    when(asset.getName()).thenReturn("삼성전자");
+    var holding = mock(PortfolioHolding.class);
+    when(holding.getAsset()).thenReturn(asset);
+    when(holdings.findAllByPortfolioIdOrderById(10L)).thenReturn(List.of(holding));
   }
 
   void priceSignal() {
@@ -66,7 +81,7 @@ class EmailAutoAnalysisServiceTest {
   @Test
   void noImportantChangesNeverCallAI() {
     service(start, 10, 100).runDaily();
-    verify(analyses, never()).refreshAutomatically(anyLong());
+    verify(analyses, never()).refreshAutomatically(anyLong(), anySet());
     verify(runs, never()).claim(anyLong(), any(), anyList(), anyInt(), anyInt(), any());
   }
 
@@ -74,23 +89,24 @@ class EmailAutoAnalysisServiceTest {
   void runsExistingAnalysisOnceAfterReservingPersistentLimits() {
     priceSignal();
     when(runs.claim(
-            eq(1L), eq(MAIL_DATE), eq(List.of("price:2026-10-23")), eq(10), eq(100), eq(start)))
-        .thenReturn(Optional.of(id));
+            eq(1L), eq(MAIL_DATE), eq(List.of("price:1:2026-10-23")), eq(10), eq(100), eq(start)))
+        .thenReturn(
+            Optional.of(new EmailAutoAnalysisRepository.Claim(id, List.of("price:1:2026-10-23"))));
     var completed = mock(SavedPortfolioAnalysisResponse.class);
     when(completed.analysisId()).thenReturn(101L);
     when(completed.summaryStatus()).thenReturn("READY");
-    when(analyses.refreshAutomatically(1L)).thenReturn(completed);
+    when(analyses.refreshAutomatically(1L, Set.of("삼성전자"))).thenReturn(completed);
     service(start, 10, 100).runDaily();
     var order = inOrder(runs, analyses);
     order.verify(runs).claim(anyLong(), any(), anyList(), anyInt(), anyInt(), any());
-    order.verify(analyses).refreshAutomatically(1L);
+    order.verify(analyses).refreshAutomatically(1L, Set.of("삼성전자"));
     order.verify(runs).complete(id, 101L, true, start);
   }
 
   @Test
   void verifiedEarningsCanTriggerWithoutPriceSignals() {
     when(runs.earningsSignals(anyList(), any(), any()))
-        .thenReturn(List.of("earnings:1:key:revision"));
+        .thenReturn(Map.of(1L, List.of("earnings:1:key:revision")));
     service(start, 10, 100).runDaily();
     verify(runs)
         .claim(
@@ -103,10 +119,48 @@ class EmailAutoAnalysisServiceTest {
   }
 
   @Test
+  void analyzesOnlyStocksWithFreshReservedSignals() {
+    priceSignal();
+    var second = mock(Asset.class);
+    when(second.getId()).thenReturn(2L);
+    when(second.getName()).thenReturn("NAVER");
+    var holding = mock(PortfolioHolding.class);
+    when(holding.getAsset()).thenReturn(second);
+    var positions = new ArrayList<>(holdings.findAllByPortfolioIdOrderById(10L));
+    positions.add(holding);
+    when(holdings.findAllByPortfolioIdOrderById(10L)).thenReturn(positions);
+    var impact = mock(PortfolioAssetImpactResponse.class);
+    when(impact.assetName()).thenReturn("NAVER");
+    var impacts = new ArrayList<>(previous.analysis().impacts());
+    impacts.add(impact);
+    when(previous.analysis().impacts()).thenReturn(impacts);
+    when(runs.earningsSignals(anyList(), any(), any()))
+        .thenReturn(Map.of(2L, List.of("earnings:2:key:revision")));
+    when(runs.claim(anyLong(), any(), anyList(), anyInt(), anyInt(), any()))
+        .thenReturn(
+            Optional.of(
+                new EmailAutoAnalysisRepository.Claim(id, List.of("earnings:2:key:revision"))));
+    var completed = mock(SavedPortfolioAnalysisResponse.class);
+    when(analyses.refreshAutomatically(1L, Set.of("NAVER"))).thenReturn(completed);
+    service(start, 10, 100).runDaily();
+    verify(analyses).refreshAutomatically(1L, Set.of("NAVER"));
+    verify(analyses, never()).refreshAutomatically(1L, Set.of("삼성전자", "NAVER"));
+  }
+
+  @Test
+  void doesNotExpandToStockOutsideExistingAnalysis() {
+    when(runs.earningsSignals(anyList(), any(), any()))
+        .thenReturn(Map.of(2L, List.of("earnings:2:key:revision")));
+    service(start, 10, 100).runDaily();
+    verify(runs, never()).claim(anyLong(), any(), anyList(), anyInt(), anyInt(), any());
+    verify(analyses, never()).refreshAutomatically(anyLong(), anySet());
+  }
+
+  @Test
   void duplicateOrExhaustedReservationDoesNotCallAI() {
     priceSignal();
     service(start, 10, 100).runDaily();
-    verify(analyses, never()).refreshAutomatically(anyLong());
+    verify(analyses, never()).refreshAutomatically(anyLong(), anySet());
   }
 
   @Test
@@ -122,9 +176,10 @@ class EmailAutoAnalysisServiceTest {
     priceSignal();
     when(subscriptions.isEligible(1L)).thenReturn(true, false);
     when(runs.claim(anyLong(), any(), anyList(), anyInt(), anyInt(), any()))
-        .thenReturn(Optional.of(id));
+        .thenReturn(
+            Optional.of(new EmailAutoAnalysisRepository.Claim(id, List.of("price:1:2026-10-23"))));
     service(start, 10, 100).runDaily();
-    verify(analyses, never()).refreshAutomatically(anyLong());
+    verify(analyses, never()).refreshAutomatically(anyLong(), anySet());
     verify(runs).complete(id, null, false, start);
   }
 
@@ -132,11 +187,13 @@ class EmailAutoAnalysisServiceTest {
   void failedAIConsumesReservationAndDoesNotSendAnyMail() {
     priceSignal();
     when(runs.claim(anyLong(), any(), anyList(), anyInt(), anyInt(), any()))
-        .thenReturn(Optional.of(id));
-    when(analyses.refreshAutomatically(1L)).thenThrow(new IllegalStateException("test"));
+        .thenReturn(
+            Optional.of(new EmailAutoAnalysisRepository.Claim(id, List.of("price:1:2026-10-23"))));
+    when(analyses.refreshAutomatically(1L, Set.of("삼성전자")))
+        .thenThrow(new IllegalStateException("test"));
     assertThatCode(() -> service(start, 10, 100).runDaily()).doesNotThrowAnyException();
     verify(runs).complete(id, null, false, start);
-    verify(analyses, times(1)).refreshAutomatically(1L);
+    verify(analyses, times(1)).refreshAutomatically(1L, Set.of("삼성전자"));
   }
 
   @Test

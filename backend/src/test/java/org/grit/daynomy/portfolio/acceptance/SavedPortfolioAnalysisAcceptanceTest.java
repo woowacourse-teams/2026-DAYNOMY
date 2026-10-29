@@ -139,10 +139,129 @@ class SavedPortfolioAnalysisAcceptanceTest {
   @Autowired private PortfolioAnalysisEvidenceRepository evidence;
   @Autowired private PortfolioAnalysisCheckRepository checks;
   @Autowired private SavedPortfolioAnalysisTransactionService transactions;
+  @Autowired private org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisService savedAnalysis;
   @Autowired private JwtTokenProvider tokens;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private UsdKrwRateRepository exchangeRates;
   @MockitoBean private EodhdClient exchangeRateProvider;
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void automaticRefreshPreservesOtherStocksAndOnlySummarizesConfirmedChanges(boolean changed) {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    hold(portfolio, "NAVER");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    var before = savedAnalysis.get(member.getId());
+    var untouched =
+        before.analysis().impacts().stream()
+            .filter(item -> item.assetName().equals("NAVER"))
+            .findFirst()
+            .orElseThrow();
+    var stock =
+        holdings.findAllByPortfolioIdOrderById(portfolio.getId()).stream()
+            .filter(item -> item.getAsset().getName().equals("삼성전자"))
+            .findFirst()
+            .orElseThrow()
+            .getAsset();
+    prices.save(new StockDailyPrice(stock, LocalDate.of(2026, 10, 13), new BigDecimal("200")));
+    clearInvocations(ai, narrative);
+    doAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              List<PortfolioAnalysisTarget> targets = invocation.getArgument(0);
+              assertThat(targets)
+                  .extracting(PortfolioAnalysisTarget::assetName)
+                  .containsExactly("삼성전자");
+              return changed
+                  ? refreshed(
+                      targets,
+                      LocalDate.of(2026, 10, 1),
+                      "https://example.invalid/new-contract",
+                      "새 계약을 체결했어요.")
+                  : result(targets);
+            })
+        .when(ai)
+        .refresh(anyList(), anyString());
+
+    var after = savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자"));
+
+    verify(ai, times(1)).refresh(anyList(), anyString());
+    verify(ai, never()).analyze(anyList());
+    var preserved =
+        after.analysis().impacts().stream()
+            .filter(item -> item.assetName().equals("NAVER"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(preserved.direction()).isEqualTo(untouched.direction());
+    assertThat(preserved.issueSummary()).isEqualTo(untouched.issueSummary());
+    assertThat(preserved.sources()).isEqualTo(untouched.sources());
+    if (changed) {
+      assertThat(after.analysisId()).isNotEqualTo(before.analysisId());
+      assertThat(after.matchesCurrentPortfolio()).isTrue();
+      assertThat(preserved.weight()).isEqualByComparingTo("33.33");
+      assertThat(after.analysis().overallScore()).isEqualByComparingTo("33.34");
+      assertThat(after.summaryStatus()).isEqualTo("READY");
+      assertThat(after.changeReason()).contains("삼성전자").doesNotContain("NAVER");
+      verify(narrative, times(1)).summarize(org.mockito.ArgumentMatchers.any());
+    } else {
+      assertThat(after.analysisId()).isEqualTo(before.analysisId());
+      assertThat(after.analysis().analyzedAt()).isEqualTo(before.analysis().analyzedAt());
+      assertThat(after.lastCheckOutcome()).isEqualTo("UNCHANGED");
+      verifyNoInteractions(narrative);
+    }
+  }
+
+  @Test
+  void automaticRefreshWithoutSavedAnalysisDoesNotCreateAnInitialAnalysis() {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    var result = savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자"));
+    assertThat(result.analysisId()).isNull();
+    verifyNoInteractions(ai, narrative);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void automaticRefreshNeverMixesResultsAfterQuantityChanges(boolean duringAnalysis) {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    var before = savedAnalysis.get(member.getId());
+    clearInvocations(ai, narrative);
+    if (duringAnalysis) {
+      doAnswer(
+              invocation -> {
+                jdbc.update(
+                    "update portfolio_holdings set quantity = 2 where portfolio_id = ?",
+                    portfolio.getId());
+                return refreshed(
+                    invocation.getArgument(0),
+                    LocalDate.of(2026, 10, 1),
+                    "https://example.invalid/new-contract",
+                    "새 계약을 체결했어요.");
+              })
+          .when(ai)
+          .refresh(anyList(), anyString());
+      assertThatThrownBy(
+              () -> savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자")))
+          .isInstanceOf(BusinessException.class)
+          .extracting(error -> ((BusinessException) error).errorCode())
+          .isEqualTo(PortfolioErrorCode.PORTFOLIO_ANALYSIS_ASSETS_CHANGED);
+    } else {
+      jdbc.update(
+          "update portfolio_holdings set quantity = 2 where portfolio_id = ?", portfolio.getId());
+      savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자"));
+      verifyNoInteractions(ai);
+    }
+    assertThat(savedAnalysis.get(member.getId()).analysisId()).isEqualTo(before.analysisId());
+    verifyNoInteractions(narrative);
+  }
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})

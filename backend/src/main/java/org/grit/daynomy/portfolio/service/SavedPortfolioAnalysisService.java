@@ -35,9 +35,27 @@ public class SavedPortfolioAnalysisService {
   }
 
   /** 수동 작업과 같은 잠금·검증·저장을 사용하며 이미 진행 중이면 추가 호출하지 않는다. */
-  public SavedPortfolioAnalysisResponse refreshAutomatically(Long memberId) {
-    var prepared = transactions.prepareTask(memberId, true);
-    return prepared.saved() != null ? prepared.saved() : executeStaged(memberId, prepared, true);
+  public SavedPortfolioAnalysisResponse refreshAutomatically(
+      Long memberId, java.util.Set<String> names) {
+    if (names.isEmpty()) return transactions.get(memberId);
+    var prepared = transactions.prepareAutomatic(memberId, names);
+    if (prepared.saved() != null) return prepared.saved();
+    try {
+      var revision =
+          analysisService.refreshAssets(
+              new PortfolioAnalysisRequest(prepared.assets()), prepared.previous(), names);
+      var core =
+          transactions.completeAutomaticCore(
+              memberId,
+              prepared.token(),
+              prepared.assets(),
+              revision.analysis().withOverallImpact(""),
+              names);
+      return "PENDING".equals(core.summaryStatus()) ? summarize(memberId, prepared, core) : core;
+    } catch (RuntimeException exception) {
+      fail(memberId, prepared, exception);
+      throw exception;
+    }
   }
 
   SavedPortfolioAnalysisResponse executeStaged(
