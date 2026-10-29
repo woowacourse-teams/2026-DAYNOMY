@@ -334,11 +334,24 @@ function PortfolioAnalysisLoading() {
   );
 }
 
-function PortfolioAnalysisError({ onRetry, message }: { onRetry: () => void; message: string }) {
+function PortfolioAnalysisError({
+  onRetry,
+  message,
+  retryDisabled = false,
+}: {
+  onRetry: () => void;
+  message: string;
+  retryDisabled?: boolean;
+}) {
   return (
     <div className="portfolio-analysis-state portfolio-analysis-empty" role="alert">
       <strong>{message}</strong>
-      <button className="portfolio-analysis-retry-button" type="button" onClick={onRetry}>
+      <button
+        className="portfolio-analysis-retry-button"
+        type="button"
+        onClick={onRetry}
+        disabled={retryDisabled}
+      >
         다시 시도
       </button>
     </div>
@@ -858,10 +871,14 @@ function PortfolioAnalysisView({
       }))
     : assets;
   const hasAnalysisTarget = displayAssets.length > 0;
+  const refreshExhausted = Boolean(
+    isLoggedIn && currentAnalysis && !portfolioChanged && saved?.remainingRefreshCount === 0,
+  );
   const canAnalyze =
     !loading &&
     !processing &&
     summaryStatus !== 'PENDING' &&
+    !refreshExhausted &&
     (assets.length > 0 || (isLoggedIn && !loaded));
 
   const showIntroduction =
@@ -886,7 +903,7 @@ function PortfolioAnalysisView({
     <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
       로그인하고 다시 분석하기
     </a>
-  ) : !error ? (
+  ) : !error || refreshExhausted ? (
     <button
       className={`portfolio-analysis-button${saved?.status !== 'PROCESSING' && (showIntroduction || portfolioChanged || analysis || (!isLoggedIn && !loading)) ? ' is-primary' : ''}`}
       type="button"
@@ -904,7 +921,9 @@ function PortfolioAnalysisView({
           : portfolioChanged
             ? '다시 분석하기'
             : analysis
-              ? '새 소식 확인'
+              ? refreshExhausted
+                ? '오늘 확인 완료'
+                : '새 소식 확인'
               : isLoggedIn
                 ? 'AI 분석하기'
                 : '1회 분석 체험하기'}
@@ -930,6 +949,16 @@ function PortfolioAnalysisView({
       </div>
 
       <div className="portfolio-analysis-meta">
+        {isLoggedIn &&
+        currentAnalysis &&
+        !portfolioChanged &&
+        saved?.remainingRefreshCount !== undefined ? (
+          <p role="status">
+            {refreshExhausted
+              ? '오늘 새 소식 확인 3회를 모두 사용했어요. 내일 다시 확인할 수 있어요.'
+              : `오늘 새 소식 확인 ${saved.remainingRefreshCount}회 남음 · 하루 최대 3회`}
+          </p>
+        ) : null}
         {analysis?.excludedAssets?.length ? (
           <p>
             보유 비중 상위 5종목을 분석했어요. 나머지 {analysis.excludedAssets.length}종목은 분석
@@ -983,7 +1012,11 @@ function PortfolioAnalysisView({
       ) : null}
 
       {hasAnalysisTarget && !loading && error ? (
-        <PortfolioAnalysisError onRetry={handleRetry} message={error} />
+        <PortfolioAnalysisError
+          onRetry={handleRetry}
+          message={error}
+          retryDisabled={refreshExhausted}
+        />
       ) : null}
 
       {hasAnalysisTarget && !loading && !error && trialExhausted && !analysis ? (

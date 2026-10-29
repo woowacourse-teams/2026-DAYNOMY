@@ -84,12 +84,121 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.clearAllMocks();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe('포트폴리오 분석 화면', () => {
+  it('하루 세 번 확인한 뒤 버튼을 막고 다시 들어와도 서버 횟수를 유지한다', async () => {
+    let remaining = 3;
+    const fetchMock = memberFetch((url, init) => {
+      if (url.endsWith('/tasks/refresh') && init?.method === 'POST') remaining--;
+      return saved({
+        remainingRefreshCount: remaining,
+        refreshResetAt: new Date(Date.now() + 86_400_000).toISOString(),
+      });
+    });
+    const view = render(<PortfolioAnalysis assets={assets} isLoggedIn />);
+    for (const expected of [2, 1, 0]) {
+      fireEvent.click(await view.findByRole('button', { name: '새 소식 확인' }));
+      await waitFor(() =>
+        expect(
+          view.getByText(
+            expected === 0
+              ? '오늘 새 소식 확인 3회를 모두 사용했어요. 내일 다시 확인할 수 있어요.'
+              : `오늘 새 소식 확인 ${expected}회 남음 · 하루 최대 3회`,
+          ),
+        ).toBeTruthy(),
+      );
+    }
+    const button = view.getByRole('button', { name: '오늘 확인 완료' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.click(button);
+    view.unmount();
+    const reloaded = render(<PortfolioAnalysis assets={assets} isLoggedIn />);
+    expect(
+      ((await reloaded.findByRole('button', { name: '오늘 확인 완료' })) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      fetchMock.mock.calls.filter(
+        ([url, init]) => String(url).endsWith('/tasks/refresh') && init?.method === 'POST',
+      ),
+    ).toHaveLength(3);
+    expect(reloaded.getByText(analysisResponse.overallImpact)).toBeTruthy();
+  });
+
+  it('다른 탭에서 횟수를 소진했으면 서버 상태를 다시 읽고 추가 확인을 막는다', async () => {
+    let exhausted = false;
+    memberFetch((url, init) => {
+      if (url.endsWith('/tasks/refresh') && init?.method === 'POST') {
+        exhausted = true;
+        return jsonResponse(
+          {
+            code: 'PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED',
+            message: '오늘 확인 횟수를 모두 사용했어요.',
+          },
+          429,
+        );
+      }
+      return saved({
+        remainingRefreshCount: exhausted ? 0 : 1,
+        refreshResetAt: new Date(Date.now() + 86_400_000).toISOString(),
+      });
+    });
+    const view = render(<PortfolioAnalysis assets={assets} isLoggedIn />);
+    fireEvent.click(await view.findByRole('button', { name: '새 소식 확인' }));
+    expect(
+      ((await view.findByRole('button', { name: '오늘 확인 완료' })) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(view.queryByRole('alert')).toBeNull();
+    expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
+  });
+
+  it('한국 시간 자정이 되면 조회만으로 확인 버튼을 다시 활성화한다', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-29T14:59:59Z'));
+    const fetchMock = memberFetch(() => {
+      const reset = Date.now() >= Date.parse('2026-10-29T15:00:00Z');
+      return saved({
+        remainingRefreshCount: reset ? 3 : 0,
+        refreshResetAt: reset ? '2026-10-30T15:00:00Z' : '2026-10-29T15:00:00Z',
+      });
+    });
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(<PortfolioAnalysis assets={assets} isLoggedIn />);
+    });
+    expect(
+      (view.getByRole('button', { name: '오늘 확인 완료' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1001);
+    });
+    expect((view.getByRole('button', { name: '새 소식 확인' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+  });
+
+  it('확인 횟수를 모두 썼어도 최초 분석 버튼은 제한하지 않는다', async () => {
+    memberFetch(() =>
+      saved({
+        analysis: null,
+        analysisId: null,
+        status: 'EMPTY',
+        remainingRefreshCount: 0,
+        refreshResetAt: new Date(Date.now() + 86_400_000).toISOString(),
+      }),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} isLoggedIn />);
+    expect(
+      ((await view.findByRole('button', { name: 'AI 분석하기' })) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
   it('저장된 종목 설명도 콜론 표제 없이 해요체로 보여주고 수치와 불확실성을 유지한다', async () => {
     memberFetch(() =>
       saved({

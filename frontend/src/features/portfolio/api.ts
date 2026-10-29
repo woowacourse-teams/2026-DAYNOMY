@@ -455,6 +455,13 @@ export function deletePortfolioTransaction(id: number) {
 function isSavedPortfolioAnalysis(value: unknown): value is SavedPortfolioAnalysisResponse {
   return (
     isRecord(value) &&
+    ((value.remainingRefreshCount === undefined && value.refreshResetAt === undefined) ||
+      (typeof value.remainingRefreshCount === 'number' &&
+        Number.isInteger(value.remainingRefreshCount) &&
+        value.remainingRefreshCount >= 0 &&
+        value.remainingRefreshCount <= 3 &&
+        typeof value.refreshResetAt === 'string' &&
+        Number.isFinite(Date.parse(value.refreshResetAt)))) &&
     (value.summaryStatus === undefined ||
       value.summaryStatus === null ||
       ['PENDING', 'READY', 'FAILED'].includes(String(value.summaryStatus))) &&
