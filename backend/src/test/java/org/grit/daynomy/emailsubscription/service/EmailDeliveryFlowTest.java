@@ -116,7 +116,7 @@ class EmailDeliveryFlowTest {
     var saved = deliveries.findById(id).orElseThrow();
     assertThat(saved.getStatus()).isEqualTo(EmailDelivery.Status.ACCEPTED);
     assertThat(saved.getHtmlBody())
-        .contains("새 관련 글", "필요하면 포트폴리오에서 분석을 새로 실행해보세요")
+        .contains("새 관련 글", "자세한 자산 현황은 포트폴리오에서 확인해보세요")
         .doesNotContain("분석이 달라", "출처:");
     assertThat(saved.getAnalysisIds()).isEmpty();
     unsubscribe.unsubscribe(saved.getUnsubscribeUrl().split("\\?token=", 2)[1]);

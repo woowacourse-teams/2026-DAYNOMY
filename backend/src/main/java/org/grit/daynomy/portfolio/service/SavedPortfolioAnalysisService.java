@@ -34,6 +34,12 @@ public class SavedPortfolioAnalysisService {
     return execute(memberId, transactions.prepareRefresh(memberId), true);
   }
 
+  /** 수동 작업과 같은 잠금·검증·저장을 사용하며 이미 진행 중이면 추가 호출하지 않는다. */
+  public SavedPortfolioAnalysisResponse refreshAutomatically(Long memberId) {
+    var prepared = transactions.prepareTask(memberId, true);
+    return prepared.saved() != null ? prepared.saved() : executeStaged(memberId, prepared, true);
+  }
+
   SavedPortfolioAnalysisResponse executeStaged(
       Long memberId,
       SavedPortfolioAnalysisTransactionService.PreparedAnalysis prepared,

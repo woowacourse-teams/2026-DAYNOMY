@@ -40,6 +40,98 @@ class EmailDeliveryRepositoryTest {
   @Autowired TestEntityManager em;
   @Autowired EmailDeliveryRepository deliveries;
   @Autowired EmailStockContentRepository contents;
+  @Autowired EmailSubscriptionRepository subscriptions;
+  @Autowired javax.sql.DataSource dataSource;
+
+  @Test
+  void analysisNoticeDeduplicationUsesMemberAndSavedAnalysisId() {
+    var member = em.persist(member());
+    var empty = EmailStockDigest.current(null, null, Map.of(1L, 1L), List.of(), List.of());
+    var notice = new EmailDigestSupplement.Analysis(101L, NOW.minusSeconds(3600), List.of("삼성전자"));
+    var mail =
+        new EmailDelivery(member, NOW, empty, new EmailDigestSupplement(null, notice), MAIL_DATE);
+    mail.claim(NOW);
+    mail.unknown();
+    em.persist(mail);
+    em.flush();
+    assertThat(deliveries.hasCoveredPortfolioAnalysis(member.getId(), "101")).isTrue();
+    assertThat(deliveries.hasCoveredPortfolioAnalysis(member.getId(), "102")).isFalse();
+    assertThat(deliveries.hasCoveredPortfolioAnalysis(-1L, "101")).isFalse();
+  }
+
+  @Test
+  void automaticRunReservesDailyMonthlyAndConcurrentLimitsAndConsumesFailedSignals() {
+    var one = em.persist(member());
+    var two = em.persist(member());
+    em.flush();
+    var repository =
+        new EmailAutoAnalysisRepository(
+            org.springframework.jdbc.core.simple.JdbcClient.create(dataSource));
+    var first =
+        repository.claim(one.getId(), MAIL_DATE, List.of("price:date"), 10, 10, NOW).orElseThrow();
+    assertThat(repository.claim(two.getId(), MAIL_DATE, List.of("price:date"), 10, 10, NOW))
+        .isEmpty();
+    repository.complete(first, null, false, NOW);
+    assertThat(
+            repository.claim(
+                one.getId(), MAIL_DATE.plusDays(1), List.of("price:date"), 10, 10, NOW))
+        .isEmpty();
+    assertThat(repository.claim(two.getId(), MAIL_DATE, List.of("price:date"), 1, 10, NOW))
+        .isEmpty();
+    assertThat(
+            repository.claim(two.getId(), MAIL_DATE.plusDays(1), List.of("price:date"), 10, 1, NOW))
+        .isEmpty();
+    assertThat(
+            repository.claim(two.getId(), MAIL_DATE.plusDays(1), List.of("price:date"), 10, 2, NOW))
+        .isPresent();
+  }
+
+  @Test
+  void earningsSignalRequiresHeldDomesticStockConfirmedValueAndCollectedOfficialSource() {
+    var stock = em.persist(Asset.listedStock("삼성전자", "005930", StockMarket.KOSPI, null, MAIL_DATE));
+    var etf =
+        em.persist(
+            Asset.listedSecurity(
+                "별도 ETF", AssetCategory.ETF, "005930", StockMarket.KOSPI, null, MAIL_DATE));
+    var event =
+        em.persist(
+            new org.grit.daynomy.investmentcalendar.domain.InvestmentEvent(
+                org.grit.daynomy.investmentcalendar.domain.InvestmentEventType.CORPORATE_EARNINGS,
+                "확인된 실적 발표",
+                NOW.minusSeconds(3600),
+                null,
+                java.math.BigDecimal.TEN,
+                "억원",
+                "전자공시시스템(DART)",
+                "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=123",
+                "DART-EARNINGS-005930-2026Q3",
+                "005930"));
+    em.flush();
+    var jdbc = org.springframework.jdbc.core.simple.JdbcClient.create(dataSource);
+    jdbc.sql("update investment_events set updated_at = :at where id = :id")
+        .param("at", java.sql.Timestamp.from(NOW.minusSeconds(60)))
+        .param("id", event.getId())
+        .update();
+    var repository = new EmailAutoAnalysisRepository(jdbc);
+    jdbc.sql("set local time zone 'UTC'").update();
+    var signal = repository.earningsSignals(List.of(stock.getId()), NOW.minusSeconds(86400), NOW);
+    assertThat(signal).hasSize(1);
+    jdbc.sql("set local time zone 'Asia/Seoul'").update();
+    assertThat(repository.earningsSignals(List.of(stock.getId()), NOW.minusSeconds(86400), NOW))
+        .isEqualTo(signal);
+    assertThat(repository.earningsSignals(List.of(etf.getId()), NOW.minusSeconds(86400), NOW))
+        .isEmpty();
+    jdbc.sql("update investment_events set actual_value = null where id = :id")
+        .param("id", event.getId())
+        .update();
+    assertThat(repository.earningsSignals(List.of(stock.getId()), NOW.minusSeconds(86400), NOW))
+        .isEmpty();
+    var subscriber = em.persist(new EmailSubscription(em.persist(member())));
+    assertThat(subscriptions.isEligible(subscriber.getMemberId())).isFalse();
+    subscriber.subscribe(NOW);
+    em.flush();
+    assertThat(subscriptions.isEligible(subscriber.getMemberId())).isTrue();
+  }
 
   @Test
   void nativePriceDeduplicationIsAccountAndBaseDateScopedAndUnknownBlocksResending() {

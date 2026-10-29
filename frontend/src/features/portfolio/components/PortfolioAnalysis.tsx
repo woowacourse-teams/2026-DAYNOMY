@@ -1,7 +1,7 @@
 import { tourAnalysis } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { useContentImpression } from '../../news/issue/analytics';
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
 import type {
   PortfolioAsset,
@@ -562,6 +562,23 @@ function plainAnalysisText(text: string) {
     .replace(/\[\d+(?:\s*[,–-]\s*\d+)*\]/g, '')
     .replace(/【[^】]*】/g, '')
     .replace(/\*\*/g, '')
+    .replace(/유리한\s*점\s*[:：]\s*/g, '유리한 점은 ')
+    .replace(/불리한\s*점\s*[·/및과]*\s*불확실성\s*[:：]\s*/g, '불리한 점과 불확실성은 ')
+    .replace(/불리한\s*점\s*[:：]\s*/g, '불리한 점은 ')
+    .replace(/불확실성\s*[:：]\s*/g, '불확실성은 ')
+    .replace(/밝혔습니다\./g, '밝혔어요.')
+    .replace(/([았었였했됐졌])습니다\./g, '$1어요.')
+    .replace(/어렵습니다\./g, '어려워요.')
+    .replace(/않습니다\./g, '않아요.')
+    .replace(/아닙니다\./g, '아니에요.')
+    .replace(/보입니다\./g, '보여요.')
+    .replace(/되었습니다\./g, '됐어요.')
+    .replace(/했습니다\./g, '했어요.')
+    .replace(/됩니다\./g, '돼요.')
+    .replace(/있습니다\./g, '있어요.')
+    .replace(/없습니다\./g, '없어요.')
+    .replace(/입니다\./g, '이에요.')
+    .replace(/합니다\./g, '해요.')
     .trim();
 }
 
@@ -735,7 +752,7 @@ type PortfolioAnalysisProps = {
   onAddAsset?: () => void;
 };
 
-export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
+export const PortfolioAnalysis = memo(function PortfolioAnalysis(props: PortfolioAnalysisProps) {
   if (props.demoStep !== undefined)
     return (
       <PortfolioAnalysisView
@@ -760,7 +777,7 @@ export function PortfolioAnalysis(props: PortfolioAnalysisProps) {
       {...props}
     />
   );
-}
+});
 
 function PortfolioAnalysisContent(props: PortfolioAnalysisProps) {
   const state = usePortfolioAnalysis(props.assets, props.isLoggedIn ?? true, props.holdingsKey);
@@ -929,7 +946,11 @@ function PortfolioAnalysisView({
           aria-live="polite"
         >
           <span className="portfolio-analysis-spinner" aria-hidden="true" />
-          <p>분석에 약 30초 정도 걸려요. 다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.</p>
+          <p>
+            분석에 약 30초 정도 걸려요.
+            <br />
+            다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.
+          </p>
         </div>
       ) : null}
       {analysis && summaryStatus === 'PENDING' ? (

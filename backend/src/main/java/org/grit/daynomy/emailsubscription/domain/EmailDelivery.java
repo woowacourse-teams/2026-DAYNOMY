@@ -139,7 +139,9 @@ public class EmailDelivery {
             + "님.\n\n내 자산의 주요 변화와 새 관련 자료를 모아 전해드려요.\n\n"
             + supplementDigest.body()
             + stockDigest.emailSections(base)
-            + "필요하면 포트폴리오에서 분석을 새로 실행해보세요.\n"
+            + (supplementDigest.analysis() == null
+                ? "자세한 자산 현황은 포트폴리오에서 확인해보세요.\n"
+                : supplementDigest.analysis().body())
             + "\n내 포트폴리오 확인하기: "
             + base
             + "/\n\nDAYNOMY\n알림 설정: "

@@ -27,9 +27,21 @@ class EmailDigestServiceTest {
   final MarketTradingDayRepository days = mock(MarketTradingDayRepository.class);
   final EmailStockContentRepository contents = mock(EmailStockContentRepository.class);
   final EmailDeliveryRepository deliveries = mock(EmailDeliveryRepository.class);
+  final PortfolioAnalysisRepository analyses = mock(PortfolioAnalysisRepository.class);
+  final PortfolioAnalysisEvidenceRepository evidence =
+      mock(PortfolioAnalysisEvidenceRepository.class);
   final EmailDigestService service =
       new EmailDigestService(
-          selection, portfolios, holdings, histories, snapshots, days, contents, deliveries);
+          selection,
+          portfolios,
+          holdings,
+          histories,
+          snapshots,
+          days,
+          contents,
+          deliveries,
+          analyses,
+          evidence);
   final Portfolio portfolio = mock(Portfolio.class);
   final Asset asset = Asset.listedStock("삼성전자", "005930", StockMarket.KOSPI, null, MAIL_DATE);
 
@@ -146,6 +158,108 @@ class EmailDigestServiceTest {
             .findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDescIdDesc(
                 10L, base.plusDays(1), MAIL_DATE))
         .thenReturn(List.of(mock(PortfolioHoldingHistory.class)));
+    assertThat(service.compose(1L, NOW)).isEmpty();
+  }
+
+  private PortfolioAnalysis savedAnalysis(
+      long id,
+      PortfolioAnalysis previous,
+      java.time.Instant at,
+      java.time.LocalDate eventDate,
+      String fact) {
+    var summary =
+        PortfolioImpactSummary.calculate(
+            List.of(
+                new PortfolioImpactSummary.AssetImpact(
+                    BigDecimal.valueOf(100),
+                    org.grit.daynomy.market.domain.asset.ImpactDirection.POSITIVE,
+                    org.grit.daynomy.market.domain.asset.ImpactLevel.HIGH)));
+    var snapshot =
+        new PortfolioAnalysisSnapshot(
+            List.of(new PortfolioAnalysisSnapshot.Asset("삼성전자", BigDecimal.valueOf(100), 1L)),
+            summary,
+            "저장된 종합 설명",
+            List.of(
+                new PortfolioAnalysisSnapshot.AssetImpact(
+                    "삼성전자",
+                    org.grit.daynomy.market.domain.asset.ImpactDirection.POSITIVE,
+                    org.grit.daynomy.market.domain.asset.ImpactLevel.HIGH,
+                    "확인된 실적",
+                    "예상 반응",
+                    "전망",
+                    "이유",
+                    "근거",
+                    1)));
+    var a =
+        PortfolioAnalysis.create(
+            portfolio, previous, "same-version", "same-model", snapshot, at, "근거 갱신");
+    ReflectionTestUtils.setField(a, "id", id);
+    when(evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(id, 1L))
+        .thenReturn(
+            List.of(
+                new PortfolioAnalysisEvidence(
+                    a,
+                    "삼성전자",
+                    "실적 발표",
+                    "https://example.invalid/earnings",
+                    eventDate,
+                    eventDate,
+                    fact,
+                    fact)));
+    return a;
+  }
+
+  private PortfolioAnalysis update(
+      String oldFact, String newFact, java.time.LocalDate oldDate, java.time.LocalDate newDate) {
+    var old = savedAnalysis(100L, null, NOW.minusSeconds(90000), oldDate, oldFact);
+    var updated = savedAnalysis(101L, old, NOW.minusSeconds(3600), newDate, newFact);
+    when(analyses.findFirstByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(1L))
+        .thenReturn(Optional.of(updated));
+    when(analyses.findByIdAndPortfolioMemberId(100L, 1L)).thenReturn(Optional.of(old));
+    return updated;
+  }
+
+  @Test
+  void actualNewEvidenceAloneCreatesUpdateMailAndCanBeValidated() {
+    update("이전 실적 발표", "새로운 실적 발표", MAIL_DATE.minusDays(2), MAIL_DATE.minusDays(1));
+    var prepared = service.compose(1L, NOW).orElseThrow();
+    assertThat(prepared.stockDigest().hasNewInformation()).isFalse();
+    assertThat(prepared.supplement().analysis().id()).isEqualTo(101L);
+    assertThat(prepared.supplement().analysis().assetNames()).containsExactly("삼성전자");
+    assertThat(service.stillValid(1L, NOW, prepared.stockDigest(), prepared.supplement())).isTrue();
+    when(analyses.findFirstByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(1L))
+        .thenReturn(Optional.empty());
+    assertThat(service.stillValid(1L, NOW, prepared.stockDigest(), prepared.supplement()))
+        .isFalse();
+  }
+
+  @Test
+  void sameEvidenceAndUnknownEventDatesDoNotClaimAnUpdate() {
+    update("같은 원문", "같은 원문", MAIL_DATE.minusDays(1), MAIL_DATE.minusDays(1));
+    assertThat(service.compose(1L, NOW)).isEmpty();
+    update("이전 실적", "새로운 실적", MAIL_DATE.minusDays(1), null);
+    assertThat(service.compose(1L, NOW)).isEmpty();
+  }
+
+  @Test
+  void unfinishedAnalysisAndPreviouslyNotifiedResultDoNotGenerateUpdateMail() {
+    var current = update("이전 실적", "새로운 실적", MAIL_DATE.minusDays(2), MAIL_DATE.minusDays(1));
+    current.awaitSummary();
+    assertThat(service.compose(1L, NOW)).isEmpty();
+    current.completeSummary("완성된 설명");
+    when(deliveries.hasCoveredPortfolioAnalysis(1L, "101")).thenReturn(true);
+    assertThat(service.compose(1L, NOW)).isEmpty();
+  }
+
+  @Test
+  void changedHoldingsAndFirstAnalysisAreNotAdvertisedAsUpdated() {
+    update("이전 실적", "새로운 실적", MAIL_DATE.minusDays(2), MAIL_DATE.minusDays(1));
+    when(holdings.findAllByPortfolioIdOrderById(10L))
+        .thenReturn(List.of(new PortfolioHolding(portfolio, asset, 2, BigDecimal.TEN)));
+    assertThat(service.compose(1L, NOW)).isEmpty();
+    var first = savedAnalysis(102L, null, NOW.minusSeconds(3600), MAIL_DATE.minusDays(1), "최초 사실");
+    when(analyses.findFirstByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(1L))
+        .thenReturn(Optional.of(first));
     assertThat(service.compose(1L, NOW)).isEmpty();
   }
 }

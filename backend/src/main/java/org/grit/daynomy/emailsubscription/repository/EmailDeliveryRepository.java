@@ -67,6 +67,16 @@ public interface EmailDeliveryRepository extends JpaRepository<EmailDelivery, UU
   boolean hasCoveredAssetSummary(Long memberId, String baseDate);
 
   @Query(
+      value =
+          """
+      SELECT EXISTS(SELECT 1 FROM email_deliveries d WHERE d.member_id = :memberId
+        AND d.status IN ('ACCEPTED','SENDING','UNKNOWN')
+        AND d.supplement_digest->'analysis'->>'id' = :analysisId)
+      """,
+      nativeQuery = true)
+  boolean hasCoveredPortfolioAnalysis(Long memberId, String analysisId);
+
+  @Query(
       """
       select d.id from EmailDelivery d where d.deliveryDate = :date and d.status in :statuses
         and d.nextAttemptAt <= :now order by d.nextAttemptAt, d.id

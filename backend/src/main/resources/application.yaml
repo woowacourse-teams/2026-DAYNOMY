@@ -101,6 +101,12 @@ content-interaction:
   anonymous-token-secret: ${CONTENT_INTERACTION_ANONYMOUS_TOKEN_SECRET:${jwt.secret}}
   rate-limit-per-minute: ${CONTENT_INTERACTION_RATE_LIMIT_PER_MINUTE:60}
 
+content:
+  collection:
+    enabled: ${CONTENT_COLLECTION_ENABLED:false}
+    cron: ${CONTENT_COLLECTION_CRON:0 30 * * * *}
+    lookback-days: ${CONTENT_COLLECTION_LOOKBACK_DAYS:3}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -118,6 +124,7 @@ external:
     image-model: ${OPENAI_IMAGE_MODEL:gpt-image-1-mini}
     economy-news-model: ${OPENAI_ECONOMY_NEWS_MODEL:gpt-5.5}
     social-search-model: ${OPENAI_SOCIAL_SEARCH_MODEL:gpt-5-mini}
+    x-oembed-url: ${X_OEMBED_URL:https://publish.x.com/oembed}
     connect-timeout: ${OPENAI_CONNECT_TIMEOUT:3s}
     read-timeout: ${OPENAI_READ_TIMEOUT:120s}
 
@@ -203,7 +210,7 @@ exchange-rate:
 
 portfolio:
   analysis:
-    model: ${PORTFOLIO_ANALYSIS_MODEL:${OPENAI_MODEL:gpt-5-mini}}
+    model: ${PORTFOLIO_ANALYSIS_MODEL:gpt-5.4-mini}
     cache-ttl: ${PORTFOLIO_ANALYSIS_CACHE_TTL:30m}
     batch-size: ${PORTFOLIO_ANALYSIS_BATCH_SIZE:1}
   snapshot:
@@ -223,6 +230,10 @@ investment-calendar:
     dart-lookback-days: ${INVESTMENT_CALENDAR_DART_LOOKBACK_DAYS:30}
 
 email:
+  auto-analysis:
+    enabled: ${EMAIL_AUTO_ANALYSIS_ENABLED:false}
+    max-daily-runs: ${EMAIL_AUTO_ANALYSIS_MAX_DAILY_RUNS:0}
+    max-monthly-runs: ${EMAIL_AUTO_ANALYSIS_MAX_MONTHLY_RUNS:0}
   delivery:
     enabled: ${EMAIL_DELIVERY_ENABLED:false}
     scheduling-enabled: ${EMAIL_DELIVERY_SCHEDULING_ENABLED:false}

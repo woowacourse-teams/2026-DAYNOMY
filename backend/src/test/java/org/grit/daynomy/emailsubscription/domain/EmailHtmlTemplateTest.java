@@ -35,7 +35,7 @@ class EmailHtmlTemplateTest {
     var html = render(content, EmailDigestSupplement.empty());
     assertThat(html)
         .contains(
-            "DAYNOMY", "새 영상", "종목 등락률 +5%", "필요하면 포트폴리오에서 분석을 새로 실행해보세요.", "데이노미 등록일 2026-10-26")
+            "DAYNOMY", "새 영상", "종목 등락률 +5%", "자세한 자산 현황은 포트폴리오에서 확인해보세요.", "데이노미 등록일 2026-10-26")
         .doesNotContain("분석이 달라졌어요", "분석이 바뀌었을", "출처:", "trillion", "내 자산의 변화예요");
     assertThat(Jsoup.parse(html).select("a").eachAttr("href"))
         .contains(item.url(), base + "/", base + "/mypage", unsubscribe);
@@ -75,6 +75,22 @@ class EmailHtmlTemplateTest {
     assertThat(doc.select("script,img,[onerror]")).isEmpty();
     assertThat(doc.select("a").eachAttr("href")).allMatch(url -> url.startsWith("https://"));
     assertThat(html).contains("&lt;script&gt;", "&amp;next=b");
+  }
+
+  @Test
+  void completedUpdateShowsOnlyNotificationAndSavedAnalysisLink() {
+    var empty = EmailStockDigest.current(null, null, Map.of(1L, 1L), List.of(), List.of());
+    var analysis =
+        new EmailDigestSupplement.Analysis(100L, NOW.minusSeconds(3600), List.of("삼성전자"));
+    var supplement = new EmailDigestSupplement(null, analysis);
+    var mail = new EmailDelivery(member(), NOW, empty, supplement, MAIL_DATE);
+    mail.attachUnsubscribeLink(unsubscribe);
+    mail.completeTemplate("회원", base);
+    assertThat(supplement.shouldSend()).isTrue();
+    assertThat(Jsoup.parse(mail.getHtmlBody()).text())
+        .contains("보유 종목의 분석이 업데이트됐어요", "삼성전자의 새 근거를 반영했어요", "업데이트된 분석 보기", "2026-10-26 08:00")
+        .doesNotContain("새로 실행", "보유 종목의 가격에 변화", "새 관련 자료가 등록");
+    assertThat(mail.getBody()).contains(analysis.body()).doesNotContain("새로 실행");
   }
 
   private String render(EmailStockDigest digest, EmailDigestSupplement supplement) {

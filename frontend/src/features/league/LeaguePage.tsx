@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { InvestorAvatar } from './InvestorAvatar';
 import { Link } from 'react-router-dom';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
@@ -36,6 +36,73 @@ const emptyCollectionStates: Partial<
     description: '거래일이 있는 주에 성과를 집계합니다.',
   },
 };
+
+const RankingRow = memo(function RankingRow({
+  entry,
+  selected,
+  onSelect,
+}: {
+  entry: RankingEntry;
+  selected: boolean;
+  onSelect: (entry: RankingEntry) => void;
+}) {
+  return (
+    <li>
+      <span className="league-rank">{entry.rank}</span>
+      <Link
+        className="league-person"
+        to={`/league/${entry.publicId}`}
+        state={{
+          source: 'ranking',
+          rankBucket: entry.rank <= 3 ? 'top_3' : entry.rank <= 10 ? 'top_10' : 'other',
+        }}
+      >
+        <InvestorAvatar name={entry.displayName} imageUrl={entry.profileImageUrl} />
+        <strong>{entry.displayName}</strong>
+        <small>
+          {experienceLabels[entry.experienceLevel]} · {riskLabels[entry.riskProfile]}
+        </small>
+      </Link>
+      <div className="league-return">
+        <small>주간 수익률</small>
+        <strong className={entry.weeklyReturnRate >= 0 ? 'positive' : 'negative'}>
+          {formatRate(entry.weeklyReturnRate)}
+        </strong>
+      </div>
+      <div className="league-row-actions">
+        <button
+          type="button"
+          className="league-metrics-trigger"
+          aria-label={`${entry.displayName} 상세 지표`}
+          aria-haspopup="dialog"
+          aria-expanded={selected}
+          onClick={() => {
+            onSelect(entry);
+            trackLeagueEvent('league_action', {
+              surface: 'ranking',
+              action: 'open_metrics',
+              status: 'clicked',
+              rank_bucket: entry.rank <= 3 ? 'top_3' : entry.rank <= 10 ? 'top_10' : 'other',
+            });
+          }}
+        >
+          상세 지표
+        </button>
+        <Link
+          className="league-row-records"
+          to={`/league/${entry.publicId}`}
+          aria-label={`${entry.displayName} 공개 프로필 보기`}
+          state={{
+            source: 'ranking',
+            rankBucket: entry.rank <= 3 ? 'top_3' : entry.rank <= 10 ? 'top_10' : 'other',
+          }}
+        >
+          프로필 보기 <span aria-hidden="true">→</span>
+        </Link>
+      </div>
+    </li>
+  );
+});
 
 export function LeaguePage() {
   const heading = useLeaguePageHeading('주간 리그');
@@ -333,61 +400,12 @@ export function LeaguePage() {
           </header>
           <ol start={page * 20 + 1}>
             {ranking.rankings.map((entry) => (
-              <li key={entry.publicId}>
-                <span className="league-rank">{entry.rank}</span>
-                <Link
-                  className="league-person"
-                  to={`/league/${entry.publicId}`}
-                  state={{
-                    source: 'ranking',
-                    rankBucket: entry.rank <= 3 ? 'top_3' : entry.rank <= 10 ? 'top_10' : 'other',
-                  }}
-                >
-                  <InvestorAvatar name={entry.displayName} imageUrl={entry.profileImageUrl} />
-                  <strong>{entry.displayName}</strong>
-                  <small>
-                    {experienceLabels[entry.experienceLevel]} · {riskLabels[entry.riskProfile]}
-                  </small>
-                </Link>
-                <div className="league-return">
-                  <small>주간 수익률</small>
-                  <strong className={entry.weeklyReturnRate >= 0 ? 'positive' : 'negative'}>
-                    {formatRate(entry.weeklyReturnRate)}
-                  </strong>
-                </div>
-                <div className="league-row-actions">
-                  <button
-                    type="button"
-                    className="league-metrics-trigger"
-                    aria-label={`${entry.displayName} 상세 지표`}
-                    aria-haspopup="dialog"
-                    aria-expanded={selectedEntry?.publicId === entry.publicId}
-                    onClick={() => {
-                      setSelectedEntry(entry);
-                      trackLeagueEvent('league_action', {
-                        surface: 'ranking',
-                        action: 'open_metrics',
-                        status: 'clicked',
-                        rank_bucket:
-                          entry.rank <= 3 ? 'top_3' : entry.rank <= 10 ? 'top_10' : 'other',
-                      });
-                    }}
-                  >
-                    상세 지표
-                  </button>
-                  <Link
-                    className="league-row-records"
-                    to={`/league/${entry.publicId}`}
-                    aria-label={`${entry.displayName} 공개 프로필 보기`}
-                    state={{
-                      source: 'ranking',
-                      rankBucket: entry.rank <= 3 ? 'top_3' : entry.rank <= 10 ? 'top_10' : 'other',
-                    }}
-                  >
-                    프로필 보기 <span aria-hidden="true">→</span>
-                  </Link>
-                </div>
-              </li>
+              <RankingRow
+                key={entry.publicId}
+                entry={entry}
+                selected={selectedEntry?.publicId === entry.publicId}
+                onSelect={setSelectedEntry}
+              />
             ))}
           </ol>
           {ranking.totalCount > 20 ? (

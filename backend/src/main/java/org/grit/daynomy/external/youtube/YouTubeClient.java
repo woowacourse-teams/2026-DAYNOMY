@@ -163,6 +163,68 @@ public class YouTubeClient {
     }
   }
 
+  public List<YouTubeVideoCandidate> listChannelUploads(
+      String profileUrl, Instant fromInclusive, Instant toExclusive) {
+    if (profileUrl == null || profileUrl.isBlank()) {
+      return List.of();
+    }
+    requireApiKey();
+    long startedAt = System.nanoTime();
+    logRequest("listChannelUploads");
+    try {
+      YouTubeChannel channel = resolveChannel(profileUrl);
+      if (channel == null || channel.uploadsPlaylistId() == null) {
+        return List.of();
+      }
+      List<YouTubeVideoCandidate> candidates = new ArrayList<>();
+      String pageToken = null;
+      for (int page = 0; page < MAX_PROFILE_SEARCH_PAGES; page++) {
+        String currentPageToken = pageToken;
+        String response =
+            restClient
+                .get()
+                .uri(
+                    builder -> {
+                      builder
+                          .path("/playlistItems")
+                          .queryParam("part", "snippet,contentDetails")
+                          .queryParam("playlistId", channel.uploadsPlaylistId())
+                          .queryParam("maxResults", PROFILE_SEARCH_LIMIT)
+                          .queryParam("key", properties.apiKey());
+                      if (currentPageToken != null) {
+                        builder.queryParam("pageToken", currentPageToken);
+                      }
+                      return builder.build();
+                    })
+                .retrieve()
+                .body(String.class);
+        candidates.addAll(parsePlaylistCandidates(response));
+        pageToken = readTree(response).path("nextPageToken").asText();
+        if (pageToken.isBlank()
+            || candidates.stream()
+                .anyMatch(candidate -> isBefore(candidate.publishedAt(), fromInclusive))) {
+          break;
+        }
+      }
+      List<YouTubeVideoCandidate> filtered =
+          candidates.stream()
+              .filter(
+                  candidate -> isWithinPeriod(candidate.publishedAt(), fromInclusive, toExclusive))
+              .toList();
+      logCompleted("listChannelUploads", filtered.size(), startedAt);
+      return filtered;
+    } catch (HttpStatusCodeException exception) {
+      logFailed("listChannelUploads", exception.getStatusCode().value(), exception, startedAt);
+      throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
+    } catch (BusinessException exception) {
+      logFailed("listChannelUploads", null, exception, startedAt);
+      throw exception;
+    } catch (RuntimeException exception) {
+      logFailed("listChannelUploads", null, exception, startedAt);
+      throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
+    }
+  }
+
   private boolean isWithinPeriod(String value, Instant fromInclusive, Instant toExclusive) {
     try {
       Instant publishedAt = Instant.parse(value);
@@ -189,7 +251,8 @@ public class YouTubeClient {
                 "https://www.youtube.com/watch?v=" + videoId,
                 snippet.path("channelTitle").asText(""),
                 snippet.path("publishedAt").asText(""),
-                thumbnailUrl(snippet.path("thumbnails"))));
+                thumbnailUrl(snippet.path("thumbnails")),
+                snippet.path("description").asText("")));
       }
       return List.copyOf(candidates);
     } catch (Exception exception) {
@@ -198,10 +261,15 @@ public class YouTubeClient {
   }
 
   private String resolveChannelId(String profileUrl) {
+    YouTubeChannel channel = resolveChannel(profileUrl);
+    return channel == null ? null : channel.id();
+  }
+
+  private YouTubeChannel resolveChannel(String profileUrl) {
     URI uri = URI.create(profileUrl);
     String[] segments = uri.getPath().split("/");
     if (segments.length >= 3 && "channel".equals(segments[1])) {
-      return segments[2];
+      return fetchChannel("id", segments[2]);
     }
     if (segments.length < 2) {
       return null;
@@ -224,7 +292,7 @@ public class YouTubeClient {
                 builder ->
                     builder
                         .path("/channels")
-                        .queryParam("part", "id")
+                        .queryParam("part", "id,contentDetails")
                         .queryParam(parameter, value)
                         .queryParam("key", properties.apiKey())
                         .build())
@@ -234,9 +302,70 @@ public class YouTubeClient {
     if (!items.isArray() || items.isEmpty()) {
       return null;
     }
-    String channelId = items.get(0).path("id").asText();
-    return channelId.isBlank() ? null : channelId;
+    return parseChannel(items.get(0));
   }
+
+  private YouTubeChannel fetchChannel(String parameter, String value) {
+    String response =
+        restClient
+            .get()
+            .uri(
+                builder ->
+                    builder
+                        .path("/channels")
+                        .queryParam("part", "id,contentDetails")
+                        .queryParam(parameter, value)
+                        .queryParam("key", properties.apiKey())
+                        .build())
+            .retrieve()
+            .body(String.class);
+    JsonNode items = readTree(response).path("items");
+    return !items.isArray() || items.isEmpty() ? null : parseChannel(items.get(0));
+  }
+
+  private YouTubeChannel parseChannel(JsonNode item) {
+    String id = item.path("id").asText();
+    if (id.isBlank()) {
+      return null;
+    }
+    String uploads = item.path("contentDetails").path("relatedPlaylists").path("uploads").asText();
+    return new YouTubeChannel(id, uploads.isBlank() ? null : uploads);
+  }
+
+  private List<YouTubeVideoCandidate> parsePlaylistCandidates(String response) {
+    JsonNode items = readTree(response).path("items");
+    List<YouTubeVideoCandidate> candidates = new ArrayList<>();
+    for (JsonNode item : items) {
+      JsonNode snippet = item.path("snippet");
+      JsonNode contentDetails = item.path("contentDetails");
+      String videoId = contentDetails.path("videoId").asText();
+      String title = snippet.path("title").asText();
+      if (videoId.isBlank() || title.isBlank()) {
+        continue;
+      }
+      candidates.add(
+          new YouTubeVideoCandidate(
+              title,
+              "https://www.youtube.com/watch?v=" + videoId,
+              snippet.path("channelTitle").asText(""),
+              contentDetails
+                  .path("videoPublishedAt")
+                  .asText(snippet.path("publishedAt").asText("")),
+              thumbnailUrl(snippet.path("thumbnails")),
+              snippet.path("description").asText("")));
+    }
+    return List.copyOf(candidates);
+  }
+
+  private boolean isBefore(String value, Instant instant) {
+    try {
+      return Instant.parse(value).isBefore(instant);
+    } catch (DateTimeParseException exception) {
+      return false;
+    }
+  }
+
+  private record YouTubeChannel(String id, String uploadsPlaylistId) {}
 
   private JsonNode readTree(String response) {
     try {

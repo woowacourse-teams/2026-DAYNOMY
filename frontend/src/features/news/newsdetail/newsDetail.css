@@ -60,7 +60,7 @@ body {
 }
 
 .detail-category {
-  color: #4339c0;
+  color: #2463b5;
   font-size: 15px;
   font-weight: 800;
   line-height: 20px;
@@ -394,6 +394,10 @@ body {
     width: min(100% - 32px, 920px);
     padding-top: 72px;
     padding-bottom: 32px;
+  }
+
+  .body-copy {
+    text-align: left;
   }
 
   .news-detail h1 {

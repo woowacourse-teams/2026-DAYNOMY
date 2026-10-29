@@ -416,9 +416,7 @@ it('홈과 전체 콘텐츠에서 기사와 외부 글의 썸네일 및 날짜�
   await home.findByRole('button', { name: /첫 번째 인물 글/ });
   expect(home.container.querySelector('.issue-feed--visual .issue-feed-thumbnail')).toBeTruthy();
   expect(home.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeNull();
-  expect(home.container.querySelector('.issue-feed-thumbnail-daynomy')?.textContent).toBe(
-    '데이노미',
-  );
+  expect(home.container.querySelector('.issue-feed-thumbnail-daynomy')?.textContent).toBe('D');
   expect(home.container.querySelector('.issue-feed-thumbnail-x')?.textContent).toBe('X');
   const externalRow = home.getByRole('button', { name: /첫 번째 인물 글/ }).closest('article')!;
   expect(externalRow.querySelector('time')?.textContent).toBe('10.12 등록');
@@ -441,9 +439,7 @@ it('홈과 전체 콘텐츠에서 기사와 외부 글의 썸네일 및 날짜�
     contents.container.querySelector('.issue-feed--visual .issue-feed-thumbnail'),
   ).toBeTruthy();
   expect(contents.container.querySelector('.issue-feed-thumbnail-daynomy img')).toBeNull();
-  expect(contents.container.querySelector('.issue-feed-thumbnail-daynomy')?.textContent).toBe(
-    '데이노미',
-  );
+  expect(contents.container.querySelector('.issue-feed-thumbnail-daynomy')?.textContent).toBe('D');
   expect(contents.container.querySelector('.issue-feed-thumbnail-x')?.textContent).toBe('X');
 });
 

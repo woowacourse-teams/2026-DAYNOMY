@@ -33,7 +33,10 @@ import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository;
 import org.grit.daynomy.external.ExternalErrorCode;
+import org.grit.daynomy.external.eodhd.EodhdClient;
+import org.grit.daynomy.external.eodhd.dto.EodhdDailyPrice;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.member.domain.Member;
@@ -138,6 +141,62 @@ class SavedPortfolioAnalysisAcceptanceTest {
   @Autowired private SavedPortfolioAnalysisTransactionService transactions;
   @Autowired private JwtTokenProvider tokens;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private UsdKrwRateRepository exchangeRates;
+  @MockitoBean private EodhdClient exchangeRateProvider;
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void usdPortfolioCanLoadAnalyzeAndRefreshWithoutExchangeRateTransactionConflict(
+      boolean background) {
+    Member member = member();
+    Portfolio portfolio = portfolio(member);
+    hold(portfolio, "국내 종목");
+    LocalDate date = LocalDate.of(2026, 10, 12);
+    Asset asset =
+        assets.save(
+            Asset.listedStock("미국 종목", UUID.randomUUID() + ".US", StockMarket.NASDAQ, null, date));
+    holdings.save(new PortfolioHolding(portfolio, asset, 1, new BigDecimal("100")));
+    prices.save(new StockDailyPrice(asset, date, new BigDecimal("100")));
+    exchangeRates.deleteById(date);
+    doAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              assertThat(
+                      jdbc.queryForObject(
+                          "SELECT id FROM portfolios WHERE id = ? FOR UPDATE NOWAIT",
+                          Long.class,
+                          portfolio.getId()))
+                  .isEqualTo(portfolio.getId());
+              return List.of(new EodhdDailyPrice("USDKRW", "FOREX", date, new BigDecimal("1300")));
+            })
+        .when(exchangeRateProvider)
+        .getUsdKrwRates(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    successfulAi();
+    doAnswer(invocation -> result(invocation.getArgument(0)))
+        .when(ai)
+        .refresh(anyList(), anyString());
+
+    client(member).get(API).then().statusCode(200).body("status", equalTo("EMPTY"));
+    verifyNoInteractions(ai, narrative);
+    client(member)
+        .post(API + (background ? "/tasks" : ""))
+        .then()
+        .statusCode(background ? 202 : 200);
+    awaitTask(member, "READY");
+    var saved = client(member).get(API).then().statusCode(200).extract().response();
+    saved.then().body("analysis.analyzedAssetCount", equalTo(2));
+    assertThat(saved.jsonPath().getList("analysis.impacts.weight", BigDecimal.class))
+        .containsExactlyInAnyOrder(new BigDecimal("99.92"), new BigDecimal("0.08"));
+    long analysisId = saved.jsonPath().getLong("analysisId");
+    client(member)
+        .post(API + (background ? "/tasks/refresh" : "/refresh"))
+        .then()
+        .statusCode(background ? 202 : 200);
+    awaitTask(member, "READY");
+    client(member).get(API).then().body("analysisId", equalTo((int) analysisId));
+    verify(exchangeRateProvider)
+        .getUsdKrwRates(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+  }
 
   @ParameterizedTest
   @CsvSource({"v1,2", "v2,2", "v1,50", "v2,50"})

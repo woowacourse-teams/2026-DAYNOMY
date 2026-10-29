@@ -129,6 +129,7 @@ class PortfolioAnalysisBatchIntegrationTest {
                 server.url("/").toString(),
                 "test-key",
                 "test-model",
+                "test-search-model",
                 5,
                 acceptingVerifier());
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
@@ -172,6 +173,7 @@ class PortfolioAnalysisBatchIntegrationTest {
                 server.url("/").toString(),
                 "test-key",
                 "test-model",
+                "test-search-model",
                 5,
                 acceptingVerifier());
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
@@ -224,6 +226,7 @@ class PortfolioAnalysisBatchIntegrationTest {
                 server.url("/").toString(),
                 "test-key",
                 "test-model",
+                "test-search-model",
                 5,
                 acceptingVerifier());
         analyze = () -> client.analyze(List.of(new PortfolioAnalysisTarget("SK하이닉스")));

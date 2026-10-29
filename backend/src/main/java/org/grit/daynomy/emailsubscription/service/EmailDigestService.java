@@ -20,7 +20,13 @@ import org.grit.daynomy.emailsubscription.domain.EmailStockDigest;
 import org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository;
 import org.grit.daynomy.emailsubscription.repository.EmailStockContentRepository;
 import org.grit.daynomy.portfolio.domain.Portfolio;
+import org.grit.daynomy.portfolio.domain.PortfolioAnalysis;
+import org.grit.daynomy.portfolio.domain.PortfolioEvidenceComparison;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
+import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
+import org.grit.daynomy.portfolio.repository.PortfolioAnalysisEvidenceRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioAnalysisRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
@@ -46,6 +52,8 @@ public class EmailDigestService {
   private final MarketTradingDayRepository tradingDays;
   private final EmailStockContentRepository contents;
   private final EmailDeliveryRepository deliveries;
+  private final PortfolioAnalysisRepository analyses;
+  private final PortfolioAnalysisEvidenceRepository evidence;
 
   public record Prepared(EmailStockDigest stockDigest, EmailDigestSupplement supplement) {}
 
@@ -104,7 +112,11 @@ public class EmailDigestService {
     var assets = assets(portfolio, date);
     if (assets != null && deliveries.hasCoveredAssetSummary(memberId, assets.baseDate().toString()))
       assets = null;
-    var supplement = new EmailDigestSupplement(assets);
+    var analysis = analysis(memberId, cutoff, positions);
+    if (analysis != null
+        && deliveries.hasCoveredPortfolioAnalysis(memberId, analysis.id().toString()))
+      analysis = null;
+    var supplement = new EmailDigestSupplement(assets, analysis);
     var digest =
         EmailStockDigest.current(
             selected == null ? null : selected.baseDate(),
@@ -122,11 +134,14 @@ public class EmailDigestService {
       Long memberId, Instant cutoff, EmailStockDigest prepared, EmailDigestSupplement supplement) {
     var portfolio = portfolios.findByMemberId(memberId).orElse(null);
     if (portfolio == null) return false;
-    var currentHoldings = quantities(holdings.findAllByPortfolioIdOrderById(portfolio.getId()));
+    var positions = holdings.findAllByPortfolioIdOrderById(portfolio.getId());
+    var currentHoldings = quantities(positions);
     if (!prepared.holdings().equals(currentHoldings)) return false;
     var date = cutoff.atZone(EmailDelivery.ZONE).toLocalDate();
     if (supplement.assets() != null
         && !Objects.equals(supplement.assets(), assets(portfolio, date))) return false;
+    if (supplement.analysis() != null
+        && !supplement.analysis().equals(analysis(memberId, cutoff, positions))) return false;
     if (!prepared.stocks().isEmpty()) {
       var current = selection.select(memberId, date).orElse(null);
       if (current == null
@@ -153,6 +168,78 @@ public class EmailDigestService {
       if (!current.containsAll(prepared.contents())) return false;
     }
     return true;
+  }
+
+  /** AI 호출 없이 저장된 신구 분석의 원문 근거만 비교한다. */
+  private EmailDigestSupplement.Analysis analysis(
+      Long memberId, Instant cutoff, List<PortfolioHolding> positions) {
+    var current =
+        analyses.findFirstByPortfolioMemberIdOrderByAnalyzedAtDescIdDesc(memberId).orElse(null);
+    if (current == null
+        || current.getPreviousAnalysisId() == null
+        || current.getSummaryStatus() != PortfolioAnalysis.SummaryStatus.READY
+        || !current.getAnalyzedAt().isBefore(cutoff)
+        || current.getAnalyzedAt().isBefore(cutoff.minus(java.time.Duration.ofDays(1)))
+        || !sameHoldings(current, positions)) return null;
+    var previous =
+        analyses
+            .findByIdAndPortfolioMemberId(current.getPreviousAnalysisId(), memberId)
+            .orElse(null);
+    if (previous == null
+        || !sameHoldings(previous, positions)
+        || !previous.getAnalysisVersion().equals(current.getAnalysisVersion())
+        || !previous.getModel().equals(current.getModel())) return null;
+    var old =
+        PortfolioAnalysisResponse.from(
+            previous,
+            evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
+                previous.getId(), memberId));
+    var updated =
+        PortfolioAnalysisResponse.from(
+            current,
+            evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
+                current.getId(), memberId));
+    var names =
+        updated.impacts().stream()
+            .filter(item -> item.direction() != null)
+            .filter(
+                item ->
+                    old.impacts().stream()
+                        .anyMatch(
+                            before ->
+                                before.assetName().equals(item.assetName())
+                                    && PortfolioEvidenceComparison.compare(
+                                            facts(before), facts(item))
+                                        == PortfolioEvidenceComparison.Result.NEW_EVIDENCE))
+            .map(PortfolioAssetImpactResponse::assetName)
+            .toList();
+    return names.isEmpty()
+        ? null
+        : new EmailDigestSupplement.Analysis(current.getId(), current.getAnalyzedAt(), names);
+  }
+
+  private boolean sameHoldings(PortfolioAnalysis analysis, List<PortfolioHolding> positions) {
+    var assets = analysis.getSnapshot().assets();
+    return assets.size() == positions.size()
+        && positions.stream().map(item -> item.getAsset().getName()).distinct().count()
+            == positions.size()
+        && assets.stream()
+            .allMatch(
+                asset ->
+                    positions.stream()
+                        .anyMatch(
+                            position ->
+                                position.getAsset().getName().equals(asset.assetName())
+                                    && Objects.equals(position.getQuantity(), asset.quantity())));
+  }
+
+  private List<PortfolioEvidenceComparison.Fact> facts(PortfolioAssetImpactResponse impact) {
+    return impact.sources().stream()
+        .map(
+            source ->
+                new PortfolioEvidenceComparison.Fact(
+                    source.url(), source.occurredOn(), source.excerpt(), source.factQuote()))
+        .toList();
   }
 
   private Map<Long, Long> quantities(List<PortfolioHolding> positions) {

@@ -6,13 +6,17 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record EmailDigestSupplement(Assets assets) {
+public record EmailDigestSupplement(Assets assets, Analysis analysis) {
+  public EmailDigestSupplement(Assets assets) {
+    this(assets, null);
+  }
+
   public static EmailDigestSupplement empty() {
     return new EmailDigestSupplement(null);
   }
 
   public boolean shouldSend() {
-    return assets != null && assets.important();
+    return analysis != null || (assets != null && assets.important());
   }
 
   public String body() {
@@ -30,6 +34,24 @@ public record EmailDigestSupplement(Assets assets) {
 
   private static String number(BigDecimal value) {
     return value.stripTrailingZeros().toPlainString();
+  }
+
+  public record Analysis(Long id, java.time.Instant analyzedAt, java.util.List<String> assetNames) {
+    public Analysis {
+      if (id == null || analyzedAt == null || assetNames == null || assetNames.isEmpty())
+        throw new IllegalArgumentException("갱신된 분석과 종목이 필요합니다.");
+      assetNames = java.util.List.copyOf(assetNames);
+    }
+
+    public String body() {
+      return "보유 종목의 분석이 업데이트됐어요\n"
+          + String.join(", ", assetNames)
+          + "의 새 근거를 반영했어요.\n분석 기준: "
+          + analyzedAt
+              .atZone(EmailDelivery.ZONE)
+              .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+          + " · 한국 시간\n사이트에서 저장된 분석을 확인해보세요.\n\n";
+    }
   }
 
   public record Assets(

@@ -24,7 +24,21 @@ final class EmailHtmlTemplate {
     if (supplement.assets() != null && supplement.assets().dailyProfitLoss().signum() != 0)
       assets(content, supplement.assets());
     if (digest != null) stocks(content, digest, baseUrl);
-    paragraph(content, "필요하면 포트폴리오에서 분석을 새로 실행해보세요.");
+    if (supplement.analysis() == null) paragraph(content, "자세한 자산 현황은 포트폴리오에서 확인해보세요.");
+    else {
+      heading(content, "보유 종목의 분석이 업데이트됐어요");
+      paragraph(content, String.join(", ", supplement.analysis().assetNames()) + "의 새 근거를 반영했어요.");
+      paragraph(
+          content,
+          "분석 기준: "
+              + supplement
+                  .analysis()
+                  .analyzedAt()
+                  .atZone(EmailDelivery.ZONE)
+                  .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+              + " · 한국 시간");
+      paragraph(content, "사이트에서 저장된 분석을 확인해보세요.");
+    }
     return """
         <!doctype html>
         <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -41,7 +55,7 @@ final class EmailHtmlTemplate {
         <p style="margin:0 0 32px;font-size:15px;color:#52647f">내 자산의 주요 변화와 새 관련 자료를 모아 전해드려요.</p>
         %s
         <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" style="margin-top:36px"><tr><td align="center" style="background-color:#0a0a0a;border-radius:10px">
-        <a href="%s/" style="display:block;padding:16px 20px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none">내 포트폴리오 확인하기</a></td></tr></table>
+        <a href="%s/" style="display:block;padding:16px 20px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none">%s</a></td></tr></table>
         <p style="margin:32px 0 8px;font-size:14px;font-weight:700;color:#111320">DAYNOMY</p>
         <p style="margin:0;font-size:13px;color:#52647f"><a href="%s/mypage" style="color:#52647f;text-decoration:underline">알림 설정</a> · %s</p>
         </td></tr></table></td></tr></table></body></html>
@@ -51,6 +65,7 @@ final class EmailHtmlTemplate {
             text(name),
             content,
             text(baseUrl),
+            supplement.analysis() == null ? "내 포트폴리오 확인하기" : "업데이트된 분석 보기",
             text(baseUrl),
             link(unsubscribeUrl, "수신 해지"));
   }

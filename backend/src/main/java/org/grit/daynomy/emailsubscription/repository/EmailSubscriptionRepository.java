@@ -9,6 +9,14 @@ import org.springframework.data.jpa.repository.Query;
 public interface EmailSubscriptionRepository extends JpaRepository<EmailSubscription, Long> {
   @Query(
       """
+      select count(s) > 0 from EmailSubscription s where s.memberId = :memberId
+        and s.status = org.grit.daynomy.emailsubscription.domain.EmailSubscriptionStatus.SUBSCRIBED
+        and s.member.withdrawnAt is null
+      """)
+  boolean isEligible(Long memberId);
+
+  @Query(
+      """
       select s.memberId from EmailSubscription s
       where s.status = org.grit.daynomy.emailsubscription.domain.EmailSubscriptionStatus.SUBSCRIBED
         and s.member.withdrawnAt is null and s.memberId > :after order by s.memberId
