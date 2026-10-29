@@ -156,6 +156,8 @@ test('공개 페이지의 첫 HTML에 본문, canonical, 공유 메타데이터�
   assert.equal(news.headers.get('cache-control'), 'no-store');
   assert.match(newsHtml, /<h1>뉴스 &lt;제목&gt;<\/h1>/);
   assert.match(newsHtml, /<p>공개 내용 &amp; 설명<\/p>/);
+  assert.match(newsHtml, /<div id="root"><noscript><main>/);
+  assert.match(newsHtml, /<\/main><\/noscript><\/div>/);
   assert.match(newsHtml, /property="og:url" content="https:\/\/daynomy.com\/news\/1"/);
   assert.match(newsHtml, /property="og:image" content="https:\/\/daynomy.com\/daynomy-og.png"/);
   assert.doesNotMatch(newsHtml, /javascript:alert|access_token/);

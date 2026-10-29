@@ -111,7 +111,7 @@ function pageHtml(template, page, siteOrigin, indexable) {
       `content="${indexable && page.indexable ? 'index,follow' : 'noindex,follow'}"`,
     )
     .replace('</head>', `${meta}\n  </head>`)
-    .replace('<div id="root"></div>', `<div id="root">${page.body}</div>`);
+    .replace('<div id="root"></div>', `<div id="root"><noscript>${page.body}</noscript></div>`);
 }
 
 async function apiJson(apiOrigin, path) {
