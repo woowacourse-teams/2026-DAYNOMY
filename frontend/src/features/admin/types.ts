@@ -127,3 +127,83 @@ export type AdminStockPriceBackfillResponse = {
 export type AdminLeagueRecalculationResponse = {
   calculatedCount: number;
 };
+
+export type ContentCollectionSourceType = 'YOUTUBE' | 'THREADS' | 'X';
+
+export type AdminContentCollectionSource = {
+  id: number;
+  name: string;
+  sourceType: ContentCollectionSourceType;
+  sourceUrl: string;
+  assetId: number | null;
+  assetName: string | null;
+  enabled: boolean;
+  lastCollectedAt: string | null;
+};
+
+export type AdminContentCollectionSourceRequest = {
+  name: string;
+  sourceType: ContentCollectionSourceType;
+  sourceUrl: string;
+  assetId: number | null;
+  enabled: boolean;
+};
+
+export type AdminContentCollectionManualRequest = {
+  url: string;
+  title: string | null;
+  description: string | null;
+  publishedDate: string | null;
+};
+
+export type AdminContentCollectionResult = {
+  sourceId: number;
+  fetchedCount: number;
+  savedCount: number;
+  duplicateCount: number;
+  linkedCount: number;
+};
+
+export type AdminContentCollectionBatchResult = {
+  sourceCount: number;
+  successCount: number;
+  failureCount: number;
+  fetchedCount: number;
+  savedCount: number;
+  duplicateCount: number;
+  linkedCount: number;
+};
+
+export type AdminContentCollectionReview = {
+  id: number;
+  sourceName: string;
+  sourceType: ContentCollectionSourceType;
+  title: string;
+  description: string | null;
+  url: string;
+  imageUrl: string | null;
+  publishedDate: string | null;
+  suggestedAssets: AdminContentCollectionReviewAsset[];
+  createdAt: string;
+};
+
+export type AdminContentCollectionReviewAsset = {
+  id: number;
+  name: string;
+  assetCode: string;
+};
+
+export type AdminContentCollectionReviewPage = {
+  items: AdminContentCollectionReview[];
+  page: number;
+  size: number;
+  totalPages: number;
+  totalElements: number;
+  hasNext: boolean;
+};
+
+export type AdminContentCollectionRematchResult = {
+  processedCount: number;
+  matchedCount: number;
+  suggestionCount: number;
+};

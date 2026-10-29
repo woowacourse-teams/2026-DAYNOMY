@@ -160,11 +160,11 @@ jobs:
             --tag "$IMAGE_NAME:$IMAGE_TAG" \
             .
 
-      - name: Validate Nginx configuration
+      - name: Validate HTML server
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
           IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
-        run: docker run --rm "$IMAGE_NAME:$IMAGE_TAG" nginx -t
+        run: docker run --rm "$IMAGE_NAME:$IMAGE_TAG" node --check /app/server/index.mjs
 
       - name: Smoke test container
         env:
@@ -189,7 +189,7 @@ jobs:
             exit 1
           fi
 
-          for path in / /index.html /news/1; do
+          for path in / /index.html /login; do
             curl --fail --silent --head "http://127.0.0.1:3000$path" \
               | grep -qi '^Cache-Control: no-cache'
           done
@@ -201,8 +201,8 @@ jobs:
               | grep -qi '^Cache-Control: public, max-age=31536000, immutable'
           done <<< "$hashed_assets"
 
-          if ! curl --fail --silent http://127.0.0.1:3000/news/1 \
-            | grep -q '<div id="root"></div>'; then
+          if ! curl --fail --silent http://127.0.0.1:3000/welcome \
+            | grep -q '<h1>DAYNOMY</h1>'; then
             dump_container_logs
             exit 1
           fi
@@ -311,6 +311,17 @@ jobs:
               exit 1
             fi
           done
+
+          public_html="$(curl --fail --silent --show-error --max-time 15 "$DEPLOY_URL/news")"
+          if [[ "$public_html" != *'<h1>소식</h1>'* ]] \
+            || [[ "$public_html" != *"property=\"og:url\" content=\"$DEPLOY_URL/news\""* ]]; then
+            echo 'Public news HTML or sharing metadata is missing'
+            exit 1
+          fi
+          if [ "$(curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' "$DEPLOY_URL/news/0")" != 404 ]; then
+            echo 'Invalid news URL must return 404'
+            exit 1
+          fi
 
           login_redirect="$(curl --silent --show-error --max-time 15 \
             --output /dev/null --write-out '%{redirect_url}' \

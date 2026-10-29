@@ -1,7 +1,7 @@
 import { tourNews } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { trackLoadResult, useContentImpression, useContentView } from '../../news/issue/analytics';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { getStockRelatedContents } from '../../stock-content/api';
 import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../../stock-content/types';
 import { feedDate, youtubeThumbnail } from '../../news/issue/feed';
@@ -46,7 +46,7 @@ function NewsThumbnail({ item }: { item: NewsItem }) {
   );
 }
 
-export function PortfolioNews({
+export const PortfolioNews = memo(function PortfolioNews({
   demo = false,
   holdings,
   hidden = false,
@@ -163,7 +163,6 @@ export function PortfolioNews({
           보유 자산 소식
         </h2>
         <div className="portfolio-news-heading-actions">
-          <span>최신순</span>
           {onClose && (
             <button
               type="button"
@@ -171,6 +170,7 @@ export function PortfolioNews({
               aria-label="소식 접기"
               onClick={onClose}
             >
+              <span>접기</span>
               <svg aria-hidden="true" viewBox="0 0 24 24">
                 <path d="m9 6 6 6-6 6" />
               </svg>
@@ -294,4 +294,4 @@ export function PortfolioNews({
       </a>
     </aside>
   );
-}
+});

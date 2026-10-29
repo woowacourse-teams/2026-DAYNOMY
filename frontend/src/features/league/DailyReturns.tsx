@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { getDailyHistory, getLeagueWeeks } from './api';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { recentLeagueWeeks } from './weeks';
@@ -39,7 +39,7 @@ function rateClass(rate: number | null) {
   return rate === null || rate === 0 ? '' : rate > 0 ? 'positive' : 'negative';
 }
 
-export function DailyReturns({
+export const DailyReturns = memo(function DailyReturns({
   publicId,
   weekStart,
   onWeekChange,
@@ -55,6 +55,7 @@ export function DailyReturns({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const section = useRef<HTMLElement>(null);
   function retryLoad() {
     trackLeagueEvent('league_action', {
       surface: 'daily_history',
@@ -67,10 +68,9 @@ export function DailyReturns({
 
   useEffect(() => {
     function refreshWhenVisible() {
-      if (document.visibilityState === 'visible') {
-        if (onRefresh) onRefresh();
-        else setRetry((value) => value + 1);
-      }
+      if (document.visibilityState !== 'visible' || section.current?.closest('[hidden]')) return;
+      if (onRefresh) onRefresh();
+      else setRetry((value) => value + 1);
     }
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
@@ -134,6 +134,7 @@ export function DailyReturns({
 
   return (
     <section
+      ref={section}
       className="league-history-card league-daily-history"
       aria-labelledby="daily-history-title"
     >
@@ -231,4 +232,4 @@ export function DailyReturns({
       ) : null}
     </section>
   );
-}
+});

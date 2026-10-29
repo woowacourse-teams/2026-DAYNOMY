@@ -30,6 +30,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioPerformanceUnavailableReason;
 import org.grit.daynomy.portfolio.dto.PortfolioPricingStatus;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -45,6 +46,7 @@ import org.slf4j.LoggerFactory;
 class PortfolioSnapshotServiceTest {
 
   @Mock private PortfolioRepository portfolioRepository;
+  @Mock private PortfolioHoldingHistoryRepository historyRepository;
   @Mock private PortfolioHoldingRepository holdingRepository;
   @Mock private PortfolioDailySnapshotRepository snapshotRepository;
   @Mock private StockDailyPriceRepository stockPriceRepository;
@@ -75,6 +77,10 @@ class PortfolioSnapshotServiceTest {
     given(stockPriceRepository.findBaseDatesByPortfolioId(org.mockito.ArgumentMatchers.anyLong()))
         .willReturn(List.of(firstDate, secondDate));
     given(portfolioRepository.findAll()).willReturn(List.of(firstPortfolio, secondPortfolio));
+    given(
+            historyRepository.findFirstEffectiveDateByPortfolioId(
+                org.mockito.ArgumentMatchers.anyLong()))
+        .willReturn(Optional.of(firstDate));
     given(snapshotTransactionService.createSnapshot(10L, firstDate, null)).willReturn(true);
     given(snapshotTransactionService.createSnapshot(20L, firstDate, null))
         .willThrow(new ArithmeticException("out of range"));
@@ -104,6 +110,29 @@ class PortfolioSnapshotServiceTest {
     assertThat(ThrowableProxyUtil.asString(appender.list.getFirst().getThrowableProxy()))
         .contains("IllegalStateException")
         .doesNotContain("private-sql-values");
+  }
+
+  @Test
+  void skipsSharedPriceHistoryBeforeFirstHoldingButRechecksExistingSnapshots() {
+    LocalDate firstHolding = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(5);
+    LocalDate existingDate = firstHolding.minusDays(10);
+    Portfolio portfolio = portfolio(10L);
+    given(portfolioRepository.findAll()).willReturn(List.of(portfolio));
+    given(historyRepository.findFirstEffectiveDateByPortfolioId(10L))
+        .willReturn(Optional.of(firstHolding));
+    given(stockPriceRepository.findBaseDatesByPortfolioId(10L))
+        .willReturn(firstHolding.minusYears(5).datesUntil(firstHolding.plusDays(1)).toList());
+    given(snapshotRepository.findBaseDatesByPortfolioId(10L)).willReturn(List.of(existingDate));
+
+    service.createLatestSnapshots();
+
+    then(snapshotTransactionService)
+        .should()
+        .createSnapshot(10L, existingDate, existingDate.minusDays(1));
+    then(snapshotTransactionService)
+        .should()
+        .createSnapshot(10L, firstHolding, firstHolding.minusDays(1));
+    then(snapshotTransactionService).shouldHaveNoMoreInteractions();
   }
 
   @Test
@@ -264,6 +293,8 @@ class PortfolioSnapshotServiceTest {
     given(stockPriceRepository.findBaseDatesByPortfolioId(org.mockito.ArgumentMatchers.anyLong()))
         .willReturn(List.of(yesterday, today));
     given(portfolioRepository.findAll()).willReturn(List.of(portfolio));
+    given(historyRepository.findFirstEffectiveDateByPortfolioId(10L))
+        .willReturn(Optional.of(yesterday));
     given(snapshotTransactionService.createSnapshot(10L, yesterday, null)).willReturn(true);
 
     int count = service.createLatestSnapshots();

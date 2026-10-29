@@ -70,6 +70,7 @@ class OpenAiPortfolioAnalysisClientTest {
             server.url("/").toString(),
             "test-api-key",
             "test-model",
+            "test-search-model",
             5,
             evidenceVerifier);
   }
@@ -132,7 +133,8 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(result.overallImpact()).isEmpty();
     assertThat(result.impacts().getFirst().issueSummary()).contains("수요와 비용");
     assertThat(result.impacts().getFirst().outlook()).contains("비용 부담");
-    assertThat(result.impacts().getFirst().evidenceSentence()).isEqualTo("확인된 사업 변화예요.");
+    assertThat(result.impacts().getFirst().evidenceSentence())
+        .isEqualTo("Operating profit increased by 10%.");
     assertThat(result.impacts().getFirst().sources())
         .containsExactly(source("반도체 산업 동향", "https://example.com/semiconductor"));
     assertThat(result.sources())
@@ -183,6 +185,7 @@ class OpenAiPortfolioAnalysisClientTest {
             server.url("/").toString(),
             "test-api-key",
             "test-model",
+            "test-search-model",
             batchSize,
             acceptingVerifier());
     var names = List.of("삼성전자", "SK하이닉스", "네이버", "카카오");
@@ -286,6 +289,7 @@ class OpenAiPortfolioAnalysisClientTest {
             server.url("/").toString(),
             "test-api-key",
             "ft:test-model",
+            "test-search-model",
             5,
             acceptingVerifier());
     enqueueOutput(validOutput());
@@ -382,13 +386,13 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  @DisplayName("근거 문장이 비어 있으면 분석 실패로 처리한다")
-  void analyzeRejectsBlankEvidenceExcerpt() throws Exception {
-    String invalid = withEvidence(validOutput()).replace("확인된 사업 변화예요.", "   ");
+  @DisplayName("사용자 분석 설명이 비어 있으면 분석 실패로 처리한다")
+  void analyzeRejectsBlankAnalysisProse() throws Exception {
+    String invalid = withEvidence(validOutput()).replace("추가 흐름을 확인해야 해요.", "   ");
     enqueueOutput(invalid);
     enqueueCorrection(invalid);
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(4);
   }
 
   @Test
@@ -514,7 +518,8 @@ class OpenAiPortfolioAnalysisClientTest {
   @DisplayName("교정 후에도 문체가 잘못된 종목만 제외하고 정상 종목은 유지한다")
   void retainsValidAssetAfterFailedCorrection() throws Exception {
     String broken =
-        withEvidence(validOutput()).replaceFirst("확인된 사업 변화예요.", "English original sentence.. 해요.");
+        withEvidence(validOutput())
+            .replaceFirst("추가 흐름을 확인해야 해요.", "English original sentence.. 해요.");
     enqueueOutput(broken);
     enqueueOutput(onlyAsset(broken, "삼성전자"));
     var result = client.analyze(targets());
@@ -527,7 +532,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .singleElement()
         .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEUTRAL));
     assertThat(result.overallImpact()).doesNotContain("삼성전자", "English");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(4);
   }
 
   @Test
@@ -576,7 +581,7 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  void conflictingEvidenceForSameUrlRequiresCorrection() throws Exception {
+  void ignoresAiParaphrasesOfTheSameCanonicalEvidence() throws Exception {
     var output = objectMapper.readTree(withEvidence(validOutput()));
     for (var asset : output.path("impacts")) {
       var evidence = (com.fasterxml.jackson.databind.node.ArrayNode) asset.path("evidence");
@@ -585,10 +590,9 @@ class OpenAiPortfolioAnalysisClientTest {
       evidence.add(other);
     }
     enqueueOutput(objectMapper.writeValueAsString(output));
-    enqueueCorrection(validOutput());
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -693,7 +697,8 @@ class OpenAiPortfolioAnalysisClientTest {
                   .isEqualTo(java.time.LocalDate.of(2026, 9, 29));
               assertThat(impact.sources().getFirst().occurredOn())
                   .isEqualTo(java.time.LocalDate.of(2026, 9, 25));
-              assertThat(impact.sources().getFirst().excerpt()).isEqualTo("확인된 사업 변화예요.");
+              assertThat(impact.sources().getFirst().excerpt())
+                  .isEqualTo("Operating profit increased by 10%.");
             });
   }
 
@@ -752,7 +757,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .singleElement()
         .satisfies(i -> assertThat(i.direction()).isNotNull());
     assertThat(result.overallImpact()).doesNotContain("삼성전자");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(4);
   }
 
   @Test
@@ -991,7 +996,6 @@ class OpenAiPortfolioAnalysisClientTest {
         sourceResponseFor(List.of("삼성전자", "SK하이닉스"), "https://example.com/semiconductor"));
     firstEnqueuedResponse = new MockResponse();
     enqueueOutput(first);
-    enqueueOutput(onlyAsset(first, "삼성전자"));
     String replacementUrl = "https://official.example/results";
     server.enqueue(sourceResponseFor(List.of("삼성전자"), replacementUrl));
     String recoveredOutput =
@@ -1008,7 +1012,6 @@ class OpenAiPortfolioAnalysisClientTest {
           replacementUrl,
           new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
               "IR 안내", "Conference call scheduled.", null));
-      enqueueOutput(recoveredOutput, replacementUrl);
     }
 
     var result = client.analyze(targets());
@@ -1026,12 +1029,13 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(impact -> impact.assetName().equals("SK하이닉스"))
         .singleElement()
         .satisfies(impact -> assertThat(impact.direction()).isEqualTo(ImpactDirection.NEUTRAL));
-    assertThat(server.getRequestCount()).isEqualTo(foundFacts ? 5 : 6);
-    server.takeRequest();
+    assertThat(server.getRequestCount()).isEqualTo(4);
     server.takeRequest();
     server.takeRequest();
     String recovery = server.takeRequest().getBody().readUtf8();
-    assertThat(recovery).contains("blocked_domains", "삼성전자").doesNotContain("SK하이닉스");
+    assertThat(recovery)
+        .contains("unavailableSources", "삼성전자")
+        .doesNotContain("blocked_domains", "SK하이닉스");
   }
 
   @Test
@@ -1041,52 +1045,45 @@ class OpenAiPortfolioAnalysisClientTest {
     missing.putNull("direction");
     missing.putNull("impactLevel");
     missing.putArray("sourceUrls");
+    withEvidence(validOutput());
     enqueueOutput(objectMapper.writeValueAsString(root));
-    enqueueOutput(onlyAsset(validOutput().replace("NEUTRAL", "POSITIVE"), "삼성전자"));
-    org.mockito.Mockito.doReturn(
-            PortfolioAnalysisEvidence.from(
-                Map.of(
-                    "삼성전자",
-                    List.of("https://example.com/semiconductor"),
-                    "SK하이닉스",
-                    List.of("https://example.com/semiconductor")),
-                fixtureDocuments))
-        .when(evidenceVerifier)
-        .prepare(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    String replacementUrl = "https://example.com/new-announcement";
+    server.enqueue(sourceResponseFor(List.of("삼성전자"), replacementUrl));
+    enqueueOutput(
+        onlyAsset(
+            validOutput()
+                .replace("NEUTRAL", "POSITIVE")
+                .replace("https://example.com/semiconductor", replacementUrl),
+            "삼성전자"),
+        replacementUrl);
     var result = client.analyze(targets());
     assertThat(result.impacts())
         .filteredOn(i -> i.assetName().equals("삼성전자"))
         .singleElement()
-        .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.POSITIVE));
+        .satisfies(
+            i -> {
+              assertThat(i.direction()).isEqualTo(ImpactDirection.POSITIVE);
+              assertThat(i.sources().getFirst().url()).isEqualTo(replacementUrl);
+            });
     assertThat(result.impacts())
         .filteredOn(i -> i.assetName().equals("SK하이닉스"))
         .singleElement()
         .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEUTRAL));
-    takeAnalysisRequest();
-    var request = objectMapper.readTree(takeAnalysisRequest().getBody().readUtf8());
-    var instructions =
-        request.path("input").get(request.path("input").size() - 1).path("content").asText();
-    assertThat(instructions).contains("제공된 원문만 다시 확인", "자료에 직접 근거가 없다면 판단을 만들지");
-    var correction = objectMapper.readTree(request.path("input").get(2).path("content").asText());
-    assertThat(correction.path("assets")).hasSize(1);
-    assertThat(correction.path("assets").get(0).path("assetName").asText()).isEqualTo("삼성전자");
-    missing.putArray("evidence");
-    missing.remove("sourceUrls");
-    assertThat(correction.path("assets").get(0).path("sourceUrls")).hasSize(1);
-    assertThat(correction.path("sources").toString())
-        .contains("Operating profit increased by 10%.");
-    assertThat(correction.toString()).doesNotContain("SK하이닉스");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    server.takeRequest();
+    server.takeRequest();
+    var search = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(search.path("tools").toString()).doesNotContain("blocked_domains");
+    var request = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(request.path("input").get(2).path("content").asText())
+        .contains("삼성전자", replacementUrl)
+        .doesNotContain("SK하이닉스");
+    assertThat(server.getRequestCount()).isEqualTo(4);
   }
 
   @Test
   void correctionKeepsOnlyTargetPreviousEvidence() throws Exception {
-    var root = objectMapper.readTree(validOutput());
-    var missing = (com.fasterxml.jackson.databind.node.ObjectNode) root.path("impacts").get(0);
-    missing.putNull("direction");
-    missing.putNull("impactLevel");
-    missing.putArray("sourceUrls");
-    enqueueOutput(objectMapper.writeValueAsString(root));
+    enqueueOutput(
+        withEvidence(validOutput()).replaceFirst("추가 흐름을 확인해야 해요.", "English original.. 해요."));
     enqueueOutput(onlyAsset(validOutput(), "삼성전자"));
     String previous =
         """
@@ -1156,11 +1153,11 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   @Test
-  void correctsEnglishEvidenceExcerptOnce() throws Exception {
+  void correctsEnglishAnalysisOutlookOnce() throws Exception {
     enqueueOutput(
         withEvidence(validOutput())
             .replace(
-                "확인된 사업 변화예요.",
+                "추가 흐름을 확인해야 해요.",
                 "Samsung Electronics today announced its earnings guidance for the third quarter of 2026.. 해요."));
     enqueueCorrection(validOutput());
     assertThat(client.analyze(targets()).impacts())
@@ -1174,7 +1171,7 @@ class OpenAiPortfolioAnalysisClientTest {
   @Test
   void proseCorrectionNeedsNoSearchAndPreservesOriginalFacts() throws Exception {
     String original =
-        withEvidence(validOutput()).replaceFirst("확인된 사업 변화예요.", "English original.. 해요.");
+        withEvidence(validOutput()).replaceFirst("추가 흐름을 확인해야 해요.", "English original.. 해요.");
     enqueueOutput(original);
     String edited =
         onlyAsset(withEvidence(validOutput()), "삼성전자")
@@ -1221,7 +1218,8 @@ class OpenAiPortfolioAnalysisClientTest {
                             .isEqualTo("Operating profit increased by 10%.");
                         assertThat(source.publishedOn()).isNull();
                         assertThat(source.url()).isEqualTo("https://example.com/semiconductor");
-                        assertThat(source.excerpt()).isEqualTo("확인된 사업 변화예요.");
+                        assertThat(source.excerpt())
+                            .isEqualTo("Operating profit increased by 10%.");
                       });
             });
     assertThat(takeAnalysisRequest().getBody().readUtf8()).contains(unrelated);
@@ -1238,9 +1236,8 @@ class OpenAiPortfolioAnalysisClientTest {
   @Test
   void proseFailureWithInvalidEvidenceStillRequiresSearch() throws Exception {
     var original = objectMapper.readTree(withEvidence(validOutput()));
-    ((com.fasterxml.jackson.databind.node.ObjectNode)
-            original.path("impacts").get(0).path("evidence").get(0))
-        .put("excerpt", "English original.. 해요.");
+    ((com.fasterxml.jackson.databind.node.ObjectNode) original.path("impacts").get(0))
+        .put("outlook", "English original.. 해요.");
     ((com.fasterxml.jackson.databind.node.ObjectNode)
             original.path("impacts").get(1).path("evidence").get(0))
         .put("occurredOn", "2099-01-01");
@@ -1257,7 +1254,7 @@ class OpenAiPortfolioAnalysisClientTest {
 
   @Test
   void proseCorrectionCannotIntroduceUnsupportedEventDate() throws Exception {
-    enqueueOutput(withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요."));
+    enqueueOutput(withEvidence(validOutput()).replace("추가 흐름을 확인해야 해요.", "English original.. 해요."));
     enqueueCorrection(validOutput().replace("관련 이슈를 확인했어요.", "2099-01-01에 계약을 발표했어요."));
     var result = client.analyze(targets());
     assertThat(result.impacts())
@@ -1271,11 +1268,10 @@ class OpenAiPortfolioAnalysisClientTest {
 
   @Test
   void invalidCorrectedProseDoesNotDiscardOtherValidAssets() throws Exception {
-    enqueueOutput(withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요."));
+    enqueueOutput(withEvidence(validOutput()).replace("추가 흐름을 확인해야 해요.", "English original.. 해요."));
     var corrected = objectMapper.readTree(withEvidence(validOutput()));
-    ((com.fasterxml.jackson.databind.node.ObjectNode)
-            corrected.path("impacts").get(0).path("evidence").get(0))
-        .put("excerpt", "");
+    ((com.fasterxml.jackson.databind.node.ObjectNode) corrected.path("impacts").get(0))
+        .put("outlook", "");
     enqueueCorrection(corrected.toString());
     var result = client.analyze(targets());
     assertThat(result.impacts())
@@ -1286,7 +1282,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(impact -> impact.assetName().equals("SK하이닉스"))
         .singleElement()
         .satisfies(impact -> assertThat(impact.direction()).isNotNull());
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(4);
   }
 
   @Test
@@ -1308,13 +1304,14 @@ class OpenAiPortfolioAnalysisClientTest {
 
   @Test
   void doesNotPublishAllInvalidCorrection() throws Exception {
-    String broken = withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요.");
+    String broken =
+        withEvidence(validOutput()).replace("추가 흐름을 확인해야 해요.", "English original.. 해요.");
     enqueueOutput(broken);
     enqueueCorrection(broken);
     assertAnalysisFailed(() -> client.analyze(targets()));
     assertThat(keyValues(appender.list.getLast()))
         .containsEntry("validationReason", "INVALID_ANALYSIS");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(4);
     var validations =
         appender.list.stream()
             .filter(
@@ -1346,13 +1343,13 @@ class OpenAiPortfolioAnalysisClientTest {
                 .filter(
                     e -> "portfolio.analysis.ai.call.completed".equals(keyValues(e).get("event")))
                 .map(e -> keyValues(e).get("phase")))
-        .containsExactly("source_search", "initial", "correction");
+        .containsExactly("source_search", "initial", "correction", "source_search");
   }
 
   @Test
   void proseCorrectionPreservesJudgmentsForAllAssets() throws Exception {
     enqueueOutput(
-        withEvidence(validOutput()).replaceFirst("확인된 사업 변화예요.", "English original.. 해요."));
+        withEvidence(validOutput()).replaceFirst("추가 흐름을 확인해야 해요.", "English original.. 해요."));
     enqueueOutput(onlyAsset(validOutput().replace("NEUTRAL", "POSITIVE"), "삼성전자"));
     var result = client.analyze(targets());
     assertThat(result.impacts())
@@ -1374,7 +1371,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutputWithSearchSources(
         validOutput().replace("https://example.com/semiconductor", index), index);
     enqueueCorrection(
-        withEvidence(validOutput()).replace("확인된 사업 변화예요.", "English original.. 해요."));
+        withEvidence(validOutput()).replace("추가 흐름을 확인해야 해요.", "English original.. 해요."));
     assertAnalysisFailed(() -> client.analyze(targets()));
     assertThat(server.getRequestCount()).isEqualTo(3);
   }
@@ -1405,12 +1402,17 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(i -> i.assetName().equals("SK하이닉스"))
         .singleElement()
         .satisfies(i -> assertThat(i.direction()).isNotNull());
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(4);
   }
 
   private PortfolioAnalysisResult.Source source(String title, String url) {
     return new PortfolioAnalysisResult.Source(
-        title, url, null, null, "확인된 사업 변화예요.", "Operating profit increased by 10%.");
+        title,
+        url,
+        null,
+        null,
+        "Operating profit increased by 10%.",
+        "Operating profit increased by 10%.");
   }
 
   private String onlyAsset(String output, String name) throws JsonProcessingException {
@@ -1792,6 +1794,17 @@ class OpenAiPortfolioAnalysisClientTest {
                                               "annotations",
                                               List.of())))))));
           server.enqueue(firstSearchResponse);
+          if (fixtureDocuments.values().stream()
+              .anyMatch(
+                  document ->
+                      document.publishedOn() != null
+                          && document
+                              .publishedOn()
+                              .isBefore(
+                                  java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))
+                                      .minusDays(45)))) {
+            server.enqueue(firstSearchResponse.clone());
+          }
         }
       } catch (Exception ignored) {
       }
@@ -1890,7 +1903,7 @@ class OpenAiPortfolioAnalysisClientTest {
   @Test
   void failedCorrectionPreservesAlreadyValidOtherAsset() throws Exception {
     enqueueOutput(
-        withEvidence(validOutput()).replaceFirst("확인된 사업 변화예요.", "English original.. 해요."));
+        withEvidence(validOutput()).replaceFirst("추가 흐름을 확인해야 해요.", "English original.. 해요."));
     enqueueResponse(new MockResponse().setResponseCode(503));
     var result = client.analyze(targets());
     assertThat(result.impacts())
@@ -1901,7 +1914,90 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(impact -> impact.assetName().equals("삼성전자"))
         .singleElement()
         .satisfies(impact -> assertThat(impact.direction()).isNull());
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(server.getRequestCount()).isEqualTo(4);
+  }
+
+  @Test
+  void sourceSearchUsesSeparateModelWhileAnalysisModelIsPreserved() throws Exception {
+    enqueueOutput(validOutput());
+    client.analyze(targets());
+    var search = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    var analysis = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(search.path("model").asText()).isEqualTo("test-search-model");
+    assertThat(analysis.path("model").asText()).isEqualTo("test-model");
+    assertThat(appender.list)
+        .anySatisfy(
+            event ->
+                assertThat(keyValues(event))
+                    .containsEntry("phase", "source_search")
+                    .containsEntry("model", "test-search-model"));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+  void serverRejectedAssetUsesAnotherSourceAndMustPassTheSameVerifier(boolean replacementAccepted)
+      throws Exception {
+    String originalUrl = "https://example.com/semiconductor";
+    String replacementUrl = "https://example.com/another-announcement";
+    enqueueOutput(validOutput());
+    enqueueOutput(onlyAsset(validOutput(), "삼성전자"));
+    server.enqueue(sourceResponseFor(List.of("삼성전자"), replacementUrl));
+    enqueueOutput(
+        onlyAsset(validOutput().replace(originalUrl, replacementUrl), "삼성전자"), replacementUrl);
+    org.mockito.Mockito.when(
+            evidenceVerifier.verifyPrepared(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation -> {
+              PortfolioAnalysisResult candidate = invocation.getArgument(0);
+              return new PortfolioAnalysisResult(
+                  "",
+                  candidate.impacts().stream()
+                      .map(
+                          impact -> {
+                            if (!impact.assetName().equals("삼성전자")
+                                || (replacementAccepted
+                                    && impact.sources().stream()
+                                        .allMatch(source -> source.url().equals(replacementUrl))))
+                              return impact;
+                            return new PortfolioAnalysisResult.AssetImpactResult(
+                                impact.assetName(),
+                                null,
+                                null,
+                                "원문 검증에 실패했어요.",
+                                "",
+                                "",
+                                "원문 검증에 실패했어요.",
+                                "",
+                                List.of(),
+                                impact.sortOrder());
+                          })
+                      .toList(),
+                  candidate.sources());
+            });
+    var result = client.analyze(targets());
+    assertThat(result.impacts())
+        .filteredOn(impact -> impact.assetName().equals("삼성전자"))
+        .singleElement()
+        .satisfies(
+            impact -> {
+              assertThat(impact.direction())
+                  .isEqualTo(replacementAccepted ? ImpactDirection.NEUTRAL : null);
+              if (replacementAccepted)
+                assertThat(impact.sources().getFirst().url()).isEqualTo(replacementUrl);
+              else assertThat(impact.sources()).isEmpty();
+            });
+    assertThat(result.impacts())
+        .filteredOn(impact -> impact.assetName().equals("SK하이닉스"))
+        .singleElement()
+        .satisfies(impact -> assertThat(impact.direction()).isEqualTo(ImpactDirection.NEUTRAL));
+    assertThat(server.getRequestCount()).isEqualTo(replacementAccepted ? 5 : 6);
+    server.takeRequest();
+    server.takeRequest();
+    server.takeRequest();
+    var recovery = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(recovery.path("input").toString()).contains("삼성전자").doesNotContain("SK하이닉스");
+    assertThat(recovery.path("tools").toString()).doesNotContain("blocked_domains");
   }
 
   private PortfolioAnalysisEvidenceVerifier acceptingVerifier() {

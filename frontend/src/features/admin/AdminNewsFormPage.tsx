@@ -1,4 +1,5 @@
 import {
+  memo,
   useEffect,
   useMemo,
   useRef,
@@ -77,6 +78,28 @@ function validateForm(values: AdminNewsFormValues, image: File | null) {
   }
   return { errors, sourceErrors };
 }
+
+const NewsBodyPreview = memo(function NewsBodyPreview({
+  title,
+  content,
+}: {
+  title: string;
+  content: string;
+}) {
+  return (
+    <article className="admin-article-preview" aria-label="뉴스 본문 미리보기">
+      <h2>{title.trim() || '제목을 입력해 주세요'}</h2>
+      {content.trim() ? (
+        content
+          .split('\n')
+          .filter(Boolean)
+          .map((paragraph, index) => <p key={index}>{paragraph}</p>)
+      ) : (
+        <p className="admin-field-hint">작성한 본문이 여기에 표시됩니다.</p>
+      )}
+    </article>
+  );
+});
 
 export function AdminNewsFormPage() {
   const navigate = useNavigate();
@@ -589,17 +612,7 @@ export function AdminNewsFormPage() {
               ) : null}
             </label>
             {bodyMode === 'preview' ? (
-              <article className="admin-article-preview" aria-label="뉴스 본문 미리보기">
-                <h2>{values.title.trim() || '제목을 입력해 주세요'}</h2>
-                {values.content.trim() ? (
-                  values.content
-                    .split('\n')
-                    .filter(Boolean)
-                    .map((paragraph, index) => <p key={index}>{paragraph}</p>)
-                ) : (
-                  <p className="admin-field-hint">작성한 본문이 여기에 표시됩니다.</p>
-                )}
-              </article>
+              <NewsBodyPreview title={values.title} content={values.content} />
             ) : (
               <p className="admin-field-hint admin-editor-body-help">
                 줄바꿈으로 문단을 나누세요. 미리보기에서 읽는 흐름을 확인할 수 있습니다.

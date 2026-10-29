@@ -1264,6 +1264,15 @@ describe('투자 리그 화면', () => {
     expect(chart.getByText('+5.00%')).toBeTruthy();
     expect(view.queryByRole('group', { name: '선택한 날짜의 성과' })).toBeNull();
     expect(view.queryByRole('table')).toBeNull();
+    const requestsBeforeToggle = vi.mocked(leagueApi.getDailyHistory).mock.calls.length;
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(leagueApi.getDailyHistory).toHaveBeenCalledTimes(requestsBeforeToggle);
+    fireEvent.click(view.getByRole('button', { name: '일별' }));
+    await view.findByRole('group', { name: '일별 수익률 그래프' });
+    expect(leagueApi.getDailyHistory).toHaveBeenCalledTimes(requestsBeforeToggle);
+    expect(view.getByRole('combobox', { name: '조회 주차' })).toHaveProperty('value', '2026-11-30');
     fireEvent.click(view.getByRole('button', { name: '주간' }));
     fireEvent.click(view.getByRole('button', { name: /2026-12-07 주간.*일별 기록 보기/ }));
     await waitFor(() =>
