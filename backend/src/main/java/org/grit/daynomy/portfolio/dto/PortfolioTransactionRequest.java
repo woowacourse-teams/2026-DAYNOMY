@@ -8,6 +8,7 @@ import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 
 public record PortfolioTransactionRequest(
@@ -49,7 +50,24 @@ public record PortfolioTransactionRequest(
                 "거래 적용 환율(1 USD당 KRW). 미국 종목은 필수이며 0.000001 이상, 정수 10자리·소수 6자리 이하. 국내 종목은 생략 또는 1",
             example = "1",
             nullable = true)
-        BigDecimal exchangeRate) {
+        BigDecimal exchangeRate,
+    @io.swagger.v3.oas.annotations.media.Schema(
+            description = "거래 시각 (Asia/Seoul), 생략 시 미기록",
+            example = "09:35")
+        @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm")
+        LocalTime tradeTime) {
+  public PortfolioTransactionRequest(
+      Long assetId,
+      PortfolioTransactionType type,
+      LocalDate tradeDate,
+      Long quantity,
+      BigDecimal unitPrice,
+      BigDecimal fee,
+      BigDecimal tax,
+      BigDecimal exchangeRate) {
+    this(assetId, type, tradeDate, quantity, unitPrice, fee, tax, exchangeRate, null);
+  }
+
   public PortfolioTransactionRequest(
       Long assetId,
       PortfolioTransactionType type,
@@ -58,6 +76,6 @@ public record PortfolioTransactionRequest(
       BigDecimal unitPrice,
       BigDecimal fee,
       BigDecimal tax) {
-    this(assetId, type, tradeDate, quantity, unitPrice, fee, tax, null);
+    this(assetId, type, tradeDate, quantity, unitPrice, fee, tax, null, null);
   }
 }

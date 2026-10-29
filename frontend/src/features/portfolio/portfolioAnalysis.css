@@ -302,6 +302,30 @@
   font-size: 16px;
 }
 
+.portfolio-page .portfolio-preview-action .portfolio-analysis-add-button {
+  justify-content: center;
+}
+
+.has-inline-action .portfolio-preview-layout {
+  grid-template-rows: min-content auto 1fr;
+}
+
+.has-inline-action .portfolio-preview-layout .portfolio-analysis-overview {
+  grid-row: 1 / 4;
+}
+
+.has-inline-action .portfolio-preview-blur p:last-child {
+  margin-bottom: 0;
+}
+
+.portfolio-preview-action.is-inline {
+  grid-column: 2;
+  grid-row: 3;
+  justify-content: flex-end;
+  margin: 12px 0 0;
+  padding-top: 0;
+}
+
 .portfolio-preview-layout .portfolio-analysis-overview {
   grid-column: 1;
   grid-row: 1 / 3;
@@ -358,6 +382,19 @@
 
   .portfolio-preview-action {
     margin-left: 0;
+  }
+
+  .has-inline-action .portfolio-preview-layout {
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .has-inline-action .portfolio-preview-layout .portfolio-analysis-overview {
+    grid-row: 1;
+  }
+
+  .portfolio-preview-action.is-inline {
+    grid-column: 1;
+    grid-row: 4;
   }
 }
 
