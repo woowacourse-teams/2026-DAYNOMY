@@ -1,0 +1,31 @@
+.portfolio-demo-notice {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px var(--page-side-padding);
+  border-bottom: 1px solid #dce9fa;
+  background: #f1f7ff;
+  color: #52647f;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.portfolio-demo-notice > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.portfolio-demo-notice strong {
+  color: #2463b5;
+  white-space: nowrap;
+}
+.portfolio-demo-notice a {
+  color: #2463b5;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
