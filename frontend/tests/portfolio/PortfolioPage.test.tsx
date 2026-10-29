@@ -1409,10 +1409,14 @@ describe('포트폴리오 화면', () => {
     savedHoldings = [
       { ...stock, quantity: 10, averagePurchasePrice: 70000 },
       { ...etf, quantity: 30, averagePurchasePrice: 30000 },
+      { ...secondStock, quantity: 1, averagePurchasePrice: 10000 },
     ];
     const mixedCalculation = {
       ...calculation,
-      totalPurchaseAmount: 1600000,
+      pricingStatus: 'PARTIAL',
+      pricedHoldingCount: 2,
+      unpricedHoldingCount: 1,
+      totalPurchaseAmount: 1610000,
       totalEvaluationAmount: 1650000,
       holdings: [
         calculation.holdings[0],
@@ -1428,6 +1432,19 @@ describe('포트폴리오 화면', () => {
           profitLoss: 0,
           returnRate: 0,
           weight: 54.55,
+        },
+        {
+          ...secondStock,
+          priceAvailable: false,
+          baseDate: null,
+          quantity: 1,
+          averagePurchasePrice: 10000,
+          purchaseAmount: 10000,
+          closePrice: null,
+          evaluationAmount: null,
+          profitLoss: null,
+          returnRate: null,
+          weight: null,
         },
       ],
       marketAllocations: [{ market: 'KOSPI', evaluationAmount: 1650000, weight: 100 }],
@@ -1449,33 +1466,59 @@ describe('포트폴리오 화면', () => {
     const table = await view.findByRole('region', { name: /보유 자산 표/ });
     await within(table).findByText('900,000원');
 
-    fireEvent.change(view.getByRole('combobox', { name: '보유 자산 정렬' }), {
-      target: { value: 'EVALUATION' },
-    });
-    let rows = within(table).getAllByRole('row');
-    await waitFor(() => {
-      rows = within(table).getAllByRole('row');
-      expect(within(rows[1]).getByText('KODEX 200')).toBeTruthy();
-    });
+    expect(view.queryByRole('combobox', { name: '보유 자산 정렬' })).toBeNull();
+    const holdingNames = () =>
+      within(table)
+        .getAllByRole('button', { name: /보유 상세$/ })
+        .map((button) => button.textContent);
 
-    fireEvent.click(view.getByRole('button', { name: '주식' }));
-    rows = within(table).getAllByRole('row');
-    expect(within(rows[1]).getByText('삼성전자')).toBeTruthy();
+    // Selecting a column starts in descending order; null prices stay last in both directions.
+    for (const [label, highToLow] of [
+      ['평가금액', ['KODEX 200', '삼성전자', '두산']],
+      ['최근 종가', ['삼성전자', 'KODEX 200', '두산']],
+      ['손익', ['삼성전자', 'KODEX 200', '두산']],
+      ['수익률', ['삼성전자', 'KODEX 200', '두산']],
+      ['보유수량', ['KODEX 200', '삼성전자', '두산']],
+      ['평균 매수가', ['삼성전자', 'KODEX 200', '두산']],
+    ] as const) {
+      const button = within(table).getByRole('button', { name: `${label} 정렬` });
+      fireEvent.click(button);
+      expect(holdingNames()).toEqual(highToLow);
+      expect(button.closest('th')?.getAttribute('aria-sort')).toBe('descending');
+      expect(table.querySelectorAll('[aria-sort]')).toHaveLength(1);
+      fireEvent.click(button);
+      const nullable = ['평가금액', '최근 종가', '손익', '수익률'].includes(label);
+      expect(holdingNames()).toEqual(
+        nullable ? [highToLow[1], highToLow[0], '두산'] : [...highToLow].reverse(),
+      );
+      expect(button.closest('th')?.getAttribute('aria-sort')).toBe('ascending');
+    }
+
+    fireEvent.click(view.getByRole('button', { name: '종목 유형: 전체' }));
+    fireEvent.click(view.getByRole('menuitemradio', { name: '주식' }));
     expect(within(table).queryByText('KODEX 200')).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: '주식' }));
-    fireEvent.change(view.getByRole('combobox', { name: '보유 자산 정렬' }), {
-      target: { value: 'EVALUATION' },
-    });
+    expect(within(table).getByText('삼성전자')).toBeTruthy();
+    expect(view.queryByRole('menu')).toBeNull();
+    const filter = view.getByRole('button', { name: '종목 유형: 주식' });
+    expect(document.activeElement).toBe(filter);
+    fireEvent.click(filter);
+    fireEvent.click(view.getByRole('menuitemradio', { name: '주식' }));
     expect(
       vi
         .mocked(trackPortfolioEvent)
         .mock.calls.filter(([name]) => name === 'portfolio_filter_changed'),
     ).toEqual([['portfolio_filter_changed', { category: 'STOCK' }]]);
-    expect(
-      vi
-        .mocked(trackPortfolioEvent)
-        .mock.calls.filter(([name]) => name === 'portfolio_sort_changed'),
-    ).toEqual([['portfolio_sort_changed', { sort: 'EVALUATION' }]]);
+    const sortEvents = vi
+      .mocked(trackPortfolioEvent)
+      .mock.calls.filter(([name]) => name === 'portfolio_sort_changed');
+    expect(sortEvents.slice(0, 2)).toEqual([
+      ['portfolio_sort_changed', { sort: 'EVALUATION', sort_direction: 'descending' }],
+      ['portfolio_sort_changed', { sort: 'EVALUATION', sort_direction: 'ascending' }],
+    ]);
+    expect(sortEvents).toHaveLength(12);
+    fireEvent.click(filter);
+    fireEvent.click(view.getByRole('menuitemradio', { name: '전체' }));
+    expect(within(table).getByText('KODEX 200')).toBeTruthy();
   });
 
   it('종목을 다시 선택하면 이전 종목의 늦은 종가 응답을 무시한다', async () => {

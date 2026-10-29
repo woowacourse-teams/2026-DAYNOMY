@@ -64,7 +64,9 @@ type PortfolioEventParams = {
   storage?: 'server' | 'temporary';
   transaction_type?: 'BUY' | 'SELL';
   target?: 'holding' | 'transaction' | 'dashboard' | 'chart' | 'history';
-  sort?: 'DEFAULT' | 'EVALUATION' | 'PROFIT' | 'RETURN' | 'WEIGHT';
+  sort?:
+    'DEFAULT' | 'QUANTITY' | 'PURCHASE' | 'CLOSE' | 'EVALUATION' | 'PROFIT' | 'RETURN' | 'WEIGHT';
+  sort_direction?: 'ascending' | 'descending';
   filter?: 'ALL' | 'BUY' | 'SELL';
   range_days?: number;
 };
@@ -98,6 +100,7 @@ const PARAM_KEYS = new Set([
   'transaction_type',
   'target',
   'sort',
+  'sort_direction',
   'filter',
   'range_days',
 ]);

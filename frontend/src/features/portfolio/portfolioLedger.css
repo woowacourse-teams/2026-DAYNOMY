@@ -408,7 +408,7 @@ body:has(.portfolio-page) .daynomy-footer {
   align-items: center;
   gap: 8px 16px;
   border-bottom: 1px solid #e5eaf1;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 .portfolio-ledger-toolbar .portfolio-ledger-tabs {
   flex: 1;
@@ -3553,4 +3553,122 @@ body:has(.portfolio-page) .daynomy-footer {
     white-space: normal;
     overflow-wrap: anywhere;
   }
+}
+
+/* Keep list controls in the column headings instead of a second navigation row. */
+.portfolio-page .portfolio-holdings .portfolio-table-wrap :is(th, td:not([colspan])) {
+  padding-inline: 12px;
+}
+.portfolio-page .portfolio-holdings .portfolio-table-wrap :is(th, td:not([colspan])):first-child {
+  padding-left: 0;
+}
+.portfolio-page .portfolio-holdings .portfolio-table-wrap :is(th, td:not([colspan])):last-child {
+  padding-right: 20px;
+}
+.portfolio-page .portfolio-holdings .portfolio-table-wrap th {
+  background: #fff;
+  font-size: 12px;
+}
+.portfolio-page .portfolio-column-sort,
+.portfolio-page .portfolio-column-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  min-height: 36px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #667085;
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.portfolio-page .portfolio-column-filter {
+  justify-content: flex-start;
+}
+.portfolio-page .portfolio-column-sort {
+  position: relative;
+  padding-inline-end: 19px;
+  transform: translateX(19px);
+}
+.portfolio-column-sort svg,
+.portfolio-column-filter svg {
+  flex: none;
+}
+.portfolio-column-sort svg {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.portfolio-column-sort:not(.is-active) svg {
+  color: #98a2b3;
+}
+.portfolio-page .portfolio-column-sort:hover,
+.portfolio-page .portfolio-column-sort:focus-visible,
+.portfolio-page .portfolio-column-filter:hover {
+  color: #24344d;
+}
+.portfolio-page .portfolio-column-sort.is-active,
+.portfolio-page .portfolio-column-filter.is-active {
+  color: #3182f6;
+}
+.portfolio-page .portfolio-column-filter.is-active {
+  font-weight: 600;
+}
+.portfolio-profit-sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  transform: translateX(19px);
+}
+.portfolio-page .portfolio-profit-sort .portfolio-column-sort {
+  transform: none;
+}
+.portfolio-category-menu {
+  position: fixed;
+  z-index: 100;
+  box-sizing: border-box;
+  width: 160px;
+  padding: 6px;
+  border: 1px solid #e5e9f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(25 40 65 / 10%);
+  color: #24344d;
+  font-size: 13px;
+  line-height: 20px;
+}
+.portfolio-category-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.portfolio-category-menu button[aria-checked='true'] {
+  background: #edf4ff;
+  color: #3182f6;
+  font-weight: 600;
+}
+.portfolio-category-menu button:hover {
+  background: #f4f6f9;
+}
+.portfolio-category-menu button:focus-visible {
+  outline: 2px solid #3182f6;
+  outline-offset: -2px;
 }
