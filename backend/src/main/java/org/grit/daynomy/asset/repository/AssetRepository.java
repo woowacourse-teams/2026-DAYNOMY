@@ -19,6 +19,8 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
   List<Asset> findAllByCategoryIn(Set<AssetCategory> categories);
 
+  List<Asset> findAllByCategoryInAndListedTrue(Set<AssetCategory> categories);
+
   @Query(
       """
       SELECT a

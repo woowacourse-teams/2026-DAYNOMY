@@ -37,6 +37,12 @@ const seoulDate = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 });
 
+const feedDateFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  month: 'long',
+  day: 'numeric',
+});
+
 export function timestamp(date: string | null) {
   if (!date || Number.isNaN(Date.parse(date))) return 0;
   return Date.parse(`${seoulDate.format(new Date(date))}T00:00:00Z`);
@@ -141,11 +147,7 @@ export function feedDate(date: string | null, label?: '발행' | '게시' | '등
       : `${label}일 미제공`;
   }
   return date && !Number.isNaN(Date.parse(date))
-    ? new Intl.DateTimeFormat('ko-KR', {
-        timeZone: 'Asia/Seoul',
-        month: 'long',
-        day: 'numeric',
-      }).format(new Date(date))
+    ? feedDateFormatter.format(new Date(date))
     : '등록일 미제공';
 }
 

@@ -14,6 +14,81 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class PortfolioAnalysisDocumentClientTest {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void readsKiaOfficialArticleApiAndRejectsAnotherArticleId(boolean matchingId) throws Exception {
+    try (var server = new MockWebServer();
+        var client = kiaSourceClient()) {
+      server.start();
+      server.enqueue(
+          new MockResponse()
+              .setHeader("Content-Type", "text/html")
+              .setBody(
+                  "<html><head><title>Loading</title></head><body><div id='app'></div></body></html>"));
+      server.enqueue(
+          new MockResponse()
+              .setHeader("Content-Type", "application/json")
+              .setBody(
+                  """
+            {"status":200,"data":{"id":%d,"headline":"기아 실적 발표","publishedAt":"2026-10-20 07:16",
+             "mediaPostDataList":[{"type":"text","description":"<p>매출은 증가했어요.</p>"},
+              {"type":"text","description":"<p>영업이익은 감소했어요.</p>"}]}}
+            """
+                      .formatted(matchingId ? 123 : 999)));
+      var result =
+          client.fetch(
+              "http://worldwide.kia.com:" + server.getPort() + "/en/newsroom/view/?id=123",
+              Duration.ofSeconds(3));
+      if (matchingId) {
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().title()).isEqualTo("기아 실적 발표");
+        assertThat(result.orElseThrow().body()).contains("매출은 증가했어요.", "영업이익은 감소했어요.");
+        assertThat(result.orElseThrow().publishedOn()).isEqualTo(LocalDate.of(2026, 10, 20));
+      } else {
+        assertThat(result).isEmpty();
+      }
+      assertThat(server.takeRequest().getPath()).isEqualTo("/en/newsroom/view/?id=123");
+      assertThat(server.takeRequest().getPath()).isEqualTo("/api/media-lounge/id/123");
+      assertThat(server.getRequestCount()).isEqualTo(2);
+    }
+  }
+
+  @Test
+  void doesNotApplyOfficialApiFallbackToAnotherHost() throws Exception {
+    try (var server = new MockWebServer();
+        var client = kiaSourceClient()) {
+      server.start();
+      server.enqueue(
+          new MockResponse()
+              .setHeader("Content-Type", "text/html")
+              .setBody("<div id='app'></div>"));
+      var result =
+          client.fetch(
+              "http://worldwide.kia.com.other.example:"
+                  + server.getPort()
+                  + "/en/newsroom/view/?id=123",
+              Duration.ofSeconds(3));
+      assertThat(result).isEmpty();
+      assertThat(server.getRequestCount()).isEqualTo(1);
+    }
+  }
+
+  private PortfolioAnalysisDocumentClient kiaSourceClient() {
+    return new PortfolioAnalysisDocumentClient(
+        PortfolioAnalysisDocumentClient.createHttpClient(
+            new org.apache.hc.client5.http.DnsResolver() {
+              @Override
+              public InetAddress[] resolve(String host) {
+                return new InetAddress[] {InetAddress.getLoopbackAddress()};
+              }
+
+              @Override
+              public String resolveCanonicalHostname(String host) {
+                return host;
+              }
+            }));
+  }
+
   @Test
   void returnsAtBatchDeadlineEvenWhenSourceWorkIgnoresInterruption() throws Exception {
     var release =

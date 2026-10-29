@@ -12,12 +12,15 @@ import java.util.Map;
 import java.util.Set;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
+import org.grit.daynomy.external.RetryableExternalRequestException;
 import org.grit.daynomy.external.eodhd.dto.EodhdDailyPrice;
 import org.grit.daynomy.external.eodhd.dto.EodhdSymbol;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class EodhdClient {
@@ -49,8 +52,19 @@ public class EodhdClient {
               .retrieve()
               .body(EodhdSymbol[].class);
       return validatedList(result);
+    } catch (ResourceAccessException exception) {
+      throw new RetryableExternalRequestException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+    } catch (RestClientResponseException exception) {
+      if (exception.getStatusCode().is5xxServerError()
+          || exception.getStatusCode().value() == 429) {
+        throw new RetryableExternalRequestException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+      }
+      throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
     } catch (RestClientException exception) {
       // Exceptions contain the request URL (including api_token); never retain or log them.
+      if (exception.getCause() instanceof IOException) {
+        throw new RetryableExternalRequestException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+      }
       throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
     }
   }

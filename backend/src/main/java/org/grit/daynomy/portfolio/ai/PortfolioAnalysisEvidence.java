@@ -96,11 +96,13 @@ public final class PortfolioAnalysisEvidence {
               document.publishedOn() == null ? null : document.publishedOn().toString());
           Map<String, String> numberedQuotes = new LinkedHashMap<>();
           Map<String, Map<String, String>> verifiedAmounts = new LinkedHashMap<>();
+          var amountsByQuote =
+              document.verifiedWonAmounts(quotes.values().stream().map(Quote::text).toList());
           quotes.forEach(
               (id, quote) -> {
                 String number = referenceNumbers.get(id).toString();
                 numberedQuotes.put(number, quote.text());
-                var amounts = document.verifiedWonAmounts(quote.text());
+                var amounts = amountsByQuote.getOrDefault(quote.text(), Map.of());
                 if (!amounts.isEmpty()) verifiedAmounts.put(number, amounts);
               });
           source.put("quotes", numberedQuotes);
@@ -130,7 +132,21 @@ public final class PortfolioAnalysisEvidence {
                     "assetName",
                     target.assetName(),
                     "unreadableUrls",
-                    requestedUrls.getOrDefault(target.assetName(), List.of())))
+                    requestedUrls.getOrDefault(target.assetName(), List.of()),
+                    "unavailableDomains",
+                    unavailableDomains(target.assetName())))
+        .toList();
+  }
+
+  private List<String> unavailableDomains(String assetName) {
+    return requestedUrls.getOrDefault(assetName, List.of()).stream()
+        .distinct()
+        .collect(java.util.stream.Collectors.groupingBy(url -> java.net.URI.create(url).getHost()))
+        .entrySet()
+        .stream()
+        .filter(entry -> entry.getValue().size() >= 2)
+        .filter(entry -> entry.getValue().stream().noneMatch(documents::containsKey))
+        .map(Map.Entry::getKey)
         .toList();
   }
 
@@ -143,6 +159,35 @@ public final class PortfolioAnalysisEvidence {
     if (!value.canConvertToInt()) return "";
     int number = value.intValue();
     return number > 0 && number <= referenceIds.size() ? referenceIds.get(number - 1) : "";
+  }
+
+  boolean needsRecentSource(PortfolioAnalysisTarget target, java.time.LocalDate since) {
+    if (references(List.of(target)).isEmpty()) return true;
+    return latestPublication(target.assetName()).map(date -> date.isBefore(since)).orElse(false);
+  }
+
+  private java.util.Optional<java.time.LocalDate> latestPublication(String assetName) {
+    return byAsset.getOrDefault(assetName, Map.of()).values().stream()
+        .map(Quote::url)
+        .map(documents::get)
+        .map(PortfolioAnalysisSourceDocument::publishedOn)
+        .filter(java.util.Objects::nonNull)
+        .max(java.util.Comparator.naturalOrder());
+  }
+
+  PortfolioAnalysisEvidence mergeNewerSources(PortfolioAnalysisEvidence other) {
+    Map<String, Map<String, Quote>> accepted = new LinkedHashMap<>();
+    other.byAsset.forEach(
+        (name, quotes) -> {
+          var previous = latestPublication(name);
+          var replacement = other.latestPublication(name);
+          if (byAsset.getOrDefault(name, Map.of()).isEmpty()
+              || (replacement.isPresent()
+                  && (previous.isEmpty() || replacement.get().isAfter(previous.get())))) {
+            accepted.put(name, quotes);
+          }
+        });
+    return merge(new PortfolioAnalysisEvidence(accepted, other.documents, other.requestedUrls));
   }
 
   PortfolioAnalysisEvidence merge(PortfolioAnalysisEvidence other) {
@@ -174,8 +219,7 @@ public final class PortfolioAnalysisEvidence {
         node.remove("reference");
         node.put("url", quote.url());
         node.put("factQuote", quote.text());
-        node.put(
-            "excerpt", document.normalizeAmountUnit(quote.text(), node.path("excerpt").asText()));
+        node.put("excerpt", quote.text());
         if (document.publishedOn() == null) node.putNull("publishedOn");
         else node.put("publishedOn", document.publishedOn().toString());
         var occurred = node.path("occurredOn");

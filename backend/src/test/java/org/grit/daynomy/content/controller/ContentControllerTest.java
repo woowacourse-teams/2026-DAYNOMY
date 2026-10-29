@@ -12,6 +12,7 @@ import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.ContentPageResponse;
+import org.grit.daynomy.content.dto.DiscoverableAssetsResponse;
 import org.grit.daynomy.content.service.AssetContentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,5 +69,20 @@ class ContentControllerTest {
     mockMvc.perform(get("/api/contents").param("page", "0")).andExpect(status().isBadRequest());
     mockMvc.perform(get("/api/contents").param("size", "101")).andExpect(status().isBadRequest());
     then(service).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void returnsOnlyDiscoverableAssetIds() throws Exception {
+    given(service.getDiscoverableAssets(2, 1))
+        .willReturn(new DiscoverableAssetsResponse(List.of(12L), false));
+
+    mockMvc
+        .perform(get("/api/contents/assets").param("page", "2").param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.assetIds[0]").value(12))
+        .andExpect(jsonPath("$.hasNext").value(false));
+    mockMvc
+        .perform(get("/api/contents/assets").param("size", "101"))
+        .andExpect(status().isBadRequest());
   }
 }

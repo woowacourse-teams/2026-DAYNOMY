@@ -29,7 +29,13 @@ public final class PortfolioAnalysisProse {
       String value =
           paragraph
               .strip()
+              .replaceAll("유리한\\s*점\\s*[:：]\\s*", "유리한 점은 ")
+              .replaceAll("불리한\\s*점\\s*[·/및과]*\\s*불확실성\\s*[:：]\\s*", "불리한 점과 불확실성은 ")
+              .replaceAll("불리한\\s*점\\s*[:：]\\s*", "불리한 점은 ")
+              .replaceAll("불확실성\\s*[:：]\\s*", "불확실성은 ")
               .replaceAll("\\s*;\\s*", ". ")
+              .replace("밝혔습니다.", "밝혔어요.")
+              .replaceAll("([았었였했됐졌])습니다\\.", "$1어요.")
               .replace("어렵습니다.", "어려워요.")
               .replace("않습니다.", "않아요.")
               .replace("아닙니다.", "아니에요.")
@@ -39,8 +45,11 @@ public final class PortfolioAnalysisProse {
               .replace("됩니다.", "돼요.")
               .replace("있습니다.", "있어요.")
               .replace("없습니다.", "없어요.")
+              .replace("입니다.", "이에요.")
               .replace("합니다.", "해요.")
               .replace("했다.", "했어요.")
+              .replace("되었다.", "됐어요.")
+              .replace("졌다.", "졌어요.")
               .replace("됐다.", "됐어요.")
               .replace("된다.", "돼요.")
               .replace("밝혔다.", "밝혔어요.")
@@ -54,7 +63,8 @@ public final class PortfolioAnalysisProse {
       if (value.endsWith("요")) {
         value += ".";
       }
-      if (value.contains("**")
+      if (value.contains("\"\"\"")
+          || value.contains("**")
           || value.contains("…")
           || value.contains("..")
           || value.contains("http://")

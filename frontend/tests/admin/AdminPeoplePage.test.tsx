@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminPeoplePage } from '../../src/features/admin/AdminPeoplePage';
 
@@ -249,6 +249,52 @@ function renderPeopleMode() {
 }
 
 describe('주요 인물 관리자 화면', () => {
+  it('새 인물 입력은 화면 전환과 저장 실패 뒤에도 남고 성공한 뒤에만 비운다', async () => {
+    const originalFetch = fetch;
+    let shouldFail = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/api/admin/people') && init?.method === 'POST') {
+          return shouldFail
+            ? jsonResponse({ message: '등록 실패' }, 500)
+            : jsonResponse(
+                {
+                  id: 3,
+                  name: '새 인물',
+                  xProfileUrl: null,
+                  threadsProfileUrl: null,
+                  youtubeProfileUrl: null,
+                  createdAt: null,
+                  posts: [],
+                },
+                201,
+              );
+        }
+        return originalFetch(input, init);
+      }),
+    );
+    const view = renderPeopleMode();
+    const disclosure = view.container.querySelector(
+      'details.admin-create-disclosure',
+    ) as HTMLDetailsElement;
+    fireEvent.click(within(disclosure).getByText('새 인물 등록'));
+    const name = within(disclosure).getByLabelText('인물 이름') as HTMLInputElement;
+    fireEvent.change(name, { target: { value: '새 인물' } });
+    fireEvent.click(view.getByRole('button', { name: /전체 수집 후보/ }));
+    fireEvent.click(view.getByRole('button', { name: '인물별 관리' }));
+    expect(name.value).toBe('새 인물');
+
+    fireEvent.click(within(disclosure).getByRole('button', { name: '인물 추가' }));
+    expect(await view.findByRole('alert')).toBeTruthy();
+    expect(name.value).toBe('새 인물');
+
+    shouldFail = false;
+    fireEvent.click(within(disclosure).getByRole('button', { name: '인물 추가' }));
+    await waitFor(() => expect(name.value).toBe(''));
+    expect(await view.findByRole('heading', { name: '새 인물' })).toBeTruthy();
+  });
+
   it('작업 전환은 입력을 유지하고 다른 인물로 바꿀 때만 폐기를 확인한다', async () => {
     const confirm = vi.fn().mockReturnValue(false);
     vi.stubGlobal('confirm', confirm);
@@ -572,7 +618,7 @@ describe('주요 인물 관리자 화면', () => {
     const globalCandidateTab = await view.findByRole('button', { name: '전체 수집 후보 2' });
     expect(globalCandidateTab.getAttribute('aria-pressed')).toBe('true');
 
-    expect(await view.findByRole('heading', { name: '전체 수집 후보' })).toBeTruthy();
+    expect(await view.findByRole('heading', { name: /전체 수집 후보/ })).toBeTruthy();
     expect(view.getByText('일론 머스크 전체 후보')).toBeTruthy();
     expect(view.getByText('제롬 파월 전체 후보')).toBeTruthy();
     fireEvent.click(view.getByRole('checkbox', { name: '현재 페이지 전체 선택' }));

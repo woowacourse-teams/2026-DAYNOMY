@@ -1256,14 +1256,24 @@ for (const viewport of [
         }),
         `포트폴리오 본문이 ${width}px에서 잘리지 않아야 합니다.`,
       ).toBe(true);
-      const toolbarAlignment = await page
-        .locator('.portfolio-holdings-toolbar')
-        .evaluate((toolbar) => {
-          const filters = toolbar.querySelector('.portfolio-filters')!.getBoundingClientRect();
-          const sort = toolbar.querySelector('select')!.getBoundingClientRect();
-          return Math.abs(filters.top - sort.top) <= 1 && filters.right <= sort.left;
+      const headingAlignment = await page
+        .locator('.portfolio-holdings .portfolio-table-wrap thead')
+        .evaluate((heading) => {
+          const controls = [
+            ...heading.querySelectorAll('.portfolio-column-filter, .portfolio-column-sort'),
+          ].map((control) => control.getBoundingClientRect());
+          if (controls.length !== 7) return false;
+          const center = controls[0].top + controls[0].height / 2;
+          return controls.every(
+            (control, index) =>
+              Math.abs(control.top + control.height / 2 - center) <= 1 &&
+              (index === 0 || controls[index - 1].right <= control.left + 1),
+          );
         });
-      expect(toolbarAlignment, `필터와 정렬은 ${width}px에서도 같은 줄이어야 합니다.`).toBe(true);
+      expect(
+        headingAlignment,
+        `필터와 정렬은 ${width}px에서도 같은 줄에서 겹치지 않아야 합니다.`,
+      ).toBe(true);
       const headerSize = await page.locator('.service-header').evaluate((header) => {
         const box = header.getBoundingClientRect();
         return {

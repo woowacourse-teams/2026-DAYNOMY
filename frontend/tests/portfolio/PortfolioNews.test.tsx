@@ -20,6 +20,20 @@ const content = {
   imageUrl: null,
   createdAt: '2026-10-12T10:00:00Z',
 };
+
+it('소식 접기 동작을 글자로 표시한다', () => {
+  const onClose = vi.fn();
+  const view = render(<PortfolioNews holdings={[]} onClose={onClose} />);
+
+  expect(view.queryByText('최신순')).toBeNull();
+  const closeButton = view.getByRole('button', { name: '소식 접기' });
+  expect(closeButton.textContent).toContain('접기');
+
+  fireEvent.click(closeButton);
+
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
 it('모든 보유 종목의 소식을 최신순으로 병합하고 같은 글에 관련 종목을 모은다', async () => {
   vi.mocked(getStockRelatedContents).mockImplementation(async (id) => ({
     assetId: id,

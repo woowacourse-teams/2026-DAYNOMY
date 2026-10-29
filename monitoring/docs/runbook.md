@@ -59,6 +59,13 @@ curl --fail http://127.0.0.1:8081/actuator/prometheus
 2. 요청량 증가와 배치·뉴스 생성 작업 실행 여부를 확인한다.
 3. 프로세스를 즉시 재시작하기 전에 반복 증가 여부와 관련 로그를 남긴다.
 
+### 종가 배치 실패와 차트 수집 상태 정체
+
+1. Loki에서 환경을 명시해 `OutOfMemoryError`, `BootstrapMethodError`, `stock-price.sync.failed`, `Portfolio price preparation`을 함께 확인한다. 가격 수집 완료 로그만으로 후속 스냅샷·리그 성공을 판단하지 않는다.
+2. 메모리 고갈 후 `BootstrapMethodError`까지 발생한 JVM은 수정 버전 배포와 프로세스 재시작으로 복구한다. 개발 서버는 `backend-dev-cd.yml`의 배포·health 확인을 따른다. DB 종가·보유 원장·스냅샷은 삭제하지 않는다.
+3. 재시작 후 같은 차트 기간으로 `POST /api/users/me/portfolio/performance/prepare`를 호출하고 `PROCESSING`에서 `READY` 또는 `FAILED`로 종료하는지 확인한다. `FAILED`이면 원인을 해결한 뒤 `retry=true`로 재요청한다. 작업 상태와 범위 캐시는 메모리에 있으므로 재시작 후 다시 확인한다.
+4. 누락 가격은 관리자 종가 백필 API로 최대 31일씩 복구한다. 수집 완료 후 `portfolio.snapshot.completed`, 리그 계산 완료와 실제 차트 응답의 기준일·날짜를 확인한다. 국내 종가 제공 시차와 휴장일을 고려해 당일 가격을 누락으로 오인하지 않는다.
+
 ## HostDiskSpaceLow
 
 1. 어떤 마운트 지점이 부족한지 확인한다.

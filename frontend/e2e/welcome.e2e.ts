@@ -67,7 +67,7 @@ test('한국어 문서와 랜드마크를 제공하고 장식용 복제 문구�
   await expect(
     page.getByRole('list', { name: '주요 기능 목록' }).getByRole('listitem'),
   ).toHaveCount(8);
-  await expect(page.getByRole('figure')).toHaveCount(3);
+  await expect(page.getByRole('figure')).toHaveCount(9);
   await expect(page.getByRole('button', { name: '모션 정지', exact: true })).toBeDisabled();
 });
 
@@ -117,6 +117,103 @@ test('인트로 중에도 본문으로 건너뛰고 자동 움직임을 정지·
   ).toBe(0);
 });
 
+test('목업은 휴대폰 비율을 유지하고 넘치는 내용만 끝까지 스크롤한다', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/welcome');
+  await page.getByRole('button', { name: '인트로 건너뛰기' }).click();
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const measurements = await page.locator('.guide-screen').evaluateAll((elements) =>
+      elements.map((element) => {
+        const viewport = element.parentElement!;
+        const display = viewport.parentElement!;
+        const animation = element.getAnimations()[0];
+        animation.pause();
+        animation.currentTime = 10000;
+        const offset = new DOMMatrixReadOnly(getComputedStyle(element).transform).m42;
+        return {
+          ratio: (display as HTMLElement).offsetWidth / (display as HTMLElement).offsetHeight,
+          offset,
+          expected: Math.min(0, viewport.clientHeight - (element as HTMLElement).offsetHeight),
+        };
+      }),
+    );
+    for (const measurement of measurements) {
+      expect(measurement.ratio).toBeCloseTo(390 / 844, 2);
+      expect(Math.abs(measurement.offset - measurement.expected)).toBeLessThan(2);
+    }
+    expect(measurements.some(({ offset }) => offset < -10)).toBe(true);
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(page.locator('.guide-screen').first()).toHaveCSS('animation-name', 'none');
+  await expect(page.locator('.guide-viewport').first()).toHaveCSS('overflow-y', 'auto');
+});
+
+for (const width of [390, 1440]) {
+  test(`${width}px: 사용법과 기술력으로 이동해 실제 화면을 확인하고 서비스를 시작한다`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/welcome');
+    await page.getByRole('button', { name: '메뉴 열기' }).click();
+    const menu = page.getByRole('dialog', { name: '전체 메뉴' });
+    await menu.getByRole('link', { name: '사용법', exact: true }).click();
+    await expect(menu).not.toBeVisible();
+    await expect(page).toHaveURL(/#guide$/);
+    const steps = page.getByRole('list', { name: 'DAYNOMY 사용 순서' });
+    await expect(steps.getByRole('listitem')).toHaveCount(4);
+    if (width === 390) {
+      for (const phone of await steps.locator('.guide-device.iphone').all())
+        await expect(phone).toHaveCSS('transform', 'none');
+    }
+    for (const screen of await steps.locator('.guide-screen').all()) {
+      await screen.scrollIntoViewIfNeeded();
+      await expect(screen).toBeVisible();
+      expect(await screen.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+    }
+    await expect(steps.locator('.guide-trade')).toContainText('매수 기록하기');
+    await expect(steps.locator('.guide-overview')).toContainText('2,145,000원');
+    await expect(steps.locator('.guide-analysis')).toContainText('분석 출처 모두 보기');
+    await page.getByRole('button', { name: '메뉴 열기' }).click();
+    await menu.getByRole('link', { name: '기술력', exact: true }).click();
+    await expect(page).toHaveURL(/#technology$/);
+    const technology = page.locator('#technology');
+    await expect(technology.locator('.guide-source-list')).toContainText('www.samsung.com');
+    await expect(technology).toContainText('근거까지 함께');
+    const leagueTechnology = technology.getByRole('article');
+    await expect(leagueTechnology).toHaveCount(1);
+    await expect(
+      leagueTechnology.getByRole('list', { name: '투자 리그의 장애 대응' }).getByRole('listitem'),
+    ).toHaveCount(3);
+    await expect(leagueTechnology.getByRole('figure')).toContainText('데이터는 예시입니다.');
+    await expect(leagueTechnology).toContainText('오류가 남으면, 확정은 보류해요.');
+    await expect(
+      leagueTechnology.getByRole('link', { name: '투자 리그 살펴보기' }),
+    ).toHaveAttribute('href', '/league');
+    expect(
+      await page
+        .locator('main > section[id]')
+        .evaluateAll((sections) => sections.slice(-3).map((section) => section.id)),
+    ).toEqual(['technology', 'faq', 'start']);
+    await expect(page.locator('.feature-number')).not.toContainText([/\d{2}\s*\//]);
+    await expect(page.locator('main')).not.toContainText('리그 준비 중');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.getByRole('button', { name: '메뉴 열기' }).click();
+    await menu.getByRole('link', { name: '시작하기', exact: true }).click();
+    await expect(page).toHaveURL(/#start$/);
+    await page.locator('#start .primary-cta').click();
+    await expect(
+      page
+        .locator('.portfolio-page-actions')
+        .getByRole('button', { name: '종목 추가', exact: true }),
+    ).toBeVisible();
+  });
+}
+
 test('키보드로 메뉴·FAQ·시작하기·거래 기록을 사용하고 닫으면 초점이 돌아온다', async ({ page }) => {
   await page.goto('/welcome');
   const menu = page.getByRole('button', { name: '메뉴 열기' });
@@ -128,7 +225,7 @@ test('키보드로 메뉴·FAQ·시작하기·거래 기록을 사용하고 닫�
   await menu.evaluate((element) => element.focus());
   await expect(dialog.getByRole('button', { name: '메뉴 닫기' })).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(dialog.getByRole('link', { name: '내 포트폴리오', exact: true })).toBeFocused();
+  await expect(dialog.getByRole('link', { name: '서비스 소개', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(menu).toBeFocused();
 

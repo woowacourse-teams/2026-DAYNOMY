@@ -9,7 +9,7 @@ import {
   stockContentReference,
   type PopularityScores,
 } from '../news/issue/popularity';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import defaultNewsImage from '../../assets/default-news-real-estate.webp';
 import { usePortfolioHoldings } from '../portfolio/hooks/usePortfolioHoldings';
@@ -191,6 +191,131 @@ function getYouTubeEmbedUrl(rawUrl: string) {
   const videoId = getYouTubeVideoId(rawUrl);
   return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
 }
+
+const StockContentFeed = memo(function StockContentFeed({
+  contents,
+  selectedSourceLabel,
+  triggerRef,
+  onPlay,
+}: {
+  contents: StockRelatedContent[];
+  selectedSourceLabel: string;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  onPlay: (id: number) => void;
+}) {
+  return (
+    <ul className="stock-content-feed" aria-label={`${selectedSourceLabel} 소식 목록`}>
+      {contents.map((content, index) => {
+        const analytics = {
+          surface: 'stock_contents',
+          content_id: `content-${content.id}`,
+          content_type: content.sourceType === 'INTERNAL_NEWS' ? 'news' : 'external',
+          source_type: content.sourceType === 'INTERNAL_NEWS' ? 'DAYNOMY' : content.sourceType,
+          position: index + 1,
+        };
+        const isVideo = content.sourceType === 'YOUTUBE';
+        const isNews = content.sourceType === 'INTERNAL_NEWS';
+        const isSocial = content.sourceType === 'THREADS' || content.sourceType === 'X';
+
+        return (
+          <li key={content.id}>
+            {isVideo && getYouTubeEmbedUrl(content.url) ? (
+              <article className="stock-content-video">
+                <div className="stock-content-video-frame">
+                  <button
+                    className="stock-content-video-preview"
+                    type="button"
+                    aria-label={`${content.title} 크게 재생`}
+                    onClick={(event) => {
+                      trackEvent('open_content_video', analytics);
+                      void recordContentInteraction(stockContentReference(content), 'OPEN');
+                      triggerRef.current = event.currentTarget;
+                      onPlay(content.id);
+                    }}
+                  >
+                    <YouTubeThumbnail content={content} />
+                    <span className="stock-content-video-play" aria-hidden="true">
+                      <PlayIcon />
+                    </span>
+                  </button>
+                </div>
+                <div className="stock-content-video-caption">
+                  <strong>{content.title}</strong>
+                  <a
+                    onClick={() => {
+                      trackEvent('click_content_original', analytics);
+                      void recordContentInteraction(
+                        stockContentReference(content),
+                        'OUTBOUND_CLICK',
+                      );
+                    }}
+                    href={content.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span>YouTube에서 보기</span>
+                    <ArrowUpRightIcon />
+                  </a>
+                </div>
+              </article>
+            ) : isNews ? (
+              <a
+                onClick={() => {
+                  trackEvent('click_content', analytics);
+                  void recordContentInteraction(stockContentReference(content), 'OPEN');
+                }}
+                className="stock-content-news-card"
+                href={content.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <ContentThumbnail imageUrl={content.imageUrl} />
+                <span className="stock-content-news-card-copy">
+                  <span>DAYNOMY 이슈</span>
+                  <strong>{content.title}</strong>
+                </span>
+                <ArrowUpRightIcon />
+              </a>
+            ) : isSocial ? (
+              <SocialPostEmbed
+                content={content}
+                analytics={analytics}
+                onOriginalClick={() =>
+                  void recordContentInteraction(stockContentReference(content), 'OUTBOUND_CLICK')
+                }
+              />
+            ) : (
+              <a
+                onClick={() => {
+                  trackEvent('click_content_original', analytics);
+                  void recordContentInteraction(stockContentReference(content), 'OUTBOUND_CLICK');
+                }}
+                className="stock-content-link-card"
+                href={content.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span className="stock-content-link-card-icon" aria-hidden="true">
+                  <ArrowUpRightIcon />
+                </span>
+                <span className="stock-content-link-card-copy">
+                  <strong>{content.title}</strong>
+                  <span>{content.url}</span>
+                </span>
+                <ArrowUpRightIcon />
+              </a>
+            )}
+            {content.publishedDate ? (
+              <time className="stock-content-published-date" dateTime={content.publishedDate}>
+                게시일 {content.publishedDate.replaceAll('-', '.')}
+              </time>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+});
 
 export function StockContentPage() {
   const { assetId: assetIdParam } = useParams();
@@ -607,129 +732,12 @@ export function StockContentPage() {
                   <p>새로운 소식이 등록되면 이곳에서 확인할 수 있어요.</p>
                 </section>
               ) : (
-                <ul className="stock-content-feed" aria-label={`${selectedSourceLabel} 소식 목록`}>
-                  {visibleContents.map((content, index) => {
-                    const analytics = {
-                      surface: 'stock_contents',
-                      content_id: `content-${content.id}`,
-                      content_type: content.sourceType === 'INTERNAL_NEWS' ? 'news' : 'external',
-                      source_type:
-                        content.sourceType === 'INTERNAL_NEWS' ? 'DAYNOMY' : content.sourceType,
-                      position: index + 1,
-                    };
-                    const isVideo = content.sourceType === 'YOUTUBE';
-                    const isNews = content.sourceType === 'INTERNAL_NEWS';
-                    const isSocial = content.sourceType === 'THREADS' || content.sourceType === 'X';
-
-                    return (
-                      <li key={content.id}>
-                        {isVideo && getYouTubeEmbedUrl(content.url) ? (
-                          <article className="stock-content-video">
-                            <div className="stock-content-video-frame">
-                              <button
-                                className="stock-content-video-preview"
-                                type="button"
-                                aria-label={`${content.title} 크게 재생`}
-                                onClick={(event) => {
-                                  trackEvent('open_content_video', analytics);
-                                  void recordContentInteraction(
-                                    stockContentReference(content),
-                                    'OPEN',
-                                  );
-                                  activeVideoTriggerRef.current = event.currentTarget;
-                                  setActiveVideoId(content.id);
-                                }}
-                              >
-                                <YouTubeThumbnail content={content} />
-                                <span className="stock-content-video-play" aria-hidden="true">
-                                  <PlayIcon />
-                                </span>
-                              </button>
-                            </div>
-                            <div className="stock-content-video-caption">
-                              <strong>{content.title}</strong>
-                              <a
-                                onClick={() => {
-                                  trackEvent('click_content_original', analytics);
-                                  void recordContentInteraction(
-                                    stockContentReference(content),
-                                    'OUTBOUND_CLICK',
-                                  );
-                                }}
-                                href={content.url}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                <span>YouTube에서 보기</span>
-                                <ArrowUpRightIcon />
-                              </a>
-                            </div>
-                          </article>
-                        ) : isNews ? (
-                          <a
-                            onClick={() => {
-                              trackEvent('click_content', analytics);
-                              void recordContentInteraction(stockContentReference(content), 'OPEN');
-                            }}
-                            className="stock-content-news-card"
-                            href={content.url}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <ContentThumbnail imageUrl={content.imageUrl} />
-                            <span className="stock-content-news-card-copy">
-                              <span>DAYNOMY 이슈</span>
-                              <strong>{content.title}</strong>
-                            </span>
-                            <ArrowUpRightIcon />
-                          </a>
-                        ) : isSocial ? (
-                          <SocialPostEmbed
-                            content={content}
-                            analytics={analytics}
-                            onOriginalClick={() =>
-                              void recordContentInteraction(
-                                stockContentReference(content),
-                                'OUTBOUND_CLICK',
-                              )
-                            }
-                          />
-                        ) : (
-                          <a
-                            onClick={() => {
-                              trackEvent('click_content_original', analytics);
-                              void recordContentInteraction(
-                                stockContentReference(content),
-                                'OUTBOUND_CLICK',
-                              );
-                            }}
-                            className="stock-content-link-card"
-                            href={content.url}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <span className="stock-content-link-card-icon" aria-hidden="true">
-                              <ArrowUpRightIcon />
-                            </span>
-                            <span className="stock-content-link-card-copy">
-                              <strong>{content.title}</strong>
-                              <span>{content.url}</span>
-                            </span>
-                            <ArrowUpRightIcon />
-                          </a>
-                        )}
-                        {content.publishedDate ? (
-                          <time
-                            className="stock-content-published-date"
-                            dateTime={content.publishedDate}
-                          >
-                            게시일 {content.publishedDate.replaceAll('-', '.')}
-                          </time>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
+                <StockContentFeed
+                  contents={visibleContents}
+                  selectedSourceLabel={selectedSourceLabel}
+                  triggerRef={activeVideoTriggerRef}
+                  onPlay={setActiveVideoId}
+                />
               )}
             </section>
           </div>

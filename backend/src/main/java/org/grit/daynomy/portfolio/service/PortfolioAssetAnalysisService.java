@@ -46,7 +46,7 @@ public class PortfolioAssetAnalysisService {
   public PortfolioAssetAnalysisService(
       PortfolioAssetAnalysisRepository repository,
       PortfolioAnalysisAiClient ai,
-      @Value("${portfolio.analysis.model:${ai.openai.model:gpt-5-mini}}") String model,
+      @Value("${portfolio.analysis.model:gpt-5.4-mini}") String model,
       @Value("${portfolio.analysis.cache-ttl:30m}") Duration ttl) {
     this(repository, ai, model, ttl, Duration.ofMinutes(4));
   }
