@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Stream;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -45,7 +44,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -63,7 +62,7 @@ class PortfolioPriceHistoryServiceTest {
   @Mock private EodhdClient usClient;
   @Mock private KrxCalendarClient krxCalendarClient;
   @Mock private PortfolioSnapshotTransactionService snapshotService;
-  @Mock private TaskScheduler taskScheduler;
+  @Mock private ThreadPoolTaskExecutor historyExecutor;
   @Mock private PlatformTransactionManager transactionManager;
   @InjectMocks private PortfolioPriceHistoryService service;
 
@@ -95,13 +94,11 @@ class PortfolioPriceHistoryServiceTest {
   void reusesCoveredPricesWithoutCallingProvider() {
     asset.recordPriceHistoryCoverage(from, to);
     given(priceRepository.findBaseDatesByPortfolioId(3L)).willReturn(List.of(from));
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, from, to, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
     assertThat(service.prepare(2L, from, to, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.READY);
@@ -113,19 +110,15 @@ class PortfolioPriceHistoryServiceTest {
   void doesNotTreatAnUnrefreshedGapBetweenDateRangesAsReady() {
     asset.recordPriceHistoryCoverage(from, to);
     given(priceRepository.findBaseDatesByPortfolioId(3L)).willReturn(List.of(from, to));
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, from, from, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> jobs = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(jobs.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(jobs.capture());
     jobs.getValue().run();
     assertThat(service.prepare(2L, to, to, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
-    then(taskScheduler)
-        .should(org.mockito.Mockito.times(2))
-        .schedule(jobs.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should(org.mockito.Mockito.times(2)).execute(jobs.capture());
     jobs.getAllValues().getLast().run();
 
     assertThat(service.prepare(2L, from.plusDays(2), from.plusDays(2), false))
@@ -143,13 +136,11 @@ class PortfolioPriceHistoryServiceTest {
     given(transactionManager.getTransaction(any(TransactionDefinition.class)))
         .willReturn(new SimpleTransactionStatus());
     given(priceRepository.findBaseDatesByPortfolioId(3L)).willReturn(List.of(from));
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, from, to, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
 
     then(usClient).should().getHistoricalPrices("AAPL", from, to);
@@ -177,13 +168,11 @@ class PortfolioPriceHistoryServiceTest {
         .willReturn(stored);
     given(transactionManager.getTransaction(any(TransactionDefinition.class)))
         .willReturn(new SimpleTransactionStatus());
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, from, to, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
 
     assertThat(asset.hasPriceHistory(from, to)).isTrue();
@@ -203,13 +192,11 @@ class PortfolioPriceHistoryServiceTest {
     given(transactionManager.getTransaction(any(TransactionDefinition.class)))
         .willReturn(new SimpleTransactionStatus());
     given(priceRepository.findBaseDatesByPortfolioId(3L)).willReturn(List.of(from));
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, from, to, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
 
     then(domesticClient).should().fetch(AssetCategory.STOCK, "AAPL", from, to);
@@ -231,14 +218,14 @@ class PortfolioPriceHistoryServiceTest {
         .isEqualTo(PortfolioPriceHistoryService.Status.FAILED);
     then(krxCalendarClient).should().holidays(to.plusDays(1).getYear());
     then(assetRepository).shouldHaveNoInteractions();
-    then(taskScheduler).shouldHaveNoInteractions();
+    then(historyExecutor).shouldHaveNoInteractions();
     then(domesticClient).shouldHaveNoInteractions();
     then(priceRepository).shouldHaveNoInteractions();
 
     assertThat(service.prepare(2L, from, to, true))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
 
     assertThat(service.prepare(2L, from, to, false))
@@ -255,7 +242,7 @@ class PortfolioPriceHistoryServiceTest {
         .willReturn(Set.of());
 
     assertThatThrownBy(() -> service.prepare(2L, from, to, false)).isSameAs(failure);
-    then(taskScheduler).shouldHaveNoInteractions();
+    then(historyExecutor).shouldHaveNoInteractions();
     assertThat(service.prepare(2L, from, to, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
   }
@@ -266,18 +253,60 @@ class PortfolioPriceHistoryServiceTest {
         new IllegalStateException("Unexpected calendar failure"));
   }
 
+  @ParameterizedTest
+  @MethodSource("fatalCollectionFailures")
+  void fatalFailureIsPropagatedAndCanBeRetriedInsteadOfStayingProcessing(Error failure) {
+    asset.recordPriceHistoryCoverage(from, to);
+    given(priceRepository.findBaseDatesByPortfolioId(3L))
+        .willThrow(failure)
+        .willReturn(List.of(from));
+
+    assertThat(service.prepare(2L, from, to, false))
+        .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
+    var jobs = ArgumentCaptor.forClass(Runnable.class);
+    then(historyExecutor).should().execute(jobs.capture());
+    assertThatThrownBy(() -> jobs.getValue().run()).isSameAs(failure);
+
+    assertThat(service.prepare(2L, from, to, false))
+        .isEqualTo(PortfolioPriceHistoryService.Status.FAILED);
+    assertThat(service.prepare(2L, from, to, true))
+        .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
+    then(historyExecutor).should(org.mockito.Mockito.times(2)).execute(jobs.capture());
+    jobs.getValue().run();
+    assertThat(service.prepare(2L, from, to, false))
+        .isEqualTo(PortfolioPriceHistoryService.Status.READY);
+  }
+
+  private static Stream<Error> fatalCollectionFailures() {
+    // 실제 힙을 소진하지 않고 개발 서버에서 관찰한 종료 경로를 재현한다.
+    return Stream.of(new OutOfMemoryError("simulated"), new BootstrapMethodError("simulated"));
+  }
+
+  @Test
+  void executorRejectionDoesNotLeaveAnUnscheduledJobProcessing() {
+    org.mockito.BDDMockito.willThrow(
+            new org.springframework.core.task.TaskRejectedException("full"))
+        .given(historyExecutor)
+        .execute(any(Runnable.class));
+    assertThatThrownBy(() -> service.prepare(2L, from, to, false))
+        .isInstanceOf(org.springframework.core.task.TaskRejectedException.class);
+    assertThat(service.prepare(2L, from, to, false))
+        .isEqualTo(PortfolioPriceHistoryService.Status.FAILED);
+    org.mockito.BDDMockito.willDoNothing().given(historyExecutor).execute(any(Runnable.class));
+    assertThat(service.prepare(2L, from, to, true))
+        .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
+  }
+
   @Test
   void reportsFailedCollectionUntilExplicitRetry() {
     given(usClient.getUsMarketHolidays(from, to)).willReturn(Set.of());
     given(usClient.getHistoricalPrices("AAPL", from, to))
         .willThrow(new IllegalStateException("provider unavailable"));
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, from, to, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
 
     assertThat(service.prepare(2L, from, to, false))
@@ -296,13 +325,11 @@ class PortfolioPriceHistoryServiceTest {
     asset.recordPriceHistoryCoverage(saturday.minusDays(1), saturday.minusDays(1));
     given(transactionManager.getTransaction(any(TransactionDefinition.class)))
         .willReturn(new SimpleTransactionStatus());
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, saturday, sunday, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
 
     assertThat(asset.hasPriceHistory(saturday, saturday)).isTrue();
@@ -323,13 +350,11 @@ class PortfolioPriceHistoryServiceTest {
         .willReturn(List.of(new MarketTradingDay(friday, false)));
     given(transactionManager.getTransaction(any(TransactionDefinition.class)))
         .willReturn(new SimpleTransactionStatus());
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, friday, friday, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
 
     assertThat(asset.hasPriceHistory(friday, friday)).isTrue();
@@ -346,13 +371,11 @@ class PortfolioPriceHistoryServiceTest {
     given(usClient.getUsMarketHolidays(friday, friday)).willReturn(Set.of(friday));
     given(transactionManager.getTransaction(any(TransactionDefinition.class)))
         .willReturn(new SimpleTransactionStatus());
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, friday, friday, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
 
     assertThat(asset.hasPriceHistory(friday, friday)).isTrue();
@@ -371,13 +394,11 @@ class PortfolioPriceHistoryServiceTest {
                     "AAPL", "US", expected.getFirst(), new BigDecimal("271.1234"))));
     given(transactionManager.getTransaction(any(TransactionDefinition.class)))
         .willReturn(new SimpleTransactionStatus());
-    given(taskScheduler.schedule(any(Runnable.class), any(java.time.Instant.class)))
-        .willReturn(mock(ScheduledFuture.class));
 
     assertThat(service.prepare(2L, from, to, false))
         .isEqualTo(PortfolioPriceHistoryService.Status.PROCESSING);
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    then(taskScheduler).should().schedule(job.capture(), any(java.time.Instant.class));
+    then(historyExecutor).should().execute(job.capture());
     job.getValue().run();
 
     assertThat(asset.getPortfolioPriceHistoryThrough()).isEqualTo(expected.get(1).minusDays(1));
