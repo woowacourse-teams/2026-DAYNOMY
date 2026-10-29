@@ -52,7 +52,6 @@ public class FeedbackService {
     log.atInfo()
         .addKeyValue("event", LogEvent.FEEDBACK_CREATED.code())
         .addKeyValue("feedbackId", feedback.getId())
-        .addKeyValue("authorMemberId", memberId)
         .log(LogEvent.FEEDBACK_CREATED.message());
   }
 
