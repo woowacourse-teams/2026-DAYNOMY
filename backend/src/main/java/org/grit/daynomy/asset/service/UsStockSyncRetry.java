@@ -1,6 +1,7 @@
 package org.grit.daynomy.asset.service;
 
 import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class UsStockSyncRetry {
   private boolean transientDatabaseFailure(RuntimeException exception) {
     if (exception instanceof TransientDataAccessException) return true;
     for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+      if (cause instanceof SQLTransientConnectionException) return true;
       if (cause instanceof SQLException sql) {
         String state = sql.getSQLState();
         if (state != null

@@ -62,6 +62,9 @@ public class EodhdClient {
       throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
     } catch (RestClientException exception) {
       // Exceptions contain the request URL (including api_token); never retain or log them.
+      if (exception.getCause() instanceof IOException) {
+        throw new RetryableExternalRequestException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+      }
       throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
     }
   }

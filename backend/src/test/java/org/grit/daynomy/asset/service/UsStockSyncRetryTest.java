@@ -3,6 +3,7 @@ package org.grit.daynomy.asset.service;
 import static org.assertj.core.api.Assertions.*;
 
 import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 class UsStockSyncRetryTest {
   private final UsStockSyncRetry retry =
@@ -41,6 +43,21 @@ class UsStockSyncRetryTest {
                 () -> {
                   if (attempts.incrementAndGet() == 1)
                     throw new IllegalStateException(new SQLException("temporary", state));
+                  return "saved";
+                }))
+        .isEqualTo("saved");
+    assertThat(attempts.get()).isEqualTo(2);
+  }
+
+  @Test
+  void retriesTransientConnectionWithoutSqlStateAndReturnsSuccessfulAttempt() {
+    AtomicInteger attempts = new AtomicInteger();
+    assertThat(
+            retry.persist(
+                () -> {
+                  if (attempts.incrementAndGet() == 1)
+                    throw new CannotCreateTransactionException(
+                        "connection unavailable", new SQLTransientConnectionException("temporary"));
                   return "saved";
                 }))
         .isEqualTo("saved");
