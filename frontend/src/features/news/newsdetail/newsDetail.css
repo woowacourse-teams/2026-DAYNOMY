@@ -396,6 +396,10 @@ body {
     padding-bottom: 32px;
   }
 
+  .body-copy {
+    text-align: left;
+  }
+
   .news-detail h1 {
     font-size: 28px;
     line-height: 38px;
