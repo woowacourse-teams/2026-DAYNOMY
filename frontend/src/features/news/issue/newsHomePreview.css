@@ -196,7 +196,7 @@
 
 .briefing-secondary-stories {
   display: grid;
-  grid-template-rows: repeat(2, auto);
+  grid-template-rows: repeat(3, auto);
   align-content: start;
 }
 
@@ -504,6 +504,10 @@
   scroll-margin-top: 100px;
 }
 
+.briefing-source-filters {
+  margin: 18px 0 12px;
+}
+
 .briefing-latest .issue-feed {
   margin: 0;
   padding: 0;
@@ -560,8 +564,15 @@
 }
 
 .briefing-person-preview .issue-person-avatar {
+  position: relative;
   width: 54px;
   height: 54px;
+}
+
+.briefing-person-preview .issue-person-avatar img {
+  position: absolute;
+  inset: 0;
+  background: #eef2f6;
 }
 
 .briefing-person-preview p,
@@ -600,7 +611,6 @@
 
 .briefing-calendar-content {
   padding-top: 30px;
-  border-top: 1px solid var(--briefing-line);
 }
 
 .briefing-preview .investment-calendar-embedded .investment-calendar-heading {
@@ -1019,7 +1029,6 @@
 
   .briefing-calendar-content {
     padding-top: 30px;
-    border-top: 1px solid var(--briefing-line);
   }
 }
 
