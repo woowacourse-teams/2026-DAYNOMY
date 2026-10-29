@@ -196,7 +196,7 @@
 
 .briefing-secondary-stories {
   display: grid;
-  grid-template-rows: repeat(2, auto);
+  grid-template-rows: repeat(3, auto);
   align-content: start;
 }
 
@@ -494,6 +494,10 @@
 .briefing-latest {
   min-width: 0;
   scroll-margin-top: 100px;
+}
+
+.briefing-source-filters {
+  margin: 18px 0 12px;
 }
 
 .briefing-latest .issue-feed {

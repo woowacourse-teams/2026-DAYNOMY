@@ -41,7 +41,21 @@ const examples = [
     title: '안전자산 선호가 이어지며 금 가격 변동성 확대',
     summary: '달러와 국채 금리의 움직임이 귀금속 시장에 미치는 영향을 살펴봅니다.',
   },
+  {
+    image: dollarImage,
+    source: 'DAYNOMY Issue · 외화·환율',
+    title: '달러 강세가 이어질 때 수출 기업과 해외 투자에서 확인할 변화',
+    summary: '환율 변화가 기업 실적과 원화 수익률에 미치는 영향을 함께 살펴봅니다.',
+  },
 ];
+
+const latestSources = [
+  ['ALL', '전체'],
+  ['DAYNOMY', '데이노미'],
+  ['X', 'X'],
+  ['THREADS', 'Threads'],
+  ['YOUTUBE', 'YouTube'],
+] as const;
 
 const exampleLatest = [
   {
@@ -132,6 +146,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
   const [failed, setFailed] = useState(false);
   const [rankingFailed, setRankingFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [latestSource, setLatestSource] = useState<'ALL' | FeedItem['source']>('ALL');
   const people = useFeaturedPeople(isPreview ? 'news_home_preview' : 'news_home');
 
   useEffect(() => {
@@ -175,8 +190,10 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
         feed.filter((item) => 'article' in item),
         feedContentReference,
         scores,
-      ).slice(0, 3);
-  const latest = feed.slice(0, 5);
+      ).slice(0, 4);
+  const latest = feed
+    .filter((item) => latestSource === 'ALL' || item.source === latestSource)
+    .slice(0, 5);
   const pending = loading || people.loading;
 
   function retry() {
@@ -217,7 +234,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
         <div className="briefing-section-heading">
           <div>
             <h2 id="briefing-trending-title">트렌딩</h2>
-            <p>최근 7일간 데이노미 반응 기준</p>
+            <p>최근 7일간 반응 기준</p>
           </div>
         </div>
         {example ? (
@@ -315,6 +332,22 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
               전체 보기
             </Link>
           </div>
+          <div
+            className="issue-source-filters briefing-source-filters"
+            role="group"
+            aria-label="전체 소식 카테고리"
+          >
+            {latestSources.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={latestSource === value}
+                onClick={() => setLatestSource(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {example ? (
             <ul className="issue-feed briefing-example-latest">
               {exampleLatest.map((item) => (
@@ -360,7 +393,9 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
             <p className="issue-state">
               {failed || people.error
                 ? '소식을 불러오지 못했어요. 상단에서 다시 시도해 주세요.'
-                : '아직 등록된 소식이 없어요'}
+                : latestSource === 'ALL'
+                  ? '아직 등록된 소식이 없어요'
+                  : '선택한 카테고리의 소식이 없어요'}
             </p>
           )}
         </section>
