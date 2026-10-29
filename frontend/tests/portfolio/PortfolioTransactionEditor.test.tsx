@@ -166,7 +166,8 @@ describe('거래 단가의 최근 종가 기본값', () => {
     await waitFor(() => expect(input).toHaveProperty('value', '75,200'));
     fireEvent.change(view.getByLabelText('거래일'), { target: { value: '2026-01-01' } });
     expect(input).toHaveProperty('value', '75,200');
-    expect(view.getByText(/과거 거래일에도 참고 단가로 유지됩니다/)).toBeTruthy();
+    expect(view.queryByText(/과거 거래일에도 참고 단가로 유지됩니다/)).toBeNull();
+    expect(view.queryByText('입력한 수수료와 세금을 반영한 금액')).toBeNull();
     expect(getLatestStockPrice).toHaveBeenCalledTimes(1);
   });
 

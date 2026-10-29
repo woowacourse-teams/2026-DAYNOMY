@@ -75,7 +75,6 @@ export function PortfolioTransactionEditor({
   }));
   const currency = selected ? stockCurrency(selected) : 'KRW';
   const [recentSearches, setRecentSearches] = useState(loadStockSearchHistory);
-  const [priceBaseDate, setPriceBaseDate] = useState('');
   const [rateBaseDate, setRateBaseDate] = useState('');
   const [rateLoading, setRateLoading] = useState(false);
   const [rateError, setRateError] = useState('');
@@ -135,7 +134,6 @@ export function PortfolioTransactionEditor({
       .then((price) => {
         if (controller.signal.aborted) return;
         if (price.closePrice <= 0) throw new Error('최근 종가가 없습니다.');
-        setPriceBaseDate(price.baseDate);
         setFields((current) =>
           controller.signal.aborted || priceEdited.current || current.unitPrice
             ? current
@@ -295,12 +293,6 @@ export function PortfolioTransactionEditor({
   );
   const tradeInformation = (
     <>
-      {priceBaseDate && (
-        <p className="portfolio-field-note">
-          {priceBaseDate} 최근 종가 · {currency} · 과거 거래일에도 참고 단가로 유지됩니다. 실제
-          체결가와 다르면 수정해 주세요.
-        </p>
-      )}
       {currency === 'USD' && !compactAdd && (
         <label className="portfolio-ledger-field">
           적용 환율 (1 USD당 원)
@@ -353,16 +345,8 @@ export function PortfolioTransactionEditor({
                   ? `${(amount * Number(fields.exchangeRate)).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`
                   : format(amount)}
             </strong>
-            <small>입력한 수수료와 세금을 반영한 금액</small>
             {currency === 'USD' && <small>달러 합계: {invalid ? '—' : format(amount)}</small>}
           </div>
-          <p className="portfolio-field-note">
-            {transaction
-              ? '수정하면 이후 보유 수량과 손익, 자산 추이가 다시 계산됩니다.'
-              : transactionType === 'SELL'
-                ? '매도 가능 수량은 해당 거래일의 보유 기록을 기준으로 확인합니다.'
-                : '거래일을 기준으로 보유 수량과 평균 매입가가 계산됩니다.'}
-          </p>
         </>
       )}
     </>
@@ -370,6 +354,7 @@ export function PortfolioTransactionEditor({
   return (
     <>
       <form
+        autoComplete="off"
         ref={formRef}
         onSubmit={submit}
         noValidate
@@ -380,7 +365,7 @@ export function PortfolioTransactionEditor({
               ? 'portfolio-edit-form'
               : compactAdd
                 ? 'portfolio-quick-add-form'
-                : undefined
+                : 'portfolio-trade-form'
         }
       >
         {!selected ? (
@@ -630,7 +615,6 @@ export function PortfolioTransactionEditor({
                     setFields((current) => ({ ...current, unitPrice: '', exchangeRate: '' }));
                     setRateBaseDate('');
                     setRateError('');
-                    setPriceBaseDate('');
                   }}
                 />
               ) : (
@@ -641,6 +625,11 @@ export function PortfolioTransactionEditor({
                       <strong>{selected.name}</strong>
                       <small>{selected.assetCode}</small>
                     </div>
+                    {transaction && (
+                      <span className={`portfolio-edit-type type-${transactionType.toLowerCase()}`}>
+                        {transactionType === 'BUY' ? '매수' : '매도'} 거래
+                      </span>
+                    )}
                     {!transaction && (
                       <button
                         type="button"
@@ -651,18 +640,13 @@ export function PortfolioTransactionEditor({
                           rateEdited.current = false;
                           setRateBaseDate('');
                           setRateError('');
-                          setPriceBaseDate('');
                         }}
                       >
                         종목 변경
                       </button>
                     )}
                   </div>
-                  {transaction ? (
-                    <span className={`portfolio-edit-type type-${transactionType.toLowerCase()}`}>
-                      {transactionType === 'BUY' ? '매수' : '매도'} 거래
-                    </span>
-                  ) : (
+                  {!transaction && (
                     <div
                       data-portfolio-tour="trade-type"
                       className="portfolio-trade-types"
@@ -818,6 +802,7 @@ export function PortfolioTransactionEditor({
             >
               <form
                 ref={costsFormRef}
+                autoComplete="off"
                 noValidate
                 onSubmit={(event) => {
                   event.preventDefault();

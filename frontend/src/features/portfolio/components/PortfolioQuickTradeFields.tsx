@@ -92,6 +92,7 @@ export function PortfolioQuickTradeFields({
               ref={quantityRef}
               aria-label="수량 (주)"
               name="quantity"
+              autoComplete="off"
               type="text"
               inputMode="numeric"
               autoFocus
@@ -115,6 +116,7 @@ export function PortfolioQuickTradeFields({
               aria-label={`거래 단가 (${currency === 'USD' ? 'USD' : '원'})`}
               aria-busy={priceLoading}
               name="unitPrice"
+              autoComplete="off"
               type="text"
               inputMode="decimal"
               value={formattedPrice}

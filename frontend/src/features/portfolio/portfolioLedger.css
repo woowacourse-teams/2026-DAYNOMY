@@ -3129,6 +3129,11 @@ body:has(.portfolio-page) .daynomy-footer {
   margin: 0;
   font-size: 21px;
 }
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-sheet-heading .portfolio-icon-button {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
 .portfolio-edit-form .portfolio-trade-stock {
   padding: 0;
   margin-bottom: 16px;
@@ -3139,9 +3144,10 @@ body:has(.portfolio-page) .daynomy-footer {
 }
 .portfolio-edit-type {
   display: inline-block;
+  flex-shrink: 0;
   padding: 6px 12px;
   border-radius: 8px;
-  margin-bottom: 16px;
+  margin-left: auto;
   font-size: 12px;
   font-weight: 650;
 }
@@ -3172,51 +3178,84 @@ body:has(.portfolio-page) .daynomy-footer {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.portfolio-edit-values input:focus-visible {
-  outline: 2px solid var(--button-primary);
-  outline-offset: -2px;
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-ledger-field input:focus-visible {
+  outline: 0;
+  box-shadow: none;
+  background: #f8f9fb;
 }
-.portfolio-edit-form .portfolio-cost-fields {
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-cost-fields {
   padding-top: 12px;
 }
-.portfolio-edit-form .portfolio-cost-fields summary {
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-cost-fields summary {
+  margin-bottom: 0;
+}
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-cost-fields[open] summary {
   margin-bottom: 12px;
 }
-.portfolio-edit-form .portfolio-trade-total {
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-trade-total {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
-  margin: 16px 0 0;
+  margin: 8px 0 0;
   padding: 12px 14px;
 }
-.portfolio-edit-form .portfolio-trade-total strong {
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-trade-total strong {
   margin: 0;
   font-size: 20px;
 }
 .portfolio-edit-form .portfolio-trade-total small {
   display: none;
 }
-.portfolio-edit-form .portfolio-sheet-footer {
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-sheet-footer {
   flex-direction: column-reverse;
+  align-items: stretch;
   gap: 8px;
   margin-top: 16px;
   padding-top: 0;
   border: 0;
 }
-.portfolio-edit-form .portfolio-primary-button {
-  min-height: 50px;
-  font-size: 16px;
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-primary-button {
+  flex: none;
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  background: var(--button-action);
+  color: #fff;
+  font-size: 15px;
+}
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-primary-button:hover:not(:disabled) {
+  background: var(--button-action-hover);
+}
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-primary-button:active:not(:disabled) {
+  background: var(--button-action-active);
+}
+:is(.portfolio-edit-form, .portfolio-trade-form) .portfolio-primary-button:disabled {
+  background: #f2f4f6;
+  color: #adb5bd;
 }
 .portfolio-edit-delete {
+  flex: none;
   min-height: 44px;
+  padding: 0;
   border: 0;
   background: transparent;
   color: #ad5361;
   font: inherit;
   font-size: 13px;
   cursor: pointer;
+}
+.portfolio-trade-form .portfolio-sheet-footer .portfolio-secondary-button {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: #52647f;
+  font-size: 13px;
+}
+.portfolio-trade-form .portfolio-sheet-footer .portfolio-secondary-button:hover:not(:disabled) {
+  background: transparent;
+  color: #24344d;
 }
 @media (max-width: 640px) {
   .portfolio-history-row > summary,
