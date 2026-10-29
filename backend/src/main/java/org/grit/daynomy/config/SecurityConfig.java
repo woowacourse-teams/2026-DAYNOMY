@@ -7,6 +7,7 @@ import org.grit.daynomy.auth.oauth.CustomOidcUserService;
 import org.grit.daynomy.auth.oauth.OAuth2LoginSuccessHandler;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.auth.token.TokenCookieManager;
+import org.grit.daynomy.emailsubscription.service.EmailUnsubscribeService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,6 +44,10 @@ public class SecurityConfig {
         .csrf(
             csrf ->
                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .ignoringRequestMatchers(
+                        request ->
+                            "POST".equals(request.getMethod())
+                                && EmailUnsubscribeService.PATH.equals(request.getServletPath()))
                     .ignoringRequestMatchers(
                         request ->
                             ("/api/portfolio/analysis".equals(request.getServletPath())
