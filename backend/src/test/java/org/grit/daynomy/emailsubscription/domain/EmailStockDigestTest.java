@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.grit.daynomy.emailsubscription.EmailFixtures.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.*;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.junit.jupiter.api.Test;
@@ -12,8 +13,45 @@ class EmailStockDigestTest {
   @Test
   void showsPriceDateAndPersonalImpactWithoutAnalysisClaims() {
     assertThat(digest(1L).emailSections("https://daynomy.com"))
-        .contains("2026-10-23", "종목 등락률: 5%", "기여도: 5%p")
+        .contains("2026-10-23", "종목 가격이 5% 올랐어요.", "내 자산의 100%를 차지해요.", "약 +5%p 기여했어요.")
         .doesNotContain("분석이 달라", "출처:", "trillion");
+  }
+
+  @Test
+  void explainsPriceDirectionAndContributionWithoutClaimingTotalPortfolioReturn() {
+    var positive =
+        new EmailStockDigest.Stock(
+            1L, "삼성전자", new BigDecimal("5.2"), new BigDecimal("40"), new BigDecimal("2.08"));
+    var negative =
+        new EmailStockDigest.Stock(
+            2L, "다른 종목", new BigDecimal("-3.45"), new BigDecimal("60"), new BigDecimal("-2.07"));
+    var content =
+        EmailStockDigest.current(
+            MAIL_DATE,
+            MAIL_DATE.minusDays(1),
+            Map.of(1L, 1L, 2L, 1L),
+            List.of(positive, negative),
+            List.of());
+    assertThat(content.emailSections("https://daynomy.com"))
+        .contains(
+            "삼성전자 가격이 5.2% 올랐어요.",
+            "내 자산의 40%를 차지해요.",
+            "전체 자산 수익률에 약 +2.08%p 기여했어요.",
+            "다른 종목 가격이 3.45% 내렸어요.",
+            "전체 자산 수익률에 약 -2.07%p 기여했어요.",
+            "현재 보유 수량 기준")
+        .doesNotContain("전체 자산이 2.08% 올랐", "종목 등락률", "가격 변동 기여도");
+  }
+
+  @Test
+  void unknownWeightsDoNotProducePersonalImpactAndFlatPricesAreNotAnIncrease() {
+    var stock = new EmailStockDigest.Stock(1L, "종목", BigDecimal.ZERO, null, null);
+    var content =
+        EmailStockDigest.current(
+            MAIL_DATE, MAIL_DATE.minusDays(1), Map.of(1L, 1L), List.of(stock), List.of());
+    assertThat(content.emailSections("https://daynomy.com"))
+        .contains("종목 가격은 변동이 없어요.")
+        .doesNotContain("올랐어요", "내렸어요", "내 자산의", "기여했어요");
   }
 
   @Test

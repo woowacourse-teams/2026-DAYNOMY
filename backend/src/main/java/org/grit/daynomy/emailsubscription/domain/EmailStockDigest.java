@@ -56,17 +56,9 @@ public record EmailStockDigest(
     if (!stocks.isEmpty()) {
       body.append("보유 종목의 가격에 변화가 있어요\n").append(baseDate).append(" 종가 기준 · 현재 보유 수량 기준\n");
       for (var stock : stocks) {
-        body.append(stock.name())
-            .append(" — 종목 등락률: ")
-            .append(number(stock.dailyReturnRate()))
-            .append("%\n");
-        if (stock.weight() != null && stock.contribution() != null)
-          body.append(previousBaseDate)
-              .append(" 종가 비중: ")
-              .append(number(stock.weight()))
-              .append("%\n내 자산의 가격 변동 기여도: ")
-              .append(number(stock.contribution()))
-              .append("%p\n");
+        body.append(stock.priceDescription()).append("\n");
+        for (var description : stock.impactDescriptions(previousBaseDate))
+          body.append(description).append("\n");
       }
       body.append("\n");
     }
@@ -89,7 +81,7 @@ public record EmailStockDigest(
   }
 
   private static String number(BigDecimal value) {
-    return value.stripTrailingZeros().toPlainString();
+    return value.setScale(2, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -98,7 +90,26 @@ public record EmailStockDigest(
       String name,
       BigDecimal dailyReturnRate,
       BigDecimal weight,
-      BigDecimal contribution) {}
+      BigDecimal contribution) {
+    public String priceDescription() {
+      if (dailyReturnRate.signum() == 0) return name + " 가격은 변동이 없어요.";
+      return name
+          + " 가격이 "
+          + number(dailyReturnRate.abs())
+          + "% "
+          + (dailyReturnRate.signum() > 0 ? "올랐어요." : "내렸어요.");
+    }
+
+    public List<String> impactDescriptions(LocalDate previousBaseDate) {
+      if (weight == null || contribution == null) return List.of();
+      return List.of(
+          previousBaseDate + " 종가 기준, 내 자산의 " + number(weight) + "%를 차지해요.",
+          "전체 자산 수익률에 약 "
+              + (contribution.signum() > 0 ? "+" : "")
+              + number(contribution)
+              + "%p 기여했어요.");
+    }
+  }
 
   public record Content(
       Long id,
