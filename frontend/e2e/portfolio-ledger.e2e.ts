@@ -227,7 +227,9 @@ for (const viewport of [
     const initial = (await dialog.boundingBox())!;
     const searchBar = dialog.locator('.portfolio-stock-search-input');
     const initialSearchBar = await searchBar.boundingBox();
-    const availableWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    const availableWidth = await page.evaluate(
+      () => document.documentElement.getBoundingClientRect().width,
+    );
     expect(initial.width).toBe(viewport.name === 'desktop' ? 560 : availableWidth - 48);
     expect(initial.height).toBe(560);
     await input.fill('S&P');
