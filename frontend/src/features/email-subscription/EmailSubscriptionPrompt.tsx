@@ -100,7 +100,7 @@ function EmailSubscriptionDialog() {
         <>
           <h2 id={titleId}>이메일 알림 구독 완료</h2>
           <p className="email-subscription-description">
-            중요한 소식이 생기면
+            자산과 분석에 중요한 변화가 생기면
             <br />
             <strong>{subscription.email}</strong>으로 알려드릴게요.
           </p>
@@ -138,6 +138,12 @@ function EmailSubscriptionDialog() {
                 <circle cx="10" cy="13" r="3" />
               </svg>
               <span>보유 종목의 가격 변화</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 11a8 8 0 1 0-2.34 6.66M20 4v7h-7" />
+              </svg>
+              <span>보유 종목의 분석 업데이트</span>
             </li>
             <li>
               <svg viewBox="0 0 24 24" aria-hidden="true">

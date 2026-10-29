@@ -153,7 +153,7 @@ export function usePortfolioAnalysis(
 
   const analyze = async () => {
     if (active.current) return;
-    if (processing) {
+    if (processing || summaryStatus === 'PENDING') {
       await restore();
       return;
     }

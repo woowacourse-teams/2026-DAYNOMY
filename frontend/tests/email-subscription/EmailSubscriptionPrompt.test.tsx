@@ -83,6 +83,7 @@ describe('최초 이메일 구독 안내', () => {
     expect(view.getByText(subscription.email)).toBeTruthy();
     expect(view.getByText('내 자산의 변동')).toBeTruthy();
     expect(view.getByText('보유 종목의 가격 변화')).toBeTruthy();
+    expect(view.getByText('보유 종목의 분석 업데이트')).toBeTruthy();
     expect(view.getByText('새로 등록된 관련 영상과 글')).toBeTruthy();
     expect(view.queryByText(/분석 근거|투자 일정/)).toBeNull();
     expect(view.queryByRole('textbox')).toBeNull();

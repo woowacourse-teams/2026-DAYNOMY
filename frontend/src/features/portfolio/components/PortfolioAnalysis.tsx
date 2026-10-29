@@ -858,7 +858,11 @@ function PortfolioAnalysisView({
       }))
     : assets;
   const hasAnalysisTarget = displayAssets.length > 0;
-  const canAnalyze = !loading && (assets.length > 0 || (isLoggedIn && !loaded));
+  const canAnalyze =
+    !loading &&
+    !processing &&
+    summaryStatus !== 'PENDING' &&
+    (assets.length > 0 || (isLoggedIn && !loaded));
 
   const showIntroduction =
     hasAnalysisTarget && !analysis && !loading && !error && !trialExhausted && !processing;
@@ -870,7 +874,12 @@ function PortfolioAnalysisView({
         : '자산을 추가하고 AI 분석을 시작해 보세요.'
       : undefined;
   const updateNotice =
-    analysis && !loading && saved?.status === 'READY' && saved.lastCheckOutcome === 'UPDATED'
+    analysis &&
+    !loading &&
+    summaryStatus !== 'PENDING' &&
+    summaryStatus !== 'FAILED' &&
+    saved?.status === 'READY' &&
+    saved.lastCheckOutcome === 'UPDATED'
       ? saved.changeReason
       : null;
   const analysisAction = !hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
@@ -888,8 +897,10 @@ function PortfolioAnalysisView({
         ? currentAnalysis
           ? '확인 중'
           : '분석 중'
-        : processing
-          ? '진행 상태 확인'
+        : processing || summaryStatus === 'PENDING'
+          ? summaryStatus === 'PENDING'
+            ? '설명 작성 중'
+            : '분석 중'
           : portfolioChanged
             ? '다시 분석하기'
             : analysis
