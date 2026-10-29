@@ -69,8 +69,7 @@ class AdminFeedbackControllerTest {
   @DisplayName("관리자 피드백 등록 API는 인증 회원과 요청 내용을 저장하고 204를 반환한다")
   void createFeedbackReturnsNoContent() throws Exception {
     AdminFeedbackCreateRequest request =
-        new AdminFeedbackCreateRequest(
-            FeedbackCategory.BUG, "저장 버튼이 동작하지 않아요.", "/admin/news/new");
+        new AdminFeedbackCreateRequest(FeedbackCategory.BUG, "저장 버튼이 동작하지 않아요.", "/admin/news/new");
 
     mockMvc
         .perform(
@@ -146,15 +145,7 @@ class AdminFeedbackControllerTest {
     given(feedbackService.updateStatus(1L, request))
         .willReturn(
             new AdminFeedbackResponse(
-                1L,
-                "화면이 좋아요.",
-                "/news/1",
-                null,
-                null,
-                null,
-                FeedbackStatus.RESOLVED,
-                now,
-                now));
+                1L, "화면이 좋아요.", "/news/1", null, null, null, FeedbackStatus.RESOLVED, now, now));
 
     mockMvc
         .perform(

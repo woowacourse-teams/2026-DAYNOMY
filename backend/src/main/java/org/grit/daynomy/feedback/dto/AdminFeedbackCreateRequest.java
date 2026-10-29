@@ -7,8 +7,7 @@ import jakarta.validation.constraints.Size;
 import org.grit.daynomy.feedback.domain.FeedbackCategory;
 
 public record AdminFeedbackCreateRequest(
-    @Schema(description = "피드백 유형", example = "INCONVENIENCE")
-        @NotNull(message = "피드백 유형을 선택해주세요.")
+    @Schema(description = "피드백 유형", example = "INCONVENIENCE") @NotNull(message = "피드백 유형을 선택해주세요.")
         FeedbackCategory category,
     @Schema(description = "피드백 내용", example = "뉴스 등록 화면에서 저장 결과를 확인하기 어려워요.")
         @NotBlank(message = "피드백 내용을 입력해주세요.")
