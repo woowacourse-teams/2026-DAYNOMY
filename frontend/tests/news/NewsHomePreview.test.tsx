@@ -28,7 +28,17 @@ vi.mock('../../src/features/investment-calendar/api', () => ({
 }));
 vi.mock('../../src/features/news/newslist/api', () => ({ getNews: vi.fn() }));
 vi.mock('../../src/features/people/useFeaturedPeople', () => ({
-  useFeaturedPeople: vi.fn(() => ({ people: [], loading: false, error: '', retry: vi.fn() })),
+  useFeaturedPeople: vi.fn(() => ({
+    people: [],
+    page: 1,
+    size: 100,
+    totalElements: 0,
+    totalPages: 0,
+    hasNext: false,
+    loading: false,
+    error: '',
+    retry: vi.fn(),
+  })),
 }));
 vi.mock('../../src/features/investment-calendar/InvestmentCalendarPage', () => ({
   InvestmentCalendarPage: (props: unknown) => {
@@ -253,6 +263,11 @@ it('등록된 인물과 최신 글을 보여주고 기존 인물 필터로 연�
         ],
       },
     ],
+    page: 1,
+    size: 100,
+    totalElements: 1,
+    totalPages: 1,
+    hasNext: false,
     loading: false,
     error: '',
     retry: vi.fn(),
@@ -272,6 +287,11 @@ it('등록된 인물과 최신 글을 보여주고 기존 인물 필터로 연�
   } finally {
     vi.mocked(useFeaturedPeople).mockReturnValue({
       people: [],
+      page: 1,
+      size: 100,
+      totalElements: 0,
+      totalPages: 0,
+      hasNext: false,
       loading: false,
       error: '',
       retry: vi.fn(),

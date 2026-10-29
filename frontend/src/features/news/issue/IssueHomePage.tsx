@@ -54,7 +54,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     };
   }, [fullFeed]);
   const surface = fullFeed ? 'news_contents' : 'news_home';
-  const people = useFeaturedPeople(surface);
+  const people = useFeaturedPeople(surface, 1, 100);
   const [contents, setContents] = useState<ExternalContent[]>([]);
   const [contentsLoading, setContentsLoading] = useState(true);
   const [contentsError, setContentsError] = useState('');
