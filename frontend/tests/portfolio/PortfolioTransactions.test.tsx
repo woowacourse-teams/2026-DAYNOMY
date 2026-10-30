@@ -398,6 +398,7 @@ describe('거래 원장 화면', () => {
     const view = await ready();
     const initialOverflow = document.body.style.overflow;
     fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
+    fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
     const dialog = view.getByRole('dialog', { name: '거래 기록' });
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
     fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));
@@ -445,6 +446,7 @@ describe('거래 원장 화면', () => {
       let dialog: HTMLElement;
       if (operation === 'transaction_create') {
         fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
+        fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
         dialog = view.getByRole('dialog', { name: '거래 기록' });
         fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
         fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));

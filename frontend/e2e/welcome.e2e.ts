@@ -240,6 +240,8 @@ test('키보드로 메뉴·FAQ·시작하기·거래 기록을 사용하고 닫�
   const add = page.getByRole('button', { name: '종목 추가', exact: true });
   await add.focus();
   await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: '한 종목 추가', exact: true }).focus();
+  await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog', { name: '거래 기록' })).toBeVisible();
   await expect(page.getByRole('searchbox', { name: '종목 검색' })).toBeFocused();
   await page.keyboard.press('Escape');
