@@ -1156,14 +1156,14 @@ public class LeagueService {
 
   @Transactional
   public void unfollow(Long memberId, String publicId) {
-    InvestorProfile profile = getPublicProfile(publicId);
-    var existing = followRepository.findByFollowerIdAndProfileId(memberId, profile.getId());
+    var existing = followRepository.findByFollowerIdAndProfilePublicId(memberId, publicId);
     existing.ifPresent(followRepository::delete);
     TransactionLog.afterCommit(
         LogEvent.LEAGUE_FOLLOW_CHANGED,
         (existing.isPresent() ? log.atInfo() : log.atDebug())
             .addKeyValue("memberId", memberId)
-            .addKeyValue("profileId", profile.getId())
+            .addKeyValue(
+                "profileId", existing.map(follow -> follow.getProfile().getId()).orElse(null))
             .addKeyValue("following", false)
             .addKeyValue("changed", existing.isPresent()));
   }

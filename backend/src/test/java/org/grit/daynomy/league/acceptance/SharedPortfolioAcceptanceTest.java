@@ -90,6 +90,60 @@ class SharedPortfolioAcceptanceTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void ownFollowCanBeRemovedAfterTargetBecomesPrivateOrWithdraws(boolean withdraw) {
+    Member owner = member();
+    Member follower = member();
+    Member anotherFollower = member();
+    String publicId = publicProfile(owner);
+    Long profileId = profiles.findByMemberId(owner.getId()).orElseThrow().getId();
+    for (Member reader : List.of(follower, anotherFollower)) {
+      client(reader).post("/api/users/me/league/follows/" + publicId).then().statusCode(204);
+    }
+    if (withdraw) {
+      client(owner).delete("/api/users/me").then().statusCode(204);
+    } else {
+      client(owner)
+          .body(
+              Map.of(
+                  "profilePublic",
+                  false,
+                  "leagueEnabled",
+                  false,
+                  "allocationPublic",
+                  false,
+                  "detailPublic",
+                  false))
+          .put("/api/users/me/portfolio/publication")
+          .then()
+          .statusCode(200);
+    }
+
+    for (int attempt = 0; attempt < 2; attempt++) {
+      client(follower).delete("/api/users/me/league/follows/" + publicId).then().statusCode(204);
+    }
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM investor_follows WHERE follower_member_id=? AND profile_id=?",
+                Long.class,
+                follower.getId(),
+                profileId))
+        .isZero();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM investor_follows WHERE follower_member_id=? AND profile_id=?",
+                Long.class,
+                anotherFollower.getId(),
+                profileId))
+        .isEqualTo(1L);
+    client(follower)
+        .delete("/api/users/me/league/follows/" + UUID.randomUUID())
+        .then()
+        .statusCode(204);
+    given().port(port).get("/api/league/investors/" + publicId).then().statusCode(404);
+  }
+
   @Test
   void legacyWithdrawnMembersAreHiddenEvenWhenTheirPublicFlagsRemainEnabled() {
     Member owner = member();
@@ -125,6 +179,7 @@ class SharedPortfolioAcceptanceTest {
         .statusCode(200)
         .body("investors.publicId", not(hasItem(publicId)));
     client(viewer).post("/api/users/me/league/follows/" + publicId).then().statusCode(404);
+    client(viewer).delete("/api/users/me/league/follows/" + publicId).then().statusCode(204);
   }
 
   @ParameterizedTest

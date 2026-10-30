@@ -8,5 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface InvestorFollowRepository extends JpaRepository<InvestorFollow, Long> {
   Optional<InvestorFollow> findByFollowerIdAndProfileId(Long followerId, Long profileId);
 
+  Optional<InvestorFollow> findByFollowerIdAndProfilePublicId(Long followerId, String publicId);
+
   List<InvestorFollow> findAllByFollowerIdOrderByCreatedAtDesc(Long followerId);
 }
