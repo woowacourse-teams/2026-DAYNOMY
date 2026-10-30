@@ -25,7 +25,7 @@ API의 JWT·회원·CSRF 검증은 그대로 수행한다. 도구는 Spring 서�
 
 ```bash
 LOADTEST_ENVIRONMENT=dev ./gradlew -q portfolio1000Loadtest --args="capture --env-file /absolute/path/to/dev.env --namespace lt1000-20261029 --base-url https://dev.daynomy.com"
-LOADTEST_ENVIRONMENT=dev ./gradlew -q portfolio1000Loadtest --args="tokens --env-file /absolute/path/to/dev.env --namespace lt1000-20261029 --base-url https://dev.daynomy.com --token-seconds 7200"
+LOADTEST_ENVIRONMENT=dev ./gradlew -q portfolio1000Loadtest --args="tokens --env-file /absolute/path/to/dev.env --namespace lt1000-20261029 --base-url https://dev.daynomy.com --token-seconds 86400"
 ```
 
 `capture`는 첫 시험 전에 한 번만 실행한다. 원본이 이미 있거나 거래·보유 건수가 시드와 다르면 거절한다.
@@ -36,8 +36,10 @@ LOADTEST_ENVIRONMENT=dev ./gradlew -q portfolio1000Loadtest --args="tokens --env
 - `loadtest/.local/lt1000-20261029-baseline/`: 원본 행·대상·스키마·참조 데이터 해시. 이후 복원에 필요하다.
 - `loadtest/.local/accounts-1000.json`: 1,003명의 JWT와 실제 보유·거래 입력·조회 기간. 파일 권한 `0600`.
 
-`tokens`는 현재 포트폴리오가 원본과 같은지 검사한다. 토큰은 기본 2시간이고 계정 파일의 평가일은 발급한 날의 서울 날짜다.
-만료가 임박하거나 날짜가 바뀌면 복원 후 다시 발급한다. 미국 거래 대상의 최신 종가에 대응하는 DB 환율도 필요하다.
+`tokens`는 현재 포트폴리오가 원본과 같은지 검사한다. 토큰은 기본 24시간이고 계정 파일의 평가일은 발급한 날의 서울 날짜다.
+`--token-seconds`는 900~86400초를 허용한다. 일반 로그인 토큰 설정은 변경하지 않는다.
+JWT가 24시간 유효해도 스크립트는 평가 기준일 일치를 검사하므로, 서울 날짜가 바뀌면 계정 파일을 다시 발급·등록해야 한다.
+만료가 임박하거나 날짜가 바뀌면 원본 상태를 확인하고, 거래 측정으로 데이터가 바뀌었다면 복원 후 다시 발급한다. 미국 거래 대상의 최신 종가에 대응하는 DB 환율도 필요하다.
 
 ### 기존 독립 tool.jar 방식으로 실행하는 경우
 
@@ -65,7 +67,7 @@ LOADTEST_ENVIRONMENT=dev java -Xmx512m \
   -cp 'tool-1000.jar:runtime/classes:runtime/lib/*' \
   org.grit.daynomy.loadtest.Portfolio1000LoadtestTool tokens \
   --env-file /absolute/path/to/dev.env --namespace lt1000-20261029 --base-url https://dev.daynomy.com \
-  --token-seconds 7200
+  --token-seconds 86400
 ```
 
 출력 위치는 실행 폴더 아래의 `loadtest/.local/`이다.

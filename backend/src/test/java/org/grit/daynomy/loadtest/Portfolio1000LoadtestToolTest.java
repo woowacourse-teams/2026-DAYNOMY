@@ -89,13 +89,14 @@ class Portfolio1000LoadtestToolTest {
       s.execute("SET LOCAL TIME ZONE 'Asia/Seoul'");
       var issuer =
           new JwtTokenProvider(
-              "daynomy", Base64.getEncoder().encodeToString(new byte[64]), 7200000, 7200000);
+              "daynomy", Base64.getEncoder().encodeToString(new byte[64]), 86400000, 7200000);
       var accounts =
           Portfolio1000LoadtestTool.accounts(
               c, NS, ORIGIN, manifest.path("identity").asText(), issuer);
       assertThat(accounts.size()).isEqualTo(1003);
       for (var account : accounts) {
         var jwt = issuer.parseAccessToken(account.path("accessToken").asText());
+        assertThat(jwt.getExpiresAt()).isEqualTo(jwt.getIssuedAt().plusSeconds(86400));
         assertThat(issuer.getMemberId(jwt)).isEqualTo(account.path("memberId").asLong());
         assertThat(account.path("currency").asText()).isEqualTo("USD");
         assertThat(account.path("country").asText()).isEqualTo("MIXED");

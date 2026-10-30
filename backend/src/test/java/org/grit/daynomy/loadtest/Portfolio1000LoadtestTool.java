@@ -116,8 +116,8 @@ public final class Portfolio1000LoadtestTool {
               "Restored only the 1,003 captured test portfolios. Identity sequences unchanged.");
         } else {
           verifyRows(connection, namespace, manifest);
-          long seconds = Long.parseLong(options.getOrDefault("--token-seconds", "7200"));
-          require(seconds >= 900 && seconds <= 7200, "Token lifetime must be 900..7200 seconds.");
+          long seconds = Long.parseLong(options.getOrDefault("--token-seconds", "86400"));
+          require(seconds >= 900 && seconds <= 86400, "Token lifetime must be 900..86400 seconds.");
           JwtTokenProvider issuer =
               new JwtTokenProvider(
                   env.getOrDefault("JWT_ISSUER", "daynomy"),
