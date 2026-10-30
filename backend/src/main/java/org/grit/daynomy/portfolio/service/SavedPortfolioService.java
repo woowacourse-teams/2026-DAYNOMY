@@ -59,7 +59,16 @@ public class SavedPortfolioService {
               PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
               return new SavedPortfolioResponse(
                   holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId()).stream()
-                      .map(SavedPortfolioHoldingResponse::from)
+                      .map(
+                          holding ->
+                              SavedPortfolioHoldingResponse.from(
+                                  holding,
+                                  ledger.positions().containsKey(holding.getAsset().getId())
+                                      ? ledger
+                                          .positions()
+                                          .get(holding.getAsset().getId())
+                                          .nativeAveragePurchasePrice()
+                                      : holding.getNativeAveragePurchasePrice()))
                       .toList(),
                   ledger.realizedProfitLoss());
             })
@@ -273,10 +282,17 @@ public class SavedPortfolioService {
       PortfolioHolding saved =
           holdingRepository.save(
               new PortfolioHolding(
-                  portfolio, asset, position.quantity(), position.averagePurchasePrice()));
+                  portfolio,
+                  asset,
+                  position.quantity(),
+                  position.averagePurchasePrice(),
+                  position.nativeAveragePurchasePrice()));
       return SavedPortfolioHoldingResponse.from(saved);
     }
-    current.change(position.quantity(), position.averagePurchasePrice());
+    current.change(
+        position.quantity(),
+        position.averagePurchasePrice(),
+        position.nativeAveragePurchasePrice());
     return SavedPortfolioHoldingResponse.from(current);
   }
 

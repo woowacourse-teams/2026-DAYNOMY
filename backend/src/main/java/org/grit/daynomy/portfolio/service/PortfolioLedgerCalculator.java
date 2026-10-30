@@ -45,7 +45,26 @@ public class PortfolioLedgerCalculator {
             currentCost
                 .add(transactionCost)
                 .divide(BigDecimal.valueOf(nextQuantity), MONEY_SCALE, RoundingMode.HALF_UP);
-        positions.put(assetId, new Position(history.getAsset(), nextQuantity, averagePrice));
+        BigDecimal nativeAverage = null;
+        if (current == null || current.nativeAveragePurchasePrice() != null) {
+          BigDecimal nativeCost =
+              current == null
+                  ? BigDecimal.ZERO
+                  : current
+                      .nativeAveragePurchasePrice()
+                      .multiply(BigDecimal.valueOf(currentQuantity));
+          nativeAverage =
+              nativeCost
+                  .add(
+                      history
+                          .getUnitPrice()
+                          .multiply(BigDecimal.valueOf(history.getTransactionQuantity()))
+                          .add(history.getFee())
+                          .add(history.getTax()))
+                  .divide(BigDecimal.valueOf(nextQuantity), 4, RoundingMode.HALF_UP);
+        }
+        positions.put(
+            assetId, new Position(history.getAsset(), nextQuantity, averagePrice, nativeAverage));
       } else if (type == PortfolioHoldingChangeType.SELL) {
         Position current = positions.get(assetId);
         if (current == null || current.quantity() < history.getTransactionQuantity()) {
@@ -66,7 +85,11 @@ public class PortfolioLedgerCalculator {
         } else {
           positions.put(
               assetId,
-              new Position(history.getAsset(), nextQuantity, current.averagePurchasePrice()));
+              new Position(
+                  history.getAsset(),
+                  nextQuantity,
+                  current.averagePurchasePrice(),
+                  current.nativeAveragePurchasePrice()));
         }
       } else {
         positions.put(
@@ -74,14 +97,23 @@ public class PortfolioLedgerCalculator {
             new Position(
                 history.getAsset(),
                 history.getQuantity(),
-                history.getAveragePurchasePrice().setScale(MONEY_SCALE, RoundingMode.HALF_UP)));
+                history.getAveragePurchasePrice().setScale(MONEY_SCALE, RoundingMode.HALF_UP),
+                history.getNativeAveragePurchasePrice()));
       }
     }
     return new LedgerResult(
         Map.copyOf(positions), realizedProfitLoss.setScale(MONEY_SCALE, RoundingMode.HALF_UP));
   }
 
-  public record Position(Asset asset, long quantity, BigDecimal averagePurchasePrice) {}
+  public record Position(
+      Asset asset,
+      long quantity,
+      BigDecimal averagePurchasePrice,
+      BigDecimal nativeAveragePurchasePrice) {
+    public Position(Asset asset, long quantity, BigDecimal averagePurchasePrice) {
+      this(asset, quantity, averagePurchasePrice, null);
+    }
+  }
 
   public record LedgerResult(Map<Long, Position> positions, BigDecimal realizedProfitLoss) {}
 }
