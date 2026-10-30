@@ -36,13 +36,20 @@ class SecretRegistrationTest(unittest.TestCase):
             env = dict(zip(names, [part.decode() for part in parts]))
             env[register.PREFIX + "_MANIFEST"] = manifest.decode()
             self.assertEqual(json.loads(decoder.decode(env)), rows)
+            whitespace = {name: "\n" + value + "\r\n" for name, value in env.items()}
+            whitespace[names[0]] = "\n".join([env[names[0]][:100], env[names[0]][100:]])
+            self.assertEqual(json.loads(decoder.decode(whitespace)), rows)
+            no_manifest = dict(env)
+            no_manifest.pop(register.PREFIX + "_MANIFEST")
+            with self.assertRaisesRegex(decoder.AccountSecretError, "MANIFEST is missing"):
+                decoder.decode(no_manifest)
             missing = dict(env)
             missing.pop(names[-1])
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(decoder.AccountSecretError, names[-1]):
                 decoder.decode(missing)
             mixed = dict(env)
             mixed[names[-1]] = "old-data"
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(decoder.AccountSecretError, "Base64|SHA-256"):
                 decoder.decode(mixed)
             legacy = {register.PREFIX: b"".join(parts).decode()}
             self.assertEqual(json.loads(decoder.decode(legacy)), rows)
