@@ -159,6 +159,8 @@ export type PortfolioAnalysisResponse = {
 };
 
 export type SavedPortfolioAnalysisResponse = {
+  remainingRefreshCount?: number;
+  refreshResetAt?: string;
   summaryStatus?: 'PENDING' | 'READY' | 'FAILED' | null;
   status: 'EMPTY' | 'READY' | 'PORTFOLIO_CHANGED' | 'PROCESSING' | 'RECHECK_REQUIRED' | 'FAILED';
   lastCheckOutcome: 'UPDATED' | 'UNCHANGED' | 'UNCONFIRMED' | null;

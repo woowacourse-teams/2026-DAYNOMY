@@ -42,6 +42,7 @@ import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
 import { loadGuestPortfolioHoldings } from './features/portfolio/portfolioHoldingsStorage';
 import { isStaffHostname, isUserHostname } from './serviceDomain';
+import { EmailSubscriptionPrompt } from './features/email-subscription/EmailSubscriptionPrompt';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -286,6 +287,7 @@ function AppContent() {
       <AnalyticsTracker />
       <ScrollToTop />
       <PostLoginRedirect />
+      <EmailSubscriptionPrompt />
       <div className="app-shell">
         {!awaitingWelcome && <AppHeader />}
         <LeagueNavigation />

@@ -1,0 +1,145 @@
+.portfolio-sheet.email-subscription-dialog {
+  width: min(480px, calc(100% - 32px));
+  height: fit-content;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  border-radius: 16px;
+  color: var(--text-h);
+}
+.email-subscription-dialog .portfolio-sheet-content {
+  position: relative;
+  padding: 32px;
+}
+.email-subscription-brand {
+  color: #08162e;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.email-subscription-dialog h2 {
+  margin: 28px 0 14px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.03em;
+  word-break: keep-all;
+}
+.email-subscription-description {
+  color: #65738a;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.email-subscription-benefits {
+  display: grid;
+  gap: 28px;
+  margin: 36px 0;
+  padding: 0;
+  list-style: none;
+}
+.email-subscription-benefits li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+.email-subscription-dialog svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.email-subscription-benefits svg {
+  color: var(--button-primary-hover);
+}
+.email-subscription-address {
+  display: grid;
+  gap: 10px;
+  padding: 20px 16px;
+  margin: 0 0 28px;
+  border-radius: 10px;
+  background: var(--button-primary-soft);
+  overflow-wrap: anywhere;
+}
+.email-subscription-address span {
+  color: var(--button-primary-hover);
+  font-size: 13px;
+  font-weight: 600;
+}
+.email-subscription-address strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+.email-subscription-dialog button {
+  min-height: 44px;
+  font: inherit;
+  cursor: pointer;
+}
+.email-subscription-close {
+  position: absolute;
+  top: 20px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: transparent;
+}
+.email-subscription-primary,
+.email-subscription-secondary {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 10px;
+}
+.email-subscription-dialog .email-subscription-primary {
+  min-height: 48px;
+  color: #fff;
+  background: var(--button-action);
+  font-size: 14px;
+  font-weight: 700;
+}
+.email-subscription-primary:hover:not(:disabled) {
+  background: var(--button-action-hover);
+}
+.email-subscription-secondary {
+  margin-top: 6px;
+  color: #65738a;
+  background: transparent;
+  font-size: 14px;
+}
+.email-subscription-secondary:hover:not(:disabled),
+.email-subscription-close:hover:not(:disabled) {
+  background: var(--surface-strong);
+}
+.email-subscription-description + .email-subscription-primary {
+  margin-top: 28px;
+}
+.email-subscription-error {
+  margin: -12px 0 16px;
+  color: #b42318;
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 440px) {
+  .email-subscription-dialog .portfolio-sheet-content {
+    padding: 26px 22px;
+  }
+  .email-subscription-dialog h2 {
+    font-size: 22px;
+  }
+  .email-subscription-brand {
+    font-size: 20px;
+  }
+}

@@ -153,7 +153,7 @@ export function usePortfolioAnalysis(
 
   const analyze = async () => {
     if (active.current) return;
-    if (processing) {
+    if (processing || summaryStatus === 'PENDING') {
       await restore();
       return;
     }
@@ -162,6 +162,7 @@ export function usePortfolioAnalysis(
       return;
     }
     if (assets.length === 0 || (!isLoggedIn && trialExhausted)) return;
+    if (isLoggedIn && analysis && !portfolioChanged && saved?.remainingRefreshCount === 0) return;
     const controller = new AbortController();
     active.current = controller;
     setLoading(true);
@@ -215,6 +216,19 @@ export function usePortfolioAnalysis(
         recordResult('TRIAL_EXHAUSTED');
         markGuestPortfolioAnalysisTrialUsed();
         setTrialExhausted(true);
+      } else if (
+        isLoggedIn &&
+        caught instanceof ApiError &&
+        caught.code === 'PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED'
+      ) {
+        recordResult('REFRESH_LIMIT_EXCEEDED');
+        try {
+          const response = await getSavedPortfolioAnalysis(controller.signal);
+          if (!controller.signal.aborted) accept(response);
+        } catch {
+          if (!controller.signal.aborted)
+            setError('오늘 남은 확인 횟수를 불러오지 못했어요. 새로고침해 주세요.');
+        }
       } else if (isLoggedIn && caught instanceof ApiError && caught.status === 409) {
         recordResult('CONFLICT');
         // 다른 탭의 실행 여부와 자산 변경 상태를 서버에서 다시 확인한다.
@@ -273,6 +287,31 @@ export function usePortfolioAnalysis(
       }
     }
   };
+
+  useEffect(() => {
+    if (
+      !isLoggedIn ||
+      saved?.remainingRefreshCount === undefined ||
+      !saved.refreshResetAt ||
+      loading ||
+      processing ||
+      summaryStatus === 'PENDING'
+    )
+      return;
+    const timer = window.setTimeout(
+      () => void restore(true),
+      Math.max(1000, Date.parse(saved.refreshResetAt) - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [
+    isLoggedIn,
+    saved?.remainingRefreshCount,
+    saved?.refreshResetAt,
+    loading,
+    processing,
+    summaryStatus,
+    restore,
+  ]);
 
   return {
     analysis: portfolioChanged ? null : analysis,
