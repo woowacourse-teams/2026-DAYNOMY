@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -74,3 +75,24 @@ class SecretRegistrationTest(unittest.TestCase):
                          [b"part-one", b"part-two", b"manifest"])
         self.assertEqual(uploads[-1][0][3], register.PREFIX + "_MANIFEST")
         self.assertNotIn("part-one", uploads[0][0])
+
+
+    def test_diagnostic_manifest_identifies_names_without_exposing_fingerprints(self):
+        first, second = "Zmlyc3Q=", "c2Vjb25k"
+        reference = {
+            "parts": 2,
+            "sha256": hashlib.sha256((first + second).encode()).hexdigest(),
+            "part_sha256": [hashlib.sha256(value.encode()).hexdigest()
+                            for value in [first, second]],
+        }
+        env = {
+            register.PREFIX: first,
+            register.PREFIX + "_PART_02": "different-value",
+            register.PREFIX + "_MANIFEST": json.dumps(reference),
+        }
+        with self.assertRaises(decoder.AccountSecretError) as error:
+            decoder.decode(env)
+        self.assertEqual(str(error.exception), "Account Secrets differing from the original: "
+                         + register.PREFIX + "_PART_02")
+        for value in [first, second, "different-value"] + reference["part_sha256"]:
+            self.assertNotIn(value, str(error.exception))
