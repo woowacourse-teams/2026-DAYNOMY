@@ -103,6 +103,53 @@ class SavedPortfolioControllerTest {
         .andExpect(jsonPath("$.status").value("PROCESSING"));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"/api/portfolio/transactions/import", "/api/portfolio/transactions/bulk"})
+  void bulkTransactionsValidateEveryRowBeforeCallingService(String path) throws Exception {
+    mockMvc
+        .perform(
+            post(path)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+      {"transactions":[{"assetId":1,"type":"BUY","tradeDate":"2026-10-01","quantity":1,"unitPrice":100,"fee":0,"tax":0},
+      {"assetId":2,"type":"BUY","tradeDate":"2026-10-01","quantity":0,"unitPrice":100,"fee":0,"tax":0}]}
+      """))
+        .andExpect(status().isBadRequest());
+    then(savedPortfolioService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void bulkHoldingValidationRejectsEmptyAndInvalidRows() throws Exception {
+    for (String body :
+        List.of(
+            "{\"holdings\":[]}",
+            "{\"holdings\":[{\"assetId\":1,\"quantity\":1,\"averagePurchasePrice\":0}]}")) {
+      mockMvc
+          .perform(
+              patch("/api/portfolio/holdings")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(body))
+          .andExpect(status().isBadRequest());
+    }
+    then(savedPortfolioService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void openingBalanceValidationRejectsMissingAndInvalidValues() throws Exception {
+    for (String body :
+        List.of(
+            "{\"holdings\":[]}",
+            "{\"holdings\":[{\"assetId\":1,\"quantity\":0,\"averagePurchasePrice\":100}]}"))
+      mockMvc
+          .perform(
+              post("/api/portfolio/holdings/bulk")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(body))
+          .andExpect(status().isBadRequest());
+    then(savedPortfolioService).shouldHaveNoInteractions();
+  }
+
   @AfterEach
   void clearAuthentication() {
     SecurityContextHolder.clearContext();
@@ -111,7 +158,7 @@ class SavedPortfolioControllerTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"/api/portfolio/holdings", "/api/users/me/portfolio/holdings"})
-  void retiredHoldingCreationApiIsNotFound(String path) throws Exception {
+  void retiredHoldingCreationMethodIsNotAllowed(String path) throws Exception {
     mockMvc
         .perform(
             post(path)
@@ -120,7 +167,7 @@ class SavedPortfolioControllerTest {
                     """
                     {"assetId":1,"quantity":10,"averagePurchasePrice":65000}
                     """))
-        .andExpect(status().isNotFound());
+        .andExpect(status().isMethodNotAllowed());
 
     then(savedPortfolioService).shouldHaveNoInteractions();
   }

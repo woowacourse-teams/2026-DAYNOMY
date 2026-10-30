@@ -16,8 +16,12 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.common.response.ErrorResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingHistoryResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioHoldingsCreateRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioHoldingsUpdateRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioPerformanceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPriceHistoryResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionImportRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionImportResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
@@ -54,6 +58,46 @@ public class SavedPortfolioController {
   private final SavedPortfolioService savedPortfolioService;
   private final PortfolioSnapshotService snapshotService;
   private final PortfolioPriceHistoryService priceHistoryService;
+
+  @Operation(
+      summary = "현재 보유잔고 일괄 등록",
+      description = "신규 종목의 수량과 원화 평균 매입가를 현재 보유잔고로 등록합니다. 매수 거래를 만들지 않으며 중복 종목은 거부합니다.")
+  @PostMapping("/holdings/bulk")
+  public ResponseEntity<SavedPortfolioResponse> createHoldings(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody PortfolioHoldingsCreateRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(savedPortfolioService.createHoldings(member.memberId(), request));
+  }
+
+  @Operation(summary = "보유정보 일괄 정정", description = "수량과 원화 평균 매입가만 정정합니다. 하나라도 실패하면 전체 변경을 취소합니다.")
+  @PatchMapping("/holdings")
+  public List<SavedPortfolioHoldingResponse> updateHoldings(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody PortfolioHoldingsUpdateRequest request) {
+    return savedPortfolioService.updateHoldings(member.memberId(), request);
+  }
+
+  @Operation(
+      summary = "CSV 거래 일괄 등록",
+      description =
+          "검증한 CSV 거래를 날짜순으로 등록합니다. 같은 날짜는 파일 순서를 유지하며 전체 실패 시 롤백합니다. 동일 내용의 재요청은 중복 등록하지 않습니다.")
+  @PostMapping("/transactions/import")
+  public PortfolioTransactionImportResponse importTransactions(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody PortfolioTransactionImportRequest request) {
+    return savedPortfolioService.importTransactions(member.memberId(), request);
+  }
+
+  @Operation(
+      summary = "매수·매도 거래 일괄 등록",
+      description = "전체 거래를 한 트랜잭션으로 저장합니다. 하나라도 실패하면 전체 변경을 취소합니다.")
+  @PostMapping("/transactions/bulk")
+  public PortfolioTransactionImportResponse createTransactions(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody PortfolioTransactionImportRequest request) {
+    return savedPortfolioService.createTransactions(member.memberId(), request);
+  }
 
   @Operation(
       summary = "내 포트폴리오 조회",

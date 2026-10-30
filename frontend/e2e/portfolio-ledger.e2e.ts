@@ -638,6 +638,7 @@ for (const viewport of [
     await expect(holdingTrigger).toBeFocused();
     const assetTrigger = page.getByRole('button', { name: '종목 추가', exact: true });
     await assetTrigger.click();
+    await page.getByRole('button', { name: '한 종목 추가', exact: true }).click();
     const assetEditor = page.getByRole('dialog', { name: '거래 기록' });
     await expect(assetEditor).toBeVisible();
     await expect(assetEditor.getByRole('searchbox')).toBeFocused();
@@ -1433,6 +1434,7 @@ for (const viewport of [
     await expect(holdingTrigger).toBeFocused();
     const trigger = page.getByRole('button', { name: '종목 추가', exact: true });
     await trigger.click();
+    await page.getByRole('button', { name: '한 종목 추가', exact: true }).click();
     await expect(
       page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
     ).toBeFocused();

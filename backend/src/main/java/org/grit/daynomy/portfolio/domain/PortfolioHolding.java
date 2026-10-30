@@ -47,23 +47,55 @@ public class PortfolioHolding extends BaseEntity {
   @Column(name = "average_purchase_price", nullable = false, precision = 19, scale = 2)
   private BigDecimal averagePurchasePrice;
 
+  @Column(name = "native_average_purchase_price", precision = 21, scale = 4)
+  private BigDecimal nativeAveragePurchasePrice;
+
   public PortfolioHolding(
       Portfolio portfolio, Asset asset, long quantity, BigDecimal averagePurchasePrice) {
+    this(portfolio, asset, quantity, averagePurchasePrice, null);
+  }
+
+  public PortfolioHolding(
+      Portfolio portfolio,
+      Asset asset,
+      long quantity,
+      BigDecimal averagePurchasePrice,
+      BigDecimal nativeAveragePurchasePrice) {
     this.portfolio = Objects.requireNonNull(portfolio);
     this.asset = Objects.requireNonNull(asset);
-    change(quantity, averagePurchasePrice);
+    change(quantity, averagePurchasePrice, nativeAveragePurchasePrice);
   }
 
   public boolean change(long quantity, BigDecimal averagePurchasePrice) {
+    return change(
+        quantity,
+        averagePurchasePrice,
+        this.averagePurchasePrice != null
+                && averagePurchasePrice != null
+                && this.averagePurchasePrice.compareTo(averagePurchasePrice) == 0
+            ? this.nativeAveragePurchasePrice
+            : null);
+  }
+
+  public boolean change(
+      long quantity, BigDecimal averagePurchasePrice, BigDecimal nativeAveragePurchasePrice) {
+    if (nativeAveragePurchasePrice != null && nativeAveragePurchasePrice.signum() <= 0) {
+      throw new IllegalArgumentException("종목 통화 기준 평균 매입가는 0보다 커야 합니다.");
+    }
     if (quantity <= 0 || averagePurchasePrice == null || averagePurchasePrice.signum() <= 0) {
       throw new IllegalArgumentException("보유 수량과 평균 매수가는 0보다 커야 합니다.");
     }
     if (this.quantity == quantity
-        && averagePurchasePrice.compareTo(this.averagePurchasePrice) == 0) {
+        && averagePurchasePrice.compareTo(this.averagePurchasePrice) == 0
+        && (nativeAveragePurchasePrice == null
+            ? this.nativeAveragePurchasePrice == null
+            : this.nativeAveragePurchasePrice != null
+                && nativeAveragePurchasePrice.compareTo(this.nativeAveragePurchasePrice) == 0)) {
       return false;
     }
     this.quantity = quantity;
     this.averagePurchasePrice = averagePurchasePrice;
+    this.nativeAveragePurchasePrice = nativeAveragePurchasePrice;
     return true;
   }
 }
