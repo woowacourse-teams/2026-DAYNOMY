@@ -3,6 +3,7 @@ package org.grit.daynomy.portfolio.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -17,8 +18,13 @@ import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
+import org.grit.daynomy.portfolio.domain.PortfolioTransactionImport;
 import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingHistoryResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioHoldingsCreateRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioHoldingsUpdateRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionImportRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionImportResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionUpdateRequest;
@@ -26,9 +32,11 @@ import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest;
 import org.grit.daynomy.portfolio.dto.SavedPortfolioResponse;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
+import org.grit.daynomy.portfolio.exception.PortfolioImportRowError;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioTransactionImportRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +57,153 @@ public class SavedPortfolioService {
   private final PortfolioSnapshotTransactionService snapshotTransactionService;
   private final PortfolioExchangeRateService exchangeRates;
   private final PlatformTransactionManager transactionManager;
+  private final PortfolioTransactionImportRepository importRepository;
+
+  @Transactional
+  public SavedPortfolioResponse createHoldings(
+      Long memberId, PortfolioHoldingsCreateRequest request) {
+    Member member =
+        memberRepository
+            .findByIdForUpdate(memberId)
+            .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+    Portfolio portfolio = getOrCreatePortfolio(member);
+    var assetIds = new HashSet<Long>();
+    holdingRepository
+        .findAllByPortfolioIdOrderById(portfolio.getId())
+        .forEach(holding -> assetIds.add(holding.getAsset().getId()));
+    var added =
+        request.holdings().stream()
+            .map(
+                item -> {
+                  if (!assetIds.add(item.assetId()))
+                    throw new BusinessException(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
+                  Asset asset =
+                      assetRepository
+                          .findById(item.assetId())
+                          .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
+                  return new PortfolioHolding(
+                      portfolio,
+                      asset,
+                      item.quantity(),
+                      item.averagePurchasePrice(),
+                      item.nativeAveragePurchasePrice());
+                })
+            .toList();
+    holdingRepository.saveAll(added);
+    historyRepository.saveAll(
+        added.stream()
+            .map(
+                holding ->
+                    new PortfolioHoldingHistory(
+                        holding, PortfolioHoldingChangeType.OPENING_BALANCE))
+            .toList());
+    return get(memberId);
+  }
+
+  @Transactional
+  public List<SavedPortfolioHoldingResponse> updateHoldings(
+      Long memberId, PortfolioHoldingsUpdateRequest request) {
+    Portfolio portfolio = getPortfolioForUpdate(memberId);
+    if (request.holdings().stream().map(item -> item.assetId()).distinct().count()
+        != request.holdings().size()) {
+      throw new BusinessException(PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET);
+    }
+    // Resolve every holding before mutating any of them. The portfolio lock covers the whole batch.
+    var holdings =
+        request.holdings().stream()
+            .map(item -> getHolding(portfolio.getId(), item.assetId()))
+            .toList();
+    for (int index = 0; index < holdings.size(); index++) {
+      var holding = holdings.get(index);
+      var item = request.holdings().get(index);
+      if (holding.change(
+          item.quantity(), item.averagePurchasePrice(), item.nativeAveragePurchasePrice())) {
+        historyRepository.save(
+            new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.ADJUSTED));
+      }
+    }
+    return holdings.stream().map(SavedPortfolioHoldingResponse::from).toList();
+  }
+
+  public PortfolioTransactionImportResponse importTransactions(
+      Long memberId, PortfolioTransactionImportRequest request) {
+    return createTransactions(memberId, request, true);
+  }
+
+  public PortfolioTransactionImportResponse createTransactions(
+      Long memberId, PortfolioTransactionImportRequest request) {
+    return createTransactions(memberId, request, false);
+  }
+
+  private PortfolioTransactionImportResponse createTransactions(
+      Long memberId, PortfolioTransactionImportRequest request, boolean deduplicate) {
+    var ordered =
+        request.transactions().stream()
+            .sorted(java.util.Comparator.comparing(PortfolioTransactionRequest::tradeDate))
+            .toList();
+    String fingerprint =
+        PortfolioTransactionImport.fingerprint(
+            ordered.stream()
+                .map(
+                    item ->
+                        new PortfolioTransactionImport.Entry(
+                            item.assetId(),
+                            item.type(),
+                            item.tradeDate(),
+                            item.quantity(),
+                            item.unitPrice(),
+                            item.fee(),
+                            item.tax(),
+                            item.exchangeRate()))
+                .toList());
+    var rates =
+        exchangeRates.forImport(
+            memberId,
+            ordered.stream().map(PortfolioTransactionRequest::assetId).distinct().toList(),
+            ordered.getFirst().tradeDate());
+    return new TransactionTemplate(transactionManager)
+        .execute(
+            status -> {
+              Member member =
+                  memberRepository
+                      .findByIdForUpdate(memberId)
+                      .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+              Portfolio portfolio = getOrCreatePortfolio(member);
+              if (deduplicate
+                  && importRepository.existsByPortfolioIdAndFingerprint(
+                      portfolio.getId(), fingerprint)) {
+                return new PortfolioTransactionImportResponse(0, true, get(memberId));
+              }
+              if (!deduplicate) {
+                var assetIds = new HashSet<Long>();
+                holdingRepository
+                    .findAllByPortfolioIdOrderById(portfolio.getId())
+                    .forEach(holding -> assetIds.add(holding.getAsset().getId()));
+                for (int index = 0; index < request.transactions().size(); index++) {
+                  if (!assetIds.add(request.transactions().get(index).assetId())) {
+                    throw new BusinessException(
+                        new PortfolioImportRowError(
+                            PortfolioErrorCode.DUPLICATE_PORTFOLIO_ASSET, index + 1));
+                  }
+                }
+              }
+              for (int index = 0; index < ordered.size(); index++) {
+                try {
+                  transactInTransaction(memberId, ordered.get(index), rates, false);
+                } catch (BusinessException exception) {
+                  // Include only the source row number, never the uploaded financial values.
+                  int row = request.transactions().indexOf(ordered.get(index)) + 1;
+                  throw new BusinessException(
+                      new PortfolioImportRowError(exception.errorCode(), row));
+                }
+              }
+              snapshotTransactionService.refreshSnapshotsFrom(
+                  portfolio.getId(), ordered.getFirst().tradeDate(), rates);
+              if (deduplicate)
+                importRepository.save(new PortfolioTransactionImport(portfolio, fingerprint));
+              return new PortfolioTransactionImportResponse(ordered.size(), false, get(memberId));
+            });
+  }
 
   @Transactional(readOnly = true)
   public SavedPortfolioResponse get(Long memberId) {
@@ -99,11 +254,14 @@ public class SavedPortfolioService {
   public PortfolioTransactionResponse transact(Long memberId, PortfolioTransactionRequest request) {
     var rates = exchangeRates.forMember(memberId, request.assetId(), request.tradeDate());
     return new TransactionTemplate(transactionManager)
-        .execute(status -> transactInTransaction(memberId, request, rates));
+        .execute(status -> transactInTransaction(memberId, request, rates, true));
   }
 
   private PortfolioTransactionResponse transactInTransaction(
-      Long memberId, PortfolioTransactionRequest request, Map<LocalDate, BigDecimal> rates) {
+      Long memberId,
+      PortfolioTransactionRequest request,
+      Map<LocalDate, BigDecimal> rates,
+      boolean refreshSnapshots) {
     Member member =
         memberRepository
             .findByIdForUpdate(memberId)
@@ -145,7 +303,10 @@ public class SavedPortfolioService {
     PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
     SavedPortfolioHoldingResponse responseHolding =
         applyLedgerPosition(portfolio, asset, current, ledger);
-    snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), request.tradeDate(), rates);
+    if (refreshSnapshots) {
+      snapshotTransactionService.refreshSnapshotsFrom(
+          portfolio.getId(), request.tradeDate(), rates);
+    }
     return new PortfolioTransactionResponse(
         history.getId(), responseHolding, ledger.realizedProfitLoss());
   }
