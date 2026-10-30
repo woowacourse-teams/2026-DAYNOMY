@@ -33,7 +33,9 @@ public class StockController {
   private final StockSearchService stockSearchService;
   private final StockPriceService stockPriceService;
 
-  @Operation(summary = "국내·미국 주식·ETF 통합 검색", description = "종목명 또는 종목코드로 상장 주식과 ETF를 최대 20개 검색합니다.")
+  @Operation(
+      summary = "국내·미국 주식·ETF 통합 검색",
+      description = "한글명·영문명 또는 종목코드로 상장 주식과 ETF를 최대 20개 검색합니다. 종목명은 한글명을 우선하고 없으면 원문명을 반환합니다.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",

@@ -68,6 +68,10 @@ public class Asset extends BaseEntity {
   @Column(name = "portfolio_price_history_through")
   private LocalDate portfolioPriceHistoryThrough;
 
+  public String getDisplayName() {
+    return nameKo == null || nameKo.isBlank() ? name : nameKo;
+  }
+
   public String getCurrency() {
     return market == null ? "KRW" : market.currency();
   }

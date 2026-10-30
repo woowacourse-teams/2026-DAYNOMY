@@ -160,7 +160,7 @@ class LeagueServiceTest {
     given(portfolioRepository.findByMemberId(2L)).willReturn(Optional.of(portfolio));
     given(portfolio.getId()).willReturn(3L);
     given(visibleAsset.getId()).willReturn(4L);
-    given(visibleAsset.getName()).willReturn("공개 종목");
+    given(visibleAsset.getDisplayName()).willReturn("공개 종목");
     given(visibleAsset.getCategory()).willReturn(AssetCategory.STOCK);
     given(hiddenAsset.getId()).willReturn(5L);
     var visible = new SharedHolding(portfolio, visibleAsset, 1, new BigDecimal("100"));
@@ -1426,7 +1426,7 @@ class LeagueServiceTest {
     given(history.getQuantity()).willReturn(10L);
     given(asset.getId()).willReturn(4L);
     if (!hidden) {
-      given(asset.getName()).willReturn("삼성전자");
+      given(asset.getDisplayName()).willReturn("삼성전자");
       given(asset.getCategory()).willReturn(AssetCategory.STOCK);
     }
     SharedHolding visible = mock(SharedHolding.class);
