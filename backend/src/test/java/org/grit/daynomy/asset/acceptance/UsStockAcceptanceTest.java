@@ -175,6 +175,9 @@ class UsStockAcceptanceTest {
   }
 
   private RequestSpecification client(Member member, MemberRole role) {
+    var stored = members.findById(member.getId()).orElseThrow();
+    org.springframework.test.util.ReflectionTestUtils.setField(stored, "role", role);
+    members.saveAndFlush(stored);
     var csrf = given().port(port).get("/api/auth/csrf");
     return given()
         .port(port)
