@@ -943,7 +943,7 @@ public class LeagueService {
                 transaction ->
                     new PublicDecisionResponse(
                         transaction.getId(),
-                        transaction.getAsset().getName(),
+                        transaction.getAsset().getDisplayName(),
                         transaction.getAsset().getCategory().name(),
                         transaction.getTransactionType(),
                         transaction.getTradedOn(),
@@ -996,7 +996,7 @@ public class LeagueService {
             .map(
                 holding ->
                     new PublicHoldingResponse(
-                        holding.getAsset().getName(),
+                        holding.getAsset().getDisplayName(),
                         holding.getAsset().getCategory().name(),
                         pricesComplete
                             ? evaluations

@@ -49,7 +49,7 @@ class StockPriceServiceTest {
     Asset asset = mock(Asset.class);
     given(asset.getId()).willReturn(1L);
     given(asset.getAssetCode()).willReturn("005930");
-    given(asset.getName()).willReturn("삼성전자");
+    given(asset.getDisplayName()).willReturn("삼성전자");
     StockDailyPrice price =
         new StockDailyPrice(asset, LocalDate.of(2026, 9, 18), new BigDecimal("82000.00"));
     given(stockDailyPriceRepository.findFirstByAssetIdOrderByBaseDateDesc(1L))
