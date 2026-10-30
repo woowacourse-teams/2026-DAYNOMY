@@ -20,6 +20,7 @@ export type PortfolioTransactionUpdateRequest = {
 export type PortfolioTransactionRequest = PortfolioTransactionUpdateRequest & {
   assetId: number;
   type: PortfolioTransactionType;
+  tradeTime?: string;
 };
 export type PortfolioTransactionResponse = {
   transactionId: number;
@@ -35,6 +36,7 @@ export type PortfolioHoldingHistory = {
   quantity: number;
   averagePurchasePrice: number;
   effectiveDate: string;
+  tradeTime?: string | null;
   transactionQuantity: number | null;
   unitPrice: number | null;
   fee: number;

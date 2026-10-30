@@ -3,8 +3,15 @@ import { useEffect, useState } from 'react';
 import { getFeaturedPeople } from './api';
 import type { FeaturedPerson } from './types';
 
-export function useFeaturedPeople(surface = 'people') {
+export function useFeaturedPeople(surface = 'people', page = 1, size = 6, personId?: number) {
   const [people, setPeople] = useState<FeaturedPerson[]>([]);
+  const [pageInfo, setPageInfo] = useState({
+    page: 1,
+    size,
+    totalElements: 0,
+    totalPages: 0,
+    hasNext: false,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -13,10 +20,11 @@ export function useFeaturedPeople(surface = 'people') {
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    getFeaturedPeople(controller.signal)
-      .then(({ people: result }) => {
+    getFeaturedPeople(page, size, personId, controller.signal)
+      .then(({ people: result, ...resultPageInfo }) => {
         if (!controller.signal.aborted) {
           setPeople(result);
+          setPageInfo(resultPageInfo);
           trackLoadResult(
             surface,
             'people',
@@ -37,6 +45,12 @@ export function useFeaturedPeople(surface = 'people') {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [attempt, surface]);
-  return { people, loading, error, retry: () => setAttempt((value) => value + 1) };
+  }, [attempt, page, personId, size, surface]);
+  return {
+    people,
+    ...pageInfo,
+    loading,
+    error,
+    retry: () => setAttempt((value) => value + 1),
+  };
 }

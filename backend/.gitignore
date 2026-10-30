@@ -37,3 +37,5 @@ out/
 .vscode/
 
 .env
+/loadtest/.local/
+/loadtest/result-portfolio-1000-*.json

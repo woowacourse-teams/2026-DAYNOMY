@@ -104,12 +104,14 @@ class AuthControllerTest {
   @Test
   @DisplayName("로그아웃하면 Refresh Token을 무효화하고 인증 쿠키를 제거한다")
   void logoutInvalidatesRefreshTokenAndClearsCookies() throws Exception {
+    when(tokenCookieManager.getAccessToken(any(HttpServletRequest.class)))
+        .thenReturn("access-token");
     when(tokenCookieManager.getRefreshToken(any(HttpServletRequest.class)))
         .thenReturn("refresh-token");
 
     mockMvc.perform(post("/api/auth/logout")).andExpect(status().isNoContent());
 
-    verify(tokenService).logout("refresh-token");
+    verify(tokenService).logout("access-token", "refresh-token");
     verify(tokenCookieManager).clearTokenCookies(any(HttpServletResponse.class));
   }
 

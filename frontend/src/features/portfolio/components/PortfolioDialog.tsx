@@ -1,5 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
+let scrollLocks = 0;
+let overflowBeforeDialogs = '';
+
 type Props = {
   titleId: string;
   onClose: () => void;
@@ -19,11 +22,13 @@ export function PortfolioDialog({
   useEffect(() => {
     const dialog = ref.current;
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const overflow = document.body.style.overflow;
+    if (scrollLocks === 0) overflowBeforeDialogs = document.body.style.overflow;
+    scrollLocks += 1;
     document.body.style.overflow = 'hidden';
     return () => {
       dialog?.close();
-      document.body.style.overflow = overflow;
+      scrollLocks -= 1;
+      if (scrollLocks === 0) document.body.style.overflow = overflowBeforeDialogs;
       if (trigger?.isConnected) trigger.focus();
     };
   }, []);
@@ -58,6 +63,7 @@ export function PortfolioDialog({
       }}
       onCancel={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         if (!busy) onClose();
       }}
       onKeyDown={(event) => {

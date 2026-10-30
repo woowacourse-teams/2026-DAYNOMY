@@ -435,7 +435,7 @@ describe('포트폴리오 분석 화면', () => {
       ).toBe('true');
       expect(view.queryByRole('button', { name: '1회 분석 체험하기' })).toBeNull();
       expect(view.queryByRole('button', { name: 'AI 분석하기' })).toBeNull();
-      fireEvent.click(view.getByRole('button', { name: '자산 추가하기' }));
+      fireEvent.click(view.getByRole('button', { name: 'AI 분석에서 종목 추가' }));
       expect(onAddAsset).toHaveBeenCalledTimes(1);
       if (!isLoggedIn) expect(fetchMock).not.toHaveBeenCalled();
       view.rerender(
@@ -446,7 +446,7 @@ describe('포트폴리오 분석 화면', () => {
           name: isLoggedIn ? 'AI 분석하기' : '1회 분석 체험하기',
         }),
       ).toBeTruthy();
-      expect(view.queryByRole('button', { name: '자산 추가하기' })).toBeNull();
+      expect(view.queryByRole('button', { name: 'AI 분석에서 종목 추가' })).toBeNull();
       const analyzeButton = view.getByRole('button', {
         name: isLoggedIn ? 'AI 분석하기' : '1회 분석 체험하기',
       });

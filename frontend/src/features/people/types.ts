@@ -24,6 +24,14 @@ export type FeaturedPeopleResponse = {
   people: FeaturedPerson[];
 };
 
+export type FeaturedPeoplePageResponse = FeaturedPeopleResponse & {
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+};
+
 export type FeaturedPersonRequest = {
   name: string;
   xProfileUrl: string | null;

@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       script:
-        description: "k6 script under loadtest/, or backend/loadtest/transactions-v1.js / transactions-v2.js"
+        description: "k6 script path (portfolio: loadtest/portfolio/api/*.js)"
         required: true
         type: string
         default: loadtest/load-test.js
       params:
-        description: 'JSON k6 parameters: CASE/API_MODE/USERS for analysis; REFERENCE_DATE/TRADE_MONTHS_AGO/MODE/RPS/DURATION/VUS for transactions'
+        description: 'Portfolio example: {"RPS":100,"DURATION":"5m","WARMUP_DURATION":"1m"}'
         required: true
         type: string
         default: '{"CASE":"B1","API_MODE":"real","USERS":1,"RUN":"1"}'
@@ -45,12 +45,29 @@ jobs:
           K6_SCRIPT: ${{ inputs.script }}
           K6_PARAMS_JSON: ${{ inputs.params }}
           K6_ACCOUNTS_JSON_GZ_BASE64: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_MANIFEST: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_MANIFEST }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_02: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_02 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_03: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_03 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_04: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_04 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_05: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_05 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_06: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_06 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_07: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_07 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_08: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_08 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_09: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_09 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_10: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_10 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_11: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_11 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_12: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_12 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_13: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_13 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_14: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_14 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_15: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_15 }}
+          K6_ACCOUNTS_JSON_GZ_BASE64_PART_16: ${{ secrets.K6_ACCOUNTS_JSON_GZ_BASE64_PART_16 }}
           PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64: ${{ secrets.PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64 }}
           LOADTEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -Eeuo pipefail
           umask 077
           portfolio=false
+          portfolio1000=false
           if [[ "$K6_SCRIPT" == backend/loadtest/transactions-v1.js || "$K6_SCRIPT" == backend/loadtest/transactions-v2.js ]]; then
             portfolio=true
             workdir="$GITHUB_WORKSPACE/backend/loadtest"
@@ -63,6 +80,18 @@ jobs:
             fi
             trap 'rm -f "$accounts_file"' EXIT
             printf '%s' "$PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64" | base64 --decode | gzip --decompress > "$accounts_file"
+          elif [[ "$K6_SCRIPT" =~ ^loadtest/portfolio/api/(get-portfolio|calculate|transactions-v2|performance)\.js$ ]]; then
+            portfolio1000=true
+            workdir="$GITHUB_WORKSPACE/loadtest"
+            script_name="${K6_SCRIPT#loadtest/}"
+            if [[ -z "$K6_ACCOUNTS_JSON_GZ_BASE64" ]]; then
+              echo "Set K6_ACCOUNTS_JSON_GZ_BASE64 in the development environment secrets."
+              exit 1
+            fi
+            accounts_file="$(mktemp "$RUNNER_TEMP/portfolio-1000.XXXXXX")"
+            trap 'rm -f "$accounts_file"' EXIT
+            python3 "$GITHUB_WORKSPACE/loadtest/portfolio/support/decode-accounts.py" "$accounts_file"
+            export K6_GENERATED_ACCOUNTS_FILE="$accounts_file"
           else
             if [[ ! "$K6_SCRIPT" =~ ^loadtest/[A-Za-z0-9._/-]+\.js$ || "$K6_SCRIPT" == *..* || ! -f "$K6_SCRIPT" ]]; then
               echo "Choose an existing .js file under loadtest/, or a transaction V1/V2 entry."
@@ -77,10 +106,10 @@ jobs:
               fi
               accounts_file="$workdir/accounts.json"
               trap 'rm -f "$accounts_file"' EXIT
-              printf '%s' "$K6_ACCOUNTS_JSON_GZ_BASE64" | base64 --decode | gzip --decompress > "$accounts_file"
+              python3 "$GITHUB_WORKSPACE/loadtest/portfolio/support/decode-accounts.py" "$accounts_file"
             fi
           fi
-          unset K6_ACCOUNTS_JSON_GZ_BASE64 PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64
+          unset K6_ACCOUNTS_JSON_GZ_BASE64 PORTFOLIO_ACCOUNTS_JSON_GZ_BASE64 K6_ACCOUNTS_JSON_GZ_BASE64_MANIFEST K6_ACCOUNTS_JSON_GZ_BASE64_PART_02 K6_ACCOUNTS_JSON_GZ_BASE64_PART_03 K6_ACCOUNTS_JSON_GZ_BASE64_PART_04 K6_ACCOUNTS_JSON_GZ_BASE64_PART_05 K6_ACCOUNTS_JSON_GZ_BASE64_PART_06 K6_ACCOUNTS_JSON_GZ_BASE64_PART_07 K6_ACCOUNTS_JSON_GZ_BASE64_PART_08 K6_ACCOUNTS_JSON_GZ_BASE64_PART_09 K6_ACCOUNTS_JSON_GZ_BASE64_PART_10 K6_ACCOUNTS_JSON_GZ_BASE64_PART_11 K6_ACCOUNTS_JSON_GZ_BASE64_PART_12 K6_ACCOUNTS_JSON_GZ_BASE64_PART_13 K6_ACCOUNTS_JSON_GZ_BASE64_PART_14 K6_ACCOUNTS_JSON_GZ_BASE64_PART_15 K6_ACCOUNTS_JSON_GZ_BASE64_PART_16
           if [[ ! -f "$workdir/$script_name" ]]; then
             echo "Selected script does not exist on this branch."
             exit 1
@@ -94,6 +123,7 @@ jobs:
             exit 1
           fi
           cd "$workdir"
+          export PORTFOLIO_1000_TEST="$portfolio1000"
           PORTFOLIO_TEST="$portfolio" K6_SCRIPT_NAME="$script_name" python3 - <<'PY'
           import json
           import math
@@ -101,6 +131,7 @@ jobs:
           import re
           import subprocess
           import sys
+          import stat
 
           try:
               params = json.loads(os.environ["K6_PARAMS_JSON"])
@@ -111,6 +142,11 @@ jobs:
               raise SystemExit("params must be a JSON object.")
           if "BASE_URL" in params or "ACCOUNTS_FILE" in params:
               raise SystemExit("BASE_URL and ACCOUNTS_FILE are managed by the workflow.")
+          if os.environ.get("PORTFOLIO_1000_TEST") == "true":
+              allowed = {"RPS", "DURATION", "WARMUP_DURATION", "VUS", "REQUEST_TIMEOUT_SECONDS",
+                         "TRADE_MONTHS_AGO", "PERFORMANCE_MONTHS", "RUN"}
+              if set(params) - allowed:
+                  raise SystemExit("Unsupported parameter for the 1,003-account portfolio test.")
 
           args = ["k6", "run", "-o", "experimental-prometheus-rw", "--tag",
                   f"testid={os.environ['LOADTEST_ID']}"]
@@ -120,7 +156,7 @@ jobs:
               if set(params) - allowed or not params.get("REFERENCE_DATE"):
                   raise SystemExit("Use REFERENCE_DATE and scalar RPS/DURATION params. ACTION/RPS_STEPS are no longer supported.")
               params["ACCOUNTS_FILE"] = "./.local/accounts.json"
-          elif os.path.isfile("accounts.json"):
+          elif os.environ.get("PORTFOLIO_1000_TEST") != "true" and os.path.isfile("accounts.json"):
               params["ACCOUNTS_FILE"] = "./accounts.json"
           params["BASE_URL"] = os.environ["BASE_URL"]
 
@@ -134,6 +170,14 @@ jobs:
               else:
                   raise SystemExit(f"Parameter {key} must have a string, number, or boolean value.")
               args.extend(["-e", f"{key}={value}"])
+
+          if os.environ.get("PORTFOLIO_1000_TEST") == "true":
+              accounts = os.environ["K6_GENERATED_ACCOUNTS_FILE"]
+              if not os.path.isabs(accounts) or not os.path.isfile(accounts):
+                  raise SystemExit("The generated 1,003-account file must be an absolute regular-file path.")
+              if stat.S_IMODE(os.stat(accounts).st_mode) & 0o077:
+                  raise SystemExit("The generated account file must have mode 0600.")
+              args.extend(["-e", f"ACCOUNTS_FILE={accounts}"])
 
           args.append(os.environ["K6_SCRIPT_NAME"])
           sys.exit(subprocess.run(args).returncode)

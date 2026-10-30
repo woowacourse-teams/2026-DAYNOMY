@@ -68,6 +68,13 @@ tasks.register<JavaExec>("portfolioLoadtest") {
     mainClass.set("org.grit.daynomy.loadtest.PortfolioLoadtestTool")
 }
 
+tasks.register<JavaExec>("portfolio1000Loadtest") {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("org.grit.daynomy.loadtest.Portfolio1000LoadtestTool")
+    maxHeapSize = "512m"
+}
+
 spotless {
     java {
         googleJavaFormat()

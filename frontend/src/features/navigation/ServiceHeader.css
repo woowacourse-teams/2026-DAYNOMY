@@ -81,14 +81,15 @@
 .service-login-link {
   border: 1px solid var(--button-outline);
   display: inline-flex;
-  min-width: 68px;
-  height: var(--button-height);
+  height: 34px;
+  padding: 0 12px;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   color: var(--button-label);
   background: #fff;
   font-size: 13px;
+  line-height: 20px;
   font-weight: var(--button-weight);
   text-decoration: none;
 }
