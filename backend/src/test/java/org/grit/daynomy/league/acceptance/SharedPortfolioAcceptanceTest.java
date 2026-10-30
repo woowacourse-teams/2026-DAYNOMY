@@ -26,6 +26,7 @@ import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.auth.service.TokenService;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
+import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.service.LeagueReturnService;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
@@ -79,7 +80,52 @@ class SharedPortfolioAcceptanceTest {
   @Autowired private TokenService tokenService;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private LeagueReturnService leagueReturns;
+  @Autowired private InvestorProfileRepository profiles;
   private static final String SHARED = "/api/users/me/shared-portfolio";
+
+  @Test
+  void swaggerRemainsPublicInJsonAndYaml() {
+    for (String path : List.of("/v3/api-docs", "/v3/api-docs.yaml", "/swagger-ui/index.html")) {
+      given().port(port).get(path).then().statusCode(200);
+    }
+  }
+
+  @Test
+  void legacyWithdrawnMembersAreHiddenEvenWhenTheirPublicFlagsRemainEnabled() {
+    Member owner = member();
+    Member viewer = member();
+    String publicId = publicProfile(owner);
+    Long profileId = profiles.findByMemberId(owner.getId()).orElseThrow().getId();
+    client(viewer).post("/api/users/me/league/follows/" + publicId).then().statusCode(204);
+    given().port(port).get("/api/league/investors/" + publicId + "/details").then().statusCode(200);
+    // 이전 탈퇴 처리로 공개 설정이 남은 레코드를 격리된 테스트 DB에서 재현한다.
+    jdbc.update("UPDATE public_investor_profiles SET league_enabled=true WHERE id=?", profileId);
+    assertThat(profiles.findPublicRankingProfileIds()).contains(profileId);
+    owner.withdraw();
+    members.saveAndFlush(owner);
+
+    for (String suffix : List.of("", "/details", "/daily-history")) {
+      for (var reader : List.of(given().port(port), client(viewer))) {
+        reader
+            .get("/api/league/investors/" + publicId + suffix)
+            .then()
+            .statusCode(404)
+            .body("code", equalTo("PROFILE_NOT_FOUND"));
+      }
+    }
+    assertThat(profiles.findNonPublicRankingProfileIds()).contains(profileId);
+    assertThat(profiles.findPublicRankingProfileIds()).doesNotContain(profileId);
+    assertThat(profiles.findPublicRankingProfilesByIdIn(List.of(profileId))).isEmpty();
+    assertThat(profiles.findRankingInvestors())
+        .extracting(row -> row.getId())
+        .doesNotContain(profileId);
+    client(viewer)
+        .get("/api/users/me/league/follows/summary")
+        .then()
+        .statusCode(200)
+        .body("investors.publicId", not(hasItem(publicId)));
+    client(viewer).post("/api/users/me/league/follows/" + publicId).then().statusCode(404);
+  }
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -518,6 +564,7 @@ class SharedPortfolioAcceptanceTest {
   }
 
   private RequestSpecification client(Member member, MemberRole role) {
+    jdbc.update("UPDATE members SET role=? WHERE id=?", role.name(), member.getId());
     var csrf = given().port(port).get("/api/auth/csrf");
     return given()
         .port(port)
@@ -525,6 +572,39 @@ class SharedPortfolioAcceptanceTest {
         .cookies(csrf.cookies())
         .cookie("access_token", tokens.createTokenPair(member.getId(), role).accessToken())
         .header(csrf.jsonPath().getString("headerName"), csrf.jsonPath().getString("token"));
+  }
+
+  private String publicProfile(Member owner) {
+    client(owner)
+        .body(
+            Map.of(
+                "displayName",
+                "공개" + owner.getId(),
+                "bio",
+                "",
+                "experienceLevel",
+                "BEGINNER",
+                "riskProfile",
+                "BALANCED"))
+        .put("/api/users/me/investor-profile")
+        .then()
+        .statusCode(200);
+    return client(owner)
+        .body(
+            Map.of(
+                "profilePublic",
+                true,
+                "leagueEnabled",
+                false,
+                "allocationPublic",
+                true,
+                "detailPublic",
+                true))
+        .put("/api/users/me/portfolio/publication")
+        .then()
+        .statusCode(200)
+        .extract()
+        .path("publicId");
   }
 
   @Test
@@ -688,14 +768,66 @@ class SharedPortfolioAcceptanceTest {
         .put("/api/users/me/portfolio/publication")
         .then()
         .statusCode(200);
+    Member viewer = member();
+    for (var reader : List.of(given().port(port), client(viewer))) {
+      reader
+          .queryParam("weekStart", week.toString())
+          .queryParam("size", 100)
+          .get("/api/league/rankings")
+          .then()
+          .statusCode(200)
+          .body("confirmed", equalTo(true))
+          .body("calculationVersion", equalTo(2))
+          .body("rankings.publicId", not(hasItem(publicId)));
+    }
+    for (var reader : List.of(given().port(port), client(viewer))) {
+      reader
+          .get("/api/league/investors/" + publicId)
+          .then()
+          .statusCode(404)
+          .body("code", equalTo("PROFILE_NOT_FOUND"));
+    }
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM weekly_leaderboards WHERE week_start=? AND league_type='WEEKLY_RETURN'",
+                Integer.class,
+                week))
+        .isEqualTo(2);
+
+    client(owner)
+        .body(
+            Map.of(
+                "profilePublic",
+                true,
+                "leagueEnabled",
+                true,
+                "allocationPublic",
+                false,
+                "detailPublic",
+                false))
+        .put("/api/users/me/portfolio/publication")
+        .then()
+        .statusCode(200);
     given()
         .port(port)
         .queryParam("weekStart", week.toString())
+        .queryParam("size", 100)
         .get("/api/league/rankings")
         .then()
         .statusCode(200)
-        .body("rankings.publicId", not(hasItem(publicId)));
-    given().port(port).get("/api/league/investors/" + publicId).then().statusCode(404);
+        .body("rankings.publicId", hasItem(publicId));
+    client(owner).delete("/api/users/me").then().statusCode(204);
+    for (var reader : List.of(given().port(port), client(viewer))) {
+      reader
+          .queryParam("weekStart", week.toString())
+          .queryParam("size", 100)
+          .get("/api/league/rankings")
+          .then()
+          .statusCode(200)
+          .body("confirmed", equalTo(true))
+          .body("calculationVersion", equalTo(2))
+          .body("rankings.publicId", not(hasItem(publicId)));
+    }
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM weekly_leaderboards WHERE week_start=? AND league_type='WEEKLY_RETURN'",
@@ -1130,8 +1262,9 @@ class SharedPortfolioAcceptanceTest {
                     || path.startsWith("/api/users/me/financial-plans"));
   }
 
-  @Test
-  void decisionReviewPublicationRankingAndPublicDetailsUseRealStoredData() {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void decisionReviewPublicationRankingAndPublicDetailsUseRealStoredData(boolean withdraw) {
     Member owner = member();
     Member viewer = member();
     Asset asset = asset();
@@ -1198,7 +1331,13 @@ class SharedPortfolioAcceptanceTest {
         .body(review)
         .post("/api/users/me/portfolio/decisions/" + id + "/reviews")
         .then()
-        .statusCode(404);
+        .statusCode(404)
+        .body("code", equalTo("TRANSACTION_NOT_FOUND"));
+    client(owner)
+        .get("/api/users/me/portfolio/transactions")
+        .then()
+        .statusCode(200)
+        .body("transactions[0].reviews", hasSize(0));
     var savedReview =
         client(owner)
             .body(review)
@@ -1218,7 +1357,29 @@ class SharedPortfolioAcceptanceTest {
         .body("createdAt", equalTo(createdAt))
         .body("updatedAt", equalTo(createdAt));
     String revisedReview = review.replace("예상을 점검했습니다", "결과를 다시 확인했습니다");
-    client(viewer).body(revisedReview).put(reviewPath).then().statusCode(404);
+    var beforeRejectedUpdate =
+        client(owner)
+            .get("/api/users/me/portfolio/transactions")
+            .then()
+            .statusCode(200)
+            .extract()
+            .jsonPath()
+            .getMap("");
+    client(viewer)
+        .body(revisedReview)
+        .put(reviewPath)
+        .then()
+        .statusCode(404)
+        .body("code", equalTo("REVIEW_NOT_FOUND"));
+    assertThat(
+            client(owner)
+                .get("/api/users/me/portfolio/transactions")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getMap(""))
+        .isEqualTo(beforeRejectedUpdate);
     String updatedAt =
         client(owner)
             .body(revisedReview)
@@ -1300,13 +1461,65 @@ class SharedPortfolioAcceptanceTest {
         .body("email", nullValue())
         .body("name", nullValue());
     client(viewer).get(detail).then().statusCode(200).body("decisions", hasSize(1));
+    // 공개 조회로 ID를 알 수 있어도 생성·수정 권한은 소유자에게만 있다.
+    var publishedBefore =
+        client(owner)
+            .get("/api/users/me/portfolio/transactions")
+            .then()
+            .statusCode(200)
+            .extract()
+            .jsonPath()
+            .getMap("");
+    for (String operation : List.of("reviseReview", "addReview", "reviseReason")) {
+      var rejected =
+          switch (operation) {
+            case "reviseReview" -> client(viewer).body(review).put(reviewPath);
+            case "addReview" ->
+                client(viewer)
+                    .body(review)
+                    .post("/api/users/me/portfolio/decisions/" + id + "/reviews");
+            default ->
+                client(viewer)
+                    .body(Map.of("reason", "공개 조회자가 변경하려는 이유"))
+                    .put("/api/users/me/portfolio/decisions/" + id + "/reason");
+          };
+      rejected
+          .then()
+          .statusCode(404)
+          .body(
+              "code",
+              equalTo(
+                  operation.equals("reviseReview") ? "REVIEW_NOT_FOUND" : "TRANSACTION_NOT_FOUND"));
+      assertThat(
+              client(owner)
+                  .get("/api/users/me/portfolio/transactions")
+                  .then()
+                  .statusCode(200)
+                  .extract()
+                  .jsonPath()
+                  .getMap(""))
+          .isEqualTo(publishedBefore);
+    }
+    client(owner)
+        .body(revisedReview.replace("다음 실적을 확인합니다", "공개 후 소유자 수정"))
+        .put(reviewPath)
+        .then()
+        .statusCode(200)
+        .body("nextAction", equalTo("공개 후 소유자 수정"));
+    client(viewer)
+        .get(detail)
+        .then()
+        .statusCode(200)
+        .body("decisions[0].reviews[0].nextAction", equalTo("공개 후 소유자 수정"));
     client(owner)
         .body(
             "{\"profilePublic\":true,\"leagueEnabled\":true,\"allocationPublic\":true,\"detailPublic\":false}")
         .put("/api/users/me/portfolio/publication")
         .then()
         .statusCode(200);
-    given().port(port).get(detail).then().statusCode(404);
+    for (var reader : List.of(given().port(port), client(viewer))) {
+      reader.get(detail).then().statusCode(404).body("code", equalTo("DETAIL_NOT_PUBLIC"));
+    }
     client(viewer)
         .get("/api/users/me/league/follows/summary")
         .then()
@@ -1456,21 +1669,101 @@ class SharedPortfolioAcceptanceTest {
         .patch(SHARED + "/holdings/" + asset.getId() + "/visibility")
         .then()
         .statusCode(200);
-    client(viewer)
-        .get(detail)
+    for (var reader : List.of(given().port(port), client(viewer))) {
+      reader
+          .get(detail)
+          .then()
+          .statusCode(200)
+          .body("holdings", hasSize(0))
+          .body("decisions", hasSize(0));
+    }
+    client(owner)
+        .get("/api/users/me/portfolio/transactions")
         .then()
         .statusCode(200)
-        .body("holdings", hasSize(0))
-        .body("decisions", hasSize(0));
-    client(owner)
-        .body(
-            "{\"profilePublic\":false,\"leagueEnabled\":false,\"allocationPublic\":false,\"detailPublic\":false}")
-        .put("/api/users/me/portfolio/publication")
+        .body("transactions", hasSize(1))
+        .body("transactions[0].reviews", hasSize(1));
+    // 현재 주차에도 가격·수익률을 준비하고, 실제 노출된 순위의 캐시를 채운다.
+    LocalDate currentWeek = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
+    jdbc.update("UPDATE market_trading_days SET trading=true WHERE base_date=?", currentWeek);
+    List<LocalDate> currentTradingDays =
+        jdbc.queryForList(
+            "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
+            LocalDate.class,
+            currentWeek,
+            LocalDate.now(ZoneId.of("Asia/Seoul")));
+    for (LocalDate trading : currentTradingDays) {
+      prices.save(new StockDailyPrice(asset, trading, new BigDecimal("77000")));
+      jdbc.update(
+          "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
+          trading);
+    }
+    leagueReturns.recalculateFrom(currentWeek);
+    given()
+        .port(port)
+        .queryParam("size", 100)
+        .get("/api/league/rankings")
         .then()
-        .statusCode(200);
-    given().port(port).get("/api/league/investors/" + publicId).then().statusCode(404);
-    given().port(port).get(detail).then().statusCode(404);
-    given().port(port).get(dailyHistory).then().statusCode(404);
+        .statusCode(200)
+        .body("rankings.publicId", hasItem(publicId));
+    client(viewer).post("/api/users/me/league/follows/" + publicId).then().statusCode(204);
+    if (withdraw) {
+      client(owner).delete("/api/users/me").then().statusCode(204);
+      var profile = profiles.findByMemberId(owner.getId()).orElseThrow();
+      assertThat(profile.isProfilePublic()).isFalse();
+      assertThat(profile.isLeagueEnabled()).isFalse();
+      assertThat(profile.isAllocationPublic()).isFalse();
+      assertThat(profile.isDetailPublic()).isFalse();
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT COUNT(*) FROM league_participations WHERE profile_id=? AND ended_at IS NULL",
+                  Long.class,
+                  profile.getId()))
+          .isZero();
+      client(owner).get("/api/users/me").then().statusCode(401);
+    } else {
+      client(owner)
+          .body(
+              "{\"profilePublic\":false,\"leagueEnabled\":false,\"allocationPublic\":false,\"detailPublic\":false}")
+          .put("/api/users/me/portfolio/publication")
+          .then()
+          .statusCode(200);
+    }
+    for (String path : List.of("/api/league/investors/" + publicId, detail, dailyHistory)) {
+      for (var reader : List.of(given().port(port), client(viewer))) {
+        reader
+            .get(path)
+            .then()
+            .statusCode(404)
+            .header("Cache-Control", containsString("no-store"))
+            .body("code", equalTo("PROFILE_NOT_FOUND"));
+      }
+    }
+    for (LocalDate week : List.of(date, currentWeek)) {
+      for (var reader : List.of(given().port(port), client(viewer))) {
+        reader
+            .queryParam("weekStart", week.toString())
+            .queryParam("size", 100)
+            .get("/api/league/rankings")
+            .then()
+            .statusCode(200)
+            .body("rankings.publicId", not(hasItem(publicId)));
+      }
+    }
+    client(viewer)
+        .get("/api/users/me/league/follows/summary")
+        .then()
+        .statusCode(200)
+        .body("investors.publicId", not(hasItem(publicId)));
+    client(viewer)
+        .post("/api/users/me/league/follows/" + publicId)
+        .then()
+        .statusCode(404)
+        .body("code", equalTo("PROFILE_NOT_FOUND"));
+    client(owner)
+        .get("/api/users/me/portfolio/transactions")
+        .then()
+        .statusCode(withdraw ? 401 : 200);
     assertThat(
             originalHoldings
                 .findByPortfolioIdAndAssetId(original.getId(), asset.getId())

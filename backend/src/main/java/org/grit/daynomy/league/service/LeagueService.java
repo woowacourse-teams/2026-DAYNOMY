@@ -1188,6 +1188,7 @@ public class LeagueService {
     return new FollowSummaryListResponse(
         followRepository.findAllByFollowerIdOrderByCreatedAtDesc(memberId).stream()
             .filter(follow -> follow.getProfile().isProfilePublic())
+            .filter(follow -> !follow.getProfile().getMember().isWithdrawn())
             .map(
                 follow -> {
                   InvestorProfile profile = follow.getProfile();
