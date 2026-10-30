@@ -38,7 +38,7 @@ public record SavedPortfolioHoldingResponse(
     return new SavedPortfolioHoldingResponse(
         holding.getAsset().getId(),
         holding.getAsset().getAssetCode(),
-        holding.getAsset().getName(),
+        holding.getAsset().getDisplayName(),
         holding.getAsset().getCategory(),
         holding.getAsset().getMarket(),
         holding.getQuantity(),

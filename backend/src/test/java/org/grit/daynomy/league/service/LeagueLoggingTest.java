@@ -322,8 +322,9 @@ class LeagueLoggingTest {
     given(members.findById(1L)).willReturn(Optional.of(follower));
     given(profiles.findByPublicIdAndProfilePublicTrue("investor")).willReturn(Optional.of(target));
     given(follows.findByFollowerIdAndProfileId(1L, 3L))
-        .willReturn(
-            Optional.empty(), Optional.of(existing), Optional.of(existing), Optional.empty());
+        .willReturn(Optional.empty(), Optional.of(existing));
+    given(follows.findByFollowerIdAndProfilePublicId(1L, "investor"))
+        .willReturn(Optional.of(existing), Optional.empty());
 
     leagueService.follow(1L, "investor");
     leagueService.follow(1L, "investor");

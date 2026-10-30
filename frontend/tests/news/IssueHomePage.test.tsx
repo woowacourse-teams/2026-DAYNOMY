@@ -52,6 +52,20 @@ function json(data: unknown, status = 200) {
 function newsPage(items = [article]) {
   return { items, page: 1, size: 6, totalPages: 1, totalElements: items.length, hasNext: false };
 }
+function peoplePage(people: unknown[]) {
+  const totalElements = people.reduce<number>(
+    (sum, value) => sum + ((value as typeof person).posts?.length ?? 0),
+    0,
+  );
+  return {
+    people,
+    page: 1,
+    size: 100,
+    totalPages: totalElements ? 1 : 0,
+    totalElements,
+    hasNext: false,
+  };
+}
 function mockApi(peopleFail = false) {
   vi.stubGlobal(
     'fetch',
@@ -59,7 +73,7 @@ function mockApi(peopleFail = false) {
       new URL(String(input), 'http://localhost').pathname === '/api/contents'
         ? json(newsPage([]))
         : new URL(String(input), 'http://localhost').pathname === '/api/people'
-          ? json(peopleFail ? {} : { people: [person] }, peopleFail ? 500 : 200)
+          ? json(peopleFail ? {} : peoplePage([person]), peopleFail ? 500 : 200)
           : json(newsPage()),
     ),
   );
@@ -110,7 +124,7 @@ describe('이슈 홈과 전체 목록', () => {
               ],
             });
           if (url.pathname === '/api/contents') return json(newsPage([]));
-          if (url.pathname === '/api/people') return json({ people: [person] });
+          if (url.pathname === '/api/people') return json(peoplePage([person]));
           return json(newsPage());
         }),
       );
@@ -184,7 +198,7 @@ describe('이슈 홈과 전체 목록', () => {
               page: Number(new URL(String(input), 'http://localhost').searchParams.get('page')),
             });
           if (new URL(String(input), 'http://localhost').pathname === '/api/people')
-            return json({ people: [person] });
+            return json(peoplePage([person]));
           const page = Number(new URL(String(input), 'http://localhost').searchParams.get('page'));
           return json({
             ...newsPage(page === 1 ? [article] : [older]),
@@ -221,7 +235,7 @@ describe('이슈 홈과 전체 목록', () => {
         new URL(String(input), 'http://localhost').pathname === '/api/contents'
           ? json(newsPage([]))
           : new URL(String(input), 'http://localhost').pathname === '/api/people'
-            ? json({ people: [{ ...person, posts }] })
+            ? json(peoplePage([{ ...person, posts }]))
             : json(newsPage()),
       ),
     );
@@ -262,7 +276,7 @@ it('홈은 오늘 글이 없어도 최근 글을 여섯 개씩 표시한다', as
       new URL(String(input), 'http://localhost').pathname === '/api/contents'
         ? json(newsPage([]))
         : new URL(String(input), 'http://localhost').pathname === '/api/people'
-          ? json({ people: [{ ...person, posts }] })
+          ? json(peoplePage([{ ...person, posts }]))
           : json(newsPage([])),
     ),
   );
@@ -308,7 +322,7 @@ it('네 출처의 전체 글을 표시하고 YouTube를 목록 안에서 재생�
             },
           ],
         });
-      if (path === '/api/people') return json({ people: [person] });
+      if (path === '/api/people') return json(peoplePage([person]));
       return json(newsPage());
     }),
   );
@@ -346,7 +360,7 @@ it('외부 자료 수집이 실패하면 번호 이동을 막고 재시도한다
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), 'http://localhost');
       const page = Number(url.searchParams.get('page') ?? 1);
-      if (url.pathname === '/api/people') return json({ people: [] });
+      if (url.pathname === '/api/people') return json(peoplePage([]));
       if (url.pathname === '/api/contents') {
         requestedPages.push(page);
         if (page === 2 && fail) return json({}, 500);
@@ -390,7 +404,7 @@ it('홈은 투자 캘린더와 전체 기사 목록을 함께 보여준다', asy
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(String(input), 'http://localhost').pathname;
-      if (path === '/api/people') return json({ people: [] });
+      if (path === '/api/people') return json(peoplePage([]));
       if (path === '/api/contents') return json(newsPage([]));
       return json(newsPage([article, older]));
     }),
@@ -454,7 +468,7 @@ it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 �
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(String(input), 'http://localhost').pathname;
-      if (path === '/api/people') return json({ people: [] });
+      if (path === '/api/people') return json(peoplePage([]));
       if (path === '/api/contents') return json(newsPage([]));
       return json(newsPage(articles));
     }),
@@ -539,7 +553,7 @@ it('주목받는 인물의 글은 같은 인물도 포함해 최신 글 세 개�
     'fetch',
     vi.fn(async (input: RequestInfo | URL) =>
       new URL(String(input), 'http://localhost').pathname === '/api/people'
-        ? json({ people })
+        ? json(peoplePage(people))
         : json(newsPage([])),
     ),
   );

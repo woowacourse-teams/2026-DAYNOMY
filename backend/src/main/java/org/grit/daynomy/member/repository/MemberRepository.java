@@ -39,6 +39,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
   boolean existsByIdAndStatus(Long id, MemberStatus status);
 
+  Optional<Member> findByIdAndStatus(Long id, MemberStatus status);
+
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select member from Member member where member.id = :memberId")
   Optional<Member> findByIdForUpdate(@Param("memberId") Long memberId);

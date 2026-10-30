@@ -109,7 +109,7 @@ export function PortfolioContentsPage() {
   if (example) return <PortfolioContentsView portfolio={examplePortfolio} example />;
   if (loading)
     return (
-      <main className="issue-page">
+      <main className="issue-page portfolio-contents-page">
         <p role="status">보유 종목을 불러오는 중입니다.</p>
       </main>
     );
@@ -383,57 +383,58 @@ function PortfolioContentsView({
               </svg>
             </Link>
           </header>
-          {!portfolio.loading &&
-            !portfolio.error &&
-            portfolio.holdings.length > 0 &&
-            validSelection && (
-              <div className="portfolio-content-toolbar">
-                <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
-                  {sources.map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={source === value}
-                      onClick={() => {
-                        if (value === source) return;
-                        if (!example)
-                          trackEvent('filter_content_source', {
-                            surface: 'portfolio_contents',
-                            previous_source: sourceType,
-                            source_type: value === 'INTERNAL_NEWS' ? 'DAYNOMY' : value,
-                            result_count: new Set(
-                              responses.flatMap((response) =>
-                                response.contents
-                                  .filter((item) => value === 'ALL' || item.sourceType === value)
-                                  .map((item) => item.url),
-                              ),
-                            ).size,
-                          });
-                        filter('source', value);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="issue-sort-options" role="group" aria-label="콘텐츠 정렬">
+          {(portfolio.loading ||
+            (!portfolio.error && portfolio.holdings.length > 0 && validSelection)) && (
+            <div className="portfolio-content-toolbar">
+              <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
+                {sources.map(([value, label]) => (
                   <button
+                    key={value}
                     type="button"
-                    aria-pressed={sort === 'latest'}
-                    onClick={() => filter('sort', 'latest')}
+                    disabled={portfolio.loading}
+                    aria-pressed={source === value}
+                    onClick={() => {
+                      if (value === source) return;
+                      if (!example)
+                        trackEvent('filter_content_source', {
+                          surface: 'portfolio_contents',
+                          previous_source: sourceType,
+                          source_type: value === 'INTERNAL_NEWS' ? 'DAYNOMY' : value,
+                          result_count: new Set(
+                            responses.flatMap((response) =>
+                              response.contents
+                                .filter((item) => value === 'ALL' || item.sourceType === value)
+                                .map((item) => item.url),
+                            ),
+                          ).size,
+                        });
+                      filter('source', value);
+                    }}
                   >
-                    최신순
+                    {label}
                   </button>
-                  <button
-                    type="button"
-                    aria-pressed={sort === 'popular'}
-                    onClick={() => filter('sort', 'popular')}
-                  >
-                    인기순
-                  </button>
-                </div>
+                ))}
               </div>
-            )}
+              <div className="issue-sort-options" role="group" aria-label="콘텐츠 정렬">
+                <button
+                  type="button"
+                  disabled={portfolio.loading}
+                  aria-pressed={sort === 'latest'}
+                  onClick={() => filter('sort', 'latest')}
+                >
+                  최신순
+                </button>
+                <button
+                  type="button"
+                  disabled={portfolio.loading}
+                  aria-pressed={sort === 'popular'}
+                  onClick={() => filter('sort', 'popular')}
+                >
+                  인기순
+                </button>
+              </div>
+            </div>
+          )}
           {loading || popularityLoading ? (
             <p className="issue-state" role="status">
               보유 종목 소식을 불러오는 중입니다.

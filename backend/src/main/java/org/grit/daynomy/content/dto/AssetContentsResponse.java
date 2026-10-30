@@ -15,7 +15,7 @@ public record AssetContentsResponse(
     return new AssetContentsResponse(
         asset.getId(),
         asset.getAssetCode(),
-        asset.getName(),
+        asset.getDisplayName(),
         contents.stream().map(AssetContentResponse::from).toList());
   }
 }

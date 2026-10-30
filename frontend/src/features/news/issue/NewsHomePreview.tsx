@@ -147,7 +147,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
   const [rankingFailed, setRankingFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [latestSource, setLatestSource] = useState<'ALL' | FeedItem['source']>('ALL');
-  const people = useFeaturedPeople(isPreview ? 'news_home_preview' : 'news_home');
+  const people = useFeaturedPeople(isPreview ? 'news_home_preview' : 'news_home', 1, 100);
 
   useEffect(() => {
     const previousTitle = document.title;

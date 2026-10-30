@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'backend/**'
+      - 'loadtest/portfolio/**'
       - 'monitoring/**'
       - '.github/workflows/backend-ci.yml'
       - '.github/workflows/k6-dev.yml'
@@ -50,7 +51,9 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
 
       - name: Validate Loadtest Scenarios
-        run: node --experimental-vm-modules --test loadtest/tests/transactions.test.mjs
+        run: |
+          node --experimental-vm-modules --test loadtest/tests/*.test.mjs ../loadtest/portfolio/tests/*.test.mjs
+          python3 -m unittest discover -s ../loadtest/portfolio/tests -p 'test_*.py'
 
       - name: Validate Monitoring Rules
         working-directory: monitoring/prometheus

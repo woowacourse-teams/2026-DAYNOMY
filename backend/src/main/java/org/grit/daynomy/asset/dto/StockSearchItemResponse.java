@@ -16,7 +16,7 @@ public record StockSearchItemResponse(
     return new StockSearchItemResponse(
         asset.getId(),
         asset.getAssetCode(),
-        asset.getName(),
+        asset.getDisplayName(),
         asset.getCategory(),
         asset.getMarket(),
         asset.getCurrency());
