@@ -18,20 +18,44 @@ def decode(environment):
     prefix = "K6_ACCOUNTS_JSON_GZ_BASE64"
     manifest = environment.get(prefix + "_MANIFEST", "").strip()
     if manifest:
-        match = re.fullmatch(r"([1-9]|1[0-6]):([0-9a-f]{64})", manifest)
-        if not match:
-            raise AccountSecretError("Invalid K6_ACCOUNTS_JSON_GZ_BASE64_MANIFEST format: expected part-count:SHA-256.")
-        count, digest = int(match[1]), match[2]
+        part_digests = None
+        if manifest.startswith("{"):
+            try:
+                reference = json.loads(manifest)
+                count = reference["parts"]
+                digest = reference["sha256"]
+                part_digests = reference["part_sha256"]
+                if (type(count) is not int or not 1 <= count <= 16
+                        or not isinstance(digest, str)
+                        or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                        or not isinstance(part_digests, list)
+                        or len(part_digests) != count
+                        or any(not isinstance(value, str)
+                               or not re.fullmatch(r"[0-9a-f]{64}", value)
+                               for value in part_digests)):
+                    raise ValueError()
+            except (ValueError, KeyError, TypeError):
+                raise AccountSecretError("Invalid diagnostic MANIFEST structure.") from None
+        else:
+            match = re.fullmatch(r"([1-9]|1[0-6]):([0-9a-f]{64})", manifest)
+            if not match:
+                raise AccountSecretError("Invalid K6_ACCOUNTS_JSON_GZ_BASE64_MANIFEST format: expected part-count:SHA-256.")
+            count, digest = int(match[1]), match[2]
         names = [prefix] + [f"{prefix}_PART_{n:02}" for n in range(2, count + 1)]
         parts = [re.sub(r"\s+", "", environment.get(name, "")) for name in names]
         missing = [name for name, value in zip(names, parts) if not value]
         if missing:
             raise AccountSecretError("Missing or empty account Secrets: " + ", ".join(missing))
+        if part_digests is not None:
+            mismatched = [name for name, value, expected in zip(names, parts, part_digests)
+                          if hashlib.sha256(value.encode("utf-8")).hexdigest() != expected]
+            if mismatched:
+                raise AccountSecretError("Account Secrets differing from the original: " + ", ".join(mismatched))
         encoded = "".join(parts)
         if not re.fullmatch(r"[A-Za-z0-9+/=]+", encoded):
             raise AccountSecretError("Account Secret parts contain characters outside Base64; copy only file contents.")
         if hashlib.sha256(encoded.encode("ascii")).hexdigest() != digest:
-            raise AccountSecretError("Account Secret SHA-256 mismatch: parts and MANIFEST are from different data or a part was copied incorrectly.")
+            raise AccountSecretError("Account Secret SHA-256 mismatch: parts and MANIFEST are from different data or a part was copied incorrectly. Use a diagnostic MANIFEST to identify differing key names.")
     else:
         # Preserve existing analysis accounts stored in one Secret.
         if any(environment.get(f"{prefix}_PART_{n:02}", "").strip() for n in range(2, 17)):

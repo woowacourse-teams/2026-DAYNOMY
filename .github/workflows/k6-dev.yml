@@ -180,7 +180,15 @@ jobs:
               args.extend(["-e", f"ACCOUNTS_FILE={accounts}"])
 
           args.append(os.environ["K6_SCRIPT_NAME"])
-          sys.exit(subprocess.run(args).returncode)
+          result = subprocess.run(args)
+          if os.environ.get("PORTFOLIO_1000_TEST") == "true" and result.returncode == 99:
+              print("::warning::Measurement completed with thresholds exceeded. See the result JSON for latency, failures, dropped requests and integrity.")
+              summary = os.environ.get("GITHUB_STEP_SUMMARY")
+              if summary:
+                  with open(summary, "a") as output:
+                      output.write("Portfolio measurement completed; thresholds exceeded. This job reports execution completion, not a performance pass. Check the result JSON artifact.\n")
+              sys.exit(0)
+          sys.exit(result.returncode)
           PY
 
       - name: Summarize transaction results
