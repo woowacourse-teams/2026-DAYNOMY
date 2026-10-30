@@ -22,6 +22,7 @@ import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.auth.token.TokenPair;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
+import org.grit.daynomy.member.domain.MemberStatus;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -162,6 +163,24 @@ class TokenServiceTest {
     tokenService.logout("saved-refresh-token");
 
     verify(refreshTokenRepository).deleteByTokenHash(sha256("saved-refresh-token"));
+  }
+
+  @Test
+  void authenticateUsesCurrentDatabaseRoleInsteadOfTheTokenRole() {
+    Jwt jwt = mock(Jwt.class);
+    Member member = mock(Member.class);
+    given(member.getId()).willReturn(1L);
+    given(member.getRole()).willReturn(MemberRole.USER);
+    given(jwtTokenProvider.parseAccessToken("old-admin-access")).willReturn(jwt);
+    given(jwtTokenProvider.getMemberId(jwt)).willReturn(1L);
+    given(memberRepository.findByIdAndStatus(1L, MemberStatus.ACTIVE))
+        .willReturn(Optional.of(member));
+
+    var authenticated = tokenService.authenticate("old-admin-access");
+
+    assertThat(authenticated.memberId()).isEqualTo(1L);
+    assertThat(authenticated.role()).isEqualTo(MemberRole.USER);
+    verify(jwtTokenProvider, never()).getRole(jwt);
   }
 
   private Member createActiveMember(Long memberId) {

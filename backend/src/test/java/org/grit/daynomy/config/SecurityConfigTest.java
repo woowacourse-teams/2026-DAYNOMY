@@ -14,10 +14,9 @@ import org.grit.daynomy.auth.handler.RestAccessDeniedHandler;
 import org.grit.daynomy.auth.handler.RestAuthenticationEntryPoint;
 import org.grit.daynomy.auth.oauth.CustomOidcUserService;
 import org.grit.daynomy.auth.oauth.OAuth2LoginSuccessHandler;
+import org.grit.daynomy.auth.service.TokenService;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
-import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.auth.token.TokenCookieManager;
-import org.grit.daynomy.member.repository.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -60,8 +59,7 @@ class SecurityConfigTest {
   @Autowired private MockMvc mvc;
   @MockitoBean private CustomOidcUserService oidcUsers;
   @MockitoBean private OAuth2LoginSuccessHandler loginSuccess;
-  @MockitoBean private JwtTokenProvider tokens;
-  @MockitoBean private MemberRepository members;
+  @MockitoBean private TokenService tokens;
   @MockitoBean private TokenCookieManager cookies;
   @MockitoBean private ClientRegistrationRepository registrations;
 

@@ -7,10 +7,12 @@ import java.util.HexFormat;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.domain.RefreshToken;
 import org.grit.daynomy.auth.repository.RefreshTokenRepository;
+import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.auth.token.InvalidTokenException;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.auth.token.TokenPair;
 import org.grit.daynomy.member.domain.Member;
+import org.grit.daynomy.member.domain.MemberStatus;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,15 @@ public class TokenService {
   private final JwtTokenProvider jwtTokenProvider;
   private final RefreshTokenRepository refreshTokenRepository;
   private final MemberRepository memberRepository;
+
+  public AuthenticatedMember authenticate(String rawAccessToken) {
+    Jwt jwt = jwtTokenProvider.parseAccessToken(rawAccessToken);
+    Member member =
+        memberRepository
+            .findByIdAndStatus(jwtTokenProvider.getMemberId(jwt), MemberStatus.ACTIVE)
+            .orElseThrow(InvalidTokenException::new);
+    return new AuthenticatedMember(member.getId(), member.getRole());
+  }
 
   @Transactional
   public TokenPair issue(Long memberId) {
