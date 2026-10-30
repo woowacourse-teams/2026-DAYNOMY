@@ -514,7 +514,7 @@ with patch.dict(os.environ,{'PORTFOLIO_TEST':'false','PORTFOLIO_1000_TEST':'true
 });
 
 
-test("Actions reconstructs split Secrets, cleans temporary accounts, and preserves k6 failures", () => {
+test("Actions records threshold breaches while preserving authentication and runtime failures", () => {
   const workflow = fs.readFileSync(
     path.join(root, "../../.github/workflows/k6-dev.yml"), "utf8",
   );
@@ -535,7 +535,12 @@ test("Actions reconstructs split Secrets, cleans temporary accounts, and preserv
     { name: "get-portfolio", secret: first, second: "corrupt", manifest, k6Code: 0, expected: 1 },
     { name: "get-portfolio", secret: "", k6Code: 0, expected: 1 },
     { name: "get-portfolio", secret: Buffer.from("not gzip").toString("base64"), k6Code: 0, expected: 1 },
-    { name: "get-portfolio", secret, k6Code: 99, expected: 99 },
+    ...["get-portfolio", "calculate", "transactions-v2", "performance"].map(
+      (name) => ({ name, secret, k6Code: 99, expected: 0 }),
+    ),
+    ...[1, 107, 108].map(
+      (code) => ({ name: "get-portfolio", secret, k6Code: code, expected: code }),
+    ),
   ];
   for (const row of cases) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-secret-test-"));
@@ -570,6 +575,7 @@ sys.exit(int(os.environ['FAKE_K6_EXIT']))
           BASE_URL: "https://dev.daynomy.com",
           K6_PROMETHEUS_RW_SERVER_URL: "http://metrics.invalid/api/v1/write",
           LOADTEST_ID: "secret-fixture",
+          GITHUB_STEP_SUMMARY: path.join(directory, "summary.md"),
           FAKE_RESULT_FILE: resultFile,
           FAKE_K6_EXIT: String(row.k6Code),
         },
@@ -577,6 +583,10 @@ sys.exit(int(os.environ['FAKE_K6_EXIT']))
       });
       assert.equal(result.status, row.expected, result.stderr);
       assert.deepEqual(fs.readdirSync(runner), []);
+      if (row.k6Code === 99) {
+        assert.match(result.stdout, /::warning::Measurement completed with thresholds exceeded/);
+        assert.match(fs.readFileSync(path.join(directory, "summary.md"), "utf8"), /not a performance pass/);
+      }
       assert.ok(!result.stdout.includes("fixture-token-only"));
       if (row.secret === secret || row.split) {
         const actual = JSON.parse(fs.readFileSync(resultFile, "utf8"));
