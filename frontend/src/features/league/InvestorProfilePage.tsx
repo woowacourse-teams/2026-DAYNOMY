@@ -326,6 +326,9 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                   ? '—'
                   : formatRate(investor.performance.weeklyReturnRate)}
               </strong>
+              {investor.performance.asOfDate ? (
+                <small>{investor.performance.asOfDate} 기준</small>
+              ) : null}
               {investor.performance.weeklyReturnRate === null ? (
                 <small className="league-metric-pending">집계 대기</small>
               ) : null}
@@ -337,6 +340,9 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                   ? '—'
                   : `${investor.performance.weeklyRank}위`}
               </strong>
+              {investor.performance.rankingAsOfDate ? (
+                <small>{investor.performance.rankingAsOfDate} 기준</small>
+              ) : null}
               {investor.performance.weeklyRank == null ? (
                 <small className="league-metric-pending">집계 대기</small>
               ) : null}

@@ -178,10 +178,10 @@ test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 �
   const valid = {
     weekStart: '2026-09-28',
     weekEnd: '2026-10-04',
-    asOfDate: '2026-09-30',
+    asOfDate: '2026-09-28',
     eligibleFrom: '2026-08-03',
     confirmed: false,
-    weeklyReturnRate: null,
+    weeklyReturnRate: 10,
     days: [
       {
         baseDate: '2026-09-28',
@@ -227,6 +227,7 @@ test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 �
       days: [valid.days[0], valid.days[1], { ...valid.days[2], cumulativeReturnRate: -1 }],
     },
     { ...valid, weeklyReturnRate: 0 },
+    { ...valid, asOfDate: '2026-09-30' },
   ]) {
     globalThis.fetch = async () => jsonResponse(invalid);
     await assert.rejects(() => getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
@@ -494,4 +495,56 @@ test('주중 참여는 기준 종가부터 0%로 이번 주 누적 순위에 반
   const response = await getDailyHistory('investor-1', '2026-09-23');
   assert.equal(response.weekStart, '2026-09-21');
   assert.equal(response.weeklyReturnRate, 10);
+});
+
+test('휴장일 0%는 누적과 실제 종가 기준일을 유지하고 잘못된 이월이나 누락일 대체를 거부한다', async () => {
+  const history = {
+    weekStart: '2026-10-12',
+    weekEnd: '2026-10-18',
+    asOfDate: '2026-10-16',
+    eligibleFrom: '2026-10-12',
+    confirmed: false,
+    weeklyReturnRate: 10,
+    days: Array.from({ length: 7 }, (_, index) => ({
+      baseDate: `2026-10-${12 + index}`,
+      dailyReturnRate: index === 0 ? 10 : 0,
+      cumulativeReturnRate: 10,
+      status: 'CALCULATED',
+      reason: index >= 5 ? 'MARKET_CLOSED' : null,
+    })),
+  };
+  globalThis.fetch = async () => jsonResponse(history);
+  assert.equal((await getDailyHistory('investor-1')).days[6].cumulativeReturnRate, 10);
+  for (const invalid of [
+    { ...history, asOfDate: '2026-10-18' },
+    {
+      ...history,
+      days: history.days.map((day, i) => (i === 5 ? { ...day, dailyReturnRate: 10 } : day)),
+    },
+    {
+      ...history,
+      days: history.days.map((day, i) => (i === 5 ? { ...day, cumulativeReturnRate: 20 } : day)),
+    },
+    {
+      ...history,
+      days: history.days.map((day, i) =>
+        i === 4
+          ? {
+              ...day,
+              dailyReturnRate: null,
+              cumulativeReturnRate: null,
+              status: 'PENDING',
+              reason: 'PRICE_COLLECTION_PENDING',
+            }
+          : day,
+      ),
+    },
+    {
+      ...history,
+      days: history.days.map((day) => ({ ...day, dailyReturnRate: 0, reason: 'MARKET_CLOSED' })),
+    },
+  ]) {
+    globalThis.fetch = async () => jsonResponse(invalid);
+    await assert.rejects(getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
+  }
 });

@@ -16,11 +16,15 @@ const dayFormatter = new Intl.DateTimeFormat('ko-KR', {
 });
 
 function statusLabel(day: DailyReturnPoint) {
+  if (day.reason === 'MARKET_CLOSED') return '휴장';
+  if (day.reason === 'FUTURE_DATE') return '예정';
+  if (day.reason === 'CALENDAR_PENDING') return '거래일 확인 중';
+  if (day.reason === 'EXCHANGE_RATE_PENDING') return '환율 수집 대기';
+  if (day.status === 'CALCULATED' && day.cumulativeReturnRate === null) return '누적 집계 대기';
   if (day.status === 'CALCULATED')
-    return day.reason === 'TRACKING_BASELINE' ? '성과 시작 종가 · 0%' : '집계 완료';
+    return day.reason === 'TRACKING_BASELINE' ? '기준일' : '집계 완료';
   if (day.status === 'NOT_PARTICIPATING') return '참여 전 / 미참여';
   if (day.reason === 'SNAPSHOT_PENDING') return '보유 데이터 대기';
-  if (day.status === 'PENDING') return '집계 대기';
   switch (day.reason) {
     case 'MISSING_PRICE':
       return '종가 누락 · 집계 대기';
@@ -31,7 +35,7 @@ function statusLabel(day: DailyReturnPoint) {
     case 'UNSUPPORTED_ASSET':
       return '지원하지 않는 자산';
     default:
-      return '집계 제외';
+      return day.status === 'PENDING' ? '집계 대기' : '집계 제외';
   }
 }
 
@@ -126,7 +130,7 @@ export const DailyReturns = memo(function DailyReturns({
       ? participatingDays.length === 0
         ? '이 주에는 참여 기록이 없어요.'
         : pendingClose
-          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기 · 다음 영업일 오후 2시 이후 제공됩니다.`
+          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기 · 데이터가 준비되면 반영돼요.`
           : [...new Set(participatingDays.map(statusLabel))].join(', ')
       : history?.collectionStatus
         ? collectionLabels[history.collectionStatus]
@@ -139,7 +143,7 @@ export const DailyReturns = memo(function DailyReturns({
       aria-labelledby="daily-history-title"
     >
       <header>
-        <h2 id="daily-history-title">일별 수익률</h2>
+        <h2 id="daily-history-title">누적 수익률</h2>
         <LeagueWeekNavigation
           weeks={weeks}
           selected={weeks.some((week) => week.weekStart === weekStart) ? weekStart : ''}
@@ -187,10 +191,9 @@ export const DailyReturns = memo(function DailyReturns({
                   <span
                     className={`league-status-badge${history.confirmed ? ' is-confirmed' : ''}`}
                   >
-                    {history.confirmed ? '순위 확정' : '잠정 수익률'}
+                    {history.confirmed ? '확정' : '잠정'}
                   </span>
                   <span>{history.asOfDate} 종가 기준</span>
-                  <span>{days.filter((day) => day.status === 'CALCULATED').length}일 집계</span>
                 </p>
               ) : null}
               <div className="league-history-scroll">
@@ -203,16 +206,23 @@ export const DailyReturns = memo(function DailyReturns({
                     minWidth: `${days.length * 72}px`,
                   }}
                 >
-                  <ReturnLine rates={days.map((day) => day.dailyReturnRate)} />
+                  <ReturnLine rates={days.map((day) => day.cumulativeReturnRate)} />
                   {days.map((day) => (
                     <div
                       role="group"
                       key={day.baseDate}
-                      aria-label={`${dayFormatter.format(new Date(day.baseDate))} 하루 수익률 ${day.dailyReturnRate === null ? statusLabel(day) : formatRate(day.dailyReturnRate)}`}
+                      title={
+                        day.dailyReturnRate === null
+                          ? statusLabel(day)
+                          : `하루 ${formatRate(day.dailyReturnRate)}`
+                      }
+                      aria-label={`${dayFormatter.format(new Date(day.baseDate))} 하루 수익률 ${day.dailyReturnRate === null ? statusLabel(day) : formatRate(day.dailyReturnRate)} · 누적 수익률 ${day.cumulativeReturnRate === null ? statusLabel(day) : formatRate(day.cumulativeReturnRate)}`}
                     >
                       <span className="league-week-label">
-                        <strong className={rateClass(day.dailyReturnRate)}>
-                          {day.dailyReturnRate === null ? '—' : formatRate(day.dailyReturnRate)}
+                        <strong className={rateClass(day.cumulativeReturnRate)}>
+                          {day.cumulativeReturnRate === null
+                            ? '—'
+                            : formatRate(day.cumulativeReturnRate)}
                         </strong>
                         <span className="league-week-meta">{statusLabel(day)}</span>
                       </span>
@@ -222,10 +232,13 @@ export const DailyReturns = memo(function DailyReturns({
                   ))}
                 </div>
               </div>
-              <p className="league-daily-calculation-note">
-                실제 보유한 기간의 종가 기준 성과예요. 보유 전 기간과 휴장일은 제외하고, 누락된
-                데이터는 0%로 대신하지 않아요.
-              </p>
+              <details className="league-calculation-guide">
+                <summary>집계 기준</summary>
+                <p>
+                  휴장일은 누적 수익률을 유지하고, 누락된 데이터는 집계를 기다려요. 미국 금요일
+                  성과는 토요일 종가 수집 후 반영돼요.
+                </p>
+              </details>
             </>
           )}
         </>
