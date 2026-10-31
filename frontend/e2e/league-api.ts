@@ -123,6 +123,7 @@ export async function mockLeagueApi(page: Page) {
             quantity: 1,
             averagePurchasePrice: 100,
             hidden: false,
+            pendingReason: false,
             reason: '실적을 확인하며 보유',
             baseDate: '2026-10-13',
             closePrice: 100,

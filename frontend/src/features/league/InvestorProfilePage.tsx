@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { leagueErrorType, trackLeagueEvent } from './analytics';
+import { useContentImpression } from '../news/issue/analytics';
+import { leagueBasisRelation, leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { followInvestor, getInvestorDetail, getPublicInvestor, unfollowInvestor } from './api';
 import { collectionLabels, formatRate, reviewDateLabel, transactionLabels } from './labels';
@@ -109,6 +110,24 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
     !loading,
   );
 
+  const metricsSection = useRef<HTMLElement>(null);
+  useContentImpression(
+    metricsSection,
+    JSON.stringify([
+      publicId,
+      investor?.performance.asOfDate,
+      investor?.performance.rankingAsOfDate,
+    ]),
+    'league_performance_viewed',
+    {
+      surface: 'investor',
+      source: viewSource,
+      has_result: investor?.performance.weeklyReturnRate != null,
+      has_rank: investor?.performance.weeklyRank != null,
+      basis_relation: investor ? leagueBasisRelation(investor.performance) : 'unknown',
+    },
+    !loading && Boolean(investor),
+  );
   const dailyContent = useRef<HTMLDivElement>(null);
   const viewed = useRef('');
   useEffect(() => {
@@ -307,7 +326,12 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
         </p>
       ) : null}
       <div>
-        <section className="league-metric-cards" id="performance" aria-label="성과와 위험 지표">
+        <section
+          ref={metricsSection}
+          className="league-metric-cards"
+          id="performance"
+          aria-label="성과와 위험 지표"
+        >
           <div className="league-primary-metrics">
             <article>
               <span>이번 주 수익률</span>
@@ -326,6 +350,9 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                   ? '—'
                   : formatRate(investor.performance.weeklyReturnRate)}
               </strong>
+              {investor.performance.asOfDate ? (
+                <small>{investor.performance.asOfDate} 기준</small>
+              ) : null}
               {investor.performance.weeklyReturnRate === null ? (
                 <small className="league-metric-pending">집계 대기</small>
               ) : null}
@@ -337,6 +364,9 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
                   ? '—'
                   : `${investor.performance.weeklyRank}위`}
               </strong>
+              {investor.performance.rankingAsOfDate ? (
+                <small>{investor.performance.rankingAsOfDate} 기준</small>
+              ) : null}
               {investor.performance.weeklyRank == null ? (
                 <small className="league-metric-pending">집계 대기</small>
               ) : null}

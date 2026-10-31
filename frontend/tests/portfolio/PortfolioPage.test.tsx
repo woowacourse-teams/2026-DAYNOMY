@@ -396,6 +396,7 @@ describe('포트폴리오 화면', () => {
     expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_dashboard_loaded', {
       is_logged_in: true,
       has_holdings: true,
+      market_scope: 'domestic',
       pricing_status: 'COMPLETE',
     });
     fireEvent.click(view.getByRole('button', { name: '금액 숨기기' }));
@@ -553,6 +554,8 @@ describe('포트폴리오 화면', () => {
       operation: 'transaction_create',
       transaction_type: 'BUY',
       storage: 'temporary',
+      has_holdings: false,
+      market_scope: 'domestic',
     });
     const sent = JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls);
     expect(sent).not.toMatch(/삼성|005930|quantity|averagePurchasePrice|70000/);
@@ -648,6 +651,8 @@ describe('포트폴리오 화면', () => {
     expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_save_failed', {
       operation: 'holding_update',
       storage: 'temporary',
+      has_holdings: true,
+      market_scope: 'domestic',
       error_type: 'network_or_unknown',
     });
     expect(

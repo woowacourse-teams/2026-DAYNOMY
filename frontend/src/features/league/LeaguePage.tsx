@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { InvestorAvatar } from './InvestorAvatar';
 import { Link } from 'react-router-dom';
+import { useContentImpression } from '../news/issue/analytics';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { getLeagueWeeks, getMyInvestorProfile, getRankings } from './api';
@@ -39,10 +40,12 @@ const emptyCollectionStates: Partial<
 
 const RankingRow = memo(function RankingRow({
   entry,
+  weekStart,
   selected,
   onSelect,
 }: {
   entry: RankingEntry;
+  weekStart: string;
   selected: boolean;
   onSelect: (entry: RankingEntry) => void;
 }) {
@@ -61,10 +64,12 @@ const RankingRow = memo(function RankingRow({
         <strong>{entry.displayName}</strong>
         <small>
           {experienceLabels[entry.experienceLevel]} · {riskLabels[entry.riskProfile]}
+          {entry.trackingStartedOn && entry.trackingStartedOn > weekStart
+            ? ` · ${entry.trackingStartedOn.slice(5).replace('-', '/')}부터`
+            : null}
         </small>
       </Link>
       <div className="league-return">
-        <small>주간 수익률</small>
         <strong className={entry.weeklyReturnRate >= 0 ? 'positive' : 'negative'}>
           {formatRate(entry.weeklyReturnRate)}
         </strong>
@@ -218,7 +223,6 @@ export function LeaguePage() {
   useEffect(() => {
     if (!weeksReady) return;
     const controller = new AbortController();
-    setLoading(true);
     setError('');
     getRankings('WEEKLY_RETURN', weekStart || undefined, controller.signal, page)
       .then((value) => {
@@ -250,12 +254,28 @@ export function LeaguePage() {
     return () => controller.abort();
   }, [retry, weekStart, page, weeksReady]);
 
+  const board = useRef<HTMLElement>(null);
+  useContentImpression(
+    board,
+    JSON.stringify([ranking?.weekStart, ranking?.asOfDate, page]),
+    'league_ranking_viewed',
+    {
+      surface: 'ranking',
+      page,
+      confirmed: ranking?.confirmed,
+      collection_status: ranking?.collectionStatus,
+      result_count: ranking?.rankings.length,
+    },
+    !loading && !error && Boolean(ranking?.rankings.length),
+  );
+
   return (
     <main className="league-page">
       <header className="league-hero">
         <h1 ref={heading} tabIndex={-1}>
           주간 리그
         </h1>
+        <p>국내·미국 통합 수익률 순위</p>
         <div className="league-hero-actions">
           {isLoggedIn && profileError ? (
             <button type="button" onClick={() => setProfileRetry((value) => value + 1)}>
@@ -315,6 +335,7 @@ export function LeaguePage() {
           weeks={weeks}
           selected={weekStart}
           onChange={(value) => {
+            setLoading(true);
             setWeekStart(value);
             setPage(0);
             const index = weeks.findIndex((week) => week.weekStart === value);
@@ -330,8 +351,11 @@ export function LeaguePage() {
             <span className={`league-status-badge${ranking.confirmed ? ' is-confirmed' : ''}`}>
               {ranking.confirmed ? '순위 확정' : '잠정 순위'}
             </span>
-            {!ranking.confirmed ? (
-              <span>{collectionLabels[ranking.collectionStatus ?? 'IN_PROGRESS']}</span>
+            {!ranking.confirmed &&
+            !ranking.aggregation &&
+            ranking.collectionStatus &&
+            !['IN_PROGRESS', 'COMPLETE'].includes(ranking.collectionStatus) ? (
+              <span>{collectionLabels[ranking.collectionStatus]}</span>
             ) : null}
           </div>
         ) : null}
@@ -392,7 +416,7 @@ export function LeaguePage() {
 
       {!loading && !error && ranking && ranking.rankings.length > 0 ? (
         <section className="league-board" aria-labelledby="league-board-title">
-          <header>
+          <header ref={board}>
             <div>
               <h2 id="league-board-title">주간 순위</h2>
             </div>
@@ -403,6 +427,7 @@ export function LeaguePage() {
               <RankingRow
                 key={entry.publicId}
                 entry={entry}
+                weekStart={ranking.weekStart}
                 selected={selectedEntry?.publicId === entry.publicId}
                 onSelect={setSelectedEntry}
               />
@@ -422,6 +447,7 @@ export function LeaguePage() {
                     status: 'clicked',
                     page: nextPage - 1,
                   });
+                  setLoading(true);
                   setPage(nextPage - 1);
                 }}
               />
