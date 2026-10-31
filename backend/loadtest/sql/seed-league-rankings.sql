@@ -91,7 +91,8 @@ DO $$
 DECLARE
     week_start date := (SELECT c.week_start FROM lt601_config c);
     first_day date := (SELECT min(base_date) FROM lt601_days);
-    enrolled_at timestamptz := week_start::timestamp AT TIME ZONE 'Asia/Seoul';
+    -- 온전한 주간 순위에 들어가도록 전주 금요일 국내 장 마감 전에 참여시킨다.
+    enrolled_at timestamptz := ((week_start - 3) + TIME '15:00') AT TIME ZONE 'Asia/Seoul';
     imported_at timestamptz := enrolled_at - INTERVAL '1 day';
     member_number integer;
     member_id bigint;

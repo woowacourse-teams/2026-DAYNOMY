@@ -99,7 +99,7 @@ FROM ltlg_config c CROSS JOIN generate_series(1, c.target_members) AS n(number);
 ANALYZE members;
 
 INSERT INTO shared_portfolios(member_id, created_at, updated_at)
-SELECT m.id, (c.week_start::timestamp AT TIME ZONE 'Asia/Seoul') - INTERVAL '1 day', now()
+SELECT m.id, ((c.week_start - 3) + TIME '14:00') AT TIME ZONE 'Asia/Seoul', now()
 FROM members m CROSS JOIN ltlg_config c
 WHERE m.provider_id LIKE c.member_prefix || '%';
 
@@ -110,7 +110,7 @@ INSERT INTO public_investor_profiles(member_id, public_id, display_name, bio,
     premium_detail_enabled, league_enabled_at, tracking_started_on, created_at, updated_at)
 SELECT m.id, gen_random_uuid()::text, m.nickname, '투자리그 사용자 API 부하테스트용 가상 회원',
     'BEGINNER', 'BALANCED', true, true, true, true,
-    c.week_start::timestamp AT TIME ZONE 'Asia/Seoul',
+    ((c.week_start - 3) + TIME '15:00') AT TIME ZONE 'Asia/Seoul',
     (SELECT min(base_date) FROM ltlg_days), now(), now()
 FROM members m CROSS JOIN ltlg_config c
 WHERE m.provider_id LIKE c.member_prefix || '%';
@@ -130,7 +130,7 @@ ALTER TABLE ltlg_cohort ADD PRIMARY KEY (number);
 ANALYZE ltlg_cohort;
 
 INSERT INTO league_participations(profile_id, started_at)
-SELECT p.profile_id, c.week_start::timestamp AT TIME ZONE 'Asia/Seoul'
+SELECT p.profile_id, ((c.week_start - 3) + TIME '15:00') AT TIME ZONE 'Asia/Seoul'
 FROM ltlg_cohort p CROSS JOIN ltlg_config c;
 
 CREATE TEMP TABLE ltlg_holdings ON COMMIT DROP AS
@@ -147,7 +147,7 @@ INSERT INTO shared_holdings(portfolio_id, asset_id, quantity, average_purchase_p
     hidden, reason, created_at, updated_at)
 SELECT h.portfolio_id, h.asset_id, h.quantity, h.opening_price, false,
     '부하테스트 보유 이유: 실적과 분산 투자 기준을 확인하며 보유',
-    (c.week_start::timestamp AT TIME ZONE 'Asia/Seoul') - INTERVAL '1 day', now()
+    ((c.week_start - 3) + TIME '14:00') AT TIME ZONE 'Asia/Seoul', now()
 FROM ltlg_holdings h CROSS JOIN ltlg_config c;
 
 INSERT INTO shared_holding_histories(portfolio_id, asset_id, change_type, quantity,

@@ -366,6 +366,7 @@ class LeagueLoggingTest {
         .containsEntry("collectionStatus", CollectionStatus.CALENDAR_PENDING)
         .containsEntry("totalCount", 0);
     assertThat(fields(event(LogEvent.LEAGUE_DAILY_HISTORY_LOADED)))
+        .containsEntry("displayedDayCount", 7)
         .containsEntry("tradingDayCount", 0)
         .containsEntry("calculatedDayCount", 0)
         .doesNotContainKeys("weeklyReturnRate", "dailyReturnRate");
@@ -503,6 +504,10 @@ class LeagueLoggingTest {
   @ValueSource(booleans = {false, true})
   void weeklyFinalizationDistinguishesMissingCalendarAndPendingPrices(boolean missingCalendar) {
     var profile = profile();
+    ReflectionTestUtils.setField(
+        profile.getParticipations().getFirst(),
+        "startedAt",
+        WEEK.minusDays(3).atTime(15, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant());
     given(profiles.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
     List<MarketTradingDay> days =
         WEEK.datesUntil(WEEK.plusDays(missingCalendar ? 6 : 7))
