@@ -8,6 +8,7 @@ import {
 } from '../../src/features/league/PublicationSettingsPage';
 import * as api from '../../src/features/league/api';
 import * as sharedApi from '../../src/features/league/sharedPortfolioApi';
+import * as portfolioApi from '../../src/features/portfolio/api';
 import { AuthContext } from '../../src/auth/AuthContext';
 vi.mock('../../src/features/league/api', () => ({
   getMyInvestorProfile: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('../../src/features/league/api', () => ({
   savePublication: vi.fn(),
 }));
 vi.mock('../../src/features/league/sharedPortfolioApi', () => ({ getSharedPortfolio: vi.fn() }));
+vi.mock('../../src/features/portfolio/api', () => ({ getPortfolioPerformance: vi.fn() }));
 const profile = {
   publicId: 'test-profile',
   displayName: '초보',
@@ -118,7 +120,52 @@ it.each([false, true])(
     });
   },
 );
-it('독립 설정 화면에서 숨긴 종목의 필수 기록을 확인하고 조회 실패는 재시도한다', async () => {
+it('가입 화면에 기존 스냅샷 평가손익과 기준일을 리그 성과와 별도로 표시한다', async () => {
+  vi.mocked(api.getMyInvestorProfile).mockResolvedValue(profile);
+  vi.mocked(sharedApi.getSharedPortfolio).mockResolvedValue({
+    holdings: [],
+    totalPurchaseAmount: 0,
+    totalEvaluationAmount: 0,
+    totalReturnRate: null,
+    pricesComplete: true,
+  });
+  vi.mocked(api.getInvestmentDecisions).mockResolvedValue([]);
+  vi.mocked(portfolioApi.getPortfolioPerformance).mockResolvedValue({
+    status: 'READY',
+    reason: null,
+    baseDate: '2026-10-26',
+    previousBaseDate: '2026-10-23',
+    points: [],
+    currentPoint: {
+      baseDate: '2026-10-28',
+      priceBaseDate: '2026-10-27',
+      totalPurchaseAmount: 100000,
+      totalEvaluationAmount: 110000,
+      totalProfitLoss: 10000,
+      totalReturnRate: 10,
+      dailyProfitLoss: null,
+      dailyReturnRate: null,
+    },
+  });
+  const view = render(
+    <MemoryRouter initialEntries={['/portfolio/publication?join=true']}>
+      <AuthContext.Provider
+        value={{ isLoggedIn: true, loading: false, role: 'USER', nickname: '초보' }}
+      >
+        <PublicationSettingsPage />
+      </AuthContext.Provider>
+    </MemoryRouter>,
+  );
+  expect(await view.findByText(/10,000원 · 10.00% · 2026-10-27 종가 기준/)).toBeTruthy();
+  expect(view.getByText('매수 금액 기준')).toBeTruthy();
+  expect(view.getByText(/이번 주에 저장된 보유 기록/)).toBeTruthy();
+  expect(view.getByText(/비공개 종목도 수익률에 포함/)).toBeTruthy();
+  const guide = view.getByText('집계 기준').closest('details')!;
+  expect(guide.open).toBe(false);
+  fireEvent.click(view.getByText('집계 기준'));
+  expect(guide.open).toBe(true);
+});
+it('비공개 종목은 보유 이유 없이 참여할 수 있고 조회 실패는 재시도한다', async () => {
   vi.mocked(api.getMyInvestorProfile).mockResolvedValue(profile);
   vi.mocked(sharedApi.getSharedPortfolio).mockResolvedValue({
     holdings: [
@@ -131,6 +178,7 @@ it('독립 설정 화면에서 숨긴 종목의 필수 기록을 확인하고 �
         quantity: 1,
         averagePurchasePrice: 100,
         hidden: true,
+        pendingReason: false,
         reason: '',
         baseDate: null,
         closePrice: null,
@@ -158,11 +206,8 @@ it('독립 설정 화면에서 숨긴 종목의 필수 기록을 확인하고 �
   expect(view.getByRole('heading', { name: '프로필 설정' })).toBeTruthy();
   fireEvent.click(await view.findByRole('button', { name: '공유 범위 다시 불러오기' }));
   const join = await view.findByRole('radio', { name: /주간 리그 참여/ });
-  expect(join).toHaveProperty('disabled', true);
-  expect(view.getByText('보유 이유 1개 미작성')).toBeTruthy();
-  expect(view.getByRole('link', { name: '종목 준비하기' }).getAttribute('href')).toBe(
-    '/league/portfolio',
-  );
+  expect(join).toHaveProperty('disabled', false);
+  expect(view.queryByText('보유 이유 1개 미작성')).toBeNull();
   expect(api.savePublication).not.toHaveBeenCalled();
 });
 it('공유 범위를 못 불러오면 편집을 막고 다시 불러온다', async () => {

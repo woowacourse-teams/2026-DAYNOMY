@@ -37,6 +37,7 @@ const holding = {
   quantity: 2,
   averagePurchasePrice: 70000,
   hidden: false,
+  pendingReason: false,
   reason: '기존 판단',
   baseDate: '2026-10-02',
   closePrice: 77000,
@@ -96,6 +97,21 @@ async function importButton(view: ReturnType<typeof render>) {
 }
 
 describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오', () => {
+  it('자동 동기화 중 화면으로 돌아오면 서버의 최신 종목을 다시 읽는다', async () => {
+    vi.mocked(api.getSharedPortfolio).mockResolvedValueOnce(empty).mockResolvedValueOnce(portfolio);
+    const view = renderPage();
+    await view.findByRole('heading', { name: '등록한 종목 0개' });
+    fireEvent.focus(window);
+    expect(await view.findByRole('heading', { name: '등록한 종목 1개' })).toBeTruthy();
+  });
+  it('원본 변경은 항상 동기화하며 비공개 종목도 통합 수익률에 포함함을 안내한다', async () => {
+    const view = renderPage();
+    expect(
+      await view.findByText('포트폴리오 자동 동기화 · 비공개 종목도 수익률에 포함'),
+    ).toBeTruthy();
+    expect(view.getByText(/비공개 종목도/)).toBeTruthy();
+    expect(view.queryByRole('checkbox', { name: /자동 반영/ })).toBeNull();
+  });
   it('분석 전송이 실패해도 원본 자산을 가져오고 원본 저장소는 변경하지 않는다', async () => {
     vi.mocked(trackEvent).mockImplementation(() => {
       throw new Error('SDK failed');
@@ -369,7 +385,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     expect(view.queryByText('0원')).toBeNull();
     expect(view.queryByText('집계 전')).toBeNull();
   });
-  it('숨긴 종목도 보유 이유가 필수이며 저장 후 작성 상태를 갱신한다', async () => {
+  it('비공개 종목은 보유 이유 없이 참여할 수 있고 이유 저장 상태도 갱신한다', async () => {
     vi.mocked(api.getSharedPortfolio).mockResolvedValue({
       ...portfolio,
       holdings: [{ ...holding, hidden: true, reason: '' }],
@@ -394,7 +410,9 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       reviews: [],
     });
     const view = renderPage();
-    expect(await view.findByText('보유 이유 미작성')).toBeTruthy();
+    await view.findByRole('button', { name: '삼성전자 보유 이유 작성' });
+    expect(view.queryByText('보유 이유 미작성')).toBeNull();
+    expect(await view.findByRole('link', { name: '리그 참여하기' })).toBeTruthy();
     const writeReason = await view.findByRole('button', { name: '삼성전자 보유 이유 작성' });
     await waitFor(() => expect(writeReason).toHaveProperty('disabled', false));
     fireEvent.click(writeReason);
