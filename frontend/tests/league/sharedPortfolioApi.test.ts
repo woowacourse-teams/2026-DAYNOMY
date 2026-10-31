@@ -64,6 +64,44 @@ test('잘못된 공유용 응답은 빈 자산이나 성공으로 바꾸지 않�
   await assert.rejects(() => getSharedPortfolio(), /응답을 확인할 수 없습니다/);
 });
 
+test('공개·비공개 종목을 함께 읽고 보유 이유 대기를 집계 제외로 바꾸지 않는다', async () => {
+  const holding = {
+    assetId: 1,
+    assetCode: '005930',
+    assetName: '삼성전자',
+    category: 'STOCK',
+    market: 'KOSPI',
+    quantity: 2,
+    averagePurchasePrice: 100,
+    hidden: true,
+    pendingReason: true,
+    reason: '',
+    baseDate: '2026-10-23',
+    closePrice: 110,
+    evaluationAmount: 220,
+    returnRate: 10,
+  };
+  globalThis.fetch = async () =>
+    json({
+      ...response,
+      holdings: [
+        holding,
+        {
+          ...holding,
+          assetId: 2,
+          hidden: false,
+          pendingReason: false,
+          reason: '공개 이유',
+        },
+      ],
+    });
+  const result = await getSharedPortfolio();
+  assert.equal(result.holdings.length, 2);
+  assert.equal(result.holdings[0].hidden, true);
+  assert.equal(result.holdings[1].hidden, false);
+  assert.equal(result.holdings[0].evaluationAmount, 220);
+});
+
 test('계정의 서버 원본만 읽고 브라우저 원본은 읽거나 변경하지 않는다', async () => {
   const holdings = [
     {

@@ -11,6 +11,8 @@ export type SourceHolding = Omit<StockSearchItem, 'name'> & {
 };
 export type SharedHolding = SourceHolding & {
   hidden: boolean;
+  pendingReason: boolean;
+  sourceManaged?: boolean;
   reason: string;
   baseDate: string | null;
   closePrice: number | null;
@@ -49,6 +51,8 @@ function sharedHolding(value: unknown): value is SharedHolding {
   return (
     record(value) &&
     typeof value.hidden === 'boolean' &&
+    typeof value.pendingReason === 'boolean' &&
+    (value.sourceManaged === undefined || typeof value.sourceManaged === 'boolean') &&
     typeof value.reason === 'string' &&
     (value.baseDate === null ||
       (typeof value.baseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.baseDate))) &&
