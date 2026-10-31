@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { installAccessibilityFixtures } from './fixtures/accessibility';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -80,6 +81,234 @@ for (const viewport of [
   { name: 'desktop', width: 1440, height: 1050 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
+  test(`종목 추가 키패드와 기존 거래 수정 화면 분리: ${viewport.name}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await installAccessibilityFixtures(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: '종목 추가', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '거래 기록' });
+    await dialog.getByRole('searchbox').fill('삼성');
+    await dialog.getByRole('button', { name: /삼성전자.*005930/ }).click();
+    const quantity = dialog.getByLabel('수량 (주)');
+    await expect(quantity).toBeFocused();
+    await expect(quantity).toHaveValue('1');
+    const keypad = dialog.getByRole('group', { name: '숫자 입력' });
+    await keypad.getByRole('button', { name: '2', exact: true }).click();
+    await expect(quantity).toHaveValue('2');
+    const price = dialog.getByLabel('거래 단가 (원)');
+    await expect(price).toHaveValue('70,000');
+    await price.fill('127000.50');
+    await expect(price).toHaveValue('127,000.50');
+    await dialog.getByRole('button', { name: '거래일 수정', exact: true }).click();
+    const datePicker = page.getByRole('dialog', { name: '날짜 선택' });
+    await datePicker.getByRole('button', { name: '확인', exact: true }).click();
+    await dialog.getByRole('button', { name: '거래 시간 수정', exact: true }).click();
+    const timePicker = page.getByRole('dialog', { name: '시간 선택' });
+    const hour = timePicker.getByRole('listbox', { name: '시 (한국 시간)' });
+    await hour.focus();
+    await hour.press('Home');
+    for (let index = 0; index < 9; index++) await hour.press('ArrowDown');
+    const minute = timePicker.getByRole('listbox', { name: '분', exact: true });
+    await minute.focus();
+    await minute.press('Home');
+    for (let index = 0; index < 7; index++) await minute.press('PageDown');
+    await timePicker.getByRole('button', { name: '확인', exact: true }).click();
+    for (const width of [320, viewport.width]) {
+      await page.setViewportSize({ width, height: viewport.height });
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await expect(dialog.getByRole('button', { name: '추가하기', exact: true })).toBeInViewport();
+    }
+    await dialog.screenshot({ path: testInfo.outputPath('quick-add.png') });
+    await dialog.getByRole('button', { name: '추가하기', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    const saved = () =>
+      page.evaluate(() =>
+        JSON.parse(sessionStorage.getItem('daynomy:guest-portfolio-holdings:v1')!),
+      );
+    expect((await saved()).histories[0]).toMatchObject({
+      tradeTime: '09:35',
+      transactionQuantity: 2,
+      unitPrice: 127000.5,
+    });
+    await page.reload();
+    await page.getByRole('button', { name: '거래 내역', exact: true }).click();
+    await page.locator('.portfolio-history-row').first().click();
+    const edit = page.getByRole('dialog', { name: '거래 수정' });
+    await expect(edit.getByRole('group', { name: '숫자 입력' })).toHaveCount(0);
+    await expect(edit.getByLabel('거래 단가 (원)')).toHaveValue('127,000.5');
+    await edit.screenshot({ path: testInfo.outputPath('existing-edit.png') });
+    await edit.getByLabel('수량 (주)').fill('3');
+    await edit.getByRole('button', { name: '수정하기', exact: true }).click();
+    await expect(edit).toHaveCount(0);
+    expect((await saved()).histories[0]).toMatchObject({
+      tradeTime: '09:35',
+      transactionQuantity: 3,
+    });
+  });
+
+  test(`종목 통합 검색의 목록 크기와 최근 검색어: ${viewport.name}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(
+      viewport.name === 'desktop' ? { width: 1280, height: 720 } : viewport,
+    );
+    const domestic = Array.from({ length: 12 }, (_, index) => ({
+      assetId: index + 100,
+      assetCode: String(360750 + index),
+      name: index === 0 ? 'TIGER 미국S&P500' : `S&P500 ETF ${index}`,
+      category: 'ETF',
+      market: 'KOSPI',
+    }));
+    const us = {
+      assetId: 200,
+      assetCode: 'SPY',
+      name: 'SPDR S&P 500 ETF Trust',
+      category: 'ETF',
+      market: 'NYSE_ARCA',
+    };
+    const countries: string[] = [];
+    await page.route('**/api/**', async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === '/api/stocks') {
+        const country = url.searchParams.get('country') ?? 'KR';
+        countries.push(country);
+        const query = url.searchParams.get('q');
+        if (query === 'error') return route.fulfill({ status: 500, json: {} });
+        return route.fulfill({
+          json: {
+            stocks:
+              query === '없는종목'
+                ? []
+                : query === 'one'
+                  ? country === 'US'
+                    ? []
+                    : [domestic[0]]
+                  : country === 'US'
+                    ? [us]
+                    : domestic,
+          },
+        });
+      }
+      return route.fulfill({ status: 401, json: {} });
+    });
+    await page.goto('/');
+    const open = page.getByRole('button', { name: '종목 추가', exact: true });
+    const ledgerAdd = page.getByRole('button', { name: '목록에서 종목 추가', exact: true });
+    const tabs = page.getByRole('group', { name: '포트폴리오 내역 보기' });
+    await ledgerAdd.scrollIntoViewIfNeeded();
+    expect(
+      await page
+        .locator('.portfolio-ledger-toolbar')
+        .evaluate((el) => el.scrollWidth <= el.clientWidth),
+    ).toBe(true);
+    await page
+      .locator('.portfolio-ledger-toolbar')
+      .screenshot({ path: testInfo.outputPath('ledger-add-button.png') });
+    await page
+      .locator('[data-portfolio-tour="holdings-overview"]')
+      .screenshot({ path: testInfo.outputPath('ledger-empty-state.png') });
+    await tabs.getByRole('button', { name: '거래 내역', exact: true }).click();
+    await ledgerAdd.click();
+    await expect(
+      page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
+    ).toBeFocused();
+    await page
+      .getByRole('dialog', { name: '거래 기록' })
+      .getByRole('button', { name: '닫기', exact: true })
+      .click();
+    await expect(ledgerAdd).toBeFocused();
+    await tabs.getByRole('button', { name: '보유 자산 0', exact: true }).click();
+    await ledgerAdd.click();
+    const dialog = page.getByRole('dialog', { name: '거래 기록' });
+    const input = dialog.getByRole('searchbox', { name: '종목 검색' });
+    await expect(input).toBeFocused();
+    const initial = (await dialog.boundingBox())!;
+    const searchBar = dialog.locator('.portfolio-stock-search-input');
+    const initialSearchBar = await searchBar.boundingBox();
+    const availableWidth = await page.evaluate(
+      () => document.documentElement.getBoundingClientRect().width,
+    );
+    expect(initial.width).toBe(viewport.name === 'desktop' ? 560 : availableWidth - 48);
+    expect(initial.height).toBe(560);
+    await input.fill('S&P');
+    const results = dialog.getByRole('list', { name: '검색된 종목' });
+    await expect(results.getByRole('button')).toHaveCount(13);
+    expect(countries).toEqual(expect.arrayContaining(['KR', 'US']));
+    expect(await dialog.boundingBox()).toEqual(initial);
+    expect(await searchBar.boundingBox()).toEqual(initialSearchBar);
+    const visibleRows = await results.evaluate((list) => {
+      const bounds = list.parentElement!.getBoundingClientRect();
+      return [...list.querySelectorAll('li')].filter((row) => {
+        const r = row.getBoundingClientRect();
+        return r.top >= bounds.top && r.bottom <= bounds.bottom;
+      }).length;
+    });
+    expect(visibleRows).toBeGreaterThanOrEqual(5);
+    const scroll = dialog.locator('.portfolio-stock-results');
+    expect(await scroll.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    await expect(results.locator('img, .portfolio-monogram')).toHaveCount(0);
+    await dialog.screenshot({ path: testInfo.outputPath('stock-search-results.png') });
+    for (const query of ['one', '없는종목', 'error']) {
+      await input.fill(query);
+      await expect(dialog.getByRole('status')).toBeVisible();
+      expect(await dialog.boundingBox()).toEqual(initial);
+      expect(await searchBar.boundingBox()).toEqual(initialSearchBar);
+      if (query === 'one') await expect(results.getByRole('button')).toHaveCount(1);
+      else if (query === '없는종목')
+        await expect(
+          dialog.getByText('검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.'),
+        ).toBeVisible();
+      else await expect(dialog.getByRole('alert')).toBeVisible();
+      expect(await dialog.boundingBox()).toEqual(initial);
+      expect(await searchBar.boundingBox()).toEqual(initialSearchBar);
+    }
+    await input.fill('S&P');
+    await expect(results.getByRole('button')).toHaveCount(13);
+    await results.getByRole('button', { name: /SPDR S&P/ }).click();
+    await expect(dialog.getByLabel('수량 (주)')).toHaveValue('1');
+    await dialog.getByRole('button', { name: '닫기', exact: true }).click();
+    await page.reload();
+    await open.click();
+    const recent = dialog.getByRole('region', { name: '최근 검색어' });
+    await expect(recent.getByRole('button', { name: 'S&P', exact: true })).toBeVisible();
+    await expect(recent.getByText('이 브라우저에 저장된 검색어예요.')).toHaveCount(0);
+    expect(await dialog.boundingBox()).toEqual(initial);
+    expect(await searchBar.boundingBox()).toEqual(initialSearchBar);
+    await dialog.screenshot({ path: testInfo.outputPath('stock-search-recent.png') });
+    await recent.getByRole('button', { name: 'S&P', exact: true }).click();
+    await expect(input).toHaveValue('S&P');
+    await expect(results.getByRole('button')).toHaveCount(13);
+    await dialog.getByRole('button', { name: '검색어 지우기' }).click();
+    await expect(input).toBeFocused();
+    await recent.getByRole('button', { name: 'S&P 검색어 삭제' }).click();
+    await expect(recent.getByText(/최근 검색어가 없어요/)).toBeVisible();
+    await input.fill('S&P');
+    await results.getByRole('button', { name: /TIGER 미국S&P500/ }).click();
+    await dialog.getByRole('button', { name: '종목 변경' }).click();
+    await dialog.getByRole('button', { name: '검색어 지우기' }).click();
+    await recent.getByRole('button', { name: '전체 삭제' }).click();
+    await expect(recent.getByText(/최근 검색어가 없어요/)).toBeVisible();
+    for (const size of [
+      { width: 320, height: 480 },
+      { width: 768, height: 600 },
+    ]) {
+      await page.setViewportSize(size);
+      await input.fill('S&P');
+      await expect(results.getByRole('button')).toHaveCount(13);
+      const b = (await dialog.boundingBox())!;
+      expect(b.width).toBeLessThanOrEqual(size.width - 48);
+      expect(b.height).toBeLessThanOrEqual(Math.min(560, size.height - 64));
+      expect(
+        await dialog.evaluate(
+          (el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1,
+        ),
+      ).toBe(true);
+      await input.fill('');
+    }
+  });
+
   test(`비회원 빈 자산 분석 카드에 과도한 여백이 없다: ${viewport.name}`, async ({
     page,
   }, testInfo) => {
@@ -91,7 +320,7 @@ for (const viewport of [
     const trend = page.locator('.portfolio-return-dashboard');
     const composition = page.locator('.portfolio-composition');
     await expect(trend.getByRole('link', { name: '로그인하기' })).toBeVisible();
-    await expect(composition.getByText('표시할 자산이 없습니다')).toBeVisible();
+    await expect(composition.getByText('보유 중인 자산이 없어요', { exact: true })).toBeVisible();
     for (const card of [trend, composition]) {
       const height = await card.evaluate((element) => parseFloat(getComputedStyle(element).height));
       expect(height).toBeLessThanOrEqual(340);
@@ -100,6 +329,32 @@ for (const viewport of [
     await page.locator('.portfolio-dashboard-grid').screenshot({
       path: testInfo.outputPath('empty-asset-analysis.png'),
     });
+    const analysis = page.getByRole('region', { name: 'AI 분석', exact: true });
+    const add = analysis.getByRole('button', { name: 'AI 분석에서 종목 추가', exact: true });
+    for (const width of [viewport.width, 320, 768, 1440]) {
+      await page.setViewportSize({ width, height: viewport.height });
+      await expect(add).toBeVisible();
+      const position = await add.evaluate((button) => {
+        const preview = button.closest('.portfolio-analysis-preview')!;
+        const content = preview.querySelector('.portfolio-preview-blur')!.getBoundingClientRect();
+        const bounds = button.getBoundingClientRect();
+        return {
+          right: Math.abs(bounds.right - content.right),
+          gap: bounds.top - content.bottom,
+          overflow: preview.scrollWidth > preview.clientWidth,
+        };
+      });
+      expect(position.right).toBeLessThanOrEqual(1);
+      expect(position.gap).toBeGreaterThanOrEqual(8);
+      expect(position.gap).toBeLessThanOrEqual(20);
+      expect(position.overflow).toBe(false);
+    }
+    await page.setViewportSize(viewport);
+    await analysis.screenshot({ path: testInfo.outputPath('analysis-add-below-copy.png') });
+    await add.click();
+    await expect(
+      page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
+    ).toBeFocused();
   });
 
   test(`비회원 잠금 안내와 종목 상세 진입: ${viewport.name}`, async ({ page }, testInfo) => {
@@ -356,16 +611,20 @@ for (const viewport of [
     await detail.getByRole('button', { name: '매수', exact: true }).click();
     const trade = page.getByRole('dialog', { name: '거래 기록' });
     await expect(trade.getByLabel('거래일', { exact: true })).toBeFocused();
-    await expect(trade.getByLabel('거래 단가 (원)')).toHaveValue('75200');
+    await expect(trade.getByLabel('수량 (주)')).toHaveValue('1');
+    await expect(trade.getByLabel('거래 단가 (원)')).toHaveValue('75,200');
+    await trade.screenshot({ path: testInfo.outputPath('trade-default-inputs.png') });
     await trade.getByLabel('수량 (주)').fill('2');
     await trade.getByLabel('거래 단가 (원)').fill('76000');
+    await expect(trade.getByLabel('거래 단가 (원)')).toHaveValue('76,000');
     await trade.getByRole('button', { name: '매수 기록하기' }).click();
     await expect(detail.getByText('12주', { exact: true })).toBeVisible();
     await expect(
       detail.locator('.portfolio-history-amount').getByText('152,000원', { exact: true }),
     ).toBeVisible();
     await detail.getByRole('button', { name: '매도', exact: true }).click();
-    await expect(trade.getByLabel('거래 단가 (원)')).toHaveValue('75200');
+    await expect(trade.getByLabel('수량 (주)')).toHaveValue('1');
+    await expect(trade.getByLabel('거래 단가 (원)')).toHaveValue('75,200');
     await trade.getByLabel('수량 (주)').fill('3');
     await trade.getByLabel('거래 단가 (원)').fill('78000');
     await trade.getByRole('button', { name: '매도 기록하기' }).click();
@@ -377,7 +636,7 @@ for (const viewport of [
     });
     await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
-    const assetTrigger = page.getByRole('button', { name: '거래 기록', exact: true });
+    const assetTrigger = page.getByRole('button', { name: '종목 추가', exact: true });
     await assetTrigger.click();
     const assetEditor = page.getByRole('dialog', { name: '거래 기록' });
     await expect(assetEditor).toBeVisible();
@@ -1000,14 +1259,24 @@ for (const viewport of [
         }),
         `포트폴리오 본문이 ${width}px에서 잘리지 않아야 합니다.`,
       ).toBe(true);
-      const toolbarAlignment = await page
-        .locator('.portfolio-holdings-toolbar')
-        .evaluate((toolbar) => {
-          const filters = toolbar.querySelector('.portfolio-filters')!.getBoundingClientRect();
-          const sort = toolbar.querySelector('select')!.getBoundingClientRect();
-          return Math.abs(filters.top - sort.top) <= 1 && filters.right <= sort.left;
+      const headingAlignment = await page
+        .locator('.portfolio-holdings .portfolio-table-wrap thead')
+        .evaluate((heading) => {
+          const controls = [
+            ...heading.querySelectorAll('.portfolio-column-filter, .portfolio-column-sort'),
+          ].map((control) => control.getBoundingClientRect());
+          if (controls.length !== 7) return false;
+          const center = controls[0].top + controls[0].height / 2;
+          return controls.every(
+            (control, index) =>
+              Math.abs(control.top + control.height / 2 - center) <= 1 &&
+              (index === 0 || controls[index - 1].right <= control.left + 1),
+          );
         });
-      expect(toolbarAlignment, `필터와 정렬은 ${width}px에서도 같은 줄이어야 합니다.`).toBe(true);
+      expect(
+        headingAlignment,
+        `필터와 정렬은 ${width}px에서도 같은 줄에서 겹치지 않아야 합니다.`,
+      ).toBe(true);
       const headerSize = await page.locator('.service-header').evaluate((header) => {
         const box = header.getBoundingClientRect();
         return {
@@ -1162,7 +1431,7 @@ for (const viewport of [
     await expect(detail).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(holdingTrigger).toBeFocused();
-    const trigger = page.getByRole('button', { name: '거래 기록', exact: true });
+    const trigger = page.getByRole('button', { name: '종목 추가', exact: true });
     await trigger.click();
     await expect(
       page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
@@ -1190,16 +1459,15 @@ for (const viewport of [
       }),
     ).toBe(true);
     const searchBounds = await dialog.boundingBox();
-    expect(searchBounds!.height).toBeLessThanOrEqual(500);
-    const countryFilter = dialog.getByRole('group', { name: '종목 국가' });
-    await countryFilter.getByRole('button', { name: '미국', exact: true }).click();
-    await expect(countryFilter.getByRole('button', { name: '미국', exact: true })).toHaveAttribute(
+    expect(searchBounds!.height).toBe(560);
+    await expect(dialog.getByRole('group', { name: '종목 국가' })).toHaveCount(0);
+    const categoryFilter = dialog.getByRole('group', { name: '자산 유형 필터' });
+    await categoryFilter.getByRole('button', { name: 'ETF', exact: true }).click();
+    await expect(categoryFilter.getByRole('button', { name: 'ETF', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
-    expect(await dialog.boundingBox()).toEqual(searchBounds);
-    await countryFilter.getByRole('button', { name: '국내', exact: true }).click();
-    expect(await dialog.boundingBox()).toEqual(searchBounds);
+    await categoryFilter.getByRole('button', { name: '전체', exact: true }).click();
     let finishStockSearch!: () => void;
     pendingStockSearch = new Promise<void>((resolve) => {
       finishStockSearch = resolve;
@@ -1223,33 +1491,42 @@ for (const viewport of [
     finishStockSearch();
     pendingStockSearch = null;
     await dialog.getByRole('button', { name: /삼성전자/ }).click();
-    await expect(dialog.getByLabel('거래일', { exact: true })).toBeFocused();
-    await expect(dialog.getByLabel('거래 단가 (원)')).toHaveValue('75200');
+    await expect(dialog.getByLabel('수량 (주)')).toBeFocused();
+    await expect(dialog.getByLabel('거래 단가 (원)')).toHaveValue('75,200');
     await dialog.getByLabel('수량 (주)').fill('5');
     await dialog.getByLabel('거래 단가 (원)').fill('75200');
     await expect(dialog).toHaveCSS('scrollbar-width', 'none');
     const originalViewport = page.viewportSize()!;
     await page.setViewportSize({ width: originalViewport.width, height: 600 });
-    await dialog.getByText('수수료·세금', { exact: false }).click();
-    await dialog.getByLabel('세금 (원)', { exact: true }).fill('0');
-    const submitTrade = dialog.getByRole('button', { name: '매수 기록하기' });
-    await submitTrade.scrollIntoViewIfNeeded();
-    await expect(submitTrade).toBeInViewport();
-    expect(await dialog.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-    await dialog.getByText('수수료·세금', { exact: false }).click();
+    await dialog.getByRole('button', { name: '수수료·참고 시세', exact: true }).click();
+    const costsDialog = page.getByRole('dialog', { name: '수수료·참고 시세' });
+    await expect(costsDialog.getByLabel('수수료 (원)', { exact: true })).toBeVisible();
+    await costsDialog.getByLabel('세금 (원)', { exact: true }).fill('0');
+    const applyCosts = costsDialog.getByRole('button', { name: '적용', exact: true });
+    await applyCosts.scrollIntoViewIfNeeded();
+    await expect(applyCosts).toBeInViewport();
+    expect(
+      await costsDialog.evaluate((element) => element.scrollWidth <= element.clientWidth),
+    ).toBe(true);
+    await applyCosts.click();
+    await expect(costsDialog).toHaveCount(0);
+    await expect(dialog.getByRole('group', { name: '숫자 입력' })).toBeVisible();
     await page.setViewportSize(originalViewport);
-    await dialog.getByLabel('거래일', { exact: true }).focus();
+    await dialog.getByRole('button', { name: '거래일 수정', exact: true }).click();
+    const focusedDatePicker = page.getByRole('dialog', { name: '날짜 선택' });
+    await focusedDatePicker.getByRole('listbox', { name: '연도', exact: true }).focus();
     await page.screenshot({
       path: testInfo.outputPath('transaction.png'),
       fullPage: true,
     });
     for (let i = 0; i < 12; i++) {
       await page.keyboard.press('Tab');
-      expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(
-        true,
-      );
+      expect(
+        await focusedDatePicker.evaluate((element) => element.contains(document.activeElement)),
+      ).toBe(true);
     }
-    await dialog.getByRole('button', { name: '매수 기록하기' }).click();
+    await focusedDatePicker.getByRole('button', { name: '확인', exact: true }).click();
+    await dialog.getByRole('button', { name: '추가하기' }).click();
     await expect(dialog).toHaveCount(0);
     await page.getByRole('button', { name: '거래 내역' }).click();
     await expect(page.locator('.portfolio-history-row')).toHaveCount(2);

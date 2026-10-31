@@ -4,7 +4,7 @@ import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const defaultDist = fileURLToPath(new URL('../dist/', import.meta.url));
-const imageFallback = '/daynomy-favicon.png';
+const imageFallback = '/daynomy-og.png';
 const privateRoutes = new Set([
   '/',
   '/index.html',
@@ -111,7 +111,7 @@ function pageHtml(template, page, siteOrigin, indexable) {
       `content="${indexable && page.indexable ? 'index,follow' : 'noindex,follow'}"`,
     )
     .replace('</head>', `${meta}\n  </head>`)
-    .replace('<div id="root"></div>', `<div id="root">${page.body}</div>`);
+    .replace('<div id="root"></div>', `<div id="root"><noscript>${page.body}</noscript></div>`);
 }
 
 async function apiJson(apiOrigin, path) {

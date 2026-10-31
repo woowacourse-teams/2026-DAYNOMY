@@ -300,7 +300,7 @@ public class SharedPortfolioService {
                   return new HoldingResponse(
                       h.getAsset().getId(),
                       h.getAsset().getAssetCode(),
-                      h.getAsset().getName(),
+                      h.getAsset().getDisplayName(),
                       h.getAsset().getCategory().name(),
                       h.getAsset().getMarket().name(),
                       h.getAsset().getCurrency(),

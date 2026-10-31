@@ -30,17 +30,19 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
         AND a.market IN :markets
         AND (
           LOWER(a.name) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
+          OR LOWER(a.nameKo) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
           OR LOWER(a.assetCode) LIKE LOWER(CONCAT('%', :keyword, '%')) ESCAPE '!'
         )
       ORDER BY
         CASE
           WHEN LOWER(a.assetCode) = LOWER(:keyword) THEN 0
-          WHEN LOWER(a.name) = LOWER(:keyword) THEN 1
+          WHEN LOWER(a.name) = LOWER(:keyword) OR LOWER(a.nameKo) = LOWER(:keyword) THEN 1
           WHEN LOWER(a.assetCode) LIKE LOWER(CONCAT(:keyword, '%')) ESCAPE '!' THEN 2
-          WHEN LOWER(a.name) LIKE LOWER(CONCAT(:keyword, '%')) ESCAPE '!' THEN 3
+          WHEN LOWER(a.name) LIKE LOWER(CONCAT(:keyword, '%')) ESCAPE '!'
+            OR LOWER(a.nameKo) LIKE LOWER(CONCAT(:keyword, '%')) ESCAPE '!' THEN 3
           ELSE 4
         END,
-        a.name ASC,
+        COALESCE(NULLIF(a.nameKo, ''), a.name) ASC,
         a.id ASC
       """)
   List<Asset> searchListedSecurities(

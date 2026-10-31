@@ -67,7 +67,9 @@ public class AuthController {
     }
   }
 
-  @Operation(summary = "로그아웃", description = "Refresh Token을 무효화하고 인증 쿠키를 삭제합니다.")
+  @Operation(
+      summary = "로그아웃",
+      description = "현재 인증 세션의 기존 Access·Refresh Token을 무효화하고 인증 쿠키를 삭제합니다.")
   @PostMapping("/logout")
   public ResponseEntity<Void> logout(
       @Parameter(hidden = true) HttpServletRequest request,
@@ -75,7 +77,7 @@ public class AuthController {
 
     String refreshToken = tokenCookieManager.getRefreshToken(request);
 
-    tokenService.logout(refreshToken);
+    tokenService.logout(tokenCookieManager.getAccessToken(request), refreshToken);
     tokenCookieManager.clearTokenCookies(response);
 
     return ResponseEntity.noContent().build();

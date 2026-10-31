@@ -42,6 +42,7 @@ class UsStockAcceptanceTest {
       new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
 
   static final MockWebServer EODHD = startServer();
+  static final MockWebServer KIS = startServer();
 
   private static MockWebServer startServer() {
     try {
@@ -56,6 +57,7 @@ class UsStockAcceptanceTest {
   @AfterAll
   static void close() throws IOException {
     EODHD.shutdown();
+    KIS.shutdown();
   }
 
   @DynamicPropertySource
@@ -66,6 +68,7 @@ class UsStockAcceptanceTest {
     registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
     registry.add("external.eodhd.base-url", () -> EODHD.url("/api").toString());
     registry.add("external.eodhd.api-token", () -> "test-token");
+    registry.add("external.kis.base-url", () -> KIS.url("/master").toString());
   }
 
   @LocalServerPort int port;
@@ -88,6 +91,18 @@ class UsStockAcceptanceTest {
                 "us-stock-test", "test@example.invalid", "us-stock-test", null));
     client(member, MemberRole.USER).post("/api/admin/stocks/us/sync").then().statusCode(403);
     assertThat(EODHD.getRequestCount()).isZero();
+    for (String market : new String[] {"NAS", "NYS", "AMS"}) {
+      String symbol = market.equals("NAS") ? "AAPL" : market.equals("NYS") ? "IBM" : "VTI";
+      String name = market.equals("NAS") ? "애플" : market.equals("NYS") ? "아이비엠" : "뱅가드 ETF";
+      String row =
+          org.grit.daynomy.external.kis.KisStockMasterFixtures.row(
+              market, symbol, name, market.equals("AMS") ? "3" : "2");
+      KIS.enqueue(
+          new MockResponse()
+              .setBody(
+                  org.grit.daynomy.external.kis.KisStockMasterFixtures.archive(
+                      market + "MST.COD", row)));
+    }
     json(
         """
         [{"Code":"AAPL","Name":"Apple","Exchange":"NASDAQ","Currency":"USD","Type":"Common Stock"},
@@ -138,12 +153,26 @@ class UsStockAcceptanceTest {
         .then()
         .statusCode(200)
         .body("stocks.size()", equalTo(1))
+        .body("stocks[0].name", equalTo("애플"))
         .body("stocks[0].currency", equalTo("USD"));
+    for (String keyword : new String[] {"애플", "AAPL"}) {
+      given()
+          .port(port)
+          .queryParam("q", keyword)
+          .queryParam("country", "US")
+          .get("/api/stocks")
+          .then()
+          .statusCode(200)
+          .body("stocks.size()", equalTo(1))
+          .body("stocks[0].assetCode", equalTo("AAPL.US"))
+          .body("stocks[0].name", equalTo("애플"));
+    }
     given()
         .port(port)
         .get("/api/stocks/" + apple.getId() + "/price")
         .then()
         .statusCode(200)
+        .body("name", equalTo("애플"))
         .body("currency", equalTo("USD"))
         .body("baseDate", equalTo(date.toString()));
   }
@@ -160,6 +189,9 @@ class UsStockAcceptanceTest {
   }
 
   private RequestSpecification client(Member member, MemberRole role) {
+    var stored = members.findById(member.getId()).orElseThrow();
+    org.springframework.test.util.ReflectionTestUtils.setField(stored, "role", role);
+    members.saveAndFlush(stored);
     var csrf = given().port(port).get("/api/auth/csrf");
     return given()
         .port(port)

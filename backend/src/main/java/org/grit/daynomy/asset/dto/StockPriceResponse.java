@@ -16,7 +16,7 @@ public record StockPriceResponse(
     return new StockPriceResponse(
         price.getAsset().getId(),
         price.getAsset().getAssetCode(),
-        price.getAsset().getName(),
+        price.getAsset().getDisplayName(),
         price.getBaseDate(),
         price.getClosePrice(),
         price.getAsset().getCurrency());

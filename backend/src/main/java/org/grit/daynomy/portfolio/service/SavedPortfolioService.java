@@ -134,6 +134,7 @@ public class SavedPortfolioService {
             request.fee(),
             request.tax());
     history.applyExchangeRate(request.exchangeRate());
+    history.recordTradeTime(request.tradeTime());
     historyRepository.saveAndFlush(history);
 
     PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());

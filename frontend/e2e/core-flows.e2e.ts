@@ -189,9 +189,13 @@ test('소식 홈 투자 캘린더에서 다가오는 일정을 확인한다', as
   await page.goto('/news');
   const calendar = page.getByRole('region', { name: '투자 캘린더' });
   await expect(calendar.getByRole('heading', { name: '투자 캘린더' })).toBeVisible();
-  await expect(calendar.getByLabel('2026년 9월 주간')).toBeVisible();
-  await expect(calendar.getByText('한국 기준금리 결정', { exact: true })).toBeVisible();
-  await expect(calendar.getByText('09.22 (화)', { exact: true })).toBeVisible();
+  await expect(calendar.getByLabel('2026년 9월 일정')).toBeVisible();
+  await expect(
+    calendar.getByRole('button', { name: '9월 22일 한국 기준금리 결정' }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  const selectedDayEvents = calendar.getByRole('list', { name: '선택한 날짜의 일정' });
+  await expect(selectedDayEvents.getByText('한국 기준금리 결정', { exact: true })).toBeVisible();
+  await expect(selectedDayEvents.getByText('09.22 (화)', { exact: true })).toBeVisible();
 
   await calendar.getByRole('button', { name: '다음 달' }).click();
   await expect(calendar.getByText('2026년 10월', { exact: true })).toBeVisible();

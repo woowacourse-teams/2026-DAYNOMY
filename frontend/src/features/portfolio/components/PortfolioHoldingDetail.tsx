@@ -1,3 +1,7 @@
+import { CaretRightIcon } from '@phosphor-icons/react/dist/csr/CaretRight';
+import { ChartLineUpIcon } from '@phosphor-icons/react/dist/csr/ChartLineUp';
+import { DotsThreeIcon } from '@phosphor-icons/react/dist/csr/DotsThree';
+import { XIcon } from '@phosphor-icons/react/dist/csr/X';
 import { stockCurrency } from '../../stocks/types';
 import { PortfolioHistory } from './PortfolioHistory';
 import type {
@@ -50,15 +54,13 @@ export function PortfolioHoldingDetail({
     <>
       <header className="portfolio-holding-detail-heading">
         <span className="portfolio-detail-monogram" aria-hidden="true">
-          {stock.name.slice(0, 1)}
+          <ChartLineUpIcon size={24} weight="bold" />
         </span>
         <div>
           <h2 id="holding-detail-title" aria-label={`${stock.name} 보유 상세`}>
             <a href={`/stocks/${stock.assetId}`} aria-label={`${stock.name} 종목 정보 보기`}>
               {stock.name}
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m9 5 7 7-7 7" />
-              </svg>
+              <CaretRightIcon size={18} aria-hidden="true" />
             </a>
             <span className="sr-only">보유 상세</span>
           </h2>
@@ -69,11 +71,7 @@ export function PortfolioHoldingDetail({
         {holding && (
           <details className="portfolio-detail-settings">
             <summary aria-label="보유정보 편집">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="5" cy="12" r="1.5" />
-                <circle cx="12" cy="12" r="1.5" />
-                <circle cx="19" cy="12" r="1.5" />
-              </svg>
+              <DotsThreeIcon size={24} weight="bold" aria-hidden="true" />
               <span className="sr-only">보유정보 편집</span>
             </summary>
             <div>
@@ -92,30 +90,36 @@ export function PortfolioHoldingDetail({
           aria-label="보유 상세 닫기"
           onClick={onClose}
         >
-          ×
+          <XIcon size={22} aria-hidden="true" />
         </button>
       </header>
       <div className="portfolio-detail-scroll">
         <section className="portfolio-detail-value" aria-label="종목 보유 현황" aria-busy={busy}>
-          <span className="portfolio-detail-caption">평가금액</span>
-          <strong className="portfolio-detail-total">
-            {won(holding ? valuation?.evaluationAmount : 0)}
-          </strong>
+          <div className="portfolio-detail-value-heading">
+            <div>
+              <span className="portfolio-detail-caption sr-only">평가금액</span>
+              <strong className="portfolio-detail-total">
+                {won(holding ? valuation?.evaluationAmount : 0)}
+              </strong>
+            </div>
+            <span className="portfolio-detail-currency" aria-label="평가 통화 KRW">
+              KRW
+            </span>
+          </div>
           <p>
-            매입금액{' '}
-            <span>{won(holding ? holding.quantity * holding.averagePurchasePrice : 0)}</span>
+            원금 <span>{won(holding ? holding.quantity * holding.averagePurchasePrice : 0)}</span>
           </p>
           <dl className="portfolio-detail-metrics">
             <div>
-              <dt>보유 수량</dt>
+              <dt>수량</dt>
               <dd>{amountsHidden ? '•••' : (holding?.quantity ?? 0).toLocaleString('ko-KR')}주</dd>
             </div>
             <div>
-              <dt>평균 매수가{stockCurrency(stock) === 'USD' ? ' (원화)' : ''}</dt>
+              <dt>구매가{stockCurrency(stock) === 'USD' ? ' (원화)' : ''}</dt>
               <dd>{won(holding?.averagePurchasePrice ?? 0)}</dd>
             </div>
             <div>
-              <dt>최근 종가</dt>
+              <dt title="최근 확인된 종가 기준">현재가</dt>
               <dd>
                 {valuation?.closePrice == null
                   ? '—'
@@ -123,22 +127,15 @@ export function PortfolioHoldingDetail({
               </dd>
             </div>
             <div className={profitClass}>
-              <dt>평가손익</dt>
-              <dd>{won(profit, true)}</dd>
-            </div>
-            <div className={profitClass}>
-              <dt>수익률</dt>
-              <dd>{rate == null ? '—' : `${rate > 0 ? '+' : ''}${rate.toFixed(2)}%`}</dd>
+              <dt title="현재 보유분의 평가손익 기준">총 수익</dt>
+              <dd>
+                <span>{won(profit, true)}</span>
+                {rate != null && <small>{`(${rate > 0 ? '+' : ''}${rate.toFixed(2)}%)`}</small>}
+              </dd>
             </div>
             <div>
-              <dt>자산 비중</dt>
-              <dd>
-                {holding
-                  ? valuation?.weight == null
-                    ? '—'
-                    : `${valuation.weight.toFixed(2)}%`
-                  : '0.00%'}
-              </dd>
+              <dt>일간 수익</dt>
+              <dd aria-label="일간 수익 정보 없음">—</dd>
             </div>
           </dl>
           <p className="portfolio-detail-price-note">

@@ -6,6 +6,7 @@ import {
   syncAdminStockPrices,
   syncAdminStocks,
   syncAdminUsStocks,
+  syncAdminUsStockKoreanNames,
   syncAdminUsStockPrices,
 } from '../../src/features/admin/api.ts';
 
@@ -178,6 +179,14 @@ test('미국 종목·최근 종가·지정일 종가는 각각 CSRF POST로 요�
             createdCount: 15,
             updatedCount: 4,
             delistedCount: 1,
+            koreanNames: {
+              downloadedCount: 20,
+              matchedCount: 15,
+              updatedCount: 10,
+              unmatchedCount: 2,
+              skippedCount: 3,
+            },
+            koreanNameErrorCode: null,
           },
     );
   };
@@ -212,6 +221,52 @@ test('미국 종가의 잘못된 날짜·미래 날짜와 잘못된 응답을 �
       : jsonResponse({});
   await assert.rejects(syncAdminUsStocks(), /응답 형식/);
   await assert.rejects(syncAdminUsStockPrices(), /응답 형식/);
+});
+
+test('미국 종목 통합 결과의 부분 실패를 받고 한글명만 CSRF로 재시도한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const counts = {
+    downloadedCount: 20,
+    matchedCount: 15,
+    updatedCount: 10,
+    unmatchedCount: 2,
+    skippedCount: 3,
+  };
+  let body: unknown = {
+    baseDate: '2026-10-27',
+    syncedCount: 20,
+    createdCount: 1,
+    updatedCount: 0,
+    delistedCount: 0,
+    koreanNames: null,
+    koreanNameErrorCode: 'KIS_STOCK_MASTER_REQUEST_FAILED',
+  };
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    calls.push({ url, init });
+    return jsonResponse(
+      url === '/api/auth/csrf' ? { token: 'token', headerName: 'X-CSRF-TOKEN' } : body,
+    );
+  };
+  assert.equal((await syncAdminUsStocks()).koreanNameErrorCode, 'KIS_STOCK_MASTER_REQUEST_FAILED');
+  const base = body as Record<string, unknown>;
+  for (const invalid of [
+    { ...base, koreanNameErrorCode: null },
+    { ...base, koreanNames: counts },
+    { ...base, koreanNames: { ...counts, updatedCount: 16 }, koreanNameErrorCode: null },
+    { ...base, koreanNames: { ...counts, matchedCount: -1 }, koreanNameErrorCode: null },
+  ]) {
+    body = invalid;
+    await assert.rejects(syncAdminUsStocks(), /응답 형식/);
+  }
+  body = counts;
+  assert.deepEqual(await syncAdminUsStockKoreanNames(), counts);
+  const last = calls.at(-1)!;
+  assert.equal(last.url, '/api/admin/stocks/us/korean-names/sync');
+  assert.equal(last.init?.method, 'POST');
+  assert.equal(new Headers(last.init?.headers).get('X-CSRF-TOKEN'), 'token');
+  body = { ...counts, downloadedCount: 19 };
+  await assert.rejects(syncAdminUsStockKoreanNames(), /응답 형식/);
 });
 
 test('미국 종가 날짜는 한국 날짜가 아닌 뉴욕의 오늘을 기준으로 제한한다', async (t) => {

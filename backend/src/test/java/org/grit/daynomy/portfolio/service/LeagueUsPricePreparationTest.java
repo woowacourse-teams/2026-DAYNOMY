@@ -25,7 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -34,7 +34,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 @ExtendWith(MockitoExtension.class)
 class LeagueUsPricePreparationTest {
   @Mock private AssetRepository assets;
-  @Mock private TaskScheduler scheduler;
+  @Mock private ThreadPoolTaskExecutor historyExecutor;
   @Mock private StockDailyPriceRepository storedPrices;
   @Mock private MarketTradingDayRepository days;
   @Mock private EodhdClient usClient;
@@ -58,7 +58,7 @@ class LeagueUsPricePreparationTest {
     prices.prepareLeagueUsPrices(List.of(7L), from, from);
 
     ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-    verify(scheduler).schedule(job.capture(), any(Instant.class));
+    verify(historyExecutor).execute(job.capture());
     job.getValue().run();
     verify(storedPrices).saveAll(any());
     verify(days).markUsCollectedDates(eq(List.of(from)), any(Instant.class));

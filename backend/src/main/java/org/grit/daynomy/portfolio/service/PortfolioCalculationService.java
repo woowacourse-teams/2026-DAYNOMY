@@ -268,7 +268,7 @@ public class PortfolioCalculationService {
                 new PortfolioHoldingResponse(
                     holding.asset().getId(),
                     holding.asset().getAssetCode(),
-                    holding.asset().getName(),
+                    holding.asset().getDisplayName(),
                     holding.asset().getCategory(),
                     holding.asset().getMarket(),
                     holding.closePrice() != null,

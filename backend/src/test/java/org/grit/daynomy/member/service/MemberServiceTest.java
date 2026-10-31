@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.Optional;
 import org.grit.daynomy.auth.repository.RefreshTokenRepository;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -18,6 +19,7 @@ import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.domain.LeagueTypes.ExperienceLevel;
 import org.grit.daynomy.league.domain.LeagueTypes.RiskProfile;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
+import org.grit.daynomy.league.service.LeagueRankingCache;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberStatus;
 import org.grit.daynomy.member.domain.OAuthProvider;
@@ -42,6 +44,7 @@ class MemberServiceTest {
 
   @Mock private RefreshTokenRepository refreshTokenRepository;
   @Mock private InvestorProfileRepository investorProfileRepository;
+  @Mock private LeagueRankingCache rankingCache;
 
   @InjectMocks private MemberService memberService;
 
@@ -224,13 +227,35 @@ class MemberServiceTest {
   @DisplayName("회원 탈퇴 시 Refresh Token을 삭제하고 회원 상태를 변경한다")
   void withdrawDeletesRefreshTokensAndWithdrawsMember() {
     Member member = createActiveMember("탈퇴회원");
-    given(memberRepository.findById(1L)).willReturn(Optional.of(member));
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
 
     memberService.withdraw(1L);
 
     verify(refreshTokenRepository).deleteAllByMember_Id(1L);
     assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
     assertThat(member.getWithdrawnAt()).isNotNull();
+    verify(rankingCache).invalidateAfterCommit();
+  }
+
+  @Test
+  void withdrawalClosesPublicationAndTheCurrentLeagueParticipation() {
+    Member member = createActiveMember("공개회원");
+    InvestorProfile profile =
+        InvestorProfile.create(member, "공개회원", "", ExperienceLevel.BEGINNER, RiskProfile.BALANCED);
+    profile.changePublication(true, true, true, true, Instant.now().minusSeconds(60));
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(member));
+    given(investorProfileRepository.findByMemberIdForUpdate(1L)).willReturn(Optional.of(profile));
+
+    memberService.withdraw(1L);
+
+    assertThat(member.isWithdrawn()).isTrue();
+    assertThat(profile.isProfilePublic()).isFalse();
+    assertThat(profile.isLeagueEnabled()).isFalse();
+    assertThat(profile.isAllocationPublic()).isFalse();
+    assertThat(profile.isDetailPublic()).isFalse();
+    assertThat(profile.getParticipations()).hasSize(1);
+    assertThat(profile.getParticipations().getFirst().getEndedAt()).isNotNull();
+    verify(rankingCache).invalidateAfterCommit();
   }
 
   private Member createActiveMember(String nickname) {

@@ -57,6 +57,35 @@ class SavedPortfolioServiceTest {
   @InjectMocks private SavedPortfolioService service;
 
   @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void holdingsAndHistoriesPreferKoreanNamesWhenAvailable(boolean hasKoreanName) {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    LocalDate date = LocalDate.of(2026, 10, 30);
+    Asset apple = Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, date);
+    org.springframework.test.util.ReflectionTestUtils.setField(apple, "id", 2L);
+    if (hasKoreanName) apple.synchronizeKoreanName("애플");
+    PortfolioHolding holding = new PortfolioHolding(portfolio, apple, 1L, new BigDecimal("100"));
+    PortfolioHoldingHistory history =
+        new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.OPENING_BALANCE);
+    given(holdingRepository.findAllByPortfolioIdOrderById(10L)).willReturn(List.of(holding));
+    given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
+        .willReturn(List.of(history));
+    given(ledgerCalculator.replay(List.of(history)))
+        .willReturn(new PortfolioLedgerCalculator.LedgerResult(Map.of(), BigDecimal.ZERO));
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDescIdDesc(
+                    10L, date, date))
+        .willReturn(List.of(history));
+
+    String expected = hasKoreanName ? "애플" : "Apple";
+    assertThat(service.get(1L).holdings().getFirst().name()).isEqualTo(expected);
+    assertThat(service.histories(1L, date, date).getFirst().name()).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
   @CsvSource({"5,10000", "3,11000", "5,11000"})
   void updateHoldingRecordsUpdatedHistory(long quantity, String price) {
     Portfolio portfolio = mock(Portfolio.class);
@@ -373,7 +402,7 @@ class SavedPortfolioServiceTest {
     Asset asset = mock(Asset.class);
     given(asset.getId()).willReturn(2L);
     given(asset.getAssetCode()).willReturn("005930");
-    given(asset.getName()).willReturn("삼성전자");
+    given(asset.getDisplayName()).willReturn("삼성전자");
     given(asset.getCategory()).willReturn(AssetCategory.STOCK);
     given(asset.getMarket()).willReturn(StockMarket.KOSPI);
     return asset;

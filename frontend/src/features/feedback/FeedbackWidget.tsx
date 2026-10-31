@@ -3,7 +3,8 @@ import type { FormEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { trackEvent } from '../../analytics';
-import { createFeedback } from './api';
+import { createAdminFeedback, createFeedback } from './api';
+import type { FeedbackCategory } from './types';
 import './feedback.css';
 
 function MessageIcon() {
@@ -21,13 +22,18 @@ function getErrorMessage(error: unknown) {
     : '피드백을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
-export function FeedbackWidget() {
+type FeedbackWidgetProps = {
+  variant?: 'service' | 'admin';
+};
+
+export function FeedbackWidget({ variant = 'service' }: FeedbackWidgetProps) {
   const location = useLocation();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [open, setOpen] = useState(false);
   const [content, setContent] = useState('');
+  const [category, setCategory] = useState<FeedbackCategory>('INCONVENIENCE');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -60,7 +66,15 @@ export function FeedbackWidget() {
     setSubmitting(true);
     setErrorMessage(null);
     try {
-      await createFeedback(trimmedContent, location.pathname.slice(0, 2048));
+      const pagePath =
+        variant === 'admin'
+          ? `${location.pathname}${location.search}${location.hash}`.slice(0, 2048)
+          : location.pathname.slice(0, 2048);
+      if (variant === 'admin') {
+        await createAdminFeedback(category, trimmedContent, pagePath);
+      } else {
+        await createFeedback(trimmedContent, pagePath);
+      }
       setContent('');
       setSubmitted(true);
       trackEvent('submit_feedback');
@@ -148,6 +162,20 @@ export function FeedbackWidget() {
               </div>
 
               <form className="feedback-form" onSubmit={handleSubmit}>
+                {variant === 'admin' ? (
+                  <label className="feedback-category">
+                    피드백 유형
+                    <select
+                      value={category}
+                      onChange={(event) => setCategory(event.target.value as FeedbackCategory)}
+                      disabled={submitting}
+                    >
+                      <option value="BUG">오류</option>
+                      <option value="INCONVENIENCE">사용 불편</option>
+                      <option value="FEATURE_REQUEST">기능 제안</option>
+                    </select>
+                  </label>
+                ) : null}
                 <label htmlFor="feedback-content">피드백 내용</label>
                 <textarea
                   ref={textareaRef}

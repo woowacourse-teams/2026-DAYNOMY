@@ -163,7 +163,6 @@ export const PortfolioNews = memo(function PortfolioNews({
           보유 자산 소식
         </h2>
         <div className="portfolio-news-heading-actions">
-          <span>최신순</span>
           {onClose && (
             <button
               type="button"
@@ -171,6 +170,7 @@ export const PortfolioNews = memo(function PortfolioNews({
               aria-label="소식 접기"
               onClick={onClose}
             >
+              <span>접기</span>
               <svg aria-hidden="true" viewBox="0 0 24 24">
                 <path d="m9 6 6 6-6 6" />
               </svg>
@@ -178,11 +178,12 @@ export const PortfolioNews = memo(function PortfolioNews({
           )}
         </div>
       </div>
-      <p className="portfolio-news-description">
-        {demo
-          ? '체험용 가상 소식 · 신제품 수요가 늘었다고 가정해요. 다음 단계에서 내 자산에 미칠 영향을 확인해요.'
-          : '내 종목과 연결된 이야기'}
-      </p>
+      {demo && (
+        <p className="portfolio-news-description">
+          체험용 가상 소식 · 신제품 수요가 늘었다고 가정해요. 다음 단계에서 내 자산에 미칠 영향을
+          확인해요.
+        </p>
+      )}
       {!demo && loading && (
         <p role="status" className="portfolio-news-state">
           소식을 불러오는 중입니다.
@@ -207,7 +208,7 @@ export const PortfolioNews = memo(function PortfolioNews({
         </p>
       )}
       {!demo && !loading && !failed && !items.length && (
-        <p className="portfolio-news-state">
+        <p className="portfolio-news-state is-empty">
           {holdings.length
             ? '보유 자산에 등록된 소식이 없습니다.'
             : '자산을 등록하면 관련 소식이 여기에 모입니다.'}

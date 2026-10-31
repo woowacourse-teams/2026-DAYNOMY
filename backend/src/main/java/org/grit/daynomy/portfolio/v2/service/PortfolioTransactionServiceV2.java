@@ -104,6 +104,7 @@ public class PortfolioTransactionServiceV2 {
             request.fee(),
             request.tax());
     transaction.applyExchangeRate(request.exchangeRate());
+    transaction.recordTradeTime(request.tradeTime());
     historyRepository.saveAndFlush(transaction);
 
     List<PortfolioHoldingHistory> histories =

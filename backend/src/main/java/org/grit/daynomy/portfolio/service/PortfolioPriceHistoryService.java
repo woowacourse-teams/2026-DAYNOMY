@@ -32,7 +32,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
-import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -54,7 +54,7 @@ public class PortfolioPriceHistoryService {
   private final EodhdClient usClient;
   private final KrxCalendarClient krxCalendarClient;
   private final PortfolioSnapshotTransactionService snapshotService;
-  private final TaskScheduler taskScheduler;
+  private final ThreadPoolTaskExecutor portfolioPriceHistoryTaskExecutor;
   private final PlatformTransactionManager transactionManager;
   private final Map<Long, JobStatus> jobs = new ConcurrentHashMap<>();
   private final Map<Long, Range> refreshedRanges = new ConcurrentHashMap<>();
@@ -74,7 +74,7 @@ public class PortfolioPriceHistoryService {
         addTarget(targets, asset, from, to);
     }
     if (targets.isEmpty()) return;
-    taskScheduler.schedule(
+    portfolioPriceHistoryTaskExecutor.execute(
         () -> {
           for (Target target : targets.values()) {
             try {
@@ -86,8 +86,7 @@ public class PortfolioPriceHistoryService {
                   exception.getClass().getSimpleName());
             }
           }
-        },
-        Instant.now());
+        });
   }
 
   public synchronized Status prepare(
@@ -131,7 +130,8 @@ public class PortfolioPriceHistoryService {
 
     jobs.put(portfolioId, JobStatus.PROCESSING);
     try {
-      taskScheduler.schedule(() -> collect(portfolioId, from, to, targets), Instant.now());
+      portfolioPriceHistoryTaskExecutor.execute(
+          () -> runCollection(portfolioId, from, to, targets));
     } catch (RuntimeException exception) {
       jobs.put(portfolioId, JobStatus.FAILED);
       throw exception;
@@ -223,6 +223,23 @@ public class PortfolioPriceHistoryService {
                 !holidays
                     .computeIfAbsent(date.getYear(), krxCalendarClient::holidays)
                     .contains(date));
+  }
+
+  private void runCollection(Long portfolioId, LocalDate from, LocalDate to, List<Target> targets) {
+    boolean completed = false;
+    try {
+      collect(portfolioId, from, to, targets);
+      completed = true;
+    } finally {
+      // Error는 실행기로 전파하면서도 종료 상태를 먼저 복구한다.
+      if (!completed) {
+        jobs.put(portfolioId, JobStatus.FAILED);
+        refreshedRanges.remove(portfolioId);
+        log.error(
+            "Portfolio price preparation terminated before completion: portfolioId={}",
+            portfolioId);
+      }
+    }
   }
 
   private void collect(Long portfolioId, LocalDate from, LocalDate to, List<Target> targets) {

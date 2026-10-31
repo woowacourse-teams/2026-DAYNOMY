@@ -56,6 +56,7 @@ import org.grit.daynomy.league.repository.SharedPortfolioRepository;
 import org.grit.daynomy.league.repository.WeeklyLeaderboardRepository;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -68,6 +69,9 @@ import org.mockito.MockedStatic;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -89,9 +93,56 @@ class LeagueServiceTest {
   @Mock private WeeklyLeaderboardRepository leaderboardRepository;
   @Mock private LeagueCalculationMetrics calculationMetrics;
   @Mock private EntityManager entityManager;
+  @Mock private PlatformTransactionManager transactionManager;
   @Mock private LeagueAggregationService aggregationService;
   @Spy private LeagueRankingCache rankingCache = new LeagueRankingCache(mock(TaskScheduler.class));
   @InjectMocks private LeagueService service;
+
+  @BeforeEach
+  void transactions() {
+    lenient()
+        .when(transactionManager.getTransaction(any()))
+        .thenAnswer(invocation -> new SimpleTransactionStatus());
+  }
+
+  @Test
+  void finalizationReadsEachProfileOutsideTheAccumulatingWritePersistenceContext() {
+    LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(1);
+    var member = mock(Member.class);
+    given(member.getId()).willReturn(2L);
+    var profile =
+        InvestorProfile.create(
+            member,
+            "확정 경계",
+            "",
+            LeagueTypes.ExperienceLevel.BEGINNER,
+            LeagueTypes.RiskProfile.BALANCED);
+    profile.changePublication(
+        true, true, false, false, week.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant());
+    given(profileRepository.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(week, week.plusDays(6)))
+        .willReturn(
+            week.datesUntil(week.plusDays(7))
+                .map(
+                    date -> {
+                      var day = new MarketTradingDay(date, date.getDayOfWeek().getValue() < 6);
+                      if (day.isTrading()) day.collected(Instant.now());
+                      return day;
+                    })
+                .toList());
+
+    service.finalizeWeeks(week);
+
+    var definitions = org.mockito.ArgumentCaptor.forClass(TransactionDefinition.class);
+    then(transactionManager).should(times(2)).getTransaction(definitions.capture());
+    assertThat(definitions.getAllValues())
+        .allSatisfy(
+            definition -> {
+              assertThat(definition.isReadOnly()).isTrue();
+              assertThat(definition.getPropagationBehavior())
+                  .isEqualTo(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            });
+  }
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -109,7 +160,7 @@ class LeagueServiceTest {
     given(portfolioRepository.findByMemberId(2L)).willReturn(Optional.of(portfolio));
     given(portfolio.getId()).willReturn(3L);
     given(visibleAsset.getId()).willReturn(4L);
-    given(visibleAsset.getName()).willReturn("공개 종목");
+    given(visibleAsset.getDisplayName()).willReturn("공개 종목");
     given(visibleAsset.getCategory()).willReturn(AssetCategory.STOCK);
     given(hiddenAsset.getId()).willReturn(5L);
     var visible = new SharedHolding(portfolio, visibleAsset, 1, new BigDecimal("100"));
@@ -1529,7 +1580,7 @@ class LeagueServiceTest {
     given(history.getQuantity()).willReturn(10L);
     given(asset.getId()).willReturn(4L);
     if (!hidden) {
-      given(asset.getName()).willReturn("삼성전자");
+      given(asset.getDisplayName()).willReturn("삼성전자");
       given(asset.getCategory()).willReturn(AssetCategory.STOCK);
     }
     SharedHolding visible = mock(SharedHolding.class);

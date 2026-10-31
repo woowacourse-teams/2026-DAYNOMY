@@ -30,6 +30,16 @@ public class Feedback extends BaseEntity {
   private String pagePath;
 
   @Enumerated(EnumType.STRING)
+  @Column(name = "category", length = 30)
+  private FeedbackCategory category;
+
+  @Column(name = "author_member_id")
+  private Long authorMemberId;
+
+  @Column(name = "author_nickname", length = 20)
+  private String authorNickname;
+
+  @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 20)
   private FeedbackStatus status;
 
@@ -41,6 +51,19 @@ public class Feedback extends BaseEntity {
 
   public static Feedback create(String content, String pagePath) {
     return new Feedback(content, pagePath);
+  }
+
+  public static Feedback createAdmin(
+      String content,
+      String pagePath,
+      FeedbackCategory category,
+      Long authorMemberId,
+      String authorNickname) {
+    Feedback feedback = new Feedback(content, pagePath);
+    feedback.category = category;
+    feedback.authorMemberId = authorMemberId;
+    feedback.authorNickname = authorNickname;
+    return feedback;
   }
 
   public void changeStatus(FeedbackStatus status) {

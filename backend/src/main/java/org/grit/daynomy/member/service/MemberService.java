@@ -1,11 +1,13 @@
 package org.grit.daynomy.member.service;
 
+import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.repository.RefreshTokenRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.CommonErrorCode;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
+import org.grit.daynomy.league.service.LeagueRankingCache;
 import org.grit.daynomy.member.controller.dto.MemberResponse;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.OAuthProvider;
@@ -24,6 +26,7 @@ public class MemberService {
   private final MemberRepository memberRepository;
   private final RefreshTokenRepository refreshTokenRepository;
   private final InvestorProfileRepository investorProfileRepository;
+  private final LeagueRankingCache rankingCache;
 
   @Transactional
   public Member findOrCreateGoogleMember(
@@ -105,10 +108,18 @@ public class MemberService {
 
   @Transactional
   public void withdraw(Long memberId) {
-    Member member = findActiveMember(memberId);
+    Member member =
+        validateActiveMember(
+            memberRepository
+                .findByIdForUpdate(memberId)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND)));
 
+    investorProfileRepository
+        .findByMemberIdForUpdate(memberId)
+        .ifPresent(profile -> profile.changePublication(false, false, false, false, Instant.now()));
     refreshTokenRepository.deleteAllByMember_Id(memberId);
     member.withdraw();
+    rankingCache.invalidateAfterCommit();
   }
 
   private Member findActiveMember(Long memberId) {
