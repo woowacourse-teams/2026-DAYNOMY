@@ -9,6 +9,10 @@ news:
       enabled: true
 
 stock:
+  us:
+    calendar:
+      sync:
+        enabled: ${US_MARKET_CALENDAR_SYNC_ENABLED:true}
   calendar:
     sync:
       enabled: ${MARKET_CALENDAR_SYNC_ENABLED:true}

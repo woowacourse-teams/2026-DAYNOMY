@@ -104,7 +104,7 @@ class StockPricePersistenceServiceTest {
     assertThat(result.createdCount()).isZero();
     assertThat(result.updatedCount()).isZero();
     assertThat(result.skippedCount()).isEqualTo(2);
-    org.mockito.Mockito.verifyNoInteractions(tradingDayRepository);
+    org.mockito.Mockito.verify(tradingDayRepository).findByIdForUpdate(date);
   }
 
   @Test

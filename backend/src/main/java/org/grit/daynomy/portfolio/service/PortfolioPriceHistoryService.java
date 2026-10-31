@@ -66,6 +66,30 @@ public class PortfolioPriceHistoryService {
     FAILED
   }
 
+  public void prepareLeagueUsPrices(List<Long> assetIds, LocalDate from, LocalDate to) {
+    if (assetIds.isEmpty()) return;
+    Map<Long, Target> targets = new LinkedHashMap<>();
+    for (Asset asset : assetRepository.findAllById(assetIds)) {
+      if (asset.getMarket() != null && asset.getMarket().isUs())
+        addTarget(targets, asset, from, to);
+    }
+    if (targets.isEmpty()) return;
+    taskScheduler.schedule(
+        () -> {
+          for (Target target : targets.values()) {
+            try {
+              collect(target);
+            } catch (RuntimeException exception) {
+              log.warn(
+                  "League US price collection failed: assetId={}, errorType={}",
+                  target.assetId(),
+                  exception.getClass().getSimpleName());
+            }
+          }
+        },
+        Instant.now());
+  }
+
   public synchronized Status prepare(
       Long memberId, LocalDate requestedFrom, LocalDate requestedTo, boolean retry) {
     if (requestedFrom.isAfter(requestedTo)) {
@@ -303,6 +327,16 @@ public class PortfolioPriceHistoryService {
                       }
                     }
                     priceRepository.saveAll(additions);
+                    if (storedAsset.getMarket() != null && storedAsset.getMarket().isUs()) {
+                      List<LocalDate> collectedDates =
+                          fetched.stream()
+                              .map(HistoricalPrice::baseDate)
+                              .filter(java.util.Objects::nonNull)
+                              .distinct()
+                              .toList();
+                      if (!collectedDates.isEmpty())
+                        tradingDayRepository.markUsCollectedDates(collectedDates, Instant.now());
+                    }
                     List<LocalDate> missing =
                         tradingDates.stream().filter(date -> !present.contains(date)).toList();
                     LocalDate coveredFrom = fetchFrom;
