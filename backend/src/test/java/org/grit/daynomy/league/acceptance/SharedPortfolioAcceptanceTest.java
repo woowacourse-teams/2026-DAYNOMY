@@ -79,16 +79,102 @@ class SharedPortfolioAcceptanceTest {
   @Autowired private TokenService tokenService;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private LeagueReturnService leagueReturns;
+  @Autowired private org.grit.daynomy.portfolio.service.SavedPortfolioService savedPortfolios;
   private static final String SHARED = "/api/users/me/shared-portfolio";
+
+  @Test
+  void sourceChangesAutomaticallyIncludePublicAndPrivateHoldingsWithoutOptIn() {
+    Member owner = member();
+    Asset visible = asset();
+    Asset hidden = asset();
+    Asset added = asset();
+    Portfolio original = originals.save(Portfolio.create(owner));
+    originalHoldings.save(new PortfolioHolding(original, visible, 1, new BigDecimal("100")));
+    originalHoldings.save(new PortfolioHolding(original, hidden, 2, new BigDecimal("100")));
+    client(owner)
+        .body(
+            """
+        {"holdings":[{"assetId":%d,"quantity":1,"averagePurchasePrice":100,
+          "decision":{"reason":"공개 보유 이유"}}],"overwriteExisting":false}
+        """
+                .formatted(visible.getId()))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    client(owner)
+        .get(SHARED)
+        .then()
+        .statusCode(200)
+        .body("holdings", hasSize(2))
+        .body("holdings.sourceManaged", everyItem(equalTo(true)))
+        .body("holdings.find { it.assetId == " + hidden.getId() + " }.hidden", equalTo(true));
+
+    originalHoldings.save(new PortfolioHolding(original, added, 3, new BigDecimal("100")));
+    savedPortfolios.update(
+        owner.getId(),
+        visible.getId(),
+        new org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest(
+            4L, new BigDecimal("100")));
+
+    Long sharedId =
+        jdbc.queryForObject(
+            "SELECT id FROM shared_portfolios WHERE member_id=?", Long.class, owner.getId());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT quantity FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Long.class,
+                sharedId,
+                visible.getId()))
+        .isEqualTo(4L);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT hidden FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Boolean.class,
+                sharedId,
+                visible.getId()))
+        .isFalse();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT hidden FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Boolean.class,
+                sharedId,
+                hidden.getId()))
+        .isTrue();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT hidden FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Boolean.class,
+                sharedId,
+                added.getId()))
+        .isTrue();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id=? AND asset_id=?",
+                Integer.class,
+                sharedId,
+                added.getId()))
+        .isEqualTo(1);
+
+    savedPortfolios.remove(owner.getId(), added.getId());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Integer.class,
+                sharedId,
+                added.getId()))
+        .isZero();
+  }
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void removalPreservesOriginalAndRecordsAndEndsParticipationOnlyForLastHolding(boolean last) {
+  void sourceRemovalPreservesRecordsAndEndsParticipationOnlyForLastHolding(boolean last) {
     Member owner = member();
     Asset first = asset();
     Asset second = asset();
     Portfolio original = originals.save(Portfolio.create(owner));
     originalHoldings.save(new PortfolioHolding(original, first, 2, new BigDecimal("100")));
+    if (!last)
+      originalHoldings.save(new PortfolioHolding(original, second, 2, new BigDecimal("100")));
     for (Asset selected : last ? List.of(first) : List.of(first, second)) {
       client(owner)
           .body(
@@ -130,9 +216,10 @@ class SharedPortfolioAcceptanceTest {
     client(owner)
         .delete(target)
         .then()
-        .statusCode(200)
-        .header("Cache-Control", "no-store")
-        .body("holdings", hasSize(last ? 0 : 1));
+        .statusCode(409)
+        .body("code", equalTo("SHARED_HOLDING_SOURCE_MANAGED"));
+    savedPortfolios.remove(owner.getId(), first.getId());
+    client(owner).get(SHARED).then().statusCode(200).body("holdings", hasSize(last ? 0 : 1));
     client(owner).delete(target).then().statusCode(404);
     client(owner)
         .get("/api/users/me/investor-profile")
@@ -140,7 +227,8 @@ class SharedPortfolioAcceptanceTest {
         .statusCode(200)
         .body("leagueEnabled", equalTo(!last))
         .body("profilePublic", equalTo(!last));
-    assertThat(originalHoldings.findAllByPortfolioIdOrderById(original.getId())).hasSize(1);
+    assertThat(originalHoldings.findAllByPortfolioIdOrderById(original.getId()))
+        .hasSize(last ? 0 : 1);
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM shared_holding_histories h JOIN shared_portfolios p ON p.id=h.portfolio_id WHERE p.member_id=? AND h.change_type='REMOVED'",
@@ -352,7 +440,7 @@ class SharedPortfolioAcceptanceTest {
   }
 
   @Test
-  void newParticipantWithSameDayImportedHoldingsAppearsInThatWeeksRankingsAtZero() {
+  void newParticipantHasPartialReturnAndEntersThatWeeksRankings() {
     Member owner = member();
     Asset asset = asset();
     client(owner)
@@ -568,6 +656,7 @@ class SharedPortfolioAcceptanceTest {
             .path("publicId");
     // 최근 3주 안의 목·금 휴장 주차를 만들어 수요일 종가 마감을 검증한다.
     LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
+    jdbc.update("DELETE FROM weekly_leaderboards WHERE week_start=?", week);
     LocalDate baseline = week.minusDays(3);
     jdbc.update(
         "UPDATE market_trading_days SET trading=true WHERE base_date IN (?, ?, ?, ?)",
@@ -771,8 +860,7 @@ class SharedPortfolioAcceptanceTest {
         .then()
         .log()
         .ifValidationFails()
-        .statusCode(400)
-        .body("code", equalTo("HOLDING_REASON_REQUIRED"));
+        .statusCode(200);
     client(owner)
         .body(
             Map.of(

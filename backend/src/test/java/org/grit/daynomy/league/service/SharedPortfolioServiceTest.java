@@ -24,6 +24,7 @@ import org.grit.daynomy.league.repository.InvestmentDecisionRepository;
 import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
 import org.grit.daynomy.member.domain.Member;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -37,9 +38,13 @@ class SharedPortfolioServiceTest {
   @Mock private SharedPortfolioRepository portfolioRepository;
   @Mock private SharedHoldingRepository holdingRepository;
   @Mock private StockPriceService stockPriceService;
+  @Mock private org.grit.daynomy.asset.repository.StockDailyPriceRepository priceRepository;
+  @Mock private org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository exchangeRates;
   @Mock private InvestmentDecisionRepository decisionRepository;
   @Mock private MarketTradingDayRepository tradingDayRepository;
   @Mock private LeagueRankingCache rankingCache;
+  @Mock private LeagueAutoSyncService autoSyncService;
+  @Mock private org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository originalHoldings;
   @InjectMocks private SharedPortfolioService service;
 
   @ParameterizedTest
@@ -102,6 +107,36 @@ class SharedPortfolioServiceTest {
       assertThat(response.totalEvaluationAmount()).isNull();
       assertThat(response.totalReturnRate()).isNull();
     }
+  }
+
+  @Test
+  void usCloseIsShownInDollarsAndPortfolioEvaluationUsesStoredKrwRate() {
+    var portfolio = SharedPortfolio.create(mock(Member.class));
+    ReflectionTestUtils.setField(portfolio, "id", 2L);
+    Asset us =
+        Asset.listedStock(
+            "미국 종목", "AAPL.US", StockMarket.NASDAQ, "US0378331005", LocalDate.of(2026, 9, 1));
+    ReflectionTestUtils.setField(us, "id", 3L);
+    LocalDate date = LocalDate.of(2026, 10, 27);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(holdingRepository.findAllByPortfolioIdOrderById(2L))
+        .willReturn(List.of(new SharedHolding(portfolio, us, 1, new BigDecimal("120000"))));
+    given(
+            priceRepository.findFirstByAssetIdAndBaseDateLessThanEqualOrderByBaseDateDesc(
+                org.mockito.ArgumentMatchers.eq(3L), any(LocalDate.class)))
+        .willReturn(Optional.of(new StockDailyPrice(us, date, new BigDecimal("100"))));
+    given(exchangeRates.findById(date))
+        .willReturn(
+            Optional.of(
+                new org.grit.daynomy.exchangerate.domain.UsdKrwRate(
+                    date, date, new BigDecimal("1300"))));
+
+    var response = service.getMine(1L);
+
+    assertThat(response.holdings().getFirst().currency()).isEqualTo("USD");
+    assertThat(response.holdings().getFirst().closePrice()).isEqualByComparingTo("100");
+    assertThat(response.holdings().getFirst().evaluationAmount()).isEqualByComparingTo("130000");
+    assertThat(response.totalReturnRate()).isEqualByComparingTo("8.33");
   }
 
   private Asset asset(Long id) {

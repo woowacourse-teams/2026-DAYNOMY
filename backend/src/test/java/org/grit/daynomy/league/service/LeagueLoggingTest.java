@@ -134,11 +134,15 @@ class LeagueLoggingTest {
             members,
             assets,
             stockPriceService,
+            mock(org.grit.daynomy.asset.repository.StockDailyPriceRepository.class),
+            mock(org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository.class),
             calendar,
             profiles,
             decisions,
             decisionService,
-            rankingCache);
+            rankingCache,
+            mock(LeagueAutoSyncService.class),
+            mock(org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository.class));
   }
 
   @AfterEach
