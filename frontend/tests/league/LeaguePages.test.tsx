@@ -126,6 +126,64 @@ afterEach(() => {
 });
 
 describe('투자 리그 화면', () => {
+  it('긴 순위 목록도 제목 영역이 보이면 실제 노출을 한 번 기록한다', async () => {
+    let visible!: IntersectionObserverCallback;
+    const observe = vi.fn();
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          visible = callback;
+        }
+        observe = observe;
+        disconnect = vi.fn();
+        unobserve = vi.fn();
+      },
+    );
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    try {
+      vi.mocked(leagueApi.getRankings).mockResolvedValue({
+        ...ranking,
+        totalCount: 20,
+        rankings: Array.from({ length: 20 }, (_, i) => ({
+          ...ranking.rankings[0],
+          rank: i + 1,
+          publicId: `investor-${i}`,
+          displayName: `참가자${i}`,
+        })),
+      });
+      const view = render(
+        <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+          <MemoryRouter>
+            <LeaguePage />
+          </MemoryRouter>
+        </AuthContext.Provider>,
+      );
+      const heading = await view.findByRole('heading', { name: '주간 순위' });
+      expect(observe).toHaveBeenCalledWith(heading.closest('header'));
+      act(() =>
+        visible(
+          [{ isIntersecting: true, intersectionRatio: 0.5 } as IntersectionObserverEntry],
+          {} as IntersectionObserver,
+        ),
+      );
+      act(() =>
+        visible(
+          [{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry],
+          {} as IntersectionObserver,
+        ),
+      );
+      const impressions = vi
+        .mocked(trackEvent)
+        .mock.calls.filter(([name]) => name === 'league_ranking_viewed');
+      expect(impressions).toHaveLength(1);
+      expect(impressions[0][1]).toMatchObject({ result_count: 20, confirmed: true });
+    } finally {
+      hidden.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('월요일 데이터 누락은 주간 성과를 숨기고 새로고침 후 지표와 그래프를 함께 갱신한다', async () => {
     const waiting = {
       ...daily,

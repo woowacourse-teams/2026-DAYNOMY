@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 import { PortfolioTour } from './components/PortfolioTour';
 import { PortfolioNews } from './components/PortfolioNews';
 import { calculatePortfolio } from './api';
-import { portfolioErrorType, trackPortfolioEvent } from './analytics';
+import { portfolioErrorType, portfolioMarketScope, trackPortfolioEvent } from './analytics';
 import { PortfolioAnalysis } from './components/PortfolioAnalysis';
 import { PortfolioEditor } from './components/PortfolioEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
@@ -1089,13 +1089,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     trackPortfolioEvent('portfolio_dashboard_loaded', {
       is_logged_in: isLoggedIn,
       has_holdings: holdings.length > 0,
+      market_scope: portfolioMarketScope(holdings),
       pricing_status: dashboardCalculation.pricingStatus,
     });
   }, [
     calculation,
     dashboardCalculation,
     error,
-    holdings.length,
+    holdings,
     holdingsError,
     holdingsLoading,
     isLoggedIn,
@@ -1185,7 +1186,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
 
   async function save(nextHolding: PortfolioHoldingInput) {
     const operation = 'holding_update';
-    const properties = { operation, storage: isLoggedIn ? 'server' : 'temporary' } as const;
+    const properties = {
+      operation,
+      storage: isLoggedIn ? 'server' : 'temporary',
+      has_holdings: holdings.length > 0,
+      market_scope: portfolioMarketScope(holdings),
+    } as const;
     trackPortfolioEvent('portfolio_save_submitted', properties);
     try {
       await saveHolding(nextHolding);
@@ -1881,10 +1887,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 }
                 onSave={async (request, stock) => {
                   const transaction = transactionEditor.transaction;
+                  const targetStock =
+                    stock ?? holdings.find((holding) => holding.assetId === request.assetId);
                   const properties = {
                     operation: transaction ? 'transaction_update' : 'transaction_create',
                     storage: isLoggedIn ? 'server' : 'temporary',
                     transaction_type: request.type,
+                    has_holdings: holdings.length > 0,
+                    market_scope: targetStock ? portfolioMarketScope([targetStock]) : undefined,
                   } as const;
                   trackPortfolioEvent('portfolio_save_submitted', properties);
                   try {

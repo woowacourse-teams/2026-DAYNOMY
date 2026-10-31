@@ -9,6 +9,8 @@ import {
 import * as api from '../../src/features/league/api';
 import * as sharedApi from '../../src/features/league/sharedPortfolioApi';
 import * as portfolioApi from '../../src/features/portfolio/api';
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 import { AuthContext } from '../../src/auth/AuthContext';
 vi.mock('../../src/features/league/api', () => ({
   getMyInvestorProfile: vi.fn(),
@@ -271,6 +273,19 @@ it('리그 참여는 종목·비중·기록 공개를 함께 저장한다', asyn
       expect.objectContaining({ profilePublic: true, leagueEnabled: true, detailPublic: true }),
     ),
   );
+  await waitFor(() =>
+    expect(trackEvent).toHaveBeenCalledWith(
+      'league_enrollment',
+      expect.objectContaining({ action: 'join', status: 'success', participating: true }),
+    ),
+  );
+  expect(
+    vi
+      .mocked(trackEvent)
+      .mock.calls.filter(
+        ([name, params]) => name === 'league_enrollment' && params?.status === 'success',
+      ),
+  ).toHaveLength(1);
 });
 it('새 프로필은 계정 닉네임으로 시작하고 저장 실패 후 선택과 입력을 유지한다', async () => {
   const saved = { ...profile, displayName: '새공개닉네임' };

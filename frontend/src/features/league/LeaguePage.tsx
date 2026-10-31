@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { InvestorAvatar } from './InvestorAvatar';
 import { Link } from 'react-router-dom';
+import { useContentImpression } from '../news/issue/analytics';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { getLeagueWeeks, getMyInvestorProfile, getRankings } from './api';
@@ -253,6 +254,21 @@ export function LeaguePage() {
     return () => controller.abort();
   }, [retry, weekStart, page, weeksReady]);
 
+  const board = useRef<HTMLElement>(null);
+  useContentImpression(
+    board,
+    JSON.stringify([ranking?.weekStart, ranking?.asOfDate, page]),
+    'league_ranking_viewed',
+    {
+      surface: 'ranking',
+      page,
+      confirmed: ranking?.confirmed,
+      collection_status: ranking?.collectionStatus,
+      result_count: ranking?.rankings.length,
+    },
+    !loading && !error && Boolean(ranking?.rankings.length),
+  );
+
   return (
     <main className="league-page">
       <header className="league-hero">
@@ -400,7 +416,7 @@ export function LeaguePage() {
 
       {!loading && !error && ranking && ranking.rankings.length > 0 ? (
         <section className="league-board" aria-labelledby="league-board-title">
-          <header>
+          <header ref={board}>
             <div>
               <h2 id="league-board-title">주간 순위</h2>
             </div>

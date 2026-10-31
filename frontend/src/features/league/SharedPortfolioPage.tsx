@@ -13,6 +13,7 @@ import './league.css';
 import './shared-portfolio.css';
 import { HoldingDecisions } from './HoldingDecisions';
 import { getMyInvestorProfile } from './api';
+import { portfolioMarketScope } from '../portfolio/analytics';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import type { InvestorProfile, InvestmentDecisionInput, InvestmentDecisionRecord } from './types';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
@@ -93,6 +94,8 @@ export function SharedPortfolioPage() {
           surface: 'holdings',
           status: 'success',
           result_count: value.holdings.length,
+          market_scope: portfolioMarketScope(value.holdings),
+          source_managed_count: value.holdings.filter((holding) => holding.sourceManaged).length,
         });
         if (hash === '#select') {
           surface = 'source_holdings';

@@ -102,6 +102,21 @@ export const DailyReturns = memo(function DailyReturns({
             result_count: value.days.length,
             confirmed: value.confirmed,
             collection_status: value.collectionStatus,
+            has_result: value.weeklyReturnRate !== null,
+            pending_day_count: value.days.filter(
+              (day) =>
+                day.reason !== 'FUTURE_DATE' &&
+                (day.status === 'PENDING' || day.status === 'EXCLUDED'),
+            ).length,
+            closed_day_count: value.days.filter((day) => day.reason === 'MARKET_CLOSED').length,
+            baseline_only:
+              value.days.some((day) => day.reason === 'TRACKING_BASELINE') &&
+              !value.days.some(
+                (day) =>
+                  day.status === 'CALCULATED' &&
+                  day.reason !== 'TRACKING_BASELINE' &&
+                  day.reason !== 'MARKET_CLOSED',
+              ),
           });
         }
       })
@@ -170,7 +185,11 @@ export const DailyReturns = memo(function DailyReturns({
       ) : history ? (
         <>
           {history.aggregation ? (
-            <AggregationNotice aggregation={history.aggregation} onRefresh={retryLoad} />
+            <AggregationNotice
+              surface="daily_history"
+              aggregation={history.aggregation}
+              onRefresh={retryLoad}
+            />
           ) : null}
           {!hasReturns ? (
             history.aggregation ? null : (

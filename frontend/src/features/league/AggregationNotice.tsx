@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
+import { trackLeagueEvent } from './analytics';
+import { useContentImpression } from '../news/issue/analytics';
 import type { AggregationEstimate } from './types';
 
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -33,11 +35,38 @@ const messages: Record<string, string> = {
 export function AggregationNotice({
   aggregation,
   onRefresh,
+  surface = 'ranking',
 }: {
   aggregation: AggregationEstimate;
   onRefresh: () => void;
+  surface?: 'ranking' | 'daily_history';
 }) {
   const titleId = useId();
+  const notice = useRef<HTMLElement>(null);
+  const reason = Object.hasOwn(messages, aggregation.reason) ? aggregation.reason : 'UNKNOWN';
+  const properties = {
+    surface,
+    aggregation_reason: reason,
+    delayed: aggregation.delayed,
+    has_expected_at: Boolean(aggregation.expectedAt),
+    has_first_return_expected_at: Boolean(aggregation.firstReturnExpectedAt),
+  };
+  useContentImpression(
+    notice,
+    JSON.stringify([
+      surface,
+      aggregation.baseDate,
+      aggregation.expectedAt,
+      reason,
+      aggregation.delayed,
+    ]),
+    'league_aggregation_viewed',
+    properties,
+  );
+  const recordRefresh = useRef(properties);
+  useEffect(() => {
+    recordRefresh.current = properties;
+  });
   const refresh = useRef(onRefresh);
   useEffect(() => {
     refresh.current = onRefresh;
@@ -47,7 +76,13 @@ export function AggregationNotice({
     const delay = Date.parse(aggregation.expectedAt) + 30_000 - Date.now();
     if (delay <= 0 || delay > 2_147_483_647) return;
     const timer = window.setTimeout(() => {
-      if (document.visibilityState === 'visible') refresh.current();
+      if (document.visibilityState === 'visible') {
+        trackLeagueEvent('league_aggregation_refresh', {
+          ...recordRefresh.current,
+          trigger: 'scheduled',
+        });
+        refresh.current();
+      }
     }, delay);
     return () => window.clearTimeout(timer);
   }, [aggregation.expectedAt]);
@@ -56,7 +91,7 @@ export function AggregationNotice({
     : '집계 대기';
 
   return (
-    <aside className="league-aggregation" aria-labelledby={titleId}>
+    <aside ref={notice} className="league-aggregation" aria-labelledby={titleId}>
       <div className="league-aggregation-copy">
         <h3 id={titleId}>
           <svg
@@ -108,7 +143,14 @@ export function AggregationNotice({
           ) : null}
         </dl>
         <div className="league-aggregation-actions">
-          <button type="button" onClick={onRefresh} aria-label="집계 현황 새로고침">
+          <button
+            type="button"
+            onClick={() => {
+              trackLeagueEvent('league_aggregation_refresh', { ...properties, trigger: 'manual' });
+              onRefresh();
+            }}
+            aria-label="집계 현황 새로고침"
+          >
             새로고침 <span aria-hidden="true">↻</span>
           </button>
         </div>

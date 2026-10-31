@@ -9,6 +9,7 @@ import {
   savePublication,
 } from './api';
 import { getSharedPortfolio } from './sharedPortfolioApi';
+import { portfolioMarketScope } from '../portfolio/analytics';
 import { getPortfolioPerformance } from '../portfolio/api';
 import type { PortfolioPerformancePoint } from '../portfolio/types';
 import { experienceLabels, riskLabels } from './labels';
@@ -29,10 +30,12 @@ export function PublicationSettingsPage() {
   const [readiness, setReadiness] = useState({
     ready: false,
     missing: 0,
+    marketScope: 'none' as ReturnType<typeof portfolioMarketScope>,
   });
   const [sourcePerformance, setSourcePerformance] = useState<
     (PortfolioPerformancePoint & { priceBaseDate?: string | null }) | null
   >(null);
+  const enrollmentViewed = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
@@ -54,7 +57,18 @@ export function PublicationSettingsPage() {
         setReadiness({
           ready: portfolio.holdings.length > 0 && missing === 0,
           missing,
+          marketScope: portfolioMarketScope(portfolio.holdings),
         });
+        if (!enrollmentViewed.current) {
+          enrollmentViewed.current = true;
+          trackLeagueEvent('league_enrollment_viewed', {
+            surface: 'publication',
+            participating: saved?.leagueEnabled ?? false,
+            ready_to_join: portfolio.holdings.length > 0 && missing === 0,
+            has_holdings: portfolio.holdings.length > 0,
+            market_scope: portfolioMarketScope(portfolio.holdings),
+          });
+        }
         trackLeagueEvent('league_load_result', { surface: 'publication', status: 'success' });
       })
       .catch((caught: unknown) => {
@@ -130,6 +144,7 @@ export function PublicationSettingsPage() {
         joining={joining}
         recordsReady={readiness.ready}
         missingCount={readiness.missing}
+        marketScope={readiness.marketScope}
       />
     </main>
   );
@@ -143,6 +158,7 @@ export function PortfolioSharingSettings({
   onSaved,
   recordsReady,
   missingCount,
+  marketScope = 'none',
   joining = false,
 }: {
   profile: InvestorProfile | null;
@@ -152,6 +168,7 @@ export function PortfolioSharingSettings({
   onSaved: (profile: InvestorProfile) => void;
   recordsReady: boolean;
   missingCount: number;
+  marketScope?: ReturnType<typeof portfolioMarketScope>;
   joining?: boolean;
 }) {
   const { nickname, updateNickname } = useAuth();
@@ -194,6 +211,19 @@ export function PortfolioSharingSettings({
       return;
     }
     const participating = joining || leagueEnabled;
+    const action = participating
+      ? profile?.leagueEnabled
+        ? 'update'
+        : 'join'
+      : profile?.leagueEnabled
+        ? 'leave'
+        : 'update';
+    const enrollment = {
+      surface: 'publication' as const,
+      action,
+      market_scope: marketScope,
+    } as const;
+    trackLeagueEvent('league_enrollment', { ...enrollment, status: 'submitted' });
     setSaving(true);
     trackLeagueEvent('league_action', {
       surface: 'publication',
@@ -211,11 +241,21 @@ export function PortfolioSharingSettings({
         detailPublic: participating,
         allocationPublic: participating,
       });
+      trackLeagueEvent('league_enrollment', {
+        ...enrollment,
+        status: 'success',
+        participating: saved.leagueEnabled,
+      });
       trackLeagueEvent('publish_portfolio', {
         scope: saved.profilePublic ? 'details' : 'private',
       });
       onSaved({ ...savedProfile, ...saved });
     } catch (caught) {
+      trackLeagueEvent('league_enrollment', {
+        ...enrollment,
+        status: 'error',
+        error_type: leagueErrorType(caught),
+      });
       trackLeagueEvent('league_action', {
         surface: 'publication',
         action: 'save_publication',

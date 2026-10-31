@@ -47,6 +47,7 @@ type PortfolioEventParams = {
   exit_reason?: 'button' | 'escape';
   is_logged_in?: boolean;
   has_holdings?: boolean;
+  market_scope?: ReturnType<typeof portfolioMarketScope>;
   pricing_status?: 'COMPLETE' | 'PARTIAL' | 'MIXED_DATES';
   stage?: 'holdings' | 'calculation' | 'chart' | 'history';
   error_type?: ErrorType;
@@ -80,6 +81,7 @@ const PARAM_KEYS = new Set([
   'exit_reason',
   'is_logged_in',
   'has_holdings',
+  'market_scope',
   'pricing_status',
   'stage',
   'error_type',
@@ -123,4 +125,18 @@ export function trackPortfolioEvent(
   } catch {
     // 수집 실패는 사용자 작업에 영향을 주지 않는다.
   }
+}
+
+export function portfolioMarketScope(
+  holdings: readonly { currency?: string; market: string }[],
+): 'none' | 'domestic' | 'us' | 'mixed' {
+  const domestic = holdings.some(
+    (holding) => holding.currency === 'KRW' || ['KOSPI', 'KOSDAQ'].includes(holding.market),
+  );
+  const us = holdings.some(
+    (holding) =>
+      holding.currency === 'USD' ||
+      ['NASDAQ', 'NYSE', 'NYSE_ARCA', 'NYSE_AMERICAN', 'BATS'].includes(holding.market),
+  );
+  return domestic && us ? 'mixed' : domestic ? 'domestic' : us ? 'us' : 'none';
 }

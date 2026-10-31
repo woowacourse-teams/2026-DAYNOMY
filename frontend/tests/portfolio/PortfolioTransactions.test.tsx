@@ -425,6 +425,8 @@ describe('거래 원장 화면', () => {
       operation: 'transaction_create',
       storage: 'server',
       transaction_type: 'BUY',
+      has_holdings: true,
+      market_scope: 'domestic',
     });
     expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
       /삼성|005930|quantity|unitPrice|tradeDate|75000/,
@@ -461,6 +463,8 @@ describe('거래 원장 화면', () => {
         operation,
         storage: 'server',
         transaction_type: 'BUY',
+        has_holdings: true,
+        market_scope: 'domestic',
         error_type: 'client_error',
       });
       rejectMutation = false;
