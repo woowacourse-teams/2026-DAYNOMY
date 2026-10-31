@@ -53,6 +53,7 @@ class SavedPortfolioServiceTest {
   @Mock private PortfolioSnapshotTransactionService snapshotTransactionService;
   @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
   @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
+  @Mock private org.springframework.context.ApplicationEventPublisher events;
   @InjectMocks private SavedPortfolioService service;
 
   @ParameterizedTest

@@ -25,6 +25,12 @@ public class MarketTradingDay extends BaseEntity {
   @Column(name = "collected_at")
   private Instant collectedAt;
 
+  @Column(name = "us_trading")
+  private Boolean usTrading;
+
+  @Column(name = "us_collected_at")
+  private Instant usCollectedAt;
+
   @Column(name = "last_attempted_at")
   private Instant lastAttemptedAt;
 
@@ -35,6 +41,35 @@ public class MarketTradingDay extends BaseEntity {
 
   public Instant closesAt() {
     return baseDate.atTime(LocalTime.of(15, 30)).atZone(ZoneId.of("Asia/Seoul")).toInstant();
+  }
+
+  public boolean isLeagueTrading() {
+    return trading || Boolean.TRUE.equals(usTrading);
+  }
+
+  public Instant leagueClosesAt() {
+    return Boolean.TRUE.equals(usTrading) ? usClosesAt() : closesAt();
+  }
+
+  public Instant usClosesAt() {
+    return baseDate.atTime(LocalTime.of(16, 0)).atZone(ZoneId.of("America/New_York")).toInstant();
+  }
+
+  public void reviseUsTrading(boolean trading) {
+    if (Boolean.valueOf(trading).equals(usTrading)) return;
+    usTrading = trading;
+    usCollectedAt = null;
+  }
+
+  public void usCollected(Instant collectedAt) {
+    if (collectedAt.isBefore(usClosesAt())) return;
+    usTrading = true;
+    usCollectedAt = collectedAt;
+  }
+
+  public boolean leagueCollectionAvailable() {
+    return (trading && collectedAt != null)
+        || (Boolean.TRUE.equals(usTrading) && usCollectedAt != null);
   }
 
   public void collected(Instant collectedAt) {

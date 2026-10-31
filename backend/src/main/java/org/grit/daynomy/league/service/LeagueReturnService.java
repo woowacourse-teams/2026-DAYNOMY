@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
@@ -24,6 +23,7 @@ import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository;
 import org.grit.daynomy.league.domain.InvestorProfile;
 import org.grit.daynomy.league.domain.LeagueParticipation;
 import org.grit.daynomy.league.domain.PortfolioDailyReturn;
@@ -32,6 +32,7 @@ import org.grit.daynomy.league.domain.SharedPortfolio;
 import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.repository.PortfolioDailyReturnRepository;
 import org.grit.daynomy.league.repository.SharedHoldingHistoryRepository;
+import org.grit.daynomy.league.repository.SharedHoldingRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.springframework.stereotype.Service;
@@ -49,10 +50,12 @@ public class LeagueReturnService {
   private final InvestorProfileRepository profileRepository;
   private final SharedPortfolioRepository portfolioRepository;
   private final SharedHoldingHistoryRepository historyRepository;
+  private final SharedHoldingRepository holdingRepository;
   private final StockDailyPriceRepository priceRepository;
   private final PortfolioDailyReturnRepository returnRepository;
   private final MarketTradingDayRepository tradingDayRepository;
   private final PortfolioDailySnapshotRepository snapshotRepository;
+  private final UsdKrwRateRepository exchangeRates;
   private final PlatformTransactionManager transactionManager;
   private final LeagueCalculationMetrics metrics;
   private final LeagueService leagueService;
@@ -65,7 +68,6 @@ public class LeagueReturnService {
         tradingDayRepository
             .findAllByBaseDateBetweenOrderByBaseDate(today.with(java.time.DayOfWeek.MONDAY), today)
             .stream()
-            .filter(day -> day.isTrading() && !day.closesAt().isAfter(Instant.now()))
             .toList();
     calculateProfile(profile, days, new HashMap<>(), null, false);
   }
@@ -99,11 +101,13 @@ public class LeagueReturnService {
         .log(LogEvent.LEAGUE_CALCULATION_STARTED.message());
     try {
       List<MarketTradingDay> days =
-          tradingDayRepository
-              .findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(LocalDate.now(SEOUL))
-              .stream()
-              .filter(day -> !day.closesAt().isAfter(Instant.now()))
-              .toList();
+          (holdingRepository.existsActiveUsLeagueHolding()
+                  ? tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+                      LocalDate.of(2000, 1, 1), LocalDate.now(SEOUL))
+                  : tradingDayRepository
+                      .findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
+                          LocalDate.now(SEOUL)))
+              .stream().filter(day -> !day.closesAt().isAfter(Instant.now())).toList();
       LocalDate firstCalculated = null;
       phase = "LOAD_PROFILES";
       List<InvestorProfile> profiles = profileRepository.findAllByLeagueEnabledAtIsNotNull();
@@ -169,7 +173,9 @@ public class LeagueReturnService {
       } else {
         leagueService.finalizeWeeks();
       }
-      int missingPrices = outcomeCounts.getOrDefault("MISSING_PRICE", 0);
+      int missingPrices =
+          outcomeCounts.getOrDefault("MISSING_PRICE", 0)
+              + outcomeCounts.getOrDefault("EXCHANGE_RATE_PENDING", 0);
       int unsupportedAssets = outcomeCounts.getOrDefault("UNSUPPORTED_ASSET", 0);
       if (missingPrices > 0 || unsupportedAssets > 0) {
         log.atWarn()
@@ -255,6 +261,24 @@ public class LeagueReturnService {
               .orElse(null);
       if (starting != null && from != null && from.isBefore(starting)) starting = from;
       if (starting != null) {
+        LocalDate pending =
+            returnRepository
+                .findLatestByPortfolioIdAndBaseDateBetween(
+                    portfolio.getId(),
+                    starting.with(java.time.DayOfWeek.MONDAY).minusDays(3),
+                    starting)
+                .stream()
+                .filter(
+                    value ->
+                        "PRICE_COLLECTION_PENDING".equals(value.getIneligibleReason())
+                            || "MISSING_PRICE".equals(value.getIneligibleReason())
+                            || "EXCHANGE_RATE_PENDING".equals(value.getIneligibleReason()))
+                .map(PortfolioDailyReturn::getBaseDate)
+                .min(LocalDate::compareTo)
+                .orElse(null);
+        if (pending != null && pending.isBefore(starting)) starting = pending;
+      }
+      if (starting != null) {
         for (LeagueParticipation period : profile.getParticipations()) {
           if (period.getPerformanceStartedAt() == null) continue;
           LocalDate pending =
@@ -276,20 +300,23 @@ public class LeagueReturnService {
     Set<LeagueParticipation> checked = new HashSet<>();
     int count = 0;
     LocalDate firstCalculated = null;
+    boolean usRelevant = holdingRepository.hasActiveUsHolding(profile.getMember().getId());
+    boolean domesticRelevant = !holdingRepository.hasOnlyUsHoldings(profile.getMember().getId());
     for (MarketTradingDay day : days) {
+      if (!((domesticRelevant && day.isTrading())
+              || (usRelevant && Boolean.TRUE.equals(day.getUsTrading())))
+          || (usRelevant ? day.leagueClosesAt() : day.closesAt()).isAfter(Instant.now())) continue;
       if (starting != null && day.getBaseDate().isBefore(starting)) continue;
       LeagueParticipation period =
           profile.getParticipations().stream()
-              .filter(value -> value.contains(day.closesAt()))
+              .filter(value -> value.contains(closeForProfile(profile, day)))
               .findFirst()
               .orElse(null);
       if (period == null) continue;
       if (firstCalculated == null) firstCalculated = day.getBaseDate();
       if (starting != null && checked.add(period)) {
         LocalDate first = period.calculationStartedAt().atZone(SEOUL).toLocalDate();
-        if (period
-            .calculationStartedAt()
-            .isAfter(first.atTime(LocalTime.of(15, 30)).atZone(SEOUL).toInstant())) {
+        if (period.calculationStartedAt().isAfter(closeForProfile(profile, day))) {
           first = first.plusDays(1);
         }
         LocalDate prior = day.getBaseDate().minusDays(1);
@@ -327,11 +354,11 @@ public class LeagueReturnService {
             baseDate,
             previousResult == null ? 1 : previousResult.getCalculationVersion() + 1);
     Instant calculatedAt = Instant.now();
-    if (day.getCollectedAt() == null)
+    if (!day.leagueCollectionAvailable())
       return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
     boolean imported = period.getPerformanceStartedAt() != null;
     if (imported
-        && day.closesAt().isBefore(period.getStartedAt())
+        && closeForProfile(period.getProfile(), day).isBefore(period.getStartedAt())
         && (previousResult == null || !previousResult.isEligible())
         && !snapshotRepository.existsByPortfolioMemberIdAndBaseDate(
             period.getProfile().getMember().getId(), baseDate))
@@ -343,25 +370,26 @@ public class LeagueReturnService {
                     portfolio.getId(), baseDate.atStartOfDay(SEOUL).toInstant()))
             : List.of();
     if (!opening.isEmpty()) baseline = false;
-    // PostgreSQL timestamp(6)의 최소 단위로 장 마감 시각의 기록까지 포함한다.
-    List<SharedHoldingHistory> holdings =
-        !opening.isEmpty()
-            ? opening
-            : SharedHoldingHistory.reconstructHoldings(
-                historyRepository.findEffectiveBefore(
-                    portfolio.getId(),
-                    baseline
-                        ? day.closesAt().plusNanos(1_000)
-                        : baseDate.atStartOfDay(SEOUL).toInstant()));
-    if (holdings.isEmpty()) return exclude(result, previousResult, "NO_HOLDINGS", calculatedAt);
-    MarketTradingDay previousDay =
-        baseline
-            ? null
+    // 시장별 직전 종가 시점의 보유 상태를 사용해 장 마감 후 입력한 종목의 소급 수익을 막는다.
+    MarketTradingDay krAnchor =
+        baseline && day.isTrading()
+            ? day
             : tradingDayRepository
-                .findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(baseDate)
+                .findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
+                    day.isTrading() ? baseDate : baseDate.plusDays(1))
                 .orElse(null);
-    if (!baseline && (previousDay == null || previousDay.getCollectedAt() == null))
-      return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
+    MarketTradingDay usAnchor =
+        baseline && Boolean.TRUE.equals(day.getUsTrading())
+            ? day
+            : tradingDayRepository
+                .findFirstUsTradingDayBefore(
+                    Boolean.TRUE.equals(day.getUsTrading()) ? baseDate : baseDate.plusDays(1))
+                .orElse(null);
+    LocalDate krBase = krAnchor == null ? null : krAnchor.getBaseDate();
+    LocalDate usBase = usAnchor == null ? null : usAnchor.getBaseDate();
+    List<SharedHoldingHistory> holdings =
+        !opening.isEmpty() ? opening : marketHoldings(portfolio.getId(), krBase, usBase);
+    if (holdings.isEmpty()) return exclude(result, previousResult, "NO_HOLDINGS", calculatedAt);
     BigDecimal start = BigDecimal.ZERO;
     BigDecimal end = BigDecimal.ZERO;
     BigDecimal largest = BigDecimal.ZERO;
@@ -372,17 +400,38 @@ public class LeagueReturnService {
           || (asset.getCategory() != AssetCategory.STOCK
               && asset.getCategory() != AssetCategory.ETF))
         return exclude(result, previousResult, "UNSUPPORTED_ASSET", calculatedAt);
-      StockDailyPrice current = findPrice(asset.getId(), baseDate);
-      StockDailyPrice previous =
-          baseline ? current : findPrice(asset.getId(), previousDay.getBaseDate());
+      boolean us = "USD".equals(asset.getCurrency());
+      if (us && day.getUsTrading() == null)
+        return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
+      LocalDate previousMarketDate = us ? usBase : krBase;
+      if (previousMarketDate == null)
+        return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
+      boolean marketOpen = us ? Boolean.TRUE.equals(day.getUsTrading()) : day.isTrading();
+      if (marketOpen && (us ? day.getUsCollectedAt() == null : day.getCollectedAt() == null))
+        return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
+      if (!baseline) {
+        MarketTradingDay previousMarket = us ? usAnchor : krAnchor;
+        if (previousMarket == null
+            || (us
+                ? previousMarket.getUsCollectedAt() == null
+                : previousMarket.getCollectedAt() == null))
+          return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
+      }
+      StockDailyPrice current =
+          findPrice(asset.getId(), marketOpen ? baseDate : previousMarketDate);
+      StockDailyPrice previous = baseline ? current : findPrice(asset.getId(), previousMarketDate);
       if (previous == null || current == null)
         return exclude(result, previousResult, "MISSING_PRICE", calculatedAt);
+      BigDecimal previousKrw = krw(previous);
+      BigDecimal currentKrw = krw(current);
+      if (previousKrw == null || currentKrw == null)
+        return exclude(result, previousResult, "EXCHANGE_RATE_PENDING", calculatedAt);
       BigDecimal quantity = BigDecimal.valueOf(holding.getQuantity());
-      BigDecimal position = previous.getClosePrice().multiply(quantity);
+      BigDecimal position = previousKrw.multiply(quantity);
       start = start.add(position);
-      end = end.add(current.getClosePrice().multiply(quantity));
+      end = end.add(currentKrw.multiply(quantity));
       largest = largest.max(position);
-      largestEnd = largestEnd.max(current.getClosePrice().multiply(quantity));
+      largestEnd = largestEnd.max(currentKrw.multiply(quantity));
     }
     if (start.signum() <= 0) return exclude(result, previousResult, "NO_HOLDINGS", calculatedAt);
     BigDecimal weight = largest.multiply(HUNDRED).divide(start, 2, RoundingMode.HALF_UP);
@@ -413,6 +462,50 @@ public class LeagueReturnService {
     if (result.sameCalculation(previous)) return previous;
     returnRepository.save(result);
     return result;
+  }
+
+  private Instant closeForProfile(InvestorProfile profile, MarketTradingDay day) {
+    return holdingRepository.hasActiveUsHolding(profile.getMember().getId())
+        ? day.leagueClosesAt()
+        : day.closesAt();
+  }
+
+  private List<SharedHoldingHistory> marketHoldings(
+      Long portfolioId, LocalDate krBase, LocalDate usBase) {
+    List<SharedHoldingHistory> kr =
+        krBase == null
+            ? List.of()
+            : SharedHoldingHistory.reconstructHoldings(
+                    historyRepository.findEffectiveBefore(
+                        portfolioId,
+                        krBase.atTime(15, 30).atZone(SEOUL).toInstant().plusNanos(1_000)))
+                .stream()
+                .filter(h -> !"USD".equals(h.getAsset().getCurrency()))
+                .toList();
+    List<SharedHoldingHistory> us =
+        usBase == null
+            ? List.of()
+            : SharedHoldingHistory.reconstructHoldings(
+                    historyRepository.findEffectiveBefore(
+                        portfolioId,
+                        usBase
+                            .atTime(16, 0)
+                            .atZone(ZoneId.of("America/New_York"))
+                            .toInstant()
+                            .plusNanos(1_000)))
+                .stream()
+                .filter(h -> "USD".equals(h.getAsset().getCurrency()))
+                .toList();
+    return java.util.stream.Stream.concat(kr.stream(), us.stream()).toList();
+  }
+
+  private BigDecimal krw(StockDailyPrice price) {
+    if (!"USD".equals(price.getAsset().getCurrency())) return price.getClosePrice();
+    return exchangeRates
+        .findById(price.getBaseDate())
+        .filter(rate -> rate.getBaseDate().equals(price.getBaseDate()))
+        .map(rate -> price.getClosePrice().multiply(rate.getRate()))
+        .orElse(null);
   }
 
   private StockDailyPrice findPrice(Long assetId, LocalDate date) {

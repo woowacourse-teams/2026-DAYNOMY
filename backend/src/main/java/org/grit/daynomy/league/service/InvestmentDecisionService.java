@@ -119,6 +119,9 @@ public class InvestmentDecisionService {
                 decision.invalidationCondition(),
                 decision.maximumAcceptableLossRate(),
                 true));
+    if (holding.isPendingReason()) {
+      holding.activate();
+    }
     TransactionLog.afterCommit(
         LogEvent.LEAGUE_DECISION_RECORDED,
         log.atInfo()

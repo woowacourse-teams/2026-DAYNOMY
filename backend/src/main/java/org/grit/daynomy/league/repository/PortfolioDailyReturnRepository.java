@@ -18,7 +18,7 @@ public interface PortfolioDailyReturnRepository extends JpaRepository<PortfolioD
       """
       select count(r) > 0 from PortfolioDailyReturn r
       where r.portfolio.id = :portfolioId and r.baseDate between :from and :to and r.eligible = true
-        and exists (select d.baseDate from MarketTradingDay d where d.baseDate = r.baseDate and d.trading = true)
+        and exists (select d.baseDate from MarketTradingDay d where d.baseDate = r.baseDate and (d.trading = true or d.usTrading = true))
         and r.calculationVersion = (select max(v.calculationVersion) from PortfolioDailyReturn v
           where v.portfolio.id = r.portfolio.id and v.baseDate = r.baseDate)
       """)
@@ -29,7 +29,7 @@ public interface PortfolioDailyReturnRepository extends JpaRepository<PortfolioD
       """
       select r from PortfolioDailyReturn r
       where r.portfolio.id = :portfolioId and r.baseDate between :from and :to
-        and exists (select d.baseDate from MarketTradingDay d where d.baseDate = r.baseDate and d.trading = true)
+        and exists (select d.baseDate from MarketTradingDay d where d.baseDate = r.baseDate and (d.trading = true or d.usTrading = true))
         and r.calculationVersion = (select max(v.calculationVersion) from PortfolioDailyReturn v
           where v.portfolio.id = r.portfolio.id and v.baseDate = r.baseDate)
       order by r.baseDate
@@ -44,7 +44,7 @@ public interface PortfolioDailyReturnRepository extends JpaRepository<PortfolioD
         r.currentHoldingWeight, r.eligible, r.trackingBaseline, r.ineligibleReason)
       from PortfolioDailyReturn r
       where r.portfolio.member.id in :memberIds and r.baseDate between :from and :to
-        and exists (select d.baseDate from MarketTradingDay d where d.baseDate = r.baseDate and d.trading = true)
+        and exists (select d.baseDate from MarketTradingDay d where d.baseDate = r.baseDate and (d.trading = true or d.usTrading = true))
         and not exists (select v.id from PortfolioDailyReturn v
           where v.portfolio.id = r.portfolio.id and v.baseDate = r.baseDate
             and v.calculationVersion > r.calculationVersion)

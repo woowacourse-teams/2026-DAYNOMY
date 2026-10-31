@@ -32,6 +32,7 @@ class LeagueEnrollmentServiceTest {
   @Mock SharedHoldingRepository holdingRepository;
   @Mock SharedHoldingHistoryRepository historyRepository;
   @Mock MarketTradingDayRepository tradingDayRepository;
+  @Mock PortfolioDailySnapshotRepository snapshotRepository;
   @Spy PortfolioLedgerCalculator ledgerCalculator = new PortfolioLedgerCalculator();
   @InjectMocks LeagueEnrollmentService service;
   private final LocalDate monday = LocalDate.of(2026, 10, 19);
@@ -39,7 +40,7 @@ class LeagueEnrollmentServiceTest {
 
   @Test
   void freezesThisWeeksSelectedHoldingsAndUsesEarlierHoldingsOnlyAsOpeningBalance() {
-    var fixture = fixture();
+    var fixture = fixture(true);
     var before = history(fixture.original(), fixture.asset(), monday.minusDays(3), 1);
     var first = history(fixture.original(), fixture.asset(), monday, 2);
     var second = history(fixture.original(), fixture.asset(), monday.plusDays(1), 4);
@@ -68,7 +69,7 @@ class LeagueEnrollmentServiceTest {
 
   @Test
   void recordAddedAfterMondayCloseUsesItsActualMondayTradeDate() {
-    var fixture = fixture();
+    var fixture = fixture(true);
     var first = history(fixture.original(), fixture.asset(), monday, 2);
     ReflectionTestUtils.setField(first, "createdAt", at(monday, 16));
     ReflectionTestUtils.setField(first, "updatedAt", at(monday, 16));
@@ -82,7 +83,7 @@ class LeagueEnrollmentServiceTest {
 
   @Test
   void lateBackdatedOrEditedRecordsAreFrozenFromTheirActualTradeDate() {
-    var fixture = fixture();
+    var fixture = fixture(true);
     var first = history(fixture.original(), fixture.asset(), monday, 2);
     ReflectionTestUtils.setField(first, "updatedAt", at(monday.plusDays(2), 9));
     given(originalHistoryRepository.findOrderedWithAssetsByPortfolioId(2L))
@@ -95,23 +96,27 @@ class LeagueEnrollmentServiceTest {
   }
 
   @Test
-  void missingSnapshotsDoNotMoveTheStartPastDaysWithActualHoldings() {
-    var fixture = fixture();
+  void historyWithoutMondaySnapshotStartsAtTheFirstExistingSnapshot() {
+    var fixture = fixture(true);
     var first = history(fixture.original(), fixture.asset(), monday.minusDays(6), 4);
     ReflectionTestUtils.setField(first, "createdAt", at(monday.plusDays(1), 10));
     ReflectionTestUtils.setField(first, "updatedAt", at(monday.plusDays(1), 10));
+    given(
+            snapshotRepository.findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(
+                2L, monday, monday.plusDays(2)))
+        .willReturn(List.of(new PortfolioDailySnapshot(fixture.original(), monday.plusDays(1))));
     given(originalHistoryRepository.findOrderedWithAssetsByPortfolioId(2L))
         .willReturn(List.of(first));
 
     service.includeCurrentWeek(fixture.profile());
 
-    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday);
+    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday.plusDays(1));
     then(historyRepository).should().saveAll(any());
   }
 
   @Test
-  void holdingsThatBeginTuesdayDoNotInventMondayPerformanceOrCopyPrivateAssets() {
-    var fixture = fixture();
+  void holdingsThatBeginTuesdayDoNotInventMondayPerformanceOrCopyUnsupportedAssets() {
+    var fixture = fixture(true);
     var privateAsset = new Asset("비공개 종목", AssetCategory.STOCK, "PRIVATE");
     ReflectionTestUtils.setField(privateAsset, "id", 5L);
     given(originalHistoryRepository.findOrderedWithAssetsByPortfolioId(2L))
@@ -150,7 +155,77 @@ class LeagueEnrollmentServiceTest {
     assertThat(profile.eligibleFrom()).isEqualTo(monday.plusDays(2));
   }
 
-  private Fixture fixture() {
+  @Test
+  void absentSnapshotsDoNotBackfillFromTodaysHoldings() {
+    var fixture = fixture(false);
+    given(
+            snapshotRepository.findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(
+                2L, monday, monday.plusDays(2)))
+        .willReturn(List.of());
+    service.includeCurrentWeek(fixture.profile());
+    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday.plusDays(2));
+    then(historyRepository).shouldHaveNoInteractions();
+    then(originalHistoryRepository).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void splitPurchasesBeforeEnrollmentRestoreMondayForPrivateHoldings() {
+    var fixture = fixture(true);
+    var hidden =
+        new SharedHolding(
+            SharedPortfolio.create(fixture.profile().getMember()),
+            fixture.asset(),
+            15,
+            BigDecimal.TEN);
+    hidden.changeVisibility(true);
+    given(holdingRepository.findAllByPortfolioIdOrderById(3L)).willReturn(List.of(hidden));
+    given(originalHistoryRepository.findOrderedWithAssetsByPortfolioId(2L))
+        .willReturn(
+            List.of(
+                history(fixture.original(), fixture.asset(), monday.minusWeeks(1), 10),
+                history(fixture.original(), fixture.asset(), monday.minusDays(4), 15)));
+    service.includeCurrentWeek(fixture.profile());
+    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday);
+    assertThat(hidden.isHidden()).isTrue();
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<SharedHoldingHistory>> copies = ArgumentCaptor.forClass(Iterable.class);
+    then(historyRepository).should().saveAll(copies.capture());
+    assertThat(copies.getValue())
+        .extracting(SharedHoldingHistory::getQuantity)
+        .containsExactly(15L, 15L, 15L);
+  }
+
+  @Test
+  void usHistoryUsesNewYorkClosesWhenTheDomesticMarketIsClosed() {
+    var fixture = fixture(true);
+    ReflectionTestUtils.setField(fixture.asset(), "market", StockMarket.NASDAQ);
+    var days =
+        java.util.stream.IntStream.range(0, 3)
+            .mapToObj(
+                offset -> {
+                  var day = new MarketTradingDay(monday.plusDays(offset), false);
+                  day.reviseUsTrading(true);
+                  return day;
+                })
+            .toList();
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(monday, monday.plusDays(2)))
+        .willReturn(days);
+    given(originalHistoryRepository.findOrderedWithAssetsByPortfolioId(2L))
+        .willReturn(List.of(history(fixture.original(), fixture.asset(), monday.minusDays(3), 4)));
+    service.includeCurrentWeek(fixture.profile());
+    assertThat(fixture.profile().getParticipations().getFirst().getPerformanceStartedAt())
+        .isEqualTo(days.getFirst().usClosesAt());
+    fixture.profile().startTracking(monday);
+    assertThat(fixture.profile().eligibleFrom()).isEqualTo(monday);
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<SharedHoldingHistory>> copies = ArgumentCaptor.forClass(Iterable.class);
+    then(historyRepository).should().saveAll(copies.capture());
+    assertThat(copies.getValue())
+        .extracting(SharedHoldingHistory::getEffectiveAt)
+        .contains(days.getFirst().usClosesAt(), days.get(1).usClosesAt());
+  }
+
+  private Fixture fixture(boolean calendarReady) {
     var member = mock(Member.class);
     given(member.getId()).willReturn(1L);
     var profile =
@@ -165,18 +240,29 @@ class LeagueEnrollmentServiceTest {
     ReflectionTestUtils.setField(original, "id", 2L);
     var shared = SharedPortfolio.create(member);
     ReflectionTestUtils.setField(shared, "id", 3L);
-    var asset = new Asset("종목", AssetCategory.STOCK, "TEST");
+    var asset =
+        Asset.listedStock("종목", "005930", StockMarket.KOSPI, "KR7005930003", monday.minusWeeks(1));
     ReflectionTestUtils.setField(asset, "id", 4L);
+    given(
+            snapshotRepository.findAllByPortfolioIdAndBaseDateBetweenOrderByBaseDate(
+                2L, monday, monday.plusDays(2)))
+        .willReturn(
+            List.of(
+                new PortfolioDailySnapshot(original, monday),
+                new PortfolioDailySnapshot(original, monday.plusDays(1))));
     given(originalRepository.findByMemberId(1L)).willReturn(Optional.of(original));
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(shared));
     given(holdingRepository.findAllByPortfolioIdOrderById(3L))
         .willReturn(List.of(new SharedHolding(shared, asset, 4, BigDecimal.TEN)));
-    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(monday, monday.plusDays(2)))
-        .willReturn(
-            List.of(
-                new MarketTradingDay(monday, true),
-                new MarketTradingDay(monday.plusDays(1), true),
-                new MarketTradingDay(monday.plusDays(2), true)));
+    if (calendarReady)
+      given(
+              tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+                  monday, monday.plusDays(2)))
+          .willReturn(
+              List.of(
+                  new MarketTradingDay(monday, true),
+                  new MarketTradingDay(monday.plusDays(1), true),
+                  new MarketTradingDay(monday.plusDays(2), true)));
     return new Fixture(profile, original, asset);
   }
 

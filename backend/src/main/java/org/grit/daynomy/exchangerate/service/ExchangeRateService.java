@@ -49,7 +49,7 @@ public class ExchangeRateService {
     if (!refresh && cached.isPresent()) {
       UsdKrwRate rate = cached.get();
       LocalDate fetchedCutoff = rate.getFetchedAt().atZone(NEW_YORK).toLocalDate().minusDays(1);
-      if (requestedDate.isBefore(fetchedCutoff)
+      if ((rate.getBaseDate().equals(requestedDate) && requestedDate.isBefore(fetchedCutoff))
           || rate.getFetchedAt().isAfter(now.minus(CACHE_TTL)))
         return ExchangeRateResponse.from(rate);
     }

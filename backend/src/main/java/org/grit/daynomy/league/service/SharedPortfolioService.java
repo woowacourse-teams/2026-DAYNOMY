@@ -8,7 +8,9 @@ import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Asset;
@@ -17,10 +19,12 @@ import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
+import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.asset.service.StockPriceService;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.common.logging.TransactionLog;
+import org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository;
 import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.SharedHolding;
 import org.grit.daynomy.league.domain.SharedHoldingHistory;
@@ -37,6 +41,7 @@ import org.grit.daynomy.league.repository.SharedPortfolioRepository;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.exception.MemberErrorCode;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,14 +57,19 @@ public class SharedPortfolioService {
   private final MemberRepository memberRepository;
   private final AssetRepository assetRepository;
   private final StockPriceService stockPriceService;
+  private final StockDailyPriceRepository priceRepository;
+  private final UsdKrwRateRepository exchangeRates;
   private final MarketTradingDayRepository tradingDayRepository;
   private final InvestorProfileRepository profileRepository;
   private final InvestmentDecisionRepository decisionRepository;
   private final InvestmentDecisionService decisionService;
   private final LeagueRankingCache rankingCache;
+  private final LeagueAutoSyncService autoSyncService;
+  private final PortfolioHoldingRepository originalHoldings;
 
-  @Transactional(readOnly = true)
+  @Transactional
   public PortfolioResponse getMine(Long memberId) {
+    autoSyncService.reconcile(memberId);
     return response(portfolioRepository.findByMemberId(memberId).orElse(null));
   }
 
@@ -93,7 +103,10 @@ public class SharedPortfolioService {
           holding == null
               ? !reasons.containsKey(input.assetId())
               : holding.reasonFrom(reasons).isBlank();
-      if (participating && needsReason && input.decision() == null) {
+      if (participating
+          && (holding == null || !holding.isHidden())
+          && needsReason
+          && input.decision() == null) {
         throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
       }
       ChangeType changeType = holding == null ? ChangeType.ADDED : ChangeType.UPDATED;
@@ -106,20 +119,20 @@ public class SharedPortfolioService {
         // 재가져오기로 숨김과 판단 근거를 덮어쓰지 않는다.
         changed = holding.change(input.quantity(), input.averagePurchasePrice());
       }
-      if (changed) {
-        holdingRepository.save(holding);
-        historyRepository.save(new SharedHoldingHistory(holding, changeType));
-        if (changeType == ChangeType.ADDED) added++;
-        else updated++;
-      } else {
-        unchanged++;
-      }
+      if (changed) holdingRepository.save(holding);
       if (needsReason && input.decision() != null) {
         decisionService.recordDecision(
             memberId,
             new DecisionRecordRequest(
                 UUID.randomUUID().toString(), input.assetId(), input.decision()));
       }
+      if (changed) {
+        historyRepository.save(new SharedHoldingHistory(holding, changeType));
+      }
+      if (changed) {
+        if (changeType == ChangeType.ADDED) added++;
+        else updated++;
+      } else unchanged++;
     }
     PortfolioResponse result = response(portfolio);
     TransactionLog.afterCommit(
@@ -144,6 +157,13 @@ public class SharedPortfolioService {
         holdingRepository
             .findByPortfolioIdAndAssetId(portfolio.getId(), assetId)
             .orElseThrow(() -> new BusinessException(LeagueErrorCode.SHARED_HOLDING_NOT_FOUND));
+    if (!request.hidden()) {
+      Map<Long, String> reasons =
+          InvestmentDecision.latestReasons(
+              decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId));
+      if (holding.reasonFrom(reasons).isBlank())
+        throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
+    }
     boolean previousHidden = holding.isHidden();
     holding.changeVisibility(request.hidden());
     PortfolioResponse result = response(portfolio);
@@ -171,6 +191,8 @@ public class SharedPortfolioService {
   @Transactional
   public PortfolioResponse removeHolding(Long memberId, Long assetId) {
     SharedPortfolio portfolio = getForUpdate(memberId);
+    if (originalHoldings.existsByPortfolioMemberIdAndAssetId(memberId, assetId))
+      throw new BusinessException(LeagueErrorCode.SHARED_HOLDING_SOURCE_MANAGED);
     SharedHolding holding =
         holdingRepository
             .findByPortfolioIdAndAssetId(portfolio.getId(), assetId)
@@ -213,7 +235,6 @@ public class SharedPortfolioService {
     Asset asset = assetRepository.findById(assetId).orElse(null);
     if (asset == null
         || !asset.isListed()
-        || "USD".equals(asset.getCurrency())
         || (asset.getCategory() != AssetCategory.STOCK
             && asset.getCategory() != AssetCategory.ETF)) {
       throw new BusinessException(LeagueErrorCode.INVALID_LEAGUE_ASSET);
@@ -235,38 +256,64 @@ public class SharedPortfolioService {
             .orElse(null);
     Map<Long, StockDailyPrice> prices =
         stockPriceService.pricesAt(
-            holdings.stream().map(h -> h.getAsset().getId()).toList(), baseDate);
+            holdings.stream()
+                .filter(h -> !"USD".equals(h.getAsset().getCurrency()))
+                .map(h -> h.getAsset().getId())
+                .toList(),
+            baseDate);
     Map<Long, String> reasons =
         portfolio == null
             ? Map.of()
             : InvestmentDecision.latestReasons(
                 decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(
                     portfolio.getMember().getId()));
+    Set<Long> sourceAssetIds =
+        portfolio == null
+            ? Set.of()
+            : originalHoldings.findAllByPortfolioMemberId(portfolio.getMember().getId()).stream()
+                .map(holding -> holding.getAsset().getId())
+                .collect(Collectors.toSet());
     List<HoldingResponse> values =
         holdings.stream()
             .map(
                 h -> {
-                  StockDailyPrice price = prices.get(h.getAsset().getId());
-                  BigDecimal evaluation =
+                  StockDailyPrice price =
+                      "USD".equals(h.getAsset().getCurrency())
+                          ? priceRepository
+                              .findFirstByAssetIdAndBaseDateLessThanEqualOrderByBaseDateDesc(
+                                  h.getAsset().getId(), LocalDate.now(ZoneId.of("Asia/Seoul")))
+                              .orElse(null)
+                          : prices.get(h.getAsset().getId());
+                  BigDecimal priceKrw =
                       price == null
                           ? null
-                          : price.getClosePrice().multiply(BigDecimal.valueOf(h.getQuantity()));
+                          : "USD".equals(h.getAsset().getCurrency())
+                              ? exchangeRates
+                                  .findById(price.getBaseDate())
+                                  .map(rate -> price.getClosePrice().multiply(rate.getRate()))
+                                  .orElse(null)
+                              : price.getClosePrice();
+                  BigDecimal evaluation =
+                      priceKrw == null
+                          ? null
+                          : priceKrw.multiply(BigDecimal.valueOf(h.getQuantity()));
                   return new HoldingResponse(
                       h.getAsset().getId(),
                       h.getAsset().getAssetCode(),
                       h.getAsset().getDisplayName(),
                       h.getAsset().getCategory().name(),
                       h.getAsset().getMarket().name(),
+                      h.getAsset().getCurrency(),
                       h.getQuantity(),
                       h.getAveragePurchasePrice(),
                       h.isHidden(),
+                      h.isPendingReason(),
+                      sourceAssetIds.contains(h.getAsset().getId()),
                       h.reasonFrom(reasons),
                       price == null ? null : price.getBaseDate(),
                       price == null ? null : price.getClosePrice(),
                       evaluation,
-                      price == null
-                          ? null
-                          : rate(price.getClosePrice(), h.getAveragePurchasePrice()));
+                      priceKrw == null ? null : rate(priceKrw, h.getAveragePurchasePrice()));
                 })
             .toList();
     BigDecimal cost =
