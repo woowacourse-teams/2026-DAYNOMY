@@ -103,6 +103,10 @@ describe('인물의 글 화면', () => {
     );
     await view.findByRole('button', { name: /일론 머스크 X 게시물/ });
     fireEvent.click(view.getByRole('button', { name: '인물 찾기' }));
+    expect(trackEvent).toHaveBeenCalledWith('toggle_people_finder', {
+      surface: 'people',
+      expanded: true,
+    });
     fireEvent.change(view.getByRole('searchbox', { name: '인물 이름 검색' }), {
       target: { value: '도널드' },
     });
@@ -167,6 +171,12 @@ describe('인물의 글 화면', () => {
     expect((await view.findByRole('link', { name: /X 프로필/ })).getAttribute('href')).toBe(
       'https://x.com/elonmusk',
     );
+    fireEvent.click(view.getByRole('link', { name: /X 프로필/ }));
+    expect(trackEvent).toHaveBeenCalledWith('click_person_profile', {
+      surface: 'people',
+      person_id: 1,
+      source_type: 'X',
+    });
     expect(view.queryByRole('button', { name: /도널드 트럼프 Threads 게시물/ })).toBeNull();
   });
 
