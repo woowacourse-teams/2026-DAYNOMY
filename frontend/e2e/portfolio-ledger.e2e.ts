@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { installAccessibilityFixtures } from './fixtures/accessibility';
 
+test.describe.configure({ mode: 'parallel' });
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('daynomy:service-started:v1', '1');
