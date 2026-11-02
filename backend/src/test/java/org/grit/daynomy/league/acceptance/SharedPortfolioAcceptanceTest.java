@@ -1320,6 +1320,28 @@ class SharedPortfolioAcceptanceTest {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void decisionReviewPublicationRankingAndPublicDetailsUseRealStoredData(boolean withdraw) {
+    var calendar =
+        jdbc.queryForList("SELECT base_date, trading, collected_at FROM market_trading_days");
+    Long lastLeaderboardId =
+        jdbc.queryForObject("SELECT COALESCE(MAX(id), 0) FROM weekly_leaderboards", Long.class);
+    try {
+      jdbc.update("UPDATE market_trading_days SET collected_at=NULL");
+      verifyDecisionReviewPublicationRankingAndPublicDetails(withdraw);
+    } finally {
+      jdbc.update("DELETE FROM weekly_leaderboards WHERE id > ?", lastLeaderboardId);
+      jdbc.batchUpdate(
+          "UPDATE market_trading_days SET trading=?, collected_at=? WHERE base_date=?",
+          calendar.stream()
+              .map(
+                  row ->
+                      new Object[] {
+                        row.get("trading"), row.get("collected_at"), row.get("base_date")
+                      })
+              .toList());
+    }
+  }
+
+  private void verifyDecisionReviewPublicationRankingAndPublicDetails(boolean withdraw) {
     Member owner = member();
     Member viewer = member();
     Asset asset = asset();
@@ -1617,7 +1639,11 @@ class SharedPortfolioAcceptanceTest {
         .body("investors[0].newReviewCount", equalTo(1));
 
     // 집계 검증용 과거 이력은 격리된 Testcontainers DB에서만 만든다.
-    LocalDate date = LocalDate.now(ZoneId.of("Asia/Seoul")).minusWeeks(1).with(DayOfWeek.MONDAY);
+    LocalDate date = LocalDate.now(ZoneId.of("Asia/Seoul")).minusWeeks(2).with(DayOfWeek.MONDAY);
+    jdbc.update(
+        "UPDATE market_trading_days SET trading=(EXTRACT(ISODOW FROM base_date) < 6) WHERE base_date BETWEEN ? AND ?",
+        date.minusWeeks(1),
+        date.plusWeeks(2).minusDays(1));
     Instant past = date.minusDays(10).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
     jdbc.update(
         "UPDATE public_investor_profiles SET league_enabled_at=? WHERE member_id=?",
@@ -1738,28 +1764,29 @@ class SharedPortfolioAcceptanceTest {
         .statusCode(200)
         .body("transactions", hasSize(1))
         .body("transactions[0].reviews", hasSize(1));
-    // 현재 주차에도 가격·수익률을 준비하고, 실제 노출된 순위의 캐시를 채운다.
-    LocalDate currentWeek = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
-    jdbc.update("UPDATE market_trading_days SET trading=true WHERE base_date=?", currentWeek);
-    List<LocalDate> currentTradingDays =
+    // 지난주 금요일은 수집 대기로 남겨 장 마감 시각과 무관하게 미확정 순위 캐시를 채운다.
+    LocalDate pendingWeek = date.plusWeeks(1);
+    List<LocalDate> collectedDays =
         jdbc.queryForList(
             "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
             LocalDate.class,
-            currentWeek,
-            LocalDate.now(ZoneId.of("Asia/Seoul")));
-    for (LocalDate trading : currentTradingDays) {
+            pendingWeek,
+            pendingWeek.plusDays(3));
+    for (LocalDate trading : collectedDays) {
       prices.save(new StockDailyPrice(asset, trading, new BigDecimal("77000")));
       jdbc.update(
           "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
           trading);
     }
-    leagueReturns.recalculateFrom(currentWeek);
+    leagueReturns.recalculateFrom(pendingWeek);
     given()
         .port(port)
+        .queryParam("weekStart", pendingWeek.toString())
         .queryParam("size", 100)
         .get("/api/league/rankings")
         .then()
         .statusCode(200)
+        .body("confirmed", equalTo(false))
         .body("rankings.publicId", hasItem(publicId));
     client(viewer).post("/api/users/me/league/follows/" + publicId).then().statusCode(204);
     if (withdraw) {
@@ -1794,7 +1821,7 @@ class SharedPortfolioAcceptanceTest {
             .body("code", equalTo("PROFILE_NOT_FOUND"));
       }
     }
-    for (LocalDate week : List.of(date, currentWeek)) {
+    for (LocalDate week : List.of(date, pendingWeek)) {
       for (var reader : List.of(given().port(port), client(viewer))) {
         reader
             .queryParam("weekStart", week.toString())
