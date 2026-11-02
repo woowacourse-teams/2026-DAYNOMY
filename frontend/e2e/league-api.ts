@@ -104,6 +104,20 @@ export async function mockLeagueApi(page: Page) {
               status: 'PENDING',
               reason: null,
             },
+            {
+              baseDate: '2026-10-17',
+              dailyReturnRate: null,
+              cumulativeReturnRate: null,
+              status: 'PENDING',
+              reason: 'MARKET_CLOSED',
+            },
+            {
+              baseDate: '2026-10-18',
+              dailyReturnRate: null,
+              cumulativeReturnRate: null,
+              status: 'PENDING',
+              reason: 'MARKET_CLOSED',
+            },
           ],
         },
       });
@@ -124,6 +138,7 @@ export async function mockLeagueApi(page: Page) {
             averagePurchasePrice: 100,
             hidden: false,
             pendingReason: false,
+            sourceManaged: true,
             reason: '실적을 확인하며 보유',
             baseDate: '2026-10-13',
             closePrice: 100,

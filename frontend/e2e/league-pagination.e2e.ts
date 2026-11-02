@@ -48,7 +48,11 @@ for (const width of [320, 390, 1440]) {
       });
     });
     await page.goto('/league');
-    await expect(page.getByText('다음 집계 예정')).toBeVisible();
+    await expect(page.getByText('집계 예정', { exact: true })).toBeVisible();
+    await expect(page.locator('.league-aggregation time')).toHaveAttribute(
+      'datetime',
+      '2026-10-15T05:30:00Z',
+    );
     await expect(
       page.getByText('집계된 종가 기준의 잠정 순위예요. 최종 집계 후 달라질 수 있어요.'),
     ).toHaveCount(0);
