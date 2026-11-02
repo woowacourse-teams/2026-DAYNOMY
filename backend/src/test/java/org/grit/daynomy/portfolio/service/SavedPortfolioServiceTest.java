@@ -188,7 +188,7 @@ class SavedPortfolioServiceTest {
 
     var response = service.transact(1L, request);
 
-    then(holding).should().change(8L, new BigDecimal("70000.00"));
+    then(holding).should().change(8L, new BigDecimal("70000.00"), null);
     assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("19700.00");
     ArgumentCaptor<PortfolioHoldingHistory> historyCaptor =
         ArgumentCaptor.forClass(PortfolioHoldingHistory.class);
@@ -251,7 +251,7 @@ class SavedPortfolioServiceTest {
     assertThat(history.getEffectiveDate()).isEqualTo(LocalDate.of(2026, 10, 1));
     assertThat(history.getTransactionQuantity()).isEqualTo(3L);
     assertThat(history.getUnitPrice()).isEqualByComparingTo("81000");
-    then(holding).should().change(3L, new BigDecimal("81000.00"));
+    then(holding).should().change(3L, new BigDecimal("81000.00"), null);
     then(snapshotTransactionService)
         .should()
         .refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30), java.util.Map.of());
@@ -354,7 +354,7 @@ class SavedPortfolioServiceTest {
 
     then(historyRepository).should().delete(history);
     then(historyRepository).should().flush();
-    then(holding).should().change(5L, new BigDecimal("70000.00"));
+    then(holding).should().change(5L, new BigDecimal("70000.00"), null);
     assertThat(response.transactionId()).isEqualTo(7L);
     assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("0");
     then(snapshotTransactionService)

@@ -298,6 +298,306 @@ class PortfolioSnapshotAcceptanceTest {
             FIRST.minusDays(1)));
   }
 
+  @Test
+  void openingBalancesAreAtomicRejectDuplicatesAndDoNotCreateBuyTrades() {
+    Member member = member();
+    Asset first = asset();
+    Asset second = asset();
+    var row = Map.of("assetId", first.getId(), "quantity", 3, "averagePurchasePrice", 110);
+    var another = Map.of("assetId", second.getId(), "quantity", 2, "averagePurchasePrice", 362500);
+    client(member)
+        .body(Map.of("holdings", List.of(row, row)))
+        .post(PORTFOLIO + "/holdings/bulk")
+        .then()
+        .statusCode(400)
+        .body("code", equalTo("DUPLICATE_PORTFOLIO_ASSET"));
+    assertThat(portfolios.findByMemberId(member.getId())).isEmpty();
+    client(member)
+        .body(
+            Map.of(
+                "holdings",
+                List.of(
+                    row,
+                    Map.of("assetId", Long.MAX_VALUE, "quantity", 1, "averagePurchasePrice", 100))))
+        .post(PORTFOLIO + "/holdings/bulk")
+        .then()
+        .statusCode(404);
+    assertThat(portfolios.findByMemberId(member.getId())).isEmpty();
+    client(member)
+        .body(Map.of("holdings", List.of(row, another)))
+        .post(PORTFOLIO + "/holdings/bulk")
+        .then()
+        .statusCode(201)
+        .body("holdings.quantity", equalTo(List.of(3, 2)))
+        .body("totalRealizedProfitLoss", equalTo(0.0F));
+    Long portfolioId = portfolios.findByMemberId(member.getId()).orElseThrow().getId();
+    var history =
+        histories.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId);
+    assertThat(history)
+        .hasSize(2)
+        .allSatisfy(
+            item -> {
+              assertThat(item.getChangeType())
+                  .isEqualTo(PortfolioHoldingChangeType.OPENING_BALANCE);
+              assertThat(item.getTransactionQuantity()).isNull();
+              assertThat(item.getUnitPrice()).isNull();
+              assertThat(item.getEffectiveDate())
+                  .isEqualTo(LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
+            });
+    var third = asset();
+    client(member)
+        .body(
+            Map.of(
+                "holdings",
+                List.of(
+                    Map.of("assetId", third.getId(), "quantity", 1, "averagePurchasePrice", 100),
+                    row)))
+        .post(PORTFOLIO + "/holdings/bulk")
+        .then()
+        .statusCode(400);
+    assertThat(holdings.findByPortfolioIdAndAssetId(portfolioId, third.getId())).isEmpty();
+    assertThat(histories.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId))
+        .hasSize(2);
+  }
+
+  @Test
+  void nativeAverageSurvivesCreateReadAndBalanceAdjustment() {
+    Member member = member();
+    Asset usd =
+        assets.save(
+            Asset.listedStock(
+                "달러 평단가 검증", UUID.randomUUID() + ".US", StockMarket.NASDAQ, null, FIRST));
+    var row =
+        Map.of(
+            "assetId",
+            usd.getId(),
+            "quantity",
+            2,
+            "averagePurchasePrice",
+            350000,
+            "nativeAveragePurchasePrice",
+            250.1234);
+    client(member)
+        .body(Map.of("holdings", List.of(row)))
+        .post(PORTFOLIO + "/holdings/bulk")
+        .then()
+        .statusCode(201)
+        .body("holdings[0].nativeAveragePurchasePrice", equalTo(250.1234F));
+    client(member)
+        .get(PORTFOLIO)
+        .then()
+        .statusCode(200)
+        .body("holdings[0].nativeAveragePurchasePrice", equalTo(250.1234F));
+    var changed =
+        Map.of(
+            "assetId",
+            usd.getId(),
+            "quantity",
+            3,
+            "averagePurchasePrice",
+            308000,
+            "nativeAveragePurchasePrice",
+            220.0);
+    client(member)
+        .body(Map.of("holdings", List.of(changed)))
+        .patch(PORTFOLIO + "/holdings")
+        .then()
+        .statusCode(200)
+        .body("[0].nativeAveragePurchasePrice", equalTo(220.0F));
+    client(member)
+        .get(PORTFOLIO)
+        .then()
+        .statusCode(200)
+        .body("holdings[0].nativeAveragePurchasePrice", equalTo(220.0F));
+    var portfolioId = portfolios.findByMemberId(member.getId()).orElseThrow().getId();
+    assertThat(histories.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId))
+        .extracting(PortfolioHoldingHistory::getNativeAveragePurchasePrice)
+        .usingElementComparator(BigDecimal::compareTo)
+        .containsExactly(new BigDecimal("250.1234"), new BigDecimal("220"));
+  }
+
+  @Test
+  void bulkHoldingsAreAtomicAndDoNotRecordTrades() {
+    Member member = member();
+    Asset first = asset();
+    Asset second = asset();
+    buy(member, first, FIRST, 2, 100);
+    buy(member, second, FIRST, 2, 200);
+    Long portfolioId = portfolios.findByMemberId(member.getId()).orElseThrow().getId();
+    var changes =
+        List.of(
+            Map.of("assetId", first.getId(), "quantity", 3, "averagePurchasePrice", 110),
+            Map.of("assetId", second.getId(), "quantity", 4, "averagePurchasePrice", 210));
+    client(member)
+        .body(Map.of("holdings", changes))
+        .patch(PORTFOLIO + "/holdings")
+        .then()
+        .statusCode(200)
+        .body("quantity", equalTo(List.of(3, 4)));
+    var history =
+        histories.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId);
+    assertThat(history).hasSize(4);
+    assertThat(
+            history.stream()
+                .filter(item -> item.getChangeType() == PortfolioHoldingChangeType.ADJUSTED)
+                .count())
+        .isEqualTo(2);
+    client(member)
+        .body(Map.of("holdings", changes))
+        .patch(PORTFOLIO + "/holdings")
+        .then()
+        .statusCode(200);
+    assertThat(histories.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId))
+        .hasSize(4);
+    client(member)
+        .body(
+            Map.of(
+                "holdings",
+                List.of(
+                    Map.of("assetId", first.getId(), "quantity", 9, "averagePurchasePrice", 110),
+                    Map.of("assetId", Long.MAX_VALUE, "quantity", 4, "averagePurchasePrice", 210))))
+        .patch(PORTFOLIO + "/holdings")
+        .then()
+        .statusCode(404);
+    assertThat(
+            holdings
+                .findByPortfolioIdAndAssetId(portfolioId, first.getId())
+                .orElseThrow()
+                .getQuantity())
+        .isEqualTo(3);
+    assertThat(histories.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId))
+        .hasSize(4);
+    client(member)
+        .body(Map.of("holdings", List.of(changes.getFirst(), changes.getFirst())))
+        .patch(PORTFOLIO + "/holdings")
+        .then()
+        .statusCode(400);
+  }
+
+  @Test
+  void csvImportOrdersTradesDeduplicatesAndRollsBackEveryRowOnFailure() {
+    Member member = member();
+    Asset asset = asset();
+    var buy = new java.util.HashMap<String, Object>(transaction(FIRST, 3, 100));
+    buy.put("assetId", asset.getId());
+    buy.put("type", "BUY");
+    var sell = new java.util.HashMap<String, Object>(transaction(SECOND, 1, 150));
+    sell.put("assetId", asset.getId());
+    sell.put("type", "SELL");
+    var batch = Map.of("transactions", List.of(sell, buy));
+    client(member)
+        .body(batch)
+        .post(PORTFOLIO + "/transactions/import")
+        .then()
+        .statusCode(200)
+        .body("importedCount", equalTo(2))
+        .body("portfolio.holdings[0].quantity", equalTo(2));
+    client(member)
+        .body(batch)
+        .post(PORTFOLIO + "/transactions/import")
+        .then()
+        .statusCode(200)
+        .body("importedCount", equalTo(0))
+        .body("alreadyImported", equalTo(true));
+    Long portfolioId = portfolios.findByMemberId(member.getId()).orElseThrow().getId();
+    assertThat(histories.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId))
+        .hasSize(2);
+    sell.put("quantity", 99);
+    client(member)
+        .body(Map.of("transactions", List.of(buy, sell)))
+        .post(PORTFOLIO + "/transactions/import")
+        .then()
+        .statusCode(400)
+        .body("code", equalTo("INSUFFICIENT_PORTFOLIO_QUANTITY"));
+    assertThat(
+            holdings
+                .findByPortfolioIdAndAssetId(portfolioId, asset.getId())
+                .orElseThrow()
+                .getQuantity())
+        .isEqualTo(2);
+    assertThat(histories.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId))
+        .hasSize(2);
+    sell.put("quantity", 1);
+    buy.put("quantity", 4);
+    client(member)
+        .body(Map.of("transactions", List.of(buy, sell)))
+        .post(PORTFOLIO + "/transactions/import")
+        .then()
+        .statusCode(200)
+        .body("importedCount", equalTo(2));
+    assertThat(
+            holdings
+                .findByPortfolioIdAndAssetId(portfolioId, asset.getId())
+                .orElseThrow()
+                .getQuantity())
+        .isEqualTo(5);
+    // Another member can import the same trades into their own portfolio.
+    client(member())
+        .body(batch)
+        .post(PORTFOLIO + "/transactions/import")
+        .then()
+        .statusCode(200)
+        .body("importedCount", equalTo(2));
+  }
+
+  @Test
+  void bulkTradeFailureAlsoRollsBackFirstPortfolioCreation() {
+    Member member = member();
+    Asset asset = asset();
+    var buy = new java.util.HashMap<String, Object>(transaction(FIRST, 1, 100));
+    buy.put("assetId", asset.getId());
+    buy.put("type", "BUY");
+    var sell = new java.util.HashMap<String, Object>(buy);
+    sell.put("assetId", asset().getId());
+    sell.put("type", "SELL");
+    sell.put("quantity", 2);
+    client(member)
+        .body(Map.of("transactions", List.of(buy, sell)))
+        .post(PORTFOLIO + "/transactions/bulk")
+        .then()
+        .statusCode(400);
+    assertThat(portfolios.findByMemberId(member.getId())).isEmpty();
+    sell.put("quantity", 1);
+    sell.put("type", "BUY");
+    client(member)
+        .body(Map.of("transactions", List.of(buy, sell)))
+        .post(PORTFOLIO + "/transactions/bulk")
+        .then()
+        .statusCode(200)
+        .body("portfolio.holdings.size()", equalTo(2));
+  }
+
+  @Test
+  void bulkAddRejectsOwnedAndRepeatedAssetsWithoutSavingAnyRows() {
+    Member member = member();
+    Asset existing = asset();
+    Asset added = asset();
+    buy(member, existing, FIRST, 2, 100);
+    var newRow = new java.util.HashMap<String, Object>(transaction(SECOND, 1, 100));
+    newRow.put("assetId", added.getId());
+    newRow.put("type", "BUY");
+    var ownedRow = new java.util.HashMap<String, Object>(newRow);
+    ownedRow.put("assetId", existing.getId());
+    for (var rows : List.of(List.of(newRow, ownedRow), List.of(newRow, newRow))) {
+      client(member)
+          .body(Map.of("transactions", rows))
+          .post(PORTFOLIO + "/transactions/bulk")
+          .then()
+          .statusCode(400)
+          .body("code", equalTo("DUPLICATE_PORTFOLIO_ASSET"));
+    }
+    Long portfolioId = portfolios.findByMemberId(member.getId()).orElseThrow().getId();
+    assertThat(holdings.findByPortfolioIdAndAssetId(portfolioId, added.getId())).isEmpty();
+    assertThat(
+            holdings
+                .findByPortfolioIdAndAssetId(portfolioId, existing.getId())
+                .orElseThrow()
+                .getQuantity())
+        .isEqualTo(2);
+    assertThat(histories.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(portfolioId))
+        .hasSize(1);
+  }
+
   private Portfolio legacyHolding(Member member, Asset asset, LocalDate date) {
     Portfolio portfolio = portfolios.save(Portfolio.create(member));
     holdings.save(new PortfolioHolding(portfolio, asset, 2, new BigDecimal("100")));
