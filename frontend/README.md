@@ -399,6 +399,35 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 | `investment_calendar_load_result`                                                 | 투자 캘린더 조회 성공·실패                               | `surface`, `scope`, `status`, `result_count`, `attempt`, `duration_ms`, `is_logged_in`    |
 | `investment_calendar_action`                                                      | 월·범위·보기 변경, 일정 선택, 과거 반응 펼치기, 재시도   | `surface`, `action`, `direction`, `scope`, `view`, `position`, `attempt`                  |
 
+### 이메일 알림·분석 완료 계측 (#775)
+
+기존 `trackEvent`를 통해 GA4와 PostHog에 함께 전송합니다.
+
+| 이벤트                             | 발생 시점                                         | 속성                                                                                                  |
+| ---------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `email_subscription_prompt_viewed` | 구독 안내 표시, 계정별 컴포넌트 마운트에서 한 번  | `surface`                                                                                             |
+| `email_subscription_submitted`     | 구독·재구독·해지·안내 닫기 요청                   | `surface`, `action`, `trigger`                                                                        |
+| `email_subscription_result`        | 위 요청 성공·실패, 취소 응답 제외                 | 위 속성 + `status`, `duration_ms`                                                                     |
+| `portfolio_analysis_completed`     | 사용자가 이 화면에서 시작한 분석의 최종 상태 확인 | `action`, `user_type`, `asset_count`, `status`, `summary_status`, `last_check_outcome`, `duration_ms` |
+| `click_portfolio_analysis_source`  | 전체·자산별 분석 출처 링크 클릭                   | `surface`, `scope`, `position`                                                                        |
+
+`portfolio_analysis_result`는 기존처럼 요청 응답을 기록합니다. `PROCESSING`은 완료가
+아니며 새 `portfolio_analysis_completed`는 폴링과 요약 생성이 끝난 뒤 한 번만
+기록합니다. `summary_status=FAILED`는 `status=FAILED`로 집계합니다. 전체 소요시간은
+브라우저에서 요청을 시작한 시점부터 최종 상태를 확인한 시점까지이며 폴링 대기를 포함합니다.
+화면 이탈·재접속·자동 분석·거절된 요청에는 완료 이벤트를 만들지 않습니다.
+따라서 완료율은 화면을 유지한 사용자 작업의 관측 지표이며 서버 전체 성공률이 아닙니다.
+
+구독 `action`은 `subscribe`, `resubscribe`, `unsubscribe`, `dismiss`이며 `surface`로
+안내 팝업과 마이페이지를 구분합니다. 안내 닫기는 `trigger=close`, 버튼 선택은
+`trigger=button`입니다. 이벤트에 이메일·회원 ID·종목명·금액·출처 URL을 넣지 않습니다.
+분석 가이드의 출처 클릭은 집계하지 않습니다.
+
+HTML·텍스트 이메일의 포트폴리오·알림 설정·내부 소식 링크에는
+`utm_source=daynomy`, `utm_medium=email`, `utm_campaign=portfolio_updates`를 붙입니다.
+외부 자료와 수신 해지 링크는 유지합니다. 기존 PostHog 방문 유입 속성으로 확인하며
+과거 발송 메일과 기존 세션에 새 유입이 소급 적용되지는 않습니다.
+
 소식 홈 개편 화면도 기존 콘텐츠 이벤트를 유지합니다. 트렌딩은 카드가 50% 이상 실제로
 노출됐을 때 `view_content`를 한 번만 보내며, 전체 소식은 조회 결과·빈 상태·출처 변경과
 더 보기 이동을 기록합니다. 투자 캘린더 이벤트에는 일정 제목·종목명·금액·수량을 포함하지

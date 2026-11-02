@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { trackEmailSubscriptionEvent } from './analytics';
 import {
   getEmailSubscription,
   subscribeToEmail,
@@ -44,18 +45,38 @@ export function EmailSubscriptionSettings({ disabled = false }: { disabled?: boo
     setSaving(true);
     setError('');
     setNotice('');
+    const startedAt = performance.now();
+    const properties = {
+      surface: 'email_subscription_settings' as const,
+      action: subscribed
+        ? ('unsubscribe' as const)
+        : subscription.status === 'UNSUBSCRIBED'
+          ? ('resubscribe' as const)
+          : ('subscribe' as const),
+    };
+    trackEmailSubscriptionEvent('email_subscription_submitted', properties);
+    const recordResult = (status: 'success' | 'error') => {
+      trackEmailSubscriptionEvent('email_subscription_result', {
+        ...properties,
+        status,
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+    };
     try {
       const updated = await (subscribed ? unsubscribeFromEmail : subscribeToEmail)(
         controller.signal,
       );
       if (controller.signal.aborted) return;
+      recordResult('success');
       setSubscription(updated);
       setNotice(
         updated.status === 'SUBSCRIBED' ? '이메일 알림을 구독했어요.' : '이메일 알림을 해지했어요.',
       );
     } catch {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
+        recordResult('error');
         setError('구독 설정을 저장하지 못했어요. 연결을 확인하고 다시 시도해 주세요.');
+      }
     } finally {
       submitting.current = false;
       if (!controller.signal.aborted) setSaving(false);

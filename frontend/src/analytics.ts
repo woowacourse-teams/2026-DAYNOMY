@@ -72,6 +72,7 @@ const analyticsPropertyKeys = new Set([
   'stage',
   'status',
   'status_code',
+  'summary_status',
   'step_group',
   'step_id',
   'step_number',

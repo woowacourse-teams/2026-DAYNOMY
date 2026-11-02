@@ -58,14 +58,14 @@ final class EmailHtmlTemplate {
         <h1 style="margin:0 0 12px;font-size:27px;line-height:1.5;letter-spacing:-0.6px;color:#111320">내 자산 변화와 새 소식</h1>
         %s
         <p style="margin:32px 0 8px;font-size:14px;font-weight:700;color:#111320">DAYNOMY</p>
-        <p style="margin:0;font-size:13px;color:#52647f"><a href="%s/mypage" style="color:#52647f;text-decoration:underline">알림 설정</a> · %s</p>
+        <p style="margin:0;font-size:13px;color:#52647f"><a href="%s" style="color:#52647f;text-decoration:underline">알림 설정</a> · %s</p>
         </td></tr></table></td></tr></table></body></html>
         """
         .formatted(
             date.format(DateTimeFormatter.ofPattern("yyyy.MM.dd")),
             text(name),
             content,
-            text(baseUrl),
+            text(EmailCampaignLink.to(baseUrl, "/mypage")),
             link(unsubscribeUrl, "수신 해지"));
   }
 
@@ -125,9 +125,9 @@ final class EmailHtmlTemplate {
     html.append(
         """
         <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" style="margin-top:36px"><tr><td align="center" style="background-color:#0a0a0a;border-radius:10px">
-        <a href="%s/" style="display:block;padding:16px 20px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none">%s</a></td></tr></table>
+        <a href="%s" style="display:block;padding:16px 20px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none">%s</a></td></tr></table>
         """
-            .formatted(text(baseUrl), text(label)));
+            .formatted(text(EmailCampaignLink.to(baseUrl, "/")), text(label)));
   }
 
   private static void stockHeading(StringBuilder html, String name) {
