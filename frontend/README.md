@@ -88,6 +88,7 @@ npm run dev
 - 고양이에서 복기를 열면 관련 기사와 AI 질문을 자동으로 준비합니다. 대기 중에도 작성·저장할 수 있고, 접었다 다시 열면 같은 결과를 재사용합니다. 실패한 경우 `근거 다시 찾기`로 재시도합니다. 일반 복기 페이지의 수동 근거 찾기는 유지합니다. 리그 진입·알림 노출만으로는 외부 AI를 요청하지 않습니다.
 - 고양이 복기 창 상단에서 당시 판단과 AI 참고 기사를 펼쳐 확인합니다. 질문의 근거 번호로 해당 기사를 바로 펼칠 수 있습니다. 세 항목은 한 폼에서 작성하며 작성 수를 표시하고, 저장 영역은 입력 스크롤과 분리합니다. `나중에`로 접어도 초안과 준비된 근거를 유지합니다.
 - 투자 복기 페이지는 카드 상단에서 작성을 시작하며 PC에서 보유 이유와 복기를 나란히 표시합니다. 판단 조건과 AI 참고 기사는 펼쳐 확인하고, 입력창 위의 기사 근거·작성 진행률과 하단 저장 영역을 구분합니다. 모바일에서 작성 시 제목으로 이동해 키보드를 자동으로 열지 않습니다. AI 도움은 기존처럼 별도 요청 시 제공하며 초안을 덮어쓰지 않습니다.
+- 복기 알림은 현재 리그 참여와 각 기록 생성 후 7일(168시간)이 지나고 유효한 성과가 집계됐을 때 리그·종목 관리·종목 추가 화면 방문에서 표시합니다. 마지막 안내 또는 해당 안내의 첫 닫기 후 7일 뒤 재방문에서 다시 안내하며 새 종목도 7일을 기다립니다. 서버 이력으로 새로고침·다른 기기의 중복을 막고, 재가입은 새 참여 기준으로 초기화합니다. 집계 대기·복기 완료에서는 표시하지 않으며 수동 작성은 항상 가능합니다. 푸시·메일은 없습니다. 알림 수신을 선점한 후 화면 이탈·응답 유실이 생기면 보지 못해도 주기가 소비될 수 있습니다. 백엔드 알림 API와 V57 마이그레이션을 함께 배포해야 합니다.
 - 복기 기사와 AI 질문은 실제 백엔드의 `POST /api/users/me/portfolio/decisions/{transactionId}/review-guide`로 조회합니다. 해당 자산에 연결된 DAYNOMY 발행 기사를 우선하고, 보완 검색 기사도 제목 또는 본문에 자산명이 있어야 사용합니다. 최근 90일 중 판단 최종 저장 이후 발행 기사만 최대 5개 제공하며, 없으면 기사 없음 상태로 수동 작성을 지원합니다.
 - 로컬에서도 `npm run dev`와 실제 백엔드(기본 `http://localhost:8080`)·Google 로그인을 사용합니다. 복기용 로그인 우회, 가상 기사 서버, 예시 응답 대체 경로는 제공하지 않습니다.
 - 종목 관리·추가 화면의 고양이도 미복기 기록을 알려주고 바로 복기를 엽니다. 필수 보유 이유는 기존 폼에서만 안내합니다. 이미 등록한 종목은 추가 대상에서 제외하고 수량·평균 매수가 비교와 덮어쓰기 확인은 표시하지 않습니다. 복기 완료 창을 닫으면 기존 종목 목록에 저장 결과를 반영합니다.
@@ -418,6 +419,22 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 분석 전송 실패는 저장 결과나 사용자 동작에 영향을 주지 않습니다.
 URL에서 쿼리·fragment와 공개 투자자 ID를 제거하되 `/league/profile`, `/league/reviews`,
 `/league/following`, `/league/portfolio`는 각각의 화면 경로를 유지합니다.
+
+#### 복기 알림 퍼널
+
+GA4·PostHog 양쪽에 기존 공통 전송 경로로 아래 이벤트를 보냅니다. 기존 수집 제외 정책을 유지하며 종목·기사 ID/제목/URL·회원 식별자·요청 키·입력 내용을 보내지 않습니다.
+
+| 이벤트                          | 발생 시점                                                                                                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view_league_review_reminder`   | 서버가 허용한 알림을 실제 표시할 때 한 번. `surface=review_coach`, `entry_point=ranking/holdings/source_holdings`, `result_count`                                                            |
+| `league_review_reminder_action` | 열기(`action=open_review`, `status=clicked`, `target=bubble/cat/entry`), 닫기·미루기(`action=dismiss_reminder/snooze_reminder`, `status=success/error`, `target=bubble/minimize/hide/later`) |
+| `league_action`                 | `action=review_guide`, `status=submitted/success/error`, `entry_point`, `retrieval_status`, `duration_ms`로 AI 근거 준비 측정                                                                |
+| `league_review_article_click`   | 참고 기사 링크 클릭. `surface`, `entry_point`, `position`만 전송                                                                                                                             |
+| `league_review_saved`           | 실제 복기 저장 성공. `surface`, `entry_point`, `action=save_review/edit_review`, `guide_used`. 409 기록 재조회는 저장으로 집계하지 않음                                                      |
+
+노출 → 열기 → AI 성공 / 기사 클릭 → 첫 저장(`action=save_review`) 전환과, 노출 후 7일 이내 기존 `view_league` 재방문을 봅니다. AI 근거 준비와 기사 클릭은 선택 분기이며 기사 없음·직접 작성도 저장할 수 있습니다. 기존 `save_investment_review`와 새 `league_review_saved`는 같은 저장이므로 합산하지 않습니다. 회원 identify를 추가하지 않아 재방문 분석은 익명 브라우저 기준이며 계정의 여러 기기를 합치지 않습니다.
+
+GA4에서는 `surface`, `entry_point`, `action`, `target`, `status`, `guide_used`를 이벤트 범위 맞춤 차원으로 등록하고, PostHog에서는 같은 속성으로 퍼널을 구성합니다. 기존 `GA_MEASUREMENT_ID`와 `VITE_POSTHOG_PROJECT_TOKEN`·`VITE_POSTHOG_HOST` 설정을 사용합니다. SDK 전송과 민감정보 제외는 자동 테스트로 확인하며 실제 프로젝트 수신·대시보드 설정은 별도 점검입니다.
 
 #### GA4 관리 화면 설정
 

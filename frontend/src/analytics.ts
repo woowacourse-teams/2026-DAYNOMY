@@ -20,6 +20,7 @@ const analyticsPropertyKeys = new Set([
   'expanded',
   'filter',
   'has_holdings',
+  'guide_used',
   'hidden',
   'is_logged_in',
   'keyword_category',

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { ReviewReminderEntryPoint } from './analytics';
 import { InvestmentRecords } from './InvestmentRecords';
 import { transactionLabels } from './labels';
 import type { InvestmentDecisionRecord } from './types';
@@ -11,17 +12,26 @@ export function FloatingReviewCoach({
   reminderCount,
   onSaved,
   onDismiss,
+  entryPoint,
+  onOpen,
+  onDefer,
 }: {
   record: InvestmentDecisionRecord;
   reminderCount?: number;
   onSaved: (record: InvestmentDecisionRecord) => void;
   onDismiss?: () => void;
+  entryPoint?: ReviewReminderEntryPoint;
+  onOpen?: (target: 'bubble' | 'cat' | 'entry') => void;
+  onDefer?: (target: 'bubble' | 'minimize' | 'hide' | 'later') => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(true);
   const [reminderVisible, setReminderVisible] = useState(Boolean(reminderCount));
   const [done, setDone] = useState(false);
   const saved = useRef(false);
+  const deferring = useRef(false);
+  const [deferBusy, setDeferBusy] = useState(false);
+  const [deferError, setDeferError] = useState('');
   const floating = useRef<HTMLElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const entry = useRef<HTMLButtonElement>(null);
@@ -61,10 +71,32 @@ export function FloatingReviewCoach({
       restoreFocus.current = null;
     }
   }, [open, visible, done]);
-  function show() {
+  function show(target: 'bubble' | 'cat' | 'entry') {
+    onOpen?.(target);
+    setDeferError('');
     setReminderVisible(false);
     setVisible(true);
     setOpen(true);
+  }
+  async function defer(target: 'bubble' | 'minimize' | 'hide' | 'later', complete: () => void) {
+    if (!onDefer || done) {
+      complete();
+      return;
+    }
+    if (deferring.current) return;
+    deferring.current = true;
+    setDeferBusy(true);
+    setDeferError('');
+    try {
+      await onDefer(target);
+      setReminderVisible(false);
+      complete();
+    } catch {
+      setDeferError('알림을 미루지 못했어요. 다시 시도해 주세요.');
+    } finally {
+      deferring.current = false;
+      setDeferBusy(false);
+    }
   }
   function minimize() {
     if (done && onDismiss) {
@@ -91,7 +123,7 @@ export function FloatingReviewCoach({
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.stopPropagation();
-          minimize();
+          void defer('minimize', minimize);
         }
       }}
     >
@@ -111,14 +143,20 @@ export function FloatingReviewCoach({
           <details className="floating-review-menu">
             <summary aria-label="복기 도우미 메뉴">⋯</summary>
             <div>
-              <button type="button" onClick={hide} aria-label="복기 도우미 숨기기">
+              <button
+                type="button"
+                onClick={() => void defer('hide', hide)}
+                disabled={deferBusy}
+                aria-label="복기 도우미 숨기기"
+              >
                 화면에서 숨기기
               </button>
             </div>
           </details>
           <button
             type="button"
-            onClick={minimize}
+            onClick={() => void defer('minimize', minimize)}
+            disabled={deferBusy}
             aria-label="복기 도우미 접기"
             title="접어도 작성한 답변은 유지돼요"
           >
@@ -133,6 +171,11 @@ export function FloatingReviewCoach({
             event.target.scrollIntoView?.({ block: 'nearest' });
         }}
       >
+        {deferError ? (
+          <p className="shared-error" role="alert">
+            {deferError}
+          </p>
+        ) : null}
         {done ? (
           <>
             <p className="shared-feedback" role="status">
@@ -147,9 +190,11 @@ export function FloatingReviewCoach({
             records={[record]}
             reviewId={record.id}
             editorOnly
+            surface="review_coach"
+            entryPoint={entryPoint}
             autoGuide={open}
             setReviewId={(value) => {
-              if (value === null && !saved.current) minimize();
+              if (value === null && !saved.current) void defer('later', minimize);
             }}
             onRecordChange={(value) => {
               saved.current = true;
@@ -168,7 +213,7 @@ export function FloatingReviewCoach({
           ref={entry}
           className="review-coach-entry"
           type="button"
-          onClick={show}
+          onClick={() => show('entry')}
           aria-haspopup="dialog"
         >
           {done ? '저장한 복기 확인' : '복기 이어서 작성'}
@@ -180,6 +225,7 @@ export function FloatingReviewCoach({
           hidden={!visible}
           className={`floating-review${open ? ' floating-review--open' : ''}`}
           aria-label="투자 복기 도우미"
+          aria-busy={deferBusy}
         >
           {panel}
           {!open ? (
@@ -190,17 +236,29 @@ export function FloatingReviewCoach({
                     className="floating-review-reminder-close"
                     type="button"
                     aria-label="복기 알림 닫기"
-                    onClick={() => setReminderVisible(false)}
+                    title="닫으면 7일 뒤에 다시 알려드려요"
+                    disabled={deferBusy}
+                    onClick={() =>
+                      void defer('bubble', () => {
+                        setReminderVisible(false);
+                        trigger.current?.focus();
+                      })
+                    }
                   >
                     ×
                   </button>
+                  {deferError ? (
+                    <p className="shared-error" role="alert">
+                      {deferError}
+                    </p>
+                  ) : null}
                   <strong>복기할 기록이 {reminderCount}개 있어요</strong>
                   <p>{record.assetName}의 결과를 남겨볼까요?</p>
                   <p>열면 보유 이유와 관련 기사 일부를 외부 AI에 보내 근거를 준비해요.</p>
                   <button
                     className="shared-primary-button floating-review-primary"
                     type="button"
-                    onClick={show}
+                    onClick={() => show('bubble')}
                   >
                     바로 작성하기
                   </button>
@@ -214,7 +272,7 @@ export function FloatingReviewCoach({
                 aria-expanded={false}
                 aria-haspopup="dialog"
                 title="투자 복기 열기"
-                onClick={show}
+                onClick={() => show('cat')}
               >
                 <span
                   className="review-coach-avatar review-coach-avatar--floating"

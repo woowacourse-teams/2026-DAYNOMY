@@ -461,6 +461,47 @@ export async function savePublication(input: {
   return response;
 }
 
+function isReminderDate(value: unknown): value is string {
+  return value !== null && isNullableInstant(value);
+}
+
+export async function claimReviewReminder(requestKey: string, signal?: AbortSignal) {
+  const response = await requestWithCsrf<unknown>('/api/users/me/league/review-reminder/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestKey }),
+    signal,
+  });
+  if (
+    !isRecord(response) ||
+    !Array.isArray(response.transactions) ||
+    !response.transactions.every(isDecisionRecord) ||
+    !(response.nextNotificationAt === null || isReminderDate(response.nextNotificationAt)) ||
+    (response.transactions.length > 0
+      ? response.requestKey !== requestKey ||
+        !isReminderDate(response.nextNotificationAt) ||
+        response.transactions.some((record) => record.reviews.length > 0)
+      : response.requestKey !== null)
+  )
+    throw new Error('복기 알림 응답 형식이 올바르지 않습니다.');
+  return {
+    requestKey: response.requestKey as string | null,
+    transactions: response.transactions as InvestmentDecisionRecord[],
+    nextNotificationAt: response.nextNotificationAt as string | null,
+  };
+}
+
+export async function snoozeReviewReminder(requestKey: string) {
+  const response = await requestWithCsrf<unknown>('/api/users/me/league/review-reminder/snooze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestKey }),
+  });
+  if (!isRecord(response) || !isReminderDate(response.nextNotificationAt))
+    throw new Error('복기 알림 응답 형식이 올바르지 않습니다.');
+  return response.nextNotificationAt;
+}
+
 export async function getInvestmentDecisions(signal?: AbortSignal) {
   const response = await request<unknown>('/api/users/me/portfolio/transactions', { signal });
   if (

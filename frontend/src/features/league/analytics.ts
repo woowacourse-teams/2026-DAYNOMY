@@ -2,6 +2,8 @@ import { trackEvent } from '../../analytics';
 import { ApiError } from '../../api/client';
 import type { CollectionStatus, TransactionType } from './types';
 
+export type ReviewReminderEntryPoint = 'ranking' | 'holdings' | 'source_holdings';
+
 type Surface =
   | 'ranking'
   | 'investor'
@@ -13,6 +15,7 @@ type Surface =
   | 'source_holdings'
   | 'decisions'
   | 'reviews'
+  | 'review_coach'
   | 'publication'
   | 'daily_history';
 type Action =
@@ -37,11 +40,17 @@ type Action =
   | 'save_review'
   | 'edit_review'
   | 'review_guide'
+  | 'dismiss_reminder'
+  | 'snooze_reminder'
   | 'save_publication'
   | 'change_daily_week'
   | 'toggle_daily_history';
 type ErrorType = 'unauthorized' | 'client_error' | 'server_error' | 'network_or_unknown';
 type Event =
+  | 'view_league_review_reminder'
+  | 'league_review_reminder_action'
+  | 'league_review_saved'
+  | 'league_review_article_click'
   | 'view_league'
   | 'change_league_week'
   | 'view_investor_profile'
@@ -53,6 +62,9 @@ type Event =
   | 'league_load_result';
 type Params = {
   surface?: Surface;
+  entry_point?: ReviewReminderEntryPoint;
+  target?: 'bubble' | 'cat' | 'entry' | 'minimize' | 'hide' | 'later';
+  position?: number;
   action?: Action;
   status?: 'clicked' | 'submitted' | 'success' | 'error';
   error_type?: ErrorType;
@@ -77,6 +89,9 @@ type Params = {
 };
 const keys = new Set([
   'surface',
+  'entry_point',
+  'target',
+  'position',
   'action',
   'status',
   'error_type',

@@ -21,6 +21,8 @@ vi.mock('../../src/features/league/sharedPortfolioApi', async (importOriginal) =
 vi.mock('../../src/features/league/api', async (importOriginal) => ({
   ...(await importOriginal<typeof leagueApi>()),
   getInvestmentDecisions: vi.fn(),
+  claimReviewReminder: vi.fn(),
+  snoozeReviewReminder: vi.fn(),
   getMyInvestorProfile: vi.fn(),
   recordDecision: vi.fn(),
   createReview: vi.fn(),
@@ -61,6 +63,12 @@ const portfolio = {
 };
 const storageKey = 'daynomy:portfolio-holdings:v1';
 beforeEach(() => {
+  vi.mocked(leagueApi.claimReviewReminder).mockResolvedValue({
+    requestKey: null,
+    transactions: [],
+    nextNotificationAt: null,
+  });
+  vi.mocked(leagueApi.snoozeReviewReminder).mockResolvedValue('2026-11-09T00:00:00Z');
   vi.mocked(leagueApi.getInvestmentDecisions).mockResolvedValue([]);
   vi.mocked(leagueApi.getMyInvestorProfile).mockResolvedValue(null);
   vi.mocked(api.getSharedPortfolio).mockResolvedValue(empty);
@@ -531,6 +539,11 @@ const reviewRecord = {
 it('종목 관리의 고양이도 보유 이유 대신 복기를 열고 저장 후 기존 목록에 반영한다', async () => {
   vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
   vi.mocked(leagueApi.getInvestmentDecisions).mockResolvedValue([reviewRecord]);
+  vi.mocked(leagueApi.claimReviewReminder).mockImplementation(async (requestKey) => ({
+    requestKey,
+    transactions: [reviewRecord],
+    nextNotificationAt: '2026-11-09T00:00:00Z',
+  }));
   vi.mocked(leagueApi.getReviewGuide).mockImplementation(() => new Promise(() => {}));
   const review = {
     id: 101,
@@ -570,6 +583,11 @@ it('종목 관리의 고양이도 보유 이유 대신 복기를 열고 저장 �
 
 it('종목 추가에서도 필수 이유 입력과 별개로 미복기 기록만 알린다', async () => {
   vi.mocked(leagueApi.getInvestmentDecisions).mockResolvedValue([reviewRecord]);
+  vi.mocked(leagueApi.claimReviewReminder).mockImplementation(async (requestKey) => ({
+    requestKey,
+    transactions: [reviewRecord],
+    nextNotificationAt: '2026-11-09T00:00:00Z',
+  }));
   vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({
     holdings: [
       {

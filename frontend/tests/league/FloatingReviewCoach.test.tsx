@@ -2,6 +2,8 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StrictMode } from 'react';
+import { trackEvent } from '../../src/analytics';
+import { ApiError } from '../../src/api/client';
 import { FloatingReviewCoach } from '../../src/features/league/FloatingReviewCoach';
 import * as api from '../../src/features/league/api';
 import type { InvestmentDecisionRecord, ReviewGuide } from '../../src/features/league/types';
@@ -217,4 +219,53 @@ it('StrictMode에서도 고양이를 열 때 한 번만 근거를 찾고 다시 
   fireEvent.click(view.getByRole('button', { name: '복기 도우미 열기' }));
   expect(view.getByRole('link', { name: '가상 참고 기사' })).toBeTruthy();
   expect(api.getReviewGuide).toHaveBeenCalledOnce();
+});
+
+it('기사 확인과 실제 저장만 익명 퍼널에 기록하고 복기·종목 내용은 보내지 않는다', async () => {
+  vi.mocked(api.createReview).mockResolvedValue(review);
+  const view = render(
+    <FloatingReviewCoach record={record} entryPoint="ranking" onSaved={vi.fn()} />,
+  );
+  fireEvent.click(view.getByRole('button', { name: '복기 도우미 열기' }));
+  const link = await view.findByRole('link', { name: '가상 참고 기사' });
+  const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+  click.preventDefault();
+  fireEvent(link, click);
+  expect(trackEvent).toHaveBeenCalledWith('league_review_article_click', {
+    surface: 'review_coach',
+    entry_point: 'ranking',
+    position: 1,
+  });
+  for (const [label, value] of [
+    ['실제 결과', '결과'],
+    ['예상과 달랐던 점', '차이'],
+    ['다음 행동', '기준'],
+  ])
+    fireEvent.change(view.getByRole('textbox', { name: label }), { target: { value } });
+  fireEvent.click(view.getByRole('button', { name: '복기 저장' }));
+  await view.findByText('복기를 남겼어요.');
+  expect(trackEvent).toHaveBeenCalledWith('league_review_saved', {
+    surface: 'review_coach',
+    entry_point: 'ranking',
+    status: 'success',
+    action: 'save_review',
+    guide_used: true,
+  });
+  expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toMatch(
+    /삼성전자|실적 개선|NEWS:900001|가상 참고 기사/,
+  );
+});
+
+it('이미 저장된 복기를 재조회한 409 응답은 새 저장으로 집계하지 않는다', async () => {
+  vi.mocked(api.getReviewGuide).mockRejectedValue(
+    new ApiError(409, 'REVIEW_GUIDE_ALREADY_REVIEWED', 'conflict'),
+  );
+  vi.mocked(api.getInvestmentDecisions).mockResolvedValue([{ ...record, reviews: [review] }]);
+  const view = render(<FloatingReviewCoach record={record} onSaved={vi.fn()} />);
+  fireEvent.click(view.getByRole('button', { name: '복기 도우미 열기' }));
+  await view.findByText('복기를 남겼어요.');
+  expect(api.createReview).not.toHaveBeenCalled();
+  expect(vi.mocked(trackEvent).mock.calls.some(([name]) => name === 'league_review_saved')).toBe(
+    false,
+  );
 });

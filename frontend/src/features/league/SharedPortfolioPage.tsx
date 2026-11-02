@@ -308,6 +308,7 @@ export function SharedPortfolioPage() {
           ) : null}
           <LeagueReviewReminder
             records={records}
+            entryPoint={source ? 'source_holdings' : 'holdings'}
             onReviewed={() => setRecordRefresh((value) => value + 1)}
           />
           {source ? (

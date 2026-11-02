@@ -16,7 +16,7 @@ import {
   updateReview,
 } from './api';
 import { ApiError } from '../../api/client';
-import { leagueErrorType, trackLeagueEvent } from './analytics';
+import { leagueErrorType, trackLeagueEvent, type ReviewReminderEntryPoint } from './analytics';
 import { holdingPeriodLabels, reviewDateLabel, transactionLabels } from './labels';
 import type {
   InvestmentDecisionRecord,
@@ -260,6 +260,7 @@ export function InvestmentRecords({
   setReviewId,
   disabled = false,
   surface = 'reviews',
+  entryPoint,
   editorOnly = false,
   autoGuide = false,
 }: {
@@ -268,7 +269,8 @@ export function InvestmentRecords({
   reviewId: number | null;
   setReviewId: (id: number | null) => void;
   disabled?: boolean;
-  surface?: 'reviews' | 'decisions';
+  surface?: 'reviews' | 'decisions' | 'review_coach';
+  entryPoint?: ReviewReminderEntryPoint;
   editorOnly?: boolean;
   autoGuide?: boolean;
 }) {
@@ -315,7 +317,12 @@ export function InvestmentRecords({
       setGuideLoading(true);
       setGuideError('');
       const startedAt = performance.now();
-      trackLeagueEvent('league_action', { surface, action: 'review_guide', status: 'submitted' });
+      trackLeagueEvent('league_action', {
+        surface,
+        entry_point: entryPoint,
+        action: 'review_guide',
+        status: 'submitted',
+      });
       try {
         const result = await getReviewGuide(transactionId, controller.signal);
         if (controller.signal.aborted) return;
@@ -323,6 +330,7 @@ export function InvestmentRecords({
         setGuideUsed(true);
         trackLeagueEvent('league_action', {
           surface,
+          entry_point: entryPoint,
           action: 'review_guide',
           status: 'success',
           retrieval_status: result.retrievalStatus,
@@ -350,6 +358,7 @@ export function InvestmentRecords({
         );
         trackLeagueEvent('league_action', {
           surface,
+          entry_point: entryPoint,
           action: 'review_guide',
           status: 'error',
           error_type: leagueErrorType(caught),
@@ -362,7 +371,7 @@ export function InvestmentRecords({
         }
       }
     },
-    [disabled, busy, onRecordChange, surface],
+    [disabled, busy, onRecordChange, surface, entryPoint],
   );
 
   useEffect(() => {
@@ -462,6 +471,13 @@ export function InvestmentRecords({
         editingReviewId === null
           ? await createReview(reviewId, review)
           : await updateReview(reviewId, editingReviewId, review);
+      trackLeagueEvent('league_review_saved', {
+        surface,
+        entry_point: entryPoint,
+        status: 'success',
+        guide_used: guideUsed,
+        action: editingReviewId === null ? 'save_review' : 'edit_review',
+      });
       const record = records.find((record) => record.id === reviewId)!;
       onRecordChange({
         ...record,
@@ -534,9 +550,20 @@ export function InvestmentRecords({
       <div className="shared-review-evidence">
         {!compactGuide ? <strong>확인한 기사</strong> : null}
         <ol>
-          {activeGuide.evidence.map((item) => (
+          {activeGuide.evidence.map((item, index) => (
             <li key={item.id} id={`${guideId}-review-evidence-${item.id}`}>
-              <a href={item.href} target="_blank" rel="noopener noreferrer">
+              <a
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() =>
+                  trackLeagueEvent('league_review_article_click', {
+                    surface,
+                    entry_point: entryPoint,
+                    position: index + 1,
+                  })
+                }
+              >
                 {item.title}
               </a>
               <time dateTime={item.publishedAt}>

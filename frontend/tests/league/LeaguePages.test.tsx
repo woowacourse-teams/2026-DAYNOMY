@@ -27,6 +27,8 @@ vi.mock('../../src/features/league/api', () => ({
   getFollowSummary: vi.fn(),
   unfollowInvestor: vi.fn(),
   getInvestmentDecisions: vi.fn(),
+  claimReviewReminder: vi.fn(),
+  snoozeReviewReminder: vi.fn(),
   getReviewGuide: vi.fn(),
   createReview: vi.fn(),
 }));
@@ -113,6 +115,12 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  vi.mocked(leagueApi.claimReviewReminder).mockResolvedValue({
+    requestKey: null,
+    transactions: [],
+    nextNotificationAt: null,
+  });
+  vi.mocked(leagueApi.snoozeReviewReminder).mockResolvedValue('2026-11-09T00:00:00Z');
   vi.mocked(leagueApi.getInvestmentDecisions).mockResolvedValue([]);
   vi.mocked(leagueApi.getMyInvestorProfile).mockResolvedValue(null);
   vi.mocked(leagueApi.getLeagueWeeks).mockResolvedValue([

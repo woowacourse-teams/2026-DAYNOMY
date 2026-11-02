@@ -308,3 +308,32 @@ it('PostHog 전송 예외가 사용자 동작과 GA4 수집을 중단하지 않�
     true,
   );
 });
+
+it('복기 퍼널 이벤트는 GA4와 PostHog 양쪽에 같은 익명 속성을 전송한다', async () => {
+  vi.stubEnv('GA_MEASUREMENT_ID', 'G-TEST');
+  vi.stubEnv('VITE_POSTHOG_PROJECT_TOKEN', 'phc_test');
+  vi.stubEnv('VITE_POSTHOG_HOST', 'https://example.posthog.test');
+  const { trackEvent } = await import('../../src/analytics');
+  const properties = {
+    surface: 'review_coach',
+    entry_point: 'ranking',
+    guide_used: true,
+    position: 1,
+  };
+  trackEvent('league_review_saved', {
+    ...properties,
+    requestKey: 'private-key',
+    reason: undefined,
+  });
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(1));
+  expect(commands()).toContainEqual([
+    'event',
+    'league_review_saved',
+    expect.objectContaining(properties),
+  ]);
+  expect(posthog.capture).toHaveBeenCalledWith(
+    'league_review_saved',
+    expect.objectContaining(properties),
+  );
+  expect(JSON.stringify([commands(), posthog.capture.mock.calls])).not.toContain('private-key');
+});

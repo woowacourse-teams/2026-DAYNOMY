@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   recordDecision,
+  claimReviewReminder,
+  snoozeReviewReminder,
   getInvestorDetail,
   getRankings,
   getPublicInvestor,
@@ -473,4 +475,38 @@ test('주중 참여는 기준 종가부터 0%로 이번 주 누적 순위에 반
   const response = await getDailyHistory('investor-1', '2026-09-23');
   assert.equal(response.weekStart, '2026-09-21');
   assert.equal(response.weeklyReturnRate, 10);
+});
+
+test('복기 알림과 미루기는 CSRF를 사용하고 서버 일정과 요청 키를 검증한다', async () => {
+  const originalFetch = globalThis.fetch;
+  const requestKey = '7ef19645-d715-4d80-9f2f-3551e0e8971b';
+  const nextNotificationAt = '2026-11-09T00:00:00Z';
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  let response: unknown = { requestKey: null, transactions: [], nextNotificationAt };
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    return jsonResponse(
+      String(input) === '/api/auth/csrf'
+        ? { headerName: 'X-XSRF-TOKEN', token: 'csrf-token' }
+        : response,
+    );
+  };
+  try {
+    assert.deepEqual(await claimReviewReminder(requestKey), response);
+    assert.equal(calls[1].url, '/api/users/me/league/review-reminder/claim');
+    assert.equal(calls[1].init?.method, 'POST');
+    assert.equal(new Headers(calls[1].init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
+    assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { requestKey });
+    response = { nextNotificationAt };
+    assert.equal(await snoozeReviewReminder(requestKey), nextNotificationAt);
+    assert.equal(calls[3].url, '/api/users/me/league/review-reminder/snooze');
+    response = { requestKey, transactions: [], nextNotificationAt };
+    await assert.rejects(claimReviewReminder(requestKey), /응답 형식/);
+    response = { requestKey: null, transactions: [], nextNotificationAt: 'not-a-date' };
+    await assert.rejects(claimReviewReminder(requestKey), /응답 형식/);
+    response = { nextNotificationAt: null };
+    await assert.rejects(snoozeReviewReminder(requestKey), /응답 형식/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
