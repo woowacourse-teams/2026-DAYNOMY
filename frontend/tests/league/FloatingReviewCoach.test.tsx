@@ -2,8 +2,6 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StrictMode } from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { LeagueReviewGuideDemoPage } from '../../src/features/league/LeagueReviewGuideDemoPage';
 import { FloatingReviewCoach } from '../../src/features/league/FloatingReviewCoach';
 import * as api from '../../src/features/league/api';
 import type { InvestmentDecisionRecord, ReviewGuide } from '../../src/features/league/types';
@@ -67,22 +65,6 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
-});
-
-it.each([
-  ['/demo/review-guide', '주간 리그'],
-  ['/demo/review-guide?view=reviews', '투자 복기'],
-])('별도 체험 UI 대신 실제 경로로 이동한다: %s', (path, title) => {
-  const view = render(
-    <MemoryRouter initialEntries={[path!]}>
-      <Routes>
-        <Route path="/demo/review-guide" element={<LeagueReviewGuideDemoPage />} />
-        <Route path="/league" element={<h1>주간 리그</h1>} />
-        <Route path="/league/reviews" element={<h1>투자 복기</h1>} />
-      </Routes>
-    </MemoryRouter>,
-  );
-  expect(view.getByRole('heading', { name: title })).toBeTruthy();
 });
 
 it('고양이에서 기존 InvestmentRecords 작성 폼 하나를 열고 검증 후 기존 API로 저장한다', async () => {

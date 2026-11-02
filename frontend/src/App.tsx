@@ -42,13 +42,6 @@ import './App.css';
 import './features/admin/admin.css';
 
 const LandingPage = lazy(() => import('./features/landing/LandingPage'));
-const LeagueReviewGuideDemoPage = import.meta.env.DEV
-  ? lazy(() =>
-      import('./features/league/LeagueReviewGuideDemoPage').then((module) => ({
-        default: module.LeagueReviewGuideDemoPage,
-      })),
-    )
-  : null;
 function AnalyticsTracker() {
   const location = useLocation();
   useEffect(() => {
@@ -71,8 +64,7 @@ function AppHeader() {
     location.pathname.startsWith('/about') ||
     location.pathname.startsWith('/terms') ||
     location.pathname.startsWith('/privacy') ||
-    location.pathname.startsWith('/standard') ||
-    (import.meta.env.DEV && location.pathname.startsWith('/demo'));
+    location.pathname.startsWith('/standard');
 
   return showHeader ? <ServiceHeader /> : null;
 }
@@ -339,16 +331,6 @@ function AppContent() {
                 </AuthenticatedRoute>
               }
             />
-            {LeagueReviewGuideDemoPage ? (
-              <Route
-                path="/demo/review-guide"
-                element={
-                  <Suspense fallback={<main aria-busy="true" />}>
-                    <LeagueReviewGuideDemoPage />
-                  </Suspense>
-                }
-              />
-            ) : null}
             <Route path="/league/:publicId" element={<InvestorProfilePage />} />
             <Route path="/membership" element={<Navigate to="/league" replace />} />
             <Route
