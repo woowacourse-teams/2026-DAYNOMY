@@ -24,7 +24,7 @@ public record ContentCollectionSourceResponse(
         source.getSourceType(),
         source.getSourceUrl(),
         asset == null ? null : asset.getId(),
-        asset == null ? null : asset.getName(),
+        asset == null ? null : asset.getDisplayName(),
         source.isEnabled(),
         source.getLastCollectedAt());
   }

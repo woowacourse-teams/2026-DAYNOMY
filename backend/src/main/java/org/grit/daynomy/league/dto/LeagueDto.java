@@ -131,7 +131,7 @@ public final class LeagueDto {
           transaction.getId(),
           transaction.getAsset().getId(),
           transaction.getAsset().getAssetCode(),
-          transaction.getAsset().getName(),
+          transaction.getAsset().getDisplayName(),
           transaction.getAsset().getCategory().name(),
           transaction.getTransactionType(),
           transaction.getQuantity(),

@@ -6,6 +6,6 @@ public record ContentCollectionReviewAssetResponse(Long id, String name, String 
 
   public static ContentCollectionReviewAssetResponse from(Asset asset) {
     return new ContentCollectionReviewAssetResponse(
-        asset.getId(), asset.getName(), asset.getAssetCode());
+        asset.getId(), asset.getDisplayName(), asset.getAssetCode());
   }
 }

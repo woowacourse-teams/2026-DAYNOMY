@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { trackEvent } from '../../../analytics';
 import bankImage from '../../../assets/news-home-card-2.jpg';
 import dollarImage from '../../../assets/news-home-card-3.jpg';
 import cityImage from '../../../assets/news-home-card-4.jpg';
@@ -12,6 +13,7 @@ import type { NewsListItem } from '../newslist/types';
 import { getAllContents } from './contents';
 import { createFeed, feedDate, type ExternalContent, type FeedItem } from './feed';
 import { IssueFeed } from './IssueFeed';
+import { feedProperties, trackLoadResult, useContentImpression, useContentView } from './analytics';
 import {
   feedContentReference,
   getContentPopularity,
@@ -41,7 +43,21 @@ const examples = [
     title: '안전자산 선호가 이어지며 금 가격 변동성 확대',
     summary: '달러와 국채 금리의 움직임이 귀금속 시장에 미치는 영향을 살펴봅니다.',
   },
+  {
+    image: dollarImage,
+    source: 'DAYNOMY Issue · 외화·환율',
+    title: '달러 강세가 이어질 때 수출 기업과 해외 투자에서 확인할 변화',
+    summary: '환율 변화가 기업 실적과 원화 수익률에 미치는 영향을 함께 살펴봅니다.',
+  },
 ];
+
+const latestSources = [
+  ['ALL', '전체'],
+  ['DAYNOMY', '데이노미'],
+  ['X', 'X'],
+  ['THREADS', 'Threads'],
+  ['YOUTUBE', 'YouTube'],
+] as const;
 
 const exampleLatest = [
   {
@@ -60,21 +76,6 @@ const exampleLatest = [
     title: '대형 기술주 강세가 이어질 때 업종별 실적 차이를 읽는 방법',
   },
 ];
-
-function Arrow({ direction }: { direction: 'left' | 'right' }) {
-  return (
-    <svg
-      className="briefing-arrow"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      aria-hidden="true"
-    >
-      <path d={direction === 'left' ? 'M14 6l-6 6 6 6' : 'M10 6l6 6-6 6'} />
-    </svg>
-  );
-}
 
 function ExampleTrending() {
   return (
@@ -112,19 +113,30 @@ function ExampleTrending() {
   );
 }
 
+function TrendingItem({ item, position }: { item: FeedItem; position: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const analytics = feedProperties(item, 'news_home_trending', position);
+  useContentImpression(ref, item.key, 'view_content', analytics);
+  return (
+    <div ref={ref} className="briefing-live-story">
+      {position > 1 ? <span className="briefing-story-kicker">트렌딩 0{position}</span> : null}
+      <IssueFeed items={[item]} surface="news_home_trending" offset={position - 1} />
+    </div>
+  );
+}
+
 function LiveTrending({ items }: { items: FeedItem[] }) {
   if (!items.length) return null;
   return (
     <div className={`briefing-trending-grid briefing-trending-count-${items.length}`}>
-      <div className="briefing-feature-story briefing-live-story">
-        <IssueFeed items={[items[0]]} surface="news_home" />
+      <div className="briefing-feature-story">
+        <TrendingItem item={items[0]} position={1} />
       </div>
       {items.length > 1 ? (
         <div className="briefing-secondary-stories">
           {items.slice(1).map((item, index) => (
-            <div className="briefing-secondary-story briefing-live-story" key={item.key}>
-              <span className="briefing-story-kicker">트렌딩 0{index + 2}</span>
-              <IssueFeed items={[item]} surface="news_home" offset={index + 1} />
+            <div className="briefing-secondary-story" key={item.key}>
+              <TrendingItem item={item} position={index + 2} />
             </div>
           ))}
         </div>
@@ -147,11 +159,11 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
   const [failed, setFailed] = useState(false);
   const [rankingFailed, setRankingFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [trendingIndex, setTrendingIndex] = useState(0);
-  const [trendingPaused, setTrendingPaused] = useState(false);
-  const [trendingHovered, setTrendingHovered] = useState(false);
-  const [trendingFocused, setTrendingFocused] = useState(false);
-  const people = useFeaturedPeople(isPreview ? 'news_home_preview' : 'news_home');
+  const [latestSource, setLatestSource] = useState<'ALL' | FeedItem['source']>('ALL');
+  const people = useFeaturedPeople(isPreview ? 'news_home_preview' : 'news_home', 1, 100);
+  const trackNewsHomeEvent = (name: string, params: Record<string, string | number | boolean>) => {
+    if (!isPreview) trackEvent(name, params);
+  };
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -163,6 +175,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
   }, []);
 
   useEffect(() => {
+    const startedAt = performance.now();
     let ignore = false;
     const controller = new AbortController();
     setLoading(true);
@@ -177,6 +190,32 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
       setNews(articles.status === 'fulfilled' ? articles.value.content : []);
       setContents(external.status === 'fulfilled' ? external.value.items : []);
       setScores(ranking.status === 'fulfilled' ? ranking.value : new Map());
+      if (!isPreview) {
+        trackLoadResult(
+          'news_home',
+          'news',
+          startedAt,
+          articles.status === 'fulfilled' ? 'success' : 'error',
+          articles.status === 'fulfilled' ? articles.value.content.length : 0,
+          attempt,
+        );
+        trackLoadResult(
+          'news_home',
+          'external',
+          startedAt,
+          external.status === 'fulfilled' ? 'success' : 'error',
+          external.status === 'fulfilled' ? external.value.items.length : 0,
+          attempt,
+        );
+        trackLoadResult(
+          'news_home',
+          'popularity',
+          startedAt,
+          ranking.status === 'fulfilled' ? 'success' : 'error',
+          ranking.status === 'fulfilled' ? ranking.value.size : 0,
+          attempt,
+        );
+      }
       setFailed(articles.status === 'rejected' || external.status === 'rejected');
       setRankingFailed(ranking.status === 'rejected');
       setLoading(false);
@@ -185,7 +224,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
       ignore = true;
       controller.abort();
     };
-  }, [attempt]);
+  }, [attempt, isPreview]);
 
   const feed = createFeed(news, people.people, contents);
   const trendingItems = rankingFailed
@@ -194,45 +233,49 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
         feed.filter((item) => 'article' in item),
         feedContentReference,
         scores,
-      ).slice(0, 3);
-  const visibleTrending = trendingItems.length
-    ? Array.from(
-        { length: trendingItems.length },
-        (_, index) => trendingItems[(trendingIndex + index) % trendingItems.length],
-      )
-    : [];
-  const latest = feed.slice(0, 5);
+      ).slice(0, 4);
+  const filteredLatest = feed.filter(
+    (item) => latestSource === 'ALL' || item.source === latestSource,
+  );
+  const latest = filteredLatest.slice(0, 5);
   const pending = loading || people.loading;
-
-  useEffect(() => {
-    if (
-      example ||
-      pending ||
-      trendingItems.length < 2 ||
-      trendingPaused ||
-      trendingHovered ||
-      trendingFocused
-    )
-      return;
-    const timer = window.setInterval(() => {
-      if (!document.hidden) setTrendingIndex((value) => (value + 1) % trendingItems.length);
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [example, pending, trendingItems.length, trendingPaused, trendingHovered, trendingFocused]);
+  const listStatus = failed || people.error ? 'partial_error' : 'ready';
+  useContentView(!isPreview && !pending, 'view_content_list', {
+    surface: 'news_home',
+    source_type: latestSource,
+    result_count: filteredLatest.length,
+    status: listStatus,
+  });
+  useContentView(
+    !isPreview && !pending && !failed && !people.error && !latest.length,
+    'view_content_empty',
+    {
+      surface: 'news_home',
+      source_type: latestSource,
+      reason: latestSource === 'ALL' ? 'no_content' : 'filter_empty',
+    },
+  );
 
   function retry() {
+    trackNewsHomeEvent('retry_content_load', {
+      surface: 'news_home',
+      area: 'all',
+      attempt: attempt + 1,
+    });
     setAttempt((value) => value + 1);
+    people.retry();
+  }
+
+  function retryPeople() {
+    trackNewsHomeEvent('retry_content_load', { surface: 'news_home', area: 'people' });
     people.retry();
   }
 
   return (
     <main className="issue-page briefing-preview">
-      <header className="briefing-preview-heading">
-        <h1 ref={headingRef} tabIndex={-1}>
-          소식
-        </h1>
-        <p>시장의 관심과 내 종목 소식.</p>
-      </header>
+      <h1 className="briefing-page-title" ref={headingRef} tabIndex={-1}>
+        소식
+      </h1>
 
       {isPreview ? (
         <div className="briefing-preview-notice">
@@ -257,51 +300,12 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
         </div>
       ) : null}
 
-      <section
-        className="briefing-trending"
-        aria-labelledby="briefing-trending-title"
-        onMouseEnter={() => setTrendingHovered(true)}
-        onMouseLeave={() => setTrendingHovered(false)}
-        onFocusCapture={() => setTrendingFocused(true)}
-        onBlurCapture={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) setTrendingFocused(false);
-        }}
-      >
+      <section className="briefing-trending" aria-labelledby="briefing-trending-title">
         <div className="briefing-section-heading">
           <div>
             <h2 id="briefing-trending-title">트렌딩</h2>
-            <p>최근 7일간 데이노미 반응 기준</p>
+            <p>최근 7일간 반응 기준</p>
           </div>
-          {!example && !pending && trendingItems.length > 1 ? (
-            <div className="briefing-card-controls" aria-label="트렌딩 카드 탐색">
-              <button
-                type="button"
-                aria-label="이전 트렌딩 소식"
-                onClick={() =>
-                  setTrendingIndex(
-                    (value) => (value + trendingItems.length - 1) % trendingItems.length,
-                  )
-                }
-              >
-                <Arrow direction="left" />
-              </button>
-              <button
-                type="button"
-                aria-label="다음 트렌딩 소식"
-                onClick={() => setTrendingIndex((value) => (value + 1) % trendingItems.length)}
-              >
-                <Arrow direction="right" />
-              </button>
-              <button
-                className="briefing-pause"
-                type="button"
-                aria-label={trendingPaused ? '트렌딩 자동 재생' : '트렌딩 자동 재생 일시정지'}
-                onClick={() => setTrendingPaused((value) => !value)}
-              >
-                {trendingPaused ? '재생' : '정지'}
-              </button>
-            </div>
-          ) : null}
         </div>
         {example ? (
           <ExampleTrending />
@@ -323,8 +327,8 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
                 </button>
               </div>
             ) : null}
-            {visibleTrending.length ? (
-              <LiveTrending items={visibleTrending} />
+            {trendingItems.length ? (
+              <LiveTrending items={trendingItems} />
             ) : (
               <div className="briefing-empty">
                 <h3>
@@ -344,13 +348,19 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
           <h2 id="briefing-portfolio-title">내 종목 소식</h2>
           <Link
             aria-label="내 종목 소식 전체 보기"
+            onClick={() =>
+              trackNewsHomeEvent('click_content_more', {
+                surface: 'news_home_portfolio',
+                destination: 'portfolio_news',
+              })
+            }
             to={
               example
                 ? '/news/contents?scope=portfolio&data=example'
                 : '/news/contents?scope=portfolio'
             }
           >
-            전체 보기
+            모두 보기
           </Link>
         </div>
         {example ? (
@@ -371,7 +381,15 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
           <ul className="briefing-holdings">
             {portfolio.holdings.slice(0, 4).map((holding) => (
               <li key={holding.assetId}>
-                <Link to={`/news/contents?scope=portfolio&asset=${holding.assetId}`}>
+                <Link
+                  onClick={() =>
+                    trackNewsHomeEvent('click_content_more', {
+                      surface: 'news_home_portfolio',
+                      destination: 'portfolio_asset_news',
+                    })
+                  }
+                  to={`/news/contents?scope=portfolio&asset=${holding.assetId}`}
+                >
                   <span>{holding.name.slice(0, 1)}</span>
                   <strong>{holding.name}</strong>
                   <small>{holding.market}</small>
@@ -381,7 +399,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
           </ul>
         ) : (
           <p className="briefing-holdings-state">
-            자산을 등록하면 관련 소식을 이곳에서 빠르게 확인할 수 있습니다.
+            자산을 등록하면 관련 소식을 이곳에서 빠르게 확인할 수 있습니다
           </p>
         )}
       </section>
@@ -394,20 +412,77 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
         >
           <div className="briefing-section-heading">
             <h2 id="briefing-latest-title">전체 소식</h2>
-            <Link aria-label="전체 소식 전체 보기" to="/news/contents">
-              전체 보기
+            <Link
+              aria-label="전체 소식 전체 보기"
+              onClick={() =>
+                trackNewsHomeEvent('click_content_more', {
+                  surface: 'news_home',
+                  destination: 'news_contents',
+                })
+              }
+              to="/news/contents"
+            >
+              모두 보기
             </Link>
           </div>
+          <div
+            className="issue-source-filters briefing-source-filters"
+            role="group"
+            aria-label="전체 소식 카테고리"
+          >
+            {latestSources.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={latestSource === value}
+                onClick={() => {
+                  if (latestSource === value) return;
+                  trackNewsHomeEvent('filter_content_source', {
+                    surface: 'news_home',
+                    previous_source: latestSource,
+                    source_type: value,
+                    result_count: feed.filter((item) => value === 'ALL' || item.source === value)
+                      .length,
+                  });
+                  setLatestSource(value);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {example ? (
-            <ul className="briefing-example-latest">
+            <ul className="issue-feed briefing-example-latest">
               {exampleLatest.map((item) => (
                 <li key={item.title}>
-                  <img src={item.image} alt="" />
-                  <div>
-                    <span>{item.source}</span>
-                    <strong>{item.title}</strong>
-                    <small>데이노미 · 예시 기사</small>
-                  </div>
+                  <article className="issue-feed-row issue-feed-row--visual issue-feed-row--news">
+                    <span className="issue-feed-thumbnail" aria-hidden="true">
+                      <img src={item.image} alt="" />
+                    </span>
+                    <div className="issue-meta">
+                      <span className="issue-source">데이노미</span>
+                      <span>{item.source}</span>
+                      <span>예시 기사</span>
+                    </div>
+                    <div className="issue-row-title">
+                      <h3>{item.title}</h3>
+                      <span className="issue-expand-label">
+                        기사 읽기
+                        <svg
+                          className="issue-expand-chevron"
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M3 8h10m-4-4 4 4-4 4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                  </article>
                 </li>
               ))}
             </ul>
@@ -421,7 +496,9 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
             <p className="issue-state">
               {failed || people.error
                 ? '소식을 불러오지 못했어요. 상단에서 다시 시도해 주세요.'
-                : '아직 등록된 소식이 없어요'}
+                : latestSource === 'ALL'
+                  ? '아직 등록된 소식이 없어요'
+                  : '선택한 카테고리의 소식이 없어요'}
             </p>
           )}
         </section>
@@ -430,8 +507,17 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
           <section className="briefing-people" aria-labelledby="briefing-people-title">
             <div className="briefing-section-heading">
               <h2 id="briefing-people-title">인물의 글</h2>
-              <Link aria-label="인물의 글 전체 보기" to="/people">
-                전체 보기
+              <Link
+                aria-label="인물의 글 전체 보기"
+                onClick={() =>
+                  trackNewsHomeEvent('click_content_more', {
+                    surface: 'news_home_people',
+                    destination: 'people',
+                  })
+                }
+                to="/people"
+              >
+                모두 보기
               </Link>
             </div>
             {example ? (
@@ -460,7 +546,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
             ) : people.error ? (
               <p role="alert">
                 {people.error}{' '}
-                <button type="button" onClick={people.retry}>
+                <button type="button" onClick={retryPeople}>
                   다시 시도
                 </button>
               </p>
@@ -469,7 +555,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
                 {people.people
                   .filter((person) => person.posts.length)
                   .slice(0, 3)
-                  .map((person) => {
+                  .map((person, index) => {
                     const post = [...person.posts].sort(
                       (a, b) =>
                         (Date.parse(b.publishedAt ?? b.createdAt ?? '') || 0) -
@@ -479,6 +565,13 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
                       <Link
                         className="briefing-person-preview"
                         key={person.id}
+                        onClick={() =>
+                          trackNewsHomeEvent('click_person_preview', {
+                            surface: 'news_home_people',
+                            person_id: person.id,
+                            position: index + 1,
+                          })
+                        }
                         to={`/people?person=${person.id}&view=all`}
                       >
                         <span className="issue-person-avatar" aria-hidden="true">

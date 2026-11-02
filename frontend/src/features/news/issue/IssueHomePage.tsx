@@ -54,7 +54,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     };
   }, [fullFeed]);
   const surface = fullFeed ? 'news_contents' : 'news_home';
-  const people = useFeaturedPeople(surface);
+  const people = useFeaturedPeople(surface, 1, 100);
   const [contents, setContents] = useState<ExternalContent[]>([]);
   const [contentsLoading, setContentsLoading] = useState(true);
   const [contentsError, setContentsError] = useState('');
@@ -182,6 +182,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   useContentView(settled, 'view_content_list', {
     surface,
     source_type: source,
+    sort,
     result_count: items.length,
     page_number: currentPage,
     status: listStatus,
@@ -207,6 +208,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   };
   const selectSort = (nextSort: 'latest' | 'popular') => {
     if (sort === nextSort) return;
+    trackEvent('sort_content', { surface, sort: nextSort });
     const next = new URLSearchParams(params);
     if (nextSort === 'popular') next.set('sort', 'popular');
     else next.delete('sort');

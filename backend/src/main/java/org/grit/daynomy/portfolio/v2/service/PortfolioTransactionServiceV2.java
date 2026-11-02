@@ -101,6 +101,7 @@ public class PortfolioTransactionServiceV2 {
             request.fee(),
             request.tax());
     transaction.applyExchangeRate(request.exchangeRate());
+    transaction.recordTradeTime(request.tradeTime());
     historyRepository.saveAndFlush(transaction);
 
     List<PortfolioHoldingHistory> histories =
@@ -128,9 +129,16 @@ public class PortfolioTransactionServiceV2 {
       return SavedPortfolioHoldingResponse.from(
           holdingRepository.save(
               new PortfolioHolding(
-                  portfolio, asset, position.quantity(), position.averagePurchasePrice())));
+                  portfolio,
+                  asset,
+                  position.quantity(),
+                  position.averagePurchasePrice(),
+                  position.nativeAveragePurchasePrice())));
     }
-    current.change(position.quantity(), position.averagePurchasePrice());
+    current.change(
+        position.quantity(),
+        position.averagePurchasePrice(),
+        position.nativeAveragePurchasePrice());
     return SavedPortfolioHoldingResponse.from(current);
   }
 }

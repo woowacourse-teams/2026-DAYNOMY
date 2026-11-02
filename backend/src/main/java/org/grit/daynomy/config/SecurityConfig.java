@@ -1,5 +1,6 @@
 package org.grit.daynomy.config;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.auth.handler.RestAccessDeniedHandler;
 import org.grit.daynomy.auth.handler.RestAuthenticationEntryPoint;
@@ -35,6 +36,43 @@ public class SecurityConfig {
       HttpSecurity http, @Value("${app.oauth2.failure-redirect-uri}") String failureRedirectUri)
       throws Exception {
     CsrfTokenRequestAttributeHandler csrfHandler = new CsrfTokenRequestAttributeHandler();
+    String[] publicReadPaths = {
+      "/api/auth/google",
+      "/api/auth/csrf",
+      "/api/portfolio/analysis/tasks",
+      "/api/portfolio/analysis/tasks/*",
+      "/api/news",
+      "/api/news/today",
+      "/api/news/*",
+      "/api/news/*/keywords",
+      "/api/news/*/market-analysis",
+      "/api/search/news",
+      "/api/search/contents",
+      "/api/stocks",
+      "/api/stocks/*/price",
+      "/api/assets/*/contents",
+      "/api/contents",
+      "/api/contents/assets",
+      "/api/content-rankings",
+      "/api/exchange-rates/usd-krw",
+      "/api/people",
+      "/api/league/weeks",
+      "/api/league/rankings",
+      "/api/league/investors/*",
+      "/api/league/investors/*/details",
+      "/api/league/investors/*/daily-history",
+      "/swagger-ui.html",
+      "/swagger-ui/**",
+      "/v3/api-docs",
+      "/v3/api-docs/**",
+      "/v3/api-docs.yaml",
+      "/v3/api-docs.yaml/**",
+      "/login",
+      "/actuator",
+      "/actuator/health",
+      "/actuator/health/**",
+      "/actuator/prometheus"
+    };
 
     http.cors(cors -> cors.configurationSource(corsConfigurationSource))
         .securityContext(
@@ -61,12 +99,23 @@ public class SecurityConfig {
         .authorizeHttpRequests(
             authorization ->
                 authorization
+                    .dispatcherTypeMatchers(DispatcherType.ERROR)
+                    .permitAll()
+                    .requestMatchers("/oauth2/authorization/*", "/login/oauth2/code/*")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, publicReadPaths)
+                    .permitAll()
+                    .requestMatchers(HttpMethod.HEAD, publicReadPaths)
+                    .permitAll()
                     .requestMatchers(
-                        "/api/auth/**",
-                        "/oauth2/**",
-                        "/login/oauth2/**",
-                        "/swagger-ui/**",
-                        "/v3/api-docs/**")
+                        HttpMethod.POST,
+                        "/api/auth/refresh",
+                        "/api/auth/logout",
+                        "/api/feedback",
+                        "/api/content-interactions",
+                        "/api/investment-calendar",
+                        "/api/portfolio/analysis",
+                        "/api/portfolio/calculate")
                     .permitAll()
                     .requestMatchers("/api/admin/**")
                     .hasRole("ADMIN")
@@ -75,19 +124,12 @@ public class SecurityConfig {
                         "/api/portfolio/analysis/tasks",
                         "/api/portfolio/analysis/tasks/*/retry")
                     .anonymous()
-                    .requestMatchers(
-                        HttpMethod.GET,
-                        "/api/portfolio/analysis/tasks",
-                        "/api/portfolio/analysis/tasks/*")
-                    .permitAll()
-                    .requestMatchers("/api/portfolio/analysis", "/api/portfolio/calculate")
-                    .permitAll()
                     .requestMatchers("/api/portfolio", "/api/portfolio/**")
                     .authenticated()
                     .requestMatchers("/api/users/**", "/api/v1/users/**", "/api/v2/users/**")
                     .authenticated()
                     .anyRequest()
-                    .permitAll())
+                    .denyAll())
         .oauth2Login(
             oauth2 ->
                 oauth2

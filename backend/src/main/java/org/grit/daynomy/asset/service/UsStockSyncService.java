@@ -33,6 +33,7 @@ public class UsStockSyncService {
   private final StockMasterPersistenceService masterPersistence;
   private final StockPricePersistenceService pricePersistence;
   private final AssetRepository assetRepository;
+  private final UsStockSyncRetry retry;
   private final AtomicBoolean running = new AtomicBoolean(false);
 
   public StockSyncResult synchronizeMaster() {
@@ -40,7 +41,7 @@ public class UsStockSyncService {
     try {
       LocalDate date = LocalDate.now(NEW_YORK);
       Map<String, StockMasterEntry> entries = new LinkedHashMap<>();
-      for (EodhdSymbol symbol : client.getUsSymbols()) {
+      for (EodhdSymbol symbol : retry.download(client::getUsSymbols)) {
         AssetCategory category = category(symbol.type());
         var market = StockMarket.fromEodhd(symbol.exchange());
         // US also includes mutual funds, warrants and OTC listings; these are outside this feed.
@@ -65,7 +66,8 @@ public class UsStockSyncService {
           || entries.values().stream().noneMatch(e -> e.category() == AssetCategory.ETF)) {
         throw new BusinessException(AssetErrorCode.US_STOCK_MASTER_DATA_NOT_FOUND);
       }
-      return masterPersistence.synchronizeUs(date, List.copyOf(entries.values()));
+      List<StockMasterEntry> snapshot = List.copyOf(entries.values());
+      return retry.persist(() -> masterPersistence.synchronizeUs(date, snapshot));
     } finally {
       running.set(false);
     }

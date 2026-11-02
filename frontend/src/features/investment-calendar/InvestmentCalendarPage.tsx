@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { trackEvent } from '../../analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { loadGuestPortfolioHoldings } from '../portfolio/portfolioHoldingsStorage';
 import { getInvestmentCalendar } from './api';
@@ -33,7 +34,6 @@ const eventLabelFormatter = new Intl.DateTimeFormat('ko-KR', {
 });
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const BRIEFING_WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
 
 function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
   const path = direction === 'left' ? '15 18 9 12 15 6' : '9 18 15 12 9 6';
@@ -164,12 +164,14 @@ function CalendarGrid({
   month,
   events,
   selectedEventId,
+  showSelectedDaySummary = false,
   onSelect,
 }: {
   year: number;
   month: number;
   events: InvestmentCalendarEvent[];
   selectedEventId: number | null;
+  showSelectedDaySummary?: boolean;
   onSelect: (eventId: number) => void;
 }) {
   const firstWeekday = new Date(year, month - 1, 1).getDay();
@@ -183,6 +185,7 @@ function CalendarGrid({
   const selectedDayEvents = selectedDay
     ? (eventsByDay.get(eventDateParts(selectedDay.announcedAt).day) ?? [])
     : [];
+  const today = new Date();
   const cells = Array.from({ length: Math.ceil((firstWeekday + daysInMonth) / 7) * 7 });
 
   return (
@@ -201,13 +204,18 @@ function CalendarGrid({
           const dayEvents = eventsByDay.get(day) ?? [];
           const event = dayEvents[0];
           const selected = dayEvents.some((item) => item.id === selectedEventId);
+          const isToday =
+            today.getFullYear() === year &&
+            today.getMonth() + 1 === month &&
+            today.getDate() === day;
           return (
             <button
-              className={event ? 'investment-calendar-day has-event' : 'investment-calendar-day'}
+              className={`investment-calendar-day${event ? ' has-event' : ''}${isToday ? ' is-today' : ''}`}
               type="button"
               key={day}
               disabled={!event}
               aria-pressed={event ? selected : undefined}
+              aria-current={isToday ? 'date' : undefined}
               aria-label={
                 dayEvents.length === 1
                   ? `${month}월 ${day}일 ${event.title}`
@@ -223,7 +231,37 @@ function CalendarGrid({
           );
         })}
       </div>
-      {selectedDayEvents.length > 0 ? (
+      {showSelectedDaySummary && selectedDayEvents.length > 0 ? (
+        <ul className="investment-calendar-briefing-events" aria-label="선택한 날짜의 일정">
+          {selectedDayEvents.map((event) => {
+            const date = new Date(event.announcedAt);
+            const copy = event.demoCopy ?? defaultCopy(event);
+            const dateParts = eventDateParts(event.announcedAt);
+            const weekday = new Intl.DateTimeFormat('ko-KR', {
+              timeZone: SEOUL_TIME_ZONE,
+              weekday: 'short',
+            }).format(date);
+            const timeLabel = new Intl.DateTimeFormat('ko-KR', {
+              timeZone: SEOUL_TIME_ZONE,
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false,
+            }).format(date);
+            return (
+              <li key={event.id}>
+                <time dateTime={event.announcedAt}>
+                  {String(dateParts.month).padStart(2, '0')}.
+                  {String(dateParts.day).padStart(2, '0')} ({weekday})
+                </time>
+                <span aria-hidden="true" />
+                <strong>{copy.shortTitle}</strong>
+                <small>{event.type === 'US_CPI' ? '미국' : '한국'}</small>
+                <em>{timeLabel}</em>
+              </li>
+            );
+          })}
+        </ul>
+      ) : selectedDayEvents.length > 0 ? (
         <div className="investment-calendar-day-events" aria-label="선택한 날짜의 일정">
           {selectedDayEvents.map((event) => (
             <button
@@ -245,38 +283,29 @@ function BriefingCalendar({
   year,
   month,
   events,
+  selectedEventId,
+  scope,
   loading,
   error,
   isDemo,
   onChangeMonth,
+  onChangeScope,
+  onSelectEvent,
   onRetry,
 }: {
   year: number;
   month: number;
   events: InvestmentCalendarEvent[];
+  selectedEventId: number | null;
+  scope: InvestmentCalendarScope;
   loading: boolean;
   error: boolean;
   isDemo: boolean;
   onChangeMonth: (amount: number) => void;
+  onChangeScope: (scope: InvestmentCalendarScope) => void;
+  onSelectEvent: (eventId: number) => void;
   onRetry: () => void;
 }) {
-  const today = new Date();
-  const anchor =
-    today.getFullYear() === year && today.getMonth() + 1 === month
-      ? today
-      : new Date(year, month - 1, 1);
-  const mondayOffset = (anchor.getDay() + 6) % 7;
-  const weekStart = new Date(
-    anchor.getFullYear(),
-    anchor.getMonth(),
-    anchor.getDate() - mondayOffset,
-  );
-  const week = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(weekStart);
-    date.setDate(weekStart.getDate() + index);
-    return date;
-  });
-
   return (
     <section
       className="investment-calendar-page investment-calendar-embedded investment-calendar-briefing"
@@ -301,27 +330,17 @@ function BriefingCalendar({
         </button>
       </div>
 
-      <div className="investment-calendar-briefing-week" aria-label={`${year}년 ${month}월 주간`}>
-        {BRIEFING_WEEKDAYS.map((weekday) => (
-          <span className="investment-calendar-briefing-weekday" key={weekday}>
-            {weekday}
-          </span>
-        ))}
-        {week.map((date) => {
-          const selected = date.toDateString() === anchor.toDateString();
-          return (
-            <span
-              className={
-                selected
-                  ? 'investment-calendar-briefing-day is-selected'
-                  : 'investment-calendar-briefing-day'
-              }
-              key={date.toISOString()}
-            >
-              {date.getDate()}
-            </span>
-          );
-        })}
+      <div className="investment-calendar-briefing-scope" aria-label="일정 범위">
+        <button
+          type="button"
+          aria-pressed={scope === 'PORTFOLIO'}
+          onClick={() => onChangeScope('PORTFOLIO')}
+        >
+          내 일정
+        </button>
+        <button type="button" aria-pressed={scope === 'ALL'} onClick={() => onChangeScope('ALL')}>
+          전체 일정
+        </button>
       </div>
 
       {loading ? (
@@ -338,39 +357,28 @@ function BriefingCalendar({
       ) : events.length === 0 ? (
         <p className="investment-calendar-briefing-state">이번 달 예정된 일정이 없어요.</p>
       ) : (
-        <ul className="investment-calendar-briefing-events">
-          {events.slice(0, 4).map((event) => {
-            const date = new Date(event.announcedAt);
-            const copy = event.demoCopy ?? defaultCopy(event);
-            const dateParts = eventDateParts(event.announcedAt);
-            const weekday = new Intl.DateTimeFormat('ko-KR', {
-              timeZone: SEOUL_TIME_ZONE,
-              weekday: 'short',
-            }).format(date);
-            const dateLabel = `${String(dateParts.month).padStart(2, '0')}.${String(dateParts.day).padStart(2, '0')} (${weekday})`;
-            const timeLabel = new Intl.DateTimeFormat('ko-KR', {
-              timeZone: SEOUL_TIME_ZONE,
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false,
-            }).format(date);
-            return (
-              <li key={event.id}>
-                <time dateTime={event.announcedAt}>{dateLabel}</time>
-                <span aria-hidden="true" />
-                <strong>{copy.shortTitle}</strong>
-                <small>{event.type === 'US_CPI' ? '미국' : '한국'}</small>
-                <em>{timeLabel}</em>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="investment-calendar-briefing-stack">
+          <CalendarGrid
+            year={year}
+            month={month}
+            events={events}
+            selectedEventId={selectedEventId}
+            showSelectedDaySummary
+            onSelect={onSelectEvent}
+          />
+        </div>
       )}
     </section>
   );
 }
 
-function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
+function EventDetail({
+  event,
+  onExpandImpact,
+}: {
+  event: InvestmentCalendarEvent;
+  onExpandImpact: () => void;
+}) {
   const date = eventDateParts(event.announcedAt);
   const analysis = event.portfolioAnalysis;
   const copy = event.demoCopy ?? defaultCopy(event);
@@ -423,7 +431,12 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
             <span>표본이 3회 이상 쌓이면 내 자산의 반응 범위를 보여드릴게요.</span>
           </div>
         ) : (
-          <details className="investment-calendar-impact">
+          <details
+            className="investment-calendar-impact"
+            onToggle={(toggleEvent) => {
+              if (toggleEvent.currentTarget.open) onExpandImpact();
+            }}
+          >
             <summary className="investment-calendar-impact-head">
               <div>
                 <h3>
@@ -517,7 +530,15 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
   const [error, setError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const requestedScope: InvestmentCalendarScope =
-    calendarView || upcomingOnly ? calendarScope : 'PORTFOLIO';
+    compact || calendarView || upcomingOnly ? calendarScope : 'PORTFOLIO';
+  const surface = compact ? 'news_home_calendar' : embedded ? 'news_calendar' : 'calendar';
+
+  const trackCalendarAction = useCallback(
+    (action: string, params: Record<string, string | number | boolean> = {}) => {
+      trackEvent('investment_calendar_action', { surface, action, ...params });
+    },
+    [surface],
+  );
 
   useEffect(() => {
     if (authLoading) {
@@ -525,6 +546,7 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
       return;
     }
     const controller = new AbortController();
+    const startedAt = performance.now();
     setLoading(true);
     setError(false);
     const guestHoldings = isLoggedIn
@@ -544,8 +566,17 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
           : result.calendar.events;
         setEvents(available);
         setIsDemo(result.isDemo);
-        setSelectedEventId(upcomingOnly ? null : (result.calendar.events[0]?.id ?? null));
+        setSelectedEventId(compact || !upcomingOnly ? (available[0]?.id ?? null) : null);
         setLoading(false);
+        trackEvent('investment_calendar_load_result', {
+          surface,
+          scope: requestedScope,
+          status: 'success',
+          result_count: available.length,
+          attempt: reloadKey,
+          duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+          is_logged_in: isLoggedIn,
+        });
       },
       (requestError: unknown) => {
         if (requestError instanceof DOMException && requestError.name === 'AbortError') return;
@@ -553,10 +584,29 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
         setSelectedEventId(null);
         setError(true);
         setLoading(false);
+        trackEvent('investment_calendar_load_result', {
+          surface,
+          scope: requestedScope,
+          status: 'error',
+          result_count: 0,
+          attempt: reloadKey,
+          duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+          is_logged_in: isLoggedIn,
+        });
       },
     );
     return () => controller.abort();
-  }, [authLoading, isLoggedIn, month, reloadKey, requestedScope, year, upcomingOnly]);
+  }, [
+    authLoading,
+    compact,
+    isLoggedIn,
+    month,
+    reloadKey,
+    requestedScope,
+    surface,
+    year,
+    upcomingOnly,
+  ]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId) ?? null,
@@ -566,11 +616,40 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
   const changeMonth = useCallback(
     (amount: number) => {
       const next = moveMonth(year, month, amount);
+      trackCalendarAction('change_month', { direction: amount < 0 ? 'previous' : 'next' });
       setYear(next.year);
       setMonth(next.month);
     },
-    [month, year],
+    [month, trackCalendarAction, year],
   );
+
+  const changeScope = useCallback(
+    (nextScope: InvestmentCalendarScope) => {
+      if (calendarScope === nextScope) return;
+      trackCalendarAction('change_scope', { scope: nextScope });
+      setCalendarScope(nextScope);
+    },
+    [calendarScope, trackCalendarAction],
+  );
+
+  const selectEvent = useCallback(
+    (eventId: number) => {
+      if (selectedEventId === eventId) return;
+      const position = events.findIndex((event) => event.id === eventId) + 1;
+      trackCalendarAction('select_event', {
+        scope: requestedScope,
+        view: calendarView ? 'calendar' : 'list',
+        ...(position > 0 ? { position } : {}),
+      });
+      setSelectedEventId(eventId);
+    },
+    [calendarView, events, requestedScope, selectedEventId, trackCalendarAction],
+  );
+
+  const retry = useCallback(() => {
+    trackCalendarAction('retry', { attempt: reloadKey + 1 });
+    setReloadKey((key) => key + 1);
+  }, [reloadKey, trackCalendarAction]);
 
   if (compact) {
     return (
@@ -578,11 +657,15 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
         year={year}
         month={month}
         events={events}
+        selectedEventId={selectedEventId}
+        scope={calendarScope}
         loading={loading}
         error={error}
         isDemo={isDemo}
         onChangeMonth={changeMonth}
-        onRetry={() => setReloadKey((key) => key + 1)}
+        onChangeScope={changeScope}
+        onSelectEvent={selectEvent}
+        onRetry={retry}
       />
     );
   }
@@ -633,7 +716,11 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
               className="investment-calendar-view-button"
               type="button"
               aria-pressed={calendarView}
-              onClick={() => setCalendarView((current) => !current)}
+              onClick={() => {
+                const nextView = calendarView ? 'list' : 'calendar';
+                trackCalendarAction('change_view', { view: nextView });
+                setCalendarView((current) => !current);
+              }}
             >
               {calendarView ? '목록으로 보기' : '달력으로 보기'}
             </button>
@@ -644,14 +731,14 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
               <button
                 type="button"
                 aria-pressed={calendarScope === 'PORTFOLIO'}
-                onClick={() => setCalendarScope('PORTFOLIO')}
+                onClick={() => changeScope('PORTFOLIO')}
               >
                 내 일정
               </button>
               <button
                 type="button"
                 aria-pressed={calendarScope === 'ALL'}
-                onClick={() => setCalendarScope('ALL')}
+                onClick={() => changeScope('ALL')}
               >
                 전체 일정
               </button>
@@ -665,7 +752,7 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
           ) : error ? (
             <div className="investment-calendar-side-state">
               <p>일정을 불러오지 못했어요.</p>
-              <button type="button" onClick={() => setReloadKey((key) => key + 1)}>
+              <button type="button" onClick={retry}>
                 다시 시도
               </button>
             </div>
@@ -682,7 +769,7 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
               month={month}
               events={events}
               selectedEventId={selectedEventId}
-              onSelect={setSelectedEventId}
+              onSelect={selectEvent}
             />
           ) : (
             <div className="investment-calendar-event-list">
@@ -695,7 +782,7 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
                     type="button"
                     key={event.id}
                     aria-pressed={event.id === selectedEventId}
-                    onClick={() => setSelectedEventId(event.id)}
+                    onClick={() => selectEvent(event.id)}
                   >
                     <span className="investment-calendar-date">
                       <strong>{date.day}</strong>
@@ -724,7 +811,10 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
         {upcomingOnly && !selectedEvent ? null : loading ? (
           <div className="investment-calendar-detail-state" aria-busy="true" />
         ) : selectedEvent ? (
-          <EventDetail event={selectedEvent} />
+          <EventDetail
+            event={selectedEvent}
+            onExpandImpact={() => trackCalendarAction('expand_past_reaction')}
+          />
         ) : (
           <div className="investment-calendar-detail-state">
             <p>일정을 선택하면 내 자산의 과거 반응을 보여드려요.</p>

@@ -72,6 +72,9 @@ class PortfolioHoldingHistoryV2RepositoryTest {
     List<Long> expected = List.of(first.getId(), tie.getId(), later.getId());
     em.clear();
     var result = histories.findOrderedWithAssetsByPortfolioId(portfolioId);
+    assertThat(histories.findFirstEffectiveDateByPortfolioId(portfolioId))
+        .contains(LocalDate.of(2026, 9, 1));
+    assertThat(histories.findFirstEffectiveDateByPortfolioId(Long.MAX_VALUE)).isEmpty();
     assertThat(result)
         .extracting(PortfolioHoldingHistory::getId)
         .containsExactlyElementsOf(expected);

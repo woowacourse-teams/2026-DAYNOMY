@@ -1,0 +1,315 @@
+.landing-page .guide-device.iphone {
+  max-width: 370px;
+}
+.landing-page .guide-viewport {
+  position: absolute;
+  inset: 53px 0 24px;
+  overflow: hidden;
+  container-type: size;
+}
+.landing-page .guide-screen {
+  --mockup-scroll: min(0px, calc(100cqh - 100%));
+  animation: landing-service-scroll 14s ease-in-out infinite;
+  padding: 2cqw 5cqw 6cqw;
+  color: #253047;
+  font-size: 3.5cqw;
+  line-height: 1.6;
+  letter-spacing: -0.02em;
+  background: #fff;
+}
+.landing-page .guide-screen h3 {
+  margin: 0 0 3cqw;
+  font-size: 5.5cqw;
+  line-height: 1.4;
+  color: #253047;
+  letter-spacing: -0.04em;
+}
+.landing-page .guide-screen h4 {
+  margin: 0 0 3cqw;
+  font-size: 4cqw;
+  line-height: 1.5;
+}
+.landing-page .guide-screen p {
+  margin: 3cqw 0;
+}
+.landing-page .guide-screen small {
+  display: block;
+  font-size: 3cqw;
+  color: #52647f;
+  line-height: 1.7;
+}
+.landing-page .guide-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2cqw;
+}
+.landing-page .guide-muted {
+  color: #52647f;
+  font-size: 3cqw;
+}
+.landing-page .guide-close {
+  border-radius: 50%;
+  background: #f4f6fa;
+  padding: 0 2.5cqw;
+  font-size: 5cqw;
+}
+.landing-page .guide-stock {
+  margin: 6cqw 0 4cqw;
+  padding: 4cqw;
+  border-radius: 3cqw;
+  background: #f6f8fb;
+}
+.landing-page .guide-change {
+  padding: 2cqw 3cqw;
+  border: 1px solid #d9e2ef;
+  border-radius: 2cqw;
+  background: white;
+  color: #52647f;
+  font-size: 3cqw;
+}
+.landing-page .guide-segment {
+  display: flex;
+  padding: 1cqw;
+  background: #f1f4f8;
+  border-radius: 2.5cqw;
+  margin-bottom: 5cqw;
+  text-align: center;
+}
+.landing-page .guide-segment > * {
+  flex: 1;
+  padding: 2cqw;
+  color: #52647f;
+}
+.landing-page .guide-segment b {
+  background: #fff;
+  color: #326bd5;
+  border-radius: 2cqw;
+}
+.landing-page .guide-field {
+  margin-bottom: 4cqw;
+}
+.landing-page .guide-field > div {
+  display: flex;
+  justify-content: space-between;
+  border: 1px solid #d9e2ef;
+  border-radius: 2.5cqw;
+  padding: 3cqw;
+  margin-top: 2cqw;
+  font-size: 4cqw;
+}
+.landing-page .guide-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4cqw;
+}
+.landing-page .guide-rule {
+  border-top: 1px solid #e3e9f0;
+  margin-top: 5cqw;
+  padding-top: 5cqw;
+}
+.landing-page .guide-total {
+  background: #f4f7fd;
+  border-radius: 3cqw;
+  padding: 4cqw;
+  margin: 6cqw 0 4cqw;
+}
+.landing-page .guide-total strong {
+  display: block;
+  font-size: 6.5cqw;
+  margin: 3cqw 0;
+  letter-spacing: -0.05em;
+}
+.landing-page .guide-footer {
+  display: flex;
+  gap: 2cqw;
+  padding-top: 5cqw;
+  margin-top: 6cqw;
+  border-top: 1px solid #e3e9f0;
+}
+.landing-page .guide-footer b {
+  flex: 1;
+}
+.landing-page .guide-pill {
+  display: inline-block;
+  border: 1px solid #dce4ee;
+  border-radius: 99px;
+  padding: 2cqw 3cqw;
+  font-size: 3cqw;
+  text-align: center;
+}
+.landing-page .guide-footer .guide-pill {
+  border-color: #14171d;
+  color: #14171d;
+}
+.landing-page .guide-brand {
+  padding: 1cqw 0 4cqw;
+}
+.landing-page .guide-brand b {
+  font-size: 5cqw;
+  letter-spacing: -0.06em;
+  color: #14171d;
+}
+.landing-page .guide-brand span {
+  font-size: 3cqw;
+}
+.landing-page .guide-tabs {
+  display: flex;
+  gap: 5cqw;
+  border-bottom: 1px solid #e3e9f0;
+  margin-bottom: 6cqw;
+  color: #52647f;
+}
+.landing-page .guide-tabs > * {
+  padding-bottom: 3cqw;
+}
+.landing-page .guide-tabs b {
+  color: #14171d;
+  border-bottom: 2px solid #14171d;
+}
+.landing-page .guide-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2cqw;
+  margin: 4cqw 0 7cqw;
+}
+.landing-page .guide-balance {
+  display: block;
+  margin: 3cqw 0;
+  font-size: 6.3cqw;
+  color: #151a2a;
+}
+.landing-page .guide-screen .guide-negative {
+  color: #447eaf;
+}
+.landing-page .guide-metrics strong {
+  display: block;
+  font-size: 5cqw;
+  margin: 4cqw 0 1cqw;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+.landing-page .guide-realized {
+  padding: 6cqw 0 2cqw;
+  color: #52647f;
+}
+.landing-page .guide-holding {
+  padding: 3cqw 0;
+}
+.landing-page .guide-holding > div:last-child {
+  text-align: right;
+}
+.landing-page .guide-news-item {
+  padding: 5cqw 0;
+  border-bottom: 1px solid #e3e9f0;
+}
+.landing-page .guide-news-item h4 {
+  margin-top: 2cqw;
+}
+.landing-page .guide-news-item {
+  display: grid;
+  grid-template-columns: 23cqw 1fr;
+  gap: 4cqw;
+  align-items: start;
+}
+.landing-page .guide-news-item img {
+  width: 100%;
+  height: auto;
+  border-radius: 1cqw;
+}
+.landing-page .guide-news-item h4 {
+  font-size: 3.5cqw;
+}
+.landing-page .guide-more {
+  display: block;
+  margin-top: 6cqw;
+}
+.landing-page .guide-analysis-title {
+  border-bottom: 1px solid #e3e9f0;
+  padding-bottom: 4cqw;
+  margin-bottom: 5cqw;
+}
+.landing-page .guide-analysis-title h3 {
+  margin: 0;
+}
+.landing-page .guide-donut {
+  width: 48cqw;
+  height: 48cqw;
+  border: 9cqw solid #f3404d;
+  border-radius: 50%;
+  margin: 5cqw auto;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+.landing-page .guide-donut b {
+  font-size: 3.3cqw;
+  white-space: nowrap;
+}
+.landing-page .guide-impact {
+  padding: 3cqw;
+  background: #fff1f2;
+  color: #f3404d;
+  border-radius: 2cqw;
+  font-size: 3cqw;
+}
+.landing-page .guide-stock-row {
+  padding: 4cqw 2cqw;
+  margin-bottom: 2cqw;
+  border-bottom: 1px solid #e3e9f0;
+  color: #f3404d;
+}
+.landing-page .guide-result {
+  margin-top: 6cqw;
+}
+.landing-page .guide-result h3 {
+  margin-top: 3cqw;
+}
+.landing-page .guide-positive {
+  color: #ee3444;
+  font-size: 3cqw;
+  white-space: nowrap;
+}
+.landing-page .guide-source-toggle {
+  color: #4473a6;
+  margin-top: 5cqw;
+  font-weight: 700;
+}
+.landing-page .guide-source-list {
+  margin-top: 6cqw;
+  color: #4473a6;
+}
+.landing-page .guide-source-list > div {
+  padding: 5cqw 0 3cqw;
+  border-bottom: 1px solid #dce4ee;
+}
+.landing-page .guide-source-list > div b {
+  color: #253047;
+}
+.landing-page .guide-source-list small {
+  margin-top: 2cqw;
+}
+.landing-page .guide-source-list p {
+  font-size: 3cqw;
+}
+.landing-page .guide-home {
+  position: absolute;
+  bottom: 8px;
+  left: 35%;
+  height: 4px;
+  width: 30%;
+  border-radius: 4px;
+  background: #14171d;
+  margin: 0;
+}
+
+.landing-page[data-motion-paused='true'] .guide-viewport {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-page .guide-viewport {
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+}

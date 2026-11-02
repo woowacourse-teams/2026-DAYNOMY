@@ -57,6 +57,7 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    maxHeapSize = "2g"
     if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
 }
 
@@ -65,6 +66,13 @@ tasks.register<JavaExec>("portfolioLoadtest") {
     dependsOn(tasks.testClasses)
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass.set("org.grit.daynomy.loadtest.PortfolioLoadtestTool")
+}
+
+tasks.register<JavaExec>("portfolio1000Loadtest") {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("org.grit.daynomy.loadtest.Portfolio1000LoadtestTool")
+    maxHeapSize = "512m"
 }
 
 spotless {

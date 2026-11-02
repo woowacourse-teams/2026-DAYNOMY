@@ -49,7 +49,7 @@ function FeedThumbnail({ item }: { item: FeedItem }) {
             <path d="m11 6 7 4-7 4z" fill="#f1f3f5" />
           </svg>
         ) : (
-          <span>데이노미</span>
+          <span>D</span>
         )}
       </span>
       {imageUrl && (

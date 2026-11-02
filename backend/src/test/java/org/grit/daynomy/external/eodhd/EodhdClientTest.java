@@ -10,6 +10,7 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
+import org.grit.daynomy.external.RetryableExternalRequestException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -125,6 +126,11 @@ class EodhdClientTest {
               assertThat(e.errorCode()).isEqualTo(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
               assertThat(e.getCause()).isNull();
               assertThat(e.getMessage()).doesNotContain("test-key");
+              assertThat(e)
+                  .isExactlyInstanceOf(
+                      status == 429 || status >= 500
+                          ? RetryableExternalRequestException.class
+                          : BusinessException.class);
             });
   }
 
@@ -132,7 +138,7 @@ class EodhdClientTest {
   @ValueSource(strings = {"{}", "null", "[null]", "not-json"})
   void rejectsMalformedResponses(String body) {
     json(body);
-    assertThatThrownBy(() -> client.getUsSymbols()).isInstanceOf(BusinessException.class);
+    assertThatThrownBy(() -> client.getUsSymbols()).isExactlyInstanceOf(BusinessException.class);
   }
 
   @Test
@@ -147,6 +153,31 @@ class EodhdClientTest {
     server.enqueue(new MockResponse().setHeadersDelay(300, TimeUnit.MILLISECONDS).setBody("[]"));
     assertThatThrownBy(() -> client.getUsSymbols())
         .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getCause()).isNull());
+  }
+
+  @Test
+  void bodyReadTimeoutIsRetryableWithoutLeakingRequestUrl() {
+    client =
+        new EodhdClient(
+            new EodhdProperties(
+                "test-key",
+                server.url("/api").toString(),
+                Duration.ofSeconds(1),
+                Duration.ofMillis(100)));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("[]")
+            .setBodyDelay(1, TimeUnit.SECONDS));
+
+    assertThatThrownBy(() -> client.getUsSymbols())
+        .isInstanceOfSatisfying(
+            RetryableExternalRequestException.class,
+            e -> {
+              assertThat(e.errorCode()).isEqualTo(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+              assertThat(e.getCause()).isNull();
+              assertThat(e.getMessage()).doesNotContain("test-key");
+            });
   }
 
   @Test
