@@ -1346,37 +1346,24 @@ body:has(.league-metrics-dialog[open]) {
 .league-aggregation {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 0.85fr);
-  gap: 24px;
+  gap: 20px;
   margin: 20px 0;
-  padding: 22px 24px;
+  padding: 16px 20px;
   border: 1px solid #e5e9ee;
   border-radius: 10px;
   background: #f8f9fb;
 }
-.league-aggregation-eyebrow {
+.league-aggregation h3 {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-bottom: 10px;
-  color: #636e7c;
-  font-size: 12px;
-  font-weight: 600;
-}
-.league-aggregation h3 {
-  margin: 0 0 6px;
+  gap: 8px;
+  margin: 0;
   font-size: 15px;
   line-height: 1.6;
 }
-.league-aggregation-copy p {
-  max-width: 480px;
-  color: #68717d;
-  font-size: 13px;
-  line-height: 1.8;
-  word-break: keep-all;
-}
 .league-aggregation-date {
   display: block;
-  margin-top: 10px;
+  margin-top: 6px;
   color: #68717d;
   font-size: 12px;
 }
@@ -1410,10 +1397,6 @@ body:has(.league-metrics-dialog[open]) {
   gap: 6px 16px;
   margin-top: 12px;
 }
-.league-aggregation-actions small {
-  color: #717985;
-  font-size: 11px;
-}
 .league-aggregation-actions button {
   min-height: 36px;
   padding: 4px 0;
@@ -1426,13 +1409,19 @@ body:has(.league-metrics-dialog[open]) {
   align-items: center;
   gap: 8px 14px;
 }
-.league-daily-calculation-note {
-  margin-top: 14px;
-  padding-top: 16px;
-  border-top: 1px solid var(--league-line);
+.league-calculation-guide {
+  margin-top: 12px;
   color: var(--league-muted);
-  font-size: 12px;
-  line-height: 1.8;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.league-calculation-guide summary {
+  width: fit-content;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.league-calculation-guide p {
+  margin: 8px 0 0;
 }
 .league-daily-history .league-history-chart > div {
   grid-template-rows: 64px 104px 28px;

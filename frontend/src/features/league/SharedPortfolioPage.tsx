@@ -13,14 +13,17 @@ import './league.css';
 import './shared-portfolio.css';
 import { HoldingDecisions } from './HoldingDecisions';
 import { getMyInvestorProfile } from './api';
+import { portfolioMarketScope } from '../portfolio/analytics';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import type { InvestorProfile, InvestmentDecisionInput, InvestmentDecisionRecord } from './types';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
 
-const won = (value: number | null) =>
+const won = (value: number | null, currency = 'KRW') =>
   value === null
     ? '가격 확인 중'
-    : `${value.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원`;
+    : currency === 'USD'
+      ? `$${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+      : `${value.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원`;
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : '요청을 처리하지 못했습니다. 다시 시도해 주세요.';
 
@@ -91,6 +94,8 @@ export function SharedPortfolioPage() {
           surface: 'holdings',
           status: 'success',
           result_count: value.holdings.length,
+          market_scope: portfolioMarketScope(value.holdings),
+          source_managed_count: value.holdings.filter((holding) => holding.sourceManaged).length,
         });
         if (hash === '#select') {
           surface = 'source_holdings';
@@ -124,6 +129,16 @@ export function SharedPortfolioPage() {
       });
     return () => controller.abort();
   }, [retry, hash]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void getSharedPortfolio()
+        .then(setData)
+        .catch((caught) => setError(errorMessage(caught)));
+    };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
 
   async function mutate(
     action: () => Promise<SharedPortfolio>,
@@ -160,6 +175,7 @@ export function SharedPortfolioPage() {
         result.holdings.length > 0 &&
         result.holdings.every(
           (h) =>
+            h.hidden ||
             h.reason.trim() ||
             hasReason(h.assetId) ||
             (selection.includes(h.assetId) && importReasons[h.assetId]?.trim()),
@@ -240,7 +256,7 @@ export function SharedPortfolioPage() {
   const missingImportReasons = selected.filter(
     (h) => !hasReason(h.assetId) && !importReasons[h.assetId]?.trim(),
   );
-  const missingCount = data?.holdings.filter((h) => !hasReason(h.assetId)).length ?? 0;
+  const missingCount = data?.holdings.filter((h) => !h.hidden && !hasReason(h.assetId)).length ?? 0;
   async function importSelection() {
     const decisions: Record<number, InvestmentDecisionInput> = {};
     for (const h of selected)
@@ -438,15 +454,14 @@ export function SharedPortfolioPage() {
             </section>
           ) : null}
           <div hidden={source !== null}>
+            <section className="shared-panel" aria-label="원본 포트폴리오 자동 동기화">
+              <p>포트폴리오 자동 동기화 · 비공개 종목도 수익률에 포함</p>
+            </section>
             <section className="shared-list" aria-labelledby="shared-holdings-title">
               <header className="shared-section-heading">
                 <div>
                   <h2 id="shared-holdings-title">등록한 종목 {data.holdings.length}개</h2>
-                  <p>
-                    {data.holdings.length
-                      ? '보유 이유와 복기를 종목별로 관리하세요.'
-                      : '아직 등록한 종목이 없어요.'}
-                  </p>
+                  {data.holdings.length === 0 ? <p>아직 등록한 종목이 없어요.</p> : null}
                 </div>
                 <button
                   className="shared-primary-button"
@@ -462,6 +477,11 @@ export function SharedPortfolioPage() {
                 portfolioBusy={busy}
                 publicationStatus={selectedStatus}
                 refreshKey={recordRefresh}
+                onDecisionSaved={() => {
+                  void getSharedPortfolio()
+                    .then(setData)
+                    .catch((caught) => setError(errorMessage(caught)));
+                }}
                 onRecordsChange={setRecords}
                 onRemove={(assetId) =>
                   mutate(

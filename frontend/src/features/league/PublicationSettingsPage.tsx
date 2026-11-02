@@ -9,6 +9,9 @@ import {
   savePublication,
 } from './api';
 import { getSharedPortfolio } from './sharedPortfolioApi';
+import { portfolioMarketScope } from '../portfolio/analytics';
+import { getPortfolioPerformance } from '../portfolio/api';
+import type { PortfolioPerformancePoint } from '../portfolio/types';
 import { experienceLabels, riskLabels } from './labels';
 import type { ExperienceLevel, InvestorProfile, RiskProfile } from './types';
 import './league.css';
@@ -24,7 +27,15 @@ export function PublicationSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [readiness, setReadiness] = useState({ ready: false, missing: 0 });
+  const [readiness, setReadiness] = useState({
+    ready: false,
+    missing: 0,
+    marketScope: 'none' as ReturnType<typeof portfolioMarketScope>,
+  });
+  const [sourcePerformance, setSourcePerformance] = useState<
+    (PortfolioPerformancePoint & { priceBaseDate?: string | null }) | null
+  >(null);
+  const enrollmentViewed = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
@@ -38,11 +49,26 @@ export function PublicationSettingsPage() {
         if (controller.signal.aborted) return;
         const missing = portfolio.holdings.filter(
           (holding) =>
+            !holding.hidden &&
             !holding.reason.trim() &&
             !records.some((record) => record.assetId === holding.assetId && record.reason.trim()),
         ).length;
         setProfile(saved);
-        setReadiness({ ready: portfolio.holdings.length > 0 && missing === 0, missing });
+        setReadiness({
+          ready: portfolio.holdings.length > 0 && missing === 0,
+          missing,
+          marketScope: portfolioMarketScope(portfolio.holdings),
+        });
+        if (!enrollmentViewed.current) {
+          enrollmentViewed.current = true;
+          trackLeagueEvent('league_enrollment_viewed', {
+            surface: 'publication',
+            participating: saved?.leagueEnabled ?? false,
+            ready_to_join: portfolio.holdings.length > 0 && missing === 0,
+            has_holdings: portfolio.holdings.length > 0,
+            market_scope: portfolioMarketScope(portfolio.holdings),
+          });
+        }
         trackLeagueEvent('league_load_result', { surface: 'publication', status: 'success' });
       })
       .catch((caught: unknown) => {
@@ -60,6 +86,23 @@ export function PublicationSettingsPage() {
       });
     return () => controller.abort();
   }, [retry]);
+  useEffect(() => {
+    if (!joining) return;
+    const controller = new AbortController();
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+    const from = new Date(Date.now() - 30 * 86_400_000).toLocaleDateString('sv-SE', {
+      timeZone: 'Asia/Seoul',
+    });
+    getPortfolioPerformance(from, today, controller.signal)
+      .then((value) => {
+        if (!controller.signal.aborted)
+          setSourcePerformance(value.currentPoint ?? value.points.at(-1) ?? null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSourcePerformance(null);
+      });
+    return () => controller.abort();
+  }, [joining, retry]);
   return (
     <main className="league-page shared-page league-settings-page">
       <header className="league-hero">
@@ -70,6 +113,21 @@ export function PublicationSettingsPage() {
           {joining ? '← 종목 관리' : '← 내 프로필'}
         </Link>
       </header>
+      {joining ? (
+        <section className="shared-panel" aria-label="기존 포트폴리오 평가손익">
+          <h2>기존 포트폴리오 성과</h2>
+          {sourcePerformance ? (
+            <p>
+              {sourcePerformance.totalProfitLoss.toLocaleString('ko-KR')}원 ·{' '}
+              {sourcePerformance.totalReturnRate.toFixed(2)}% ·{' '}
+              {sourcePerformance.priceBaseDate ?? sourcePerformance.baseDate} 종가 기준
+            </p>
+          ) : (
+            <p>종가와 환율이 확인되면 기존 평가손익이 표시됩니다.</p>
+          )}
+          <small>매수 금액 기준</small>
+        </section>
+      ) : null}
       <PortfolioSharingSettings
         profile={profile}
         loading={loading}
@@ -86,6 +144,7 @@ export function PublicationSettingsPage() {
         joining={joining}
         recordsReady={readiness.ready}
         missingCount={readiness.missing}
+        marketScope={readiness.marketScope}
       />
     </main>
   );
@@ -99,6 +158,7 @@ export function PortfolioSharingSettings({
   onSaved,
   recordsReady,
   missingCount,
+  marketScope = 'none',
   joining = false,
 }: {
   profile: InvestorProfile | null;
@@ -108,6 +168,7 @@ export function PortfolioSharingSettings({
   onSaved: (profile: InvestorProfile) => void;
   recordsReady: boolean;
   missingCount: number;
+  marketScope?: ReturnType<typeof portfolioMarketScope>;
   joining?: boolean;
 }) {
   const { nickname, updateNickname } = useAuth();
@@ -146,9 +207,23 @@ export function PortfolioSharingSettings({
       return;
     }
     if ((joining || leagueEnabled) && !recordsReady) {
-      setError('모든 종목의 보유 이유를 작성한 뒤 리그에 참여할 수 있어요.');
+      setError('공개할 종목의 보유 이유를 작성한 뒤 리그에 참여할 수 있어요.');
       return;
     }
+    const participating = joining || leagueEnabled;
+    const action = participating
+      ? profile?.leagueEnabled
+        ? 'update'
+        : 'join'
+      : profile?.leagueEnabled
+        ? 'leave'
+        : 'update';
+    const enrollment = {
+      surface: 'publication' as const,
+      action,
+      market_scope: marketScope,
+    } as const;
+    trackLeagueEvent('league_enrollment', { ...enrollment, status: 'submitted' });
     setSaving(true);
     trackLeagueEvent('league_action', {
       surface: 'publication',
@@ -160,18 +235,27 @@ export function PortfolioSharingSettings({
       const savedProfile = await saveInvestorProfile(form);
       setForm((value) => ({ ...value, displayName: savedProfile.displayName }));
       updateNickname?.(savedProfile.displayName);
-      const participating = joining || leagueEnabled;
       const saved = await savePublication({
         profilePublic: participating,
         leagueEnabled: participating,
         detailPublic: participating,
         allocationPublic: participating,
       });
+      trackLeagueEvent('league_enrollment', {
+        ...enrollment,
+        status: 'success',
+        participating: saved.leagueEnabled,
+      });
       trackLeagueEvent('publish_portfolio', {
         scope: saved.profilePublic ? 'details' : 'private',
       });
       onSaved({ ...savedProfile, ...saved });
     } catch (caught) {
+      trackLeagueEvent('league_enrollment', {
+        ...enrollment,
+        status: 'error',
+        error_type: leagueErrorType(caught),
+      });
       trackLeagueEvent('league_action', {
         surface: 'publication',
         action: 'save_publication',
@@ -206,9 +290,18 @@ export function PortfolioSharingSettings({
       ) : (
         <form onSubmit={(event) => void submit(event)}>
           {joining ? (
-            <p className="shared-join-notice">
-              첫 종가 집계에서 0%로 시작하고, 매일 이번 주 순위에 반영됩니다.
-            </p>
+            <>
+              <p className="shared-join-notice">
+                기존 기록으로 바로 참여해요. 비공개 종목도 수익률에 포함됩니다.
+              </p>
+              <details className="league-calculation-guide">
+                <summary>집계 기준</summary>
+                <p>
+                  이번 주에 저장된 보유 기록을 불러옵니다. 이전부터 보유한 종목은 직전 금요일 종가와
+                  비교하고, 기록이 없으면 참여 후 첫 종가를 0%로 시작합니다.
+                </p>
+              </details>
+            </>
           ) : null}
           <label className="shared-nickname">
             공개 닉네임
@@ -234,7 +327,11 @@ export function PortfolioSharingSettings({
               {(
                 [
                   ['private', '비공개', '나만 보기'],
-                  ['league', '주간 리그 참여', '닉네임·수익률 공개 · 첫 집계부터 순위 반영'],
+                  [
+                    'league',
+                    '주간 리그 참여',
+                    '닉네임·수익률 공개 · 집계 가능한 성과부터 순위 반영',
+                  ],
                 ] as const
               ).map(([value, title, description]) => (
                 <label key={value}>

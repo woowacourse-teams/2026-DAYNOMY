@@ -411,8 +411,10 @@ describe('거래 원장 화면', () => {
     fireEvent.click(within(costsDialog).getByRole('button', { name: '적용' }));
     expect(view.queryByRole('dialog', { name: '수수료·참고 시세' })).toBeNull();
     fireEvent.click(within(dialog).getByRole('button', { name: '추가하기' }));
-    await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
-    expect(document.body.style.overflow).toBe(initialOverflow);
+    await waitFor(() => {
+      expect(view.queryByRole('dialog')).toBeNull();
+      expect(document.body.style.overflow).toBe(initialOverflow);
+    });
     expect(await view.findByText('15주')).toBeTruthy();
     const [, init] = vi
       .mocked(fetch)
@@ -434,6 +436,8 @@ describe('거래 원장 화면', () => {
       operation: 'transaction_create',
       storage: 'server',
       transaction_type: 'BUY',
+      has_holdings: true,
+      market_scope: 'domestic',
     });
     expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
       /삼성|005930|quantity|unitPrice|tradeDate|75000/,
@@ -471,6 +475,8 @@ describe('거래 원장 화면', () => {
         operation,
         storage: 'server',
         transaction_type: 'BUY',
+        has_holdings: true,
+        market_scope: 'domestic',
         error_type: 'client_error',
       });
       rejectMutation = false;

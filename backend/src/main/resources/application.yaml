@@ -193,6 +193,9 @@ person:
 
 stock:
   us:
+    calendar:
+      sync:
+        enabled: ${US_MARKET_CALENDAR_SYNC_ENABLED:false}
     sync:
       enabled: ${US_STOCK_SYNC_ENABLED:false}
       cron: ${US_STOCK_SYNC_CRON:0 15 6 * * *}
@@ -226,9 +229,11 @@ portfolio:
     cron: ${PORTFOLIO_SNAPSHOT_CRON:0 30 7 * * TUE-SAT}
 
 league:
+  price-preparation:
+    cron: ${LEAGUE_PRICE_PREPARATION_CRON:0 0 7,16 * * MON-SAT}
   calculation:
     enabled: ${LEAGUE_CALCULATION_ENABLED:false}
-    cron: ${LEAGUE_CALCULATION_CRON:0 20 17 * * MON-FRI}
+    cron: ${LEAGUE_CALCULATION_CRON:0 20 17,19 * * MON-SAT}
 
 investment-calendar:
   sync:

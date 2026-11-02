@@ -147,6 +147,6 @@ class LeagueRankingCacheTest {
   }
 
   private LeagueService.RankingSnapshot snapshot(List<LeagueService.RankedProfile> profiles) {
-    return new LeagueService.RankingSnapshot(profiles, profiles);
+    return new LeagueService.RankingSnapshot(profiles, profiles, LocalDate.of(2026, 10, 26));
   }
 }

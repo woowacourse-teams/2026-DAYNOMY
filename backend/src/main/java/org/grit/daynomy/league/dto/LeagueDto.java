@@ -210,7 +210,9 @@ public final class LeagueDto {
       LocalDate eligibleFrom,
       BigDecimal currentHoldingWeight,
       int consecutiveRecordedWeeks,
-      Integer weeklyRank) {}
+      Integer weeklyRank,
+      LocalDate asOfDate,
+      LocalDate rankingAsOfDate) {}
 
   public record HistoryPointResponse(
       LocalDate weekStart,

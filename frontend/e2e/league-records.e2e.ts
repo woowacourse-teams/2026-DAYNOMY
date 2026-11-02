@@ -74,6 +74,8 @@ for (const width of [390, 1440]) {
             quantity: 10,
             averagePurchasePrice: 70000,
             hidden: false,
+            pendingReason: false,
+            sourceManaged: true,
             reason: record.reason,
             baseDate: null,
             closePrice: null,

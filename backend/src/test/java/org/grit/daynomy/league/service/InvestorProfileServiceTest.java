@@ -2,6 +2,7 @@ package org.grit.daynomy.league.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -43,6 +44,7 @@ class InvestorProfileServiceTest {
   @Mock private LeagueEnrollmentService enrollmentService;
   @Mock private LeagueReturnService returnService;
   @Mock private LeagueRankingCache rankingCache;
+  @Mock private LeagueAutoSyncService autoSyncService;
   @InjectMocks private InvestorProfileService service;
 
   @Test
@@ -109,14 +111,21 @@ class InvestorProfileServiceTest {
                 assertThat(error.errorCode()).isEqualTo(LeagueErrorCode.LEAGUE_HOLDINGS_REQUIRED));
   }
 
-  @Test
-  void hiddenHoldingsAlsoRequireAnInvestmentReason() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void onlyPublicHoldingsRequireAnInvestmentReason(boolean hidden) {
     prepareProfile();
     var portfolio = SharedPortfolio.create(mock(Member.class));
     var holding = new SharedHolding(portfolio, mock(Asset.class), 2, BigDecimal.TEN);
-    holding.changeVisibility(true);
+    holding.changeVisibility(hidden);
     given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
     given(holdingRepository.findAllByPortfolioIdOrderById(null)).willReturn(List.of(holding));
+    if (hidden) {
+      assertThat(
+              service.publish(1L, new PublicationRequest(true, true, false, false)).leagueEnabled())
+          .isTrue();
+      return;
+    }
     assertThatThrownBy(() -> service.publish(1L, new PublicationRequest(true, true, false, false)))
         .isInstanceOfSatisfying(
             BusinessException.class,
@@ -136,6 +145,10 @@ class InvestorProfileServiceTest {
     assertThat(saved.leagueEnabled()).isTrue();
     assertThat(saved.detailPublic()).isFalse();
     assertThat(holding.getReason()).isEqualTo("기존 보유 이유");
+    var order = org.mockito.Mockito.inOrder(autoSyncService, enrollmentService, returnService);
+    order.verify(autoSyncService).reconcile(1L);
+    order.verify(enrollmentService).includeCurrentWeek(any(InvestorProfile.class));
+    order.verify(returnService).calculateCurrentWeek(any(InvestorProfile.class));
     verify(rankingCache).invalidateAfterCommit();
   }
 

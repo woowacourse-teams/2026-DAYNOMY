@@ -83,6 +83,8 @@ export type Performance = {
   currentHoldingWeight?: number | null;
   consecutiveRecordedWeeks?: number;
   weeklyRank?: number | null;
+  asOfDate?: string | null;
+  rankingAsOfDate?: string | null;
 };
 
 export type DailyReturnPoint = {
