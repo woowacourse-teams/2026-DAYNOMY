@@ -17,6 +17,8 @@ import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -99,6 +101,20 @@ class SavedPortfolioAnalysisTaskServiceTest {
 
     verify(transactions).rejectTask(1L, prepared.token(), false);
     verifyNoInteractions(analysis);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void failureBeforeSubmissionReleasesOnlyTheMatchingRefreshReservation(boolean refresh) {
+    var prepared = prepared();
+    var failure = new IllegalStateException("processing state unavailable");
+    given(transactions.prepareTask(1L, refresh)).willReturn(prepared);
+    given(transactions.get(1L)).willThrow(failure);
+
+    assertThatThrownBy(() -> service.start(1L, refresh)).isSameAs(failure);
+
+    verify(transactions).fail(1L, prepared.token(), "PORTFOLIO_ANALYSIS_FAILED", refresh);
+    verifyNoInteractions(executor, analysis);
   }
 
   private SavedPortfolioAnalysisTransactionService.PreparedAnalysis prepared() {

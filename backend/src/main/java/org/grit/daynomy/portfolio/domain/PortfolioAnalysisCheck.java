@@ -27,6 +27,7 @@ import org.grit.daynomy.common.BaseEntity;
 @Table(name = "portfolio_analysis_checks")
 public class PortfolioAnalysisCheck extends BaseEntity {
   public static final int DAILY_REFRESH_LIMIT = 3;
+  public static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
   @Id

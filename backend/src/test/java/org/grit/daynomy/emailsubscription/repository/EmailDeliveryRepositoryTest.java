@@ -99,6 +99,36 @@ class EmailDeliveryRepositoryTest {
   }
 
   @Test
+  void abandonedAutomaticRunIsRecoveredWithoutReleasingActiveWorkOrItsBudget() {
+    var one = em.persist(member());
+    var two = em.persist(member());
+    var portfolio = em.persist(org.grit.daynomy.portfolio.domain.Portfolio.create(one));
+    var check = em.persist(new org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck(portfolio));
+    em.flush();
+    var jdbc = org.springframework.jdbc.core.simple.JdbcClient.create(dataSource);
+    var repository = new EmailAutoAnalysisRepository(jdbc);
+    var first = repository.claim(one.getId(), MAIL_DATE, List.of("old"), 10, 10, NOW).orElseThrow();
+    var timeout = org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.REQUEST_TIMEOUT;
+    var token = UUID.randomUUID();
+    check.begin(token, NOW.plusSeconds(10), timeout);
+    em.flush();
+    var later = NOW.plus(timeout).plusSeconds(1);
+
+    assertThat(repository.claim(two.getId(), MAIL_DATE, List.of("new"), 10, 10, later)).isEmpty();
+    check.finish(token);
+    em.flush();
+    assertThat(repository.claim(two.getId(), MAIL_DATE, List.of("new"), 1, 10, later)).isEmpty();
+    assertThat(
+            jdbc.sql("select status from email_portfolio_analysis_runs where id = :id")
+                .param("id", first.id())
+                .query(String.class)
+                .single())
+        .isEqualTo("FAILED");
+    assertThat(repository.claim(two.getId(), MAIL_DATE, List.of("new"), 10, 1, later)).isEmpty();
+    assertThat(repository.claim(two.getId(), MAIL_DATE, List.of("new"), 10, 10, later)).isPresent();
+  }
+
+  @Test
   void earningsSignalRequiresHeldDomesticStockConfirmedValueAndCollectedOfficialSource() {
     var stock = em.persist(Asset.listedStock("삼성전자", "005930", StockMarket.KOSPI, null, MAIL_DATE));
     var etf =

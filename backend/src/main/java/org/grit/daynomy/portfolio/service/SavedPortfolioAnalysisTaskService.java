@@ -40,7 +40,7 @@ public class SavedPortfolioAnalysisTaskService {
       transactions.rejectTask(memberId, prepared.token(), refresh);
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_BUSY);
     } catch (RuntimeException exception) {
-      transactions.fail(memberId, prepared.token(), "PORTFOLIO_ANALYSIS_FAILED");
+      transactions.fail(memberId, prepared.token(), "PORTFOLIO_ANALYSIS_FAILED", refresh);
       throw exception;
     }
   }

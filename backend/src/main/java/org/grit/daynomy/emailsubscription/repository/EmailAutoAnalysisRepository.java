@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +59,22 @@ public class EmailAutoAnalysisRepository {
     if (signals.isEmpty() || dailyLimit <= 0 || monthlyLimit <= 0) return Optional.empty();
     // 여러 서버의 횟수 확인과 예약을 직렬화한다. 외부 AI 호출 동안에는 잠금을 유지하지 않는다.
     jdbc.sql("select pg_advisory_xact_lock(562697)").query((rs, row) -> true).single();
+    // 중단된 작업만 복구한다. 유효한 포트폴리오 작업이 진행 중이면 전역 동시성 제한을 유지한다.
+    jdbc.sql(
+            """
+        update email_portfolio_analysis_runs r set status = 'FAILED', completed_at = :now
+        where r.run_date = :date and r.status = 'RUNNING' and r.started_at <= :expiredBefore
+          and not exists (
+            select 1 from portfolios p join portfolio_analysis_checks c on c.portfolio_id = p.id
+            where p.member_id = r.member_id and c.request_token is not null
+              and c.request_expires_at > :now)
+        """)
+        .param("date", date)
+        .param("now", java.sql.Timestamp.from(now))
+        .param(
+            "expiredBefore",
+            java.sql.Timestamp.from(now.minus(PortfolioAnalysisCheck.REQUEST_TIMEOUT)))
+        .update();
     var used =
         jdbc.sql(
                 """

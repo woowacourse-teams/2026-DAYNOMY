@@ -1,7 +1,6 @@
 package org.grit.daynomy.portfolio.service;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +39,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class SavedPortfolioAnalysisTransactionService {
 
   private static final String ANALYSIS_VERSION = "portfolio-v9-grounded-source";
-  private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
   private static final int RETAINED_ANALYSES = 10;
 
   private final PortfolioRepository portfolios;
@@ -234,11 +232,11 @@ public class SavedPortfolioAnalysisTransactionService {
           response(memberId, previous, check, assets, now), null, assets, null);
     }
     UUID token = UUID.randomUUID();
-    if (!check.begin(token, now, REQUEST_TIMEOUT)) {
+    if (!check.begin(token, now, PortfolioAnalysisCheck.REQUEST_TIMEOUT)) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_IN_PROGRESS);
     }
     // 포트폴리오 행 잠금 안에서 예약하므로 여러 탭·서버에서도 하루 3회를 초과하지 않는다.
-    if (refresh && names == null && !check.reserveManualRefresh(now)) {
+    if (refresh && names == null && previous != null && !check.reserveManualRefresh(now)) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED);
     }
     return new PreparedAnalysis(
@@ -463,7 +461,8 @@ public class SavedPortfolioAnalysisTransactionService {
     fail(memberId, token, PortfolioErrorCode.PORTFOLIO_ANALYSIS_BUSY.code(), refresh);
   }
 
-  private void fail(Long memberId, UUID token, String code, boolean releaseRefresh) {
+  @Transactional
+  public void fail(Long memberId, UUID token, String code, boolean releaseRefresh) {
     Portfolio portfolio = lockedPortfolio(memberId);
     checks
         .findById(portfolio.getId())
@@ -471,7 +470,7 @@ public class SavedPortfolioAnalysisTransactionService {
             check -> {
               // 만료 후 새 작업이 시작됐다면 이전 작업의 실패로 상태를 덮어쓰지 않는다.
               if (token.equals(check.getRequestToken())) {
-                if (releaseRefresh) check.releaseManualRefresh();
+                if (releaseRefresh && latest(memberId) != null) check.releaseManualRefresh();
                 check.recordFailure(Instant.now(), code);
                 check.finish(token);
               }

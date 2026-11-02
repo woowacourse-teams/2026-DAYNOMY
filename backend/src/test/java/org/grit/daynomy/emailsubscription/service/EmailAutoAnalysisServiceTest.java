@@ -94,6 +94,7 @@ class EmailAutoAnalysisServiceTest {
             Optional.of(new EmailAutoAnalysisRepository.Claim(id, List.of("price:1:2026-10-23"))));
     var completed = mock(SavedPortfolioAnalysisResponse.class);
     when(completed.analysisId()).thenReturn(101L);
+    when(completed.status()).thenReturn(SavedPortfolioAnalysisResponse.Status.READY);
     when(completed.summaryStatus()).thenReturn("READY");
     when(analyses.refreshAutomatically(1L, Set.of("삼성전자"))).thenReturn(completed);
     service(start, 10, 100).runDaily();
@@ -101,6 +102,27 @@ class EmailAutoAnalysisServiceTest {
     order.verify(runs).claim(anyLong(), any(), anyList(), anyInt(), anyInt(), any());
     order.verify(analyses).refreshAutomatically(1L, Set.of("삼성전자"));
     order.verify(runs).complete(id, 101L, true, start);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(
+      value = SavedPortfolioAnalysisResponse.Status.class,
+      names = {"RECHECK_REQUIRED", "FAILED", "PROCESSING", "PORTFOLIO_CHANGED", "EMPTY"})
+  void unconfirmedOrIncompleteAnalysisIsNotRecordedAsSuccessful(
+      SavedPortfolioAnalysisResponse.Status status) {
+    priceSignal();
+    when(runs.claim(anyLong(), any(), anyList(), anyInt(), anyInt(), any()))
+        .thenReturn(
+            Optional.of(new EmailAutoAnalysisRepository.Claim(id, List.of("price:1:2026-10-23"))));
+    var result = mock(SavedPortfolioAnalysisResponse.class);
+    when(result.analysisId()).thenReturn(100L);
+    when(result.status()).thenReturn(status);
+    when(result.summaryStatus()).thenReturn("READY");
+    when(analyses.refreshAutomatically(1L, Set.of("삼성전자"))).thenReturn(result);
+
+    service(start, 10, 100).runDaily();
+
+    verify(runs).complete(id, 100L, false, start);
   }
 
   @Test

@@ -163,7 +163,7 @@ public class EmailAutoAnalysisService {
       runs.complete(
           claim.id(),
           result.analysisId(),
-          result.status() != SavedPortfolioAnalysisResponse.Status.PROCESSING
+          result.status() == SavedPortfolioAnalysisResponse.Status.READY
               && "READY".equals(result.summaryStatus()),
           clock.instant());
     } catch (RuntimeException failure) {

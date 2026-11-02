@@ -9,8 +9,10 @@ import org.grit.daynomy.emailsubscription.repository.EmailDeliveryRepository;
 import org.grit.daynomy.emailsubscription.repository.EmailSubscriptionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -48,7 +50,17 @@ public class EmailDeliveryScheduler {
     this.clock = clock;
   }
 
-  @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
+  @Bean(name = "emailDeliveryTaskScheduler", defaultCandidate = false)
+  ThreadPoolTaskScheduler emailDeliveryTaskScheduler() {
+    var scheduler = new ThreadPoolTaskScheduler();
+    scheduler.setPoolSize(2);
+    scheduler.setThreadNamePrefix("email-delivery-");
+    scheduler.setWaitForTasksToCompleteOnShutdown(true);
+    scheduler.setAwaitTerminationSeconds(30);
+    return scheduler;
+  }
+
+  @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul", scheduler = "emailDeliveryTaskScheduler")
   public void prepareDaily() {
     if (!inWindow()) return;
     long after = 0;
@@ -71,7 +83,7 @@ public class EmailDeliveryScheduler {
   }
 
   /** 전송 시각과 재시도 횟수는 기존 발송 이력에서 판단하며 한 번에 한 건만 처리한다. */
-  @Scheduled(fixedDelay = 1000)
+  @Scheduled(fixedDelay = 1000, scheduler = "emailDeliveryTaskScheduler")
   public void sendDue() {
     if (!inWindow()) return;
     var now = clock.instant();

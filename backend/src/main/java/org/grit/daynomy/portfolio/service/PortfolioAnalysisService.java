@@ -139,7 +139,7 @@ public class PortfolioAnalysisService {
       if (revision.outcome()
           != org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED) {
         return new PortfolioAnalysisRefresh.Revision(
-            revision.outcome(), names == null ? candidate : revision.analysis(), revision.reason());
+            revision.outcome(), candidate, revision.reason());
       }
       return revision;
     } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
