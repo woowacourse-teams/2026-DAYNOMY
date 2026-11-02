@@ -263,18 +263,7 @@ public class LeagueReturnService {
       if (starting != null) {
         LocalDate pending =
             returnRepository
-                .findLatestByPortfolioIdAndBaseDateBetween(
-                    portfolio.getId(),
-                    starting.with(java.time.DayOfWeek.MONDAY).minusDays(3),
-                    starting)
-                .stream()
-                .filter(
-                    value ->
-                        "PRICE_COLLECTION_PENDING".equals(value.getIneligibleReason())
-                            || "MISSING_PRICE".equals(value.getIneligibleReason())
-                            || "EXCHANGE_RATE_PENDING".equals(value.getIneligibleReason()))
-                .map(PortfolioDailyReturn::getBaseDate)
-                .min(LocalDate::compareTo)
+                .findEarliestPendingPriceDateByMemberIdIn(List.of(profile.getMember().getId()))
                 .orElse(null);
         if (pending != null && pending.isBefore(starting)) starting = pending;
       }

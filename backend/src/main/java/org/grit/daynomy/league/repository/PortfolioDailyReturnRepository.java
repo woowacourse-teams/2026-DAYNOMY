@@ -16,6 +16,18 @@ public interface PortfolioDailyReturnRepository extends JpaRepository<PortfolioD
 
   @Query(
       """
+      select min(r.baseDate) from PortfolioDailyReturn r
+      where r.portfolio.member.id in :memberIds
+        and r.ineligibleReason in ('PRICE_COLLECTION_PENDING', 'MISSING_PRICE', 'EXCHANGE_RATE_PENDING')
+        and exists (select d.baseDate from MarketTradingDay d
+          where d.baseDate = r.baseDate and (d.trading = true or d.usTrading = true))
+        and r.calculationVersion = (select max(v.calculationVersion) from PortfolioDailyReturn v
+          where v.portfolio.id = r.portfolio.id and v.baseDate = r.baseDate)
+      """)
+  Optional<LocalDate> findEarliestPendingPriceDateByMemberIdIn(List<Long> memberIds);
+
+  @Query(
+      """
       select count(r) > 0 from PortfolioDailyReturn r
       where r.portfolio.id = :portfolioId and r.baseDate between :from and :to and r.eligible = true
         and exists (select d.baseDate from MarketTradingDay d where d.baseDate = r.baseDate and (d.trading = true or d.usTrading = true))

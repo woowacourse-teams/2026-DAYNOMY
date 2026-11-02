@@ -247,6 +247,40 @@ class LeagueRankingRepositoryTest {
             tuple(first.getMember().getId(), 2L, 1L), tuple(second.getMember().getId(), 1L, 0L));
   }
 
+  @Test
+  void pendingPriceDatesUseOnlyTheLatestUnresolvedVersionAndRequestedMembers() {
+    var first = portfolio("pending-first");
+    var second = portfolio("pending-second");
+    var other = portfolio("pending-other");
+    LocalDate monday = LocalDate.of(2026, 10, 19);
+    dailyReturn(first, monday.minusDays(5), 1, false);
+    dailyReturn(first, monday.minusDays(5), 2, true);
+    dailyReturn(first, monday.minusDays(6), 1, false).exclude("NO_HOLDINGS", Instant.now());
+    dailyReturn(first, monday, 1, false).exclude("EXCHANGE_RATE_PENDING", Instant.now());
+    dailyReturn(first, monday.plusDays(1), 1, false)
+        .exclude("PRICE_COLLECTION_PENDING", Instant.now());
+    dailyReturn(second, monday.minusDays(3), 1, false);
+    dailyReturn(other, monday.minusDays(4), 1, false);
+    entityManager.flush();
+
+    assertThat(returns.findEarliestPendingPriceDateByMemberIdIn(List.of(first.getMember().getId())))
+        .contains(monday);
+    assertThat(
+            returns.findEarliestPendingPriceDateByMemberIdIn(
+                List.of(first.getMember().getId(), second.getMember().getId())))
+        .contains(monday.minusDays(3));
+
+    dailyReturn(first, monday, 2, true);
+    entityManager.flush();
+    assertThat(returns.findEarliestPendingPriceDateByMemberIdIn(List.of(first.getMember().getId())))
+        .contains(monday.plusDays(1));
+
+    dailyReturn(first, monday.plusDays(1), 2, false).exclude("SNAPSHOT_PENDING", Instant.now());
+    entityManager.flush();
+    assertThat(returns.findEarliestPendingPriceDateByMemberIdIn(List.of(first.getMember().getId())))
+        .isEmpty();
+  }
+
   private SharedPortfolio portfolio(String name) {
     var member =
         entityManager.persist(

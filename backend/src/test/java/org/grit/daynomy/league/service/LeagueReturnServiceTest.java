@@ -347,10 +347,8 @@ class LeagueReturnServiceTest {
         .willReturn(Optional.of(day(friday, true)));
     given(returnRepository.findFirstByPortfolioIdOrderByBaseDateDescCalculationVersionDesc(2L))
         .willReturn(Optional.of(new PortfolioDailyReturn(portfolio, monday)));
-    var pending = new PortfolioDailyReturn(portfolio, friday);
-    pending.exclude("PRICE_COLLECTION_PENDING", Instant.now());
-    given(returnRepository.findLatestByPortfolioIdAndBaseDateBetween(2L, friday, monday))
-        .willReturn(List.of(pending));
+    given(returnRepository.findEarliestPendingPriceDateByMemberIdIn(List.of(1L)))
+        .willReturn(Optional.of(friday));
     price(asset, friday, "100");
     price(asset, monday, "110");
 
@@ -359,6 +357,55 @@ class LeagueReturnServiceTest {
     then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
     assertThat(results.getAllValues().getFirst().isTrackingBaseline()).isTrue();
     assertThat(results.getAllValues().getLast().getDailyReturnRate()).isEqualByComparingTo("10");
+  }
+
+  @Test
+  void pendingRunRebuildsReturnsFromAnUnresolvedDateInAnEarlierWeek() {
+    LocalDate first = LocalDate.of(2026, 9, 18);
+    LocalDate pending = first.plusDays(3);
+    LocalDate latest = pending.plusWeeks(2);
+    SharedPortfolio portfolio = profile(1L, first);
+    Asset asset = stock();
+    var history =
+        new SharedHoldingHistory(
+            new SharedHolding(portfolio, asset, 1, new BigDecimal("100")),
+            SharedHoldingHistory.ChangeType.ADDED);
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
+        .willReturn(List.of(history));
+    given(tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(any()))
+        .willReturn(List.of(day(first, true), day(pending, true), day(latest, true)));
+    given(returnRepository.findFirstByPortfolioIdOrderByBaseDateDescCalculationVersionDesc(2L))
+        .willReturn(Optional.of(new PortfolioDailyReturn(portfolio, latest)));
+    given(returnRepository.findEarliestPendingPriceDateByMemberIdIn(List.of(1L)))
+        .willReturn(Optional.of(pending));
+    given(
+            returnRepository.existsLatestEligibleByPortfolioIdAndBaseDateBetween(
+                2L, first, pending.minusDays(1)))
+        .willReturn(true);
+    given(
+            tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
+                pending))
+        .willReturn(Optional.of(day(first, true)));
+    given(tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(latest))
+        .willReturn(Optional.of(day(pending, true)));
+    price(asset, first, "100");
+    price(asset, pending, "110");
+    price(asset, latest, "121");
+
+    assertThat(service.recalculatePending()).isEqualTo(2);
+
+    var results = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
+    assertThat(results.getAllValues())
+        .extracting(PortfolioDailyReturn::getBaseDate)
+        .containsExactly(pending, latest);
+    assertThat(results.getAllValues())
+        .allSatisfy(
+            value -> {
+              assertThat(value.isTrackingBaseline()).isFalse();
+              assertThat(value.getDailyReturnRate()).isEqualByComparingTo("10");
+            });
+    then(leagueService).should().finalizeWeeks(pending);
   }
 
   @Test

@@ -1827,15 +1827,25 @@ class SharedPortfolioAcceptanceTest {
         .statusCode(200)
         .body("transactions", hasSize(1))
         .body("transactions[0].reviews", hasSize(1));
-    // 현재 주차에도 가격·수익률을 준비하고, 실제 노출된 순위의 캐시를 채운다.
+    // 현재 주차는 이미 마감한 거래일만 준비하고, 조회한 순위의 공개 철회를 검증한다.
     LocalDate currentWeek = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
     jdbc.update("UPDATE market_trading_days SET trading=true WHERE base_date=?", currentWeek);
     List<LocalDate> currentTradingDays =
-        jdbc.queryForList(
-            "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
-            LocalDate.class,
-            currentWeek,
-            LocalDate.now(ZoneId.of("Asia/Seoul")));
+        jdbc
+            .queryForList(
+                "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
+                LocalDate.class,
+                currentWeek,
+                LocalDate.now(ZoneId.of("Asia/Seoul")))
+            .stream()
+            .filter(
+                trading ->
+                    !trading
+                        .atTime(15, 30)
+                        .atZone(ZoneId.of("Asia/Seoul"))
+                        .toInstant()
+                        .isAfter(Instant.now()))
+            .toList();
     for (LocalDate trading : currentTradingDays) {
       prices.save(new StockDailyPrice(asset, trading, new BigDecimal("77000")));
       jdbc.update(
@@ -1849,7 +1859,9 @@ class SharedPortfolioAcceptanceTest {
         .get("/api/league/rankings")
         .then()
         .statusCode(200)
-        .body("rankings.publicId", hasItem(publicId));
+        .body(
+            "rankings.publicId",
+            currentTradingDays.isEmpty() ? not(hasItem(publicId)) : hasItem(publicId));
     client(viewer).post("/api/users/me/league/follows/" + publicId).then().statusCode(204);
     if (withdraw) {
       client(owner).delete("/api/users/me").then().statusCode(204);
