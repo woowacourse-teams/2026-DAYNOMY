@@ -595,3 +595,10 @@ URL에서 쿼리·fragment와 공개 투자자 ID를 제거하되 `/league/profi
 | 거래 삭제           | `portfolio_delete_succeeded`·`portfolio_delete_failed`. 실패 중에는 성공이 없고 재시도 성공은 한 번만 기록한다.                                                                                                                                               |
 
 기존 `tests/portfolio/PortfolioPage.test.tsx`, `GuestPortfolioTransactions.test.tsx`, `tests/monitoring/portfolioAnalytics.test.tsx`를 확인하고 `PortfolioTransactions.test.tsx`에 회원 거래 등록·수정·삭제 실패 및 재시도 시 이벤트 순서·횟수와 민감정보 제외 검증을 보강했다. 실제 PostHog 수신 대조는 포함하지 않는다.
+
+### 포트폴리오 이벤트 세분화 (#770)
+
+일괄편집·CSV 읽기/열 연결/미리보기/저장, 종목 검색, 입력 검증·명시적 닫기,
+AI CTA 실제 노출과 비동기 분석 최종 완료를 수집한다. 정렬 방향의 공통 속성 누락도 보완했다.
+이벤트 발생 시점·속성·중복 방지·시간과 건수의 의미·GA4 및 PostHog 설정 항목은
+[포트폴리오 이벤트 계약](docs/portfolio-analytics.md)에 정리했다.

@@ -1,4 +1,9 @@
 /** @vitest-environment jsdom */
+import { trackPortfolioEvent } from '../../src/features/portfolio/analytics';
+vi.mock('../../src/features/portfolio/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/features/portfolio/analytics')>()),
+  trackPortfolioEvent: vi.fn(),
+}));
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PortfolioBulkEditor } from '../../src/features/portfolio/components/PortfolioBulkEditor';
@@ -44,6 +49,7 @@ afterAll(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.mocked(trackPortfolioEvent).mockClear();
   vi.restoreAllMocks();
 });
 function mockApi() {
@@ -84,6 +90,20 @@ describe('보유현황 CSV', () => {
       '내 자산 목록\n종목;개수;평단가\n삼성전자;10주;"70,000원"\nAAPL;5;$200.50\n합계;15;',
     );
     await preview(view);
+    expect(trackPortfolioEvent).toHaveBeenCalledWith(
+      'portfolio_csv_preview_ready',
+      expect.objectContaining({
+        csv_kind: 'balances',
+        mapping_mode: 'automatic',
+        matched_count: 2,
+        unmatched_count: 0,
+        skipped_count: 1,
+      }),
+    );
+    expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
+      /삼성전자|AAPL|positions\.csv|70,000/,
+    );
+
     expect(view.getByRole('textbox', { name: '1행 수량' })).toHaveProperty('value', '10');
     expect(view.getByRole('textbox', { name: '2행 평균 매입가' })).toHaveProperty(
       'value',
@@ -200,4 +220,19 @@ describe('보유현황 CSV', () => {
     fireEvent.click(save);
     expect(props.onAddHoldings).not.toHaveBeenCalled();
   });
+});
+
+it('열 연결 변경은 수동으로 기록하고 원본 열 이름을 보내지 않는다', async () => {
+  mockApi();
+  const view = render(<PortfolioBulkEditor {...callbacks()} />);
+  upload(view, '회사,개수,원가\n삼성전자,1,70000');
+  const mapping = await view.findByLabelText('CSV 종목명 열');
+  fireEvent.change(mapping, { target: { value: '0' } });
+  expect(trackPortfolioEvent).toHaveBeenCalledWith(
+    'portfolio_csv_mapping_changed',
+    expect.objectContaining({ mapping_mode: 'manual' }),
+  );
+  expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
+    /회사|삼성전자|70000/,
+  );
 });

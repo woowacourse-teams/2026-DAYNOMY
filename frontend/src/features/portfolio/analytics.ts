@@ -31,6 +31,19 @@ const EVENTS = [
   'portfolio_delete_failed',
   'portfolio_history_filter_changed',
   'portfolio_history_range_changed',
+  'portfolio_bulk_opened',
+  'portfolio_bulk_save_submitted',
+  'portfolio_bulk_save_result',
+  'portfolio_bulk_closed',
+  'portfolio_csv_read_result',
+  'portfolio_csv_mapping_changed',
+  'portfolio_csv_preview_ready',
+  'portfolio_csv_preview_failed',
+  'portfolio_search_result',
+  'portfolio_validation_failed',
+  'portfolio_editor_closed',
+  'portfolio_analysis_cta_viewed',
+  'portfolio_analysis_completed',
 ] as const;
 
 type Operation = 'holding_update' | 'transaction_create' | 'transaction_update';
@@ -48,7 +61,20 @@ type PortfolioEventParams = {
   is_logged_in?: boolean;
   has_holdings?: boolean;
   pricing_status?: 'COMPLETE' | 'PARTIAL' | 'MIXED_DATES';
-  stage?: 'holdings' | 'calculation' | 'chart' | 'history';
+  stage?:
+    | 'holdings'
+    | 'calculation'
+    | 'chart'
+    | 'history'
+    | 'file'
+    | 'parse'
+    | 'matching'
+    | 'search'
+    | 'input'
+    | 'validation_error'
+    | 'save_error'
+    | 'mapping'
+    | 'preview';
   error_type?: ErrorType;
   hidden?: boolean;
   expanded?: boolean;
@@ -57,7 +83,7 @@ type PortfolioEventParams = {
   category?: 'ALL' | AssetCategory;
   market?: StockMarket;
   tab?: 'holdings' | 'history';
-  mode?: Operation;
+  mode?: Operation | 'holdings' | 'add' | 'csv';
   entry_point?:
     'header' | 'empty_state' | 'ledger' | 'history' | 'holding_detail' | 'editor_switch';
   operation?: Operation;
@@ -69,6 +95,55 @@ type PortfolioEventParams = {
   sort_direction?: 'ascending' | 'descending';
   filter?: 'ALL' | 'BUY' | 'SELL';
   range_days?: number;
+  duration_ms?: number;
+  row_count?: number;
+  matched_count?: number;
+  unmatched_count?: number;
+  skipped_count?: number;
+  imported_count?: number;
+  csv_kind?: 'balances' | 'transactions';
+  mapping_mode?: 'automatic' | 'manual';
+  status?:
+    | 'success'
+    | 'duplicate'
+    | 'error'
+    | 'READY'
+    | 'FAILED'
+    | 'ERROR'
+    | 'CONFLICT'
+    | 'TRIAL_EXHAUSTED'
+    | 'REFRESH_LIMIT_EXCEEDED'
+    | 'EMPTY'
+    | 'PORTFOLIO_CHANGED'
+    | 'RECHECK_REQUIRED';
+  reason?:
+    | 'none'
+    | 'loading'
+    | 'restoring'
+    | 'processing'
+    | 'trial_exhausted'
+    | 'refresh_limit_exceeded'
+    | 'summary_pending'
+    | 'invalid_file'
+    | 'invalid_csv'
+    | 'stock_not_found'
+    | 'request_failed'
+    | 'invalid_value'
+    | 'retry';
+  field?: string;
+  trigger?: 'blur' | 'submit';
+  has_changes?: boolean;
+  search_length?: number;
+  result_count?: number;
+  kr_result_count?: number;
+  us_result_count?: number;
+  surface?: 'transaction_editor' | 'bulk_editor';
+  holding_count_bucket?: '0' | '1' | '2_5' | '6_20' | '21_plus';
+  enabled?: boolean;
+  user_type?: 'member' | 'guest';
+  action?: 'analyze' | 'refresh' | 'check_status' | 'login' | 'retry';
+  asset_count?: number;
+  summary_status?: string;
 };
 
 const PARAM_KEYS = new Set([
@@ -103,6 +178,30 @@ const PARAM_KEYS = new Set([
   'sort_direction',
   'filter',
   'range_days',
+  'duration_ms',
+  'row_count',
+  'matched_count',
+  'unmatched_count',
+  'skipped_count',
+  'imported_count',
+  'csv_kind',
+  'mapping_mode',
+  'status',
+  'reason',
+  'field',
+  'trigger',
+  'has_changes',
+  'search_length',
+  'result_count',
+  'kr_result_count',
+  'us_result_count',
+  'surface',
+  'holding_count_bucket',
+  'enabled',
+  'user_type',
+  'action',
+  'asset_count',
+  'summary_status',
 ]);
 export function portfolioErrorType(error: unknown): ErrorType {
   if (error instanceof ApiError) {

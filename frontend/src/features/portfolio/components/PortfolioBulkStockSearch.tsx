@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { searchStocks } from '../../stocks/api';
+import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import type { StockSearchItem } from '../../stocks/types';
 
 export function PortfolioBulkStockSearch({
@@ -59,17 +60,35 @@ export function PortfolioBulkStockSearch({
     const controller = new AbortController();
     setLoading(true);
     const timer = window.setTimeout(() => {
+      const startedAt = performance.now();
       Promise.all([
         searchStocks(query.trim(), controller.signal),
         searchStocks(query.trim(), controller.signal, 'US'),
       ])
         .then((items) => {
-          if (!controller.signal.aborted)
-            setResults([...new Map(items.flat().map((stock) => [stock.assetId, stock])).values()]);
+          if (controller.signal.aborted) return;
+          const results = [...new Map(items.flat().map((item) => [item.assetId, item])).values()];
+          setResults(results);
+          trackPortfolioEvent('portfolio_search_result', {
+            surface: 'bulk_editor',
+            search_length: query.trim().length,
+            status: 'success',
+            result_count: results.length,
+            kr_result_count: items[0].length,
+            us_result_count: items[1].length,
+            duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+          });
         })
         .catch((caught: unknown) => {
-          if (!controller.signal.aborted)
-            setError(caught instanceof Error ? caught.message : '종목을 찾지 못했어요.');
+          if (controller.signal.aborted) return;
+          setError(caught instanceof Error ? caught.message : '종목을 찾지 못했어요.');
+          trackPortfolioEvent('portfolio_search_result', {
+            surface: 'bulk_editor',
+            search_length: query.trim().length,
+            status: 'error',
+            error_type: portfolioErrorType(caught),
+            duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+          });
         })
         .finally(() => {
           if (!controller.signal.aborted) setLoading(false);
@@ -86,6 +105,11 @@ export function PortfolioBulkStockSearch({
   }
   function select(stock: StockSearchItem) {
     if (disabled || unavailable.has(stock.assetId)) return;
+    trackPortfolioEvent('portfolio_stock_selected', {
+      surface: 'bulk_editor',
+      category: stock.category,
+      market: stock.market,
+    });
     onSelect(stock);
     close();
   }

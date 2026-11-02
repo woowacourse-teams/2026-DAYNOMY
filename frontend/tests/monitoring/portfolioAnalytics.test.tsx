@@ -150,3 +150,82 @@ describe('포트폴리오 이벤트 수집 경계', () => {
     expect(portfolioErrorType(new Error('private-message'))).toBe('network_or_unknown');
   });
 });
+
+it('정렬 방향과 신규 집계 속성을 GA4·PostHog 최종 허용 목록까지 보존한다', async () => {
+  enablePostHog();
+  const { trackPortfolioEvent } = await import('../../src/features/portfolio/analytics');
+  const cases = [
+    ['portfolio_sort_changed', { sort: 'RETURN', sort_direction: 'ascending' }],
+    [
+      'portfolio_csv_preview_ready',
+      {
+        mode: 'csv',
+        csv_kind: 'balances',
+        mapping_mode: 'manual',
+        row_count: 5,
+        matched_count: 3,
+        unmatched_count: 1,
+        skipped_count: 1,
+      },
+    ],
+    [
+      'portfolio_bulk_save_result',
+      {
+        mode: 'csv',
+        storage: 'temporary',
+        status: 'duplicate',
+        imported_count: 0,
+        duration_ms: 42,
+      },
+    ],
+    [
+      'portfolio_search_result',
+      {
+        surface: 'transaction_editor',
+        search_length: 2,
+        result_count: 3,
+        kr_result_count: 1,
+        us_result_count: 2,
+      },
+    ],
+    [
+      'portfolio_validation_failed',
+      { field: 'quantity', reason: 'invalid_value', trigger: 'blur' },
+    ],
+    ['portfolio_editor_closed', { stage: 'validation_error', has_changes: true, duration_ms: 100 }],
+    [
+      'portfolio_analysis_cta_viewed',
+      { enabled: true, action: 'analyze', user_type: 'guest', pricing_status: 'COMPLETE' },
+    ],
+    [
+      'portfolio_analysis_completed',
+      { status: 'READY', summary_status: 'READY', duration_ms: 200 },
+    ],
+    ['portfolio_dashboard_loaded', { holding_count_bucket: '2_5', duration_ms: 50 }],
+  ] as const;
+  for (const [name, properties] of cases) trackPortfolioEvent(name, properties);
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(cases.length));
+  const beforeSend = posthog.init.mock.calls[0][1].before_send;
+  for (const [index, [name, properties]] of cases.entries()) {
+    expect(gaEvents()[index]).toEqual(['event', name, expect.objectContaining(properties)]);
+    expect(posthog.capture).toHaveBeenNthCalledWith(
+      index + 1,
+      name,
+      expect.objectContaining(properties),
+    );
+    const final = beforeSend({
+      event: name,
+      properties: {
+        ...properties,
+        token: 'test',
+        quantity: 99,
+        assetCode: 'secret',
+        fileName: 'secret.csv',
+        message: 'secret',
+      },
+    });
+    expect(final.properties).toMatchObject(properties);
+    expect(final.properties).not.toHaveProperty('quantity');
+    expect(JSON.stringify(final)).not.toMatch(/secret|assetCode|fileName|message/);
+  }
+});

@@ -1185,10 +1185,14 @@ describe('포트폴리오 분석 이벤트', () => {
     vi.stubGlobal(
       'IntersectionObserver',
       class {
+        callback: IntersectionObserverCallback;
         constructor(callback: IntersectionObserverCallback) {
-          intersect = callback;
+          this.callback = callback;
         }
-        observe = observe;
+        observe = (element: HTMLElement) => {
+          observe(element);
+          if (element.matches('.portfolio-analysis-layout')) intersect = this.callback;
+        };
         disconnect() {}
       },
     );
@@ -1231,4 +1235,89 @@ describe('포트폴리오 분석 이벤트', () => {
       expect.objectContaining({ scope: 'asset', source_count: 1 }),
     );
   });
+});
+
+it('분석 CTA는 실제 노출 후 한 번만 기록하고 단순 복원은 완료로 세지 않는다', async () => {
+  const callbacks = new Map<Element, IntersectionObserverCallback>();
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      callback: IntersectionObserverCallback;
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+      }
+      observe(element: Element) {
+        callbacks.set(element, this.callback);
+      }
+      disconnect() {}
+    },
+  );
+  memberFetch(() => saved());
+  const view = render(<PortfolioAnalysis assets={assets} pricingStatus="MIXED_DATES" />);
+  const button = await view.findByRole('button', { name: '새 소식 확인' });
+  await waitFor(() => expect(callbacks.has(button)).toBe(true));
+  expect(trackEvent).not.toHaveBeenCalled();
+  const notify = (ratio: number) =>
+    act(() =>
+      callbacks.get(button)!(
+        [{ isIntersecting: ratio > 0, intersectionRatio: ratio } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      ),
+    );
+  notify(0.1);
+  expect(trackEvent).not.toHaveBeenCalled();
+  notify(0.6);
+  notify(1);
+  expect(
+    vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_cta_viewed'),
+  ).toHaveLength(1);
+  expect(trackEvent).toHaveBeenCalledWith(
+    'portfolio_analysis_cta_viewed',
+    expect.objectContaining({ action: 'refresh', enabled: true, pricing_status: 'MIXED_DATES' }),
+  );
+  expect(
+    vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_completed'),
+  ).toHaveLength(0);
+});
+
+it('PROCESSING과 요약 대기는 완료로 세지 않고 폴링 최종 상태만 한 번 기록한다', async () => {
+  let started = false,
+    polls = 0;
+  memberFetch((_url, init) => {
+    if (init?.method === 'POST') {
+      started = true;
+      return saved({ status: 'PROCESSING', analysis: null, summaryStatus: 'PENDING' });
+    }
+    if (!started) return saved({ status: 'EMPTY', analysis: null });
+    polls += 1;
+    return saved({ summaryStatus: polls === 1 ? 'PENDING' : 'READY' });
+  });
+  const view = render(<PortfolioAnalysis assets={assets} />);
+  fireEvent.click(await view.findByRole('button', { name: 'AI 분석하기' }));
+  await waitFor(() =>
+    expect(trackEvent).toHaveBeenCalledWith(
+      'portfolio_analysis_result',
+      expect.objectContaining({ status: 'PROCESSING' }),
+    ),
+  );
+  expect(
+    vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_completed'),
+  ).toHaveLength(0);
+  await waitFor(
+    () =>
+      expect(trackEvent).toHaveBeenCalledWith(
+        'portfolio_analysis_completed',
+        expect.objectContaining({
+          status: 'READY',
+          summary_status: 'READY',
+          action: 'analyze',
+          duration_ms: expect.any(Number),
+        }),
+      ),
+    { timeout: 3500 },
+  );
+  fireEvent.click((await view.findByText('삼성전자')).closest('button')!);
+  expect(
+    vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_completed'),
+  ).toHaveLength(1);
 });

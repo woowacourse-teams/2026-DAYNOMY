@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { trackEvent } from '../../../analytics';
+import { trackPortfolioEvent } from '../analytics';
 import { ApiError } from '../../../api/client';
 import {
   getGuestPortfolioAnalysis,
@@ -39,12 +40,43 @@ export function usePortfolioAnalysis(
     () => !isLoggedIn && hasGuestPortfolioAnalysisTrialBeenUsed(),
   );
   const active = useRef<AbortController | null>(null);
+  const pendingMeasurement = useRef<{
+    startedAt: number;
+    action: 'analyze' | 'refresh';
+    user_type: 'member' | 'guest';
+    asset_count: number;
+  } | null>(null);
+  const completeMeasurement = useCallback(
+    (
+      status:
+        | Exclude<SavedPortfolioAnalysisResponse['status'], 'PROCESSING'>
+        | 'ERROR'
+        | 'CONFLICT'
+        | 'TRIAL_EXHAUSTED'
+        | 'REFRESH_LIMIT_EXCEEDED',
+      summaryStatus?: string,
+    ) => {
+      const attempt = pendingMeasurement.current;
+      if (!attempt || (status === 'READY' && summaryStatus === 'PENDING')) return;
+      pendingMeasurement.current = null;
+      const { startedAt, ...properties } = attempt;
+      trackPortfolioEvent('portfolio_analysis_completed', {
+        ...properties,
+        status,
+        summary_status: summaryStatus,
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+    },
+    [],
+  );
   const snapshotKey = createPortfolioSnapshotKey(assets);
   const processing = (isLoggedIn ? saved?.status : guest?.status) === 'PROCESSING';
   const summaryStatus = isLoggedIn ? saved?.summaryStatus : guest?.summaryStatus;
 
   const acceptGuest = useCallback(
     (response: GuestPortfolioAnalysisTaskResponse) => {
+      if (response.status !== 'PROCESSING')
+        completeMeasurement(response.status, response.summaryStatus ?? undefined);
       setGuest(response);
       setLoaded(true);
       if (response.analysis && matchesGuestPortfolioAnalysisHoldings(holdingsKey)) {
@@ -65,11 +97,13 @@ export function usePortfolioAnalysis(
         response.status === 'FAILED' && response.retryAllowed ? '분석을 완료하지 못했어요.' : null,
       );
     },
-    [holdingsKey],
+    [holdingsKey, completeMeasurement],
   );
 
   const accept = useCallback(
     (response: SavedPortfolioAnalysisResponse) => {
+      if (response.status !== 'PROCESSING')
+        completeMeasurement(response.status, response.summaryStatus ?? undefined);
       setSaved(response);
       setAnalysis(response.analysis);
       setLoaded(true);
@@ -86,7 +120,7 @@ export function usePortfolioAnalysis(
           : null,
       );
     },
-    [snapshotKey],
+    [snapshotKey, completeMeasurement],
   );
 
   const restore = useCallback(
@@ -135,6 +169,7 @@ export function usePortfolioAnalysis(
     return () => {
       active.current?.abort();
       active.current = null;
+      pendingMeasurement.current = null;
     };
   }, [isLoggedIn, snapshotKey, restore, holdingsKey]);
 
@@ -172,9 +207,17 @@ export function usePortfolioAnalysis(
       action: isLoggedIn && analysis && !portfolioChanged ? 'refresh' : 'analyze',
       user_type: isLoggedIn ? 'member' : 'guest',
       asset_count: assets.length,
-    };
+    } as const;
+    pendingMeasurement.current = { ...properties, startedAt };
     const recordResult = (status: string, outcome?: string | null) => {
       if (controller.signal.aborted) return;
+      if (
+        status === 'ERROR' ||
+        status === 'CONFLICT' ||
+        status === 'TRIAL_EXHAUSTED' ||
+        status === 'REFRESH_LIMIT_EXCEEDED'
+      )
+        completeMeasurement(status);
       trackEvent('portfolio_analysis_result', {
         ...properties,
         status,
