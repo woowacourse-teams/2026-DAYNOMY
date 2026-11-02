@@ -5,7 +5,7 @@ const baseURL = 'http://127.0.0.1:4173';
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.e2e.ts',
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 2 : undefined,
   reporter: 'list',
   use: {
     baseURL,
