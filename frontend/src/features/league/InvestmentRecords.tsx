@@ -72,6 +72,7 @@ const InvestmentRecordCard = memo(function InvestmentRecordCard({
   editingReviewId,
   editFields,
   blocked,
+  reviewPage,
   onOpenReason,
   onOpenReview,
 }: {
@@ -81,6 +82,7 @@ const InvestmentRecordCard = memo(function InvestmentRecordCard({
   editingReviewId: number | null;
   editFields: ReactNode;
   blocked: boolean;
+  reviewPage: boolean;
   onOpenReason: (record: InvestmentDecisionRecord, trigger: HTMLButtonElement) => void;
   onOpenReview: (
     record: InvestmentDecisionRecord,
@@ -88,12 +90,84 @@ const InvestmentRecordCard = memo(function InvestmentRecordCard({
     trigger: HTMLButtonElement,
   ) => void;
 }) {
+  const criteria =
+    r.expectedHoldingPeriod ||
+    r.expectedChange ||
+    r.invalidationCondition ||
+    r.maximumAcceptableLossRate !== null ? (
+      <dl>
+        {r.expectedHoldingPeriod ? (
+          <div>
+            <dt>예상 보유 기간</dt>
+            <dd>{holdingPeriodLabels[r.expectedHoldingPeriod]}</dd>
+          </div>
+        ) : null}
+        {r.expectedChange ? (
+          <div>
+            <dt>기대 변화</dt>
+            <dd>{r.expectedChange}</dd>
+          </div>
+        ) : null}
+        {r.invalidationCondition ? (
+          <div>
+            <dt>재확인 조건</dt>
+            <dd>{r.invalidationCondition}</dd>
+          </div>
+        ) : null}
+        {r.maximumAcceptableLossRate !== null ? (
+          <div>
+            <dt>허용 하락률</dt>
+            <dd>{r.maximumAcceptableLossRate}%</dd>
+          </div>
+        ) : null}
+      </dl>
+    ) : null;
+  const newReviewAction = (
+    <button
+      className={reviewPage ? 'shared-primary-button' : 'shared-text-action'}
+      type="button"
+      aria-label={`${r.assetName} ${r.tradedOn} ${transactionLabels[r.transactionType]} 복기 작성`}
+      hidden={reviewId === r.id && !editingReason && (reviewPage || editingReviewId === null)}
+      aria-expanded={reviewId === r.id && !editingReason && editingReviewId === null}
+      disabled={blocked}
+      onClick={(event) => onOpenReview(r, null, event.currentTarget)}
+    >
+      복기 작성
+    </button>
+  );
   return (
-    <article className="shared-decision">
-      <h3>{r.assetName}</h3>
-      <small>
-        {r.tradedOn} · {transactionLabels[r.transactionType]}
-      </small>
+    <article className={`shared-decision${reviewPage ? ' review-page-record' : ''}`}>
+      {reviewPage ? (
+        <header className="review-page-record-header">
+          <div>
+            <h3>{r.assetName}</h3>
+            <small>
+              {r.tradedOn} · {transactionLabels[r.transactionType]}
+            </small>
+          </div>
+          <div className="review-page-record-actions">
+            <span className="review-page-record-state">
+              {reviewId === r.id
+                ? editingReason
+                  ? '판단 수정 중'
+                  : editingReviewId === null
+                    ? '복기 작성 중'
+                    : '복기 수정 중'
+                : r.reviews.length
+                  ? `복기 ${r.reviews.length}건`
+                  : '복기 대기'}
+            </span>
+            {newReviewAction}
+          </div>
+        </header>
+      ) : (
+        <>
+          <h3>{r.assetName}</h3>
+          <small>
+            {r.tradedOn} · {transactionLabels[r.transactionType]}
+          </small>
+        </>
+      )}
       <div className="shared-record-body">
         <div className="shared-record-reason">
           <div className="shared-record-heading">
@@ -110,43 +184,27 @@ const InvestmentRecordCard = memo(function InvestmentRecordCard({
             </button>
           </div>
           {reviewId === r.id && editingReason ? editFields : <p>{r.reason}</p>}
-          {r.expectedHoldingPeriod ||
-          r.expectedChange ||
-          r.invalidationCondition ||
-          r.maximumAcceptableLossRate !== null ? (
-            <dl>
-              {r.expectedHoldingPeriod ? (
-                <div>
-                  <dt>예상 보유 기간</dt>
-                  <dd>{holdingPeriodLabels[r.expectedHoldingPeriod]}</dd>
-                </div>
-              ) : null}
-              {r.expectedChange ? (
-                <div>
-                  <dt>기대 변화</dt>
-                  <dd>{r.expectedChange}</dd>
-                </div>
-              ) : null}
-              {r.invalidationCondition ? (
-                <div>
-                  <dt>재확인 조건</dt>
-                  <dd>{r.invalidationCondition}</dd>
-                </div>
-              ) : null}
-              {r.maximumAcceptableLossRate !== null ? (
-                <div>
-                  <dt>허용 하락률</dt>
-                  <dd>{r.maximumAcceptableLossRate}%</dd>
-                </div>
-              ) : null}
-            </dl>
-          ) : null}
+          {reviewPage && criteria ? (
+            <details className="review-page-criteria">
+              <summary>판단 기준 보기</summary>
+              {criteria}
+            </details>
+          ) : (
+            criteria
+          )}
         </div>
         <div className="shared-record-reviews">
           {r.reviews.length === 0 && reviewId !== r.id ? (
-            <p className="shared-review-empty">
-              아직 복기가 없어요. 보유 후 달라진 생각을 남겨보세요.
-            </p>
+            reviewPage ? (
+              <div className="review-page-empty">
+                <strong>그때의 판단, 지금은 어떤가요?</strong>
+                <p>실제 결과와 달라진 생각을 남겨보세요. 관련 기사와 AI 질문이 작성을 도와줘요.</p>
+              </div>
+            ) : (
+              <p className="shared-review-empty">
+                아직 복기가 없어요. 보유 후 달라진 생각을 남겨보세요.
+              </p>
+            )
           ) : null}
           {r.reviews.map((item) => (
             <div className="shared-review" key={item.id}>
@@ -186,19 +244,7 @@ const InvestmentRecordCard = memo(function InvestmentRecordCard({
               )}
             </div>
           ))}
-          <div className="shared-holding-actions">
-            <button
-              className="shared-text-action"
-              type="button"
-              aria-label={`${r.assetName} ${r.tradedOn} ${transactionLabels[r.transactionType]} 복기 작성`}
-              hidden={reviewId === r.id && !editingReason && editingReviewId === null}
-              aria-expanded={reviewId === r.id && !editingReason && editingReviewId === null}
-              disabled={blocked}
-              onClick={(event) => onOpenReview(r, null, event.currentTarget)}
-            >
-              복기 작성
-            </button>
-          </div>
+          {!reviewPage ? <div className="shared-holding-actions">{newReviewAction}</div> : null}
 
           {reviewId === r.id && !editingReason && editingReviewId === null ? editFields : null}
         </div>
@@ -226,6 +272,8 @@ export function InvestmentRecords({
   editorOnly?: boolean;
   autoGuide?: boolean;
 }) {
+  const reviewPage = surface === 'reviews' && !editorOnly;
+  const compactGuide = editorOnly || reviewPage;
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
   const [editingReason, setEditingReason] = useState(false);
   const [reason, setReason] = useState('');
@@ -243,6 +291,7 @@ export function InvestmentRecords({
   const errorId = useId();
   const guideId = useId();
   const editForm = useRef<HTMLFormElement>(null);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
   const errorNotice = useRef<HTMLParagraphElement>(null);
   const editTrigger = useRef<HTMLButtonElement | null>(null);
   useEffect(() => () => guideAbort.current?.abort(), [reviewId]);
@@ -343,6 +392,11 @@ export function InvestmentRecords({
     records,
     requestGuide,
   ]);
+  useEffect(() => {
+    if (!reviewPage || reviewId === null || editingReason) return;
+    reviewHeading.current?.focus({ preventScroll: true });
+    if (window.innerWidth <= 760) reviewHeading.current?.scrollIntoView?.({ block: 'start' });
+  }, [reviewPage, reviewId, editingReason, editingReviewId]);
   useEffect(() => {
     if (reviewId === null && !busy) {
       editTrigger.current?.focus();
@@ -478,7 +532,7 @@ export function InvestmentRecords({
     const activeGuide = guide?.transactionId === r.id ? guide : null;
     const guideEvidence = activeGuide ? (
       <div className="shared-review-evidence">
-        {!editorOnly ? <strong>확인한 기사</strong> : null}
+        {!compactGuide ? <strong>확인한 기사</strong> : null}
         <ol>
           {activeGuide.evidence.map((item) => (
             <li key={item.id} id={`${guideId}-review-evidence-${item.id}`}>
@@ -499,7 +553,7 @@ export function InvestmentRecords({
         {activeGuide.basis.weekStart} 주 · {activeGuide.basis.asOfDate} 종가 기준 · 포트폴리오 전체
         주간 수익률 {activeGuide.basis.portfolioWeeklyReturnRate}%
       </p>
-    ) : !editorOnly ? (
+    ) : !compactGuide ? (
       <p>확정된 주간 성과가 없습니다.</p>
     ) : null;
     const guidePanel =
@@ -514,7 +568,7 @@ export function InvestmentRecords({
           ) : null}
           {activeGuide ? (
             <>
-              {!editorOnly ? <strong>기사 근거와 AI 복기 질문</strong> : null}
+              {!compactGuide ? <strong>기사 근거와 AI 복기 질문</strong> : null}
               {activeGuide.retrievalStatus === 'NO_EVIDENCE' ? (
                 <>
                   <p>
@@ -523,8 +577,8 @@ export function InvestmentRecords({
                   </p>
                   {guideBasis}
                 </>
-              ) : editorOnly ? (
-                <details className="review-coach-evidence">
+              ) : compactGuide ? (
+                <details className={editorOnly ? 'review-coach-evidence' : 'review-page-evidence'}>
                   <summary>
                     <span>AI가 찾은 참고 기사 · {activeGuide.evidence.length}개</span>
                     <span className="review-coach-resource-preview">
@@ -541,7 +595,11 @@ export function InvestmentRecords({
                 </>
               )}
               {!autoGuide ? (
-                <button type="button" onClick={() => setGuide(null)}>
+                <button
+                  className={reviewPage ? 'shared-text-action' : undefined}
+                  type="button"
+                  onClick={() => setGuide(null)}
+                >
                   질문 닫기
                 </button>
               ) : null}
@@ -549,7 +607,7 @@ export function InvestmentRecords({
           ) : (
             <>
               <p className={editorOnly ? 'review-coach-ai-notice' : undefined}>
-                {editorOnly
+                {compactGuide
                   ? '보유 이유·기대 내용과 기사 일부를 외부 AI에 보내 참고 질문을 만들어요.'
                   : '보유 이유와 기대 내용, 검색된 DAYNOMY 기사 일부를 외부 AI 처리 서비스에 보내 근거가 연결된 복기 질문을 만듭니다. 복기 내용은 직접 작성해 주세요.'}
               </p>
@@ -586,6 +644,17 @@ export function InvestmentRecords({
           onSubmit={(event) => void (editingReason ? saveReason(event) : saveReview(event))}
         >
           <div className={editorOnly ? 'review-coach-scroll' : undefined}>
+            {reviewPage && !editingReason ? (
+              <>
+                <div className="review-page-compose-heading">
+                  <h4 ref={reviewHeading} tabIndex={-1}>
+                    {editingReviewId === null ? '나의 복기' : '복기 수정'}
+                  </h4>
+                  <span>{Object.values(review).filter((value) => value.trim()).length}/3 작성</span>
+                </div>
+                {guidePanel}
+              </>
+            ) : null}
             {editorOnly ? (
               <>
                 <details className="review-coach-context">
@@ -668,8 +737,8 @@ export function InvestmentRecords({
                           .join(' ') || undefined
                       }
                       maxLength={500}
-                      rows={editorOnly ? 2 : 3}
-                      autoFocus={!editorOnly}
+                      rows={compactGuide ? 2 : 3}
+                      autoFocus={!editorOnly && !reviewPage}
                       value={review.actualResult}
                       placeholder="예: 매출은 늘었지만 주가는 기대보다 적게 올랐어요."
                       onChange={(event) =>
@@ -700,7 +769,7 @@ export function InvestmentRecords({
                           .join(' ') || undefined
                       }
                       maxLength={500}
-                      rows={editorOnly ? 2 : 3}
+                      rows={compactGuide ? 2 : 3}
                       value={review.differenceFromExpectation}
                       placeholder="예: 비용 증가의 영향이 컸어요."
                       onChange={(event) =>
@@ -729,7 +798,7 @@ export function InvestmentRecords({
                           .join(' ') || undefined
                       }
                       maxLength={500}
-                      rows={editorOnly ? 2 : 3}
+                      rows={compactGuide ? 2 : 3}
                       value={review.nextAction}
                       placeholder="예: 다음 실적에서 비용이 줄어드는지 확인해요."
                       onChange={(event) => setReview({ ...review, nextAction: event.target.value })}
@@ -738,9 +807,13 @@ export function InvestmentRecords({
                 </>
               )}
             </fieldset>
-            {!editorOnly ? guidePanel : null}
+            {!compactGuide ? guidePanel : null}
           </div>
-          <div className={editorOnly ? 'review-coach-footer' : undefined}>
+          <div
+            className={
+              editorOnly ? 'review-coach-footer' : reviewPage ? 'review-page-footer' : undefined
+            }
+          >
             {!editingReason ? (
               <p className="shared-privacy-note">
                 {editorOnly
@@ -797,6 +870,7 @@ export function InvestmentRecords({
         editingReviewId={editingReviewId}
         editFields={editFields}
         blocked={disabled || busy || reviewId !== null}
+        reviewPage={reviewPage}
         onOpenReason={openReason}
         onOpenReview={openReview}
       />

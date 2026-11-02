@@ -82,7 +82,7 @@ function fillDecision(view: ReturnType<typeof render>) {
 }
 
 describe('종목별 기록과 바로 작성하는 복기', () => {
-  it.each(['decisions'] as const)(
+  it.each(['decisions', 'reviews'] as const)(
     '%s 화면에서 요청 후에만 AI 질문을 보이고 초안을 자동 변경하지 않는다',
     async (surface) => {
       vi.mocked(api.getInvestmentDecisions).mockResolvedValue([saved]);
@@ -126,6 +126,10 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
         }),
       );
       expect(api.getReviewGuide).not.toHaveBeenCalled();
+      if (surface === 'reviews') {
+        expect(document.activeElement).toBe(view.getByRole('heading', { name: '나의 복기' }));
+        expect(view.getByText('0/3 작성')).toBeTruthy();
+      }
       fireEvent.change(view.getByLabelText('실제 결과'), { target: { value: '내 초안' } });
       fireEvent.click(view.getByRole('button', { name: '근거 찾아 복기하기' }));
       expect(await view.findByText('무엇을 확인했나요?')).toBeTruthy();
@@ -134,6 +138,20 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
         'http://localhost:3000/news/12',
       );
       expect(view.getByText(/포트폴리오 전체 주간 수익률 1.25%/)).toBeTruthy();
+      if (surface === 'reviews') {
+        const evidence = view.getByText('AI가 찾은 참고 기사 · 1개').closest('details')!;
+        expect(evidence.open).toBe(false);
+        const form = view.getByLabelText('실제 결과').closest('form')!;
+        expect(
+          form
+            .querySelector('.shared-review-guide')!
+            .compareDocumentPosition(form.querySelector('fieldset')!) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        fireEvent.click(view.getByRole('link', { name: '근거 1 보기' }));
+        expect(evidence.open).toBe(true);
+        expect(view.getByText('1/3 작성')).toBeTruthy();
+      }
       expect(view.getByLabelText('실제 결과')).toHaveProperty('value', '내 초안');
       expect(api.getReviewGuide).toHaveBeenCalledWith(1, expect.any(AbortSignal));
       expect(trackEvent).toHaveBeenCalledWith(
@@ -614,10 +632,14 @@ describe('종목별 기록과 바로 작성하는 복기', () => {
         <InvestmentReviewsPage />
       </MemoryRouter>,
     );
-    expect(await view.findByText('0%')).toBeTruthy();
+    const criteria = (await view.findByText('판단 기준 보기')).closest('details')!;
+    expect(criteria.open).toBe(false);
+    fireEvent.click(criteria.querySelector('summary')!);
+    expect(criteria.open).toBe(true);
+    expect(within(criteria).getByText('0%')).toBeTruthy();
     expect(view.queryByText('예상 보유 기간')).toBeNull();
     expect(view.queryByText('미작성')).toBeNull();
-    expect(view.container.querySelector('details')).toBeNull();
+    expect(view.container.querySelectorAll('details')).toHaveLength(1);
   });
 });
 
