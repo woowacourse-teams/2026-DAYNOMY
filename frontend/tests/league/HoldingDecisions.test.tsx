@@ -26,6 +26,8 @@ const holding = {
   quantity: 2,
   averagePurchasePrice: 70000,
   hidden: false,
+  pendingReason: false,
+  sourceManaged: false,
   reason: '',
   baseDate: null,
   closePrice: null,
@@ -80,6 +82,47 @@ function fillDecision(view: ReturnType<typeof render>) {
 }
 
 describe('종목별 기록과 바로 작성하는 복기', () => {
+  it('원본에 연결된 종목은 원본에서 관리하고 리그에서만 삭제하지 않는다', async () => {
+    const view = renderRecords([{ ...holding, sourceManaged: true }]);
+    expect(await view.findByRole('link', { name: '삼성전자 원본에서 관리' })).toHaveProperty(
+      'pathname',
+      '/portfolio',
+    );
+    expect(view.queryByRole('button', { name: '삼성전자 리그에서 삭제' })).toBeNull();
+  });
+  it('보유 이유 없는 비공개 종목도 통합 수익률에 포함하고 공개 전환만 막는다', async () => {
+    const view = renderRecords([{ ...holding, hidden: true, pendingReason: true, reason: '' }]);
+    expect(await view.findByText(/주식 · .* · 비공개/)).toBeTruthy();
+    expect(view.queryByText('보유 이유 미작성')).toBeNull();
+    expect(view.queryByText(/집계 제외/)).toBeNull();
+    expect(view.getByRole('button', { name: '삼성전자 공개하기' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+  });
+  it('미국 종가와 원화 평가액을 각각의 통화로 표시한다', async () => {
+    const us = {
+      ...holding,
+      assetCode: 'AAPL.US',
+      market: 'NASDAQ' as const,
+      currency: 'USD' as const,
+      baseDate: '2026-10-27',
+      closePrice: 100,
+      evaluationAmount: 260000,
+    };
+    const view = render(
+      <HoldingDecisions
+        holdings={[us]}
+        portfolioBusy={false}
+        publicationStatus="공개 후보"
+        onVisibilityChange={vi.fn()}
+        onRemove={vi.fn().mockResolvedValue(true)}
+        onRecordsChange={vi.fn()}
+        refreshKey={0}
+      />,
+    );
+    expect(await view.findByText(/2026-10-27 종가 \$100 · 평가액 260,000원/)).toBeTruthy();
+  });
   it.each(['decisions', 'reviews'] as const)(
     '%s 화면에서 이유 수정 초안을 보존하고 기존 기록과 복기를 유지한다',
     async (surface) => {
@@ -490,7 +533,7 @@ it('복기 오류는 첫 미작성 항목으로 이동하고 취소 후 원래 �
   expect(view.getByLabelText('실제 결과').hasAttribute('aria-invalid')).toBe(false);
   expect(api.createReview).not.toHaveBeenCalled();
   fireEvent.click(view.getByRole('button', { name: '취소' }));
-  expect(document.activeElement).toBe(trigger);
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
 });
 
 it('복기 조회 실패를 빈 기록과 구분하고 재시도 후 첫 기록 작성으로 안내한다', async () => {
