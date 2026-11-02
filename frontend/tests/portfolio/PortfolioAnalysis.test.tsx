@@ -155,6 +155,13 @@ describe('포트폴리오 분석 화면', () => {
     ).toBe(true);
     expect(view.queryByRole('alert')).toBeNull();
     expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
+    expect(trackEvent).toHaveBeenCalledWith(
+      'portfolio_analysis_completed',
+      expect.objectContaining({ status: 'REFRESH_LIMIT_EXCEEDED' }),
+    );
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_completed'),
+    ).toHaveLength(1);
   });
 
   it('한국 시간 자정이 되면 조회만으로 확인 버튼을 다시 활성화한다', async () => {
@@ -1320,4 +1327,44 @@ it('PROCESSING과 요약 대기는 완료로 세지 않고 폴링 최종 상태�
   expect(
     vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_completed'),
   ).toHaveLength(1);
+});
+
+it('갱신 횟수를 소진한 CTA 노출은 실행 가능한 분석의 분모에서 제외한다', async () => {
+  const callbacks = new Map<Element, IntersectionObserverCallback>();
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      callback: IntersectionObserverCallback;
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+      }
+      observe(element: Element) {
+        callbacks.set(element, this.callback);
+      }
+      disconnect() {}
+    },
+  );
+  memberFetch(() =>
+    saved({
+      remainingRefreshCount: 0,
+      refreshResetAt: new Date(Date.now() + 86_400_000).toISOString(),
+    }),
+  );
+  const view = render(<PortfolioAnalysis assets={assets} />);
+  const button = await view.findByRole('button', { name: '오늘 확인 완료' });
+  await waitFor(() => expect(callbacks.has(button)).toBe(true));
+  act(() =>
+    callbacks.get(button)!(
+      [{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    ),
+  );
+  expect(trackEvent).toHaveBeenCalledWith(
+    'portfolio_analysis_cta_viewed',
+    expect.objectContaining({
+      action: 'refresh',
+      enabled: false,
+      reason: 'refresh_limit_exceeded',
+    }),
+  );
 });
